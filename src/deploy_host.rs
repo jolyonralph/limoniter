@@ -169,7 +169,12 @@ impl Limoniter {
         };
         let doc = &self.docs[self.active];
         let key = file_key(doc);
-        let name = self.sends.last.iter().find(|(file, known, _)| *file == key && *known == chosen.name).map_or_else(|| doc.name(), |(_, _, name)| name.clone());
+        // A listing goes as its program, under the program's name.
+        let default_name = || match &doc.listing_of {
+            Some((machine, stem)) => format!("{stem}.{}", machine.ending()),
+            None => doc.name(),
+        };
+        let name = self.sends.last.iter().find(|(file, known, _)| *file == key && *known == chosen.name).map_or_else(default_name, |(_, _, name)| name.clone());
         let ask_password = wants_password(&self.sends, chosen);
         self.dialog = Dialog::Send(Box::new(SendBox { doc_id: doc.id, device, name, password: String::new(), remember: true, ask_password, problem: String::new(), focus: true }));
     }
@@ -271,6 +276,12 @@ impl Limoniter {
                 Some(path) if !doc.is_modified() => Ok(Payload::File(path.clone())),
                 _ => Err(Some("This file is too large to send from memory. Save it first, and it's sent from disk as it's saved.".into())),
             };
+        }
+        // A BASIC listing goes as the program it lists, tokenised as Save as program would.
+        if let Some((machine, stem)) = doc.listing_of.clone().filter(|_| !doc.hex_mode) {
+            return super::file_tools::tokenised(&doc.text.all_lines(), machine, &stem, None)
+                .map(|(bytes, ..)| Payload::Bytes(Arc::new(bytes)))
+                .map_err(|problem| Some(format!("This listing couldn't be tokenised, so nothing was sent.\n\n{problem}")));
         }
         let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) else {
             return self.bytes_for(index).map(|bytes| Payload::Bytes(Arc::new(bytes))).ok_or(None);
@@ -459,6 +470,7 @@ impl Limoniter {
             self.close_dialog();
             return true;
         };
+        let listing_kind = self.docs.iter().find(|doc| doc.id == state.doc_id).and_then(|doc| doc.listing_of.as_ref().filter(|_| !doc.hex_mode)).map(|(machine, _)| machine.kind());
         let card_missing = match &device.place {
             Place::Card { label, .. } => self.sends.card_present(label) == Some(false),
             _ => false,
@@ -471,7 +483,9 @@ impl Limoniter {
         let name_problem = deploy::name_problem(&state.name);
         egui::Window::new(format!("Send to {}", device.name)).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(RichText::new(device.place.describe()).color(theme::text_faint()));
-            if let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) {
+            if let Some(kind) = listing_kind {
+                ui.label(RichText::new(format!("Sent as a {kind}, tokenised from this listing")).color(theme::text_faint()));
+            } else if let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) {
                 ui.label(RichText::new(format!("Written as {}", preset.name)).color(theme::text_faint()));
             }
             if card_missing {
@@ -830,3 +844,4 @@ fn password_row(ui: &mut Ui, place: &Place, password: &mut String, keep: &mut bo
 #[cfg(test)]
 #[path = "deploy_host_tests.rs"]
 mod tests;
+

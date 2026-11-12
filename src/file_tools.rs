@@ -300,6 +300,17 @@ fn shell_open(path: &Path) -> Result<(), String> {
     crate::platform::open_with_default(path)
 }
 
+/// A listing tokenised as the file a machine loads: its bytes, its file ending, and what it is in words.
+pub(super) fn tokenised<S: AsRef<str>>(lines: &[S], machine: basic::Machine, stem: &str, run_from: Option<u16>) -> Result<(Vec<u8>, &'static str, &'static str), String> {
+    let bytes = match machine {
+        basic::Machine::Spectrum => basic::tokenise_spectrum(lines, basic::ZxDialect::Spectrum).map(|program| basic::spectrum_tape(&program, stem, run_from)),
+        basic::Machine::Next => basic::tokenise_spectrum(lines, basic::ZxDialect::Next).map(|program| basic::plus3dos_file(&program, run_from)),
+        basic::Machine::Commodore(cbm) => basic::tokenise_commodore(lines, cbm),
+        basic::Machine::Bbc => crate::basic_more::tokenise_bbc(lines),
+    }?;
+    Ok((bytes, machine.ending(), machine.kind()))
+}
+
 impl Limoniter {
     // ---------- Files handed over by a second Limoniter ----------
 
@@ -539,6 +550,7 @@ impl Limoniter {
         };
         let mut listed = Document::untitled(format!("{stem} listing"), &PRESETS[0]);
         listed.text.set_content(listing.lines.clone());
+        listed.listing_of = basic::machine_of(listing.dialect, &extension, &bytes).map(|machine| (machine, stem.clone()));
         if let Some((_, syntax)) = grammar.and_then(|grammar| highlight::engine().and_then(|engine| engine.names().iter().find(|(name, _)| name == grammar))) {
             listed.set_language(Language::Named(*syntax));
         }
@@ -557,12 +569,7 @@ impl Limoniter {
         let doc = &self.docs[self.active];
         let lines = doc.text.all_lines();
         let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| doc.name().replace(" listing", ""), |s| s.to_string_lossy().replace(" listing", ""));
-        let made = match machine {
-            basic::Machine::Spectrum => basic::tokenise_spectrum(&lines, basic::ZxDialect::Spectrum).map(|program| (basic::spectrum_tape(&program, &stem, run_from), "tap", "Spectrum tape")),
-            basic::Machine::Next => basic::tokenise_spectrum(&lines, basic::ZxDialect::Next).map(|program| (basic::plus3dos_file(&program, run_from), "bas", "Spectrum Next program")),
-            basic::Machine::Commodore(cbm) => basic::tokenise_commodore(&lines, cbm).map(|program| (program, "prg", "Commodore program")),
-            basic::Machine::Bbc => crate::basic_more::tokenise_bbc(&lines).map(|program| (program, "bbc", "BBC BASIC program")),
-        };
+        let made = tokenised(&lines, machine, &stem, run_from);
         let (bytes, extension, kind) = match made {
             Ok(made) => made,
             Err(problem) => return self.message("Tokenise BASIC", format!("The program couldn't be tokenised, so nothing was saved.\n\n{problem}")),

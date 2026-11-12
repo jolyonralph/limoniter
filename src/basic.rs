@@ -1415,6 +1415,24 @@ pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
     }
 }
 
+/// The machine a listing can be tokenised back for, from what it was listed as and the file it came from: a
+/// Commodore program says which machine by where it loads. None when that isn't clear, such as a 48K Spectrum
+/// program from a +3DOS file, which could go back as a tape or a +3DOS file.
+pub fn machine_of(dialect: &str, extension: &str, bytes: &[u8]) -> Option<Machine> {
+    if dialect == ZxDialect::Next.name() {
+        return Some(Machine::Next);
+    }
+    if dialect == ZxDialect::Spectrum.name() {
+        return matches!(extension, "tap" | "tzx").then_some(Machine::Spectrum);
+    }
+    if dialect == "BBC BASIC" {
+        return Some(Machine::Bbc);
+    }
+    // A .p00 file has its own header before the load address.
+    let load = if extension == "p00" { bytes.get(26..28) } else { bytes.get(0..2) }.map(|b| u16::from_le_bytes([b[0], b[1]]))?;
+    CbmMachine::ALL.into_iter().find(|machine| machine.dialect() == dialect && machine.load_address() == load).map(Machine::Commodore)
+}
+
 /// Which machine a listing is tokenised for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Machine {
@@ -1425,6 +1443,28 @@ pub enum Machine {
     Commodore(CbmMachine),
     /// A BBC Micro or Master, saved as SAVE writes a program.
     Bbc,
+}
+
+impl Machine {
+    /// The file ending of the program it loads.
+    pub fn ending(self) -> &'static str {
+        match self {
+            Machine::Spectrum => "tap",
+            Machine::Next => "bas",
+            Machine::Commodore(_) => "prg",
+            Machine::Bbc => "bbc",
+        }
+    }
+
+    /// What its program is, in words.
+    pub fn kind(self) -> &'static str {
+        match self {
+            Machine::Spectrum => "Spectrum tape",
+            Machine::Next => "Spectrum Next program",
+            Machine::Commodore(_) => "Commodore program",
+            Machine::Bbc => "BBC BASIC program",
+        }
+    }
 }
 
 #[cfg(test)]

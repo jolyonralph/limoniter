@@ -107,3 +107,43 @@ fn a_file_waits_for_the_next_to_fetch_it() {
     assert!(app.send_status().unwrap().0.contains("waiting for .sync"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_basic_listing_is_sent_as_the_program_it_lists() {
+    let dir = scratch("listing");
+    let file = dir.join("stars.bas");
+    let program = crate::basic::tokenise_spectrum(&["  10 BORDER 1: LAYER 2,1", "  20 PRINT \"hi\""], crate::basic::ZxDialect::Next).unwrap();
+    std::fs::write(&file, crate::basic::plus3dos_file(&program, None)).unwrap();
+    let (mut app, ctx) = app_with("");
+    app.sends.devices = vec![folder_device("Card", &dir.join("card"), Some("commodore"))];
+    assert!(app.open_path(&file));
+    app.open_basic_listing();
+    assert_eq!(app.docs[app.active].listing_of, Some((crate::basic::Machine::Next, "stars".to_string())));
+    // Edited, and sent: it goes as the program, under the program's name, whatever the device does to text.
+    app.doc().text.set_line_keeping_cursor(1, vec!["  20 PRINT \"changed\"".into()]);
+    app.open_send_box(0);
+    let Dialog::Send(state) = &app.dialog else { panic!("the send box is open") };
+    assert_eq!(state.name, "stars.bas");
+    let name = state.name.clone();
+    app.close_dialog();
+    app.begin_send(app.active, app.sends.devices[0].clone(), name);
+    settle(&mut app, &ctx);
+    let sent = std::fs::read(dir.join("card").join("stars.bas")).unwrap();
+    let edited = crate::basic::tokenise_spectrum(&["  10 BORDER 1: LAYER 2,1", "  20 PRINT \"changed\""], crate::basic::ZxDialect::Next).unwrap();
+    assert_eq!(sent, crate::basic::plus3dos_file(&edited, None));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_listing_knows_its_machine_only_when_that_is_clear() {
+    use crate::basic::{CbmMachine, Machine, machine_of};
+    let next = crate::basic::ZxDialect::Next.name();
+    let spectrum = crate::basic::ZxDialect::Spectrum.name();
+    assert_eq!(machine_of(next, "bas", &[]), Some(Machine::Next));
+    assert_eq!(machine_of(spectrum, "tap", &[]), Some(Machine::Spectrum));
+    assert_eq!(machine_of(spectrum, "bas", &[]), None, "a 48K program in a +3DOS file could go back either way");
+    assert_eq!(machine_of("Commodore BASIC 2.0", "prg", &[0x01, 0x08]), Some(Machine::Commodore(CbmMachine::C64)));
+    assert_eq!(machine_of("Commodore BASIC 2.0", "prg", &[0x01, 0x10]), Some(Machine::Commodore(CbmMachine::Vic20)));
+    assert_eq!(machine_of("Commodore BASIC 7.0", "prg", &[0x01, 0x1C]), Some(Machine::Commodore(CbmMachine::C128)));
+    assert_eq!(machine_of("Atari BASIC", "bas", &[]), None);
+}

@@ -541,6 +541,9 @@ struct Document {
     remote: Option<remote_host::RemoteLink>,
     /// Just saved, and to be sent back to its server.
     upload_wanted: bool,
+    /// A BASIC listing, with the machine it goes back to as a program and the program's name: sending it sends
+    /// the program, tokenised.
+    listing_of: Option<(basic::Machine, String)>,
     /// When autosave first saw it with unsaved changes.
     unsaved_since: Option<std::time::Instant>,
     /// Why autosave is leaving it for the person to save, if it is.
@@ -641,6 +644,7 @@ impl Document {
             saving: None,
             remote: None,
             upload_wanted: false,
+            listing_of: None,
             unsaved_since: None,
             autosave_skipped: None,
             backed_up: None,
