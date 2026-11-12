@@ -1,0 +1,51 @@
+%YAML 1.2
+---
+# Prolog as the ISO standard (ISO/IEC 13211-1) and Edinburgh Prolog have it: % and /* */ comments, 'atoms' and
+# "strings", variables that start with a capital or _, the neck :- and the common built-in predicates.
+name: Prolog
+file_extensions: ["pro", "prolog", "plg"]
+scope: source.prolog
+contexts:
+  main:
+    - match: '%.*$'
+      scope: comment.line.prolog
+    - match: '/\*'
+      push: comment_1
+    - match: '"'
+      push: string_0
+    - match: ''''
+      push: string_1
+    - match: '^[a-z]\w*(?=\s*(?:\(|:-))'
+      scope: entity.name.function.prolog
+    - match: '\b(?:[A-Z]\w*|_\w*)'
+      scope: variable.other.prolog
+    - match: ':-|\?-|-->'
+      scope: keyword.control.prolog
+    - match: '(?<![A-Za-z0-9_])(?:findall|forall|repeat|bagof|catch|false|setof|throw|call|fail|halt|once|true|mod|not|rem|is)(?![A-Za-z0-9_])'
+      scope: keyword.control.prolog
+    - match: '(?<![A-Za-z0-9_])(?:number_codes|atom_length|atom_chars|atom_codes|char_code|copy_term|callable|compound|sub_atom|abolish|asserta|assertz|between|consult|functor|integer|is_list|keysort|retract|reverse|writeln|append|assert|atomic|format|length|member|nonvar|number|float|msort|print|write|atom|nth0|nth1|plus|read|sort|succ|arg|var|nl)(?![A-Za-z0-9_])'
+      scope: support.function.prolog
+    - match: '(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|0''.'
+      scope: constant.numeric.prolog
+    - match: '\\\+|=\.\.|==|\\==|=:=|=\\=|=<|>=|@<|@>|[!;,|=<>+\-*/]'
+      scope: keyword.operator.prolog
+  comment_1:
+    - meta_scope: comment.block.prolog
+    - match: '\*/'
+      pop: true
+  string_0:
+    - meta_scope: string.quoted.prolog
+    - match: '\\.|""'
+      scope: constant.character.escape.prolog
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.prolog
+    - match: '\\.|'''''
+      scope: constant.character.escape.prolog
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

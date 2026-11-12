@@ -1,0 +1,23 @@
+%YAML 1.2
+---
+# MS-DOS's and PC DOS's CONFIG.SYS: REM and ; comments, the directives before their = (DEVICE, FILES, BUFFERS,
+# DOS and the rest), the [menu] blocks of MS-DOS 6 and the device driver paths after them.
+name: CONFIG.SYS (DOS)
+file_extensions: ["config.sys", "CONFIG.SYS", "sys"]
+scope: source.configsys
+contexts:
+  main:
+    - match: '(?i)^\s*(?:rem\b|;).*$'
+      scope: comment.line.configsys
+    - match: '^\s*\[[^\]]*\]'
+      scope: entity.name.section.configsys
+    - match: '(?i)^\s*(device|devicehigh|install|installhigh|shell)(\s*=\s*)(\S+)'
+      captures:
+        1: keyword.control.configsys
+        3: string.unquoted.configsys
+    - match: '(?i)^\s*(files|buffers|dos|stacks|lastdrive|country|break|fcbs|drivparm|numlock|switches|set|include|menuitem|menudefault|menucolor|submenu|multitrack|lh|loadhigh|verify|cpu|dosdata)(?=\s*=|\s)'
+      scope: keyword.control.configsys
+    - match: '(?i)(?<![A-Za-z0-9_])(?:noauto|noumb|auto|high|low|off|umb|on)(?![A-Za-z0-9_])'
+      scope: constant.language.configsys
+    - match: '(?<![\w.])\d+(?![\w.])'
+      scope: constant.numeric.configsys

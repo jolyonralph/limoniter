@@ -1,0 +1,40 @@
+%YAML 1.2
+---
+# Microsoft's BASICs for the PC: GW-BASIC and BASICA with their line numbers, and QBasic and QuickBASIC with labels,
+# SUB and FUNCTION, types and AS. ' and REM comments, $ % ! # & type suffixes, &H and &O numbers, and the
+# statements and functions of QuickBASIC 4.5.
+name: BASIC (QBasic, QuickBASIC and GW-BASIC)
+file_extensions: ["bi", "bm", "qb", "qbs", "gwbas"]
+scope: source.basic.qbasic
+contexts:
+  main:
+    - match: '''.*$'
+      scope: comment.line.basic.qbasic
+    - match: '(?i)(?<![\w$])rem(?![\w$]).*$'
+      scope: comment.line.basic.qbasic
+    - match: '"'
+      push: string_0
+    - match: '^\s*\d+'
+      scope: constant.numeric.line-number.basic.qbasic
+    - match: '(?i)\b(sub|function|def\s+fn)\s+([A-Za-z_][\w.]*[$%!#&]?)'
+      captures:
+        1: keyword.declaration.basic.qbasic
+        2: entity.name.function.basic.qbasic
+    - match: '^\s*[A-Za-z_][\w.]*:(?!=)'
+      scope: entity.name.label.basic.qbasic
+    - match: '(?i)&h[0-9a-f]+&?|&o?[0-7]+&?'
+      scope: constant.numeric.basic.qbasic
+    - match: '(?i)(?<![\w$%!#&.])(?:randomize|function|declare|palette|restore|circle|common|elseif|locate|lprint|option|preset|resume|return|screen|select|shared|static|system|unlock|window|bload|bsave|chain|chdir|clear|close|color|const|erase|error|field|files|gosub|input|mkdir|paint|pcopy|print|redim|rmdir|shell|sound|timer|until|using|while|width|write|base|beep|call|case|data|draw|else|exit|goto|kill|line|lock|loop|lset|name|next|open|play|poke|pset|read|rset|seek|step|stop|swap|then|type|view|wend|cls|def|dim|end|for|get|key|let|out|put|run|sub|as|do|fn|if|is|on|to)(?![\w$%!#&.])'
+      scope: keyword.control.basic.qbasic
+    - match: '(?i)(?<![\w$%!#&.])(?:integer|double|single|string|long|any)(?![\w$%!#&.])'
+      scope: storage.type.basic.qbasic
+    - match: '(?i)(?<![\w$%!#&.])(?:environ\$|freefile|string\$|csrlin|inkey\$|input\$|lbound|lcase\$|ltrim\$|right\$|rtrim\$|space\$|ubound|ucase\$|varptr|varseg|date\$|instr|left\$|point|stick|strig|time\$|cdbl|chr\$|cint|clng|csng|hex\$|mid\$|mkd\$|mki\$|mkl\$|mks\$|oct\$|peek|pmap|str\$|abs|asc|atn|cos|cvd|cvi|cvl|cvs|eof|erl|err|exp|fix|fre|inp|int|len|loc|lof|log|pos|rnd|sgn|sin|spc|sqr|tab|tan|val)(?![\w$%!#&.])'
+      scope: support.function.basic.qbasic
+    - match: '(?<![\w.$])\d+(?:\.\d+)?(?:[eEdD][+-]?\d+)?[%!#&]?'
+      scope: constant.numeric.basic.qbasic
+  string_0:
+    - meta_scope: string.quoted.basic.qbasic
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

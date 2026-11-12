@@ -1,0 +1,87 @@
+%YAML 1.2
+---
+# Written for Limoniter from the layout of IBM z/OS Job Control Language: // statements with a name, an
+# operation and operands, //* comments, in-stream data after DD * or DD DATA up to the next // or /*, and
+# JES2 control statements. Anything after the operands and a blank is a remark. DLM= delimiters aren't
+# followed: in-stream data ends at the next // or /* line.
+name: JCL
+file_extensions: [jcl, jcls, job, cntl]
+first_line_match: '^//[A-Za-z@#$][A-Za-z0-9@#$]{0,7}\s+JOB(?:\s|$)'
+scope: source.jcl
+variables:
+  name: '[A-Za-z@#$][A-Za-z0-9@#$]{0,7}(?:\.[A-Za-z@#$][A-Za-z0-9@#$]{0,7})?'
+  operation: (?:JOB|EXEC|DD|PROC|PEND|SET|IF|THEN|ELSE|ENDIF|INCLUDE|JCLLIB|OUTPUT|CNTL|ENDCNTL|EXPORT|XMIT|COMMAND|SCHEDULE)
+contexts:
+  main:
+    - match: '^//\*.*'
+      scope: comment.line.jcl
+    - match: '^(/\*)(JOBPARM|ROUTE|OUTPUT|MESSAGE|NETACCT|NOTIFY|PRIORITY|SETUP|SIGNOFF|SIGNON|XEQ|XMIT)(?=\s|$)'
+      captures:
+        1: punctuation.definition.statement.jcl
+        2: keyword.other.jes.jcl
+      push: operands_start
+    - match: '^/\*.*'
+      scope: punctuation.definition.delimiter.jcl
+    # DD * and DD DATA start in-stream data on the next line.
+    - match: '^(//)({{name}})?(\s+)(DD)(\s+)(\*|DATA)(?=[\s,]|$)'
+      captures:
+        1: punctuation.definition.statement.jcl
+        2: entity.name.label.jcl
+        4: keyword.control.jcl
+        6: constant.language.jcl
+      push: [instream, operands]
+    - match: '^(//)({{name}})?(\s+)({{operation}})(?=\s|$)'
+      captures:
+        1: punctuation.definition.statement.jcl
+        2: entity.name.label.jcl
+        4: keyword.control.jcl
+      push: operands_start
+    - match: '^(//)({{name}})'
+      captures:
+        1: punctuation.definition.statement.jcl
+        2: entity.name.label.jcl
+      push: operands_start
+    # A continuation: // and blanks, then more operands.
+    - match: '^//(?=\s)'
+      scope: punctuation.definition.statement.jcl
+      push: operands_start
+  operands_start:
+    - match: '\n'
+      pop: true
+    - match: '[ \t]+'
+      set: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - match: ''''
+      push: string
+    - match: '&&?[A-Za-z@#$][A-Za-z0-9@#$]*\.?'
+      scope: variable.other.symbol.jcl
+    - match: '([A-Za-z][A-Za-z0-9]*)(=)'
+      captures:
+        1: variable.parameter.jcl
+        2: keyword.operator.assignment.jcl
+    - match: '(?<![A-Za-z0-9@#$])(?:SHR|OLD|NEW|MOD|CATLG|UNCATLG|DELETE|KEEP|PASS|DUMMY|TRK|CYL|RLSE|CONTIG|FB|FBA|VB|VBA|PO|PS|LIBRARY|HOLD|YES|NO|ONLY|EVEN|NULLFILE)(?![A-Za-z0-9@#$])'
+      scope: constant.language.jcl
+    - match: '(?<![A-Za-z0-9@#$])\d+(?![A-Za-z0-9@#$])'
+      scope: constant.numeric.jcl
+    - match: '[(),.]'
+      scope: punctuation.separator.jcl
+    # The operands end at the first blank; what's after it is a remark.
+    - match: '[ \t]+(?=\S)'
+      set: remark
+  remark:
+    - meta_scope: comment.line.remark.jcl
+    - match: '\n'
+      pop: true
+  string:
+    - meta_scope: string.quoted.single.jcl
+    - match: ''''''
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  instream:
+    - meta_content_scope: string.unquoted.instream.jcl
+    - match: '^(?=//|/\*)'
+      pop: true

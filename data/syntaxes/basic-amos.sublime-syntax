@@ -1,0 +1,35 @@
+%YAML 1.2
+---
+# AMOS and AMOS Professional, the Amiga's games BASIC, as listings saved as text: ' and Rem comments, Procedure and
+# End Proc, and its screen, bob, sprite, AMAL and sound commands, many of them two words long.
+name: BASIC (AMOS)
+file_extensions: ["amos", "amosasc"]
+scope: source.basic.amos
+contexts:
+  main:
+    - match: '''.*$'
+      scope: comment.line.basic.amos
+    - match: '(?i)(?<!\w)rem(?!\w).*$'
+      scope: comment.line.basic.amos
+    - match: '"'
+      push: string_0
+    - match: '(?i)\b(procedure)\s+([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.basic.amos
+        2: entity.name.function.basic.amos
+    - match: '(?i)\b(?:end proc|end if|wait vbl|wait key|screen open|screen close|screen display|screen offset|screen to front|double buffer|paste bob|get bob|bob off|sprite off|load iff|save iff|get palette|set rainbow|rainbow del|amal on|amal off|channel to|track loop on|track play|sam play|key state|mouse key|x mouse|y mouse|hide on|show on|curs off|flash off|set text|text style|set font|get fonts)\b'
+      scope: keyword.control.basic.amos
+    - match: '^\s*[A-Za-z_]\w*:'
+      scope: entity.name.label.basic.amos
+    - match: '(?i)(?<![\w$#])(?:procedure|global|repeat|return|shared|break|endif|every|gosub|input|param|print|until|while|else|exit|goto|loop|next|proc|step|then|wend|dim|end|for|let|off|pop|do|if|on|to)(?![\w$#])'
+      scope: keyword.control.basic.amos
+    - match: '(?i)(?<![\w$#])(?:randomize|scancode|ellipse|palette|polygon|reserve|string\$|synchro|centre|circle|colour|inkey\$|jright|length|locate|lower\$|right\$|screen|space\$|sprite|upper\$|volume|amreg|bload|bsave|erase|instr|jdown|jleft|left\$|music|paint|paper|shoot|start|tempo|timer|voice|amal|anim|bell|boom|chr\$|draw|fire|home|mid\$|play|plot|str\$|text|wait|zone|abs|asc|bar|bob|box|cls|cos|ink|int|joy|jup|len|pen|rnd|sam|sgn|sin|sqr|tan|val)(?![\w$#])'
+      scope: support.function.basic.amos
+    - match: '(?<![\w.$#])(?:\$[0-9A-Fa-f]+|%[01]+|\d+(?:\.\d+)?)'
+      scope: constant.numeric.basic.amos
+  string_0:
+    - meta_scope: string.quoted.basic.amos
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

@@ -1,0 +1,44 @@
+%YAML 1.2
+---
+# Written for Limoniter from the REXX language as IBM's mainframes (TSO and CMS), OS/2 and Regina have it, and
+# the Amiga's ARexx: its keyword instructions, built-in functions, nested /* */ comments, strings with doubled
+# quotes, hex and binary strings ('FF'x, '0101'b) and labels. ARexx's own instructions and functions are in too.
+name: REXX
+file_extensions: [rexx, rex, rx, arexx, exec, orx]
+first_line_match: '(?i)^\s*/\*.*\brexx\b|^#!.*\b(?:rexx|regina|rexxj)\b'
+scope: source.rexx
+variables:
+  instructions: (?:address|arg|break|call|do|drop|echo|else|end|exit|if|interpret|iterate|leave|nop|numeric|options|otherwise|parse|procedure|pull|push|queue|return|say|select|shell|signal|then|trace|upper|when)
+  subkeywords: (?:expose|value|with|var|source|version|linein|external|to|by|for|forever|while|until|on|off|name|error|halt|novalue|syntax|failure|notready|lostdigits|digits|form|fuzz|engineering|scientific|results|prompt|command|caseless|lower)
+  functions: (?:abbrev|abs|addlib|address|arg|b2c|b2x|bitand|bitor|bitxor|c2b|c2d|c2x|center|centre|changestr|charin|charout|chars|close|compare|compress|condition|copies|countstr|d2c|d2x|datatype|date|delay|delstr|delword|digits|eof|errortext|exists|export|find|form|format|freespace|fuzz|getclip|getspace|hash|import|index|insert|lastpos|left|length|linein|lineout|lines|max|min|open|overlay|pos|pragma|qualify|queued|random|randu|readch|readln|remlib|reverse|right|seek|setclip|show|sign|sourceline|space|storage|stream|strip|substr|subword|symbol|time|trace|translate|trim|trunc|upper|value|verify|word|wordindex|wordlength|wordpos|words|writech|writeln|x2b|x2c|x2d|xrange)
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*([A-Za-z_!?@#$.][\w!?@#$.]*)\s*(:)(?!=)'
+      captures:
+        1: entity.name.function.rexx
+        2: punctuation.separator.label.rexx
+    - match: '''(?:[^'']|'''')*''[xXbB]?(?![\w.])'
+      scope: string.quoted.single.rexx
+    - match: '"(?:[^"]|"")*"[xXbB]?(?![\w.])'
+      scope: string.quoted.double.rexx
+    - match: '(?i)(?<![\w.!?@#$])(?:{{instructions}})(?![\w.!?@#$])'
+      scope: keyword.control.rexx
+    - match: '(?i)(?<![\w.!?@#$])(?:{{subkeywords}})(?![\w.!?@#$])'
+      scope: keyword.other.rexx
+    - match: '(?i)(?<![\w.!?@#$])(?:{{functions}})(?=\()'
+      scope: support.function.rexx
+    - match: '(?<![\w.!?@#$])\d+(?:\.\d*)?(?:[eE][+-]?\d+)?(?![\w!?@#$])|(?<![\w.!?@#$])\.\d+'
+      scope: constant.numeric.rexx
+    - match: '\|\||//|%|\*\*|[\\¬]?(?:==|=|<<=|>>=|<<|>>|<=|>=|<>|><|<|>)|[+\-*/&|\\¬]'
+      scope: keyword.operator.rexx
+  comment:
+    - match: '/\*'
+      push: inside_comment
+  # REXX comments nest, so a comment can be put round code that has comments in it.
+  inside_comment:
+    - meta_scope: comment.block.rexx
+    - match: '/\*'
+      push: inside_comment
+    - match: '\*/'
+      pop: true

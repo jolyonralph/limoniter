@@ -1,0 +1,58 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Acorn ARM2 and ARM3 instruction sets, as RISC OS and the Archimedes use them, with
+# every condition code and the S, B, T and multiple-transfer suffixes, the BBC BASIC assembler's EQU and OPT
+# directives, objasm's, and GNU as's.
+name: Assembly ARM (ARM2 and ARM3)
+file_extensions: [arm, arm2, arm3, armasm, s_arm]
+scope: source.assembly.arm
+variables:
+  branch: (?:b(?:l)?(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?|swi(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?)
+  instruction: (?:(?:adc|add|and|bic|eor|mov|mvn|orr|rsb|rsc|sbc|sub)(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?s?|(?:cmn|cmp|teq|tst)(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?p?|(?:mla|mul)(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?s?|(?:ldr|str)(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?b?t?|(?:ldm|stm)(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?(?:ia|ib|da|db|fd|ed|fa|ea)|swp(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?b?|(?:cdp|ldc|stc|mcr|mrc)(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?l?|adr(?:eq|ne|cs|cc|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv|hs|lo)?l?|nop)
+  directive: (?:\.include|\.global|include|\.align|\.ascii|\.asciz|\.endif|\.globl|\.ltorg|\.macro|\.short|\.space|export|extern|global|import|\.byte|\.data|\.endm|\.long|\.skip|\.text|\.word|align|endif|entry|ltorg|macro|mexit|space|\.bss|\.equ|\.set|area|dcfd|dcfs|else|equb|equd|equs|equw|fill|mend|\.if|dcb|dcd|dcs|dcw|end|equ|get|opt|cn|cp|fn|if|rn)
+  edge_before: '(?<![\w$])'
+  edge_after: '(?![\w$])'
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@$][\w.@$]*:{1,2}'
+      scope: entity.name.label.arm
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.arm
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.arm
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.arm
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.arm
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.arm
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:cpsr|spsr|psr|r10|r11|r12|r13|r14|r15|a1|a2|a3|a4|fp|ip|lr|pc|r0|r1|r2|r3|r4|r5|r6|r7|r8|r9|sl|sp|v1|v2|v3|v4|v5|v6){{edge_after}}'
+      scope: variable.language.register.arm
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.arm
+  comment:
+    - match: ';.*$'
+      scope: comment.line.arm
+    - match: '//.*$'
+      scope: comment.line.arm
+    - match: '@ .*$'
+      scope: comment.line.arm
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.arm
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.arm
+  numbers:
+    - match: '(?i)&[0-9a-f]+|0x[0-9a-f]+|%[01]+|\b\d+\b'
+      scope: constant.numeric.arm

@@ -1,0 +1,51 @@
+%YAML 1.2
+---
+# Written for Limoniter from the DEC PDP-11 instruction set, with the EIS, FIS and FP11 instructions, and the
+# directives of MACRO-11. Numbers are octal unless they end in a full stop, and ^O, ^D, ^B, ^X and ^R say so.
+name: Assembly PDP-11 (MACRO-11)
+file_extensions: [m11, mac11, pdp11, p11]
+scope: source.assembly.pdp11
+variables:
+  branch: (?:bhis|blos|mark|trap|bcc|bcs|beq|bge|bgt|bhi|ble|blo|blt|bmi|bne|bpl|bpt|bvc|bvs|emt|iot|jmp|jsr|rti|rts|rtt|sob|br)
+  instruction: (?:ldcif|ldexp|ldfps|reset|stcfi|stexp|stfps|absf|adcb|addf|ashc|aslb|asrb|bicb|bisb|bitb|cfcc|clrb|clrf|cmpb|cmpf|comb|decb|divf|fadd|fdiv|fmul|fsub|halt|incb|mfpd|mfpi|mfps|modf|movb|mtpd|mtpi|mtps|mulf|negb|negf|rolb|rorb|sbcb|setd|setf|seti|setl|stst|subf|swab|tstb|tstf|wait|adc|add|ash|asl|asr|bic|bis|bit|ccc|clc|cln|clr|clv|clz|cmp|com|csm|dec|div|inc|ldf|mov|mul|neg|nop|rol|ror|sbc|scc|sec|sen|sev|sez|spl|stf|sub|sxt|tst|xor)
+  directive: (?:\.include|\.library|\.nocross|\.packed|\.ascii|\.asciz|\.asect|\.cross|\.csect|\.dsabl|\.enabl|\.error|\.globl|\.ident|\.limit|\.macro|\.mcall|\.mexit|\.nlist|\.ntype|\.print|\.psect|\.rad50|\.radix|\.sbttl|\.title|\.blkb|\.blkw|\.byte|\.endc|\.endm|\.even|\.flt2|\.flt4|\.iftf|\.irpc|\.list|\.narg|\.nchr|\.page|\.rept|\.weak|\.word|\.end|\.iff|\.ift|\.iif|\.irp|\.odd|\.if)
+  edge_before: '(?<![\w.$])'
+  edge_after: '(?![\w.$])'
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.$][\w.$]*:{1,2}'
+      scope: entity.name.label.pdp11
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.pdp11
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.pdp11
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.pdp11
+      push: operands
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.pdp11
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:ac0|ac1|ac2|ac3|ac4|ac5|%0|%1|%2|%3|%4|%5|%6|%7|pc|r0|r1|r2|r3|r4|r5|r6|r7|sp){{edge_after}}'
+      scope: variable.language.register.pdp11
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.pdp11
+  comment:
+    - match: ';.*$'
+      scope: comment.line.pdp11
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.pdp11
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.pdp11
+  numbers:
+    - match: '(?i)\^[odbx][0-9a-f]+|\^r[a-z0-9$. ]{1,3}|(?<![\w.$])\d+\.(?![\d\w])|(?<![\w.$])\d+(?![\w.])'
+      scope: constant.numeric.pdp11

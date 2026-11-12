@@ -1,0 +1,44 @@
+%YAML 1.2
+---
+# IBM's RPG III and RPG IV (ILE RPG), fixed form and free form: a comment line has * in column 7, or //; column 6
+# holds the specification type (H, F, D, I, C, O, P); and the operation codes, declarations, %built-in functions,
+# *figurative constants and *INxx indicators are coloured wherever they are.
+name: RPG (IBM i)
+file_extensions: ["rpg", "rpgle", "sqlrpgle", "rpg38", "rpgile", "rpgleinc"]
+scope: source.rpg
+contexts:
+  main:
+    - match: '^.{5}[*].*$|^.{6}\*.*$|//.*$'
+      scope: comment.line.rpg
+    - match: ''''
+      push: string_0
+    - match: '^(.{5})([HFDICOPEL])(?=.)'
+      captures:
+        1: comment.line.sequence.rpg
+        2: keyword.other.specification.rpg
+    - match: '^\s*\*\*\s*free\b.*$'
+      scope: keyword.other.directive.rpg
+    - match: '(?i)%[a-z]+(?=\s*\(|\b)'
+      scope: support.function.rpg
+    - match: '(?i)\*in(?:\d\d|lr|rt|h\d|l\d|[a-z]{2})\b'
+      scope: variable.language.rpg
+    - match: '(?i)\*(?:on|off|blanks?|zeros?|hival|loval|null|omit|all|nopass|varsize|start|end|entry|inzsr|pssr|date|time|iso|usa|eur|jis)\b'
+      scope: constant.language.rpg
+    - match: '(?i)\b(dcl-proc|begsr)\s+([A-Za-z_][\w#@$]*)'
+      captures:
+        1: keyword.declaration.rpg
+        2: entity.name.function.rpg
+    - match: '(?i)(?<![A-Za-z0-9_])(?:dcl\-parm|dcl\-proc|dcl\-subf|end\-proc|on\-error|ctl\-opt|monitor|dcl\-ds|dcl\-pi|dcl\-pr|delete|elseif|end\-ds|end\-pi|end\-pr|endfor|endmon|lookup|readpe|return|select|update|begsr|cabeq|callb|callp|chain|clear|close|dcl\-c|dcl\-f|dcl\-s|dsply|endcs|enddo|endif|endsl|endsr|evalr|exfmt|klist|leave|movel|other|plist|reade|readp|reset|setgt|setll|sorta|write|xfoot|z\-add|z\-sub|call|comp|else|eval|exec|exsr|goto|iter|kfld|move|mult|open|parm|read|when|add|cas|div|dou|dow|for|mvr|sql|sub|tag|if)(?![A-Za-z0-9_])'
+      scope: keyword.control.rpg
+    - match: '(?i)(?<![A-Za-z0-9_])(?:qualified|timestamp|template|extproc|likerec|options|pointer|varchar|bindec|export|extpgm|import|likeds|packed|static|based|const|float|value|zoned|char|date|like|time|dim|ind|int|inz|uns)(?![A-Za-z0-9_])'
+      scope: storage.type.rpg
+    - match: '(?<![\w.])\d+(?:\.\d+)?'
+      scope: constant.numeric.rpg
+  string_0:
+    - meta_scope: string.quoted.rpg
+    - match: ''''''
+      scope: constant.character.escape.rpg
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

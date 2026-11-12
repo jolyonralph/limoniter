@@ -1,0 +1,41 @@
+%YAML 1.2
+---
+# Amiga Installer scripts, the Lisp-like language of Commodore's Installer: ; comments, "strings" with \ escapes,
+# (statements) and their (parameters), and the Installer's variables, such as @default-dest.
+name: Amiga Installer
+file_extensions: ["installer", "install", "Install"]
+scope: source.installer
+contexts:
+  main:
+    - match: ';.*$'
+      scope: comment.line.installer
+    - match: '"'
+      push: string_0
+    - match: ''''
+      push: string_1
+    - match: '@[\w-]+'
+      scope: variable.language.installer
+    - match: '(?<=\()\s*(procedure)\s+([\w-]+)'
+      captures:
+        1: keyword.declaration.installer
+        2: entity.name.function.installer
+    - match: '(?i)(?<=\()\s*(?:closewbobject|getdiskspace|openwbobject|showwbobject|askoptions|closemedia|expandpath|getversion|makeassign|transcript|askchoice|asknumber|askstring|copyfiles|getassign|getdevice|procedure|showmedia|symbolset|symbolval|complete|database|fileonly|iconinfo|pathonly|patmatch|setmedia|textfile|tooltype|askbool|askfile|copylib|earlier|execute|foreach|getsize|makedir|message|onerror|protect|retrace|startup|welcome|working|askdir|delete|effect|exists|getenv|getsum|rename|select|strlen|substr|tackon|abort|debug|trace|until|while|exit|rexx|trap|user|cat|run|set|if)(?![\w-])'
+      scope: keyword.control.installer
+    - match: '(?i)(?<=\()\s*(?:setdefaulttool|settooltype|noposition|swapcolors|optional|override|resident|setstack|assigns|choices|command|confirm|default|delopts|include|newname|nogauge|pattern|append|noicon|prompt|source|files|fonts|infos|range|dest|disk|help|safe|all)(?![\w-])'
+      scope: support.function.installer
+    - match: '(?<![\w.$])(?:\$[0-9A-Fa-f]+|%[01]+|-?\d+)'
+      scope: constant.numeric.installer
+  string_0:
+    - meta_scope: string.quoted.installer
+    - match: '\\.'
+      scope: constant.character.escape.installer
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.installer
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

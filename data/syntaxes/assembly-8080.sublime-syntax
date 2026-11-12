@@ -1,0 +1,53 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Intel 8080 and 8085 instruction sets (Intel mnemonics, not Z80 ones), with the
+# directives of Intel's ASM and MAC and Microsoft's M80.
+name: Assembly 8080
+file_extensions: ["8080", "8085", i80, asm8080, asm8085]
+scope: source.assembly.8080
+variables:
+  branch: (?:call|pchl|cnc|cnz|cpe|cpo|hlt|jmp|jnc|jnz|jpe|jpo|ret|rnc|rnz|rpe|rpo|rst|cc|cm|cp|cz|jc|jm|jp|jz|rc|rm|rp|rz)
+  instruction: (?:ldax|lhld|push|shld|sphl|stax|xchg|xthl|aci|adc|add|adi|ana|ani|cma|cmc|cmp|cpi|daa|dad|dcr|dcx|inr|inx|lda|lxi|mov|mvi|nop|ora|ori|out|pop|ral|rar|rim|rlc|rrc|sbb|sbi|sim|sta|stc|sub|sui|xra|xri|di|ei|in)
+  directive: (?:public|endif|extrn|local|macro|title|aseg|cseg|dseg|else|endm|irpc|name|page|rept|end|equ|irp|org|set|db|ds|dw|if)
+  edge_before: '(?<![\w.$@])'
+  edge_after: '(?![\w.$@])'
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@$][\w.@$]*:{1,2}'
+      scope: entity.name.label.8080
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.8080
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.8080
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.8080
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.8080
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.8080
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:psw|sp|a|b|c|d|e|h|l|m){{edge_after}}'
+      scope: variable.language.register.8080
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.8080
+  comment:
+    - match: ';.*$'
+      scope: comment.line.8080
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.8080
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.8080
+  numbers:
+    - match: '(?i)(?<![\w.$@])[0-9][0-9a-f]*h(?![\w.])|(?<![\w.$@])[01]+b(?![\w.])|(?<![\w.$@])[0-7]+[oq](?![\w.])|(?<![\w.$@])\d+d?(?![\w.])|\$[0-9a-f]+'
+      scope: constant.numeric.8080

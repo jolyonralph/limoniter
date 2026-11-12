@@ -1,0 +1,45 @@
+%YAML 1.2
+---
+# Inform 6, Graham Nelson's language for interactive fiction (the Z-machine and Glulx): ! comments, "strings" with
+# ^ ~ @ escapes, 'dictionary words', [ routines ], the directives, Object and Class definitions with their with,
+# has and class parts, and the statements.
+name: Inform 6
+file_extensions: ["i6", "inform"]
+scope: source.inform6
+contexts:
+  main:
+    - match: '!.*$'
+      scope: comment.line.inform6
+    - match: '"'
+      push: string_0
+    - match: ''''
+      push: string_1
+    - match: '\[\s*([A-Za-z_]\w*)'
+      captures:
+        1: entity.name.function.inform6
+    - match: '(?i)^\s*(object|class|nearby)\s+(?:->\s*)*([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.inform6
+        2: entity.name.type.inform6
+    - match: '(?i)(?<![A-Za-z0-9_])(?:objectloop|inversion|print_ret|continue|new_line|private|restart|restore|remove|return|rfalse|spaces|switch|break|class|print|rtrue|style|until|while|else|font|give|jump|move|quit|read|save|with|box|for|has|do|if|in|to)(?![A-Za-z0-9_])'
+      scope: keyword.control.inform6
+    - match: '(?i)(?<![A-Za-z0-9_])(?:fake_action|system_file|abbreviate|statusline|zcharacter|attribute|lowstring|constant|property|switches|default|iffalse|include|message|release|replace|extend|global|ifndef|iftrue|import|object|serial|array|class|endif|ifdef|ifnot|trace|link|stub|verb)(?![A-Za-z0-9_])'
+      scope: keyword.other.directive.inform6
+    - match: '(?i)(?<![A-Za-z0-9_])(?:location|nothing|player|second|sender|actor|false|noun|self|true)(?![A-Za-z0-9_])'
+      scope: constant.language.inform6
+    - match: '(?<![\w.])(?:\$\$?[0-9A-Fa-f]+|\d+)'
+      scope: constant.numeric.inform6
+  string_0:
+    - meta_scope: string.quoted.inform6
+    - match: '[\^~]|@@\d+|@\{[0-9A-Fa-f]+\}|@[\w:''`\"^~]{1,2}'
+      scope: constant.character.escape.inform6
+    - match: '"'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.inform6
+    - match: '\^|//\w*'
+      scope: constant.character.escape.inform6
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

@@ -1,0 +1,51 @@
+%YAML 1.2
+---
+# The xBase family, dBase III and IV, Clipper and FoxPro: * comments at the start of a line, && and // after code,
+# NOTE, '' "" and [] strings, the commands and their four-letter abbreviations, and the functions.
+name: xBase (dBase, Clipper, FoxPro)
+file_extensions: ["prg", "ch", "clp", "xbase", "dbs", "fmt", "qpr"]
+scope: source.xbase
+contexts:
+  main:
+    - match: '^\s*(?:\*|(?i:note\b)).*$'
+      scope: comment.line.xbase
+    - match: '&&.*$|//.*$'
+      scope: comment.line.xbase
+    - match: '/\*'
+      push: comment_2
+    - match: '"'
+      push: string_0
+    - match: ''''
+      push: string_1
+    - match: '(?i)\b(procedure|function|proc|func|method|class)\s+([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.xbase
+        2: entity.name.function.xbase
+    - match: '(?i)\.(?:t|f|y|n|and|or|not)\.'
+      scope: constant.language.xbase
+    - match: '(?i)\b[A-Za-z_]\w*(?=\()'
+      scope: support.function.xbase
+    - match: '^\s*#\s*(?:include|define|command|translate|xcommand|xtranslate|ifdef|ifndef|else|endif|undef)\b'
+      scope: keyword.other.preprocessor.xbase
+    - match: '(?i)(?<![A-Za-z0-9_])(?:endsequence|parameters|databases|otherwise|procedure|structure|continue|function|sequence|average|declare|default|display|endcase|endscan|inherit|private|reindex|replace|accept|append|browse|cancel|create|delete|elseif|locate|memvar|method|modify|public|recall|report|return|select|static|begin|blank|class|clear|close|count|enddo|endif|field|index|input|label|local|store|total|while|acce|appe|aver|brow|canc|case|clea|cont|copy|coun|crea|data|decl|dele|disp|edit|else|endc|exit|find|form|from|func|goto|inde|labe|list|loca|loop|modi|next|othe|pack|para|priv|proc|publ|quit|read|reca|repl|repo|retu|scan|seek|sele|skip|sort|stor|stru|tota|wait|with|all|end|for|get|run|say|set|sum|use|zap|do|go|if|on|to)(?![A-Za-z0-9_])'
+      scope: keyword.control.xbase
+    - match: '(?i)(?<![A-Za-z0-9_])(?:nil)(?![A-Za-z0-9_])'
+      scope: constant.language.xbase
+    - match: '(?<![\w.])\d+(?:\.\d+)?(?![\w])'
+      scope: constant.numeric.xbase
+  comment_2:
+    - meta_scope: comment.block.xbase
+    - match: '\*/'
+      pop: true
+  string_0:
+    - meta_scope: string.quoted.xbase
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.xbase
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

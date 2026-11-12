@@ -1,0 +1,23 @@
+%YAML 1.2
+---
+# Rich Text Format as Microsoft's RTF specification (1.9.1) describes it: { } groups, \control words with their
+# numbers, \' hexadecimal characters, \* ignorable destinations and the font, colour and style tables.
+name: RTF
+file_extensions: ["rtf"]
+first_line_match: '^\{\\rtf'
+scope: source.rtf
+contexts:
+  main:
+    - match: '\\''[0-9a-fA-F]{2}'
+      scope: constant.character.escape.rtf
+    - match: '\\\*'
+      scope: keyword.other.rtf
+    - match: '(\\(?:fonttbl|colortbl|stylesheet|info|pict|object|field|fldinst|fldrslt|header|footer|footnote))(?![a-zA-Z])'
+      captures:
+        1: entity.name.section.rtf
+    - match: '\\[a-zA-Z]+-?\d*'
+      scope: keyword.control.rtf
+    - match: '\\[^a-zA-Z]'
+      scope: constant.character.escape.rtf
+    - match: '[{}]'
+      scope: punctuation.section.group.rtf

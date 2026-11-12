@@ -1,0 +1,89 @@
+%YAML 1.2
+---
+# Written for Limoniter from IBM's High Level Assembler language and the System/360 to z/Architecture
+# instruction sets, the common ones rather than every one. The layout is fixed: a name in column 1, then the
+# operation, the operands, and anything after a blank is a remark. A character in column 72 continues the
+# statement, and columns 73 to 80 are the sequence field. Comment lines start with * or, in macros, .*.
+# Operations not listed here are drawn as macro calls, as most of them are (GETMAIN, WTO, DCB...).
+name: Assembly HLASM
+file_extensions: [mlc, hlasm, hlas, bal, asm370, asm390, s390]
+scope: source.assembly.hlasm
+variables:
+  end: '(?=[ \t]|\n)'
+  start: '(?<=[ \t])'
+  directive: (?:CSECT|DSECT|RSECT|COM|START|END|USING|DROP|DC|DS|EQU|ORG|LTORG|CNOP|TITLE|EJECT|SPACE|PRINT|PUSH|POP|COPY|MACRO|MEND|MEXIT|MNOTE|AIF|AIFB|AGO|AGOB|ANOP|SETA|SETB|SETC|SETAF|SETCF|GBLA|GBLB|GBLC|LCLA|LCLB|LCLC|ACTR|AMODE|RMODE|ENTRY|EXTRN|WXTRN|CCW|CCW0|CCW1|DXD|CXD|OPSYN|ICTL|ISEQ|PUNCH|REPRO|AREAD|ALIAS|LOCTR|ADATA|ACONTROL|EXITCTL|CATTR|XATTR|CEJECT|AEJECT|ASPACE)
+  branch: (?:B|BR|BC|BCR|BAL|BALR|BAS|BASR|BASSM|BSM|BCT|BCTR|BCTG|BCTGR|BXH|BXLE|BXHG|BXLEG|BE|BNE|BH|BL|BNH|BNL|BZ|BNZ|BM|BNM|BP|BNP|BO|BNO|BER|BNER|BHR|BLR|BNHR|BNLR|BZR|BNZR|BMR|BPR|BOR|NOP|NOPR|J|JE|JNE|JH|JL|JNH|JNL|JZ|JNZ|JM|JNM|JP|JNP|JO|JNO|JAS|JASL|JCT|JCTG|JLU|JLNOP|BRC|BRCL|BRAS|BRASL|BRCT|BRCTG|BRXH|BRXLE|BRU|BRUL|CIJ|CGIJ|CRJ|CGRJ|CLIJ|CLRJ|CLGRJ|CIB|CRB|EX|EXRL|SVC|PC|PR)
+  instruction: (?:A|AD|ADR|AE|AER|AFI|AG|AGF|AGFR|AGHI|AGR|AH|AHI|AHY|AL|ALC|ALCR|ALFI|ALG|ALGF|ALGFR|ALGR|ALR|ALY|AP|AR|AU|AW|AXR|AY|C|CD|CDR|CE|CER|CFI|CG|CGF|CGFI|CGFR|CGHI|CGR|CH|CHI|CHY|CL|CLC|CLCL|CLCLE|CLFI|CLG|CLGF|CLGFI|CLGR|CLI|CLIY|CLM|CLR|CLST|CLY|CP|CR|CS|CDS|CSG|CVB|CVBG|CVD|CVDG|CY|D|DD|DDR|DE|DER|DL|DLG|DLR|DP|DR|DSG|DSGR|ED|EDMK|EAR|IC|ICM|ICY|IIHF|IIHH|IIHL|IILF|IILH|IILL|IPM|L|LA|LAE|LAM|LARL|LAY|LB|LCDR|LCER|LCGR|LCR|LD|LDR|LE|LER|LG|LGB|LGF|LGFI|LGFR|LGH|LGHI|LGR|LH|LHI|LHR|LHY|LLC|LLGC|LLGF|LLGFR|LLGH|LLGT|LLH|LLIHF|LLIHH|LLIHL|LLILF|LLILH|LLILL|LM|LMG|LMH|LNDR|LNER|LNGR|LNR|LPDR|LPER|LPGR|LPR|LR|LRV|LT|LTDR|LTER|LTG|LTGF|LTGFR|LTGR|LTR|LY|M|MD|MDR|ME|MER|MH|MHI|MHY|ML|MLG|MLGR|MLR|MP|MR|MS|MSFI|MSG|MSGF|MSGFI|MSGFR|MSGR|MSR|MSY|MVC|MVCIN|MVCL|MVCLE|MVCK|MVCP|MVCS|MVHHI|MVHI|MVGHI|MVI|MVIY|MVN|MVO|MVST|MVZ|N|NC|NG|NGR|NI|NIHF|NIHH|NIHL|NILF|NILH|NILL|NIY|NR|NY|O|OC|OG|OGR|OI|OIHF|OIHH|OIHL|OILF|OILH|OILL|OIY|OR|OY|PACK|PKA|PKU|S|SD|SDR|SE|SER|SG|SGF|SGFR|SGR|SH|SHY|SL|SLA|SLAG|SLB|SLBG|SLBGR|SLBR|SLDA|SLDL|SLG|SLGF|SLGFR|SLGR|SLL|SLLG|SLR|SLY|SP|SPM|SR|SRA|SRAG|SRDA|SRDL|SRL|SRLG|SRP|SRST|ST|STAM|STC|STCK|STCKE|STCKF|STCM|STCY|STD|STE|STG|STH|STHY|STM|STMG|STMH|STY|SY|TM|TMH|TMHH|TMHL|TML|TMLH|TMLL|TP|TR|TRE|TROO|TROT|TRT|TRTO|TRTT|TS|UNPK|UNPKA|UNPKU|X|XC|XG|XGR|XI|XIY|XR|XY|ZAP)
+contexts:
+  main:
+    - match: '^\*.*'
+      scope: comment.line.hlasm
+    - match: '^\.\*.*'
+      scope: comment.line.macro.hlasm
+    - match: '^[A-Za-z@#$_&.][A-Za-z0-9@#$_&.]*'
+      scope: entity.name.label.hlasm
+    - match: '(?i){{start}}(?:{{directive}}){{end}}'
+      scope: keyword.control.directive.hlasm
+      push: operands_start
+    - match: '(?i){{start}}(?:{{branch}}){{end}}'
+      scope: keyword.control.branch.hlasm
+      push: operands_start
+    - match: '(?i){{start}}(?:{{instruction}}){{end}}'
+      scope: support.function.instruction.hlasm
+      push: operands_start
+    - match: '{{start}}[A-Za-z@#$&][A-Za-z0-9@#$_&]*{{end}}'
+      scope: variable.function.macro.hlasm
+      push: operands_start
+  operands_start:
+    - match: '\n'
+      pop: true
+    - include: columns
+    - match: '[ \t]+'
+      set: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: columns
+    - match: '(?i)(=?)((?<![A-Za-z0-9@#$_])\d*(?:C[AEU]?|CL\d+|X|XL\d+|B|BL\d+|G|GL\d+))('')'
+      captures:
+        1: keyword.operator.literal.hlasm
+        2: storage.type.constant.hlasm
+      push: string
+    - match: '(?i)(=?)((?<![A-Za-z0-9@#$_])\d*(?:F|FD|FL\d+|H|HL\d+|P|PL\d+|Z|ZL\d+|E|EH|ED|D|DH|DD|L|LH|LD))(''[^''\n]*'')'
+      captures:
+        1: keyword.operator.literal.hlasm
+        2: storage.type.constant.hlasm
+        3: constant.numeric.hlasm
+    - match: '(?i)(=?)((?<![A-Za-z0-9@#$_])\d*(?:AD|AL\d+|A|VD|V|Y|S|Q|J|R|RD))(?=\()'
+      captures:
+        1: keyword.operator.literal.hlasm
+        2: storage.type.address.hlasm
+    - match: '&[A-Za-z@#$_][A-Za-z0-9@#$_]*\.?'
+      scope: variable.other.symbol.hlasm
+    - match: '(?i)(?<![A-Za-z0-9@#$_])R(?:1[0-5]|[0-9])(?![A-Za-z0-9@#$_])'
+      scope: variable.language.register.hlasm
+    - match: '(?<![A-Za-z0-9@#$_])\d+(?![A-Za-z0-9@#$_])'
+      scope: constant.numeric.hlasm
+    - match: '[+\-*/=]'
+      scope: keyword.operator.hlasm
+    # The operands end at the first blank outside quotes; the rest of the statement is a remark.
+    - match: '[ \t]+(?=[^ \t\n])'
+      set: remark
+  remark:
+    - meta_scope: comment.line.remark.hlasm
+    - match: '\n'
+      pop: true
+    - include: columns
+  # Column 72 continues a statement; 73 to 80 number the cards.
+  columns:
+    - match: '(?<=^.{71})[^ \t\n]'
+      scope: punctuation.separator.continuation.hlasm
+    - match: '(?<=^.{72}).+'
+      scope: comment.line.sequence.hlasm
+  string:
+    - meta_scope: string.quoted.single.hlasm
+    - match: '''''|&&'
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

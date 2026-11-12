@@ -1,0 +1,52 @@
+%YAML 1.2
+---
+# PL/I as IBM's Enterprise PL/I and the ANSI X3.53 standard have it: /* */ comments, strings with 'B and 'X
+# suffixes, labels before a colon, the statements, the attributes and the commonest built-in functions.
+name: PL/I
+file_extensions: ["pli", "pl1", "plx", "pli1"]
+scope: source.pli
+contexts:
+  main:
+    - match: '/\*'
+      push: comment_0
+    - match: ''''
+      push: string_0
+    - match: '"'
+      push: string_1
+    - match: '(?i)^\s*([A-Za-z_$#@][\w$#@]*)\s*(:)\s*(proc(?:edure)?|package)\b'
+      captures:
+        1: entity.name.function.pli
+        3: keyword.declaration.pli
+    - match: '^\s*([A-Za-z_$#@][\w$#@]*)\s*(:)(?!=)'
+      captures:
+        1: entity.name.label.pli
+    - match: '^\s*%\w+'
+      scope: keyword.other.preprocessor.pli
+    - match: '(?i)(?<![A-Za-z0-9_])(?:otherwise|procedure|allocate|declare|display|iterate|package|release|rewrite|delete|format|locate|repeat|return|revert|select|signal|alloc|begin|close|entry|fetch|keyto|leave|other|reply|until|while|write|call|data|edit|else|exit|file|free|from|goto|halt|into|line|list|open|page|proc|read|skip|stop|then|wait|when|dcl|end|get|key|put|set|by|do|go|if|on|to)(?![A-Za-z0-9_])'
+      scope: keyword.control.pli
+    - match: '(?i)(?<![A-Za-z0-9_])(?:controlled|nonvarying|automatic|character|condition|dimension|recursive|structure|unaligned|external|internal|varyingz|aligned|builtin|byvalue|complex|decimal|defined|generic|initial|options|ordinal|picture|pointer|returns|varying|binary|byaddr|handle|offset|static|based|fixed|float|label|union|value|area|auto|char|init|like|main|real|type|bin|bit|ctl|dec|def|dim|ext|int|pic|ptr|var)(?![A-Za-z0-9_])'
+      scope: storage.type.pli
+    - match: '(?i)(?<![A-Za-z0-9_])(?:allocation|lowercase|translate|uppercase|datetime|sysnull|center|hbound|lbound|length|onchar|oncode|repeat|search|string|substr|unspec|verify|floor|index|onloc|right|round|trunc|addr|ceil|copy|date|high|left|null|prod|sign|time|trim|abs|dim|hex|low|max|min|mod|sum)(?![A-Za-z0-9_])'
+      scope: support.function.pli
+    - match: '(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?[bBiI]?'
+      scope: constant.numeric.pli
+  comment_0:
+    - meta_scope: comment.block.pli
+    - match: '\*/'
+      pop: true
+  string_0:
+    - meta_scope: string.quoted.pli
+    - match: ''''''
+      scope: constant.character.escape.pli
+    - match: '''(?!'')[BXbx]?'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.pli
+    - match: '""'
+      scope: constant.character.escape.pli
+    - match: '"(?!")'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

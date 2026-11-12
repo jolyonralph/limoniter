@@ -1,0 +1,14 @@
+# What the build makes: about 10 GB, and all of it can be made again from the source.
+/target/
+
+# Working notes, kept on this computer and never uploaded.
+/MECHANICS.md
+/MISSING_FEATURES.md
+/mechanics.json
+
+# The old ribbon, no longer part of the program. It can be deleted.
+/src/ribbon.rs
+
+# Python leaves these behind when the tools run.
+__pycache__/
+*.pyc

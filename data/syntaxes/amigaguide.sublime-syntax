@@ -1,0 +1,29 @@
+%YAML 1.2
+---
+# AmigaGuide hypertext, as the Amiga's AmigaGuide and MultiView read it: @ commands at the start of a line (@DATABASE,
+# @NODE, @ENDNODE and the rest), @{" link " LINK node} buttons, @{b} style commands in the text, and \ escapes.
+name: AmigaGuide
+file_extensions: ["guide", "amigaguide"]
+first_line_match: '(?i)^@database\b'
+scope: source.amigaguide
+contexts:
+  main:
+    - match: '(?i)^(@node)\s+(\S+|\"[^\"]*\")'
+      captures:
+        1: keyword.control.amigaguide
+        2: entity.name.section.amigaguide
+    - match: '(?i)^@(?:remark|rem)\b.*$'
+      scope: comment.line.amigaguide
+    - match: '(?i)^@\w+'
+      scope: keyword.control.amigaguide
+    - match: '(?i)(@\{)(\"[^\"]*\")\s*(link|alink|rx|rxs|system|beep|close|quit)\b([^}]*)(\})'
+      captures:
+        1: punctuation.definition.tag.amigaguide
+        2: string.quoted.amigaguide
+        3: keyword.other.amigaguide
+        4: entity.name.tag.amigaguide
+        5: punctuation.definition.tag.amigaguide
+    - match: '@\{[^}]*\}'
+      scope: keyword.other.amigaguide
+    - match: '\\[\\@]'
+      scope: constant.character.escape.amigaguide

@@ -1,0 +1,59 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Motorola M68000 family instruction set, 68000 to 68060, with the 6888x and
+# on-chip floating point instructions and MMU instructions, and common Devpac, vasm and ASM-One directives.
+name: Assembly 680x0
+file_extensions: [s68, x68, 68k, asm68k, m68k, i68]
+scope: source.assembly.m68k
+variables:
+  size: (?:\.[bwlsdxpBWLSDXP])?
+  conditions: (?:cc|cs|eq|ge|gt|hi|hs|le|lo|ls|lt|mi|ne|pl|vc|vs|t|f)
+  fp_conditions: (?:eq|ne|gt|ge|lt|le|gl|gle|ngle|ngl|nle|nlt|nge|ngt|sf|seq|sneq|st|ogt|oge|olt|ole|ogl|or|un|ueq|ugt|uge|ult|ule|f|t)
+  branch: (?:b{{conditions}}|bra|bsr|db{{conditions}}|dbra|fb{{fp_conditions}}|fdb{{fp_conditions}}|jmp|jsr|rts|rte|rtr|rtd|rtm|trap|trapv|trap{{conditions}}|ftrap{{fp_conditions}}|callm|illegal|stop|bkpt|lpstop)
+  instruction: (?:abcd|adda|addi|addq|addx|add|andi|and|asl|asr|bchg|bclr|bfchg|bfclr|bfexts|bfextu|bfffo|bfins|bfset|bftst|bset|btst|cas2|cas|chk2|chk|clr|cmp2|cmpa|cmpi|cmpm|cmp|divsl|divs|divul|divu|eori|eor|exg|extb|ext|lea|link|lsl|lsr|move16|movea|movec|movem|movep|moveq|moves|move|muls|mulu|nbcd|negx|neg|nop|not|ori|or|pack|pea|reset|rol|ror|roxl|roxr|sbcd|s{{conditions}}|suba|subi|subq|subx|sub|swap|tas|tst|unlk|unpk|cinva|cinvl|cinvp|cpusha|cpushl|cpushp|pflusha|pflushan|pflushn|pflushr|pflushs|pflush|pload[rw]?|plpa[rw]|pmovefd|pmove|prestore|psave|ptest[rw]?|fabs|facos|fadd|fasin|fatanh|fatan|fcmp|fcosh|fcos|fdabs|fdadd|fddiv|fdiv|fdmove|fdmul|fdneg|fdsqrt|fdsub|fetoxm1|fetox|fgetexp|fgetman|fintrz|fint|flog10|flog2|flognp1|flogn|fmod|fmovecr|fmovem|fmove|fmul|fneg|fnop|frem|frestore|fsabs|fsadd|fsave|fscale|fsdiv|fsgldiv|fsglmul|fsincos|fsinh|fsin|fsmove|fsmul|fsneg|fsqrt|fssqrt|fssub|fsub|ftanh|ftan|ftentox|ftst|ftwotox|fs{{fp_conditions}})
+  directive: (?:dcb|dc|ds|blk|rsreset|rsset|rs|equr|equ|reg|set|org|even|odd|cnop|section|code_c|code_f|code_p|code|data_c|data_f|data_p|data|bss_c|bss_f|bss_p|bss|xdef|xref|public|globl|global|incdir|include|incbin|macro|endm|rept|endr|ifnd|ifd|ifeq|ifne|ifgt|ifge|iflt|ifle|ifnc|ifc|if|elseif|else|endc|endif|end|opt|machine|mc680[0-9]0|fpu|ttl|printt|printv|list|nolist|page|near|far|fail|mexit|shift|arch)
+contexts:
+  main:
+    - match: '^\s*\*.*$'
+      scope: comment.line.star.m68k
+    - include: comment
+    - match: '^\s*[A-Za-z_.@][\w.@$]*:{1,2}'
+      scope: entity.name.label.m68k
+    - match: '(?i)(?<![\w.])(?:{{directive}}){{size}}(?![\w.])'
+      scope: keyword.control.directive.m68k
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{branch}}){{size}}(?![\w.])'
+      scope: keyword.control.branch.m68k
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{instruction}}){{size}}(?![\w.])'
+      scope: support.function.instruction.m68k
+      push: operands
+    - match: '^[A-Za-z_.@][\w.@$]*'
+      scope: entity.name.label.m68k
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.m68k
+      push: operands
+    - match: '='
+      scope: keyword.operator.m68k
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i)(?<![\w.$@])(?:d[0-7]|a[0-7]|fp[0-7]|sp|pc|zpc|sr|ccr|usp|vbr|sfc|dfc|cacr|caar|msp|isp|itt[01]|dtt[01]|iacr[01]|dacr[01]|tc|mmusr|psr|urp|srp|crp|tt[01]|fpcr|fpsr|fpiar|bc|ic|nc|dc)(?:{{size}})(?:\*[1248])?(?![\w$@])'
+      scope: variable.language.register.m68k
+    - match: '[#+\-*/&|^~<>=!]'
+      scope: keyword.operator.m68k
+  comment:
+    - match: ';.*$'
+      scope: comment.line.semicolon.m68k
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.m68k
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.m68k
+  numbers:
+    - match: '\$[0-9a-fA-F]+|%[01]+|@[0-7]+|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.m68k

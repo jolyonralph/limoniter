@@ -1,0 +1,66 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Intel 8086/8088 instruction set and its 16-bit and 32-bit successors, the
+# 80186, 80286, 80386, 80486 and Pentium, with the 8087, 80287 and 80387 floating point instructions,
+# and common MASM, TASM, A86 and NASM directives. The 8088 runs the same instructions as the 8086.
+name: Assembly 80x86
+file_extensions: [a86, asm86, "8086", "8088", x86, masm, tasm]
+scope: source.assembly.x86.legacy
+variables:
+  conditions: (?:a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)
+  branch: (?:call|jmp|j{{conditions}}|jcxz|jecxz|loop|loope|loopne|loopnz|loopz|loopd|looped|loopned|ret|retf|retn|int|into|iret|iretd|iretf|hlt)
+  prefix: (?:rep|repe|repne|repnz|repz|lock)
+  instruction: (?:aaa|aad|aam|aas|adc|add|and|cbw|clc|cld|cli|cmc|cmp|cmps|cmpsb|cmpsw|cmpsd|cwd|cwde|cdq|daa|das|dec|div|esc|idiv|imul|in|inc|lahf|lds|lea|les|lfs|lgs|lss|lods|lodsb|lodsw|lodsd|mov|movs|movsb|movsw|movsd|movsx|movzx|mul|neg|nop|not|or|out|pop|popa|popad|popf|popfd|push|pusha|pushad|pushf|pushfd|rcl|rcr|rol|ror|sahf|sal|sar|sbb|scas|scasb|scasw|scasd|shl|shr|shld|shrd|stc|std|sti|stos|stosb|stosw|stosd|sub|test|wait|xchg|xlat|xlatb|xor|bound|enter|ins|insb|insw|insd|leave|outs|outsb|outsw|outsd|arpl|clts|lar|lgdt|lidt|lldt|lmsw|loadall|lsl|ltr|sgdt|sidt|sldt|smsw|str|verr|verw|bsf|bsr|bt|btc|btr|bts|set{{conditions}}|bswap|cmpxchg|cmpxchg8b|cpuid|invd|invlpg|rdmsr|rdtsc|rsm|wbinvd|wrmsr|xadd|cmov{{conditions}}|f2xm1|fabs|fadd|faddp|fbld|fbstp|fchs|fclex|fcom|fcomp|fcompp|fcos|fdecstp|fdisi|fdiv|fdivp|fdivr|fdivrp|feni|ffree|fiadd|ficom|ficomp|fidiv|fidivr|fild|fimul|fincstp|finit|fist|fistp|fisub|fisubr|fld|fld1|fldcw|fldenv|fldl2e|fldl2t|fldlg2|fldln2|fldpi|fldz|fmul|fmulp|fnclex|fndisi|fneni|fninit|fnop|fnsave|fnstcw|fnstenv|fnstsw|fpatan|fprem|fprem1|fptan|frndint|frstor|fsave|fscale|fsetpm|fsin|fsincos|fsqrt|fst|fstcw|fstenv|fstp|fstsw|fsub|fsubp|fsubr|fsubrp|ftst|fucom|fucomp|fucompp|fwait|fxam|fxch|fxtract|fyl2x|fyl2xp1)
+  directive: (?:segment|ends|assume|proc|endp|model|db|dw|dd|df|dp|dq|dt|equ|org|end|include|includelib|extrn|extern|public|global|group|label|macro|endm|local|rept|irp|irpc|exitm|if|ifdef|ifndef|ife|else|elseif|endif|struc|struct|union|record|title|subttl|page|name|even|align|comment|section|bits|times|resb|resw|resd|resq|rest|use16|use32|cpu|default|ideal|masm|jumps|nojumps|locals|nolocals|p8086|p186|p286|p286n|p386|p386n|p486|p586)
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@$?][\w.@$?]*:{1,2}'
+      scope: entity.name.label.x86
+    # .MODEL, .CODE, .8086 and the like in MASM, and %define and the like in NASM.
+    - match: '(?<![\w.%])[.%][A-Za-z0-9]\w*'
+      scope: keyword.control.directive.x86
+      push: operands
+    # REP and its like come before another instruction on the same line.
+    - match: '(?i)(?<![\w.])(?:{{prefix}})(?![\w.])'
+      scope: support.function.instruction.x86
+    - match: '(?i)(?<![\w.])(?:{{directive}})(?![\w.])'
+      scope: keyword.control.directive.x86
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{branch}})(?![\w.])'
+      scope: keyword.control.branch.x86
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{instruction}})(?![\w.])'
+      scope: support.function.instruction.x86
+      push: operands
+    - match: '^[A-Za-z_.@$?][\w.@$?]*'
+      scope: entity.name.label.x86
+    - match: '[A-Za-z_.@?][\w.@$?]*'
+      scope: variable.function.macro.x86
+      push: operands
+    - match: '='
+      scope: keyword.operator.x86
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i)(?<![\w.$@?])(?:[abcd][lhx]|e[abcd]x|[sd]il?|e[sd]i|[sb]p|e[sb]p|[cdefgs]s|ip|eip|flags|eflags|st[0-7]?|cr[0-4]|dr[0-7]|tr[3-7])(?![\w$@?])'
+      scope: variable.language.register.x86
+    - match: '(?i)(?<![\w.$@?])(?:byte|word|dword|fword|qword|tbyte|ptr|offset|seg|near|far|short|dup|length|size|type|high|low|mod|shl|shr|and|or|not|xor|eq|ne|lt|le|gt|ge)(?![\w$@?])'
+      scope: keyword.other.operator.x86
+    - match: '[+\-*/&|^~<>=!$]'
+      scope: keyword.operator.x86
+  comment:
+    - match: ';.*$'
+      scope: comment.line.semicolon.x86
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.x86
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.x86
+  numbers:
+    - match: '(?i)(?<![\w.$@?])(?:0x[0-9a-f]+|[0-9][0-9a-f]*h|[01]+b|[0-7]+[oq]|\d+)(?![\w.$@?])'
+      scope: constant.numeric.x86

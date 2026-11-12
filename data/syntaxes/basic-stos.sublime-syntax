@@ -1,0 +1,29 @@
+%YAML 1.2
+---
+# STOS Basic, the Atari ST's games BASIC, as listings saved as text: line numbers, rem and ' comments, and its
+# sprite, screen, music and zone commands.
+name: BASIC (STOS)
+file_extensions: ["stos", "stosasc"]
+scope: source.basic.stos
+contexts:
+  main:
+    - match: '''.*$'
+      scope: comment.line.basic.stos
+    - match: '(?i)(?<!\w)rem(?!\w).*$'
+      scope: comment.line.basic.stos
+    - match: '"'
+      push: string_0
+    - match: '^\s*\d+'
+      scope: constant.numeric.line-number.basic.stos
+    - match: '(?i)(?<![A-Za-z0-9_])(?:repeat|return|gosub|input|print|until|while|else|goto|next|step|stop|then|wait|wend|dim|end|for|let|if|on|to)(?![A-Za-z0-9_])'
+      scope: keyword.control.basic.stos
+    - match: '(?i)(?<![A-Za-z0-9_])(?:randomize|ellipse|palette|polygon|reserve|screen\$|string\$|appear|centre|circle|colour|locate|lower\$|physic|reduce|right\$|screen|space\$|sprite|update|upper\$|volume|erase|flash|instr|left\$|limit|logic|mouse|music|paint|paper|reset|shift|shoot|voice|anim|back|bell|boom|chr\$|copy|curs|draw|fade|hide|home|load|mid\$|move|plot|save|show|str\$|zone|abs|asc|bar|box|cls|cos|ink|int|key|len|off|pen|rnd|set|sgn|sin|sqr|val|x|y)(?![A-Za-z0-9_])'
+      scope: support.function.basic.stos
+    - match: '(?<![\w.$])(?:\$[0-9A-Fa-f]+|%[01]+|\d+(?:\.\d+)?)'
+      scope: constant.numeric.basic.stos
+  string_0:
+    - meta_scope: string.quoted.basic.stos
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

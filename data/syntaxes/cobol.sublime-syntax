@@ -1,0 +1,117 @@
+%YAML 1.2
+---
+# Written for Limoniter from the layout and reserved words of COBOL 85 and IBM Enterprise COBOL, in fixed
+# format: columns 1 to 6 are the sequence area, column 7 the indicator (* or / for a comment line, - for a
+# continuation, D for a debugging line), 8 to 72 the program, and 73 to 80 the identification area.
+# The free-format inline comment *> is followed too.
+name: COBOL
+file_extensions: [cbl, cob, cobol, cpy, ccp, pco, sqb]
+first_line_match: '(?i)^.{6}[ *]\s*(identification|id)\s+division'
+scope: source.cobol
+variables:
+  w: '[A-Za-z0-9][A-Za-z0-9-]*'
+  before: '(?<![A-Za-z0-9-])'
+  after: '(?![A-Za-z0-9-])'
+  verbs: (?:accept|add|alter|call|cancel|close|compute|continue|delete|display|divide|else|end-add|end-call|end-compute|end-delete|end-divide|end-evaluate|end-if|end-multiply|end-perform|end-read|end-return|end-rewrite|end-search|end-start|end-string|end-subtract|end-unstring|end-write|entry|evaluate|exit|go|goback|if|initialize|inspect|invoke|merge|move|multiply|open|perform|read|release|return|rewrite|search|set|sort|start|stop|string|subtract|unstring|use|when|write|then|not|and|or|until|varying|thru|through|times|giving|into|from|to|by|using|returning|also|other|is|are|equal|greater|less|than|at|end|invalid|key|on|size|error|overflow|exception|with|test|before|after|leading|first|replacing|tallying|converting|delimited|pointer|count|run|input|output|i-o|extend|corresponding|corr|rounded|remainder|of|in|next|sentence|upon|exec|end-exec)
+  clauses: (?:pic|picture|value|values|redefines|occurs|depending|indexed|ascending|descending|usage|comp|comp-1|comp-2|comp-3|comp-4|comp-5|computational|computational-1|computational-2|computational-3|computational-4|computational-5|binary|packed-decimal|index|sign|separate|character|justified|just|blank|synchronized|sync|renames|filler|global|external|pointer-32|national)
+  structure: (?:fd|sd|rd|select|assign|organization|access|mode|record|records|file-control|i-o-control|working-storage|local-storage|linkage|file|section|program-id|author|date-written|date-compiled|installation|security|configuration|source-computer|object-computer|special-names|input-output|sequential|relative|dynamic|random|status|label|standard|omitted|block|contains|characters|copy|replace|end program)
+  constants: (?:zero|zeros|zeroes|space|spaces|high-value|high-values|low-value|low-values|quote|quotes|null|nulls|true|false|all)
+contexts:
+  main:
+    # A comment line: * or / in the indicator column.
+    - match: '^(.{6})([*/].*)$'
+      captures:
+        1: comment.line.sequence.cobol
+        2: comment.line.indicator.cobol
+    - match: '^(.{6})([Dd])'
+      captures:
+        1: comment.line.sequence.cobol
+        2: keyword.other.debugging.cobol
+      push: area_a
+    - match: '^(.{6})(-)'
+      captures:
+        1: comment.line.sequence.cobol
+        2: punctuation.separator.continuation.cobol
+      push: code
+    - match: '^(.{6})( |(?=\n))'
+      captures:
+        1: comment.line.sequence.cobol
+      push: area_a
+    # A line too short to reach the indicator is all sequence area.
+    - match: '^.{1,6}$'
+      scope: comment.line.sequence.cobol
+  # Area A, columns 8 to 11, holds division and section headers, paragraph names and level numbers.
+  area_a:
+    - match: '\n'
+      pop: true
+    - match: '(?i)\s{0,3}(identification|id|environment|data|procedure)\s+(division){{after}}'
+      captures:
+        1: keyword.other.division.cobol
+        2: keyword.other.division.cobol
+      set: code
+    - match: '(?i)\s{0,3}({{w}})\s+(section){{after}}'
+      captures:
+        1: entity.name.section.cobol
+        2: keyword.other.cobol
+      set: code
+    - match: '\s*(0?[1-9]|[1-4][0-9]|66|77|88)(?=\s)'
+      captures:
+        1: constant.numeric.level.cobol
+      set: code
+    - match: '(?i)\s{0,3}(?!(?:{{verbs}}|{{structure}}){{after}})({{w}})(?=\s*\.)'
+      captures:
+        1: entity.name.function.cobol
+      set: code
+    - match: '(?=.)'
+      set: code
+  code:
+    - match: '\n'
+      pop: true
+    - match: '(?<=^.{72}).*'
+      scope: comment.line.identification.cobol
+    - match: '\*>.*'
+      scope: comment.line.inline.cobol
+    - match: '(?i){{before}}[xnzg](?=["''])'
+      scope: storage.modifier.literal.cobol
+    - match: '"'
+      push: double_string
+    - match: ''''
+      push: single_string
+    - match: '(?i){{before}}(pic|picture)(\s+is)?\s+([^\s.]+(?:\.[^\s.]+)*)'
+      captures:
+        1: storage.type.cobol
+        2: storage.type.cobol
+        3: constant.other.picture.cobol
+    - match: '(?i){{before}}(exec)\s+(sql|cics|dli)'
+      captures:
+        1: keyword.control.cobol
+        2: keyword.control.cobol
+    - match: '(?i){{before}}(?:{{constants}}){{after}}'
+      scope: constant.language.cobol
+    - match: '(?i){{before}}(?:{{clauses}}){{after}}'
+      scope: storage.type.cobol
+    - match: '(?i){{before}}(?:{{structure}}){{after}}'
+      scope: keyword.other.cobol
+    - match: '(?i){{before}}(?:{{verbs}}){{after}}'
+      scope: keyword.control.cobol
+    - match: '{{before}}[+-]?(?:\d+(?:\.\d+)?|\.\d+){{after}}'
+      scope: constant.numeric.cobol
+    - match: '[=<>]|\*\*|[+*/]'
+      scope: keyword.operator.cobol
+    - match: '\.(?=\s|$)'
+      scope: punctuation.terminator.cobol
+  double_string:
+    - meta_scope: string.quoted.double.cobol
+    - match: '""'
+    - match: '"'
+      pop: true
+    # A literal left open runs on to a continuation line.
+    - match: '(?=\n)'
+      pop: true
+  single_string:
+    - meta_scope: string.quoted.single.cobol
+    - match: ''''''
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

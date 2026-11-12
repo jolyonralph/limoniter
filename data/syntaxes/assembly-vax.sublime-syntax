@@ -1,0 +1,51 @@
+%YAML 1.2
+---
+# Written for Limoniter from the DEC VAX instruction set, with its data type suffixes (B, W, L, Q, O, F, D, G, H)
+# and two- and three-operand forms, and the directives of VAX MACRO.
+name: Assembly VAX MACRO
+file_extensions: [mar, vaxmar, vax]
+scope: source.assembly.vax
+variables:
+  branch: (?:aobleq|aoblss|sobgeq|sobgtr|bbcci|bbssi|beqlu|bgtru|blequ|bnequ|callg|calls|caseb|casel|casew|acbb|acbd|acbf|acbg|acbh|acbl|acbw|bbcc|bbcs|bbsc|bbss|beql|bgeq|bgtr|blbc|blbs|bleq|blss|bneq|chme|chmk|chms|chmu|halt|bbc|bbs|bcc|bcs|bpt|brb|brw|bvc|bvs|jmp|jsb|rei|ret|rsb)
+  instruction: (?:(?:add|sub|mul|div|bis|bic|xor)[bwlqofdgh][23]|(?:mov|cmp|tst|clr|mcom|mneg|inc|dec|bit|push|mova|pusha)[bwlqofdgh]|movz(?:bw|bl|wl)|cvt[bwlqofdgh][bwlqofdgh]|cvtr[fdgh]l|ashl|ashq|ashp|rotl|emul|ediv|extv|extzv|insv|ffs|ffc|cmpv|cmpzv|index|movc3|movc5|cmpc3|cmpc5|locc|skpc|scanc|spanc|matchc|movtc|movtuc|crc|editpc|addp4|addp6|subp4|subp6|mulp|divp|cmpp3|cmpp4|cvtlp|cvtpl|cvtps|cvtsp|cvttp|cvtpt|movp|insque|remque|insqhi|insqti|remqhi|remqti|pushr|popr|movpsl|bispsw|bicpsw|prober|probew|mtpr|mfpr|ldpctx|svpctx|nop|adwc|sbwc|polyf|polyd|polyg|polyh|emodf|emodd|emodg|emodh)
+  directive: (?:\.restore_psect|\.d_floating|\.f_floating|\.g_floating|\.h_floating|\.save_psect|\.external|\.if_false|\.subtitle|\.transfer|\.address|\.default|\.disable|\.if_true|\.library|\.enable|\.global|\.noshow|\.packed|\.repeat|\.align|\.ascic|\.ascid|\.ascii|\.asciz|\.entry|\.extrn|\.globl|\.ident|\.macro|\.mcall|\.mexit|\.nlist|\.psect|\.sbttl|\.title|\.blkb|\.blkl|\.blko|\.blkq|\.blkw|\.byte|\.endc|\.endm|\.endr|\.irpc|\.link|\.list|\.long|\.mask|\.octa|\.page|\.quad|\.rept|\.show|\.weak|\.word|\.end|\.iif|\.irp|\.if)
+  edge_before: '(?<![\w.$])'
+  edge_after: '(?![\w.$])'
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.$][\w.$]*:{1,2}'
+      scope: entity.name.label.vax
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.vax
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.vax
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.vax
+      push: operands
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.vax
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:r10|r11|ap|fp|pc|r0|r1|r2|r3|r4|r5|r6|r7|r8|r9|sp){{edge_after}}'
+      scope: variable.language.register.vax
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.vax
+  comment:
+    - match: ';.*$'
+      scope: comment.line.vax
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.vax
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.vax
+  numbers:
+    - match: '(?i)\^[odbx][0-9a-f]+|(?<![\w.$])\d+(?:\.\d*)?(?![\w.])'
+      scope: constant.numeric.vax

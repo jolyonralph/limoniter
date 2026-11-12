@@ -1,0 +1,39 @@
+%YAML 1.2
+---
+# Smalltalk-80 as the Blue Book describes it, as Squeak, Pharo and VisualWorks write it: "comments", 'strings',
+# #symbols, $characters, keyword selectors ending in a colon, block arguments, := and the return ^.
+name: Smalltalk
+file_extensions: ["st", "sources", "changes"]
+scope: source.smalltalk
+contexts:
+  main:
+    - match: '"'
+      push: comment_0
+    - match: ''''
+      push: string_0
+    - match: '#(?:[A-Za-z_][\w:]*|''[^'']*''|[-+*/\\<>=~@%|&?!,]+)'
+      scope: constant.other.symbol.smalltalk
+    - match: '\$.'
+      scope: constant.character.smalltalk
+    - match: ':[A-Za-z_]\w*'
+      scope: variable.parameter.smalltalk
+    - match: '\b[A-Za-z_]\w*:(?!=)'
+      scope: entity.name.function.smalltalk
+    - match: '\^|:=|←'
+      scope: keyword.control.smalltalk
+    - match: '(?<![A-Za-z0-9_])(?:thisContext|super|self)(?![A-Za-z0-9_])'
+      scope: variable.language.smalltalk
+    - match: '(?<![A-Za-z0-9_])(?:false|true|nil)(?![A-Za-z0-9_])'
+      scope: constant.language.smalltalk
+    - match: '(?<![\w.])-?(?:\d+r[0-9A-Z]+|\d+(?:\.\d+)?(?:e-?\d+)?)(?![\w])'
+      scope: constant.numeric.smalltalk
+  comment_0:
+    - meta_scope: comment.block.smalltalk
+    - match: '"'
+      pop: true
+  string_0:
+    - meta_scope: string.quoted.smalltalk
+    - match: ''''''
+      scope: constant.character.escape.smalltalk
+    - match: ''''
+      pop: true

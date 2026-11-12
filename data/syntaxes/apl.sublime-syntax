@@ -1,0 +1,33 @@
+%YAML 1.2
+---
+# APL as Dyalog and ISO APL (ISO 8485) write it: the ⍝ comment, 'strings', ¯ for negative numbers, the primitive
+# functions and operators by their symbols, system names starting with ⎕, and Dyalog's :If-style control words.
+name: APL
+file_extensions: ["apl", "apln", "aplf", "aplc", "dyalog", "dws"]
+scope: source.apl
+contexts:
+  main:
+    - match: '⍝.*$'
+      scope: comment.line.apl
+    - match: ''''
+      push: string_0
+    - match: '⎕\w*|⍞'
+      scope: support.function.apl
+    - match: '[⍺⍵∇⍬]'
+      scope: variable.language.apl
+    - match: '[←→]'
+      scope: keyword.control.apl
+    - match: '(?i)(?<![\w])(?::(?:If|ElseIf|Else|EndIf|AndIf|OrIf|For|In|InEach|EndFor|While|EndWhile|Repeat|Until|EndRepeat|Return|Leave|Continue|Select|Case|CaseList|EndSelect|Trap|EndTrap|With|EndWith|Hold|EndHold|Namespace|EndNamespace|Class|EndClass|Field|Property|EndProperty|Access|Implements|Include|GoTo|End))(?![\w])'
+      scope: keyword.control.apl
+    - match: '¯?\d+(?:\.\d+)?(?:[eE]¯?\d+)?(?:[jJ]¯?\d+(?:\.\d+)?)?'
+      scope: constant.numeric.apl
+    - match: '[+\-×÷⌈⌊|⍳⍴⌽⊖⍉∊⍷⍋⍒~∧∨⍲⍱<≤=≥>≠≡≢⊂⊃⊆⊇∪∩⊥⊤⍕⍎○!?⍟⌹⊣⊢¨⍨⍣∘./\\⌿⍀⍤⍥@⌸⌺⍠,⍪↑↓⋄]'
+      scope: keyword.operator.apl
+  string_0:
+    - meta_scope: string.quoted.apl
+    - match: ''''''
+      scope: constant.character.escape.apl
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

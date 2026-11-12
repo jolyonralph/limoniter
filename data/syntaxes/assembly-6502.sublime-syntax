@@ -1,0 +1,61 @@
+%YAML 1.2
+---
+# Written for Limoniter from the MOS 6502 and WDC 65C02 instruction sets, with the widely used undocumented
+# NMOS opcodes, and common ca65, ACME, DASM, 64tass and xa directives.
+name: Assembly 6502
+file_extensions: [a65, s65, asm65, "6502", 65s, acme, ca65]
+scope: source.assembly.m6502
+variables:
+  branch: (?:bcc|bcs|beq|bmi|bne|bpl|bra|bvc|bvs|brk|jmp|jsr|rti|rts|bb[rs][0-7]|wai|stp|kil|jam|hlt)
+  instruction: (?:adc|and|asl|bit|clc|cld|cli|clv|cmp|cpx|cpy|dec|dex|dey|eor|inc|inx|iny|lda|ldx|ldy|lsr|nop|ora|pha|php|pla|plp|rol|ror|sbc|sec|sed|sei|sta|stx|sty|tax|tay|tsx|txa|txs|tya|phx|phy|plx|ply|stz|trb|tsb|rmb[0-7]|smb[0-7]|lax|sax|dcp|dcm|isc|isb|ins|rla|rra|slo|sre|anc|alr|asr|arr|sbx|axs|xaa|ane|ahx|sha|shx|shy|tas|las|lxa)
+  directive: (?:processor|org|rorg|equ|set|seg|dc|ds|dv|hex|mac|macro|endm|include|incbin|incdir|subroutine|echo|err|end|if|ifconst|ifnconst|else|endif|eif|repeat|repend|align)
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@][\w.@]*:'
+      scope: entity.name.label.m6502
+    - match: '^\s*\+?-*:?(?=\s)'
+    - match: '(?i)(?<![\w.!])[.!][a-z]\w*(?:\.[a-z])?(?![\w])'
+      scope: keyword.control.directive.m6502
+      push: operands
+    - match: '\*\s*='
+      scope: keyword.control.directive.m6502
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{branch}})(?:\.[abwlz])?(?![\w.])'
+      scope: keyword.control.branch.m6502
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{instruction}})(?:\.[abwlz])?(?![\w.])'
+      scope: support.function.instruction.m6502
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{directive}})(?:\.[bwl])?(?![\w.])'
+      scope: keyword.control.directive.m6502
+      push: operands
+    - match: '^[A-Za-z_.@][\w.@]*'
+      scope: entity.name.label.m6502
+    - match: '[A-Za-z_.@][\w.@]*'
+      scope: variable.function.macro.m6502
+      push: operands
+    - match: '='
+      scope: keyword.operator.m6502
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i)(?<![\w.$@%])(?:a|x|y|s)(?![\w$@])'
+      scope: variable.language.register.m6502
+    - match: '[#+\-*/&|^~<>=!]'
+      scope: keyword.operator.m6502
+  comment:
+    - match: ';.*$'
+      scope: comment.line.semicolon.m6502
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.m6502
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.m6502
+  numbers:
+    - match: '\$[0-9a-fA-F]+|%[01]+|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.m6502

@@ -1,0 +1,46 @@
+%YAML 1.2
+---
+# Written for Limoniter from Commodore BASIC V2 (C64, VIC-20, PET), with the listing escapes Limoniter and
+# petcat write for PETSCII codes ({clr}, {red}, {$xx}). Keywords are found anywhere outside strings, REM and
+# DATA, as the machine's own tokeniser finds them, so TOTAL shows its TO just as the C64 reads it.
+name: BASIC (Commodore)
+file_extensions: [cbmbas, bas64, c64bas]
+scope: source.basic.commodore
+variables:
+  statements: (?:END|FOR|NEXT|INPUT#|INPUT|DIM|READ|LET|GOTO|RUN|IF|RESTORE|GOSUB|RETURN|STOP|ON|WAIT|LOAD|SAVE|VERIFY|DEF|POKE|PRINT#|PRINT|CONT|LIST|CLR|CMD|SYS|OPEN|CLOSE|GET|NEW|TO|THEN|STEP|GO|\?)
+  functions: (?:TAB\(|SPC\(|FN|NOT|AND|OR|SGN|INT|ABS|USR|FRE|POS|SQR|RND|LOG|EXP|COS|SIN|TAN|ATN|PEEK|LEN|STR\$|VAL|ASC|CHR\$|LEFT\$|RIGHT\$|MID\$)
+contexts:
+  main:
+    - match: '^\s*\d+'
+      scope: constant.numeric.line-number.basic
+    - match: '(?i)REM.*'
+      scope: comment.line.rem.basic
+    - match: '(?i)DATA'
+      scope: keyword.control.basic
+      push: data
+    - match: '"'
+      push: string
+    - match: '\{[^}\n]*\}'
+      scope: constant.character.escape.basic
+    - match: '(?i){{statements}}'
+      scope: keyword.control.basic
+    - match: '(?i){{functions}}'
+      scope: support.function.basic
+    - match: '\d+\.?\d*(?:E[+-]?\d+)?|\.\d+|π'
+      scope: constant.numeric.basic
+    - match: '[-+*/^=<>]'
+      scope: keyword.operator.basic
+  data:
+    - meta_content_scope: string.unquoted.data.basic
+    - match: '(?=:|\n)'
+      pop: true
+    - match: '"'
+      push: string
+  string:
+    - meta_scope: string.quoted.double.basic
+    - match: '\{[^}\n]*\}'
+      scope: constant.character.escape.basic
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

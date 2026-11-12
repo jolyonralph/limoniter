@@ -1,0 +1,55 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Motorola 6809 instruction set (and the Hitachi 6309's commonest additions), with
+# the directives of the common assemblers (Motorola, lwasm, asm6809). Branches include the long LBxx forms.
+name: Assembly 6809
+file_extensions: ["6809", s09, a09, asm09, "6309"]
+scope: source.assembly.6809
+variables:
+  branch: (?:lbcc|lbcs|lbeq|lbge|lbgt|lbhi|lbhs|lble|lblo|lbls|lblt|lbmi|lbne|lbpl|lbra|lbrn|lbsr|lbvc|lbvs|bcc|bcs|beq|bge|bgt|bhi|bhs|ble|blo|bls|blt|bmi|bne|bpl|bra|brn|bsr|bvc|bvs|jmp|jsr|rti|rts)
+  instruction: (?:andcc|adca|adcb|adda|addb|addd|adde|addf|addw|anda|andb|asla|aslb|asra|asrb|bita|bitb|clra|clrb|cmpa|cmpb|cmpd|cmps|cmpu|cmpx|cmpy|coma|comb|cwai|deca|decb|divd|divq|eora|eorb|inca|incb|leas|leau|leax|leay|lsla|lslb|lsra|lsrb|muld|nega|negb|orcc|pshs|pshu|puls|pulu|rola|rolb|rora|rorb|sbca|sbcb|sexw|suba|subb|subd|swi2|swi3|sync|tsta|tstb|abx|asl|asr|clr|com|daa|dec|exg|inc|lda|ldb|ldd|lde|ldf|ldq|lds|ldu|ldw|ldx|ldy|lsl|lsr|mul|neg|nop|ora|orb|rol|ror|sex|sta|stb|std|ste|stf|stq|sts|stu|stw|stx|sty|swi|tfm|tfr|tst)
+  directive: (?:endsection|include|section|export|ifndef|import|incbin|pragma|align|endif|ifdef|macro|setdp|else|endc|endm|page|end|equ|fcb|fcc|fcs|fdb|fqb|nam|opt|org|rmb|rmd|set|spc|ttl|zmb|if)
+  edge_before: '(?<![\w.$@])'
+  edge_after: '(?![\w.$@])'
+contexts:
+  main:
+    - include: comment
+    - match: '^[A-Za-z_.@$][\w.@$]*:?(?=\s|$)'
+      scope: entity.name.label.6809
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.6809
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.6809
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.6809
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.6809
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.6809
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:pcr|cc|dp|md|pc|a|b|d|e|f|q|s|u|v|w|x|y){{edge_after}}'
+      scope: variable.language.register.6809
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.6809
+  comment:
+    - match: ';.*$'
+      scope: comment.line.6809
+    - match: '^\*.*$'
+      scope: comment.line.6809
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.6809
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.6809
+  numbers:
+    - match: '(?i)\$[0-9a-f]+|%[01]+|0x[0-9a-f]+|(?<![\w.$@])[0-9][0-9a-f]*h(?![\w.])|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.6809

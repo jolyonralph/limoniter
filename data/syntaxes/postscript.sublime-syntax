@@ -1,0 +1,43 @@
+%YAML 1.2
+---
+# PostScript as Adobe's PostScript Language Reference (third edition) has it: % comments with %% DSC comments kept
+# apart, (strings) that nest with \ escapes, <hex> and <~ascii85~> strings, /literal names, { } procedures,
+# radix numbers such as 16#FF, and the operators of the language.
+name: PostScript
+file_extensions: ["ps", "eps", "epsf", "epsi", "pfa"]
+first_line_match: '^%!'
+scope: source.postscript
+contexts:
+  main:
+    - match: '^%%.*$|^%!.*$'
+      scope: comment.line.postscript
+    - match: '%.*$'
+      scope: comment.line.postscript
+    - match: '\('
+      push: string_0
+    - match: '<~'
+      push: string_1
+    - match: '<[0-9A-Fa-f\s]*>'
+      scope: string.other.hex.postscript
+    - match: '//?[^\s()<>\[\]{}/%]+'
+      scope: variable.other.name.postscript
+    - match: '[{}\[\]]|<<|>>'
+      scope: punctuation.section.postscript
+    - match: '(?<![^\s()<>\[\]{}/%])(?:stopped|forall|ifelse|repeat|begin|store|bind|exec|exit|load|loop|quit|stop|def|end|for|if)(?![^\s()<>\[\]{}/%])'
+      scope: keyword.control.postscript
+    - match: '(?<![^\s()<>\[\]{}/%])(?:currentpoint|setcmykcolor|setlinewidth|cleartomark|counttomark|currentdict|getinterval|putinterval|sethsbcolor|setlinejoin|setrgbcolor|stringwidth|colorimage|selectfont|setlinecap|systemdict|closepath|imagemask|scalefont|translate|widthshow|charpath|copypage|findfont|grestore|makefont|rcurveto|showpage|truncate|userdict|ceiling|curveto|newpath|rlineto|rmoveto|setdash|setfont|setgray|concat|eoclip|eofill|length|lineto|matrix|moveto|pstack|rotate|string|stroke|array|ashow|clear|count|cvlit|false|floor|gsave|image|index|known|kshow|print|round|scale|stack|where|arcn|arct|atan|clip|copy|dict|exch|fill|idiv|mark|null|roll|show|sqrt|true|type|abs|add|and|arc|cos|cvi|cvn|cvr|cvs|cvx|div|dup|exp|get|log|mod|mul|neg|not|pop|put|sin|sub|xor|==|eq|ge|gt|le|ln|lt|ne|or)(?![^\s()<>\[\]{}/%])'
+      scope: support.function.postscript
+    - match: '(?<![^\s()<>\[\]{}/%])(?:\d+#[0-9A-Za-z]+|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)(?![^\s()<>\[\]{}/%])'
+      scope: constant.numeric.postscript
+  string_0:
+    - meta_scope: string.quoted.postscript
+    - match: '\\(?:[0-7]{1,3}|.)'
+      scope: constant.character.escape.postscript
+    - match: '\('
+      push: string_0
+    - match: '\)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.postscript
+    - match: '~>'
+      pop: true

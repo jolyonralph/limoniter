@@ -1,0 +1,38 @@
+%YAML 1.2
+---
+# ZIL, Infocom's Zork Implementation Language, and the MDL it comes from: ; comments that comment out the form after
+# them, "strings" with \ escapes, <FORMS> in angle brackets, ,global and .local values, and the ROUTINE, OBJECT,
+# ROOM, GLOBAL, SYNTAX and COND forms.
+name: ZIL (Zork Implementation Language)
+file_extensions: ["zil", "mdl"]
+scope: source.zil
+contexts:
+  main:
+    - match: ';\s*"(?:[^"\\]|\\.)*"'
+      scope: comment.line.zil
+    - match: ';\s*<[^<>]*>'
+      scope: comment.line.zil
+    - match: ';\S*'
+      scope: comment.line.zil
+    - match: '"'
+      push: string_0
+    - match: '<\s*(ROUTINE|OBJECT|ROOM|GLOBAL|CONSTANT|SYNTAX|DEFINE|DEFMAC|PROPDEF|SETG)\s+([\w\-?!.]+)'
+      captures:
+        1: keyword.declaration.zil
+        2: entity.name.function.zil
+    - match: ',[\w\-?!]+'
+      scope: variable.other.global.zil
+    - match: '\.[\w\-?!]+'
+      scope: variable.other.local.zil
+    - match: '[<>()\[\]]'
+      scope: punctuation.section.zil
+    - match: '(?<=<)\s*(?:DISABLE|JIGS\-UP|PERFORM|ENABLE|EQUAL\?|FCLEAR|FIRST\?|PRINTB|PRINTD|PRINTI|PRINTN|RANDOM|REMOVE|REPEAT|RETURN|RFALSE|AGAIN|APPLY|FSET\?|NEXT\?|PRSI\?|PRSO\?|QUEUE|RTRUE|VERB\?|ZERO\?|BIND|COND|CRLF|FSET|GETP|GOTO|MAPF|MAPR|MOVE|PROB|PROG|PUTP|SETG|TELL|AND|GET|IN\?|LOC|NOT|PUT|SET|CR|G\?|L\?|OR)(?![\w\-?!])'
+      scope: keyword.control.zil
+    - match: '(?<![\w\-])-?\d+'
+      scope: constant.numeric.zil
+  string_0:
+    - meta_scope: string.quoted.zil
+    - match: '\\.'
+      scope: constant.character.escape.zil
+    - match: '"'
+      pop: true

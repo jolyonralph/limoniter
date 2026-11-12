@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Limoniter compares with other text editors</title>
+  <meta name="description" content="Limoniter beside Notepad, Notepad++, VS Code, Vim, Emacs, Kate, Zed, UltraEdit, EmEditor, Sublime Text, BBEdit and TextPad, feature by feature, including what they do that Limoniter doesn't.">
+  <link rel="canonical" href="https://limoniter.com/compare.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/compare.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="How Limoniter compares">
+  <meta property="og:description" content="Limoniter beside twelve other text editors, feature by feature.">
+  <meta property="og:image" content="https://limoniter.com/images/teletext.png">
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from COMPARISON.md by tools/make-compare.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="index.html">
+        <img src="images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="index.html#features">Everyday work</a>
+        <a href="index.html#retro">Older computers</a>
+        <a href="index.html#machines">Machines</a>
+        <a href="index.html#send">Send to device</a>
+        <a href="index.html#screens">Screenshots</a>
+        <a href="index.html#get">Download</a>
+        <a href="https://github.com/jolyonralph/Limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article">
+    <div class="wrap">
+      <p class="back"><a href="index.html">‹ Limoniter</a></p>
+      <h1>How Limoniter compares</h1>
+      <div class="article-lead">
+<p>Limoniter set out to be a capable everyday text and hex editor that also understands the files, character sets and disks of older computers. This page sets it beside the editors people most often use instead, free and commercial, and is honest about what they do that Limoniter doesn't.</p>
+<p>It reflects the editors as of November 2026, going by their own documentation and how they're widely known to work. Editors change quickly; corrections are welcome.</p>
+      </div>
+      <p class="legend"><span class="yes"><span class="mark">✓</span> built in</span> <span class="part"><span class="mark">◐</span> by a plug-in, or only in part</span> <span class="no"><span class="mark">✗</span> not available</span> <span class="unknown"><span class="mark">?</span> not checked</span></p>
+<h2 id="the-editors">The editors</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Editor</th>
+<th scope="col">Free or paid</th>
+<th scope="col">Open source</th>
+<th scope="col">Runs on</th>
+</tr></thead><tbody>
+<tr class="ours">
+<th scope="row"><strong>Limoniter</strong></th>
+<td>Free</td>
+<td>Yes (Apache 2.0)</td>
+<td>Windows; Linux (builds and runs); macOS (compiles, not yet tested on a Mac)</td>
+</tr>
+<tr>
+<th scope="row">Windows Notepad</th>
+<td>Free, with Windows (some AI features need a Microsoft subscription)</td>
+<td>No</td>
+<td>Windows</td>
+</tr>
+<tr>
+<th scope="row">Notepad++</th>
+<td>Free</td>
+<td>Yes (GPL)</td>
+<td>Windows</td>
+</tr>
+<tr>
+<th scope="row">Visual Studio Code</th>
+<td>Free (some extensions and AI plans are paid)</td>
+<td>Core yes (MIT); Microsoft's build no</td>
+<td>Windows, macOS, Linux</td>
+</tr>
+<tr>
+<th scope="row">Vim / Neovim</th>
+<td>Free</td>
+<td>Yes</td>
+<td>Windows, macOS, Linux and more</td>
+</tr>
+<tr>
+<th scope="row">GNU Emacs</th>
+<td>Free</td>
+<td>Yes (GPL)</td>
+<td>Windows, macOS, Linux and more</td>
+</tr>
+<tr>
+<th scope="row">Kate</th>
+<td>Free</td>
+<td>Yes (LGPL)</td>
+<td>Linux, Windows, macOS</td>
+</tr>
+<tr>
+<th scope="row">Zed</th>
+<td>Free (paid plans for its AI features)</td>
+<td>Yes (GPL)</td>
+<td>macOS, Linux, Windows</td>
+</tr>
+<tr>
+<th scope="row">UltraEdit</th>
+<td>Commercial: subscription</td>
+<td>No</td>
+<td>Windows, macOS, Linux</td>
+</tr>
+<tr>
+<th scope="row">EmEditor</th>
+<td>Commercial: subscription, with a free edition for personal home and school use</td>
+<td>No</td>
+<td>Windows</td>
+</tr>
+<tr>
+<th scope="row">Sublime Text</th>
+<td>Commercial: one-off licence, with an unlimited evaluation</td>
+<td>No</td>
+<td>Windows, macOS, Linux</td>
+</tr>
+<tr>
+<th scope="row">BBEdit</th>
+<td>Commercial: one-off licence; keeps working with fewer features after its trial</td>
+<td>No</td>
+<td>macOS</td>
+</tr>
+<tr>
+<th scope="row">TextPad</th>
+<td>Commercial: one-off licence</td>
+<td>No</td>
+<td>Windows</td>
+</tr>
+</tbody></table></div>
+<h2 id="everyday-editing">Everyday editing</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col" class="ours">Limoniter</th>
+<th scope="col">Notepad</th>
+<th scope="col">Notepad++</th>
+<th scope="col">VS Code</th>
+<th scope="col">Vim / Neovim</th>
+<th scope="col">Emacs</th>
+<th scope="col">Kate</th>
+<th scope="col">Zed</th>
+<th scope="col">UltraEdit</th>
+<th scope="col">EmEditor</th>
+<th scope="col">Sublime</th>
+<th scope="col">BBEdit</th>
+<th scope="col">TextPad</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Tabs and split views</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span> tabs</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Multiple carets</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+</tr>
+<tr>
+<th scope="row">Column (block) editing</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Regular expressions</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Find and replace in files</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Code folding</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+</tr>
+<tr>
+<th scope="row">Record and play macros</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Scripting</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span> Rhai</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span> JavaScript</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span> JavaScript</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span> Python</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span> AppleScript</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Compare two files</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Spell checking</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Undo history as a tree</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Crash recovery of unsaved edits</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+</tr>
+<tr>
+<th scope="row">Markdown preview</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">CSV and TSV shown and edited as a table</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+</tr>
+</tbody></table></div>
+<h2 id="big-files-and-bytes">Big files and bytes</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col" class="ours">Limoniter</th>
+<th scope="col">Notepad</th>
+<th scope="col">Notepad++</th>
+<th scope="col">VS Code</th>
+<th scope="col">Vim / Neovim</th>
+<th scope="col">Emacs</th>
+<th scope="col">Kate</th>
+<th scope="col">Zed</th>
+<th scope="col">UltraEdit</th>
+<th scope="col">EmEditor</th>
+<th scope="col">Sublime</th>
+<th scope="col">BBEdit</th>
+<th scope="col">TextPad</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Very large files (gigabytes)</th>
+<td class="ours part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+</tr>
+<tr>
+<th scope="row">Hex editing</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span> view only</td>
+<td class="part"><span class="mark" aria-label="In part">◐</span> view only</td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+</tr>
+<tr>
+<th scope="row">Bytes with no Unicode equivalent kept exactly through open and save</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+</tr>
+</tbody></table></div>
+<p>Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edits, searches and saves them in text or hex mode at any size (tested at 10 GB). Some whole-file commands (reindenting, compare, filtering, printing, converting the encoding in place) still aren't available for them. UltraEdit and EmEditor are built for multi-gigabyte files and do more with them.</p>
+<h2 id="programming-and-the-wider-world">Programming and the wider world</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col" class="ours">Limoniter</th>
+<th scope="col">Notepad</th>
+<th scope="col">Notepad++</th>
+<th scope="col">VS Code</th>
+<th scope="col">Vim / Neovim</th>
+<th scope="col">Emacs</th>
+<th scope="col">Kate</th>
+<th scope="col">Zed</th>
+<th scope="col">UltraEdit</th>
+<th scope="col">EmEditor</th>
+<th scope="col">Sublime</th>
+<th scope="col">BBEdit</th>
+<th scope="col">TextPad</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Plug-ins or extensions from others</th>
+<td class="ours part"><span class="mark" aria-label="In part">◐</span> add-on scripts</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Code intelligence (language servers: completion, go to definition)</th>
+<td class="ours no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Debugger</th>
+<td class="ours no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Git</th>
+<td class="ours no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Built-in terminal</th>
+<td class="ours no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Run a command on the file</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">Remote files (FTP, SFTP, SSH)</th>
+<td class="ours part"><span class="mark" aria-label="In part">◐</span> SFTP; FTP only to send</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Editing together in real time</th>
+<td class="ours no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">AI assistance</th>
+<td class="ours part"><span class="mark" aria-label="In part">◐</span> via Claude Code or Codex, if installed</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="unknown"><span class="mark" aria-label="Not checked">?</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Interface in languages other than English</th>
+<td class="ours no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+</tbody></table></div>
+<h2 id="older-computers-files">Older computers' files</h2>
+<p>This is what Limoniter was made for, and where no other editor here comes close.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col" class="ours">Limoniter</th>
+<th scope="col">Notepad</th>
+<th scope="col">Notepad++</th>
+<th scope="col">VS Code</th>
+<th scope="col">Vim / Neovim</th>
+<th scope="col">Emacs</th>
+<th scope="col">Kate</th>
+<th scope="col">Zed</th>
+<th scope="col">UltraEdit</th>
+<th scope="col">EmEditor</th>
+<th scope="col">Sublime</th>
+<th scope="col">BBEdit</th>
+<th scope="col">TextPad</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Common Windows, DOS and ISO code pages</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+</tr>
+<tr>
+<th scope="row">EBCDIC (IBM mainframes)</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span> 22</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Home computer character sets (PETSCII, ATASCII, Spectrum, BBC, Amiga, MSX and more)</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Retro screens previewed (ANSI art, PETSCII, teletext, Spectrum)</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Tokenised BASIC listed and saved back</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Disk, tape and archive images browsed</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span> archives</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Legacy pictures shown and saved as PNG</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Old word processor documents converted</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+<tr>
+<th scope="row">Sent to the real machine (SD card, Spectrum Next over Wi-Fi, Ultimate 64)</th>
+<td class="ours yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+</tr>
+</tbody></table></div>
+<p>Some of these are possible elsewhere with separate tools (cpmtools, AppleCommander, netpbm, Notepad++ or VS Code extensions for one machine or another), but not together in one editor.</p>
+<h2 id="what-others-do-that-limoniter-doesn-t">What others do that Limoniter doesn't</h2>
+<ul><li><strong>Other platforms.</strong> Limoniter is made for Windows. It now builds and runs on Linux, where a few things are lighter (no file-type registration; spelling through hunspell or aspell; printing as plain pages through CUPS), and it compiles for macOS but hasn't been tried on a Mac. VS Code, Sublime Text, Vim, Emacs, Kate, Zed and UltraEdit are long established on all three; BBEdit is the Mac's own.</li><li><strong>Plug-ins.</strong> Notepad++, VS Code, Sublime Text, Vim, Emacs, Kate, Zed and EmEditor have thousands of add-ons written by others. Limoniter's add-ons are Rhai scripts that add commands, run when files open or save, and show panels, but there is no catalogue of them yet, and they can't add new kinds of window, language support or file formats.</li><li><strong>Programming tools.</strong> Code completion and go-to-definition through language servers, debuggers, Git, a terminal inside the editor, and test runners are standard in VS Code, Zed and Kate and available in most others. Limoniter has none of these; it lists a file's functions from its grammar and can run a command on the file.</li><li><strong>Remote and shared editing.</strong> VS Code, Zed, UltraEdit, BBEdit, Vim and Emacs edit files on other machines over SSH or FTP; Zed and VS Code let several people edit together. Limoniter opens and saves files over SFTP, and can send a copy to an FTP server, but can't open files over FTP, and has no remote terminal, remote search or shared editing.</li><li><strong>Huge files.</strong> UltraEdit and EmEditor are tuned for files of many gigabytes and keep every command available. Limoniter opens, edits, searches and saves such files in text or hex, but still sets a few commands aside above 64 MB.</li><li><strong>Tables of data.</strong> EmEditor treats CSV files as tables at any size, with many more tools for them. Limoniter's table view edits, sorts and filters delimited data under 64 MB, and leaves larger files as text.</li><li><strong>AI built in.</strong> Notepad, VS Code, Zed, EmEditor and BBEdit have AI features of their own. Limoniter's assistant hands the work to Claude Code or Codex, which have to be installed and signed in separately.</li><li><strong>Other languages.</strong> Notepad, Notepad++, VS Code, UltraEdit, EmEditor and others can show their menus in many languages. Limoniter's are in English only.</li><li><strong>Maturity.</strong> Notepad++, Vim, Emacs, UltraEdit and the others have been used by many people for many years. Limoniter is new, and will have rough edges the others have long since smoothed.</li></ul>
+<h2 id="what-only-limoniter-does">What only Limoniter does</h2>
+<ul><li>Opens the disk images, tapes and archives of the Amiga, Commodore 64, ZX Spectrum, Amstrad, BBC Micro and Acorn, Apple II, Atari 8-bit and ST, TRS-80, Tandy Color Computer and Dragon, Macintosh, CP/M machines (with their format worked out for itself), HP and PC, and shows what's inside, read only.</li><li>Reads and writes text in the character sets of those machines, byte for byte, alongside 22 EBCDIC code pages and the usual modern ones.</li><li>Previews ANSI art, PETSCII, teletext and Spectrum screens, lists tokenised BASIC from ten dialects and saves several back, shows legacy pictures (Amiga IFF with colour cycling, Atari ST, C64, MacPaint, RISC OS sprites, PCX, GEM, Apple II, Kodak Photo CD) and saves them as PNG, and converts WordStar and MemoMaker documents.</li><li>Keeps an undo history as a tree, and the history of any part of a file.</li></ul>
+<p>Each of these readers is checked against independent tools on real disks: cpmtools, AppleCommander, atrcopy, trs80-tool, ToolShed, ddosutils, netpbm and ImageMagick among them.</p>
+<h2 id="sources">Sources</h2>
+<p>Pricing and platform details were checked in November 2026, including: <a href="https://www.emeditor.com/?p=30355">EmEditor licence price update</a>, <a href="https://www.capterra.com/p/183163/UltraEdit/pricing/">UltraEdit pricing</a>, <a href="https://blogs.windows.com/windows-insider/2026/01/21/notepad-and-paint-updates-begin-rolling-out-to-windows-insiders/">Notepad updates for Windows Insiders</a>, <a href="https://winaero.com/microsoft-makes-notepad-markdown-support-generally-available">Notepad Markdown support</a>, <a href="https://zed.dev/blog/zed-for-windows-is-here">Zed for Windows</a>.</p>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/Limoniter">GitHub</a> · <a href="https://github.com/jolyonralph/Limoniter/blob/main/FEATURES.md">Full feature list</a> · <a href="compare.html">How it compares</a></p>
+    </div>
+  </footer>
+</body>
+</html>

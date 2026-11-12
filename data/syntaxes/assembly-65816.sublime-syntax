@@ -1,0 +1,56 @@
+%YAML 1.2
+---
+# Written for Limoniter from the WDC 65816 instruction set (with the 6502's and 65C02's it includes), as the SNES
+# and Apple IIGS use it, with the directives of ca65, WLA-DX, asar and Merlin 16, and .b/.w/.l size suffixes.
+name: Assembly 65816
+file_extensions: ["65816", "816", s816, asm816, a816]
+scope: source.assembly.65816
+variables:
+  branch: (?:bcc|bcs|beq|bmi|bne|bpl|bra|brk|brl|bvc|bvs|cop|jml|jmp|jsl|jsr|rti|rtl|rts)
+  instruction: (?:adc|and|asl|bit|clc|cld|cli|clv|cmp|cpx|cpy|dec|dex|dey|eor|inc|inx|iny|lda|ldx|ldy|lsr|mvn|mvp|nop|ora|pea|pei|per|pha|phb|phd|phk|php|phx|phy|pla|plb|pld|plp|plx|ply|rep|rol|ror|sbc|sec|sed|sei|sep|sta|stp|stx|sty|stz|tax|tay|tcd|tcs|tdc|trb|tsb|tsc|tsx|txa|txs|txy|tya|tyx|wai|wdm|xba|xce)
+  directive: (?:\.memorymap|\.endmacro|\.rombanks|\.endproc|\.faraddr|\.include|\.section|\.segment|endmacro|\.define|\.export|\.ifndef|\.import|\.incbin|exhirom|exlorom|\.endif|\.ifdef|\.macro|\.smart|incbin|incsrc|\.addr|\.bank|\.base|\.byte|\.else|\.endm|\.ends|\.long|\.proc|\.word|endif|hirom|lorom|macro|\.a16|\.equ|\.i16|\.org|\.res|arch|base|else|\.a8|\.db|\.dd|\.dl|\.dw|\.i8|\.if|dfb|dfw|equ|org|sa1|db|dd|dl|ds|dw|if|mx)
+  edge_before: '(?<![\w$@])'
+  edge_after: '(?![\w$@])'
+contexts:
+  main:
+    - include: comment
+    - match: '(?i)(?<![\w$@])(?:{{instruction}}|{{branch}})\.[bwl](?![\w$@])'
+      scope: support.function.instruction.65816
+      push: operands
+    - match: '^\s*[A-Za-z_.@$][\w.@$]*:{1,2}'
+      scope: entity.name.label.65816
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.65816
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.65816
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.65816
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.65816
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.65816
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:a|s|x|y){{edge_after}}'
+      scope: variable.language.register.65816
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.65816
+  comment:
+    - match: ';.*$'
+      scope: comment.line.65816
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.65816
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.65816
+  numbers:
+    - match: '(?i)\$[0-9a-f]+|%[01]+|0x[0-9a-f]+|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.65816

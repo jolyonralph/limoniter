@@ -1,0 +1,51 @@
+%YAML 1.2
+---
+# Written for Limoniter from Microchip's PIC mid-range (PIC16) and PIC18 instruction sets, with MPASM's directives.
+# The skip instructions (DECFSZ, BTFSS and the like) are coloured as branches, since they decide what runs next.
+name: Assembly PIC (MPASM)
+file_extensions: [pic, mpasm, pic16, pic18]
+scope: source.assembly.pic
+variables:
+  branch: (?:cpfseq|cpfsgt|cpfslt|dcfsnz|decfsz|incfsz|infsnz|retfie|return|tstfsz|btfsc|btfss|rcall|reset|retlw|bnov|call|goto|bnc|bnn|bnz|bov|bra|bc|bn|bz)
+  instruction: (?:addwfc|clrwdt|option|subfwb|subwfb|addlw|addwf|andlw|andwf|iorlw|iorwf|movff|movlb|movlw|movwf|mullw|mulwf|rlncf|rrncf|sleep|sublw|subwf|swapf|tblrd|tblwt|xorlw|xorwf|clrf|clrw|comf|decf|incf|lfsr|movf|negf|push|rlcf|rrcf|setf|tris|bcf|bsf|btg|daw|nop|pop|rlf|rrf)
+  directive: (?:errorlevel|\#undefine|processor|udata_shr|\#include|__badram|__config|__idlocs|__maxram|bankisel|constant|noexpand|subtitle|variable|\#define|banksel|include|pagesel|\#endif|cblock|config|expand|extern|global|ifndef|nolist|\#else|endif|error|exitm|idata|ifdef|local|macro|messg|radix|space|title|udata|code|data|else|endc|endm|fill|list|page|\#if|end|equ|org|res|set|db|de|dt|dw|if)
+  edge_before: '(?<![\w.$@#])'
+  edge_after: '(?![\w.$@#])'
+contexts:
+  main:
+    - include: comment
+    - match: '^[A-Za-z_][\w]*:?(?=\s|$)'
+      scope: entity.name.label.pic
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.pic
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.pic
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.pic
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.pic
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.pic
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:access|banked|intcon|pclath|status|indf0|indf1|indf2|fsr0|fsr1|fsr2|indf|tosh|tosl|tosu|wreg|bsr|fsr|pcl|a|f|w){{edge_after}}'
+      scope: variable.language.register.pic
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.pic
+  comment:
+    - match: ';.*$'
+      scope: comment.line.pic
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.pic
+  numbers:
+    - match: '(?i)[hdbo]''[0-9a-f]+''|0x[0-9a-f]+|(?<![\w.$@])[0-9][0-9a-f]*h(?![\w.])|\.\d+|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.pic

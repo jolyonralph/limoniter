@@ -1,0 +1,49 @@
+%YAML 1.2
+---
+# Modula-2 as Niklaus Wirth's "Programming in Modula-2" (fourth edition) defines it, with ISO Modula-2's additions.
+# Keywords are capitals, comments (* *) nest, and a procedure's or module's name follows its keyword.
+name: Modula-2
+file_extensions: ["mod", "def", "mi", "m2"]
+scope: source.modula2
+contexts:
+  main:
+    - match: '\(\*'
+      push: comment_0
+    - match: '"'
+      push: string_0
+    - match: ''''
+      push: string_1
+    - match: '\b(PROCEDURE|MODULE)\s+([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.modula2
+        2: entity.name.function.modula2
+    - match: '(?<![A-Za-z0-9_])(?:IMPLEMENTATION|DEFINITION|PACKEDSET|PROCEDURE|QUALIFIED|FINALLY|FORWARD|POINTER|EXCEPT|EXPORT|IMPORT|MODULE|RECORD|REPEAT|RETURN|ARRAY|BEGIN|CONST|ELSIF|RETRY|UNTIL|WHILE|CASE|ELSE|EXIT|FROM|LOOP|THEN|TYPE|WITH|AND|DIV|END|FOR|MOD|NOT|REM|SET|VAR|BY|DO|IF|IN|OF|OR|TO)(?![A-Za-z0-9_])'
+      scope: keyword.control.modula2
+    - match: '(?<![A-Za-z0-9_])(?:LONGCOMPLEX|CARDINAL|LONGCARD|LONGREAL|ADDRESS|BOOLEAN|COMPLEX|INTEGER|LONGINT|BITSET|BYTE|CHAR|PROC|REAL|WORD)(?![A-Za-z0-9_])'
+      scope: storage.type.modula2
+    - match: '(?<![A-Za-z0-9_])(?:FALSE|TRUE|NIL)(?![A-Za-z0-9_])'
+      scope: constant.language.modula2
+    - match: '(?<![A-Za-z0-9_])(?:DISPOSE|LENGTH|FLOAT|TRUNC|TSIZE|EXCL|HALT|HIGH|INCL|SIZE|ABS|ADR|CAP|CHR|DEC|INC|MAX|MIN|NEW|ODD|ORD|VAL)(?![A-Za-z0-9_])'
+      scope: support.function.modula2
+    - match: '(?<![\w.])(?:[0-9][0-9A-F]*H|[0-7]+[BC]|\d+(?:\.\d*)?(?:E[+-]?\d+)?)(?![\w.])'
+      scope: constant.numeric.modula2
+    - match: ':=|<>|<=|>=|[#&~+\-*/=<>^]'
+      scope: keyword.operator.modula2
+  comment_0:
+    - meta_scope: comment.block.modula2
+    - match: '\(\*'
+      push: comment_0
+    - match: '\*\)'
+      pop: true
+  string_0:
+    - meta_scope: string.quoted.modula2
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.modula2
+    - match: ''''
+      pop: true
+    - match: '(?=\n)'
+      pop: true

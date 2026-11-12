@@ -1,0 +1,47 @@
+%YAML 1.2
+---
+# Forth as ANS Forth (1994) and Forth-2012 define it, with the common words of FIG-Forth and Forth-83. Words are
+# anything between spaces, so a keyword is only one when it stands alone. A definition's name follows its colon.
+name: Forth
+file_extensions: ["fth", "4th", "forth", "f83", "fb", "frt"]
+scope: source.forth
+contexts:
+  main:
+    - match: '(?<!\S)\\(?:\s.*)?$'
+      scope: comment.line.forth
+    - match: '(?<!\S)\((?=\s)'
+      push: comment_1
+    - match: '(?i)(?<!\S)(?:\.|s|c|abort|\,)"(?=\s)'
+      push: string_0
+    - match: '(?<!\S)\.\((?=\s)'
+      push: string_1
+    - match: '(?<!\S)(:|:noname)\s+(\S+)'
+      captures:
+        1: keyword.declaration.forth
+        2: entity.name.function.forth
+    - match: '(?i)(?<!\S)(variable|constant|value|create|2variable|2constant|fvariable|fconstant|defer|buffer:|marker)\s+(\S+)'
+      captures:
+        1: keyword.declaration.forth
+        2: entity.name.constant.forth
+    - match: '(?i)(?<!\S)(?:immediate|postpone|endcase|literal|recurse|\[char\]|repeat|unloop|\+loop|;code|again|begin|does>|endof|leave|until|while|case|else|exit|loop|then|\?do|\[''\]|do|if|of|''|;|\[|\])(?!\S)'
+      scope: keyword.control.forth
+    - match: '(?i)(?<!\S)(?:evaluate|included|aligned|decimal|execute|include|accept|cmove>|forget|invert|lshift|negate|rshift|source|spaces|\*/mod|2drop|2over|2swap|align|allot|cell\+|cells|char\+|chars|cmove|count|depth|erase|false|fetch|parse|space|state|store|words|\-rot|/mod|2dup|\?dup|base|char|drop|emit|fill|find|here|move|over|pick|roll|swap|true|tuck|type|word|0<>|2>r|2r>|>in|abs|and|bye|dup|hex|key|max|min|mod|nip|rot|see|xor|\*/|\+!|\.r|0<|0=|0>|1\+|1\-|2!|2\*|2/|2@|<>|>r|bl|c!|c,|c@|cr|or|r>|r@|u\.|u<|u>|!|,|\.|<|=|>|@)(?!\S)'
+      scope: support.function.forth
+    - match: '(?i)(?<!\S)[-+]?(?:\$[0-9a-f]+|%[01]+|#\d+|\d+(?:\.\d*)?(?:e[-+]?\d+)?)(?!\S)'
+      scope: constant.numeric.forth
+  comment_1:
+    - meta_scope: comment.block.forth
+    - match: '\)'
+      pop: true
+  string_0:
+    - meta_scope: string.quoted.forth
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_1:
+    - meta_scope: string.quoted.forth
+    - match: '\)'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

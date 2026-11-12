@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Builds data/charsets.txt, the one source of truth for every single-byte character set.
+
+Usage: python -I tools/gen_charsets.py <folder of downloaded tables> <path to ATARIST.TXT> <ZX Tokens.txt> <output>
+
+Sources, none invented here:
+- Code pages: the mapping tables in Python's own codecs, which are generated from the Unicode
+  Consortium's MAPPINGS files and the vendors' tables.
+- Atari ST: unicode.org/Public/MAPPINGS/VENDORS/MISC/ATARIST.TXT.
+- Retro machines: github.com/kreativekorp/charsets, tables/ and tidbits/.
+A byte a table doesn't define stays undefined; it is never filled in with a guess.
+"""
+import codecs
+import os
+import re
+import sys
+
+KR_VERSION = "kreativekorp/charsets commit db9120f7b6e4 (2026-11-02)"
+KR_SOURCE = "Rebecca Bettencourt, Legacy Computing Character Encodings, github.com/kreativekorp/charsets"
+PY_SOURCE = "Python %d.%d codec table, generated from the Unicode Consortium's MAPPINGS files" % sys.version_info[:2]
+PY_VERSION = "Python %d.%d.%d" % sys.version_info[:3]
+
+
+def is_control(cp):
+    return cp < 0x20 or 0x7F <= cp <= 0x9F
+
+
+def clean(text):
+    return text.replace("\t", " ").strip()
+
+
+def from_codec(name):
+    rows = {}
+    for byte in range(256):
+        try:
+            text = bytes([byte]).decode(name)
+        except UnicodeDecodeError:
+            continue
+        rows[byte] = (ord(text), "c" if is_control(ord(text)) else "p", "")
+    return rows, {}
+
+
+ROW = re.compile(r"^0x([0-9A-Fa-f]{2})\s+U\+([0-9A-Fa-f+U]+)\s*(?:#\s*(.*))?$")
+BACK = re.compile(r"^U\+([0-9A-Fa-f]{4,6})\s+0x([0-9A-Fa-f]{2})\s*(?:#.*)?$")
+
+
+def read_kr(folder, name):
+    path = os.path.join(folder, name + ".txt")
+    text = open(path, encoding="utf-8").read()
+    if text.startswith("./"):
+        return read_kr(folder, text.strip()[2:-4])
+    rows, back = {}, {}
+    for line in text.splitlines():
+        match = ROW.match(line.strip())
+        if match:
+            byte = int(match.group(1), 16)
+            points = [int(part, 16) for part in match.group(2).replace("U+", "").split("+") if part]
+            comment = clean(match.group(3) or "")
+            if len(points) != 1:
+                # A byte standing for a sequence of characters: named, but with no single character to show.
+                rows[byte] = (None, "s", comment)
+                continue
+            cp = points[0]
+            if comment.startswith("<CONTROL>"):
+                inner = re.search(r"\((.*)\)", comment)
+                rows[byte] = (cp, "c", clean(inner.group(1)) if inner else "")
+            elif 0xE000 <= cp <= 0xF8FF:
+                rows[byte] = (None, "s", comment)
+            elif is_control(cp):
+                rows[byte] = (cp, "c", "")
+            else:
+                rows[byte] = (cp, "p", comment)
+            continue
+        match = BACK.match(line.strip())
+        if match:
+            back[int(match.group(1), 16)] = int(match.group(2), 16)
+    return rows, back
+
+
+def read_atari_st(path):
+    rows = {}
+    for line in open(path, encoding="utf-8", errors="replace"):
+        match = re.match(r"^0x([0-9A-Fa-f]{2})\s+0x([0-9A-Fa-f]{4})\s*#?\s*(.*)$", line)
+        if match:
+            byte, cp = int(match.group(1), 16), int(match.group(2), 16)
+            rows[byte] = (cp, "c" if is_control(cp) else "p", "")
+    return rows, {}
+
+
+def read_zx_tokens(path):
+    tokens = {}
+    for line in open(path, encoding="utf-8"):
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) == 3 and parts[1] == "kZXSpectrumToken":
+            tokens[int(parts[0], 16)] = parts[2].strip()
+    return tokens
+
+
+def write_table(out, title, table, inverse_from=None):
+    rows, back = table
+    out.write("@table %s\n" % title)
+    first = {}
+    for byte in range(256):
+        row = rows.get(byte)
+        if row is None:
+            continue
+        cp, kind, name = row
+        repeats = kind == "p" and cp in first
+        flag = "i" if inverse_from is not None and byte >= inverse_from and repeats else ""
+        if kind == "p":
+            first.setdefault(cp, byte)
+        out.write("%02X\t%s\t%s%s\t%s\n" % (byte, "-" if cp is None else "%04X" % cp, kind, flag, name))
+    for cp, byte in sorted(back.items()):
+        if first.get(cp) != byte and byte in rows:
+            out.write("<\t%04X\t%02X\n" % (cp, byte))
+
+
+def write_charset(out, cid, name, group, source, version, scope, tables, model="none", keep_bytes=False, inverse_from=None):
+    out.write("@charset %s\nname: %s\ngroup: %s\nsource: %s\nversion: %s\nscope: %s\nmodel: %s\nkeep_bytes: %s\n" % (cid, name, group, source, version, scope, model, "true" if keep_bytes else "false"))
+    for title, table in tables:
+        write_table(out, title, table, inverse_from)
+    out.write("\n")
+
+
+def main():
+    folder, atari, zx_tokens, output = sys.argv[1:5]
+    out = open(output, "w", encoding="utf-8", newline="\n")
+    out.write("# Generated by tools/gen_charsets.py. The editor, the Character table and saving all read this one file.\n")
+    out.write("# Row: byte, Unicode (or -), kind (p printable, c control, s depends on display state; i = drawn inverse), name.\n")
+    out.write("# A byte with no row is undefined. A '<' row names the byte a character is written as, where a table says so.\n\n")
+    page = "Complete single-byte code page."
+
+    def code_pages(group, items):
+        for cid, codec, name in items:
+            codecs.lookup(codec)
+            write_charset(out, cid, name, group, PY_SOURCE, PY_VERSION, page, [("Text", from_codec(codec))])
+
+    code_pages("Western", [
+        ("windows-1252", "cp1252", "Windows-1252 (Western)"),
+        ("iso-8859-1", "iso8859_1", "ISO-8859-1 (Latin-1)"),
+        ("iso-8859-15", "iso8859_15", "ISO-8859-15 (Latin-9)"),
+    ])
+    code_pages("Windows code pages", [
+        ("windows-1250", "cp1250", "Windows-1250 (Central European)"),
+        ("windows-1251", "cp1251", "Windows-1251 (Cyrillic)"),
+        ("windows-1253", "cp1253", "Windows-1253 (Greek)"),
+        ("windows-1254", "cp1254", "Windows-1254 (Turkish)"),
+        ("windows-1255", "cp1255", "Windows-1255 (Hebrew)"),
+        ("windows-1256", "cp1256", "Windows-1256 (Arabic)"),
+        ("windows-1257", "cp1257", "Windows-1257 (Baltic)"),
+        ("windows-1258", "cp1258", "Windows-1258 (Vietnamese)"),
+        ("windows-874", "cp874", "Windows-874 (Thai)"),
+    ])
+    code_pages("DOS code pages", [
+        ("cp437", "cp437", "CP437 (DOS US)"),
+        ("cp850", "cp850", "CP850 (DOS Western Europe)"),
+        ("cp737", "cp737", "CP737 (DOS Greek)"),
+        ("cp775", "cp775", "CP775 (DOS Baltic)"),
+        ("cp852", "cp852", "CP852 (DOS Central Europe)"),
+        ("cp855", "cp855", "CP855 (DOS Cyrillic)"),
+        ("cp857", "cp857", "CP857 (DOS Turkish)"),
+        ("cp858", "cp858", "CP858 (DOS Western Europe with euro)"),
+        ("cp860", "cp860", "CP860 (DOS Portuguese)"),
+        ("cp861", "cp861", "CP861 (DOS Icelandic)"),
+        ("cp862", "cp862", "CP862 (DOS Hebrew)"),
+        ("cp863", "cp863", "CP863 (DOS French Canadian)"),
+        ("cp864", "cp864", "CP864 (DOS Arabic)"),
+        ("cp865", "cp865", "CP865 (DOS Nordic)"),
+        ("cp866", "cp866", "CP866 (DOS Cyrillic Russian)"),
+        ("cp869", "cp869", "CP869 (DOS Greek 2)"),
+    ])
+    code_pages("Macintosh", [
+        ("mac-roman", "mac_roman", "Macintosh Roman"),
+        ("mac-centeuro", "mac_latin2", "Macintosh Central European"),
+        ("mac-cyrillic", "mac_cyrillic", "Macintosh Cyrillic"),
+        ("mac-greek", "mac_greek", "Macintosh Greek"),
+        ("mac-iceland", "mac_iceland", "Macintosh Icelandic"),
+        ("mac-turkish", "mac_turkish", "Macintosh Turkish"),
+    ])
+    code_pages("ISO-8859 and others", [
+        ("iso-8859-%d" % i, "iso8859_%d" % i, "ISO-8859-%d" % i) for i in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16)
+    ] + [("koi8-r", "koi8_r", "KOI8-R"), ("koi8-u", "koi8_u", "KOI8-U")])
+    write_charset(out, "us-ascii", "Strict 7-bit ASCII", "Western", PY_SOURCE, PY_VERSION, "Bytes 0 to 127 only. Anything above 0x7F is flagged as undefined and kept.", [("Text", from_codec("ascii"))])
+
+    # The Amiga's text set is ISO-8859-1 in the Amiga manuals; its console gives these C1 bytes their meaning.
+    amiga = dict(from_codec("iso8859_1")[0])
+    for byte, name in [(0x84, "IND"), (0x85, "NEL"), (0x88, "HTS"), (0x8D, "RI"), (0x9B, "CSI")]:
+        amiga[byte] = (byte, "c", name)
+    write_charset(out, "amiga-text", "Amiga text (ISO-8859-1 with console controls)", "Amiga", PY_SOURCE + "; control names from the Amiga ROM Kernel Reference Manual, console.device", PY_VERSION,
+                  "ISO-8859-1 mapping. Only the console's own C1 bytes are named; the rest are kept as controls.", [("Text", (amiga, {}))])
+
+    write_charset(out, "atari-st", "Atari ST", "Atari", "Unicode Consortium, MAPPINGS/VENDORS/MISC/ATARIST.TXT", "Table 1.3 (2015-10-08)", page, [("Text", read_atari_st(atari))])
+
+    def kr(name):
+        return read_kr(folder, name)
+
+    write_charset(out, "atascii", "ATASCII (Atari 8-bit)", "Atari", KR_SOURCE, KR_VERSION, "Bytes 128 and up that repeat a character are drawn inverse.", [("Text", kr("x-atascii"))], inverse_from=0x80)
+    write_charset(out, "atascii-int", "ATASCII International (Atari XL/XE)", "Atari", KR_SOURCE, KR_VERSION, "Bytes 128 and up that repeat a character are drawn inverse.", [("Text", kr("x-atascii-int"))], inverse_from=0x80)
+    write_charset(out, "atascii-screen", "Atari 8-bit screen codes", "Atari", KR_SOURCE, KR_VERSION, "Screen memory codes, not ATASCII. Character mapping only: no memory-dump reading.", [("Screen", kr("x-atascii-video"))], keep_bytes=True, inverse_from=0x80)
+
+    for cid, table, machine in [("petscii-c64", "x-petscii82", "C64 / C128"), ("petscii-vic20", "x-petscii80", "VIC-20"), ("petscii-pet", "x-petscii77", "PET")]:
+        write_charset(out, cid, "PETSCII, " + machine, "Commodore", KR_SOURCE, KR_VERSION,
+                      "Text stream. Character-set switching, graphics, reverse and cursor controls are kept as bytes. Tokenised BASIC and screen memory are separate formats.",
+                      [("Uppercase / graphics", kr(table)), ("Lowercase / uppercase", kr(table + "-alt"))], model="petscii", keep_bytes=True)
+        write_charset(out, cid.replace("petscii", "screen"), "Commodore screen codes, " + machine, "Commodore", KR_SOURCE, KR_VERSION,
+                      "Screen memory codes, a separate profile from PETSCII. Character mapping only: no memory-dump reading.",
+                      [("Uppercase / graphics", kr(table + "-video")), ("Lowercase / uppercase", kr(table + "-alt-video"))], keep_bytes=True, inverse_from=0x80)
+
+    zx = dict(kr("x-zxspectrum")[0])
+    for byte, name in [(0x06, "comma"), (0x08, "cursor left"), (0x09, "cursor right"), (0x0D, "enter"), (0x10, "INK"), (0x11, "PAPER"), (0x12, "FLASH"), (0x13, "BRIGHT"), (0x14, "INVERSE"), (0x15, "OVER"), (0x16, "AT"), (0x17, "TAB")]:
+        zx[byte] = (zx[byte][0] if byte in zx else byte, "c", name)
+    for byte, name in read_zx_tokens(zx_tokens).items():
+        if byte >= 0xA5:
+            zx[byte] = (None, "s", "BASIC keyword " + name)
+    write_charset(out, "zx-spectrum", "ZX Spectrum", "Sinclair", KR_SOURCE + "; control names from the ZX Spectrum BASIC manual", KR_VERSION,
+                  "Plain text only. Bytes 165 and up are BASIC keywords when tokenised: they are named and kept, and tokenised BASIC is a separate format.", [("Text", (zx, kr("x-zxspectrum")[1]))])
+
+    write_charset(out, "bbc-micro", "BBC Micro (modes 0 to 6)", "Acorn", KR_SOURCE, KR_VERSION, "Text in modes 0 to 6. Mode 7 is a separate display profile. Bytes 128 and up are user-defined.", [("Text", kr("x-acorn-electron"))])
+    g1 = [("Mosaic, contiguous", kr("x-ets-300-706-g1-con")), ("Mosaic, separated", kr("x-ets-300-706-g1-sep"))]
+    write_charset(out, "bbc-mode7", "BBC Mode 7 screen memory", "Acorn", KR_SOURCE, KR_VERSION,
+                  "SAA5050 character cells, 40 per row. Separate from broadcast Teletext. Colours, flashing, double height and held graphics show as controls in the text; the preview draws them.",
+                  [("Alphanumeric", kr("x-acorn-mode7-video"))] + g1, model="mode7", keep_bytes=True)
+    write_charset(out, "bbc-mode7-text", "BBC Mode 7 interchange text", "Acorn", KR_SOURCE, KR_VERSION, "Text as typed for Mode 7. Screen memory is a separate profile.", [("Text", kr("x-acorn-mode7"))])
+
+    teletext = [("en", "English"), ("de", "German"), ("fr", "French"), ("es", "Spanish"), ("it", "Italian"), ("sv", "Swedish"), ("fi", "Finnish"), ("pt", "Portuguese"), ("pl", "Polish"), ("cs", "Czech"), ("sk", "Slovak"), ("hu", "Hungarian"), ("hr", "Croatian"), ("sl", "Slovenian"), ("sr", "Serbian"), ("ro", "Romanian"), ("tr", "Turkish"), ("et", "Estonian"), ("lv", "Latvian"), ("lt", "Lithuanian"), ("ru", "Russian"), ("uk", "Ukrainian"), ("bg", "Bulgarian"), ("el", "Greek"), ("ar", "Arabic"), ("he", "Hebrew")]
+    for code, name in teletext:
+        write_charset(out, "teletext-" + code, "Teletext G0, " + name, "Teletext", KR_SOURCE + ", after ETS 300 706", KR_VERSION,
+                      "Raw rows of 40 cells with no line endings, level 1 character mapping. Not broadcast packet decoding, and not every Teletext level. The preview draws the page.",
+                      [("Alphanumeric", kr("x-ets-300-706-g0-" + code))] + g1, model="teletext", keep_bytes=True)
+
+    for cid, table, name in [("msx", "x-msx", "International"), ("msx-jp", "x-msx-jp", "Japanese"), ("msx-br", "x-msx-br", "Brazilian"), ("msx-ru", "x-msx-ru", "Russian"), ("msx-kr", "x-msx-kr", "Korean")]:
+        write_charset(out, cid, "MSX, " + name, "MSX", KR_SOURCE, KR_VERSION, "Single bytes. MSX's two-byte graphics (0x01 and a second byte) are kept as two bytes and aren't joined into one character.", [("Text", kr(table))])
+    write_charset(out, "amstrad-cpm", "Amstrad CP/M Plus", "CP/M", KR_SOURCE, KR_VERSION, "One machine's CP/M set, selectable. Other machines differ.", [("Text", kr("x-amstrad-cpm"))])
+    out.close()
+
+
+if __name__ == "__main__":
+    main()

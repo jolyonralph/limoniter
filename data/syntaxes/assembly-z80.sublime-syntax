@@ -1,0 +1,59 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Zilog Z80 instruction set, including the undocumented SLL and the
+# IX and IY half registers, with common Pasmo, sjasm, z80asm, RASM and Zeus directives.
+name: Assembly Z80
+file_extensions: [z80, s80, a80, asm80, azm]
+scope: source.assembly.z80
+variables:
+  branch: (?:call|djnz|jp|jr|ret|reti|retn|rst|halt)
+  instruction: (?:adc|add|and|bit|ccf|cp|cpd|cpdr|cpi|cpir|cpl|daa|dec|di|ei|ex|exx|im|in|inc|ind|indr|ini|inir|ld|ldd|lddr|ldi|ldir|neg|nop|or|otdr|otir|out|outd|outi|pop|push|res|rl|rla|rlc|rlca|rld|rr|rra|rrc|rrca|rrd|sbc|scf|set|sla|sll|sli|sra|srl|sub|xor)
+  directive: (?:org|equ|defb|defw|defs|defm|defl|db|dw|dd|ds|dm|dc|byte|word|text|end|include|incbin|binary|macro|endm|rept|endr|if|else|endif|ifdef|ifndef|phase|dephase|unphase|public|extern|extrn|global|cseg|dseg|aseg|module|endmodule|align|assume|device|savesna|savebin|output|limit|run|list|nolist|title|struct|ends)
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@$][\w.@$]*:{1,2}'
+      scope: entity.name.label.z80
+    - match: '(?i)(?<![\w.])\.?(?:{{directive}})(?![\w.])'
+      scope: keyword.control.directive.z80
+      push: operands
+    - match: '(?i)(?<![\w.])({{branch}})(?:\s+(z|p|m)(?![\w$]))?(?![\w.])'
+      captures:
+        1: keyword.control.branch.z80
+        2: variable.language.condition.z80
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{instruction}})(?![\w.])'
+      scope: support.function.instruction.z80
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.z80
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.z80
+      push: operands
+    - match: '='
+      scope: keyword.operator.z80
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    # The shadow register comes first: its quote mark doesn't start a string.
+    - match: "(?i)\\baf'"
+      scope: variable.language.register.z80
+    - include: strings
+    - include: numbers
+    - match: '(?i)(?<![\w.$@%&])(?:af|bc|de|hl|ix|iy|sp|pc|ixh|ixl|iyh|iyl|hx|lx|hy|ly|xh|xl|yh|yl|nz|nc|po|pe|[abcdehlirf])(?![\w$@])'
+      scope: variable.language.register.z80
+    - match: '[+\-*/&|^~<>=!]'
+      scope: keyword.operator.z80
+  comment:
+    - match: ';.*$'
+      scope: comment.line.semicolon.z80
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.z80
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.z80
+  numbers:
+    - match: '(?i)\$[0-9a-f]+|%[01]+|&[0-9a-f]+|#[0-9a-f]+|(?<![\w.$@])[0-9][0-9a-f]*h(?![\w.])|(?<![\w.$@])[01]+b(?![\w.])|(?<![\w.$@])[0-7]+[oq](?![\w.])|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.z80

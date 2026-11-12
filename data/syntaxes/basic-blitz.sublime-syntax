@@ -1,0 +1,33 @@
+%YAML 1.2
+---
+# Blitz Basic 2 on the Amiga (and the Blitz3D and BlitzPlus it led to): ; comments, Statement and Function with their
+# types (.w .l .q .s .b), NEWTYPE, Blitz mode commands and its display, shape and slice commands.
+name: BASIC (Blitz Basic)
+file_extensions: ["bb", "bb2", "blitz", "bbs"]
+scope: source.basic.blitz
+contexts:
+  main:
+    - match: ';.*$'
+      scope: comment.line.basic.blitz
+    - match: '"'
+      push: string_0
+    - match: '(?i)\b(statement|function|newtype|type)\s*(?:\.\w+\s+)?([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.basic.blitz
+        2: entity.name.function.basic.blitz
+    - match: '\.[wlqsbf](?!\w)'
+      scope: storage.type.basic.blitz
+    - match: '^\s*\.[A-Za-z_]\w*'
+      scope: entity.name.label.basic.blitz
+    - match: '(?i)(?<![A-Za-z0-9_])(?:endstatement|endfunction|statement|function|xinclude|default|forever|include|newtype|elseif|global|qamiga|repeat|return|select|shared|amiga|blitz|const|endif|field|gosub|local|until|vwait|while|case|else|exit|goto|next|step|then|wend|dim|end|for|if|to)(?![A-Za-z0-9_])'
+      scope: keyword.control.basic.blitz
+    - match: '(?i)(?<![A-Za-z0-9_])(?:bitplanesbitmap|loadpalette|initcopper|loadshapes|loadshape|coplist|display|palette|bitmap|buffer|colour|inkey\$|locate|nprint|right\$|scroll|bblit|instr|left\$|mouse|print|qblit|shape|showf|slice|blit|chr\$|joyb|joyx|joyy|mid\$|show|str\$|abs|asc|cls|cos|int|len|rgb|rnd|sin|sqr|val)(?![A-Za-z0-9_])'
+      scope: support.function.basic.blitz
+    - match: '(?<![\w.$])(?:\$[0-9A-Fa-f]+|%[01]+|\d+(?:\.\d+)?)'
+      scope: constant.numeric.basic.blitz
+  string_0:
+    - meta_scope: string.quoted.basic.blitz
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

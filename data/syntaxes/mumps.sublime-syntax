@@ -1,0 +1,37 @@
+%YAML 1.2
+---
+# MUMPS (M) as ANSI/MDC X11.1 defines it: commands and their one-letter abbreviations at the start of a statement,
+# $ intrinsic functions and special variables, ^ globals, labels in the first column and ; comments.
+name: MUMPS (M)
+file_extensions: ["mumps", "mps", "ro", "rsa", "zwr"]
+scope: source.mumps
+contexts:
+  main:
+    - match: ';.*$'
+      scope: comment.line.mumps
+    - match: '"'
+      push: string_0
+    - match: '^[%A-Za-z0-9][A-Za-z0-9]*(?=[\s(;]|$)'
+      scope: entity.name.function.mumps
+    - match: '\^[%A-Za-z][A-Za-z0-9]*'
+      scope: variable.other.global.mumps
+    - match: '(?i)\$(?:ASCII|A|CHAR|C|DATA|D|EXTRACT|E|FIND|F|FNUMBER|FN|GET|G|JUSTIFY|J|LENGTH|L|NAME|NA|ORDER|O|PIECE|P|QLENGTH|QL|QSUBSCRIPT|QS|QUERY|Q|RANDOM|R|REVERSE|RE|SELECT|S|STACK|ST|TEXT|T|TRANSLATE|TR|VIEW|V|Z\w*)(?=\()'
+      scope: support.function.mumps
+    - match: '(?i)\$(?:DEVICE|ECODE|EC|ESTACK|ES|ETRAP|ET|HOROLOG|H|IO|I|JOB|J|KEY|K|PRINCIPAL|PR|QUIT|Q|STACK|ST|STORAGE|S|SYSTEM|SY|TEST|T|TLEVEL|TL|X|Y|Z\w*)\b'
+      scope: variable.language.mumps
+    - match: '\$\$[%A-Za-z]\w*'
+      scope: entity.name.function.mumps
+    - match: '(?i)(?:(?<=^[ \t])|(?<=[ \t:.])|(?<=^))(?:TROLLBACK|TRESTART|TCOMMIT|TSTART|XECUTE|BREAK|CLOSE|MERGE|WRITE|ELSE|GOTO|HALT|HANG|KILL|LOCK|OPEN|QUIT|READ|VIEW|FOR|JOB|NEW|SET|TRE|TRO|USE|DO|IF|TC|TS|B|C|D|E|F|G|H|I|J|K|L|M|N|O|Q|R|S|U|V|W|X)(?=[ :]|$)'
+      scope: keyword.control.mumps
+    - match: '(?<![\w.])\d+(?:\.\d+)?(?:E[+-]?\d+)?'
+      scope: constant.numeric.mumps
+    - match: '''?[=<>\[\]]|[+\-*/\\#_&!''?@]'
+      scope: keyword.operator.mumps
+  string_0:
+    - meta_scope: string.quoted.mumps
+    - match: '""'
+      scope: constant.character.escape.mumps
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true

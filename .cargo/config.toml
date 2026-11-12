@@ -1,0 +1,4 @@
+# Builds Microsoft's C runtime into the program, because a fresh Windows PC may not have VCRUNTIME140.dll,
+# and the program wouldn't start without it.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -1,0 +1,60 @@
+%YAML 1.2
+---
+# Written for Limoniter from Atmel's (Microchip's) AVR 8-bit instruction set, with the directives of AVRASM2 and
+# GNU as. Comments are ;, // and /* */, as AVRASM2 takes.
+name: Assembly AVR
+file_extensions: [avr, avrasm, s_avr]
+scope: source.assembly.avr
+variables:
+  branch: (?:eicall|break|eijmp|icall|rcall|brbc|brbs|brcc|brcs|breq|brge|brhc|brhs|brid|brie|brlo|brlt|brmi|brne|brpl|brsh|brtc|brts|brvc|brvs|call|cpse|ijmp|reti|rjmp|sbic|sbis|sbrc|sbrs|jmp|ret)
+  instruction: (?:fmulsu|fmuls|mulsu|sleep|adiw|andi|bclr|bset|elpm|fmul|movw|muls|push|sbci|sbiw|subi|swap|adc|add|and|asr|bld|bst|cbi|cbr|clc|clh|cli|cln|clr|cls|clt|clv|clz|com|cpc|cpi|dec|des|eor|inc|lac|las|lat|ldd|ldi|lds|lpm|lsl|lsr|mov|mul|neg|nop|ori|out|pop|rol|ror|sbc|sbi|sbr|sec|seh|sei|sen|ser|ses|set|sev|sez|spm|std|sts|sub|tst|wdr|xch|cp|in|ld|or|st)
+  directive: (?:\.nooverlap|\.endmacro|\.include|\.listmac|\.message|\.overlap|\.section|\.warning|\.device|\.global|\.ifndef|\.nolist|\.align|\.ascii|\.asciz|\.endif|\.error|\.ifdef|\.macro|\.space|\.undef|\.byte|\.cseg|\.data|\.dseg|\.elif|\.else|\.endm|\.eseg|\.exit|\.list|\.text|\.word|\.def|\.equ|\.org|\.set|\.db|\.dd|\.dq|\.dw|\.if)
+  edge_before: '(?<![\w.$@])'
+  edge_after: '(?![\w.$@])'
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@$][\w.@$]*:{1,2}'
+      scope: entity.name.label.avr
+    - match: '(?i){{edge_before}}(?:{{directive}}){{edge_after}}'
+      scope: keyword.control.directive.avr
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{branch}}){{edge_after}}'
+      scope: keyword.control.branch.avr
+      push: operands
+    - match: '(?i){{edge_before}}(?:{{instruction}}){{edge_after}}'
+      scope: support.function.instruction.avr
+      push: operands
+    - match: '^[A-Za-z_.@$][\w.@$]*'
+      scope: entity.name.label.avr
+    - match: '[A-Za-z_.@][\w.@$]*'
+      scope: variable.function.macro.avr
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i){{edge_before}}(?:sreg|r10|r11|r12|r13|r14|r15|r16|r17|r18|r19|r20|r21|r22|r23|r24|r25|r26|r27|r28|r29|r30|r31|sph|spl|r0|r1|r2|r3|r4|r5|r6|r7|r8|r9|sp|xh|xl|yh|yl|zh|zl|x|y|z){{edge_after}}'
+      scope: variable.language.register.avr
+    - match: '[+\-*/&|^~<>=!#@]'
+      scope: keyword.operator.avr
+  comment:
+    - match: ';.*$'
+      scope: comment.line.avr
+    - match: '//.*$'
+      scope: comment.line.avr
+    - match: '/\*'
+      push:
+        - meta_scope: comment.block.avr
+        - match: '\*/'
+          pop: true
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.avr
+    - match: "'[^'\\n]*'?"
+      scope: string.quoted.single.avr
+  numbers:
+    - match: '(?i)0x[0-9a-f]+|\$[0-9a-f]+|0b[01]+|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.avr

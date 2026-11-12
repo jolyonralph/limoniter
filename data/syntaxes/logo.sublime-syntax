@@ -1,0 +1,25 @@
+%YAML 1.2
+---
+# Logo as UCBLogo and the classic turtle Logos have it: TO ... END procedures, "quoted words, :variables, [lists],
+# ; comments, the turtle commands and their short forms, and the list primitives.
+name: Logo
+file_extensions: ["lgo", "logo", "lg"]
+scope: source.logo
+contexts:
+  main:
+    - match: ';.*$'
+      scope: comment.line.logo
+    - match: '(?i)^\s*(to)\s+([^\s\[\]()]+)'
+      captures:
+        1: keyword.declaration.logo
+        2: entity.name.function.logo
+    - match: ':[^\s\[\]()]+'
+      scope: variable.other.logo
+    - match: '\"[^\s\[\]()]*'
+      scope: string.unquoted.logo
+    - match: '(?i)(?<![\w.?])(?:localmake|runresult|do\.until|do\.while|forever|iffalse|ifelse|iftrue|output|repeat|catch|local|throw|until|while|make|name|stop|test|wait|end|for|run|if|op|to)(?![\w.?])'
+      scope: keyword.control.logo
+    - match: '(?i)(?<![\w.?])(?:setbackground|clearscreen|setpencolor|difference|hideturtle|setheading|setpensize|showturtle|remainder|butfirst|penerase|quotient|sentence|butlast|forward|heading|memberp|numberp|pendown|product|towards|circle|emptyp|equalp|random|setpos|clean|count|first|label|listp|penup|print|right|round|setbg|setpc|setxy|wordp|back|fill|fput|home|item|last|left|list|lput|seth|setx|sety|show|sqrt|type|word|xcor|ycor|arc|int|pos|sum|bf|bk|bl|cs|fd|ht|lt|pd|pe|pr|pu|rt|se|st)(?![\w.?])'
+      scope: support.function.logo
+    - match: '(?<![\w.])-?\d+(?:\.\d+)?'
+      scope: constant.numeric.logo

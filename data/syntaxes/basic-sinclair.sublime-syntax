@@ -1,0 +1,56 @@
+%YAML 1.2
+---
+# Written for Limoniter from Sinclair ZX Spectrum 48K and 128K BASIC and the Spectrum Next's NextBASIC, as
+# NextBASIC New Commands and Features (NextZXOS 2.10) describes it: line numbers, REM and ; comments, strings,
+# the listing escapes Limoniter writes ({INK 2}, {UDG-A}, {$xx}), % integer expressions, $ hex and @ binary
+# numbers, @ labels, procedures and dot commands.
+name: BASIC (Sinclair and Next)
+file_extensions: [bas, zxbas, nbas]
+scope: source.basic.sinclair
+variables:
+  statements: (?:BEEP|BORDER|BRIGHT|CAT|CIRCLE|CLEAR|CLOSE\s*#|CLS|CONTINUE|CONT|COPY|DATA|DEF\s*FN|DIM|DRAW|ERASE|FLASH|FOR|FORMAT|GO\s*SUB|GO\s*TO|IF|INK|INPUT|INVERSE|LET|LIST|LLIST|LOAD|LPRINT|MERGE|MOVE|NEW|NEXT|OPEN\s*#|OUT|OVER|PAPER|PAUSE|PLOT|POKE|PRINT|RANDOMIZE|RAND|READ|RESTORE|RETURN|RUN|SAVE|STOP|VERIFY|THEN|TO|STEP|LINE|SPECTRUM|PLAY|PRIVATE|ENDIF|EXIT|REF|DPOKE|UNTIL|ERROR|ON|DEFPROC|ENDPROC|PROC|LOCAL|DRIVER|WHILE|REPEAT|ELSE|REMOUNT|BANK|TILE|LAYER|PALETTE|SPRITE|PWD|CD|MKDIR|RMDIR)
+  functions: (?:ABS|ACS|AND|ASN|AT|ATN|ATTR|BIN|CHR\$|CODE|COS|EXP|FN|IN|INKEY\$|INT|LEN|LN|NOT|OR|PEEK\$|PEEK|DPEEK|PI|POINT|REG|RND|SCREEN\$|SGN|SIN|SQR|STR\$|TAB|TAN|TIME|USR|VAL\$|VAL|MOD)
+contexts:
+  main:
+    - match: '^\s*(\d+)\s*(;.*)?'
+      captures:
+        1: constant.numeric.line-number.basic
+        2: comment.line.semicolon.basic
+    - match: ':\s*(;.*)'
+      captures:
+        1: comment.line.semicolon.basic
+    - match: '(?:^\s*\d+\s*|:\s*)(\.[A-Za-z][\w-]*)([^:\n]*)'
+      captures:
+        1: support.function.dot-command.basic
+        2: string.unquoted.dot-command.basic
+    - match: '(?i)(?<![A-Za-z0-9$])REM(?![A-Za-z]).*'
+      scope: comment.line.rem.basic
+    - match: '"'
+      push: string
+    - match: '\{[^}\n]*\}'
+      scope: constant.character.escape.basic
+    - match: '(?i)(?<![A-Za-z0-9$])(DEFPROC|PROC)\s+([A-Za-z_][\w$]*)'
+      captures:
+        1: keyword.control.basic
+        2: entity.name.function.basic
+    - match: '@[A-Za-z_][\w$]*'
+      scope: entity.name.label.basic
+    - match: '(?i)(?<![A-Za-z0-9$])(?:{{statements}})(?![A-Za-z])'
+      scope: keyword.control.basic
+    - match: '(?i)(?<![A-Za-z0-9$])(?:{{functions}})(?![A-Za-z])'
+      scope: support.function.basic
+    - match: '%'
+      scope: storage.modifier.integer.basic
+    - match: '(?<![A-Za-z0-9$])(?:\$[0-9A-Fa-f]+(?:\.[0-9A-Fa-f]+)?|@[01]+(?:\.[01]+)?|\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)'
+      scope: constant.numeric.basic
+    - match: '<=|>=|<>|<<|>>|\^\||[-+*/^=<>&|!]'
+      scope: keyword.operator.basic
+  string:
+    - meta_scope: string.quoted.double.basic
+    - match: '""'
+    - match: '\{[^}\n]*\}'
+      scope: constant.character.escape.basic
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
