@@ -1,0 +1,43 @@
+# Builds Limoniter and runs its tests on Windows, Linux and macOS whenever anything is pushed, and checks it with
+# clippy. The tests marked #[ignore] need real servers, drives or huge files, and aren't run here.
+
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: Linux
+            os: ubuntu-latest
+          - name: macOS
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the current Rust
+        run: rustup update stable --no-self-update && rustup component add clippy
+
+      - name: Keep what's been built between runs
+        uses: Swatinem/rust-cache@v2
+
+      - name: Clippy
+        run: cargo clippy --all-targets --release --locked -- -D warnings
+
+      - name: Tests
+        run: cargo test --release --locked
