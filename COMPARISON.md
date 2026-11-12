@@ -10,7 +10,7 @@ It reflects the editors as of November 2026, going by their own documentation an
 
 | Editor | Free or paid | Open source | Runs on |
 |---|---|---|---|
-| **Limoniter** | Free | Yes (Apache 2.0) | Windows; Linux (builds and runs); macOS (compiles, not yet tested on a Mac) |
+| **Limoniter** | Free | Yes (Apache 2.0) | Windows; Linux (builds and runs); macOS (builds and passes its tests; no app to download yet) |
 | Windows Notepad | Free, with Windows (some AI features need a Microsoft subscription) | No | Windows |
 | Notepad++ | Free | Yes (GPL) | Windows |
 | Visual Studio Code | Free (some extensions and AI plans are paid) | Core yes (MIT); Microsoft's build no | Windows, macOS, Linux |
@@ -88,7 +88,7 @@ Some of these are possible elsewhere with separate tools (cpmtools, AppleCommand
 
 ## What others do that Limoniter doesn't
 
-- **Other platforms.** Limoniter is made for Windows. It now builds and runs on Linux, where a few things are lighter (no file-type registration; spelling through hunspell or aspell; printing as plain pages through CUPS), and it compiles for macOS but hasn't been tried on a Mac. VS Code, Sublime Text, Vim, Emacs, Kate, Zed and UltraEdit are long established on all three; BBEdit is the Mac's own.
+- **Other platforms.** Limoniter is made for Windows. It now builds and runs on Linux, where a few things are lighter (no file-type registration; spelling through hunspell or aspell; printing as plain pages through CUPS), and it builds and passes its tests on macOS, but there's no Mac app to download yet. VS Code, Sublime Text, Vim, Emacs, Kate, Zed and UltraEdit are long established on all three; BBEdit is the Mac's own.
 - **Plug-ins.** Notepad++, VS Code, Sublime Text, Vim, Emacs, Kate, Zed and EmEditor have thousands of add-ons written by others. Limoniter's add-ons are Rhai scripts that add commands, run when files open or save, and show panels, but there is no catalogue of them yet, and they can't add new kinds of window, language support or file formats.
 - **Programming tools.** Code completion and go-to-definition through language servers, debuggers, Git, a terminal inside the editor, and test runners are standard in VS Code, Zed and Kate and available in most others. Limoniter has none of these; it lists a file's functions from its grammar and can run a command on the file.
 - **Remote and shared editing.** VS Code, Zed, UltraEdit, BBEdit, Vim and Emacs edit files on other machines over SSH or FTP; Zed and VS Code let several people edit together. Limoniter opens and saves files over SFTP, and can send a copy to an FTP server, but can't open files over FTP, and has no remote terminal, remote search or shared editing.

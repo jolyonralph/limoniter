@@ -1,0 +1,47 @@
+# Publishes the website in web/ to GitHub Pages whenever it, or the comparison it's made from, changes.
+# compare.html is made afresh from COMPARISON.md each time, so the two can't drift apart.
+
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'COMPARISON.md', '.github/workflows/website.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One publish at a time, and a newer one waits rather than cutting an older one short.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Make the comparison page from COMPARISON.md
+        run: python3 web/tools/make-compare.py
+
+      - name: Gather the site, without the tools that make it
+        run: |
+          mkdir _site
+          cp -r web/. _site/
+          rm -rf _site/tools _site/README.md
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
