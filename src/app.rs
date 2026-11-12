@@ -40,6 +40,8 @@ use std::time::Duration;
 
 /// Text files at least this big stay on disk rather than being read into memory.
 const DISK_THRESHOLD: u64 = 64 * 1024 * 1024;
+/// The title of Convert to encoding, which a large file's conversion is told apart by when it finishes.
+const CONVERT_TITLE: &str = "Convert to encoding";
 /// How far into a file it's read to see which processor some assembler is for.
 const ASM_SAMPLE_LINES: usize = 300;
 /// How long a search or Replace All may run in one frame, so the window stays responsive.
@@ -512,6 +514,8 @@ struct Document {
     /// Delimited data was found when the file was opened, and table view is offered for it.
     table_offer: Option<crate::table::Dialect>,
     table_checked: bool,
+    /// Every line is being changed in the background, written to a new file it will carry on from.
+    rewriting: bool,
     /// A document theme chosen for this document alone, by name, for as long as it's open.
     theme_override: Option<String>,
     /// Unsaved changes carried across a switch between text and hex.
@@ -548,8 +552,8 @@ struct Document {
     placeholder: bool,
     split: Option<Split>,
     filter: Option<Filter>,
-    /// The lines showing given what's folded, and what that was worked out from.
-    fold_view: Vec<usize>,
+    /// The stretches hidden by folds, and what that was worked out from.
+    fold_view: Vec<views::Hidden>,
     fold_view_of: Option<(u64, std::collections::BTreeMap<usize, usize>)>,
     /// This document's other windows, and the number of the one in front.
     windows: Vec<HiddenWindow>,
@@ -622,6 +626,7 @@ impl Document {
             table: None,
             table_offer: None,
             table_checked: false,
+            rewriting: false,
             theme_override: None,
             carried: false,
             text_state: ViewState::default(),
@@ -662,7 +667,7 @@ impl Document {
         let version = self.text.version();
         let current = self.fold_view_of.as_ref().is_some_and(|(known, folds)| *known == version && folds == self.text.folds());
         if !current {
-            self.fold_view = self.text.unfolded_lines();
+            self.fold_view = views::hidden_by_folds(self.text.folds());
             self.fold_view_of = Some((version, self.text.folds().clone()));
         }
     }
@@ -979,7 +984,7 @@ impl Document {
 
     /// Whether the document is tied up with its scan or a save, and so can't be edited yet.
     fn is_busy(&self) -> bool {
-        self.scanning.is_some() || self.saving.is_some()
+        self.scanning.is_some() || self.saving.is_some() || self.rewriting
     }
 
     fn is_blank(&self) -> bool {
@@ -1190,6 +1195,9 @@ pub struct Limoniter {
     pending_share: f32,
     /// Word Count or Save a copy, going through the whole of a file too large to hold in memory.
     big_job: Option<crate::big_jobs::BigJob>,
+    /// Files written by changes too large to make in memory, which documents' lines and undo may be read from;
+    /// taken away when the window closes.
+    large_edits: Vec<PathBuf>,
     show_results: bool,
     dialog: Dialog,
     /// A menu laid open without being clicked, for a picture or a test, and whether its sub-menus are opened out too.
@@ -1432,6 +1440,7 @@ impl Limoniter {
             pending: None,
             pending_share: 0.0,
             big_job: None,
+            large_edits: Vec::new(),
             show_results: false,
             dialog: Dialog::None,
             shown_menu: None,
@@ -1927,11 +1936,15 @@ impl Limoniter {
                 return;
             }
         };
+        let unit = self.indent_unit();
         if self.docs[self.active].text.is_disk_backed() {
-            self.message("Reindent", "This file is too large to reindent. It is being kept on disk so that it opens quickly.".into());
+            // Too large to hold: every line goes through, from the top, as the depth of brackets is followed.
+            let (top, bottom) = self.docs[self.active].text.convert_bounds();
+            let mut indenter = reformat::Reindenter::new(&unit, marks);
+            let format = self.docs[self.active].text.format.clone();
+            self.start_rewrite(self.active, "Reindent", format, None, Lossy::Refuse, Box::new(move |number, line| indenter.line(line, (top..=bottom).contains(&number))));
             return;
         }
-        let unit = self.indent_unit();
         let text = &mut self.doc().text;
         if let Some((top, bottom)) = text.rows_for_convert() {
             let rows = reformat::reindent(&text.all_lines(), top, bottom, &unit, &marks);
@@ -2261,6 +2274,28 @@ impl Limoniter {
     }
 
     /// Shows what a Word Count or Save a copy of a huge file came to, once it's done. True while it's running.
+    /// Changes every line of a document too large to hold in memory, in the background. The new version is written
+    /// to a file of its own that the document then carries on from, as one step for Undo.
+    fn start_rewrite(&mut self, index: usize, title: &'static str, to: TextFormat, eol: Option<codec::Eol>, lossy: Lossy, change: crate::big_jobs::LineChange) -> bool {
+        if self.big_job.is_some() {
+            self.message(title, "Please wait for the file being worked through to finish.".into());
+            return false;
+        }
+        let doc = &mut self.docs[index];
+        if doc.text.read_only {
+            self.tell_read_only();
+            return false;
+        }
+        let folder = self.remote_root.as_ref().and_then(|r| r.parent()).map_or_else(|| std::env::temp_dir().join("limoniter-large-edits"), |data| data.join("large-edits"));
+        let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| "untitled".into(), |s| s.to_string_lossy().into_owned());
+        let ending = doc.path.as_deref().and_then(Path::extension).map_or_else(String::new, |e| format!(".{}", e.to_string_lossy()));
+        let path = folder.join(format!("{stem}-{}-{}{ending}", std::process::id(), self.large_edits.len() + 1));
+        self.large_edits.push(path.clone());
+        doc.rewriting = true;
+        self.big_job = Some(crate::big_jobs::rewrite(title, doc.text.store().clone(), doc.text.format.clone(), to, eol, lossy, change, path, doc.id));
+        true
+    }
+
     fn check_big_job(&mut self) -> bool {
         let Some(job) = &self.big_job else {
             return false;
@@ -2271,13 +2306,47 @@ impl Limoniter {
         let title = job.title;
         let doc_id = job.doc_id;
         self.big_job = None;
+        if let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id) {
+            doc.rewriting = false;
+        }
         match outcome {
+            crate::big_jobs::Outcome::Lines { needle, lines } => {
+                if let Some(index) = self.docs.iter().position(|d| d.id == doc_id) {
+                    self.active = index;
+                    let doc = &mut self.docs[index];
+                    let was_read_only = doc.text.read_only;
+                    doc.set_read_only(true);
+                    doc.filter = Some(Filter { needle, lines, was_read_only });
+                    doc.text.reveal = true;
+                    self.pending_focus = true;
+                }
+                return true;
+            }
+            crate::big_jobs::Outcome::Rewritten { path, format } => {
+                let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id) else {
+                    return false;
+                };
+                match Source::open_as(&path, Some(format.charset)) {
+                    Ok(source) => {
+                        let mut format = format;
+                        format.has_bom = source.has_bom();
+                        charset_widths(&format);
+                        doc.text.replace_with_source(source.clone(), format);
+                        doc.scanning = Some(source);
+                        doc.resolved_syntax = None;
+                        doc.table = None;
+                    }
+                    Err(e) => warn(&format!("{title} couldn't read back what it wrote.\n\n{e}")),
+                }
+                return true;
+            }
             crate::big_jobs::Outcome::Done(text) => self.message(title, text),
             crate::big_jobs::Outcome::Failed(problem) => warn(&problem),
             crate::big_jobs::Outcome::Problems(problems, target) => {
                 if let Some(index) = self.docs.iter().position(|d| d.id == doc_id) {
                     self.active = index;
-                    let report = LossyReport { purpose: LossyPurpose::Export, target_name: target.charset.name.clone(), problems };
+                    let purpose = if title == CONVERT_TITLE { LossyPurpose::Convert } else { LossyPurpose::Export };
+                    let report = LossyReport { purpose, target_name: target.charset.name.clone(), problems };
                     self.dialog = Dialog::Lossy(report, target);
                 }
             }
@@ -2493,15 +2562,21 @@ impl Limoniter {
         if doc.hex_mode {
             return;
         }
-        if doc.text.is_disk_backed() {
-            self.message("Filter on selection", "This file is too large to filter. It is being kept on disk so that it opens quickly.".into());
-            return;
-        }
         if !doc.text.has_selection() || doc.text.caret_line != doc.text.anchor_line || doc.text.is_block() {
             self.message("Filter on selection", "Select some text on one line first. Only the lines containing it will show.".into());
             return;
         }
         let needle = doc.text.selection_text();
+        if doc.text.is_disk_backed() {
+            // Too large to hold: the lines are looked through in the background, and the filter shows when that's done.
+            let (store, id) = (doc.text.store().clone(), doc.id);
+            if self.big_job.is_some() {
+                self.message("Filter on selection", "Please wait for the file being worked through to finish.".into());
+                return;
+            }
+            self.big_job = Some(crate::big_jobs::find_lines(store, needle, id));
+            return;
+        }
         let lines = lines_containing(&doc.text.all_lines(), &needle);
         let was_read_only = doc.text.read_only;
         doc.set_read_only(true);
@@ -3441,9 +3516,6 @@ impl Limoniter {
             }
             Command::CollapseAll => self.doc().text.collapse_all(),
             Command::ExpandAll => self.doc().text.expand_all(),
-            Command::HideLines if !self.docs[self.active].text.can_hide_lines() => {
-                self.message("Hide lines", "This file is too large to hide lines in. It is being kept on disk so that it opens quickly.".into());
-            }
             Command::HideLines => {
                 if !self.doc().text.hide_selected_lines() {
                     self.message("Hide lines", "Select two or more lines first. The first of them stays showing, and stands for the rest.".into());
@@ -4134,10 +4206,6 @@ impl Limoniter {
             self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
             return;
         }
-        if doc.text.is_disk_backed() && purpose == Purpose::Convert {
-            self.message(purpose.title(), "This file is too large for that in this version. It is being kept on disk so that it opens quickly.".into());
-            return;
-        }
         let sample = if purpose == Purpose::Reopen { self.sample_of(index) } else { Vec::new() };
         self.dialog = Dialog::Picker(Picker::new(purpose, &self.docs[index].text.format, sample));
     }
@@ -4197,8 +4265,15 @@ impl Limoniter {
 
     /// Keeps the text and changes how it's stored, checking every character first.
     fn convert_to(&mut self, index: usize, target: TextFormat) {
+        self.convert_with(index, target, Lossy::Refuse);
+    }
+
+    /// Converts, with what to do about characters the new encoding can't hold.
+    fn convert_with(&mut self, index: usize, target: TextFormat, lossy: Lossy) {
         let doc = &mut self.docs[index];
         if doc.text.is_disk_backed() {
+            // Too large to hold: every line is written out in the new encoding, and the document carries on from that.
+            self.start_rewrite(index, CONVERT_TITLE, target, None, lossy, Box::new(|_, line| line.to_string()));
             return;
         }
         let lines = doc.text.all_lines();
@@ -4278,8 +4353,11 @@ impl Limoniter {
             }
             MenuAction::SetInsertEol(eol) => self.docs[index].text.set_insert_eol(eol),
             MenuAction::ConvertEols(eol) => {
-                if !self.docs[index].text.convert_line_endings(eol) {
-                    self.message("Line endings", "This file is too large for that in this version.".into());
+                if self.docs[index].text.is_disk_backed() {
+                    let format = self.docs[index].text.format.clone();
+                    self.start_rewrite(index, "Line endings", format, Some(eol), Lossy::Refuse, Box::new(|_, line| line.to_string()));
+                } else {
+                    self.docs[index].text.convert_line_endings(eol);
                 }
             }
             MenuAction::SetPolicy(policy) => {
@@ -5756,6 +5834,13 @@ impl eframe::App for Limoniter {
         {
             session.finish();
         }
+        // The files large changes were written to are read from only while the window is open.
+        if self.allow_close {
+            self.docs.clear();
+            for path in &self.large_edits {
+                let _ = std::fs::remove_file(path);
+            }
+        }
     }
 }
 
@@ -5863,7 +5948,8 @@ impl Limoniter {
             doc.update_syntax();
             doc.refresh_fold_view();
             let folded = doc.filter.is_none() && doc.fold_view_of.is_some();
-            let filter = doc.filter.as_ref().map(|filter| filter.lines.as_slice()).or(folded.then_some(doc.fold_view.as_slice()));
+            let total = doc.text.line_count();
+            let filter = doc.filter.as_ref().map(|filter| views::Shown::Lines(filter.lines.as_slice())).or(folded.then_some(views::Shown::AllBut { hidden: doc.fold_view.as_slice(), total }));
             if doc.table.is_some() && !doc.hex_mode {
                 self.table_view(ui, input_on);
                 return;
@@ -6282,7 +6368,7 @@ fn delimiter_choice(ui: &mut Ui, delimiter: &mut char) {
 
 /// Draws both panes of a split window, with a divider between them that can be dragged.
 #[allow(clippy::too_many_arguments)]
-fn draw_split(ui: &mut Ui, text: &mut TextBuffer, first: &mut ViewState, split: &mut Split, clip: &mut ClipState, filter: Option<&[usize]>, folded: bool, view: ViewOptions, input_on: bool) -> Option<ContextCommand> {
+fn draw_split(ui: &mut Ui, text: &mut TextBuffer, first: &mut ViewState, split: &mut Split, clip: &mut ClipState, filter: Option<views::Shown<'_>>, folded: bool, view: ViewOptions, input_on: bool) -> Option<ContextCommand> {
     const GAP: f32 = 5.0;
     let whole = ui.available_rect_before_wrap();
     let (a, gap, b) = if split.vertical {
@@ -6554,6 +6640,10 @@ mod table_view;
 
 #[path = "theme_host.rs"]
 mod theme_host;
+
+#[cfg(test)]
+#[path = "large_file_tests.rs"]
+mod large_file_tests;
 
 #[path = "menus.rs"]
 mod menus;
@@ -7604,7 +7694,7 @@ mod tests {
         assert!(app.docs[0].text.is_folded(0));
         draw(&mut app, &ctx, Vec::new());
         assert!(app.docs[0].fold_view_of.is_some());
-        assert_eq!(app.docs[0].fold_view, [0, 3]);
+        assert_eq!(app.docs[0].fold_view, [views::Hidden { first: 1, last: 2, shown_before: 1 }]);
         app.doc().text.go_to("3");
         draw(&mut app, &ctx, Vec::new());
         assert!(!app.docs[0].text.has_folds(), "going to a hidden line opens what's hiding it");

@@ -41,14 +41,103 @@ pub fn is_editor_id(id: Id) -> bool {
     id == pane_id(0) || id == pane_id(1) || id == table_id()
 }
 
+/// One stretch of hidden lines, and how many lines show before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hidden {
+    pub first: usize,
+    pub last: usize,
+    /// How many lines show before this stretch.
+    pub shown_before: usize,
+}
+
+/// Which lines show when not every line does: a list of them, as a filter makes; or every line but some stretches,
+/// as hiding and folding leave, which takes no more room however many lines the file has.
+#[derive(Clone, Copy, Debug)]
+pub enum Shown<'a> {
+    Lines(&'a [usize]),
+    AllBut { hidden: &'a [Hidden], total: usize },
+}
+
+impl Shown<'_> {
+    /// How many lines show.
+    pub fn len(&self) -> usize {
+        match self {
+            Shown::Lines(lines) => lines.len(),
+            Shown::AllBut { hidden, total } => total - hidden.iter().map(|h| h.last + 1 - h.first).sum::<usize>(),
+        }
+    }
+
+    /// The line that shows at a row.
+    pub fn line(&self, row: usize) -> Option<usize> {
+        match self {
+            Shown::Lines(lines) => lines.get(row).copied(),
+            Shown::AllBut { hidden, total } => {
+                // The stretches hidden before the row's line add to its number.
+                let before = hidden.partition_point(|h| h.shown_before <= row);
+                let skipped: usize = hidden[..before].iter().map(|h| h.last + 1 - h.first).sum();
+                Some(row + skipped).filter(|line| line < total)
+            }
+        }
+    }
+
+    /// How many showing lines come before a line: its row if it shows.
+    pub fn row_of(&self, line: usize) -> usize {
+        match self {
+            Shown::Lines(lines) => lines.partition_point(|shown| *shown < line),
+            Shown::AllBut { hidden, .. } => {
+                let hidden_before: usize = hidden.iter().take_while(|h| h.first < line).map(|h| h.last.min(line - 1) + 1 - h.first).sum();
+                line - hidden_before
+            }
+        }
+    }
+
+    pub fn contains(&self, line: usize) -> bool {
+        match self {
+            Shown::Lines(lines) => lines.binary_search(&line).is_ok(),
+            Shown::AllBut { hidden, total } => line < *total && !hidden.iter().any(|h| (h.first..=h.last).contains(&line)),
+        }
+    }
+
+    /// The lines showing from a row on.
+    pub fn from_row(&self, row: usize, count: usize) -> Vec<usize> {
+        (row..row + count).map_while(|r| self.line(r)).collect()
+    }
+}
+
+/// The stretches folds hide, from where they start and end: each fold hides the lines after its first, and a fold
+/// inside another hides nothing more.
+pub fn hidden_by_folds(folds: &std::collections::BTreeMap<usize, usize>) -> Vec<Hidden> {
+    let mut out: Vec<Hidden> = Vec::new();
+    let mut hidden_so_far = 0;
+    for (&start, &last) in folds {
+        let first = start + 1;
+        if last < first {
+            continue;
+        }
+        match out.last_mut() {
+            Some(previous) if first <= previous.last + 1 => {
+                if last > previous.last {
+                    hidden_so_far += last - previous.last;
+                    previous.last = last;
+                }
+            }
+            _ => {
+                out.push(Hidden { first, last, shown_before: first - hidden_so_far });
+                hidden_so_far += last + 1 - first;
+            }
+        }
+    }
+    out
+}
+
 /// Which part of a window a text view is, and what it's limited to showing.
 #[derive(Clone, Copy)]
 pub struct Pane<'a> {
     pub number: usize,
     /// Only the active pane takes keys and scrolls to follow the cursor.
     pub active: bool,
-    /// When filtering or folding, the only lines to show, in order. This only changes the drawing.
-    pub filter: Option<&'a [usize]>,
+    /// When filtering or folding, the only lines to show. This only changes the drawing.
+    pub filter: Option<Shown<'a>>,
     /// These lines come from folding rather than a filter, so the map and the fold markers stay.
     pub folded: bool,
 }
@@ -330,7 +419,7 @@ fn scrollbar_with_thumb(ui: &Ui, rect: Rect, salt: &'static str, vertical: bool,
 
 /// The document map: a tiny picture of the text beside the scrollbar, with the visible part marked.
 /// On a huge file it shows the stretch around the view, so only those lines are read.
-fn document_map(ui: &Ui, rect: Rect, salt: &'static str, buffer: &TextBuffer, state: &mut ViewState, rows: usize, shown: Option<&[usize]>) {
+fn document_map(ui: &Ui, rect: Rect, salt: &'static str, buffer: &TextBuffer, state: &mut ViewState, rows: usize, shown: Option<Shown<'_>>) {
     const LINE_H: f32 = 2.0;
     const CHAR_W: f32 = 1.0;
     let painter = ui.painter_at(rect);
@@ -338,7 +427,7 @@ fn document_map(ui: &Ui, rect: Rect, salt: &'static str, buffer: &TextBuffer, st
     let total = buffer.line_count();
     let map_rows = ((rect.height() / LINE_H).floor() as usize).max(1);
     // With folds, the top of the view is counted among the lines showing; the map shows the whole file.
-    let top_line = shown.map_or(state.top, |lines| lines.get(state.top).copied().unwrap_or(0));
+    let top_line = shown.map_or(state.top, |lines| lines.line(state.top).unwrap_or(0));
     let map_top = if total <= map_rows {
         0
     } else {
@@ -352,7 +441,7 @@ fn document_map(ui: &Ui, rect: Rect, salt: &'static str, buffer: &TextBuffer, st
     {
         let line = map_top + (((pointer.y - rect.min.y) / LINE_H).max(0.0) as usize);
         let wanted = line.saturating_sub(rows / 2);
-        state.top = shown.map_or(wanted, |lines| lines.partition_point(|shown| *shown < wanted));
+        state.top = shown.map_or(wanted, |lines| lines.row_of(wanted));
     }
 
     if top_line + rows > map_top && top_line < map_top + map_rows {
@@ -449,16 +538,17 @@ fn plain_slots(top: usize, total: usize, rows: usize, left: usize, count: usize)
 }
 
 /// Moves the cursor off a line the filter is hiding, on in the direction it was going.
-fn snap_to_filter(buffer: &mut TextBuffer, lines: &[usize], before: usize) {
+fn snap_to_filter(buffer: &mut TextBuffer, lines: Shown<'_>, before: usize) {
     let line = buffer.caret_line;
-    if lines.binary_search(&line).is_ok() {
+    if lines.contains(line) {
         return;
     }
-    let at = lines.partition_point(|shown| *shown < line);
-    let target = if line >= before { lines.get(at).or(lines.last()) } else { at.checked_sub(1).and_then(|place| lines.get(place)).or(lines.first()) };
+    let at = lines.row_of(line);
+    let last = lines.len().checked_sub(1).and_then(|row| lines.line(row));
+    let target = if line >= before { lines.line(at).or(last) } else { at.checked_sub(1).and_then(|row| lines.line(row)).or(lines.line(0)) };
     if let Some(target) = target {
         let extend = buffer.has_selection();
-        buffer.move_caret(*target, buffer.caret_col, extend);
+        buffer.move_caret(target, buffer.caret_col, extend);
         buffer.set_desired_col();
     }
 }
@@ -486,7 +576,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     // The map and word wrap both think in whole lines of the file, so they step aside while filtering.
     let map_width = if options.document_map && has_text && (pane.filter.is_none() || pane.folded) { MAP_WIDTH.min((outer.width() / 4.0).max(0.0)) } else { 0.0 };
     let wrapping = options.word_wrap && pane.filter.is_none();
-    let total_lines = pane.filter.map_or(buffer.line_count(), <[usize]>::len);
+    let total_lines = pane.filter.map_or(buffer.line_count(), |shown| shown.len());
     let total_cols = if wrapping { 0 } else { buffer.max_visual().max(buffer.caret_col).max(buffer.anchor_col) + 3 };
     let rows_with = |h_bar: bool| (((outer.height() - if h_bar { BAR } else { 0.0 } - ruler_h) / cell.y).floor() as usize).max(1);
     let cols_with = |v_bar: bool| (((outer.width() - map_width - if v_bar { BAR } else { 0.0 } - gutter) / cell.x).floor() as usize).max(1);
@@ -526,7 +616,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         let at = |i: usize| buffer.line(i).to_string();
         apply_wrapped_wheel(ui, Rect::from_min_max(outer.min, outer.max - vec2(v_space, 0.0)), state, cell, &at, total_lines, width);
     } else if buffer.reveal && pane.active {
-        let caret_row = pane.filter.map_or(buffer.caret_line, |lines| lines.partition_point(|shown| *shown < buffer.caret_line));
+        let caret_row = pane.filter.map_or(buffer.caret_line, |lines| lines.row_of(buffer.caret_line));
         if caret_row < state.top {
             state.top = caret_row;
         } else if caret_row >= state.top + rows {
@@ -585,7 +675,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             found
         }
         None => match pane.filter {
-            Some(lines) => lines.iter().skip(state.top).take(rows + 1).map(|line| Slot { line: *line, sub: 0, start: state.left, end: state.left + cols + 2, last: true }).collect(),
+            Some(lines) => lines.from_row(state.top, rows + 1).into_iter().map(|line| Slot { line, sub: 0, start: state.left, end: state.left + cols + 2, last: true }).collect(),
             None => plain_slots(state.top, total_lines, rows, state.left, cols + 2),
         },
     };
@@ -1799,7 +1889,7 @@ mod tests {
                 ..Default::default()
             };
             let (buffer, state, clip, options, input_on) = (&mut self.buffer, &mut self.state, &mut self.clip, self.options, self.input_on);
-            let pane = Pane { number: self.number, active: self.active, filter: self.filter.as_deref(), folded: self.folded };
+            let pane = Pane { number: self.number, active: self.active, filter: self.filter.as_deref().map(Shown::Lines), folded: self.folded };
             let mut output = self.ctx.run_ui(raw, |ui| {
                 egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
                     text_pane(ui, buffer, state, clip, options, input_on, pane);
@@ -2408,5 +2498,31 @@ mod mac_key_tests {
         let ctrl = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
         assert_eq!(mac_keys(Key::ArrowLeft, ctrl), (Key::ArrowLeft, ctrl));
         assert_eq!(mac_keys(Key::ArrowLeft, Modifiers::ALT), (Key::ArrowLeft, Modifiers::ALT));
+    }
+}
+
+#[cfg(test)]
+mod shown_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn hidden_stretches_give_the_same_rows_as_a_list_of_lines() {
+        // Folds at 2..=4, 3..=6 (inside and past it), and 10..=11, in a file of 15 lines.
+        let folds: BTreeMap<usize, usize> = [(2, 4), (3, 6), (10, 11)].into_iter().collect();
+        let hidden = hidden_by_folds(&folds);
+        assert_eq!(hidden, [Hidden { first: 3, last: 6, shown_before: 3 }, Hidden { first: 11, last: 11, shown_before: 7 }]);
+        let shown = Shown::AllBut { hidden: &hidden, total: 15 };
+        let lines: Vec<usize> = (0..15).filter(|l| !(3..=6).contains(l) && *l != 11).collect();
+        let list = Shown::Lines(&lines);
+        assert_eq!(shown.len(), list.len());
+        for row in 0..=lines.len() {
+            assert_eq!(shown.line(row), list.line(row), "row {row}");
+        }
+        for line in 0..=15 {
+            assert_eq!(shown.row_of(line), list.row_of(line), "line {line}");
+            assert_eq!(shown.contains(line), list.contains(line), "line {line}");
+        }
+        assert_eq!(shown.from_row(2, 4), [2, 7, 8, 9]);
     }
 }

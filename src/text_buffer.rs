@@ -1051,6 +1051,25 @@ impl TextBuffer {
         self.recalc_max();
     }
 
+    /// Carries on from a whole new version of the file, written out by a change too large to make in memory: the
+    /// lines are read from it from now on, and one Undo goes back to how they were before.
+    pub fn replace_with_source(&mut self, source: Arc<Source>, format: TextFormat) {
+        self.push_undo(None);
+        let bookmarks = self.lines.bookmarks();
+        self.lines = LineStore::from_source(source);
+        for line in bookmarks {
+            self.lines.toggle_bookmark(line);
+        }
+        self.lines.refresh_from_source();
+        self.format = format;
+        self.lines.note_changed(0);
+        let last = self.lines.len().saturating_sub(1);
+        self.caret_line = self.caret_line.min(last);
+        self.anchor_line = self.anchor_line.min(last);
+        self.edited();
+        self.recalc_max();
+    }
+
     fn adopt(&mut self, store: LineStore) {
         self.multi.clear();
         self.lines = store;
@@ -2287,8 +2306,14 @@ impl TextBuffer {
     /// The rows CSV convert works on: the selected lines, or the whole file without an empty last line.
     /// None, with a notice, if that's too many for a file kept on disk.
     pub fn rows_for_convert(&mut self) -> Option<(usize, usize)> {
+        let (top, bottom) = self.convert_bounds();
+        (!self.too_many_rows(bottom - top + 1)).then_some((top, bottom))
+    }
+
+    /// The selected lines, or every line of the file but an empty last one, however many there are.
+    pub fn convert_bounds(&self) -> (usize, usize) {
         let last = self.lines.len() - 1;
-        let (top, bottom) = if !self.has_selection() {
+        if !self.has_selection() {
             (0, if last > 0 && self.lines.get(last).is_empty() { last - 1 } else { last })
         } else if self.is_block() {
             let (top, bottom, _, _) = self.block_bounds();
@@ -2296,8 +2321,7 @@ impl TextBuffer {
         } else {
             let (first, _, end, end_col) = self.stream_bounds();
             (first, if end_col == 0 && end > first { end - 1 } else { end })
-        };
-        (!self.too_many_rows(bottom - top + 1)).then_some((top, bottom))
+        }
     }
 
     /// The cursor's paragraph, or the selected lines if there are any. None on a blank line.
@@ -2874,10 +2898,6 @@ impl TextBuffer {
     }
 
     /// Whether lines can be hidden. Keeping a list of the lines showing would cost too much in a file on disk.
-    pub fn can_hide_lines(&self) -> bool {
-        !self.lines.is_disk_backed()
-    }
-
     /// Hides the selected lines under the first of them.
     pub fn hide_selected_lines(&mut self) -> bool {
         let (top, bottom) = self.selected_rows();

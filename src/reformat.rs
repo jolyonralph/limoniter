@@ -361,25 +361,47 @@ fn scan_line(line: &str, marks: &Marks<'_>, inside: &mut Inside) -> (i64, i64) {
     (leading_close, net)
 }
 
+/// Indents lines one at a time from the top of a file, by how deep their brackets are, as the lines go by: what
+/// reindenting a whole file does, a line at a time, so a file too large to hold can be reindented as it's read.
+pub struct Reindenter<'a> {
+    depth: i64,
+    inside: Inside,
+    unit: String,
+    marks: Marks<'a>,
+}
+
+impl<'a> Reindenter<'a> {
+    pub fn new(unit: &str, marks: Marks<'a>) -> Self {
+        Reindenter { depth: 0, inside: Inside::Code, unit: unit.to_string(), marks }
+    }
+
+    /// The next line as it should be indented. Unless `change`, it's left as it is, but its brackets still count.
+    /// Only the space before a line changes. Blank lines, and lines inside a comment or a backtick string, stay.
+    pub fn line(&mut self, line: &str, change: bool) -> String {
+        let was_code = self.inside == Inside::Code;
+        let preprocessor = self.marks.preprocessor && was_code && line.trim_start().starts_with('#');
+        let (leading_close, net) = if preprocessor { (0, 0) } else { scan_line(line, &self.marks, &mut self.inside) };
+        let out = if !change || !was_code || preprocessor || is_blank(line) {
+            line.to_string()
+        } else {
+            let level = (self.depth - leading_close).max(0) as usize;
+            format!("{}{}", self.unit.repeat(level), line.trim_start_matches([' ', '\t']))
+        };
+        self.depth = (self.depth + net).max(0);
+        out
+    }
+}
+
 /// Indents lines top..=bottom by how deep their brackets are, working that out from the top of the file. Only the
 /// space before each line changes. Blank lines, and lines inside a comment or a backtick string, stay as they are.
 pub fn reindent(lines: &[Arc<str>], top: usize, bottom: usize, unit: &str, marks: &Marks<'_>) -> Vec<String> {
+    let mut indenter = Reindenter::new(unit, *marks);
     let mut out = Vec::with_capacity(bottom.saturating_sub(top) + 1);
-    let mut depth: i64 = 0;
-    let mut inside = Inside::Code;
     for (number, line) in lines.iter().enumerate().take(bottom + 1) {
-        let was_code = inside == Inside::Code;
-        let preprocessor = marks.preprocessor && was_code && line.trim_start().starts_with('#');
-        let (leading_close, net) = if preprocessor { (0, 0) } else { scan_line(line, marks, &mut inside) };
+        let line = indenter.line(line, number >= top);
         if number >= top {
-            if !was_code || preprocessor || is_blank(line) {
-                out.push(line.to_string());
-            } else {
-                let level = (depth - leading_close).max(0) as usize;
-                out.push(format!("{}{}", unit.repeat(level), line.trim_start_matches([' ', '\t'])));
-            }
+            out.push(line);
         }
-        depth = (depth + net).max(0);
     }
     out
 }

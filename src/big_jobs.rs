@@ -1,7 +1,8 @@
 //! Work over the whole of a file too large to hold in memory, done in the background a stretch of lines at a time:
-//! counting its words, and writing a copy in another encoding.
+//! counting its words, writing a copy in another encoding, and changing every line, which writes the changed file
+//! out for the document to carry on from.
 
-use crate::codec::{self, Lossy, Problems, TextFormat};
+use crate::codec::{self, Eol, Lossy, Problems, TextFormat};
 use crate::line_store::LineStore;
 use crate::text_buffer::{Counts, count_lines};
 use std::io::Write;
@@ -17,6 +18,10 @@ pub enum Outcome {
     Done(String),
     /// Characters the copy's encoding can't hold; nothing was written.
     Problems(Problems, TextFormat),
+    /// Every line changed and written to a new file, for the document to carry on from in this format.
+    Rewritten { path: PathBuf, format: TextFormat },
+    /// The numbers of the lines that contain some text.
+    Lines { needle: String, lines: Vec<usize> },
     Failed(String),
 }
 
@@ -154,6 +159,86 @@ pub fn save_converted(store: LineStore, from: TextFormat, to: TextFormat, lossy:
             Err(problem) => {
                 let _ = std::fs::remove_file(&temp);
                 Outcome::Failed(format!("Couldn't save {}.\n\n{problem}", path.display()))
+            }
+        }
+    })
+}
+
+/// Finds every line that contains some text.
+pub fn find_lines(store: LineStore, needle: String, doc_id: u64) -> BigJob {
+    let total = store.len() as u64;
+    BigJob::start("Filter on selection", doc_id, total, move |done, cancel| {
+        let mut found = Vec::new();
+        let mut at = 0;
+        while at < store.len() {
+            if cancel.load(Ordering::Relaxed) {
+                return Outcome::Failed("It was stopped.".to_string());
+            }
+            let end = (at + LINES_AT_A_TIME).min(store.len());
+            found.extend(store.range_vec(at, end).iter().enumerate().filter(|(_, line)| line.contains(needle.as_str())).map(|(i, _)| at + i));
+            at = end;
+            done.store(at as u64, Ordering::Relaxed);
+        }
+        Outcome::Lines { needle, lines: found }
+    })
+}
+
+/// How each line is changed: given its number and its text, the text it becomes.
+pub type LineChange = Box<dyn FnMut(usize, &str) -> String + Send>;
+
+/// Changes every line of a file too large to hold in memory, writing the result to `path` in the `to` encoding,
+/// with every line ending `eol` if given, or as it was. With `Lossy::Refuse`, characters the encoding can't hold stop
+/// it, and nothing is used.
+#[allow(clippy::too_many_arguments, reason = "everything a rewrite needs, each of it different")]
+pub fn rewrite(title: &'static str, store: LineStore, from: TextFormat, to: TextFormat, eol: Option<Eol>, lossy: Lossy, mut change: LineChange, path: PathBuf, doc_id: u64) -> BigJob {
+    let total = store.len() as u64;
+    BigJob::start(title, doc_id, total, move |done, cancel| {
+        let written = (|| -> Result<Option<Problems>, String> {
+            if let Some(folder) = path.parent() {
+                std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+            }
+            let mut out = std::io::BufWriter::with_capacity(1 << 20, std::fs::File::create(&path).map_err(|e| e.to_string())?);
+            let mut at = 0;
+            while at < store.len() {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err("It was stopped.".to_string());
+                }
+                let end = (at + LINES_AT_A_TIME).min(store.len());
+                let mut lines: Vec<String> = store.range_vec(at, end).iter().enumerate().map(|(i, line)| change(at + i, line)).collect();
+                // Every stretch but the last ends with its last line's ending, so a line follows it.
+                if end < store.len() {
+                    lines.push(String::new());
+                }
+                let mut target = to.clone();
+                target.has_bom &= at == 0;
+                let ending = |i: usize| match eol {
+                    Some(eol) if at + i + 1 < store.len() => eol,
+                    _ => store.terminator(at + i),
+                };
+                match codec::export(&lines, &ending, &from, &target, lossy) {
+                    Ok(bytes) => out.write_all(&bytes).map_err(|e| e.to_string())?,
+                    Err(mut problems) => {
+                        for problem in &mut problems.listed {
+                            problem.line += at;
+                        }
+                        return Ok(Some(problems));
+                    }
+                }
+                at = end;
+                done.store(at as u64, Ordering::Relaxed);
+            }
+            out.into_inner().map_err(|e| e.to_string())?.sync_all().map_err(|e| e.to_string())?;
+            Ok(None)
+        })();
+        match written {
+            Ok(None) => Outcome::Rewritten { path, format: to },
+            Ok(Some(problems)) => {
+                let _ = std::fs::remove_file(&path);
+                Outcome::Problems(problems, to)
+            }
+            Err(problem) => {
+                let _ = std::fs::remove_file(&path);
+                Outcome::Failed(problem)
             }
         }
     })
