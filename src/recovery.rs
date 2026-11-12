@@ -719,24 +719,25 @@ pub fn tidy(orphans: Vec<Orphan>) {
     }
 }
 
+/// For tests: waits for every session under a folder to be let go of. Another test starting a program shares this
+/// process's open files with it for a moment, and a lock on one of them is held until that program has started.
+#[cfg(test)]
+pub fn wait_until_let_go(root: &Path) {
+    let began = std::time::Instant::now();
+    let dirs: Vec<PathBuf> = fs::read_dir(root).unwrap().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    for dir in dirs {
+        while take_lock(&dir.join(LOCK_NAME)).is_err() {
+            assert!(began.elapsed() < std::time::Duration::from_secs(10), "the session's lock was never let go");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::line_store::LineStore;
     use crate::text_buffer::TextBuffer;
-
-    /// Waits for every session under a folder to be let go of. Another test starting a program shares this
-    /// process's open files with it for a moment, and a lock on one of them is held until that program has started.
-    fn wait_until_let_go(root: &Path) {
-        let began = Instant::now();
-        let dirs: Vec<PathBuf> = fs::read_dir(root).unwrap().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
-        for dir in dirs {
-            while take_lock(&dir.join(LOCK_NAME)).is_err() {
-                assert!(began.elapsed() < Duration::from_secs(10), "the session's lock was never let go");
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        }
-    }
 
     fn temp_root(tag: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!("limoniter-recovery-{tag}-{}", std::process::id()));

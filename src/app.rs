@@ -6613,6 +6613,7 @@ mod tests {
         let mut session = recovery::Session::start(&root).unwrap();
         session.write_now(&doc.snapshot()).unwrap();
         session.abandon();
+        recovery::wait_until_let_go(&root);
         let (orphans, found) = recovery::find_orphans(&root);
         let outcome = found.into_iter().next().unwrap().outcome.unwrap();
         drop(orphans);
@@ -8549,6 +8550,7 @@ mod tests {
         assert_ne!(docs[1].recovery_key, before);
         session.flush(Duration::from_secs(5));
         session.abandon();
+        recovery::wait_until_let_go(&root);
 
         let (orphans, found) = recovery::find_orphans(&root);
         assert_eq!(found.len(), 1);
@@ -8575,6 +8577,7 @@ mod tests {
         // Nothing here waits: the copy has to be on the disk by the time this returns.
         session.abandon();
         assert_eq!(names_left_behind(&root), ["A"]);
+        recovery::wait_until_let_go(&root);
         let (orphans, found) = recovery::find_orphans(&root);
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         recovery::tidy(orphans);
