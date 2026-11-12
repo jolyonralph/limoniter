@@ -189,6 +189,7 @@ enum Command {
     SaveRemote,
     SendTo(usize),
     Themes,
+    Website,
     ToggleTable,
     SendAgain,
     ManageDevices,
@@ -280,6 +281,7 @@ impl Command {
                 | Command::OpenRemote
                 | Command::ManageDevices
                 | Command::Themes
+                | Command::Website
                 | Command::AddOn(_)
                 | Command::ShowScripts
                 | Command::ShowHistory
@@ -1093,7 +1095,7 @@ fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
         ui.label(RichText::new("Created by").size(14.0).color(theme::text_dim()));
         ui.label(RichText::new("Jolyon Ralph").size(14.0).strong().color(theme::strong_text()));
     });
-    ui.hyperlink_to(RichText::new("github.com/jolyonralph/Limoniter").size(13.0), "https://github.com/jolyonralph/Limoniter");
+    ui.hyperlink_to(RichText::new("github.com/jolyonralph/limoniter").size(13.0), "https://github.com/jolyonralph/limoniter");
     ui.add_space(10.0);
     let mut licence = "Limoniter is free software under the Apache License 2.0.".to_string();
     if let Some(path) = notices {
@@ -3100,6 +3102,7 @@ impl Limoniter {
                 | Command::OpenRemote
                 | Command::ManageDevices
                 | Command::Themes
+                | Command::Website
                 | Command::SendTo(_)
                 | Command::ToggleTable
                 | Command::AddOn(_)
@@ -3206,6 +3209,11 @@ impl Limoniter {
             Command::SendTo(device) => self.open_send_box(device),
             Command::ToggleTable => self.toggle_table(),
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
+            Command::Website => {
+                if let Err(problem) = crate::platform::open_web_page("https://limoniter.com") {
+                    warn(&problem);
+                }
+            }
             Command::SendAgain => self.send_again(),
             Command::ManageDevices => self.open_devices_box(),
             Command::ProjectOpen => {
@@ -5488,6 +5496,8 @@ impl Limoniter {
                 "preview-full" => self.doc().preview_view = settings::PreviewView::Full,
                 "settings-files" => self.dialog = Dialog::Settings(settings::WindowState { section: 4, ..settings::WindowState::default() }),
                 "addons" | "addon-panel" => self.script_screenshot_step(step),
+                step if step.starts_with("window-theme=") => self.themes.window = step["window-theme=".len()..].to_string(),
+                step if step.starts_with("document-theme=") => self.doc().theme_override = Some(step["document-theme=".len()..].to_string()),
                 "themes" => self.open_theme_box(theme_host::ThemePage::Documents),
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),

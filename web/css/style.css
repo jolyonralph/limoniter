@@ -275,7 +275,7 @@ h3 { font-size: 1.12rem; margin: 0 0 8px; }
 
 /* ---------- Pages of their own, such as the comparison ---------- */
 
-.article .wrap { max-width: 1480px; }
+.article.wide .wrap { max-width: 1480px; }
 .article h1 { font-size: clamp(1.9rem, 4.4vw, 2.6rem); margin-top: 6px; }
 .article h2 { margin-top: 56px; }
 .article p, .article li { max-width: 52em; }
@@ -307,3 +307,13 @@ table.compare td { color: var(--text-dim); min-width: 5.5em; }
 table.compare thead th.ours { color: var(--accent); }
 table.compare td.ours, table.compare tr.ours td, table.compare tr.ours th { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); color: var(--text); }
 @media (max-width: 640px) { table.compare tbody th { min-width: 9em; } }
+
+/* The list of sections at the top of a long page. */
+.contents { margin: 26px 0 8px; }
+.contents ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.contents a {
+  display: inline-block; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text-dim); text-decoration: none; font-size: 0.9rem;
+}
+.contents a:hover { color: var(--text); border-color: var(--accent); }
+.article ul ul { margin-top: 6px; }

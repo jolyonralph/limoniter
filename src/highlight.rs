@@ -46,6 +46,9 @@ pub struct Engine {
 
 static ENGINE: OnceLock<Engine> = OnceLock::new();
 
+/// The scheme that colours nothing: every word in the theme's own text colour, as the older machines showed code.
+pub const NO_SYNTAX_COLOURS: &str = "None";
+
 /// The syntax colour schemes a document theme can use, as they're named in a theme and shown in the theme editor.
 pub const SCHEMES: [EmbeddedThemeName; 29] = [
     EmbeddedThemeName::OneHalfDark,
@@ -588,6 +591,7 @@ impl LineColours {
         };
         let bottom = bottom.min(buffer.line_count());
         let began = Instant::now();
+        let plain = scheme == NO_SYNTAX_COLOURS;
         let theme = engine.scheme(&scheme);
         let highlighter = Highlighter::new(&theme);
         let mut coloured_any = false;
@@ -609,7 +613,12 @@ impl LineColours {
                     return false;
                 }
                 let number = chain.next;
-                let coloured = colour_line(engine, &highlighter, &mut chain.state, &buffer.line(number));
+                let mut coloured = colour_line(engine, &highlighter, &mut chain.state, &buffer.line(number));
+                if plain {
+                    // Brackets and the strings and comments around them are still known; only the colours go.
+                    let length = coloured.spans.iter().map(|(run, _)| run).sum();
+                    coloured.spans = vec![(length, crate::theme::editor_text())];
+                }
                 coloured_any = true;
                 chain.next += 1;
                 if chain.exact && chain.next.is_multiple_of(CHECKPOINT_LINES) {

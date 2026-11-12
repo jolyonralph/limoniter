@@ -509,7 +509,7 @@ const WINDOW: &[Entry] = &[
     Item("New window", Command::NewInstance),
 ];
 
-const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Line, Item("About Limoniter", Command::About)];
+const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Item("Limoniter website", Command::Website), Line, Item("About Limoniter", Command::About)];
 
 pub(super) const MENUS: [(&str, &[Entry]); 8] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
 
@@ -808,6 +808,7 @@ impl Limoniter {
             | Command::OpenRemote
             | Command::ManageDevices
             | Command::Themes
+            | Command::Website
             | Command::AddOn(_)
             | Command::ShowScripts
             | Command::ShowHistory

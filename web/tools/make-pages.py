@@ -1,17 +1,17 @@
-"""Makes web/compare.html from COMPARISON.md, so the comparison is a page of the site in its own style.
+"""Makes the site's pages from the Markdown kept with the source, so they're pages of the site in its own style:
+web/compare.html from COMPARISON.md, and web/features.html from FEATURES.md.
 
-    python web/tools/make-compare.py
+    python web/tools/make-pages.py
 
-Run it from the app folder after COMPARISON.md changes. It understands only what COMPARISON.md uses: headings,
-paragraphs, bullet lists, tables, **bold**, `code` and [links](...).
+The publishing workflow runs it, so the pages are always as the Markdown is. It understands only what those files
+use: headings, paragraphs, bullet lists (one level in), tables, **bold**, `code` and [links](...).
 """
 import html
 import re
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[2]
-SOURCE = APP / "COMPARISON.md"
-PAGE = APP / "web" / "compare.html"
+PAGES = [("COMPARISON.md", "compare-template.html", "compare.html"), ("FEATURES.md", "features-template.html", "features.html")]
 
 MARKS = {"✓": "yes", "◐": "part", "✗": "no", "?": "unknown"}
 
@@ -64,7 +64,7 @@ def table(rows):
 
 def convert(markdown):
     lines = markdown.splitlines()
-    out, i, title, lead = [], 0, "", []
+    out, i, title, lead, sections = [], 0, "", [], []
     while i < len(lines):
         line = lines[i]
         if line.startswith("# "):
@@ -74,6 +74,7 @@ def convert(markdown):
             name = line[3:].strip()
             slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
             out.append(f'<h2 id="{slug}">{inline(name)}</h2>')
+            sections.append((slug, name))
             i += 1
         elif line.startswith("|"):
             rows = []
@@ -83,7 +84,15 @@ def convert(markdown):
             out.append(table(rows))
         elif line.startswith("- "):
             items = []
-            while i < len(lines) and lines[i].startswith("- "):
+            while i < len(lines) and (lines[i].startswith("- ") or lines[i].startswith("  - ")):
+                if lines[i].startswith("  - "):
+                    # A point under the one before it.
+                    inner = []
+                    while i < len(lines) and lines[i].startswith("  - "):
+                        inner.append(f"<li>{inline(lines[i][4:])}</li>")
+                        i += 1
+                    items[-1] = items[-1].removesuffix("</li>") + "<ul>" + "".join(inner) + "</ul></li>"
+                    continue
                 items.append(f"<li>{inline(lines[i][2:])}</li>")
                 i += 1
             out.append("<ul>" + "".join(items) + "</ul>")
@@ -101,15 +110,17 @@ def convert(markdown):
             (lead if not any(o.startswith("<h2") for o in out) else out).append(text)
         else:
             i += 1
-    return title, "\n".join(lead), "\n".join(out)
+    toc = "\n".join(f'<li><a href="#{slug}">{inline(name)}</a></li>' for slug, name in sections)
+    return title, "\n".join(lead), "\n".join(out), toc
 
 
 def main():
-    title, lead, body = convert(SOURCE.read_text(encoding="utf-8"))
-    template = (APP / "web" / "tools" / "compare-template.html").read_text(encoding="utf-8")
-    page = template.replace("{{title}}", html.escape(title)).replace("{{lead}}", lead).replace("{{body}}", body)
-    PAGE.write_text(page, encoding="utf-8", newline="\n")
-    print(f"Wrote {PAGE}")
+    for source, template, page in PAGES:
+        title, lead, body, toc = convert((APP / source).read_text(encoding="utf-8"))
+        text = (APP / "web" / "tools" / template).read_text(encoding="utf-8")
+        text = text.replace("{{title}}", html.escape(title)).replace("{{lead}}", lead).replace("{{body}}", body).replace("{{toc}}", toc)
+        (APP / "web" / page).write_text(text, encoding="utf-8", newline="\n")
+        print(f"Wrote web/{page}")
 
 
 main()

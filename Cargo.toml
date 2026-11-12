@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2024"
 description = "A text and hex editor"
 license = "Apache-2.0"
-repository = "https://github.com/jolyonralph/Limoniter"
+repository = "https://github.com/jolyonralph/limoniter"
 
 [dependencies]
 arboard = { version = "3.7.0", default-features = false }

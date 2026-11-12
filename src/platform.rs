@@ -110,6 +110,34 @@ pub fn reveal(file: &Path) -> Result<(), String> {
     command.spawn().map(|_| ()).map_err(|e| format!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
 }
 
+/// Opens a web page in the system's browser.
+pub fn open_web_page(address: &str) -> Result<(), String> {
+    // A test never opens a browser.
+    if cfg!(test) {
+        return Ok(());
+    }
+    #[cfg(windows)]
+    let mut command = {
+        use std::os::windows::process::CommandExt;
+        let mut command = Command::new("rundll32");
+        command.args(["url.dll,FileProtocolHandler", address]).creation_flags(0x0800_0000);
+        command
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(address);
+        command
+    };
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(address);
+        command
+    };
+    command.spawn().map(|_| ()).map_err(|e| format!("Couldn't open the browser.\n\n{e}"))
+}
+
 /// Opens a file in the program the system uses for its kind.
 #[cfg(not(windows))]
 pub fn open_with_default(file: &Path) -> Result<(), String> {

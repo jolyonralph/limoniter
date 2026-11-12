@@ -388,14 +388,14 @@ pub fn built_in_documents() -> Vec<DocumentTheme> {
         document_from("GitHub Light", true, rgb(255, 255, 255), rgb(36, 41, 47), rgb(9, 105, 218), "GitHub"),
         document_from("High contrast", false, rgb(0, 0, 0), rgb(255, 255, 255), rgb(255, 230, 0), "Monokai Extended Bright"),
         // Older machines: their screens' own colours, made readable for a day's work.
-        document_from("Commodore 64", false, rgb(53, 40, 121), rgb(176, 166, 236), rgb(154, 210, 132), "OneHalfDark"),
-        document_from("Atari 8-bit", false, rgb(16, 58, 140), rgb(160, 196, 255), rgb(255, 214, 102), "OneHalfDark"),
-        document_from("ZX Spectrum", true, rgb(215, 215, 215), rgb(0, 0, 0), rgb(0, 0, 215), "OneHalfLight"),
-        document_from("Amiga Workbench", false, rgb(0, 85, 170), rgb(255, 255, 255), rgb(255, 136, 0), "OneHalfDark"),
-        document_from("BBC Micro and teletext", false, rgb(0, 0, 0), rgb(255, 255, 255), rgb(255, 255, 0), "OneHalfDark"),
-        document_from("DOS", false, rgb(0, 0, 170), rgb(200, 200, 200), rgb(255, 255, 85), "OneHalfDark"),
-        document_from("Green screen", false, rgb(8, 18, 10), rgb(80, 255, 120), rgb(180, 255, 190), "OneHalfDark"),
-        document_from("Amber screen", false, rgb(18, 11, 0), rgb(255, 176, 0), rgb(255, 214, 140), "OneHalfDark"),
+        document_from("Commodore 64", false, rgb(53, 40, 121), rgb(176, 166, 236), rgb(154, 210, 132), "None"),
+        document_from("Atari 8-bit", false, rgb(16, 58, 140), rgb(160, 196, 255), rgb(255, 214, 102), "None"),
+        document_from("ZX Spectrum", true, rgb(215, 215, 215), rgb(0, 0, 0), rgb(0, 0, 215), "None"),
+        document_from("Amiga Workbench", false, rgb(0, 85, 170), rgb(255, 255, 255), rgb(255, 136, 0), "None"),
+        document_from("BBC Micro and teletext", false, rgb(0, 0, 0), rgb(255, 255, 255), rgb(255, 255, 0), "None"),
+        document_from("DOS", false, rgb(0, 0, 170), rgb(200, 200, 200), rgb(255, 255, 85), "None"),
+        document_from("Green screen", false, rgb(8, 18, 10), rgb(80, 255, 120), rgb(180, 255, 190), "None"),
+        document_from("Amber screen", false, rgb(18, 11, 0), rgb(255, 176, 0), rgb(255, 214, 140), "None"),
     ]
 }
 
@@ -637,7 +637,7 @@ mod tests {
         assert!(is_light(), "the window stays light");
         assert!(!document_is_light());
         assert_eq!(editor_back(), rgb(53, 40, 121));
-        assert_eq!(syntax_scheme(), "OneHalfDark");
+        assert_eq!(syntax_scheme(), "None", "the machines had no syntax colours");
         assert_eq!(document_theme().name, "Commodore 64");
         set_light(false);
     }

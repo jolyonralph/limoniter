@@ -1,12 +1,12 @@
 # Publishes the website in web/ to GitHub Pages whenever it, or the comparison it's made from, changes.
-# compare.html is made afresh from COMPARISON.md each time, so the two can't drift apart.
+# compare.html and features.html are made afresh from COMPARISON.md and FEATURES.md each time, so they can't drift.
 
 name: Website
 
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'COMPARISON.md', '.github/workflows/website.yml']
+    paths: ['web/**', 'COMPARISON.md', 'FEATURES.md', '.github/workflows/website.yml']
   workflow_dispatch:
 
 permissions:
@@ -28,8 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Make the comparison page from COMPARISON.md
-        run: python3 web/tools/make-compare.py
+      - name: Make the comparison and feature pages from their Markdown
+        run: python3 web/tools/make-pages.py
 
       - name: Gather the site, without the tools that make it
         run: |

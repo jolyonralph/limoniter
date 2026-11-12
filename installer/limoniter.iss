@@ -12,9 +12,9 @@ AppName=Limoniter
 AppVersion={#AppVersion}
 AppVerName=Limoniter {#AppVersion}
 AppPublisher=Limoniter
-AppPublisherURL=https://github.com/jolyonralph/Limoniter
-AppSupportURL=https://github.com/jolyonralph/Limoniter/issues
-AppUpdatesURL=https://github.com/jolyonralph/Limoniter/releases
+AppPublisherURL=https://github.com/jolyonralph/limoniter
+AppSupportURL=https://github.com/jolyonralph/limoniter/issues
+AppUpdatesURL=https://github.com/jolyonralph/limoniter/releases
 VersionInfoVersion={#AppVersion}
 ; Installs for this Windows user, so it needs no administrator password.
 PrivilegesRequired=lowest

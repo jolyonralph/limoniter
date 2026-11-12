@@ -442,6 +442,10 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                     changed |= ui.checkbox(&mut theme.light, "Light").on_hover_text("Whether it's a light theme or a dark one").changed();
                     ui.label("Syntax colours:");
                     egui::ComboBox::from_id_salt("theme-syntax").selected_text(theme.syntax.as_str()).width(180.0).show_ui(ui, |ui| {
+                        if ui.selectable_label(theme.syntax == crate::highlight::NO_SYNTAX_COLOURS, "None: the text colour for everything").clicked() {
+                            theme.syntax = crate::highlight::NO_SYNTAX_COLOURS.to_string();
+                            changed = true;
+                        }
                         for scheme in crate::highlight::SCHEMES {
                             if ui.selectable_label(theme.syntax == scheme.as_name(), scheme.as_name()).clicked() {
                                 theme.syntax = scheme.as_name().to_string();

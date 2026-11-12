@@ -5,9 +5,11 @@ The promotional site for https://limoniter.com, in plain HTML, CSS and JavaScrip
 - `index.html`: the page.
 - `css/style.css`: all the styling. Colours are set once at the top, for dark, and again for light.
 - `js/main.js`: the cycling word in the heading, the machine picker (its facts are in the `machines` list), enlarged screenshots, the copy button and the small-screen menu. The page still reads with JavaScript off.
-- `compare.html`: the comparison with other editors, made from `../COMPARISON.md` by `tools/make-compare.py`
-  (with `tools/compare-template.html` around it). After changing COMPARISON.md, run `python web/tools/make-compare.py`
-  from the app folder. Don't edit compare.html itself.
+- `compare.html` and `features.html`: made from `../COMPARISON.md` and `../FEATURES.md` by `tools/make-pages.py`, inside
+  `tools/compare-template.html` and `tools/features-template.html`. Publishing makes them afresh; to see a change
+  before then, run `python web/tools/make-pages.py` from the app folder. Don't edit the two pages themselves.
+- `images/`: made by `tools/make-images.py SCREENSHOTS_FOLDER` from full-size screenshots: each as a whole window
+  (`NAME.webp`) and a readable part of it (`NAME-close.webp`), the themes collage, and `social.png` for shared links.
 - `images/`: the icon and screenshots.
 - `robots.txt` and `sitemap.xml`: for search engines. The canonical address, and the links in social-media previews, are https://limoniter.com/.
 

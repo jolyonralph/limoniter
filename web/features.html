@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What Limoniter can do</title>
+  <meta name="description" content="Everything Limoniter can do: editing, hex at any size, 178 character sets, previews, pictures, disk and tape images, BASIC, table view, themes, remote files, add-ons and sending files to the machines they're for.">
+  <link rel="canonical" href="https://limoniter.com/features.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/features.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="What Limoniter can do">
+  <meta property="og:description" content="Everything Limoniter can do, for everyday work and for older computers.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from FEATURES.md by tools/make-pages.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="index.html">
+        <img src="images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="index.html#features">Everyday work</a>
+        <a href="index.html#retro">Older computers</a>
+        <a href="index.html#machines">Machines</a>
+        <a href="index.html#send">Send to device</a>
+        <a href="index.html#screens">Screenshots</a>
+        <a href="index.html#get">Download</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article">
+    <div class="wrap">
+      <p class="back"><a href="index.html">‹ Limoniter</a></p>
+      <h1>What Limoniter can do</h1>
+      <div class="article-lead">
+<p>Limoniter is a text and hex editor for Windows, which also builds and runs on Linux, and builds and passes its tests on macOS. Alongside everyday editing it knows the character sets, file formats and media of older computers: it opens 8-bit and 16-bit text byte for byte, previews retro screens, pictures and BASIC programs, and browses disk images, tapes and archives from classic machines without changing them.</p>
+<p>Every command is in the menus, arranged by what it is for. Press <strong>F1</strong> to find any command by describing what it does.</p>
+      </div>
+      <nav class="contents" aria-label="Sections">
+        <ul>
+<li><a href="#editing">Editing</a></li>
+<li><a href="#laying-out-text-and-code">Laying out text and code</a></li>
+<li><a href="#table-view">Table view</a></li>
+<li><a href="#hex-editing">Hex editing</a></li>
+<li><a href="#large-files">Large files</a></li>
+<li><a href="#character-sets-and-encodings">Character sets and encodings</a></li>
+<li><a href="#kinds-of-computer-presets">Kinds of computer (presets)</a></li>
+<li><a href="#syntax-highlighting">Syntax highlighting</a></li>
+<li><a href="#previews">Previews</a></li>
+<li><a href="#pictures">Pictures</a></li>
+<li><a href="#disk-tape-and-archive-browser">Disk, tape and archive browser</a></li>
+<li><a href="#documents-and-conversions">Documents and conversions</a></li>
+<li><a href="#basic-programs">BASIC programs</a></li>
+<li><a href="#searching-and-comparing">Searching and comparing</a></li>
+<li><a href="#panels">Panels</a></li>
+<li><a href="#tools">Tools</a></li>
+<li><a href="#scripts-and-macros">Scripts and macros</a></li>
+<li><a href="#remote-files">Remote files</a></li>
+<li><a href="#send-to-device">Send to device</a></li>
+<li><a href="#add-ons">Add-ons</a></li>
+<li><a href="#safety">Safety</a></li>
+<li><a href="#printing-and-display">Printing and display</a></li>
+<li><a href="#themes">Themes</a></li>
+        </ul>
+      </nav>
+<h2 id="editing">Editing</h2>
+<ul><li>Tabs for open files; <strong>Ctrl+Tab</strong> goes back through files in the order they were used.</li><li>Split a file into two panes (one above the other, or side by side), or open a second tab on it.</li><li>Column mode (<strong>Alt+C</strong>), or <strong>Alt</strong>+drag for a block selection; typing then works on every selected line.</li><li>Columns: insert or fill, cut, delete, justify left/centre/right, number them, and add up the numbers.</li><li>Lines: move up and down, join, sort A to Z or Z to A, indent, outdent, trim leading or trailing spaces.</li><li>Change case: UPPER CASE, lower case, Sentence case, Title Case.</li><li>Text objects: select, replace or delete inside or around quotes, brackets, tags, a word, a line or a paragraph.</li><li>Select every copy of the selection, or to the matching bracket.</li><li>Insert the date, time, file name or path, a GUID, a page break, a colour, a byte by its value, or another file.</li><li>Snippets (<strong>Ctrl+J</strong>) with <code>$CURSOR</code>, <code>$SELECTION</code>, <code>$DATE</code>, <code>$TIME</code> and <code>$FILE</code> filled in.</li><li>Swap with clipboard (<strong>Ctrl+Shift+V</strong>) puts the selection on the clipboard and the clipboard in its place.</li><li>Undo as a tree: undoing and then typing keeps the undone branch; the Edit history shows every state.</li><li>Edit history can be kept with the file between sessions.</li><li>History of this part (<strong>Ctrl+Alt+H</strong>): the changes to just the selected lines or function, each of which can be taken back on its own.</li><li>Narrow to the selection (<strong>Ctrl+Shift+N</strong>): every command then works on just those lines.</li><li>Folding, hiding chosen lines, and showing only the lines that contain the selection.</li><li>Colour tags (<strong>Ctrl+Shift+1</strong> to <strong>6</strong>) mark sections in six colours, shown in the margin and the document map, and kept with the file.</li><li>Bookmarks, and back and forward (<strong>Alt+Left</strong>, <strong>Alt+Right</strong>) through where the cursor has been, across files.</li><li>Show line numbers, ruler, document map, changed lines, spaces and tabs, line endings, control characters by name, rainbow brackets and the cursor's line and column.</li><li>Spell checking with Windows' own dictionary, in Windows' language; <strong>F7</strong> goes to the next mistake with suggestions.</li></ul>
+<h2 id="laying-out-text-and-code">Laying out text and code</h2>
+<ul><li>Reindent by brackets; tabs to spaces and back; break long lines at a column; join each paragraph into one line.</li><li>Paragraphs: reformat to a width and margins, align left, centre, right or justify.</li><li>Lay out code: HTML, XML, JSON, JavaScript, CSS, SQL and C-like code (brace on the same line or its own line).</li><li>Compress HTML, XML, JSON, JavaScript and CSS onto as few lines as possible.</li><li>EDI files: one segment to a line, or all onto one line.</li><li>Comma-separated text to fixed-width columns and back.</li><li>Comment out and uncomment lines in the file's language.</li><li>The formatters only ever change spacing; if anything else would change, the text is left alone.</li></ul>
+<h2 id="table-view">Table view</h2>
+<ul><li><strong>View › Table view</strong> shows comma-, tab-, semicolon- or pipe-separated data as rows and columns. A file that looks like such data is offered as a table when it's opened.</li><li>The text is still the document: changing a cell changes only that field, keeping every other field's quoting and spacing as it was, so one Undo takes it back and saving writes exactly what you'd expect.</li><li>Type or double-click to change a cell; Enter keeps it and moves down, Tab moves across, Esc leaves it as it was. Copy, Cut and Paste work on the cell.</li><li>Fields in quotes may hold the delimiter, quotes and line breaks (RFC 4180); a quote inside an unquoted field is just a character.</li><li>Click a heading to show the rows in order of that column (numbers as numbers), and type to show only the rows that contain something; neither changes the file. <strong>Sort the file by this column</strong> does, keeping the headings at the top.</li><li>Insert and delete rows and columns. Rows with the wrong number of fields, or a quote that's never closed, are marked.</li><li>The first row can be headings or data; columns can be dragged wider or narrower. Find moves the table to the row it finds.</li><li>It works on files under 64 MB; it isn't a spreadsheet, and cells don't hold formulas.</li></ul>
+<h2 id="hex-editing">Hex editing</h2>
+<ul><li><strong>Ctrl+H</strong> switches any file between text and hex.</li><li>The character pane can show the file's own character set, or EBCDIC.</li><li>Overwrite or insert bytes; insert or delete a number of bytes at the cursor.</li><li>Go to an offset in decimal or hex (<code>0x...</code>).</li><li>Search for hex byte sequences as well as text.</li><li>Copy the selected rows as they look on screen.</li><li>String explorer: lists readable strings in the bytes and how each is stored (length prefix, zero terminator, fixed-width padding, top bit set on the last character, <code>$</code> terminator, or line ending); can also find UTF-16 strings.</li></ul>
+<h2 id="large-files">Large files</h2>
+<ul><li>Files of any size open quickly: those of 64 MB and more are kept on disk and read a part at a time (tested with a 10 GB file).</li><li>Edits are kept in memory beside the untouched parts of the file, and saving copies the untouched parts straight across in the background.</li><li>Hex mode works on files of any size, binary or text: a large binary file opens straight into hex. Typing, inserting, deleting, undo, search and Replace All all work, and the offset column widens past 4 GB.</li><li>Search and Replace All in a huge file run a stretch at a time, with progress shown, so the window stays usable.</li><li>Recovery copies of a huge file hold only the edits, not the whole file.</li><li>Word Count and Save a copy in another encoding go through a huge file in the background.</li><li>The string explorer looks through a huge file a stretch at a time (up to its first 200,000 strings).</li><li>A few whole-file commands (reindent, compare, filtering, hiding lines, table view, printing, converting the encoding in place) are still not available above 64 MB.</li></ul>
+<h2 id="character-sets-and-encodings">Character sets and encodings</h2>
+<ul><li>178 single-byte character sets, plus UTF-8, UTF-16 and UTF-32 (both byte orders), UTF-7, and East Asian encodings (Shift-JIS, EUC-JP, ISO-2022-JP, GBK, GB 18030, Big5, EUC-KR).</li><li>Windows and ISO-8859 code pages, KOI8, and 20 DOS code pages (CP437, CP850, CP866 and others).</li><li>18 classic Macintosh encodings, HP Roman-8, DEC Multinational, NeXTSTEP and Palm OS.</li><li>22 EBCDIC code pages for IBM mainframes, with and without the euro.</li><li>8-bit home computers: Commodore PETSCII and screen codes (C64/C128, VIC-20, PET), Atari ATASCII and screen codes, Atari ST, ZX Spectrum, ZX80, ZX81 and QL, BBC Micro and Mode 7, Acorn Atom, RISC OS, Amiga, Amstrad CPC and CP/M Plus, MSX (five regional sets), Apple II, TRS-80, Sharp MZ and X1, Oric, Kaypro, Osborne and more.</li><li>26 teletext national character sets.</li><li>Opening and saving give back the same file byte for byte; bytes with no Unicode equivalent are carried through exactly.</li><li>Each line keeps its own line ending: CRLF, LF, CR, ATASCII (0x9B), EBCDIC NL (0x15), or fixed-width rows with none.</li><li>Change the encoding or line ending from the status bar; reopen with another encoding, convert, or save a copy in another.</li><li>Character table panel: every byte of the current character set with its glyph, name and Unicode value, and a Unicode browser.</li><li>Encoding preview panel: the selected text or the character at the cursor as code points and as the bytes it is stored as.</li></ul>
+<h2 id="kinds-of-computer-presets">Kinds of computer (presets)</h2>
+<p><strong>Format, Encoding, Kind of computer for new files</strong> fills in character set, line endings and display together. The 21 presets:</p>
+<ul><li>Modern Windows, Legacy Western Windows, DOS US, DOS Western Europe</li><li>Modern macOS, Classic Macintosh, Linux / Unix</li><li>Amiga plain text, Amiga ANSI (with Amiga console sequences), PC ANSI art</li><li>Commodore PET / VIC-20 / C64, Atari ST, Atari 8-bit</li><li>ZX Spectrum text, BBC Micro text, Teletext (40-column rows)</li><li>IBM mainframe text (EBCDIC with NL), IBM mainframe records (fixed 80-byte EBCDIC)</li><li>CP/M text, MSX text, Generic 7-bit ASCII</li></ul>
+<h2 id="syntax-highlighting">Syntax highlighting</h2>
+<ul><li>The large set of languages bundled with the two-face collection (C, Rust, Python, HTML, Markdown, SQL and many more).</li><li>39 grammars written for Limoniter, mostly for older systems:<ul><li>Assemblers: 6502, 65816, 6809, 680x0, 8080, 80x86, Z80, ARM, AVR, PIC, PDP-11, VAX, IBM HLASM.</li><li>BASICs: Commodore, Sinclair, QBasic, AMOS, Blitz Basic, STOS.</li><li>Mainframe and business: COBOL, JCL, PL/I, RPG, REXX, MUMPS, xBase.</li><li>Others: APL, Forth, Logo, Modula-2, Prolog, Smalltalk, PostScript, RTF, Inform 6, ZIL, CONFIG.SYS.</li><li>Amiga: AmigaGuide and the Amiga Installer language.</li></ul></li><li>Choose the language by hand under <strong>Format, Colour as</strong>.</li></ul>
+<h2 id="previews">Previews</h2>
+<p>Shown beside the text or filling the window (<strong>View, Preview</strong>). Nothing in a preview runs or fetches anything.</p>
+<ul><li>Markdown, with headings, lists, tables, emphasis, code and links.</li><li>PC ANSI art (<code>.ans</code>, <code>.ice</code>, <code>.diz</code>, <code>.nfo</code> and others) with ANSI.SYS colours, iCE colours and the SAUCE record; also BinaryText.</li><li>Commodore PETSCII streams (<code>.seq</code>), drawn with colour codes, reverse and cursor movement, and Commodore screen memory.</li><li>Teletext and BBC Mode 7 pages, with mosaics, double height, concealing and all national sets; <code>.ep1</code>, <code>.tti</code> and <code>.ttix</code>.</li><li>ZX Spectrum text with its colour and position controls.</li><li>Tokenised BASIC programs, listed as the machine's LIST would show them.</li><li>Pictures in older machines' formats (below).</li></ul>
+<h2 id="pictures">Pictures</h2>
+<p>Shown at the machine's own pixel shape, with details from the file, and saved as PNG pixel for pixel.</p>
+<ul><li>Amiga IFF ILBM and PBM, including HAM, HAM8, Extra Half-Brite and deep pictures; colour cycling (Deluxe Paint and Graphicraft) can be played.</li><li>Atari ST Degas, Degas Elite (packed or not) and NEOchrome, with playable colour cycling.</li><li>Commodore 64: Koala Painter, OCP Art Studio, Advanced Art Studio, Doodle!.</li><li>ZX Spectrum screens (<code>.scr</code>), with or without a +3DOS header.</li><li>MacPaint, with or without a MacBinary header.</li><li>RISC OS sprite files, one sprite or a sheet of many.</li><li>Kodak Photo CD (<code>.pcd</code>) at its highest resolution, up to 16Base (3072 x 2048).</li><li>ZSoft PCX (monochrome, EGA, 256-colour and 24-bit) and GEM bit images (<code>.img</code>, with XIMG palettes).</li><li>Apple II hi-res screens, in the colours an NTSC monitor gave them.</li></ul>
+<h2 id="disk-tape-and-archive-browser">Disk, tape and archive browser</h2>
+<p>Images and archives open as a read-only browser tab. Folders open in place, an image inside an image opens a level further in, and a file opens as a read-only document, so previews, BASIC listings and encodings all work on it. Files can be saved out exactly as they are, the image itself can be viewed in hex, and <strong>Info</strong> shows everything the image says about itself. Large images are read from disk a part at a time.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">System</th>
+<th scope="col">Formats</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">CD-ROM</th>
+<td>ISO 9660 with Joliet and Rock Ridge names; raw <code>.bin</code> images (open the <code>.bin</code>, not the <code>.cue</code>)</td>
+</tr>
+<tr>
+<th scope="row">PC / DOS</th>
+<td>FAT12, FAT16 and FAT32 floppy and hard disk images (<code>.img</code>, <code>.ima</code>, <code>.vfd</code>, <code>.vhd</code>), with MBR partitions and long names</td>
+</tr>
+<tr>
+<th scope="row">Atari ST</th>
+<td><code>.st</code> and packed <code>.msa</code> floppies</td>
+</tr>
+<tr>
+<th scope="row">MSX</th>
+<td>FAT disk images</td>
+</tr>
+<tr>
+<th scope="row">Commodore</th>
+<td>1541, 1571 and 1581 disks (D64, D71, D81); T64 tapes</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit</th>
+<td>ATR and XFD disks (single, enhanced and double density) with Atari DOS 2.0/2.5, MyDOS (with folders) or SpartaDOS (with folders and dates); text opens as ATASCII</td>
+</tr>
+<tr>
+<th scope="row">Tandy Color Computer and Dragon 32/64</th>
+<td>JVC (<code>.dsk</code>), VDK and OS-9 (<code>.os9</code>) images, and DMK; RS-DOS (Disk Extended Color BASIC), Dragon DOS, and OS-9 with its folders, dates and permissions</td>
+</tr>
+<tr>
+<th scope="row">TRS-80</th>
+<td>Model I, III and 4 disks as DMK, JV3 or JV1 images, with TRSDOS 2.3, Model III TRSDOS 1.3, or LDOS, LS-DOS, TRSDOS 6 and NEWDOS; copy-protected disks open as their sectors</td>
+</tr>
+<tr>
+<th scope="row">Apple II</th>
+<td>DOS 3.3 and ProDOS disks (<code>.dsk</code>, <code>.do</code>, <code>.po</code>, <code>.2mg</code>, <code>.hdv</code>) in either sector order, 800K and hard disk ProDOS volumes with folders; Applesoft programs, text and hi-res screens recognised</td>
+</tr>
+<tr>
+<th scope="row">Amiga</th>
+<td>ADF floppies (OFS, FFS and long-name variants), gzipped ADZ, DMS, HDF hard disks with partitions, LHA/LZH archives, Amiga Forever RP9 packages</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum</th>
+<td>+3DOS DSK disks, TR-DOS (<code>.trd</code>) and SCL, Microdrive cartridges (<code>.mdr</code>), TAP and TZX tapes, Z80 and SNA snapshots (BASIC, screen and memory)</td>
+</tr>
+<tr>
+<th scope="row">Amstrad CPC / PCW</th>
+<td>DSK disks (standard and extended), AMSDOS and CP/M</td>
+</tr>
+<tr>
+<th scope="row">Acorn</th>
+<td>BBC/Electron DFS (<code>.ssd</code>, <code>.dsd</code>, Watford 62-file), ADFS S/M/L (<code>.ads</code>, <code>.adm</code>, <code>.adl</code>), RISC OS ADFS D/E/F (<code>.adf</code>), UEF tapes</td>
+</tr>
+<tr>
+<th scope="row">Macintosh</th>
+<td>MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images; both forks and type/creator shown</td>
+</tr>
+<tr>
+<th scope="row">CP/M</th>
+<td>82 machine formats (Kaypro, Osborne, Epson QX-10, Apple II CP/M, 8-inch IBM and more), worked out automatically from the directory</td>
+</tr>
+<tr>
+<th scope="row">HP</th>
+<td>LIF disks and tapes (Series 80, 9000 Series 200/300, Integral PC, HP-41/71B/75); LIF ASCII files offered as text</td>
+</tr>
+<tr>
+<th scope="row">Floppy archivists</th>
+<td>ImageDisk (<code>.imd</code>), Teledisk (<code>.td0</code>), DMK, JV3 and JV1, unread sectors listed, the file system inside opened (FAT, CP/M, TRS-80 and more)</td>
+</tr>
+<tr>
+<th scope="row">Archives</th>
+<td>ZIP (stored and deflated), LHA/LZH (all common methods, CRC checked)</td>
+</tr>
+</tbody></table></div>
+<ul><li>Commodore file names are shown in PETSCII; Spectrum BASIC from tapes, disks and snapshots comes out as +3DOS files.</li><li>A damaged or unexpected image gives an error rather than a wrong file. Nothing is ever written back.</li></ul>
+<h2 id="documents-and-conversions">Documents and conversions</h2>
+<ul><li>WordStar 3.x to 7 documents and HP MemoMaker documents, found inside disk images, can be opened as text or converted to Markdown, plain text or RTF.</li><li>Bold, underline, italics, page breaks, headers and footers are kept; what can't be carried over (printer codes, fonts, margins) is listed in notes.</li><li>Pictures can be saved as PNG; tokenised BASIC can be opened as a text listing and saved back as a program.</li></ul>
+<h2 id="basic-programs">BASIC programs</h2>
+<ul><li>Listed: Commodore BASIC V2 (C64, VIC-20, PET; <code>.prg</code>, <code>.p00</code>), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC, Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer) and Dragon BASIC.</li><li>Tokenised from a listing: Spectrum (saved as <code>.tap</code>), Spectrum Next (<code>.bas</code>), Commodore (<code>.prg</code>) and BBC BASIC.</li><li>Listing and tokenising undo each other: tokenising a listing gives back the original bytes.</li><li>Commodore control codes appear as <code>{clr}</code>, <code>{red}</code> and so on, as <code>petcat</code> writes them.</li><li>MSX-BASIC and Atari BASIC are listed only; protected MBASIC programs are reported, not listed.</li></ul>
+<h2 id="searching-and-comparing">Searching and comparing</h2>
+<ul><li>Find and replace with match case, whole word, regular expressions and hex bytes; search history and favourites.</li><li>Find in Files and Replace in Files over a folder (with subfolders and file types), the open files or a project; optional <code>.bak</code> copies.</li><li>Searching runs in the background, so the window stays responsive.</li><li>Compare with another file: two files side by side with differences marked.</li><li>Go to line, matching bracket, next and previous change, next and previous colour tag.</li></ul>
+<h2 id="panels">Panels</h2>
+<p>Switched on under <strong>View, Panels</strong>:</p>
+<ul><li>Files on this computer, Project, Open files, and File lists (recently opened files).</li><li>Functions in the current file, Bookmarks, Tags (HTML and Markdown tags to wrap a selection, plus your own), Edit history.</li><li>Macros and Scripts.</li><li>File properties: size, counts, SHA-256 of the saved file, and everything a disk image or archive says about itself.</li><li>JSON and XML managers showing the document as a tree.</li><li>Characters (the Character table), Encoding preview, String explorer.</li><li>Clipboard history (the last 50 items, never saved to disk).</li><li>An Output panel for commands, scripts and the assistant.</li></ul>
+<h2 id="tools">Tools</h2>
+<ul><li>Count words; SHA-256 fingerprint; convert a number between decimal, hex and binary; copy the file's path.</li><li>Run a command (<strong>F5</strong>) in the file's folder, with <code>%FILE%</code>, <code>%NAME%</code>, <code>%STEM%</code> and <code>%DIR%</code>; output goes to the Output panel.</li><li>Projects: a named set of files with notes, backups and restore; paths kept relative so a project can be moved.</li><li>File, This file: rename, show in Explorer, open in its usual program, or split into parts. Save just the selection.</li><li>Coding assistant (<strong>Ctrl+Shift+A</strong>): asks Claude Code or Codex, if installed and signed in, to fix, clean up, explain or write code. Changes are shown first and come off with one Undo. The code is sent to Anthropic or OpenAI by that tool.</li><li>Offer Limoniter to Windows as the editor for chosen file types (Settings, File types).</li></ul>
+<h2 id="scripts-and-macros">Scripts and macros</h2>
+<ul><li>Record what you type and the commands you use (<strong>Ctrl+Shift+R</strong>), and play it back (<strong>Ctrl+Shift+P</strong>), once or several times.</li><li>A macro is a script in the Rhai language that you can open and change; you can also write scripts from scratch.</li><li>Scripts can reach only what Limoniter offers them: no files, other programs or network of their own.</li><li>A script runs on its own thread with a Stop button; one Undo takes back everything it did.</li></ul>
+<h2 id="remote-files">Remote files</h2>
+<ul><li><strong>File › Open a remote file (SFTP)</strong> connects to a server, browses its folders and opens a file; <strong>Save to a server</strong> puts any document there.</li><li>A remote file is edited in a copy on this computer, so everything works on it, very large files included; each Save sends it back in the background, to a new file beside the old one first so the server's copy is never half-written.</li><li>If someone else changes the file on the server meanwhile, Save asks before replacing it.</li><li>Sign in with a password or a key file. Passwords can be kept in Windows Credential Manager, never in Limoniter's settings.</li><li>The server's key is shown to be trusted the first time; after that a different key is refused, in case someone is in between.</li></ul>
+<h2 id="send-to-device">Send to device</h2>
+<ul><li><strong>File › Send to device</strong> sends a copy of the file to the machine it's for; the file goes on saving where it always does. <strong>Ctrl+Alt+S</strong> sends it again to the same place under the same name.</li><li>Devices are set up once, by name, in <strong>Manage devices</strong>:<ul><li>A card or stick found by its volume label, whatever drive letter or mount point it has today (a Gotek's stick, an SD2IEC, a MiSTer's or an Amiga's card). It can be ejected once the file is on it.</li><li>Any folder: a shared network folder, an emulator's folder, or a TNFS server's folder for FujiNet.</li><li>An SFTP server (a MiSTer, a Raspberry Pi), with the server's key checked as for remote files.</li><li>An FTP server, such as an Ultimate 64's or an Amiga's.</li><li>A ZX Spectrum Next over Wi-Fi: Limoniter serves the file, and <code>.sync</code> on the Next fetches it (Jari Komppa's NextSync, versions 3 and 4).</li><li>An Ultimate 64 or 1541 Ultimate, which runs a <code>.prg</code> or <code>.crt</code>, plays a <code>.sid</code> or <code>.mod</code>, or puts a disk image in drive A straight away (firmware 3.11 or later).</li><li>A command line of your own, given the copy's path, such as an emulator.</li></ul></li><li>The copy can be written in a machine's own character set and line endings (any system preset) without changing the file.</li><li>On a card or in a folder the copy is written under a temporary name, flushed, and then renamed, so a card pulled out straight afterwards never holds half a file. If the copy there has been changed since it was last sent, or a file of that name wasn't sent from here, you're asked first.</li><li>An add-on's <code>on_send</code> function runs first, and can see the device (<code>send_device()</code>) and change the name the file is sent as (<code>set_send_name()</code>).</li><li>Passwords for FTP and the Ultimate are kept, if you ask, in the system's credential store.</li></ul>
+<h2 id="add-ons">Add-ons</h2>
+<ul><li>An add-on is a Rhai script that adds its own commands to <strong>Tools › Add-ons</strong> and the command box (F1).</li><li>It can run by itself when a file is opened (<code>on_open</code>), just before Save writes it (<code>on_save</code>), or just before Send to device sends it (<code>on_send</code>), for example to tidy a file as it's saved.</li><li>It can show its results in panels of its own (<code>show_panel</code>, <code>add_to_panel</code>).</li><li>Add-ons live in your own add-ons folder and in a shared folder, so a team can keep one set together.</li><li>A new add-on is off until you turn it on, and one whose file changes is turned off again until you look at it; like any script, it has no files, programs or network of its own.</li></ul>
+<h2 id="safety">Safety</h2>
+<ul><li>Unsaved edits are copied to disk as you type, and offered back after a crash, forced close or power cut.</li><li><strong>File, Recover unsaved edits</strong> offers them again later; damaged copies are detected by checksum.</li><li>Saving never changes bytes you didn't edit.</li><li>Disk images and archives are only ever read; files inside them open read-only.</li><li>Files can be opened read-only.</li></ul>
+<h2 id="printing-and-display">Printing and display</h2>
+<ul><li>Print with Windows' print dialog, with an optional header and line numbers; hex view can be printed too (up to 16 MB).</li><li>Font choice, larger and smaller text, full screen and always on top.</li></ul>
+<h2 id="themes">Themes</h2>
+<ul><li>Two kinds of theme: a <strong>window theme</strong> for the menus, panels and boxes, and a <strong>document theme</strong> for the text and everything drawn with it, chosen under <strong>View, Theme</strong>.</li><li>Each document gets its own document theme, by rules about its file ending, language, character set, or whether it's in hex or table view; the first rule that fits wins. Out of the box, Commodore, Atari, Spectrum, BBC and teletext, and Amiga text open in their machine's colours. Any document can also be given a theme of its own.</li><li>18 document themes, from Limoniter's own and Solarized, Nord, Gruvbox, Dracula and Monokai to Commodore 64, Atari 8-bit, ZX Spectrum, Amiga Workbench, teletext, DOS and green and amber screens, each with one of 29 sets of syntax colours. 8 window themes.</li><li><strong>View, Theme, Themes and rules</strong> makes your own: copy a theme and change any colour, or make a whole theme from three colours; see it on a sample as you go. Themes can be saved to a file and opened, to share them.</li><li>Files opened from Explorer join the open window as tabs, or can each have a window of their own.</li></ul>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="compare.html">How it compares</a></p>
+    </div>
+  </footer>
+</body>
+</html>
