@@ -1,45 +1,75 @@
 //! Printing: Windows' own print dialog, then the text laid out in pages and sent to the printer on another thread.
 
 use crate::codec::TextFormat;
+use crate::line_store::LineStore;
+use std::borrow::Cow;
 use crate::text_buffer::{expand_tabs, is_special};
 
 const PAGE_BREAK: char = '\u{C}';
 
-/// Text ready to print: exact bytes shown as what they mean, tabs as spaces, and other controls as a dot.
-/// A page break stays, because it starts a new page.
-pub fn printable_rows<S: AsRef<str>>(lines: &[S], format: &TextFormat) -> Vec<String> {
-    lines
-        .iter()
-        .map(|line| {
-            let readable = format.readable_text(line.as_ref());
-            let plain = expand_tabs(&readable);
-            plain.chars().map(|c| if c != PAGE_BREAK && is_special(c) { '\u{B7}' } else { c }).collect()
-        })
-        .collect()
+/// One line ready to print: exact bytes shown as what they mean, tabs as spaces, and other controls as a dot. A
+/// page break stays, because it starts a new page.
+pub fn printable_row(line: &str, format: &TextFormat) -> String {
+    let readable = format.readable_text(line);
+    let plain = expand_tabs(&readable);
+    plain.chars().map(|c| if c != PAGE_BREAK && is_special(c) { '\u{B7}' } else { c }).collect()
 }
 
-/// Splits rows into pages. Long rows continue on the next row, and a page break starts a new page.
-pub fn paginate(rows: &[String], columns: usize, per_page: usize, numbers: bool) -> Vec<Vec<String>> {
+pub fn printable_rows<S: AsRef<str>>(lines: &[S], format: &TextFormat) -> Vec<String> {
+    lines.iter().map(|line| printable_row(line.as_ref(), format)).collect()
+}
+
+/// What's to be printed: rows made ready beforehand, or a file's lines, made ready one at a time as they're printed
+/// so that even a file far too large to hold can be.
+pub enum Rows {
+    Ready(Vec<String>),
+    Lines { store: LineStore, format: TextFormat },
+}
+
+impl Rows {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Ready(rows) => rows.len(),
+            Self::Lines { store, .. } => store.len(),
+        }
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
+        match self {
+            Self::Ready(rows) => Box::new(rows.iter().map(|row| Cow::Borrowed(row.as_str()))),
+            Self::Lines { store, format } => Box::new((0..store.len()).map(|i| Cow::Owned(printable_row(&store.get(i), format)))),
+        }
+    }
+}
+
+/// Splits rows into pages, handing each over as it's made; stops when told to. Long rows continue on the next row,
+/// and a page break starts a new page.
+pub fn each_page(rows: &Rows, columns: usize, per_page: usize, numbers: bool, mut take: impl FnMut(Vec<String>) -> bool) {
     let per_page = per_page.max(1);
     let number_width = if numbers { rows.len().max(1).to_string().len() + 1 } else { 0 };
     let body_width = columns.saturating_sub(number_width).max(1);
-    let mut pages = Vec::new();
     let mut page: Vec<String> = Vec::with_capacity(per_page);
+    let handed = std::cell::Cell::new(0usize);
+    let mut hand_over = |page: &mut Vec<String>| {
+        handed.set(handed.get() + 1);
+        take(std::mem::replace(page, Vec::with_capacity(per_page)))
+    };
     for (index, row) in rows.iter().enumerate() {
+        let parts = row.split(PAGE_BREAK).count();
         for (part_number, part) in row.split(PAGE_BREAK).enumerate() {
-            if part_number > 0 {
-                pages.push(std::mem::take(&mut page));
+            if part_number > 0 && !hand_over(&mut page) {
+                return;
             }
             let chars: Vec<char> = part.chars().collect();
             let mut pieces = chars.chunks(body_width);
             let mut piece = pieces.next().unwrap_or(&[]);
             // A row of nothing but a page break doesn't leave a blank row behind it.
-            let skip_blank = part_number > 0 && part.is_empty() && row.split(PAGE_BREAK).count() == part_number + 1;
+            let skip_blank = part_number > 0 && part.is_empty() && parts == part_number + 1;
             let mut first = part_number == 0;
             if !skip_blank {
                 loop {
-                    if page.len() == per_page {
-                        pages.push(std::mem::take(&mut page));
+                    if page.len() == per_page && !hand_over(&mut page) {
+                        return;
                     }
                     let lead = if !numbers {
                         String::new()
@@ -58,24 +88,38 @@ pub fn paginate(rows: &[String], columns: usize, per_page: usize, numbers: bool)
             }
         }
     }
-    if !page.is_empty() || pages.is_empty() {
-        pages.push(page);
+    // Even nothing at all prints as one empty page.
+    if !page.is_empty() || handed.get() == 0 {
+        hand_over(&mut page);
     }
-    pages
 }
 
-/// Keeps the pages asked for, counting from 1.
-#[cfg_attr(not(windows), allow(dead_code))]
-pub fn pick_pages(pages: Vec<Vec<String>>, range: Option<(usize, usize)>) -> Vec<(usize, Vec<String>)> {
-    let (from, to) = range.unwrap_or((1, usize::MAX));
-    pages.into_iter().enumerate().map(|(i, page)| (i + 1, page)).filter(|(number, _)| *number >= from && *number <= to).collect()
+/// How many pages there will be, without keeping them.
+pub fn count_pages(rows: &Rows, columns: usize, per_page: usize, numbers: bool) -> usize {
+    let mut count = 0;
+    each_page(rows, columns, per_page, numbers, |_| {
+        count += 1;
+        true
+    });
+    count
+}
+
+/// Every page at once.
+#[cfg(test)]
+pub fn paginate(rows: &[String], columns: usize, per_page: usize, numbers: bool) -> Vec<Vec<String>> {
+    let mut pages = Vec::new();
+    each_page(&Rows::Ready(rows.to_vec()), columns, per_page, numbers, |page| {
+        pages.push(page);
+        true
+    });
+    pages
 }
 
 /// What to print. The selection is offered in the dialog if there is one.
 pub struct Job {
     pub title: String,
-    pub rows: Vec<String>,
-    pub selection: Option<Vec<String>>,
+    pub rows: Rows,
+    pub selection: Option<Rows>,
     pub header: bool,
     pub line_numbers: bool,
 }
@@ -85,7 +129,7 @@ pub type Outcome = std::sync::Arc<std::sync::Mutex<Option<Result<usize, String>>
 
 #[cfg(windows)]
 mod windows {
-    use super::{Job, Outcome, paginate, pick_pages};
+    use super::{Job, Outcome, Rows, count_pages, each_page};
     use std::ffi::c_void;
     use std::sync::{Arc, Mutex};
 
@@ -254,12 +298,11 @@ mod windows {
         }
     }
 
-    fn send(dc: isize, job: &Job, rows: &[String], range: Option<(usize, usize)>) -> Result<usize, String> {
+    fn send(dc: isize, job: &Job, rows: &Rows, range: Option<(usize, usize)>) -> Result<usize, String> {
         let (layout, font) = set_up(dc, job.header)?;
-        let pages = paginate(rows, layout.columns, layout.per_page, job.line_numbers);
-        let total = pages.len();
-        let chosen = pick_pages(pages, range);
-        if chosen.is_empty() {
+        let total = count_pages(rows, layout.columns, layout.per_page, job.line_numbers);
+        let (from, to) = range.unwrap_or((1, usize::MAX));
+        if from > total {
             // SAFETY: the font was made by set_up and isn't needed now.
             unsafe {
                 DeleteObject(font);
@@ -276,13 +319,20 @@ mod windows {
             }
             return Err("The printer wouldn't start the document.".to_string());
         }
-        let mut sent = 0;
+        let (mut sent, mut number) = (0, 0);
         let mut problem = None;
-        for (number, page) in &chosen {
+        each_page(rows, layout.columns, layout.per_page, job.line_numbers, |page| {
+            number += 1;
+            if number < from {
+                return true;
+            }
+            if number > to {
+                return false;
+            }
             // SAFETY: the document was started above and is still open.
             if unsafe { StartPage(dc) } <= 0 {
                 problem = Some("The printer wouldn't start a page.");
-                break;
+                return false;
             }
             // Some printers forget the font between pages.
             // SAFETY: the font and device are both still valid.
@@ -291,14 +341,15 @@ mod windows {
                 SetBkMode(dc, TRANSPARENT);
             }
             let header = job.header.then(|| format!("{}    Page {number} of {total}", job.title));
-            draw_page(dc, &layout, header.as_deref(), page);
+            draw_page(dc, &layout, header.as_deref(), &page);
             // SAFETY: the page was started above.
             if unsafe { EndPage(dc) } <= 0 {
                 problem = Some("The printer stopped partway through.");
-                break;
+                return false;
             }
             sent += 1;
-        }
+            true
+        });
         // SAFETY: the document is open, and is ended once, one way or the other.
         unsafe {
             if problem.is_some() {
@@ -361,7 +412,7 @@ mod windows {
         let report = outcome.clone();
         std::thread::spawn(move || {
             let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let rows = if selection_only { job.selection.as_deref().unwrap_or(&job.rows) } else { &job.rows };
+                let rows = if selection_only { job.selection.as_ref().unwrap_or(&job.rows) } else { &job.rows };
                 send(dc, &job, rows, range)
             }));
             // SAFETY: the dialog gave this device to this program, and only this thread has used it since.
@@ -438,37 +489,49 @@ mod windows {
 pub use windows::ask_and_print;
 
 /// Plain text pages for a printer: each page's rows, with the title and page number above when asked, and a form
-/// feed between pages.
+/// feed between pages. Written out a page at a time; returns how many pages there were.
 #[cfg_attr(windows, allow(dead_code))]
-pub fn text_pages(job: &Job, columns: usize, per_page: usize) -> String {
+pub fn write_text_pages(job: &Job, columns: usize, per_page: usize, out: &mut impl std::io::Write) -> std::io::Result<usize> {
     let rows = job.selection.as_ref().unwrap_or(&job.rows);
     let body = if job.header { per_page.saturating_sub(2) } else { per_page };
-    let pages = paginate(rows, columns, body, job.line_numbers);
-    let count = pages.len();
-    let mut out = String::new();
-    for (number, page) in pages.into_iter().enumerate() {
+    let count = count_pages(rows, columns, body, job.line_numbers);
+    let (mut number, mut failed) = (0, None);
+    each_page(rows, columns, body, job.line_numbers, |page| {
+        let mut text = String::new();
         if number > 0 {
-            out.push('\u{c}');
+            text.push('\u{c}');
         }
+        number += 1;
         if job.header {
-            let place = format!("Page {} of {count}", number + 1);
+            let place = format!("Page {number} of {count}");
             let title: String = job.title.chars().take(columns.saturating_sub(place.len() + 2)).collect();
-            out += &format!("{title}{}{place}\n\n", " ".repeat(columns.saturating_sub(title.chars().count() + place.len())));
+            text += &format!("{title}{}{place}\n\n", " ".repeat(columns.saturating_sub(title.chars().count() + place.len())));
         }
         for row in page {
-            out += &row;
-            out.push('\n');
+            text += &row;
+            text.push('\n');
         }
-    }
-    out
+        match out.write_all(text.as_bytes()) {
+            Ok(()) => true,
+            Err(e) => {
+                failed = Some(e);
+                false
+            }
+        }
+    });
+    failed.map_or(Ok(number), Err)
 }
 
-/// On macOS and Linux, pages go to the default printer through CUPS, as `lp` sends them.
+#[cfg(test)]
+pub fn text_pages(job: &Job, columns: usize, per_page: usize) -> String {
+    let mut out = Vec::new();
+    write_text_pages(job, columns, per_page, &mut out).unwrap();
+    String::from_utf8(out).unwrap()
+}
+
+/// On macOS and Linux, pages go to the default printer through CUPS, as `lp` sends them, from another thread.
 #[cfg(not(windows))]
 pub fn ask_and_print(job: Job) -> Result<Option<Outcome>, String> {
-    use std::io::Write;
-    let text = text_pages(&job, 80, 62);
-    let pages = text.matches('\u{c}').count() + 1;
     let mut child = std::process::Command::new("lp")
         .args(["-t", &job.title])
         .stdin(std::process::Stdio::piped())
@@ -476,19 +539,29 @@ pub fn ask_and_print(job: Job) -> Result<Option<Outcome>, String> {
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("Printing uses the system's lp command, which couldn't be started.\n\n{e}"))?;
-    child.stdin.take().map(|mut input| input.write_all(text.as_bytes())).transpose().map_err(|e| e.to_string())?;
-    let output = child.wait_with_output().map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err(format!("The printer system said: {}", String::from_utf8_lossy(&output.stderr).trim()));
-    }
-    Ok(Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Ok(pages))))))
+    let outcome: Outcome = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let report = outcome.clone();
+    std::thread::spawn(move || {
+        let result = (|| -> Result<usize, String> {
+            let mut input = std::io::BufWriter::new(child.stdin.take().ok_or("The printer system wouldn't take the pages.")?);
+            let pages = write_text_pages(&job, 80, 62, &mut input).map_err(|e| e.to_string())?;
+            drop(input.into_inner().map_err(|e| e.to_string())?);
+            let output = child.wait_with_output().map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err(format!("The printer system said: {}", String::from_utf8_lossy(&output.stderr).trim()));
+            }
+            Ok(pages)
+        })();
+        *report.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(result);
+    });
+    Ok(Some(outcome))
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn text_pages_have_headers_and_breaks() {
-        let job = super::Job { title: "notes.txt".into(), rows: (1..=7).map(|n| format!("row {n}")).collect(), selection: None, header: true, line_numbers: false };
+        let job = super::Job { title: "notes.txt".into(), rows: Rows::Ready((1..=7).map(|n| format!("row {n}")).collect()), selection: None, header: true, line_numbers: false };
         let text = super::text_pages(&job, 30, 5);
         let pages: Vec<&str> = text.split('\u{c}').collect();
         assert_eq!(pages.len(), 3);
@@ -546,11 +619,34 @@ mod tests {
     }
 
     #[test]
-    fn page_ranges_keep_their_numbers() {
-        let pages = paginate(&rows(&["a", "b", "c"]), 5, 1, false);
-        assert_eq!(pick_pages(pages.clone(), Some((2, 3))).iter().map(|(number, _)| *number).collect::<Vec<_>>(), [2, 3]);
-        assert_eq!(pick_pages(pages.clone(), None).len(), 3);
-        assert!(pick_pages(pages, Some((9, 9))).is_empty());
+    fn pages_are_counted_without_keeping_them_and_making_them_can_stop() {
+        let ready = Rows::Ready(rows(&["a", "b", "c"]));
+        assert_eq!(count_pages(&ready, 5, 1, false), 3);
+        let mut seen = Vec::new();
+        each_page(&ready, 5, 1, false, |page| {
+            seen.push(page);
+            seen.len() < 2
+        });
+        assert_eq!(seen, vec![rows(&["a"]), rows(&["b"])]);
+    }
+
+    #[test]
+    fn a_files_lines_print_as_they_would_made_ready_beforehand() {
+        crate::text_buffer::set_tab_size(4);
+        let lines: Vec<std::sync::Arc<str>> = ["one\ttab", "two\u{C}three", "four"].iter().map(|line| std::sync::Arc::from(*line)).collect();
+        let format = TextFormat::default();
+        let ready = Rows::Ready(printable_rows(&lines, &format));
+        let store = Rows::Lines { store: LineStore::from_vec(lines), format };
+        let all = |rows: &Rows| {
+            let mut pages = Vec::new();
+            each_page(rows, 20, 10, true, |page| {
+                pages.push(page);
+                true
+            });
+            pages
+        };
+        assert_eq!(all(&store), all(&ready));
+        assert_eq!(all(&store).len(), 2, "the page break starts a second page");
     }
 
     #[test]

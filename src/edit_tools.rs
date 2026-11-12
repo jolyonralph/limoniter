@@ -234,7 +234,7 @@ impl Limoniter {
                 let other = if doc.text.is_disk_backed() {
                     Err("This file is kept on disk, so it can't be compared.".to_string())
                 } else {
-                    doc.text.history_lines(id).map(|lines| (format!("{} as it was", doc.name()), lines)).ok_or_else(|| "That state is no longer kept.".to_string())
+                    doc.text.history_lines(id).map(|lines| (format!("{} as it was", doc.name()), crate::big_jobs::Side::Lines(crate::line_store::LineStore::from_vec(lines)))).ok_or_else(|| "That state is no longer kept.".to_string())
                 };
                 self.show_comparison(other);
             }

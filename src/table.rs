@@ -6,6 +6,8 @@
 //! with "" for a quote inside it, and may hold delimiters and line breaks. A quote anywhere else is just a
 //! character, so `5'10"` in an unquoted field doesn't swallow the rest of the file.
 
+use crate::line_store::LineStore;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
@@ -77,18 +79,73 @@ fn ends_in_quotes(line: &str, delimiter: char, mut state: State) -> State {
     state
 }
 
+/// Lines to read records from: a list of them, or a document's own store, which may be a file far too large to hold.
+pub trait Lines {
+    fn count(&self) -> usize;
+    fn line(&self, i: usize) -> Cow<'_, str>;
+}
+
+impl<S: AsRef<str>> Lines for [S] {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn line(&self, i: usize) -> Cow<'_, str> {
+        Cow::Borrowed(self[i].as_ref())
+    }
+}
+
+impl<S: AsRef<str>> Lines for Vec<S> {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn line(&self, i: usize) -> Cow<'_, str> {
+        Cow::Borrowed(self[i].as_ref())
+    }
+}
+
+impl<S: AsRef<str>, const N: usize> Lines for [S; N] {
+    fn count(&self) -> usize {
+        N
+    }
+
+    fn line(&self, i: usize) -> Cow<'_, str> {
+        Cow::Borrowed(self[i].as_ref())
+    }
+}
+
+impl Lines for LineStore {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn line(&self, i: usize) -> Cow<'_, str> {
+        Cow::Owned(self.get(i).to_string())
+    }
+}
+
 /// Finds the records in a run of lines. A last line that's empty, as most files end, isn't a record.
-pub fn records<S: AsRef<str>>(lines: &[S], delimiter: char) -> Vec<Record> {
-    let count = if lines.last().is_some_and(|l| l.as_ref().is_empty()) && lines.len() > 1 { lines.len() - 1 } else { lines.len() };
+pub fn records<L: Lines + ?Sized>(lines: &L, delimiter: char) -> Vec<Record> {
+    records_watched(lines, delimiter, &mut |_| true).unwrap_or_default()
+}
+
+/// The same, telling how far it's got every so often and stopping (with None) if told to.
+pub fn records_watched<L: Lines + ?Sized>(lines: &L, delimiter: char, going: &mut dyn FnMut(usize) -> bool) -> Option<Vec<Record>> {
+    let total = lines.count();
+    let count = if total > 1 && lines.line(total - 1).is_empty() { total - 1 } else { total };
     let mut out = Vec::new();
     let mut first = 0;
     while first < count {
-        let mut state = ends_in_quotes(lines[first].as_ref(), delimiter, State::Start);
+        if first % 4096 == 0 && !going(first) {
+            return None;
+        }
+        let mut state = ends_in_quotes(&lines.line(first), delimiter, State::Start);
         let mut last = first;
         // A line break inside quotes carries the field on to the next line.
         while state == State::Quoted && last + 1 < count && last - first + 1 < MOST_LINES_IN_A_RECORD {
             last += 1;
-            state = ends_in_quotes(lines[last].as_ref(), delimiter, step(State::Quoted, '\n', delimiter));
+            state = ends_in_quotes(&lines.line(last), delimiter, step(State::Quoted, '\n', delimiter));
         }
         let broken = state == State::Quoted;
         // A record whose quote never closes is kept to its own first line, so what follows still reads.
@@ -96,7 +153,7 @@ pub fn records<S: AsRef<str>>(lines: &[S], delimiter: char) -> Vec<Record> {
         out.push(Record { first, last, broken });
         first = last + 1;
     }
-    out
+    Some(out)
 }
 
 /// The fields of a record's text.
@@ -139,9 +196,26 @@ pub fn fields(text: &str, delimiter: char) -> Vec<Field> {
     }
 }
 
+/// How many fields a record's text has, without making them.
+fn field_count(text: &str, delimiter: char) -> usize {
+    let mut state = State::Start;
+    let mut count = 1;
+    for c in text.chars() {
+        let next = step(state, c, delimiter);
+        if next == State::Start && c == delimiter && state != State::Quoted {
+            count += 1;
+        }
+        state = next;
+    }
+    count
+}
+
 /// A record's lines, joined as its fields are measured against.
-pub fn record_text<S: AsRef<str>>(lines: &[S], record: Record) -> String {
-    lines[record.first..=record.last].iter().map(AsRef::as_ref).collect::<Vec<_>>().join("\n")
+pub fn record_text<L: Lines + ?Sized>(lines: &L, record: Record) -> String {
+    if record.first == record.last {
+        return lines.line(record.first).into_owned();
+    }
+    (record.first..=record.last).map(|i| lines.line(i)).collect::<Vec<_>>().join("\n")
 }
 
 /// A value as it's written in a field: in quotes if it has to be, or if the field was quoted before.
@@ -238,21 +312,31 @@ pub struct Figures {
 }
 
 impl Figures {
+    #[cfg(test)]
     pub fn of<'a>(values: impl IntoIterator<Item = &'a str>) -> Figures {
-        let mut figures = Figures { smallest: f64::INFINITY, largest: f64::NEG_INFINITY, ..Figures::default() };
+        let mut figures = Figures::new();
         for value in values {
-            if value.trim().is_empty() {
-                continue;
-            }
-            figures.values += 1;
-            if let Some(n) = number(value) {
-                figures.numbers += 1;
-                figures.sum += n;
-                figures.smallest = figures.smallest.min(n);
-                figures.largest = figures.largest.max(n);
-            }
+            figures.add(value);
         }
         figures
+    }
+
+    pub fn new() -> Figures {
+        Figures { smallest: f64::INFINITY, largest: f64::NEG_INFINITY, ..Figures::default() }
+    }
+
+    /// Counts in one more value.
+    pub fn add(&mut self, value: &str) {
+        if value.trim().is_empty() {
+            return;
+        }
+        self.values += 1;
+        if let Some(n) = number(value) {
+            self.numbers += 1;
+            self.sum += n;
+            self.smallest = self.smallest.min(n);
+            self.largest = self.largest.max(n);
+        }
     }
 
     /// In words, for the bar under the table.
@@ -288,6 +372,46 @@ pub fn compare_values(a: &str, b: &str) -> Ordering {
         },
     }
 }
+
+/// A value ready to sort by, worked out once rather than at every comparison: it puts values in the order
+/// `compare_values` does.
+#[derive(Clone, Debug)]
+pub struct SortKey {
+    /// Numbers first, then words, then empty fields.
+    rank: u8,
+    number: f64,
+    lower: String,
+    original: String,
+}
+
+impl SortKey {
+    pub fn new(value: String) -> Self {
+        match number(&value) {
+            Some(number) => SortKey { rank: 0, number, lower: String::new(), original: String::new() },
+            None => SortKey { rank: if value.trim().is_empty() { 2 } else { 1 }, number: 0.0, lower: value.to_lowercase(), original: value },
+        }
+    }
+}
+
+impl Ord for SortKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.rank.cmp(&other.rank).then_with(|| if self.rank == 0 { self.number.partial_cmp(&other.number).unwrap_or(Ordering::Equal) } else { self.lower.cmp(&other.lower).then_with(|| self.original.cmp(&other.original)) })
+    }
+}
+
+impl PartialOrd for SortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for SortKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for SortKey {}
 
 /// A value read as a number, allowing thousands separators and a currency sign or percent.
 pub fn number(value: &str) -> Option<f64> {
@@ -381,10 +505,22 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn build<S: AsRef<str>>(lines: &[S], delimiter: char, version: u64) -> Self {
-        let records = records(lines, delimiter);
-        let columns = records.iter().map(|r| fields(&record_text(lines, *r), delimiter).len()).max().unwrap_or(0);
-        Index { version, delimiter, records: Arc::new(records), columns }
+    pub fn build<L: Lines + ?Sized>(lines: &L, delimiter: char, version: u64) -> Self {
+        Self::build_watched(lines, delimiter, version, &mut |_| true).unwrap_or_default()
+    }
+
+    /// The same, telling how many lines it's been through every so often (twice over: finding the records, then
+    /// counting their fields) and stopping, with None, if told to.
+    pub fn build_watched<L: Lines + ?Sized>(lines: &L, delimiter: char, version: u64, going: &mut dyn FnMut(usize) -> bool) -> Option<Self> {
+        let records = records_watched(lines, delimiter, going)?;
+        let mut columns = 0;
+        for (i, record) in records.iter().enumerate() {
+            if i % 4096 == 0 && !going(lines.count() + record.first) {
+                return None;
+            }
+            columns = columns.max(field_count(&record_text(lines, *record), delimiter));
+        }
+        Some(Index { version, delimiter, records: Arc::new(records), columns })
     }
 }
 
@@ -420,6 +556,25 @@ mod tests {
         let found = records(&lines, ',');
         assert_eq!(found.len(), 3);
         assert!(found[1].broken && !found[2].broken);
+    }
+
+    #[test]
+    fn fields_are_counted_as_they_are_read() {
+        for text in ["a,b,c", "a,,c,", "\"x, y\",\"say \"\"hi\"\"\",z", "5'10\",tall", "\"two\nlines\",x", "", "\"never closed, x", "\"a\"b,c", ",", "\"\""] {
+            assert_eq!(field_count(text, ','), fields(text, ',').len(), "{text:?}");
+        }
+        assert_eq!(field_count("a\tb c\td", '\t'), 3);
+    }
+
+    #[test]
+    fn records_read_the_same_from_a_store() {
+        let lines = ["name,notes", "Ann,\"first line", "second line\"", "Bob,plain", ""];
+        let store = LineStore::from_vec(lines.iter().map(|line| Arc::from(*line)).collect());
+        assert_eq!(records(&store, ','), records(&lines, ','));
+        let index = Index::build(&store, ',', 1);
+        assert_eq!((index.records.len(), index.columns), (3, 2));
+        let mut stopped = |_| false;
+        assert!(Index::build_watched(&store, ',', 1, &mut stopped).is_none());
     }
 
     #[test]
@@ -462,6 +617,16 @@ mod tests {
         assert_eq!(sniff(&no_header, None).map(|d| d.header), Some(false));
         let names = ["Ann,Smith,London", "Bob,Jones,Paris", "Cy,Lee,Rome"];
         assert_eq!(sniff(&names, None).map(|d| d.header), Some(true), "a guess either way; the table lets it be changed");
+    }
+
+    #[test]
+    fn sort_keys_put_values_in_the_same_order() {
+        let values = ["10", "9", "apple", "", "Banana", "1,000", "$5", "50%", " ", "apple", "Apple", "-3", "x1"];
+        for a in values {
+            for b in values {
+                assert_eq!(SortKey::new(a.into()).cmp(&SortKey::new(b.into())), compare_values(a, b), "{a:?} {b:?}");
+            }
+        }
     }
 
     #[test]

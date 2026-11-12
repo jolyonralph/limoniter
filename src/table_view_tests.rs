@@ -47,15 +47,15 @@ fn a_csv_file_is_offered_as_a_table_and_shown_as_one() {
     give(&mut app, &ctx, Command::ToggleTable);
     frame(&mut app, &ctx, Vec::new());
     frame(&mut app, &ctx, Vec::new());
-    let shown = state(&mut app).shown.clone();
+    let shown = state(&mut app).shown.to_vec();
     assert_eq!(shown, [1, 2, 3], "the rows under the headings, the two-line one as one row");
     // Sorting and filtering change what's shown, never the file.
     state(&mut app).order = Some((1, false));
     frame(&mut app, &ctx, Vec::new());
-    assert_eq!(state(&mut app).shown, [3, 2, 1]);
+    assert_eq!(*state(&mut app).shown, [3, 2, 1]);
     state(&mut app).filter = "SWEET".into();
     frame(&mut app, &ctx, Vec::new());
-    assert_eq!(state(&mut app).shown, [2]);
+    assert_eq!(*state(&mut app).shown, [2]);
     assert_eq!(lines(&app).join("\n"), FRUIT.trim_end_matches('\n').to_string() + "\n");
     give(&mut app, &ctx, Command::ToggleTable);
     assert!(app.docs[app.active].table.is_none());
@@ -84,7 +84,7 @@ fn typing_in_a_cell_changes_only_that_field_and_undo_takes_it_back() {
     assert_eq!(state(&mut app).cursor, (2, 1), "Enter moves down, as in a spreadsheet");
     // A value that needs quotes gets them.
     let record = state(&mut app).shown[0];
-    let all = app.docs[app.active].text.all_lines();
+    let all = app.docs[app.active].text.store().clone();
     let records = state(&mut app).index.clone().unwrap().records;
     app.table_action(Action::Commit { record, column: 2, value: "red, \"ripe\"".into() }, &all, &records, &[], true);
     assert_eq!(lines(&app)[1], "Apple,0.50,\"red, \"\"ripe\"\"\"");
@@ -101,7 +101,7 @@ fn rows_and_columns_go_in_and_out_and_the_file_can_be_sorted() {
     give(&mut app, &ctx, Command::ToggleTable);
     frame(&mut app, &ctx, Vec::new());
     let act = |app: &mut Limoniter, action: Action| {
-        let all = app.docs[app.active].text.all_lines();
+        let all = app.docs[app.active].text.store().clone();
         let state = app.docs[app.active].table.as_deref().unwrap();
         let (records, shown) = (state.index.clone().unwrap().records, state.shown.clone());
         app.table_action(action, &all, &records, &shown, true);
@@ -177,7 +177,7 @@ fn a_block_is_selected_copied_pasted_and_cleared_in_one_step_each() {
     assert!(state(&mut app).figures.as_ref().unwrap().1.starts_with("Column price: 3 filled, 3 numbers: total 2.45"), "{:?}", state(&mut app).figures);
 
     // Pasting a block, as a spreadsheet copies one, fills from the cursor and adds rows past the end, in one step.
-    let all = app.docs[app.active].text.all_lines();
+    let all = app.docs[app.active].text.store().clone();
     let (records, shown) = (state(&mut app).index.clone().unwrap().records, state(&mut app).shown.clone());
     app.table_action(Action::Fill { at: (1, 1), block: table::parse_block("9.99\t2\r\n8.88\t4\r\n7.77\t6\r\n") }, &all, &records, &shown, true);
     assert_eq!(lines(&app), ["name,price,qty", "Apple,0.50,3", "Pear,9.99,\"2\"", "Plum,8.88,4", ",7.77,6", ""], "a field in quotes stays in quotes");
@@ -189,7 +189,7 @@ fn a_block_is_selected_copied_pasted_and_cleared_in_one_step_each() {
     frame(&mut app, &ctx, Vec::new());
     state(&mut app).anchor = Some((0, 1));
     state(&mut app).cursor = (2, 4);
-    let all = app.docs[app.active].text.all_lines();
+    let all = app.docs[app.active].text.store().clone();
     let (records, shown) = (state(&mut app).index.clone().unwrap().records, state(&mut app).shown.clone());
     app.table_action(Action::Clear, &all, &records, &shown, true);
     assert_eq!(lines(&app), ["name,price,qty", "Apple,,", "Pear,,\"\"", "Plum,,", ""]);
@@ -278,4 +278,67 @@ fn the_keyboards_copy_and_paste_work_in_a_table() {
     });
     assert_eq!(copied.as_deref(), Some("x\ty"), "the pasted block is still selected, and is what's copied");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Draws frames until the table has finished working anything out in the background.
+fn table_settled(app: &mut Limoniter, ctx: &Context) {
+    let began = std::time::Instant::now();
+    loop {
+        frame(app, ctx, Vec::new());
+        let state = app.docs[app.active].table.as_deref().expect("table view is on");
+        let doc = &app.docs[app.active];
+        let current = state.index.as_ref().is_some_and(|index| index.version == doc.text.version());
+        if current && state.index_work.is_none() && state.shown_work.is_none() && state.figures_work.is_none() && app.big_job.is_none() && !doc.rewriting && doc.scanning.is_none() {
+            frame(app, ctx, Vec::new());
+            let state = app.docs[app.active].table.as_deref().unwrap();
+            if state.index_work.is_none() && state.shown_work.is_none() && state.figures_work.is_none() {
+                return;
+            }
+        }
+        assert!(began.elapsed() < std::time::Duration::from_secs(30), "the table never settled");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn a_table_too_large_to_hold_is_shown_sorted_edited_and_rewritten() {
+    let (mut app, ctx) = crate::app::tests::app_with("");
+    let path = crate::app::large_file_tests::open_on_disk(&mut app, &ctx, "fruit.csv", "name,price\nPlum,1.20\nApple,0.50\nPear,\"0.75\"\n".as_bytes());
+    give(&mut app, &ctx, Command::ToggleTable);
+    assert!(app.docs[app.active].table.is_some(), "{}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    table_settled(&mut app, &ctx);
+    assert_eq!(*state(&mut app).shown, [1, 2, 3]);
+    assert!(state(&mut app).figures.as_ref().is_some_and(|(_, text)| text.starts_with("Column name: 3 filled")), "{:?}", state(&mut app).figures);
+    // Sorting what's shown is worked out in the background.
+    state(&mut app).order = Some((1, true));
+    table_settled(&mut app, &ctx);
+    assert_eq!(*state(&mut app).shown, [2, 3, 1]);
+    // A cell is changed in place, as in any file.
+    let act = |app: &mut Limoniter, action: Action| {
+        let all = app.docs[app.active].text.store().clone();
+        let state = app.docs[app.active].table.as_deref().unwrap();
+        let (records, shown) = (state.index.clone().unwrap().records, state.shown.clone());
+        app.table_action(action, &all, &records, &shown, true);
+    };
+    act(&mut app, Action::Commit { record: 1, column: 0, value: "Damson".into() });
+    assert_eq!(lines(&app)[1], "Damson,1.20");
+    table_settled(&mut app, &ctx);
+    // A column goes in and the file is sorted by rewriting it, each as one step Undo takes back.
+    state(&mut app).cursor = (0, 1);
+    act(&mut app, Action::InsertColumn);
+    table_settled(&mut app, &ctx);
+    assert_eq!(lines(&app), ["name,,price", "Damson,,1.20", "Apple,,0.50", "Pear,,\"0.75\"", ""]);
+    assert!(app.docs[app.active].text.is_disk_backed());
+    state(&mut app).cursor = (0, 0);
+    act(&mut app, Action::SortFile);
+    table_settled(&mut app, &ctx);
+    assert_eq!(lines(&app), ["name,,price", "Apple,,0.50", "Damson,,1.20", "Pear,,\"0.75\"", ""], "the headings stay at the top");
+    give(&mut app, &ctx, Command::Undo);
+    table_settled(&mut app, &ctx);
+    assert_eq!(lines(&app)[1], "Damson,,1.20");
+    // Saved, the file is as shown.
+    assert!(app.save(app.active));
+    crate::app::large_file_tests::settle(&mut app, &ctx);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "name,,price\nDamson,,1.20\nApple,,0.50\nPear,,\"0.75\"\n");
+    let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }

@@ -51,7 +51,7 @@ It reflects the editors as of November 2026, going by their own documentation an
 | Hex editing | ✓ | ✗ | ◐ | ◐ | ◐ | ✓ | ✗ | ✗ | ✓ | ? | ◐ view only | ◐ view only | ? |
 | Bytes with no Unicode equivalent kept exactly through open and save | ✓ | ✗ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ |
 
-Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edits, searches and saves them in text or hex mode at any size (tested at 10 GB). Some whole-file commands (reindenting, compare, filtering, printing, converting the encoding in place) still aren't available for them. UltraEdit and EmEditor are built for multi-gigabyte files and do more with them.
+Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edits, searches and saves them in text or hex mode at any size (tested at 10 GB). Reindenting, compare, filtering, table view, printing and converting the encoding in place work on them too, in the background where they go through the whole file; a few things (Fold all, the function list, previews) are still set aside. UltraEdit and EmEditor are built for multi-gigabyte files and do more with them.
 
 ## Programming and the wider world
 
@@ -88,12 +88,12 @@ Some of these are possible elsewhere with separate tools (cpmtools, AppleCommand
 
 ## What others do that Limoniter doesn't
 
-- **Other platforms.** Limoniter is made for Windows. It now builds and runs on Linux, where a few things are lighter (no file-type registration; spelling through hunspell or aspell; printing as plain pages through CUPS), and it builds and passes its tests on macOS, but there's no Mac app to download yet. VS Code, Sublime Text, Vim, Emacs, Kate, Zed and UltraEdit are long established on all three; BBEdit is the Mac's own.
+- **Other platforms.** Limoniter is made for Windows. It now builds and runs on Linux, where a few things are lighter (no file-type registration; spelling through hunspell or aspell; printing as plain pages through CUPS), and there's a Mac app to download, though it isn't signed yet and has had less use than the Windows one. VS Code, Sublime Text, Vim, Emacs, Kate, Zed and UltraEdit are long established on all three; BBEdit is the Mac's own.
 - **Plug-ins.** Notepad++, VS Code, Sublime Text, Vim, Emacs, Kate, Zed and EmEditor have thousands of add-ons written by others. Limoniter's add-ons are Rhai scripts that add commands, run when files open or save, and show panels, but there is no catalogue of them yet, and they can't add new kinds of window, language support or file formats.
 - **Programming tools.** Code completion and go-to-definition through language servers, debuggers, Git, a terminal inside the editor, and test runners are standard in VS Code, Zed and Kate and available in most others. Limoniter has none of these; it lists a file's functions from its grammar and can run a command on the file.
 - **Remote and shared editing.** VS Code, Zed, UltraEdit, BBEdit, Vim and Emacs edit files on other machines over SSH or FTP; Zed and VS Code let several people edit together. Limoniter opens and saves files over SFTP, and can send a copy to an FTP server, but can't open files over FTP, and has no remote terminal, remote search or shared editing.
-- **Huge files.** UltraEdit and EmEditor are tuned for files of many gigabytes and keep every command available. Limoniter opens, edits, searches and saves such files in text or hex, but still sets a few commands aside above 64 MB.
-- **Tables of data.** EmEditor treats CSV files as tables at any size, with many more tools for them. Limoniter's table view edits, sorts and filters delimited data under 64 MB, and leaves larger files as text.
+- **Huge files.** UltraEdit and EmEditor are tuned for files of many gigabytes and keep every command available. Limoniter opens, edits, searches, compares, prints and saves such files in text, hex or table view, but still sets a few commands aside above 64 MB.
+- **Tables of data.** EmEditor treats CSV files as tables, with many more tools for them. Limoniter's table view edits, sorts and filters delimited data of any size, but has fewer tools.
 - **AI built in.** Notepad, VS Code, Zed, EmEditor and BBEdit have AI features of their own. Limoniter's assistant hands the work to Claude Code or Codex, which have to be installed and signed in separately.
 - **Other languages.** Notepad, Notepad++, VS Code, UltraEdit, EmEditor and others can show their menus in many languages. Limoniter's are in English only.
 - **Maturity.** Notepad++, Vim, Emacs, UltraEdit and the others have been used by many people for many years. Limoniter is new, and will have rough edges the others have long since smoothed.

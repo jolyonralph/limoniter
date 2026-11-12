@@ -17,7 +17,7 @@ use crate::encoding_ui::{self, LossyChoice, LossyPurpose, LossyReport, MenuActio
 use crate::find_files::{self, Hit, ReplaceJob, ReplaceReport, SearchJob};
 use crate::hex_buffer::{self, HexBuffer};
 use crate::highlight::{self, Language};
-use crate::line_store::Source;
+use crate::line_store::{LineStore, Source};
 use crate::navigation::{JumpHistory, Place};
 use crate::panels::{self, Action, DocView, Panels, TabInfo};
 use crate::print;
@@ -2098,8 +2098,12 @@ impl Limoniter {
     /// Asks what to compare this file with.
     fn begin_compare(&mut self) {
         let doc = &self.docs[self.active];
-        if doc.hex_mode || doc.text.is_disk_backed() {
-            self.message("Compare", "Compare works on text held in memory, so it can't take a file open in hex mode or kept on disk.".into());
+        if doc.hex_mode {
+            self.message("Compare", "Compare works on text, so it can't take a file open in hex mode.".into());
+            return;
+        }
+        if doc.is_busy() {
+            self.message("Compare", "Please wait for this file to finish being read or written first.".into());
             return;
         }
         let others = self.docs.iter().enumerate().filter(|(index, other)| *index != self.active && !other.placeholder).map(|(index, other)| (index, other.name())).collect();
@@ -2107,24 +2111,49 @@ impl Limoniter {
     }
 
     /// The lines to compare with, from another open file with its unsaved edits.
-    fn lines_of_open_file(&self, index: usize) -> Result<(String, Vec<Arc<str>>), String> {
+    fn lines_of_open_file(&self, index: usize) -> Result<(String, crate::big_jobs::Side), String> {
         let other = &self.docs[index];
-        if other.hex_mode || other.text.is_disk_backed() {
-            return Err(format!("{} is open in hex mode or kept on disk, so it can't be compared.", other.name()));
+        if other.hex_mode {
+            return Err(format!("{} is open in hex mode, so it can't be compared.", other.name()));
         }
-        Ok((other.name(), other.text.all_lines()))
+        if other.is_busy() {
+            return Err(format!("{} is still being read or written. Please try again when it's finished.", other.name()));
+        }
+        Ok((other.name(), crate::big_jobs::Side::Lines(other.text.store().clone())))
     }
 
-    /// Compares this file, with its unsaved edits, with those lines.
-    fn show_comparison(&mut self, other: Result<(String, Vec<Arc<str>>), String>) {
-        match other {
-            Ok((name, lines)) => {
-                let doc = &self.docs[self.active];
-                let mut comparison = compare::Comparison::new(doc.name(), name, &doc.text.all_lines(), &lines);
+    /// The lines of a file on disk to compare with: read in if it's small, or looked through where it is if not.
+    fn lines_of_file_on_disk(path: &Path) -> Result<(String, crate::big_jobs::Side), String> {
+        let name = path.display().to_string();
+        if std::fs::metadata(path).map_err(|e| e.to_string())?.len() > DISK_THRESHOLD {
+            let source = Source::open_as(path, None).map_err(|e| e.to_string())?;
+            return Ok((name, crate::big_jobs::Side::Scanning(source)));
+        }
+        let text = tools::text_of_file(path)?;
+        Ok((name, crate::big_jobs::Side::Lines(LineStore::from_vec(text.split('\n').map(Arc::from).collect()))))
+    }
+
+    /// Compares this file, with its unsaved edits, with those lines. Small files are compared there and then; if
+    /// either side is too large to hold, the comparison is worked out in the background and shows when it's done.
+    fn show_comparison(&mut self, other: Result<(String, crate::big_jobs::Side), String>) {
+        let (name, side) = match other {
+            Ok(other) => other,
+            Err(problem) => return self.message("Compare", problem),
+        };
+        let doc = &self.docs[self.active];
+        let left = doc.text.store().clone();
+        match side {
+            crate::big_jobs::Side::Lines(right) if !left.is_disk_backed() && !right.is_disk_backed() => {
+                let mut comparison = compare::Comparison::new(doc.name(), name, left, right);
                 comparison.step(true);
                 self.dialog = Dialog::Compare(Box::new(comparison));
             }
-            Err(problem) => self.message("Compare", problem),
+            side => {
+                if self.big_job.is_some() {
+                    return self.message("Compare", "Please wait for the file being worked through to finish.".into());
+                }
+                self.big_job = Some(crate::big_jobs::compare(doc.name(), name, left, side, doc.id));
+            }
         }
     }
 
@@ -2140,16 +2169,14 @@ impl Limoniter {
                 self.message("Print", "This file is too large to print in hex. It can be up to 16 MB.".into());
                 return;
             }
-            (doc.hex.view_rows(0, doc.hex.len(), shown), selection)
-        } else if doc.text.is_disk_backed() {
-            self.message("Print", "This file is too large to print. It is being kept on disk so that it opens quickly.".into());
-            return;
+            (print::Rows::Ready(doc.hex.view_rows(0, doc.hex.len(), shown)), selection.map(print::Rows::Ready))
         } else {
             let selection = doc.text.has_selection().then(|| {
                 let text = doc.text.selection_text();
-                print::printable_rows(&text.split("\r\n").collect::<Vec<_>>(), &doc.text.format)
+                print::Rows::Ready(print::printable_rows(&text.split("\r\n").collect::<Vec<_>>(), &doc.text.format))
             });
-            (print::printable_rows(&doc.text.all_lines(), &doc.text.format), selection)
+            // The lines are made ready as they're printed, so even a file too large to hold can be.
+            (print::Rows::Lines { store: doc.text.store().clone(), format: doc.text.format.clone() }, selection)
         };
         let job = print::Job { title: doc.path.as_ref().map_or_else(|| doc.name(), |path| path.display().to_string()), rows, selection, header: self.prefs.print_header, line_numbers: self.prefs.print_line_numbers };
         match print::ask_and_print(job) {
@@ -2286,14 +2313,39 @@ impl Limoniter {
             self.tell_read_only();
             return false;
         }
+        let path = self.large_edit_path(index);
+        let doc = &mut self.docs[index];
+        doc.rewriting = true;
+        self.big_job = Some(crate::big_jobs::rewrite(title, doc.text.store().clone(), doc.text.format.clone(), to, eol, lossy, change, path, doc.id));
+        true
+    }
+
+    /// Where a file too large to hold is rewritten to, in the data folder or else the temporary one. Each is
+    /// deleted when Limoniter closes.
+    fn large_edit_path(&mut self, index: usize) -> PathBuf {
+        let doc = &self.docs[index];
         let folder = self.remote_root.as_ref().and_then(|r| r.parent()).map_or_else(|| std::env::temp_dir().join("limoniter-large-edits"), |data| data.join("large-edits"));
         let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| "untitled".into(), |s| s.to_string_lossy().into_owned());
         let ending = doc.path.as_deref().and_then(Path::extension).map_or_else(String::new, |e| format!(".{}", e.to_string_lossy()));
         let path = folder.join(format!("{stem}-{}-{}{ending}", std::process::id(), self.large_edits.len() + 1));
         self.large_edits.push(path.clone());
+        path
+    }
+
+    /// Rewrites the records of a table too large to hold, changing each and putting them in order, in the
+    /// background; the file carries on from the result as one step that Undo takes back.
+    pub(super) fn start_record_rewrite(&mut self, title: &'static str, records: Arc<Vec<crate::table::Record>>, delimiter: char, arrange: crate::big_jobs::Arrange, change: crate::big_jobs::RecordChange) {
+        if self.big_job.is_some() {
+            return self.message(title, "Please wait for the file being worked through to finish.".into());
+        }
+        let index = self.active;
+        if self.docs[index].text.read_only {
+            return self.tell_read_only();
+        }
+        let path = self.large_edit_path(index);
+        let doc = &mut self.docs[index];
         doc.rewriting = true;
-        self.big_job = Some(crate::big_jobs::rewrite(title, doc.text.store().clone(), doc.text.format.clone(), to, eol, lossy, change, path, doc.id));
-        true
+        self.big_job = Some(crate::big_jobs::rewrite_records(title, doc.text.store().clone(), doc.text.format.clone(), delimiter, records, arrange, change, path, doc.id));
     }
 
     fn check_big_job(&mut self) -> bool {
@@ -2322,6 +2374,11 @@ impl Limoniter {
                 }
                 return true;
             }
+            crate::big_jobs::Outcome::Compared(mut comparison) => {
+                comparison.step(true);
+                self.dialog = Dialog::Compare(comparison);
+                return true;
+            }
             crate::big_jobs::Outcome::Rewritten { path, format } => {
                 let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id) else {
                     return false;
@@ -2334,7 +2391,6 @@ impl Limoniter {
                         doc.text.replace_with_source(source.clone(), format);
                         doc.scanning = Some(source);
                         doc.resolved_syntax = None;
-                        doc.table = None;
                     }
                     Err(e) => warn(&format!("{title} couldn't read back what it wrote.\n\n{e}")),
                 }
@@ -4616,8 +4672,7 @@ impl Limoniter {
                 } else if from_disk {
                     self.close_dialog();
                     if let Some(path) = rfd::FileDialog::new().set_title("Compare with").pick_file() {
-                        let name = path.display().to_string();
-                        let lines = tools::text_of_file(&path).map(|text| (name, text.split('\n').map(Arc::from).collect()));
+                        let lines = Self::lines_of_file_on_disk(&path);
                         self.show_comparison(lines);
                     }
                 } else if cancelled {
@@ -5651,7 +5706,7 @@ impl Limoniter {
                         }
                     }
                     other.remove(6.min(other.len() - 1));
-                    self.show_comparison(Ok(("the other file".to_string(), other)));
+                    self.show_comparison(Ok(("the other file".to_string(), crate::big_jobs::Side::Lines(LineStore::from_vec(other)))));
                 }
                 "folds" => {
                     let text = &mut self.doc().text;

@@ -776,7 +776,7 @@ impl Limoniter {
             Command::NextBookmark | Command::PreviousBookmark => text && !t.bookmarks().is_empty(),
             Command::CopyPath | Command::RenameFile | Command::ShowInExplorer | Command::OpenWithDefault => doc.path.is_some(),
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
-            Command::ToggleTable => doc.table.is_some() || (text && !t.is_disk_backed() && doc.browser.is_none()),
+            Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
             Command::OpenBasicListing => !t.is_disk_backed() && preview::kind_for_file(doc.path.as_deref(), "", &t.format) == Some(preview::Kind::Basic),

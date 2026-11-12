@@ -20,8 +20,8 @@ pub(super) struct TableState {
     /// Only rows with this in them are shown.
     pub filter: String,
     /// The records shown, in the order shown, and what that was worked out from.
-    shown: Vec<usize>,
-    shown_for: Option<(u64, char, bool, Option<(usize, bool)>, String)>,
+    shown: Arc<Vec<usize>>,
+    shown_for: Option<ShownKey>,
     /// The cell the cursor is in: a place in the rows shown, and a column.
     pub cursor: (usize, usize),
     /// The other corner of a block of selected cells, if more than the cursor's cell is selected.
@@ -31,7 +31,12 @@ pub(super) struct TableState {
     /// The first column stays in view when the table is scrolled sideways.
     pub frozen: bool,
     /// The figures for the selection, and what they were worked out from.
-    figures: Option<((u64, usize, (usize, usize), Option<(usize, usize)>), String)>,
+    figures: Option<(FiguresKey, String)>,
+    /// For a file too large to hold, each of these is worked out in the background; what's shown carries on from
+    /// the last until it's done.
+    index_work: Option<((u64, char), Background<Index>)>,
+    shown_work: Option<(ShownKey, Background<Vec<usize>>)>,
+    figures_work: Option<(FiguresKey, Background<String>)>,
     /// A cell being typed into, and whether its box still needs the keyboard.
     pub editing: Option<(String, bool)>,
     /// The text's cursor as it was last seen, to follow a Find or Go to that moved it.
@@ -43,7 +48,58 @@ pub(super) struct TableState {
     scrolled: (f32, f32),
 }
 
+/// The text's version, the delimiter, whether there are headings, the order and the filter.
+type ShownKey = (u64, char, bool, Option<(usize, bool)>, String);
+/// The text's version, how many rows show, and the selected block, or the cursor's column for one cell.
+type FiguresKey = (u64, usize, Option<((usize, usize), (usize, usize))>, usize);
+
+/// Something worked out on another thread, which is told to stop if it's no longer wanted.
+struct Background<T> {
+    result: Arc<Mutex<Option<T>>>,
+    done: Arc<std::sync::atomic::AtomicUsize>,
+    total: usize,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl<T: Send + 'static> Background<T> {
+    /// Starts the work, which tells how far it's got out of the total and gives up, with None, when told to.
+    fn start(total: usize, work: impl FnOnce(&mut dyn FnMut(usize) -> bool) -> Option<T> + Send + 'static) -> Self {
+        use std::sync::atomic::Ordering;
+        let (result, done, cancel) = (Arc::new(Mutex::new(None)), Arc::new(std::sync::atomic::AtomicUsize::new(0)), Arc::new(std::sync::atomic::AtomicBool::new(false)));
+        let (to, so_far, stop) = (result.clone(), done.clone(), cancel.clone());
+        std::thread::spawn(move || {
+            let mut going = |at: usize| {
+                so_far.store(at, Ordering::Relaxed);
+                !stop.load(Ordering::Relaxed)
+            };
+            if let Ok(Some(found)) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(&mut going))) {
+                *to.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(found);
+            }
+        });
+        Self { result, done, total, cancel }
+    }
+
+    fn take(&self) -> Option<T> {
+        self.result.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
+    }
+
+    fn share(&self) -> f32 {
+        self.done.load(std::sync::atomic::Ordering::Relaxed) as f32 / self.total.max(1) as f32
+    }
+}
+
+impl<T> Drop for Background<T> {
+    fn drop(&mut self) {
+        self.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 impl TableState {
+    /// Whether the records are up to date with the text, so cells can be changed.
+    pub(super) fn settled(&self) -> bool {
+        self.index_work.is_none()
+    }
+
     /// The selected block, top-left and bottom-right, in the rows shown.
     pub(super) fn selection(&self) -> ((usize, usize), (usize, usize)) {
         let (a, b) = (self.anchor.unwrap_or(self.cursor), self.cursor);
@@ -51,7 +107,7 @@ impl TableState {
     }
 
     pub(super) fn new(dialect: Dialect) -> Self {
-        TableState { dialect, index: None, widths: Vec::new(), order: None, filter: String::new(), shown: Vec::new(), shown_for: None, cursor: (0, 0), anchor: None, dragging: false, frozen: false, figures: None, editing: None, seen_caret: (usize::MAX, 0), scroll_to_cursor: true, take_keyboard: true, scrolled: (0.0, 0.0) }
+        TableState { dialect, index: None, widths: Vec::new(), order: None, filter: String::new(), shown: Arc::default(), shown_for: None, cursor: (0, 0), anchor: None, dragging: false, frozen: false, figures: None, index_work: None, shown_work: None, figures_work: None, editing: None, seen_caret: (usize::MAX, 0), scroll_to_cursor: true, take_keyboard: true, scrolled: (0.0, 0.0) }
     }
 }
 
@@ -77,12 +133,12 @@ enum ClipboardEvent {
     Paste(String),
 }
 
-/// The lines of a document, cheaply shared.
-fn lines_of_doc(text: &text_buffer::TextBuffer) -> Vec<Arc<str>> {
-    text.all_lines()
+/// The lines of a document, shared: those of a file kept on disk are read as they're needed.
+fn lines_of_doc(text: &text_buffer::TextBuffer) -> LineStore {
+    text.store().clone()
 }
 
-fn record_fields(lines: &[Arc<str>], record: Record, delimiter: char) -> Vec<String> {
+fn record_fields<L: table::Lines + ?Sized>(lines: &L, record: Record, delimiter: char) -> Vec<String> {
     table::fields(&table::record_text(lines, record), delimiter).into_iter().map(|f| f.value).collect()
 }
 
@@ -104,10 +160,6 @@ impl Limoniter {
             self.message("Table view", "Table view shows text. Switch the file to text first.".into());
             return;
         }
-        if doc.text.is_disk_backed() {
-            self.message("Table view", "This file is too large for table view, which works on files under 64 MB for now.".into());
-            return;
-        }
         let ending = doc.path.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_string);
         let sample: Vec<Arc<str>> = (0..doc.text.line_count().min(200)).map(|i| doc.text.line(i)).collect();
         let dialect = doc.table_offer.or_else(|| table::sniff(&sample, ending.as_deref())).unwrap_or(Dialect { delimiter: ',', header: true });
@@ -122,7 +174,7 @@ impl Limoniter {
             return;
         }
         doc.table_checked = true;
-        if doc.hex_mode || doc.browser.is_some() || doc.table.is_some() || doc.text.is_disk_backed() || doc.text.line_count() < 2 {
+        if doc.hex_mode || doc.browser.is_some() || doc.table.is_some() || doc.text.line_count() < 2 {
             return;
         }
         let ending = doc.path.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_string);
@@ -175,30 +227,72 @@ impl Limoniter {
         };
         let lines = lines_of_doc(&doc.text);
         let delimiter = state.dialect.delimiter;
-        if state.index.as_ref().is_none_or(|i| i.version != version || i.delimiter != delimiter) {
-            state.index = Some(Index::build(&lines, delimiter, version));
+        // A file too large to hold has its records found, rows sorted and figures worked out in the background.
+        let large = lines.is_disk_backed();
+        let mut working: Option<(&str, f32)> = None;
+        let scanning = doc.scanning.as_ref().map(|source| source.progress());
+        if let Some(share) = scanning {
+            // A file just rewritten is still having its lines found; the records are read once it has.
+            working = Some(("Reading the file", share));
+            state.index_work = None;
+        } else if state.index.as_ref().is_none_or(|i| i.version != version || i.delimiter != delimiter) {
+            if !large {
+                state.index = Some(Index::build(&lines, delimiter, version));
+                state.index_work = None;
+            } else {
+                if state.index_work.as_ref().is_none_or(|(key, _)| *key != (version, delimiter)) {
+                    let store = lines.clone();
+                    state.index_work = Some(((version, delimiter), Background::start(lines.len() * 2, move |going| Index::build_watched(&store, delimiter, version, going))));
+                }
+                if let Some(index) = state.index_work.as_ref().and_then(|(_, work)| work.take()) {
+                    // Rows still shown from before can't point past the records there now.
+                    let count = index.records.len();
+                    if state.shown.iter().any(|&r| r >= count) {
+                        state.shown = Arc::new(state.shown.iter().copied().filter(|&r| r < count).collect());
+                    }
+                    state.index = Some(index);
+                    state.index_work = None;
+                }
+            }
         }
-        let index = state.index.clone().expect("just built");
+        if let Some((_, work)) = &state.index_work {
+            working = Some(("Reading the records", work.share()));
+        }
+        let Some(index) = state.index.clone() else {
+            let share = working.map_or(0.0, |(_, share)| share);
+            ui.centered_and_justified(|ui| ui.label(format!("Reading the records\u{2026} {:.0}%", share * 100.0)));
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+            return;
+        };
+        let read_only = read_only || state.index_work.is_some() || scanning.is_some();
         let records = index.records.clone();
         let header = state.dialect.header && !records.is_empty();
         let first_data = usize::from(header);
         let columns = index.columns.max(1);
 
-        // The rows shown: filtered, then sorted, as asked.
-        let key = (version, delimiter, header, state.order, state.filter.clone());
+        // The rows shown: filtered, then sorted, as asked. Worked out from the records as they are now.
+        let key = (index.version, index.delimiter, header, state.order, state.filter.clone());
         if state.shown_for.as_ref() != Some(&key) {
-            let needle = state.filter.to_lowercase();
-            let mut shown: Vec<usize> = (first_data..records.len()).filter(|&r| needle.is_empty() || table::record_text(&lines, records[r]).to_lowercase().contains(&needle)).collect();
-            if let Some((column, up)) = state.order {
-                let mut keyed: Vec<(usize, String)> = shown.iter().map(|&r| (r, record_fields(&lines, records[r], delimiter).get(column).cloned().unwrap_or_default())).collect();
-                keyed.sort_by(|a, b| {
-                    let order = table::compare_values(&a.1, &b.1);
-                    if up { order } else { order.reverse() }
-                });
-                shown = keyed.into_iter().map(|(r, _)| r).collect();
+            let (needle, order) = (state.filter.to_lowercase(), state.order);
+            if !large {
+                state.shown = Arc::new(shown_rows(&lines, &records, first_data, &needle, order, delimiter, &mut |_| true).unwrap_or_default());
+                state.shown_for = Some(key);
+                state.shown_work = None;
+            } else {
+                if state.shown_work.as_ref().is_none_or(|(at, _)| *at != key) {
+                    let (store, records) = (lines.clone(), records.clone());
+                    let total = records.len();
+                    state.shown_work = Some((key.clone(), Background::start(total, move |going| shown_rows(&store, &records, first_data, &needle, order, delimiter, going))));
+                }
+                if let Some(shown) = state.shown_work.as_ref().and_then(|(_, work)| work.take()) {
+                    state.shown = Arc::new(shown);
+                    state.shown_for = Some(key);
+                    state.shown_work = None;
+                }
             }
-            state.shown = shown;
-            state.shown_for = Some(key);
+        }
+        if let Some((_, work)) = &state.shown_work {
+            working = working.or(Some((if state.order.is_some() { "Sorting" } else { "Finding the rows" }, work.share())));
         }
         let shown = state.shown.clone();
         state.cursor.0 = state.cursor.0.min(shown.len().saturating_sub(1));
@@ -207,7 +301,8 @@ impl Limoniter {
         // A Find or Go to that moved the text's cursor moves the table's to the row it's in.
         let caret = (doc.text.caret_line, version);
         if caret.0 != state.seen_caret.0 {
-            if let Some(record) = records.iter().position(|r| r.first <= caret.0 && caret.0 <= r.last)
+            let record = records.partition_point(|r| r.last < caret.0);
+            if records.get(record).is_some_and(|r| r.first <= caret.0)
                 && let Some(row) = shown.iter().position(|&r| r == record)
             {
                 state.cursor.0 = row;
@@ -233,30 +328,43 @@ impl Limoniter {
         let number_width = (format!("{}", records.len()).len() as f32 * ui.fonts_mut(|f| f.glyph_width(&font, '0')) + 20.0).max(44.0);
 
         // Figures for the selected block, or for the whole of the cursor's column when one cell is selected.
-        let figures_key = (version, shown.len(), state.cursor, state.anchor);
+        let block = state.anchor.is_some_and(|a| a != state.cursor);
+        let figures_key = (index.version, shown.len(), block.then(|| state.selection()), state.cursor.1);
         if state.figures.as_ref().is_none_or(|(key, _)| *key != figures_key) {
             let ((top, left), (bottom, right)) = state.selection();
-            let block = state.anchor.is_some_and(|a| a != state.cursor);
             let (rows, cols) = if block { (top..=bottom.min(shown.len().saturating_sub(1)), left..=right) } else { (0..=shown.len().saturating_sub(1), state.cursor.1..=state.cursor.1) };
-            let mut values = Vec::new();
-            if !shown.is_empty() {
-                for row in rows {
-                    let fields = record_fields(&lines, records[shown[row]], delimiter);
-                    for column in cols.clone() {
-                        values.push(fields.get(column).cloned().unwrap_or_default());
-                    }
-                }
-            }
-            let figures = table::Figures::of(values.iter().map(String::as_str)).describe();
-            let what = if block {
-                format!("{} by {} cells: {figures}", bottom - top + 1, right - left + 1)
+            let label = if block {
+                format!("{} by {} cells", bottom - top + 1, right - left + 1)
             } else {
                 let name = if header { names.get(state.cursor.1).cloned().unwrap_or_default() } else { column_letter(state.cursor.1) };
-                format!("Column {}: {figures}", if name.trim().is_empty() { column_letter(state.cursor.1) } else { name })
+                format!("Column {}", if name.trim().is_empty() { column_letter(state.cursor.1) } else { name })
             };
-            state.figures = Some((figures_key, what));
+            if !large {
+                let figures = figures_of(&lines, &records, &shown, rows, cols, delimiter, &mut |_| true).unwrap_or_default();
+                state.figures = Some((figures_key, format!("{label}: {figures}")));
+                state.figures_work = None;
+            } else {
+                if state.figures_work.as_ref().is_none_or(|(at, _)| *at != figures_key) {
+                    let (store, records, shown) = (lines.clone(), records.clone(), shown.clone());
+                    let total = rows.end().saturating_sub(*rows.start()) + 1;
+                    state.figures_work = Some((figures_key, Background::start(total, move |going| figures_of(&store, &records, &shown, rows, cols, delimiter, going).map(|figures| format!("{label}: {figures}")))));
+                }
+                if let Some(figures) = state.figures_work.as_ref().and_then(|(_, work)| work.take()) {
+                    state.figures = Some((figures_key, figures));
+                    state.figures_work = None;
+                }
+            }
         }
-        let figures = state.figures.as_ref().map(|(_, text)| text.clone()).unwrap_or_default();
+        if let Some((_, work)) = &state.figures_work {
+            working = working.or(Some(("Working out the figures", work.share())));
+        }
+        let figures = match working {
+            Some((what, share)) => {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                format!("{what}\u{2026} {:.0}%", share * 100.0)
+            }
+            None => state.figures.as_ref().map(|(_, text)| text.clone()).unwrap_or_default(),
+        };
 
         let mut action = None;
         // ---------- The bar above the table ----------
@@ -705,7 +813,7 @@ impl Limoniter {
             return true;
         }
         let shown = state.shown.clone();
-        let read_only = doc.text.read_only;
+        let read_only = doc.text.read_only || !state.settled();
         let block = |state: &TableState| {
             let ((top, left), (bottom, right)) = state.selection();
             (top..=bottom.min(shown.len().saturating_sub(1)))
@@ -744,6 +852,9 @@ impl Limoniter {
         let Some(state) = doc.table.as_deref_mut() else {
             return;
         };
+        if !state.settled() {
+            return;
+        }
         let lines = lines_of_doc(&doc.text);
         let Some(index) = state.index.clone() else {
             return;
@@ -759,7 +870,7 @@ impl Limoniter {
         self.table_action(Action::Fill { at: (top, left), block: cells }, &lines, &index.records, &shown, header);
     }
 
-    fn table_action(&mut self, action: Action, lines: &[Arc<str>], records: &[Record], shown: &[usize], header: bool) {
+    fn table_action(&mut self, action: Action, lines: &LineStore, records: &Arc<Vec<Record>>, shown: &[usize], header: bool) {
         let doc = &mut self.docs[self.active];
         let Some(state) = doc.table.as_deref_mut() else {
             return;
@@ -842,12 +953,25 @@ impl Limoniter {
                     doc.text.splice_lines(r.first, r.last + 1, Vec::new());
                 }
             }
+            Action::InsertColumn | Action::DeleteColumn if lines.is_disk_backed() => {
+                // Too large to hold: every record is rewritten into a new file, in the background.
+                let inserting = matches!(action, Action::InsertColumn);
+                let change: crate::big_jobs::RecordChange = Box::new(move |text| if inserting { table::insert_field(text, delimiter, column) } else { table::remove_field(text, delimiter, column) });
+                state.widths.clear();
+                state.order = None;
+                let title = if inserting { "Insert column" } else { "Delete column" };
+                self.start_record_rewrite(title, records.clone(), delimiter, crate::big_jobs::Arrange::AsTheyAre, change);
+            }
+            Action::SortFile if lines.is_disk_backed() => {
+                state.order = None;
+                self.start_record_rewrite("Sort the file", records.clone(), delimiter, crate::big_jobs::Arrange::SortedBy { column, headings: header }, Box::new(str::to_string));
+            }
             Action::InsertColumn | Action::DeleteColumn => {
                 let Some(last) = records.last() else {
                     return;
                 };
                 let mut rows = Vec::new();
-                for r in records {
+                for r in records.iter() {
                     let text = table::record_text(lines, *r);
                     let changed = if matches!(action, Action::InsertColumn) { table::insert_field(&text, delimiter, column) } else { table::remove_field(&text, delimiter, column) };
                     rows.extend(table::lines_of(&changed));
@@ -887,7 +1011,7 @@ impl Limoniter {
 
 /// Changes several records, and adds rows after the last, as one step that one Undo takes back. Records are changed
 /// from the bottom up, so a record that gains or loses lines doesn't move the ones still to change.
-fn apply_records(text: &mut text_buffer::TextBuffer, lines: &[Arc<str>], records: &[Record], mut changes: Vec<(Record, Vec<(usize, String)>)>, added: Vec<String>, delimiter: char) {
+fn apply_records(text: &mut text_buffer::TextBuffer, lines: &LineStore, records: &[Record], mut changes: Vec<(Record, Vec<(usize, String)>)>, added: Vec<String>, delimiter: char) {
     if changes.is_empty() && added.is_empty() {
         return;
     }
@@ -914,6 +1038,56 @@ fn apply_records(text: &mut text_buffer::TextBuffer, lines: &[Arc<str>], records
         }
     }
     text.end_undo_group();
+}
+
+/// The records to show, from the first after any headings: those containing the filter (already in small
+/// letters), in the order asked for. None if told to stop.
+fn shown_rows(lines: &LineStore, records: &[Record], first_data: usize, needle: &str, order: Option<(usize, bool)>, delimiter: char, going: &mut dyn FnMut(usize) -> bool) -> Option<Vec<usize>> {
+    let mut shown = Vec::new();
+    // Progress counts out of the number of records: all of it filtering, or half filtering and half sorting.
+    let half = |at: usize| if order.is_some() { at / 2 } else { at };
+    for (r, record) in records.iter().enumerate().skip(first_data) {
+        if r % 4096 == 0 && !going(half(r)) {
+            return None;
+        }
+        if needle.is_empty() || table::record_text(lines, *record).to_lowercase().contains(needle) {
+            shown.push(r);
+        }
+    }
+    if let Some((column, up)) = order {
+        let mut keyed: Vec<(usize, table::SortKey)> = Vec::with_capacity(shown.len());
+        for (i, &r) in shown.iter().enumerate() {
+            if i % 4096 == 0 && !going(records.len() / 2 + i * records.len() / 2 / shown.len().max(1)) {
+                return None;
+            }
+            let text = table::record_text(lines, records[r]);
+            keyed.push((r, table::SortKey::new(table::fields(&text, delimiter).into_iter().nth(column).map(|f| f.value).unwrap_or_default())));
+        }
+        keyed.sort_by(|a, b| {
+            let order = a.1.cmp(&b.1);
+            if up { order } else { order.reverse() }
+        });
+        shown = keyed.into_iter().map(|(r, _)| r).collect();
+    }
+    Some(shown)
+}
+
+/// The figures for a block of the rows shown. None if told to stop.
+fn figures_of(lines: &LineStore, records: &[Record], shown: &[usize], rows: std::ops::RangeInclusive<usize>, columns: std::ops::RangeInclusive<usize>, delimiter: char, going: &mut dyn FnMut(usize) -> bool) -> Option<String> {
+    let mut figures = table::Figures::new();
+    if !shown.is_empty() {
+        let start = *rows.start();
+        for row in rows {
+            if (row - start).is_multiple_of(4096) && !going(row - start) {
+                return None;
+            }
+            let fields = record_fields(lines, records[shown[row]], delimiter);
+            for column in columns.clone() {
+                figures.add(fields.get(column).map_or("", String::as_str));
+            }
+        }
+    }
+    Some(figures.describe())
 }
 
 /// Gives the table the keyboard, with Tab and the arrow keys moving around it rather than to the next control.

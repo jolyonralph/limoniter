@@ -1,5 +1,6 @@
 //! Compare: two lists of lines side by side, with the differences marked. It only reads; nothing here changes a file.
 
+use crate::line_store::LineStore;
 use crate::text_buffer::display_text;
 use crate::theme;
 use eframe::egui::{self, Align2, Color32, Context, FontId, Rect, Sense, pos2, vec2};
@@ -27,63 +28,61 @@ pub struct Row {
     pub kind: RowKind,
 }
 
-/// Works out the rows. A changed stretch pairs its lines up in order, and whatever's left over stands alone.
-pub fn rows(left: &[Arc<str>], right: &[Arc<str>]) -> Vec<Row> {
+/// A stretch of rows that are all alike, or all part of one change. A change pairs its lines up in order, and
+/// whatever's left over on the longer side stands alone. Keeping stretches rather than rows means a comparison of
+/// two huge files costs memory for its differences, not its lines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Run {
+    /// The first row it makes.
+    row: usize,
+    left: usize,
+    right: usize,
+    left_len: usize,
+    right_len: usize,
+    same: bool,
+}
+
+impl Run {
+    fn rows(&self) -> usize {
+        if self.same { self.left_len } else { self.left_len.max(self.right_len) }
+    }
+}
+
+/// Works out the stretches, for lines or anything standing in for them (such as a hash of each).
+pub fn runs<T: std::hash::Hash + Eq + Ord>(left: &[T], right: &[T]) -> Vec<Run> {
     let deadline = Some(Instant::now() + MOST_TIME);
-    let mut out = Vec::with_capacity(left.len().max(right.len()));
-    let line = |lines: &[Arc<str>], at: usize| Some((at, lines[at].clone()));
+    let mut out: Vec<Run> = Vec::new();
+    let mut row = 0;
     for op in capture_diff_slices_deadline(Algorithm::Myers, left, right, deadline) {
-        match op {
-            DiffOp::Equal { old_index, new_index, len } => {
-                for i in 0..len {
-                    out.push(Row { left: line(left, old_index + i), right: line(right, new_index + i), kind: RowKind::Same });
-                }
-            }
-            DiffOp::Delete { old_index, old_len, .. } => {
-                for i in 0..old_len {
-                    out.push(Row { left: line(left, old_index + i), right: None, kind: RowKind::LeftOnly });
-                }
-            }
-            DiffOp::Insert { new_index, new_len, .. } => {
-                for i in 0..new_len {
-                    out.push(Row { left: None, right: line(right, new_index + i), kind: RowKind::RightOnly });
-                }
-            }
-            DiffOp::Replace { old_index, old_len, new_index, new_len } => {
-                for i in 0..old_len.max(new_len) {
-                    let (a, b) = ((i < old_len).then(|| line(left, old_index + i)).flatten(), (i < new_len).then(|| line(right, new_index + i)).flatten());
-                    let kind = match (&a, &b) {
-                        (Some(_), Some(_)) => RowKind::Changed,
-                        (Some(_), None) => RowKind::LeftOnly,
-                        _ => RowKind::RightOnly,
-                    };
-                    out.push(Row { left: a, right: b, kind });
-                }
-            }
-        }
+        let (same, left_at, left_len, right_at, right_len) = match op {
+            DiffOp::Equal { old_index, new_index, len } => (true, old_index, len, new_index, len),
+            DiffOp::Delete { old_index, old_len, new_index } => (false, old_index, old_len, new_index, 0),
+            DiffOp::Insert { old_index, new_index, new_len } => (false, old_index, 0, new_index, new_len),
+            DiffOp::Replace { old_index, old_len, new_index, new_len } => (false, old_index, old_len, new_index, new_len),
+        };
+        let run = Run { row, left: left_at, right: right_at, left_len, right_len, same };
+        row += run.rows();
+        out.push(run);
     }
     out
 }
 
-/// Where each stretch of differences starts.
-pub fn difference_starts(rows: &[Row]) -> Vec<usize> {
-    let mut starts = Vec::new();
-    let mut inside = false;
-    for (place, row) in rows.iter().enumerate() {
-        let differs = row.kind != RowKind::Same;
-        if differs && !inside {
-            starts.push(place);
-        }
-        inside = differs;
-    }
-    starts
+/// A line's stand-in when the files are too large to diff line by line in memory.
+pub fn line_hash(line: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::hash::DefaultHasher::new();
+    line.hash(&mut hasher);
+    hasher.finish()
 }
 
-/// A comparison that's on screen.
+/// A comparison that's on screen. Lines are read from the two sides as they're drawn.
 pub struct Comparison {
     pub left_name: String,
     pub right_name: String,
-    pub rows: Vec<Row>,
+    left: LineStore,
+    right: LineStore,
+    runs: Vec<Run>,
+    total: usize,
     pub differences: Vec<usize>,
     /// Which difference was last gone to.
     pub current: Option<usize>,
@@ -93,11 +92,46 @@ pub struct Comparison {
 }
 
 impl Comparison {
-    pub fn new(left_name: String, right_name: String, left: &[Arc<str>], right: &[Arc<str>]) -> Self {
-        let rows = rows(left, right);
-        let differences = difference_starts(&rows);
-        let longest = left.iter().chain(right).map(|line| line.chars().count()).max().unwrap_or(0);
-        Self { left_name, right_name, rows, differences, current: None, scroll_to: None, across: 0, longest }
+    /// Compares two sides held in memory, line by line.
+    pub fn new(left_name: String, right_name: String, left: LineStore, right: LineStore) -> Self {
+        let runs = runs(&left.range_vec(0, left.len()), &right.range_vec(0, right.len()));
+        Self::from_runs(left_name, right_name, left, right, runs)
+    }
+
+    /// A comparison whose stretches have already been worked out.
+    pub fn from_runs(left_name: String, right_name: String, left: LineStore, right: LineStore, runs: Vec<Run>) -> Self {
+        let total = runs.last().map_or(0, |run| run.row + run.rows());
+        let mut differences = Vec::new();
+        let mut inside = false;
+        for run in &runs {
+            if !run.same && !inside && run.rows() > 0 {
+                differences.push(run.row);
+            }
+            inside = !run.same;
+        }
+        let longest = left.longest_estimate().max(right.longest_estimate());
+        Self { left_name, right_name, left, right, runs, total, differences, current: None, scroll_to: None, across: 0, longest }
+    }
+
+    /// How many rows there are.
+    pub fn len(&self) -> usize {
+        self.total
+    }
+
+    /// One row, read from the two sides.
+    pub fn row(&self, row: usize) -> Row {
+        let run = &self.runs[self.runs.partition_point(|run| run.row <= row).saturating_sub(1)];
+        let i = row - run.row;
+        let line = |store: &LineStore, at: usize| Some((at, store.get(at)));
+        let left = (i < run.left_len).then(|| line(&self.left, run.left + i)).flatten();
+        let right = (i < run.right_len).then(|| line(&self.right, run.right + i)).flatten();
+        let kind = match (run.same, &left, &right) {
+            (true, ..) => RowKind::Same,
+            (_, Some(_), Some(_)) => RowKind::Changed,
+            (_, Some(_), None) => RowKind::LeftOnly,
+            _ => RowKind::RightOnly,
+        };
+        Row { left, right, kind }
     }
 
     /// Goes to the next or previous stretch of differences, wrapping round.
@@ -179,18 +213,18 @@ pub fn window(ctx: &Context, state: &mut Comparison) -> bool {
         }
         let font = FontId::monospace(ROW_TEXT);
         let (cell, row_height) = ui.ctx().fonts_mut(|fonts| (fonts.glyph_width(&font, 'M'), fonts.row_height(&font).ceil() + 2.0));
-        let digits = state.rows.len().to_string().len().max(3);
+        let digits = state.len().to_string().len().max(3);
         let number_width = (digits + 1) as f32 * cell;
         let mut area = egui::ScrollArea::vertical().id_salt("compare-rows").auto_shrink([false, false]);
         if let Some(row) = state.scroll_to.take() {
             // A little of what comes before, for context. Rows are all the same height, so this lands exactly.
             area = area.vertical_scroll_offset(row.saturating_sub(3) as f32 * row_height);
         }
-        let (rows, across) = (&state.rows, state.across);
+        let across = state.across;
         // No gaps, so that a row's place is exactly its number times the height.
         ui.spacing_mut().item_spacing.y = 0.0;
-        area.show_rows(ui, row_height, rows.len(), |ui, range| {
-            for row in &rows[range] {
+        area.show_rows(ui, row_height, state.len(), |ui, range| {
+            for row in range.map(|row| state.row(row)) {
                 let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), row_height), Sense::hover());
                 let split = rect.min.x + ((rect.width() - 6.0) / 2.0).floor();
                 let left = Rect::from_min_max(rect.min, pos2(split, rect.max.y));
@@ -217,6 +251,15 @@ mod tests {
         items.iter().map(|item| Arc::from(*item)).collect()
     }
 
+    fn compared(left: &[Arc<str>], right: &[Arc<str>]) -> Comparison {
+        Comparison::new("left".into(), "right".into(), LineStore::from_vec(left.to_vec()), LineStore::from_vec(right.to_vec()))
+    }
+
+    fn rows(left: &[Arc<str>], right: &[Arc<str>]) -> Vec<Row> {
+        let state = compared(left, right);
+        (0..state.len()).map(|row| state.row(row)).collect()
+    }
+
     fn kinds(left: &[&str], right: &[&str]) -> Vec<RowKind> {
         rows(&lines(left), &lines(right)).iter().map(|row| row.kind).collect()
     }
@@ -225,7 +268,7 @@ mod tests {
     fn the_same_text_has_no_differences() {
         let found = rows(&lines(&["a", "b"]), &lines(&["a", "b"]));
         assert!(found.iter().all(|row| row.kind == RowKind::Same));
-        assert!(difference_starts(&found).is_empty());
+        assert!(compared(&lines(&["a", "b"]), &lines(&["a", "b"])).differences.is_empty());
         assert_eq!(found[1].left.as_ref().unwrap().0, 1);
     }
 
@@ -248,6 +291,14 @@ mod tests {
     }
 
     #[test]
+    fn comparing_hashes_matches_comparing_lines() {
+        let (a, b) = (lines(&["a", "b", "c", "d", "e", "f", "b"]), lines(&["x", "b", "d", "y", "z", "f", "g", "b"]));
+        let hashed = |lines: &[Arc<str>]| lines.iter().map(|line| line_hash(line)).collect::<Vec<_>>();
+        assert_eq!(runs(&hashed(&a), &hashed(&b)), runs(&a, &b));
+        assert_ne!(line_hash("a"), line_hash("b"));
+    }
+
+    #[test]
     fn empty_sides_work() {
         assert!(rows(&[], &[]).is_empty());
         assert_eq!(kinds(&[], &["a"]), [RowKind::RightOnly]);
@@ -267,7 +318,7 @@ mod tests {
     #[test]
     fn stepping_goes_through_each_stretch_and_wraps() {
         let (a, b) = (lines(&["a", "x", "y", "b", "c", "z", "d"]), lines(&["a", "b", "c", "d"]));
-        let mut state = Comparison::new("left".into(), "right".into(), &a, &b);
+        let mut state = compared(&a, &b);
         assert_eq!(state.differences, [1, 5]);
         assert_eq!(state.summary(), "2 differences");
         state.step(true);
@@ -282,7 +333,7 @@ mod tests {
 
     #[test]
     fn stepping_with_no_differences_does_nothing() {
-        let mut state = Comparison::new("l".into(), "r".into(), &lines(&["a"]), &lines(&["a"]));
+        let mut state = compared(&lines(&["a"]), &lines(&["a"]));
         state.step(true);
         assert_eq!(state.scroll_to, None);
         assert_eq!(state.summary(), "No differences in the text");
@@ -296,7 +347,7 @@ mod tests {
         let mut b = a.clone();
         b[100] = Arc::from("changed");
         b.remove(300);
-        let mut state = Comparison::new("left".into(), "right".into(), &a, &b);
+        let mut state = compared(&a, &b);
         let frame = |events: Vec<egui::Event>, state: &mut Comparison| {
             let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))), events, ..Default::default() };
             let mut closed = false;

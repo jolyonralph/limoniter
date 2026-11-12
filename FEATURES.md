@@ -49,7 +49,8 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 - Click a heading to show the rows in order of that column (numbers as numbers), and type to show only the rows that contain something; neither changes the file. **Sort the file by this column** does, keeping the headings at the top.
 - Insert and delete rows and columns. Rows with the wrong number of fields, or a quote that's never closed, are marked.
 - The first row can be headings or data; columns can be dragged wider or narrower, or double-clicked to fit. The row numbers, and the first column if asked, stay in view when the table is scrolled sideways. Find moves the table to the row it finds.
-- It works on files under 64 MB; it isn't a spreadsheet, and cells don't hold formulas.
+- It works on files of any size. Above 64 MB the records are found, rows sorted and filtered, and the figures added up in the background, with the progress shown above the table; inserting or deleting a column and sorting the file rewrite it in the background too, as one step for Undo.
+- It isn't a spreadsheet, and cells don't hold formulas.
 
 ## Hex editing
 
@@ -70,7 +71,8 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 - Recovery copies of a huge file hold only the edits, not the whole file.
 - Word Count and Save a copy in another encoding go through a huge file in the background.
 - The string explorer looks through a huge file a stretch at a time (up to its first 200,000 strings).
-- A few whole-file commands (reindent, compare, filtering, hiding lines, table view, printing, converting the encoding in place) are still not available above 64 MB.
+- Reindent, converting the encoding or the line endings in place, Filter on selection, hiding lines, Compare, printing and table view all work on a huge file; those that go through the whole file do it in the background, with progress shown, and one Undo takes back a change.
+- Still not available above 64 MB: Fold all, the function list, the assistant, previews, BASIC listings and program saving, and tracing a part's history.
 
 ## Character sets and encodings
 

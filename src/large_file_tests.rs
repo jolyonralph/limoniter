@@ -5,7 +5,7 @@ use super::tests::{app_with, draw};
 use super::*;
 
 /// Opens a file and has it kept on disk, as a large file is, and waits for its lines to be found.
-fn open_on_disk(app: &mut Limoniter, ctx: &Context, name: &str, bytes: &[u8]) -> PathBuf {
+pub(super) fn open_on_disk(app: &mut Limoniter, ctx: &Context, name: &str, bytes: &[u8]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("limoniter-large-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -22,7 +22,7 @@ fn open_on_disk(app: &mut Limoniter, ctx: &Context, name: &str, bytes: &[u8]) ->
 }
 
 /// Draws frames until background work on the file in front has finished.
-fn settle(app: &mut Limoniter, ctx: &Context) {
+pub(super) fn settle(app: &mut Limoniter, ctx: &Context) {
     let began = std::time::Instant::now();
     loop {
         draw(app, ctx, Vec::new());
@@ -127,7 +127,51 @@ fn lines_are_hidden_in_a_large_file() {
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
 
+/// What the comparison on screen shows, a row at a time: the left line, then the right.
+fn compared_rows(app: &Limoniter) -> Vec<(Option<String>, Option<String>)> {
+    let Dialog::Compare(state) = &app.dialog else {
+        panic!("no comparison is showing");
+    };
+    (0..state.len()).map(|row| state.row(row)).map(|row| (row.left.map(|l| l.1.to_string()), row.right.map(|r| r.1.to_string()))).collect()
+}
+
+#[test]
+fn a_large_file_is_compared_with_an_open_file() {
+    let (mut app, ctx) = app_with("");
+    app.doc().text.set_content(["one", "two", "three", "four"].map(String::from).to_vec());
+    let other = app.docs[app.active].id;
+    let path = open_on_disk(&mut app, &ctx, "big.txt", b"one\nTWO\nthree\nfour\nfive");
+    let other = app.docs.iter().position(|doc| doc.id == other).unwrap();
+    let lines = app.lines_of_open_file(other);
+    app.show_comparison(lines);
+    assert!(app.big_job.is_some(), "it's worked out in the background");
+    settle(&mut app, &ctx);
+    let some = |text: &str| Some(text.to_string());
+    assert_eq!(compared_rows(&app), [(some("one"), some("one")), (some("TWO"), some("two")), (some("three"), some("three")), (some("four"), some("four")), (some("five"), None)]);
+    let Dialog::Compare(state) = &app.dialog else { unreachable!() };
+    assert_eq!(state.differences, [1, 4]);
+    assert_eq!(state.current, Some(0), "it starts at the first difference");
+    let _ = std::fs::remove_dir_all(path.parent().unwrap());
+}
+
+#[test]
+fn a_file_in_memory_is_compared_with_a_large_file_on_disk() {
+    let (mut app, ctx) = app_with("");
+    app.doc().text.set_content(["a", "b", "c"].map(String::from).to_vec());
+    let dir = std::env::temp_dir().join(format!("limoniter-compare-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("other.txt");
+    std::fs::write(&path, "a\nc\nd").unwrap();
+    let source = Source::open(&path).unwrap();
+    app.show_comparison(Ok(("other".to_string(), crate::big_jobs::Side::Scanning(source))));
+    settle(&mut app, &ctx);
+    let some = |text: &str| Some(text.to_string());
+    assert_eq!(compared_rows(&app), [(some("a"), some("a")), (some("b"), None), (some("c"), some("c")), (None, some("d"))]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 fn command_now(app: &mut Limoniter, ctx: &Context, command: Command) {
     let mut output = ctx.run_ui(egui::RawInput::default(), |ui| app.run(command, ui));
     output.textures_delta.clear();
 }
+

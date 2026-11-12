@@ -22,6 +22,8 @@ pub enum Outcome {
     Rewritten { path: PathBuf, format: TextFormat },
     /// The numbers of the lines that contain some text.
     Lines { needle: String, lines: Vec<usize> },
+    /// Two files compared, ready to show.
+    Compared(Box<crate::compare::Comparison>),
     Failed(String),
 }
 
@@ -241,6 +243,160 @@ pub fn rewrite(title: &'static str, store: LineStore, from: TextFormat, to: Text
                 Outcome::Failed(problem)
             }
         }
+    })
+}
+
+/// How a table's records are put back in a rewrite.
+pub enum Arrange {
+    /// In the order they're in.
+    AsTheyAre,
+    /// By one column's values, as the table sorts them, any headings staying first.
+    SortedBy { column: usize, headings: bool },
+}
+
+/// A change to one record's text.
+pub type RecordChange = Box<dyn FnMut(&str) -> String + Send>;
+
+/// Rewrites a table too large to hold, a record at a time, into a new file: each record changed, and the records
+/// in the order asked for. Lines after the last record (most often the empty line a file ends with) stay last.
+#[allow(clippy::too_many_arguments, reason = "everything a rewrite needs, each of it different")]
+pub fn rewrite_records(title: &'static str, store: LineStore, format: TextFormat, delimiter: char, records: Arc<Vec<crate::table::Record>>, arrange: Arrange, mut change: RecordChange, path: PathBuf, doc_id: u64) -> BigJob {
+    let sorting = matches!(arrange, Arrange::SortedBy { .. });
+    let total = records.len() as u64 * if sorting { 2 } else { 1 };
+    BigJob::start(title, doc_id, total, move |done, cancel| {
+        let written = (|| -> Result<Option<Problems>, String> {
+            let stopped = || Err("It was stopped.".to_string());
+            let order: Vec<usize> = match arrange {
+                Arrange::AsTheyAre => (0..records.len()).collect(),
+                Arrange::SortedBy { column, headings } => {
+                    let skip = usize::from(headings && !records.is_empty());
+                    let mut keyed: Vec<(crate::table::SortKey, usize)> = Vec::with_capacity(records.len());
+                    for (i, record) in records.iter().enumerate().skip(skip) {
+                        if i % LINES_AT_A_TIME == 0 {
+                            if cancel.load(Ordering::Relaxed) {
+                                return stopped();
+                            }
+                            done.store(i as u64, Ordering::Relaxed);
+                        }
+                        let text = crate::table::record_text(&store, *record);
+                        keyed.push((crate::table::SortKey::new(crate::table::fields(&text, delimiter).into_iter().nth(column).map(|f| f.value).unwrap_or_default()), i));
+                    }
+                    keyed.sort_by(|a, b| a.0.cmp(&b.0));
+                    (0..skip).chain(keyed.into_iter().map(|(_, i)| i)).collect()
+                }
+            };
+            let base = if sorting { records.len() as u64 } else { 0 };
+            if let Some(folder) = path.parent() {
+                std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+            }
+            let mut out = std::io::BufWriter::with_capacity(1 << 20, std::fs::File::create(&path).map_err(|e| e.to_string())?);
+            let tail = records.last().map_or(0, |last| last.last + 1);
+            let (eol, last_eol) = (store.insert_eol(), store.terminator(store.len().saturating_sub(1)));
+            let mut at = 0;
+            let mut first = true;
+            // A stretch of records at a time, then whatever follows the last.
+            while at <= order.len() {
+                if cancel.load(Ordering::Relaxed) {
+                    return stopped();
+                }
+                let end = (at + LINES_AT_A_TIME).min(order.len());
+                let mut lines: Vec<String> = Vec::new();
+                for &r in &order[at..end] {
+                    lines.extend(crate::table::lines_of(&change(&crate::table::record_text(&store, records[r]))));
+                }
+                let finished = end == order.len();
+                if finished {
+                    lines.extend((tail..store.len()).map(|i| store.get(i).to_string()));
+                }
+                let count = lines.len();
+                // Every stretch but the last ends with a line ending, so a line follows it.
+                if !finished {
+                    lines.push(String::new());
+                }
+                let mut target = format.clone();
+                target.has_bom &= first;
+                let ending = |i: usize| if finished && i + 1 == count { last_eol } else { eol };
+                match codec::export(&lines, &ending, &format, &target, Lossy::Refuse) {
+                    Ok(bytes) => out.write_all(&bytes).map_err(|e| e.to_string())?,
+                    Err(problems) => return Ok(Some(problems)),
+                }
+                first = false;
+                done.store(base + end as u64, Ordering::Relaxed);
+                if finished {
+                    break;
+                }
+                at = end;
+            }
+            out.into_inner().map_err(|e| e.to_string())?.sync_all().map_err(|e| e.to_string())?;
+            Ok(None)
+        })();
+        match written {
+            Ok(None) => Outcome::Rewritten { path, format },
+            Ok(Some(problems)) => {
+                let _ = std::fs::remove_file(&path);
+                Outcome::Problems(problems, format)
+            }
+            Err(problem) => {
+                let _ = std::fs::remove_file(&path);
+                Outcome::Failed(problem)
+            }
+        }
+    })
+}
+
+/// One side of a comparison: lines already there, or a file on disk still being scanned.
+pub enum Side {
+    Lines(LineStore),
+    Scanning(Arc<crate::line_store::Source>),
+}
+
+/// Compares two sides too large to hold in memory twice over. Each line is boiled down to a hash, the hashes are
+/// compared, and the comparison reads the lines it shows from the files as it's drawn.
+pub fn compare(left_name: String, right_name: String, left: LineStore, right: Side, doc_id: u64) -> BigJob {
+    // Progress in thousandths: the left side's lines, then the right's (scanning it first if need be).
+    BigJob::start("Compare", doc_id, 1000, move |done, cancel| {
+        let hash_all = |store: &LineStore, from: u64, share: u64| -> Option<Vec<u64>> {
+            let mut hashes = Vec::with_capacity(store.len());
+            let mut at = 0;
+            while at < store.len() {
+                if cancel.load(Ordering::Relaxed) {
+                    return None;
+                }
+                let end = (at + LINES_AT_A_TIME).min(store.len());
+                hashes.extend(store.range_vec(at, end).iter().map(|line| crate::compare::line_hash(line)));
+                at = end;
+                done.store(from + share * at as u64 / store.len().max(1) as u64, Ordering::Relaxed);
+            }
+            Some(hashes)
+        };
+        let stopped = || Outcome::Failed("It was stopped.".to_string());
+        let Some(left_hashes) = hash_all(&left, 0, 450) else {
+            return stopped();
+        };
+        let right = match right {
+            Side::Lines(store) => store,
+            Side::Scanning(source) => {
+                while !source.is_finished() {
+                    if cancel.load(Ordering::Relaxed) {
+                        source.stop();
+                        return stopped();
+                    }
+                    done.store(450 + (225.0 * source.progress()) as u64, Ordering::Relaxed);
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                if let Some(problem) = source.failure() {
+                    return Outcome::Failed(problem);
+                }
+                LineStore::from_source(source)
+            }
+        };
+        let (from, share) = if done.load(Ordering::Relaxed) > 450 { (675, 225) } else { (450, 450) };
+        let Some(right_hashes) = hash_all(&right, from, share) else {
+            return stopped();
+        };
+        let runs = crate::compare::runs(&left_hashes, &right_hashes);
+        drop((left_hashes, right_hashes));
+        Outcome::Compared(Box::new(crate::compare::Comparison::from_runs(left_name, right_name, left, right, runs)))
     })
 }
 
