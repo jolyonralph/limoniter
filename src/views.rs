@@ -2395,7 +2395,7 @@ mod mac_key_tests {
     fn a_macs_keys_move_as_a_mac_does() {
         let option = Modifiers { alt: true, ..Modifiers::NONE };
         let cmd = Modifiers { mac_cmd: true, command: true, ..Modifiers::NONE };
-        assert_eq!(mac_keys(Key::ArrowLeft, option).1.ctrl, true, "Option and an arrow moves by a word");
+        assert!(mac_keys(Key::ArrowLeft, option).1.ctrl, "Option and an arrow moves by a word");
         assert_eq!(mac_keys(Key::ArrowLeft, cmd).0, Key::Home, "Cmd and Left goes to the start of the line");
         assert_eq!(mac_keys(Key::ArrowDown, cmd), (Key::End, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }), "Cmd and Down goes to the end of the file");
         let shifted = Modifiers { shift: true, ..cmd };
