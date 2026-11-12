@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Use the current Rust
         run: rustup update stable --no-self-update
@@ -28,7 +28,7 @@ jobs:
         run: sh packaging/macos/make-app.sh
 
       - name: Keep the app with this run
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: Limoniter-macOS
           path: target/macos/Limoniter-*-macOS.zip

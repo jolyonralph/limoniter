@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Use the current Rust
         run: rustup update stable --no-self-update && rustup component add clippy
