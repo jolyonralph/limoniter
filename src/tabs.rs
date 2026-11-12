@@ -14,7 +14,7 @@ pub fn file_tab(ui: &mut Ui, title: &str, modified: bool, selected: bool) -> (bo
     let top_corners = CornerRadius { nw: 8, ne: 8, sw: 0, se: 0 };
     let hovered = response.hovered();
     if selected {
-        ui.painter().rect_filled(rect, top_corners, theme::editor_back());
+        ui.painter().rect_filled(rect, top_corners, theme::field());
         let line = egui::Rect::from_min_max(pos2(rect.min.x + 10.0, rect.max.y - 2.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5));
         ui.painter().rect_filled(line, 1.0, theme::accent());
     } else if hovered {

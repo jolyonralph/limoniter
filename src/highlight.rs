@@ -35,8 +35,9 @@ pub enum Language {
 
 pub struct Engine {
     syntaxes: SyntaxSet,
-    /// The colors for code, for the dark theme and then the light one.
-    themes: [Theme; 2],
+    /// The bundled syntax colour schemes, and those already read, by name.
+    schemes: two_face::theme::EmbeddedLazyThemeSet,
+    read: std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<Theme>>>,
     string_scope: Scope,
     comment_scope: Scope,
     /// Language names in menu order, each with its grammar's number.
@@ -44,6 +45,39 @@ pub struct Engine {
 }
 
 static ENGINE: OnceLock<Engine> = OnceLock::new();
+
+/// The syntax colour schemes a document theme can use, as they're named in a theme and shown in the theme editor.
+pub const SCHEMES: [EmbeddedThemeName; 29] = [
+    EmbeddedThemeName::OneHalfDark,
+    EmbeddedThemeName::OneHalfLight,
+    EmbeddedThemeName::SolarizedDark,
+    EmbeddedThemeName::SolarizedLight,
+    EmbeddedThemeName::Nord,
+    EmbeddedThemeName::Dracula,
+    EmbeddedThemeName::GruvboxDark,
+    EmbeddedThemeName::GruvboxLight,
+    EmbeddedThemeName::MonokaiExtended,
+    EmbeddedThemeName::MonokaiExtendedBright,
+    EmbeddedThemeName::MonokaiExtendedLight,
+    EmbeddedThemeName::MonokaiExtendedOrigin,
+    EmbeddedThemeName::Github,
+    EmbeddedThemeName::InspiredGithub,
+    EmbeddedThemeName::CatppuccinLatte,
+    EmbeddedThemeName::CatppuccinFrappe,
+    EmbeddedThemeName::CatppuccinMacchiato,
+    EmbeddedThemeName::CatppuccinMocha,
+    EmbeddedThemeName::ColdarkCold,
+    EmbeddedThemeName::ColdarkDark,
+    EmbeddedThemeName::DarkNeon,
+    EmbeddedThemeName::TwoDark,
+    EmbeddedThemeName::SublimeSnazzy,
+    EmbeddedThemeName::Zenburn,
+    EmbeddedThemeName::Leet,
+    EmbeddedThemeName::Base16EightiesDark,
+    EmbeddedThemeName::Base16MochaDark,
+    EmbeddedThemeName::Base16OceanDark,
+    EmbeddedThemeName::Base16OceanLight,
+];
 
 /// Grammars written for Limoniter, added to the ones from two-face.
 const OWN_GRAMMARS: [(&str, &str); 39] = [
@@ -270,6 +304,18 @@ pub fn engine() -> Option<&'static Engine> {
 }
 
 impl Engine {
+    /// A syntax colour scheme by name. One that isn't known gives the usual one for dark or light documents.
+    pub fn scheme(&self, name: &str) -> std::sync::Arc<Theme> {
+        let mut read = self.read.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(theme) = read.get(name) {
+            return theme.clone();
+        }
+        let found = SCHEMES.iter().find(|s| s.as_name() == name).copied().unwrap_or(if crate::theme::document_is_light() { EmbeddedThemeName::OneHalfLight } else { EmbeddedThemeName::OneHalfDark });
+        let theme = std::sync::Arc::new(self.schemes.get(found).clone());
+        read.insert(name.to_string(), theme.clone());
+        theme
+    }
+
     fn load() -> Self {
         let mut builder = two_face::syntax::extra_newlines().into_builder();
         for (name, text) in OWN_GRAMMARS {
@@ -279,8 +325,6 @@ impl Engine {
             }
         }
         let syntaxes = builder.build();
-        let extra = two_face::theme::extra();
-        let themes = [extra.get(EmbeddedThemeName::OneHalfDark).clone(), extra.get(EmbeddedThemeName::OneHalfLight).clone()];
         let mut names: Vec<(String, usize)> = syntaxes
             .syntaxes()
             .iter()
@@ -291,7 +335,8 @@ impl Engine {
         names.sort_by_key(|(name, _)| name.to_lowercase());
         Self {
             syntaxes,
-            themes,
+            schemes: two_face::theme::extra(),
+            read: std::sync::Mutex::new(std::collections::HashMap::new()),
             string_scope: Scope::new("string").expect("a valid scope"),
             comment_scope: Scope::new("comment").expect("a valid scope"),
             names,
@@ -434,8 +479,8 @@ pub struct LineColours {
     checkpoints: BTreeMap<usize, State>,
     lines: HashMap<usize, ColouredLine>,
     chain: Option<Chain>,
-    /// Which theme these colors were worked out for.
-    light: bool,
+    /// The syntax colour scheme the lines were coloured with.
+    scheme: String,
 }
 
 fn fresh_state(engine: &Engine, syntax: usize, highlighter: &Highlighter<'_>) -> State {
@@ -500,7 +545,7 @@ impl LineColours {
 
     pub fn set_syntax(&mut self, syntax: Option<usize>) {
         if self.syntax != syntax {
-            *self = Self { syntax, light: self.light, ..Self::default() };
+            *self = Self { syntax, scheme: std::mem::take(&mut self.scheme), ..Self::default() };
         }
     }
 
@@ -531,9 +576,9 @@ impl LineColours {
     /// Colours what's needed of the lines top..bottom for up to the given time.
     /// Returns false if there's more to do, so the window can come back to it next frame.
     pub fn prepare(&mut self, engine: &Engine, buffer: &mut TextBuffer, top: usize, bottom: usize, budget: Duration) -> bool {
-        let light = crate::theme::is_light();
-        if self.light != light {
-            *self = Self { syntax: self.syntax, light, ..Self::default() };
+        let scheme = crate::theme::syntax_scheme();
+        if self.scheme != scheme {
+            *self = Self { syntax: self.syntax, scheme: scheme.clone(), ..Self::default() };
         }
         if let Some(from) = buffer.take_changed_from() {
             self.invalidate_from(from);
@@ -543,7 +588,8 @@ impl LineColours {
         };
         let bottom = bottom.min(buffer.line_count());
         let began = Instant::now();
-        let highlighter = Highlighter::new(&engine.themes[usize::from(light)]);
+        let theme = engine.scheme(&scheme);
+        let highlighter = Highlighter::new(&theme);
         let mut coloured_any = false;
         loop {
             let need = (top..bottom).find(|r| self.lines.get(r).is_none_or(|l| l.stale));

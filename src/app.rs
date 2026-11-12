@@ -188,6 +188,7 @@ enum Command {
     OpenRemote,
     SaveRemote,
     SendTo(usize),
+    Themes,
     ToggleTable,
     SendAgain,
     ManageDevices,
@@ -278,6 +279,7 @@ impl Command {
                 | Command::NewAddOn
                 | Command::OpenRemote
                 | Command::ManageDevices
+                | Command::Themes
                 | Command::AddOn(_)
                 | Command::ShowScripts
                 | Command::ShowHistory
@@ -508,6 +510,8 @@ struct Document {
     /// Delimited data was found when the file was opened, and table view is offered for it.
     table_offer: Option<crate::table::Dialect>,
     table_checked: bool,
+    /// A document theme chosen for this document alone, by name, for as long as it's open.
+    theme_override: Option<String>,
     /// Unsaved changes carried across a switch between text and hex.
     carried: bool,
     text_state: ViewState,
@@ -616,6 +620,7 @@ impl Document {
             table: None,
             table_offer: None,
             table_checked: false,
+            theme_override: None,
             carried: false,
             text_state: ViewState::default(),
             hex_state: ViewState::default(),
@@ -1126,6 +1131,7 @@ enum Dialog {
     None,
     AddOns { shared: String },
     Remote(Box<remote_host::RemoteBox>),
+    Themes(Box<theme_host::ThemeBox>),
     Send(Box<deploy_host::SendBox>),
     Devices(Box<deploy_host::DevicesBox>),
     Palette(menus::PaletteState),
@@ -1215,8 +1221,9 @@ pub struct Limoniter {
     fill_skip_last: bool,
     prefs: Prefs,
     /// Which theme the window and its frame were last colored for.
-    applied_light: Option<bool>,
-    title_bar_light: Option<bool>,
+    /// The window theme as last applied, to apply it again only when it changes.
+    applied_window: Option<std::rc::Rc<theme::WindowTheme>>,
+    title_bar_theme: Option<std::rc::Rc<theme::WindowTheme>>,
     /// A print job on its way to the printer, and what's to say about the last one.
     print_job: Option<print::Outcome>,
     print_status: String,
@@ -1262,6 +1269,8 @@ pub struct Limoniter {
     remote_secrets: std::collections::HashMap<String, crate::remote::Secret>,
     /// Where copies of remote files are kept; None in a test, which uses a temporary folder.
     remote_root: Option<PathBuf>,
+    /// The themes there are, which are used, and the rules that pick a document's.
+    themes: theme_host::Themes,
     /// Devices files are sent to, and sends under way.
     sends: deploy_host::Sends,
     /// A send waiting for the add-ons' on_send functions.
@@ -1324,7 +1333,7 @@ fn save_png(path: &Path, image: &egui::ColorImage) -> Result<(), String> {
 impl Limoniter {
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, screenshot: Option<PathBuf>) -> Self {
         let settings = read_settings_file();
-        theme::set_light(Prefs::from_settings(&settings).light);
+        theme::set_window(theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light).window_theme());
         theme::apply(&cc.egui_ctx);
         theme::colour_title_bar(cc);
         highlight::start_loading(cc.egui_ctx.clone());
@@ -1388,6 +1397,7 @@ impl Limoniter {
             remote_secrets: std::collections::HashMap::new(),
             remote_root,
             sends: deploy_host::Sends::from_settings(&settings),
+            themes: theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light),
             send_pending: None,
             script_output: Vec::new(),
             history_root,
@@ -1442,8 +1452,8 @@ impl Limoniter {
             open_request: None,
             fill_skip_last: true,
             prefs,
-            applied_light: None,
-            title_bar_light: None,
+            applied_window: None,
+            title_bar_theme: None,
             print_job: None,
             print_status: String::new(),
             results_title: "Find in Files",
@@ -3089,6 +3099,7 @@ impl Limoniter {
                 | Command::NewAddOn
                 | Command::OpenRemote
                 | Command::ManageDevices
+                | Command::Themes
                 | Command::SendTo(_)
                 | Command::ToggleTable
                 | Command::AddOn(_)
@@ -3194,6 +3205,7 @@ impl Limoniter {
             Command::AddOn(number) => self.run_addon_command(number, ui),
             Command::SendTo(device) => self.open_send_box(device),
             Command::ToggleTable => self.toggle_table(),
+            Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::SendAgain => self.send_again(),
             Command::ManageDevices => self.open_devices_box(),
             Command::ProjectOpen => {
@@ -3779,7 +3791,7 @@ impl Limoniter {
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
             self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>(),
-            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str(),
+            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.themes.to_settings().as_str(),
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
@@ -3919,7 +3931,7 @@ impl Limoniter {
         // Dragging it can't squeeze the text out altogether.
         let most = (ui.available_width() - 200.0).max(160.0);
         let mut open = true;
-        Panel::right("preview-panel").default_size(width).size_range(160.0..=most).resizable(true).frame(egui::Frame::new().fill(theme::editor_back()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
+        Panel::right("preview-panel").default_size(width).size_range(160.0..=most).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let title = kind.map_or_else(|| "Preview".to_string(), |kind| format!("Preview: {}", kind.name()));
                 ui.label(RichText::new(title).color(theme::text_dim()).size(12.5));
@@ -4568,6 +4580,7 @@ impl Limoniter {
                     Some(settings::Outcome::ChooseFont) => self.dialog = Dialog::Fonts { error: String::new() },
                     Some(settings::Outcome::ChoosePreset) => self.begin_presets(),
                     Some(settings::Outcome::ClearRecent) => self.panels.recent.clear(),
+                    Some(settings::Outcome::Themes) => self.open_theme_box(theme_host::ThemePage::Window),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
                 }
             }
@@ -5245,7 +5258,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5475,6 +5488,9 @@ impl Limoniter {
                 "preview-full" => self.doc().preview_view = settings::PreviewView::Full,
                 "settings-files" => self.dialog = Dialog::Settings(settings::WindowState { section: 4, ..settings::WindowState::default() }),
                 "addons" | "addon-panel" => self.script_screenshot_step(step),
+                "themes" => self.open_theme_box(theme_host::ThemePage::Documents),
+                "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
+                "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
                 "table" => {
                     self.check_for_table();
                     self.toggle_table();
@@ -5682,8 +5698,9 @@ impl eframe::App for Limoniter {
         recovery::IN_FRAME.store(true, Ordering::SeqCst);
         let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.draw_frame(ui)));
         recovery::IN_FRAME.store(false, Ordering::SeqCst);
-        if self.title_bar_light != Some(self.prefs.light) {
-            self.title_bar_light = Some(self.prefs.light);
+        let window_theme = theme::window_theme();
+        if self.title_bar_theme.as_ref() != Some(&window_theme) {
+            self.title_bar_theme = Some(window_theme);
             theme::colour_title_bar(&*frame);
         }
         if attempt.is_err() {
@@ -5717,11 +5734,7 @@ impl Limoniter {
     fn draw_frame(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
         NO_FILE.set(self.no_file());
-        if self.applied_light != Some(self.prefs.light) {
-            self.applied_light = Some(self.prefs.light);
-            theme::set_light(self.prefs.light);
-            theme::apply(&ctx);
-        }
+        self.apply_themes(&ctx);
         text_buffer::set_edit_prefs(self.prefs.edit);
         hex_buffer::set_bytes_per_row(self.prefs.hex_row);
         self.apply_tab_size();
@@ -5898,6 +5911,10 @@ const HELP: &str = "Finding things to do\n\
     View, Table view shows comma-, tab-, semicolon- or pipe-separated data as rows and columns, and a file that looks like such data is offered as a table when it opens. The text is still the file: changing a cell changes only that field, and Undo takes it back.\n\
     Type or double-click to change a cell. Enter keeps it and moves down, Tab moves across, and Esc leaves it as it was. Copy and Paste work on the cell.\n\
     Clicking a heading shows the rows in order of that column, and typing in the box above shows only the rows containing it. Neither changes the file; Sort the file by this column does. Rows with the wrong number of fields are marked by their number.\n\n\
+    Themes\n\
+    The window and the documents have separate themes. View, Theme chooses the window's, the usual one for documents, and one for the file in front alone.\n\
+    Each document's theme can also be chosen by rules: by its file ending, its language, its character set, or being in hex or table view. View, Theme, Themes and rules sets them; the first rule that fits wins. Commodore, Atari, Spectrum, BBC and Amiga text start out in their machine's colours.\n\
+    Themes that come with Limoniter can be copied and changed, colour by colour, or made from three colours at once. A theme can be saved to a file and opened elsewhere.\n\n\
     Send to device\n\
     File, Send to device sends a copy of the file to the machine it's for, and the file goes on saving where it always does. Manage devices sets up where: a card or stick found by its label, a folder, an SFTP or FTP server, a ZX Spectrum Next, an Ultimate 64, or a command line of your own with {file} where the copy goes.\n\
     After the first time, Ctrl+Alt+S sends the file in front again, to the same place and under the same name. A device can write the copy in a machine's own character set and line endings.\n\
@@ -6505,6 +6522,9 @@ mod deploy_host;
 #[path = "table_view.rs"]
 mod table_view;
 
+#[path = "theme_host.rs"]
+mod theme_host;
+
 #[path = "menus.rs"]
 mod menus;
 
@@ -7001,7 +7021,7 @@ mod tests {
         draw(&mut app, &ctx, Vec::new());
         assert!(theme::is_light(), "light to begin with");
         let light_back = ctx.global_style().visuals.panel_fill;
-        app.prefs.light = false;
+        app.themes.window = "Limoniter Dark".into();
         for menu in 0..menus::MENUS.len() {
             app.shown_menu = Some((menu, true));
             draw(&mut app, &ctx, Vec::new());
@@ -7009,10 +7029,10 @@ mod tests {
         assert!(!theme::is_light());
         assert_ne!(ctx.global_style().visuals.panel_fill, light_back);
         assert_eq!(ctx.global_style().visuals.panel_fill, theme::window());
-        assert!(app.current_settings().contains("theme=dark"));
+        assert!(app.current_settings().contains("window_theme=Limoniter Dark"));
         let (again, _) = app_with(&app.current_settings());
-        assert!(!again.prefs.light, "someone who chose dark keeps it");
-        app.prefs.light = true;
+        assert_eq!(again.themes.window, "Limoniter Dark", "someone who chose dark keeps it");
+        app.themes.window = "Limoniter Light".into();
         draw(&mut app, &ctx, Vec::new());
         assert!(theme::is_light());
     }
@@ -7020,7 +7040,7 @@ mod tests {
     #[test]
     fn every_menu_and_panel_draws_in_light_with_a_file_in_each_mode() {
         let (mut app, ctx) = app_with(EVERY_PANEL);
-        app.prefs.light = true;
+        app.themes.window = "Limoniter Light".into();
         app.doc().text.type_text("some text\nmore");
         for menu in 0..menus::MENUS.len() {
             app.shown_menu = Some((menu, true));

@@ -220,6 +220,7 @@ pub enum Outcome {
     SetFileTypes,
     RemoveFileTypes,
     OpenWindowsPage,
+    Themes,
 }
 
 /// What's being chosen on the File types page, and what Windows has now.
@@ -441,8 +442,9 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
         ui.add_space(8.0);
         match kind {
             Special::Theme => {
-                ui.radio_value(&mut target.prefs.light, false, "Dark");
-                ui.radio_value(&mut target.prefs.light, true, "Light");
+                if ui.button("Themes\u{2026}").on_hover_text("Window and document themes, and which documents get which. Also under View, Theme.").clicked() {
+                    *outcome = Some(Outcome::Themes);
+                }
             }
             Special::Font => {
                 let name = target.font.and_then(Path::file_stem).map_or_else(|| "Consolas".to_string(), |stem| stem.to_string_lossy().into_owned());

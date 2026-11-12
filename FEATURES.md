@@ -255,5 +255,12 @@ Switched on under **View, Panels**:
 ## Printing and display
 
 - Print with Windows' print dialog, with an optional header and line numbers; hex view can be printed too (up to 16 MB).
-- Dark and light themes, font choice, larger and smaller text, full screen and always on top.
+- Font choice, larger and smaller text, full screen and always on top.
+
+## Themes
+
+- Two kinds of theme: a **window theme** for the menus, panels and boxes, and a **document theme** for the text and everything drawn with it, chosen under **View, Theme**.
+- Each document gets its own document theme, by rules about its file ending, language, character set, or whether it's in hex or table view; the first rule that fits wins. Out of the box, Commodore, Atari, Spectrum, BBC and teletext, and Amiga text open in their machine's colours. Any document can also be given a theme of its own.
+- 18 document themes, from Limoniter's own and Solarized, Nord, Gruvbox, Dracula and Monokai to Commodore 64, Atari 8-bit, ZX Spectrum, Amiga Workbench, teletext, DOS and green and amber screens, each with one of 29 sets of syntax colours. 8 window themes.
+- **View, Theme, Themes and rules** makes your own: copy a theme and change any colour, or make a whole theme from three colours; see it on a sample as you go. Themes can be saved to a file and opened, to share them.
 - Files opened from Explorer join the open window as tabs, or can each have a window of their own.

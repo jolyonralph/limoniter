@@ -334,7 +334,7 @@ impl Limoniter {
                 {
                     name = format!("{name} {}", if up { "\u{25B2}" } else { "\u{25BC}" });
                 }
-                painter.with_clip_rect(rect.shrink2(egui::vec2(6.0, 0.0))).text(rect.left_center() + egui::vec2(6.0, 0.0), egui::Align2::LEFT_CENTER, shown_value(&name), font.clone(), theme::strong_text());
+                painter.with_clip_rect(rect.shrink2(egui::vec2(6.0, 0.0))).text(rect.left_center() + egui::vec2(6.0, 0.0), egui::Align2::LEFT_CENTER, shown_value(&name), font.clone(), theme::editor_text());
                 painter.vline(rect.right(), rect.y_range(), egui::Stroke::new(1.0, theme::border()));
                 let response = ui.interact(rect.shrink2(egui::vec2(4.0, 0.0)), focus_id.with(("heading", column)), Sense::click());
                 if response.clicked() {
@@ -375,7 +375,7 @@ impl Limoniter {
                     let uneven = record.broken || (header && fields.len() != names.len());
                     let number_rect = Rect::from_min_size(rect.min, egui::vec2(number_width, row_height));
                     painter.rect_filled(number_rect, 0.0, theme::gutter_back());
-                    let number_colour = if uneven { theme::rainbow_mistake() } else { theme::gutter_text() };
+                    let number_colour = if uneven { theme::mistake() } else { theme::gutter_text() };
                     painter.text(number_rect.right_center() - egui::vec2(8.0, 0.0), egui::Align2::RIGHT_CENTER, format!("{}", shown[row] + 1 - first_data), font.clone(), number_colour);
                     if uneven {
                         let why = if record.broken { "A quote here is never closed.".to_string() } else { format!("This row has {} fields; the headings have {}.", fields.len(), names.len()) };
@@ -387,7 +387,7 @@ impl Limoniter {
                         let here = (row, column) == cursor;
                         if here {
                             painter.rect_filled(cell, 0.0, theme::selection());
-                            painter.rect_stroke(cell.shrink(1.0), 0.0, egui::Stroke::new(1.5, theme::accent()), egui::StrokeKind::Inside);
+                            painter.rect_stroke(cell.shrink(1.0), 0.0, egui::Stroke::new(1.5, theme::caret()), egui::StrokeKind::Inside);
                         }
                         if let Some(value) = fields.get(column) {
                             let colour = theme::editor_text();

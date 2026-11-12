@@ -272,7 +272,7 @@ pub fn picker_window(ctx: &Context, picker: &mut Picker, current: &TextFormat) -
                 if !picker.sample.is_empty() {
                     ui.add_space(6.0);
                     ui.label(RichText::new("The start of this file would read:").size(12.0).color(theme::text_dim()));
-                    egui::Frame::new().fill(theme::editor_back()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
+                    egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
                         ui.set_width(340.0);
                         for line in preview(picker, current) {
                             ui.add(egui::Label::new(RichText::new(line).monospace().size(12.0)).truncate());

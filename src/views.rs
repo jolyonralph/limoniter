@@ -1221,7 +1221,7 @@ fn squiggle(painter: &egui::Painter, from: f32, to: f32, y: f32) {
         up = !up;
     }
     if points.len() > 1 {
-        painter.add(egui::Shape::line(points, Stroke::new(1.0, theme::rainbow_mistake())));
+        painter.add(egui::Shape::line(points, Stroke::new(1.0, theme::mistake())));
     }
 }
 
@@ -1342,7 +1342,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             paint_tokens(&painter, &on_row, y, cell, f, &col_x);
             for (column, bracket, depth) in &brackets {
                 if *column >= start && *column < start + count {
-                    let color = depth.map_or(theme::rainbow_mistake(), |d| theme::rainbow()[d % theme::rainbow().len()]);
+                    let color = depth.map_or(theme::mistake(), |d| theme::rainbow()[d % theme::rainbow().len()]);
                     painter.text(text_pos(*column), Align2::LEFT_TOP, *bracket, f.clone(), color);
                 }
             }
@@ -1392,7 +1392,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             }
             // A line standing for a folded stretch has a rule under it.
             if slot.last && l.fold_width > 0.0 && b.is_folded(r) {
-                painter.hline(view.min.x..=view.max.x, y + cell.y - 1.0, Stroke::new(1.0, theme::text_faint()));
+                painter.hline(view.min.x..=view.max.x, y + cell.y - 1.0, Stroke::new(1.0, theme::whitespace()));
             }
         }
         first += group;

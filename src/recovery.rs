@@ -725,6 +725,19 @@ mod tests {
     use crate::line_store::LineStore;
     use crate::text_buffer::TextBuffer;
 
+    /// Waits for every session under a folder to be let go of. Another test starting a program shares this
+    /// process's open files with it for a moment, and a lock on one of them is held until that program has started.
+    fn wait_until_let_go(root: &Path) {
+        let began = Instant::now();
+        let dirs: Vec<PathBuf> = fs::read_dir(root).unwrap().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+        for dir in dirs {
+            while take_lock(&dir.join(LOCK_NAME)).is_err() {
+                assert!(began.elapsed() < Duration::from_secs(10), "the session's lock was never let go");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+
     fn temp_root(tag: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!("limoniter-recovery-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
@@ -799,6 +812,7 @@ mod tests {
         assert!(orphans.is_empty() && found.is_empty(), "this one is still running");
 
         running.abandon();
+        wait_until_let_go(&root);
         let (orphans, found) = find_orphans(&root);
         assert_eq!((orphans.len(), found.len()), (1, 1));
         let (second_look, _) = find_orphans(&root);
@@ -821,6 +835,7 @@ mod tests {
         let copy = copy_path(session.dir(), 3);
         let dir = session.dir().to_path_buf();
         session.abandon();
+        wait_until_let_go(&root);
         let read = |path: &Path| {
             let (meta, body) = read_copy(path).unwrap();
             bytes_after_recovery(&meta, body)
@@ -852,6 +867,7 @@ mod tests {
         let session = Session::start(&root).unwrap();
         fs::write(session.dir().join("doc-1.tmpThreadId3"), b"half a copy").unwrap();
         session.abandon();
+        wait_until_let_go(&root);
         let (orphans, found) = find_orphans(&root);
         assert!(found.is_empty());
         assert!(orphans.is_empty(), "with no copies in it, the folder is tidied away");

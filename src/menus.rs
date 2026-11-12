@@ -31,7 +31,6 @@ pub(super) enum Flag {
     ColumnMode,
     AlwaysOnTop,
     FullScreen,
-    LightTheme,
     Spelling,
     Panel(PanelFlag),
 }
@@ -60,6 +59,9 @@ pub(super) enum PanelFlag {
 /// Lists that change, drawn as they are now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Live {
+    WindowThemes,
+    DocumentThemes,
+    ThisDocumentTheme,
     Devices,
     RecentFiles,
     RecentProjects,
@@ -272,7 +274,16 @@ const VIEW: &[Entry] = &[
     Item("Larger text", Command::ZoomIn),
     Item("Smaller text", Command::ZoomOut),
     Item("Font\u{2026}", Command::ChooseFont),
-    Check("Light theme", Flag::LightTheme),
+    Sub(
+        "Theme",
+        &[
+            Sub("Window", &[Entry::Live("Window themes", Live::WindowThemes)]),
+            Sub("Documents", &[Entry::Live("Document themes", Live::DocumentThemes)]),
+            Sub("This document only", &[Entry::Live("This document's theme", Live::ThisDocumentTheme)]),
+            Line,
+            Item("Themes and rules\u{2026}", Command::Themes),
+        ],
+    ),
     Line,
     Check("Word wrap", Flag::WordWrap),
     Sub(
@@ -509,6 +520,9 @@ enum Pick {
     Play(PathBuf),
     AddOn(usize),
     Device(usize),
+    WindowTheme(String),
+    DocumentTheme(String),
+    ThisDocumentTheme(Option<String>),
     Language(Language),
     Snippet(usize),
     Line(usize),
@@ -643,7 +657,6 @@ impl Limoniter {
             Flag::ColumnMode => !doc.hex_mode && doc.text.column_mode(),
             Flag::AlwaysOnTop => self.always_on_top,
             Flag::FullScreen => self.full_screen,
-            Flag::LightTheme => self.prefs.light,
             Flag::Spelling => self.prefs.spelling,
             Flag::Panel(panel) => self.panel_on(panel),
         }
@@ -668,7 +681,6 @@ impl Limoniter {
             Flag::FileTabs => &mut self.show_file_tabs,
             Flag::StatusBar => &mut self.show_status,
             Flag::OutputWindow => &mut self.show_results,
-            Flag::LightTheme => &mut self.prefs.light,
             Flag::Spelling => {
                 self.prefs.spelling = !self.prefs.spelling;
                 // Asking again after Windows said it couldn't is worth a try: a dictionary may have been added since.
@@ -795,6 +807,7 @@ impl Limoniter {
             | Command::NewAddOn
             | Command::OpenRemote
             | Command::ManageDevices
+            | Command::Themes
             | Command::AddOn(_)
             | Command::ShowScripts
             | Command::ShowHistory
@@ -907,6 +920,42 @@ impl Limoniter {
                     }
                 }
             }
+            Live::WindowThemes => {
+                let names: Vec<String> = self.themes.windows.iter().map(|t| t.name.clone()).collect();
+                for name in names {
+                    if ui.radio(self.themes.window == name, name.as_str()).clicked() {
+                        picks.push(Pick::WindowTheme(name));
+                        ui.close();
+                    }
+                }
+            }
+            Live::DocumentThemes => {
+                let names: Vec<String> = self.themes.documents.iter().map(|t| t.name.clone()).collect();
+                if !self.themes.rules.is_empty() {
+                    empty(ui, "For documents no rule picks a theme for. Themes and rules sets the rules.");
+                }
+                for name in names {
+                    if ui.radio(self.themes.document == name, name.as_str()).clicked() {
+                        picks.push(Pick::DocumentTheme(name));
+                        ui.close();
+                    }
+                }
+            }
+            Live::ThisDocumentTheme => {
+                let usable = !self.no_file();
+                let own = self.docs[self.active].theme_override.clone();
+                if ui.add_enabled(usable, egui::RadioButton::new(own.is_none(), "As the rules say")).clicked() {
+                    picks.push(Pick::ThisDocumentTheme(None));
+                    ui.close();
+                }
+                let names: Vec<String> = self.themes.documents.iter().map(|t| t.name.clone()).collect();
+                for name in names {
+                    if ui.add_enabled(usable, egui::RadioButton::new(own.as_deref() == Some(name.as_str()), name.as_str())).clicked() {
+                        picks.push(Pick::ThisDocumentTheme(Some(name)));
+                        ui.close();
+                    }
+                }
+            }
             Live::Devices => {
                 if self.sends.devices.is_empty() {
                     empty(ui, "Devices you set up are listed here. Manage devices adds one: a card, a folder, a server, a Spectrum Next or an Ultimate 64.");
@@ -1015,6 +1064,15 @@ impl Limoniter {
                 }
                 Pick::AddOn(number) => self.pending_command = Some(Command::AddOn(number)),
                 Pick::Device(number) => self.pending_command = Some(Command::SendTo(number)),
+                Pick::WindowTheme(name) => {
+                    self.themes.window = name;
+                    self.save_settings_if_changed();
+                }
+                Pick::DocumentTheme(name) => {
+                    self.themes.document = name;
+                    self.save_settings_if_changed();
+                }
+                Pick::ThisDocumentTheme(name) => self.doc().theme_override = name,
                 Pick::Play(path) => {
                     if self.library.macros.iter().any(|item| item.path == path) {
                         self.current_macro = Some(script_host::CurrentMacro { name: path.file_stem().map_or_else(String::new, |n| n.to_string_lossy().into_owned()), path: Some(path.clone()), source: String::new() });
@@ -1155,7 +1213,7 @@ impl Limoniter {
 /// Looks like a search box, and opens the command box.
 fn command_box(ui: &mut Ui) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(250.0, 24.0), egui::Sense::click());
-    let back = if response.hovered() { theme::hover() } else { theme::editor_back() };
+    let back = if response.hovered() { theme::hover() } else { theme::field() };
     ui.painter().rect(rect, 7.0, back, egui::Stroke::new(1.0, theme::border()), egui::StrokeKind::Inside);
     ui.painter().text(egui::pos2(rect.min.x + 10.0, rect.center().y), egui::Align2::LEFT_CENTER, "Find a command\u{2026}", egui::FontId::proportional(13.0), theme::text_faint());
     ui.painter().text(egui::pos2(rect.max.x - 10.0, rect.center().y), egui::Align2::RIGHT_CENTER, "F1", egui::FontId::proportional(12.0), theme::text_faint());
