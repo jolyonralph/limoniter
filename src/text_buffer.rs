@@ -2927,7 +2927,9 @@ impl TextBuffer {
         !holding.is_empty()
     }
 
-    /// The lines showing, in order, given what's folded.
+    /// The lines showing, in order, given what's folded. The window works from the folds directly; tests check
+    /// against this simple list.
+    #[cfg(test)]
     pub fn unfolded_lines(&self) -> Vec<usize> {
         let mut shown = Vec::with_capacity(self.lines.len());
         let mut next = 0;

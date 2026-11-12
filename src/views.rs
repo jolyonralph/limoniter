@@ -99,7 +99,7 @@ impl Shown<'_> {
     }
 
     /// The lines showing from a row on.
-    pub fn from_row(&self, row: usize, count: usize) -> Vec<usize> {
+    pub fn rows_from(&self, row: usize, count: usize) -> Vec<usize> {
         (row..row + count).map_while(|r| self.line(r)).collect()
     }
 }
@@ -675,7 +675,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             found
         }
         None => match pane.filter {
-            Some(lines) => lines.from_row(state.top, rows + 1).into_iter().map(|line| Slot { line, sub: 0, start: state.left, end: state.left + cols + 2, last: true }).collect(),
+            Some(lines) => lines.rows_from(state.top, rows + 1).into_iter().map(|line| Slot { line, sub: 0, start: state.left, end: state.left + cols + 2, last: true }).collect(),
             None => plain_slots(state.top, total_lines, rows, state.left, cols + 2),
         },
     };
@@ -2523,6 +2523,6 @@ mod shown_tests {
             assert_eq!(shown.row_of(line), list.row_of(line), "line {line}");
             assert_eq!(shown.contains(line), list.contains(line), "line {line}");
         }
-        assert_eq!(shown.from_row(2, 4), [2, 7, 8, 9]);
+        assert_eq!(shown.rows_from(2, 4), [2, 7, 8, 9]);
     }
 }
