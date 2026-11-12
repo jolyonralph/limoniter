@@ -40,13 +40,15 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 
 ## Table view
 
-- **View › Table view** shows comma-, tab-, semicolon- or pipe-separated data as rows and columns. A file that looks like such data is offered as a table when it's opened.
+- **View › Table view** (**F6**) shows comma-, tab-, semicolon- or pipe-separated data as rows and columns. A file that looks like such data is offered as a table when it's opened, and .csv and .tsv files can open as tables straight away.
 - The text is still the document: changing a cell changes only that field, keeping every other field's quoting and spacing as it was, so one Undo takes it back and saving writes exactly what you'd expect.
-- Type or double-click to change a cell; Enter keeps it and moves down, Tab moves across, Esc leaves it as it was. Copy, Cut and Paste work on the cell.
+- Type or double-click to change a cell; Enter keeps it and moves down, Tab moves across, Esc leaves it as it was.
+- Select a block of cells with Shift and the arrow keys, Shift+click or by dragging. Copy puts it on the clipboard as a spreadsheet would, so it pastes into Excel or LibreOffice; a block copied from a spreadsheet pastes in, adding rows past the end, as one step for Undo. Delete empties the block, and one value pasted over it fills every cell.
+- The total, average, smallest and largest of the numbers in the selection, or in the cursor's column, are shown above the table.
 - Fields in quotes may hold the delimiter, quotes and line breaks (RFC 4180); a quote inside an unquoted field is just a character.
 - Click a heading to show the rows in order of that column (numbers as numbers), and type to show only the rows that contain something; neither changes the file. **Sort the file by this column** does, keeping the headings at the top.
 - Insert and delete rows and columns. Rows with the wrong number of fields, or a quote that's never closed, are marked.
-- The first row can be headings or data; columns can be dragged wider or narrower. Find moves the table to the row it finds.
+- The first row can be headings or data; columns can be dragged wider or narrower, or double-clicked to fit. The row numbers, and the first column if asked, stay in view when the table is scrolled sideways. Find moves the table to the row it finds.
 - It works on files under 64 MB; it isn't a spreadsheet, and cells don't hold formulas.
 
 ## Hex editing

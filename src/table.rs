@@ -202,6 +202,73 @@ pub fn empty_record(delimiter: char, columns: usize) -> String {
     std::iter::repeat_n(delimiter, columns.saturating_sub(1)).collect()
 }
 
+/// The record's text with several fields set, everything else as it was.
+pub fn set_fields(text: &str, delimiter: char, changes: &[(usize, String)]) -> String {
+    changes.iter().fold(text.to_string(), |text, (column, value)| set_field(&text, delimiter, *column, value))
+}
+
+/// A block of cells as text for the clipboard: a tab between cells and a line break between rows, as spreadsheets
+/// copy and paste them. A cell with a tab, line break or quote in it is put in quotes.
+pub fn block_text(cells: &[Vec<String>]) -> String {
+    cells.iter().map(|row| row.iter().map(|value| encode_field(value, '\t', false)).collect::<Vec<_>>().join("\t")).collect::<Vec<_>>().join("\n")
+}
+
+/// Cells from the clipboard: rows of tab-separated cells, as a spreadsheet copies them, quoted cells and all.
+/// Text with no tabs is one cell to a line. The line break that ends the last row isn't another row.
+pub fn parse_block(text: &str) -> Vec<Vec<String>> {
+    let text = text.replace("\r\n", "\n");
+    let text = text.strip_suffix('\n').unwrap_or(&text);
+    let lines: Vec<&str> = text.split('\n').collect();
+    if !text.contains('\t') {
+        // Without tabs, quotes are just characters, and each line is a cell.
+        return lines.iter().map(|line| vec![(*line).to_string()]).collect();
+    }
+    records(&lines, '\t').iter().map(|record| fields(&record_text(&lines, *record), '\t').into_iter().map(|f| f.value).collect()).collect()
+}
+
+/// What a set of values adds up to: how many there are, and of the numbers among them, the total, smallest and
+/// largest.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Figures {
+    pub values: usize,
+    pub numbers: usize,
+    pub sum: f64,
+    pub smallest: f64,
+    pub largest: f64,
+}
+
+impl Figures {
+    pub fn of<'a>(values: impl IntoIterator<Item = &'a str>) -> Figures {
+        let mut figures = Figures { smallest: f64::INFINITY, largest: f64::NEG_INFINITY, ..Figures::default() };
+        for value in values {
+            if value.trim().is_empty() {
+                continue;
+            }
+            figures.values += 1;
+            if let Some(n) = number(value) {
+                figures.numbers += 1;
+                figures.sum += n;
+                figures.smallest = figures.smallest.min(n);
+                figures.largest = figures.largest.max(n);
+            }
+        }
+        figures
+    }
+
+    /// In words, for the bar under the table.
+    pub fn describe(&self) -> String {
+        if self.numbers == 0 {
+            return format!("{} filled", self.values);
+        }
+        let show = |n: f64| {
+            let text = format!("{:.6}", n);
+            let text = text.trim_end_matches('0').trim_end_matches('.');
+            if text == "-0" { "0".to_string() } else { text.to_string() }
+        };
+        format!("{} filled, {} numbers: total {}, average {}, smallest {}, largest {}", self.values, self.numbers, show(self.sum), show(self.sum / self.numbers as f64), show(self.smallest), show(self.largest))
+    }
+}
+
 /// Splits a record's text back into lines.
 pub fn lines_of(text: &str) -> Vec<String> {
     text.split('\n').map(str::to_string).collect()
@@ -402,6 +469,35 @@ mod tests {
         let mut v = vec!["10", "9", "apple", "", "Banana", "1,000", "$5", "50%"];
         v.sort_by(|a, b| compare_values(a, b));
         assert_eq!(v, ["$5", "9", "10", "50%", "1,000", "apple", "Banana", ""]);
+    }
+
+    #[test]
+    fn several_fields_change_at_once() {
+        assert_eq!(set_fields("a,\"b\",c", ',', &[(0, "x".into()), (2, "y, z".into())]), "x,\"b\",\"y, z\"");
+        assert_eq!(set_fields("a", ',', &[(2, "c".into())]), "a,,c");
+    }
+
+    #[test]
+    fn blocks_go_to_and_from_the_clipboard_as_spreadsheets_have_them() {
+        let cells = vec![vec!["a".to_string(), "b c".to_string()], vec!["two\nlines".to_string(), "tab\there".to_string()], vec!["say \"hi\"".to_string(), String::new()]];
+        let text = block_text(&cells);
+        assert_eq!(text, "a\tb c\n\"two\nlines\"\t\"tab\there\"\n\"say \"\"hi\"\"\"\t");
+        assert_eq!(parse_block(&text), cells);
+        // As Excel and LibreOffice copy: CRLF between rows, and one after the last.
+        assert_eq!(parse_block("1\t2\r\n3\t4\r\n"), [vec!["1", "2"], vec!["3", "4"]]);
+        // Plain lines are a column, quotes and all.
+        assert_eq!(parse_block("x\n\"y\"\n"), [vec!["x"], vec!["\"y\""]]);
+        assert_eq!(parse_block("one"), [vec!["one"]]);
+    }
+
+    #[test]
+    fn figures_add_up_the_numbers_among_the_values() {
+        let figures = Figures::of(["5.0", "", "4.27", "n/a", "$1,000", "-2"]);
+        assert_eq!((figures.values, figures.numbers), (5, 4));
+        assert!((figures.sum - 1007.27).abs() < 1e-9);
+        assert_eq!((figures.smallest, figures.largest), (-2.0, 1000.0));
+        assert_eq!(figures.describe(), "5 filled, 4 numbers: total 1007.27, average 251.8175, smallest -2, largest 1000");
+        assert_eq!(Figures::of(["a", "b"]).describe(), "2 filled");
     }
 
     #[test]

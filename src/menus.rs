@@ -313,7 +313,7 @@ const VIEW: &[Entry] = &[
     ),
     Keyed("Narrow to the selection", Command::Narrow, "Ctrl+Shift+N"),
     Item("Show the whole file", Command::Widen),
-    Item("Table view (CSV, TSV)", Command::ToggleTable),
+    Keyed("Table view (CSV, TSV)", Command::ToggleTable, "F6"),
     Line,
     Sub("Preview", &[Item("Off", Command::SetPreview(settings::PreviewView::Text)), Item("Beside the text", Command::SetPreview(settings::PreviewView::Split)), Item("Instead of the text", Command::SetPreview(settings::PreviewView::Full))]),
     Sub(

@@ -3700,6 +3700,7 @@ impl Limoniter {
             (ctrl, Key::Tab, Command::UsedFileBack),
             (ctrl, Key::J, Command::Snippets),
             (Modifiers::NONE, Key::F5, Command::RunTool),
+            (Modifiers::NONE, Key::F6, Command::ToggleTable),
             (Modifiers::NONE, Key::F7, Command::NextMistake),
             (ctrl_shift, Key::R, Command::RecordMacro),
             (ctrl_shift, Key::P, Command::PlayMacro),
@@ -5501,11 +5502,15 @@ impl Limoniter {
                 "themes" => self.open_theme_box(theme_host::ThemePage::Documents),
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
-                "table" => {
+                "table" | "table-block" => {
                     self.check_for_table();
                     self.toggle_table();
                     if let Some(state) = self.doc().table.as_deref_mut() {
                         state.cursor = (2, 2);
+                        if step == "table-block" {
+                            state.anchor = Some((1, 3));
+                            state.cursor = (6, 4);
+                        }
                     }
                 }
                 "devices" | "send" => {
@@ -5919,7 +5924,8 @@ const HELP: &str = "Finding things to do\n\
     The first time you connect to a server its key's fingerprint is shown: trust it only if it's what the server's owner says. A server whose key has changed is refused. A password is kept, if you ask, in Windows Credential Manager.\n\n\
     Table view\n\
     View, Table view shows comma-, tab-, semicolon- or pipe-separated data as rows and columns, and a file that looks like such data is offered as a table when it opens. The text is still the file: changing a cell changes only that field, and Undo takes it back.\n\
-    Type or double-click to change a cell. Enter keeps it and moves down, Tab moves across, and Esc leaves it as it was. Copy and Paste work on the cell.\n\
+    Type or double-click to change a cell. Enter keeps it and moves down, Tab moves across, and Esc leaves it as it was. F6 shows a file as a table and back.\n\
+    Shift and the arrow keys, Shift+click or dragging select a block of cells. Copy puts it on the clipboard as a spreadsheet does, and a block copied from a spreadsheet pastes in, adding rows past the end. Delete empties the block. The figures for the numbers selected, or the cursor's column, are shown above the table.\n\
     Clicking a heading shows the rows in order of that column, and typing in the box above shows only the rows containing it. Neither changes the file; Sort the file by this column does. Rows with the wrong number of fields are marked by their number.\n\n\
     Themes\n\
     The window and the documents have separate themes. View, Theme chooses the window's, the usual one for documents, and one for the file in front alone.\n\

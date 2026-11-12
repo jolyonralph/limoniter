@@ -79,13 +79,15 @@ pub struct Prefs {
     pub keep_undo_history: bool,
     /// Files opened from Explorer each get a window of their own, rather than a tab in the one already open.
     pub new_window_per_file: bool,
+    /// CSV and TSV files open straight into table view.
+    pub open_tables: bool,
     /// Spelling mistakes are underlined.
     pub spelling: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false }
     }
 }
 
@@ -93,7 +95,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -115,7 +117,8 @@ impl Prefs {
             self.paragraph.first,
             self.paragraph.align.name(),
             self.new_window_per_file,
-            self.spelling
+            self.spelling,
+            self.open_tables
         )
     }
 
@@ -181,6 +184,7 @@ impl Prefs {
                 "keep_undo_history" => &mut prefs.keep_undo_history,
                 "new_window_per_file" => &mut prefs.new_window_per_file,
                 "spelling" => &mut prefs.spelling,
+                "open_tables" => &mut prefs.open_tables,
                 "find_from_selection" => &mut prefs.find_from_selection,
                 "find_in_file_folder" => &mut prefs.find_in_file_folder,
                 "watch_files" => &mut prefs.watch_files,
@@ -375,6 +379,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
         "Files",
         &[
             Row::Flag("Check for changes by other programs", "Each time the window comes back into focus", |t| &mut t.prefs.watch_files),
+            Row::Flag("Open CSV and TSV files as tables", "Files ending .csv, .tsv, .tab or .psv go straight into table view", |t| &mut t.prefs.open_tables),
             Row::Flag("Open each file in a new window", "When a file is opened from Explorer. When off, it opens as a tab in the Limoniter window already open", |t| &mut t.prefs.new_window_per_file),
             Row::Special("Format for new files", Special::Preset),
             Row::Special("Recently opened files", Special::ClearRecent),
@@ -593,6 +598,7 @@ mod tests {
             keep_undo_history: false,
             new_window_per_file: true,
             spelling: true,
+            open_tables: true,
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);
         assert_eq!(Prefs::from_settings(&Prefs::default().to_settings()), Prefs::default());
