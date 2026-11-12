@@ -496,7 +496,7 @@ impl Limoniter {
     }
 
     /// The document's exact bytes, from hex mode or the text, for the BASIC commands.
-    fn document_bytes(&self) -> Vec<u8> {
+    pub(super) fn document_bytes(&self) -> Vec<u8> {
         let doc = &self.docs[self.active];
         if doc.hex_mode { doc.hex.read(0, crate::codec::MAX_FILE_BYTES as usize) } else { doc.text.encode(&doc.text.format, Lossy::Omit).unwrap_or_default() }
     }

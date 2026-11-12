@@ -149,6 +149,10 @@ pub(super) struct DevicesBox {
     /// A password typed for the device selected, and whether to keep it.
     pub password: String,
     pub keep: bool,
+    /// How many emulators Find emulators added, once it's been used.
+    pub found: Option<usize>,
+    /// Something to say about the device selected, such as an emulator that wasn't found.
+    pub told: String,
 }
 
 /// The key a file is remembered by: its path, or for one never saved, its tab.
@@ -241,7 +245,7 @@ impl Limoniter {
         self.start_send(doc_id, pending.device, pending.name, payload, false);
     }
 
-    fn start_send(&mut self, doc_id: u64, device: Device, name: String, payload: Payload, force: bool) {
+    pub(super) fn start_send(&mut self, doc_id: u64, device: Device, name: String, payload: Payload, force: bool) {
         let stamp_key = Sends::stamp_key(&device, &name);
         let checked = matches!(device.place, Place::Card { .. } | Place::Folder { .. } | Place::Sftp { .. });
         let expected = checked.then(|| self.sends.stamps.iter().find(|(key, _)| *key == stamp_key).map(|(_, stamp)| Some(*stamp))).flatten();
@@ -301,7 +305,7 @@ impl Limoniter {
     }
 
     /// Puts a file in line for a Spectrum Next to fetch with `.sync`, listening for it if that hasn't started.
-    fn offer_to_next(&mut self, folder: &str, name: &str, payload: Payload) {
+    pub(super) fn offer_to_next(&mut self, folder: &str, name: &str, payload: Payload) {
         let data = match &payload {
             Payload::Bytes(bytes) => bytes.clone(),
             Payload::File(path) => match std::fs::read(path) {
@@ -458,7 +462,7 @@ impl Limoniter {
     }
 
     pub(super) fn open_devices_box(&mut self) {
-        self.dialog = Dialog::Devices(Box::new(DevicesBox { devices: self.sends.devices.clone(), selected: 0, password: String::new(), keep: true }));
+        self.dialog = Dialog::Devices(Box::new(DevicesBox { devices: self.sends.devices.clone(), selected: 0, password: String::new(), keep: true, found: None, told: String::new() }));
     }
 
     /// The box that sends.
@@ -584,7 +588,7 @@ impl Limoniter {
         let names_clash = state.devices.iter().enumerate().any(|(i, a)| state.devices.iter().skip(i + 1).any(|b| b.name.trim().eq_ignore_ascii_case(a.name.trim())));
         let first_problem = state.devices.iter().find_map(|device| device.problem().map(|p| format!("{}: {p}", if device.name.trim().is_empty() { "A device" } else { device.name.as_str() })));
         egui::Window::new("Devices").collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("Places File, Send to device sends a copy of a file to. The file goes on saving where it always does.");
+            ui.label("Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does.");
             ui.separator();
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
@@ -595,9 +599,35 @@ impl Limoniter {
                             if ui.selectable_label(n == state.selected, label).on_hover_text(device.place.describe()).clicked() && n != state.selected {
                                 state.selected = n;
                                 state.password.clear();
+                                state.told.clear();
                             }
                         }
                     });
+                    if ui.button("Find emulators").on_hover_text("Adds the emulators installed on this computer that aren't listed yet").clicked() {
+                        let mut added = 0;
+                        for (emulator, program) in crate::emulators::find_installed() {
+                            let listed = state.devices.iter().any(|d| matches!(&d.place, Place::Emulator { emulator: id, .. } if id == emulator.id));
+                            if !listed {
+                                let mut name = emulator.name.to_string();
+                                while state.devices.iter().any(|d| d.name.eq_ignore_ascii_case(&name)) {
+                                    name.push_str(" (2)");
+                                }
+                                state.devices.push(Device { name, place: Place::Emulator { emulator: emulator.id.into(), program, options: String::new() }, preset: None, eject: false });
+                                added += 1;
+                            }
+                        }
+                        state.found = Some(added);
+                        if added > 0 {
+                            state.selected = state.devices.len() - 1;
+                        }
+                    }
+                    if let Some(added) = state.found {
+                        ui.label(RichText::new(match added {
+                            0 => "No more were found.".to_string(),
+                            1 => "1 added.".to_string(),
+                            n => format!("{n} added."),
+                        }).color(theme::text_faint()));
+                    }
                     ui.horizontal(|ui| {
                         if ui.button("Add").clicked() {
                             let n = state.devices.len() + 1;
@@ -618,7 +648,7 @@ impl Limoniter {
                         ui.label("Add a device to send to: a card, a folder, a server, a Spectrum Next or an Ultimate 64.");
                         return;
                     };
-                    device_editor(ui, device, &drives, &mut state.password, &mut state.keep, &mut forget);
+                    device_editor(ui, device, &drives, &mut state.password, &mut state.keep, &mut forget, &mut state.told);
                 });
             });
             ui.separator();
@@ -671,7 +701,8 @@ impl Limoniter {
 }
 
 /// The fields for one device.
-fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], password: &mut String, keep: &mut bool, forget: &mut Option<String>) {
+#[allow(clippy::too_many_arguments, reason = "each is a different part of the box's state")]
+fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], password: &mut String, keep: &mut bool, forget: &mut Option<String>, told: &mut String) {
     egui::Grid::new("device-fields").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
         ui.label("Name:");
         ui.add(egui::TextEdit::singleline(&mut device.name).desired_width(320.0));
@@ -792,6 +823,60 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.label("");
                 note(ui, hint("Runs .prg and .crt files, plays .sid and .mod tunes, and puts .d64, .g64, .d71, .g71 and .d81 disks in drive A, straight away. Needs firmware 3.11 or later, with the web remote control service on. A password is only needed if the Ultimate has a network password."));
                 ui.end_row();
+            }
+            Place::Emulator { emulator, program, options } => {
+                ui.label("Emulator:");
+                let known = crate::emulators::by_id(emulator);
+                egui::ComboBox::from_id_salt("device-emulator").width(320.0).selected_text(known.map_or("Choose one", |e| e.name)).show_ui(ui, |ui| {
+                    for each in crate::emulators::KNOWN {
+                        if ui.selectable_label(emulator == each.id, each.name).clicked() && emulator != each.id {
+                            *emulator = each.id.to_string();
+                            program.clear();
+                        }
+                    }
+                });
+                ui.end_row();
+                ui.label("Program:");
+                ui.horizontal(|ui| {
+                    let mut text = program.display().to_string();
+                    if ui.add(egui::TextEdit::singleline(&mut text).desired_width(200.0)).changed() {
+                        *program = PathBuf::from(text);
+                    }
+                    if ui.button("Choose\u{2026}").clicked()
+                        && let Some(chosen) = rfd::FileDialog::new().set_title("The emulator's program").pick_file()
+                    {
+                        *program = chosen;
+                    }
+                    if let Some(known) = known
+                        && ui.button("Find").on_hover_text("Looks where it's usually installed").clicked()
+                    {
+                        match crate::emulators::find_installed().into_iter().find(|(e, _)| e.id == known.id) {
+                            Some((_, found)) => *program = found,
+                            None => *told = format!("{} wasn't found. It's at {}", known.name, known.website),
+                        }
+                    }
+                });
+                ui.end_row();
+                ui.label("Extra options:");
+                ui.add(egui::TextEdit::singleline(options).hint_text("Added to its command line").desired_width(320.0));
+                ui.end_row();
+                if let Some(known) = known {
+                    ui.label("");
+                    let machines: Vec<&str> = known.machines.iter().map(|m| m.name()).collect();
+                    let formats: Vec<&str> = known.formats.iter().map(|f| f.ending()).collect();
+                    let reached = match known.link {
+                        crate::emulators::Link::None => "",
+                        _ => " While it runs, Limoniter can read and change its memory and screen.",
+                    };
+                    note(ui, hint(&format!("Runs programs for the {}, from .{} files.{reached}", machines.join(", "), formats.join(", ."))));
+                    ui.end_row();
+                    if !told.is_empty() {
+                        ui.label("");
+                        note(ui, RichText::new(told.clone()).color(theme::rainbow_mistake()));
+                        ui.end_row();
+                    }
+                }
+                return;
             }
             Place::Command { line } => {
                 ui.label("Command line:");

@@ -190,6 +190,10 @@ enum Command {
     OpenRemote,
     SaveRemote,
     SendTo(usize),
+    RunOnMachine,
+    RunOnBuiltIn,
+    RunOn(usize),
+    StopRunning,
     Themes,
     Website,
     ToggleTable,
@@ -262,6 +266,7 @@ impl Command {
                 | Command::ChooseFont
                 | Command::ChoosePreset
                 | Command::ShowFileLists
+                | Command::StopRunning
                 | Command::Settings
                 | Command::ProjectOpen
                 | Command::ProjectNew
@@ -1154,6 +1159,7 @@ enum Dialog {
     Themes(Box<theme_host::ThemeBox>),
     Send(Box<deploy_host::SendBox>),
     Devices(Box<deploy_host::DevicesBox>),
+    Run(Box<run_host::RunBox>),
     Palette(menus::PaletteState),
     Script(script_host::ScriptBox),
     GoTo { value: String, error: String },
@@ -1297,6 +1303,7 @@ pub struct Limoniter {
     themes: theme_host::Themes,
     /// Devices files are sent to, and sends under way.
     sends: deploy_host::Sends,
+    running: run_host::Running,
     /// A send waiting for the add-ons' on_send functions.
     send_pending: Option<deploy_host::PendingSend>,
     script_output: Vec<String>,
@@ -1427,6 +1434,7 @@ impl Limoniter {
             remote_secrets: std::collections::HashMap::new(),
             remote_root,
             sends: deploy_host::Sends::from_settings(&settings),
+            running: run_host::Running::from_settings(&settings),
             themes: theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light),
             send_pending: None,
             script_output: Vec::new(),
@@ -2277,7 +2285,7 @@ impl Limoniter {
     /// Finishes background scans and saves when they are done.
     fn check_background_work(&mut self, ctx: &Context) {
         self.send_saved_remotes();
-        let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends();
+        let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         self.autosave(ctx);
         self.open_handed_over(ctx);
         #[cfg(target_os = "macos")]
@@ -3337,6 +3345,10 @@ impl Limoniter {
                 | Command::Themes
                 | Command::Website
                 | Command::SendTo(_)
+                | Command::RunOnMachine
+                | Command::RunOnBuiltIn
+                | Command::RunOn(_)
+                | Command::StopRunning
                 | Command::ToggleTable
                 | Command::AddOn(_)
                 | Command::ShowScripts
@@ -3439,7 +3451,13 @@ impl Limoniter {
                 self.open_remote_box(Some(id));
             }
             Command::AddOn(number) => self.run_addon_command(number, ui),
+            // An emulator in the list runs the file rather than being sent it.
+            Command::SendTo(device) if matches!(self.sends.devices.get(device).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => self.run_on_target(run_host::Target::Device(device)),
             Command::SendTo(device) => self.open_send_box(device),
+            Command::RunOnMachine => self.run_on_machine(),
+            Command::RunOnBuiltIn => self.run_on_target(run_host::Target::BuiltIn),
+            Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
+            Command::StopRunning => self.stop_all_sessions(),
             Command::ToggleTable => self.toggle_table(),
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::Website => {
@@ -3937,6 +3955,7 @@ impl Limoniter {
             (Modifiers::CTRL, Key::Tab, Command::UsedFileBack),
             (ctrl, Key::J, Command::Snippets),
             (Modifiers::NONE, Key::F5, Command::RunTool),
+            (Modifiers::NONE, Key::F9, Command::RunOnMachine),
             (Modifiers::NONE, Key::F6, Command::ToggleTable),
             (Modifiers::NONE, Key::F7, Command::NextMistake),
             (ctrl_shift, Key::R, Command::RecordMacro),
@@ -4038,7 +4057,7 @@ impl Limoniter {
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
             self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>(),
-            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.themes.to_settings().as_str(),
+            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.themes.to_settings().as_str(),
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
@@ -5174,6 +5193,12 @@ impl Limoniter {
             if let Some(status) = self.remote_status() {
                 ui.colored_label(theme::accent(), status);
             }
+            if let Some(status) = self.run_status() {
+                ui.colored_label(theme::accent(), status);
+                if !self.running.sessions.is_empty() && ui.small_button("Stop").on_hover_text("Stops the program running, closing the emulator").clicked() {
+                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(run_host::STOP_ASKED), true));
+                }
+            }
             if let Some((status, more)) = self.send_status() {
                 let label = ui.colored_label(theme::accent(), status);
                 if !more.is_empty() {
@@ -5519,7 +5544,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5802,6 +5827,11 @@ impl Limoniter {
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
                 "basic-listing" => self.open_basic_listing(),
+                "as-spectrum-basic" => {
+                    let stem = self.doc().name();
+                    self.doc().listing_of = Some((basic::Machine::Spectrum, stem));
+                }
+                "run-builtin" => self.run_on_target(run_host::Target::BuiltIn),
                 "table" | "table-block" => {
                     self.check_for_table();
                     self.toggle_table();
@@ -6088,6 +6118,9 @@ impl Limoniter {
         if self.show_status {
             let (mut action, mut toggle_lock) = (None, false);
             Panel::bottom("status").frame(egui::Frame::new().fill(theme::ribbon()).inner_margin(egui::Margin { left: 12, right: 12, top: 4, bottom: 4 })).show(ui, |ui| (action, toggle_lock) = self.status_bar(ui));
+            if ui.ctx().data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(run_host::STOP_ASKED))).unwrap_or(false) {
+                self.stop_all_sessions();
+            }
             if let Some(action) = action {
                 self.run_menu_action(action);
             }
@@ -6103,6 +6136,7 @@ impl Limoniter {
             self.find_panel(ui);
         }
         self.side_panels(ui);
+        self.machine_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
         self.full_preview_shown = full_preview;
         if self.show_file_tabs && !self.no_file() {
@@ -6876,6 +6910,13 @@ mod remote_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;
+
+#[path = "run_host.rs"]
+mod run_host;
+
+#[cfg(test)]
+#[path = "run_host_tests.rs"]
+mod run_host_tests;
 
 #[path = "table_view.rs"]
 mod table_view;

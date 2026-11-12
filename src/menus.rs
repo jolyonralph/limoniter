@@ -63,6 +63,7 @@ pub(super) enum Live {
     DocumentThemes,
     ThisDocumentTheme,
     Devices,
+    Machines,
     RecentFiles,
     RecentProjects,
     Language,
@@ -118,6 +119,8 @@ const FILE: &[Entry] = &[
     Item("Save a copy in another encoding\u{2026}", Command::SaveCopyAs),
     Item("Save to a server (SFTP)\u{2026}", Command::SaveRemote),
     Sub("Send to device", &[Entry::Live("Devices", Live::Devices), Line, Keyed("Send again", Command::SendAgain, "Ctrl+Alt+S"), Item("Manage devices\u{2026}", Command::ManageDevices)]),
+    Keyed("Run on machine", Command::RunOnMachine, "F9"),
+    Sub("Run on", &[Entry::Live("Machines", Live::Machines), Line, Item("Stop running", Command::StopRunning), Item("Devices and emulators\u{2026}", Command::ManageDevices)]),
     Line,
     Sub(
         "This file",
@@ -565,6 +568,7 @@ enum Pick {
     Play(PathBuf),
     AddOn(usize),
     Device(usize),
+    RunOn(Option<usize>),
     WindowTheme(String),
     DocumentTheme(String),
     ThisDocumentTheme(Option<String>),
@@ -775,7 +779,10 @@ impl Limoniter {
             Command::LastChange | Command::NextChange => text && t.changed_line_count() > 0,
             Command::NextBookmark | Command::PreviousBookmark => text && !t.bookmarks().is_empty(),
             Command::CopyPath | Command::RenameFile | Command::ShowInExplorer | Command::OpenWithDefault => doc.path.is_some(),
+            Command::SendTo(n) if matches!(self.sends.devices.get(n).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => !no_file,
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
+            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOn(_) => !no_file,
+            Command::StopRunning => !self.running.sessions.is_empty(),
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
@@ -1017,6 +1024,24 @@ impl Limoniter {
                     }
                 }
             }
+            Live::Machines => {
+                // What the file in front would run as, so each machine says whether it can take it.
+                let runnable = if self.no_file() { None } else { self.runnable().ok().flatten() };
+                let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None))];
+                targets.extend((0..self.sends.devices.len()).map(|n| (super::run_host::Target::Device(n), self.sends.devices[n].name.clone(), Pick::RunOn(Some(n)))));
+                for (target, name, pick) in targets {
+                    let suits = runnable.as_ref().map(|run| self.suits(target, run));
+                    let button = ui.add_enabled(!matches!(suits, Some(Err(_))), Button::new(name));
+                    let button = match &suits {
+                        Some(Err(why)) => button.on_disabled_hover_text(why.as_str()),
+                        _ => button,
+                    };
+                    if button.clicked() {
+                        picks.push(pick);
+                        ui.close();
+                    }
+                }
+            }
             Live::AddOns => {
                 self.addons.refresh_if_stale();
                 let commands = self.addons.commands();
@@ -1110,6 +1135,8 @@ impl Limoniter {
                 }
                 Pick::AddOn(number) => self.pending_command = Some(Command::AddOn(number)),
                 Pick::Device(number) => self.pending_command = Some(Command::SendTo(number)),
+                Pick::RunOn(None) => self.pending_command = Some(Command::RunOnBuiltIn),
+                Pick::RunOn(Some(number)) => self.pending_command = Some(Command::RunOn(number)),
                 Pick::WindowTheme(name) => {
                     self.themes.window = name;
                     self.save_settings_if_changed();
@@ -1181,6 +1208,8 @@ impl Limoniter {
         let mut all = every_command();
         self.addons.refresh_if_stale();
         all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: format!("File \u{203A} Send to device \u{203A} {}", device.name), shortcut: "", command: Command::SendTo(number) }));
+        all.push(Found { path: format!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_NAME), shortcut: "", command: Command::RunOnBuiltIn });
+        all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: format!("File \u{203A} Run on \u{203A} {}", device.name), shortcut: "", command: Command::RunOn(number) }));
         all.extend(self.addons.commands().into_iter().enumerate().map(|(number, listed)| Found { path: format!("Tools \u{203A} Add-ons \u{203A} {} \u{203A} {}", listed.addon, listed.title), shortcut: "", command: Command::AddOn(number) }));
         let found = matching(&query, all);
         let usable: Vec<bool> = found.iter().map(|each| self.can(each.command)).collect();

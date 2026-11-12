@@ -141,6 +141,13 @@ impl ImageBrowser {
         Ok((entry.open_name.clone(), bytes))
     }
 
+    /// The file selected, taken out, if a file (not a folder) is selected.
+    pub(super) fn selected_file(&self) -> Option<Result<(String, Vec<u8>), String>> {
+        let index = self.selected?;
+        let entry = self.level().entries.get(index)?;
+        (!entry.is_dir).then(|| self.take(index))
+    }
+
     /// The text preset the image has for a file in this folder, such as the Amiga's.
     fn text_preset(&self, index: usize) -> Option<&'static str> {
         let level = self.level();

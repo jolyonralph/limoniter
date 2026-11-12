@@ -21,6 +21,7 @@ mod compare;
 mod columns;
 mod console;
 mod ebcdic;
+mod emulators;
 mod encoding_prefs;
 mod encoding_ui;
 #[cfg(test)]
@@ -43,6 +44,9 @@ mod preview;
 mod print;
 mod project;
 mod reformat;
+mod running;
+mod zx_machine;
+mod machine_link;
 mod retro_screens;
 mod region_history;
 mod recovery;

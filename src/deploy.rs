@@ -43,10 +43,13 @@ pub enum Place {
     Ultimate { host: String },
     /// Run with the file written to a folder of its own: {file} is its full path, {name} its name, {folder} its folder.
     Command { line: String },
+    /// An emulator Limoniter knows (by its id in `emulators::KNOWN`), the program that starts it, and options of
+    /// the person's own for its command line. Programs are run on it rather than sent.
+    Emulator { emulator: String, program: PathBuf, options: String },
 }
 
 impl Place {
-    pub const KINDS: [&'static str; 7] = ["Card or stick", "Folder", "SFTP server", "FTP server", "ZX Spectrum Next (NextSync)", "Ultimate 64 / 1541 Ultimate", "Command line"];
+    pub const KINDS: [&'static str; 8] = ["Card or stick", "Folder", "SFTP server", "FTP server", "ZX Spectrum Next (NextSync)", "Ultimate 64 / 1541 Ultimate", "Command line", "Emulator"];
 
     pub fn kind(&self) -> usize {
         match self {
@@ -57,6 +60,7 @@ impl Place {
             Place::NextSync { .. } => 4,
             Place::Ultimate { .. } => 5,
             Place::Command { .. } => 6,
+            Place::Emulator { .. } => 7,
         }
     }
 
@@ -68,6 +72,7 @@ impl Place {
             3 => Place::Ftp { host: String::new(), port: 21, user: String::new(), folder: String::new() },
             4 => Place::NextSync { folder: "/".into() },
             5 => Place::Ultimate { host: String::new() },
+            7 => Place::Emulator { emulator: crate::emulators::KNOWN[0].id.into(), program: PathBuf::new(), options: String::new() },
             _ => Place::Command { line: String::new() },
         }
     }
@@ -82,6 +87,7 @@ impl Place {
             Place::NextSync { folder } => format!("Next, {folder} (by .sync)"),
             Place::Ultimate { host } => format!("Ultimate at {host}"),
             Place::Command { line } => line.clone(),
+            Place::Emulator { emulator, program, .. } => format!("{}, {}", crate::emulators::by_id(emulator).map_or(emulator.as_str(), |e| e.name), program.display()),
         }
     }
 
@@ -118,6 +124,7 @@ impl Device {
             Place::NextSync { folder } => vec!["nextsync".into(), folder.clone()],
             Place::Ultimate { host } => vec!["ultimate".into(), host.clone()],
             Place::Command { line } => vec!["command".into(), line.clone()],
+            Place::Emulator { emulator, program, options } => vec!["emulator".into(), emulator.clone(), program.display().to_string(), options.clone()],
         };
         let mut parts = vec![self.name.clone(), self.preset.clone().unwrap_or_default(), if self.eject { "eject".into() } else { String::new() }];
         parts.extend(place);
@@ -138,6 +145,7 @@ impl Device {
             "nextsync" => Place::NextSync { folder: text(0) },
             "ultimate" => Place::Ultimate { host: text(0) },
             "command" => Place::Command { line: text(0) },
+            "emulator" => Place::Emulator { emulator: text(0), program: PathBuf::from(text(1)), options: text(2) },
             _ => return None,
         };
         Some(Device { name: (*name).to_string(), place, preset: (!preset.is_empty()).then(|| (*preset).to_string()), eject: *eject == "eject" })
@@ -154,6 +162,8 @@ impl Device {
             Place::Sftp { address, .. } => crate::remote::parse_url(address).err(),
             Place::Ftp { host, .. } | Place::Ultimate { host } if host.trim().is_empty() => Some("Say which machine: its name or address.".into()),
             Place::Command { line } if !line.contains("{file}") => Some("The command line needs {file} where the file goes.".into()),
+            Place::Emulator { emulator, .. } if crate::emulators::by_id(emulator).is_none() => Some("Choose which emulator it is.".into()),
+            Place::Emulator { program, .. } if !program.is_file() => Some("Choose the emulator's program: where it's installed.".into()),
             _ => None,
         }
     }
@@ -1122,6 +1132,7 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
             Err(problem) => failed(problem),
         },
         Place::NextSync { .. } => failed("The Next fetches files itself; they aren't sent from here.".into()),
+        Place::Emulator { .. } => failed("Programs are run on an emulator rather than sent to it.".into()),
         Place::Command { line } => {
             let file = s.scratch.join(&s.name);
             let written = std::fs::create_dir_all(&s.scratch).and_then(|()| match &s.payload {
