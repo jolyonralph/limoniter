@@ -9,3 +9,17 @@ Limoniter is written in Rust. `cargo build --release` builds it on Windows, Linu
 - **macOS** builds and passes all the tests (they run on GitHub's Macs for every change), but hasn't yet been made into an app to download. It uses Finder, the keychain, hunspell or aspell, and CUPS in the same way.
 
 Offering Limoniter as the editor for chosen file types is only done on Windows so far.
+
+## Code signing policy
+
+Windows releases are to be signed through [SignPath Foundation](https://signpath.org)'s free code signing for
+open-source projects: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). Until that's in place, releases aren't signed.
+
+- **What's signed:** only the Windows installer and program built from this repository by its release workflow on
+  GitHub's own computers, from a tagged version. Nothing built elsewhere is signed.
+- **Who:** the author and maintainer, [jolyonralph](https://github.com/jolyonralph), writes and reviews every change and
+  approves each signing request. There are no other committers.
+- **Privacy:** Limoniter sends nothing anywhere unless you ask it to: it connects only to servers and devices you
+  choose (SFTP, FTP, Send to device), and the coding assistant hands your code to Claude Code or Codex only when you
+  use it. It collects no usage data.
