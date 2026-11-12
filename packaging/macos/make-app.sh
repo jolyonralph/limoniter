@@ -60,6 +60,11 @@ cat > "$app/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Signed "ad hoc", with no Apple account: not trusted as a known developer, but the whole app is sealed, so macOS
+# offers Open Anyway rather than calling it damaged. The check stops the build if the seal isn't right.
+codesign --force --deep --sign - "$app"
+codesign --verify --deep --strict "$app"
+
 # A zip that keeps the app's permissions and structure, as Finder makes them.
 ditto -c -k --keepParent "$app" "$out/Limoniter-$version-macOS.zip"
 echo "Made $app and $out/Limoniter-$version-macOS.zip"
