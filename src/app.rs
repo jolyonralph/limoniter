@@ -5739,6 +5739,13 @@ impl Limoniter {
                         self.convert_to(self.active, target);
                     }
                 }
+                // The Send box, with the device in that place in the list chosen.
+                "send" => {
+                    self.screenshot_step("send");
+                    if let Ok(device) = value.parse() {
+                        self.open_send_box(device);
+                    }
+                }
                 _ => self.table_step(name, value),
             }
             return;
@@ -5790,6 +5797,7 @@ impl Limoniter {
                 "themes" => self.open_theme_box(theme_host::ThemePage::Documents),
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
+                "basic-listing" => self.open_basic_listing(),
                 "table" | "table-block" => {
                     self.check_for_table();
                     self.toggle_table();
