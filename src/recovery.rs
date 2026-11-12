@@ -525,14 +525,14 @@ pub struct Session {
 }
 
 #[cfg(windows)]
-fn take_lock(path: &Path) -> io::Result<File> {
+pub fn take_lock(path: &Path) -> io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
     // No sharing: while this is open, nobody else can open it, and Windows lets go when the process ends, however it ends.
     OpenOptions::new().read(true).write(true).create(true).truncate(false).share_mode(0).open(path)
 }
 
 #[cfg(not(windows))]
-fn take_lock(path: &Path) -> io::Result<File> {
+pub fn take_lock(path: &Path) -> io::Result<File> {
     // A lock of its own on the file, which the system lets go of when the process ends, however it ends.
     let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
     file.try_lock().map_err(|e| match e {
@@ -698,6 +698,33 @@ pub fn find_orphans(root: &Path) -> (Vec<Orphan>, Vec<Found>) {
         orphans.push(Orphan { dir, _lock: lock });
     }
     (orphans, found)
+}
+
+/// The files that recovery copies, in every session, running or not, read their untouched lines from.
+pub fn sources_named(root: &Path) -> HashSet<PathBuf> {
+    let mut named = HashSet::new();
+    let Ok(dirs) = fs::read_dir(root) else {
+        return named;
+    };
+    for dir in dirs.flatten().map(|entry| entry.path()).filter(|path| path.is_dir()) {
+        for file in fs::read_dir(&dir).into_iter().flatten().flatten().map(|entry| entry.path()) {
+            if !file.extension().is_some_and(|x| x == "rec" || x == "prev") {
+                continue;
+            }
+            // Only the header is needed, which comes first and is short.
+            let mut data = Vec::new();
+            if File::open(&file).and_then(|f| io::Read::take(f, 64 * 1024).read_to_end(&mut data)).is_err() {
+                continue;
+            }
+            let end = data.windows(2).position(|pair| pair == b"\n\n").unwrap_or(data.len());
+            for line in String::from_utf8_lossy(&data[..end]).lines() {
+                if let Some(path) = line.strip_prefix("source=").and_then(path_from_hex) {
+                    named.insert(path);
+                }
+            }
+        }
+    }
+    named
 }
 
 /// Removes a copy that's been dealt with, along with its fallback.

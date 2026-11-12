@@ -1197,7 +1197,8 @@ pub struct Limoniter {
     big_job: Option<crate::big_jobs::BigJob>,
     /// Files written by changes too large to make in memory, which documents' lines and undo may be read from;
     /// taken away when the window closes.
-    large_edits: Vec<PathBuf>,
+    /// This run's folder for the files large changes are written to, made when first needed.
+    large_edits: Option<crate::large_edits::Folder>,
     show_results: bool,
     dialog: Dialog,
     /// A menu laid open without being clicked, for a picture or a test, and whether its sub-menus are opened out too.
@@ -1322,6 +1323,10 @@ struct ScreenshotRun {
     frames: u32,
     requested: bool,
     saved: Arc<AtomicBool>,
+    /// What's still to do before the picture, one step at a time, each once the one before has finished working.
+    steps: std::collections::VecDeque<String>,
+    /// Frames since anything was last done or worked on.
+    quiet: u32,
 }
 
 const SCREENSHOT_FRAMES: u32 = 120;
@@ -1440,7 +1445,7 @@ impl Limoniter {
             pending: None,
             pending_share: 0.0,
             big_job: None,
-            large_edits: Vec::new(),
+            large_edits: None,
             show_results: false,
             dialog: Dialog::None,
             shown_menu: None,
@@ -1482,7 +1487,7 @@ impl Limoniter {
             project: None,
             recent_projects,
             project_job: None,
-            screenshot: screenshot.map(|path| ScreenshotRun { path, frames: 0, requested: false, saved: Arc::new(AtomicBool::new(false)) }),
+            screenshot: screenshot.map(|path| ScreenshotRun { path, frames: 0, requested: false, saved: Arc::new(AtomicBool::new(false)), steps: std::collections::VecDeque::new(), quiet: 0 }),
         }
     }
 
@@ -1498,6 +1503,11 @@ impl Limoniter {
             Ok(session) => self.recovery = Some(session),
             Err(problem) => self.recovery_failed = Some(problem.to_string()),
         }
+        // Copies of large files a crashed run left behind, which can be as large as the files, unless recovery
+        // still reads from them.
+        let large = self.large_edits_root();
+        let recovery_root = root.clone();
+        std::thread::spawn(move || crate::large_edits::sweep(&large, &crate::recovery::sources_named(&recovery_root)));
         self.offer_recovered(&root, false);
     }
 
@@ -2324,12 +2334,22 @@ impl Limoniter {
     /// deleted when Limoniter closes.
     fn large_edit_path(&mut self, index: usize) -> PathBuf {
         let doc = &self.docs[index];
-        let folder = self.remote_root.as_ref().and_then(|r| r.parent()).map_or_else(|| std::env::temp_dir().join("limoniter-large-edits"), |data| data.join("large-edits"));
         let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| "untitled".into(), |s| s.to_string_lossy().into_owned());
         let ending = doc.path.as_deref().and_then(Path::extension).map_or_else(String::new, |e| format!(".{}", e.to_string_lossy()));
-        let path = folder.join(format!("{stem}-{}-{}{ending}", std::process::id(), self.large_edits.len() + 1));
-        self.large_edits.push(path.clone());
-        path
+        let root = self.large_edits_root();
+        if self.large_edits.is_none() {
+            self.large_edits = crate::large_edits::Folder::start(&root).ok();
+        }
+        match &mut self.large_edits {
+            Some(folder) => folder.new_path(&stem, &ending),
+            // Without a folder of its own, a loose file, which the next run tidies away.
+            None => root.join(format!("{stem}-{}-{}{ending}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos()))),
+        }
+    }
+
+    /// Where the files large changes are written to are kept: in the data folder, or else the temporary one.
+    fn large_edits_root(&self) -> PathBuf {
+        self.remote_root.as_ref().and_then(|r| r.parent()).map_or_else(|| std::env::temp_dir().join("limoniter-large-edits"), |data| data.join("large-edits"))
     }
 
     /// Rewrites the records of a table too large to hold, changing each and putting them in order, in the
@@ -4328,6 +4348,12 @@ impl Limoniter {
     fn convert_with(&mut self, index: usize, target: TextFormat, lossy: Lossy) {
         let doc = &mut self.docs[index];
         if doc.text.is_disk_backed() {
+            // A file this large is read from disk a block at a time, which only works where a line ends in the
+            // usual bytes: UTF-8 or a one-byte set, not UTF-16, UTF-32 or EBCDIC.
+            if !readable_a_block_at_a_time(&target) {
+                let name = target.charset.name.clone();
+                return self.message(CONVERT_TITLE, format!("A file this large can only be converted in place to UTF-8 or a one-byte character set, since it's read from disk a part at a time.\n\nFile, Save a copy can write it in {name}: the copy is written straight to disk."));
+            }
             // Too large to hold: every line is written out in the new encoding, and the document carries on from that.
             self.start_rewrite(index, CONVERT_TITLE, target, None, lossy, Box::new(|_, line| line.to_string()));
             return;
@@ -5581,13 +5607,31 @@ impl Limoniter {
         };
         ctx.request_repaint();
         run.frames += 1;
-        if run.frames == SCREENSHOT_STEPS_AT {
-            self.screenshot_steps();
+        if run.frames < SCREENSHOT_STEPS_AT {
             return;
         }
+        if run.frames == SCREENSHOT_STEPS_AT {
+            run.steps = std::env::var("LIMONITER_SHOT_STEPS").unwrap_or_default().split(',').filter(|step| !step.is_empty()).map(str::to_string).collect();
+        }
+        // Each step waits for whatever the one before started to finish, so large files can be shown at work's end.
+        if self.shot_busy() {
+            if let Some(run) = &mut self.screenshot {
+                run.quiet = 0;
+            }
+            return;
+        }
+        let Some(run) = &mut self.screenshot else {
+            return;
+        };
+        if let Some(step) = run.steps.pop_front() {
+            run.quiet = 0;
+            self.screenshot_step(&step);
+            return;
+        }
+        run.quiet += 1;
         if run.saved.load(Ordering::SeqCst) {
             ctx.send_viewport_cmd(ViewportCommand::Close);
-        } else if run.frames >= SCREENSHOT_FRAMES && !run.requested {
+        } else if run.frames >= SCREENSHOT_FRAMES && run.quiet >= 30 && !run.requested {
             run.requested = true;
             let (path, saved) = (run.path.clone(), run.saved.clone());
             ctx.request_screenshot(move |image| {
@@ -5600,9 +5644,31 @@ impl Limoniter {
         }
     }
 
-    /// A picture can show the app partway through something: LIMONITER_SHOT_STEPS lists what to do first.
-    fn screenshot_steps(&mut self) {
-        for step in std::env::var("LIMONITER_SHOT_STEPS").unwrap_or_default().split(',') {
+    /// Whether anything is being worked on in the background, for a picture to wait for.
+    fn shot_busy(&self) -> bool {
+        self.big_job.is_some() || self.docs.iter().any(|doc| doc.is_busy() || doc.table.as_deref().is_some_and(|table| table.working()))
+    }
+
+    /// A picture can show the app partway through something: LIMONITER_SHOT_STEPS lists what to do first. Steps
+    /// with a value follow it after a colon.
+    fn screenshot_step(&mut self, step: &str) {
+        if let Some((name, value)) = step.split_once(':') {
+            match name {
+                "compare-with" => {
+                    let lines = Self::lines_of_file_on_disk(Path::new(value));
+                    self.show_comparison(lines);
+                }
+                "convert" => {
+                    if let Some(charset) = charset::by_id(value) {
+                        let target = TextFormat { charset, ..self.docs[self.active].text.format.clone() };
+                        self.convert_to(self.active, target);
+                    }
+                }
+                _ => self.table_step(name, value),
+            }
+            return;
+        }
+        {
             match step {
                 "close" => self.close_tab(self.active),
                 "ebcdic" => self.set_view(Some(true)),
@@ -5892,9 +5958,7 @@ impl eframe::App for Limoniter {
         // The files large changes were written to are read from only while the window is open.
         if self.allow_close {
             self.docs.clear();
-            for path in &self.large_edits {
-                let _ = std::fs::remove_file(path);
-            }
+            self.large_edits = None;
         }
     }
 }
@@ -6618,7 +6682,7 @@ fn is_plain_text_start(path: &Path) -> std::io::Result<bool> {
     Ok(!codec::looks_binary(head) && single_or_utf8)
 }
 
-fn same_path(a: &Path, b: &Path) -> bool {
+pub(crate) fn same_path(a: &Path, b: &Path) -> bool {
     a.as_os_str().eq_ignore_ascii_case(b.as_os_str())
 }
 

@@ -72,6 +72,7 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 - Word Count and Save a copy in another encoding go through a huge file in the background.
 - The string explorer looks through a huge file a stretch at a time (up to its first 200,000 strings).
 - Reindent, converting the encoding or the line endings in place, Filter on selection, hiding lines, Compare, printing and table view all work on a huge file; those that go through the whole file do it in the background, with progress shown, and one Undo takes back a change.
+- The new files those commands write are deleted when Limoniter closes; if it stops unexpectedly, they're deleted the next time it starts, unless a recovery copy still needs one.
 - Still not available above 64 MB: Fold all, the function list, the assistant, previews, BASIC listings and program saving, and tracing a part's history.
 
 ## Character sets and encodings

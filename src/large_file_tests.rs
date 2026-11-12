@@ -127,6 +127,22 @@ fn lines_are_hidden_in_a_large_file() {
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
 
+#[test]
+fn a_large_file_isnt_converted_in_place_to_an_encoding_it_couldnt_be_read_back_in() {
+    let (mut app, ctx) = app_with("");
+    let path = open_on_disk(&mut app, &ctx, "unconverted.txt", b"one\ntwo");
+    for id in ["utf-16le", "utf-32be"] {
+        let target = TextFormat { charset: charset::known(id), ..app.docs[app.active].text.format.clone() };
+        assert_eq!(target.charset.id, id);
+        app.convert_to(app.active, target);
+        assert!(app.big_job.is_none() && !app.docs[app.active].rewriting, "{id} isn't started");
+        assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("Save a copy")));
+        app.dialog = Dialog::None;
+    }
+    assert_eq!(app.docs[app.active].text.format.charset.id, "utf-8");
+    let _ = std::fs::remove_dir_all(path.parent().unwrap());
+}
+
 /// What the comparison on screen shows, a row at a time: the left line, then the right.
 fn compared_rows(app: &Limoniter) -> Vec<(Option<String>, Option<String>)> {
     let Dialog::Compare(state) = &app.dialog else {

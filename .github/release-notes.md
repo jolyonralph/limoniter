@@ -1,10 +1,17 @@
-## What's new in 0.3.0
+## What's new in 0.3.1
 
-- **Themes:** separate window and document themes, 8 and 18 of them, from Solarized and Nord to Commodore 64, Amiga Workbench and green screens. Rules give each kind of file its own theme, and a theme editor makes your own.
-- **Table view:** CSV and TSV as an editable table (F6), with blocks of cells that copy and paste to and from spreadsheets, sorting, filtering, and figures for the numbers selected.
-- **Send to device:** cards found by their label, folders, SFTP and FTP servers, a ZX Spectrum Next over Wi-Fi, an Ultimate 64, or a command line.
-- **On a Mac:** Cmd shortcuts, Option and Cmd with the arrows as a Mac moves, and files opened from Finder.
-- **Fixed:** retro previews (ANSI art, PETSCII, teletext, Spectrum) drew no text; Copy and Paste from the keyboard didn't work in tables.
+Files of 64 MB and more, which Limoniter keeps on disk, can now use the whole-file commands that were set aside for them:
+
+- **Compare** two huge files: the lines are compared in the background, and only the ones on screen are read.
+- **Table view** of a huge CSV or TSV: rows are found, sorted and filtered, and figures added up, in the background. Inserting or deleting a column and sorting the file rewrite it in the background, as one step for Undo.
+- **Print** a huge file: pages are made as they're sent.
+- **Reindent**, **convert the encoding or line endings in place**, **Filter on selection** and **hide lines**.
+
+Also:
+
+- If Limoniter stops unexpectedly, the copies these commands write are deleted the next time it starts, unless recovery still needs one.
+- Printing on macOS and Linux no longer holds up the window.
+- Sorting a table is quicker.
 
 ## Downloads
 

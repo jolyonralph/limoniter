@@ -32,6 +32,7 @@ mod hex_buffer;
 mod highlight;
 mod history_file;
 mod instance;
+mod large_edits;
 mod legacy_docs;
 mod line_store;
 mod media;

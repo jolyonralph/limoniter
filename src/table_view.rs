@@ -95,6 +95,11 @@ impl<T> Drop for Background<T> {
 }
 
 impl TableState {
+    /// Whether anything is being worked out in the background.
+    pub(super) fn working(&self) -> bool {
+        self.index_work.is_some() || self.shown_work.is_some() || self.figures_work.is_some()
+    }
+
     /// Whether the records are up to date with the text, so cells can be changed.
     pub(super) fn settled(&self) -> bool {
         self.index_work.is_none()
@@ -841,6 +846,31 @@ impl Limoniter {
             _ => {}
         }
         true
+    }
+
+    /// A step before a picture: "sort" shows the rows in order of a column, "sort-file" puts the file in that
+    /// order, and "insert-column" puts an empty column before it.
+    pub(super) fn table_step(&mut self, name: &str, value: &str) {
+        let column: usize = value.parse().unwrap_or(0);
+        let doc = &mut self.docs[self.active];
+        let Some(state) = doc.table.as_deref_mut() else {
+            return;
+        };
+        let action = match name {
+            "sort" => {
+                state.order = Some((column, true));
+                return;
+            }
+            "sort-file" => Action::SortFile,
+            "insert-column" => Action::InsertColumn,
+            _ => return,
+        };
+        state.cursor.1 = column;
+        let lines = lines_of_doc(&doc.text);
+        let (Some(index), shown, header) = (state.index.clone(), state.shown.clone(), state.dialect.header) else {
+            return;
+        };
+        self.table_action(action, &lines, &index.records, &shown, header);
     }
 
     /// Pastes cells from the cursor's corner of the selection.

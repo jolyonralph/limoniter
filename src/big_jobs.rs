@@ -257,20 +257,132 @@ pub enum Arrange {
 /// A change to one record's text.
 pub type RecordChange = Box<dyn FnMut(&str) -> String + Send>;
 
+/// Lines written out in stretches, each encoded as the file was.
+struct Writer {
+    out: std::io::BufWriter<std::fs::File>,
+    format: TextFormat,
+    eol: Eol,
+    waiting: Vec<String>,
+    first: bool,
+}
+
+impl Writer {
+    fn create(path: &std::path::Path, format: TextFormat, eol: Eol) -> Result<Self, String> {
+        if let Some(folder) = path.parent() {
+            std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+        }
+        let out = std::io::BufWriter::with_capacity(1 << 20, std::fs::File::create(path).map_err(|e| e.to_string())?);
+        Ok(Self { out, format, eol, waiting: Vec::new(), first: true })
+    }
+
+    /// Adds lines; every one is followed by a line ending.
+    fn lines(&mut self, lines: impl IntoIterator<Item = String>) -> Result<Option<Problems>, String> {
+        self.waiting.extend(lines);
+        if self.waiting.len() <= LINES_AT_A_TIME {
+            return Ok(None);
+        }
+        // The newest line stays behind, so the last write always has a line to end the file as it ended.
+        let newest = self.waiting.pop();
+        let result = self.flush(None);
+        self.waiting.extend(newest);
+        result
+    }
+
+    /// Writes what's waiting. The last stretch's last line ends as given; every other line with the usual ending.
+    fn flush(&mut self, last: Option<Eol>) -> Result<Option<Problems>, String> {
+        let mut lines = std::mem::take(&mut self.waiting);
+        let count = lines.len();
+        // A stretch that isn't the last ends with its last line's ending, so a line follows it.
+        if last.is_none() {
+            lines.push(String::new());
+        }
+        let mut target = self.format.clone();
+        target.has_bom &= self.first;
+        let eol = self.eol;
+        let ending = |i: usize| match last {
+            Some(last) if i + 1 == count => last,
+            _ => eol,
+        };
+        match codec::export(&lines, &ending, &self.format, &target, Lossy::Refuse) {
+            Ok(bytes) => self.out.write_all(&bytes).map_err(|e| e.to_string())?,
+            Err(problems) => return Ok(Some(problems)),
+        }
+        self.first = false;
+        Ok(None)
+    }
+
+    fn finish(mut self, last: Eol) -> Result<Option<Problems>, String> {
+        if let Some(problems) = self.flush(Some(last))? {
+            return Ok(Some(problems));
+        }
+        self.out.into_inner().map_err(|e| e.to_string())?.sync_all().map_err(|e| e.to_string())?;
+        Ok(None)
+    }
+}
+
+/// How much record text is sorted in memory at a time; larger tables are sorted in runs that are then merged.
+#[cfg(not(test))]
+const SORTED_AT_A_TIME: usize = 128 << 20;
+#[cfg(test)]
+const SORTED_AT_A_TIME: usize = 300;
+
 /// Rewrites a table too large to hold, a record at a time, into a new file: each record changed, and the records
 /// in the order asked for. Lines after the last record (most often the empty line a file ends with) stay last.
+///
+/// Sorting reads the records in the order they're in, a stretch at a time, sorts each stretch into a run file
+/// beside the new file, and then merges the runs, so it never reads the file out of order or holds all of it.
 #[allow(clippy::too_many_arguments, reason = "everything a rewrite needs, each of it different")]
 pub fn rewrite_records(title: &'static str, store: LineStore, format: TextFormat, delimiter: char, records: Arc<Vec<crate::table::Record>>, arrange: Arrange, mut change: RecordChange, path: PathBuf, doc_id: u64) -> BigJob {
-    let sorting = matches!(arrange, Arrange::SortedBy { .. });
-    let total = records.len() as u64 * if sorting { 2 } else { 1 };
+    use crate::table::{SortKey, fields, lines_of, record_text};
+    let sort = match arrange {
+        Arrange::AsTheyAre => None,
+        Arrange::SortedBy { column, headings } => Some((column, usize::from(headings && !records.is_empty()))),
+    };
+    let total = records.len() as u64 * if sort.is_some() { 2 } else { 1 };
     BigJob::start(title, doc_id, total, move |done, cancel| {
+        let mut runs: Vec<PathBuf> = Vec::new();
         let written = (|| -> Result<Option<Problems>, String> {
             let stopped = || Err("It was stopped.".to_string());
-            let order: Vec<usize> = match arrange {
-                Arrange::AsTheyAre => (0..records.len()).collect(),
-                Arrange::SortedBy { column, headings } => {
-                    let skip = usize::from(headings && !records.is_empty());
-                    let mut keyed: Vec<(crate::table::SortKey, usize)> = Vec::with_capacity(records.len());
+            let key_of = |text: &str, column: usize| SortKey::new(fields(text, delimiter).into_iter().nth(column).map(|f| f.value).unwrap_or_default());
+            let mut out = Writer::create(&path, format.clone(), store.insert_eol())?;
+            let tail = records.last().map_or(0, |last| last.last + 1);
+            let last_eol = store.terminator(store.len().saturating_sub(1));
+            match sort {
+                None => {
+                    for (i, record) in records.iter().enumerate() {
+                        if i % LINES_AT_A_TIME == 0 {
+                            if cancel.load(Ordering::Relaxed) {
+                                return stopped();
+                            }
+                            done.store(i as u64, Ordering::Relaxed);
+                        }
+                        if let Some(problems) = out.lines(lines_of(&change(&record_text(&store, *record))))? {
+                            return Ok(Some(problems));
+                        }
+                    }
+                }
+                Some((column, skip)) => {
+                    // The headings stay first.
+                    for record in &records[..skip] {
+                        if let Some(problems) = out.lines(lines_of(&change(&record_text(&store, *record))))? {
+                            return Ok(Some(problems));
+                        }
+                    }
+                    // Sorted runs, each a list of (original place, text).
+                    let mut chunk: Vec<(SortKey, usize, String)> = Vec::new();
+                    let mut held = 0;
+                    let write_run = |chunk: &mut Vec<(SortKey, usize, String)>, runs: &mut Vec<PathBuf>| -> Result<(), String> {
+                        chunk.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+                        let run = path.with_extension(format!("run{}", runs.len()));
+                        runs.push(run.clone());
+                        let mut file = std::io::BufWriter::new(std::fs::File::create(&run).map_err(|e| e.to_string())?);
+                        for (_, place, text) in chunk.drain(..) {
+                            file.write_all(&(place as u64).to_le_bytes()).map_err(|e| e.to_string())?;
+                            file.write_all(&(text.len() as u64).to_le_bytes()).map_err(|e| e.to_string())?;
+                            file.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+                        }
+                        file.flush().map_err(|e| e.to_string())
+                    };
                     for (i, record) in records.iter().enumerate().skip(skip) {
                         if i % LINES_AT_A_TIME == 0 {
                             if cancel.load(Ordering::Relaxed) {
@@ -278,58 +390,68 @@ pub fn rewrite_records(title: &'static str, store: LineStore, format: TextFormat
                             }
                             done.store(i as u64, Ordering::Relaxed);
                         }
-                        let text = crate::table::record_text(&store, *record);
-                        keyed.push((crate::table::SortKey::new(crate::table::fields(&text, delimiter).into_iter().nth(column).map(|f| f.value).unwrap_or_default()), i));
+                        let text = change(&record_text(&store, *record));
+                        held += text.len() + 64;
+                        chunk.push((key_of(&text, column), i, text));
+                        if held >= SORTED_AT_A_TIME {
+                            write_run(&mut chunk, &mut runs)?;
+                            held = 0;
+                        }
                     }
-                    keyed.sort_by(|a, b| a.0.cmp(&b.0));
-                    (0..skip).chain(keyed.into_iter().map(|(_, i)| i)).collect()
+                    if !chunk.is_empty() {
+                        write_run(&mut chunk, &mut runs)?;
+                    }
+                    // Merged: always the smallest of what's at the front of each run, the earliest place first.
+                    let mut readers = Vec::new();
+                    for run in &runs {
+                        readers.push(std::io::BufReader::with_capacity(1 << 20, std::fs::File::open(run).map_err(|e| e.to_string())?));
+                    }
+                    let next = |reader: &mut std::io::BufReader<std::fs::File>| -> Result<Option<(usize, String)>, String> {
+                        use std::io::Read;
+                        let mut number = [0u8; 8];
+                        match reader.read_exact(&mut number) {
+                            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
+                            other => other.map_err(|e| e.to_string())?,
+                        }
+                        let place = u64::from_le_bytes(number) as usize;
+                        reader.read_exact(&mut number).map_err(|e| e.to_string())?;
+                        let mut text = vec![0u8; u64::from_le_bytes(number) as usize];
+                        reader.read_exact(&mut text).map_err(|e| e.to_string())?;
+                        Ok(Some((place, String::from_utf8(text).map_err(|e| e.to_string())?)))
+                    };
+                    let mut heap = std::collections::BinaryHeap::new();
+                    for (run, reader) in readers.iter_mut().enumerate() {
+                        if let Some((place, text)) = next(reader)? {
+                            heap.push(std::cmp::Reverse((key_of(&text, column), place, run, text)));
+                        }
+                    }
+                    let mut merged = records.len() as u64;
+                    while let Some(std::cmp::Reverse((_, _, run, text))) = heap.pop() {
+                        merged += 1;
+                        if merged.is_multiple_of(LINES_AT_A_TIME as u64) {
+                            if cancel.load(Ordering::Relaxed) {
+                                return stopped();
+                            }
+                            done.store(merged, Ordering::Relaxed);
+                        }
+                        if let Some(problems) = out.lines(lines_of(&text))? {
+                            return Ok(Some(problems));
+                        }
+                        if let Some((place, text)) = next(&mut readers[run])? {
+                            heap.push(std::cmp::Reverse((key_of(&text, column), place, run, text)));
+                        }
+                    }
                 }
-            };
-            let base = if sorting { records.len() as u64 } else { 0 };
-            if let Some(folder) = path.parent() {
-                std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
             }
-            let mut out = std::io::BufWriter::with_capacity(1 << 20, std::fs::File::create(&path).map_err(|e| e.to_string())?);
-            let tail = records.last().map_or(0, |last| last.last + 1);
-            let (eol, last_eol) = (store.insert_eol(), store.terminator(store.len().saturating_sub(1)));
-            let mut at = 0;
-            let mut first = true;
-            // A stretch of records at a time, then whatever follows the last.
-            while at <= order.len() {
-                if cancel.load(Ordering::Relaxed) {
-                    return stopped();
-                }
-                let end = (at + LINES_AT_A_TIME).min(order.len());
-                let mut lines: Vec<String> = Vec::new();
-                for &r in &order[at..end] {
-                    lines.extend(crate::table::lines_of(&change(&crate::table::record_text(&store, records[r]))));
-                }
-                let finished = end == order.len();
-                if finished {
-                    lines.extend((tail..store.len()).map(|i| store.get(i).to_string()));
-                }
-                let count = lines.len();
-                // Every stretch but the last ends with a line ending, so a line follows it.
-                if !finished {
-                    lines.push(String::new());
-                }
-                let mut target = format.clone();
-                target.has_bom &= first;
-                let ending = |i: usize| if finished && i + 1 == count { last_eol } else { eol };
-                match codec::export(&lines, &ending, &format, &target, Lossy::Refuse) {
-                    Ok(bytes) => out.write_all(&bytes).map_err(|e| e.to_string())?,
-                    Err(problems) => return Ok(Some(problems)),
-                }
-                first = false;
-                done.store(base + end as u64, Ordering::Relaxed);
-                if finished {
-                    break;
-                }
-                at = end;
+            // Whatever follows the last record, then the file's own last ending.
+            if let Some(problems) = out.lines((tail..store.len()).map(|i| store.get(i).to_string()))? {
+                return Ok(Some(problems));
             }
-            out.into_inner().map_err(|e| e.to_string())?.sync_all().map_err(|e| e.to_string())?;
-            Ok(None)
+            out.finish(last_eol)
         })();
+        for run in runs {
+            let _ = std::fs::remove_file(run);
+        }
         match written {
             Ok(None) => Outcome::Rewritten { path, format },
             Ok(Some(problems)) => {
@@ -402,6 +524,37 @@ pub fn compare(left_name: String, right_name: String, left: LineStore, right: Si
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_large_table_is_sorted_through_merged_runs_as_a_stable_sort_would() {
+        let mut rows = vec!["key,n".to_string()];
+        for i in 0..500 {
+            rows.push(format!("{},{i}", (i * 37) % 23));
+        }
+        rows.push("\"multi\nline\",x".to_string());
+        rows.push(String::new());
+        let lines: Vec<Arc<str>> = rows.iter().flat_map(|row| row.split('\n').map(Arc::from).collect::<Vec<_>>()).collect();
+        let store = LineStore::from_vec(lines.clone());
+        let records = Arc::new(crate::table::records(&store, ','));
+        let dir = std::env::temp_dir().join(format!("limoniter-sort-runs-{}", std::process::id()));
+        let path = dir.join("sorted.csv");
+        let job = rewrite_records("Sort", store, TextFormat::default(), ',', records.clone(), Arrange::SortedBy { column: 0, headings: true }, Box::new(str::to_string), path.clone(), 1);
+        let outcome = loop {
+            if let Some(outcome) = job.take() {
+                break outcome;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        };
+        assert!(matches!(outcome, Outcome::Rewritten { .. }));
+        // As the table sorts in memory: stably, by the column's values.
+        let mut expected: Vec<String> = records[1..].iter().map(|r| crate::table::record_text(&lines, *r)).collect();
+        expected.sort_by(|a, b| crate::table::compare_values(a.split(',').next().unwrap(), b.split(',').next().unwrap()));
+        let written = std::fs::read_to_string(&path).unwrap().replace("\r\n", "\n");
+        assert_eq!(written, format!("key,n\n{}\n", expected.join("\n")));
+        let left: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert_eq!(left.len(), 1, "the runs are gone: {left:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
     use crate::line_store::Source;
 
