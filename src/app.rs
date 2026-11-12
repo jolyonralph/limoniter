@@ -541,6 +541,12 @@ struct Document {
     remote: Option<remote_host::RemoteLink>,
     /// Just saved, and to be sent back to its server.
     upload_wanted: bool,
+    /// When autosave first saw it with unsaved changes.
+    unsaved_since: Option<std::time::Instant>,
+    /// Why autosave is leaving it for the person to save, if it is.
+    autosave_skipped: Option<&'static str>,
+    /// The file a backup was kept of this session, so it's only kept the first time.
+    backed_up: Option<PathBuf>,
     /// This session's own save replaced the file the view reads from.
     saved_over_source: bool,
     /// The encoding was chosen, so a background scan's own finding doesn't replace it.
@@ -635,6 +641,9 @@ impl Document {
             saving: None,
             remote: None,
             upload_wanted: false,
+            unsaved_since: None,
+            autosave_skipped: None,
+            backed_up: None,
             saved_over_source: false,
             format_chosen: false,
             recovery_key: None,
@@ -1812,6 +1821,7 @@ impl Limoniter {
         let Some(bytes) = self.bytes_for(index) else {
             return false;
         };
+        self.keep_backup(index, path);
         if let Err(e) = codec::write_file(path, &bytes) {
             warn(&format!("Couldn't save {}.\n\n{e}", path.display()));
             return false;
@@ -1830,6 +1840,67 @@ impl Limoniter {
         }
         self.keep_history(index, &bytes);
         true
+    }
+
+    /// The first time a file is saved over in a session, keeps it as it was beside it, with .bak added, if asked.
+    fn keep_backup(&mut self, index: usize, path: &Path) {
+        let doc = &mut self.docs[index];
+        if !self.prefs.backup_on_save || doc.backed_up.as_deref().is_some_and(|done| same_path(done, path)) || !path.is_file() {
+            return;
+        }
+        let mut backup = path.as_os_str().to_owned();
+        backup.push(".bak");
+        match std::fs::copy(path, &backup) {
+            Ok(_) => doc.backed_up = Some(path.to_path_buf()),
+            Err(e) => warn(&format!("Couldn't keep a backup of {} before saving.\n\n{e}\n\nIt will still be saved.", path.display())),
+        }
+    }
+
+    /// Saves files that have had unsaved changes for the time asked, if autosave is on. A file is left for the
+    /// person to save when saving it would need a question answered, or would mean saving over something else.
+    fn autosave(&mut self, ctx: &Context) {
+        // A screenshot never saves over a file; tests run as one.
+        if !self.prefs.autosave || (self.screenshot.is_some() && !cfg!(test)) || self.script.is_some() {
+            for doc in &mut self.docs {
+                doc.unsaved_since = None;
+                doc.autosave_skipped = None;
+            }
+            return;
+        }
+        let wait = std::time::Duration::from_secs(u64::from(self.prefs.autosave_seconds));
+        let now = std::time::Instant::now();
+        for index in 0..self.docs.len() {
+            let doc = &mut self.docs[index];
+            if !doc.is_modified() || doc.is_busy() {
+                doc.unsaved_since = None;
+                if !doc.is_modified() {
+                    doc.autosave_skipped = None;
+                }
+                continue;
+            }
+            if let Some(never) = autosave_never(doc) {
+                doc.autosave_skipped = Some(never);
+                doc.unsaved_since = None;
+                continue;
+            }
+            let since = *doc.unsaved_since.get_or_insert(now);
+            let left = wait.saturating_sub(now.duration_since(since));
+            if !left.is_zero() {
+                ctx.request_repaint_after(left);
+                continue;
+            }
+            // Something that would need asking is looked at again after another wait.
+            doc.autosave_skipped = autosave_not_now(doc);
+            doc.unsaved_since = doc.autosave_skipped.map(|_| now);
+            if doc.autosave_skipped.is_some() {
+                ctx.request_repaint_after(wait);
+                continue;
+            }
+            let path = doc.path.clone().expect("checked above");
+            if self.write_to(index, &path) {
+                self.print_status = format!("Saved {} by itself", self.docs[index].name());
+            }
+        }
     }
 
     /// Saves a file kept on disk in the background, so the window keeps working.
@@ -2203,6 +2274,7 @@ impl Limoniter {
     fn check_background_work(&mut self, ctx: &Context) {
         self.send_saved_remotes();
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends();
+        self.autosave(ctx);
         self.open_handed_over(ctx);
         #[cfg(target_os = "macos")]
         for path in crate::mac_open::take() {
@@ -5121,6 +5193,9 @@ impl Limoniter {
             if !self.print_status.is_empty() {
                 ui.label(faint(self.print_status.clone()));
             }
+            if let Some(why) = doc.autosave_skipped.filter(|_| self.prefs.autosave) {
+                ui.label(faint("Not saved by itself".to_string())).on_hover_text(format!("Autosave is leaving this file for you to save: {why}."));
+            }
             if let Some(filter) = &doc.filter {
                 ui.colored_label(theme::accent(), format!("Showing lines with \"{}\": {} of {}", filter.needle, filter.lines.len(), doc.text.line_count()));
             }
@@ -6276,6 +6351,42 @@ fn finish_hex_save(doc: &mut Document, path: PathBuf) {
 
 /// After a save: a remote file saved into its own copy is to be sent back; saved anywhere else, it's now a file
 /// of this computer's own.
+/// Why a file with unsaved changes is never saved by autosave, if it isn't: quick to check, so checked every frame.
+fn autosave_never(doc: &Document) -> Option<&'static str> {
+    if doc.path.is_none() {
+        return Some("it hasn't been saved before");
+    }
+    if doc.browser.is_some() || doc.text.read_only {
+        return Some("it's read-only");
+    }
+    if doc.remote.is_some() {
+        return Some("it's on a server");
+    }
+    if doc.narrow.is_some() {
+        return Some("only part of it is showing");
+    }
+    if (!doc.hex_mode && doc.text.is_disk_backed()) || (doc.hex_mode && doc.hex.is_on_disk()) {
+        return Some("it's too large to save over and over");
+    }
+    None
+}
+
+/// Why saving it now would need a question answered, if it would: checked only when a save is due.
+fn autosave_not_now(doc: &Document) -> Option<&'static str> {
+    if doc.path.as_deref().is_some_and(|path| file_stamp(path) != doc.disk_stamp) {
+        return Some("another program has changed the file");
+    }
+    if !doc.hex_mode {
+        if !doc.text.uneven_rows().is_empty() {
+            return Some("some rows aren't the width this format needs");
+        }
+        if doc.text.encode(&doc.text.format, Lossy::Refuse).is_err() {
+            return Some("some characters can't be written in its encoding");
+        }
+    }
+    None
+}
+
 fn note_saved_to(doc: &mut Document, path: &Path) {
     match &doc.remote {
         Some(link) if same_path(&link.local, path) => doc.upload_wanted = true,
@@ -6763,6 +6874,10 @@ mod theme_host;
 #[cfg(test)]
 #[path = "large_file_tests.rs"]
 mod large_file_tests;
+
+#[cfg(test)]
+#[path = "autosave_tests.rs"]
+mod autosave_tests;
 
 #[path = "menus.rs"]
 mod menus;

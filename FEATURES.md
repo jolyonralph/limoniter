@@ -252,6 +252,8 @@ Switched on under **View, Panels**:
 ## Safety
 
 - Unsaved edits are copied to disk as you type, and offered back after a crash, forced close or power cut.
+- Autosave (Settings, Files; off to begin with) saves a changed file by itself once it has had unsaved changes for 15 seconds to 10 minutes. It leaves a file for you to save when saving would need a question answered: never saved before, read-only, on a server, changed by another program, too large, or holding characters its encoding can't. The status bar says when it's leaving one, and why.
+- **Keep a backup when saving** (also off to begin with) keeps the file as it was beside it, with .bak added, the first time it's saved in a session.
 - **File, Recover unsaved edits** offers them again later; damaged copies are detected by checksum.
 - Saving never changes bytes you didn't edit.
 - Disk images and archives are only ever read; files inside them open read-only.

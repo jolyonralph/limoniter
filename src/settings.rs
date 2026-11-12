@@ -83,11 +83,19 @@ pub struct Prefs {
     pub open_tables: bool,
     /// Spelling mistakes are underlined.
     pub spelling: bool,
+    /// Files with unsaved changes are saved by themselves, this many seconds after they were first changed.
+    pub autosave: bool,
+    pub autosave_seconds: u32,
+    /// The first save of a file in a session keeps the file as it was beside it, ending .bak.
+    pub backup_on_save: bool,
 }
+
+/// How long autosave waits, in seconds.
+pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false }
     }
 }
 
@@ -95,7 +103,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -118,7 +126,10 @@ impl Prefs {
             self.paragraph.align.name(),
             self.new_window_per_file,
             self.spelling,
-            self.open_tables
+            self.open_tables,
+            self.autosave,
+            self.autosave_seconds,
+            self.backup_on_save
         )
     }
 
@@ -168,6 +179,12 @@ impl Prefs {
                     prefs.paragraph.align = Align::from_name(value).unwrap_or(prefs.paragraph.align);
                     continue;
                 }
+                "autosave_seconds" => {
+                    if let Some(seconds) = value.parse().ok().filter(|seconds| AUTOSAVE_TIMES.contains(seconds)) {
+                        prefs.autosave_seconds = seconds;
+                    }
+                    continue;
+                }
                 "hex_row" => {
                     if let Some(row) = value.parse().ok().filter(|row| HEX_ROWS.contains(row)) {
                         prefs.hex_row = row;
@@ -185,6 +202,8 @@ impl Prefs {
                 "new_window_per_file" => &mut prefs.new_window_per_file,
                 "spelling" => &mut prefs.spelling,
                 "open_tables" => &mut prefs.open_tables,
+                "autosave" => &mut prefs.autosave,
+                "backup_on_save" => &mut prefs.backup_on_save,
                 "find_from_selection" => &mut prefs.find_from_selection,
                 "find_in_file_folder" => &mut prefs.find_in_file_folder,
                 "watch_files" => &mut prefs.watch_files,
@@ -296,6 +315,7 @@ enum Special {
     TextSize,
     TabSize,
     HexRow,
+    AutosaveTime,
     Preset,
     ClearRecent,
     MarkdownView,
@@ -379,6 +399,11 @@ const SECTIONS: [(&str, &[Row]); 6] = [
         "Files",
         &[
             Row::Flag("Check for changes by other programs", "Each time the window comes back into focus", |t| &mut t.prefs.watch_files),
+            Row::Heading("Saving"),
+            Row::Flag("Save files by themselves", "A file with unsaved changes is saved once it has had them for the time below. Untitled and read-only files, files open from a disk image, archive or server, and files of 64 MB and more are left for you to save", |t| &mut t.prefs.autosave),
+            Row::Special("Save after", Special::AutosaveTime),
+            Row::Flag("Keep a backup when saving", "The first time a file is saved in a session, the file as it was is kept beside it, with .bak added to its name", |t| &mut t.prefs.backup_on_save),
+            Row::Heading("Opening"),
             Row::Flag("Open CSV and TSV files as tables", "Files ending .csv, .tsv, .tab or .psv go straight into table view", |t| &mut t.prefs.open_tables),
             Row::Flag("Open each file in a new window", "When a file is opened from Explorer. When off, it opens as a tab in the Limoniter window already open", |t| &mut t.prefs.new_window_per_file),
             Row::Special("Format for new files", Special::Preset),
@@ -463,6 +488,14 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             }
             Special::TabSize => {
                 ui.add(egui::DragValue::new(&mut target.view.tab_size).range(MIN_TAB_SIZE..=MAX_TAB_SIZE));
+            }
+            Special::AutosaveTime => {
+                ui.add_enabled_ui(target.prefs.autosave, |ui| {
+                    for seconds in AUTOSAVE_TIMES {
+                        let label = if seconds < 60 { format!("{seconds} seconds") } else if seconds == 60 { "1 minute".to_string() } else { format!("{} minutes", seconds / 60) };
+                        ui.radio_value(&mut target.prefs.autosave_seconds, seconds, label);
+                    }
+                });
             }
             Special::HexRow => {
                 for row in HEX_ROWS {
@@ -599,6 +632,9 @@ mod tests {
             new_window_per_file: true,
             spelling: true,
             open_tables: true,
+            autosave: true,
+            autosave_seconds: 300,
+            backup_on_save: true,
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);
         assert_eq!(Prefs::from_settings(&Prefs::default().to_settings()), Prefs::default());
