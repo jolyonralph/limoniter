@@ -14,9 +14,6 @@ const HELP_NAME: &str = "How Limoniter works.md";
 const FEATURES_NAME: &str = "What Limoniter can do.md";
 /// The list of what Limoniter can do, kept with the source as FEATURES.md and built into the program.
 const FEATURES: &str = include_str!("../FEATURES.md");
-const COMPARISON_NAME: &str = "How Limoniter compares.md";
-/// Limoniter beside other editors, kept with the source as COMPARISON.md.
-const COMPARISON: &str = include_str!("../COMPARISON.md");
 
 /// The help as a Markdown page: each section's first line is its heading, and each line after it a point of its own.
 pub(super) fn help_markdown() -> String {
@@ -173,11 +170,6 @@ impl Limoniter {
     /// The list of everything Limoniter can do, opened as a page.
     pub(super) fn open_features(&mut self) {
         self.open_page(FEATURES_NAME, FEATURES.replace("\r\n", "\n"));
-    }
-
-    /// How Limoniter compares with other editors, opened as a page.
-    pub(super) fn open_comparison(&mut self) {
-        self.open_page(COMPARISON_NAME, COMPARISON.replace("\r\n", "\n"));
     }
 
     /// A built-in Markdown page, opened as a tab showing the page it makes, or gone to if it's open already.

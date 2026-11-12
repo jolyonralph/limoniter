@@ -210,7 +210,6 @@ enum Command {
     /// Opens the list of everything Limoniter can do.
     Features,
     /// Opens the comparison with other editors.
-    Comparison,
     /// Tokenises the text as BASIC and saves it as a program file.
     SaveSpectrumTape,
     SaveNextProgram,
@@ -3106,7 +3105,6 @@ impl Limoniter {
                 | Command::OpenBasicListing
                 | Command::SavePictureAsPng
                 | Command::Features
-                | Command::Comparison
                 | Command::SaveSpectrumTape
                 | Command::SaveNextProgram
                 | Command::SaveCommodoreProgram
@@ -3383,7 +3381,6 @@ impl Limoniter {
             Command::OpenBasicListing => self.open_basic_listing(),
             Command::SavePictureAsPng => self.save_picture_as_png(),
             Command::Features => self.open_features(),
-            Command::Comparison => self.open_comparison(),
             Command::SaveSpectrumTape => self.dialog = Dialog::SaveBasic { machine: basic::Machine::Spectrum, run_from: String::new(), error: String::new() },
             Command::SaveNextProgram => self.dialog = Dialog::SaveBasic { machine: basic::Machine::Next, run_from: String::new(), error: String::new() },
             Command::SaveCommodoreProgram => {
@@ -5461,7 +5458,6 @@ impl Limoniter {
                 "preview" => self.doc().preview_view = settings::PreviewView::Split,
                 "about" => self.about(),
                 "features" => self.open_features(),
-                "comparison" => self.open_comparison(),
                 "palette" => {
                     let mut state = menus::PaletteState::new();
                     state.query_for_picture("line");

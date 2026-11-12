@@ -498,7 +498,7 @@ const WINDOW: &[Entry] = &[
     Item("New window", Command::NewInstance),
 ];
 
-const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Item("How Limoniter compares", Command::Comparison), Line, Item("About Limoniter", Command::About)];
+const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Line, Item("About Limoniter", Command::About)];
 
 pub(super) const MENUS: [(&str, &[Entry]); 8] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
 
