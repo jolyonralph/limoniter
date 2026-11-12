@@ -70,6 +70,13 @@ enum Action {
     TextView,
 }
 
+/// Copy, Cut or Paste, as the keyboard sends them.
+enum ClipboardEvent {
+    Copy,
+    Cut,
+    Paste(String),
+}
+
 /// The lines of a document, cheaply shared.
 fn lines_of_doc(text: &text_buffer::TextBuffer) -> Vec<Arc<str>> {
     text.all_lines()
@@ -314,11 +321,21 @@ impl Limoniter {
             take_keyboard(ui, focus_id);
         }
         let editing = state.editing.is_some();
+        let mut clipboard = None;
         if focused && input_on && !editing && !shown.is_empty() {
             let page = ((ui.available_height() / row_height) as usize).saturating_sub(2).max(1);
             let (row, column) = state.cursor;
             let mut start_with = None;
             ui.input(|i| {
+                // Copy, Cut and Paste come as events of their own, whichever keys a system uses for them.
+                for event in &i.events {
+                    match event {
+                        egui::Event::Copy => clipboard = Some(ClipboardEvent::Copy),
+                        egui::Event::Cut => clipboard = Some(ClipboardEvent::Cut),
+                        egui::Event::Paste(text) => clipboard = Some(ClipboardEvent::Paste(text.clone())),
+                        _ => {}
+                    }
+                }
                 let ctrl = i.modifiers.command;
                 let moved = if i.key_pressed(Key::ArrowDown) {
                     Some((row + 1, column))
@@ -656,6 +673,16 @@ impl Limoniter {
         if let Some(action) = action {
             self.table_action(action, &lines, &records, &shown, header);
         }
+        match clipboard {
+            Some(ClipboardEvent::Copy) => {
+                self.table_command(Command::Copy, ui);
+            }
+            Some(ClipboardEvent::Cut) => {
+                self.table_command(Command::Cut, ui);
+            }
+            Some(ClipboardEvent::Paste(text)) => self.table_paste(&text),
+            None => {}
+        }
     }
 
     /// Copy, Cut, Paste and Select All work on cells while the table is shown: a block of cells goes to the
@@ -700,20 +727,36 @@ impl Limoniter {
             }
             Command::Paste if !read_only => {
                 if let Ok(text) = arboard::Clipboard::new().and_then(|mut c| c.get_text()) {
-                    let mut cells = table::parse_block(&text);
-                    let ((top, left), (bottom, right)) = state.selection();
-                    // One value pasted over a block fills every cell of it, as a spreadsheet does.
-                    if cells.len() == 1 && cells[0].len() == 1 && state.anchor.is_some_and(|a| a != state.cursor) {
-                        cells = vec![vec![cells[0][0].clone(); right - left + 1]; bottom.min(shown.len().saturating_sub(1)) - top + 1];
-                    }
-                    let at = (top, left);
-                    let header = state.dialect.header;
-                    self.table_action(Action::Fill { at, block: cells }, &lines, &index.records, &shown, header);
+                    self.table_paste(&text);
                 }
             }
             _ => {}
         }
         true
+    }
+
+    /// Pastes cells from the cursor's corner of the selection.
+    fn table_paste(&mut self, text: &str) {
+        let doc = &mut self.docs[self.active];
+        if doc.text.read_only {
+            return;
+        }
+        let Some(state) = doc.table.as_deref_mut() else {
+            return;
+        };
+        let lines = lines_of_doc(&doc.text);
+        let Some(index) = state.index.clone() else {
+            return;
+        };
+        let shown = state.shown.clone();
+        let mut cells = table::parse_block(text);
+        let ((top, left), (bottom, right)) = state.selection();
+        // One value pasted over a block fills every cell of it, as a spreadsheet does.
+        if cells.len() == 1 && cells[0].len() == 1 && state.anchor.is_some_and(|a| a != state.cursor) {
+            cells = vec![vec![cells[0][0].clone(); right - left + 1]; bottom.min(shown.len().saturating_sub(1)) - top + 1];
+        }
+        let header = state.dialect.header;
+        self.table_action(Action::Fill { at: (top, left), block: cells }, &lines, &index.records, &shown, header);
     }
 
     fn table_action(&mut self, action: Action, lines: &[Arc<str>], records: &[Record], shown: &[usize], header: bool) {

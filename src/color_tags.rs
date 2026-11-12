@@ -242,7 +242,7 @@ mod tests {
     }
 
     fn key(key: Key, modifiers: Modifiers) -> egui::Event {
-        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: if modifiers.ctrl { modifiers | Modifiers::COMMAND } else { modifiers } }
     }
 
     const CODE: [&str; 9] = ["fn one() {", "    a();", "}", "", "fn two() {", "    b();", "}", "", "end"];

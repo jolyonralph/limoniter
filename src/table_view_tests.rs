@@ -259,3 +259,23 @@ fn the_first_column_stays_in_view_when_scrolled_sideways() {
     assert!(state(&mut app).cursor.1 > 5, "{:?}", state(&mut app).cursor);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn the_keyboards_copy_and_paste_work_in_a_table() {
+    let (mut app, ctx, dir) = app_with_csv("t9", "a,b\n1,2\n3,4\n");
+    give(&mut app, &ctx, Command::ToggleTable);
+    frame(&mut app, &ctx, Vec::new());
+    frame(&mut app, &ctx, Vec::new());
+    // Paste as Ctrl+V or Cmd+V sends it: the text comes with the event.
+    frame(&mut app, &ctx, vec![egui::Event::Paste("x\ty\r\n".into())]);
+    assert_eq!(lines(&app)[1], "x,y");
+    // Copy as Ctrl+C or Cmd+C sends it.
+    let mut output = ctx.run_ui(sized(vec![egui::Event::Copy]), |ui| app.draw_frame(ui));
+    output.textures_delta.clear();
+    let copied = output.platform_output.commands.iter().find_map(|c| match c {
+        egui::OutputCommand::CopyText(text) => Some(text.clone()),
+        _ => None,
+    });
+    assert_eq!(copied.as_deref(), Some("x\ty"), "the pasted block is still selected, and is what's copied");
+    let _ = std::fs::remove_dir_all(&dir);
+}

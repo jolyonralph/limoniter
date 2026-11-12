@@ -804,7 +804,7 @@ impl Limoniter {
         const DIGITS: [Key; 10] = [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9];
         let keys = self.library.keys.clone();
         for (digit, path) in keys {
-            let shortcut = KeyboardShortcut::new(Modifiers::CTRL | Modifiers::ALT, DIGITS[usize::from(digit) % 10]);
+            let shortcut = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::ALT, DIGITS[usize::from(digit) % 10]);
             if ui.ctx().input_mut(|i| i.consume_shortcut(&shortcut)) {
                 self.play_path(&path, Repeat::Once, ui);
             }

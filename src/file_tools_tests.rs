@@ -53,7 +53,7 @@ fn copied(output: &egui::FullOutput) -> Option<String> {
 }
 
 fn key(key: Key, modifiers: Modifiers) -> egui::Event {
-    egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+    egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: if modifiers.ctrl { modifiers | Modifiers::COMMAND } else { modifiers } }
 }
 
 fn folder(tag: &str) -> PathBuf {

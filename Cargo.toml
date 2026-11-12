@@ -42,6 +42,9 @@ strip = true
 [build-dependencies]
 winresource = "0.1.34"
 
+[target."cfg(target_os = \"macos\")".dependencies]
+objc2 = "0.6"
+
 [target."cfg(not(windows))".dependencies]
 # libssh2 uses Windows' own cryptography there; elsewhere it brings its own OpenSSL rather than needing one installed.
 ssh2 = { version = "0.9", features = ["vendored-openssl"] }

@@ -513,6 +513,51 @@ const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPa
 
 pub(super) const MENUS: [(&str, &[Entry]); 8] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
 
+/// A shortcut as the menus show it. On a Mac it's in the Mac's own signs, with Cmd for Ctrl, and the few keys a
+/// Mac uses differently: Cmd+[ and Cmd+] for back and forward, and Control and Option for the Alt letters.
+pub(super) fn shown_shortcut(shortcut: &str) -> String {
+    if !cfg!(target_os = "macos") || shortcut.is_empty() {
+        return shortcut.to_string();
+    }
+    mac_shortcut(shortcut)
+}
+
+/// The Mac's way of writing a shortcut: its signs in the order Control, Option, Shift, Cmd, then the key.
+pub(super) fn mac_shortcut(shortcut: &str) -> String {
+    match shortcut {
+        "Alt+Left" => return "\u{2318}[".into(),
+        "Alt+Right" => return "\u{2318}]".into(),
+        "Ctrl+Tab" => return "\u{2303}Tab".into(),
+        "Ctrl+Shift+Tab" => return "\u{2303}\u{21E7}Tab".into(),
+        _ => {}
+    }
+    let parts: Vec<&str> = shortcut.split('+').collect();
+    let (held, key) = parts.split_at(parts.len() - 1);
+    let alt_letter = held == ["Alt"] && key[0].len() == 1;
+    let has = |name: &str| held.contains(&name);
+    let mut out = String::new();
+    if alt_letter {
+        out.push('\u{2303}');
+    }
+    if has("Alt") {
+        out.push('\u{2325}');
+    }
+    if has("Shift") {
+        out.push('\u{21E7}');
+    }
+    if has("Ctrl") {
+        out.push('\u{2318}');
+    }
+    out += match key[0] {
+        "Left" => "\u{2190}",
+        "Right" => "\u{2192}",
+        "Up" => "\u{2191}",
+        "Down" => "\u{2193}",
+        other => other,
+    };
+    out
+}
+
 /// Something chosen from a list that changes.
 enum Pick {
     File(PathBuf),
@@ -830,7 +875,7 @@ impl Limoniter {
     }
 
     fn menu_item(&self, ui: &mut Ui, label: &str, shortcut: &str, command: Command, chosen: &mut Option<Command>) {
-        let button = Button::new(label).shortcut_text(RichText::new(shortcut).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0));
+        let button = Button::new(label).shortcut_text(RichText::new(shown_shortcut(shortcut)).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0));
         if ui.add_enabled(self.can(command), button).clicked() {
             *chosen = Some(command);
             ui.close();
@@ -1184,7 +1229,7 @@ impl Limoniter {
                     let right = match states[index] {
                         Some(true) => "On".to_string(),
                         Some(false) => "Off".to_string(),
-                        None => each.shortcut.to_string(),
+                        None => shown_shortcut(each.shortcut),
                     };
                     ui.painter().text(egui::pos2(rect.max.x - 12.0, rect.center().y), egui::Align2::RIGHT_CENTER, right, egui::FontId::proportional(12.0), theme::text_faint());
                     if response.clicked() && usable[index] {
@@ -1219,4 +1264,14 @@ fn command_box(ui: &mut Ui) -> egui::Response {
     ui.painter().text(egui::pos2(rect.min.x + 10.0, rect.center().y), egui::Align2::LEFT_CENTER, "Find a command\u{2026}", egui::FontId::proportional(13.0), theme::text_faint());
     ui.painter().text(egui::pos2(rect.max.x - 10.0, rect.center().y), egui::Align2::RIGHT_CENTER, "F1", egui::FontId::proportional(12.0), theme::text_faint());
     response.on_hover_text("Find any command by what it does")
+}
+
+#[cfg(test)]
+mod mac_tests {
+    #[test]
+    fn shortcuts_are_shown_the_macs_way_there() {
+        for (pc, mac) in [("Ctrl+S", "\u{2318}S"), ("Ctrl+Shift+S", "\u{21E7}\u{2318}S"), ("Ctrl+Alt+H", "\u{2325}\u{2318}H"), ("Alt+U", "\u{2303}\u{2325}U"), ("Alt+Left", "\u{2318}["), ("Ctrl+Tab", "\u{2303}Tab"), ("F6", "F6"), ("Shift+F3", "\u{21E7}F3")] {
+            assert_eq!(super::mac_shortcut(pc), mac, "{pc}");
+        }
+    }
 }

@@ -626,7 +626,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             response.request_focus();
             let (line, col) = to_position(p);
             state.wrap_goal = None;
-            if modifiers.ctrl && !modifiers.alt {
+            if modifiers.command && !modifiers.alt {
                 buffer.add_cursor(line, col);
             } else if modifiers.alt && !wrapping {
                 buffer.press_for_block(line, col, modifiers.shift);
@@ -644,7 +644,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             buffer.set_desired_col();
         }
     }
-    if response.double_clicked() && !modifiers.ctrl {
+    if response.double_clicked() && !modifiers.command {
         buffer.select_word_at_caret();
     }
     let mut command = None;
@@ -713,6 +713,7 @@ fn apply_wrapped_wheel(ui: &Ui, area: Rect, state: &mut ViewState, cell: Vec2, a
 
 /// Under word wrap, the keys that go by rows of the screen. Returns whether it dealt with the key.
 fn wrapped_key(b: &mut TextBuffer, goal: &mut Option<usize>, key: Key, m: Modifiers, rows: isize, width: usize) -> bool {
+    let (key, m) = mac_keys(key, m);
     let delta = match key {
         Key::ArrowUp => -1,
         Key::ArrowDown => 1,
@@ -903,9 +904,28 @@ pub fn copy_text_selection(ctx: &egui::Context, buffer: &mut TextBuffer, clip: &
     true
 }
 
+/// A Mac's ways of moving, turned into the ones the rest of this follows: Option and an arrow moves by a word as
+/// Ctrl does elsewhere, Cmd and Left or Right goes to the start or end of the line, and Cmd and Up or Down to the
+/// start or end of the file. Elsewhere keys are as they are.
+pub fn mac_keys(key: Key, m: Modifiers) -> (Key, Modifiers) {
+    if !cfg!(target_os = "macos") {
+        return (key, m);
+    }
+    let plain = Modifiers { shift: m.shift, ..Modifiers::NONE };
+    match key {
+        Key::ArrowLeft | Key::ArrowRight | Key::Backspace | Key::Delete if m.alt && !m.mac_cmd => (key, Modifiers { ctrl: true, command: true, ..plain }),
+        Key::ArrowLeft if m.mac_cmd => (Key::Home, plain),
+        Key::ArrowRight if m.mac_cmd => (Key::End, plain),
+        Key::ArrowUp if m.mac_cmd => (Key::Home, Modifiers { ctrl: true, command: true, ..plain }),
+        Key::ArrowDown if m.mac_cmd => (Key::End, Modifiers { ctrl: true, command: true, ..plain }),
+        _ => (key, m),
+    }
+}
+
 /// The keys that work at every one of several cursors. Others end them, and carry on as usual.
 fn multi_key(b: &mut TextBuffer, key: Key, m: Modifiers) -> bool {
     use crate::text_buffer::SpotMove;
+    let (key, m) = mac_keys(key, m);
     if key == Key::Escape {
         b.end_multi();
         return true;
@@ -927,6 +947,7 @@ fn multi_key(b: &mut TextBuffer, key: Key, m: Modifiers) -> bool {
 }
 
 fn handle_text_key(b: &mut TextBuffer, key: Key, m: Modifiers, rows: isize, wrapping: bool) {
+    let (key, m) = mac_keys(key, m);
     if b.has_multi() && multi_key(b, key, m) {
         return;
     }
@@ -1624,6 +1645,7 @@ pub fn copy_hex_selection(ui: &Ui, b: &HexBuffer) {
 }
 
 fn handle_hex_key(b: &mut HexBuffer, key: Key, m: Modifiers, rows: isize) {
+    let (key, m) = mac_keys(key, m);
     let row = bytes_per_row() as isize;
     if b.read_only && matches!(key, Key::Backspace | Key::Delete) {
         return;
@@ -2361,5 +2383,30 @@ mod tests {
         b.frame(vec![Event::Text("y".into())]);
         b.frame(Vec::new());
         assert!(b.buffer.line(0).starts_with('y'));
+    }
+}
+
+#[cfg(test)]
+mod mac_key_tests {
+    use super::*;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn a_macs_keys_move_as_a_mac_does() {
+        let option = Modifiers { alt: true, ..Modifiers::NONE };
+        let cmd = Modifiers { mac_cmd: true, command: true, ..Modifiers::NONE };
+        assert_eq!(mac_keys(Key::ArrowLeft, option).1.ctrl, true, "Option and an arrow moves by a word");
+        assert_eq!(mac_keys(Key::ArrowLeft, cmd).0, Key::Home, "Cmd and Left goes to the start of the line");
+        assert_eq!(mac_keys(Key::ArrowDown, cmd), (Key::End, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }), "Cmd and Down goes to the end of the file");
+        let shifted = Modifiers { shift: true, ..cmd };
+        assert!(mac_keys(Key::ArrowRight, shifted).1.shift, "Shift still selects");
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn other_systems_keys_are_left_alone() {
+        let ctrl = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
+        assert_eq!(mac_keys(Key::ArrowLeft, ctrl), (Key::ArrowLeft, ctrl));
+        assert_eq!(mac_keys(Key::ArrowLeft, Modifiers::ALT), (Key::ArrowLeft, Modifiers::ALT));
     }
 }

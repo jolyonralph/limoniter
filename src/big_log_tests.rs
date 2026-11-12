@@ -141,7 +141,7 @@ fn big_log_open_move_edit_find_save() {
     assert_eq!(app.docs[0].text.line_count(), lines + 1);
     assert!(app.docs[0].text.is_disk_backed());
 
-    let key_event = |key: Key, modifiers: Modifiers| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+    let key_event = |key: Key, modifiers: Modifiers| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: if modifiers.ctrl { modifiers | Modifiers::COMMAND } else { modifiers } };
     trial.frame(&mut app, &ctx, vec![key_event(Key::End, Modifiers::CTRL)]);
     trial.settle(&mut app, &ctx);
     assert_eq!(app.docs[0].text.caret_line, lines);
@@ -299,7 +299,7 @@ fn big_log_with_very_long_lines() {
     app.doc().text.go_to("1001");
     trial.settle(&mut app, &ctx);
     trial.report("go to the long line");
-    let key_event = |key: Key, modifiers: Modifiers| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+    let key_event = |key: Key, modifiers: Modifiers| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: if modifiers.ctrl { modifiers | Modifiers::COMMAND } else { modifiers } };
     trial.frame(&mut app, &ctx, vec![key_event(Key::End, Modifiers::NONE)]);
     trial.settle(&mut app, &ctx);
     trial.report("to the end of it");

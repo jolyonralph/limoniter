@@ -5,6 +5,8 @@ mod ansi_art;
 mod addons;
 mod app;
 mod platform;
+#[cfg(target_os = "macos")]
+mod mac_open;
 mod remote;
 mod deploy;
 mod big_jobs;
@@ -143,6 +145,9 @@ fn main() -> eframe::Result {
     {
         return Ok(());
     }
+    // Files double-clicked in Finder arrive as an Apple event, not on the command line.
+    #[cfg(target_os = "macos")]
+    mac_open::start();
     let mut viewport = egui::ViewportBuilder::default();
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);

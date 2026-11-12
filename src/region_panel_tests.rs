@@ -131,7 +131,7 @@ fn the_panel_draws_and_closes_and_needs_text() {
     let (mut app, ctx) = app_with_text(&CODE);
     change(&mut app, 1, "    a(1);");
     app.doc().text.move_caret(1, 0, false);
-    frame(&mut app, &ctx, vec![egui::Event::Key { key: Key::H, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::CTRL | Modifiers::ALT }]);
+    frame(&mut app, &ctx, vec![egui::Event::Key { key: Key::H, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::CTRL | Modifiers::COMMAND | Modifiers::ALT }]);
     assert!(app.region.is_some(), "Ctrl+Alt+H opens it");
     assert!(!app.docs[app.active].hex_mode, "and not hex mode, which is Ctrl+H");
     if let Some(state) = &mut app.region {
@@ -156,7 +156,7 @@ fn ctrl_shift_v_is_swap_with_clipboard() {
     let (mut app, ctx) = app_with_text(&["text"]);
     app.doc().text.select_chars((0, 0), (0, 4));
     app.doc().set_read_only(true);
-    frame(&mut app, &ctx, vec![egui::Event::Key { key: Key::V, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::CTRL | Modifiers::SHIFT }]);
+    frame(&mut app, &ctx, vec![egui::Event::Key { key: Key::V, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::CTRL | Modifiers::COMMAND | Modifiers::SHIFT }]);
     assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("read-only")), "it reached Swap, which a read-only file refuses");
     let found = menus::every_command().into_iter().find(|each| each.command == Command::SwapClipboard).unwrap();
     assert_eq!(found.shortcut, "Ctrl+Shift+V");

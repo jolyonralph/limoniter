@@ -1737,6 +1737,7 @@ dependencies = [
  "keyring",
  "memchr",
  "miniz_oxide 0.8.9",
+ "objc2 0.6.5",
  "png",
  "pulldown-cmark",
  "raw-window-handle",

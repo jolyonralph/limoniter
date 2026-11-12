@@ -64,7 +64,7 @@ fn focus_text(app: &mut Limoniter, ctx: &Context) {
 }
 
 fn pressed(key: Key, modifiers: Modifiers) -> egui::Event {
-    egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+    egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: if modifiers.ctrl { modifiers | Modifiers::COMMAND } else { modifiers } }
 }
 
 fn panel_action(app: &mut Limoniter, ctx: &Context, action: scripting::LibraryAction) {

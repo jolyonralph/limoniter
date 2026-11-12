@@ -1338,6 +1338,8 @@ impl Limoniter {
         theme::set_window(theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light).window_theme());
         theme::apply(&cc.egui_ctx);
         theme::colour_title_bar(cc);
+        #[cfg(target_os = "macos")]
+        crate::mac_open::set_window(cc.egui_ctx.clone());
         highlight::start_loading(cc.egui_ctx.clone());
         let font_file = list_setting(&settings, "font_file").pop().map(PathBuf::from).filter(|path| path.exists());
         install_fonts(&cc.egui_ctx, font_file.as_deref());
@@ -2152,6 +2154,10 @@ impl Limoniter {
         self.send_saved_remotes();
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends();
         self.open_handed_over(ctx);
+        #[cfg(target_os = "macos")]
+        for path in crate::mac_open::take() {
+            self.open_path(&path);
+        }
         self.keep_tags();
         busy |= self.check_run_tool();
         busy |= self.check_split();
@@ -3658,8 +3664,14 @@ impl Limoniter {
         let ctx = ui.ctx().clone();
         // While a box is open the document behind it takes no commands from the keyboard.
         let in_editor = !self.full_preview_shown && self.script.is_none() && matches!(self.dialog, Dialog::None) && self.pending.is_none() && !self.docs[self.active].is_busy() && ctx.memory(|m| m.focused().is_none_or(views::is_editor_id));
-        let ctrl = Modifiers::CTRL;
-        let ctrl_shift = Modifiers::CTRL | Modifiers::SHIFT;
+        // Cmd on a Mac, Ctrl elsewhere.
+        let ctrl = Modifiers::COMMAND;
+        let ctrl_shift = Modifiers::COMMAND | Modifiers::SHIFT;
+        let mac = cfg!(target_os = "macos");
+        // Option and a letter types a character on a Mac, so those shortcuts take Control and Option there.
+        let alt_letter = if mac { Modifiers::CTRL | Modifiers::ALT } else { Modifiers::ALT };
+        // Option and an arrow moves by a word on a Mac, so back and forward are Cmd+[ and Cmd+] there, as browsers have.
+        let (back, forward) = if mac { ((ctrl, Key::OpenBracket), (ctrl, Key::CloseBracket)) } else { ((Modifiers::ALT, Key::ArrowLeft), (Modifiers::ALT, Key::ArrowRight)) };
         // Longer combinations come first, because Ctrl+S also matches Ctrl+Shift+S.
         // These are taken whether or not they can act, because Ctrl+W also matches Ctrl+Shift+W, and closes the tab.
         let narrowing = if self.docs[self.active].narrow.is_some() { Command::Widen } else { Command::Narrow };
@@ -3696,8 +3708,9 @@ impl Limoniter {
             self.run(Command::SendAgain, ui);
         }
         let always = [
-            (ctrl_shift, Key::Tab, Command::UsedFileForward),
-            (ctrl, Key::Tab, Command::UsedFileBack),
+            // Control and Tab on every system, a Mac too.
+            (Modifiers::CTRL | Modifiers::SHIFT, Key::Tab, Command::UsedFileForward),
+            (Modifiers::CTRL, Key::Tab, Command::UsedFileBack),
             (ctrl, Key::J, Command::Snippets),
             (Modifiers::NONE, Key::F5, Command::RunTool),
             (Modifiers::NONE, Key::F6, Command::ToggleTable),
@@ -3715,14 +3728,15 @@ impl Limoniter {
             (ctrl, Key::R, Command::Replace),
             (ctrl, Key::G, Command::GoTo),
             (ctrl, Key::H, Command::ToggleHex),
-            (Modifiers::ALT, Key::ArrowLeft, Command::NavBack),
-            (Modifiers::ALT, Key::ArrowRight, Command::NavForward),
+            (back.0, back.1, Command::NavBack),
+            (forward.0, forward.1, Command::NavForward),
             (Modifiers::SHIFT, Key::F3, Command::FindPrevious),
             (Modifiers::NONE, Key::F3, Command::FindNext),
             (Modifiers::NONE, Key::F1, Command::CommandPalette),
         ];
         let in_text_only = [
             (ctrl, Key::Z, Command::Undo),
+            (ctrl_shift, Key::Z, Command::Redo),
             (ctrl, Key::Y, Command::Redo),
             (ctrl, Key::A, Command::SelectAll),
             (ctrl, Key::D, Command::Duplicate),
@@ -3731,9 +3745,9 @@ impl Limoniter {
             (Modifiers::SHIFT, Key::F4, Command::PreviousTag),
             (Modifiers::NONE, Key::F4, Command::NextTag),
             (Modifiers::NONE, Key::F2, Command::NextBookmark),
-            (Modifiers::ALT, Key::C, Command::ToggleColumn),
-            (Modifiers::ALT, Key::U, Command::Upper),
-            (Modifiers::ALT, Key::L, Command::Lower),
+            (alt_letter, Key::C, Command::ToggleColumn),
+            (alt_letter, Key::U, Command::Upper),
+            (alt_letter, Key::L, Command::Lower),
         ];
         for (modifiers, key, command) in always {
             if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(modifiers, key))) {
@@ -5771,7 +5785,7 @@ impl Limoniter {
         }
         // Ctrl+wheel changes the text size, as it does in most editors.
         let zoom = ctx.input(|i| i.zoom_delta());
-        if zoom != 1.0 && ctx.input(|i| i.modifiers.ctrl) {
+        if zoom != 1.0 && ctx.input(|i| i.modifiers.command) {
             self.view.font_size = (self.view.font_size * zoom).clamp(8.0, 40.0);
         }
         self.shortcuts(ui);
@@ -6687,7 +6701,7 @@ mod tests {
     }
 
     fn key(key: Key, modifiers: egui::Modifiers) -> egui::Event {
-        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: if modifiers.ctrl { modifiers | egui::Modifiers::COMMAND } else { modifiers } }
     }
 
     const EVERY_PANEL: &str = "file_properties=true\njson_manager=true\nxml_manager=true\nascii_table=true\nencoding_preview=true\nclipboard_history=false\nfile_explorer=true\nopen_files=true\nbookmarks=true\nfile_lists=true\nmacros_panel=true\nscripts_panel=true\nhistory_panel=true\n";
