@@ -58,7 +58,7 @@ Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edit
 | | Limoniter | Notepad | Notepad++ | VS Code | Vim / Neovim | Emacs | Kate | Zed | UltraEdit | EmEditor | Sublime | BBEdit | TextPad |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Plug-ins or extensions from others | ◐ add-on scripts | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ◐ | ✗ |
-| Code intelligence (language servers: completion, go to definition) | ✗ | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ◐ | ✓ | ✗ |
+| Code intelligence (language servers: completion, go to definition) | ✓ language servers, and its own for assembler | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ◐ | ✓ | ✗ |
 | Debugger | ◐ Z80 and 6502 programs, on its built-in Spectrum, ZEsarUX and VICE | ✗ | ✗ | ✓ | ◐ | ✓ | ◐ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Git | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✓ | ✗ |
 | Built-in terminal | ✗ | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✗ | ✗ |

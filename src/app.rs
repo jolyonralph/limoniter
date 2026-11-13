@@ -1251,6 +1251,7 @@ enum Dialog {
     NewKinds(Box<new_kinds::NewKindsBox>),
     RenameLabel(Box<intel_host::RenameBox>),
     Disassemble(Box<disasm_host::DisasmBox>),
+    LanguageServers(Vec<crate::lsp::ServerSetting>),
     Spelling { found: crate::spelling::Found, chosen: usize },
     AssistReview(assistant::Review),
 }
@@ -1267,6 +1268,8 @@ pub struct Limoniter {
     pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
     /// The Spectrum screen designer, while it's open.
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
+    /// Language servers: whether they're used, which, and those running.
+    lsp: lsp_host::LspState,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1538,6 +1541,7 @@ impl Limoniter {
             intel_wait: None,
             pixel_editor: None,
             screen_designer: None,
+            lsp: lsp_host::LspState::from_settings(&settings),
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -2365,6 +2369,9 @@ impl Limoniter {
         self.send_saved_remotes();
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.git_tick(ctx);
+        if self.lsp_tick() {
+            ctx.request_repaint_after(Duration::from_millis(50));
+        }
         self.assembly_tick();
         if self.intel_wait.is_some() {
             ctx.request_repaint_after(Duration::from_millis(350));
@@ -4202,7 +4209,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str()
         )
     }
 
@@ -4993,6 +5000,7 @@ impl Limoniter {
                     font: self.font_file.as_deref(),
                     new_file_preset: self.new_file_preset.name,
                     recent_files: self.panels.recent.len(),
+                    language_servers: &mut self.lsp.on,
                 };
                 let outcome = settings::window(ctx, state, &mut target);
                 if let Some(outcome) = outcome {
@@ -5014,6 +5022,7 @@ impl Limoniter {
                     Some(settings::Outcome::Themes) => self.open_theme_box(theme_host::ThemePage::Window),
                     Some(settings::Outcome::Assemblers) => self.open_assembler_box(),
                     Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
+                    Some(settings::Outcome::LanguageServers) => self.dialog = Dialog::LanguageServers(self.lsp.settings.clone()),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
                 }
             }
@@ -5385,6 +5394,12 @@ impl Limoniter {
                 ui.colored_label(theme::rainbow_mistake(), "Edits aren't being kept for recovery. Save often.").on_hover_text(problem);
             }
             ui.label(if doc.hex_mode { doc.hex.position_text() } else { doc.text.position_text() });
+            // A language server's problem with the line.
+            if doc.text.code.is_none()
+                && let Some((_, problem)) = doc.text.intel.as_ref().and_then(|i| i.diagnostics.iter().find(|(l, _)| *l == doc.text.caret_line))
+            {
+                ui.colored_label(theme::problem_mark(), problem.clone());
+            }
             // In assembler source: the line's problem, or its address, bytes and timing once it's been assembled.
             if let Some(code) = &doc.text.code {
                 match code.problem_at(doc.text.caret_line) {
@@ -5731,7 +5746,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.language_servers_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7271,6 +7286,9 @@ mod disasm_host;
 
 #[path = "pixel_host.rs"]
 mod pixel_host;
+
+#[path = "lsp_host.rs"]
+mod lsp_host;
 
 #[path = "live_host.rs"]
 mod live_host;

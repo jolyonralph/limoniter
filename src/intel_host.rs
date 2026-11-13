@@ -68,6 +68,9 @@ impl Limoniter {
 
     /// Goes to where the label at the cursor is defined, in whichever file that is.
     pub(super) fn go_to_definition(&mut self) {
+        if self.doc_cpu(self.active).is_none() && self.has_lsp() {
+            return self.lsp_go_to_definition();
+        }
         let Some((name, _, intel)) = self.label_at_cursor("Go to definition") else {
             return;
         };
@@ -87,6 +90,9 @@ impl Limoniter {
 
     /// Lists where the label at the cursor is defined and used in the Output panel, each line a click away.
     pub(super) fn find_uses(&mut self) {
+        if self.doc_cpu(self.active).is_none() && self.has_lsp() {
+            return self.lsp_find_uses();
+        }
         let Some((name, _, intel)) = self.label_at_cursor("Find all uses") else {
             return;
         };
@@ -112,6 +118,13 @@ impl Limoniter {
     }
 
     pub(super) fn open_rename_box(&mut self) {
+        // With a language server, it says what's renamed: the box asks only for the new name.
+        if self.doc_cpu(self.active).is_none() && self.has_lsp() {
+            let doc = &self.docs[self.active];
+            let word = crate::code_intel::word_at(&doc.text.line(doc.text.caret_line), doc.text.caret_col).map(|w| w.2).unwrap_or_default();
+            self.dialog = Dialog::RenameLabel(Box::new(RenameBox { name: String::new(), new: word.clone(), written: word, error: String::new() }));
+            return;
+        }
         let Some((name, written, _)) = self.label_at_cursor("Rename") else {
             return;
         };
@@ -148,13 +161,17 @@ impl Limoniter {
                 state.error = "A label is letters, digits and _, and doesn't start with a digit.".into();
                 return true;
             }
-            if local.is_some() != new.starts_with(['.', '@']) && local != Some('_') {
+            if !state.name.is_empty() && local.is_some() != new.starts_with(['.', '@']) && local != Some('_') {
                 state.error = format!("{} is a local label, so its new name starts with {} too.", state.written, local.unwrap_or('.'));
                 return true;
             }
             let (name, written) = (state.name.clone(), state.written.clone());
             self.dialog = Dialog::None;
-            self.rename_label(&name, &written, &new);
+            if name.is_empty() {
+                self.lsp_rename(&new);
+            } else {
+                self.rename_label(&name, &written, &new);
+            }
         } else if close {
             self.dialog = Dialog::None;
             self.pending_focus = true;

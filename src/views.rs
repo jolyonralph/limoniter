@@ -290,6 +290,10 @@ pub struct ViewState {
     wrap_goal: Option<usize>,
     /// The words offered to finish the one being typed, while the list is open.
     pub completion: Option<Completion>,
+    /// For a language server: where the pointer rests over the text, and where words are wanted to finish one
+    /// being typed (a line and column), for the window to ask about.
+    pub hover_at: Option<(usize, usize)>,
+    pub completion_wanted: Option<(usize, usize)>,
 }
 
 /// The list of words offered to finish the one being typed.
@@ -830,6 +834,23 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     };
     // Where the cursor is drawn, for the list of words offered to finish the one being typed.
     let caret_spot = slots.iter().enumerate().find(|(_, slot)| slot.line == buffer.caret_line && slot.holds(buffer.caret_col)).map(|(row, slot)| pos2(view.min.x + gutter + (buffer.caret_col as f32 - slot.start as f32) * cell.x, view.min.y + ruler_h + (row + 1) as f32 * cell.y));
+    // Words from a language server, come since the last frame, open the list.
+    if focused && buffer.intel.as_ref().is_some_and(|i| i.lsp_fresh) {
+        if let Some(intel) = buffer.intel.as_mut() {
+            intel.lsp_fresh = false;
+        }
+        offer_completions(buffer, state, true);
+    }
+    state.hover_at = None;
+    if buffer.intel.as_ref().is_some_and(|i| i.lsp)
+        && let Some(p) = response.hover_pos()
+        && p.x > view.min.x + gutter
+    {
+        let (line, col) = to_position(pos2(p.x - cell.x / 2.0, p.y));
+        if line < buffer.line_count() {
+            state.hover_at = Some((line, col));
+        }
+    }
     // Hovering over a label says what it is; over an instruction, what it became.
     if let Some(intel) = buffer.intel.as_ref()
         && state.completion.is_none()
@@ -1096,6 +1117,9 @@ fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     // away closes it.
     if asked || typed_word {
         offer_completions(buffer, state, asked);
+        if buffer.intel.as_ref().is_some_and(|i| i.lsp) {
+            state.completion_wanted = Some((buffer.caret_line, buffer.caret_col));
+        }
     } else if state.completion.is_some() {
         let moved = (buffer.caret_line, buffer.caret_col) != caret;
         if buffer.version() != version && buffer.caret_line == caret.0 {
@@ -1822,6 +1846,18 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             painter.hline((middle.x - size * 0.55)..=(middle.x + size * 0.55), middle.y, stroke);
             if b.is_folded(slot.line) {
                 painter.vline(middle.x, (middle.y - size * 0.55)..=(middle.y + size * 0.55), stroke);
+            }
+        }
+        // A language server's problems, marked as the assembler's are.
+        if b.code.is_none()
+            && let Some(intel) = b.intel.as_ref().filter(|i| i.diagnostics.iter().any(|(l, _)| *l == slot.line))
+        {
+            let _ = intel;
+            let row = Rect::from_min_max(pos2(view.min.x + gutter, row_y(index)), pos2(view.max.x, row_y(index) + cell.y));
+            let middle = pos2(view.min.x + cell.x.max(8.0) / 2.0, row_y(index) + cell.y / 2.0);
+            painter.rect_filled(row, 0.0, theme::problem_line());
+            if slot.sub == 0 {
+                painter.add(egui::Shape::convex_polygon(vec![pos2(middle.x, middle.y - 4.5), pos2(middle.x + 4.5, middle.y + 3.5), pos2(middle.x - 4.5, middle.y + 3.5)], theme::problem_mark(), Stroke::NONE));
             }
         }
         if let Some(code) = &b.code {

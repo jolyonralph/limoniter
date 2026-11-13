@@ -238,6 +238,8 @@ pub struct Target<'a> {
     pub font: Option<&'a Path>,
     pub new_file_preset: &'a str,
     pub recent_files: usize,
+    /// Whether language servers are used.
+    pub language_servers: &'a mut bool,
 }
 
 /// What the window asks the app to do, beyond changing a value.
@@ -253,6 +255,7 @@ pub enum Outcome {
     Themes,
     Assemblers,
     NewKinds,
+    LanguageServers,
 }
 
 /// What's being chosen on the File types page, and what Windows has now.
@@ -331,6 +334,7 @@ enum Special {
     ZxNotation,
     Assemblers,
     NewKinds,
+    LanguageServers,
     FileTypes,
 }
 
@@ -392,6 +396,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Copy before paste", "Pasting over selected text swaps them: what was selected goes on the clipboard, ready to paste somewhere else", |t| &mut t.prefs.edit.copy_before_paste),
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
+            Row::Special("Language servers", Special::LanguageServers),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
         ],
     ),
@@ -543,6 +548,12 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                         ui.selectable_value(&mut target.prefs.markdown_view, view, view.markdown_label());
                     }
                 });
+            }
+            Special::LanguageServers => {
+                ui.checkbox(target.language_servers, "Use them").on_hover_text("Completion, hover, go to definition, uses, renaming and problems for C, C++, Rust, Python, JavaScript, Go and others, from the server for the file's language (rust-analyzer, clangd, pylsp...), started in the project's folder. They're programs of their own, installed separately; Limoniter only starts those listed");
+                if ui.button("Which\u{2026}").clicked() {
+                    *outcome = Some(Outcome::LanguageServers);
+                }
             }
             Special::NewKinds => {
                 if ui.button("Change the list\u{2026}").on_hover_text("Each kind is a file ending, an encoding, line endings, colouring, and text to start with").clicked() {
@@ -719,7 +730,8 @@ mod tests {
             };
             let (mut view, mut prefs, mut tabs, mut status) = check_values();
             let before = snapshot(&view, &prefs, tabs, status);
-            let mut target = Target { view: &mut view, prefs: &mut prefs, file_tabs: &mut tabs, status_bar: &mut status, font: None, new_file_preset: "", recent_files: 0 };
+            let mut servers = false;
+        let mut target = Target { language_servers: &mut servers, view: &mut view, prefs: &mut prefs, file_tabs: &mut tabs, status_bar: &mut status, font: None, new_file_preset: "", recent_files: 0 };
             let flag = value(&mut target);
             *flag = !*flag;
             let after = snapshot(&view, &prefs, tabs, status);
@@ -839,7 +851,8 @@ mod tests {
             let ctx = Context::default();
             theme::apply(&ctx);
             let (mut view, mut prefs, mut tabs, mut status) = check_values();
-            let mut target = Target { view: &mut view, prefs: &mut prefs, file_tabs: &mut tabs, status_bar: &mut status, font: None, new_file_preset: "Windows", recent_files: 3 };
+            let mut servers = false;
+        let mut target = Target { language_servers: &mut servers, view: &mut view, prefs: &mut prefs, file_tabs: &mut tabs, status_bar: &mut status, font: None, new_file_preset: "Windows", recent_files: 3 };
             let states: Vec<WindowState> = (0..SECTIONS.len())
                 .map(|section| WindowState { section, ..WindowState::default() })
                 .chain(["size", "zzz"].map(|find| WindowState { find: find.to_string(), ..WindowState::default() }))
@@ -861,7 +874,8 @@ mod tests {
     fn escape_closes_the_window() {
         let ctx = Context::default();
         let (mut view, mut prefs, mut tabs, mut status) = check_values();
-        let mut target = Target { view: &mut view, prefs: &mut prefs, file_tabs: &mut tabs, status_bar: &mut status, font: None, new_file_preset: "", recent_files: 0 };
+        let mut servers = false;
+        let mut target = Target { language_servers: &mut servers, view: &mut view, prefs: &mut prefs, file_tabs: &mut tabs, status_bar: &mut status, font: None, new_file_preset: "", recent_files: 0 };
         let mut state = WindowState::default();
         let key = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
         let raw = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0))), events: vec![key], ..RawInput::default() };

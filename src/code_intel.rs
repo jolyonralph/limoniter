@@ -20,6 +20,14 @@ pub struct CodeIntel {
     pub words: Arc<Vec<String>>,
     /// Whether the words are offered in capitals, as BASIC keywords are.
     pub upper: bool,
+    /// What a language server says, for a file it's looking after: whether one is, its problems by line, the words
+    /// it offered for the place they were asked for (line, where the word starts), and what it said about a place.
+    pub lsp: bool,
+    pub diagnostics: Vec<(usize, String)>,
+    pub lsp_completion: Option<(usize, usize, Vec<String>)>,
+    /// Set when new words come, so the list opens with them.
+    pub lsp_fresh: bool,
+    pub lsp_hover: Option<(usize, usize, String)>,
 }
 
 impl PartialEq for CodeIntel {
@@ -124,8 +132,17 @@ impl CodeIntel {
     }
 
     /// What a word on a line is, for its hover: a label's value and where it's defined, or the line's bytes and
-    /// timing when the word is its instruction.
+    /// timing when the word is its instruction; or what a language server said about it.
     pub fn describe(&self, line: usize, text: &str, col: usize) -> Option<String> {
+        if let Some((l, c, words)) = &self.lsp_hover
+            && *l == line
+            && word_at(text, col).zip(word_at(text, *c)).is_some_and(|(a, b)| a.0 == b.0)
+        {
+            return Some(words.clone());
+        }
+        if self.lsp && self.assembly.is_none() {
+            return None;
+        }
         if in_comment_or_string(text, col) {
             return None;
         }
@@ -156,11 +173,18 @@ impl CodeIntel {
         if in_comment_or_string(text, col) {
             return Vec::new();
         }
-        let Some((_, prefix)) = prefix_at(text, col) else {
+        let Some((word_start, prefix)) = prefix_at(text, col) else {
             return Vec::new();
         };
         let lower = prefix.to_lowercase();
         let mut found: Vec<String> = Vec::new();
+        // A language server's words, for where they were asked: those that go with what's been typed since.
+        if let Some((l, start, words)) = &self.lsp_completion
+            && *l == line
+            && *start == word_start
+        {
+            found.extend(words.iter().filter(|w| w.to_lowercase().starts_with(&lower) && **w != prefix).cloned());
+        }
         // In assembler source, after the instruction come its operands: labels, not more instructions.
         let start = col - prefix.chars().count();
         let before: String = text.chars().take(start).collect();
