@@ -202,6 +202,8 @@ pub(super) struct AssistJob {
     /// The text as it was sent, so the part can be found again if it's been edited meanwhile.
     text: Vec<Arc<str>>,
     old: Vec<String>,
+    /// Its entry in the history.
+    exchange: u64,
 }
 
 /// Runs a command line with the prompt on its input, and keeps what it prints.
@@ -273,12 +275,20 @@ fn kill_tree(process: u32) {
 }
 
 /// What the person is choosing in the box.
-pub(super) struct AssistBox {
+/// The Assistant panel: the history, and the request being written.
+pub(super) struct AssistPanel {
+    pub open: bool,
     pub task: Task,
     pub words: String,
     pub show_commands: bool,
     pub focus: bool,
     pub error: String,
+}
+
+impl Default for AssistPanel {
+    fn default() -> Self {
+        AssistPanel { open: false, task: Task::Fix, words: String::new(), show_commands: false, focus: false, error: String::new() }
+    }
 }
 
 /// What came back, for the person to look at before it goes in.
@@ -289,6 +299,9 @@ pub(super) struct Review {
     text: Vec<Arc<str>>,
     pub old: Vec<String>,
     pub new: Vec<String>,
+    /// Its entry in the history, and whether it's been put in already (so it's only to look at).
+    pub exchange: Option<u64>,
+    pub done: bool,
 }
 
 impl Limoniter {
@@ -303,12 +316,13 @@ impl Limoniter {
         region_panel::chosen_lines(text)
     }
 
+    /// Opens the Assistant panel, ready to ask for this.
     pub(super) fn begin_assist(&mut self, task: Task) {
-        if self.assist_job.is_some() {
-            self.message("Assistant", "The assistant is still working on the last request. It can be stopped from the note at the bottom right.".into());
-            return;
-        }
-        self.dialog = Dialog::Assist(AssistBox { task, words: String::new(), show_commands: false, focus: true, error: String::new() });
+        let panel = &mut self.assist_panel;
+        panel.open = true;
+        panel.task = task;
+        panel.focus = true;
+        panel.error.clear();
     }
 
     /// Sends the part to the tool. Says why not if it can't.
@@ -347,13 +361,36 @@ impl Limoniter {
                 ctx.request_repaint();
             }
         })?;
-        self.assist_job = Some(AssistJob { result, process, started: std::time::Instant::now(), tool, task, doc: doc.id, range, text: all, old: part });
+        let exchange = crate::app::assistant_log::Exchange {
+            id: 0,
+            when: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+            tool,
+            task,
+            words: words.trim().to_string(),
+            file: doc.name(),
+            path: doc.path.clone(),
+            lines: range.clone(),
+            state: crate::app::assistant_log::State::Working,
+            reply: String::new(),
+            old: part.clone(),
+            new: Vec::new(),
+            seconds: 0,
+            doc: Some(doc.id),
+            text: Some(all.clone()),
+        };
+        let exchange = self.assist_log.add(exchange);
+        self.assist_job = Some(AssistJob { result, process, started: std::time::Instant::now(), tool, task, doc: doc.id, range, text: all, old: part, exchange });
         Ok(())
     }
 
     pub(super) fn stop_assistant(&mut self) {
         if let Some(job) = self.assist_job.take() {
             kill_tree(job.process);
+            let seconds = job.started.elapsed().as_secs();
+            self.assist_log.update(job.exchange, |e| {
+                e.state = crate::app::assistant_log::State::Stopped;
+                e.seconds = seconds;
+            });
         }
     }
 
@@ -366,8 +403,33 @@ impl Limoniter {
             return true;
         };
         let job = self.assist_job.take().expect("there's a job");
+        let seconds = job.started.elapsed().as_secs();
+        use crate::app::assistant_log::State;
+        match &answer {
+            Err(problem) => self.assist_log.update(job.exchange, |e| {
+                e.state = State::Failed;
+                e.reply.clone_from(problem);
+                e.seconds = seconds;
+            }),
+            Ok(reply) if !job.task.changes_text() => self.assist_log.update(job.exchange, |e| {
+                e.state = State::Answered;
+                e.reply = reply.trim_end().to_string();
+                e.seconds = seconds;
+            }),
+            Ok(reply) => {
+                let new = code_from_reply(reply);
+                self.assist_log.update(job.exchange, |e| {
+                    e.state = State::Suggested;
+                    e.reply = reply.trim_end().to_string();
+                    e.new = new;
+                    e.seconds = seconds;
+                });
+            }
+        }
         match answer {
-            Err(problem) => self.message(job.tool.name(), problem),
+            // With the panel showing, it says so there.
+            Err(problem) if !self.assist_panel.open => self.message(job.tool.name(), problem),
+            Err(_) => {}
             Ok(reply) if !job.task.changes_text() => {
                 let place = if job.old.is_empty() { format!("line {}", job.range.start + 1) } else { format!("lines {} to {}", job.range.start + 1, job.range.end) };
                 self.script_print(format!("{}, on {place}:", job.tool.name()), true);
@@ -378,7 +440,7 @@ impl Limoniter {
             }
             Ok(reply) => {
                 let new = code_from_reply(&reply);
-                self.dialog = Dialog::AssistReview(Review { tool: job.tool, doc: job.doc, range: job.range, text: job.text, old: job.old, new });
+                self.dialog = Dialog::AssistReview(Review { tool: job.tool, doc: job.doc, range: job.range, text: job.text, old: job.old, new, exchange: Some(job.exchange), done: false });
             }
         }
         false
@@ -428,103 +490,10 @@ impl Limoniter {
 
     pub(super) fn assistant_dialogs(&mut self, ctx: &Context) -> bool {
         match &self.dialog {
-            Dialog::Assist(_) => self.assist_box(ctx),
             Dialog::AssistReview(_) => self.review_box(ctx),
             _ => return false,
         }
         true
-    }
-
-    fn assist_box(&mut self, ctx: &Context) {
-        let Dialog::Assist(state) = &self.dialog else {
-            return;
-        };
-        let range = self.assist_range(state.task);
-        let doc = &self.docs[self.active];
-        let name = doc.name();
-        let usable = !self.no_file() && !doc.hex_mode;
-        let tool = self.assistant.tool;
-        let found = [Tool::Claude, Tool::Codex].map(|tool| installed(tool.program()));
-        let (escape, enter) = ctx.input(|i| (i.key_pressed(Key::Escape), i.key_pressed(Key::Enter) && !i.modifiers.shift));
-        let Dialog::Assist(state) = &mut self.dialog else {
-            return;
-        };
-        let (mut send, mut close) = (false, escape);
-        let setup = &mut self.assistant;
-        egui::Window::new("Assistant").collapsible(false).resizable(false).fixed_size(egui::vec2(560.0, 0.0)).anchor(egui::Align2::CENTER_TOP, [0.0, 70.0]).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                for task in Task::ALL {
-                    if ui.add(egui::Button::selectable(state.task == task, task.label())).clicked() {
-                        state.task = task;
-                        state.error.clear();
-                        state.focus = true;
-                    }
-                }
-            });
-            ui.add_space(6.0);
-            let place = if range.is_empty() { format!("the place after line {}", range.start) } else { format!("lines {} to {}", range.start + 1, range.end) };
-            ui.label(RichText::new(format!("Works on {place} of {name}.")).color(theme::text_dim()));
-            let hint = match state.task {
-                Task::Fix => "Anything it should know, such as what goes wrong (optional)",
-                Task::CleanUp => "Anything it should keep or change (optional)",
-                Task::Write => "What the code should do",
-                Task::Explain => "Anything in particular to explain (optional)",
-                Task::Ask => "The question",
-            };
-            let field = ui.add(egui::TextEdit::multiline(&mut state.words).hint_text(hint).desired_rows(3).desired_width(f32::INFINITY));
-            if state.focus {
-                field.request_focus();
-                state.focus = false;
-            }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.label("Using");
-                for (index, each) in [Tool::Claude, Tool::Codex].into_iter().enumerate() {
-                    let label = if found[index] { each.name().to_string() } else { format!("{} (not installed)", each.name()) };
-                    ui.radio_value(&mut setup.tool, each, label);
-                }
-            });
-            ui.label(RichText::new(format!("The part, and up to {CONTEXT_LINES} lines either side of it, go to {}, which sends them to {}. It can read the files in this one's folder, but can't change anything or run commands. What comes back is shown before anything changes.", tool.name(), tool.company())).color(theme::text_faint()).size(11.5));
-            ui.add_space(4.0);
-            ui.checkbox(&mut state.show_commands, "Commands");
-            if state.show_commands {
-                egui::Grid::new("assistant-commands").num_columns(2).show(ui, |ui| {
-                    ui.label("Claude Code");
-                    ui.add(egui::TextEdit::singleline(&mut setup.claude).font(egui::TextStyle::Monospace).desired_width(420.0));
-                    ui.end_row();
-                    ui.label("Codex");
-                    ui.add(egui::TextEdit::singleline(&mut setup.codex).font(egui::TextStyle::Monospace).desired_width(420.0));
-                    ui.end_row();
-                });
-                ui.label(RichText::new("Each is run in the file's folder, with the request on its input, and what it prints is the answer.").color(theme::text_faint()).size(11.5));
-                if ui.button("Put the usual commands back").clicked() {
-                    setup.claude = CLAUDE_COMMAND.into();
-                    setup.codex = CODEX_COMMAND.into();
-                }
-            }
-            if !state.error.is_empty() {
-                ui.add_space(4.0);
-                ui.label(RichText::new(state.error.as_str()).color(theme::rainbow_mistake()));
-            }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                send = ui.add_enabled(usable, Button::new(RichText::new(format!("Send to {}", setup.tool.name())).strong())).on_hover_text("Or press Enter").clicked();
-                close |= ui.button("Cancel").clicked();
-            });
-        });
-        let (task, words) = (state.task, state.words.clone());
-        if (send || (enter && usable)) && !close {
-            match self.send_to_assistant(task, &words) {
-                Ok(()) => self.close_dialog(),
-                Err(problem) => {
-                    if let Dialog::Assist(state) = &mut self.dialog {
-                        state.error = problem;
-                    }
-                }
-            }
-        } else if close {
-            self.close_dialog();
-        }
     }
 
     fn review_box(&mut self, ctx: &Context) {
@@ -552,9 +521,13 @@ impl Limoniter {
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                accept = ui.add_enabled(changed, Button::new(RichText::new("Put it in").strong())).on_hover_text("One Undo takes it out again").clicked();
+                if review.done {
+                    ui.label(RichText::new("This was put in.").color(theme::text_dim()));
+                } else {
+                    accept = ui.add_enabled(changed, Button::new(RichText::new("Put it in").strong())).on_hover_text("One Undo takes it out again").clicked();
+                }
                 copy = ui.button("Copy it").clicked();
-                close |= ui.button("Leave it").clicked();
+                close |= ui.button(if review.done { "Close" } else { "Leave it" }).clicked();
             });
         });
         if copy {
@@ -565,10 +538,24 @@ impl Limoniter {
                 return;
             };
             match self.accept_review(&review) {
-                Ok(()) => self.close_dialog(),
+                Ok(()) => {
+                    self.close_dialog();
+                    if let Some(id) = review.exchange {
+                        self.assist_log.update(id, |e| e.state = crate::app::assistant_log::State::PutIn);
+                    }
+                }
                 Err(problem) => self.message(review.tool.name(), problem),
             }
         } else if close {
+            if let Dialog::AssistReview(review) = &self.dialog
+                && let Some(id) = review.exchange.filter(|_| !review.done)
+            {
+                self.assist_log.update(id, |e| {
+                    if e.state == crate::app::assistant_log::State::Suggested {
+                        e.state = crate::app::assistant_log::State::Left;
+                    }
+                });
+            }
             self.close_dialog();
         }
     }
@@ -577,17 +564,264 @@ impl Limoniter {
         let text = &mut self.doc().text;
         text.set_content(["function total(items) {", "  var sum = 0", "  for (var i = 0; i <= items.length; i++) {", "    sum += items[i].price", "  }", "  return sum", "}"].map(String::from).to_vec());
         text.move_caret(2, 4, false);
+        if step == "assistant-history" {
+            use crate::app::assistant_log::{Exchange, State};
+            let file = self.docs[self.active].name();
+            let made = |when: &str, tool: Tool, task: Task, words: &str, lines: Range<usize>, state: State, reply: &str, old: &[&str], new: &[&str], seconds: u64| Exchange { id: 0, when: when.into(), tool, task, words: words.into(), file: file.clone(), path: None, lines, state, reply: reply.into(), old: old.iter().map(|l| l.to_string()).collect(), new: new.iter().map(|l| l.to_string()).collect(), seconds, doc: None, text: None };
+            for exchange in [
+                made("2026-11-13 10:02", Tool::Claude, Task::Fix, "It gives NaN for some lists", 0..7, State::PutIn, "", &["  var sum = 0", "  for (var i = 0; i <= items.length; i++) {", "    sum += items[i].price"], &["  let sum = 0;", "  for (let i = 0; i < items.length; i++) {", "    sum += items[i].price;"], 14),
+                made("2026-11-13 10:05", Tool::Claude, Task::Explain, "", 2..5, State::Answered, "The loop adds up each item's price. It used to run one step too far (<= instead of <), reading an item past the end of the list, whose price is undefined, so the total became NaN.", &[], &[], 9),
+                made("2026-11-13 10:11", Tool::Codex, Task::CleanUp, "", 0..7, State::Left, "", &["function total(items) {", "  let sum = 0;"], &["const total = (items) =>", "  items.reduce((sum, item) => sum + item.price, 0);"], 21),
+                made("2026-11-13 10:14", Tool::Codex, Task::Ask, "Would reduce be faster here?", 0..7, State::Failed, "codex: not signed in. Run codex login first.", &[], &[], 2),
+            ] {
+                self.assist_log.add(exchange);
+            }
+            self.begin_assist(Task::Write);
+            self.assist_panel.words = "A function that returns the cheapest item".into();
+            return;
+        }
         if step == "assistant" {
             self.begin_assist(Task::Fix);
-            if let Dialog::Assist(state) = &mut self.dialog {
-                state.words = "It gives NaN for some lists".into();
-            }
+            self.assist_panel.words = "It gives NaN for some lists".into();
         } else {
             let old: Vec<String> = (0..7).map(|at| self.docs[self.active].text.line(at).to_string()).collect();
             let new = ["function total(items) {", "  let sum = 0;", "  for (let i = 0; i < items.length; i++) {", "    sum += items[i].price;", "  }", "  return sum;", "}"].map(String::from).to_vec();
             let text = self.docs[self.active].text.all_lines();
-            self.dialog = Dialog::AssistReview(Review { tool: Tool::Claude, doc: self.docs[self.active].id, range: 0..7, text, old, new });
+            self.dialog = Dialog::AssistReview(Review { tool: Tool::Claude, doc: self.docs[self.active].id, range: 0..7, text, old, new, exchange: None, done: false });
         }
+    }
+}
+
+/// What the Assistant panel asks for.
+enum PanelAct {
+    GoTo(u64),
+    Show(u64),
+    Stop,
+    Clear,
+    Send,
+}
+
+impl Limoniter {
+    /// The Assistant panel: every request made and what came of it, newest at the bottom, and the next request.
+    pub(super) fn assistant_panel(&mut self, ui: &mut Ui) {
+        if !self.assist_panel.open {
+            return;
+        }
+        let mut open = true;
+        let mut acts: Vec<PanelAct> = Vec::new();
+        let range = (!self.no_file()).then(|| self.assist_range(self.assist_panel.task));
+        let name = self.docs.get(self.active).map(Document::name).unwrap_or_default();
+        let usable = !self.no_file() && !self.docs[self.active].hex_mode;
+        let found = [Tool::Claude, Tool::Codex].map(|tool| installed(tool.program()));
+        let working = self.assist_job.as_ref().map(|job| (job.exchange, job.started.elapsed().as_secs()));
+        Panel::right("assistant-panel").default_size(380.0).size_range(260.0..=900.0).resizable(true).frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(6, 4))).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Assistant").color(theme::text()).size(12.5));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked() {
+                        open = false;
+                    }
+                    if !self.assist_log.entries.is_empty() && ui.add(Button::new(RichText::new("Clear").color(theme::text_dim()).size(11.5)).frame(false)).on_hover_text("Forget the history").clicked() {
+                        acts.push(PanelAct::Clear);
+                    }
+                });
+            });
+            ui.separator();
+            // The next request, at the bottom.
+            let panel = &mut self.assist_panel;
+            let setup = &mut self.assistant;
+            Panel::bottom("assistant-request").frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 6))).show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for task in Task::ALL {
+                        if ui.add(egui::Button::selectable(panel.task == task, task.label())).clicked() {
+                            panel.task = task;
+                            panel.error.clear();
+                            panel.focus = true;
+                        }
+                    }
+                });
+                if let Some(range) = &range {
+                    let place = if range.is_empty() { format!("the place after line {}", range.start) } else { format!("lines {} to {}", range.start + 1, range.end) };
+                    ui.label(RichText::new(format!("Works on {place} of {name}: select some to choose.")).color(theme::text_dim()).size(11.5));
+                }
+                let hint = match panel.task {
+                    Task::Fix => "Anything it should know, such as what goes wrong (optional)",
+                    Task::CleanUp => "Anything it should keep or change (optional)",
+                    Task::Write => "What the code should do",
+                    Task::Explain => "Anything in particular to explain (optional)",
+                    Task::Ask => "The question",
+                };
+                let field = ui.add(egui::TextEdit::multiline(&mut panel.words).hint_text(hint).desired_rows(3).desired_width(f32::INFINITY));
+                if std::mem::take(&mut panel.focus) {
+                    field.request_focus();
+                }
+                let enter = field.has_focus() && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
+                ui.horizontal_wrapped(|ui| {
+                    for (index, each) in [Tool::Claude, Tool::Codex].into_iter().enumerate() {
+                        let label = if found[index] { each.name().to_string() } else { format!("{} (not installed)", each.name()) };
+                        ui.radio_value(&mut setup.tool, each, label);
+                    }
+                    ui.checkbox(&mut panel.show_commands, "Commands");
+                });
+                if panel.show_commands {
+                    egui::Grid::new("assistant-commands").num_columns(2).show(ui, |ui| {
+                        ui.label("Claude Code");
+                        ui.add(egui::TextEdit::singleline(&mut setup.claude).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                        ui.end_row();
+                        ui.label("Codex");
+                        ui.add(egui::TextEdit::singleline(&mut setup.codex).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                        ui.end_row();
+                    });
+                    if ui.small_button("Put the usual commands back").clicked() {
+                        setup.claude = CLAUDE_COMMAND.into();
+                        setup.codex = CODEX_COMMAND.into();
+                    }
+                }
+                ui.label(RichText::new(format!("The part, and up to {CONTEXT_LINES} lines either side, go to {} (and so to {}), which can read this folder's files but not change them. Code that comes back is shown before anything changes.", setup.tool.name(), setup.tool.company())).color(theme::text_faint()).size(11.0));
+                if !panel.error.is_empty() {
+                    ui.label(RichText::new(panel.error.as_str()).color(theme::rainbow_mistake()));
+                }
+                ui.horizontal(|ui| {
+                    let ready = usable && working.is_none();
+                    let send = ui.add_enabled(ready, Button::new(RichText::new(format!("Send to {}", setup.tool.name())).strong())).on_hover_text("Or press Enter (Shift+Enter for a new line)").clicked();
+                    if send || (enter && ready) {
+                        acts.push(PanelAct::Send);
+                    }
+                });
+            });
+            // The history, newest at the bottom.
+            egui::ScrollArea::vertical().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
+                if self.assist_log.entries.is_empty() {
+                    ui.add(egui::Label::new(RichText::new("Everything asked of Claude Code or Codex is kept here: what was asked, what came back, and what was done with it.").color(theme::text_dim())).wrap());
+                }
+                use crate::app::assistant_log::State;
+                for entry in &self.assist_log.entries {
+                    egui::Frame::group(ui.style()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.label(RichText::new(format!("{}  {} \u{B7} {}", entry.when, entry.tool.name(), entry.task.label())).color(theme::text_faint()).size(11.5));
+                        if ui.add(egui::Label::new(RichText::new(entry.place()).color(theme::accent())).sense(egui::Sense::click())).on_hover_text("Go there").clicked() {
+                            acts.push(PanelAct::GoTo(entry.id));
+                        }
+                        if !entry.words.is_empty() {
+                            ui.add(egui::Label::new(RichText::new(format!("\u{201C}{}\u{201D}", entry.words)).italics()).wrap());
+                        }
+                        match entry.state {
+                            State::Working => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    let seconds = working.filter(|(id, _)| *id == entry.id).map_or(0, |(_, s)| s);
+                                    ui.label(format!("Working\u{2026} {seconds}s"));
+                                    if ui.small_button("Stop").clicked() {
+                                        acts.push(PanelAct::Stop);
+                                    }
+                                });
+                            }
+                            State::Answered => {
+                                ui.add(egui::Label::new(entry.reply.as_str()).selectable(true).wrap());
+                            }
+                            State::Suggested | State::PutIn | State::Left => {
+                                ui.horizontal_wrapped(|ui| {
+                                    let (added, removed) = entry.counts();
+                                    let colour = match entry.state {
+                                        State::PutIn => theme::change_saved(),
+                                        State::Suggested => theme::accent(),
+                                        _ => theme::text_dim(),
+                                    };
+                                    ui.label(RichText::new(format!("+{added} \u{2212}{removed} lines \u{B7} {}", entry.state.word())).color(colour));
+                                    if ui.small_button("Show").on_hover_text("What it suggested, against what was there").clicked() {
+                                        acts.push(PanelAct::Show(entry.id));
+                                    }
+                                });
+                            }
+                            State::Failed | State::Stopped => {
+                                let words = if entry.state == State::Stopped { "Stopped before it answered.".to_string() } else { entry.reply.lines().take(6).collect::<Vec<_>>().join("\n") };
+                                ui.add(egui::Label::new(RichText::new(words).color(theme::rainbow_mistake())).wrap());
+                            }
+                        }
+                        if entry.seconds > 0 && entry.state != State::Working {
+                            ui.label(RichText::new(format!("{}s", entry.seconds)).color(theme::text_faint()).size(10.5));
+                        }
+                    });
+                }
+            });
+        });
+        self.assist_panel.open = open;
+        if working.is_some() {
+            ui.ctx().request_repaint_after(Duration::from_millis(500));
+        }
+        for act in acts {
+            match act {
+                PanelAct::Send => {
+                    let (task, words) = (self.assist_panel.task, self.assist_panel.words.trim_end().to_string());
+                    match self.send_to_assistant(task, &words) {
+                        Ok(()) => {
+                            self.assist_panel.words.clear();
+                            self.assist_panel.error.clear();
+                        }
+                        Err(problem) => self.assist_panel.error = problem,
+                    }
+                }
+                PanelAct::Stop => self.stop_assistant(),
+                PanelAct::Clear => {
+                    if ask_yes_no("Assistant", "Forget the whole history of what's been asked?") {
+                        self.assist_log.clear();
+                    }
+                }
+                PanelAct::GoTo(id) => self.go_to_exchange(id),
+                PanelAct::Show(id) => self.show_exchange(id),
+            }
+        }
+    }
+
+    /// The document an entry was about, if it's open, or opened from where it was.
+    fn exchange_doc(&mut self, id: u64) -> Option<usize> {
+        let entry = self.assist_log.entries.iter().find(|e| e.id == id)?.clone();
+        if let Some(index) = entry.doc.and_then(|doc| self.docs.iter().position(|d| d.id == doc)) {
+            return Some(index);
+        }
+        let path = entry.path.filter(|p| p.is_file())?;
+        if let Some(index) = self.docs.iter().position(|d| d.path.as_deref() == Some(path.as_path())) {
+            return Some(index);
+        }
+        self.open_path(&path).then_some(self.active)
+    }
+
+    /// Goes to the lines an entry was about.
+    fn go_to_exchange(&mut self, id: u64) {
+        let Some(index) = self.exchange_doc(id) else {
+            return self.message("Assistant", "That file isn't open, and can't be found where it was.".into());
+        };
+        let start = self.assist_log.entries.iter().find(|e| e.id == id).map_or(0, |e| e.lines.start);
+        self.active = index;
+        let text = &mut self.doc().text;
+        text.move_caret(start.min(text.line_count().saturating_sub(1)), 0, false);
+        text.reveal = true;
+        self.pending_focus = true;
+    }
+
+    /// Shows a suggestion again. One left out can still be put in, while the lines it was for are as they were.
+    fn show_exchange(&mut self, id: u64) {
+        let Some(entry) = self.assist_log.entries.iter().find(|e| e.id == id).cloned() else {
+            return;
+        };
+        let index = self.exchange_doc(id);
+        let (doc, text, range, done) = match index {
+            Some(index) => {
+                let now = self.docs[index].text.all_lines();
+                let done = entry.state == crate::app::assistant_log::State::PutIn;
+                match entry.text.clone() {
+                    // While it's open, the part is found wherever it's moved to.
+                    Some(text) if entry.doc == Some(self.docs[index].id) => (self.docs[index].id, text, entry.lines.clone(), done),
+                    // From an earlier session, only if the lines are just as they were.
+                    _ => {
+                        let same = now.get(entry.lines.clone()).is_some_and(|lines| lines.iter().map(|l| l.as_ref()).eq(entry.old.iter().map(String::as_str)));
+                        (self.docs[index].id, now, entry.lines.clone(), done || !same)
+                    }
+                }
+            }
+            None => (0, Vec::new(), entry.lines.clone(), true),
+        };
+        self.dialog = Dialog::AssistReview(Review { tool: entry.tool, doc, range, text, old: entry.old, new: entry.new, exchange: Some(id), done });
     }
 }
 
@@ -683,6 +917,46 @@ mod tests {
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| app.run(Command::Undo, ui));
         output.textures_delta.clear();
         assert_eq!(app.docs[app.active].text.line(3).as_ref(), "  return 1", "one Undo takes it out");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn every_request_and_what_came_of_it_is_kept_in_the_history() {
+        use crate::app::assistant_log::State;
+        let (dir, command) = stand_in("```js\nlet x = 2;\n```\n");
+        let (mut app, ctx) = app_with_text(&["let x = 1;"]);
+        app.assistant.claude = command;
+        // Asked from the panel, as the person would.
+        app.begin_assist(Task::Fix);
+        assert!(app.assist_panel.open && app.assist_panel.task == Task::Fix);
+        app.send_to_assistant(Task::Fix, "make it two").unwrap();
+        assert_eq!(app.assist_log.entries.last().map(|e| e.state), Some(State::Working));
+        wait(&mut app, &ctx);
+        let entry = app.assist_log.entries.last().unwrap().clone();
+        assert_eq!((entry.state, entry.words.as_str(), entry.new.clone()), (State::Suggested, "make it two", vec!["let x = 2;".to_string()]));
+        assert_eq!(entry.place(), "line 1 of Edit1");
+        // Left out, then looked at again from the history and put in after all.
+        assert!(matches!(app.dialog, Dialog::AssistReview(_)), "the suggestion is shown first");
+        app.close_dialog();
+        app.assist_log.update(entry.id, |e| e.state = State::Left);
+        app.show_exchange(entry.id);
+        let Dialog::AssistReview(review) = std::mem::replace(&mut app.dialog, Dialog::None) else {
+            panic!("shown again");
+        };
+        assert!(!review.done, "it can still be put in");
+        app.accept_review(&review).unwrap();
+        assert_eq!(app.docs[app.active].text.line(0).as_ref(), "let x = 2;");
+        // An answer, a failure and a stop are kept too.
+        app.assistant.claude = "echo not signed in 1>&2 & exit 3".into();
+        app.send_to_assistant(Task::Explain, "").unwrap();
+        wait(&mut app, &ctx);
+        assert_eq!(app.assist_log.entries.last().map(|e| e.state), Some(State::Failed));
+        assert!(app.assist_log.entries.last().unwrap().reply.contains("not signed in"));
+        app.assistant.claude = if cfg!(windows) { "ping -n 30 127.0.0.1".into() } else { "sleep 30".into() };
+        app.send_to_assistant(Task::Ask, "why?").unwrap();
+        app.stop_assistant();
+        assert_eq!(app.assist_log.entries.last().map(|e| e.state), Some(State::Stopped));
+        assert_eq!(app.assist_log.entries.len(), 3);
         let _ = std::fs::remove_dir_all(dir);
     }
 

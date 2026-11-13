@@ -33,6 +33,7 @@ pub(super) enum Flag {
     FullScreen,
     Spelling,
     GitBlame,
+    AssistantPanel,
     Panel(PanelFlag),
 }
 
@@ -481,6 +482,8 @@ const TOOLS: &[Entry] = &[
     Sub(
         "Assistant",
         &[
+            Check("Assistant panel", Flag::AssistantPanel),
+            Line,
             Keyed("Fix\u{2026}", Command::Assist(assistant::Task::Fix), "Ctrl+Shift+A"),
             Item("Clean up\u{2026}", Command::Assist(assistant::Task::CleanUp)),
             Item("Write code\u{2026}", Command::Assist(assistant::Task::Write)),
@@ -735,6 +738,7 @@ impl Limoniter {
             Flag::FullScreen => self.full_screen,
             Flag::Spelling => self.prefs.spelling,
             Flag::GitBlame => self.git.blame_on,
+            Flag::AssistantPanel => self.assist_panel.open,
             Flag::Panel(panel) => self.panel_on(panel),
         }
     }
@@ -760,6 +764,10 @@ impl Limoniter {
             Flag::OutputWindow => &mut self.show_results,
             Flag::GitBlame => {
                 self.git.blame_on = !self.git.blame_on;
+                return;
+            }
+            Flag::AssistantPanel => {
+                self.assist_panel.open = !self.assist_panel.open;
                 return;
             }
             Flag::Spelling => {
@@ -830,7 +838,7 @@ impl Limoniter {
             Command::PartHistory => text && !t.is_disk_backed() && doc.narrow.is_none(),
             Command::Untag => text && self.tag_here_to_remove(),
             Command::NextTag | Command::PreviousTag => text && !t.tags().is_empty(),
-            Command::Assist(_) => text && !t.is_disk_backed() && self.assist_job.is_none(),
+            Command::Assist(_) => text && !t.is_disk_backed(),
             Command::ColumnFill | Command::ColumnCut | Command::ColumnDelete | Command::JustifyLeft | Command::JustifyCenter | Command::JustifyRight | Command::ColumnNumber => text && t.is_block(),
             Command::MakeSelections => one_line,
             Command::FilterSelection => doc.filter.is_some() || one_line,

@@ -209,7 +209,8 @@ Switched on under **View, Panels**:
 - Run a command (**F5**) in the file's folder, with `%FILE%`, `%NAME%`, `%STEM%` and `%DIR%`; output goes to the Output panel.
 - Projects: a named set of files with notes, backups and restore; paths kept relative so a project can be moved.
 - File, This file: rename, show in Explorer, open in its usual program, or split into parts. Save just the selection.
-- Coding assistant (**Ctrl+Shift+A**): asks Claude Code or Codex, if installed and signed in, to fix, clean up, explain or write code. Changes are shown first and come off with one Undo. The code is sent to Anthropic or OpenAI by that tool.
+- Coding assistant (**Ctrl+Shift+A**): asks Claude Code or Codex, if installed and signed in, to fix, clean up, explain or write code, or answer a question. Changes are shown first and come off with one Undo. The code is sent to Anthropic or OpenAI by that tool, which can read the folder's files but not change them or run commands.
+- **The Assistant panel** keeps the history of everything asked, between sessions: when, which tool, what was asked, about which lines (a click goes there), and what came of it: the answer to read, or the change suggested and whether it was put in or left out. **Show** brings a suggestion back, and one left out can still be put in while those lines are as they were. A request still working can be stopped from it, and the next one is written at the bottom.
 - Offer Limoniter to Windows as the editor for chosen file types (Settings, File types).
 
 ## Scripts and macros

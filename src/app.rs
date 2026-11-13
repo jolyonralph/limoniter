@@ -1218,7 +1218,6 @@ enum Dialog {
     Snippets(file_tools::SnippetBox),
     RunTool { line: String, save_first: bool, error: String, focus: bool },
     Spelling { found: crate::spelling::Found, chosen: usize },
-    Assist(assistant::AssistBox),
     AssistReview(assistant::Review),
 }
 
@@ -1358,6 +1357,9 @@ pub struct Limoniter {
     /// Which coding assistant, and the commands for each, and one at work.
     assistant: assistant::Setup,
     assist_job: Option<assistant::AssistJob>,
+    /// The Assistant panel, and the history it shows.
+    assist_panel: assistant::AssistPanel,
+    assist_log: assistant_log::Log,
 }
 
 /// A run started with --screenshot: draw for a while, save the window as a picture, and exit.
@@ -1432,6 +1434,7 @@ impl Limoniter {
         let recent_projects = list_setting(&settings, "recent_project").into_iter().map(PathBuf::from).collect();
         // Beside the settings, unless this is a test or a screenshot run with nowhere of its own to write.
         let script_home = if cfg!(test) || (screenshot.is_some() && std::env::var_os("LIMONITER_SETTINGS").is_none()) { None } else { settings_path().and_then(|path| path.parent().map(Path::to_path_buf)) };
+        let assist_log = assistant_log::Log::open(script_home.as_deref());
         let history_root = script_home.as_ref().map(|home| home.join("history"));
         let (remote_sites, known_hosts, remote_recent) = remote_host::read_remote_settings(&settings);
         let remote_root = script_home.as_ref().map(|home| home.join("remote-copies"));
@@ -1484,6 +1487,8 @@ impl Limoniter {
             tags_kept: std::collections::HashMap::new(),
             assistant: assistant::Setup::from_settings(&settings),
             assist_job: None,
+            assist_panel: assistant::AssistPanel::default(),
+            assist_log,
             docs: Vec::new(),
             active: 0,
             untitled_count: 0,
@@ -5897,7 +5902,7 @@ impl Limoniter {
                 "history" => self.edit_tools_screenshot_step("history"),
                 "part-history" => self.part_screenshot_step(),
                 "tags" => self.tags_screenshot_step(),
-                "assistant" | "assistant-review" => self.assistant_screenshot_step(step),
+                "assistant" | "assistant-review" | "assistant-history" => self.assistant_screenshot_step(step),
                 "help" => self.open_help(),
                 "snippets" | "run-tool" | "tool-output" | "spelling" | "spell-box" | "rename" | "split-box" | "cycle" => self.file_tools_screenshot_step(step),
                 "narrow" => self.edit_tools_screenshot_step("narrow"),
@@ -6234,6 +6239,7 @@ impl Limoniter {
         }
         self.side_panels(ui);
         self.git_panel(ui);
+        self.assistant_panel(ui);
         self.machine_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
         self.full_preview_shown = full_preview;
@@ -7062,6 +7068,9 @@ mod color_tags;
 
 #[path = "assistant.rs"]
 mod assistant;
+
+#[path = "assistant_log.rs"]
+mod assistant_log;
 
 #[cfg(test)]
 #[path = "region_panel_tests.rs"]
