@@ -475,3 +475,34 @@ fn source_for_the_68000_without_an_org_becomes_an_atari_st_program() {
     // Hatari runs it.
     assert!(crate::emulators::KNOWN.iter().any(|e| e.id == "hatari" && e.machines.contains(&crate::running::Machine::AtariSt)));
 }
+
+/// A real Hatari, where LIMONITER_HATARI says where it is (and LIMONITER_HATARI_OPTIONS anything it needs, such as
+/// --tos): 68000 source runs there as an Atari ST program, and prints.
+#[test]
+fn an_atari_st_program_runs_on_a_real_hatari() {
+    let Some(program) = std::env::var_os("LIMONITER_HATARI") else {
+        return;
+    };
+    let options = std::env::var("LIMONITER_HATARI_OPTIONS").unwrap_or_default() + " --conout 2 --fast-forward on --sound off";
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "Hatari".into(), place: Place::Emulator { emulator: "hatari".into(), program: program.into(), options }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "hello.s".into();
+    app.doc().text.set_content(include_str!("asm/testdata/st_hello.s").lines().map(str::to_string).collect());
+    app.doc().update_syntax();
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.script_output);
+    let log = match &app.running.sessions[0].kind {
+        run_host::SessionKind::App { log, .. } => log.clone(),
+        _ => panic!("it runs in Hatari"),
+    };
+    let began = std::time::Instant::now();
+    let mut printed = false;
+    while began.elapsed() < Duration::from_secs(40) && !printed {
+        printed = std::fs::read(&log).is_ok_and(|said| String::from_utf8_lossy(&said).contains("Hello from Limoniter"));
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    app.stop_all_sessions();
+    assert!(printed, "the program printed through TOS");
+}
