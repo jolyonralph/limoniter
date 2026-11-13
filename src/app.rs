@@ -195,6 +195,7 @@ enum Command {
     RunOn(usize),
     StopRunning,
     ChooseAssembler,
+    AssembleAndSave,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -279,6 +280,7 @@ impl Command {
                 | Command::ShowFileLists
                 | Command::StopRunning
                 | Command::ChooseAssembler
+                | Command::AssembleAndSave
                 | Command::MachineMemory
                 | Command::MachineScreen
                 | Command::MachineBasicOut
@@ -3508,6 +3510,7 @@ impl Limoniter {
             Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
             Command::StopRunning => self.stop_all_sessions(),
             Command::ChooseAssembler => self.open_assembler_box(),
+            Command::AssembleAndSave => self.assemble_and_save(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
@@ -5952,6 +5955,20 @@ impl Limoniter {
                     self.doc().listing_of = Some((basic::Machine::Spectrum, stem));
                 }
                 "run-builtin" => self.run_on_target(run_host::Target::BuiltIn),
+                "assembler-box" => {
+                    highlight::load_now();
+                    self.doc().resolved_syntax = None;
+                    self.doc().update_syntax();
+                    self.open_assembler_box();
+                }
+                "assemble" => {
+                    highlight::load_now();
+                    self.doc().resolved_syntax = None;
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    self.run_on_machine();
+                    self.dialog = Dialog::None;
+                }
                 // Stops a program at line 6 of its source, as a breakpoint set there does, and waits for it to.
                 "debug-builtin" => {
                     highlight::load_now();

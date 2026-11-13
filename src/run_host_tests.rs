@@ -441,3 +441,21 @@ fn assembler_source_is_debugged_in_a_real_vice() {
     assert!(words.contains("X 13"), "the subroutine ran: {words}");
     app.stop_all_sessions();
 }
+
+#[test]
+fn assembled_programs_are_saved_beside_their_source() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-asmsave-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("stripes.asm");
+    std::fs::write(&path, "  org 32768\nstart: ld a,2\n  out ($fe),a\n  ld hl,$5800\n  djnz start\n  ret\n").unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    app.assemble_and_save();
+    let tape = std::fs::read(folder.join("stripes.tap")).expect("the tape is saved beside the source");
+    assert!(tape.windows(4).any(|w| w == [0x3E, 2, 0xD3, 0xFE]));
+    assert!(app.running.sessions.is_empty(), "nothing runs");
+    let _ = std::fs::remove_dir_all(&folder);
+}

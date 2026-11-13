@@ -182,6 +182,26 @@ impl Limoniter {
         }
     }
 
+    /// Assembles the source in front and saves the program beside it (a .tap, .prg, .nex or .bin), without running
+    /// it.
+    pub(super) fn assemble_and_save(&mut self) {
+        let Some(cpu) = self.doc_cpu(self.active) else {
+            return self.message("Assemble and save", "This isn't assembler source Limoniter knows: Z80, 6502, 6809 or 68000.".into());
+        };
+        let Some(folder) = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf) else {
+            return self.message("Assemble and save", "Save the source first, so the program can be saved beside it.".into());
+        };
+        // A 6809 or 68000 program is saved by assembling it; the others are made ready to run, and saved here.
+        if let Ok(run) = self.assemble_to_run(cpu, true) {
+            let path = folder.join(&run.name);
+            let words = match crate::codec::write_file(&path, &run.bytes) {
+                Ok(()) => format!("Saved {} ({} bytes).", path.display(), run.bytes.len()),
+                Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+            };
+            self.script_print(words, false);
+        }
+    }
+
     /// Goes to a place named in the Output panel: a file and a line, from 1.
     pub(super) fn go_to_place(&mut self, file: &str, line: usize) {
         let named = Path::new(file);
