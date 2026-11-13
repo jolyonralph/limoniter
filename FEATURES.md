@@ -91,6 +91,8 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 
 ## Kinds of computer (presets)
 
+**File, New as** starts a file of a kind: Spectrum, Next, Commodore 64 and BBC BASIC (ready to run with F9 and to send as programs, with GRAPH mode for the Spectrum's), Z80, 6502, 6809 and 68000 assembler with a few lines to begin with, Markdown, and PETSCII, Spectrum, Amiga and DOS text. Each kind is a file ending, an encoding, line endings, colouring, the BASIC it's a listing for and text to start with, and the list is yours to change, add to and reorder, from the menu or Settings, Files.
+
 **Format, Encoding, Kind of computer for new files** fills in character set, line endings and display together. The 21 presets:
 
 - Modern Windows, Legacy Western Windows, DOS US, DOS Western Europe

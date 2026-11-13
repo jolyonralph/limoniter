@@ -197,6 +197,9 @@ enum Command {
     ChooseAssembler,
     AssembleAndSave,
     AssembleBinary,
+    /// A new file of a kind from the New as list, by its place in it.
+    NewAs(usize),
+    EditNewKinds,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -287,6 +290,8 @@ impl Command {
                 | Command::ChooseAssembler
                 | Command::AssembleAndSave
                 | Command::AssembleBinary
+                | Command::NewAs(_)
+                | Command::EditNewKinds
                 | Command::MachineMemory
                 | Command::MachineScreen
                 | Command::MachineBasicOut
@@ -1228,6 +1233,7 @@ enum Dialog {
     Snippets(file_tools::SnippetBox),
     RunTool { line: String, save_first: bool, error: String, focus: bool },
     Assembler(Box<asm_host::AssemblerBox>),
+    NewKinds(Box<new_kinds::NewKindsBox>),
     Spelling { found: crate::spelling::Found, chosen: usize },
     AssistReview(assistant::Review),
 }
@@ -1236,6 +1242,8 @@ pub struct Limoniter {
     docs: Vec<Document>,
     active: usize,
     untitled_count: usize,
+    /// What File, New as offers.
+    new_kinds: Vec<new_kinds::NewKind>,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1503,6 +1511,7 @@ impl Limoniter {
             docs: Vec::new(),
             active: 0,
             untitled_count: 0,
+            new_kinds: new_kinds::kinds_from_settings(&settings),
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -3518,6 +3527,8 @@ impl Limoniter {
             Command::ChooseAssembler => self.open_assembler_box(),
             Command::AssembleAndSave => self.assemble_and_save(),
             Command::AssembleBinary => self.assemble_binary(),
+            Command::NewAs(index) => self.new_of_kind(index),
+            Command::EditNewKinds => self.open_new_kinds_box(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
@@ -4138,7 +4149,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str()
         )
     }
 
@@ -4949,6 +4960,7 @@ impl Limoniter {
                     Some(settings::Outcome::ClearRecent) => self.panels.recent.clear(),
                     Some(settings::Outcome::Themes) => self.open_theme_box(theme_host::ThemePage::Window),
                     Some(settings::Outcome::Assemblers) => self.open_assembler_box(),
+                    Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
                 }
             }
@@ -5666,7 +5678,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5959,6 +5971,7 @@ impl Limoniter {
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
                 "basic-listing" => self.open_basic_listing(),
                 "graph-mode" => self.toggle_graph_mode(),
+                "new-kinds" => self.open_new_kinds_box(),
                 "git-panel" => {
                     self.git.open = true;
                     self.git.blame_on = true;
@@ -7095,6 +7108,9 @@ mod asm_host;
 
 #[path = "zx_host.rs"]
 mod zx_host;
+
+#[path = "new_kinds.rs"]
+mod new_kinds;
 
 #[path = "live_host.rs"]
 mod live_host;
@@ -8399,6 +8415,42 @@ mod tests {
         let screen = app.preview_screen.as_ref().unwrap();
         assert_eq!(screen.rows.len(), 25);
         assert_eq!((screen.rows[0][1].ch, screen.rows[0][1].fg), ('T', crate::retro_screens::TELETEXT[1]));
+    }
+
+    #[test]
+    fn new_as_makes_a_file_of_each_kind_and_the_list_can_be_changed_and_kept() {
+        let (mut app, _ctx) = app_with("");
+        let at = |app: &Limoniter, name: &str| app.new_kinds.iter().position(|k| k.name == name).unwrap();
+        app.new_of_kind(at(&app, "Spectrum BASIC"));
+        let doc = &app.docs[app.active];
+        assert!(doc.name().ends_with(".bas"), "{}", doc.name());
+        assert_eq!(doc.language_name(), highlight::BASIC_SINCLAIR);
+        assert!(matches!(doc.listing_of, Some((basic::Machine::Spectrum, _))), "F9 and Send tokenise it");
+        assert!(app.is_spectrum_basic(app.active), "and GRAPH mode works in it");
+        assert_eq!(&*doc.text.line(0), "10 PRINT \"Hello from Limoniter\"");
+        app.new_of_kind(at(&app, "Z80 assembler"));
+        assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::Z80));
+        app.new_of_kind(at(&app, "Commodore text (PETSCII)"));
+        let doc = &app.docs[app.active];
+        assert_eq!(doc.text.format.charset.id, "petscii-c64");
+        assert_eq!(doc.text.format.display, Display::Petscii, "shown as PETSCII, as its preset is");
+        assert_eq!(doc.text.insert_eol(), Eol::Cr);
+
+        // The usual list isn't written to the settings, so later versions can add to it.
+        assert_eq!(new_kinds::kinds_to_settings(&app.new_kinds), "");
+        let mut kinds = new_kinds::NewKind::usual();
+        kinds.truncate(1);
+        kinds.push(new_kinds::NewKind { name: "QL SuperBASIC".into(), ending: "bas".into(), encoding: "iso-8859-1".into(), eol: Eol::Lf, language: String::new(), program: new_kinds::Program::None, starter: "100 REMark one\n110 PRINT 1".into() });
+        let kept = new_kinds::kinds_to_settings(&kinds);
+        assert_eq!(new_kinds::kinds_from_settings(&kept), kinds);
+        assert!(new_kinds::kinds_from_settings("new_kinds=changed\n").is_empty(), "an emptied list stays empty");
+        app.new_kinds = kinds;
+        app.new_of_kind(1);
+        let doc = &app.docs[app.active];
+        assert_eq!(doc.text.format.charset.id, "iso-8859-1");
+        assert_eq!(doc.text.all_lines().len(), 2);
+        assert_eq!(doc.text.insert_eol(), Eol::Lf);
+        assert!(app.current_settings().contains("new_kind=QL SuperBASIC"));
     }
 
     #[test]

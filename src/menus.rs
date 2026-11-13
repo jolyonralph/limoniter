@@ -67,6 +67,7 @@ pub(super) enum Live {
     Devices,
     Machines,
     RecentFiles,
+    NewAs,
     RecentProjects,
     Language,
     Macros,
@@ -111,6 +112,7 @@ const DELETE_AROUND: [Entry; 6] = objects(TextAction::DeleteAround, false);
 
 const FILE: &[Entry] = &[
     Keyed("New", Command::New, "Ctrl+N"),
+    Entry::Live("New as", Live::NewAs),
     Keyed("Open\u{2026}", Command::Open, "Ctrl+O"),
     Entry::Live("Open recent", Live::RecentFiles),
     Item("Open a remote file (SFTP)\u{2026}", Command::OpenRemote),
@@ -600,6 +602,7 @@ pub(super) fn mac_shortcut(shortcut: &str) -> String {
 
 /// Something chosen from a list that changes.
 enum Pick {
+    Command(Command),
     File(PathBuf),
     Project(PathBuf),
     Play(PathBuf),
@@ -1002,6 +1005,20 @@ impl Limoniter {
                     }
                 }
             }
+            Live::NewAs => {
+                for (index, kind) in self.new_kinds.iter().enumerate() {
+                    let ending = if kind.ending.is_empty() { String::new() } else { format!(".{}", kind.ending) };
+                    if ui.add(Button::new(kind.name.as_str()).shortcut_text(RichText::new(ending).color(theme::text_faint()))).clicked() {
+                        picks.push(Pick::Command(Command::NewAs(index)));
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                if ui.button("Change this list\u{2026}").clicked() {
+                    picks.push(Pick::Command(Command::EditNewKinds));
+                    ui.close();
+                }
+            }
             Live::RecentProjects => {
                 if self.recent_projects.is_empty() {
                     empty(ui, "Projects you open will be listed here.");
@@ -1188,6 +1205,7 @@ impl Limoniter {
                 }
                 Pick::AddOn(number) => self.pending_command = Some(Command::AddOn(number)),
                 Pick::Device(number) => self.pending_command = Some(Command::SendTo(number)),
+                Pick::Command(command) => self.pending_command = Some(command),
                 Pick::RunOn(None) => self.pending_command = Some(Command::RunOnBuiltIn),
                 Pick::RunOn(Some(number)) => self.pending_command = Some(Command::RunOn(number)),
                 Pick::WindowTheme(name) => {

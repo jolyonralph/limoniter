@@ -252,6 +252,7 @@ pub enum Outcome {
     OpenWindowsPage,
     Themes,
     Assemblers,
+    NewKinds,
 }
 
 /// What's being chosen on the File types page, and what Windows has now.
@@ -329,6 +330,7 @@ enum Special {
     MarkdownView,
     ZxNotation,
     Assemblers,
+    NewKinds,
     FileTypes,
 }
 
@@ -419,6 +421,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Open CSV and TSV files as tables", "Files ending .csv, .tsv, .tab or .psv go straight into table view", |t| &mut t.prefs.open_tables),
             Row::Flag("Open each file in a new window", "When a file is opened from Explorer. When off, it opens as a tab in the Limoniter window already open", |t| &mut t.prefs.new_window_per_file),
             Row::Special("Format for new files", Special::Preset),
+            Row::Special("Kinds of new file (File, New as)", Special::NewKinds),
             Row::Special("Recently opened files", Special::ClearRecent),
             Row::Special("Open Markdown files as", Special::MarkdownView),
             Row::Heading("Printing"),
@@ -540,6 +543,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                         ui.selectable_value(&mut target.prefs.markdown_view, view, view.markdown_label());
                     }
                 });
+            }
+            Special::NewKinds => {
+                if ui.button("Change the list\u{2026}").on_hover_text("Each kind is a file ending, an encoding, line endings, colouring, and text to start with").clicked() {
+                    *outcome = Some(Outcome::NewKinds);
+                }
             }
             Special::Assemblers => {
                 if ui.button("Choose\u{2026}").on_hover_text("Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers").clicked() {
