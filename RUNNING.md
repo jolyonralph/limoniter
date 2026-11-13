@@ -42,6 +42,24 @@ through its binary monitor) can also:
 - show their screen as text in the machine's own character set;
 - give back the BASIC program in memory as a listing, and take an edited one back without a reset.
 
+## Assembler source
+
+Source for the Z80, 6502, 6809 or 68000 (told from its highlighting language) is assembled when it's run, with
+Limoniter's own assembler (`src/asm/`: one framework, one module per processor) or the one chosen for the processor
+(`src/assemblers.rs`: sjasmplus, Pasmo, ACME, lwasm, vasm). Either way the result is an `asm::Assembly`: bytes at
+addresses, each source line's address and bytes, and problems by file and line. `src/asm_host.rs` turns it into
+something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line) or a file to save (6809 and
+68000), shows the problems, and keeps it for the debugger. Each processor's every instruction form is checked byte
+for byte against its reference assembler (`src/asm/testdata`).
+
+Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and
+the address stopped at back to a line:
+
+- The built-in Spectrum: rustzx's debug interface (`zx_machine::Breaks`), registers read from a snapshot.
+- ZEsarUX (`src/remote_debug.rs`): ZRCP in step mode, started empty so the breakpoints are set before the program
+  loads; a Spectrum tape is loaded in the built-in Spectrum and handed over as a snapshot at its first instruction.
+- VICE: binary monitor checkpoints, set before the program is autostarted through the monitor.
+
 ## Ground rules
 
 - Only programs listed as emulators, by you or by Limoniter's search, are ever started.

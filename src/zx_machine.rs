@@ -963,6 +963,25 @@ mod tests {
     }
 
     #[test]
+    fn a_128k_program_stops_at_breakpoints_too() {
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  device zxspectrum128\n  org 32768\nstart: ld a,7\n  ld bc,$1234\nloop: jr loop\n", &|_| Err("no".into()));
+        assert!(assembly.ok(), "{:?}", assembly.problems);
+        let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
+        let run = Runnable { machine: Machine::Spectrum128, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
+        let mut machine = BuiltIn::start(&run).unwrap();
+        machine.set_breakpoints([0x8002]);
+        assert!(run_until(&mut machine, 50 * 60, |m| m.stopped.is_some()), "it stops");
+        let r = machine.registers();
+        assert_eq!((machine.stopped, r.pc, r.af >> 8), (Some(0x8002), 0x8002, 7));
+        machine.step().unwrap();
+        assert_eq!((machine.stopped, machine.registers().bc), (Some(0x8005), 0x1234));
+        // Its snapshot, for an emulator, is a 128K one that starts there.
+        let snapshot = BuiltIn::snapshot_at(&run, 0x8000).unwrap();
+        assert_eq!(snapshot.len(), 131103);
+        assert_eq!(u16::from_le_bytes([snapshot[27 + 3 * 16384], snapshot[28 + 3 * 16384]]), 0x8000);
+    }
+
+    #[test]
     fn memory_can_be_read_and_changed() {
         let mut machine = BuiltIn::start(&tape_of(&["10 STOP"])).unwrap();
         machine.frame().unwrap();
