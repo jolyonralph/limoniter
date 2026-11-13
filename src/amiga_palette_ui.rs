@@ -53,21 +53,21 @@ pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor)
     for row in 0..2 {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 3.0;
-            for pen in row * 8..row * 8 + 8 {
+            for (pen, value) in palette.pens.iter().copied().enumerate().skip(row * 8).take(8) {
                 let (rect, response) = ui.allocate_exact_size(vec2(34.0, 24.0), Sense::click());
-                let colour = amiga_colour(palette.pens[pen]);
+                let colour = amiga_colour(value);
                 ui.painter().rect_filled(rect, 2.0, colour);
                 let chosen = editor.pen == Some(pen);
                 let stroke = if chosen { egui::Stroke::new(2.0, theme::accent()) } else { egui::Stroke::new(1.0, theme::text_faint()) };
                 ui.painter().rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
                 let ink = if colour.r() as u16 + colour.g() as u16 + colour.b() as u16 > 380 { Color32::BLACK } else { Color32::WHITE };
                 ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, pen.to_string(), egui::FontId::proportional(11.0), ink);
-                if response.on_hover_text(format!("Pen {pen}: {:03X}. Click to change it.", palette.pens[pen])).clicked() {
+                if response.on_hover_text(format!("Pen {pen}: {value:03X}. Click to change it.")).clicked() {
                     if chosen {
                         editor.pen = None;
                     } else {
                         editor.pen = Some(pen);
-                        editor.hex = format!("{:03X}", palette.pens[pen]);
+                        editor.hex = format!("{value:03X}");
                     }
                 }
             }
