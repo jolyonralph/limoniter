@@ -309,6 +309,21 @@ fn the_rainbow_example_colours_the_screen_in_diagonal_stripes() {
 }
 
 #[test]
+fn source_is_assembled_to_just_its_bytes() {
+    let (mut app, _ctx) = app_with("");
+    z80_source(&mut app, &["  org 40000", "  ld a,2", "  ex de,hl", "  ld b,a", "data: db 1,2,3", "start: ret", "  end start"]);
+    let (bytes, low, start) = app.assembled_bytes().unwrap();
+    assert_eq!(bytes, [0x3E, 2, 0xEB, 0x47, 1, 2, 3, 0xC9], "no loader, no header");
+    assert_eq!((low, start), (40000, 40007));
+    // Even for the Next, where it would otherwise be a .nex.
+    z80_source(&mut app, &["  device zxspectrumnext", "  org $8000", "  nextreg 7,3", "  ld a,1", "  ld b,a", "  ret"]);
+    assert_eq!(app.assembled_bytes().unwrap().0, [0xED, 0x91, 7, 3, 0x3E, 1, 0x47, 0xC9]);
+    z80_source(&mut app, &["  org 32768", "  ex de,hl", "  ld b,a", "  ld q,1"]);
+    assert_eq!(app.assembled_bytes().unwrap_err(), None, "problems go in the Output panel");
+    assert!(app.script_output.iter().any(|l| l.contains("border.asm(4)")), "{:?}", app.script_output);
+}
+
+#[test]
 fn assembler_problems_are_listed_marked_and_gone_to() {
     let (mut app, _ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");
     z80_source(&mut app, &["  org 32768", "  ld a,1", "  ld q,1", "  jp nowhere"]);

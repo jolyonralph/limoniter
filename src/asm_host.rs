@@ -63,6 +63,12 @@ impl Limoniter {
     /// (saving first for another program to read) and the problems are shown; without, only Limoniter's own
     /// assembler is used, quietly, to say what the program is for. An empty error means the problems are shown.
     pub(super) fn assemble_to_run(&mut self, cpu: Cpu, report: bool) -> Result<Runnable, String> {
+        self.assemble_source(cpu, report, report)
+    }
+
+    /// Assembles the source in front, reporting what came of it with `report`, and with `save`, saving the file
+    /// a processor's programs are saved as rather than run (a 6809's, or a 68000's with an ORG).
+    fn assemble_source(&mut self, cpu: Cpu, report: bool, save: bool) -> Result<Runnable, String> {
         let choice = self.assembler_for(cpu);
         let doc = &self.docs[self.active];
         let (doc_id, version) = (doc.id, doc.text.version());
@@ -97,19 +103,20 @@ impl Limoniter {
                 }
                 let version = self.docs[self.active].text.version();
                 let assembled = assemblers::assemble_external(found, program, &path)?;
-                return self.keep_assembled(doc_id, version, &choice, assembled, &stem, report);
+                return self.keep_assembled(doc_id, version, &choice, assembled, &stem, report, save);
             }
             Choice::Program { .. } => return Err("Not assembled yet.".into()),
         };
-        self.keep_assembled(doc_id, version, &choice, assembled, &stem, report)
+        self.keep_assembled(doc_id, version, &choice, assembled, &stem, report, save)
     }
 
-    fn keep_assembled(&mut self, doc_id: u64, version: u64, choice: &Choice, assembled: Assembled, stem: &str, report: bool) -> Result<Runnable, String> {
+    #[allow(clippy::too_many_arguments)]
+    fn keep_assembled(&mut self, doc_id: u64, version: u64, choice: &Choice, assembled: Assembled, stem: &str, report: bool, save: bool) -> Result<Runnable, String> {
         let cpu = self.doc_cpu(self.active).unwrap_or(Cpu::Z80);
         let made = if assembled.assembly.ok() { made_from(cpu, &assembled, stem) } else { Err(String::new()) };
         // A file to save is saved (only when asked to assemble, not for a menu), and nothing runs.
         let saved = match &made {
-            Ok(Made::Saved { name, bytes }) if report => {
+            Ok(Made::Saved { name, bytes }) if save => {
                 let folder = self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf);
                 Some(match folder {
                     Some(folder) => {
@@ -200,6 +207,52 @@ impl Limoniter {
             };
             self.script_print(words, false);
         }
+    }
+
+    /// Assembles the source in front and saves just the bytes it makes, from the lowest address to the highest,
+    /// with no loader or header: a file to INCBIN, LOAD "" CODE at its address, or put in a ROM.
+    pub(super) fn assemble_binary(&mut self) {
+        let (bytes, low, start) = match self.assembled_bytes() {
+            Ok(made) => made,
+            Err(Some(problem)) => return self.message("Assemble and save as binary", problem),
+            Err(None) => return,
+        };
+        let doc = &self.docs[self.active];
+        let stem = doc.path_or_name().file_stem().map_or_else(|| "program".to_string(), |s| s.to_string_lossy().into_owned());
+        let mut picker = rfd::FileDialog::new().set_title("Save the assembled bytes as").set_file_name(format!("{stem}.bin")).add_filter("Binary", &["bin"]).add_filter("Any file", &["*"]);
+        if let Some(folder) = doc.path.as_deref().and_then(Path::parent) {
+            picker = picker.set_directory(folder);
+        }
+        let Some(path) = picker.save_file() else {
+            return;
+        };
+        let words = match crate::codec::write_file(&path, &bytes) {
+            Ok(()) => {
+                let run = if start == low { String::new() } else { format!(", starting at {start} (${start:04X})") };
+                format!("Saved {} bytes to {}: load them at {low} (${low:04X}){run}.", bytes.len(), path.display())
+            }
+            Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+        };
+        self.script_print(words, false);
+    }
+
+    /// The source in front, assembled: its bytes from the lowest address to the highest, that address, and where
+    /// it starts. Problems are in the Output panel, so they give no message here (None).
+    pub(super) fn assembled_bytes(&mut self) -> Result<(Vec<u8>, i64, i64), Option<String>> {
+        let Some(cpu) = self.doc_cpu(self.active) else {
+            return Err(Some("This isn't assembler source Limoniter knows: Z80, 6502, 6809 or 68000.".into()));
+        };
+        let doc_id = self.docs[self.active].id;
+        // What can't run (a .nex the source doesn't set up, say) can still be saved as bytes.
+        let _ = self.assemble_source(cpu, true, false);
+        let assembly = self.running.assembled.as_ref().filter(|cache| cache.doc_id == doc_id).map(|cache| cache.assembly.clone()).ok_or(None)?;
+        if !assembly.ok() {
+            return Err(None);
+        }
+        let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+            return Err(Some(format!("{} gave back no bytes to save, only its own file. Choose Limoniter's own assembler, or sjasmplus, in Run on, Assembler, to save them.", self.assembler_for(cpu).name())));
+        };
+        Ok((assembly.image(low, high), low, assembly.start().unwrap_or(low)))
     }
 
     /// Goes to a place named in the Output panel: a file and a line, from 1.

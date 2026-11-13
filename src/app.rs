@@ -196,6 +196,7 @@ enum Command {
     StopRunning,
     ChooseAssembler,
     AssembleAndSave,
+    AssembleBinary,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -285,6 +286,7 @@ impl Command {
                 | Command::StopRunning
                 | Command::ChooseAssembler
                 | Command::AssembleAndSave
+                | Command::AssembleBinary
                 | Command::MachineMemory
                 | Command::MachineScreen
                 | Command::MachineBasicOut
@@ -3515,6 +3517,7 @@ impl Limoniter {
             Command::StopRunning => self.stop_all_sessions(),
             Command::ChooseAssembler => self.open_assembler_box(),
             Command::AssembleAndSave => self.assemble_and_save(),
+            Command::AssembleBinary => self.assemble_binary(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
