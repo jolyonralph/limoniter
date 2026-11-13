@@ -192,7 +192,10 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     const PIC: [&str; 13] = ["movlw", "movwf", "bsf", "bcf", "btfss", "btfsc", "decfsz", "incfsz", "addlw", "retlw", "banksel", "clrf", "movf"];
     // Interrupts for DOS and the PC's BIOS, which only 16-bit programs call.
     const DOS_CALLS: [&str; 5] = ["10h", "13h", "16h", "20h", "21h"];
+    // The 6502's own: the 6809 shares LDA, STA, BNE and the rest.
+    const M6502_ONLY: [&str; 16] = ["inx", "iny", "dex", "dey", "tax", "txa", "tay", "tya", "pha", "pla", "php", "plp", "sei", "cli", "cpy", "sty"];
     let (mut m68k, mut m6502, mut z80, mut m86, mut hlasm) = (0, 0, 0, 0, 0);
+    let mut m6502_only = 0;
     let mut others = [(0usize, ASM_6809, &M6809[..]), (0, ASM_8080, &I8080[..]), (0, ASM_65816, &W65816[..]), (0, ASM_ARM, &ARM[..]), (0, ASM_PDP11, &PDP11[..]), (0, ASM_VAX, &VAX[..]), (0, ASM_AVR, &AVR[..]), (0, ASM_PIC, &PIC[..])];
     let mut sixty_four = false;
     for line in lines {
@@ -211,6 +214,13 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
         }
         if names.iter().any(|(name, _)| M6502.contains(name)) {
             m6502 += 1;
+        }
+        if names.iter().any(|(name, _)| M6502_ONLY.contains(name)) {
+            m6502_only += 1;
+        }
+        // Indexing only the 6809 has: from U, S or PC, or with auto increment.
+        if [",u", ",s", "pcr", ",x+", ",y+", ",-x", ",-y", "[,x", "[,y"].iter().any(|mark| code.contains(mark)) {
+            others[0].0 += 1;
         }
         if names.iter().any(|(name, _)| Z80.contains(name)) {
             z80 += 1;
@@ -233,6 +243,10 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     // Code that uses 64-bit registers belongs with the newer x86-64 grammar, whatever else it does.
     if sixty_four {
         m86 = 0;
+    }
+    // With the 6809's own instructions about, only the 6502's own count for the 6502.
+    if others[0].0 > 0 {
+        m6502 = m6502_only;
     }
     // The 65816 runs 6502 code, so the 6502's instructions count for it too once its own turn up.
     if others[2].0 > 0 {

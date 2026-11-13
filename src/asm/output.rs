@@ -71,6 +71,26 @@ pub fn commodore_program(assembly: &Assembly) -> Result<Vec<u8>, String> {
     Ok(prg)
 }
 
+/// A Color Computer binary (Disk Extended Color BASIC's LOADM file): each run of bytes after a header saying
+/// where it goes, then where to start. Dragons load it too, with a DECB loader.
+pub fn coco_binary(assembly: &Assembly) -> Result<Vec<u8>, String> {
+    if assembly.lowest().is_none() {
+        return Err("Nothing was assembled.".into());
+    }
+    let mut file = Vec::new();
+    for chunk in assembly.chunks.iter().filter(|c| !c.bytes.is_empty()) {
+        for (i, piece) in chunk.bytes.chunks(0xFFFF).enumerate() {
+            file.push(0);
+            file.extend((piece.len() as u16).to_be_bytes());
+            file.extend(((chunk.address + i as i64 * 0xFFFF) as u16).to_be_bytes());
+            file.extend_from_slice(piece);
+        }
+    }
+    file.extend([0xFF, 0, 0]);
+    file.extend((assembly.start().unwrap_or(0) as u16).to_be_bytes());
+    Ok(file)
+}
+
 /// A .nex for the Spectrum Next (version 1.2 of the format): the 64K the program sees, as banks 5, 2 and 0 at
 /// $4000, $8000 and $C000, started at its entry with the stack below $FFFE.
 pub fn next_file(assembly: &Assembly, stack: Option<i64>) -> Result<Vec<u8>, String> {

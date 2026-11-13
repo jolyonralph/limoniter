@@ -316,3 +316,24 @@ fn source_for_the_6502_becomes_a_commodore_64_program() {
     let run = app.runnable().unwrap().unwrap();
     assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::C64, crate::running::Format::Prg, "border.prg"));
 }
+
+#[test]
+fn source_for_the_6809_is_saved_as_a_color_computer_binary() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-6809-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("hello.asm");
+    std::fs::write(&path, " org $3000\nstart ldx #$400\n lda #$41\nloop sta ,x+\n cmpx #$600\n bne loop\n leay 2,y\n pshs a,b\n rts\n end start\n").unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6809), "{}", app.doc().language_name());
+    app.run_on_machine();
+    assert!(app.running.sessions.is_empty() && matches!(app.dialog, Dialog::None));
+    let saved = std::fs::read(folder.join("hello.bin")).expect("saved beside the source");
+    assert_eq!(&saved[..5], &[0, 0, 17, 0x30, 0x00]);
+    assert_eq!(&saved[saved.len() - 5..], &[0xFF, 0, 0, 0x30, 0x00]);
+    assert!(app.script_output.iter().any(|l| l.starts_with("Saved ")), "{:?}", app.script_output);
+    let _ = std::fs::remove_dir_all(&folder);
+}

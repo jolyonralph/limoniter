@@ -5,6 +5,7 @@
 
 pub mod expr;
 pub mod m6502;
+pub mod m6809;
 pub mod output;
 pub mod z80;
 
@@ -194,6 +195,8 @@ struct Pass<'a> {
     /// Anonymous labels (-, --, +, ++), where each was, in order, this pass and the last.
     anonymous: HashMap<String, Vec<i64>>,
     previous_anonymous: HashMap<String, Vec<i64>>,
+    /// The 6809's direct page, as SETDP says (none: never assumed).
+    direct_page: Option<i64>,
     global: String,
     /// Inside a macro: what its local labels are known by.
     macro_scope: Option<String>,
@@ -223,6 +226,7 @@ impl<'a> Pass<'a> {
             shift: 0,
             anonymous: HashMap::new(),
             previous_anonymous: HashMap::new(),
+            direct_page: Some(0),
             global: String::new(),
             macro_scope: None,
             macros: HashMap::new(),
@@ -784,6 +788,13 @@ impl<'a> Pass<'a> {
                 }
             }
             "error" | "fail" => self.problem(unquote(operands)),
+            "setdp" => {
+                self.direct_page = if operands.is_empty() { None } else { self.eval(operands).ok().map(|v| if v > 0xFF { v >> 8 } else { v }) };
+            }
+            "zmb" => {
+                let count = self.eval(operands).unwrap_or(0).clamp(0, 0x100_0000);
+                self.emit(vec![0; count as usize]);
+            }
             // Directives that change only listings and the like.
             _ => {}
         }
@@ -904,6 +915,11 @@ impl Line<'_, '_> {
         self.pass.pc + self.pass.shift
     }
 
+    /// The 6809's direct page, as SETDP set it.
+    pub fn direct_page(&self) -> Option<i64> {
+        self.pass.direct_page
+    }
+
     /// Whether this is the pass that reports problems (and so values must be in range).
     pub fn checking(&self) -> bool {
         self.pass.last
@@ -912,7 +928,7 @@ impl Line<'_, '_> {
 
 /// Words the assembler itself understands.
 const DIRECTIVES: &[&str] = &[
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set",
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.

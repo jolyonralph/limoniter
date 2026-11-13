@@ -201,3 +201,17 @@ fn a_commodore_program_starts_with_run() {
     assert_eq!(&prg[2 + 0xC000 - 0x0801..], &[0xA9, 1, 0x60]);
     assert!(output::commodore_program(&m6502("  *=$0805\n  nop\n")).is_err());
 }
+
+/// Every 6809 instruction, with every indexed mode, as lwasm assembles them.
+#[test]
+fn every_6809_instruction_is_assembled_as_lwasm_does() {
+    let source = include_str!("testdata/m6809_all.asm");
+    let assembly = assemble(&m6809::M6809, Path::new("test.asm"), source, &no_files);
+    assert!(assembly.ok(), "{:?}", assembly.problems.iter().take(5).collect::<Vec<_>>());
+    let expected = include_bytes!("testdata/m6809_all.bin");
+    for placed in &assembly.lines {
+        let at = (placed.address - 0x1000) as usize;
+        assert_eq!(Some(&placed.bytes[..]), expected.get(at..at + placed.bytes.len()), "line {}: {}", placed.line + 1, source.lines().nth(placed.line).unwrap_or(""));
+    }
+    assert_eq!(assembly.image(0x1000, 0x1000 + expected.len() as i64), expected);
+}

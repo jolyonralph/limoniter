@@ -106,9 +106,34 @@ impl Limoniter {
 
     fn keep_assembled(&mut self, doc_id: u64, version: u64, choice: &Choice, assembled: Assembled, stem: &str, report: bool) -> Result<Runnable, String> {
         let cpu = self.doc_cpu(self.active).unwrap_or(Cpu::Z80);
-        let runnable = if assembled.assembly.ok() { runnable_from(cpu, &assembled, stem) } else { Err(String::new()) };
+        let made = if assembled.assembly.ok() { made_from(cpu, &assembled, stem) } else { Err(String::new()) };
+        // A file to save is saved (only when asked to assemble, not for a menu), and nothing runs.
+        let saved = match &made {
+            Ok(Made::Saved { name, bytes }) if report => {
+                let folder = self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf);
+                Some(match folder {
+                    Some(folder) => {
+                        let path = folder.join(name);
+                        match crate::codec::write_file(&path, bytes) {
+                            Ok(()) => format!("Saved {} ({} bytes): load it into an emulator, as LOADM does.", path.display(), bytes.len()),
+                            Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+                        }
+                    }
+                    None => format!("Save the source first, so {name} can be saved beside it."),
+                })
+            }
+            _ => None,
+        };
+        let runnable = match made {
+            Ok(Made::Run(run)) => Ok(run),
+            Ok(Made::Saved { .. }) => Err(String::new()),
+            Err(problem) => Err(problem),
+        };
         if report {
             self.report_assembly(doc_id, choice, &assembled, &runnable);
+            if let Some(words) = saved {
+                self.script_print(words, false);
+            }
         }
         let assembly = Arc::new(assembled.assembly);
         self.running.assembled = Some(AssembledCache { doc_id, version, choice: choice.setting(), runnable: runnable.clone(), assembly });
@@ -139,6 +164,10 @@ impl Limoniter {
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
             }
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
+            Err(_) if assembly.ok() => {
+                let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
+                lines.push(format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}.", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)));
+            }
             Err(_) => lines.push(format!("{} problem{}.", assembly.problems.len(), if assembly.problems.len() == 1 { "" } else { "s" })),
         }
         for (n, line) in lines.into_iter().enumerate() {
@@ -263,6 +292,21 @@ impl Limoniter {
 
 /// What a program assembled runs as: a tape for a Spectrum, or a .nex for the Next if the source says DEVICE
 /// ZXSPECTRUMNEXT.
+/// What a program assembled is made into: something to run, or, for a processor nothing here runs yet, a file to
+/// save beside its source.
+pub enum Made {
+    Run(Runnable),
+    Saved { name: String, bytes: Vec<u8> },
+}
+
+pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, String> {
+    match cpu {
+        // A Color Computer binary, which LOADM loads, for an emulator such as XRoar or MAME.
+        Cpu::M6809 => Ok(Made::Saved { name: format!("{stem}.bin"), bytes: crate::asm::output::coco_binary(&assembled.assembly)? }),
+        _ => runnable_from(cpu, assembled, stem).map(Made::Run),
+    }
+}
+
 pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runnable, String> {
     if let Some((format, bytes)) = &assembled.tape {
         let name = format!("{stem}.{}", format.ending());
