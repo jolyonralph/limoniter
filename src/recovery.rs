@@ -874,10 +874,13 @@ mod tests {
         let mut data = fs::read(&copy).unwrap();
         data[40] ^= 1;
         fs::write(&copy, &data).unwrap();
+        wait_until_let_go(&root);
         let (orphans, found) = find_orphans(&root);
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         assert_eq!(bytes_after_recovery(&meta, body), b"second\n");
         drop(orphans);
+        // A program another test is starting can hold the lock for a moment as it starts.
+        wait_until_let_go(&root);
 
         // A crash between the two renames leaves only the previous copy.
         fs::remove_file(&copy).unwrap();
@@ -971,6 +974,7 @@ mod tests {
     }
 
     fn recovered_bytes(root: &Path) -> Vec<u8> {
+        wait_until_let_go(root);
         let (orphans, found) = find_orphans(root);
         assert_eq!(found.len(), 1, "one document to offer");
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
