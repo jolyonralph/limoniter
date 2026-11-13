@@ -23,22 +23,6 @@ pub enum Machine {
 }
 
 impl Machine {
-    pub const ALL: [Machine; 13] = [
-        Machine::Spectrum48,
-        Machine::Spectrum128,
-        Machine::SpectrumPlus3,
-        Machine::Pentagon,
-        Machine::Next,
-        Machine::C64,
-        Machine::C128,
-        Machine::Vic20,
-        Machine::Plus4,
-        Machine::Pet,
-        Machine::Bbc,
-        Machine::Msx,
-        Machine::Cpc,
-    ];
-
     pub fn name(self) -> &'static str {
         match self {
             Machine::Spectrum48 => "ZX Spectrum 48K",
@@ -74,10 +58,6 @@ impl Machine {
             Machine::Msx => "msx",
             Machine::Cpc => "cpc",
         }
-    }
-
-    pub fn from_id(id: &str) -> Option<Machine> {
-        Machine::ALL.into_iter().find(|machine| machine.id() == id)
     }
 
     /// A Spectrum of the kind the built-in machine, and any Spectrum emulator, runs.
@@ -165,11 +145,6 @@ impl Format {
     pub fn from_ending(ending: &str) -> Option<Format> {
         let ending = ending.to_ascii_lowercase();
         Format::ALL.into_iter().find(|format| format.ending() == ending)
-    }
-
-    /// Whether it's a whole disk, which a machine mounts rather than loads.
-    pub fn is_disk(self) -> bool {
-        matches!(self, Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd)
     }
 }
 

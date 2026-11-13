@@ -131,11 +131,12 @@ impl Emulator {
         if sibling.exists() { sibling } else { found.to_path_buf() }
     }
 
-    /// The arguments that start it running a file on a machine, reachable on `port` if it can be reached, with the
-    /// person's own extra options before the file.
+    /// The arguments that start it running a file on a machine, reachable on `port` if it can be reached. The
+    /// person's own extra options come first, so that one that resets everything (as VICE's -default does) can't
+    /// undo what Limoniter asks for, and one that has to be first (as ZEsarUX's --noconfigfile does) is.
     pub fn arguments(&self, machine: Machine, format: Format, file: &Path, port: Option<u16>, extra: &str) -> Vec<String> {
         let file = file.display().to_string();
-        let mut args: Vec<String> = Vec::new();
+        let mut args = split_options(extra);
         match self.id {
             "zesarux" => {
                 let id = match machine {
@@ -149,6 +150,7 @@ impl Emulator {
                 if let Some(port) = port {
                     args.extend(["--enable-remoteprotocol".into(), "--remoteprotocol-port".into(), port.to_string()]);
                 }
+                args.push(file);
             }
             "fuse" => {
                 let id = match machine {
@@ -157,35 +159,23 @@ impl Emulator {
                     Pentagon => "pentagon",
                     _ => "48",
                 };
-                args.extend(["--machine".into(), id.into(), "--auto-load".into()]);
+                args.extend(["--machine".into(), id.into(), "--auto-load".into(), file]);
             }
-            "cspect" => args.extend(["-zxnext".into(), "-w3".into()]),
+            "cspect" => args.extend(["-zxnext".into(), "-w3".into(), file]),
             "vice" => {
                 if let Some(port) = port {
                     args.extend(["-binarymonitor".into(), "-binarymonitoraddress".into(), format!("ip4://127.0.0.1:{port}")]);
                 }
-                args.push("-autostart".into());
+                // A program is put straight into memory and run, which needs no disk drive set up.
+                if matches!(format, Prg | P00) {
+                    args.extend(["-autostartprgmode".into(), "1".into()]);
+                }
+                args.extend(["-autostart".into(), file]);
             }
-            "b2" => {
-                args.extend(split_options(extra));
-                return [args, vec!["-0".into(), file, "-b".into()]].concat();
-            }
-            "openmsx" => {
-                args.extend(split_options(extra));
-                let slot = if format == Cas { "-cassetteplayer" } else { "-carta" };
-                return [args, vec![slot.into(), file]].concat();
-            }
-            _ => {}
+            "b2" => args.extend(["-0".into(), file, "-b".into()]),
+            "openmsx" => args.extend([if format == Cas { "-cassetteplayer" } else { "-carta" }.into(), file]),
+            _ => args.push(file),
         }
-        // VICE's -autostart takes the file as its value, so the person's options go before it.
-        if self.id == "vice" {
-            let autostart = args.pop();
-            args.extend(split_options(extra));
-            args.extend(autostart);
-        } else {
-            args.extend(split_options(extra));
-        }
-        args.push(file);
         args
     }
 }
@@ -305,9 +295,9 @@ mod tests {
         let file = Path::new("/tmp/game.tap");
         let zesarux = by_id("zesarux").unwrap();
         assert_eq!(zesarux.arguments(Spectrum128, Tap, file, Some(10000), ""), ["--machine", "128k", "--enable-remoteprotocol", "--remoteprotocol-port", "10000", "/tmp/game.tap"]);
-        assert_eq!(by_id("fuse").unwrap().arguments(SpectrumPlus3, Dsk, Path::new("/tmp/d.dsk"), None, "--full-screen"), ["--machine", "plus3", "--auto-load", "--full-screen", "/tmp/d.dsk"]);
+        assert_eq!(by_id("fuse").unwrap().arguments(SpectrumPlus3, Dsk, Path::new("/tmp/d.dsk"), None, "--full-screen"), ["--full-screen", "--machine", "plus3", "--auto-load", "/tmp/d.dsk"]);
         let vice = by_id("vice").unwrap();
-        assert_eq!(vice.arguments(C64, Prg, Path::new("/tmp/a.prg"), Some(6502), "-warp"), ["-binarymonitor", "-binarymonitoraddress", "ip4://127.0.0.1:6502", "-warp", "-autostart", "/tmp/a.prg"]);
+        assert_eq!(vice.arguments(C64, Prg, Path::new("/tmp/a.prg"), Some(6502), "-default"), ["-default", "-binarymonitor", "-binarymonitoraddress", "ip4://127.0.0.1:6502", "-autostartprgmode", "1", "-autostart", "/tmp/a.prg"], "-default can't switch the monitor off");
         assert_eq!(by_id("b2").unwrap().arguments(Bbc, Ssd, Path::new("/tmp/a.ssd"), None, ""), ["-0", "/tmp/a.ssd", "-b"]);
         assert_eq!(by_id("openmsx").unwrap().arguments(Msx, Cas, Path::new("/tmp/a.cas"), None, "-machine Philips_NMS_8250"), ["-machine", "Philips_NMS_8250", "-cassetteplayer", "/tmp/a.cas"]);
         assert_eq!(by_id("cspect").unwrap().arguments(Next, Nex, Path::new("/tmp/a.nex"), None, ""), ["-zxnext", "-w3", "/tmp/a.nex"]);

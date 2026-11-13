@@ -94,6 +94,12 @@ fn a_program_runs_on_a_real_zesarux() {
         false
     };
     assert!(screen_says("HELLO"), "the program ran and printed");
+    // Its BASIC comes out through the remote protocol, too.
+    let running = app.active;
+    app.take_machine_basic();
+    let lines: Vec<String> = (0..app.docs[app.active].text.line_count()).map(|i| app.docs[app.active].text.line(i).to_string()).collect();
+    assert_eq!(lines, ["  10 PRINT \"HELLO\"", "  20 GO TO 20"]);
+    app.active = running;
     let pid = match &app.running.sessions[0].kind {
         run_host::SessionKind::App { child, .. } => child.id(),
         _ => unreachable!(),
@@ -103,5 +109,46 @@ fn a_program_runs_on_a_real_zesarux() {
     assert_eq!(app.running.sessions.len(), 1);
     assert!(matches!(&app.running.sessions[0].kind, run_host::SessionKind::App { child, .. } if child.id() == pid), "loaded into the same ZEsarUX");
     assert!(screen_says("AGAIN"), "the second program ran there");
+    app.stop_all_sessions();
+}
+
+/// A real VICE, where LIMONITER_VICE says where x64sc is (and LIMONITER_VICE_OPTIONS anything it needs, such as
+/// where its ROMs are): run starts it with the program, which prints; its BASIC comes out as a listing, and an
+/// edited one goes back in and runs.
+#[test]
+fn a_program_runs_on_a_real_vice_and_its_basic_goes_both_ways() {
+    let Some(program) = std::env::var_os("LIMONITER_VICE") else {
+        return;
+    };
+    let options = std::env::var("LIMONITER_VICE_OPTIONS").unwrap_or_default();
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "VICE".into(), place: Place::Emulator { emulator: "vice".into(), program: program.into(), options }, preset: None, eject: false }];
+    listing(&mut app, &["10 PRINT \"HELLO\"", "20 GOTO 20"], basic::Machine::Commodore(basic::CbmMachine::C64));
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    let (reach, machine, _) = app.reachable().expect("VICE can be reached");
+    let screen_says = |app: &mut Limoniter, text: &str| {
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(60) {
+            let seen = app.screen_of(reach, machine);
+            if std::env::var_os("LIMONITER_DEBUG").is_some() {
+                eprintln!("{seen:?}");
+            }
+            if seen.is_ok_and(|lines| lines.iter().any(|line| line.contains(text))) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        false
+    };
+    assert!(screen_says(&mut app, "HELLO"), "the program ran and printed");
+    app.take_machine_basic();
+    let lines: Vec<String> = (0..app.docs[app.active].text.line_count()).map(|i| app.docs[app.active].text.line(i).to_string()).collect();
+    assert_eq!(lines, ["10 PRINT \"HELLO\"", "20 GOTO 20"]);
+    // Putting it back while it runs is fine on a C64, as the RUN typed after starts it afresh.
+    app.doc().text.set_content(vec!["10 PRINT \"AGAIN\"".into(), "20 GOTO 20".into()]);
+    app.put_machine_basic();
+    assert!(matches!(app.dialog, Dialog::None));
+    assert!(screen_says(&mut app, "AGAIN"), "the program put back ran");
     app.stop_all_sessions();
 }

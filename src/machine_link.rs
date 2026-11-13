@@ -105,7 +105,6 @@ const MEMORY_GET: u8 = 0x01;
 const MEMORY_SET: u8 = 0x02;
 const EXIT: u8 = 0xAA;
 const KEYBOARD_FEED: u8 = 0x72;
-const AUTOSTART: u8 = 0xDD;
 
 impl ViceMonitor {
     pub fn connect(port: u16) -> Result<ViceMonitor, String> {
@@ -161,14 +160,6 @@ impl ViceMonitor {
         let mut body = vec![bytes.len() as u8];
         body.extend(bytes);
         self.command(KEYBOARD_FEED, &body).map(|_| ())
-    }
-
-    /// Loads and runs a file, as -autostart does.
-    pub fn autostart(&mut self, file: &Path) -> Result<(), String> {
-        let name = file.display().to_string();
-        let mut body = vec![1, 0, 0, name.len() as u8];
-        body.extend(name.as_bytes());
-        self.command(AUTOSTART, &body).map(|_| ())
     }
 }
 

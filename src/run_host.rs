@@ -195,13 +195,16 @@ impl Limoniter {
 
     pub(super) fn run_on(&mut self, target: Target, run: Runnable) {
         let name = self.target_name(target);
+        // An emulator, the built-in Spectrum and an Ultimate run it; anywhere else it's sent, to be started there.
+        let mut runs = true;
         let outcome = match target {
             Target::BuiltIn => self.run_built_in(run.clone()),
             Target::Device(n) => {
                 let device = self.sends.devices[n].clone();
                 match &device.place {
                     Place::Emulator { .. } => self.run_in_emulator(&device, &run),
-                    _ => {
+                    place => {
+                        runs = matches!(place, Place::Ultimate { .. });
                         self.deliver(device, &run);
                         Ok(())
                     }
@@ -209,7 +212,8 @@ impl Limoniter {
             }
         };
         match outcome {
-            Ok(()) => self.running.note = Some((format!("Running {} on {name}", run.name), Instant::now())),
+            Ok(()) if runs => self.running.note = Some((format!("Running {} on {name}", run.name), Instant::now())),
+            Ok(()) => self.running.note = Some((format!("Sent {} to {name}: start it there", run.name), Instant::now())),
             Err(problem) => self.message("Run on machine", problem),
         }
     }

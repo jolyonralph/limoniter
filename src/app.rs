@@ -194,6 +194,10 @@ enum Command {
     RunOnBuiltIn,
     RunOn(usize),
     StopRunning,
+    MachineMemory,
+    MachineScreen,
+    MachineBasicOut,
+    MachineBasicIn,
     Themes,
     Website,
     ToggleTable,
@@ -267,6 +271,9 @@ impl Command {
                 | Command::ChoosePreset
                 | Command::ShowFileLists
                 | Command::StopRunning
+                | Command::MachineMemory
+                | Command::MachineScreen
+                | Command::MachineBasicOut
                 | Command::Settings
                 | Command::ProjectOpen
                 | Command::ProjectNew
@@ -549,6 +556,8 @@ struct Document {
     /// A BASIC listing, with the machine it goes back to as a program and the program's name: sending it sends
     /// the program, tokenised.
     listing_of: Option<(basic::Machine, String)>,
+    /// Following a running machine: its memory or its screen, looked at again every second.
+    live: Option<Box<live_host::LiveView>>,
     /// When autosave first saw it with unsaved changes.
     unsaved_since: Option<std::time::Instant>,
     /// Why autosave is leaving it for the person to save, if it is.
@@ -650,6 +659,7 @@ impl Document {
             remote: None,
             upload_wanted: false,
             listing_of: None,
+            live: None,
             unsaved_since: None,
             autosave_skipped: None,
             backed_up: None,
@@ -2286,6 +2296,9 @@ impl Limoniter {
     fn check_background_work(&mut self, ctx: &Context) {
         self.send_saved_remotes();
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
+        if self.follow_live_views() {
+            ctx.request_repaint_after(Duration::from_millis(250));
+        }
         self.autosave(ctx);
         self.open_handed_over(ctx);
         #[cfg(target_os = "macos")]
@@ -3349,6 +3362,10 @@ impl Limoniter {
                 | Command::RunOnBuiltIn
                 | Command::RunOn(_)
                 | Command::StopRunning
+                | Command::MachineMemory
+                | Command::MachineScreen
+                | Command::MachineBasicOut
+                | Command::MachineBasicIn
                 | Command::ToggleTable
                 | Command::AddOn(_)
                 | Command::ShowScripts
@@ -3458,6 +3475,10 @@ impl Limoniter {
             Command::RunOnBuiltIn => self.run_on_target(run_host::Target::BuiltIn),
             Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
             Command::StopRunning => self.stop_all_sessions(),
+            Command::MachineMemory => self.open_machine_memory(),
+            Command::MachineScreen => self.open_machine_screen(),
+            Command::MachineBasicOut => self.take_machine_basic(),
+            Command::MachineBasicIn => self.put_machine_basic(),
             Command::ToggleTable => self.toggle_table(),
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::Website => {
@@ -5193,6 +5214,13 @@ impl Limoniter {
             if let Some(status) = self.remote_status() {
                 ui.colored_label(theme::accent(), status);
             }
+            if let Some(view) = &doc.live {
+                let words = match &view.problem {
+                    Some(problem) => problem.clone(),
+                    None => format!("Following the {} as it runs", view.machine.name()),
+                };
+                ui.colored_label(theme::accent(), words);
+            }
             if let Some(status) = self.run_status() {
                 ui.colored_label(theme::accent(), status);
                 if !self.running.sessions.is_empty() && ui.small_button("Stop").on_hover_text("Stops the program running, closing the emulator").clicked() {
@@ -6913,6 +6941,9 @@ mod deploy_host;
 
 #[path = "run_host.rs"]
 mod run_host;
+
+#[path = "live_host.rs"]
+mod live_host;
 
 #[cfg(test)]
 #[path = "run_host_tests.rs"]

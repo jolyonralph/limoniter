@@ -86,7 +86,6 @@ struct Tap {
 /// The built-in Spectrum, running.
 pub struct BuiltIn {
     emulator: Emulator<LimoniterHost>,
-    pub machine: Machine,
     /// When frames were last caught up to, and how many are owed since.
     last: Instant,
     owed: f64,
@@ -138,7 +137,7 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, machine, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4] };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4] };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
@@ -153,7 +152,7 @@ impl BuiltIn {
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, machine, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4] })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4] })
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -206,6 +205,13 @@ impl BuiltIn {
             }
         }
         self.emulator.execute_poke(Many(actions));
+    }
+
+    /// The screen as text, each character cell matched against the ROM's font, as printed or inverse. A cell
+    /// that isn't a character (a graphic, a user-defined one) is a full stop, unless it's empty.
+    #[cfg(test)]
+    pub fn screen_text(&self) -> Vec<String> {
+        screen_text(|address| self.peek(address))
     }
 
     /// A key on the Spectrum's own keyboard pressed or let go, for game keys and the like.
@@ -263,9 +269,35 @@ impl BuiltIn {
     }
 
     /// Whether characters are still being typed.
+    #[cfg(test)]
     pub fn typing(&self) -> bool {
         !self.taps.is_empty()
     }
+}
+
+/// A Spectrum's screen as text, read through `peek`: 24 rows of 32 cells, each matched against the font in the
+/// ROM at 0x3D00, the right way round or inverse.
+pub fn screen_text(peek: impl Fn(u16) -> u8) -> Vec<String> {
+    let font: Vec<[u8; 8]> = (0..96u16).map(|c| std::array::from_fn(|line| peek(0x3D00 + c * 8 + line as u16))).collect();
+    (0..24)
+        .map(|row| {
+            let text: String = (0..32)
+                .map(|column| {
+                    let cell: [u8; 8] = std::array::from_fn(|line| {
+                        let y = row * 8 + line;
+                        peek((0x4000 + ((y & 0xC0) << 5) + ((y & 7) << 8) + ((y & 0x38) << 2) + column) as u16)
+                    });
+                    let inverse = cell.map(|b| !b);
+                    match font.iter().position(|glyph| *glyph == cell || *glyph == inverse) {
+                        Some(index) => char::from(0x20 + index as u8),
+                        None if cell == [0; 8] || inverse == [0; 8] => ' ',
+                        None => '.',
+                    }
+                })
+                .collect();
+            text.trim_end().to_string()
+        })
+        .collect()
 }
 
 /// The Spectrum keys for a character: a letter's own key (with Caps Shift for a capital), a digit's, or a symbol's
@@ -654,6 +686,15 @@ mod tests {
         let tap = tzx_to_tap(&tzx).unwrap();
         assert_eq!(tap, [3, 0, 0, 1, 2]);
         assert!(tzx_to_tap(b"not a tape").is_err());
+    }
+
+    #[test]
+    fn the_screen_reads_back_as_text() {
+        let mut machine = BuiltIn::start(&tape_of(&["10 PRINT \"HELLO WORLD\"", "20 PRINT INVERSE 1; \"OK\""])).unwrap();
+        run_until(&mut machine, 50, |m| on_screen(m, "OK"));
+        let screen = machine.screen_text();
+        assert!(screen.iter().any(|row| row == "HELLO WORLD"), "{screen:?}");
+        assert!(screen.iter().any(|row| row == "OK"), "inverse text reads too");
     }
 
     #[test]

@@ -212,6 +212,16 @@ impl HexBuffer {
         self.reveal = scrolled;
     }
 
+    /// New bytes in place of the old, as when a running machine's memory is looked at again: the cursor and
+    /// the selection stay where they were, and undo starts again.
+    pub fn refresh(&mut self, bytes: Vec<u8>) {
+        let (caret, anchor) = (self.caret, self.anchor);
+        self.load(bytes);
+        self.caret = caret.min(self.len());
+        self.anchor = anchor.min(self.len());
+        self.reveal = false;
+    }
+
     pub fn has_selection(&self) -> bool {
         self.caret != self.anchor
     }
