@@ -152,3 +152,33 @@ fn a_program_runs_on_a_real_vice_and_its_basic_goes_both_ways() {
     assert!(screen_says(&mut app, "AGAIN"), "the program put back ran");
     app.stop_all_sessions();
 }
+
+/// An add-on's on_run runs just before a run, and what runs is the document as it left it.
+#[test]
+fn an_add_on_can_change_a_listing_before_it_runs() {
+    let dir = std::env::temp_dir().join(format!("limoniter-run-addon-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join(crate::addons::FOLDER)).unwrap();
+    let addon = dir.join(crate::addons::FOLDER).join("Shout.rhai");
+    std::fs::write(&addon, "//! name: Shout\n//! on_run: before_running\nfn before_running() { replace_all(\"quiet\", \"LOUD\"); }\n").unwrap();
+    let (mut app, ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");
+    app.addons = crate::addons::AddOns::new(Some(dir.clone()));
+    app.addons.refresh();
+    app.addons.set_on(&addon, true);
+    listing(&mut app, &["10 PRINT \"quiet\""], basic::Machine::Spectrum);
+    app.run_on_machine();
+    let began = std::time::Instant::now();
+    while app.running.sessions.is_empty() {
+        super::tests::draw(&mut app, &ctx, Vec::new());
+        assert!(began.elapsed() < Duration::from_secs(30), "it never ran");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(app.docs[app.active].text.line(0).as_ref(), "10 PRINT \"LOUD\"");
+    let run_host::SessionKind::BuiltIn { machine, .. } = &mut app.running.sessions[0].kind else { panic!() };
+    for _ in 0..50 {
+        machine.frame().unwrap();
+    }
+    let screen = crate::zx_machine::screen_text(|address| machine.peek(address));
+    assert!(screen.iter().any(|row| row == "LOUD"), "{screen:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

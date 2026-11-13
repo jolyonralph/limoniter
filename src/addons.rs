@@ -8,6 +8,7 @@
 //! //! on_open: when_opened
 //! //! on_save: before_saving
 //! on_send: before_sending
+//! on_run: before_running
 //! ```
 //!
 //! They live in the add-ons folder beside the scripts, and in a shared folder if one is set, so a team can keep
@@ -39,6 +40,8 @@ pub struct AddOn {
     pub on_save: Option<String>,
     /// Run before File, Send to device sends the file; send_device() and set_send_name() work there.
     pub on_send: Option<String>,
+    /// Run just before File, Run on machine runs it.
+    pub on_run: Option<String>,
     /// From the shared folder rather than the person's own.
     pub shared: bool,
     /// What's wrong with its description, if anything; it can't be turned on until that's put right.
@@ -62,6 +65,7 @@ pub enum Event {
     Open,
     Save,
     Send,
+    Run,
 }
 
 fn is_identifier(name: &str) -> bool {
@@ -76,7 +80,7 @@ pub fn fingerprint(source: &str) -> String {
 /// Reads an add-on's description from its `//!` lines.
 pub fn describe(path: &Path, source: &str, shared: bool) -> AddOn {
     let stem = path.file_stem().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-    let mut addon = AddOn { path: path.to_path_buf(), name: stem, about: String::new(), commands: Vec::new(), on_open: None, on_save: None, on_send: None, shared, problem: None, fingerprint: fingerprint(source) };
+    let mut addon = AddOn { path: path.to_path_buf(), name: stem, about: String::new(), commands: Vec::new(), on_open: None, on_save: None, on_send: None, on_run: None, shared, problem: None, fingerprint: fingerprint(source) };
     let mut problems = Vec::new();
     let function = |value: &str, problems: &mut Vec<String>| -> Option<String> {
         let value = value.trim().trim_end_matches("()");
@@ -114,13 +118,14 @@ pub fn describe(path: &Path, source: &str, shared: bool) -> AddOn {
             "on_open" => addon.on_open = function(value, &mut problems),
             "on_save" => addon.on_save = function(value, &mut problems),
             "on_send" => addon.on_send = function(value, &mut problems),
-            other => problems.push(format!("\u{201C}{other}\u{201D} isn't something an add-on can say. It can give name, about, command, on_open, on_save and on_send.")),
+            "on_run" => addon.on_run = function(value, &mut problems),
+            other => problems.push(format!("\u{201C}{other}\u{201D} isn't something an add-on can say. It can give name, about, command, on_open, on_save, on_send and on_run.")),
         }
     }
     if addon.commands.len() > MOST_COMMANDS {
         problems.push(format!("It has {} commands; an add-on can have up to {MOST_COMMANDS}.", addon.commands.len()));
     }
-    if addon.commands.is_empty() && addon.on_open.is_none() && addon.on_save.is_none() && addon.on_send.is_none() && problems.is_empty() {
+    if addon.commands.is_empty() && addon.on_open.is_none() && addon.on_save.is_none() && addon.on_send.is_none() && addon.on_run.is_none() && problems.is_empty() {
         problems.push("It doesn't give any commands or events, so it has nothing to add. See How things work for how to write one.".to_string());
     }
     if !problems.is_empty() {
@@ -223,6 +228,7 @@ impl AddOns {
                     Event::Open => addon.on_open.clone(),
                     Event::Save => addon.on_save.clone(),
                     Event::Send => addon.on_send.clone(),
+                    Event::Run => addon.on_run.clone(),
                 }?;
                 Some((addon.name.clone(), addon.path.clone(), function))
             })
@@ -270,7 +276,8 @@ pub const NEW_ADDON: &str = r#"//! name: NAME
 //
 // An add-on is a script whose //! lines above add commands to Tools > Add-ons and the command box (F1), and can
 // name functions to run by themselves: on_open when a file is opened, on_save just before Save writes it, and
-// on_send just before File > Send to device sends it (send_device() says where; set_send_name("NAME") renames it).
+// on_send just before File > Send to device sends it (send_device() says where; set_send_name("NAME") renames it),
+// and on_run just before File > Run on machine runs it.
 // Each command or event runs the function it names. It can use everything a script can; see New script for the list.
 // It's off until you turn it on in Tools > Add-ons > Manage add-ons, and turned off again if this file changes.
 

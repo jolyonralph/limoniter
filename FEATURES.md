@@ -250,6 +250,7 @@ Switched on under **View, Panels**:
 - **Emulators** are a kind of device: ZEsarUX, Fuse and CSpect for the Spectrum and Next, VICE for Commodores, b2 for the BBC Micro and openMSX. **Find emulators** adds the ones installed; any other can be pointed to, with extra options of your own.
 - **Real machines**: an Ultimate 64 runs a program as it arrives; a Spectrum Next (NextSync), a card or a folder receives it, to be started there.
 - A run shows in the status bar with **Stop**. Running again on ZEsarUX loads into the one already running.
+- An add-on's `on_run` function runs first, and what runs is the file as it leaves it.
 - **While it runs**, the built-in Spectrum, ZEsarUX (by its remote protocol) and VICE (by its binary monitor) can be reached from **File › Run on**:
   - **Its memory** in hex view, looked at again every second; typing in it changes the machine's memory.
   - **Its screen as text**, in the machine's own characters.
@@ -258,7 +259,7 @@ Switched on under **View, Panels**:
 ## Add-ons
 
 - An add-on is a Rhai script that adds its own commands to **Tools › Add-ons** and the command box (F1).
-- It can run by itself when a file is opened (`on_open`), just before Save writes it (`on_save`), or just before Send to device sends it (`on_send`), for example to tidy a file as it's saved.
+- It can run by itself when a file is opened (`on_open`), just before Save writes it (`on_save`), just before Send to device sends it (`on_send`), or just before Run on machine runs it (`on_run`), for example to tidy a file as it's saved.
 - It can show its results in panels of its own (`show_panel`, `add_to_panel`).
 - Add-ons live in your own add-ons folder and in a shared folder, so a team can keep one set together.
 - A new add-on is off until you turn it on, and one whose file changes is turned off again until you look at it; like any script, it has no files, programs or network of its own.

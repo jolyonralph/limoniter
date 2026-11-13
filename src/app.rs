@@ -6313,7 +6313,7 @@ const HELP: &str = "Finding things to do\n\
     Undo takes back everything one macro or script did, in one step.\n\n\
     Add-ons\n\
     An add-on is a script that adds commands of its own to Tools, Add-ons and to the command box, and can run by itself when a file is opened, just before Save writes it, or just before Send to device sends it. New add-on makes one to start from, explaining itself.\n\
-    Its first lines say what it adds: //! name: and //! about: describe it, //! command: Its title = function adds a command, and //! on_open:, //! on_save: or //! on_send: function names what runs when. In on_send, send_device() names the device and set_send_name(\"NAME\") changes the name it's sent as.\n\
+    Its first lines say what it adds: //! name: and //! about: describe it, //! command: Its title = function adds a command, and //! on_open:, //! on_save:, //! on_send: or //! on_run: function names what runs when. In on_send, send_device() names the device and set_send_name(\"NAME\") changes the name it's sent as.\n\
     Add-ons live in the add-ons folder beside your scripts, and in a shared folder if one is set in Manage add-ons, so a team can keep theirs in one place. A function can show its results with show_panel(\"title\", text) in a panel of its own.\n\
     A new add-on is off until it's turned on in Manage add-ons, and one whose file changes is turned off until it's looked at again. Like any script, it can't reach other files, programs or the network.\n\n\
     Text objects\n\

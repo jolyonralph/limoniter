@@ -201,6 +201,8 @@ pub(super) enum After {
     Save(u64),
     /// Send this document to the device chosen, once the add-ons' on_send functions have run.
     Send(u64),
+    /// Run this document where it was asked to run, once the add-ons' on_run functions have run.
+    Run(u64),
 }
 
 /// The macro Play macro plays. It's kept on disk once it's been given a name.
@@ -321,6 +323,7 @@ impl Limoniter {
                 }
             }
             After::Send(doc_id) => self.finish_send(doc_id),
+            After::Run(doc_id) => self.finish_run(doc_id),
         }
     }
 

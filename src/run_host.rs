@@ -46,6 +46,8 @@ pub(super) struct Running {
     number: u64,
     /// Something to say in the status bar, and since when.
     pub note: Option<(String, Instant)>,
+    /// A run waiting for the add-ons' on_run functions: the document, and where it's to run.
+    pending: Option<(u64, Target)>,
 }
 
 impl Running {
@@ -176,8 +178,42 @@ impl Limoniter {
         };
         let chosen = self.running.default_for(runnable.machine).and_then(|name| self.target_named(name)).filter(|target| self.suits(*target, &runnable).is_ok());
         match chosen {
-            Some(target) => self.run_on(target, runnable),
+            Some(target) => self.begin_run(target),
             None => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable: Box::new(runnable), remember: true })),
+        }
+    }
+
+    /// Starts a run, letting the add-ons' on_run functions have their turn first if any are on.
+    fn begin_run(&mut self, target: Target) {
+        let doc = &self.docs[self.active];
+        let (id, text_view) = (doc.id, !doc.hex_mode && doc.browser.is_none());
+        if self.script.is_none() && text_view && self.queue_hooks(crate::addons::Event::Run, id) {
+            self.running.pending = Some((id, target));
+            if let Some(last) = self.addon_queue.back_mut() {
+                last.after = Some(super::script_host::After::Run(id));
+            }
+            return;
+        }
+        self.running.pending = Some((id, target));
+        self.finish_run(id);
+    }
+
+    /// Runs the document where it was asked to, made from it as the add-ons left it.
+    pub(super) fn finish_run(&mut self, doc_id: u64) {
+        let Some((_, target)) = self.running.pending.take_if(|(id, _)| *id == doc_id) else {
+            return;
+        };
+        let Some(index) = self.docs.iter().position(|doc| doc.id == doc_id) else {
+            return;
+        };
+        self.active = index;
+        match self.runnable() {
+            Ok(Some(runnable)) => match self.suits(target, &runnable) {
+                Ok(()) => self.run_on(target, runnable),
+                Err(why) => self.message("Run on", why),
+            },
+            Ok(None) => {}
+            Err(problem) => self.message("Run on", problem),
         }
     }
 
@@ -185,7 +221,7 @@ impl Limoniter {
     pub(super) fn run_on_target(&mut self, target: Target) {
         match self.runnable() {
             Ok(Some(runnable)) => match self.suits(target, &runnable) {
-                Ok(()) => self.run_on(target, runnable),
+                Ok(()) => self.begin_run(target),
                 Err(why) => self.message("Run on", why),
             },
             Ok(None) => self.dialog = Dialog::Run(Box::new(RunBox::Which { doc_id: self.docs[self.active].id })),
@@ -504,7 +540,7 @@ impl Limoniter {
                     self.running.set_default(runnable.machine, &name);
                     self.save_settings_if_changed();
                 }
-                self.run_on(target, *runnable);
+                self.begin_run(target);
                 self.pending_focus = true;
             }
             _ if close => self.pending_focus = true,
