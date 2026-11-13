@@ -78,9 +78,12 @@ pub fn path_of(uri: &str) -> Option<PathBuf> {
             i += 1;
         }
     }
-    // file:///C:/x is C:/x on Windows.
+    // file:///C:/x is C:\x on Windows.
     if decoded.len() > 3 && decoded.as_bytes()[0] == b'/' && decoded.as_bytes()[2] == b':' {
         decoded.remove(0);
+    }
+    if cfg!(windows) {
+        decoded = decoded.replace('/', "\\");
     }
     Some(PathBuf::from(decoded))
 }
@@ -535,7 +538,7 @@ pub mod tests {
         let file = if cfg!(windows) { PathBuf::from("C:\\work\\my file.rs") } else { PathBuf::from("/work/my file.rs") };
         let address = uri(&file);
         assert!(address.starts_with("file:///") && address.ends_with("my%20file.rs"), "{address}");
-        assert_eq!(path_of(&address), Some(file));
+        assert_eq!(path_of(&address).map(|p| p.display().to_string()), Some(file.display().to_string()), "with the system's own separators");
         // An emoji is two UTF-16 units and one character.
         assert_eq!(to_utf16("a\u{1F600}b", 2), 3);
         assert_eq!(from_utf16("a\u{1F600}b", 3), 2);
