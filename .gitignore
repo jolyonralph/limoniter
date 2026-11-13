@@ -12,3 +12,4 @@
 # Python leaves these behind when the tools run.
 __pycache__/
 *.pyc
+.claude/
