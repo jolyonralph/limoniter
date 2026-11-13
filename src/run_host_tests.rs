@@ -443,7 +443,7 @@ fn assembler_source_is_debugged_in_a_real_zesarux() {
     let stopped_at = |app: &mut Limoniter, ctx: &egui::Context| {
         let began = std::time::Instant::now();
         while began.elapsed() < Duration::from_secs(30) {
-            let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+            ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
             if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
                 return Some(line);
             }
@@ -457,7 +457,7 @@ fn assembler_source_is_debugged_in_a_real_zesarux() {
         _ => panic!("it's being debugged"),
     };
     debugging(&mut app);
-    let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
     assert_eq!(stopped_at(&mut app, &ctx), Some(3), "a step on, at the CALL");
     app.stop_all_sessions();
 }
@@ -484,7 +484,7 @@ fn assembler_source_is_debugged_in_a_real_vice() {
     let stopped_at = |app: &mut Limoniter| {
         let began = std::time::Instant::now();
         while began.elapsed() < Duration::from_secs(40) {
-            let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+            ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
             if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
                 return Some(line);
             }
@@ -493,15 +493,20 @@ fn assembler_source_is_debugged_in_a_real_vice() {
         None
     };
     assert_eq!(stopped_at(&mut app), Some(2), "stopped at its breakpoint, on line 3");
+    let memory = match &app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.stopped.clone().and_then(|s| s.memory),
+        _ => None,
+    };
+    assert_eq!(memory.map(|m| (m.len(), m[0xC000], m[0xC001])), Some((65536, 0xA9, 7)), "VICE's memory comes with the stop: LDA #7 at $C000");
     let ask = |app: &mut Limoniter, ask: crate::remote_debug::Ask| match &mut app.running.sessions[0].kind {
         run_host::SessionKind::App { debug: Some(d), .. } => d.remote.ask(ask),
         _ => panic!("it's being debugged"),
     };
     ask(&mut app, crate::remote_debug::Ask::Step);
-    let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
     assert_eq!(stopped_at(&mut app), Some(3), "a step on, at the JSR");
     ask(&mut app, crate::remote_debug::Ask::StepOver);
-    let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
     assert_eq!(stopped_at(&mut app), Some(4), "over the JSR");
     let words = match &app.running.sessions[0].kind {
         run_host::SessionKind::App { debug: Some(d), .. } => d.remote.stopped.clone().map(|s| s.words.join(" ")).unwrap_or_default(),

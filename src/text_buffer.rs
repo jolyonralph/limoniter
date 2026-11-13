@@ -202,6 +202,16 @@ pub struct CodeMarks {
     pub problems: Vec<(usize, String)>,
     /// Where a program stopped at a breakpoint or a step is.
     pub stopped: Option<usize>,
+    /// What a breakpoint's line has to be true to stop there, by line.
+    pub conditions: std::collections::BTreeMap<usize, String>,
+    /// What the debugger shows at each stop, and the one being typed.
+    pub watches: Vec<String>,
+    pub new_watch: String,
+    /// Where the debugger's memory window looks: an expression.
+    pub memory_at: String,
+    /// Addresses (or ranges, a..b) whose writing stops the program, and the one being typed.
+    pub write_watches: Vec<String>,
+    pub new_write_watch: String,
 }
 
 impl CodeMarks {

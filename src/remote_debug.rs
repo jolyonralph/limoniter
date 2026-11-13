@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 pub enum Ask {
     /// The addresses to stop at; set as soon as it can, carrying on afterwards if it was running.
     Breakpoints(Vec<u16>),
+    /// The addresses whose writing stops it.
+    Watches(Vec<u16>),
     CarryOn,
     Step,
     StepOver,
@@ -28,11 +30,15 @@ pub struct Stop {
     pub pc: u16,
     pub z80: Option<Registers>,
     pub words: Vec<String>,
+    /// Why, when it's more than reaching a breakpoint: a write it was watching for.
+    pub reason: Option<String>,
+    /// All 64K as they were when it stopped, where the emulator gives it.
+    pub memory: Option<std::sync::Arc<Vec<u8>>>,
 }
 
 impl Stop {
     pub fn z80(registers: Registers) -> Stop {
-        Stop { pc: registers.pc, z80: Some(registers), words: Vec::new() }
+        Stop { pc: registers.pc, z80: Some(registers), ..Stop::default() }
     }
 }
 
@@ -86,15 +92,20 @@ impl RemoteDebug {
         let _ = self.asks.send(ask);
     }
 
-    /// Takes in what the debugger has said since last time.
-    pub fn check(&mut self) {
+    /// Takes in what the debugger has said since last time; true if it's newly stopped.
+    pub fn check(&mut self) -> bool {
+        let mut stopped = false;
         while let Ok(told) = self.told.try_recv() {
             match told {
-                Told::Stopped(registers) => self.stopped = Some(registers),
+                Told::Stopped(registers) => {
+                    self.stopped = Some(registers);
+                    stopped = true;
+                }
                 Told::Running => self.stopped = None,
                 Told::Problem(problem) => self.problem = Some(problem),
             }
         }
+        stopped && self.stopped.is_some()
     }
 }
 
@@ -190,6 +201,26 @@ impl Link {
         parse_registers(&said).ok_or_else(|| format!("ZEsarUX's registers weren't understood: {said}"))
     }
 
+    /// Where it stopped, with its registers and all 64K.
+    fn stop(&mut self) -> Result<Stop, String> {
+        let mut stop = Stop::z80(self.registers()?);
+        let said = self.command("read-memory 0 65536")?;
+        let digits: Vec<u8> = said.bytes().filter(u8::is_ascii_hexdigit).collect();
+        let mut memory: Vec<u8> = digits.as_chunks::<2>().0.iter().map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap_or("00"), 16).unwrap_or(0)).collect();
+        memory.resize(65536, 0);
+        stop.memory = Some(std::sync::Arc::new(memory));
+        Ok(stop)
+    }
+
+    /// Stops it when it writes to these addresses.
+    fn set_watches(&mut self, addresses: &[u16]) -> Result<(), String> {
+        self.command("clear-membreakpoints")?;
+        for address in addresses {
+            self.command(&format!("set-membreakpoint {address} 2"))?;
+        }
+        Ok(())
+    }
+
     fn set_breakpoints(&mut self, addresses: &[u16], before: usize) -> Result<usize, String> {
         for (i, address) in addresses.iter().enumerate() {
             self.command(&format!("set-breakpoint {} PC={address:04X}H", i + 1))?;
@@ -238,10 +269,11 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
         };
         match ask {
             Ask::Breakpoints(addresses) => set = link.set_breakpoints(&addresses, set)?,
-            Ask::Pause => say(Told::Stopped(Stop::z80(link.registers()?))),
+            Ask::Watches(addresses) => link.set_watches(&addresses)?,
+            Ask::Pause => say(Told::Stopped(link.stop()?)),
             Ask::Step => {
                 link.command("cpu-step")?;
-                say(Told::Stopped(Stop::z80(link.registers()?)));
+                say(Told::Stopped(link.stop()?));
             }
             Ask::CarryOn | Ask::StepOver => {
                 link.send(if ask == Ask::CarryOn { "run" } else { "cpu-step-over" })?;
@@ -264,11 +296,17 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
                             set = link.set_breakpoints(&addresses, set)?;
                             link.send("run")?;
                         }
+                        Ok(Ask::Watches(addresses)) => {
+                            link.send("")?;
+                            link.until_prompt(Duration::from_secs(5))?;
+                            link.set_watches(&addresses)?;
+                            link.send("run")?;
+                        }
                         Ok(_) | Err(TryRecvError::Empty) => {}
                     }
                 }
                 if next.is_none() {
-                    say(Told::Stopped(Stop::z80(link.registers()?)));
+                    say(Told::Stopped(link.stop()?));
                 }
             }
             Ask::Finish => {
@@ -372,18 +410,45 @@ impl Monitor {
             format!("PC {pc:04X}"),
             format!("Flags {flag_names}"),
         ];
-        Stop { pc, z80: None, words }
+        Stop { pc, z80: None, words, ..Stop::default() }
     }
 
+    /// All 64K, in two halves, as one answer's length can't say 65536.
+    fn memory(&mut self) -> Result<Vec<u8>, String> {
+        let mut memory = Vec::with_capacity(65536);
+        for (start, end) in [(0u16, 0x7FFFu16), (0x8000, 0xFFFF)] {
+            let mut body = vec![0];
+            body.extend(start.to_le_bytes());
+            body.extend(end.to_le_bytes());
+            body.extend([0, 0, 0]);
+            let answer = self.command(0x01, &body)?;
+            memory.extend(answer.get(2..).unwrap_or(&[]));
+            memory.resize(usize::from(end) + 1, 0);
+        }
+        Ok(memory)
+    }
+
+    /// Where it stopped, with the memory.
+    fn stop_with_memory(&mut self, pc: u16) -> Result<Stop, String> {
+        let mut stop = self.stop(pc);
+        stop.memory = Some(std::sync::Arc::new(self.memory()?));
+        Ok(stop)
+    }
+
+    /// `op` is 4 to stop on running an instruction there, 2 on a write.
     fn set_checkpoints(&mut self, addresses: &[u16], numbers: &mut Vec<u32>) -> Result<(), String> {
+        self.set_checkpoints_for(addresses, numbers, 4)
+    }
+
+    fn set_checkpoints_for(&mut self, addresses: &[u16], numbers: &mut Vec<u32>, op: u8) -> Result<(), String> {
         for number in numbers.drain(..) {
             let _ = self.command(0x13, &number.to_le_bytes());
         }
         for address in addresses {
             let mut body = address.to_le_bytes().to_vec();
             body.extend(address.to_le_bytes());
-            // Stop when hit, enabled, on running the instruction there, not temporary.
-            body.extend([1, 1, 4, 0]);
+            // Stop when hit, enabled, on running the instruction there (or a write), not temporary.
+            body.extend([1, 1, op, 0]);
             let answer = self.command(0x12, &body)?;
             if let Some(number) = answer.get(..4) {
                 numbers.push(u32::from_le_bytes([number[0], number[1], number[2], number[3]]));
@@ -410,6 +475,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
         wake();
     };
     let mut numbers = Vec::new();
+    let mut watch_numbers = Vec::new();
     vice.set_checkpoints(&breakpoints, &mut numbers)?;
     // AUTOSTART: load the program, and RUN it; VICE carries on by itself.
     let mut running = false;
@@ -428,7 +494,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
                 Some((0x62, _, _, body)) => {
                     running = false;
                     let pc = body.get(..2).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
-                    say(Told::Stopped(vice.stop(pc)));
+                    say(Told::Stopped(vice.stop_with_memory(pc)?));
                 }
                 Some(_) => {}
                 None => match asked.try_recv() {
@@ -440,6 +506,10 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
                         vice.set_checkpoints(&addresses, &mut numbers)?;
                         vice.command(0xAA, &[])?;
                     }
+                    Ok(Ask::Watches(addresses)) => {
+                        vice.set_checkpoints_for(&addresses, &mut watch_numbers, 2)?;
+                        vice.command(0xAA, &[])?;
+                    }
                     Ok(Ask::Finish) | Err(TryRecvError::Disconnected) => break,
                     Ok(_) | Err(TryRecvError::Empty) => {}
                 },
@@ -449,6 +519,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
         let ask = asked.recv().unwrap_or(Ask::Finish);
         match ask {
             Ask::Breakpoints(addresses) => vice.set_checkpoints(&addresses, &mut numbers)?,
+            Ask::Watches(addresses) => vice.set_checkpoints_for(&addresses, &mut watch_numbers, 2)?,
             Ask::CarryOn => {
                 vice.command(0xAA, &[])?;
                 running = true;
@@ -466,6 +537,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
     let mut leftover = Vec::new();
     std::mem::swap(&mut leftover, &mut numbers);
     let _ = vice.set_checkpoints(&[], &mut leftover);
+    let _ = vice.set_checkpoints(&[], &mut watch_numbers);
     let _ = vice.command(0xAA, &[]);
     Ok(())
 }
@@ -512,6 +584,8 @@ mod tests {
         wait_until(&mut debug, &|d| d.stopped.as_ref().is_some_and(|r| r.pc == 0x8002));
         let at = debug.stopped.clone().and_then(|s| s.z80);
         assert_eq!(at.map(|r| (r.pc, r.af >> 8)), Some((0x8002, 7)), "{:?}", debug.problem);
+        let memory = debug.stopped.clone().and_then(|s| s.memory).expect("ZEsarUX's memory comes with the stop");
+        assert_eq!((memory.len(), memory[0x8000], memory[0x8001]), (65536, 0x3E, 7), "LD A,7 at 32768");
         debug.ask(Ask::Step);
         wait_until(&mut debug, &|d| d.stopped.is_some());
         assert_eq!(debug.stopped.clone().and_then(|s| s.z80).map(|r| (r.pc, r.bc)), Some((0x8005, 0x1234)));

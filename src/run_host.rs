@@ -43,6 +43,13 @@ pub(super) struct Debugging {
     pub doc_id: u64,
     pub remote: crate::remote_debug::RemoteDebug,
     pub breakpoints: Vec<u16>,
+    /// The addresses whose writing stops it, as last sent.
+    pub watches: Vec<u16>,
+    /// Memory as it was at the stop before this one, and at this one.
+    pub memory_before: Option<std::sync::Arc<Vec<u8>>>,
+    pub memory_now: Option<std::sync::Arc<Vec<u8>>>,
+    /// Whether it's a Z80, whose registers conditions can name.
+    pub z80: bool,
 }
 
 /// Everything about running, kept by the window.
@@ -363,7 +370,8 @@ impl Limoniter {
                         ctx.request_repaint();
                     }
                 });
-                Some(Box::new(Debugging { doc_id, remote, breakpoints }))
+                let z80 = kind == crate::remote_debug::Emulator::Zesarux;
+                Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80 }))
             }
             _ => None,
         };
@@ -452,6 +460,13 @@ impl Limoniter {
             _ => Vec::new(),
         };
         let mut debug: Option<Debug> = None;
+        // The debugger's watches, conditions and memory window live with the source; borrowed while it's drawn.
+        let doc_index = self.docs.iter().position(|d| d.id == doc_id);
+        let mut code = doc_index.and_then(|i| self.docs[i].text.code.take());
+        let line_texts: std::collections::BTreeMap<usize, String> = match (doc_index, &code) {
+            (Some(i), Some(code)) => code.breakpoints.iter().filter(|l| **l < self.docs[i].text.line_count()).map(|l| (*l, self.docs[i].text.line(*l).to_string())).collect(),
+            _ => Default::default(),
+        };
         let ctx = ui.ctx().clone();
         let session = &mut self.running.sessions[index];
         let title = format!("{}: {}", session.machine.name(), session.file);
@@ -459,6 +474,10 @@ impl Limoniter {
             return;
         };
         machine.set_breakpoints(breakpoints);
+        if let (Some(assembly), Some(code)) = (&assembly, &code) {
+            machine.set_conditions(crate::debug_panel::conditions_by_address(code, assembly), Some(std::sync::Arc::new(assembly.symbols.clone())));
+            machine.set_write_watches(crate::debug_panel::write_addresses(code, Some(&assembly.symbols)));
+        }
         if error.is_none()
             && let Err(problem) = machine.catch_up()
         {
@@ -526,9 +545,21 @@ impl Limoniter {
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
             if machine.paused && error.is_none() {
-                let registers = machine.registers();
-                let top = u16::from_le_bytes([machine.peek(registers.sp), machine.peek(registers.sp.wrapping_add(1))]);
-                debug = debugger(ui, &crate::remote_debug::Stop::z80(registers), Some(top), assembly.as_deref());
+                let mut stop = crate::remote_debug::Stop::z80(machine.registers());
+                stop.reason = machine.stop_reason.clone();
+                let memory = machine.memory();
+                match code.as_mut() {
+                    Some(code) => {
+                        debug = crate::debug_panel::stopped(ui, &stop, Some(&memory), machine.memory_before.as_deref().map(|m| m.as_slice()), assembly.as_deref(), code).map(Debug::from);
+                    }
+                    None => {
+                        let mut scratch = crate::text_buffer::CodeMarks::default();
+                        debug = crate::debug_panel::stopped(ui, &stop, Some(&memory), None, None, &mut scratch).map(Debug::from);
+                    }
+                }
+            }
+            if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
+                crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), true, true);
             }
             if keyboard {
                 ui.add_space(4.0);
@@ -548,7 +579,15 @@ impl Limoniter {
         } else {
             machine.release_all();
         }
+        if let (Some(i), Some(code)) = (doc_index, code.take()) {
+            self.docs[i].text.code = Some(code);
+        }
+        let SessionKind::BuiltIn { machine, error, .. } = &mut self.running.sessions[index].kind else {
+            return;
+        };
         if let Some(action) = debug {
+            // What memory was at this stop, so what the program changes before the next stands out.
+            machine.memory_before = Some(std::sync::Arc::new(machine.memory()));
             let done = match action {
                 Debug::CarryOn => {
                     machine.carry_on();
@@ -605,11 +644,18 @@ impl Limoniter {
             (Some(cache), Some(code)) => code.breakpoints.iter().filter_map(|line| cache.assembly.address_of(0, *line)).map(|a| a as u16).collect(),
             _ => return,
         };
+        let conditions = match (self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id), self.docs[self.active].text.code.as_ref()) {
+            (Some(cache), Some(code)) => Some((crate::debug_panel::conditions_by_address(code, &cache.assembly), std::sync::Arc::new(cache.assembly.symbols.clone()))),
+            _ => None,
+        };
         for session in &mut self.running.sessions {
             if let SessionKind::BuiltIn { machine, doc_id: d, .. } = &mut session.kind
                 && *d == doc_id
             {
                 machine.set_breakpoints(breakpoints.clone());
+                if let Some((conditions, labels)) = conditions.clone() {
+                    machine.set_conditions(conditions, Some(labels));
+                }
                 for _ in 0..50 * 30 {
                     if machine.frame().is_err() || machine.stopped.is_some() {
                         break;
@@ -648,37 +694,81 @@ impl Limoniter {
         };
         let breakpoints = self.breakpoint_addresses(doc_id);
         let assembly = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).map(|c| c.assembly.clone());
+        let doc_index = self.docs.iter().position(|d| d.id == doc_id);
+        let mut code = doc_index.and_then(|i| self.docs[i].text.code.take());
+        let line_texts: std::collections::BTreeMap<usize, String> = match (doc_index, &code) {
+            (Some(i), Some(code)) => code.breakpoints.iter().filter(|l| **l < self.docs[i].text.line_count()).map(|l| (*l, self.docs[i].text.line(*l).to_string())).collect(),
+            _ => Default::default(),
+        };
         let Some((target, debugging)) = self.running.sessions.iter_mut().find_map(|s| match &mut s.kind {
             SessionKind::App { debug: Some(d), .. } if d.doc_id == doc_id => Some((s.target.clone(), d)),
             _ => None,
         }) else {
+            if let (Some(i), Some(code)) = (doc_index, code) {
+                self.docs[i].text.code = Some(code);
+            }
             return;
         };
-        debugging.remote.check();
+        let newly_stopped = debugging.remote.check();
         if debugging.breakpoints != breakpoints {
             debugging.breakpoints = breakpoints.clone();
             debugging.remote.ask(crate::remote_debug::Ask::Breakpoints(breakpoints));
         }
-        let stopped = debugging.remote.stopped.clone();
-        let problem = debugging.remote.problem.clone();
-        let mut action = None;
-        let mut pause = false;
-        Panel::right("remote-debug").default_size(330.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
-            ui.label(RichText::new(format!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
-            ui.separator();
-            match (&problem, &stopped) {
-                (Some(problem), _) => {
-                    ui.add(egui::Label::new(RichText::new(problem).color(theme::problem_mark())).wrap());
-                }
-                (None, Some(stop)) => action = debugger(ui, stop, None, assembly.as_deref()),
-                (None, None) => {
-                    ui.horizontal(|ui| {
-                        ui.label("Running");
-                        pause = ui.small_button("Pause").on_hover_text("Stops it where it is").clicked();
-                    });
-                    ui.add(egui::Label::new(RichText::new("Click beside a line's number for a breakpoint; it stops there.").color(theme::text_faint()).size(11.5)).wrap());
+        let labels = assembly.as_ref().map(|a| &a.symbols);
+        let watches = code.as_ref().map(|c| crate::debug_panel::write_addresses(c, labels)).unwrap_or_default();
+        if debugging.watches != watches {
+            debugging.watches = watches.clone();
+            debugging.remote.ask(crate::remote_debug::Ask::Watches(watches));
+        }
+        // A stop at a breakpoint whose condition isn't true carries straight on.
+        if newly_stopped && let Some(stop) = debugging.remote.stopped.clone() {
+            debugging.memory_before = debugging.memory_now.take();
+            debugging.memory_now = stop.memory.clone();
+            let condition = match (&code, &assembly) {
+                (Some(code), Some(assembly)) => crate::debug_panel::conditions_by_address(code, assembly).get(&stop.pc).cloned(),
+                _ => None,
+            };
+            if let (Some(condition), Some(registers), Some(memory)) = (condition, stop.z80, stop.memory.as_ref()) {
+                let peek = |a: u16| memory[a as usize];
+                let seen = crate::debug_panel::Seen { registers: Some(&registers), peek: &peek, labels };
+                match crate::debug_panel::eval(&condition, &seen) {
+                    Ok(0) => debugging.remote.ask(crate::remote_debug::Ask::CarryOn),
+                    Ok(_) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(format!("Stopped because {condition}"))),
+                    Err(problem) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(format!("The condition {condition} couldn't be worked out: {problem}"))),
                 }
             }
+        }
+        let stopped = debugging.remote.stopped.clone();
+        let problem = debugging.remote.problem.clone();
+        let before = debugging.memory_before.clone();
+        let z80 = debugging.z80;
+        let mut action = None;
+        let mut pause = false;
+        Panel::right("remote-debug").default_size(380.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
+            ui.label(RichText::new(format!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
+            ui.separator();
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                match (&problem, &stopped) {
+                    (Some(problem), _) => {
+                        ui.add(egui::Label::new(RichText::new(problem).color(theme::problem_mark())).wrap());
+                    }
+                    (None, Some(stop)) => {
+                        let mut scratch = crate::text_buffer::CodeMarks::default();
+                        let marks: &mut crate::text_buffer::CodeMarks = match code.as_mut() { Some(code) => code, None => &mut scratch };
+                        action = crate::debug_panel::stopped(ui, stop, stop.memory.as_deref().map(|m| m.as_slice()), before.as_deref().map(|m| m.as_slice()), assembly.as_deref(), marks).map(Debug::from);
+                    }
+                    (None, None) => {
+                        ui.horizontal(|ui| {
+                            ui.label("Running");
+                            pause = ui.small_button("Pause").on_hover_text("Stops it where it is").clicked();
+                        });
+                        ui.add(egui::Label::new(RichText::new("Click beside a line's number for a breakpoint; it stops there.").color(theme::text_faint()).size(11.5)).wrap());
+                    }
+                }
+                if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
+                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), z80, true);
+                }
+            });
         });
         if pause {
             debugging.remote.ask(crate::remote_debug::Ask::Pause);
@@ -689,6 +779,9 @@ impl Limoniter {
                 Debug::Step => crate::remote_debug::Ask::Step,
                 Debug::StepOver => crate::remote_debug::Ask::StepOver,
             });
+        }
+        if let (Some(i), Some(code)) = (doc_index, code) {
+            self.docs[i].text.code = Some(code);
         }
         let stopped_line = stopped.as_ref().and_then(|r| assembly.as_ref().and_then(|a| a.line_at(r.pc as i64))).filter(|(file, _)| *file == 0).map(|(_, line)| line);
         if let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id)
@@ -808,61 +901,14 @@ enum Debug {
     StepOver,
 }
 
-/// While the built-in Spectrum is stopped: where, its registers, and buttons to carry on or step.
-fn debugger(ui: &mut Ui, stop: &crate::remote_debug::Stop, top_of_stack: Option<u16>, assembly: Option<&crate::asm::Assembly>) -> Option<Debug> {
-    let r = stop.z80.unwrap_or_default();
-    let pc = stop.pc;
-    let mut action = None;
-    ui.add_space(4.0);
-    egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
-        let place = match assembly.and_then(|a| a.line_at(pc as i64).map(|(file, line)| (a, file, line))) {
-            Some((a, file, line)) => {
-                let name = a.files.get(file).and_then(|f| f.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                format!("Stopped at ${pc:04X}, line {} of {name}", line + 1)
-            }
-            None if stop.z80.is_some() && pc < 0x4000 => format!("Stopped at ${pc:04X}, in the ROM"),
-            None => format!("Stopped at ${pc:04X}"),
-        };
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(place).strong());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Step over").on_hover_text("Runs this instruction, or the whole of a subroutine it calls, and stops after it").clicked() {
-                    action = Some(Debug::StepOver);
-                }
-                if ui.small_button("Step").on_hover_text("Runs one instruction, into a CALL").clicked() {
-                    action = Some(Debug::Step);
-                }
-                if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
-                    action = Some(Debug::CarryOn);
-                }
-            });
-        });
-        // Another processor's registers, as its emulator gives them.
-        if stop.z80.is_none() {
-            ui.label(RichText::new(stop.words.join("   ")).monospace().size(12.0));
-            return;
+impl From<crate::debug_panel::Action> for Debug {
+    fn from(action: crate::debug_panel::Action) -> Self {
+        match action {
+            crate::debug_panel::Action::CarryOn => Debug::CarryOn,
+            crate::debug_panel::Action::Step => Debug::Step,
+            crate::debug_panel::Action::StepOver => Debug::StepOver,
         }
-        let flags = r.af as u8;
-        let flag_names: String = [(7, 'S'), (6, 'Z'), (4, 'H'), (2, 'P'), (1, 'N'), (0, 'C')].iter().map(|(bit, name)| if flags & (1 << bit) != 0 { *name } else { '-' }).collect();
-        let mono = |text: String| RichText::new(text).monospace().size(12.0);
-        egui::Grid::new("z80-registers").num_columns(4).spacing([14.0, 2.0]).show(ui, |ui| {
-            for row in [
-                [format!("AF {:04X}", r.af), format!("BC {:04X}", r.bc), format!("DE {:04X}", r.de), format!("HL {:04X}", r.hl)],
-                [format!("AF' {:04X}", r.af2), format!("BC' {:04X}", r.bc2), format!("DE' {:04X}", r.de2), format!("HL' {:04X}", r.hl2)],
-                [format!("IX {:04X}", r.ix), format!("IY {:04X}", r.iy), format!("SP {:04X}", r.sp), format!("PC {:04X}", r.pc)],
-                [format!("I {:02X}  R {:02X}", r.i, r.r), format!("IM {}  {}", r.im, if r.iff { "EI" } else { "DI" }), format!("Flags {flag_names}"), top_of_stack.map(|top| format!("(SP) {top:04X}")).unwrap_or_default()],
-            ] {
-                for cell in row {
-                    ui.label(mono(cell));
-                }
-                ui.end_row();
-            }
-        });
-        if assembly.is_none() {
-            ui.label(RichText::new("Run assembler source to stop at its lines: click beside a line's number to set a breakpoint.").color(theme::text_faint()).size(11.5));
-        }
-    });
-    action
+    }
 }
 
 /// Keys pressed on the computer, played on the Spectrum. Letters, digits, Space and Enter are held as long as

@@ -59,3 +59,7 @@ windows = { version = "0.62", features = ["Win32_Globalization", "Win32_System_C
 type_complexity = "allow"
 too_many_arguments = "allow"
 enum_variant_names = "allow"
+
+# rustzx-core with one addition: a hook on memory writes, for the debugger's watchpoints. MIT, as the original.
+[patch.crates-io]
+rustzx-core = { path = "vendor/rustzx-core" }

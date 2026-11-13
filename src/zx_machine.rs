@@ -36,10 +36,16 @@ pub struct Breaks {
     at: std::collections::HashSet<u16>,
     step: bool,
     once: Option<u16>,
+    /// Addresses whose writing stops it, and the write that last did.
+    writes: std::collections::HashSet<u16>,
+    wrote: Option<(u16, u8)>,
+    /// Whether the last stop was at a breakpoint, rather than a step's end.
+    at_breakpoint: bool,
 }
 
 impl rustzx_core::host::DebugInterface for Breaks {
     fn check_pc_breakpoint(&mut self, address: u16) -> bool {
+        self.at_breakpoint = false;
         if self.step {
             self.step = false;
             return true;
@@ -48,7 +54,16 @@ impl rustzx_core::host::DebugInterface for Breaks {
             self.once = None;
             return true;
         }
-        self.at.contains(&address)
+        self.at_breakpoint = self.at.contains(&address);
+        self.at_breakpoint
+    }
+
+    fn check_memory_write(&mut self, address: u16, value: u8) -> bool {
+        if self.writes.contains(&address) {
+            self.wrote = Some((address, value));
+            return true;
+        }
+        false
     }
 }
 
@@ -159,6 +174,13 @@ pub struct BuiltIn {
     pub paused: bool,
     /// Where the program stopped, at a breakpoint or a step: the address of the instruction to run next.
     pub stopped: Option<u16>,
+    /// Why, when it's more than a breakpoint: a write it was watching for, or a condition it couldn't work out.
+    pub stop_reason: Option<String>,
+    /// What each conditional breakpoint must be true to stop, with the labels they may name.
+    conditions: std::collections::BTreeMap<u16, String>,
+    labels: Option<std::sync::Arc<std::collections::BTreeMap<String, i64>>>,
+    /// Memory as it was at the last stop, for what's changed since to stand out.
+    pub memory_before: Option<std::sync::Arc<Vec<u8>>>,
     taps: std::collections::VecDeque<Tap>,
     held: Vec<ZXKey>,
     /// Keys held down on the keyboard drawn under the screen, apart from those held on the computer's own.
@@ -237,7 +259,7 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, conditions: Default::default(), labels: None, memory_before: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
@@ -254,7 +276,7 @@ impl BuiltIn {
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, conditions: Default::default(), labels: None, memory_before: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -281,10 +303,32 @@ impl BuiltIn {
     pub fn frame(&mut self) -> Result<(), String> {
         self.press_taps();
         self.board_tick();
-        let info = self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
-        if matches!(info.stop_reason, rustzx_core::EmulationStopReason::Breakpoint) {
+        // A breakpoint whose condition isn't true is passed straight on; enough of them in a frame and it stops
+        // anyway, so a mistake can't hold the window up.
+        for _ in 0..20_000 {
+            let info = self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
+            if !matches!(info.stop_reason, rustzx_core::EmulationStopReason::Breakpoint) {
+                break;
+            }
+            let (wrote, at_breakpoint) = self.emulator.debug_interface().map_or((None, false), |b| (b.wrote.take(), b.at_breakpoint));
+            let registers = self.quick_registers();
+            if let Some((address, value)) = wrote {
+                self.stop_reason = Some(format!("Stopped after writing {value} (${value:02X}) to ${address:04X}"));
+            } else if let Some(condition) = self.conditions.get(&registers.pc).filter(|_| at_breakpoint) {
+                let emulator = &self.emulator;
+                let peek = |a: u16| emulator.peek(a);
+                let seen = crate::debug_panel::Seen { registers: Some(&registers), peek: &peek, labels: self.labels.as_deref() };
+                match crate::debug_panel::eval(condition, &seen) {
+                    Ok(0) => continue,
+                    Ok(_) => self.stop_reason = Some(format!("Stopped because {condition}")),
+                    Err(problem) => self.stop_reason = Some(format!("The condition {condition} couldn't be worked out: {problem}")),
+                }
+            } else {
+                self.stop_reason = None;
+            }
             self.paused = true;
-            self.stopped = Some(self.registers().pc);
+            self.stopped = Some(registers.pc);
+            break;
         }
         // The frame's sound, to the speaker, or let go of if there isn't one or it's muted.
         while let Some(sample) = self.emulator.next_audio_sample() {
@@ -346,9 +390,34 @@ impl BuiltIn {
         }
     }
 
+    /// What breakpoints must be true to stop, by address, and the labels they may name.
+    pub fn set_conditions(&mut self, conditions: std::collections::BTreeMap<u16, String>, labels: Option<std::sync::Arc<std::collections::BTreeMap<String, i64>>>) {
+        self.conditions = conditions;
+        self.labels = labels;
+    }
+
+    /// The addresses whose writing stops it.
+    pub fn set_write_watches(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.writes = addresses.into_iter().collect();
+        }
+    }
+
+    /// All 64K, as they are now.
+    pub fn memory(&self) -> Vec<u8> {
+        (0..=0xFFFFu16).map(|a| self.emulator.peek(a)).collect()
+    }
+
+    /// The registers, read straight from the Z80 (IM aside, which only a snapshot says).
+    pub fn quick_registers(&self) -> Registers {
+        let ([af, bc, de, hl, ix, iy, sp, pc, af2, bc2, de2, hl2], i, r, iff) = self.emulator.z80_registers();
+        Registers { af, bc, de, hl, ix, iy, sp, pc, af2, bc2, de2, hl2, i, r, iff, im: 0 }
+    }
+
     /// Carries on from where it stopped.
     pub fn carry_on(&mut self) {
         self.stopped = None;
+        self.stop_reason = None;
         self.paused = false;
     }
 
@@ -960,6 +1029,43 @@ mod tests {
         assert!(run_until(&mut machine, 10, |m| m.stopped.is_some()));
         assert_eq!(machine.stopped, Some(0x800B), "at the loop");
         assert_eq!(machine.registers().de, 0x5678);
+    }
+
+    #[test]
+    fn conditions_write_watches_and_the_call_stack() {
+        let source = "  org 32768\nstart: ld b,5\nloop: ld a,b\n  call sub\n  djnz loop\n  ld (count),a\ndone: jr done\nsub: ld (total),a\n  ret\ncount: db 0\ntotal: db 0\n";
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), source, &|_| Err("no".into()));
+        assert!(assembly.ok(), "{:?}", assembly.problems);
+        let at = |name: &str| assembly.symbols[name] as u16;
+        let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
+        let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
+        let mut machine = BuiltIn::start(&run).unwrap();
+        let labels = Some(std::sync::Arc::new(assembly.symbols.clone()));
+        // At loop only once B is 2.
+        machine.set_breakpoints([at("loop")]);
+        machine.set_conditions([(at("loop"), "B=2".to_string())].into(), labels.clone());
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!((machine.stopped, machine.registers().bc >> 8), (Some(at("loop")), 2), "passed by while B was 5, 4 and 3");
+        assert_eq!(machine.stop_reason.as_deref(), Some("Stopped because B=2"));
+        // Then at sub, with no condition.
+        machine.set_breakpoints([at("sub")]);
+        machine.set_conditions(Default::default(), labels.clone());
+        machine.carry_on();
+        assert!(run_until(&mut machine, 50, |m| m.stopped.is_some()));
+        assert_eq!(machine.stopped, Some(at("sub")));
+        let registers = machine.quick_registers();
+        assert_eq!(registers, Registers { im: 0, ..machine.registers() }, "the quick way reads the same registers");
+        let frames = crate::debug_panel::call_stack(registers.sp, &|a| machine.peek(a));
+        assert_eq!(frames.first().map(|f| f.call), Some(at("loop") + 1), "called from the CALL after LD A,B");
+        // Writing count stops it, after the instruction that did.
+        machine.set_breakpoints([]);
+        machine.set_write_watches([at("count")]);
+        machine.carry_on();
+        assert!(run_until(&mut machine, 50, |m| m.stopped.is_some()));
+        assert_eq!(machine.stopped, Some(at("done")));
+        assert_eq!(machine.peek(at("count")), 1);
+        assert_eq!(machine.stop_reason.as_deref(), Some(&*format!("Stopped after writing 1 ($01) to ${:04X}", at("count"))));
+        assert_eq!(machine.peek(at("total")), 1, "total was written too, but isn't watched");
     }
 
     #[test]

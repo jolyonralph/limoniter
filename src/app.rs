@@ -5910,6 +5910,22 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                "debug-at" => {
+                    // Stopped at a line, with watches, a condition and a window on memory, for a picture.
+                    let line: usize = value.parse().unwrap_or(1);
+                    highlight::load_now();
+                    self.doc().resolved_syntax = None;
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    if let Some(code) = &mut self.doc().text.code {
+                        code.breakpoints.insert(line.saturating_sub(1));
+                        code.conditions.insert(line.saturating_sub(1), "B=3".into());
+                        code.watches = vec!["A".into(), "[HL]".into(), "HL - 22528".into()];
+                        code.memory_at = "HL".into();
+                    }
+                    self.run_on_target(run_host::Target::BuiltIn);
+                    self.run_until_stopped_for_screenshot();
+                }
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
                 "git-wizard" => {
                     self.open_git_wizard();

@@ -297,6 +297,12 @@ Switched on under **View, Panels**:
   - **The Functions panel** shows the program's outline: where each ORG puts code, every label with its value, local labels under theirs, and macros.
 - **Problems** go in the Output panel, where clicking one goes to its line, and are marked beside their lines; the status bar says what's wrong with the line the cursor is on. Once assembled, the status bar shows the line's address, bytes and T-states.
 - **A debugger on the built-in Spectrum**: click beside a line's number for a breakpoint; when the program gets there it stops, with the line marked and the registers and flags shown; **Step**, **Step over** (a CALL, RST, DJNZ or LDIR) and **Carry on**. Pause stops it anywhere, with the same.
+- **More in the debugger**, on the built-in Spectrum, in ZEsarUX and (apart from conditions) in VICE:
+  - **Call stack**: the calls the program is inside, read from the stack's return addresses, each with its label and line.
+  - **Watches**: expressions worked out at every stop: registers, flags (ZF, CF...), labels, `[addr]` for a byte and `word[addr]` for a word, arithmetic and comparisons.
+  - **Memory**: sixteen bytes a row at any address, label or expression (HL to begin with), with what's changed since the last stop picked out.
+  - **Conditional breakpoints**: each breakpoint can have a condition, such as `A=0 && [count]>3`, and only stops when it's true.
+  - **Stop when written to**: addresses or labels (or ranges, `buffer..buffer+31`) whose writing stops the program, after the instruction that wrote, saying what was written where.
 - **And in VICE**: 6502 source run on VICE is debugged there through its binary monitor: breakpoints, the line stopped at, A, X, Y, SP and the flags, Step, Step over (a JSR) and Carry on.
 - **And in ZEsarUX**: Z80 source run on ZEsarUX is debugged there the same way, through its remote protocol: breakpoints beside the lines, the line stopped at marked, the registers, Step, Step over, Carry on and Pause, in a panel beside the source. Next programs too, which the built-in Spectrum can't run. A Spectrum program is loaded from its tape in Limoniter and handed over as a snapshot, so ZEsarUX stops even at its first instruction.
 
