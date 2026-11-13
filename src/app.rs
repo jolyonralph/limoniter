@@ -206,6 +206,7 @@ enum Command {
     RenameLabel,
     Disassemble,
     PixelEditor,
+    ScreenDesigner,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -298,6 +299,7 @@ impl Command {
                 | Command::AssembleBinary
                 | Command::NewAs(_)
                 | Command::PixelEditor
+                | Command::ScreenDesigner
                 | Command::EditNewKinds
                 | Command::MachineMemory
                 | Command::MachineScreen
@@ -1263,6 +1265,8 @@ pub struct Limoniter {
     intel_wait: Option<(u64, u64, std::time::Instant)>,
     /// The character and sprite editor, while it's open.
     pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
+    /// The Spectrum screen designer, while it's open.
+    screen_designer: Option<Box<crate::screen_designer::Designer>>,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1533,6 +1537,7 @@ impl Limoniter {
             new_kinds: new_kinds::kinds_from_settings(&settings),
             intel_wait: None,
             pixel_editor: None,
+            screen_designer: None,
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -3556,6 +3561,18 @@ impl Limoniter {
             Command::FindUses => self.find_uses(),
             Command::RenameLabel => self.open_rename_box(),
             Command::Disassemble => self.open_disassemble_box(),
+            Command::ScreenDesigner => {
+                if self.screen_designer.is_none() {
+                    let mut designer = crate::screen_designer::Designer::default();
+                    // A Spectrum screen in front is opened in it.
+                    if !self.no_file() && self.docs[self.active].path_or_name().extension().is_some_and(|e| e.eq_ignore_ascii_case("scr"))
+                        && let Some(screen) = crate::screen_designer::Screen::from_scr(&self.document_bytes())
+                    {
+                        designer.screen = screen;
+                    }
+                    self.screen_designer = Some(Box::new(designer));
+                }
+            }
             Command::PixelEditor => {
                 if self.pixel_editor.is_none() {
                     self.pixel_editor = Some(Box::new(crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters)));
@@ -5929,6 +5946,16 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                "screen-designer" => {
+                    // A picture brought in, for a picture.
+                    let mut designer = crate::screen_designer::Designer::default();
+                    if let Ok(bytes) = std::fs::read(value)
+                        && let Ok((w, h, rgba)) = crate::screen_designer::read_png(&bytes)
+                    {
+                        designer.screen = crate::screen_designer::Screen::from_picture(w, h, &rgba);
+                    }
+                    self.screen_designer = Some(Box::new(designer));
+                }
                 "pixel-editor" => {
                     // A few invaders, or a sprite, for a picture.
                     let kind = if value == "sprites" { crate::pixel_editor::Kind::Sprites } else { crate::pixel_editor::Kind::Characters };
@@ -6518,6 +6545,7 @@ impl Limoniter {
         self.draw_cycle(&ctx);
         self.draw_assistant_note(&ctx);
         self.pixel_editor_window(&ctx);
+        self.screen_designer_window(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {

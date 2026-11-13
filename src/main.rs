@@ -59,6 +59,7 @@ mod zx_basic_debug;
 mod dzrp;
 mod disasm;
 mod pixel_editor;
+mod screen_designer;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

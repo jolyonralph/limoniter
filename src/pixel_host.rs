@@ -77,10 +77,76 @@ impl Limoniter {
     }
 }
 
+impl Limoniter {
+    pub(super) fn screen_designer_window(&mut self, ctx: &Context) {
+        use crate::screen_designer::{Asked, Screen};
+        let Some(mut designer) = self.screen_designer.take() else {
+            return;
+        };
+        let mut open = true;
+        let mut asked = None;
+        egui::Window::new("Spectrum screen").open(&mut open).resizable(false).default_pos([160.0, 80.0]).show(ctx, |ui| {
+            asked = designer.draw(ui);
+        });
+        if !open {
+            return;
+        }
+        match asked {
+            Some(Asked::Close) => return,
+            Some(Asked::Open) => {
+                if let Some(path) = rfd::FileDialog::new().set_title("Open a screen or a picture").add_filter("Spectrum screens and pictures", &["scr", "png"]).add_filter("Any file", &["*"]).pick_file() {
+                    let read = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| {
+                        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) {
+                            crate::screen_designer::read_png(&bytes).map(|(w, h, rgba)| Screen::from_picture(w, h, &rgba))
+                        } else {
+                            Screen::from_scr(&bytes).ok_or_else(|| "It isn't a Spectrum screen: those are 6912 bytes.".into())
+                        }
+                    });
+                    match read {
+                        Ok(screen) => {
+                            designer.remember();
+                            designer.screen = screen;
+                        }
+                        Err(problem) => self.message("Spectrum screen", format!("Couldn't open {}.\n\n{problem}", path.display())),
+                    }
+                }
+            }
+            Some(Asked::Save) => {
+                if let Some(path) = rfd::FileDialog::new().set_title("Save the screen").set_file_name("screen.scr").add_filter("Spectrum screen", &["scr"]).save_file()
+                    && let Err(e) = codec::write_file(&path, &designer.screen.to_scr())
+                {
+                    self.message("Spectrum screen", format!("Couldn't save {}.\n\n{e}", path.display()));
+                }
+            }
+            Some(Asked::SavePng) => {
+                let picture = crate::pictures::decode(crate::pictures::Format::SpectrumScreen, &designer.screen.to_scr());
+                if let Ok(png) = picture.and_then(|p| crate::pictures::to_png(&p))
+                    && let Some(path) = rfd::FileDialog::new().set_title("Save the screen as PNG").set_file_name("screen.png").add_filter("PNG picture", &["png"]).save_file()
+                    && let Err(e) = codec::write_file(&path, &png)
+                {
+                    self.message("Spectrum screen", format!("Couldn't save {}.\n\n{e}", path.display()));
+                }
+            }
+            None => {}
+        }
+        self.screen_designer = Some(designer);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::app_with;
     use super::*;
+
+    #[test]
+    fn the_screen_designer_draws() {
+        let (mut app, ctx) = app_with("");
+        app.screen_designer = Some(Box::default());
+        for _ in 0..3 {
+            ctx.run_ui(Default::default(), |ui| app.screen_designer_window(ui.ctx())).textures_delta.clear();
+        }
+        assert!(app.screen_designer.is_some());
+    }
 
     #[test]
     fn the_window_draws_in_both_kinds() {

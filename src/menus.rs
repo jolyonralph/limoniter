@@ -478,6 +478,7 @@ const TOOLS: &[Entry] = &[
     Item("Copy the file's path", Command::CopyPath),
     Item("Disassemble\u{2026}", Command::Disassemble),
     Item("Character and sprite editor", Command::PixelEditor),
+    Item("Spectrum screen designer", Command::ScreenDesigner),
     Line,
     Sub(
         "Git",
