@@ -45,6 +45,7 @@ mod print;
 mod project;
 mod reformat;
 mod running;
+mod speaker;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

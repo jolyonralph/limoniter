@@ -109,6 +109,11 @@ fn a_program_runs_on_a_real_zesarux() {
     assert_eq!(app.running.sessions.len(), 1);
     assert!(matches!(&app.running.sessions[0].kind, run_host::SessionKind::App { child, .. } if child.id() == pid), "loaded into the same ZEsarUX");
     assert!(screen_says("AGAIN"), "the second program ran there");
+    // A listing put in while a program runs stops it with BREAK, goes in, and is RUN.
+    listing(&mut app, &["10 PRINT \"PUT BACK\"", "20 GO TO 20"], basic::Machine::Spectrum);
+    app.put_machine_basic();
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    assert!(screen_says("PUT BACK"), "the listing put in was run");
     app.stop_all_sessions();
 }
 
@@ -181,4 +186,61 @@ fn an_add_on_can_change_a_listing_before_it_runs() {
     let screen = crate::zx_machine::screen_text(|address| machine.peek(address));
     assert!(screen.iter().any(|row| row == "LOUD"), "{screen:?}");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Emulators that can't be reached while they run, where LIMONITER_<NAME> says where each is: run starts it with
+/// the program and it's still running a few seconds later. LIMONITER_GRAB names a folder to put a picture of the
+/// screen in, to look at.
+#[test]
+fn programs_start_on_real_emulators_that_cant_be_reached() {
+    let cases: [(&str, &str, &[&str], basic::Machine); 3] = [
+        ("LIMONITER_FUSE", "fuse", &["10 BORDER 2: PRINT \"FUSE\"", "20 GO TO 20"], basic::Machine::Spectrum),
+        ("LIMONITER_FUSE_128", "fuse", &["10 PRINT \"SECOND\"", "20 GO TO 20"], basic::Machine::Spectrum),
+        ("LIMONITER_B2", "b2", &["10 PRINT \"B2\"", "20 GOTO 20"], basic::Machine::Bbc),
+    ];
+    for (variable, emulator, lines, machine) in cases {
+        let Some(program) = std::env::var_os(variable) else {
+            continue;
+        };
+        let (mut app, _ctx) = app_with("");
+        app.sends.devices = vec![Device { name: emulator.into(), place: Place::Emulator { emulator: emulator.into(), program: program.into(), options: std::env::var(format!("{variable}_OPTIONS")).unwrap_or_default() }, preset: None, eject: false }];
+        listing(&mut app, lines, machine);
+        app.run_on_target(run_host::Target::Device(0));
+        assert!(matches!(app.dialog, Dialog::None), "{variable}");
+        std::thread::sleep(Duration::from_secs(6));
+        app.check_sessions();
+        assert_eq!(app.running.sessions.len(), 1, "{variable}: still running");
+        assert!(matches!(app.dialog, Dialog::None), "{variable}: {:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+        if let Some(folder) = std::env::var_os("LIMONITER_GRAB") {
+            let _ = std::process::Command::new("import").args(["-window", "root"]).arg(PathBuf::from(folder).join(format!("{variable}.png"))).status();
+        }
+        app.stop_all_sessions();
+    }
+}
+
+/// openMSX, where LIMONITER_OPENMSX says where it is, runs a cartridge.
+#[test]
+fn a_cartridge_starts_on_a_real_openmsx() {
+    let Some(program) = std::env::var_os("LIMONITER_OPENMSX") else {
+        return;
+    };
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "openMSX".into(), place: Place::Emulator { emulator: "openmsx".into(), program: program.into(), options: String::new() }, preset: None, eject: false }];
+    // A 16K cartridge that only says hello to the cartridge slot: "AB", its start address, and a loop there.
+    let mut rom = vec![0u8; 0x4000];
+    rom[0..4].copy_from_slice(&[b'A', b'B', 0x10, 0x40]);
+    rom[0x10..0x13].copy_from_slice(&[0x18, 0xFE, 0x00]);
+    app.new_document();
+    app.docs[app.active].hex.load(rom);
+    app.docs[app.active].hex_mode = true;
+    app.docs[app.active].path = Some(std::env::temp_dir().join("hello.rom"));
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    std::thread::sleep(Duration::from_secs(6));
+    app.check_sessions();
+    assert_eq!(app.running.sessions.len(), 1, "still running");
+    if let Some(folder) = std::env::var_os("LIMONITER_GRAB") {
+        let _ = std::process::Command::new("import").args(["-window", "root"]).arg(PathBuf::from(folder).join("openmsx.png")).status();
+    }
+    app.stop_all_sessions();
 }

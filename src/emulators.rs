@@ -222,53 +222,54 @@ pub fn find_installed() -> Vec<(&'static Emulator, PathBuf)> {
 }
 
 fn find(emulator: &Emulator) -> Option<PathBuf> {
-    let exe = |name: &str| if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    // On the path, as a package manager puts it.
-    if let Some(paths) = std::env::var_os("PATH") {
-        for folder in std::env::split_paths(&paths) {
-            for program in emulator.programs {
-                let candidate = folder.join(exe(program));
-                if candidate.is_file() {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-    // As an app, on a Mac.
-    if cfg!(target_os = "macos") {
-        let home = std::env::var_os("HOME").map(PathBuf::from);
-        for root in [Some(PathBuf::from("/Applications")), home.map(|h| h.join("Applications"))].into_iter().flatten() {
-            for (app, program) in emulator.mac_apps {
-                let candidate = root.join(app).join("Contents/MacOS").join(program);
-                if candidate.is_file() {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-    // In a folder of its own, as Windows installers and unzipped downloads leave it: one or two levels down from
-    // the usual places, in a folder whose name says what it is.
+    let path: Vec<PathBuf> = std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).collect()).unwrap_or_default();
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let apps: Vec<PathBuf> = if cfg!(target_os = "macos") { [Some(PathBuf::from("/Applications")), home.map(|h| h.join("Applications"))].into_iter().flatten().collect() } else { Vec::new() };
+    // Where Windows installers and unzipped downloads leave a program, in a folder of its own.
     let mut roots: Vec<PathBuf> = Vec::new();
     for variable in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA", "USERPROFILE"] {
         if let Some(value) = std::env::var_os(variable) {
             let root = PathBuf::from(value);
-            if variable == "LOCALAPPDATA" {
-                roots.push(root.join("Programs"));
-            } else if variable == "USERPROFILE" {
-                roots.extend(["Downloads", "Desktop", "Emulators", "emulators"].map(|f| root.join(f)));
-            } else {
-                roots.push(root);
+            match variable {
+                "LOCALAPPDATA" => roots.push(root.join("Programs")),
+                "USERPROFILE" => roots.extend(["Downloads", "Desktop", "Emulators", "emulators"].map(|f| root.join(f))),
+                _ => roots.push(root),
             }
         }
     }
     if cfg!(windows) {
         roots.extend(["C:\\Emulators", "C:\\emulators", "C:\\Games", "D:\\Emulators", "E:\\emulators"].map(PathBuf::from));
     }
+    find_in(emulator, &path, &apps, &roots, cfg!(windows))
+}
+
+/// Looks for an emulator: on the path, as a package manager puts it; as an app, in the Mac's Applications
+/// folders; and one or two levels down from each root, in a folder whose name says what it is.
+fn find_in(emulator: &Emulator, path: &[PathBuf], apps: &[PathBuf], roots: &[PathBuf], windows: bool) -> Option<PathBuf> {
+    let exe = |name: &str| if windows { format!("{name}.exe") } else { name.to_string() };
+    for folder in path {
+        for program in emulator.programs {
+            let candidate = folder.join(exe(program));
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    for root in apps {
+        for (app, program) in emulator.mac_apps {
+            let candidate = root.join(app).join("Contents/MacOS").join(program);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
     for root in roots {
-        let Ok(entries) = std::fs::read_dir(&root) else {
+        let Ok(entries) = std::fs::read_dir(root) else {
             continue;
         };
-        for folder in entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()) {
+        let mut folders: Vec<PathBuf> = entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+        folders.sort();
+        for folder in folders {
             let name = folder.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
             if !emulator.folder_hints.iter().any(|hint| name.contains(hint)) {
                 continue;
@@ -301,6 +302,29 @@ mod tests {
         assert_eq!(by_id("b2").unwrap().arguments(Bbc, Ssd, Path::new("/tmp/a.ssd"), None, ""), ["-0", "/tmp/a.ssd", "-b"]);
         assert_eq!(by_id("openmsx").unwrap().arguments(Msx, Cas, Path::new("/tmp/a.cas"), None, "-machine Philips_NMS_8250"), ["-machine", "Philips_NMS_8250", "-cassetteplayer", "/tmp/a.cas"]);
         assert_eq!(by_id("cspect").unwrap().arguments(Next, Nex, Path::new("/tmp/a.nex"), None, ""), ["-zxnext", "-w3", "/tmp/a.nex"]);
+    }
+
+    #[test]
+    fn emulators_are_found_where_they_are_usually_installed() {
+        let base = std::env::temp_dir().join(format!("limoniter-find-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let make = |path: PathBuf| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, "").unwrap();
+        };
+        // VICE unzipped into Downloads, its programs in bin; ZEsarUX on the path; Fuse as a Mac app.
+        make(base.join("Downloads/GTK3VICE-3.8-win64/bin/x64sc.exe"));
+        make(base.join("path/zesarux"));
+        make(base.join("Applications/Fuse.app/Contents/MacOS/Fuse"));
+        make(base.join("Downloads/Unrelated/b2.exe"));
+        let roots = [base.join("Downloads")];
+        let vice = find_in(by_id("vice").unwrap(), &[], &[], &roots, true);
+        assert_eq!(vice, Some(base.join("Downloads/GTK3VICE-3.8-win64/bin/x64sc.exe")));
+        assert_eq!(find_in(by_id("zesarux").unwrap(), &[base.join("path")], &[], &roots, false), Some(base.join("path/zesarux")));
+        assert_eq!(find_in(by_id("fuse").unwrap(), &[], &[base.join("Applications")], &roots, false), Some(base.join("Applications/Fuse.app/Contents/MacOS/Fuse")));
+        assert_eq!(find_in(by_id("b2").unwrap(), &[], &[], &roots, true), None, "a program in a folder named for something else isn't taken for it");
+        assert_eq!(find_in(by_id("zesarux").unwrap(), &[], &[], &roots, true), None);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

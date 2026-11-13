@@ -246,7 +246,7 @@ Switched on under **View, Panels**:
 
 - **File › Run on machine** (**F9**) runs the file in front where its kind of program runs, asking the first time and remembering; **File › Run on** lists every place, and says why one can't take it.
 - What runs: a BASIC listing, tokenised (a BBC listing goes on a disc that boots it); a program, tape, snapshot or disk image as it is (`.tap`, `.tzx`, `.z80`, `.sna`, `.bas`, `.nex`, `.prg`, `.t64`, `.d64`, `.crt`, `.ssd`, `.dsk`, `.trd`, `.rom`, `.cas` and others); or the file selected in a disk image. Which machine is worked out from the file: a Commodore program by where it loads, a Z80 snapshot by its header, a +3DOS file by which BASIC it holds. Plain text asks which BASIC it is.
-- **The built-in ZX Spectrum** (48K and 128K) runs tapes and snapshots in a panel beside the file, with nothing to install: a BASIC program is loaded at once and running. Click its screen to type on it (Ctrl is Symbol Shift, Esc is Break); Pause, Restart and switch it off. Z80 snapshots and TZX tapes are converted for it.
+- **The built-in ZX Spectrum** (48K and 128K) runs tapes and snapshots in a panel beside the file, with nothing to install: a BASIC program is loaded at once and running. Click its screen to type on it (Ctrl is Symbol Shift, Esc is Break); its sound, the beeper and the 128K's AY chip, comes out of the speakers, with a Mute button; Pause, Restart and switch it off. Z80 snapshots and TZX tapes are converted for it.
 - **Emulators** are a kind of device: ZEsarUX, Fuse and CSpect for the Spectrum and Next, VICE for Commodores, b2 for the BBC Micro and openMSX. **Find emulators** adds the ones installed; any other can be pointed to, with extra options of your own.
 - **Real machines**: an Ultimate 64 runs a program as it arrives; a Spectrum Next (NextSync), a card or a folder receives it, to be started there.
 - A run shows in the status bar with **Stop**. Running again on ZEsarUX loads into the one already running.
@@ -254,7 +254,7 @@ Switched on under **View, Panels**:
 - **While it runs**, the built-in Spectrum, ZEsarUX (by its remote protocol) and VICE (by its binary monitor) can be reached from **File › Run on**:
   - **Its memory** in hex view, looked at again every second; typing in it changes the machine's memory.
   - **Its screen as text**, in the machine's own characters.
-  - **Take its BASIC program** as a listing, and **Put this listing into it** again, in place of the program, as LOAD would leave it. A Commodore is stopped first and then RUN.
+  - **Take its BASIC program** as a listing, and **Put this listing into it** again, in place of the program, as LOAD would leave it: a program running is stopped first (BREAK on a Spectrum, RUN/STOP on a Commodore), and the new one is RUN.
 
 ## Add-ons
 

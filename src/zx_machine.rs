@@ -94,6 +94,12 @@ pub struct BuiltIn {
     held: Vec<ZXKey>,
     /// The picture, made afresh each frame.
     picture: Vec<u8>,
+    /// Where its sound goes, if anywhere, and whether it's muted.
+    speaker: Option<crate::speaker::Speaker>,
+    pub muted: bool,
+    /// How loud the loudest sound made has been, for the tests.
+    #[cfg(test)]
+    loudest: f32,
 }
 
 impl BuiltIn {
@@ -108,8 +114,20 @@ impl BuiltIn {
         }
     }
 
-    /// Starts a Spectrum running a program.
+    /// Starts a Spectrum running a program, silently.
+    #[cfg(test)]
     pub fn start(run: &Runnable) -> Result<BuiltIn, String> {
+        Self::start_inner(run, None, None)
+    }
+
+    /// Starts a Spectrum running a program, its sound going to a speaker if one's given.
+    pub fn start_with(run: &Runnable, speaker: Option<crate::speaker::Speaker>) -> Result<BuiltIn, String> {
+        let rate = speaker.as_ref().map(|s| s.rate);
+        Self::start_inner(run, rate, speaker)
+    }
+
+    /// Starts it, making sound at `rate` if there's a rate, to go to the speaker if there's one.
+    fn start_inner(run: &Runnable, rate: Option<u32>, speaker: Option<crate::speaker::Speaker>) -> Result<BuiltIn, String> {
         Self::takes(run).map_err(|why| format!("The built-in Spectrum {why}"))?;
         // A snapshot says which Spectrum it's from; a tape loads on a 128K only if it says so.
         let (machine, snapshot) = match run.format {
@@ -128,6 +146,13 @@ impl BuiltIn {
             mouse_enabled: false,
             load_default_rom: true,
             autoload_enabled: true,
+            // The beeper, and the 128K's AY chip in stereo, at the speaker's own rate.
+            ay_mode: rustzx_core::zx::sound::ay::ZXAYMode::ABC,
+            ay_enabled: true,
+            beeper_enabled: true,
+            sound_enabled: rate.is_some(),
+            sound_volume: 100,
+            sound_sample_rate: rate.unwrap_or(44100) as usize,
         };
         let mut emulator = Emulator::<LimoniterHost>::new(settings, Context).map_err(|e| format!("The built-in Spectrum couldn't start: {e:?}"))?;
         match snapshot {
@@ -137,10 +162,11 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4] };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
+                    // Loading at once makes no sound worth hearing.
                     let ppc = |m: &BuiltIn| u16::from_le_bytes([m.peek(23621), m.peek(23622)]);
                     for _ in 0..50 * 90 {
                         built.frame()?;
@@ -149,10 +175,11 @@ impl BuiltIn {
                         }
                     }
                 }
+                built.speaker = speaker;
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4] })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -161,6 +188,9 @@ impl BuiltIn {
         let now = Instant::now();
         if self.paused {
             self.last = now;
+            if let Some(speaker) = &self.speaker {
+                speaker.clear();
+            }
             return Ok(());
         }
         self.owed = (self.owed + now.duration_since(self.last).as_secs_f64() * FRAMES_PER_SECOND).min(5.0);
@@ -176,7 +206,30 @@ impl BuiltIn {
     pub fn frame(&mut self) -> Result<(), String> {
         self.press_taps();
         self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
+        // The frame's sound, to the speaker, or let go of if there isn't one or it's muted.
+        while let Some(sample) = self.emulator.next_audio_sample() {
+            #[cfg(test)]
+            {
+                self.loudest = self.loudest.max(sample.left.abs()).max(sample.right.abs());
+            }
+            if let Some(speaker) = self.speaker.as_ref().filter(|_| !self.muted) {
+                speaker.push(sample.left, sample.right);
+            }
+        }
         Ok(())
+    }
+
+    /// Whether it makes sound at all.
+    pub fn has_speaker(&self) -> bool {
+        self.speaker.is_some()
+    }
+
+    /// Mutes or unmutes it; muting lets go of the sound waiting.
+    pub fn set_muted(&mut self, muted: bool) {
+        self.muted = muted;
+        if let Some(speaker) = &self.speaker {
+            speaker.clear();
+        }
     }
 
     /// The picture, border and all, as red, green, blue and alpha, `WIDTH` by `HEIGHT`.
@@ -695,6 +748,16 @@ mod tests {
         let screen = machine.screen_text();
         assert!(screen.iter().any(|row| row == "HELLO WORLD"), "{screen:?}");
         assert!(screen.iter().any(|row| row == "OK"), "inverse text reads too");
+    }
+
+    #[test]
+    fn a_beep_makes_sound() {
+        let mut machine = BuiltIn::start_inner(&tape_of(&["10 BEEP 1,0", "20 GO TO 10"]), Some(44100), None).unwrap();
+        run_until(&mut machine, 50, |_| false);
+        assert!(machine.loudest > 0.05, "the beeper was heard: {}", machine.loudest);
+        let mut quiet = BuiltIn::start_inner(&tape_of(&["10 PAUSE 0"]), Some(44100), None).unwrap();
+        run_until(&mut quiet, 50, |_| false);
+        assert!(quiet.loudest < machine.loudest, "and a program that makes none is quieter");
     }
 
     #[test]

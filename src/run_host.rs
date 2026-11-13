@@ -343,11 +343,19 @@ impl Limoniter {
 
     /// Starts the built-in Spectrum on this, in place of anything it was running for the same file.
     fn run_built_in(&mut self, run: Runnable) -> Result<(), String> {
-        let machine = crate::zx_machine::BuiltIn::start(&run)?;
+        let machine = crate::zx_machine::BuiltIn::start_with(&run, self.speaker())?;
         let doc_id = self.docs[self.active].id;
         self.running.sessions.retain(|s| !matches!(s.kind, SessionKind::BuiltIn { doc_id: d, .. } if d == doc_id));
         self.running.sessions.push(Session { target: BUILT_IN_NAME.into(), machine: run.machine, file: run.name.clone(), kind: SessionKind::BuiltIn { machine: Box::new(machine), doc_id, run: Box::new(run), texture: None, error: None }, started: Instant::now() });
         Ok(())
+    }
+
+    /// The speakers, for the built-in Spectrum's sound; none in a test or a screenshot.
+    fn speaker(&self) -> Option<crate::speaker::Speaker> {
+        if cfg!(test) || self.screenshot.is_some() {
+            return None;
+        }
+        crate::speaker::Speaker::open()
     }
 
     /// Stops everything running: emulators are closed, and the built-in Spectrum is switched off.
@@ -398,6 +406,13 @@ impl Limoniter {
                     if ui.small_button(pause).clicked() {
                         machine.paused = !machine.paused;
                     }
+                    if machine.has_speaker() {
+                        let sound = if machine.muted { "Sound on" } else { "Mute" };
+                        if ui.small_button(sound).clicked() {
+                            let muted = !machine.muted;
+                            machine.set_muted(muted);
+                        }
+                    }
                 });
             });
             ui.separator();
@@ -437,8 +452,10 @@ impl Limoniter {
                 return;
             };
             let run = (**run).clone();
-            match crate::zx_machine::BuiltIn::start(&run) {
-                Ok(fresh) => {
+            let muted = matches!(&self.running.sessions[index].kind, SessionKind::BuiltIn { machine, .. } if machine.muted);
+            match crate::zx_machine::BuiltIn::start_with(&run, self.speaker()) {
+                Ok(mut fresh) => {
+                    fresh.set_muted(muted);
                     if let SessionKind::BuiltIn { machine, error, .. } = &mut self.running.sessions[index].kind {
                         **machine = fresh;
                         *error = None;

@@ -29,13 +29,13 @@ fn spectrum_running(lines: &[&str]) -> Limoniter {
 
 #[test]
 fn the_machines_basic_comes_out_as_a_listing_and_goes_back_in() {
-    let mut app = spectrum_running(&["10 PRINT \"ONE\"", "20 STOP"]);
+    let mut app = spectrum_running(&["10 PRINT \"ONE\"", "20 GO TO 20"]);
     let running = app.active;
     assert!(app.reachable().is_some());
     app.take_machine_basic();
     assert_ne!(app.active, running, "the listing opens as a file of its own");
     let lines: Vec<String> = (0..app.docs[app.active].text.line_count()).map(|i| app.docs[app.active].text.line(i).to_string()).collect();
-    assert_eq!(lines, ["  10 PRINT \"ONE\"", "  20 STOP"]);
+    assert_eq!(lines, ["  10 PRINT \"ONE\"", "  20 GO TO 20"]);
     assert_eq!(app.docs[app.active].listing_of.as_ref().map(|l| l.0), Some(basic::Machine::Spectrum));
     // Changed, and put back: the machine's program is the new one, and its variables area is where it should be.
     app.doc().text.set_content(vec!["  10 PRINT \"TWO\"".into(), "  20 PRINT \"MORE\"".into()]);
@@ -49,12 +49,9 @@ fn the_machines_basic_comes_out_as_a_listing_and_goes_back_in() {
     app.take_machine_basic();
     let lines: Vec<String> = (0..app.docs[app.active].text.line_count()).map(|i| app.docs[app.active].text.line(i).to_string()).collect();
     assert_eq!(lines, ["  10 PRINT \"TWO\"", "  20 PRINT \"MORE\""]);
-    // And it runs: on a 48K, R in keyword mode is RUN.
-    app.active = running;
+    // And it was run, there and then.
     let doc_id = app.docs[running].id;
     let Some(SessionKind::BuiltIn { machine, .. }) = app.running.sessions.iter_mut().map(|s| &mut s.kind).find(|k| matches!(k, SessionKind::BuiltIn { doc_id: d, .. } if *d == doc_id)) else { panic!() };
-    machine.type_char('r');
-    machine.type_char('\n');
     for _ in 0..100 {
         machine.frame().unwrap();
     }

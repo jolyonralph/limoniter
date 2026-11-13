@@ -33,6 +33,10 @@ jobs:
       - name: Use the current Rust
         run: rustup update stable --no-self-update && rustup component add clippy
 
+      - name: The sound library's headers, on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
       - name: Keep what's been built between runs
         uses: Swatinem/rust-cache@v2
 

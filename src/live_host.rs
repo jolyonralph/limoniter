@@ -246,14 +246,10 @@ impl Limoniter {
             Ok(program) => program,
             Err(problem) => return self.message("Put this listing into it", format!("The listing couldn't be tokenised, so nothing was changed.\n\n{problem}")),
         };
-        // A Commodore running a program is stopped first, as RUN/STOP would: BASIC checks the key through $91,
-        // and breaks when it says RUN/STOP. Then the new program goes in while it's waiting at READY.
-        if let Reach::Vice(_) = reach {
-            let stopped = self.reach_live(reach, |live| live.write(0x91, &[0x7F]));
-            if let Err(problem) = stopped {
-                return self.message("Put this listing into it", problem);
-            }
-            std::thread::sleep(Duration::from_millis(400));
+        // A running program is stopped first, so the new one goes in while BASIC is waiting: a Commodore as
+        // RUN/STOP would stop it (BASIC checks the key through $91), a Spectrum by pressing BREAK.
+        if let Err(problem) = self.stop_basic(reach) {
+            return self.message("Put this listing into it", problem);
         }
         let done = self.reach_live(reach, |live| {
             if spectrum_family(machine) {
@@ -282,9 +278,80 @@ impl Limoniter {
         if let Err(problem) = done {
             return self.message("Put this listing into it", problem);
         }
-        // A Commodore is told to RUN it; a Spectrum's keys depend on its mode, so it's left to the person.
-        let ran = if let Reach::Vice(port) = reach { ViceMonitor::connect(port).and_then(|mut link| link.type_text("RUN\n").and_then(|()| link.resume())).is_ok() } else { false };
+        let ran = self.type_run(reach, machine).is_ok();
         self.running.note = Some((if ran { format!("Put the listing into {target}, and ran it") } else { format!("Put the listing into {target}: type RUN there to run it") }, Instant::now()));
+    }
+
+    /// Stops the BASIC program a machine is running, if it's running one, as the person would at its keyboard.
+    fn stop_basic(&mut self, reach: Reach) -> Result<(), String> {
+        use rustzx_core::zx::keys::CompoundKey;
+        match reach {
+            Reach::Vice(_) => {
+                self.reach_live(reach, |live| live.write(0x91, &[0x7F]))?;
+                std::thread::sleep(Duration::from_millis(400));
+            }
+            Reach::Zrcp(port) => {
+                // ZEsarUX's own key numbers: Caps Shift and Space together are BREAK.
+                let mut link = Zrcp::connect(port)?;
+                link.command("send-keys-event 135 1")?;
+                link.command("send-keys-event 128 1")?;
+                std::thread::sleep(Duration::from_millis(300));
+                link.command("send-keys-event 128 0")?;
+                link.command("send-keys-event 135 0")?;
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            Reach::BuiltIn(doc_id) => {
+                let machine = self.built_in(doc_id).ok_or("The built-in Spectrum has been switched off.")?;
+                machine.compound(CompoundKey::Break, true);
+                for _ in 0..10 {
+                    machine.frame()?;
+                }
+                machine.compound(CompoundKey::Break, false);
+                for _ in 0..25 {
+                    machine.frame()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Types RUN, as each machine takes it: a Commodore's keyboard buffer has the letters; a 48K Spectrum makes
+    /// RUN from R, as the first key of a line; later Spectrums, with their editor, take the letters.
+    fn type_run(&mut self, reach: Reach, machine: Machine) -> Result<(), String> {
+        let keyword = machine == Machine::Spectrum48;
+        match reach {
+            Reach::Vice(port) => {
+                let mut link = ViceMonitor::connect(port)?;
+                link.type_text("RUN\n")?;
+                link.resume()
+            }
+            Reach::Zrcp(port) => {
+                let mut link = Zrcp::connect(port)?;
+                let keys: &[u32] = if keyword { &[114] } else { &[114, 117, 110] };
+                for key in keys.iter().chain([&129]) {
+                    link.command(&format!("send-keys-event {key} 1"))?;
+                    std::thread::sleep(Duration::from_millis(80));
+                    link.command(&format!("send-keys-event {key} 0"))?;
+                    std::thread::sleep(Duration::from_millis(80));
+                }
+                Ok(())
+            }
+            Reach::BuiltIn(doc_id) => {
+                let machine = self.built_in(doc_id).ok_or("The built-in Spectrum has been switched off.")?;
+                for c in if keyword { "r\n" } else { "run\n" }.chars() {
+                    machine.type_char(c);
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// The built-in Spectrum running for a document.
+    fn built_in(&mut self, doc_id: u64) -> Option<&mut crate::zx_machine::BuiltIn> {
+        self.running.sessions.iter_mut().find_map(|session| match &mut session.kind {
+            SessionKind::BuiltIn { machine, doc_id: d, .. } if *d == doc_id => Some(machine.as_mut()),
+            _ => None,
+        })
     }
 
     /// Follows the documents showing a running machine, looking again every second. Edits to memory go to the
