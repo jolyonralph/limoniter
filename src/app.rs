@@ -204,6 +204,7 @@ enum Command {
     GoToDefinition,
     FindUses,
     RenameLabel,
+    Disassemble,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -585,6 +586,8 @@ struct Document {
     listing_of: Option<(basic::Machine, String)>,
     /// Opened from a Spectrum tape's list of files: a program from it goes back as a tape.
     from_tape: bool,
+    /// Where it loads, when the image it came from says (a tape's CODE block).
+    load_address: Option<u16>,
     /// Following a running machine: its memory or its screen, looked at again every second.
     live: Option<Box<live_host::LiveView>>,
     /// When autosave first saw it with unsaved changes.
@@ -689,6 +692,7 @@ impl Document {
             upload_wanted: false,
             listing_of: None,
             from_tape: false,
+            load_address: None,
             live: None,
             unsaved_since: None,
             autosave_skipped: None,
@@ -1242,6 +1246,7 @@ enum Dialog {
     Assembler(Box<asm_host::AssemblerBox>),
     NewKinds(Box<new_kinds::NewKindsBox>),
     RenameLabel(Box<intel_host::RenameBox>),
+    Disassemble(Box<disasm_host::DisasmBox>),
     Spelling { found: crate::spelling::Found, chosen: usize },
     AssistReview(assistant::Review),
 }
@@ -3545,6 +3550,7 @@ impl Limoniter {
             Command::GoToDefinition => self.go_to_definition(),
             Command::FindUses => self.find_uses(),
             Command::RenameLabel => self.open_rename_box(),
+            Command::Disassemble => self.open_disassemble_box(),
             Command::EditNewKinds => self.open_new_kinds_box(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
@@ -5698,7 +5704,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7184,6 +7190,9 @@ mod new_kinds;
 
 #[path = "intel_host.rs"]
 mod intel_host;
+
+#[path = "disasm_host.rs"]
+mod disasm_host;
 
 #[path = "live_host.rs"]
 mod live_host;

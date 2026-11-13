@@ -476,6 +476,7 @@ const TOOLS: &[Entry] = &[
     Item("Fingerprint (SHA-256)", Command::ComputeHash),
     Item("Convert a number", Command::ConvertNumber),
     Item("Copy the file's path", Command::CopyPath),
+    Item("Disassemble\u{2026}", Command::Disassemble),
     Line,
     Sub(
         "Git",

@@ -57,6 +57,7 @@ mod code_intel;
 mod debug_panel;
 mod zx_basic_debug;
 mod dzrp;
+mod disasm;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

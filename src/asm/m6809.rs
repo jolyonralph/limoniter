@@ -8,19 +8,19 @@ pub struct M6809;
 
 /// An instruction that reads or writes memory: its page prefix, its immediate opcode (direct is 0x10 more,
 /// indexed 0x20, extended 0x30), whether its values are 16 bits, and whether it has an immediate form.
-struct Memory {
-    name: &'static str,
-    prefix: Option<u8>,
-    opcode: u8,
-    wide: bool,
-    immediate: bool,
+pub(crate) struct Memory {
+    pub name: &'static str,
+    pub prefix: Option<u8>,
+    pub opcode: u8,
+    pub wide: bool,
+    pub immediate: bool,
 }
 
 const fn m(name: &'static str, prefix: Option<u8>, opcode: u8, wide: bool, immediate: bool) -> Memory {
     Memory { name, prefix, opcode, wide, immediate }
 }
 
-const MEMORY: &[Memory] = &[
+pub(crate) const MEMORY: &[Memory] = &[
     m("suba", None, 0x80, false, true),
     m("cmpa", None, 0x81, false, true),
     m("sbca", None, 0x82, false, true),
@@ -64,12 +64,12 @@ const MEMORY: &[Memory] = &[
 ];
 
 /// Instructions on memory alone (direct 0x00, indexed 0x60, extended 0x70), or on A (0x40) or B (0x50).
-const SHIFTS: [(&str, u8); 12] = [("neg", 0x0), ("com", 0x3), ("lsr", 0x4), ("ror", 0x6), ("asr", 0x7), ("asl", 0x8), ("lsl", 0x8), ("rol", 0x9), ("dec", 0xA), ("inc", 0xC), ("tst", 0xD), ("clr", 0xF)];
+pub(crate) const SHIFTS: [(&str, u8); 12] = [("neg", 0x0), ("com", 0x3), ("lsr", 0x4), ("ror", 0x6), ("asr", 0x7), ("asl", 0x8), ("lsl", 0x8), ("rol", 0x9), ("dec", 0xA), ("inc", 0xC), ("tst", 0xD), ("clr", 0xF)];
 
-const INHERENT: [(&str, &[u8]); 11] = [("nop", &[0x12]), ("sync", &[0x13]), ("daa", &[0x19]), ("sex", &[0x1D]), ("rts", &[0x39]), ("abx", &[0x3A]), ("rti", &[0x3B]), ("mul", &[0x3D]), ("swi", &[0x3F]), ("swi2", &[0x10, 0x3F]), ("swi3", &[0x11, 0x3F])];
+pub(crate) const INHERENT: [(&str, &[u8]); 11] = [("nop", &[0x12]), ("sync", &[0x13]), ("daa", &[0x19]), ("sex", &[0x1D]), ("rts", &[0x39]), ("abx", &[0x3A]), ("rti", &[0x3B]), ("mul", &[0x3D]), ("swi", &[0x3F]), ("swi2", &[0x10, 0x3F]), ("swi3", &[0x11, 0x3F])];
 
 /// Branches: the short opcode (the long one is 0x10 before it, except LBRA and LBSR).
-const BRANCHES: [(&str, u8); 18] = [("bra", 0x20), ("brn", 0x21), ("bhi", 0x22), ("bls", 0x23), ("bcc", 0x24), ("bhs", 0x24), ("bcs", 0x25), ("blo", 0x25), ("bne", 0x26), ("beq", 0x27), ("bvc", 0x28), ("bvs", 0x29), ("bpl", 0x2A), ("bmi", 0x2B), ("bge", 0x2C), ("blt", 0x2D), ("bgt", 0x2E), ("ble", 0x2F)];
+pub(crate) const BRANCHES: [(&str, u8); 18] = [("bra", 0x20), ("brn", 0x21), ("bhi", 0x22), ("bls", 0x23), ("bcc", 0x24), ("bhs", 0x24), ("bcs", 0x25), ("blo", 0x25), ("bne", 0x26), ("beq", 0x27), ("bvc", 0x28), ("bvs", 0x29), ("bpl", 0x2A), ("bmi", 0x2B), ("bge", 0x2C), ("blt", 0x2D), ("bgt", 0x2E), ("ble", 0x2F)];
 
 fn memory(name: &str) -> Option<&'static Memory> {
     MEMORY.iter().find(|m| m.name == name)

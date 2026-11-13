@@ -7,7 +7,7 @@ pub struct M6502;
 
 /// How an instruction finds its operand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Mode {
+pub enum Mode {
     Implied,
     Accumulator,
     Immediate,
@@ -110,6 +110,11 @@ fn canonical(mnemonic: &str) -> &str {
         "axa" | "aax" => "sax",
         other => other,
     }
+}
+
+/// What an opcode is: its instruction and mode, the first in the table (the documented one, where there are two).
+pub fn decode(op: u8) -> Option<(&'static str, Mode)> {
+    OPCODES.iter().find_map(|(name, modes)| modes.iter().find(|(_, o)| *o == op).map(|(mode, _)| (*name, *mode)))
 }
 
 fn opcodes(mnemonic: &str) -> Option<&'static [(Mode, u8)]> {

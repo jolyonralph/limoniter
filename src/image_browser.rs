@@ -148,6 +148,12 @@ impl ImageBrowser {
         (!entry.is_dir).then(|| self.take(index))
     }
 
+    /// Where a file loads, if the image says ("N bytes at ADDR").
+    fn load_address(&self, index: usize) -> Option<u16> {
+        let detail = &self.level().entries.get(index)?.detail;
+        detail.split(" at ").nth(1)?.trim().parse().ok()
+    }
+
     /// The text preset the image has for a file in this folder, such as the Amiga's.
     fn text_preset(&self, index: usize) -> Option<&'static str> {
         let level = self.level();
@@ -331,12 +337,14 @@ impl Limoniter {
         let Some(browser) = self.docs[index].browser.as_mut() else {
             return;
         };
+        let load_address = browser.load_address(i);
         match browser.open(i) {
             None => {}
             Some(Ok((name, bytes))) => {
                 let place = browser.place();
                 let mut doc = Document::from_image_file(format!("{place} \u{203A} {name}"), bytes, browser.text_preset(i));
                 doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some());
+                doc.load_address = load_address;
                 let image = self.docs[index].path.clone();
                 let ending = image.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
                 let program = Path::new(&name).extension().is_some_and(|e| e.eq_ignore_ascii_case("bas"));
