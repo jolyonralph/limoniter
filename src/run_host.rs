@@ -124,6 +124,13 @@ impl Limoniter {
         }
         let doc = &self.docs[self.active];
         if let Some(browser) = &doc.browser {
+            // A program shown as its parts (a .nex, a snapshot) runs whole, whichever part is chosen.
+            let ending = doc.path.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
+            if matches!(ending.as_str(), "nex" | "sna" | "z80") {
+                let name = doc.name();
+                let bytes = doc.path.as_deref().map(std::fs::read).transpose().map_err(|e| e.to_string())?.unwrap_or_default();
+                return Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| format!("{name} isn't a program Limoniter knows how to run."));
+            }
             return match browser.selected_file() {
                 Some(Ok((name, bytes))) => Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| format!("{name} isn't a program or disk Limoniter knows how to run.")),
                 Some(Err(problem)) => Err(problem),

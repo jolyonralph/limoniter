@@ -17,6 +17,7 @@ mod iso;
 mod lha;
 mod lif;
 mod mac;
+mod nex;
 mod rp9;
 mod sectors;
 pub mod write;
@@ -177,8 +178,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 59] = [
-    "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9",
+pub const IMAGE_ENDINGS: [&str; 60] = [
+    "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -238,6 +239,8 @@ enum Format {
     SectorImage(sectors::Kind),
     /// A Color Computer or Dragon disk: JVC, VDK or OS-9 image.
     Coco,
+    /// A ZX Spectrum Next program, seen as its parts.
+    Nex,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -281,6 +284,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if at(0, b"SINCLAIR") {
         return Some(Format::Scl);
+    }
+    if nex::looks_like(head) {
+        return Some(Format::Nex);
     }
     if at(0, b"ZXTape!\x1A") {
         return Some(Format::ZxTape);
@@ -428,6 +434,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::ZxTape) => Ok(Box::new(spectrum::Tape::open(source)?)),
         Some(Format::Z80) => Ok(Box::new(spectrum::Snapshot::open(source, false)?)),
         Some(Format::Sna) => Ok(Box::new(spectrum::Snapshot::open(source, true)?)),
+        Some(Format::Nex) => Ok(Box::new(nex::Nex::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }

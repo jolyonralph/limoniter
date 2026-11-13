@@ -744,3 +744,40 @@ mod tests {
         std::fs::remove_dir_all(dir).ok();
     }
 }
+
+#[cfg(test)]
+mod next_sd {
+    use super::super::tests::{entry, reopened};
+    use super::*;
+
+    /// A Next's SD card image (ZEsarUX's, a FAT16 partition after an MBR) takes a dot command in /dot.
+    #[test]
+    fn a_dot_command_goes_on_a_next_sd_card() {
+        let Ok(card) = std::fs::read("/root/emu/zsrc/ZEsarUX-13.0/tbblue.mmc") else {
+            return;
+        };
+        let mut fat = Fat::open(card).unwrap();
+        let volume = reopened(&fat, "tbblue.mmc");
+        let dot = entry(&*volume, None, "dot");
+        fat.add(Some(&dot), &Addition { name: "HIDOT".into(), bytes: vec![0x3E, b'H', 0xD7, 0xC9], ..Default::default() }).unwrap();
+        let volume = reopened(&fat, "tbblue.mmc");
+        let dot = entry(&*volume, None, "dot");
+        assert_eq!(volume.read(&entry(&*volume, Some(&dot), "HIDOT")).unwrap(), [0x3E, b'H', 0xD7, 0xC9]);
+        let Some(fsck) = Some(std::path::PathBuf::from("/usr/sbin/fsck.fat")).filter(|p| p.is_file()) else {
+            return;
+        };
+        // fsck.fat checks the partition on its own, before and after: it finds nothing new (the card's label
+        // was already only in its boot sector).
+        let path = std::env::temp_dir().join(format!("limoniter-sd-{}.img", std::process::id()));
+        let check = |bytes: &[u8]| -> Vec<String> {
+            std::fs::write(&path, bytes).unwrap();
+            let out = std::process::Command::new(&fsck).arg("-n").arg(&path).output().unwrap();
+            String::from_utf8_lossy(&out.stdout).lines().filter(|l| !l.contains(" files, ")).map(str::to_string).collect()
+        };
+        let original = std::fs::read("/root/emu/zsrc/ZEsarUX-13.0/tbblue.mmc").unwrap();
+        let before = check(&original[fat.base..]);
+        let after = check(&fat.bytes()[fat.base..]);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(after, before);
+    }
+}

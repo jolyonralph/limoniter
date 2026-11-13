@@ -11,6 +11,7 @@ mod gem;
 mod ilbm;
 pub use ilbm::Cycling;
 mod macpaint;
+pub mod next;
 mod pcx;
 pub mod photo_cd;
 mod riscos;
@@ -40,10 +41,12 @@ pub enum Format {
     GemImg,
     /// An Apple II hi-res screen.
     AppleHires,
+    /// A ZX Spectrum Next Layer 2 or LoRes screen, or a palette.
+    NextScreen,
 }
 
 impl Format {
-    pub const ALL: [Self; 10] = [Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires];
+    pub const ALL: [Self; 11] = [Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -57,6 +60,7 @@ impl Format {
             Self::Pcx => "PCX picture",
             Self::GemImg => "GEM bit image",
             Self::AppleHires => "Apple II hi-res screen",
+            Self::NextScreen => "ZX Spectrum Next screen",
         }
     }
 }
@@ -125,6 +129,9 @@ pub fn detect(name: &str, bytes: &[u8]) -> Option<Format> {
     if apple2::looks_like(&ending, bytes) {
         return Some(Format::AppleHires);
     }
+    if next::looks_like(&ending, bytes) {
+        return Some(Format::NextScreen);
+    }
     None
 }
 
@@ -149,6 +156,7 @@ pub fn decode_named(format: Format, name: &str, bytes: &[u8]) -> Result<Picture,
             }
             atari_st::decode(&ending(name), bytes)
         }
+        Format::NextScreen => next::decode(&ending(name), bytes),
         _ => decode(format, bytes),
     }
 }
@@ -169,6 +177,8 @@ pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
         Format::Pcx => pcx::decode(bytes),
         Format::GemImg => gem::decode(bytes),
         Format::AppleHires => apple2::decode(bytes),
+        // Without a name, the size says which: a palette's is the one that isn't a screen's.
+        Format::NextScreen => next::decode(if bytes.len() <= 512 { "nxp" } else { "sl2" }, bytes),
     }
 }
 
@@ -312,6 +322,7 @@ mod tests {
                             Format::Pcx => "pcx",
                             Format::GemImg => "img",
                             Format::AppleHires => "hgr",
+                            Format::NextScreen => "sl2",
                         };
                         std::fs::write(out.join(format!("{number:04}.{ending}")), bytes).unwrap();
                         std::fs::write(out.join(format!("{number:04}.png")), to_png(&picture).unwrap()).unwrap();

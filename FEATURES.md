@@ -135,6 +135,7 @@ Shown at the machine's own pixel shape, with details from the file, and saved as
 - Atari ST Degas, Degas Elite (packed or not) and NEOchrome, with playable colour cycling.
 - Commodore 64: Koala Painter, OCP Art Studio, Advanced Art Studio, Doodle!.
 - ZX Spectrum screens (`.scr`), with or without a +3DOS header.
+- ZX Spectrum Next screens: Layer 2 (`.sl2`, `.nxi`) at 256×192, 320×256 and 640×256, LoRes (`.slr`), with their own palette or the Next's, and palettes (`.nxp`) shown as their 256 colours.
 - MacPaint, with or without a MacBinary header.
 - RISC OS sprite files, one sprite or a sheet of many.
 - Kodak Photo CD (`.pcd`) at its highest resolution, up to 16Base (3072 x 2048).
@@ -158,6 +159,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | Apple II | DOS 3.3 and ProDOS disks (`.dsk`, `.do`, `.po`, `.2mg`, `.hdv`) in either sector order, 800K and hard disk ProDOS volumes with folders; Applesoft programs, text and hi-res screens recognised |
 | Amiga | ADF floppies (OFS, FFS and long-name variants), gzipped ADZ, DMS, HDF hard disks with partitions, LHA/LZH archives, Amiga Forever RP9 packages |
 | ZX Spectrum | +3DOS DSK disks, TR-DOS (`.trd`) and SCL, Microdrive cartridges (`.mdr`), TAP and TZX tapes, Z80 and SNA snapshots (BASIC, screen and memory) |
+| ZX Spectrum Next | `.nex` programs (V1.0 to V1.3): the loading screen (shown as the file's picture, with its palette), copper code, each 16K bank and anything appended, with every header setting in Info; F9 runs the whole program. NextZXOS SD card images (FAT16 or FAT32 partitions) can have files added, so a dot command goes in `/dot` |
 | Amstrad CPC / PCW | DSK disks (standard and extended), AMSDOS and CP/M |
 | Acorn | BBC/Electron DFS (`.ssd`, `.dsd`, Watford 62-file), ADFS S/M/L (`.ads`, `.adm`, `.adl`), RISC OS ADFS D/E/F (`.adf`), UEF tapes |
 | Macintosh | MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images; both forks and type/creator shown |

@@ -5994,6 +5994,8 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                // File properties shown, as Info shows it beside an image.
+                "properties" => self.panels.file_properties = value != "off",
                 // Files waiting to go on the image in front, as if dropped on it; semicolons between.
                 "image-add" => {
                     let paths: Vec<PathBuf> = value.split(';').map(PathBuf::from).collect();
