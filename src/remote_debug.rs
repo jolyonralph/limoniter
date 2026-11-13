@@ -1,6 +1,7 @@
-//! Debugging a program running in ZEsarUX, as the built-in Spectrum is debugged: breakpoints at source lines,
+//! Debugging a program running in an emulator, as the built-in Spectrum is debugged: breakpoints at source lines,
 //! stopping, stepping and the registers. ZEsarUX is driven through its remote protocol (ZRCP) in step mode, its
-//! `run` command carrying on until a breakpoint fires; a thread of its own talks to it, so the window never waits.
+//! `run` command carrying on until a breakpoint fires; VICE through its binary monitor's checkpoints. A thread of
+//! its own talks to the emulator, so the window never waits.
 
 use crate::zx_machine::Registers;
 use std::io::{Read, Write};
@@ -21,10 +22,31 @@ pub enum Ask {
     Finish,
 }
 
+/// Where a program stopped, and its registers: a Z80's, or another processor's as words to show.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Stop {
+    pub pc: u16,
+    pub z80: Option<Registers>,
+    pub words: Vec<String>,
+}
+
+impl Stop {
+    pub fn z80(registers: Registers) -> Stop {
+        Stop { pc: registers.pc, z80: Some(registers), words: Vec::new() }
+    }
+}
+
+/// Which emulator, and so which way of talking to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Emulator {
+    Zesarux,
+    Vice,
+}
+
 /// What the debugger tells the window.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Told {
-    Stopped(Registers),
+    Stopped(Stop),
     Running,
     Problem(String),
 }
@@ -34,18 +56,22 @@ pub struct RemoteDebug {
     asks: Sender<Ask>,
     told: Receiver<Told>,
     /// Where it last stopped, while it's stopped.
-    pub stopped: Option<Registers>,
+    pub stopped: Option<Stop>,
     pub problem: Option<String>,
 }
 
 impl RemoteDebug {
     /// Starts debugging the ZEsarUX listening on a port: once connected, it's stopped, given its breakpoints, and
     /// then loads the file (if there's one to load) and runs it, so not even the first instruction is missed.
-    pub fn start(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, wake: impl Fn() + Send + 'static) -> RemoteDebug {
+    pub fn start(emulator: Emulator, port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, wake: impl Fn() + Send + 'static) -> RemoteDebug {
         let (asks, asked) = channel();
         let (tell, told) = channel();
         std::thread::spawn(move || {
-            if let Err(problem) = talk(port, file, breakpoints, &asked, &tell, &wake) {
+            let talked = match emulator {
+                Emulator::Zesarux => talk(port, file, breakpoints, &asked, &tell, &wake),
+                Emulator::Vice => talk_vice(port, file, breakpoints, &asked, &tell, &wake),
+            };
+            if let Err(problem) = talked {
                 let _ = tell.send(Told::Problem(problem));
             }
             wake();
@@ -212,10 +238,10 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
         };
         match ask {
             Ask::Breakpoints(addresses) => set = link.set_breakpoints(&addresses, set)?,
-            Ask::Pause => say(Told::Stopped(link.registers()?)),
+            Ask::Pause => say(Told::Stopped(Stop::z80(link.registers()?))),
             Ask::Step => {
                 link.command("cpu-step")?;
-                say(Told::Stopped(link.registers()?));
+                say(Told::Stopped(Stop::z80(link.registers()?)));
             }
             Ask::CarryOn | Ask::StepOver => {
                 link.send(if ask == Ask::CarryOn { "run" } else { "cpu-step-over" })?;
@@ -242,7 +268,7 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
                     }
                 }
                 if next.is_none() {
-                    say(Told::Stopped(link.registers()?));
+                    say(Told::Stopped(Stop::z80(link.registers()?)));
                 }
             }
             Ask::Finish => {
@@ -252,6 +278,196 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
             }
         }
     }
+}
+
+// ---------- VICE ----------
+
+/// VICE's binary monitor, read and written a message at a time.
+struct Monitor {
+    stream: TcpStream,
+    request: u32,
+    /// The registers VICE last said, with the stop that came after them.
+    registers: Vec<(u8, u16)>,
+}
+
+/// What VICE sent: its type, error, request and body.
+type Message = (u8, u8, u32, Vec<u8>);
+
+impl Monitor {
+    fn send(&mut self, command: u8, body: &[u8]) -> Result<u32, String> {
+        self.request += 1;
+        let mut message = vec![0x02, 0x02];
+        message.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        message.extend_from_slice(&self.request.to_le_bytes());
+        message.push(command);
+        message.extend_from_slice(body);
+        self.stream.write_all(&message).map_err(|e| format!("VICE couldn't be told: {e}"))?;
+        Ok(self.request)
+    }
+
+    /// The next message, if one comes within the read timeout.
+    fn next(&mut self) -> Result<Option<Message>, String> {
+        let mut head = [0u8; 12];
+        match self.stream.read(&mut head[..1]) {
+            Ok(0) => return Err("VICE closed the connection.".into()),
+            Ok(_) => {}
+            Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return Ok(None),
+            Err(e) => return Err(format!("VICE stopped answering: {e}")),
+        }
+        // The rest of a message comes at once.
+        self.stream.set_read_timeout(Some(Duration::from_secs(5))).map_err(|e| e.to_string())?;
+        let rest = (|| -> std::io::Result<Message> {
+            self.stream.read_exact(&mut head[1..])?;
+            let length = u32::from_le_bytes([head[2], head[3], head[4], head[5]]) as usize;
+            let mut body = vec![0u8; length];
+            self.stream.read_exact(&mut body)?;
+            Ok((head[6], head[7], u32::from_le_bytes([head[8], head[9], head[10], head[11]]), body))
+        })();
+        self.stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
+        let message = rest.map_err(|e| format!("VICE stopped answering: {e}"))?;
+        // Registers come before a stop; keep them for it.
+        if message.0 == 0x31 {
+            let body = &message.3;
+            let count = body.get(..2).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]) as usize);
+            let mut at = 2;
+            self.registers.clear();
+            for _ in 0..count {
+                let Some(&size) = body.get(at) else { break };
+                if let (Some(&id), Some(value)) = (body.get(at + 1), body.get(at + 2..at + 4)) {
+                    self.registers.push((id, u16::from_le_bytes([value[0], value[1]])));
+                }
+                at += size as usize + 1;
+            }
+        }
+        Ok(Some(message))
+    }
+
+    /// Sends a command and waits for its answer, noting a stop on the way.
+    fn command(&mut self, command: u8, body: &[u8]) -> Result<Vec<u8>, String> {
+        let id = self.send(command, body)?;
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(5) {
+            if let Some((_, error, answered, body)) = self.next()?
+                && answered == id
+            {
+                if error != 0 {
+                    return Err(format!("VICE refused it (error {error:#04X})."));
+                }
+                return Ok(body);
+            }
+        }
+        Err("VICE stopped answering.".into())
+    }
+
+    /// Where it stopped, with the 6502's registers in words.
+    fn stop(&self, pc: u16) -> Stop {
+        let get = |id: u8| self.registers.iter().find(|(i, _)| *i == id).map(|(_, v)| *v);
+        let flags = get(5).unwrap_or(0) as u8;
+        let flag_names: String = [(7, 'N'), (6, 'V'), (4, 'B'), (3, 'D'), (2, 'I'), (1, 'Z'), (0, 'C')].iter().map(|(bit, name)| if flags & (1 << bit) != 0 { *name } else { '-' }).collect();
+        let words = vec![
+            format!("A {:02X}", get(0).unwrap_or(0)),
+            format!("X {:02X}", get(1).unwrap_or(0)),
+            format!("Y {:02X}", get(2).unwrap_or(0)),
+            format!("SP {:02X}", get(4).unwrap_or(0)),
+            format!("PC {pc:04X}"),
+            format!("Flags {flag_names}"),
+        ];
+        Stop { pc, z80: None, words }
+    }
+
+    fn set_checkpoints(&mut self, addresses: &[u16], numbers: &mut Vec<u32>) -> Result<(), String> {
+        for number in numbers.drain(..) {
+            let _ = self.command(0x13, &number.to_le_bytes());
+        }
+        for address in addresses {
+            let mut body = address.to_le_bytes().to_vec();
+            body.extend(address.to_le_bytes());
+            // Stop when hit, enabled, on running the instruction there, not temporary.
+            body.extend([1, 1, 4, 0]);
+            let answer = self.command(0x12, &body)?;
+            if let Some(number) = answer.get(..4) {
+                numbers.push(u32::from_le_bytes([number[0], number[1], number[2], number[3]]));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The VICE thread: connects, sets the checkpoints, starts the program, and then does as it's asked.
+fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, asked: &Receiver<Ask>, tell: &Sender<Told>, wake: &dyn Fn()) -> Result<(), String> {
+    let began = Instant::now();
+    let stream = loop {
+        match TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), Duration::from_secs(2)) {
+            Ok(stream) => break stream,
+            Err(_) if began.elapsed() < Duration::from_secs(30) => std::thread::sleep(Duration::from_millis(200)),
+            Err(e) => return Err(format!("VICE couldn't be reached to debug on port {port}: {e}")),
+        }
+    };
+    stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
+    let mut vice = Monitor { stream, request: 0, registers: Vec::new() };
+    let say = |told: Told| {
+        let _ = tell.send(told);
+        wake();
+    };
+    let mut numbers = Vec::new();
+    vice.set_checkpoints(&breakpoints, &mut numbers)?;
+    // AUTOSTART: load the program, and RUN it; VICE carries on by itself.
+    let mut running = false;
+    if let Some(file) = file {
+        let name = file.display().to_string().into_bytes();
+        let mut body = vec![1, 0, 0, name.len() as u8];
+        body.extend(name);
+        vice.command(0xDD, &body)?;
+        running = true;
+        say(Told::Running);
+    }
+    loop {
+        if running {
+            // Until it stops: at a checkpoint, or asked to.
+            match vice.next()? {
+                Some((0x62, _, _, body)) => {
+                    running = false;
+                    let pc = body.get(..2).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
+                    say(Told::Stopped(vice.stop(pc)));
+                }
+                Some(_) => {}
+                None => match asked.try_recv() {
+                    // Any command stops it.
+                    Ok(Ask::Pause) => {
+                        vice.send(0x81, &[])?;
+                    }
+                    Ok(Ask::Breakpoints(addresses)) => {
+                        vice.set_checkpoints(&addresses, &mut numbers)?;
+                        vice.command(0xAA, &[])?;
+                    }
+                    Ok(Ask::Finish) | Err(TryRecvError::Disconnected) => break,
+                    Ok(_) | Err(TryRecvError::Empty) => {}
+                },
+            }
+            continue;
+        }
+        let ask = asked.recv().unwrap_or(Ask::Finish);
+        match ask {
+            Ask::Breakpoints(addresses) => vice.set_checkpoints(&addresses, &mut numbers)?,
+            Ask::CarryOn => {
+                vice.command(0xAA, &[])?;
+                running = true;
+                say(Told::Running);
+            }
+            Ask::Step | Ask::StepOver => {
+                // ADVANCE_INSTRUCTIONS: over subroutines or not, one instruction.
+                vice.command(0x71, &[(ask == Ask::StepOver) as u8, 1, 0])?;
+                running = true;
+            }
+            Ask::Pause => {}
+            Ask::Finish => break,
+        }
+    }
+    let mut leftover = Vec::new();
+    std::mem::swap(&mut leftover, &mut numbers);
+    let _ = vice.set_checkpoints(&[], &mut leftover);
+    let _ = vice.command(0xAA, &[]);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -282,7 +498,7 @@ mod tests {
         std::fs::write(&file, snapshot).unwrap();
         let port = 10200 + (std::process::id() % 500) as u16;
         let mut child = std::process::Command::new(&program).args(["--vo", "null", "--ao", "null", "--noconfigfile", "--enable-remoteprotocol", "--remoteprotocol-port", &port.to_string(), "--machine", "48k"]).current_dir(std::path::Path::new(&program).parent().unwrap()).spawn().unwrap();
-        let mut debug = RemoteDebug::start(port, Some(file.clone()), vec![0x8002], || {});
+        let mut debug = RemoteDebug::start(Emulator::Zesarux, port, Some(file.clone()), vec![0x8002], || {});
         let wait_until = |debug: &mut RemoteDebug, what: &dyn Fn(&RemoteDebug) -> bool| {
             let began = Instant::now();
             while began.elapsed() < Duration::from_secs(30) {
@@ -293,19 +509,19 @@ mod tests {
                 std::thread::sleep(Duration::from_millis(50));
             }
         };
-        wait_until(&mut debug, &|d| d.stopped.is_some_and(|r| r.pc == 0x8002));
-        let at = debug.stopped;
+        wait_until(&mut debug, &|d| d.stopped.as_ref().is_some_and(|r| r.pc == 0x8002));
+        let at = debug.stopped.clone().and_then(|s| s.z80);
         assert_eq!(at.map(|r| (r.pc, r.af >> 8)), Some((0x8002, 7)), "{:?}", debug.problem);
         debug.ask(Ask::Step);
         wait_until(&mut debug, &|d| d.stopped.is_some());
-        assert_eq!(debug.stopped.map(|r| (r.pc, r.bc)), Some((0x8005, 0x1234)));
+        assert_eq!(debug.stopped.clone().and_then(|s| s.z80).map(|r| (r.pc, r.bc)), Some((0x8005, 0x1234)));
         debug.ask(Ask::StepOver);
         wait_until(&mut debug, &|d| d.stopped.is_some());
-        assert_eq!(debug.stopped.map(|r| (r.pc, r.hl)), Some((0x8008, 0xABCD)), "over the CALL");
+        assert_eq!(debug.stopped.clone().and_then(|s| s.z80).map(|r| (r.pc, r.hl)), Some((0x8008, 0xABCD)), "over the CALL");
         debug.ask(Ask::Breakpoints(vec![0x800B]));
         debug.ask(Ask::CarryOn);
         wait_until(&mut debug, &|d| d.stopped.is_some());
-        assert_eq!(debug.stopped.map(|r| (r.pc, r.de)), Some((0x800B, 0x5678)));
+        assert_eq!(debug.stopped.clone().and_then(|s| s.z80).map(|r| (r.pc, r.de)), Some((0x800B, 0x5678)));
         drop(debug);
         let _ = child.kill();
         let _ = child.wait();

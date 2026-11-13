@@ -392,3 +392,52 @@ fn assembler_source_is_debugged_in_a_real_zesarux() {
     assert_eq!(stopped_at(&mut app, &ctx), Some(3), "a step on, at the CALL");
     app.stop_all_sessions();
 }
+
+/// A real VICE, where LIMONITER_VICE says where x64sc is (and LIMONITER_VICE_OPTIONS anything it needs): 6502
+/// source run there stops at its breakpoint, steps, and steps over a JSR.
+#[test]
+fn assembler_source_is_debugged_in_a_real_vice() {
+    let Some(program) = std::env::var_os("LIMONITER_VICE") else {
+        return;
+    };
+    let options = std::env::var("LIMONITER_VICE_OPTIONS").unwrap_or_default();
+    crate::highlight::load_now();
+    let (mut app, ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "VICE".into(), place: Place::Emulator { emulator: "vice".into(), program: program.into(), options }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "colours.asm".into();
+    app.doc().text.set_content(["  *=$c000", "start lda #7", "  ldx #$12", "  jsr sub", "  ldy #$34", "loop jmp loop", "sub inx", "  rts"].iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    app.assembly_tick();
+    app.doc().text.code.as_mut().unwrap().breakpoints.insert(2);
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.script_output);
+    let stopped_at = |app: &mut Limoniter| {
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(40) {
+            let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+            if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
+                return Some(line);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        None
+    };
+    assert_eq!(stopped_at(&mut app), Some(2), "stopped at its breakpoint, on line 3");
+    let ask = |app: &mut Limoniter, ask: crate::remote_debug::Ask| match &mut app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.ask(ask),
+        _ => panic!("it's being debugged"),
+    };
+    ask(&mut app, crate::remote_debug::Ask::Step);
+    let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+    assert_eq!(stopped_at(&mut app), Some(3), "a step on, at the JSR");
+    ask(&mut app, crate::remote_debug::Ask::StepOver);
+    let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+    assert_eq!(stopped_at(&mut app), Some(4), "over the JSR");
+    let words = match &app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.stopped.clone().map(|s| s.words.join(" ")).unwrap_or_default(),
+        _ => String::new(),
+    };
+    assert!(words.contains("X 13"), "the subroutine ran: {words}");
+    app.stop_all_sessions();
+}

@@ -303,7 +303,12 @@ impl Limoniter {
         let emulator = emulators::by_id(emulator).ok_or("It isn't an emulator Limoniter knows.")?;
         // Assembler source run on ZEsarUX is debugged there: its breakpoints set at their lines' addresses.
         let doc_id = self.docs[self.active].id;
-        let debugging = emulator.link == Link::Zrcp && matches!(run.machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::Next) && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
+        let kind = match emulator.link {
+            Link::Zrcp if matches!(run.machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::Next) => Some(crate::remote_debug::Emulator::Zesarux),
+            Link::ViceMonitor if run.format == crate::running::Format::Prg => Some(crate::remote_debug::Emulator::Vice),
+            _ => None,
+        };
+        let debugging = kind.is_some() && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
         let mut run = run.clone();
         if debugging
             && run.format == crate::running::Format::Tap
@@ -338,7 +343,7 @@ impl Limoniter {
         // Being debugged, it starts empty, and loads the program once its breakpoints are set.
         if debugging {
             let named = file.display().to_string();
-            args.retain(|arg| *arg != named);
+            args.retain(|arg| *arg != named && arg != "-autostart");
         }
         let log = folder.join("emulator.log");
         let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
@@ -349,11 +354,11 @@ impl Limoniter {
             command.current_dir(home);
         }
         let child = command.spawn().map_err(|e| format!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
-        let debug = match (debugging, port) {
-            (true, Some(port)) => {
+        let debug = match (kind.filter(|_| debugging), port) {
+            (Some(kind), Some(port)) => {
                 let breakpoints = self.breakpoint_addresses(doc_id);
                 let wake = self.waker.clone();
-                let remote = crate::remote_debug::RemoteDebug::start(port, Some(file.clone()), breakpoints.clone(), move || {
+                let remote = crate::remote_debug::RemoteDebug::start(kind, port, Some(file.clone()), breakpoints.clone(), move || {
                     if let Some(ctx) = &wake {
                         ctx.request_repaint();
                     }
@@ -523,7 +528,7 @@ impl Limoniter {
             if machine.paused && error.is_none() {
                 let registers = machine.registers();
                 let top = u16::from_le_bytes([machine.peek(registers.sp), machine.peek(registers.sp.wrapping_add(1))]);
-                debug = debugger(ui, &registers, Some(top), assembly.as_deref());
+                debug = debugger(ui, &crate::remote_debug::Stop::z80(registers), Some(top), assembly.as_deref());
             }
             if keyboard {
                 ui.add_space(4.0);
@@ -641,18 +646,18 @@ impl Limoniter {
             debugging.breakpoints = breakpoints.clone();
             debugging.remote.ask(crate::remote_debug::Ask::Breakpoints(breakpoints));
         }
-        let stopped = debugging.remote.stopped;
+        let stopped = debugging.remote.stopped.clone();
         let problem = debugging.remote.problem.clone();
         let mut action = None;
         let mut pause = false;
         Panel::right("remote-debug").default_size(330.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
             ui.label(RichText::new(format!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
             ui.separator();
-            match (&problem, stopped) {
+            match (&problem, &stopped) {
                 (Some(problem), _) => {
                     ui.add(egui::Label::new(RichText::new(problem).color(theme::problem_mark())).wrap());
                 }
-                (None, Some(registers)) => action = debugger(ui, &registers, None, assembly.as_deref()),
+                (None, Some(stop)) => action = debugger(ui, stop, None, assembly.as_deref()),
                 (None, None) => {
                     ui.horizontal(|ui| {
                         ui.label("Running");
@@ -672,7 +677,7 @@ impl Limoniter {
                 Debug::StepOver => crate::remote_debug::Ask::StepOver,
             });
         }
-        let stopped_line = stopped.and_then(|r| assembly.as_ref().and_then(|a| a.line_at(r.pc as i64))).filter(|(file, _)| *file == 0).map(|(_, line)| line);
+        let stopped_line = stopped.as_ref().and_then(|r| assembly.as_ref().and_then(|a| a.line_at(r.pc as i64))).filter(|(file, _)| *file == 0).map(|(_, line)| line);
         if let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id)
             && let Some(code) = &mut doc.text.code
             && code.stopped != stopped_line
@@ -791,23 +796,24 @@ enum Debug {
 }
 
 /// While the built-in Spectrum is stopped: where, its registers, and buttons to carry on or step.
-fn debugger(ui: &mut Ui, registers: &crate::zx_machine::Registers, top_of_stack: Option<u16>, assembly: Option<&crate::asm::Assembly>) -> Option<Debug> {
-    let r = *registers;
+fn debugger(ui: &mut Ui, stop: &crate::remote_debug::Stop, top_of_stack: Option<u16>, assembly: Option<&crate::asm::Assembly>) -> Option<Debug> {
+    let r = stop.z80.unwrap_or_default();
+    let pc = stop.pc;
     let mut action = None;
     ui.add_space(4.0);
     egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
-        let place = match assembly.and_then(|a| a.line_at(r.pc as i64).map(|(file, line)| (a, file, line))) {
+        let place = match assembly.and_then(|a| a.line_at(pc as i64).map(|(file, line)| (a, file, line))) {
             Some((a, file, line)) => {
                 let name = a.files.get(file).and_then(|f| f.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                format!("Stopped at ${:04X}, line {} of {name}", r.pc, line + 1)
+                format!("Stopped at ${pc:04X}, line {} of {name}", line + 1)
             }
-            None if r.pc < 0x4000 => format!("Stopped at ${:04X}, in the ROM", r.pc),
-            None => format!("Stopped at ${:04X}", r.pc),
+            None if stop.z80.is_some() && pc < 0x4000 => format!("Stopped at ${pc:04X}, in the ROM"),
+            None => format!("Stopped at ${pc:04X}"),
         };
         ui.horizontal(|ui| {
             ui.label(RichText::new(place).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Step over").on_hover_text("Runs this instruction, or the whole of a CALL, RST, DJNZ or LDIR, and stops after it").clicked() {
+                if ui.small_button("Step over").on_hover_text("Runs this instruction, or the whole of a subroutine it calls, and stops after it").clicked() {
                     action = Some(Debug::StepOver);
                 }
                 if ui.small_button("Step").on_hover_text("Runs one instruction, into a CALL").clicked() {
@@ -818,6 +824,11 @@ fn debugger(ui: &mut Ui, registers: &crate::zx_machine::Registers, top_of_stack:
                 }
             });
         });
+        // Another processor's registers, as its emulator gives them.
+        if stop.z80.is_none() {
+            ui.label(RichText::new(stop.words.join("   ")).monospace().size(12.0));
+            return;
+        }
         let flags = r.af as u8;
         let flag_names: String = [(7, 'S'), (6, 'Z'), (4, 'H'), (2, 'P'), (1, 'N'), (0, 'C')].iter().map(|(bit, name)| if flags & (1 << bit) != 0 { *name } else { '-' }).collect();
         let mono = |text: String| RichText::new(text).monospace().size(12.0);
