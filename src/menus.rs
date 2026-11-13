@@ -136,7 +136,7 @@ const FILE: &[Entry] = &[
             Line,
             Item("Assemble and save", Command::AssembleAndSave),
             Item("Assemble and save as binary\u{2026}", Command::AssembleBinary),
-            Item("Assembler\u{2026}", Command::ChooseAssembler),
+            Item("Assemblers\u{2026}", Command::ChooseAssembler),
             Item("Devices and emulators\u{2026}", Command::ManageDevices),
         ],
     ),

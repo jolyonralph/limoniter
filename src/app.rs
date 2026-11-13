@@ -4948,6 +4948,7 @@ impl Limoniter {
                     Some(settings::Outcome::ChoosePreset) => self.begin_presets(),
                     Some(settings::Outcome::ClearRecent) => self.panels.recent.clear(),
                     Some(settings::Outcome::Themes) => self.open_theme_box(theme_host::ThemePage::Window),
+                    Some(settings::Outcome::Assemblers) => self.open_assembler_box(),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
                 }
             }

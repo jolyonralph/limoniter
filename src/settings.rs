@@ -251,6 +251,7 @@ pub enum Outcome {
     RemoveFileTypes,
     OpenWindowsPage,
     Themes,
+    Assemblers,
 }
 
 /// What's being chosen on the File types page, and what Windows has now.
@@ -327,6 +328,7 @@ enum Special {
     ClearRecent,
     MarkdownView,
     ZxNotation,
+    Assemblers,
     FileTypes,
 }
 
@@ -387,6 +389,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Copy or cut the whole line if nothing is selected", "Instead of doing nothing", |t| &mut t.prefs.edit.whole_line_copy),
             Row::Flag("Copy before paste", "Pasting over selected text swaps them: what was selected goes on the clipboard, ready to paste somewhere else", |t| &mut t.prefs.edit.copy_before_paste),
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
+            Row::Special("Assemblers", Special::Assemblers),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
         ],
     ),
@@ -537,6 +540,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                         ui.selectable_value(&mut target.prefs.markdown_view, view, view.markdown_label());
                     }
                 });
+            }
+            Special::Assemblers => {
+                if ui.button("Choose\u{2026}").on_hover_text("Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers").clicked() {
+                    *outcome = Some(Outcome::Assemblers);
+                }
             }
             Special::ZxNotation => {
                 egui::ComboBox::from_id_salt("zx-notation").width(260.0).selected_text(target.prefs.zx_notation.label()).show_ui(ui, |ui| {

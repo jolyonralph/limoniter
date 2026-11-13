@@ -17,8 +17,15 @@ pub(super) struct AssembledCache {
     pub assembly: Arc<Assembly>,
 }
 
-/// The box choosing an assembler.
+/// The box choosing an assembler for each processor.
 pub(super) struct AssemblerBox {
+    /// Each processor, the assemblers found for it, and the one chosen.
+    pub rows: Vec<AssemblerRow>,
+    /// The processor being chosen for.
+    pub showing: usize,
+}
+
+pub(super) struct AssemblerRow {
     pub cpu: Cpu,
     pub found: Vec<(&'static assemblers::External, PathBuf)>,
     pub chosen: Choice,
@@ -250,7 +257,7 @@ impl Limoniter {
             return Err(None);
         }
         let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-            return Err(Some(format!("{} gave back no bytes to save, only its own file. Choose Limoniter's own assembler, or sjasmplus, in Run on, Assembler, to save them.", self.assembler_for(cpu).name())));
+            return Err(Some(format!("{} gave back no bytes to save, only its own file. Choose Limoniter's own assembler, or sjasmplus, in File, Run on, Assemblers, to save them.", self.assembler_for(cpu).name())));
         };
         Ok((assembly.image(low, high), low, assembly.start().unwrap_or(low)))
     }
@@ -282,11 +289,11 @@ impl Limoniter {
         }
     }
 
+    /// Opens the box choosing assemblers, on the processor of the source in front, if it's assembler source.
     pub(super) fn open_assembler_box(&mut self) {
-        let cpu = self.doc_cpu(self.active).unwrap_or(Cpu::Z80);
-        let found = assemblers::installed(cpu);
-        let chosen = self.assembler_for(cpu);
-        self.dialog = Dialog::Assembler(Box::new(AssemblerBox { cpu, found, chosen }));
+        let showing = self.doc_cpu(self.active).and_then(|cpu| Cpu::ALL.iter().position(|c| *c == cpu)).unwrap_or(0);
+        let rows = Cpu::ALL.iter().map(|cpu| AssemblerRow { cpu: *cpu, found: assemblers::installed(*cpu), chosen: self.assembler_for(*cpu) }).collect();
+        self.dialog = Dialog::Assembler(Box::new(AssemblerBox { rows, showing }));
     }
 
     pub(super) fn assembler_dialog(&mut self, ctx: &Context) -> bool {
@@ -296,23 +303,35 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
         let mut browse = false;
-        egui::Window::new("Assembler").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(format!("{} source is assembled, when it's run (F9), with:", state.cpu.name()));
+        egui::Window::new("Assemblers").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it.");
             ui.add_space(6.0);
-            ui.radio_value(&mut state.chosen, Choice::Own, "Limoniter's own assembler (nothing to install)");
-            for (found, path) in &state.found {
+            ui.horizontal(|ui| {
+                for (index, row) in state.rows.iter().enumerate() {
+                    let own = if row.chosen == Choice::Own { "Limoniter's own".to_string() } else { assemblers::external(match &row.chosen { Choice::Program { id, .. } => id, Choice::Own => "" }).map_or_else(String::new, |e| e.name.to_string()) };
+                    if ui.selectable_label(state.showing == index, row.cpu.name()).on_hover_text(own).clicked() {
+                        state.showing = index;
+                    }
+                }
+            });
+            ui.separator();
+            let row = &mut state.rows[state.showing];
+            ui.label(format!("{} source is assembled with:", row.cpu.name()));
+            ui.add_space(4.0);
+            ui.radio_value(&mut row.chosen, Choice::Own, "Limoniter's own assembler (nothing to install)");
+            for (found, path) in &row.found {
                 let choice = Choice::Program { id: found.id, path: path.clone() };
-                ui.radio_value(&mut state.chosen, choice, format!("{}  ({})", found.name, path.display()));
+                ui.radio_value(&mut row.chosen, choice, format!("{}  ({})", found.name, path.display()));
             }
-            if let Choice::Program { id, path } = state.chosen.clone()
-                && !state.found.iter().any(|(f, p)| f.id == id && *p == path)
+            if let Choice::Program { id, path } = row.chosen.clone()
+                && !row.found.iter().any(|(f, p)| f.id == id && *p == path)
             {
                 let label = format!("{}  ({})", assemblers::external(id).map_or(id, |e| e.name), path.display());
-                let choice = state.chosen.clone();
-                ui.radio_value(&mut state.chosen, choice, label);
+                let choice = row.chosen.clone();
+                ui.radio_value(&mut row.chosen, choice, label);
             }
             ui.add_space(4.0);
-            let others: Vec<&assemblers::External> = assemblers::KNOWN.iter().filter(|e| e.cpu == state.cpu && !state.found.iter().any(|(f, _)| f.id == e.id)).collect();
+            let others: Vec<&assemblers::External> = assemblers::KNOWN.iter().filter(|e| e.cpu == row.cpu && !row.found.iter().any(|(f, _)| f.id == e.id)).collect();
             if !others.is_empty() {
                 let words: Vec<String> = others.iter().map(|e| format!("{} ({})", e.name, e.website)).collect();
                 ui.add(egui::Label::new(RichText::new(format!("Not found on this computer: {}. Once installed, they appear here; or point to one.", words.join(", "))).color(theme::text_dim()).size(12.0)).wrap());
@@ -326,16 +345,24 @@ impl Limoniter {
         });
         if browse
             && let Some(path) = rfd::FileDialog::new().set_title("The assembler program").pick_file()
+            && let Dialog::Assembler(state) = &mut self.dialog
         {
-            let name = path.file_stem().map(|s| s.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-            let id = assemblers::KNOWN.iter().find(|e| e.programs.iter().any(|p| name.contains(p))).map_or("sjasmplus", |e| e.id);
-            if let Dialog::Assembler(state) = &mut self.dialog {
-                state.chosen = Choice::Program { id, path };
+            let row = &mut state.rows[state.showing];
+            match assemblers::recognise(row.cpu, &path) {
+                Some(id) => row.chosen = Choice::Program { id, path },
+                None => {
+                    let known: Vec<&str> = assemblers::KNOWN.iter().filter(|e| e.cpu == row.cpu).map(|e| e.name).collect();
+                    let cpu = row.cpu.name();
+                    self.message("Assemblers", format!("Limoniter doesn't know that program, so it can't read what it prints or the program it makes. For {cpu} source it works with {}.", known.join(" and ")));
+                    return true;
+                }
             }
         }
         if keep {
             if let Dialog::Assembler(state) = std::mem::replace(&mut self.dialog, Dialog::None) {
-                self.set_assembler(state.cpu, &state.chosen);
+                for row in &state.rows {
+                    self.set_assembler(row.cpu, &row.chosen);
+                }
             }
             self.pending_focus = true;
         } else if close {

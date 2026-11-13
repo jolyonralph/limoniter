@@ -17,6 +17,8 @@ pub enum Cpu {
 }
 
 impl Cpu {
+    pub const ALL: [Cpu; 4] = [Cpu::Z80, Cpu::M6502, Cpu::M6809, Cpu::M68k];
+
     pub fn name(self) -> &'static str {
         match self {
             Cpu::Z80 => "Z80",
@@ -134,6 +136,15 @@ pub fn external(id: &str) -> Option<&'static External> {
 /// The assemblers installed for a processor, where they are.
 pub fn installed(cpu: Cpu) -> Vec<(&'static External, PathBuf)> {
     KNOWN.iter().filter(|e| e.cpu == cpu).filter_map(|e| crate::emulators::find_program(e.programs, e.folder_hints).map(|path| (e, path))).collect()
+}
+
+/// Which known assembler for a processor a program is, from its name: a renamed copy, such as sjasmplus-1.24.exe,
+/// still counts. With only one known for the processor, a program of any name is taken to be that one.
+pub fn recognise(cpu: Cpu, path: &Path) -> Option<&'static str> {
+    let name = path.file_stem()?.to_string_lossy().to_ascii_lowercase();
+    let mine: Vec<&External> = KNOWN.iter().filter(|e| e.cpu == cpu).collect();
+    let by_name = mine.iter().find(|e| e.programs.iter().any(|p| name.contains(p)) || name.contains(e.id));
+    by_name.or_else(|| if mine.len() == 1 { mine.first() } else { None }).map(|e| e.id)
 }
 
 /// What assembling gave: the program, and, from another assembler, the file it made ready to run.
@@ -553,6 +564,18 @@ mod tests {
         assert_eq!(Choice::from_setting(&choice.setting()), choice);
         assert_eq!(Choice::from_setting(OWN), Choice::Own);
         assert_eq!(Choice::from_setting("nothing\u{2}/x"), Choice::Own);
+    }
+
+    #[test]
+    fn a_program_pointed_to_is_known_by_its_name_for_its_processor() {
+        assert_eq!(recognise(Cpu::Z80, Path::new("C:/tools/sjasmplus-1.24.exe")), Some("sjasmplus"));
+        assert_eq!(recognise(Cpu::Z80, Path::new("/usr/bin/pasmo")), Some("pasmo"));
+        assert_eq!(recognise(Cpu::Z80, Path::new("/usr/bin/z80asm")), None, "two are known for the Z80, so a name that's neither isn't guessed");
+        assert_eq!(recognise(Cpu::M6502, Path::new("/opt/acme/acme.exe")), Some("acme"));
+        assert_eq!(recognise(Cpu::M6502, Path::new("/opt/acme/my-acme-build")), Some("acme"));
+        assert_eq!(recognise(Cpu::M6502, Path::new("/opt/bin/assembler")), Some("acme"), "the one known for the 6502");
+        assert_eq!(recognise(Cpu::M6809, Path::new("lwasm.exe")), Some("lwasm"));
+        assert_eq!(recognise(Cpu::M68k, Path::new("vasmm68k_mot_win32.exe")), Some("vasm"));
     }
 
     /// With LIMONITER_SJASMPLUS and LIMONITER_PASMO naming the programs: both assemble a program and report

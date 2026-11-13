@@ -309,6 +309,29 @@ fn the_rainbow_example_colours_the_screen_in_diagonal_stripes() {
 }
 
 #[test]
+fn every_processor_can_have_its_own_assembler_chosen_and_it_is_kept() {
+    let (mut app, _ctx) = app_with("");
+    app.open_assembler_box();
+    let Dialog::Assembler(state) = &app.dialog else { panic!("the box opens with no source in front") };
+    assert_eq!(state.rows.iter().map(|r| r.cpu).collect::<Vec<_>>(), crate::assemblers::Cpu::ALL, "every processor is offered");
+    assert!(state.rows.iter().all(|r| r.chosen == crate::assemblers::Choice::Own), "Limoniter's own to begin with");
+    z80_source(&mut app, &["  org 32768", "  ld a,1", "  ld b,a", "  ex de,hl", "  ret"]);
+    app.open_assembler_box();
+    let Dialog::Assembler(state) = &mut app.dialog else { panic!() };
+    assert_eq!(state.rows[state.showing].cpu, crate::assemblers::Cpu::Z80, "it opens on the source's processor");
+    state.rows[1].chosen = crate::assemblers::Choice::Program { id: "acme", path: "/usr/bin/acme".into() };
+    let rows: Vec<_> = state.rows.iter().map(|r| (r.cpu, r.chosen.clone())).collect();
+    app.dialog = Dialog::None;
+    for (cpu, choice) in rows {
+        app.set_assembler(cpu, &choice);
+    }
+    assert!(matches!(app.assembler_for(crate::assemblers::Cpu::M6502), crate::assemblers::Choice::Program { id: "acme", .. }));
+    assert_eq!(app.assembler_for(crate::assemblers::Cpu::Z80), crate::assemblers::Choice::Own);
+    let kept = app.running.to_settings();
+    assert!(kept.contains("assembler=6502\u{1}acme\u{2}/usr/bin/acme"), "{kept}");
+}
+
+#[test]
 fn source_is_assembled_to_just_its_bytes() {
     let (mut app, _ctx) = app_with("");
     z80_source(&mut app, &["  org 40000", "  ld a,2", "  ex de,hl", "  ld b,a", "data: db 1,2,3", "start: ret", "  end start"]);
