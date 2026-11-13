@@ -214,8 +214,11 @@ impl Limoniter {
         } else {
             basic::machine_of(listing.dialect, "prg", &file).unwrap_or(basic::Machine::Commodore(basic::CbmMachine::C64))
         };
+        let mut lines = listing.lines;
+        let zx = if spectrum_family(machine) { self.prepare_spectrum_listing(&mut lines, None) } else { None };
         let mut doc = Document::untitled(format!("{target} BASIC"), &PRESETS[0]);
-        doc.text.set_content(listing.lines);
+        doc.text.set_content(lines);
+        doc.text.zx = zx;
         doc.listing_of = Some((back, "program".into()));
         let grammar = if spectrum_family(machine) { highlight::BASIC_SINCLAIR } else { highlight::BASIC_COMMODORE };
         if let Some((_, syntax)) = highlight::engine().and_then(|engine| engine.names().iter().find(|(name, _)| name == grammar)) {

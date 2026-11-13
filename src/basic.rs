@@ -1275,11 +1275,21 @@ fn zx_raw(chars: &[char], out: &mut Vec<u8>) -> Result<(), String> {
 }
 
 fn zx_byte(set: &Charset, c: char) -> Result<u8, String> {
+    // Listings made for zmakebas and bas2tap have the Spectrum's codes for £ and ↑ as ASCII has them.
+    match c {
+        '`' => return Ok(0x60),
+        '^' => return Ok(0x5E),
+        _ => {}
+    }
     set.table(0).and_then(|t| t.byte_of(c)).filter(|b| *b >= 0x20 && *b < 0xA5).ok_or_else(|| format!("'{c}' isn't in the Spectrum's character set"))
 }
 
-/// `{INK 2}`, `{AT 3,4}`, `{UDG-A}` and `{$xx}`, as a listing writes them.
-fn zx_escape(inside: &str) -> Result<Vec<u8>, String> {
+/// `{INK 2}`, `{AT 3,4}`, `{UDG-A}` and `{$xx}`, as a listing writes them, and bas2tap's `{A}`, `{-1}`, `{+8}`,
+/// `{(C)}` and `{XX}`.
+pub(crate) fn zx_escape(inside: &str) -> Result<Vec<u8>, String> {
+    if let Some(code) = crate::zx_graphics::bas2tap_escape(inside) {
+        return Ok(vec![code]);
+    }
     if let Some(hex) = inside.strip_prefix('$') {
         return u8::from_str_radix(hex, 16).map(|b| vec![b]).map_err(|_| format!("{{{inside}}} isn't a byte"));
     }
@@ -1301,10 +1311,16 @@ fn zx_escape(inside: &str) -> Result<Vec<u8>, String> {
 
 /// Tokenises a listing into a Spectrum program's bytes, as they'd be in memory.
 pub fn tokenise_spectrum<S: AsRef<str>>(lines: &[S], dialect: ZxDialect) -> Result<Vec<u8>, String> {
+    // A listing written for zmakebas has its escapes put in Limoniter's own way first.
+    let rewritten: Option<Vec<String>> = crate::zx_graphics::uses_zmakebas(lines).then(|| crate::zx_graphics::join_zmakebas(lines).iter().map(|l| crate::zx_graphics::from_zmakebas(l)).collect());
+    let lines: Vec<&str> = match &rewritten {
+        Some(rewritten) => rewritten.iter().map(String::as_str).collect(),
+        None => lines.iter().map(AsRef::as_ref).collect(),
+    };
     let mut out = Vec::new();
     let mut previous = None;
     for (index, line) in lines.iter().enumerate() {
-        let Some((number, rest)) = split_number(line.as_ref(), index, previous, 9999)? else {
+        let Some((number, rest)) = split_number(line, index, previous, 9999)? else {
             continue;
         };
         previous = Some(number);

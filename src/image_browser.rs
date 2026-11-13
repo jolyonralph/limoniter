@@ -325,6 +325,35 @@ impl Limoniter {
         true
     }
 
+    /// Opens a file from the image a browser shows, in a tab of its own. A BASIC program from a Spectrum tape or
+    /// snapshot brings the UDGs the tape loads or the snapshot has, for its listing to draw.
+    pub(super) fn open_from_browser(&mut self, index: usize, i: usize) {
+        let Some(browser) = self.docs[index].browser.as_mut() else {
+            return;
+        };
+        match browser.open(i) {
+            None => {}
+            Some(Ok((name, bytes))) => {
+                let place = browser.place();
+                let mut doc = Document::from_image_file(format!("{place} \u{203A} {name}"), bytes, browser.text_preset(i));
+                doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some());
+                let image = self.docs[index].path.clone();
+                let ending = image.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
+                let program = Path::new(&name).extension().is_some_and(|e| e.eq_ignore_ascii_case("bas"));
+                if program
+                    && matches!(ending.as_str(), "tap" | "tzx" | "sna" | "z80")
+                    && let Some(udgs) = image.and_then(|path| std::fs::read(path).ok()).and_then(|image| zx_host::udgs_in_file(&image, &ending))
+                {
+                    let from = if matches!(ending.as_str(), "tap" | "tzx") { "the tape it came from" } else { "the snapshot it came from" };
+                    doc.text.zx = Some(Box::new(crate::zx_graphics::ZxText { udgs, udgs_from: Some(from.into()), ..Default::default() }));
+                }
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+            }
+            Some(Err(problem)) => self.message("Open from an image", problem),
+        }
+    }
+
     /// Draws the browser in the text's place, and does what's asked of it.
     pub(super) fn browser_view(&mut self, ui: &mut Ui) {
         let index = self.active;
@@ -337,17 +366,7 @@ impl Limoniter {
             Some(BrowserAction::Up) => {
                 browser.up();
             }
-            Some(BrowserAction::Open(i)) => match browser.open(i) {
-                None => {}
-                Some(Ok((name, bytes))) => {
-                    let place = browser.place();
-                    let mut doc = Document::from_image_file(format!("{place} \u{203A} {name}"), bytes, browser.text_preset(i));
-                    doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some());
-                    self.docs.push(doc);
-                    self.active = self.docs.len() - 1;
-                }
-                Some(Err(problem)) => self.message("Open from an image", problem),
-            },
+            Some(BrowserAction::Open(i)) => self.open_from_browser(index, i),
             Some(BrowserAction::SaveCopy(i)) => match browser.take(i) {
                 Ok((name, bytes)) => {
                     let mut picker = rfd::FileDialog::new().set_title("Save a copy of the file").set_file_name(&name);

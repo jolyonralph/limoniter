@@ -494,6 +494,15 @@ impl Snapshot {
         self.memory.get(at..at + 2).map_or(0, |b| usize::from(u16::from_le_bytes([b[0], b[1]])))
     }
 
+    /// The 168 bytes of the UDGs' pictures, from where the system variable UDG says they are.
+    pub fn udgs(&self) -> Option<Vec<u8>> {
+        let at = self.peek16(23675);
+        if at < 0x4000 || at + 168 > 0x10000 {
+            return None;
+        }
+        self.memory.get(at - 0x4000..at - 0x4000 + 168).map(<[u8]>::to_vec)
+    }
+
     /// The BASIC program in memory, from the system variables PROG and VARS, with the line it was running.
     fn program(&self) -> Option<Vec<u8>> {
         let (prog, vars, e_line) = (self.peek16(23635), self.peek16(23627), self.peek16(23641));

@@ -248,6 +248,8 @@ pub struct TextBuffer {
     pub git_marks: Option<std::sync::Arc<Vec<Option<crate::git::Mark>>>>,
     /// For assembler source: its breakpoints, the assembler's problems, and the line a stopped program is at.
     pub code: Option<Box<CodeMarks>>,
+    /// For Spectrum BASIC: GRAPH mode, and the pictures its UDGs were given.
+    pub zx: Option<Box<crate::zx_graphics::ZxText>>,
 }
 
 /// Where a search has got to; large files are searched a little at a time between frames.
@@ -329,6 +331,7 @@ impl Default for TextBuffer {
             reveal: false,
             git_marks: None,
             code: None,
+            zx: None,
             notice: None,
         }
     }

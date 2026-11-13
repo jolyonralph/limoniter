@@ -20,7 +20,7 @@ mod mac;
 mod rp9;
 mod sectors;
 mod trsdos;
-mod spectrum;
+pub(crate) mod spectrum;
 mod zip;
 
 use std::io::{Read, Seek, SeekFrom};

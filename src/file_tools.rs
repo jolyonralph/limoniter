@@ -548,8 +548,16 @@ impl Limoniter {
             d if d.contains("Spectrum") => Some(highlight::BASIC_SINCLAIR),
             _ => None,
         };
+        let mut lines = listing.lines.clone();
+        let spectrum = listing.dialect.contains("Spectrum");
+        let mut zx = if spectrum { self.prepare_spectrum_listing(&mut lines, Some((&bytes, &extension))) } else { None };
+        // UDGs the program brought from the tape or snapshot it was opened from.
+        if spectrum && let Some(inherited) = doc.text.zx.as_ref().filter(|zx| zx.has_pictures()) {
+            zx = Some(Box::new(crate::zx_graphics::ZxText { graph: false, udgs: inherited.udgs, udgs_from: inherited.udgs_from.clone(), notation: self.prefs.zx_notation }));
+        }
         let mut listed = Document::untitled(format!("{stem} listing"), &PRESETS[0]);
-        listed.text.set_content(listing.lines.clone());
+        listed.text.set_content(lines);
+        listed.text.zx = zx;
         listed.listing_of = basic::machine_of(listing.dialect, &extension, &bytes).map(|machine| (machine, stem.clone()));
         if let Some((_, syntax)) = grammar.and_then(|grammar| highlight::engine().and_then(|engine| engine.names().iter().find(|(name, _)| name == grammar))) {
             listed.set_language(Language::Named(*syntax));

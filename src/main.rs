@@ -52,6 +52,7 @@ mod speaker;
 mod asm;
 mod assemblers;
 mod zx_keyboard;
+mod zx_graphics;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

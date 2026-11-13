@@ -867,11 +867,55 @@ fn wrapped_key(b: &mut TextBuffer, goal: &mut Option<usize>, key: Key, m: Modifi
     true
 }
 
+/// In GRAPH mode, what a key types or does: a block graphic or UDG, or leaving GRAPH mode. The key's place on
+/// the keyboard counts, so Shift and 1 is still 1, as Caps Shift and 1 is on the Spectrum.
+enum GraphKey {
+    Type(String),
+    /// With whether the key also types something, as 9 does and Escape doesn't.
+    Leave(bool),
+}
+
+fn graph_key(buffer: &TextBuffer, event: &Event) -> Option<GraphKey> {
+    let zx = buffer.zx.as_ref().filter(|zx| zx.graph && !buffer.read_only)?;
+    let Event::Key { key, physical_key, pressed: true, modifiers, .. } = event else {
+        return None;
+    };
+    if modifiers.ctrl || modifiers.alt || modifiers.command || modifiers.mac_cmd {
+        return None;
+    }
+    let key = physical_key.unwrap_or(*key);
+    if matches!(key, Key::Num9 | Key::Escape) {
+        return Some(GraphKey::Leave(key == Key::Num9));
+    }
+    let name = key.name();
+    let c = name.chars().next().filter(|_| name.chars().count() == 1)?;
+    crate::zx_graphics::graph_text(c, modifiers.shift, zx.notation).map(GraphKey::Type)
+}
+
 fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, clip: &mut ClipState) {
     let events = ui.input(|i| i.events.clone());
     let current_mods = ui.input(|i| i.modifiers);
+    // The text a GRAPH mode key would also have typed is left out, as the key has typed its graphic instead.
+    let mut swallow = events.iter().filter(|event| matches!(graph_key(buffer, event), Some(GraphKey::Type(_) | GraphKey::Leave(true)))).count();
     for event in events {
+        if let Some(graph) = graph_key(buffer, &event) {
+            match graph {
+                GraphKey::Type(text) => {
+                    state.wrap_goal = None;
+                    scripting::note_typed(&text);
+                    buffer.type_text(&text);
+                }
+                GraphKey::Leave(_) => {
+                    if let Some(zx) = buffer.zx.as_mut() {
+                        zx.graph = false;
+                    }
+                }
+            }
+            state.last_activity = ui.input(|i| i.time);
+            continue;
+        }
         match event {
+            Event::Text(t) if swallow > 0 && t.chars().count() == 1 => swallow -= 1,
             Event::Text(t) if is_typed(&t, current_mods) => {
                 state.wrap_goal = None;
                 if !buffer.read_only {
@@ -1332,6 +1376,44 @@ fn char_spans_to_columns(line: &str, spans: &[(usize, usize)]) -> Vec<(usize, us
     spans.iter().filter_map(|(a, z)| Some((*columns.get(*a)?, *columns.get(*z)?))).collect()
 }
 
+/// The UDGs on a Spectrum BASIC line that have pictures, by column, to draw in place of how they're written.
+/// One the cursor is inside is left as text, to edit.
+fn udg_marks(b: &TextBuffer, r: usize, raw: &str) -> Vec<(usize, usize, char, [u8; 8])> {
+    let Some(zx) = b.zx.as_ref().filter(|zx| zx.has_pictures()) else {
+        return Vec::new();
+    };
+    let spans = crate::zx_graphics::udg_spans(raw, zx.notation == crate::zx_graphics::Notation::Zmakebas);
+    let inside = |a: usize, z: usize| r == b.caret_line && b.caret_col > a && b.caret_col < z;
+    let found: Vec<(usize, usize, usize, [u8; 8])> = spans.into_iter().filter(|(a, z, _)| !inside(*a, *z)).filter_map(|(a, z, n)| Some((a, z, n, zx.udgs[n]?))).collect();
+    let columns = char_spans_to_columns(raw, &found.iter().map(|(a, z, _, _)| (*a, *z)).collect::<Vec<_>>());
+    columns.into_iter().zip(found).map(|((a, z), (_, _, n, rows))| (a, z, char::from(b'A' + n as u8), rows)).collect()
+}
+
+/// A UDG's picture over where it's written: its eight rows of pixels in a faint square, and its letter after.
+fn paint_udg(painter: &egui::Painter, rect: Rect, rows: &[u8; 8], letter: char, active: bool) {
+    painter.rect_filled(rect, 0.0, theme::editor_back());
+    if active {
+        painter.rect_filled(rect, 0.0, theme::active_line());
+    }
+    let side = (rect.height() - 2.0).min(rect.width() - 2.0).max(8.0);
+    let pixel = side / 8.0;
+    let origin = pos2(rect.min.x + 1.0, rect.min.y + (rect.height() - side) / 2.0);
+    let square = Rect::from_min_size(origin, vec2(side, side));
+    painter.rect_filled(square, 0.0, theme::whitespace().gamma_multiply(0.25));
+    for (y, row) in rows.iter().enumerate() {
+        for x in 0..8 {
+            if row & (0x80 >> x) != 0 {
+                let at = pos2(origin.x + x as f32 * pixel, origin.y + y as f32 * pixel);
+                painter.rect_filled(Rect::from_min_size(at, vec2(pixel, pixel)), 0.0, theme::editor_text());
+            }
+        }
+    }
+    if rect.width() >= side + rect.height() {
+        let font = FontId::monospace(rect.height() * 0.6);
+        painter.text(pos2(square.max.x + 3.0, rect.center().y), Align2::LEFT_CENTER, letter, font, theme::whitespace());
+    }
+}
+
 /// The wavy line under a spelling mistake.
 fn squiggle(painter: &egui::Painter, from: f32, to: f32, y: f32) {
     let mut points = Vec::new();
@@ -1419,6 +1501,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         let selected = b.selection_on_row(r);
         let spots = if b.has_multi() { b.multi_on_line(r) } else { Vec::new() };
         let tag = b.tag_at(r).map(|(_, _, colour)| theme::tag_colour(colour));
+        let udgs = udg_marks(b, r, &raw);
 
         for (offset, slot) in l.slots[first..first + group].iter().enumerate() {
             let y = row_y(first + offset);
@@ -1496,6 +1579,13 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                         let colour = run_list.peek().filter(|run| run.0 <= c).map_or(theme::editor_text(), |run| run.2);
                         painter.text(text_pos(c), Align2::LEFT_TOP, ch, f.clone(), colour);
                     }
+                }
+            }
+            for (a, z, letter, rows) in &udgs {
+                let on_row = *a >= start && *a < start + count;
+                if on_row && !selected.is_some_and(|(from, to)| from < *z && to > *a) {
+                    let rect = Rect::from_min_max(pos2(col_x(*a), y), pos2(col_x(*z), y + cell.y));
+                    paint_udg(&painter, rect, rows, *letter, l.options.active_line && r == b.caret_line && !b.has_selection());
                 }
             }
             for (a, z) in &mistakes {
@@ -2277,6 +2367,40 @@ mod tests {
         crate::text_buffer::set_cell_profile(format.charset);
         let mut state = format.tracker();
         legacy_cells(raw, format, &mut state, &mut |_| true)
+    }
+
+    #[test]
+    fn graph_mode_types_the_spectrums_graphics_and_udgs_are_drawn() {
+        use crate::zx_graphics::{Notation, ZxText};
+        let mut bench = Bench::new(1);
+        bench.buffer.set_content(vec!["10 PRINT ".into()]);
+        bench.buffer.move_caret(0, 9, false);
+        bench.buffer.zx = Some(Box::new(ZxText { graph: true, ..ZxText::default() }));
+        let key = |key: Key, physical: Key, shift: bool| Event::Key { key, physical_key: Some(physical), pressed: true, repeat: false, modifiers: if shift { Modifiers::SHIFT } else { Modifiers::NONE } };
+        // Each key comes with the text it would type, which GRAPH mode leaves out.
+        bench.frame(vec![key(Key::Num3, Key::Num3, false), Event::Text("3".into())]);
+        bench.frame(vec![key(Key::Exclamationmark, Key::Num1, true), Event::Text("!".into())]);
+        bench.frame(vec![Event::Text("a".into()), key(Key::A, Key::A, false)]);
+        assert_eq!(&*bench.buffer.line(0), "10 PRINT \u{2580}\u{2599}{UDG-A}", "GRAPH 3, GRAPH Caps Shift 1 and GRAPH A");
+        bench.frame(vec![key(Key::Num9, Key::Num9, false), Event::Text("9".into())]);
+        assert!(!bench.buffer.zx.as_ref().unwrap().graph, "9 leaves GRAPH mode, as on the Spectrum");
+        bench.frame(vec![Event::Text("a".into())]);
+        assert_eq!(&*bench.buffer.line(0), "10 PRINT \u{2580}\u{2599}{UDG-A}a");
+        // Ctrl keys are still shortcuts.
+        bench.buffer.zx.as_mut().unwrap().graph = true;
+        bench.frame(vec![Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::CTRL }]);
+        assert_eq!(&*bench.buffer.line(0), "10 PRINT \u{2580}\u{2599}{UDG-A}a");
+        bench.buffer.zx.as_mut().unwrap().notation = Notation::Bas2tap;
+        bench.buffer.move_caret(0, bench.buffer.line(0).chars().count(), false);
+        bench.frame(vec![key(Key::U, Key::U, false), key(Key::Num8, Key::Num8, true)]);
+        assert!(bench.buffer.line(0).ends_with("a{U}{+8}"));
+
+        // With a picture, the UDG is drawn, unless the cursor is in it.
+        bench.buffer.zx.as_mut().unwrap().udgs[0] = Some([0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18]);
+        assert_eq!(udg_marks(&bench.buffer, 0, &bench.buffer.line(0)).len(), 1, "{{U}} has no picture yet");
+        bench.buffer.move_caret(0, 13, false);
+        assert!(udg_marks(&bench.buffer, 0, &bench.buffer.line(0)).is_empty(), "the cursor is inside {{UDG-A}}");
+        bench.settle();
     }
 
     fn format_of(id: &str) -> TextFormat {

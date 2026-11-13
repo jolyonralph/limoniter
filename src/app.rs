@@ -225,6 +225,10 @@ enum Command {
     SaveSelection,
     /// Lists a tokenised BASIC program as text in a new document.
     OpenBasicListing,
+    /// GRAPH mode on or off, for typing the Spectrum's block graphics and UDGs.
+    GraphMode,
+    /// Takes the pictures a Spectrum listing's UDGs are drawn with from a file.
+    UdgPictures,
     /// Saves the picture a file holds, such as an Amiga IFF or a Spectrum screen, as a PNG.
     SavePictureAsPng,
     /// Opens the list of everything Limoniter can do.
@@ -3716,6 +3720,8 @@ impl Limoniter {
             Command::UsedFileBack | Command::UsedFileForward => self.cycle_used(command == Command::UsedFileBack),
             Command::SaveSelection => self.save_selection(),
             Command::OpenBasicListing => self.open_basic_listing(),
+            Command::GraphMode => self.toggle_graph_mode(),
+            Command::UdgPictures => self.choose_udg_pictures(),
             Command::SavePictureAsPng => self.save_picture_as_png(),
             Command::Features => self.open_features(),
             Command::SaveSpectrumTape => self.dialog = Dialog::SaveBasic { machine: basic::Machine::Spectrum, run_from: String::new(), error: String::new() },
@@ -4000,6 +4006,7 @@ impl Limoniter {
             (Key::Num5, Command::Tag(4)),
             (Key::Num6, Command::Tag(5)),
             (Key::Num0, Command::Untag),
+            (Key::Num9, Command::GraphMode),
             (Key::A, Command::Assist(assistant::Task::Fix)),
         ];
         for (key, command) in in_text_shifted {
@@ -5341,6 +5348,14 @@ impl Limoniter {
                 if overwriting {
                     ui.colored_label(theme::accent(), "Overwriting");
                 }
+                if let Some(zx) = doc.text.zx.as_ref().filter(|_| !doc.hex_mode) {
+                    if zx.graph {
+                        ui.label(RichText::new("GRAPH").strong().color(theme::accent())).on_hover_text("GRAPH mode, as on the Spectrum: 1 to 8 type block graphics, with Shift the inverted ones, and A to U type UDGs. 9, Escape or Ctrl+Shift+9 leaves it");
+                    }
+                    if let Some(from) = zx.udgs_from.as_ref().filter(|_| zx.has_pictures()) {
+                        ui.label(faint("UDG pictures".into())).on_hover_text(format!("UDGs are drawn as they look, with the pictures from {from}. Put the cursor in one to edit it as text"));
+                    }
+                }
                 let locked = read_only || doc.text.read_only;
                 let lock = RichText::new(if locked { "Read-only" } else { "Editable" }).color(if locked { theme::change_unsaved() } else { theme::text_faint() });
                 if ui.add(egui::Label::new(lock).sense(egui::Sense::click())).on_hover_text("Click to lock this file against changes, or unlock it").clicked() {
@@ -5861,6 +5876,7 @@ impl Limoniter {
     fn screenshot_step(&mut self, step: &str) {
         if let Some((name, value)) = step.split_once(':') {
             match name {
+                "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
                 "git-wizard" => {
                     self.open_git_wizard();
                     if let Some(wizard) = &mut self.git.wizard {
@@ -5937,6 +5953,7 @@ impl Limoniter {
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
                 "basic-listing" => self.open_basic_listing(),
+                "graph-mode" => self.toggle_graph_mode(),
                 "git-panel" => {
                     self.git.open = true;
                     self.git.blame_on = true;
@@ -7070,6 +7087,9 @@ mod run_host;
 
 #[path = "asm_host.rs"]
 mod asm_host;
+
+#[path = "zx_host.rs"]
+mod zx_host;
 
 #[path = "live_host.rs"]
 mod live_host;
@@ -8374,6 +8394,48 @@ mod tests {
         let screen = app.preview_screen.as_ref().unwrap();
         assert_eq!(screen.rows.len(), 25);
         assert_eq!((screen.rows[0][1].ch, screen.rows[0][1].fg), ('T', crate::retro_screens::TELETEXT[1]));
+    }
+
+    #[test]
+    fn a_tape_that_loads_udgs_lists_with_their_pictures_and_graph_mode_types_them() {
+        let (mut app, _ctx) = app_with("");
+        app.prefs.zx_notation = crate::zx_graphics::Notation::Bas2tap;
+        let program = basic::tokenise_spectrum(&["10 LOAD \"\"CODE USR \"a\"", "20 PRINT \"{UDG-A}\u{2588}\""], basic::ZxDialect::Spectrum).unwrap();
+        let mut tape = basic::spectrum_tape(&program, "ship", Some(10));
+        let mut header = vec![3u8];
+        header.extend(b"udgs      ");
+        header.extend(8u16.to_le_bytes());
+        header.extend(0xFF58u16.to_le_bytes());
+        header.extend(0x8000u16.to_le_bytes());
+        tape.extend(basic::tap_block(0x00, &header));
+        tape.extend(basic::tap_block(0xFF, &[0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18]));
+        // Opened from the tape's list of files, the program brings the UDGs its tape loads.
+        let path = temp_file("ship.tmp", &tape).with_extension("tap");
+        std::fs::write(&path, &tape).unwrap();
+        assert!(app.open_path(&path));
+        app.open_from_browser(app.active, 0);
+        app.open_basic_listing();
+        let zx = app.docs[app.active].text.zx.as_ref().expect("UDGs from the tape");
+        assert_eq!(zx.udgs[0], Some([0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18]));
+        assert_eq!(zx.udgs_from.as_deref(), Some("the tape it came from"));
+        app.docs.push(Document::from_image_file("ship.tap".into(), tape, None));
+        app.active = app.docs.len() - 1;
+        app.open_basic_listing();
+        let doc = &app.docs[app.active];
+        assert_eq!(&*doc.text.line(1), "  20 PRINT \"{A}{+8}\"", "written as the setting says, bas2tap's way");
+        let zx = doc.text.zx.as_ref().expect("a Spectrum listing");
+        assert_eq!(zx.udgs[0], Some([0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18]));
+        assert_eq!(zx.udgs_from.as_deref(), Some("the tape"));
+        assert!(app.is_spectrum_basic(app.active));
+        app.toggle_graph_mode();
+        assert!(app.docs[app.active].text.zx.as_ref().unwrap().graph);
+        // It goes back to the same program.
+        let lines = app.docs[app.active].text.all_lines();
+        assert_eq!(basic::tokenise_spectrum(&lines, basic::ZxDialect::Spectrum).unwrap(), program);
+        // GRAPH mode is only for Spectrum BASIC.
+        app.docs.push(Document::untitled("notes".into(), &PRESETS[0]));
+        app.active = app.docs.len() - 1;
+        assert!(!app.is_spectrum_basic(app.active));
     }
 
     #[test]

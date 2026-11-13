@@ -180,6 +180,10 @@ Images and archives open as a read-only browser tab. Folders open in place, an i
 - A listing opened from a program is sent as that program: edit a NextBASIC listing and Send to device sends it to the Next as a tokenised `.bas`, a C64 listing as a `.prg`, and so on, with no need to save it as a program first.
 - Listing and tokenising undo each other: tokenising a listing gives back the original bytes.
 - Commodore control codes appear as `{clr}`, `{red}` and so on, as `petcat` writes them.
+- Spectrum graphics in a listing: block graphics appear as the matching Unicode characters (▝ ▘ ▀ …) and UDGs as `{UDG-A}`, with colour codes as `{INK 2}` and any other code as `{$xx}`. Settings, Editing chooses whether listings write them this way, zmakebas's way (`\:'`, `\a`) or bas2tap's (`{-1}`, `{A}`, as SGD and Taper write them too).
+- Listings written for zmakebas or bas2tap tokenise as those tools do, byte for byte: their escapes, zmakebas's `#` comments, lines carried on with a backslash, and `` ` `` for £.
+- GRAPH mode (Ctrl+Shift+9, or File, Tokenised BASIC) types graphics as the Spectrum's GRAPHICS key does: 1 to 8 type the block graphics, Shift with them the inverted ones, and A to U the UDGs. 9 or Escape leaves it; the status bar says GRAPH while it's on.
+- UDGs are drawn as their pictures, from the tape the program came from (a CODE block loaded at USR "a"), the snapshot it came from, its own DATA lines when it POKEs them in at USR "a", or a file chosen with Spectrum UDG pictures from. Putting the cursor in one shows it as text again, to edit.
 - MSX-BASIC and Atari BASIC are listed only; protected MBASIC programs are reported, not listed.
 
 ## Searching and comparing
