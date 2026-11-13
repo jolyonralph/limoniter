@@ -118,6 +118,7 @@ Shown beside the text or filling the window (**View, Preview**). Nothing in a pr
 
 - Markdown, with headings, lists, tables, emphasis, code and links.
 - PC ANSI art (`.ans`, `.ice`, `.diz`, `.nfo` and others) with ANSI.SYS colours, iCE colours and the SAUCE record; also BinaryText.
+- Amiga console text (the Amiga ANSI preset), drawn as the Amiga does, its colour codes choosing pens: plain text is pen 1 on pen 0. A table below sets the 16 pens, from Workbench 1.0–1.3's (the default), 2.04–3.x's or ANSI's usual colours, or any of the Amiga's 4096, picked from them all or typed as hex such as `f8f`; bold text can take pens 8–15.
 - Commodore PETSCII streams (`.seq`), drawn with colour codes, reverse and cursor movement, and Commodore screen memory.
 - Teletext and BBC Mode 7 pages, with mosaics, double height, concealing and all national sets; `.ep1`, `.tti` and `.ttix`.
 - ZX Spectrum text with its colour and position controls.

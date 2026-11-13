@@ -1314,6 +1314,9 @@ pub struct Limoniter {
     /// Devices files are sent to, and sends under way.
     sends: deploy_host::Sends,
     running: run_host::Running,
+    /// The Amiga's pens for ANSI previews, and the table that changes them.
+    amiga_palette: crate::ansi_art::AmigaPalette,
+    palette_editor: crate::amiga_palette_ui::PaletteEditor,
     /// A send waiting for the add-ons' on_send functions.
     send_pending: Option<deploy_host::PendingSend>,
     script_output: Vec<String>,
@@ -1402,6 +1405,7 @@ impl Limoniter {
 
     /// The app itself, with nothing open yet, whatever window it's going to be in.
     fn build(settings: String, font_file: Option<PathBuf>, screenshot: Option<PathBuf>) -> Self {
+        crate::ansi_art::set_amiga_palette(crate::ansi_art::AmigaPalette::from_settings(&settings));
         let mut view = ViewOptions::from_settings(&settings);
         // The column ruler was one of the things that made it look like the program it began as. It goes once, with
         // the new design, and stays wherever it's chosen after that.
@@ -1445,6 +1449,8 @@ impl Limoniter {
             remote_root,
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
+            amiga_palette: crate::ansi_art::AmigaPalette::from_settings(&settings),
+            palette_editor: Default::default(),
             themes: theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light),
             send_pending: None,
             script_output: Vec::new(),
@@ -4078,7 +4084,7 @@ impl Limoniter {
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
             self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>(),
-            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.themes.to_settings().as_str(),
+            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.amiga_palette.to_setting().as_str() + self.themes.to_settings().as_str(),
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
@@ -4252,6 +4258,19 @@ impl Limoniter {
                 self.pending_command = Some(Command::SavePictureAsPng);
             }
             return;
+        }
+        // Amiga ANSI is drawn in the pens of a palette that can be changed, in a table below it.
+        let doc = &self.docs[self.active];
+        if kind == Some(preview::Kind::AnsiArt) && preview::is_amiga_console(&doc.text.format) {
+            let mut changed = false;
+            Panel::bottom("amiga-palette").frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 6))).show(ui, |ui| {
+                changed = crate::amiga_palette_ui::draw(ui, &mut self.amiga_palette, &mut self.palette_editor);
+            });
+            if changed {
+                crate::ansi_art::set_amiga_palette(self.amiga_palette);
+                self.preview_of = None;
+                self.save_settings_if_changed();
+            }
         }
         match (&self.preview_screen, kind) {
             (Some(screen), Some(kind)) if kind.is_screen() => crate::screen::draw(ui, screen),
@@ -5855,6 +5874,15 @@ impl Limoniter {
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
                 "basic-listing" => self.open_basic_listing(),
+                "amiga-ansi" => {
+                    let doc = self.doc();
+                    doc.text.format.charset = charset::known("amiga-text");
+                    doc.text.format.display = codec::Display::AmigaConsole;
+                    doc.preview_view = settings::PreviewView::Split;
+                    self.preview_of = None;
+                    self.palette_editor.pen = Some(3);
+                    self.palette_editor.hex = format!("{:03X}", self.amiga_palette.pens[3]);
+                }
                 "as-spectrum-basic" => {
                     let stem = self.doc().name();
                     self.doc().listing_of = Some((basic::Machine::Spectrum, stem));

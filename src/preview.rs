@@ -123,9 +123,14 @@ pub fn render_screen(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat
             }
             crate::retro_screens::teletext(bytes, set, format.newline.parity(), mode7)
         }
-        Kind::AnsiArt if format.display == crate::codec::Display::AmigaConsole || set.id == "amiga-text" => crate::ansi_art::render_amiga(bytes),
+        Kind::AnsiArt if is_amiga_console(format) => crate::ansi_art::render_amiga(bytes),
         Kind::AnsiArt | Kind::Markdown | Kind::Basic | Kind::Picture => crate::ansi_art::render(bytes, dos),
     }
+}
+
+/// Whether text is shown as the Amiga's console shows it, in its pens.
+pub fn is_amiga_console(format: &crate::codec::TextFormat) -> bool {
+    format.display == crate::codec::Display::AmigaConsole || format.charset.id == "amiga-text"
 }
 
 /// Makes a preview from a file's bytes: a retro screen, or a BASIC program's listing.

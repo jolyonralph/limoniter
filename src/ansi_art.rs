@@ -168,6 +168,84 @@ fn xterm(index: u16) -> Color32 {
     }
 }
 
+/// The Amiga's colours for ANSI text: sixteen pens, each as the Amiga keeps a colour, four bits each of red,
+/// green and blue (0xF80 is orange). The console's colour codes choose pens, so ESC[30m is pen 0, which on a
+/// Workbench 1.3 screen is its blue; text is pen 1 on pen 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AmigaPalette {
+    pub pens: [u16; 16],
+    /// Bold text in pens 8 to 15, as terminal programs on 16-colour screens drew it, rather than the same pen.
+    pub bold_high: bool,
+}
+
+/// graphics.library's own colours for pens 4 to 15, which Workbench leaves as they are.
+const KICKSTART_UPPER: [u16; 12] = [0x00F, 0xF0F, 0x0FF, 0xFFF, 0x620, 0xE50, 0x9F1, 0xEB0, 0x55F, 0x92F, 0x0F8, 0xCCC];
+
+const fn with_workbench(first: [u16; 4]) -> [u16; 16] {
+    let mut pens = [0u16; 16];
+    let mut i = 0;
+    while i < 16 {
+        pens[i] = if i < 4 { first[i] } else { KICKSTART_UPPER[i - 4] };
+        i += 1;
+    }
+    pens
+}
+
+/// Palettes to start from: Workbench's own, and ANSI's usual colours.
+pub const AMIGA_PRESETS: [(&str, [u16; 16]); 3] = [
+    ("Workbench 1.0\u{2013}1.3", with_workbench([0x05A, 0xFFF, 0x002, 0xF80])),
+    ("Workbench 2.04\u{2013}3.x", with_workbench([0xAAA, 0x000, 0xFFF, 0x68B])),
+    ("Standard ANSI", [0x000, 0xA00, 0x0A0, 0xA50, 0x00A, 0xA0A, 0x0AA, 0xAAA, 0x555, 0xF55, 0x5F5, 0xFF5, 0x55F, 0xF5F, 0x5FF, 0xFFF]),
+];
+
+impl Default for AmigaPalette {
+    fn default() -> Self {
+        AmigaPalette { pens: AMIGA_PRESETS[0].1, bold_high: true }
+    }
+}
+
+impl AmigaPalette {
+    /// For the settings file: the pens as three hex digits each, then whether bold is pens 8 to 15.
+    pub fn to_setting(self) -> String {
+        let pens: Vec<String> = self.pens.iter().map(|pen| format!("{pen:03X}")).collect();
+        format!("amiga_palette={}\namiga_bold_pens={}\n", pens.join(","), self.bold_high)
+    }
+
+    pub fn from_settings(settings: &str) -> Self {
+        let mut palette = AmigaPalette::default();
+        for line in settings.lines() {
+            match line.split_once('=') {
+                Some(("amiga_palette", value)) => {
+                    let pens: Vec<u16> = value.split(',').filter_map(|pen| u16::from_str_radix(pen.trim(), 16).ok()).filter(|pen| *pen <= 0xFFF).collect();
+                    if let Ok(pens) = <[u16; 16]>::try_from(pens) {
+                        palette.pens = pens;
+                    }
+                }
+                Some(("amiga_bold_pens", value)) => palette.bold_high = value.trim() != "false",
+                _ => {}
+            }
+        }
+        palette
+    }
+}
+
+/// An Amiga colour (0xRGB, four bits each) as the screen shows it.
+pub fn amiga_colour(pen: u16) -> Color32 {
+    let level = |shift: u16| ((pen >> shift) & 0xF) as u8 * 17;
+    Color32::from_rgb(level(8), level(4), level(0))
+}
+
+static AMIGA: std::sync::Mutex<Option<AmigaPalette>> = std::sync::Mutex::new(None);
+
+/// The palette the Amiga previews are drawn in from now on.
+pub fn set_amiga_palette(palette: AmigaPalette) {
+    *AMIGA.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(palette);
+}
+
+fn amiga_palette() -> AmigaPalette {
+    AMIGA.lock().unwrap_or_else(std::sync::PoisonError::into_inner).unwrap_or_default()
+}
+
 #[derive(Clone, Copy)]
 enum Ink {
     Index(usize),
@@ -177,6 +255,8 @@ enum Ink {
 struct Pen {
     fg: Ink,
     bg: Ink,
+    /// The Amiga's pens, for Amiga console text.
+    amiga: Option<AmigaPalette>,
     bold: bool,
     blink: bool,
     reverse: bool,
@@ -186,7 +266,22 @@ struct Pen {
 
 impl Pen {
     fn new() -> Self {
-        Self { fg: Ink::Index(7), bg: Ink::Index(0), bold: false, blink: false, reverse: false, underline: false, conceal: false }
+        Self { fg: Ink::Index(7), bg: Ink::Index(0), amiga: None, bold: false, blink: false, reverse: false, underline: false, conceal: false }
+    }
+
+    /// The pen text starts with on an Amiga: pen 1 on pen 0.
+    fn amiga(palette: AmigaPalette) -> Self {
+        Self { fg: Ink::Index(1), bg: Ink::Index(0), amiga: Some(palette), ..Self::new() }
+    }
+
+    /// As it is after ESC[0m.
+    fn reset(&self) -> Self {
+        self.amiga.map_or_else(Self::new, Self::amiga)
+    }
+
+    /// The colours 39 and 49 go back to.
+    fn default_inks(&self) -> (Ink, Ink) {
+        if self.amiga.is_some() { (Ink::Index(1), Ink::Index(0)) } else { (Ink::Index(7), Ink::Index(0)) }
     }
 
     /// A VGA attribute byte: foreground in the low four bits (blue first), background in the next three, blink on top.
@@ -196,6 +291,17 @@ impl Pen {
     }
 
     fn colours(&self, ice: bool) -> (Color32, Color32) {
+        if let Some(palette) = &self.amiga {
+            let pen = |ink: Ink, bright: bool| match ink {
+                Ink::Index(i) if i < 8 && bright => amiga_colour(palette.pens[i + 8]),
+                Ink::Index(i) if i < 16 => amiga_colour(palette.pens[i]),
+                Ink::Index(i) => xterm(i as u16),
+                Ink::True(c) => c,
+            };
+            let (fg, bg) = (pen(self.fg, self.bold && palette.bold_high), pen(self.bg, false));
+            let (fg, bg) = if self.reverse { (bg, fg) } else { (fg, bg) };
+            return (if self.conceal { bg } else { fg }, bg);
+        }
         let fg = match self.fg {
             Ink::Index(i) if i < 8 && self.bold => VGA[i + 8],
             Ink::Index(i) => xterm(i as u16),
@@ -245,11 +351,11 @@ impl Terminal {
     fn sgr(&mut self, params: &[u16]) {
         let mut i = 0;
         if params.is_empty() {
-            self.pen = Pen::new();
+            self.pen = self.pen.reset();
         }
         while i < params.len() {
             match params[i] {
-                0 => self.pen = Pen::new(),
+                0 => self.pen = self.pen.reset(),
                 1 => self.pen.bold = true,
                 2 | 22 => self.pen.bold = false,
                 4 => self.pen.underline = true,
@@ -261,9 +367,9 @@ impl Terminal {
                 8 => self.pen.conceal = true,
                 28 => self.pen.conceal = false,
                 n @ 30..=37 => self.pen.fg = Ink::Index(usize::from(n - 30)),
-                39 => self.pen.fg = Ink::Index(7),
+                39 => self.pen.fg = self.pen.default_inks().0,
                 n @ 40..=47 => self.pen.bg = Ink::Index(usize::from(n - 40)),
-                49 => self.pen.bg = Ink::Index(0),
+                49 => self.pen.bg = self.pen.default_inks().1,
                 n @ 90..=97 => self.pen.fg = Ink::Index(usize::from(n - 90 + 8)),
                 n @ 100..=107 => self.pen.bg = Ink::Index(usize::from(n - 100 + 8)),
                 which @ (38 | 48) => {
@@ -516,17 +622,15 @@ pub fn render(data: &[u8], set: &Charset) -> Screen {
     if data.starts_with(b"XBIN\x1A") {
         return xbin(data, set);
     }
-    render_with(data, set, false)
+    render_with(data, set, None)
 }
 
 /// Draws Amiga console text: ANSI with the single-byte CSI (0x9B) too, in the Amiga's ISO-8859-1.
 pub fn render_amiga(data: &[u8]) -> Screen {
-    let mut screen = render_with(data, charset::known("amiga-text"), true);
-    screen.note("Drawn in the eight standard ANSI colours, as Amiga terminal programs show them: the file doesn't hold the screen's own palette.");
-    screen
+    render_with(data, charset::known("amiga-text"), Some(amiga_palette()))
 }
 
-fn render_with(data: &[u8], set: &Charset, amiga: bool) -> Screen {
+fn render_with(data: &[u8], set: &Charset, amiga: Option<AmigaPalette>) -> Screen {
     let record = sauce(data);
     let end = record.as_ref().map_or_else(|| data.iter().position(|b| *b == 0x1A).unwrap_or(data.len()), |s| s.content_end.min(data.len()));
     let body = &data[..end];
@@ -535,8 +639,12 @@ fn render_with(data: &[u8], set: &Charset, amiga: bool) -> Screen {
     }
     let width = record.as_ref().map(|s| usize::from(s.width)).filter(|w| (1..=1000).contains(w) && record.as_ref().is_some_and(|s| s.data_type == 1)).unwrap_or(80);
     let ice = record.as_ref().is_some_and(Sauce::ice_colours);
-    let mut term = Terminal { screen: Screen::new(width, 0.5, Cell::blank(VGA[7], VGA[0])), row: 0, col: 0, saved: (0, 0), pen: Pen::new(), ice, unknown: 0 };
-    let codes = if amiga { Codes::default() } else { Codes::of(body, record.as_ref()) };
+    let (pen, paper) = match amiga {
+        Some(palette) => (Pen::amiga(palette), Cell::blank(amiga_colour(palette.pens[1]), amiga_colour(palette.pens[0]))),
+        None => (Pen::new(), Cell::blank(VGA[7], VGA[0])),
+    };
+    let mut term = Terminal { screen: Screen::new(width, 0.5, paper), row: 0, col: 0, saved: (0, 0), pen, ice, unknown: 0 };
+    let codes = if amiga.is_some() { Codes::default() } else { Codes::of(body, record.as_ref()) };
     let mut saved_attribute = None;
     let mut i = 0;
     while i < body.len() {
@@ -549,7 +657,7 @@ fn render_with(data: &[u8], set: &Charset, amiga: bool) -> Screen {
         let byte = body[i];
         i += 1;
         // The Amiga's console takes the single byte 0x9B for ESC [.
-        let csi = (byte == 0x1B && body.get(i) == Some(&b'[')) || (amiga && byte == 0x9B);
+        let csi = (byte == 0x1B && body.get(i) == Some(&b'[')) || (amiga.is_some() && byte == 0x9B);
         match byte {
             0x0D => term.col = 0,
             0x0A => {
@@ -918,10 +1026,37 @@ mod tests {
 
     #[test]
     fn amiga_console_text_takes_the_single_byte_csi() {
-        let screen = render_amiga(b"\x9b31mR\x1b[0mN \xe9");
-        assert_eq!(screen.rows[0][0].fg, VGA[1]);
+        let screen = render_with(b"\x9b31mR\x1b[0mN \xe9", charset::known("amiga-text"), Some(AmigaPalette::default()));
         assert_eq!(screen.row_text(0), "RN \u{e9}");
-        assert!(!screen.notes.is_empty());
+    }
+
+    #[test]
+    fn amiga_colour_codes_choose_pens_in_the_workbench_palette() {
+        let palette = AmigaPalette::default();
+        let amiga = |data: &[u8], palette: AmigaPalette| render_with(data, charset::known("amiga-text"), Some(palette));
+        // Plain text is pen 1 on pen 0: Workbench 1.3's white on blue.
+        let screen = amiga(b"A\x1b[33mB\x1b[42mC\x1b[1;33mD\x1b[0mE", palette);
+        let cells = &screen.rows[0];
+        assert_eq!((cells[0].fg, cells[0].bg), (amiga_colour(0xFFF), amiga_colour(0x05A)));
+        assert_eq!(cells[1].fg, amiga_colour(0xF80), "33 is pen 3, Workbench's orange");
+        assert_eq!(cells[2].bg, amiga_colour(0x002), "42 is pen 2, Workbench 1.3's black");
+        assert_eq!(cells[3].fg, amiga_colour(0xEB0), "bold 33 is pen 11");
+        assert_eq!((cells[4].fg, cells[4].bg), (amiga_colour(0xFFF), amiga_colour(0x05A)), "0 goes back to pen 1 on pen 0");
+        assert_eq!(screen.paper.bg, amiga_colour(0x05A));
+        let same_pen = amiga(b"\x1b[1;33mD", AmigaPalette { bold_high: false, ..palette });
+        assert_eq!(same_pen.rows[0][0].fg, amiga_colour(0xF80), "without bold pens, bold keeps its pen");
+        let wb2 = amiga(b"A", AmigaPalette { pens: AMIGA_PRESETS[1].1, ..palette });
+        assert_eq!((wb2.rows[0][0].fg, wb2.rows[0][0].bg), (amiga_colour(0x000), amiga_colour(0xAAA)), "2.04's black on grey");
+    }
+
+    #[test]
+    fn the_amiga_palette_is_kept_in_the_settings() {
+        let mut palette = AmigaPalette::default();
+        palette.pens[5] = 0xF8F;
+        palette.bold_high = false;
+        assert_eq!(AmigaPalette::from_settings(&palette.to_setting()), palette);
+        assert_eq!(AmigaPalette::from_settings("amiga_palette=1,2,3\n"), AmigaPalette::default(), "a broken one is let go");
+        assert_eq!(amiga_colour(0xF80), Color32::from_rgb(0xFF, 0x88, 0x00));
     }
 
     #[test]
