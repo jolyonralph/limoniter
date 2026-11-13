@@ -537,6 +537,8 @@ impl Limoniter {
             return self.message("BASIC listing", "This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, and BBC, MSX and Atari BASIC programs can be listed.".into());
         }
         let listing = basic::list(&bytes, &extension, doc.text.format.charset);
+        // Colouring is ready for the listing when it opens.
+        highlight::load_now();
         if listing.lines.is_empty() {
             let why = if listing.notes.is_empty() { "There's no BASIC program in this file.".to_string() } else { listing.notes.join("\n") };
             return self.message("BASIC listing", why);
@@ -558,10 +560,13 @@ impl Limoniter {
         let mut listed = Document::untitled(format!("{stem} listing"), &PRESETS[0]);
         listed.text.set_content(lines);
         listed.text.zx = zx;
-        listed.listing_of = basic::machine_of(listing.dialect, &extension, &bytes).map(|machine| (machine, stem.clone()));
+        // A 48K program from a tape goes back as a tape, though its file in the image is a +3DOS one.
+        let machine = basic::machine_of(listing.dialect, &extension, &bytes).or_else(|| (doc.from_tape && listing.dialect == basic::ZxDialect::Spectrum.name()).then_some(basic::Machine::Spectrum));
+        listed.listing_of = machine.map(|machine| (machine, stem.clone()));
         if let Some((_, syntax)) = grammar.and_then(|grammar| highlight::engine().and_then(|engine| engine.names().iter().find(|(name, _)| name == grammar))) {
             listed.set_language(Language::Named(*syntax));
         }
+        listed.update_syntax();
         if self.no_file() {
             self.docs.clear();
         }

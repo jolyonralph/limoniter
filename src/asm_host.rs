@@ -58,8 +58,10 @@ impl Limoniter {
             return;
         }
         let cpu = self.doc_cpu(self.active);
+        // Spectrum BASIC has breakpoints too, by its line numbers, on the built-in Spectrum.
+        let basic = cpu.is_none() && self.is_spectrum_basic(self.active) && matches!(self.docs[self.active].listing_of, Some((basic::Machine::Spectrum, _)) | None);
         let doc = &mut self.docs[self.active];
-        match (cpu.is_some(), doc.text.code.is_some()) {
+        match (cpu.is_some() || basic, doc.text.code.is_some()) {
             (true, false) => doc.text.code = Some(Box::default()),
             (false, true) => doc.text.code = None,
             _ => {}

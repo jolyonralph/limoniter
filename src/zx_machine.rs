@@ -41,11 +41,19 @@ pub struct Breaks {
     wrote: Option<(u16, u8)>,
     /// Whether the last stop was at a breakpoint, rather than a step's end.
     at_breakpoint: bool,
+    /// Where the ROM starts each BASIC statement, while a BASIC program is being debugged; and whether that's
+    /// what it stopped at.
+    basic_at: std::collections::HashSet<u16>,
+    at_basic: bool,
 }
 
 impl rustzx_core::host::DebugInterface for Breaks {
     fn check_pc_breakpoint(&mut self, address: u16) -> bool {
         self.at_breakpoint = false;
+        self.at_basic = self.basic_at.contains(&address);
+        if self.at_basic {
+            return true;
+        }
         if self.step {
             self.step = false;
             return true;
@@ -181,6 +189,18 @@ pub struct BuiltIn {
     labels: Option<std::sync::Arc<std::collections::BTreeMap<String, i64>>>,
     /// Memory as it was at the last stop, for what's changed since to stand out.
     pub memory_before: Option<std::sync::Arc<Vec<u8>>>,
+    /// Whether it's a 128K, whose own BASIC runs from another ROM.
+    machine_128: bool,
+    /// Debugging a BASIC program: the lines to stop at, whether to stop at the next statement, and where it
+    /// stopped, as a line and statement.
+    basic_lines: Option<std::collections::BTreeSet<u16>>,
+    basic_step: bool,
+    pub basic_stopped: Option<(u16, u8)>,
+    /// The line and statement last passed, so a line's breakpoint stops once as it starts.
+    basic_last: Option<(u16, u8)>,
+    /// The line a BASIC program loaded from tape is about to start at, until it runs on: a breakpoint set on it
+    /// then still stops there.
+    first_statement: Option<u16>,
     taps: std::collections::VecDeque<Tap>,
     held: Vec<ZXKey>,
     /// Keys held down on the keyboard drawn under the screen, apart from those held on the computer's own.
@@ -259,24 +279,31 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, conditions: Default::default(), labels: None, memory_before: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
-                    // Loading at once makes no sound worth hearing.
-                    let ppc = |m: &BuiltIn| u16::from_le_bytes([m.peek(23621), m.peek(23622)]);
+                    // Loading at once makes no sound worth hearing. It stops just before the program's first
+                    // statement, so a breakpoint on its first line can still be seen.
+                    built.set_basic_breakpoints(Some(Default::default()));
+                    built.basic_step = true;
                     for _ in 0..50 * 90 {
                         built.frame()?;
-                        if ppc(&built) < 0xFFFE {
+                        if built.basic_stopped.is_some() {
                             break;
                         }
                     }
+                    built.first_statement = built.basic_stopped.take().map(|(line, _)| line);
+                    built.basic_step = false;
+                    built.paused = false;
+                    built.stopped = None;
+                    built.set_basic_breakpoints(None);
                 }
                 built.speaker = speaker;
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, conditions: Default::default(), labels: None, memory_before: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -301,6 +328,7 @@ impl BuiltIn {
 
     /// Runs one frame.
     pub fn frame(&mut self) -> Result<(), String> {
+        self.first_statement = None;
         self.press_taps();
         self.board_tick();
         // A breakpoint whose condition isn't true is passed straight on; enough of them in a frame and it stops
@@ -310,8 +338,31 @@ impl BuiltIn {
             if !matches!(info.stop_reason, rustzx_core::EmulationStopReason::Breakpoint) {
                 break;
             }
-            let (wrote, at_breakpoint) = self.emulator.debug_interface().map_or((None, false), |b| (b.wrote.take(), b.at_breakpoint));
+            let (wrote, at_breakpoint, at_basic) = self.emulator.debug_interface().map_or((None, false, false), |b| (b.wrote.take(), b.at_breakpoint, b.at_basic));
             let registers = self.quick_registers();
+            if at_basic && wrote.is_none() {
+                // A BASIC statement is about to run: stop if stepping, or at the start of a line with a breakpoint.
+                let paged_right = match registers.pc {
+                    crate::zx_basic_debug::STATEMENT_48 => !self.is_128() || self.peek(23388) & 0x10 != 0,
+                    _ => self.is_128() && self.peek(23388) & 0x10 == 0,
+                };
+                if !paged_right {
+                    continue;
+                }
+                let here = (u16::from_le_bytes([self.peek(crate::zx_basic_debug::PPC), self.peek(crate::zx_basic_debug::PPC + 1)]), self.peek(crate::zx_basic_debug::SUBPPC));
+                let new_line = self.basic_last.is_none_or(|(line, _)| line != here.0);
+                self.basic_last = Some(here);
+                let at_line = new_line && self.basic_lines.as_ref().is_some_and(|lines| lines.contains(&here.0));
+                if !(self.basic_step || at_line) || here.0 > 9999 {
+                    continue;
+                }
+                self.basic_step = false;
+                self.basic_stopped = Some(here);
+                self.stop_reason = None;
+                self.paused = true;
+                self.stopped = Some(registers.pc);
+                break;
+            }
             if let Some((address, value)) = wrote {
                 self.stop_reason = Some(format!("Stopped after writing {value} (${value:02X}) to ${address:04X}"));
             } else if let Some(condition) = self.conditions.get(&registers.pc).filter(|_| at_breakpoint) {
@@ -390,6 +441,39 @@ impl BuiltIn {
         }
     }
 
+    /// Debugging a BASIC program: the lines to stop at, or None to stop debugging it.
+    pub fn set_basic_breakpoints(&mut self, lines: Option<std::collections::BTreeSet<u16>>) {
+        let on = lines.is_some();
+        if let Some(line) = self.first_statement.filter(|line| lines.as_ref().is_some_and(|l| l.contains(line))) {
+            self.first_statement = None;
+            self.basic_stopped = Some((line, 1));
+            self.basic_last = Some((line, 1));
+            self.paused = true;
+            self.stopped = Some(self.quick_registers().pc);
+        }
+        self.basic_lines = lines;
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.basic_at = if on { [crate::zx_basic_debug::STATEMENT_48, crate::zx_basic_debug::STATEMENT_128].into() } else { Default::default() };
+        }
+    }
+
+    /// Stops before the next BASIC statement, wherever the program is.
+    pub fn pause_basic(&mut self) {
+        self.basic_step = true;
+    }
+
+    /// Runs the next BASIC statement, and stops before the one after.
+    pub fn step_basic(&mut self) -> Result<(), String> {
+        self.basic_step = true;
+        self.basic_stopped = None;
+        self.run_until_stopped()
+    }
+
+    fn is_128(&self) -> bool {
+        // The 128K's own BASIC ROM is at 0 while BANKM's bit 4 is clear; a 48K has no BANKM to speak of.
+        self.machine_128
+    }
+
     /// What breakpoints must be true to stop, by address, and the labels they may name.
     pub fn set_conditions(&mut self, conditions: std::collections::BTreeMap<u16, String>, labels: Option<std::sync::Arc<std::collections::BTreeMap<String, i64>>>) {
         self.conditions = conditions;
@@ -418,6 +502,7 @@ impl BuiltIn {
     pub fn carry_on(&mut self) {
         self.stopped = None;
         self.stop_reason = None;
+        self.basic_stopped = None;
         self.paused = false;
     }
 

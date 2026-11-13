@@ -583,6 +583,8 @@ struct Document {
     /// A BASIC listing, with the machine it goes back to as a program and the program's name: sending it sends
     /// the program, tokenised.
     listing_of: Option<(basic::Machine, String)>,
+    /// Opened from a Spectrum tape's list of files: a program from it goes back as a tape.
+    from_tape: bool,
     /// Following a running machine: its memory or its screen, looked at again every second.
     live: Option<Box<live_host::LiveView>>,
     /// When autosave first saw it with unsaved changes.
@@ -686,6 +688,7 @@ impl Document {
             remote: None,
             upload_wanted: false,
             listing_of: None,
+            from_tape: false,
             live: None,
             unsaved_since: None,
             autosave_skipped: None,
@@ -5927,6 +5930,26 @@ impl Limoniter {
                     self.run_until_stopped_for_screenshot();
                 }
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
+                "basic-debug" => {
+                    // A BASIC listing run on the built-in Spectrum, stopped at a line's breakpoint, for a picture.
+                    let line: usize = value.parse().unwrap_or(1);
+                    self.assembly_tick();
+                    let number = crate::zx_basic_debug::line_number(&self.doc().text.line(line.saturating_sub(1)));
+                    if let Some(code) = &mut self.doc().text.code {
+                        code.breakpoints.insert(line.saturating_sub(1));
+                    }
+                    self.run_on_target(run_host::Target::BuiltIn);
+                    for session in &mut self.running.sessions {
+                        if let run_host::SessionKind::BuiltIn { machine, .. } = &mut session.kind {
+                            machine.set_basic_breakpoints(Some(number.into_iter().collect()));
+                            for _ in 0..50 * 10 {
+                                if machine.frame().is_err() || machine.basic_stopped.is_some() {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 "git-wizard" => {
                     self.open_git_wizard();
                     if let Some(wizard) = &mut self.git.wizard {
@@ -8536,6 +8559,8 @@ mod tests {
         let zx = app.docs[app.active].text.zx.as_ref().expect("UDGs from the tape");
         assert_eq!(zx.udgs[0], Some([0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18]));
         assert_eq!(zx.udgs_from.as_deref(), Some("the tape it came from"));
+        assert!(matches!(app.docs[app.active].listing_of, Some((basic::Machine::Spectrum, _))), "from a tape, it goes back as a tape, and runs");
+        assert_eq!(app.docs[app.active].language_name(), highlight::BASIC_SINCLAIR, "coloured as Spectrum BASIC straight away");
         app.docs.push(Document::from_image_file("ship.tap".into(), tape, None));
         app.active = app.docs.len() - 1;
         app.open_basic_listing();

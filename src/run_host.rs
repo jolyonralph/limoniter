@@ -474,6 +474,16 @@ impl Limoniter {
             return;
         };
         machine.set_breakpoints(breakpoints);
+        // A Spectrum BASIC listing: its breakpoints by line number, and the lines of the listing by number.
+        let basic_listing = code.is_some() && assembly.is_none() && doc_index.is_some_and(|i| self.docs[i].text.intel.as_ref().is_some_and(|intel| intel.cpu.is_none()));
+        let listing_lines: std::collections::BTreeMap<u16, usize> = match (basic_listing, doc_index) {
+            (true, Some(i)) => (0..self.docs[i].text.line_count()).filter_map(|l| crate::zx_basic_debug::line_number(&self.docs[i].text.line(l)).map(|n| (n, l))).collect(),
+            _ => Default::default(),
+        };
+        if basic_listing {
+            let lines = code.as_ref().map(|code| listing_lines.iter().filter(|(_, l)| code.breakpoints.contains(l)).map(|(n, _)| *n).collect()).unwrap_or_default();
+            machine.set_basic_breakpoints(Some(lines));
+        }
         if let (Some(assembly), Some(code)) = (&assembly, &code) {
             machine.set_conditions(crate::debug_panel::conditions_by_address(code, assembly), Some(std::sync::Arc::new(assembly.symbols.clone())));
             machine.set_write_watches(crate::debug_panel::write_addresses(code, Some(&assembly.symbols)));
@@ -544,7 +554,27 @@ impl Limoniter {
                 None => "Click the screen to type on the Spectrum.".into(),
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
-            if machine.paused && error.is_none() {
+            let mut basic_action = None;
+            if let (Some((line, statement)), None) = (machine.basic_stopped, error.as_ref()) {
+                basic_action = basic_debugger(ui, line, statement, &crate::zx_basic_debug::variables(&|a| machine.peek(a)));
+            } else if basic_listing && !machine.paused && error.is_none() {
+                ui.horizontal(|ui| {
+                    if ui.small_button("Stop at the next statement").on_hover_text("Pauses the BASIC program before its next statement, to step through it").clicked() {
+                        machine.pause_basic();
+                    }
+                    ui.label(RichText::new("or click beside a line's number for a breakpoint").color(theme::text_faint()).size(11.5));
+                });
+            }
+            match basic_action {
+                Some(Debug::Step) => {
+                    if let Err(problem) = machine.step_basic() {
+                        *error = Some(problem);
+                    }
+                }
+                Some(_) => machine.carry_on(),
+                None => {}
+            }
+            if machine.paused && error.is_none() && machine.basic_stopped.is_none() {
                 let mut stop = crate::remote_debug::Stop::z80(machine.registers());
                 stop.reason = machine.stop_reason.clone();
                 let memory = machine.memory();
@@ -601,7 +631,11 @@ impl Limoniter {
             }
         }
         // Where it's stopped, marked in the source, which is brought to that line when it first stops there.
-        let stopped_line = if machine.paused { assembly.as_ref().and_then(|a| a.line_at(machine.registers().pc as i64)).filter(|(file, _)| *file == 0).map(|(_, line)| line) } else { None };
+        let stopped_line = match machine.basic_stopped {
+            Some((line, _)) => listing_lines.get(&line).copied(),
+            None if machine.paused => assembly.as_ref().and_then(|a| a.line_at(machine.registers().pc as i64)).filter(|(file, _)| *file == 0).map(|(_, line)| line),
+            None => None,
+        };
         if !machine.paused && error.is_none() {
             ctx.request_repaint_after(Duration::from_millis(15));
         }
@@ -909,6 +943,38 @@ impl From<crate::debug_panel::Action> for Debug {
             crate::debug_panel::Action::StepOver => Debug::StepOver,
         }
     }
+}
+
+/// While a BASIC program is stopped before a statement: where, the buttons, and its variables.
+fn basic_debugger(ui: &mut Ui, line: u16, statement: u8, variables: &[crate::zx_basic_debug::Variable]) -> Option<Debug> {
+    let mut action = None;
+    ui.add_space(4.0);
+    egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("Stopped at line {line}, statement {statement}")).strong());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button("Next statement").on_hover_text("Runs this statement and stops before the next").clicked() {
+                    action = Some(Debug::Step);
+                }
+                if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
+                    action = Some(Debug::CarryOn);
+                }
+            });
+        });
+        egui::CollapsingHeader::new(format!("Variables ({})", variables.len())).id_salt("basic-variables").default_open(true).show(ui, |ui| {
+            if variables.is_empty() {
+                ui.label(RichText::new("None yet.").color(theme::text_faint()).size(11.5));
+            }
+            egui::Grid::new("basic-variables-grid").num_columns(2).spacing([14.0, 2.0]).show(ui, |ui| {
+                for variable in variables {
+                    ui.label(RichText::new(&variable.name).monospace().size(12.0).strong());
+                    ui.label(RichText::new(&variable.value).monospace().size(12.0));
+                    ui.end_row();
+                }
+            });
+        });
+    });
+    action
 }
 
 /// Keys pressed on the computer, played on the Spectrum. Letters, digits, Space and Enter are held as long as

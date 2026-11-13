@@ -55,6 +55,7 @@ mod zx_keyboard;
 mod zx_graphics;
 mod code_intel;
 mod debug_panel;
+mod zx_basic_debug;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

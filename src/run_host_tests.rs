@@ -332,6 +332,38 @@ fn every_processor_can_have_its_own_assembler_chosen_and_it_is_kept() {
 }
 
 #[test]
+fn a_basic_listing_stops_at_its_breakpoints_on_the_built_in_spectrum() {
+    crate::highlight::load_now();
+    let (mut app, ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");
+    listing(&mut app, &["10 LET a=1", "20 LET a=a+1: LET b=a*2", "30 GO TO 20"], basic::Machine::Spectrum);
+    let id = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == highlight::BASIC_SINCLAIR).map(|(_, s)| *s)).unwrap();
+    app.doc().set_language(Language::Named(id));
+    app.doc().update_syntax();
+    app.assembly_tick();
+    assert!(app.doc().text.code.is_some(), "a Spectrum listing can have breakpoints");
+    app.doc().text.code.as_mut().unwrap().breakpoints.insert(1);
+    app.run_on_target(run_host::Target::BuiltIn);
+    assert_eq!(app.running.sessions.len(), 1, "{:?}", app.script_output);
+    let mut stopped = None;
+    for _ in 0..200 {
+        ctx.run_ui(Default::default(), |ui| app.machine_panel(ui)).textures_delta.clear();
+        if let run_host::SessionKind::BuiltIn { machine, .. } = &mut app.running.sessions[0].kind {
+            for _ in 0..5 {
+                machine.frame().unwrap();
+            }
+        }
+        stopped = app.doc().text.code.as_ref().and_then(|c| c.stopped);
+        if stopped.is_some() {
+            break;
+        }
+    }
+    assert_eq!(stopped, Some(1), "stopped at line 20, the listing's second line");
+    let run_host::SessionKind::BuiltIn { machine, .. } = &mut app.running.sessions[0].kind else { panic!() };
+    assert_eq!(machine.basic_stopped, Some((20, 1)));
+    app.stop_all_sessions();
+}
+
+#[test]
 fn source_is_assembled_to_just_its_bytes() {
     let (mut app, _ctx) = app_with("");
     z80_source(&mut app, &["  org 40000", "  ld a,2", "  ex de,hl", "  ld b,a", "data: db 1,2,3", "start: ret", "  end start"]);

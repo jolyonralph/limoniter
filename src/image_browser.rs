@@ -340,6 +340,7 @@ impl Limoniter {
                 let image = self.docs[index].path.clone();
                 let ending = image.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
                 let program = Path::new(&name).extension().is_some_and(|e| e.eq_ignore_ascii_case("bas"));
+                doc.from_tape = matches!(ending.as_str(), "tap" | "tzx");
                 if program
                     && matches!(ending.as_str(), "tap" | "tzx" | "sna" | "z80")
                     && let Some(udgs) = image.and_then(|path| std::fs::read(path).ok()).and_then(|image| zx_host::udgs_in_file(&image, &ending))
