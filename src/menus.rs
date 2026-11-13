@@ -385,6 +385,7 @@ const VIEW: &[Entry] = &[
         ],
     ),
     Check("Output", Flag::OutputWindow),
+    Keyed("Terminal", Command::ToggleTerminal, "Ctrl+`"),
     Check("File tabs", Flag::FileTabs),
     Check("Status bar", Flag::StatusBar),
     Line,

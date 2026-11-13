@@ -61,7 +61,7 @@ Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edit
 | Code intelligence (language servers: completion, go to definition) | ✓ language servers, and its own for assembler | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ◐ | ✓ | ✗ |
 | Debugger | ◐ Z80 and 6502 programs, on its built-in Spectrum, ZEsarUX and VICE | ✗ | ✗ | ✓ | ◐ | ✓ | ◐ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Git | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✓ | ✗ |
-| Built-in terminal | ✗ | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✗ | ✗ |
+| Built-in terminal | ✓ | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✗ | ✗ |
 | Run a command on the file | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Remote files (FTP, SFTP, SSH) | ◐ SFTP; FTP only to send | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ◐ | ✓ | ✗ |
 | Editing together in real time | ✗ | ✗ | ✗ | ◐ | ✗ | ◐ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |

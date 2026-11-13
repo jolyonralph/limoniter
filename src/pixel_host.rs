@@ -133,6 +133,52 @@ impl Limoniter {
     }
 }
 
+impl Limoniter {
+    /// Opens a terminal in the folder of the file in front (or the home folder), or closes the one open.
+    pub(super) fn toggle_terminal(&mut self) {
+        if self.terminal.take().is_some() {
+            self.pending_focus = true;
+            return;
+        }
+        let folder = self.docs.get(self.active).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf).or_else(|| std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)).unwrap_or_else(|| PathBuf::from("."));
+        match crate::terminal::Terminal::start(&folder, 12, 80) {
+            Ok(terminal) => self.terminal = Some(Box::new(terminal)),
+            Err(problem) => self.message("Terminal", problem),
+        }
+    }
+
+    pub(super) fn terminal_panel(&mut self, ui: &mut Ui) {
+        let mut close = false;
+        let mut restart = false;
+        let font_size = self.view.font_size;
+        let Some(terminal) = self.terminal.as_mut() else {
+            return;
+        };
+        if terminal.changed.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            ui.ctx().request_repaint();
+        }
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
+        let folder = terminal.folder.display().to_string();
+        Panel::bottom("terminal-panel").default_size(240.0).resizable(true).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("Terminal, in {folder}")).color(theme::text_dim()).size(12.5));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    close = ui.small_button("\u{D7}").on_hover_text("Close it, ending the shell").clicked();
+                    restart = ui.small_button("Restart").on_hover_text("A fresh shell").clicked();
+                });
+            });
+            crate::terminal::draw(ui, terminal, font_size);
+        });
+        if close {
+            self.terminal = None;
+            self.pending_focus = true;
+        } else if restart {
+            self.terminal = None;
+            self.toggle_terminal();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::app_with;

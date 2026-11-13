@@ -212,6 +212,7 @@ Switched on under **View, Panels**:
 ## Tools
 
 - Count words; SHA-256 fingerprint; convert a number between decimal, hex and binary; copy the file's path.
+- **Terminal** (View, **Ctrl+`**): your shell (PowerShell on Windows, your own elsewhere) in a panel under the text, in the folder of the file in front, on a real pseudo-terminal (ConPTY on Windows), so colours, the cursor keys and full-screen programs work as in any terminal. Restart gives a fresh shell; closing it ends it.
 - Run a command (**F5**) in the file's folder, with `%FILE%`, `%NAME%`, `%STEM%` and `%DIR%`; output goes to the Output panel.
 - Projects: a named set of files with notes, backups and restore; paths kept relative so a project can be moved.
 - File, This file: rename, show in Explorer, open in its usual program, or split into parts. Save just the selection.

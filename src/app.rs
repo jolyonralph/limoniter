@@ -207,6 +207,7 @@ enum Command {
     Disassemble,
     PixelEditor,
     ScreenDesigner,
+    ToggleTerminal,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -300,6 +301,7 @@ impl Command {
                 | Command::NewAs(_)
                 | Command::PixelEditor
                 | Command::ScreenDesigner
+                | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
                 | Command::MachineScreen
@@ -1270,6 +1272,8 @@ pub struct Limoniter {
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
+    /// The terminal panel's shell, while it's open.
+    terminal: Option<Box<crate::terminal::Terminal>>,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1542,6 +1546,7 @@ impl Limoniter {
             pixel_editor: None,
             screen_designer: None,
             lsp: lsp_host::LspState::from_settings(&settings),
+            terminal: None,
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -3568,6 +3573,7 @@ impl Limoniter {
             Command::FindUses => self.find_uses(),
             Command::RenameLabel => self.open_rename_box(),
             Command::Disassemble => self.open_disassemble_box(),
+            Command::ToggleTerminal => self.toggle_terminal(),
             Command::ScreenDesigner => {
                 if self.screen_designer.is_none() {
                     let mut designer = crate::screen_designer::Designer::default();
@@ -4100,6 +4106,7 @@ impl Limoniter {
             (ctrl, Key::J, Command::Snippets),
             (Modifiers::NONE, Key::F5, Command::RunTool),
             (Modifiers::NONE, Key::F9, Command::RunOnMachine),
+            (Modifiers::CTRL, Key::Backtick, Command::ToggleTerminal),
             (Modifiers::NONE, Key::F12, Command::GoToDefinition),
             (Modifiers::SHIFT, Key::F12, Command::FindUses),
             (ctrl, Key::F12, Command::RenameLabel),
@@ -6004,6 +6011,17 @@ impl Limoniter {
                     self.run_until_stopped_for_screenshot();
                 }
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
+                "terminal" => {
+                    // A command typed in the terminal, and a moment for it to answer.
+                    if self.terminal.is_none() {
+                        self.toggle_terminal();
+                    }
+                    if let Some(terminal) = self.terminal.as_mut() {
+                        std::thread::sleep(Duration::from_millis(1500));
+                        terminal.send(format!("{value}\r").as_bytes());
+                        std::thread::sleep(Duration::from_millis(2500));
+                    }
+                }
                 "profile" => {
                     // Counted for a number of frames, then left to read.
                     for session in &mut self.running.sessions {
@@ -6501,6 +6519,9 @@ impl Limoniter {
             self.table_offer_bar(ui);
             self.git_offer_bar(ui);
             self.conflict_bar(ui);
+        }
+        if self.terminal.is_some() {
+            self.terminal_panel(ui);
         }
         if self.show_results {
             self.results_panel(ui);

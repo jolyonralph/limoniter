@@ -7,6 +7,9 @@ license = "Apache-2.0"
 repository = "https://github.com/jolyonralph/limoniter"
 
 [dependencies]
+# The terminal panel: a pseudo-terminal (ConPTY on Windows) and a VT100 screen.
+portable-pty = "0.9"
+vt100 = "0.16"
 # The Next's debug cable (DeZog's dezogif), without libudev, which only lists ports.
 serialport = { version = "4", default-features = false }
 arboard = { version = "3.7.0", default-features = false }
