@@ -337,3 +337,22 @@ fn source_for_the_6809_is_saved_as_a_color_computer_binary() {
     assert!(app.script_output.iter().any(|l| l.starts_with("Saved ")), "{:?}", app.script_output);
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+#[test]
+fn source_for_the_68000_is_saved_as_a_binary() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-68k-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("copper.s");
+    std::fs::write(&path, "\torg $40000\nstart:\tmove.w #$0f00,$dff180\n\tlea data(pc),a0\n\tmoveq #3,d0\nloop:\tmove.l (a0)+,d1\n\tdbra d0,loop\n\trts\ndata:\tdc.l 1,2,3,4\n").unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M68k), "{}", app.doc().language_name());
+    app.run_on_machine();
+    let saved = std::fs::read(folder.join("copper.bin")).expect("saved beside the source");
+    assert_eq!(&saved[..8], &[0x33, 0xFC, 0x0F, 0x00, 0x00, 0xDF, 0xF1, 0x80]);
+    assert_eq!(saved.len(), 8 + 4 + 2 + 2 + 4 + 2 + 16);
+    let _ = std::fs::remove_dir_all(&folder);
+}

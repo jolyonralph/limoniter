@@ -13,6 +13,7 @@ pub enum Cpu {
     Z80,
     M6502,
     M6809,
+    M68k,
 }
 
 impl Cpu {
@@ -21,6 +22,7 @@ impl Cpu {
             Cpu::Z80 => "Z80",
             Cpu::M6502 => "6502",
             Cpu::M6809 => "6809",
+            Cpu::M68k => "68000",
         }
     }
 
@@ -29,6 +31,7 @@ impl Cpu {
             Cpu::Z80 => "z80",
             Cpu::M6502 => "6502",
             Cpu::M6809 => "6809",
+            Cpu::M68k => "68000",
         }
     }
 
@@ -38,6 +41,7 @@ impl Cpu {
             "Assembly Z80" => Some(Cpu::Z80),
             "Assembly 6502" => Some(Cpu::M6502),
             "Assembly 6809" => Some(Cpu::M6809),
+            "Assembly 680x0" => Some(Cpu::M68k),
             _ => None,
         }
     }
@@ -47,6 +51,7 @@ impl Cpu {
             Cpu::Z80 => &asm::z80::Z80,
             Cpu::M6502 => &asm::m6502::M6502,
             Cpu::M6809 => &asm::m6809::M6809,
+            Cpu::M68k => &asm::m68k::M68k,
         }
     }
 }
@@ -62,6 +67,8 @@ pub enum Style {
     Acme,
     /// lwasm: makes a Color Computer binary, and a listing of each line's address and bytes.
     Lwasm,
+    /// vasm (Motorola syntax): makes a plain binary, and a listing.
+    Vasm,
 }
 
 /// An assembler of someone else's.
@@ -75,10 +82,11 @@ pub struct External {
     pub website: &'static str,
 }
 
-pub const KNOWN: [External; 4] = [
+pub const KNOWN: [External; 5] = [
     External { id: "sjasmplus", name: "sjasmplus", cpu: Cpu::Z80, programs: &["sjasmplus"], folder_hints: &["sjasmplus"], style: Style::Sjasmplus, website: "https://github.com/z00m128/sjasmplus" },
     External { id: "pasmo", name: "Pasmo", cpu: Cpu::Z80, programs: &["pasmo"], folder_hints: &["pasmo"], style: Style::Pasmo, website: "https://pasmo.speccy.org" },
     External { id: "lwasm", name: "lwasm (LWTOOLS)", cpu: Cpu::M6809, programs: &["lwasm"], folder_hints: &["lwtools", "lwasm"], style: Style::Lwasm, website: "http://www.lwtools.ca" },
+    External { id: "vasm", name: "vasm", cpu: Cpu::M68k, programs: &["vasmm68k_mot"], folder_hints: &["vasm"], style: Style::Vasm, website: "http://sun.hasenbraten.de/vasm/" },
     External { id: "acme", name: "ACME", cpu: Cpu::M6502, programs: &["acme"], folder_hints: &["acme"], style: Style::Acme, website: "https://sourceforge.net/projects/acme-crossass/" },
 ];
 
@@ -153,6 +161,7 @@ pub fn assemble_external(found: &External, program: &Path, source: &Path) -> Res
         Style::Pasmo => pasmo(program, source, &work),
         Style::Acme => acme(program, source, &work),
         Style::Lwasm => lwasm(program, source, &work),
+        Style::Vasm => vasm(program, source, &work),
     };
     let _ = std::fs::remove_dir_all(&work);
     result
@@ -373,6 +382,54 @@ fn pasmo(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String
     Ok(Assembled { assembly, tape, printed })
 }
 
+fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String> {
+    let out = work.join("out.bin");
+    let listing = work.join("out.lst");
+    let folder = source.parent().unwrap_or(Path::new("."));
+    let args = vec!["-Fbin".to_string(), "-no-opt".into(), "-quiet".into(), "-o".into(), out.display().to_string(), "-L".into(), listing.display().to_string(), source.display().to_string()];
+    let (ok, printed) = run(program, &args, folder)?;
+    let mut assembly = Assembly { files: vec![source.to_path_buf()], ..Assembly::default() };
+    // "error 2030 in line 83 of \"prog.s\": displacement out of range"
+    for line in &printed {
+        let Some(rest) = line.strip_prefix("error ").or_else(|| line.strip_prefix("fatal error ")) else { continue };
+        let Some((_, rest)) = rest.split_once(" in line ") else { continue };
+        let Some((number, rest)) = rest.split_once(" of \"") else { continue };
+        let Some((file, message)) = rest.split_once("\": ") else { continue };
+        let file = file_index(&mut assembly, file, source);
+        assembly.problems.push(Problem { file, line: number.trim().parse::<usize>().unwrap_or(1).saturating_sub(1), message: message.to_string() });
+    }
+    if !ok && assembly.problems.is_empty() {
+        assembly.problems.push(Problem { file: 0, line: 0, message: printed.join(" ") });
+    }
+    // "00:00001000 60FE            \t     2: start: bra.s start", under "Source: \"prog.s\"".
+    if let Ok(text) = std::fs::read_to_string(&listing) {
+        let mut file = 0;
+        for line in text.lines() {
+            if let Some(name) = line.strip_prefix("Source: \"").and_then(|n| n.strip_suffix('"')) {
+                file = file_index(&mut assembly, name, source);
+                continue;
+            }
+            let Some((head, rest)) = line.split_once('\t') else { continue };
+            let mut words = head.split_whitespace();
+            let (Some(place), Some(bytes)) = (words.next(), words.next()) else { continue };
+            let Some(address) = place.split_once(':').and_then(|(_, a)| i64::from_str_radix(a, 16).ok()) else { continue };
+            if bytes.len() % 2 != 0 || !bytes.chars().all(|c| c.is_ascii_hexdigit()) {
+                continue;
+            }
+            let number: usize = rest.trim_start().split(':').next().and_then(|n| n.trim().parse().ok()).unwrap_or(0);
+            let bytes: Vec<u8> = (0..bytes.len()).step_by(2).filter_map(|i| u8::from_str_radix(&bytes[i..i + 2], 16).ok()).collect();
+            assembly.lines.push(asm::Placed { file, line: number.saturating_sub(1), address, bytes });
+        }
+    }
+    if let (true, Ok(binary)) = (ok, std::fs::read(&out))
+        && let Some(low) = assembly.lines.iter().map(|p| p.address).min()
+    {
+        assembly.chunks = vec![asm::Chunk { address: low, bytes: binary }];
+        assembly.entry = Some(low);
+    }
+    Ok(Assembled { assembly, tape: None, printed })
+}
+
 fn lwasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String> {
     let out = work.join("out.bin");
     let listing = work.join("out.lst");
@@ -534,6 +591,18 @@ mod tests {
             assert_eq!(theirs.lines.iter().map(|p| (p.line, p.address, p.bytes.clone())).collect::<Vec<_>>(), own.lines.iter().map(|p| (p.line, p.address, p.bytes.clone())).collect::<Vec<_>>());
             std::fs::write(&source, " org $3000\n lda #1\n frob #2\n").unwrap();
             let wrong = assemble_external(external("lwasm").unwrap(), Path::new(&program), &source).unwrap().assembly;
+            assert_eq!(wrong.problems.first().map(|p| p.line), Some(2), "{:?}", wrong.problems);
+        }
+        if let Ok(program) = std::env::var("LIMONITER_VASM") {
+            let text = "\torg $1000\nstart:\tmove.l #$12345678,d0\n\tlea start(pc),a0\nloop:\tdbra d0,loop\n\trts\n";
+            std::fs::write(&source, text).unwrap();
+            let theirs = assemble_external(external("vasm").unwrap(), Path::new(&program), &source).unwrap().assembly;
+            assert!(theirs.ok(), "{:?}", theirs.problems);
+            let own = assemble_own(Cpu::M68k, &source, text).assembly;
+            assert_eq!(theirs.chunks, own.chunks);
+            assert_eq!(theirs.lines.iter().map(|p| (p.line, p.address, p.bytes.clone())).collect::<Vec<_>>(), own.lines.iter().map(|p| (p.line, p.address, p.bytes.clone())).collect::<Vec<_>>());
+            std::fs::write(&source, "\torg $1000\n\tmove.l d0,d1\n\tfrob d2\n").unwrap();
+            let wrong = assemble_external(external("vasm").unwrap(), Path::new(&program), &source).unwrap().assembly;
             assert_eq!(wrong.problems.first().map(|p| p.line), Some(2), "{:?}", wrong.problems);
         }
         if let Ok(program) = std::env::var("LIMONITER_ACME") {

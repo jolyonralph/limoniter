@@ -6,6 +6,7 @@
 pub mod expr;
 pub mod m6502;
 pub mod m6809;
+pub mod m68k;
 pub mod output;
 pub mod z80;
 

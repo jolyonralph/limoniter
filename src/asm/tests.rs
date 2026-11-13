@@ -215,3 +215,17 @@ fn every_6809_instruction_is_assembled_as_lwasm_does() {
     }
     assert_eq!(assembly.image(0x1000, 0x1000 + expected.len() as i64), expected);
 }
+
+/// Every 68000 instruction in its addressing modes, as vasm assembles them with -no-opt.
+#[test]
+fn every_68000_instruction_is_assembled_as_vasm_does() {
+    let source = include_str!("testdata/m68k_all.asm");
+    let assembly = assemble(&m68k::M68k, Path::new("test.asm"), source, &no_files);
+    assert!(assembly.ok(), "{:?}", assembly.problems.iter().take(5).collect::<Vec<_>>());
+    let expected = include_bytes!("testdata/m68k_all.bin");
+    for placed in &assembly.lines {
+        let at = (placed.address - 0x1000) as usize;
+        assert_eq!(Some(&placed.bytes[..]), expected.get(at..at + placed.bytes.len()), "line {}: {}", placed.line + 1, source.lines().nth(placed.line).unwrap_or(""));
+    }
+    assert_eq!(assembly.image(0x1000, 0x1000 + expected.len() as i64), expected);
+}

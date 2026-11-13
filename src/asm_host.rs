@@ -115,7 +115,7 @@ impl Limoniter {
                     Some(folder) => {
                         let path = folder.join(name);
                         match crate::codec::write_file(&path, bytes) {
-                            Ok(()) => format!("Saved {} ({} bytes): load it into an emulator, as LOADM does.", path.display(), bytes.len()),
+                            Ok(()) => format!("Saved {} ({} bytes), to load into an emulator.", path.display(), bytes.len()),
                             Err(e) => format!("{} couldn't be saved: {e}", path.display()),
                         }
                     }
@@ -303,6 +303,14 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, St
     match cpu {
         // A Color Computer binary, which LOADM loads, for an emulator such as XRoar or MAME.
         Cpu::M6809 => Ok(Made::Saved { name: format!("{stem}.bin"), bytes: crate::asm::output::coco_binary(&assembled.assembly)? }),
+        // The bytes as they go in memory, from the first to the last.
+        Cpu::M68k => {
+            let assembly = &assembled.assembly;
+            let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+                return Err("Nothing was assembled.".into());
+            };
+            Ok(Made::Saved { name: format!("{stem}.bin"), bytes: assembly.image(low, high) })
+        }
         _ => runnable_from(cpu, assembled, stem).map(Made::Run),
     }
 }
