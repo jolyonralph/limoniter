@@ -424,7 +424,8 @@ impl<'a> Pass<'a> {
         let at_start = !line.starts_with([' ', '\t']);
         // An anonymous label: - or + (or -- or ++) where a label goes.
         let first = line.split_whitespace().next().unwrap_or("");
-        let anonymous = !first.is_empty() && (first.chars().all(|c| c == '-') || first.chars().all(|c| c == '+')) && first.len() <= 8;
+        // ca65's is a colon on its own, referred to as :- and :+.
+        let anonymous = !first.is_empty() && (first.chars().all(|c| c == '-') || first.chars().all(|c| c == '+') || first == ":") && first.len() <= 8;
         let (label, rest) = if anonymous { (None, &line.trim_start()[first.len()..]) } else { split_label(line, at_start, |w| self.is_keyword(w), |w| self.isa.is_instruction(&w.to_ascii_lowercase())) };
         let rest = rest.trim();
         let word = rest.split(|c: char| c.is_whitespace()).next().unwrap_or("").to_ascii_lowercase();
@@ -475,7 +476,7 @@ impl<'a> Pass<'a> {
                 }
                 _ => {}
             }
-            if let Some(value) = rest.strip_prefix('=') {
+            if let Some(value) = rest.strip_prefix(":=").or_else(|| rest.strip_prefix('=')) {
                 let (value, more) = self.first_statement(value);
                 match self.eval(value.trim()) {
                     Ok(v) => self.define(label, v, true),
@@ -567,7 +568,7 @@ impl<'a> Pass<'a> {
 
     fn define(&mut self, label: &str, value: i64, variable: bool) {
         let name = self.full_name(label);
-        if !label.starts_with('.') && !variable && self.macro_scope.is_none() {
+        if !label.starts_with(self.isa.local_prefixes()) && !variable && self.macro_scope.is_none() {
             self.global = name.clone();
         }
         if !variable && self.symbols.contains_key(&name) {
@@ -584,6 +585,9 @@ impl<'a> Pass<'a> {
         let trimmed = text.trim();
         if !trimmed.is_empty() && trimmed.len() <= 8 && (trimmed.chars().all(|c| c == '-') || trimmed.chars().all(|c| c == '+')) {
             return self.anonymous_label(trimmed);
+        }
+        if let Some(way) = trimmed.strip_prefix(':').filter(|w| !w.is_empty() && w.len() <= 8 && (w.chars().all(|c| c == '-') || w.chars().all(|c| c == '+'))) {
+            return self.colon_label(way);
         }
         match expr::eval(text, self)? {
             Value::Known(v) => Ok(v),
@@ -614,6 +618,26 @@ impl<'a> Pass<'a> {
                 Ok(0)
             }
             None => Err(format!("there's no {name} label {}", if name.starts_with('-') { "before this" } else { "after this" })),
+        }
+    }
+
+    /// ca65's anonymous labels, all one kind: :- is the last before, :-- the one before that, :+ the next after.
+    fn colon_label(&mut self, way: &str) -> Result<i64, String> {
+        let count = way.len();
+        let found = if way.starts_with('-') {
+            let all = self.anonymous.get(":").map(Vec::as_slice).unwrap_or_default();
+            all.len().checked_sub(count).and_then(|i| all.get(i)).copied()
+        } else {
+            let seen = self.anonymous.get(":").map_or(0, Vec::len);
+            self.previous_anonymous.get(":").and_then(|all| all.get(seen + count - 1)).copied()
+        };
+        match found {
+            Some(address) => Ok(address),
+            None if !self.last => {
+                self.unknown = true;
+                Ok(0)
+            }
+            None => Err(format!("there's no anonymous label for :{way}")),
         }
     }
 
@@ -884,6 +908,12 @@ impl<'a> Pass<'a> {
             }
             "zone" => {
                 self.global = operands.trim().to_string();
+            }
+            // ca65's .proc: a label, and the scope its @ labels belong to.
+            "proc" => {
+                let name = operands.split_whitespace().next().unwrap_or("").to_string();
+                let here = self.pc + self.shift;
+                self.define(&name, here, false);
             }
             "endzone" => {
                 self.global = operands.trim().to_string();
@@ -1226,7 +1256,7 @@ fn split_label(line: &str, at_start: bool, is_keyword: impl Fn(&str) -> bool, is
     // name EQU 5 or name = 5, wherever it starts.
     let (next, _) = split_word(after);
     let next = next.to_ascii_lowercase();
-    if matches!(next.trim_start_matches('.'), "equ" | "defl" | "macro") || after.trim_start().starts_with('=') && !after.trim_start().starts_with("==") {
+    if matches!(next.trim_start_matches('.'), "equ" | "defl" | "macro") || after.trim_start().starts_with(":=") || after.trim_start().starts_with('=') && !after.trim_start().starts_with("==") {
         return (Some(name.to_string()), after);
     }
     if at_start && !is_keyword(name) {
@@ -1267,7 +1297,8 @@ fn split_outside_quotes(text: &str, separator: char) -> Vec<String> {
                 '"' | '\'' => quote = Some(c),
                 '(' | '[' => depth += 1,
                 ')' | ']' => depth -= 1,
-                c if c == separator && depth == 0 => {
+                // ca65's :- and :+ aren't separators.
+                c if c == separator && depth == 0 && !(c == ':' && matches!(chars.get(i + 1), Some('-' | '+'))) => {
                     parts.push(std::mem::take(&mut current));
                     continue;
                 }

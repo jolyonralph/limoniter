@@ -242,3 +242,12 @@ fn an_atari_st_program_matches_vasm() {
     // With ORG, it's at an address of its own.
     assert!(assemble(&m68k::M68k, Path::new("t.s"), "\torg $1000\n\tnop\n", &no_files).absolute);
 }
+
+/// A program written as ca65 has it (.proc, @ labels, := and : anonymous labels), as ca65 and ld65 make it.
+#[test]
+fn a_ca65_program_assembles_as_ca65_does() {
+    let assembly = m6502(include_str!("testdata/ca65_prog.s"));
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    let expected = include_bytes!("testdata/ca65_prog.bin");
+    assert_eq!(assembly.image(0xC000, 0xC000 + expected.len() as i64), expected);
+}
