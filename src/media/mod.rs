@@ -19,6 +19,7 @@ mod lif;
 mod mac;
 mod rp9;
 mod sectors;
+pub mod write;
 mod trsdos;
 pub(crate) mod spectrum;
 mod zip;
@@ -286,6 +287,7 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     match ending {
         // A C64 tape is pulses, not files; it opens as itself.
+        "tap" if len == 0 => return Some(Format::ZxTape),
         "tap" if !at(0, b"C64-TAPE-RAW") && head.len() >= 3 && usize::from(u16::from_le_bytes([head[0], head[1]])) >= 2 => return Some(Format::ZxTape),
         "trd" if head.get(0x8E7) == Some(&0x10) => return Some(Format::TrDos),
         "mdr" if len >= 543 => return Some(Format::Microdrive),

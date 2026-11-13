@@ -205,6 +205,7 @@ enum Command {
     FindUses,
     RenameLabel,
     Disassemble,
+    NewImage,
     PixelEditor,
     ScreenDesigner,
     ToggleTerminal,
@@ -1258,6 +1259,7 @@ enum Dialog {
     NewKinds(Box<new_kinds::NewKindsBox>),
     RenameLabel(Box<intel_host::RenameBox>),
     Disassemble(Box<disasm_host::DisasmBox>),
+    NewImage(Box<image_browser::NewImageBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
     Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
@@ -3586,6 +3588,7 @@ impl Limoniter {
             Command::FindUses => self.find_uses(),
             Command::RenameLabel => self.open_rename_box(),
             Command::Disassemble => self.open_disassemble_box(),
+            Command::NewImage => self.open_new_image_box(),
             Command::ToggleTerminal => self.toggle_terminal(),
             Command::RunTask(index) => {
                 if let Some(task) = self.tasks_here().get(index).cloned() {
@@ -5776,7 +5779,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5991,6 +5994,18 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                // Files waiting to go on the image in front, as if dropped on it; semicolons between.
+                "image-add" => {
+                    let paths: Vec<PathBuf> = value.split(';').map(PathBuf::from).collect();
+                    self.drop_on_image(&paths);
+                    // "image-add:...;" with "add" as its last part adds them straight away.
+                    if value.ends_with(";add")
+                        && let Some(browser) = self.docs[self.active].browser.as_mut()
+                    {
+                        browser.confirm_add_for_picture();
+                        self.note_image_changed(self.active);
+                    }
+                }
                 "screen-designer" => {
                     // A picture brought in, for a picture.
                     let mut designer = crate::screen_designer::Designer::default();
@@ -6395,8 +6410,11 @@ impl Limoniter {
                 self.check_for_changed_files();
             }
             let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
-            for path in dropped {
-                self.open_path(&path);
+            // Files dropped on an image that can be changed are put on it; anywhere else they open.
+            if !self.drop_on_image(&dropped) {
+                for path in dropped {
+                    self.open_path(&path);
+                }
             }
         }
 

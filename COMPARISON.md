@@ -80,6 +80,7 @@ This is what Limoniter was made for, and where no other editor here comes close.
 | Retro screens previewed (ANSI art, PETSCII, teletext, Spectrum) | ✓ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Tokenised BASIC listed and saved back | ✓ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Disk, tape and archive images browsed | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ archives | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Files added to, deleted from and renamed on disk and tape images | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ archives | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Legacy pictures shown and saved as PNG | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Old word processor documents converted | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Assembled, run and debugged (Z80, 6502, 6809, 68000) | ✓ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
@@ -101,7 +102,7 @@ Some of these are possible elsewhere with separate tools (cpmtools, AppleCommand
 
 ## What only Limoniter does
 
-- Opens the disk images, tapes and archives of the Amiga, Commodore 64, ZX Spectrum, Amstrad, BBC Micro and Acorn, Apple II, Atari 8-bit and ST, TRS-80, Tandy Color Computer and Dragon, Macintosh, CP/M machines (with their format worked out for itself), HP and PC, and shows what's inside, read only.
+- Opens the disk images, tapes and archives of the Amiga, Commodore 64, ZX Spectrum, Amstrad, BBC Micro and Acorn, Apple II, Atari 8-bit and ST, TRS-80, Tandy Color Computer and Dragon, Macintosh, CP/M machines (with their format worked out for itself), HP and PC, and shows what's inside. Spectrum tapes and +3 disks, Commodore, PC and Atari ST, Amiga, Atari 8-bit DOS 2 and Color Computer RS-DOS images can have files added, deleted and renamed too, and blank ones made.
 - Reads and writes text in the character sets of those machines, byte for byte, alongside 22 EBCDIC code pages and the usual modern ones.
 - Previews ANSI art, PETSCII, teletext and Spectrum screens, lists tokenised BASIC from ten dialects and saves several back, shows legacy pictures (Amiga IFF with colour cycling, Atari ST, C64, MacPaint, RISC OS sprites, PCX, GEM, Apple II, Kodak Photo CD) and saves them as PNG, and converts WordStar and MemoMaker documents.
 - Keeps an undo history as a tree, and the history of any part of a file.

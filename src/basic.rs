@@ -748,16 +748,26 @@ fn zx_block(block: &[u8], header: &mut Option<ZxHeader>, listing: &mut Listing) 
 /// blocks among blocks about timing and the tape itself; those are stepped over, and an unknown one ends the
 /// tape, as its length can't be known.
 pub fn tape_blocks(data: &[u8]) -> (Vec<&[u8]>, Option<String>) {
+    let (places, problem) = tape_block_places(data);
+    (places.into_iter().map(|(_, start, length)| &data[start..start + length]).collect(), problem)
+}
+
+/// Where each data block is on a tape: where the whole block starts (its length, or its TZX block ID), where its
+/// flag byte is, and the length from the flag to the checksum; and why the tape ended early if it did.
+pub fn tape_block_places(data: &[u8]) -> (Vec<(usize, usize, usize)>, Option<String>) {
     let mut blocks = Vec::new();
     if !data.starts_with(b"ZXTape!\x1A") {
         let mut at = 0;
         while at + 2 <= data.len() {
             let length = usize::from(u16::from_le_bytes([data[at], data[at + 1]]));
-            let Some(block) = data.get(at + 2..at + 2 + length) else {
+            if data.len() < at + 2 + length {
                 return (blocks, Some("The tape ends partway through a block.".into()));
-            };
-            blocks.push(block);
+            }
+            blocks.push((at, at + 2, length));
             at += 2 + length;
+        }
+        if at < data.len() {
+            return (blocks, Some("The tape ends partway through a block.".into()));
         }
         return (blocks, None);
     }
@@ -789,10 +799,10 @@ pub fn tape_blocks(data: &[u8]) -> (Vec<&[u8]>, Option<String>) {
             _ => return (blocks, Some(format!("The tape has a kind of block (0x{id:02X}) this doesn't read, so it stops there."))),
         };
         if let Some((start, length)) = block {
-            match data.get(start..start + length) {
-                Some(bytes) => blocks.push(bytes),
-                None => return (blocks, Some("The tape ends partway through a block.".into())),
+            if data.len() < start + length {
+                return (blocks, Some("The tape ends partway through a block.".into()));
             }
+            blocks.push((at, start, length));
         }
         at = next;
     }

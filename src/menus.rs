@@ -114,6 +114,7 @@ const DELETE_AROUND: [Entry; 6] = objects(TextAction::DeleteAround, false);
 const FILE: &[Entry] = &[
     Keyed("New", Command::New, "Ctrl+N"),
     Entry::Live("New as", Live::NewAs),
+    Item("New disk or tape image\u{2026}", Command::NewImage),
     Keyed("Open\u{2026}", Command::Open, "Ctrl+O"),
     Entry::Live("Open recent", Live::RecentFiles),
     Item("Open a remote file (SFTP)\u{2026}", Command::OpenRemote),

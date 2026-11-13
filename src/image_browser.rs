@@ -1,10 +1,16 @@
-//! Browsing a disk, tape or CD image or an archive, read only, as a tab of its own. A folder opens in place, an
-//! image or archive inside it opens a level further in, and a file opens as a read-only document of its own,
-//! named for where it came from, so the previews, listings and encodings all work on it. Nothing is written back.
+//! Browsing a disk, tape or CD image or an archive as a tab of its own. A folder opens in place, an image or
+//! archive inside it opens a level further in, and a file opens as a read-only document of its own, named for where
+//! it came from, so the previews, listings and encodings all work on it. Images of the kinds Limoniter can write
+//! (see `image_edit`) can have files added, deleted and renamed too.
+
+#[path = "image_edit.rs"]
+mod image_edit;
 
 use super::*;
 use crate::legacy_docs::{self, Target};
 use crate::media::{self, Entry, InfoSection, Volume};
+pub(super) use image_edit::NewImageBox;
+use image_edit::{Abilities, EditAction, Editing, Pending};
 
 /// One image or archive being browsed, and the folder showing in it.
 struct Level {
@@ -24,6 +30,17 @@ pub(super) struct ImageBrowser {
     /// Whether the selected file is a document that can be converted or a picture that can be saved as PNG, kept
     /// for the place and entry it was found for.
     document: Option<(String, Option<legacy_docs::Kind>, Option<crate::pictures::Format>)>,
+    /// The image's file, to change it.
+    path: Option<PathBuf>,
+    /// What can be changed, worked out when first drawn, or why nothing can (empty if it isn't a kind written).
+    abilities: Option<Result<Abilities, String>>,
+    pending: Vec<Pending>,
+    editing: Option<Editing>,
+    /// The image as it was before each change, to undo to.
+    undo: Vec<Vec<u8>>,
+    free: Option<u64>,
+    /// Set when the image's file has been changed, for the tab to note its new time and size.
+    changed: bool,
 }
 
 /// Files no larger than this are looked at, when selected, to see if they're documents to convert.
@@ -39,11 +56,13 @@ enum BrowserAction {
     ToggleInfo,
     /// Converts a document: opened as text with None, or saved as Markdown, plain text or RTF.
     Convert(usize, Option<Target>),
+    /// Changes the image.
+    Edit(EditAction),
 }
 
 impl ImageBrowser {
     pub(super) fn new(name: String, volume: Box<dyn Volume>) -> Self {
-        let mut browser = Self { levels: Vec::new(), selected: None, problem: None, document: None };
+        let mut browser = Self { levels: Vec::new(), selected: None, problem: None, document: None, path: None, abilities: None, pending: Vec::new(), editing: None, undo: Vec::new(), free: None, changed: false };
         browser.push(name, volume);
         browser
     }
@@ -238,6 +257,20 @@ impl ImageBrowser {
                 action = Some(BrowserAction::ToggleInfo);
             }
         });
+        let chosen = self.selected.filter(|i| *i < self.level().entries.len());
+        let mut edit = None;
+        ui.horizontal_wrapped(|ui| self.edit_buttons(ui, chosen, &mut edit));
+        if self.levels.len() == 1
+            && let Some(why) = self.not_writable().filter(|w| !w.is_empty())
+        {
+            ui.label(RichText::new(format!("Read only: {why}")).color(theme::text_faint()).size(11.5));
+        } else if let Some(free) = self.free.or_else(|| self.abilities().and_then(|a| a.free)) {
+            ui.label(RichText::new(format!("{} free", short_size(free))).color(theme::text_faint()).size(11.5));
+        }
+        self.edit_panels(ui, &mut edit);
+        if let Some(edit) = edit {
+            action = Some(BrowserAction::Edit(edit));
+        }
         ui.separator();
         let entries = &self.levels.last().expect("a browser always has its image").entries;
         if entries.is_empty() && self.problem.is_none() {
@@ -266,8 +299,9 @@ impl ImageBrowser {
             });
         });
         // The keyboard moves through the list when nothing else wants it.
-        if ui.ctx().memory(|m| m.focused().is_none()) {
+        if ui.ctx().memory(|m| m.focused().is_none()) && self.editing.is_none() {
             let count = entries.len();
+            let writable = self.levels.len() == 1 && matches!(self.abilities, Some(Ok(_)));
             ui.ctx().input(|input| {
                 if input.key_pressed(Key::ArrowDown) && count > 0 {
                     self.selected = Some(self.selected.map_or(0, |i| (i + 1).min(count - 1)));
@@ -280,6 +314,12 @@ impl ImageBrowser {
                 }
                 if input.key_pressed(Key::Backspace) {
                     action = Some(BrowserAction::Up);
+                }
+                if writable && input.key_pressed(Key::F2) {
+                    action = self.selected.map(|i| BrowserAction::Edit(EditAction::StartRename(i)));
+                }
+                if writable && input.key_pressed(Key::Delete) {
+                    action = self.selected.map(|i| BrowserAction::Edit(EditAction::StartDelete(i)));
                 }
             });
         }
@@ -296,11 +336,38 @@ pub(super) fn image_document(path: &Path) -> Result<Document, String> {
     doc.path = Some(path.to_path_buf());
     doc.set_read_only(true);
     doc.disk_stamp = file_stamp(path);
-    doc.browser = Some(Box::new(ImageBrowser::new(name, volume)));
+    let mut browser = ImageBrowser::new(name, volume);
+    browser.path = Some(path.to_path_buf());
+    doc.browser = Some(Box::new(browser));
     Ok(doc)
 }
 
 impl Limoniter {
+    /// After a browser has changed its image, the tab notes the file's new size and time, so it isn't taken for
+    /// changed by another program.
+    pub(super) fn note_image_changed(&mut self, index: usize) {
+        let doc = &mut self.docs[index];
+        if let Some(browser) = doc.browser.as_mut()
+            && std::mem::take(&mut browser.changed)
+            && let Some(path) = &doc.path
+        {
+            doc.disk_stamp = file_stamp(path);
+        }
+    }
+
+    /// Files dropped on a browser tab whose image can be changed go onto the image. True if they were taken.
+    pub(super) fn drop_on_image(&mut self, paths: &[PathBuf]) -> bool {
+        let index = self.active;
+        let Some(browser) = self.docs[index].browser.as_mut() else {
+            return false;
+        };
+        if paths.is_empty() || browser.abilities().is_none() {
+            return false;
+        }
+        browser.act(EditAction::AddPaths(paths.to_vec()));
+        true
+    }
+
     /// Opens an image or archive in a browser tab. False if it isn't one this can read, to be opened as a file.
     pub(super) fn open_image(&mut self, path: &Path) -> bool {
         let Ok(mut file) = std::fs::File::open(path) else {
@@ -451,6 +518,10 @@ impl Limoniter {
             }
             Some(BrowserAction::ToggleInfo) => {
                 self.panels.file_properties = !info_open;
+            }
+            Some(BrowserAction::Edit(edit)) => {
+                browser.act(edit);
+                self.note_image_changed(index);
             }
             Some(BrowserAction::ImageInHex) => {
                 let Some(path) = self.docs[index].path.clone() else {

@@ -76,6 +76,9 @@ def convert(markdown):
             out.append(f'<h2 id="{slug}">{inline(name)}</h2>')
             sections.append((slug, name))
             i += 1
+        elif line.startswith("### "):
+            out.append(f"<h3>{inline(line[4:].strip())}</h3>")
+            i += 1
         elif line.startswith("|"):
             rows = []
             while i < len(lines) and lines[i].startswith("|"):

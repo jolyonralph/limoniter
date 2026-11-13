@@ -139,7 +139,12 @@ impl Atari8 {
             .map(|f| atari.disk.sector(f.start).ok().is_some_and(|data| atari.wide_links || u64::from(data[data.len() - 3] >> 2) == f.number))
             .collect();
         let wrong = checked.iter().filter(|ok| !**ok).count();
-        if (atari.files.is_empty() && !atari.disk.sector(361)?.iter().any(|&b| b != 0)) || wrong * 2 > checked.len() {
+        // An empty directory is believed only on a disk DOS has freshly formatted: its VTOC counting the sectors
+        // DOS 2 gives, every one of them free, and nothing written in them. (A game that loads itself may carry
+        // a blank DOS's VTOC, its own code in the sectors that says are free.)
+        let formatted = vtoc[0] == 2 && matches!(le16(&vtoc, 1), 707 | 1010) && le16(&vtoc, 3) == 707.min(le16(&vtoc, 1)) && (0..720).all(|n| (vtoc[10 + n / 8] & (0x80 >> (n % 8)) != 0) == (n >= 4 && !(360..=368).contains(&n)))
+            && (4..360).chain(369..720).all(|n| atari.disk.sector(n).is_ok_and(|data| data.iter().all(|&b| b == 0)));
+        if (atari.files.is_empty() && !formatted && !atari.disk.sector(361)?.iter().any(|&b| b != 0)) || wrong * 2 > checked.len() {
             return Err("This Atari disk has no Atari DOS directory: it may boot a program of its own. It can still be shown in hex.".into());
         }
         Ok(atari)

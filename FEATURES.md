@@ -143,7 +143,7 @@ Shown at the machine's own pixel shape, with details from the file, and saved as
 
 ## Disk, tape and archive browser
 
-Images and archives open as a read-only browser tab. Folders open in place, an image inside an image opens a level further in, and a file opens as a read-only document, so previews, BASIC listings and encodings all work on it. Files can be saved out exactly as they are, the image itself can be viewed in hex, and **Info** shows everything the image says about itself. Large images are read from disk a part at a time.
+Images and archives open as a browser tab. Folders open in place, an image inside an image opens a level further in, and a file opens as a read-only document, so previews, BASIC listings and encodings all work on it. Files can be saved out exactly as they are, the image itself can be viewed in hex, and **Info** shows everything the image says about itself. Large images are read from disk a part at a time.
 
 | System | Formats |
 |---|---|
@@ -167,7 +167,26 @@ Images and archives open as a read-only browser tab. Folders open in place, an i
 | Archives | ZIP (stored and deflated), LHA/LZH (all common methods, CRC checked) |
 
 - Commodore file names are shown in PETSCII; Spectrum BASIC from tapes, disks and snapshots comes out as +3DOS files.
-- A damaged or unexpected image gives an error rather than a wrong file. Nothing is ever written back.
+- A damaged or unexpected image gives an error rather than a wrong file.
+
+### Changing images
+
+The images below can have files added (**Add files…**, or drop them on the tab), deleted, renamed and, where the image has folders, new folders made; a tape's files can be moved earlier or later. Each change is saved over the image straight away (written whole and read back before it replaces the old file), and **Undo** puts the image back as it was before each of the last 20. **File › New disk or tape image…** makes a blank one, formatted as its machine would format it.
+
+| Image | What's written |
+|---|---|
+| ZX Spectrum TAP and TZX tapes | Programs (a listing typed as text is tokenised, with the line to run from), code at an address, screens, headerless blocks, or every block of another tape; a TZX keeps its other blocks |
+| Spectrum +3 and Amstrad CPC DSK disks | CP/M's directory and blocks; a +3DOS header put on a program, code or screen, or a file kept as it is |
+| Commodore D64, D71, D81 | PRG, SEQ and USR files, sectors laid out from the directory track outwards and marked in the BAM; PC64 `.P00` files unwrapped |
+| PC and Atari ST FAT12/16/32 | Long names where a name doesn't fit 8.3 (the NT lower-case flags where it only differs in case), folders, every copy of the FAT kept alike |
+| Amiga ADF (OFS and FFS, DD and HD) | Files and folders, extension blocks for large files, the bitmap and every checksum |
+| Atari 8-bit ATR, Atari DOS 2.0 and 2.5 | Single, enhanced and double density; DOS 2.5's second VTOC and its mark on files past sector 719 |
+| Color Computer RS-DOS (JVC) | BASIC (tokenised or ASCII), data, machine code (plain bytes put in a LOADM block at an address) and text |
+
+- When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.
+- A file whose name is taken isn't replaced unless you tick **Replace it**.
+- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb and cpmtools.
+- Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Amiga disks with directory caches or long names, and the rest) say why they're read only.
 
 ## Documents and conversions
 
@@ -333,7 +352,7 @@ Switched on under **View, Panels**:
 - **Keep a backup when saving** (also off to begin with) keeps the file as it was beside it, with .bak added, the first time it's saved in a session.
 - **File, Recover unsaved edits** offers them again later; damaged copies are detected by checksum.
 - Saving never changes bytes you didn't edit.
-- Disk images and archives are only ever read; files inside them open read-only.
+- Archives, and disk images of kinds Limoniter doesn't write, are only ever read; files inside images open read-only. A change to an image is written whole and read back before it replaces the old file, and can be undone.
 - Files can be opened read-only.
 
 ## Printing and display

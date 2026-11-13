@@ -137,7 +137,9 @@ fn rsdos(disk: &Disk, tracks: u64) -> Option<(System, Vec<File>)> {
             files.push(File { name: name83(&entry[..11]), folder: None, is_dir: false, size, first: u64::from(entry[13]), runs: Vec::new(), kind: format!("{kind}{ascii}"), detail: String::new() });
         }
     }
-    if files.is_empty() || bad * 4 > files.len() {
+    // A disk with no files is believed only as DSKINI leaves one: every granule free and the directory unused.
+    let fresh = || fat[..granules as usize].iter().all(|&g| g == 0xFF) && fat[granules as usize..].iter().all(|&b| b == 0) && disk.sector(17, 0, 3).is_some_and(|d| d.iter().all(|&b| b == 0xFF));
+    if (files.is_empty() && (bad > 0 || !fresh())) || bad * 4 > files.len() {
         return None;
     }
     Some((System::RsDos { fat: fat[..granules as usize].to_vec() }, files))
