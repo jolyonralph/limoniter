@@ -283,6 +283,7 @@ Switched on under **View, Panels**:
 - **Or your own**: **File › Run on › Assembler** chooses another assembler for each processor: sjasmplus or Pasmo for the Z80, ACME for the 6502, lwasm for the 6809, vasm for the 68000; found where they're installed, or pointed to. Their programs map back to their lines just the same, so sjasmplus programs can be debugged.
 - **Problems** go in the Output panel, where clicking one goes to its line, and are marked beside their lines; the status bar says what's wrong with the line the cursor is on. Once assembled, the status bar shows the line's address, bytes and T-states.
 - **A debugger on the built-in Spectrum**: click beside a line's number for a breakpoint; when the program gets there it stops, with the line marked and the registers and flags shown; **Step**, **Step over** (a CALL, RST, DJNZ or LDIR) and **Carry on**. Pause stops it anywhere, with the same.
+- **And in ZEsarUX**: Z80 source run on ZEsarUX is debugged there the same way, through its remote protocol: breakpoints beside the lines, the line stopped at marked, the registers, Step, Step over, Carry on and Pause, in a panel beside the source. Next programs too, which the built-in Spectrum can't run. A Spectrum program is loaded from its tape in Limoniter and handed over as a snapshot, so ZEsarUX stops even at its first instruction.
 
 ## Add-ons
 

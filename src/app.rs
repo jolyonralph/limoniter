@@ -6271,6 +6271,7 @@ impl Limoniter {
         self.git_panel(ui);
         self.assistant_panel(ui);
         self.machine_panel(ui);
+        self.remote_debug_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
         self.full_preview_shown = full_preview;
         if self.show_file_tabs && !self.no_file() {

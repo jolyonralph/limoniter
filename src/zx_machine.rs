@@ -317,6 +317,28 @@ impl BuiltIn {
         Registers { i: h[0], hl2: word(1), de2: word(3), bc2: word(5), af2: word(7), hl: word(9), de: word(11), bc: word(13), iy: word(15), ix: word(17), iff: h[19] & 4 != 0, r: h[20], af: word(21), sp, im: h[25], pc }
     }
 
+    /// A snapshot (.sna) of the machine as it is.
+    pub fn snapshot(&mut self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let _ = self.emulator.save_snapshot(SnapshotRecorder::Sna(Recording(&mut bytes)));
+        bytes
+    }
+
+    /// A program loaded from its tape and about to run its first instruction, at `start`, as a snapshot: for an
+    /// emulator that can't load a tape while it's being debugged.
+    pub fn snapshot_at(run: &Runnable, start: u16) -> Result<Vec<u8>, String> {
+        let mut machine = BuiltIn::start_with(run, None)?;
+        machine.set_breakpoints([start]);
+        for _ in 0..50 * 60 {
+            machine.frame()?;
+            if machine.stopped == Some(start) {
+                machine.set_breakpoints([]);
+                return Ok(machine.snapshot());
+            }
+        }
+        Err("The program didn't start from its tape within a minute.".into())
+    }
+
     /// The addresses to stop at.
     pub fn set_breakpoints(&mut self, addresses: impl IntoIterator<Item = u16>) {
         if let Some(breaks) = self.emulator.debug_interface() {

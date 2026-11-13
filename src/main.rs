@@ -9,6 +9,7 @@ mod platform;
 #[cfg(target_os = "macos")]
 mod mac_open;
 mod remote;
+mod remote_debug;
 mod deploy;
 mod big_jobs;
 mod associations;

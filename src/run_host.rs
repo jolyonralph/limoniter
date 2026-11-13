@@ -32,9 +32,17 @@ pub(super) struct Session {
 
 pub(super) enum SessionKind {
     /// An emulator started as a program of its own, reachable on `port` if it can be reached at all.
-    App { child: Child, emulator: &'static Emulator, port: Option<u16>, log: PathBuf },
+    App { child: Child, emulator: &'static Emulator, port: Option<u16>, log: PathBuf, debug: Option<Box<Debugging>> },
     /// The built-in Spectrum, drawn in the preview pane of the document it was run from.
     BuiltIn { machine: Box<crate::zx_machine::BuiltIn>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
+}
+
+/// A program from assembler source being debugged in an emulator: the document, the debugger, and the
+/// breakpoints it was last given.
+pub(super) struct Debugging {
+    pub doc_id: u64,
+    pub remote: crate::remote_debug::RemoteDebug,
+    pub breakpoints: Vec<u16>,
 }
 
 /// Everything about running, kept by the window.
@@ -293,6 +301,19 @@ impl Limoniter {
             return Err("It isn't an emulator.".into());
         };
         let emulator = emulators::by_id(emulator).ok_or("It isn't an emulator Limoniter knows.")?;
+        // Assembler source run on ZEsarUX is debugged there: its breakpoints set at their lines' addresses.
+        let doc_id = self.docs[self.active].id;
+        let debugging = emulator.link == Link::Zrcp && matches!(run.machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::Next) && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
+        let mut run = run.clone();
+        if debugging
+            && run.format == crate::running::Format::Tap
+            && let Some(start) = self.running.assembled.as_ref().and_then(|c| c.assembly.start())
+        {
+            // A tape won't load while ZEsarUX is being debugged, so it's loaded here and handed over as a snapshot.
+            let snapshot = crate::zx_machine::BuiltIn::snapshot_at(&run, start as u16)?;
+            run = Runnable { format: crate::running::Format::Sna, name: run.name.replace(".tap", ".sna"), bytes: std::sync::Arc::new(snapshot), ..run };
+        }
+        let run = &run;
         self.running.number += 1;
         let folder = std::env::temp_dir().join(format!("limoniter-run-{}", std::process::id())).join(self.running.number.to_string());
         std::fs::create_dir_all(&folder).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
@@ -300,7 +321,8 @@ impl Limoniter {
         std::fs::write(&file, run.bytes.as_slice()).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
         // An emulator already running, that can be reached, loads it where it is.
         if let Some(index) = self.running.sessions.iter().position(|s| s.target == device.name)
-            && let SessionKind::App { port: Some(port), emulator: running, .. } = &self.running.sessions[index].kind
+            && !debugging
+            && let SessionKind::App { port: Some(port), emulator: running, debug: None, .. } = &self.running.sessions[index].kind
             && running.link == Link::Zrcp
             && crate::machine_link::zrcp_load(*port, &file).is_ok()
         {
@@ -312,7 +334,12 @@ impl Limoniter {
         self.stop_session(&device.name);
         let port = (emulator.link != Link::None).then(free_port).flatten();
         let program = emulator.program_for(program, run.machine);
-        let args = emulator.arguments(run.machine, run.format, &file, port, options);
+        let mut args = emulator.arguments(run.machine, run.format, &file, port, options);
+        // Being debugged, it starts empty, and loads the program once its breakpoints are set.
+        if debugging {
+            let named = file.display().to_string();
+            args.retain(|arg| *arg != named);
+        }
         let log = folder.join("emulator.log");
         let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
         let err = out.try_clone().map_err(|e| e.to_string())?;
@@ -322,7 +349,20 @@ impl Limoniter {
             command.current_dir(home);
         }
         let child = command.spawn().map_err(|e| format!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
-        self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child, emulator, port, log }, started: Instant::now() });
+        let debug = match (debugging, port) {
+            (true, Some(port)) => {
+                let breakpoints = self.breakpoint_addresses(doc_id);
+                let wake = self.waker.clone();
+                let remote = crate::remote_debug::RemoteDebug::start(port, Some(file.clone()), breakpoints.clone(), move || {
+                    if let Some(ctx) = &wake {
+                        ctx.request_repaint();
+                    }
+                });
+                Some(Box::new(Debugging { doc_id, remote, breakpoints }))
+            }
+            _ => None,
+        };
+        self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child, emulator, port, log, debug }, started: Instant::now() });
         Ok(())
     }
 
@@ -481,7 +521,9 @@ impl Limoniter {
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
             if machine.paused && error.is_none() {
-                debug = debugger(ui, machine, assembly.as_deref());
+                let registers = machine.registers();
+                let top = u16::from_le_bytes([machine.peek(registers.sp), machine.peek(registers.sp.wrapping_add(1))]);
+                debug = debugger(ui, &registers, Some(top), assembly.as_deref());
             }
             if keyboard {
                 ui.add_space(4.0);
@@ -568,6 +610,76 @@ impl Limoniter {
                         break;
                     }
                 }
+            }
+        }
+    }
+
+    /// The addresses of a document's breakpoints, in the program assembled from it.
+    pub(super) fn breakpoint_addresses(&self, doc_id: u64) -> Vec<u16> {
+        match (self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id), self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.text.code.as_ref())) {
+            (Some(cache), Some(code)) => code.breakpoints.iter().filter_map(|line| cache.assembly.address_of(0, *line)).map(|a| a as u16).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// While a program from the document in front is being debugged in an emulator: where it's stopped, its
+    /// registers, and the buttons, beside the source.
+    pub(super) fn remote_debug_panel(&mut self, ui: &mut Ui) {
+        let Some(doc_id) = self.docs.get(self.active).map(|doc| doc.id) else {
+            return;
+        };
+        let breakpoints = self.breakpoint_addresses(doc_id);
+        let assembly = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).map(|c| c.assembly.clone());
+        let Some((target, debugging)) = self.running.sessions.iter_mut().find_map(|s| match &mut s.kind {
+            SessionKind::App { debug: Some(d), .. } if d.doc_id == doc_id => Some((s.target.clone(), d)),
+            _ => None,
+        }) else {
+            return;
+        };
+        debugging.remote.check();
+        if debugging.breakpoints != breakpoints {
+            debugging.breakpoints = breakpoints.clone();
+            debugging.remote.ask(crate::remote_debug::Ask::Breakpoints(breakpoints));
+        }
+        let stopped = debugging.remote.stopped;
+        let problem = debugging.remote.problem.clone();
+        let mut action = None;
+        let mut pause = false;
+        Panel::right("remote-debug").default_size(330.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
+            ui.label(RichText::new(format!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
+            ui.separator();
+            match (&problem, stopped) {
+                (Some(problem), _) => {
+                    ui.add(egui::Label::new(RichText::new(problem).color(theme::problem_mark())).wrap());
+                }
+                (None, Some(registers)) => action = debugger(ui, &registers, None, assembly.as_deref()),
+                (None, None) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Running");
+                        pause = ui.small_button("Pause").on_hover_text("Stops it where it is").clicked();
+                    });
+                    ui.add(egui::Label::new(RichText::new("Click beside a line's number for a breakpoint; it stops there.").color(theme::text_faint()).size(11.5)).wrap());
+                }
+            }
+        });
+        if pause {
+            debugging.remote.ask(crate::remote_debug::Ask::Pause);
+        }
+        if let Some(action) = action {
+            debugging.remote.ask(match action {
+                Debug::CarryOn => crate::remote_debug::Ask::CarryOn,
+                Debug::Step => crate::remote_debug::Ask::Step,
+                Debug::StepOver => crate::remote_debug::Ask::StepOver,
+            });
+        }
+        let stopped_line = stopped.and_then(|r| assembly.as_ref().and_then(|a| a.line_at(r.pc as i64))).filter(|(file, _)| *file == 0).map(|(_, line)| line);
+        if let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id)
+            && let Some(code) = &mut doc.text.code
+            && code.stopped != stopped_line
+        {
+            code.stopped = stopped_line;
+            if let Some(line) = stopped_line {
+                doc.text.move_caret(line, 0, false);
             }
         }
     }
@@ -679,8 +791,8 @@ enum Debug {
 }
 
 /// While the built-in Spectrum is stopped: where, its registers, and buttons to carry on or step.
-fn debugger(ui: &mut Ui, machine: &mut crate::zx_machine::BuiltIn, assembly: Option<&crate::asm::Assembly>) -> Option<Debug> {
-    let r = machine.registers();
+fn debugger(ui: &mut Ui, registers: &crate::zx_machine::Registers, top_of_stack: Option<u16>, assembly: Option<&crate::asm::Assembly>) -> Option<Debug> {
+    let r = *registers;
     let mut action = None;
     ui.add_space(4.0);
     egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
@@ -714,7 +826,7 @@ fn debugger(ui: &mut Ui, machine: &mut crate::zx_machine::BuiltIn, assembly: Opt
                 [format!("AF {:04X}", r.af), format!("BC {:04X}", r.bc), format!("DE {:04X}", r.de), format!("HL {:04X}", r.hl)],
                 [format!("AF' {:04X}", r.af2), format!("BC' {:04X}", r.bc2), format!("DE' {:04X}", r.de2), format!("HL' {:04X}", r.hl2)],
                 [format!("IX {:04X}", r.ix), format!("IY {:04X}", r.iy), format!("SP {:04X}", r.sp), format!("PC {:04X}", r.pc)],
-                [format!("I {:02X}  R {:02X}", r.i, r.r), format!("IM {}  {}", r.im, if r.iff { "EI" } else { "DI" }), format!("Flags {flag_names}"), format!("(SP) {:04X}", u16::from_le_bytes([machine.peek(r.sp), machine.peek(r.sp.wrapping_add(1))]))],
+                [format!("I {:02X}  R {:02X}", r.i, r.r), format!("IM {}  {}", r.im, if r.iff { "EI" } else { "DI" }), format!("Flags {flag_names}"), top_of_stack.map(|top| format!("(SP) {top:04X}")).unwrap_or_default()],
             ] {
                 for cell in row {
                     ui.label(mono(cell));

@@ -356,3 +356,39 @@ fn source_for_the_68000_is_saved_as_a_binary() {
     assert_eq!(saved.len(), 8 + 4 + 2 + 2 + 4 + 2 + 16);
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+/// A real ZEsarUX, where LIMONITER_ZESARUX says where one is: Z80 source run there stops at its breakpoint, with
+/// the line marked, steps, and carries on to the next.
+#[test]
+fn assembler_source_is_debugged_in_a_real_zesarux() {
+    let Some(program) = std::env::var_os("LIMONITER_ZESARUX") else {
+        return;
+    };
+    let (mut app, ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "ZEsarUX".into(), place: Place::Emulator { emulator: "zesarux".into(), program: program.into(), options: "--vo null --ao null".into() }, preset: None, eject: false }];
+    z80_source(&mut app, &["  org 32768", "start: ld a,7", "  ld bc,$1234", "  call sub", "  ld de,$5678", "loop: jr loop", "sub: ld hl,$abcd", "  ret"]);
+    app.assembly_tick();
+    app.doc().text.code.as_mut().unwrap().breakpoints.insert(2);
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.script_output);
+    let stopped_at = |app: &mut Limoniter, ctx: &egui::Context| {
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(30) {
+            let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+            if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
+                return Some(line);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        None
+    };
+    assert_eq!(stopped_at(&mut app, &ctx), Some(2), "stopped at its breakpoint, on line 3");
+    let debugging = |app: &mut Limoniter| match &mut app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.ask(crate::remote_debug::Ask::Step),
+        _ => panic!("it's being debugged"),
+    };
+    debugging(&mut app);
+    let _ = ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui));
+    assert_eq!(stopped_at(&mut app, &ctx), Some(3), "a step on, at the CALL");
+    app.stop_all_sessions();
+}
