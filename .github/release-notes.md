@@ -1,22 +1,20 @@
-## What's new in 0.4.0
+## What's new in 0.5.0
 
-**Run what you're editing**
-- **Run on machine (F9)** runs the file in front where its kind of program runs: a BASIC listing (tokenised first), a tape, snapshot, program or disk image, or the file selected in a disk image. It asks where the first time.
-- **A ZX Spectrum built in** (48K and 128K), with sound, running in a panel beside your file: nothing to install. Click its screen to type on it.
-- **Emulators** are found where they're installed and set up in one go: ZEsarUX, Fuse and CSpect for the Spectrum and Next, VICE for Commodores, b2 for the BBC Micro, openMSX. An Ultimate 64 runs a program as it arrives; a Next gets it over NextSync.
-- **While it runs**, the built-in Spectrum, ZEsarUX and VICE show their memory in hex view (edits go to the machine) and their screen as text, give back their BASIC program as a listing, and take an edited one back and RUN it.
+**Write machine code, run it and debug it**
+- **Assemblers built in** for the Z80 (with the Next's extra instructions), the 6502, the 6809 and the 68000. Each gives exactly the same bytes as the tool people already use: sjasmplus, ACME, lwasm and vasm. They understand those tools' ways of writing too, ca65's as well for the 6502.
+- **Or use your own**: File › Run on › Assembler… picks sjasmplus or Pasmo for the Z80, ACME for the 6502, lwasm for the 6809 or vasm for the 68000. Problems go in the Output panel; click one to go to its line.
+- **F9 assembles and runs**: a Spectrum tape with a BASIC loader (48K or 128K), a Next `.nex`, a C64 program, or an Atari ST program in Hatari. A 6809 program is saved as a CoCo `.bin`. **Assemble and save** saves it without running.
+- **A debugger**: click beside a line number for a breakpoint. When the program stops there, the line is marked and the registers are shown, with Step, Step over and Carry on. It works on the built-in Spectrum, in ZEsarUX (so Next programs too) and for 6502 programs in VICE.
+- The status bar shows each line's address, bytes and how long it takes to run.
 
-**Git, for everyone**
-- **Source control** (Ctrl+Shift+G): what's changed, staging, commit, push, pull, branches, stashes and tags; marks beside the line numbers for what's changed since the last commit; history, comparing with any commit, who changed each line, and settling merge conflicts.
-- **The Git wizard** takes someone who's never used Git from nothing to their first commit, and onto GitHub if they like, explaining each step.
-
-**The assistant**
-- **The Assistant panel** keeps the history of everything asked of Claude Code or Codex, and what came of it.
-- It can **write a commit message** from your changes, and **suggest how to settle a conflict**.
+**Spectrum BASIC**
+- **GRAPH mode** (Ctrl+Shift+9) types block graphics and UDGs as the Spectrum's GRAPHICS key does.
+- **UDGs are drawn as their pictures**, taken from the tape or snapshot the program came from, its DATA lines, or a file you choose.
+- **zmakebas and bas2tap listings** convert to programs exactly as those tools do. Settings chooses which way listings write graphics.
+- **A Spectrum keyboard** under the built-in Spectrum, with every key's words and symbols, for the key combinations.
 
 **Also**
-- Amiga ANSI is drawn in the Amiga's own pens, with a palette to change them: Workbench 1.3 and 2.04–3.x presets, or any of the 4096 colours.
-- Building on Linux now needs ALSA's headers, for the built-in Spectrum's sound.
+- Packaging for the Microsoft Store and winget is ready, for when Limoniter is published there.
 
 ## Downloads
 
