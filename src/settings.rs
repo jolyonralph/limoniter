@@ -419,6 +419,14 @@ const SECTIONS: [(&str, &[Row]); 6] = [
 
 fn draw_file_types(ui: &mut Ui, label: &str, types: &mut FileTypesState, outcome: &mut Option<Outcome>) {
     ui.label(label);
+    // From the Store, the package says which types Limoniter opens; Windows' own page makes it the default.
+    if crate::platform::from_store() {
+        ui.label(RichText::new("Limoniter is offered for text, code, data, BASIC, tape, disk and ANSI files. To make it the one they open in, choose it for each type in Windows' Default apps.").color(theme::text_dim()));
+        if ui.button("Open Default apps").clicked() {
+            let _ = crate::platform::open_web_page("ms-settings:defaultapps");
+        }
+        return;
+    }
     ui.label(RichText::new("Windows only lets you change a default yourself. Choose types here, then pick Limoniter for each one on the Windows page that opens.").color(theme::text_dim()));
     ui.add_space(6.0);
     for (group, names) in associations::COMMON_TYPES {

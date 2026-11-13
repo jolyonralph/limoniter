@@ -1,0 +1,11 @@
+# The file types the Store package says Limoniter opens: each line is a group's name, what it's called, and its
+# endings. Windows offers Limoniter for them under Open with; it's only the default if the person chooses it.
+text|Text|txt log md rst tex nfo diz
+data|Data|csv tsv json xml yaml yml toml ini cfg conf
+web|Web pages|html htm css js ts php
+code|Code|c h cpp hpp cs java py rb rs go sql lua
+assembler|Assembler and scripts|asm s inc a65 z80 ps1 sh
+basic|BASIC programs|bas prg p00 bbc
+tapes|Tapes and snapshots|tap tzx sna seq t64
+disks|Disk images|d64 d71 d81 adf dms dsk trd scl ssd dsd mdr atr
+ansi|ANSI art|ans asc ice xb pcb avt

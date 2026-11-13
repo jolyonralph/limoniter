@@ -146,6 +146,12 @@ pub fn open_with_default(file: &Path) -> Result<(), String> {
     if status.success() { Ok(()) } else { Err("The system has no program set to open this kind of file.".into()) }
 }
 
+/// Whether this is the Microsoft Store's Limoniter: a packaged app, installed under WindowsApps. Its file types are
+/// declared by its package, and anything it wrote to the registry itself would be kept to the package.
+pub fn from_store() -> bool {
+    cfg!(windows) && std::env::current_exe().is_ok_and(|exe| exe.to_string_lossy().to_lowercase().contains("\\windowsapps\\"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

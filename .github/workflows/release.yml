@@ -3,6 +3,13 @@
 #
 # To release: change the version in Cargo.toml, then push a matching tag, such as v0.2.0. Running this by hand from
 # the Actions tab builds both without releasing them, to try them first.
+#
+# It also makes:
+# - the Microsoft Store package (the Store-package download on the run's page), to upload in Partner Center. Its
+#   identity comes from the repository's variables STORE_NAME, STORE_PUBLISHER and STORE_PUBLISHER_NAME, as Partner
+#   Center gives them when the name is reserved (Product identity).
+# - winget's manifests for the release (the winget-manifests download). With a WINGET_TOKEN secret (a GitHub token
+#   with public_repo), they're submitted to microsoft/winget-pkgs as a pull request.
 
 name: Release
 
@@ -51,6 +58,21 @@ jobs:
           path: target/installer/Limoniter-Setup-*.exe
           if-no-files-found: error
 
+      - name: Build the Microsoft Store package
+        shell: pwsh
+        env:
+          LIMONITER_STORE_NAME: ${{ vars.STORE_NAME }}
+          LIMONITER_STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+          LIMONITER_STORE_PUBLISHER_NAME: ${{ vars.STORE_PUBLISHER_NAME }}
+        run: ./packaging/windows-store/make-msix.ps1
+
+      # Not for the Releases page: the Store signs it, and unsigned it can't be installed.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: store-package
+          path: target/msix/Limoniter-*.msix
+          if-no-files-found: error
+
   macos:
     needs: check
     runs-on: macos-latest
@@ -82,6 +104,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           path: built
+          pattern: Limoniter-*
           merge-multiple: true
 
       - name: Put them on the Releases page
@@ -89,3 +112,36 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" built/* --title "Limoniter ${GITHUB_REF_NAME#v}" --notes-file .github/release-notes.md
+
+  winget:
+    needs: publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: Limoniter-Windows
+          path: built
+
+      - name: Make winget's manifests
+        shell: pwsh
+        run: |
+          $version = "$env:GITHUB_REF_NAME".TrimStart('v')
+          $hash = (Get-FileHash "built/Limoniter-Setup-$version.exe" -Algorithm SHA256).Hash
+          python -I packaging/winget/make-manifests.py $version $hash winget
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: winget-manifests
+          path: winget/manifests
+
+      - name: Submit them to winget
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if (-not $env:WINGET_TOKEN) { Write-Host 'No WINGET_TOKEN secret, so they are not submitted.'; exit 0 }
+          $version = "$env:GITHUB_REF_NAME".TrimStart('v')
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe -UseBasicParsing
+          ./wingetcreate.exe submit --token $env:WINGET_TOKEN --prtitle "New version: Limoniter.Limoniter version $version" "winget/manifests/l/Limoniter/Limoniter/$version"
