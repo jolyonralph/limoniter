@@ -396,11 +396,17 @@ impl Limoniter {
             None => *texture = Some(ctx.load_texture("built-in-spectrum", image, options)),
         }
         let focused = ctx.memory(|m| m.has_focus(focus_id));
+        let keyboard_id = egui::Id::unique("built-in-spectrum-keyboard");
+        let mut keyboard = ctx.data_mut(|d| *d.get_persisted_mut_or(keyboard_id, true));
+        let mut keyboard_used = false;
         Panel::right("machine-panel").default_size(crate::zx_machine::WIDTH as f32 * 2.0 + 16.0).size_range(240.0..=1400.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     stop = ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Switch it off").clicked();
+                    if ui.selectable_label(keyboard, "Keyboard").on_hover_text("Shows the Spectrum's keyboard under its screen, to click").clicked() {
+                        keyboard = !keyboard;
+                    }
                     restart = ui.small_button("Restart").on_hover_text("Runs the program again from the start").clicked();
                     let pause = if machine.paused { "Carry on" } else { "Pause" };
                     if ui.small_button(pause).clicked() {
@@ -416,9 +422,17 @@ impl Limoniter {
                 });
             });
             ui.separator();
-            let width = ui.available_width();
-            let size = egui::vec2(width, width * crate::zx_machine::HEIGHT as f32 / crate::zx_machine::WIDTH as f32);
-            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+            // The screen as big as it can be with room left for the words under it, and the keyboard if shown.
+            let under = 40.0 + if keyboard { crate::zx_keyboard::height(ui.available_width()) } else { 0.0 };
+            let room = (ui.available_height() - under).max(120.0);
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            let ratio = crate::zx_machine::HEIGHT as f32 / crate::zx_machine::WIDTH as f32;
+            let width = ui.available_width().min(room / ratio);
+            let size = egui::vec2(width, width * ratio);
+            let (rect, _) = ui.horizontal(|ui| {
+                ui.add_space((ui.available_width() - width).max(0.0) / 2.0);
+                ui.allocate_exact_size(size, egui::Sense::hover())
+            }).inner;
             let response = ui.interact(rect, focus_id, egui::Sense::click());
             if let Some(texture) = texture {
                 ui.painter().image(texture.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
@@ -432,11 +446,21 @@ impl Limoniter {
             }
             let words = match error {
                 Some(problem) => problem.clone(),
-                None if focused => "Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again.".into(),
+                None if focused => "Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.".into(),
                 None => "Click the screen to type on the Spectrum.".into(),
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
+            if keyboard {
+                ui.add_space(4.0);
+                keyboard_used = crate::zx_keyboard::draw(ui, machine);
+            }
+            });
         });
+        ctx.data_mut(|d| d.insert_persisted(keyboard_id, keyboard));
+        if keyboard_used {
+            // Typing carries on going to the Spectrum after a key's clicked.
+            ctx.memory_mut(|m| m.request_focus(focus_id));
+        }
         if focused {
             let events = ctx.input(|i| i.events.clone());
             let ctrl = ctx.input(|i| i.modifiers.ctrl || i.modifiers.alt);

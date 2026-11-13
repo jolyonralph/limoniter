@@ -78,6 +78,19 @@ impl Stopwatch for Watch {
 }
 
 /// A key held down for a few frames and then let go, for a character typed.
+/// Keys clicked on the drawn keyboard: held while the mouse button is, and for a few frames at least, so the ROM
+/// sees even a quick click.
+struct BoardPress {
+    keys: Vec<ZXKey>,
+    frames: u32,
+    let_go: bool,
+}
+
+/// The same key, as ZXKey has no `==`.
+fn same(a: ZXKey, b: ZXKey) -> bool {
+    std::mem::discriminant(&a) == std::mem::discriminant(&b)
+}
+
 struct Tap {
     keys: Vec<ZXKey>,
     frames: u32,
@@ -92,6 +105,11 @@ pub struct BuiltIn {
     pub paused: bool,
     taps: std::collections::VecDeque<Tap>,
     held: Vec<ZXKey>,
+    /// Keys held down on the keyboard drawn under the screen, apart from those held on the computer's own.
+    board: Option<BoardPress>,
+    /// Caps Shift and Symbol Shift clicked on that keyboard, waiting to go with the next key clicked.
+    pub caps_latched: bool,
+    pub symbol_latched: bool,
     /// The picture, made afresh each frame.
     picture: Vec<u8>,
     /// Where its sound goes, if anywhere, and whether it's muted.
@@ -162,7 +180,7 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
@@ -179,7 +197,7 @@ impl BuiltIn {
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -205,6 +223,7 @@ impl BuiltIn {
     /// Runs one frame.
     pub fn frame(&mut self) -> Result<(), String> {
         self.press_taps();
+        self.board_tick();
         self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
         // The frame's sound, to the speaker, or let go of if there isn't one or it's muted.
         while let Some(sample) = self.emulator.next_audio_sample() {
@@ -269,11 +288,57 @@ impl BuiltIn {
 
     /// A key on the Spectrum's own keyboard pressed or let go, for game keys and the like.
     pub fn key(&mut self, key: ZXKey, pressed: bool) {
-        self.emulator.send_key(key, pressed);
         if pressed {
+            self.emulator.send_key(key, true);
             self.held.push(key);
         } else {
-            self.held.retain(|k| std::mem::discriminant(k) != std::mem::discriminant(&key));
+            self.held.retain(|k| !same(*k, key));
+            if !self.on_board(key) {
+                self.emulator.send_key(key, false);
+            }
+        }
+    }
+
+    fn on_board(&self, key: ZXKey) -> bool {
+        self.board.as_ref().is_some_and(|b| b.keys.iter().any(|k| same(*k, key)))
+    }
+
+    /// Keys pressed together on the drawn keyboard, held until `board_up`. Any held there before are let go first.
+    pub fn board_down(&mut self, keys: Vec<ZXKey>) {
+        self.board_release();
+        for key in &keys {
+            self.emulator.send_key(*key, true);
+        }
+        self.board = Some(BoardPress { keys, frames: 0, let_go: false });
+    }
+
+    /// The mouse button let go on the drawn keyboard: its keys go up once they've been down long enough to be seen.
+    pub fn board_up(&mut self) {
+        if let Some(press) = &mut self.board {
+            press.let_go = true;
+        }
+    }
+
+    /// Whether the drawn keyboard has a key down.
+    pub fn board_held(&self) -> bool {
+        self.board.is_some()
+    }
+
+    fn board_tick(&mut self) {
+        let Some(press) = &mut self.board else {
+            return;
+        };
+        press.frames += 1;
+        if press.let_go && press.frames >= 4 {
+            self.board_release();
+        }
+    }
+
+    fn board_release(&mut self) {
+        for key in self.board.take().map(|b| b.keys).unwrap_or_default() {
+            if !self.held.iter().any(|k| same(*k, key)) {
+                self.emulator.send_key(key, false);
+            }
         }
     }
 
@@ -688,6 +753,24 @@ mod tests {
         }
         let printed = run_until(&mut machine, 50 * 5, |m| !m.typing() && on_screen(m, "Hi!"));
         assert!(printed, "what was typed was printed, capital and symbol too");
+    }
+
+    #[test]
+    fn keys_clicked_on_the_drawn_keyboard_reach_the_spectrum() {
+        let run = tape_of(&["10 PRINT \"READY\"", "20 INPUT a$", "30 PRINT a$"]);
+        let mut machine = BuiltIn::start(&run).unwrap();
+        assert!(run_until(&mut machine, 50 * 30, |m| on_screen(m, "READY")));
+        run_until(&mut machine, 25, |_| false);
+        // Quick clicks, down and up before a frame has run: Caps Shift and H, then Symbol Shift and 1, then Enter.
+        for keys in [vec![ZXKey::Shift, ZXKey::H], vec![ZXKey::SymShift, ZXKey::N1], vec![ZXKey::Enter]] {
+            machine.board_down(keys);
+            // The computer's own keyboard letting go of Symbol Shift doesn't let go of one clicked.
+            machine.key(ZXKey::SymShift, false);
+            machine.board_up();
+            run_until(&mut machine, 10, |_| false);
+            assert!(!machine.board_held(), "let go once seen");
+        }
+        assert!(run_until(&mut machine, 50 * 2, |m| on_screen(m, "H!")), "clicked keys typed H!");
     }
 
     #[test]
