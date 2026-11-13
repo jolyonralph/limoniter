@@ -63,10 +63,16 @@ pub(super) enum Task {
     Write,
     Explain,
     Ask,
+    /// A commit's message, written from the changes ready to commit.
+    CommitMessage,
+    /// A merge conflict, settled in a way that does what both sides meant.
+    Conflict,
 }
 
 impl Task {
+    /// Those the panel offers.
     pub const ALL: [Task; 5] = [Task::Fix, Task::CleanUp, Task::Write, Task::Explain, Task::Ask];
+    pub const EVERY: [Task; 7] = [Task::Fix, Task::CleanUp, Task::Write, Task::Explain, Task::Ask, Task::CommitMessage, Task::Conflict];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -75,12 +81,14 @@ impl Task {
             Task::Write => "Write code",
             Task::Explain => "Explain",
             Task::Ask => "Ask",
+            Task::CommitMessage => "Commit message",
+            Task::Conflict => "Settle a conflict",
         }
     }
 
     /// Whether what comes back is code to put in, rather than words to read.
     pub fn changes_text(self) -> bool {
-        matches!(self, Task::Fix | Task::CleanUp | Task::Write)
+        matches!(self, Task::Fix | Task::CleanUp | Task::Write | Task::Conflict)
     }
 
     fn needs_words(self) -> bool {
@@ -94,6 +102,8 @@ impl Task {
             Task::Write => "Write the code that's asked for, to go in place of the part. If the part is empty, the code goes between the lines before and after it.",
             Task::Explain => "Explain what the part does, briefly and in plain words.",
             Task::Ask => "Answer the question about the part, briefly and in plain words.",
+            Task::CommitMessage => "Write a commit message for the changes.",
+            Task::Conflict => "The part is a merge conflict. The lines between <<<<<<< and ======= are one side's (theirs is the other), the lines between ======= and >>>>>>> are the other side's, and any after ||||||| are the version both started from. Work out what each side meant to do, and write lines that do both, to replace the whole part, markers and all.",
         }
     }
 }
@@ -204,6 +214,14 @@ pub(super) struct AssistJob {
     old: Vec<String>,
     /// Its entry in the history.
     exchange: u64,
+    /// What it's for: a part of a file, or a commit's message.
+    purpose: Purpose,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Purpose {
+    Part,
+    CommitMessage,
 }
 
 /// Runs a command line with the prompt on its input, and keeps what it prints.
@@ -325,10 +343,10 @@ impl Limoniter {
         panel.error.clear();
     }
 
-    /// Sends the part to the tool. Says why not if it can't.
-    pub(super) fn send_to_assistant(&mut self, task: Task, words: &str) -> Result<(), String> {
-        if task.needs_words() && words.trim().is_empty() {
-            return Err(if task == Task::Write { "Say what code to write.".into() } else { "Type the question.".into() });
+    /// The tool chosen, and its command line, if it can be run.
+    fn tool_line(&self) -> Result<(Tool, String), String> {
+        if self.assist_job.is_some() {
+            return Err("The assistant is still working on the last request.".into());
         }
         let tool = self.assistant.tool;
         let line = self.assistant.command().trim().to_string();
@@ -338,11 +356,31 @@ impl Limoniter {
         if line.split_whitespace().next() == Some(tool.program()) && !installed(tool.program()) {
             return Err(tool.how_to_get().into());
         }
+        Ok((tool, line))
+    }
+
+    /// Sends the part to the tool. Says why not if it can't.
+    pub(super) fn send_to_assistant(&mut self, task: Task, words: &str) -> Result<(), String> {
+        let range = self.assist_range(task);
+        self.send_part(task, words, range)
+    }
+
+    /// Asks for help settling the conflict between those lines (its markers and all).
+    pub(super) fn assist_conflict(&mut self, range: Range<usize>) -> Result<(), String> {
+        self.assist_panel.open = true;
+        self.send_part(Task::Conflict, "", range)
+    }
+
+    /// Sends some lines to the tool.
+    fn send_part(&mut self, task: Task, words: &str, range: Range<usize>) -> Result<(), String> {
+        if task.needs_words() && words.trim().is_empty() {
+            return Err(if task == Task::Write { "Say what code to write.".into() } else { "Type the question.".into() });
+        }
+        let (tool, line) = self.tool_line()?;
         let doc = &self.docs[self.active];
         if doc.hex_mode || doc.text.is_disk_backed() {
             return Err("The assistant works on text, and on files small enough to be held in memory.".into());
         }
-        let range = self.assist_range(task);
         if range.len() > MOST_PART_LINES {
             return Err(format!("That's {} lines. Select a part of at most {MOST_PART_LINES} lines.", range.len()));
         }
@@ -379,7 +417,62 @@ impl Limoniter {
             text: Some(all.clone()),
         };
         let exchange = self.assist_log.add(exchange);
-        self.assist_job = Some(AssistJob { result, process, started: std::time::Instant::now(), tool, task, doc: doc.id, range, text: all, old: part, exchange });
+        self.assist_job = Some(AssistJob { result, process, started: std::time::Instant::now(), tool, task, doc: doc.id, range, text: all, old: part, exchange, purpose: Purpose::Part });
+        Ok(())
+    }
+
+    /// Asks for a commit message for what's ready to commit (or, with nothing staged, every change to files Git
+    /// has), to go in Source control's message box.
+    pub(super) fn assist_commit_message(&mut self, root: &Path) -> Result<(), String> {
+        let (tool, line) = self.tool_line()?;
+        let mut changes = crate::git::staged_diff(root)?;
+        if changes.trim().is_empty() {
+            changes = crate::git::run(root, &["diff", "--no-ext-diff", "--stat", "--patch"])?;
+        }
+        if changes.trim().is_empty() {
+            return Err("There are no changes to Git's files to write a message about.".into());
+        }
+        const MOST_CHANGES: usize = 60_000;
+        if changes.len() > MOST_CHANGES {
+            let mut cut = MOST_CHANGES;
+            while !changes.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            changes.truncate(cut);
+            changes += "\n[The rest is left out: there's too much to send.]\n";
+        }
+        let recent: Vec<String> = crate::git::log(root, None, 8).unwrap_or_default().into_iter().map(|c| c.subject).collect();
+        let mut input = String::from("You're helping someone write a Git commit message. Write one for the changes below: a first line of at most 70 characters saying what the change does, in the imperative (\"Fix\", \"Add\"), then, if it helps, a blank line and a few lines saying why. Reply with the message only: no fences, no preamble.\n");
+        if !recent.is_empty() {
+            input += &format!("\nThe project's recent commit messages, for its style:\n{}\n", recent.join("\n"));
+        }
+        input += &format!("\nThe changes:\n```diff\n{changes}\n```\n");
+        let wake = self.waker.clone();
+        let (result, process) = start(&line, Some(root), input, move || {
+            if let Some(ctx) = &wake {
+                ctx.request_repaint();
+            }
+        })?;
+        let folder = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let exchange = crate::app::assistant_log::Exchange {
+            id: 0,
+            when: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+            tool,
+            task: Task::CommitMessage,
+            words: String::new(),
+            file: folder,
+            path: None,
+            lines: 0..0,
+            state: crate::app::assistant_log::State::Working,
+            reply: String::new(),
+            old: Vec::new(),
+            new: Vec::new(),
+            seconds: 0,
+            doc: None,
+            text: None,
+        };
+        let exchange = self.assist_log.add(exchange);
+        self.assist_job = Some(AssistJob { result, process, started: std::time::Instant::now(), tool, task: Task::CommitMessage, doc: 0, range: 0..0, text: Vec::new(), old: Vec::new(), exchange, purpose: Purpose::CommitMessage });
         Ok(())
     }
 
@@ -425,6 +518,18 @@ impl Limoniter {
                     e.seconds = seconds;
                 });
             }
+        }
+        if job.purpose == Purpose::CommitMessage {
+            match answer {
+                Ok(reply) => {
+                    // Fences, if it put any, aren't part of the message.
+                    let message = if reply.contains("```") { code_from_reply(&reply).join("\n") } else { reply.trim().to_string() };
+                    self.git.message = message.trim().to_string();
+                    self.git.said = Some((format!("{} wrote the message: read it over, then Commit", job.tool.name()), false, std::time::Instant::now()));
+                }
+                Err(problem) => self.git.said = Some((format!("{}: {problem}", job.tool.name()), true, std::time::Instant::now())),
+            }
+            return false;
         }
         match answer {
             // With the panel showing, it says so there.
@@ -649,7 +754,7 @@ impl Limoniter {
                     Task::CleanUp => "Anything it should keep or change (optional)",
                     Task::Write => "What the code should do",
                     Task::Explain => "Anything in particular to explain (optional)",
-                    Task::Ask => "The question",
+                    Task::Ask | Task::CommitMessage | Task::Conflict => "The question",
                 };
                 let field = ui.add(egui::TextEdit::multiline(&mut panel.words).hint_text(hint).desired_rows(3).desired_width(f32::INFINITY));
                 if std::mem::take(&mut panel.focus) {

@@ -91,7 +91,9 @@ pub(super) struct Exchange {
 impl Exchange {
     /// Where it was, in words: "lines 10 to 24 of main.rs".
     pub fn place(&self) -> String {
-        if self.lines.is_empty() {
+        if self.task == Task::CommitMessage {
+            format!("the changes in {}", self.file)
+        } else if self.lines.is_empty() {
             format!("after line {} of {}", self.lines.start, self.file)
         } else if self.lines.len() == 1 {
             format!("line {} of {}", self.lines.start + 1, self.file)
@@ -129,7 +131,7 @@ impl Exchange {
         let text = |key: &str| value.get(key).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         let number = |key: &str| value.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
         let lines = |key: &str| value.get(key).and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_string)).collect()).unwrap_or_default();
-        let task = Task::ALL.into_iter().find(|task| task.label() == text("task"))?;
+        let task = Task::EVERY.into_iter().find(|task| task.label() == text("task"))?;
         Some(Exchange {
             id: number("id"),
             when: text("when"),

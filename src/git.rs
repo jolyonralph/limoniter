@@ -156,6 +156,8 @@ pub struct Status {
     pub ahead: usize,
     pub behind: usize,
     pub entries: Vec<Entry>,
+    /// A rebase or merge partway through, waiting on the person.
+    pub underway: Option<Underway>,
 }
 
 impl Status {
@@ -180,7 +182,9 @@ impl Status {
 /// The repository's status: its branch, how it stands with its upstream, and every changed file.
 pub fn status(root: &Path) -> Result<Status, String> {
     let output = run_bytes(root, &["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"])?;
-    Ok(parse_status(&output.stdout))
+    let mut status = parse_status(&output.stdout);
+    status.underway = underway(root);
+    Ok(status)
 }
 
 /// Reads `git status --porcelain=v2 --branch -z`.
@@ -365,6 +369,127 @@ pub fn clone(url: &str, into: &Path) -> Result<(), String> {
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     let output = command(Some(parent)).args(["clone", "--", url]).arg(into).output().map_err(|e| format!("Git couldn't be started: {e}"))?;
     if output.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&output.stderr).trim().to_string()) }
+}
+
+/// Brings in what's been pushed elsewhere, putting this branch's own new commits after them (a rebase), for when
+/// both have moved on. A conflict stops it partway, for the person to settle and continue, or abort.
+pub fn pull_rebase(root: &Path) -> Result<String, String> {
+    run(root, &["pull", "--rebase"])
+}
+
+/// Something git is partway through, and waiting on the person for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Underway {
+    Rebase,
+    Merge,
+}
+
+/// Whether a rebase or merge is partway through.
+pub fn underway(root: &Path) -> Option<Underway> {
+    let git_dir = run(root, &["rev-parse", "--git-dir"]).ok()?;
+    let git_dir = root.join(git_dir.trim());
+    if git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists() {
+        Some(Underway::Rebase)
+    } else if git_dir.join("MERGE_HEAD").exists() {
+        Some(Underway::Merge)
+    } else {
+        None
+    }
+}
+
+/// The message git has ready for a merge's commit, if one's partway through.
+pub fn merge_message(root: &Path) -> Option<String> {
+    let git_dir = run(root, &["rev-parse", "--git-dir"]).ok()?;
+    let text = std::fs::read_to_string(root.join(git_dir.trim()).join("MERGE_MSG")).ok()?;
+    Some(text.lines().filter(|line| !line.starts_with('#')).collect::<Vec<_>>().join("\n").trim().to_string())
+}
+
+/// Carries on with a rebase once its conflicts are settled and staged, keeping each commit's own message.
+pub fn rebase_continue(root: &Path) -> Result<String, String> {
+    let output = command(Some(root)).args(["-c", "core.editor=true", "rebase", "--continue"]).env("GIT_EDITOR", "true").output().map_err(|e| e.to_string())?;
+    if output.status.success() { Ok(String::from_utf8_lossy(&output.stdout).into_owned()) } else { Err(String::from_utf8_lossy(&output.stderr).trim().to_string()) }
+}
+
+/// Puts everything back as it was before the rebase or merge began.
+pub fn abort(root: &Path, what: Underway) -> Result<(), String> {
+    let args: &[&str] = match what {
+        Underway::Rebase => &["rebase", "--abort"],
+        Underway::Merge => &["merge", "--abort"],
+    };
+    run(root, args).map(|_| ())
+}
+
+// ---------- Stashes ----------
+
+/// Changes put aside.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stash {
+    /// Its name to git, such as stash@{0}.
+    pub name: String,
+    pub message: String,
+}
+
+/// Puts every change aside (new files too), leaving the files as at the last commit.
+pub fn stash(root: &Path, message: &str) -> Result<(), String> {
+    let mut args = vec!["stash", "push", "--include-untracked"];
+    if !message.trim().is_empty() {
+        args.extend(["--message", message.trim()]);
+    }
+    run(root, &args).map(|_| ())
+}
+
+pub fn stashes(root: &Path) -> Vec<Stash> {
+    run(root, &["stash", "list", "--format=%gd%x00%s"])
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| line.split_once('\0').map(|(name, message)| Stash { name: name.to_string(), message: message.to_string() }))
+        .collect()
+}
+
+/// Brings changes put aside back; with `keep`, they stay put aside too.
+pub fn unstash(root: &Path, name: &str, keep: bool) -> Result<(), String> {
+    run(root, &["stash", if keep { "apply" } else { "pop" }, name]).map(|_| ())
+}
+
+pub fn drop_stash(root: &Path, name: &str) -> Result<(), String> {
+    run(root, &["stash", "drop", name]).map(|_| ())
+}
+
+// ---------- Tags ----------
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Tag {
+    pub name: String,
+    pub when: String,
+    pub subject: String,
+}
+
+/// The tags, newest first.
+pub fn tags(root: &Path) -> Vec<Tag> {
+    run(root, &["for-each-ref", "refs/tags", "--sort=-creatordate", "--format=%(refname:short)%00%(creatordate:format:%Y-%m-%d)%00%(subject)"])
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split('\0');
+            Some(Tag { name: parts.next()?.to_string(), when: parts.next().unwrap_or_default().to_string(), subject: parts.next().unwrap_or_default().to_string() })
+        })
+        .collect()
+}
+
+/// Tags the current commit, with a message (an annotated tag), as releases are.
+pub fn create_tag(root: &Path, name: &str, message: &str) -> Result<(), String> {
+    let message = if message.trim().is_empty() { name } else { message.trim() };
+    run(root, &["tag", "--annotate", name, "--message", message]).map(|_| ())
+}
+
+pub fn push_tag(root: &Path, name: &str) -> Result<String, String> {
+    let output = run_bytes(root, &["push", "origin", &format!("refs/tags/{name}")])?;
+    Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
+}
+
+/// What's staged, as a diff: for writing a commit's message about.
+pub fn staged_diff(root: &Path) -> Result<String, String> {
+    run(root, &["diff", "--cached", "--no-ext-diff", "--stat", "--patch"])
 }
 
 // ---------- History ----------

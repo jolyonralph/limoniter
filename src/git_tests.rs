@@ -202,3 +202,96 @@ fn a_starting_gitignore_suits_the_folder() {
     assert!(ignore.contains("/target/") && ignore.contains("*.bak"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn changes_are_put_aside_and_brought_back() {
+    let dir = repository("stash");
+    write(&dir, "a.txt", "one\n");
+    stage(&dir, &["a.txt".into()]).unwrap();
+    commit(&dir, "One", false).unwrap();
+    write(&dir, "a.txt", "one, changed\n");
+    write(&dir, "new.txt", "new\n");
+    stash(&dir, "half done").unwrap();
+    assert!(status(&dir).unwrap().entries.is_empty(), "the files are as at the last commit");
+    let put = stashes(&dir);
+    assert_eq!(put.len(), 1);
+    assert!(put[0].message.contains("half done"));
+    unstash(&dir, &put[0].name, false).unwrap();
+    assert!(stashes(&dir).is_empty());
+    assert_eq!(std::fs::read_to_string(dir.join("new.txt")).unwrap().replace("\r\n", "\n"), "new\n", "new files come back too");
+    stash(&dir, "").unwrap();
+    drop_stash(&dir, &stashes(&dir)[0].name).unwrap();
+    assert!(stashes(&dir).is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_release_is_tagged_and_the_tag_pushed() {
+    let dir = repository("tags");
+    write(&dir, "a.txt", "one\n");
+    stage(&dir, &["a.txt".into()]).unwrap();
+    commit(&dir, "One", false).unwrap();
+    let remote = dir.with_extension("tags.git");
+    let _ = std::fs::remove_dir_all(&remote);
+    std::fs::create_dir_all(&remote).unwrap();
+    run(&remote, &["init", "--bare", "--quiet", "--initial-branch=main"]).unwrap();
+    add_remote(&dir, "origin", &remote.display().to_string()).unwrap();
+    create_tag(&dir, "v1.0.0", "The first release").unwrap();
+    let found = tags(&dir);
+    assert_eq!((found[0].name.as_str(), found[0].subject.as_str()), ("v1.0.0", "The first release"));
+    push_tag(&dir, "v1.0.0").unwrap();
+    assert!(run(&remote, &["tag"]).unwrap().contains("v1.0.0"), "the tag is online");
+    for folder in [&dir, &remote] {
+        let _ = std::fs::remove_dir_all(folder);
+    }
+}
+
+#[test]
+fn diverged_branches_are_rebased_and_a_conflict_partway_can_be_aborted_or_settled() {
+    let dir = repository("rebase");
+    write(&dir, "a.txt", "1\n2\n3\n");
+    stage(&dir, &["a.txt".into()]).unwrap();
+    commit(&dir, "Base", false).unwrap();
+    let remote = dir.with_extension("rebase.git");
+    let _ = std::fs::remove_dir_all(&remote);
+    std::fs::create_dir_all(&remote).unwrap();
+    run(&remote, &["init", "--bare", "--quiet", "--initial-branch=main"]).unwrap();
+    add_remote(&dir, "origin", &remote.display().to_string()).unwrap();
+    push(&dir, &status(&dir).unwrap()).unwrap();
+    let other = dir.with_extension("rebase-other");
+    let _ = std::fs::remove_dir_all(&other);
+    clone(&remote.display().to_string(), &other).unwrap();
+    for (key, value) in [("user.name", "Else"), ("user.email", "else@example.com"), ("commit.gpgsign", "false")] {
+        run(&other, &["config", key, value]).unwrap();
+    }
+    // Both change the first line: online first.
+    write(&other, "a.txt", "ONE\n2\n3\n");
+    stage(&other, &["a.txt".into()]).unwrap();
+    commit(&other, "Theirs", false).unwrap();
+    push(&other, &status(&other).unwrap()).unwrap();
+    write(&dir, "a.txt", "uno\n2\n3\n");
+    stage(&dir, &["a.txt".into()]).unwrap();
+    commit(&dir, "Mine", false).unwrap();
+    fetch(&dir).unwrap();
+    let both = status(&dir).unwrap();
+    assert_eq!((both.ahead, both.behind), (1, 1), "both have moved on");
+    assert!(pull(&dir).is_err(), "a plain pull won't merge by surprise");
+    assert!(pull_rebase(&dir).is_err(), "the rebase stops at the conflict");
+    assert_eq!(underway(&dir), Some(Underway::Rebase));
+    abort(&dir, Underway::Rebase).unwrap();
+    assert_eq!(underway(&dir), None);
+    assert_eq!(std::fs::read_to_string(dir.join("a.txt")).unwrap().replace("\r\n", "\n"), "uno\n2\n3\n", "aborted, it's as it was");
+    // Again, settled this time, and continued.
+    assert!(pull_rebase(&dir).is_err());
+    write(&dir, "a.txt", "ONE and uno\n2\n3\n");
+    stage(&dir, &["a.txt".into()]).unwrap();
+    rebase_continue(&dir).unwrap();
+    assert_eq!(underway(&dir), None);
+    let after = status(&dir).unwrap();
+    assert_eq!((after.ahead, after.behind), (1, 0), "mine now comes after theirs");
+    let subjects: Vec<String> = log(&dir, None, 5).unwrap().into_iter().map(|c| c.subject).collect();
+    assert_eq!(subjects, ["Mine", "Theirs", "Base"]);
+    for folder in [&dir, &remote, &other] {
+        let _ = std::fs::remove_dir_all(folder);
+    }
+}

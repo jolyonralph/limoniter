@@ -69,6 +69,11 @@ pub(super) struct GitState {
     pub blame_on: bool,
     blame: Option<(u64, String, Vec<git::Blame>)>,
     pub wizard: Option<Box<super::git_wizard::Wizard>>,
+    /// What's typed for putting changes aside, and for a new tag.
+    pub stash_message: String,
+    pub tag_name: String,
+    pub tag_message: String,
+    pub push_tag: bool,
     /// What the status bar says about the line the cursor's on, while that's on.
     pub blame_line: Option<String>,
 }
@@ -300,6 +305,40 @@ impl Limoniter {
                 act.push(PanelAct::Wizard);
             }
         });
+        // Something partway through comes first: it's what needs doing.
+        match status.underway {
+            Some(git::Underway::Rebase) => {
+                egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
+                    ui.add(egui::Label::new(RichText::new("A pull is partway through: some of your commits clash with ones from online. Settle each conflict below, press + beside it, then Carry on.").strong()).wrap());
+                    ui.horizontal(|ui| {
+                        if ui.button("Carry on").on_hover_text("Each of your commits keeps its own message").clicked() {
+                            act.push(PanelAct::Continue);
+                        }
+                        if ui.button("Abort, back to how it was").clicked() {
+                            act.push(PanelAct::Abort(git::Underway::Rebase));
+                        }
+                    });
+                });
+            }
+            Some(git::Underway::Merge) => {
+                egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
+                    ui.add(egui::Label::new(RichText::new("A merge is partway through. Settle each conflict below, press + beside it, then Commit.").strong()).wrap());
+                    if ui.button("Abort the merge").clicked() {
+                        act.push(PanelAct::Abort(git::Underway::Merge));
+                    }
+                });
+                if self.git.message.is_empty() {
+                    self.git.message = git::merge_message(&root).unwrap_or_default();
+                }
+            }
+            None if status.ahead > 0 && status.behind > 0 => {
+                ui.add(egui::Label::new(RichText::new(format!("Your {} commit(s) and {} from online have both moved on from the same place.", status.ahead, status.behind)).color(theme::text_dim())).wrap());
+                if ui.add_enabled(self.git.job.is_none(), Button::new("Pull, putting mine after theirs")).on_hover_text("A rebase: your commits are made again on top of the ones from online, so there's no merge. If they clash, it stops for you to settle").clicked() {
+                    act.push(PanelAct::PullRebase);
+                }
+            }
+            None => {}
+        }
         if let Some(job) = &self.git.job {
             ui.horizontal(|ui| {
                 ui.spinner();
@@ -324,6 +363,9 @@ impl Limoniter {
                 act.push(PanelAct::Commit);
             }
             ui.checkbox(&mut self.git.amend, "Add to the last commit").on_hover_text("Puts these changes, and the message, into the last commit instead of a new one. Best only before pushing it");
+            if (staged > 0 || changed > 0) && ui.add_enabled(self.assist_job.is_none(), Button::new("Write it for me").small()).on_hover_text(format!("{} writes a message from the changes, for you to read over. It's in the Assistant's history", self.assistant.tool.name())).clicked() {
+                act.push(PanelAct::WriteMessage);
+            }
         });
         ui.add_space(4.0);
         let open_folder = root.clone();
@@ -395,6 +437,57 @@ impl Limoniter {
         for entry in &changed_entries {
             row(ui, entry, false, act);
         }
+        ui.add_space(6.0);
+        // Changes put aside, to come back to.
+        let stashes = git::stashes(&root);
+        egui::CollapsingHeader::new(format!("Put aside ({})", stashes.len())).id_salt("git-stashes").show(ui, |ui| {
+            ui.add(egui::Label::new(faint("Puts every change aside, leaving the files as at the last commit, to bring back later: to switch branch, or pull, in the middle of something.")).wrap());
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.git.stash_message).hint_text("What they are (optional)").desired_width(170.0));
+                if ui.add_enabled(!status.entries.is_empty(), Button::new("Put aside")).clicked() {
+                    act.push(PanelAct::Stash);
+                }
+            });
+            for stash in &stashes {
+                ui.horizontal(|ui| {
+                    ui.add(egui::Label::new(&stash.message).truncate()).on_hover_text(&stash.name);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button("Throw away").clicked() {
+                            act.push(PanelAct::DropStash(stash.name.clone()));
+                        }
+                        if ui.small_button("Bring back").clicked() {
+                            act.push(PanelAct::Unstash(stash.name.clone()));
+                        }
+                    });
+                });
+            }
+        });
+        // Tags, as releases are named.
+        egui::CollapsingHeader::new("Tags").id_salt("git-tags").show(ui, |ui| {
+            ui.add(egui::Label::new(faint("A tag names this commit for good, as a release is: v1.2.0, say. Pushed, it's online too.")).wrap());
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.git.tag_name).hint_text("v1.0.0").desired_width(80.0));
+                ui.add(egui::TextEdit::singleline(&mut self.git.tag_message).hint_text("What it is (optional)").desired_width(140.0));
+            });
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.git.push_tag, "And push it");
+                let name = self.git.tag_name.trim().to_string();
+                if ui.add_enabled(!name.is_empty() && !name.contains(' ') && status.born && self.git.job.is_none(), Button::new("Tag this commit")).clicked() {
+                    act.push(PanelAct::Tag(name));
+                }
+            });
+            for tag in git::tags(&root).into_iter().take(8) {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(&tag.name).strong());
+                    ui.label(faint(&format!("{} {}", tag.when, tag.subject)));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button("Push").on_hover_text("Sends this tag online").clicked() {
+                            act.push(PanelAct::PushTag(tag.name.clone()));
+                        }
+                    });
+                });
+            }
+        });
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             if ui.small_button("History\u{2026}").on_hover_text("The commits that changed the file in front").clicked() {
@@ -470,6 +563,55 @@ impl Limoniter {
             }
             PanelAct::History => self.git_history(),
             PanelAct::CompareHead => self.compare_with_commit("HEAD"),
+            PanelAct::PullRebase => {
+                if self.docs.iter().any(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(&root))) {
+                    self.git.said = Some(("Save your open files first: a pull can change them.".into(), true, Instant::now()));
+                    return;
+                }
+                self.git_job("Pull, mine after theirs", move || git::pull_rebase(&root));
+            }
+            PanelAct::Continue => self.git_job("Carry on", move || git::rebase_continue(&root)),
+            PanelAct::Abort(what) => {
+                if ask_yes_no("Abort", "Put everything back as it was before it began?\n\nWhat's been settled so far is let go.") {
+                    say(&mut self.git, git::abort(&root, what));
+                    self.after_restore();
+                }
+            }
+            PanelAct::Stash => {
+                let message = std::mem::take(&mut self.git.stash_message);
+                if self.docs.iter().any(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(&root))) {
+                    self.git.said = Some(("Save your open files first: their changes are what's put aside.".into(), true, Instant::now()));
+                    return;
+                }
+                say(&mut self.git, git::stash(&root, &message));
+                self.after_restore();
+            }
+            PanelAct::Unstash(name) => {
+                say(&mut self.git, git::unstash(&root, &name, false));
+                self.after_restore();
+            }
+            PanelAct::DropStash(name) => {
+                if ask_yes_no("Throw away", "Throw away these changes that were put aside?\n\nThis can't be undone.") {
+                    say(&mut self.git, git::drop_stash(&root, &name));
+                }
+            }
+            PanelAct::Tag(name) => {
+                let message = std::mem::take(&mut self.git.tag_message);
+                self.git.tag_name.clear();
+                match git::create_tag(&root, &name, &message) {
+                    Ok(()) if self.git.push_tag => self.git_job(&format!("Push {name}"), move || git::push_tag(&root, &name)),
+                    Ok(()) => self.git.said = Some((format!("Tagged this commit {name}"), false, Instant::now())),
+                    Err(problem) => self.git.said = Some((explain(&problem), true, Instant::now())),
+                }
+            }
+            PanelAct::PushTag(name) => self.git_job(&format!("Push {name}"), move || git::push_tag(&root, &name)),
+            PanelAct::WriteMessage => {
+                if let Err(problem) = self.assist_commit_message(&root) {
+                    self.git.said = Some((problem, true, Instant::now()));
+                } else {
+                    self.git.said = Some((format!("{} is writing the message\u{2026}", self.assistant.tool.name()), false, Instant::now()));
+                }
+            }
         }
     }
 
@@ -682,7 +824,7 @@ impl Limoniter {
         let caret = doc.text.caret_line;
         let here = found.iter().position(|c| c.start <= caret && caret <= c.end);
         let mut chosen: Option<Keep> = None;
-        let (mut next, mut settled) = (false, false);
+        let (mut next, mut settled, mut ask) = (false, false, false);
         Panel::top("conflict-bar").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if found.is_empty() {
@@ -697,13 +839,19 @@ impl Limoniter {
                             chosen = Some(keep);
                         }
                     }
+                    ask = ui.button("Ask the assistant").on_hover_text("Claude Code or Codex works out what each side meant, and suggests lines that do both, for you to look at first").clicked();
                 } else {
                     ui.label(RichText::new("Put the cursor in one to choose what to keep.").color(theme::text_dim()));
                 }
                 next = ui.button("Next conflict").clicked();
             });
         });
-        if let (Some(keep), Some(at)) = (chosen, here) {
+        if let (true, Some(at)) = (ask, here) {
+            let conflict = found[at].clone();
+            if let Err(problem) = self.assist_conflict(conflict.start..conflict.end + 1) {
+                self.message("Ask the assistant", problem);
+            }
+        } else if let (Some(keep), Some(at)) = (chosen, here) {
             let conflict = found[at].clone();
             let kept = git::settle(&lines, &conflict, keep);
             let text = &mut self.doc().text;
@@ -795,6 +943,15 @@ enum PanelAct {
     NewBranch(String),
     History,
     CompareHead,
+    PullRebase,
+    Continue,
+    Abort(git::Underway),
+    Stash,
+    Unstash(String),
+    DropStash(String),
+    Tag(String),
+    PushTag(String),
+    WriteMessage,
 }
 
 /// What git said, with a word about what to do for the problems people meet most.

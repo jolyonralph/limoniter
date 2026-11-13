@@ -1,13 +1,22 @@
-## What's new in 0.3.2
+## What's new in 0.4.0
 
-- **Send a BASIC listing straight to the machine.** Open a program's listing, edit it, and Send to device: it goes as the program, tokenised. A NextBASIC listing goes to your Spectrum Next as a `.bas`, a C64 listing as a `.prg`, a Spectrum tape listing as a `.tap`.
-- **Autosave** (Settings, Files; off to begin with): a changed file saves itself after a time you choose, from 15 seconds to 10 minutes. Files that would need a question answered, such as one another program has changed, are left for you, and the status bar says why.
-- **Keep a backup when saving** (also off to begin with): the first save of a file in a session keeps the file as it was, as `name.bak`.
-- **On a Mac,** the app is now sealed, so macOS offers Open Anyway instead of saying it's damaged.
+**Run what you're editing**
+- **Run on machine (F9)** runs the file in front where its kind of program runs: a BASIC listing (tokenised first), a tape, snapshot, program or disk image, or the file selected in a disk image. It asks where the first time.
+- **A ZX Spectrum built in** (48K and 128K), with sound, running in a panel beside your file: nothing to install. Click its screen to type on it.
+- **Emulators** are found where they're installed and set up in one go: ZEsarUX, Fuse and CSpect for the Spectrum and Next, VICE for Commodores, b2 for the BBC Micro, openMSX. An Ultimate 64 runs a program as it arrives; a Next gets it over NextSync.
+- **While it runs**, the built-in Spectrum, ZEsarUX and VICE show their memory in hex view (edits go to the machine) and their screen as text, give back their BASIC program as a listing, and take an edited one back and RUN it.
 
-## Also in 0.3.1
+**Git, for everyone**
+- **Source control** (Ctrl+Shift+G): what's changed, staging, commit, push, pull, branches, stashes and tags; marks beside the line numbers for what's changed since the last commit; history, comparing with any commit, who changed each line, and settling merge conflicts.
+- **The Git wizard** takes someone who's never used Git from nothing to their first commit, and onto GitHub if they like, explaining each step.
 
-Files of 64 MB and more can now be compared, printed, shown as tables, reindented, filtered, and converted to another encoding or line ending in place, with the long work done in the background.
+**The assistant**
+- **The Assistant panel** keeps the history of everything asked of Claude Code or Codex, and what came of it.
+- It can **write a commit message** from your changes, and **suggest how to settle a conflict**.
+
+**Also**
+- Amiga ANSI is drawn in the Amiga's own pens, with a palette to change them: Workbench 1.3 and 2.04–3.x presets, or any of the 4096 colours.
+- Building on Linux now needs ALSA's headers, for the built-in Spectrum's sound.
 
 ## Downloads
 

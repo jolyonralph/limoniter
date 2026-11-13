@@ -138,3 +138,60 @@ fn what_git_says_comes_with_what_to_do() {
     assert!(git_host::explain("! [rejected] main -> main (fetch first)").contains("Pull first"));
     assert!(git_host::explain("Author identity unknown\n*** Please tell me who you are.").contains("wizard"));
 }
+
+/// A stand-in for Claude Code or Codex: it prints a reply kept in a file, and nothing goes anywhere.
+fn stand_in(dir: &Path, reply: &str) -> String {
+    let file = dir.join("reply.txt");
+    std::fs::write(&file, reply).unwrap();
+    format!("{} \"{}\"", if cfg!(windows) { "type" } else { "cat" }, file.display())
+}
+
+fn wait_for_assistant(app: &mut Limoniter) {
+    let began = std::time::Instant::now();
+    while app.check_assistant() {
+        assert!(began.elapsed() < Duration::from_secs(20), "no answer");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn the_assistant_writes_a_commit_message_from_what_is_staged() {
+    let dir = repository("message");
+    committed(&dir, "robot.txt", "stands\n");
+    std::fs::write(dir.join("robot.txt"), "walks\n").unwrap();
+    git::stage(&dir, &["robot.txt".into()]).unwrap();
+    let helper = dir.with_extension("helper");
+    std::fs::create_dir_all(&helper).unwrap();
+    let (mut app, _ctx) = app_with("");
+    app.assistant.claude = stand_in(&helper, "Make the robot walk\n\nIt stood still before.\n");
+    app.assist_commit_message(&dir).unwrap();
+    wait_for_assistant(&mut app);
+    assert_eq!(app.git.message, "Make the robot walk\n\nIt stood still before.");
+    let entry = app.assist_log.entries.last().unwrap();
+    assert_eq!((entry.task, entry.state), (super::assistant::Task::CommitMessage, super::assistant_log::State::Answered));
+    assert!(entry.place().starts_with("the changes in"));
+    for folder in [&dir, &helper] {
+        let _ = std::fs::remove_dir_all(folder);
+    }
+}
+
+#[test]
+fn the_assistant_suggests_how_to_settle_a_conflict_and_it_goes_in_when_accepted() {
+    let helper = std::env::temp_dir().join(format!("limoniter-conflict-helper-{}", std::process::id()));
+    std::fs::create_dir_all(&helper).unwrap();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().text.set_content(["top", "<<<<<<< HEAD", "speed = 2", "=======", "speed = 1  # slower", ">>>>>>> other", "bottom"].map(String::from).to_vec());
+    app.assistant.claude = stand_in(&helper, "```python\nspeed = 2  # faster\n```\n");
+    app.assist_conflict(1..6).unwrap();
+    wait_for_assistant(&mut app);
+    let Dialog::AssistReview(review) = std::mem::replace(&mut app.dialog, Dialog::None) else {
+        panic!("it's shown first");
+    };
+    assert_eq!(review.range, 1..6, "the whole conflict, markers and all");
+    app.accept_review(&review).unwrap();
+    let lines: Vec<String> = (0..app.docs[app.active].text.line_count()).map(|i| app.docs[app.active].text.line(i).to_string()).collect();
+    assert_eq!(lines, ["top", "speed = 2  # faster", "bottom"]);
+    assert_eq!(app.assist_log.entries.last().map(|e| e.task), Some(super::assistant::Task::Conflict));
+    let _ = std::fs::remove_dir_all(&helper);
+}
