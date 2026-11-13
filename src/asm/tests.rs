@@ -60,7 +60,8 @@ fn problems_say_which_line_and_what() {
     assert!(lines.iter().any(|(l, m)| *l == 2 && m.contains("out of a relative jump's reach")), "{lines:?}");
     assert!(lines.iter().any(|(l, m)| *l == 4 && m.contains("isn't a Z80 instruction")), "{lines:?}");
     assert!(lines.iter().any(|(l, m)| *l == 5 && m.contains("lb isn't a Z80 instruction")), "{lines:?}");
-    assert!(lines.iter().any(|(l, m)| *l == 6 && m.contains("doesn't fit in a byte")), "{lines:?}");
+    // A value too big for a byte is cut to fit, with a warning, as sjasmplus does.
+    assert!(assembly.warnings.iter().any(|w| w.line == 6 && w.message.contains("doesn't fit in a byte")), "{:?}", assembly.warnings);
     let twice = z80("a: nop\na: nop\n");
     assert!(twice.problems.iter().any(|p| p.line == 1 && p.message.contains("defined twice")), "{:?}", twice.problems);
 }
@@ -266,4 +267,83 @@ fn labels_are_known_where_defined_and_used() {
     assert_eq!(uses("main"), [(3, "main")]);
     assert_eq!(uses("count"), [(5, "count")], "used twice on one line, listed once");
     assert_eq!(a.macros.iter().map(|m| (m.name.as_str(), m.line)).collect::<Vec<_>>(), [("border", 6)]);
+}
+
+/// Real Next and Spectrum projects, assembled here and by sjasmplus: every file sjasmplus wrote (but its maps) has
+/// to come out the same. The corpus and sjasmplus's files are made by tools outside the repository (see the 0.7
+/// notes); without them this does nothing. Run with --ignored --nocapture to see each project.
+#[test]
+#[ignore]
+fn real_projects_assemble_as_sjasmplus_assembles_them() {
+    let results = std::path::Path::new("/root/nextcorpus-out/results.json");
+    let Ok(text) = std::fs::read_to_string(results) else {
+        return;
+    };
+    let results: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let read = |path: &Path| std::fs::read(path).map_err(|e| e.to_string());
+    let (mut same, mut total) = (0, 0);
+    let mut report = String::new();
+    for result in results.as_array().unwrap() {
+        if result["code"].as_i64() != Some(0) {
+            continue;
+        }
+        let made: Vec<String> = result["made"].as_array().unwrap().iter().map(|m| m.as_str().unwrap().to_string()).filter(|m| !m.ends_with(".map") && !m.ends_with(".sld") && !m.ends_with(".lst") && !m.ends_with(".sym")).collect();
+        if made.is_empty() {
+            continue;
+        }
+        total += 1;
+        let path = std::path::PathBuf::from(result["path"].as_str().unwrap());
+        let n = result["n"].as_i64().unwrap();
+        let source = String::from_utf8_lossy(&std::fs::read(&path).unwrap()).into_owned();
+        let assembly = assemble(&z80::Z80, &path, &source, &read);
+        let short = path.strip_prefix("/root/nextcorpus").unwrap_or(&path).display().to_string();
+        if !assembly.ok() {
+            report.push_str(&format!("PROBLEMS {short}: {} problem(s)\n", assembly.problems.len()));
+            let mut seen = std::collections::HashSet::new();
+            for problem in assembly.problems.iter().filter(|p| seen.insert(p.message.split_whitespace().next().unwrap_or("").to_string())).take(6) {
+                let file = assembly.files[problem.file].file_name().unwrap_or_default().to_string_lossy();
+                report.push_str(&format!("    {file}:{} {}\n", problem.line + 1, problem.message));
+            }
+            continue;
+        }
+        let mut all = true;
+        for name in &made {
+            let theirs = std::fs::read(format!("/root/nextcorpus-out/{n}/{}", name.replace("../", "__/"))).unwrap();
+            let ours = assembly.outputs.iter().find(|o| Path::new(&o.name).file_name() == Path::new(name).file_name());
+            match ours {
+                None => {
+                    all = false;
+                    report.push_str(&format!("MISSING {short}: {name} (we made {:?})\n", assembly.outputs.iter().map(|o| &o.name).collect::<Vec<_>>()));
+                }
+                Some(ours) if ours.bytes != theirs => {
+                    all = false;
+                    let at = ours.bytes.iter().zip(&theirs).position(|(a, b)| a != b).unwrap_or(ours.bytes.len().min(theirs.len()));
+                    report.push_str(&format!("DIFFERS {short}: {name}: {} vs {} bytes, first at {at:#X}\n", ours.bytes.len(), theirs.len()));
+                }
+                Some(_) => {}
+            }
+        }
+        if all {
+            same += 1;
+        }
+    }
+    println!("{report}{same} of {total} projects match sjasmplus");
+}
+
+/// sjasmplus's own test of every fake instruction (tests/z80/all_fake.asm), checked against the binary it makes.
+#[test]
+fn sjasmplus_fake_instructions_assemble_as_it_does() {
+    let source = include_str!("testdata/all_fake.asm");
+    let expected = include_bytes!("testdata/all_fake.bin");
+    // Its last four lines check errors without --zxnext=cspect; they're left out here.
+    let source: String = source.lines().take_while(|l| !l.contains("OPT --zxnext ")).collect::<Vec<_>>().join("\n");
+    let read = |path: &Path| std::fs::read(path).map_err(|e| e.to_string());
+    let assembly = assemble(&z80::Z80, Path::new("all_fake.asm"), &source, &read);
+    assert!(assembly.ok(), "{:?}", assembly.problems.iter().take(5).collect::<Vec<_>>());
+    let ours = assembly.image(0x8000, assembly.highest().unwrap());
+    let theirs = &expected[..ours.len()];
+    if let Some(at) = ours.iter().zip(theirs).position(|(a, b)| a != b) {
+        let line = assembly.line_at(0x8000 + at as i64).map(|(_, l)| l + 1).unwrap_or(0);
+        panic!("differs at ${:04X}, line {line}: {}", 0x8000 + at, source.lines().nth(line.saturating_sub(1)).unwrap_or(""));
+    }
 }

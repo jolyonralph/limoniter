@@ -15,6 +15,26 @@ pub trait Scope {
     }
     /// A label was used: as written, and its full name. Kept on the last pass, for going to it and finding uses.
     fn used(&self, _written: &str, _full: &str) {}
+    /// The memory page a label is in, under a virtual device ($$label in sjasmplus).
+    fn page_of(&self, _name: &str) -> Option<i64> {
+        None
+    }
+    /// The page being assembled into ($$).
+    fn page_here(&self) -> Option<i64> {
+        None
+    }
+    /// A byte or word of the device's memory ({address} and {b address}).
+    fn peek(&self, _address: i64, _size: usize) -> Option<i64> {
+        None
+    }
+    /// Where code is put, inside DISP, rather than the address it's assembled for ($$$).
+    fn physical_here(&self) -> i64 {
+        self.here()
+    }
+    /// A label's physical address ($$$label): where its code was put.
+    fn physical_of(&self, name: &str) -> Option<i64> {
+        self.value(name)
+    }
 }
 
 /// What came of working one out.
@@ -219,10 +239,73 @@ impl Parser<'_> {
                 self.at = start + length + 1;
                 match bytes {
                     [] => Err("an empty character".into()),
-                    [one] => Ok(Value::Known(*one as i64)),
-                    [a, b] => Ok(Value::Known(((*a as i64) << 8) | *b as i64)),
-                    _ => Err("a character value can only be one or two characters".into()),
+                    // Up to four characters, packed first-is-highest, as sjasmplus has them.
+                    _ if bytes.len() <= 4 => Ok(Value::Known(bytes.iter().fold(0i64, |v, b| (v << 8) | *b as i64))),
+                    _ => Err("a character value can only be one to four characters".into()),
                 }
+            }
+            // sjasmplus: $$$ is the address code is put at (inside DISP), and $$$label a label's.
+            b'$' if self.rest().starts_with(b"$$$") && !self.rest().starts_with(b"$$$$") => {
+                self.at += 3;
+                if self.peek().is_some_and(|c| is_name_start(c) || c == b'.') {
+                    let start = self.at;
+                    while self.peek().is_some_and(is_name_char) {
+                        self.at += 1;
+                    }
+                    let name = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default().to_string();
+                    let full = self.scope.full_name(&name);
+                    return Ok(match self.scope.physical_of(&full) {
+                        Some(v) => Value::Known(v),
+                        None => {
+                            self.unknown.get_or_insert(name);
+                            Value::Unknown
+                        }
+                    });
+                }
+                Ok(Value::Known(self.scope.physical_here()))
+            }
+            // sjasmplus: $$label is the page a label is in, and $$ the page being assembled into.
+            b'$' if self.rest().get(1) == Some(&b'$') => {
+                self.at += 2;
+                if self.peek().is_some_and(|c| is_name_start(c) || c == b'@' || c == b'.') {
+                    let start = self.at;
+                    while self.peek().is_some_and(|c| is_name_char(c) || c == b'@') {
+                        self.at += 1;
+                    }
+                    let name = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default().to_string();
+                    let full = self.scope.full_name(&name);
+                    self.scope.used(&name, &full);
+                    return Ok(match self.scope.page_of(&full) {
+                        Some(page) => Value::Known(page),
+                        None => {
+                            self.unknown.get_or_insert(name);
+                            Value::Unknown
+                        }
+                    });
+                }
+                self.scope.page_here().map(Value::Known).ok_or_else(|| "$$ is the page being assembled into, which needs a DEVICE".into())
+            }
+            // sjasmplus: {address} reads a word of the device's memory, {b address} a byte.
+            b'{' => {
+                self.at += 1;
+                self.space();
+                let rest = self.rest();
+                let size = if rest.len() > 1 && (rest[0] | 0x20) == b'b' && rest[1] == b' ' {
+                    self.at += 2;
+                    1
+                } else {
+                    2
+                };
+                let address = self.binary(0)?;
+                self.space();
+                if self.peek() != Some(b'}') {
+                    return Err("a \"}\" is missing".into());
+                }
+                self.at += 1;
+                Ok(match address {
+                    Value::Known(a) => Value::Known(self.scope.peek(a, size).ok_or("{address} reads the memory of a DEVICE, and there's none")?),
+                    unknown => unknown,
+                })
             }
             b'$' | b'#' | b'&' if self.rest().get(1).is_some_and(u8::is_ascii_hexdigit) => {
                 self.at += 1;
@@ -237,10 +320,11 @@ impl Parser<'_> {
                 // ACME writes binary with . for 0 and # for 1 too, to draw with.
                 self.at += 1;
                 let start = self.at;
-                while self.peek().is_some_and(|c| matches!(c, b'0' | b'1' | b'.' | b'#' | b'_')) {
+                // sjasmplus separates digits with ', as C++ does.
+                while self.peek().is_some_and(|c| matches!(c, b'0' | b'1' | b'.' | b'#' | b'_') || (c == b'\'' && self.text.get(self.at + 1).is_some_and(|n| matches!(n, b'0' | b'1')))) {
                     self.at += 1;
                 }
-                let bits: String = self.text[start..self.at].iter().filter(|c| **c != b'_').map(|c| if matches!(c, b'1' | b'#') { '1' } else { '0' }).collect();
+                let bits: String = self.text[start..self.at].iter().filter(|c| **c != b'_' && **c != b'\'').map(|c| if matches!(c, b'1' | b'#') { '1' } else { '0' }).collect();
                 i64::from_str_radix(&bits, 2).map(Value::Known).map_err(|_| "a binary number is missing its digits".into())
             }
             b'0'..=b'9' => self.number(),
@@ -278,10 +362,11 @@ impl Parser<'_> {
 
     fn digits(&mut self, radix: u32) -> Result<Value, String> {
         let start = self.at;
-        while self.peek().is_some_and(|c| (c as char).is_digit(radix) || c == b'_') {
+        let separator = |parser: &Self, c: u8| c == b'\'' && parser.text.get(parser.at + 1).is_some_and(|n| (*n as char).is_digit(radix)) && parser.at > start;
+        while self.peek().is_some_and(|c| (c as char).is_digit(radix) || c == b'_' || separator(self, c)) {
             self.at += 1;
         }
-        let text: String = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default().chars().filter(|c| *c != '_').collect();
+        let text: String = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default().chars().filter(|c| *c != '_' && *c != '\'').collect();
         i64::from_str_radix(&text, radix).map(Value::Known).map_err(|_| "a number is missing its digits".into())
     }
 
@@ -296,8 +381,16 @@ impl Parser<'_> {
             self.at += 2;
             return self.digits(2);
         }
-        let word: Vec<u8> = rest.iter().copied().take_while(|c| c.is_ascii_alphanumeric() || *c == b'_').collect();
-        let digits: String = word.iter().map(|c| *c as char).filter(|c| *c != '_').collect();
+        // A ' between digits separates them, as sjasmplus allows.
+        let mut word: Vec<u8> = Vec::new();
+        for (i, c) in rest.iter().copied().enumerate() {
+            let separator = c == b'\'' && i > 0 && rest.get(i + 1).is_some_and(u8::is_ascii_alphanumeric);
+            if !(c.is_ascii_alphanumeric() || c == b'_' || separator) {
+                break;
+            }
+            word.push(c);
+        }
+        let digits: String = word.iter().map(|c| *c as char).filter(|c| *c != '_' && *c != '\'').collect();
         let (body, radix) = match digits.chars().last().map(|c| c.to_ascii_lowercase()) {
             Some('h') => (&digits[..digits.len() - 1], 16),
             Some('b') if digits[..digits.len() - 1].chars().all(|c| c == '0' || c == '1') => (&digits[..digits.len() - 1], 2),
@@ -343,8 +436,9 @@ pub fn is_name_start(c: u8) -> bool {
     c.is_ascii_alphabetic() || c == b'_' || c == b'.' || c == b'@' || c == b'?'
 }
 
+/// A character a name can go on with: sjasmplus allows # in names too (as in ld_bc_#hl#).
 pub fn is_name_char(c: u8) -> bool {
-    c.is_ascii_alphanumeric() || c == b'_' || c == b'.' || c == b'@' || c == b'?'
+    c.is_ascii_alphanumeric() || c == b'_' || c == b'.' || c == b'@' || c == b'?' || c == b'#'
 }
 
 #[cfg(test)]
@@ -374,7 +468,7 @@ mod tests {
 
     #[test]
     fn numbers_are_read_every_way_they_were_written() {
-        for (text, expected) in [("255", 255), ("$FF", 255), ("#ff", 255), ("0xFF", 255), ("0FFh", 255), ("%11111111", 255), ("0b1111_1111", 255), ("11111111b", 255), ("377o", 255), ("377q", 255), ("&FF", 255), ("'A'", 65), ("\"AB\"", 0x4142)] {
+        for (text, expected) in [("255", 255), ("$FF", 255), ("#ff", 255), ("0xFF", 255), ("0FFh", 255), ("%11111111", 255), ("0b1111_1111", 255), ("11111111b", 255), ("377o", 255), ("377q", 255), ("&FF", 255), ("'A'", 65), ("\"AB\"", 0x4142), ("%00000'0'0'1", 1), ("$12'34", 0x1234), ("1'000", 1000), ("\"0004\"", 0x3030_3034)] {
             assert_eq!(value(text), Value::Known(expected), "{text}");
         }
     }

@@ -56,8 +56,8 @@ const PLAIN: [(&str, &[u8]); 47] = [
     ("otib", &[0xED, 0x90]),
 ];
 
-const OTHERS: [&str; 39] = [
-    "ld", "push", "pop", "ex", "add", "adc", "sub", "sbc", "and", "xor", "or", "cp", "inc", "dec", "im", "jp", "jr", "djnz", "call", "ret", "rst", "in", "out", "rlc", "rrc", "rl", "rr", "sla", "sra", "sll", "sl1", "srl", "bit", "res", "set", "mirror", "test", "mul", "nextreg",
+const OTHERS: [&str; 40] = [
+    "ld", "push", "pop", "ex", "add", "adc", "sub", "sbc", "and", "xor", "or", "cp", "inc", "dec", "im", "jp", "jr", "djnz", "call", "ret", "rst", "in", "out", "rlc", "rrc", "rl", "rr", "sla", "sra", "sll", "sl1", "sli", "srl", "bit", "res", "set", "mirror", "test", "mul", "nextreg",
 ];
 
 const NEXT_SHIFTS: [(&str, u8); 5] = [("bsla", 0x28), ("bsra", 0x29), ("bsrl", 0x2A), ("bsrf", 0x2B), ("brlc", 0x2C)];
@@ -179,6 +179,115 @@ fn bracketed(text: &str) -> Option<&str> {
     Some(&text[1..text.len() - 1])
 }
 
+/// sjasmplus's fake instructions, as the real ones they're made of (from its tests/z80/all_fake), and its operand
+/// lists for the instructions that take one: PUSH, POP, INC, DEC and the rotates and shifts.
+fn fake(mnemonic: &str, operands: &str) -> Option<Vec<(String, String)>> {
+    let texts = split_operands(operands);
+    let one = |m: &str, o: String| (m.to_string(), o);
+    // RLC (IX+3),B and the like are the undocumented copies, not lists.
+    let indexed_copy = texts.first().is_some_and(|t| matches!(operand(t), Op::Indexed(..)));
+    if texts.len() > 1 && !indexed_copy && matches!(mnemonic, "push" | "pop" | "inc" | "dec" | "rl" | "rr" | "rlc" | "rrc" | "sla" | "sra" | "srl" | "sll" | "sli") {
+        return Some(texts.iter().map(|t| one(mnemonic, t.trim().to_string())).collect());
+    }
+    let ops: Vec<Op> = texts.iter().map(|t| operand(t)).collect();
+    // A pair's two halves, high then low, as written; an indexed byte one on.
+    let halves = |p: Pair| -> Option<(&'static str, &'static str)> {
+        match p {
+            Pair::Bc => Some(("b", "c")),
+            Pair::De => Some(("d", "e")),
+            Pair::Hl => Some(("h", "l")),
+            Pair::Ix => Some(("ixh", "ixl")),
+            Pair::Iy => Some(("iyh", "iyl")),
+            _ => None,
+        }
+    };
+    let index_name = |prefix: u8| if prefix == 0xDD { "ix" } else { "iy" };
+    let at = |prefix: u8, d: &str, more: &str| format!("({}{d}{more})", index_name(prefix));
+    let step = |m: &str| if m.starts_with("ldi") { "inc" } else { "dec" };
+    Some(match (mnemonic, ops.as_slice()) {
+        ("rl", [Op::Pair(p @ (Pair::Bc | Pair::De | Pair::Hl))]) => {
+            let (h, l) = halves(*p)?;
+            vec![one("rl", l.into()), one("rl", h.into())]
+        }
+        ("rr", [Op::Pair(p @ (Pair::Bc | Pair::De | Pair::Hl))]) => {
+            let (h, l) = halves(*p)?;
+            vec![one("rr", h.into()), one("rr", l.into())]
+        }
+        ("sla", [Op::Pair(Pair::Hl)]) => vec![one("add", "hl,hl".into())],
+        ("sla" | "sll" | "sli", [Op::Pair(p @ (Pair::Bc | Pair::De | Pair::Hl))]) => {
+            let (h, l) = halves(*p)?;
+            vec![one(if mnemonic == "sla" { "sla" } else { "sll" }, l.into()), one("rl", h.into())]
+        }
+        ("sra" | "srl", [Op::Pair(p @ (Pair::Bc | Pair::De | Pair::Hl))]) => {
+            let (h, l) = halves(*p)?;
+            vec![one(mnemonic, h.into()), one("rr", l.into())]
+        }
+        // LD between pairs: through PUSH and POP where the halves can't be loaded across.
+        ("ld", [Op::Pair(Pair::Hl), Op::Pair(src @ (Pair::Ix | Pair::Iy))]) | ("ld", [Op::Pair(Pair::Ix | Pair::Iy), Op::Pair(src @ Pair::Hl)]) => {
+            let to = &texts[0];
+            vec![one("push", format!("{src:?}").to_ascii_lowercase()), one("pop", to.trim().to_ascii_lowercase())]
+        }
+        ("ld", [Op::Pair(Pair::Ix), Op::Pair(Pair::Iy)]) => vec![one("push", "iy".into()), one("pop", "ix".into())],
+        ("ld", [Op::Pair(Pair::Iy), Op::Pair(Pair::Ix)]) => vec![one("push", "ix".into()), one("pop", "iy".into())],
+        ("ld", [Op::Pair(to @ (Pair::Bc | Pair::De | Pair::Hl | Pair::Ix | Pair::Iy)), Op::Pair(from @ (Pair::Bc | Pair::De | Pair::Hl | Pair::Ix | Pair::Iy))]) => {
+            let ((th, tl), (fh, fl)) = (halves(*to)?, halves(*from)?);
+            vec![one("ld", format!("{th},{fh}")), one("ld", format!("{tl},{fl}"))]
+        }
+        ("ld" | "ldi", [Op::Pair(to @ (Pair::Bc | Pair::De)), Op::At(Pair::Hl)]) => {
+            let (h, l) = halves(*to)?;
+            let back = if mnemonic == "ld" { "dec" } else { "inc" };
+            vec![one("ld", format!("{l},(hl)")), one("inc", "hl".into()), one("ld", format!("{h},(hl)")), one(back, "hl".into())]
+        }
+        ("ld" | "ldi", [Op::At(Pair::Hl), Op::Pair(from @ (Pair::Bc | Pair::De))]) => {
+            let (h, l) = halves(*from)?;
+            let back = if mnemonic == "ld" { "dec" } else { "inc" };
+            vec![one("ld", format!("(hl),{l}")), one("inc", "hl".into()), one("ld", format!("(hl),{h}")), one(back, "hl".into())]
+        }
+        ("ld", [Op::Pair(to @ (Pair::Bc | Pair::De | Pair::Hl)), Op::Indexed(prefix, d)]) => {
+            let (h, l) = halves(*to)?;
+            vec![one("ld", format!("{l},{}", at(*prefix, d, ""))), one("ld", format!("{h},{}", at(*prefix, d, "+1")))]
+        }
+        ("ld", [Op::Indexed(prefix, d), Op::Pair(from @ (Pair::Bc | Pair::De | Pair::Hl))]) => {
+            let (h, l) = halves(*from)?;
+            vec![one("ld", format!("{},{l}", at(*prefix, d, ""))), one("ld", format!("{},{h}", at(*prefix, d, "+1")))]
+        }
+        ("ldi", [Op::Pair(to @ (Pair::Bc | Pair::De | Pair::Hl)), Op::Indexed(prefix, d)]) => {
+            let (h, l) = halves(*to)?;
+            let i = index_name(*prefix).to_string();
+            vec![one("ld", format!("{l},{}", at(*prefix, d, ""))), one("inc", i.clone()), one("ld", format!("{h},{}", at(*prefix, d, ""))), one("inc", i)]
+        }
+        ("ldi", [Op::Indexed(prefix, d), Op::Pair(from @ (Pair::Bc | Pair::De | Pair::Hl))]) => {
+            let (h, l) = halves(*from)?;
+            let i = index_name(*prefix).to_string();
+            vec![one("ld", format!("{},{l}", at(*prefix, d, ""))), one("inc", i.clone()), one("ld", format!("{},{h}", at(*prefix, d, ""))), one("inc", i)]
+        }
+        // LDI and LDD with a register and memory: the load, then the pointer moved on or back.
+        ("ldi" | "ldd", [Op::R(_, None), Op::At(p @ (Pair::Bc | Pair::De | Pair::Hl))]) | ("ldi" | "ldd", [Op::At(p @ (Pair::Bc | Pair::De | Pair::Hl)), _]) => {
+            let pointer = format!("{p:?}").to_ascii_lowercase();
+            vec![one("ld", operands.to_string()), one(step(mnemonic), pointer)]
+        }
+        ("ldi" | "ldd", [Op::R(_, None), Op::Indexed(prefix, _)]) | ("ldi" | "ldd", [Op::Indexed(prefix, _), _]) => vec![one("ld", operands.to_string()), one(step(mnemonic), index_name(*prefix).into())],
+        // Arithmetic on DE, through HL.
+        ("adc" | "add" | "sbc" | "sub", [Op::Pair(Pair::De), Op::Pair(src @ (Pair::Bc | Pair::De | Pair::Hl | Pair::Sp))]) => {
+            let src = match src {
+                Pair::De => "hl",
+                Pair::Hl => "de",
+                Pair::Bc => "bc",
+                _ => "sp",
+            };
+            let real = if mnemonic == "sub" { "sbc" } else { mnemonic };
+            let mut out = Vec::new();
+            if mnemonic == "sub" {
+                out.push(one("or", "a".into()));
+            }
+            out.extend([one("ex", "de,hl".into()), one(real, format!("hl,{src}")), one("ex", "de,hl".into())]);
+            out
+        }
+        ("sub", [Op::Pair(Pair::Hl), Op::Pair(Pair::Bc | Pair::De | Pair::Hl | Pair::Sp)]) => vec![one("or", "a".into()), one("sbc", operands.to_string())],
+        _ => return None,
+    })
+}
+
 fn operand(text: &str) -> Op {
     let text = text.trim();
     let lower = text.to_ascii_lowercase();
@@ -239,16 +348,17 @@ struct Values<'l, 'p, 'a> {
 impl Values<'_, '_, '_> {
     fn byte(&mut self, text: &str) -> Result<u8, String> {
         let value = self.line.eval(text)?;
-        if self.line.checking() && !(-128..=255).contains(&value) {
-            return Err(too_big(text, value, "a byte"));
+        // As sjasmplus does, a value too big is cut to fit, with a warning.
+        if self.line.checking() && !(-256..=255).contains(&value) {
+            self.line.warn(format!("{}; its low byte is used", too_big(text, value, "a byte")));
         }
         Ok(value as u8)
     }
 
     fn word(&mut self, text: &str) -> Result<[u8; 2], String> {
         let value = self.line.eval(text)?;
-        if self.line.checking() && !(-32768..=65535).contains(&value) {
-            return Err(too_big(text, value, "16 bits"));
+        if self.line.checking() && !(-65536..=65535).contains(&value) {
+            self.line.warn(format!("{}; its low 16 bits are used", too_big(text, value, "16 bits")));
         }
         Ok((value as u16).to_le_bytes())
     }
@@ -330,6 +440,36 @@ impl Isa for Z80 {
     }
 
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
+        // sjasmplus's lists of operands: with --syntax=a, LD A,B,,C,D is two LDs; without it, SUB A,B is SUB A then
+        // SUB B (a trap its documentation warns of), and LD A,B,C,D two LDs.
+        if let Some(double) = line.sjasm_lists() {
+            let lists: Option<Vec<String>> = if double {
+                operands.contains(",,").then(|| operands.split(",,").map(str::to_string).collect())
+            } else {
+                let items = split_operands(operands);
+                match mnemonic {
+                    // SUB HL,BC and SUB DE,BC are fake instructions, not lists.
+                    "sub" | "and" | "or" | "xor" | "cp" if items.len() > 1 && !matches!(operand(&items[0]), Op::Pair(_)) => Some(items),
+                    "ld" if items.len() >= 4 && items.len().is_multiple_of(2) => Some(items.chunks(2).map(|pair| pair.join(",")).collect()),
+                    _ => None,
+                }
+            };
+            if let Some(lists) = lists {
+                let mut out = Vec::new();
+                for operands in lists {
+                    out.extend(self.encode(mnemonic, operands.trim(), line)?);
+                }
+                return Ok(out);
+            }
+        }
+        // sjasmplus's fake instructions, made of real ones, and its lists: PUSH HL, DE is PUSH HL : PUSH DE.
+        if let Some(parts) = fake(mnemonic, operands) {
+            let mut out = Vec::new();
+            for (m, o) in parts {
+                out.extend(self.encode(&m, &o, line)?);
+            }
+            return Ok(out);
+        }
         if let Some((_, bytes)) = PLAIN.iter().find(|(name, _)| *name == mnemonic) {
             if !operands.is_empty() {
                 return Err(format!("{} takes nothing after it", mnemonic.to_ascii_uppercase()));
@@ -421,18 +561,13 @@ impl Isa for Z80 {
                 let cc = condition(&texts[0]).ok_or_else(|| format!("{} isn't a condition", texts[0]))?;
                 Ok(build(None, &[0xC4 | cc << 3], None, &v.word(&texts[1])?))
             }
-            ("jr", [target]) => {
-                let target = value_text(target).ok_or_else(not_address)?;
-                Ok(vec![0x18, v.relative(target)?])
-            }
+            // A label may be named like a register (DE, say): after JR and DJNZ it can only be the label.
+            ("jr", [_]) => Ok(vec![0x18, v.relative(&texts[0])?]),
             ("jr", [_, _]) => {
                 let cc = condition(&texts[0]).filter(|cc| *cc < 4).ok_or_else(|| format!("JR can't use the condition {}", texts[0]))?;
                 Ok(vec![0x20 | cc << 3, v.relative(&texts[1])?])
             }
-            ("djnz", [target]) => {
-                let target = value_text(target).ok_or_else(not_address)?;
-                Ok(vec![0x10, v.relative(target)?])
-            }
+            ("djnz", [_]) => Ok(vec![0x10, v.relative(&texts[0])?]),
             ("ret", []) => Ok(vec![0xC9]),
             ("ret", [_]) => {
                 let cc = condition(&texts[0]).ok_or_else(|| format!("{} isn't a condition", texts[0]))?;
@@ -459,11 +594,11 @@ impl Isa for Z80 {
                     wrong()
                 }
             }
-            (rotate, [op]) if ROTATES.contains(&rotate) || rotate == "sl1" => {
+            (rotate, [op]) if ROTATES.contains(&rotate) || rotate == "sl1" || rotate == "sli" => {
                 let n = ROTATES.iter().position(|r| *r == rotate).unwrap_or(6) as u8;
                 bits(n << 3, op, None, &mut v).unwrap_or_else(wrong)
             }
-            (rotate, [op, Op::R(copy, None)]) if ROTATES.contains(&rotate) || rotate == "sl1" => {
+            (rotate, [op, Op::R(copy, None)]) if ROTATES.contains(&rotate) || rotate == "sl1" || rotate == "sli" => {
                 let n = ROTATES.iter().position(|r| *r == rotate).unwrap_or(6) as u8;
                 bits(n << 3, op, Some(*copy), &mut v).unwrap_or_else(wrong)
             }
@@ -486,7 +621,7 @@ impl Isa for Z80 {
             }
             // The Next's.
             ("mirror", [] | [Op::R(7, None)]) => Ok(vec![0xED, 0x24]),
-            ("mul", [] | [Op::R(2, None), Op::R(3, None)]) => Ok(vec![0xED, 0x30]),
+            ("mul", [] | [Op::R(2, None), Op::R(3, None)] | [Op::Pair(Pair::De)]) => Ok(vec![0xED, 0x30]),
             ("test", [Op::Value(value)]) => Ok(vec![0xED, 0x27, v.byte(value)?]),
             ("nextreg", [Op::Value(register), Op::R(7, None)]) => Ok(vec![0xED, 0x92, v.byte(register)?]),
             ("nextreg", [Op::Value(register), Op::Value(value)]) => Ok(vec![0xED, 0x91, v.byte(register)?, v.byte(value)?]),

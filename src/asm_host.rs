@@ -209,6 +209,28 @@ impl Limoniter {
             }
             _ => None,
         };
+        // The files the source asks for (SAVENEX, SAVEBIN and the rest) are written beside it, as sjasmplus would.
+        let written = if report && assembled.assembly.ok() && !assembled.assembly.outputs.is_empty() {
+            let folder = self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf);
+            match folder {
+                Some(folder) => assembled
+                    .assembly
+                    .outputs
+                    .iter()
+                    .map(|output| {
+                        let path = folder.join(&output.name);
+                        let result = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| crate::codec::write_file(&path, &output.bytes));
+                        match result {
+                            Ok(()) => format!("Wrote {} ({} bytes).", path.display(), output.bytes.len()),
+                            Err(e) => format!("{} couldn't be written: {e}", path.display()),
+                        }
+                    })
+                    .collect(),
+                None => vec!["Save the source first, so the files it asks for can be written beside it.".to_string()],
+            }
+        } else {
+            Vec::new()
+        };
         let runnable = match made {
             Ok(Made::Run(run)) => Ok(run),
             Ok(Made::Saved { .. }) => Err(String::new()),
@@ -217,6 +239,9 @@ impl Limoniter {
         if report {
             self.report_assembly(doc_id, choice, &assembled, &runnable);
             if let Some(words) = saved {
+                self.script_print(words, false);
+            }
+            for words in written {
                 self.script_print(words, false);
             }
         }
@@ -240,6 +265,10 @@ impl Limoniter {
         for problem in &assembly.problems {
             let file = assembly.files.get(problem.file).map(|f| f.display().to_string()).unwrap_or_else(|| name.clone());
             lines.push(format!("{file}({}): {}", problem.line + 1, problem.message));
+        }
+        for warning in &assembly.warnings {
+            let file = assembly.files.get(warning.file).map(|f| f.display().to_string()).unwrap_or_else(|| name.clone());
+            lines.push(format!("{file}({}): warning: {}", warning.line + 1, warning.message));
         }
         lines.extend(assembly.notes.iter().map(|n| format!("> {n}")));
         match runnable {
@@ -503,6 +532,15 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runn
         return Runnable::from_file(&name, bytes.clone()).ok_or_else(|| format!("{name} isn't a program Limoniter knows how to run."));
     }
     let assembly = &assembled.assembly;
+    // A program the source made itself (SAVENEX, SAVESNA, SAVETAP) is the one run, as it was meant to be.
+    for ending in ["nex", "sna", "tap"] {
+        if let Some(output) = assembly.outputs.iter().rev().find(|o| Path::new(&o.name).extension().is_some_and(|e| e.eq_ignore_ascii_case(ending)) && !o.bytes.is_empty()) {
+            let name = Path::new(&output.name).file_name().map_or_else(|| output.name.clone(), |n| n.to_string_lossy().into_owned());
+            if let Some(run) = Runnable::from_file(&name, output.bytes.clone()) {
+                return Ok(run);
+            }
+        }
+    }
     if cpu == Cpu::M6502 {
         // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
         let bytes = crate::asm::output::commodore_program(assembly)?;

@@ -786,3 +786,31 @@ fn an_atari_st_program_runs_on_a_real_hatari() {
     app.stop_all_sessions();
     assert!(printed, "the program printed through TOS");
 }
+
+#[test]
+fn an_sjasmplus_next_project_writes_its_own_nex_and_runs_it() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-savenex-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("game.asm");
+    // Code in bank 5, and data paged into slot 7 from page 40 (bank 20), saved with SAVENEX.
+    std::fs::write(
+        &path,
+        "    DEVICE ZXSPECTRUMNEXT\n    ORG $6000\nstart: ld a,$$data\n    nextreg $57,a\n    jr $\n    MMU 7, 40, $E000\ndata: db 1,2,3\n    SAVENEX OPEN \"build/game.nex\", start, $FF00\n    SAVENEX CORE 3,0,0\n    SAVENEX AUTO\n    SAVENEX CLOSE\n",
+    )
+    .unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    let run = app.assemble_to_run(crate::assemblers::Cpu::Z80, true).unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Next, crate::running::Format::Nex, "game.nex"));
+    let written = std::fs::read(folder.join("build/game.nex")).expect("written where the source says, its folder made");
+    assert_eq!(written, *run.bytes);
+    assert_eq!(&written[..8], b"NextV1.2");
+    assert_eq!((written[18 + 5], written[18 + 20], written[9]), (1, 1, 2), "banks 5 and 20 stored");
+    // Bank 5's first bytes are the code: LD A,40 (the page data's in).
+    assert_eq!(&written[512 + 0x2000..512 + 0x2002], &[0x3E, 40]);
+    assert!(app.script_output.iter().any(|l| l.starts_with("Wrote ") && l.contains("game.nex")), "{:?}", app.script_output);
+    let _ = std::fs::remove_dir_all(&folder);
+}
