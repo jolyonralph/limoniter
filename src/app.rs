@@ -208,6 +208,11 @@ enum Command {
     PixelEditor,
     ScreenDesigner,
     ToggleTerminal,
+    /// A task, by its place in the list of those here.
+    RunTask(usize),
+    BuildTask,
+    TestTask,
+    EditTasks,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -1254,6 +1259,7 @@ enum Dialog {
     RenameLabel(Box<intel_host::RenameBox>),
     Disassemble(Box<disasm_host::DisasmBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
+    Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
     AssistReview(assistant::Review),
 }
@@ -1274,6 +1280,9 @@ pub struct Limoniter {
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
     terminal: Option<Box<crate::terminal::Terminal>>,
+    /// A task running, and the last test task's results.
+    task_run: Option<tasks_host::TaskRun>,
+    test_panel: Option<tasks_host::TestPanel>,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1547,6 +1556,8 @@ impl Limoniter {
             screen_designer: None,
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
+            task_run: None,
+            test_panel: None,
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -2391,7 +2402,9 @@ impl Limoniter {
             self.open_path(&path);
         }
         self.keep_tags();
-        busy |= self.check_run_tool();
+        let running = self.check_run_tool();
+        busy |= running;
+        self.task_tick(running);
         busy |= self.check_split();
         busy |= self.check_assistant();
         self.spelling_tick();
@@ -3574,6 +3587,14 @@ impl Limoniter {
             Command::RenameLabel => self.open_rename_box(),
             Command::Disassemble => self.open_disassemble_box(),
             Command::ToggleTerminal => self.toggle_terminal(),
+            Command::RunTask(index) => {
+                if let Some(task) = self.tasks_here().get(index).cloned() {
+                    self.run_task(task);
+                }
+            }
+            Command::BuildTask => self.run_build_task(),
+            Command::TestTask => self.run_test_task(),
+            Command::EditTasks => self.edit_project_tasks(),
             Command::ScreenDesigner => {
                 if self.screen_designer.is_none() {
                     let mut designer = crate::screen_designer::Designer::default();
@@ -4107,6 +4128,8 @@ impl Limoniter {
             (Modifiers::NONE, Key::F5, Command::RunTool),
             (Modifiers::NONE, Key::F9, Command::RunOnMachine),
             (Modifiers::CTRL, Key::Backtick, Command::ToggleTerminal),
+            (ctrl_shift, Key::B, Command::BuildTask),
+            (ctrl_shift, Key::T, Command::TestTask),
             (Modifiers::NONE, Key::F12, Command::GoToDefinition),
             (Modifiers::SHIFT, Key::F12, Command::FindUses),
             (ctrl, Key::F12, Command::RenameLabel),
@@ -5403,7 +5426,7 @@ impl Limoniter {
             ui.label(if doc.hex_mode { doc.hex.position_text() } else { doc.text.position_text() });
             // A language server's problem with the line.
             if doc.text.code.is_none()
-                && let Some((_, problem)) = doc.text.intel.as_ref().and_then(|i| i.diagnostics.iter().find(|(l, _)| *l == doc.text.caret_line))
+                && let Some((_, problem)) = doc.text.intel.as_ref().and_then(|i| i.diagnostics.iter().chain(&i.build_problems).find(|(l, _)| *l == doc.text.caret_line))
             {
                 ui.colored_label(theme::problem_mark(), problem.clone());
             }
@@ -5753,7 +5776,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.language_servers_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -6522,6 +6545,9 @@ impl Limoniter {
         }
         if self.terminal.is_some() {
             self.terminal_panel(ui);
+        }
+        if self.test_panel.is_some() {
+            self.tests_panel(ui);
         }
         if self.show_results {
             self.results_panel(ui);
@@ -7310,6 +7336,9 @@ mod pixel_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;
+
+#[path = "tasks_host.rs"]
+mod tasks_host;
 
 #[path = "live_host.rs"]
 mod live_host;

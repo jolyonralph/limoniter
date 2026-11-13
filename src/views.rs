@@ -1850,7 +1850,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         }
         // A language server's problems, marked as the assembler's are.
         if b.code.is_none()
-            && let Some(intel) = b.intel.as_ref().filter(|i| i.diagnostics.iter().any(|(l, _)| *l == slot.line))
+            && let Some(intel) = b.intel.as_ref().filter(|i| i.diagnostics.iter().chain(&i.build_problems).any(|(l, _)| *l == slot.line))
         {
             let _ = intel;
             let row = Rect::from_min_max(pos2(view.min.x + gutter, row_y(index)), pos2(view.max.x, row_y(index) + cell.y));

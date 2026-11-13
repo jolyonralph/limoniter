@@ -1119,7 +1119,7 @@ impl Limoniter {
             egui::ScrollArea::both().id_salt("script-output").auto_shrink([false, false]).stick_to_bottom(true).show_rows(ui, row, self.script_output.len(), |ui, range| {
                 for line in &self.script_output[range] {
                     // A place, as compilers and assemblers print them, goes there when clicked.
-                    match crate::assemblers::problem_line(line) {
+                    match crate::assemblers::problem_line(line).or_else(|| crate::tasks::place_in(line)) {
                         Some((file, number, _)) => {
                             if ui.add(egui::Label::new(RichText::new(line).monospace().color(theme::accent())).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click())).on_hover_text("Go to this line").clicked() {
                                 go_to = Some((file, number));
@@ -1136,7 +1136,12 @@ impl Limoniter {
             self.stop_tool();
         }
         if let Some((file, line)) = go_to {
-            self.go_to_place(&file, line);
+            // A path from a task is from the folder it ran in.
+            let from_task = self.task_folder().map(|folder| folder.join(&file)).filter(|p| !Path::new(&file).is_absolute() && p.is_file());
+            match from_task {
+                Some(path) => self.go_to_place(&path.display().to_string(), line),
+                None => self.go_to_place(&file, line),
+            }
         }
         if close {
             self.script_output.clear();

@@ -28,6 +28,8 @@ pub struct CodeIntel {
     /// Set when new words come, so the list opens with them.
     pub lsp_fresh: bool,
     pub lsp_hover: Option<(usize, usize, String)>,
+    /// What the last build task said about this file, by line.
+    pub build_problems: Vec<(usize, String)>,
 }
 
 impl PartialEq for CodeIntel {

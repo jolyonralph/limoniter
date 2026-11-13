@@ -91,7 +91,7 @@ impl Limoniter {
                 Some(dialect) if doc.text.intel.as_ref().is_none_or(|i| i.cpu.is_some() || i.words.is_empty()) => doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::keywords(basic::keywords(dialect)))),
                 Some(_) => {}
                 // What a language server says is kept.
-                None if doc.text.intel.as_ref().is_some_and(|i| i.lsp) => {}
+                None if doc.text.intel.as_ref().is_some_and(|i| i.lsp || !i.build_problems.is_empty()) => {}
                 None => doc.text.intel = None,
             }
             return;

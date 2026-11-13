@@ -68,6 +68,7 @@ pub(super) enum Live {
     Machines,
     RecentFiles,
     NewAs,
+    Tasks,
     RecentProjects,
     Language,
     Macros,
@@ -480,6 +481,16 @@ const TOOLS: &[Entry] = &[
     Item("Disassemble\u{2026}", Command::Disassemble),
     Item("Character and sprite editor", Command::PixelEditor),
     Item("Spectrum screen designer", Command::ScreenDesigner),
+    Sub(
+        "Tasks",
+        &[
+            Entry::Live("Run", Live::Tasks),
+            Line,
+            Keyed("Build", Command::BuildTask, "Ctrl+Shift+B"),
+            Keyed("Test", Command::TestTask, "Ctrl+Shift+T"),
+            Item("Edit the project's tasks\u{2026}", Command::EditTasks),
+        ],
+    ),
     Line,
     Sub(
         "Git",
@@ -1009,6 +1020,18 @@ impl Limoniter {
                 for path in self.panels.recent.iter().take(15) {
                     if ui.button(name_of(path)).on_hover_text(path.display().to_string()).clicked() {
                         picks.push(Pick::File(path.clone()));
+                        ui.close();
+                    }
+                }
+            }
+            Live::Tasks => {
+                let tasks = self.tasks_here();
+                if tasks.is_empty() {
+                    empty(ui, "No tasks here: none of Cargo.toml, a Makefile, package.json, go.mod or CMakeLists.txt above the file, and no project tasks.");
+                }
+                for (index, task) in tasks.iter().enumerate() {
+                    if ui.add(Button::new(task.name.as_str()).shortcut_text(RichText::new(task.kind.label()).color(theme::text_faint()))).on_hover_text(&task.command).clicked() {
+                        picks.push(Pick::Command(Command::RunTask(index)));
                         ui.close();
                     }
                 }

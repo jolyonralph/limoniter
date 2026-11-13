@@ -213,6 +213,8 @@ Switched on under **View, Panels**:
 
 - Count words; SHA-256 fingerprint; convert a number between decimal, hex and binary; copy the file's path.
 - **Terminal** (View, **Ctrl+`**): your shell (PowerShell on Windows, your own elsewhere) in a panel under the text, in the folder of the file in front, on a real pseudo-terminal (ConPTY on Windows), so colours, the cursor keys and full-screen programs work as in any terminal. Restart gives a fresh shell; closing it ends it.
+- **Tasks** (Tools, Tasks): build, run and test commands, found from a project's own files (Cargo, a Makefile's targets, package.json's scripts, Go, pytest, CMake) or kept with a Limoniter project (Edit the project's tasks), run in the project's folder with everything open saved first. **Ctrl+Shift+B** runs the build task and **Ctrl+Shift+T** the test task. Where compilers and tools say problems are (gcc, clang, rustc, Go, Python tracebacks, MSVC, the assemblers) is a click away in the Output panel, and marked by its line in the files open.
+- **Test results**: a test task's output (cargo test, pytest, go test) is read test by test into a panel, failures first, each a click away from where it failed, with **Run again** and **Run only this** for a failing test.
 - Run a command (**F5**) in the file's folder, with `%FILE%`, `%NAME%`, `%STEM%` and `%DIR%`; output goes to the Output panel.
 - Projects: a named set of files with notes, backups and restore; paths kept relative so a project can be moved.
 - File, This file: rename, show in Explorer, open in its usual program, or split into parts. Save just the selection.

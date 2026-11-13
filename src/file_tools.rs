@@ -888,6 +888,11 @@ impl Limoniter {
 
     /// Runs a command line on the file in front, with what it prints in the Output panel.
     pub(super) fn run_tool(&mut self, line: &str, save_first: bool) -> Result<(), String> {
+        self.run_tool_in(line, save_first, None)
+    }
+
+    /// The same, in a folder of its own choosing rather than the file's.
+    pub(super) fn run_tool_in(&mut self, line: &str, save_first: bool, folder_wanted: Option<PathBuf>) -> Result<(), String> {
         if self.run_job.is_some() {
             return Err("A command is still running. Stop it first, in the Output panel.".into());
         }
@@ -902,7 +907,7 @@ impl Limoniter {
                 return Err("The file is being saved. Run it again once that's finished.".into());
             }
         }
-        let folder = path.as_deref().and_then(Path::parent).map(Path::to_path_buf).or_else(|| std::env::current_dir().ok());
+        let folder = folder_wanted.or_else(|| path.as_deref().and_then(Path::parent).map(Path::to_path_buf)).or_else(|| std::env::current_dir().ok());
         let wake = self.waker.clone();
         let job = start_run(&expanded, folder.as_deref(), move || {
             if let Some(ctx) = &wake {

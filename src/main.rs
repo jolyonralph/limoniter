@@ -63,6 +63,7 @@ mod screen_designer;
 mod profiler;
 mod lsp;
 mod terminal;
+mod tasks;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

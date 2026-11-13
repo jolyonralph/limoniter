@@ -23,6 +23,8 @@ pub struct Project {
     pub files: Vec<PathBuf>,
     /// The files that were open when the project was last closed.
     pub open_files: Vec<PathBuf>,
+    /// Build, run and test commands of the project's own, run in its folder.
+    pub tasks: Vec<crate::tasks::Task>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -85,6 +87,7 @@ impl Project {
             "notes": self.notes,
             "files": list(&self.files),
             "open_files": list(&self.open_files),
+            "tasks": self.tasks.iter().map(|t| json!({ "name": t.name, "command": t.command, "kind": t.kind.id() })).collect::<Vec<_>>(),
         });
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
@@ -97,7 +100,10 @@ impl Project {
         let base = folder_of(path);
         let list = |name: &str| -> Vec<PathBuf> { value.get(name).and_then(Value::as_array).map_or_else(Vec::new, |items| items.iter().filter_map(Value::as_str).map(|item| resolved(&base, item)).collect()) };
         let text_of = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files") };
+        let tasks = value.get("tasks").and_then(Value::as_array).map_or_else(Vec::new, |items| {
+            items.iter().filter_map(|t| Some(crate::tasks::Task { name: t.get("name")?.as_str()?.to_string(), command: t.get("command")?.as_str()?.to_string(), kind: crate::tasks::Kind::from_id(t.get("kind").and_then(Value::as_str).unwrap_or("")) })).collect()
+        });
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
