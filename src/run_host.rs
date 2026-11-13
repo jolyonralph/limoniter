@@ -619,6 +619,19 @@ impl Limoniter {
         }
     }
 
+    /// For a screenshot: the built-in machines run on for a number of frames, as if that much time had passed.
+    pub(super) fn run_frames_for_screenshot(&mut self, frames: usize) {
+        for session in &mut self.running.sessions {
+            if let SessionKind::BuiltIn { machine, .. } = &mut session.kind {
+                for _ in 0..frames {
+                    if machine.frame().is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     /// The addresses of a document's breakpoints, in the program assembled from it.
     pub(super) fn breakpoint_addresses(&self, doc_id: u64) -> Vec<u16> {
         match (self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id), self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.text.code.as_ref())) {

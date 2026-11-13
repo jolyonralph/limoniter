@@ -277,6 +277,37 @@ fn z80_source_is_assembled_and_runs_on_the_built_in_spectrum() {
     app.stop_all_sessions();
 }
 
+/// The rainbow example: bright paper stripes in rainbow order, one colour on per row and per column, moving.
+#[test]
+fn the_rainbow_example_colours_the_screen_in_diagonal_stripes() {
+    let (mut app, _ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");
+    let text = include_str!("asm/testdata/rainbow.asm");
+    z80_source(&mut app, &text.lines().collect::<Vec<_>>());
+    app.run_on_machine();
+    let session = app.running.sessions.iter_mut().find(|s| s.target == run_host::BUILT_IN_NAME).expect("it runs");
+    let run_host::SessionKind::BuiltIn { machine, .. } = &mut session.kind else { panic!() };
+    let rainbow = [64 + 2 * 8, 64 + 6 * 8, 64 + 4 * 8, 64 + 5 * 8, 64 + 8, 64 + 3 * 8];
+    let at = |machine: &crate::zx_machine::BuiltIn, row: u16, column: u16| machine.peek(0x5800 + row * 32 + column);
+    let mut seen = None;
+    for _ in 0..50 * 20 {
+        machine.frame().unwrap();
+        if rainbow.contains(&at(machine, 23, 31)) {
+            seen = Some(at(machine, 0, 0));
+            break;
+        }
+    }
+    let first = seen.expect("the stripes were drawn");
+    let index = rainbow.iter().position(|c| *c == first).unwrap();
+    for (row, column) in [(0, 1), (1, 0), (5, 7), (23, 31)] {
+        assert_eq!(at(machine, row, column), rainbow[(index + usize::from(row + column)) % 6], "row {row}, column {column}");
+    }
+    for _ in 0..10 {
+        machine.frame().unwrap();
+    }
+    assert_ne!(at(machine, 0, 0), first, "the stripes move");
+    app.stop_all_sessions();
+}
+
 #[test]
 fn assembler_problems_are_listed_marked_and_gone_to() {
     let (mut app, _ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");

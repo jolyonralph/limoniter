@@ -289,7 +289,8 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
         "tap" if !at(0, b"C64-TAPE-RAW") && head.len() >= 3 && usize::from(u16::from_le_bytes([head[0], head[1]])) >= 2 => return Some(Format::ZxTape),
         "trd" if head.get(0x8E7) == Some(&0x10) => return Some(Format::TrDos),
         "mdr" if len >= 543 => return Some(Format::Microdrive),
-        "z80" if len >= 30 => return Some(Format::Z80),
+        // .z80 is also Z80 assembler source, which is text; a snapshot's registers and memory have control codes.
+        "z80" if len >= 30 && head.iter().take(4096).any(|b| *b < 9 || (14..32).contains(b)) => return Some(Format::Z80),
         "sna" if len == 49_179 || len == 131_103 || len == 147_487 => return Some(Format::Sna),
         _ => {}
     }

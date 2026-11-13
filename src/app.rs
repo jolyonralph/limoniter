@@ -5877,6 +5877,7 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
                 "git-wizard" => {
                     self.open_git_wizard();
                     if let Some(wizard) = &mut self.git.wizard {
@@ -8394,6 +8395,17 @@ mod tests {
         let screen = app.preview_screen.as_ref().unwrap();
         assert_eq!(screen.rows.len(), 25);
         assert_eq!((screen.rows[0][1].ch, screen.rows[0][1].fg), ('T', crate::retro_screens::TELETEXT[1]));
+    }
+
+    #[test]
+    fn z80_source_opens_as_text_and_a_z80_snapshot_as_a_snapshot() {
+        let (mut app, _ctx) = app_with("");
+        let source = b"        org 32768\r\nstart:  ld a,2\r\n        ret\r\n";
+        let path = temp_file("source.tmp", source).with_extension("z80");
+        std::fs::write(&path, source).unwrap();
+        assert!(app.open_path(&path));
+        assert!(app.docs[app.active].browser.is_none(), "assembler source isn't a snapshot");
+        assert_eq!(&*app.docs[app.active].text.line(1), "start:  ld a,2");
     }
 
     #[test]
