@@ -519,6 +519,8 @@ struct TextLayout {
     font: FontId,
     cell: Vec2,
     gutter: f32,
+    /// Room after the line numbers for the Git marks.
+    git_space: f32,
     ruler_h: f32,
     options: ViewOptions,
     caret_on: bool,
@@ -567,7 +569,9 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     let digits = (buffer.line_count() + buffer.line_offset).to_string().len().max(4);
     let mark_width = if options.bookmark_gutter { cell.x } else { 0.0 };
     let fold_width = if options.fold_lines && (pane.filter.is_none() || pane.folded) && !buffer.is_disk_backed() { cell.x } else { 0.0 };
-    let gutter = mark_width + fold_width + if options.line_numbers { (digits + 1) as f32 * cell.x } else { cell.x };
+    // Room for the marks of what's changed since the last commit, when the file is in a Git repository.
+    let git_space = if options.line_change && buffer.git_marks.is_some() { 6.0 } else { 0.0 };
+    let gutter = mark_width + fold_width + git_space + if options.line_numbers { (digits + 1) as f32 * cell.x } else { cell.x };
 
     let outer = ui.available_rect_before_wrap();
     ui.allocate_rect(outer, Sense::hover());
@@ -766,7 +770,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         state.cell_state = Some((buffer.version(), first_line, found));
         found
     };
-    let layout = TextLayout { font, cell, gutter, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width };
+    let layout = TextLayout { font, cell, gutter, git_space, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
     command
 }
@@ -1535,6 +1539,23 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             let bottom = row_y(index) + cell.y - if slot.line == last && slot_is_last(&l.slots, index) { 1.0 } else { 0.0 };
             painter.rect_filled(Rect::from_min_max(pos2(view.min.x, top), pos2(view.min.x + TAG_BLOCK, bottom)), 0.0, theme::tag_colour(colour));
         }
+        // Its change since the last commit, beside that: added, changed, or lines taken out above it.
+        if l.options.line_change
+            && let Some(Some(mark)) = b.git_marks.as_ref().and_then(|marks| marks.get(slot.line))
+        {
+            let x = view.min.x + gutter - cell.x * 0.75 - l.git_space + 2.0;
+            match mark {
+                crate::git::Mark::DeletedAbove if slot.sub == 0 => {
+                    let top = row_y(index);
+                    painter.add(egui::Shape::convex_polygon(vec![pos2(x, top - 3.0), pos2(x + 5.0, top), pos2(x, top + 3.0)], theme::git_deleted(), Stroke::NONE));
+                }
+                crate::git::Mark::DeletedAbove => {}
+                added_or_changed => {
+                    let colour = if *added_or_changed == crate::git::Mark::Added { theme::git_added() } else { theme::git_changed() };
+                    painter.rect_filled(Rect::from_min_size(pos2(x, row_y(index)), vec2(3.0, cell.y)), 0.0, colour);
+                }
+            }
+        }
         // A changed line's mark runs down all of its rows.
         if l.options.line_change
             && let Some(saved) = b.change_at(slot.line)
@@ -1561,7 +1582,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             painter.rect_filled(mark, 2.0, crate::panels::BOOKMARK_COLOR);
         }
         if l.options.line_numbers {
-            let right = view.min.x + gutter - cell.x * 0.75;
+            let right = view.min.x + gutter - cell.x * 0.75 - l.git_space;
             painter.text(pos2(right, row_y(index) + 1.0), Align2::RIGHT_TOP, slot.line + 1 + b.line_offset, f.clone(), theme::gutter_text());
         }
     }

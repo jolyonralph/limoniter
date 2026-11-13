@@ -198,6 +198,12 @@ enum Command {
     MachineScreen,
     MachineBasicOut,
     MachineBasicIn,
+    SourceControl,
+    GitWizard,
+    GitCompareHead,
+    GitHistory,
+    GitStageChange,
+    GitUndoChange,
     Themes,
     Website,
     ToggleTable,
@@ -274,6 +280,8 @@ impl Command {
                 | Command::MachineMemory
                 | Command::MachineScreen
                 | Command::MachineBasicOut
+                | Command::SourceControl
+                | Command::GitWizard
                 | Command::Settings
                 | Command::ProjectOpen
                 | Command::ProjectNew
@@ -1170,6 +1178,7 @@ enum Dialog {
     Send(Box<deploy_host::SendBox>),
     Devices(Box<deploy_host::DevicesBox>),
     Run(Box<run_host::RunBox>),
+    GitHistory(Box<git_host::HistoryBox>),
     Palette(menus::PaletteState),
     Script(script_host::ScriptBox),
     GoTo { value: String, error: String },
@@ -1314,6 +1323,7 @@ pub struct Limoniter {
     /// Devices files are sent to, and sends under way.
     sends: deploy_host::Sends,
     running: run_host::Running,
+    git: git_host::GitState,
     /// The Amiga's pens for ANSI previews, and the table that changes them.
     amiga_palette: crate::ansi_art::AmigaPalette,
     palette_editor: crate::amiga_palette_ui::PaletteEditor,
@@ -1449,6 +1459,7 @@ impl Limoniter {
             remote_root,
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
+            git: git_host::GitState::from_settings(&settings),
             amiga_palette: crate::ansi_art::AmigaPalette::from_settings(&settings),
             palette_editor: Default::default(),
             themes: theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light),
@@ -2302,6 +2313,7 @@ impl Limoniter {
     fn check_background_work(&mut self, ctx: &Context) {
         self.send_saved_remotes();
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
+        busy |= self.git_tick(ctx);
         if self.follow_live_views() {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
@@ -3372,6 +3384,11 @@ impl Limoniter {
                 | Command::MachineScreen
                 | Command::MachineBasicOut
                 | Command::MachineBasicIn
+                | Command::SourceControl
+                | Command::GitWizard
+                | Command::GitCompareHead
+                | Command::GitHistory
+                | Command::GitStageChange
                 | Command::ToggleTable
                 | Command::AddOn(_)
                 | Command::ShowScripts
@@ -3485,6 +3502,15 @@ impl Limoniter {
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
             Command::MachineBasicIn => self.put_machine_basic(),
+            Command::SourceControl => {
+                self.git.open = !self.git.open;
+                self.git.refresh();
+            }
+            Command::GitWizard => self.open_git_wizard(),
+            Command::GitCompareHead => self.compare_with_commit("HEAD"),
+            Command::GitHistory => self.git_history(),
+            Command::GitStageChange => self.stage_change_at_cursor(),
+            Command::GitUndoChange => self.undo_change_at_cursor(),
             Command::ToggleTable => self.toggle_table(),
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::Website => {
@@ -3989,6 +4015,7 @@ impl Limoniter {
             (ctrl_shift, Key::P, Command::PlayMacro),
             (ctrl_shift, Key::S, Command::SaveAs),
             (ctrl_shift, Key::F, Command::FindInFiles),
+            (ctrl_shift, Key::G, Command::SourceControl),
             (ctrl, Key::N, Command::New),
             (ctrl, Key::O, Command::Open),
             (ctrl, Key::P, Command::Print),
@@ -4084,7 +4111,7 @@ impl Limoniter {
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
             self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>(),
-            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.amiga_palette.to_setting().as_str() + self.themes.to_settings().as_str(),
+            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.git.to_settings().as_str() + self.amiga_palette.to_setting().as_str() + self.themes.to_settings().as_str(),
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
@@ -5233,6 +5260,9 @@ impl Limoniter {
             if let Some(status) = self.remote_status() {
                 ui.colored_label(theme::accent(), status);
             }
+            if let Some(blame) = &self.git.blame_line {
+                ui.label(faint(blame.clone()));
+            }
             if let Some(view) = &doc.live {
                 let words = match &view.problem {
                     Some(problem) => problem.clone(),
@@ -5591,7 +5621,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5805,6 +5835,13 @@ impl Limoniter {
     fn screenshot_step(&mut self, step: &str) {
         if let Some((name, value)) = step.split_once(':') {
             match name {
+                "git-wizard" => {
+                    self.open_git_wizard();
+                    if let Some(wizard) = &mut self.git.wizard {
+                        use git_wizard::Step;
+                        wizard.step = [Step::Welcome, Step::Install, Step::Identity, Step::Project, Step::Online, Step::Done][value.parse::<usize>().unwrap_or(0).min(5)];
+                    }
+                }
                 "compare-with" => {
                     let lines = Self::lines_of_file_on_disk(Path::new(value));
                     self.show_comparison(lines);
@@ -5874,6 +5911,10 @@ impl Limoniter {
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
                 "themes-rules" => self.open_theme_box(theme_host::ThemePage::Rules),
                 "basic-listing" => self.open_basic_listing(),
+                "git-panel" => {
+                    self.git.open = true;
+                    self.git.blame_on = true;
+                }
                 "amiga-ansi" => {
                     let doc = self.doc();
                     doc.text.format.charset = charset::known("amiga-text");
@@ -6192,6 +6233,7 @@ impl Limoniter {
             self.find_panel(ui);
         }
         self.side_panels(ui);
+        self.git_panel(ui);
         self.machine_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
         self.full_preview_shown = full_preview;
@@ -6204,6 +6246,8 @@ impl Limoniter {
         if !self.no_file() {
             self.check_for_table();
             self.table_offer_bar(ui);
+            self.git_offer_bar(ui);
+            self.conflict_bar(ui);
         }
         if self.show_results {
             self.results_panel(ui);
@@ -6972,6 +7016,16 @@ mod run_host;
 
 #[path = "live_host.rs"]
 mod live_host;
+
+#[path = "git_host.rs"]
+mod git_host;
+
+#[path = "git_wizard.rs"]
+mod git_wizard;
+
+#[cfg(test)]
+#[path = "git_host_tests.rs"]
+mod git_host_tests;
 
 #[cfg(test)]
 #[path = "run_host_tests.rs"]

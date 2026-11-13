@@ -422,6 +422,21 @@ pub fn window_theme() -> Rc<WindowTheme> {
     WINDOW.with(|cell| cell.borrow().clone())
 }
 
+/// Lines added since the last commit, in the margin: the theme's own green for saved changes.
+pub fn git_added() -> Color32 {
+    change_saved()
+}
+
+/// Lines changed since the last commit: a mid blue that reads on light and dark margins alike.
+pub fn git_changed() -> Color32 {
+    Color32::from_rgb(70, 140, 230)
+}
+
+/// Where lines were taken out since the last commit.
+pub fn git_deleted() -> Color32 {
+    Color32::from_rgb(220, 80, 80)
+}
+
 #[cfg(test)]
 pub fn document_theme() -> Rc<DocumentTheme> {
     DOCUMENT.with(|cell| cell.borrow().clone())

@@ -229,6 +229,8 @@ pub struct TextBuffer {
     pub reveal: bool,
     /// Something the window should tell the person, such as a command being refused.
     pub notice: Option<String>,
+    /// Each line's change since the last commit, for the margin, when the file is in a Git repository.
+    pub git_marks: Option<std::sync::Arc<Vec<Option<crate::git::Mark>>>>,
 }
 
 /// Where a search has got to; large files are searched a little at a time between frames.
@@ -308,6 +310,7 @@ impl Default for TextBuffer {
             last_time: Instant::now(),
             max_visual: 0,
             reveal: false,
+            git_marks: None,
             notice: None,
         }
     }

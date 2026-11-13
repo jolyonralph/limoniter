@@ -29,6 +29,7 @@ mod encoding_ui;
 mod fold_multi_tests;
 mod find_files;
 mod formatters;
+mod git;
 mod byte_store;
 mod hex_buffer;
 mod highlight;

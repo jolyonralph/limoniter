@@ -243,6 +243,19 @@ Switched on under **View, Panels**:
 - An add-on's `on_send` function runs first, and can see the device (`send_device()`) and change the name the file is sent as (`set_send_name()`).
 - Passwords for FTP and the Ultimate are kept, if you ask, in the system's credential store.
 
+## Git
+
+- **Source control** (**Ctrl+Shift+G**, or Tools › Git): the branch, what's changed, what's ready to commit, and anything in conflict. **+** puts a file in the next commit, **−** leaves it out, **↶** throws away its changes; write what the commit does and press **Commit** (with nothing staged, every change to files Git has goes in). **Add to the last commit** folds them into it.
+- **Push**, **Pull** (only when it simply follows on, so nothing is merged by surprise) and **Fetch**, with how far ahead or behind the branch is; switch branches, or make a new one. Git runs in the background, and its own sign-in window, SSH keys and signing work as they do at a command line; Limoniter never holds a Git password.
+- Marks beside the line numbers show what's changed since the last commit: green for new lines, blue for changed ones, and a red notch where lines were taken out. They follow your edits as you type.
+- **Put the change at the cursor in the next commit**, or **Undo the change at the cursor** (an edit, which Undo takes back).
+- **Compare with the last commit**, and a file's **History**: every commit that changed it, to compare with now or open as it was.
+- **Show who changed each line**: the author, date and commit of the line the cursor's on, in the status bar.
+- When a merge stops at a conflict, a bar over the file offers **Keep mine**, **Keep theirs** or **Keep both** for the conflict the cursor's in, goes to the next, and marks the file settled when they're all done.
+- **The Git wizard** takes someone who's never used Git from nothing to their first commit, and to their work online if they'd like: getting Git, their name and email, starting a folder's history (with a starting `.gitignore` to suit it and a first commit) or copying a project from GitHub, and connecting it to a new GitHub repository. Each step says what it does and why.
+- A folder that looks like a project, but isn't keeping its history, is offered Git once (**Show me how**, **Not now**, **Never for this folder**).
+- Git messages that people meet most come with a line on what to do, such as "Pull first, then Push".
+
 ## Running programs
 
 - **File › Run on machine** (**F9**) runs the file in front where its kind of program runs, asking the first time and remembering; **File › Run on** lists every place, and says why one can't take it.

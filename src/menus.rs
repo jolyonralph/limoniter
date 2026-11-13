@@ -32,6 +32,7 @@ pub(super) enum Flag {
     AlwaysOnTop,
     FullScreen,
     Spelling,
+    GitBlame,
     Panel(PanelFlag),
 }
 
@@ -463,6 +464,19 @@ const TOOLS: &[Entry] = &[
     Item("Convert a number", Command::ConvertNumber),
     Item("Copy the file's path", Command::CopyPath),
     Line,
+    Sub(
+        "Git",
+        &[
+            Keyed("Source control", Command::SourceControl, "Ctrl+Shift+G"),
+            Item("Compare with the last commit", Command::GitCompareHead),
+            Item("History of this file\u{2026}", Command::GitHistory),
+            Check("Show who changed each line", Flag::GitBlame),
+            Item("Put the change at the cursor in the next commit", Command::GitStageChange),
+            Item("Undo the change at the cursor", Command::GitUndoChange),
+            Line,
+            Item("Git wizard\u{2026}", Command::GitWizard),
+        ],
+    ),
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
     Sub(
         "Assistant",
@@ -720,6 +734,7 @@ impl Limoniter {
             Flag::AlwaysOnTop => self.always_on_top,
             Flag::FullScreen => self.full_screen,
             Flag::Spelling => self.prefs.spelling,
+            Flag::GitBlame => self.git.blame_on,
             Flag::Panel(panel) => self.panel_on(panel),
         }
     }
@@ -743,6 +758,10 @@ impl Limoniter {
             Flag::FileTabs => &mut self.show_file_tabs,
             Flag::StatusBar => &mut self.show_status,
             Flag::OutputWindow => &mut self.show_results,
+            Flag::GitBlame => {
+                self.git.blame_on = !self.git.blame_on;
+                return;
+            }
             Flag::Spelling => {
                 self.prefs.spelling = !self.prefs.spelling;
                 // Asking again after Windows said it couldn't is worth a try: a dictionary may have been added since.
@@ -798,6 +817,8 @@ impl Limoniter {
             Command::StopRunning => !self.running.sessions.is_empty(),
             Command::MachineMemory | Command::MachineScreen | Command::MachineBasicOut => self.reachable().is_some(),
             Command::MachineBasicIn => self.reachable().is_some() && doc.listing_of.is_some(),
+            Command::GitCompareHead | Command::GitHistory | Command::GitStageChange => self.git.repo.is_some() && doc.path.is_some(),
+            Command::GitUndoChange => self.git.repo.is_some() && doc.path.is_some() && !doc.text.read_only,
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
