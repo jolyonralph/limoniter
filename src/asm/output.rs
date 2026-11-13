@@ -91,6 +91,56 @@ pub fn coco_binary(assembly: &Assembly) -> Result<Vec<u8>, String> {
     Ok(file)
 }
 
+/// An Atari ST program (TOS's executable, .TOS or .PRG): a header, the code, and the table of the addresses in
+/// it that TOS moves to where it loads it. `moved` is the same program assembled `shift` further on, to find them.
+pub fn atari_program(assembly: &Assembly, moved: &Assembly, shift: i64) -> Result<Vec<u8>, String> {
+    let Some(high) = assembly.highest() else {
+        return Err("Nothing was assembled.".into());
+    };
+    let mut text = assembly.image(0, high);
+    if text.len() % 2 == 1 {
+        text.push(0);
+    }
+    let there = moved.image(shift, shift + text.len() as i64);
+    // Every long that's moved by the shift is an address in the program.
+    let mut places = Vec::new();
+    let mut at = 0;
+    while at + 4 <= text.len() {
+        let here = u32::from_be_bytes([text[at], text[at + 1], text[at + 2], text[at + 3]]);
+        let moved = u32::from_be_bytes([there[at], there[at + 1], there[at + 2], there[at + 3]]);
+        if moved.wrapping_sub(here) == shift as u32 {
+            places.push(at);
+            at += 4;
+        } else {
+            at += 2;
+        }
+    }
+    let mut file = vec![0x60, 0x1A];
+    file.extend((text.len() as u32).to_be_bytes());
+    // No data or BSS of their own (they're in the text), no symbols, and the usual flags.
+    file.extend([0u8; 4 * 5]);
+    file.extend([0, 0]);
+    file.extend(&text);
+    match places.split_first() {
+        None => file.extend([0, 0, 0, 0]),
+        Some((first, rest)) => {
+            file.extend((*first as u32).to_be_bytes());
+            let mut previous = *first;
+            for place in rest {
+                let mut step = place - previous;
+                while step > 254 {
+                    file.push(1);
+                    step -= 254;
+                }
+                file.push(step as u8);
+                previous = *place;
+            }
+            file.push(0);
+        }
+    }
+    Ok(file)
+}
+
 /// A .nex for the Spectrum Next (version 1.2 of the format): the 64K the program sees, as banks 5, 2 and 0 at
 /// $4000, $8000 and $C000, started at its entry with the stack below $FFFE.
 pub fn next_file(assembly: &Assembly, stack: Option<i64>) -> Result<Vec<u8>, String> {

@@ -101,6 +101,17 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://openmsx.org",
     },
+    Emulator {
+        id: "hatari",
+        name: "Hatari",
+        programs: &["hatari"],
+        folder_hints: &["hatari"],
+        mac_apps: &[("Hatari.app", "Hatari")],
+        machines: &[AtariSt],
+        formats: &[Tos],
+        link: Link::None,
+        website: "https://hatari.tuxfamily.org",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Emulator> {
@@ -162,6 +173,8 @@ impl Emulator {
                 args.extend(["--machine".into(), id.into(), "--auto-load".into(), file]);
             }
             "cspect" => args.extend(["-zxnext".into(), "-w3".into(), file]),
+            // Hatari makes the program's folder a drive, and runs it.
+            "hatari" => args.push(file),
             "vice" => {
                 if let Some(port) = port {
                     args.extend(["-binarymonitor".into(), "-binarymonitoraddress".into(), format!("ip4://127.0.0.1:{port}")]);

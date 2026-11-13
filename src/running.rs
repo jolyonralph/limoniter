@@ -20,6 +20,7 @@ pub enum Machine {
     Bbc,
     Msx,
     Cpc,
+    AtariSt,
 }
 
 impl Machine {
@@ -38,6 +39,7 @@ impl Machine {
             Machine::Bbc => "BBC Micro",
             Machine::Msx => "MSX",
             Machine::Cpc => "Amstrad CPC",
+            Machine::AtariSt => "Atari ST",
         }
     }
 
@@ -57,6 +59,7 @@ impl Machine {
             Machine::Bbc => "bbc",
             Machine::Msx => "msx",
             Machine::Cpc => "cpc",
+            Machine::AtariSt => "atarist",
         }
     }
 
@@ -90,10 +93,12 @@ pub enum Format {
     Dsd,
     Rom,
     Cas,
+    /// An Atari ST program (.TOS, or .PRG on the ST itself).
+    Tos,
 }
 
 impl Format {
-    pub const ALL: [Format; 20] = [
+    pub const ALL: [Format; 21] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -114,6 +119,7 @@ impl Format {
         Format::Dsd,
         Format::Rom,
         Format::Cas,
+        Format::Tos,
     ];
 
     /// The file ending it's written with.
@@ -139,6 +145,7 @@ impl Format {
             Format::Dsd => "dsd",
             Format::Rom => "rom",
             Format::Cas => "cas",
+            Format::Tos => "tos",
         }
     }
 
@@ -231,6 +238,12 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
             }
         }
         Format::Cas => Machine::Msx,
+        Format::Tos => {
+            if !bytes.starts_with(&[0x60, 0x1A]) {
+                return None;
+            }
+            Machine::AtariSt
+        }
     })
 }
 

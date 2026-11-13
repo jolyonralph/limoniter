@@ -459,3 +459,19 @@ fn assembled_programs_are_saved_beside_their_source() {
     assert!(app.running.sessions.is_empty(), "nothing runs");
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+#[test]
+fn source_for_the_68000_without_an_org_becomes_an_atari_st_program() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "hello.s".into();
+    app.doc().text.set_content(include_str!("asm/testdata/st_hello.s").lines().map(str::to_string).collect());
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M68k), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::AtariSt, crate::running::Format::Tos, "hello.tos"));
+    assert_eq!(run.bytes.as_slice(), include_bytes!("asm/testdata/st_hello.tos"));
+    // Hatari runs it.
+    assert!(crate::emulators::KNOWN.iter().any(|e| e.id == "hatari" && e.machines.contains(&crate::running::Machine::AtariSt)));
+}

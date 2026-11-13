@@ -139,6 +139,8 @@ pub fn installed(cpu: Cpu) -> Vec<(&'static External, PathBuf)> {
 /// What assembling gave: the program, and, from another assembler, the file it made ready to run.
 pub struct Assembled {
     pub assembly: Assembly,
+    /// The source as it was assembled, for Limoniter's own assembler: to assemble it again elsewhere.
+    pub source: Option<String>,
     pub tape: Option<(crate::running::Format, Vec<u8>)>,
     /// What the assembler printed, for the Output panel.
     pub printed: Vec<String>,
@@ -148,7 +150,13 @@ pub struct Assembled {
 pub fn assemble_own(cpu: Cpu, path: &Path, text: &str) -> Assembled {
     let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
     let assembly = asm::assemble(cpu.isa(), path, text, &read);
-    Assembled { assembly, tape: None, printed: Vec::new() }
+    Assembled { assembly, source: Some(text.to_string()), tape: None, printed: Vec::new() }
+}
+
+/// The same, as if it were `base` further on.
+pub fn assemble_own_at(cpu: Cpu, path: &Path, text: &str, base: i64) -> Assembly {
+    let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
+    asm::assemble_at(cpu.isa(), path, text, &read, base)
 }
 
 /// Assembles a saved file with someone else's assembler.
@@ -254,7 +262,7 @@ fn sjasmplus(program: &Path, source: &Path, work: &Path) -> Result<Assembled, St
         let at = words.iter().position(|w| w.eq_ignore_ascii_case("device"))?;
         words.get(at + 1).map(|w| w.trim_end_matches(',').to_ascii_uppercase())
     });
-    Ok(Assembled { assembly, tape: None, printed })
+    Ok(Assembled { assembly, source: None, tape: None, printed })
 }
 
 /// sjasmplus's listing: each line's number, address and first bytes, under the file it's in. The bytes are only
@@ -379,7 +387,7 @@ fn pasmo(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String
         assembly.problems.push(Problem { file: 0, line: 0, message: printed.join(" ") });
     }
     let tape = if ok { std::fs::read(&tape).ok().map(|t| (crate::running::Format::Tap, t)) } else { None };
-    Ok(Assembled { assembly, tape, printed })
+    Ok(Assembled { assembly, source: None, tape, printed })
 }
 
 fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String> {
@@ -427,7 +435,7 @@ fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
         assembly.chunks = vec![asm::Chunk { address: low, bytes: binary }];
         assembly.entry = Some(low);
     }
-    Ok(Assembled { assembly, tape: None, printed })
+    Ok(Assembled { assembly, source: None, tape: None, printed })
 }
 
 fn lwasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String> {
@@ -476,7 +484,7 @@ fn lwasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String
             at += 5 + length;
         }
     }
-    Ok(Assembled { assembly, tape: None, printed })
+    Ok(Assembled { assembly, source: None, tape: None, printed })
 }
 
 fn acme(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String> {
@@ -520,7 +528,7 @@ fn acme(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
     }
     let label = assembly.lines.first().map(|p| p.address);
     assembly.entry = label;
-    Ok(Assembled { assembly, tape: program.map(|p| (crate::running::Format::Prg, p)), printed })
+    Ok(Assembled { assembly, source: None, tape: program.map(|p| (crate::running::Format::Prg, p)), printed })
 }
 
 #[cfg(test)]

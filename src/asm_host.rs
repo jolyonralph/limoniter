@@ -323,7 +323,15 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, St
     match cpu {
         // A Color Computer binary, which LOADM loads, for an emulator such as XRoar or MAME.
         Cpu::M6809 => Ok(Made::Saved { name: format!("{stem}.bin"), bytes: crate::asm::output::coco_binary(&assembled.assembly)? }),
-        // The bytes as they go in memory, from the first to the last.
+        // An Atari ST program, if it isn't put at an address of its own: else the bytes as they go in memory.
+        Cpu::M68k if !assembled.assembly.absolute && assembled.tape.is_none() && assembled.assembly.lowest() == Some(0) => {
+            let shift = 0x10000;
+            let path = assembled.assembly.files.first().cloned().unwrap_or_default();
+            let source = assembled.source.clone().or_else(|| std::fs::read_to_string(&path).ok()).ok_or("The source couldn't be read again to make the program movable.")?;
+            let moved = crate::assemblers::assemble_own_at(Cpu::M68k, &path, &source, shift);
+            let bytes = crate::asm::output::atari_program(&assembled.assembly, &moved, shift)?;
+            Runnable::from_file(&format!("{stem}.tos"), bytes).map(Made::Run).ok_or_else(|| "The Atari ST program couldn't be made.".into())
+        }
         Cpu::M68k => {
             let assembly = &assembled.assembly;
             let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {

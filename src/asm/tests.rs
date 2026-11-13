@@ -229,3 +229,16 @@ fn every_68000_instruction_is_assembled_as_vasm_does() {
     }
     assert_eq!(assembly.image(0x1000, 0x1000 + expected.len() as i64), expected);
 }
+
+/// An Atari ST program, its addresses found by assembling it twice, as vasm writes it (-Ftos -nosym).
+#[test]
+fn an_atari_st_program_matches_vasm() {
+    let source = include_str!("testdata/st_hello.s");
+    let here = assemble(&m68k::M68k, Path::new("hello.s"), source, &no_files);
+    assert!(here.ok() && !here.absolute, "{:?}", here.problems);
+    let moved = assemble_at(&m68k::M68k, Path::new("hello.s"), source, &no_files, 0x10000);
+    let ours = output::atari_program(&here, &moved, 0x10000).unwrap();
+    assert_eq!(ours, include_bytes!("testdata/st_hello.tos"));
+    // With ORG, it's at an address of its own.
+    assert!(assemble(&m68k::M68k, Path::new("t.s"), "\torg $1000\n\tnop\n", &no_files).absolute);
+}

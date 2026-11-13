@@ -93,6 +93,8 @@ pub struct Assembly {
     pub saves: Vec<Save>,
     /// What DISPLAY lines printed.
     pub notes: Vec<String>,
+    /// Whether ORG put it at an address, rather than wherever it's loaded.
+    pub absolute: bool,
 }
 
 impl Assembly {
@@ -141,10 +143,18 @@ impl Assembly {
 /// Assembles a program. `text` is the main file's text (as it is in the editor, saved or not); `read` fetches any
 /// other file it includes, by its full path.
 pub fn assemble(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>) -> Assembly {
+    assemble_at(isa, path, text, read, 0)
+}
+
+/// Assembles a program as if everything were `base` further on: ORG's addresses too. Assembled twice, at two bases,
+/// the words that differ by the difference are the addresses that have to be moved when the program is.
+pub fn assemble_at(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64) -> Assembly {
     let mut previous: HashMap<String, i64> = HashMap::new();
     let mut anonymous: HashMap<String, Vec<i64>> = HashMap::new();
     for _ in 0..12 {
         let mut state = Pass::new(isa, read, previous.clone(), false);
+        state.base = base;
+        state.pc = base;
         state.previous_anonymous = anonymous.clone();
         state.run_file(path, text);
         let settled = state.symbols == previous && state.anonymous == anonymous && !state.unknown;
@@ -156,6 +166,8 @@ pub fn assemble(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> 
     }
     // The last pass, saying what's wrong.
     let mut state = Pass::new(isa, read, previous, true);
+    state.base = base;
+    state.pc = base;
     state.previous_anonymous = anonymous;
     state.run_file(path, text);
     state.finish()
@@ -215,6 +227,10 @@ struct Pass<'a> {
     blocks: Vec<Block>,
     /// Whether the source has shown itself to be ACME's, by its ! directives.
     acme: bool,
+    /// Where it's assembled from: added to every address ORG sets.
+    base: i64,
+    /// Whether ORG has set an address, so the program can't be moved.
+    absolute: bool,
     global: String,
     /// Inside a macro: what its local labels are known by.
     macro_scope: Option<String>,
@@ -247,6 +263,8 @@ impl<'a> Pass<'a> {
             direct_page: Some(0),
             blocks: Vec::new(),
             acme: false,
+            base: 0,
+            absolute: false,
             global: String::new(),
             macro_scope: None,
             macros: HashMap::new(),
@@ -270,6 +288,7 @@ impl<'a> Pass<'a> {
             self.out.problems.push(Problem { file, line, message: "an IF has no ENDIF".into() });
         }
         self.out.symbols = self.symbols.into_iter().collect();
+        self.out.absolute = self.absolute;
         self.out
     }
 
@@ -427,7 +446,10 @@ impl<'a> Pass<'a> {
             && let Some(value) = after.trim_start().strip_prefix('=')
         {
             match self.eval(value.trim()) {
-                Ok(v) => self.pc = v,
+                Ok(v) => {
+                    self.pc = v + self.base;
+                    self.absolute = true;
+                }
                 Err(problem) => self.problem(problem),
             }
             return;
@@ -721,7 +743,10 @@ impl<'a> Pass<'a> {
     fn plain_directive(&mut self, directive: &str, operands: &str) {
         match directive {
             "org" => match self.eval(split_operands(operands).first().map(String::as_str).unwrap_or("")) {
-                Ok(v) => self.pc = v,
+                Ok(v) => {
+                    self.pc = v + self.base;
+                    self.absolute = true;
+                }
                 Err(problem) => self.problem(problem),
             },
             "db" | "defb" | "byte" | "by" | "dm" | "defm" | "fcb" | "fcc" | "text" | "tx" | "ascii" | "asc" | "dz" | "asciz" | "dc" | "abyt" | "dfb" | "raw" => {

@@ -48,8 +48,9 @@ Source for the Z80, 6502, 6809 or 68000 (told from its highlighting language) is
 Limoniter's own assembler (`src/asm/`: one framework, one module per processor) or the one chosen for the processor
 (`src/assemblers.rs`: sjasmplus, Pasmo, ACME, lwasm, vasm). Either way the result is an `asm::Assembly`: bytes at
 addresses, each source line's address and bytes, and problems by file and line. `src/asm_host.rs` turns it into
-something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line) or a file to save (6809 and
-68000), shows the problems, and keeps it for the debugger. Each processor's every instruction form is checked byte
+something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line, an Atari ST `.tos` whose
+relocations are found by assembling the source a second time 64K further on) or a file to save (6809, and 68000 with
+an ORG), shows the problems, and keeps it for the debugger. Each processor's every instruction form is checked byte
 for byte against its reference assembler (`src/asm/testdata`).
 
 Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and
