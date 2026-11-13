@@ -174,7 +174,7 @@ const MIN_ASM_EVIDENCE: usize = 3;
 pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     const M68K: [&str; 14] = ["move", "movem", "moveq", "lea", "dbra", "dbf", "bsr", "tst", "clr", "pea", "link", "unlk", "rte", "swap"];
     const M6502: [&str; 22] = ["lda", "sta", "ldx", "stx", "ldy", "sty", "inx", "iny", "dex", "dey", "bne", "beq", "bcc", "bcs", "bpl", "bmi", "jsr", "rts", "tax", "txa", "pha", "pla"];
-    const Z80: [&str; 12] = ["ld", "ldir", "lddr", "djnz", "jr", "jp", "exx", "rlca", "rrca", "cpir", "otir", "inir"];
+    const Z80: [&str; 26] = ["ld", "ldir", "lddr", "djnz", "jr", "jp", "exx", "rlca", "rrca", "cpir", "otir", "inir", "ex", "halt", "rst", "ldi", "ldd", "outi", "rla", "rra", "srl", "sla", "nextreg", "ldirx", "ldws", "swapnib"];
     const M86: [&str; 26] = ["mov", "push", "pop", "xor", "cmp", "add", "sub", "inc", "dec", "int", "call", "jmp", "je", "jne", "jz", "jnz", "lea", "shl", "shr", "rep", "lodsb", "stosb", "movsb", "test", "and", "or"];
     // Registers only the x86 family has. SP is left out because other processors have one too.
     const REG16: [&str; 18] = ["ax", "bx", "cx", "dx", "si", "di", "bp", "ds", "es", "ss", "cs", "al", "ah", "bl", "bh", "cl", "ch", "dl"];
@@ -299,6 +299,11 @@ pub fn start_loading(ctx: egui::Context) {
         ENGINE.get_or_init(Engine::load);
         ctx.request_repaint();
     });
+}
+
+/// The grammars, loaded now if they haven't been, for tests and screenshots.
+pub fn load_now() -> &'static Engine {
+    ENGINE.get_or_init(Engine::load)
 }
 
 /// The grammars, once they've loaded.

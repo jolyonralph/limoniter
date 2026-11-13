@@ -3,7 +3,7 @@
 //! into SNA); the Spectrum ROMs come with rustzx, as Amstrad allows for emulators.
 
 use crate::running::{Format, Machine, Runnable};
-use rustzx_core::host::{BufferCursor, FrameBuffer, FrameBufferSource, Host, HostContext, Snapshot, Stopwatch, StubDebugInterface, StubIoExtender, Tape};
+use rustzx_core::host::{BufferCursor, FrameBuffer, FrameBufferSource, Host, HostContext, Snapshot, SnapshotRecorder, Stopwatch, StubIoExtender, Tape};
 use rustzx_core::zx::keys::{CompoundKey, ZXKey};
 use rustzx_core::zx::machine::ZXMachine;
 use rustzx_core::zx::video::colors::{ZXBrightness, ZXColor};
@@ -26,7 +26,61 @@ impl Host for LimoniterHost {
     type FrameBuffer = Pixels;
     type EmulationStopwatch = Watch;
     type IoExtender = StubIoExtender;
-    type DebugInterface = StubDebugInterface;
+    type DebugInterface = Breaks;
+}
+
+/// Where the program is to stop: its breakpoints, after one instruction when stepping, or at the instruction after
+/// a CALL being stepped over.
+#[derive(Default)]
+pub struct Breaks {
+    at: std::collections::HashSet<u16>,
+    step: bool,
+    once: Option<u16>,
+}
+
+impl rustzx_core::host::DebugInterface for Breaks {
+    fn check_pc_breakpoint(&mut self, address: u16) -> bool {
+        if self.step {
+            self.step = false;
+            return true;
+        }
+        if self.once == Some(address) {
+            self.once = None;
+            return true;
+        }
+        self.at.contains(&address)
+    }
+}
+
+/// The Z80's registers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Registers {
+    pub af: u16,
+    pub bc: u16,
+    pub de: u16,
+    pub hl: u16,
+    pub ix: u16,
+    pub iy: u16,
+    pub sp: u16,
+    pub pc: u16,
+    pub af2: u16,
+    pub bc2: u16,
+    pub de2: u16,
+    pub hl2: u16,
+    pub i: u8,
+    pub r: u8,
+    pub iff: bool,
+    pub im: u8,
+}
+
+/// A snapshot written into memory.
+struct Recording<'a>(&'a mut Vec<u8>);
+
+impl rustzx_core::host::DataRecorder for Recording<'_> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, rustzx_core::error::IoError> {
+        self.0.extend_from_slice(buf);
+        Ok(buf.len())
+    }
 }
 
 #[derive(Clone)]
@@ -103,6 +157,8 @@ pub struct BuiltIn {
     last: Instant,
     owed: f64,
     pub paused: bool,
+    /// Where the program stopped, at a breakpoint or a step: the address of the instruction to run next.
+    pub stopped: Option<u16>,
     taps: std::collections::VecDeque<Tap>,
     held: Vec<ZXKey>,
     /// Keys held down on the keyboard drawn under the screen, apart from those held on the computer's own.
@@ -173,6 +229,7 @@ impl BuiltIn {
             sound_sample_rate: rate.unwrap_or(44100) as usize,
         };
         let mut emulator = Emulator::<LimoniterHost>::new(settings, Context).map_err(|e| format!("The built-in Spectrum couldn't start: {e:?}"))?;
+        emulator.set_debug_interface(Breaks::default());
         match snapshot {
             Some(sna) => emulator.load_snapshot(Snapshot::Sna(BufferCursor::new(sna))).map_err(|e| format!("The snapshot couldn't be loaded: {e:?}"))?,
             None => {
@@ -180,7 +237,7 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
@@ -197,7 +254,7 @@ impl BuiltIn {
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -213,7 +270,7 @@ impl BuiltIn {
         }
         self.owed = (self.owed + now.duration_since(self.last).as_secs_f64() * FRAMES_PER_SECOND).min(5.0);
         self.last = now;
-        while self.owed >= 1.0 {
+        while self.owed >= 1.0 && !self.paused {
             self.owed -= 1.0;
             self.frame()?;
         }
@@ -224,7 +281,11 @@ impl BuiltIn {
     pub fn frame(&mut self) -> Result<(), String> {
         self.press_taps();
         self.board_tick();
-        self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
+        let info = self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
+        if matches!(info.stop_reason, rustzx_core::EmulationStopReason::Breakpoint) {
+            self.paused = true;
+            self.stopped = Some(self.registers().pc);
+        }
         // The frame's sound, to the speaker, or let go of if there isn't one or it's muted.
         while let Some(sample) = self.emulator.next_audio_sample() {
             #[cfg(test)]
@@ -233,6 +294,76 @@ impl BuiltIn {
             }
             if let Some(speaker) = self.speaker.as_ref().filter(|_| !self.muted) {
                 speaker.push(sample.left, sample.right);
+            }
+        }
+        Ok(())
+    }
+
+    /// The registers as they are now.
+    pub fn registers(&mut self) -> Registers {
+        let mut h = Vec::new();
+        if self.emulator.save_snapshot(SnapshotRecorder::Sna(Recording(&mut h))).is_err() || h.len() < 27 {
+            return Registers::default();
+        }
+        let word = |at: usize| u16::from_le_bytes([h[at], h[at + 1]]);
+        let sp = word(23);
+        // A 48K snapshot keeps PC on the stack; a 128K one after the first three banks.
+        let (pc, sp) = if h.len() == 49179 {
+            let at = 27 + sp.wrapping_sub(0x4000) as usize;
+            (h.get(at..at + 2).map_or(0, |b| u16::from_le_bytes([b[0], b[1]])), sp.wrapping_add(2))
+        } else {
+            (word(27 + 3 * 16384), sp)
+        };
+        Registers { i: h[0], hl2: word(1), de2: word(3), bc2: word(5), af2: word(7), hl: word(9), de: word(11), bc: word(13), iy: word(15), ix: word(17), iff: h[19] & 4 != 0, r: h[20], af: word(21), sp, im: h[25], pc }
+    }
+
+    /// The addresses to stop at.
+    pub fn set_breakpoints(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.at = addresses.into_iter().collect();
+        }
+    }
+
+    /// Carries on from where it stopped.
+    pub fn carry_on(&mut self) {
+        self.stopped = None;
+        self.paused = false;
+    }
+
+    /// Runs one instruction, and stops again.
+    pub fn step(&mut self) -> Result<(), String> {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.step = true;
+        }
+        self.run_until_stopped()
+    }
+
+    /// Runs one instruction, or a whole CALL or RST and what it calls, and stops again.
+    pub fn step_over(&mut self) -> Result<(), String> {
+        let pc = self.registers().pc;
+        let op = self.peek(pc);
+        let length = match op {
+            0xCD | 0xC4 | 0xCC | 0xD4 | 0xDC | 0xE4 | 0xEC | 0xF4 | 0xFC => 3,
+            op if op & 0xC7 == 0xC7 => 1,
+            // DJNZ and LDIR, and the like, which repeat: on to what follows them.
+            0x10 => 2,
+            0xED if matches!(self.peek(pc.wrapping_add(1)), 0xB0..=0xB3 | 0xB8..=0xBB) => 2,
+            _ => return self.step(),
+        };
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.once = Some(pc.wrapping_add(length));
+        }
+        self.run_until_stopped()
+    }
+
+    /// Runs until it stops, a second's worth at most; if it doesn't stop by then, it's left running.
+    fn run_until_stopped(&mut self) -> Result<(), String> {
+        self.stopped = None;
+        self.paused = false;
+        for _ in 0..50 {
+            self.frame()?;
+            if self.stopped.is_some() {
+                return Ok(());
             }
         }
         Ok(())
@@ -771,6 +902,42 @@ mod tests {
             assert!(!machine.board_held(), "let go once seen");
         }
         assert!(run_until(&mut machine, 50 * 2, |m| on_screen(m, "H!")), "clicked keys typed H!");
+    }
+
+    #[test]
+    fn programs_stop_at_breakpoints_and_step() {
+        // A program at 32768: three instructions, a CALL, and a loop; loaded by a tape's BASIC loader.
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org 32768\nstart: ld a,7\n  ld bc,$1234\n  call sub\n  ld de,$5678\nloop: jr loop\nsub: ld hl,$abcd\n  ret\n", &|_| Err("no".into()));
+        assert!(assembly.ok(), "{:?}", assembly.problems);
+        let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
+        let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
+        let mut machine = BuiltIn::start(&run).unwrap();
+        machine.set_breakpoints([0x8002]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()), "it stops");
+        let r = machine.registers();
+        assert_eq!((machine.stopped, r.pc, r.af >> 8), (Some(0x8002), 0x8002, 7), "before LD BC, after LD A");
+        // Frames don't run while it's stopped.
+        machine.catch_up().unwrap();
+        assert_eq!(machine.registers().pc, 0x8002);
+        machine.step().unwrap();
+        assert_eq!((machine.stopped, machine.registers().bc), (Some(0x8005), 0x1234));
+        // Stepping into the CALL, then over the next CALL from the start again.
+        machine.step().unwrap();
+        assert_eq!(machine.stopped, Some(0x800D), "in sub");
+        machine.step().unwrap();
+        assert_eq!(machine.registers().hl, 0xABCD);
+        machine.step().unwrap();
+        assert_eq!(machine.stopped, Some(0x8008), "back after the CALL");
+        machine.set_breakpoints([0x8005]);
+        machine.registers();
+        machine.carry_on();
+        // It loops forever without stopping again, so stepping over from the loop goes nowhere new.
+        run_until(&mut machine, 10, |_| false);
+        assert!(machine.stopped.is_none());
+        machine.set_breakpoints([0x800B]);
+        assert!(run_until(&mut machine, 10, |m| m.stopped.is_some()));
+        assert_eq!(machine.stopped, Some(0x800B), "at the loop");
+        assert_eq!(machine.registers().de, 0x5678);
     }
 
     #[test]

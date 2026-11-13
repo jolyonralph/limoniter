@@ -194,6 +194,7 @@ enum Command {
     RunOnBuiltIn,
     RunOn(usize),
     StopRunning,
+    ChooseAssembler,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -277,6 +278,7 @@ impl Command {
                 | Command::ChoosePreset
                 | Command::ShowFileLists
                 | Command::StopRunning
+                | Command::ChooseAssembler
                 | Command::MachineMemory
                 | Command::MachineScreen
                 | Command::MachineBasicOut
@@ -1217,6 +1219,7 @@ enum Dialog {
     SplitFile { every: String, by_text: bool, text: String, error: String },
     Snippets(file_tools::SnippetBox),
     RunTool { line: String, save_first: bool, error: String, focus: bool },
+    Assembler(Box<asm_host::AssemblerBox>),
     Spelling { found: crate::spelling::Found, chosen: usize },
     AssistReview(assistant::Review),
 }
@@ -2319,6 +2322,7 @@ impl Limoniter {
         self.send_saved_remotes();
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.git_tick(ctx);
+        self.assembly_tick();
         if self.follow_live_views() {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
@@ -3503,6 +3507,7 @@ impl Limoniter {
             Command::RunOnBuiltIn => self.run_on_target(run_host::Target::BuiltIn),
             Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
             Command::StopRunning => self.stop_all_sessions(),
+            Command::ChooseAssembler => self.open_assembler_box(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
@@ -5301,6 +5306,19 @@ impl Limoniter {
                 ui.colored_label(theme::rainbow_mistake(), "Edits aren't being kept for recovery. Save often.").on_hover_text(problem);
             }
             ui.label(if doc.hex_mode { doc.hex.position_text() } else { doc.text.position_text() });
+            // In assembler source: the line's problem, or its address, bytes and timing once it's been assembled.
+            if let Some(code) = &doc.text.code {
+                match code.problem_at(doc.text.caret_line) {
+                    Some(problem) => {
+                        ui.colored_label(theme::problem_mark(), problem.to_string());
+                    }
+                    None => {
+                        if let Some(words) = self.line_assembled(doc.id, doc.text.caret_line) {
+                            ui.label(faint(words));
+                        }
+                    }
+                }
+            }
             if !self.print_status.is_empty() {
                 ui.label(faint(self.print_status.clone()));
             }
@@ -5626,7 +5644,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5934,6 +5952,18 @@ impl Limoniter {
                     self.doc().listing_of = Some((basic::Machine::Spectrum, stem));
                 }
                 "run-builtin" => self.run_on_target(run_host::Target::BuiltIn),
+                // Stops a program at line 6 of its source, as a breakpoint set there does, and waits for it to.
+                "debug-builtin" => {
+                    highlight::load_now();
+                    self.doc().resolved_syntax = None;
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    if let Some(code) = &mut self.doc().text.code {
+                        code.breakpoints.insert(5);
+                    }
+                    self.run_on_target(run_host::Target::BuiltIn);
+                    self.run_until_stopped_for_screenshot();
+                }
                 "table" | "table-block" => {
                     self.check_for_table();
                     self.toggle_table();
@@ -7019,6 +7049,9 @@ mod deploy_host;
 
 #[path = "run_host.rs"]
 mod run_host;
+
+#[path = "asm_host.rs"]
+mod asm_host;
 
 #[path = "live_host.rs"]
 mod live_host;

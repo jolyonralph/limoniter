@@ -1324,7 +1324,7 @@ pub fn tokenise_spectrum<S: AsRef<str>>(lines: &[S], dialect: ZxDialect) -> Resu
 }
 
 /// A tape block: its length, the flag, the bytes and a checksum that makes them all add up, by XOR, to zero.
-fn tap_block(flag: u8, bytes: &[u8]) -> Vec<u8> {
+pub fn tap_block(flag: u8, bytes: &[u8]) -> Vec<u8> {
     let mut out = ((bytes.len() + 2) as u16).to_le_bytes().to_vec();
     out.push(flag);
     out.extend_from_slice(bytes);

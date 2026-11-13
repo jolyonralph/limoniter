@@ -273,6 +273,14 @@ Switched on under **View, Panels**:
   - **Its screen as text**, in the machine's own characters.
   - **Take its BASIC program** as a listing, and **Put this listing into it** again, in place of the program, as LOAD would leave it: a program running is stopped first (BREAK on a Spectrum, RUN/STOP on a Commodore), and the new one is RUN.
 
+## Assembling
+
+- **Z80 source runs with F9**: it's assembled, and the program runs where Spectrum programs run, on the built-in Spectrum, an emulator, or a Next. A program for the 48K or 128K goes on a tape whose BASIC loader loads it and calls it; one whose source says `DEVICE ZXSPECTRUMNEXT` becomes a `.nex` file for the Next.
+- **Limoniter's own assembler**, with nothing to install: every Z80 instruction, the undocumented ones (IXH, SLL, OUT (C),0 and the rest) and the Next's (NEXTREG, MUL, LDIRX, PUSH nn and the others), byte for byte as sjasmplus assembles them. Labels and local labels, EQU, ORG, DB, DW, DS, DZ, INCLUDE, INCBIN, macros, REPT, IF and IFDEF, and sjasmplus's DEVICE and SAVENEX lines.
+- **Or your own**: **File › Run on › Assembler** chooses sjasmplus or Pasmo instead, found where they're installed or pointed to. sjasmplus programs can be debugged just the same.
+- **Problems** go in the Output panel, where clicking one goes to its line, and are marked beside their lines; the status bar says what's wrong with the line the cursor is on. Once assembled, the status bar shows the line's address, bytes and T-states.
+- **A debugger on the built-in Spectrum**: click beside a line's number for a breakpoint; when the program gets there it stops, with the line marked and the registers and flags shown; **Step**, **Step over** (a CALL, RST, DJNZ or LDIR) and **Carry on**. Pause stops it anywhere, with the same.
+
 ## Add-ons
 
 - An add-on is a Rhai script that adds its own commands to **Tools › Add-ons** and the command box (F1).

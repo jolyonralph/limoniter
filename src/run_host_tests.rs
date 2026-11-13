@@ -244,3 +244,62 @@ fn a_cartridge_starts_on_a_real_openmsx() {
     }
     app.stop_all_sessions();
 }
+
+fn z80_source(app: &mut Limoniter, lines: &[&str]) {
+    crate::highlight::load_now();
+    app.new_document();
+    app.doc().untitled = "border.asm".into();
+    app.doc().text.set_content(lines.iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+}
+
+#[test]
+fn z80_source_is_assembled_and_runs_on_the_built_in_spectrum() {
+    let (mut app, _ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");
+    z80_source(&mut app, &["  org 32768", "start: ld a,2", "  out ($fe),a", "  ld hl,$4000", "  ld (hl),$ff", "loop: jr loop"]);
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::Z80), "{}", app.doc().language_name());
+    app.assembly_tick();
+    assert!(app.doc().text.code.is_some(), "assembler source gets its marks");
+    app.run_on_machine();
+    assert!(matches!(app.dialog, Dialog::None));
+    assert!(app.script_output.iter().any(|l| l.contains("for the ZX Spectrum 48K")), "{:?}", app.script_output);
+    let session = app.running.sessions.iter_mut().find(|s| s.target == run_host::BUILT_IN_NAME).expect("it runs");
+    let run_host::SessionKind::BuiltIn { machine, .. } = &mut session.kind else { panic!() };
+    let mut ran = false;
+    for _ in 0..50 * 20 {
+        machine.frame().unwrap();
+        if machine.peek(0x4000) == 0xFF {
+            ran = true;
+            break;
+        }
+    }
+    assert!(ran, "the code loaded from the tape and ran");
+    app.stop_all_sessions();
+}
+
+#[test]
+fn assembler_problems_are_listed_marked_and_gone_to() {
+    let (mut app, _ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");
+    z80_source(&mut app, &["  org 32768", "  ld a,1", "  ld q,1", "  jp nowhere"]);
+    app.run_on_machine();
+    assert!(app.running.sessions.is_empty(), "nothing runs");
+    assert!(matches!(app.dialog, Dialog::None), "no box: the problems are in the Output panel");
+    let problems = app.doc().text.code.as_ref().unwrap().problems.clone();
+    assert_eq!(problems.iter().map(|p| p.0).collect::<Vec<_>>(), vec![2, 3]);
+    let listed: Vec<&String> = app.script_output.iter().filter(|l| crate::assemblers::problem_line(l).is_some()).collect();
+    assert_eq!(listed.len(), 2, "{:?}", app.script_output);
+    assert!(listed[1].contains("border.asm(4): nowhere isn't defined"), "{listed:?}");
+    assert_eq!(app.doc().text.caret_line, 2, "the cursor goes to the first");
+    app.go_to_place("border.asm", 4);
+    assert_eq!(app.doc().text.caret_line, 3);
+}
+
+#[test]
+fn next_source_becomes_a_nex_file() {
+    let (mut app, _ctx) = app_with("");
+    z80_source(&mut app, &["  device zxspectrumnext", "  org $8000", "start: nextreg 7,3", "  ld a,2", "  out ($fe),a", "  jr start"]);
+    assert!(app.doc_cpu(app.active).is_some(), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Next, crate::running::Format::Nex, "border.nex"));
+    assert!(app.suits(run_host::Target::BuiltIn, &run).is_err(), "the built-in Spectrum isn't a Next");
+}

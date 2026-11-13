@@ -572,6 +572,27 @@ pub fn apply(ctx: &Context) {
     });
 }
 
+/// Assembler source: a line with a problem, a breakpoint, and the line a stopped program is at.
+pub fn problem_line() -> Color32 {
+    Color32::from_rgba_unmultiplied(0xE0, 0x40, 0x40, 0x30)
+}
+
+pub fn problem_mark() -> Color32 {
+    Color32::from_rgb(0xE0, 0x50, 0x50)
+}
+
+pub fn breakpoint() -> Color32 {
+    Color32::from_rgb(0xD8, 0x3A, 0x3A)
+}
+
+pub fn stopped_line() -> Color32 {
+    Color32::from_rgba_unmultiplied(0xF0, 0xC0, 0x30, 0x38)
+}
+
+pub fn stopped_mark() -> Color32 {
+    Color32::from_rgb(0xF2, 0xC4, 0x30)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,3 +678,4 @@ mod tests {
         set_light(false);
     }
 }
+

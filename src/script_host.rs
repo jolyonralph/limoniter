@@ -1096,6 +1096,7 @@ impl Limoniter {
 
     /// What a script or a command has printed, in the Output window.
     pub(super) fn script_output_panel(&mut self, ui: &mut Ui) {
+        let mut go_to: Option<(String, usize)> = None;
         let mut close = false;
         let mut stop = false;
         let running = self.tool_running();
@@ -1117,12 +1118,25 @@ impl Limoniter {
             let row = ui.text_style_height(&egui::TextStyle::Monospace) + 2.0;
             egui::ScrollArea::both().id_salt("script-output").auto_shrink([false, false]).stick_to_bottom(true).show_rows(ui, row, self.script_output.len(), |ui, range| {
                 for line in &self.script_output[range] {
-                    ui.add(egui::Label::new(RichText::new(line).monospace()).wrap_mode(egui::TextWrapMode::Extend));
+                    // A place, as compilers and assemblers print them, goes there when clicked.
+                    match crate::assemblers::problem_line(line) {
+                        Some((file, number, _)) => {
+                            if ui.add(egui::Label::new(RichText::new(line).monospace().color(theme::accent())).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click())).on_hover_text("Go to this line").clicked() {
+                                go_to = Some((file, number));
+                            }
+                        }
+                        None => {
+                            ui.add(egui::Label::new(RichText::new(line).monospace()).wrap_mode(egui::TextWrapMode::Extend));
+                        }
+                    }
                 }
             });
         });
         if stop || (close && running) {
             self.stop_tool();
+        }
+        if let Some((file, line)) = go_to {
+            self.go_to_place(&file, line);
         }
         if close {
             self.script_output.clear();

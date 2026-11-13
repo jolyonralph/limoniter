@@ -708,9 +708,16 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     let (pressed, modifiers, pointer) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers, i.pointer.interact_pos()));
     if let Some(p) = pointer {
         if input_on && pressed && response.hovered() && p.x < view.min.x + mark_width && p.y >= view.min.y + ruler_h {
-            // Clicking beside a line's number sets or clears its bookmark.
+            // Clicking beside a line's number sets or clears its bookmark; in assembler source, its breakpoint.
             let (line, _) = to_position(p);
-            buffer.toggle_bookmark(line);
+            match &mut buffer.code {
+                Some(code) => {
+                    if !code.breakpoints.remove(&line) {
+                        code.breakpoints.insert(line);
+                    }
+                }
+                None => buffer.toggle_bookmark(line),
+            }
         } else if input_on && pressed && response.hovered() && fold_width > 0.0 && p.x < view.min.x + mark_width + fold_width && p.y >= view.min.y + ruler_h {
             // Clicking a marker folds or opens that line's stretch. Anywhere else in the strip does nothing.
             let (line, _) = to_position(p);
@@ -1575,6 +1582,26 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             painter.hline((middle.x - size * 0.55)..=(middle.x + size * 0.55), middle.y, stroke);
             if b.is_folded(slot.line) {
                 painter.vline(middle.x, (middle.y - size * 0.55)..=(middle.y + size * 0.55), stroke);
+            }
+        }
+        if let Some(code) = &b.code {
+            let row = Rect::from_min_max(pos2(view.min.x + gutter, row_y(index)), pos2(view.max.x, row_y(index) + cell.y));
+            let middle = pos2(view.min.x + cell.x.max(8.0) / 2.0, row_y(index) + cell.y / 2.0);
+            if code.problem_at(slot.line).is_some() {
+                painter.rect_filled(row, 0.0, theme::problem_line());
+                if slot.sub == 0 {
+                    painter.add(egui::Shape::convex_polygon(vec![pos2(middle.x, middle.y - 4.5), pos2(middle.x + 4.5, middle.y + 3.5), pos2(middle.x - 4.5, middle.y + 3.5)], theme::problem_mark(), Stroke::NONE));
+                }
+            }
+            if code.stopped == Some(slot.line) {
+                painter.rect_filled(row, 0.0, theme::stopped_line());
+            }
+            if slot.sub == 0 && code.breakpoints.contains(&slot.line) {
+                painter.circle_filled(middle, (cell.y * 0.3).min(5.5), theme::breakpoint());
+            }
+            if slot.sub == 0 && code.stopped == Some(slot.line) {
+                let r = (cell.y * 0.32).min(6.0);
+                painter.add(egui::Shape::convex_polygon(vec![pos2(middle.x - r, middle.y - r), pos2(middle.x + r, middle.y), pos2(middle.x - r, middle.y + r)], theme::stopped_mark(), Stroke::new(1.0, theme::gutter_back())));
             }
         }
         if l.options.bookmark_gutter && b.is_bookmarked(slot.line) {

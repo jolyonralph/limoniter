@@ -48,16 +48,23 @@ pub(super) struct Running {
     pub note: Option<(String, Instant)>,
     /// A run waiting for the add-ons' on_run functions: the document, and where it's to run.
     pending: Option<(u64, Target)>,
+    /// For each processor, by its id, the assembler its source is assembled with.
+    pub assemblers: Vec<(String, String)>,
+    /// The last program assembled.
+    pub assembled: Option<super::asm_host::AssembledCache>,
 }
 
 impl Running {
     pub(super) fn from_settings(settings: &str) -> Self {
         let defaults = list_setting(settings, "run_on").iter().filter_map(|value| value.split_once('\u{1}').map(|(machine, target)| (machine.to_string(), target.to_string()))).collect();
-        Running { defaults, ..Running::default() }
+        let assemblers = list_setting(settings, "assembler").iter().filter_map(|value| value.split_once('\u{1}').map(|(cpu, choice)| (cpu.to_string(), choice.to_string()))).collect();
+        Running { defaults, assemblers, ..Running::default() }
     }
 
     pub(super) fn to_settings(&self) -> String {
-        self.defaults.iter().map(|(machine, target)| format!("run_on={machine}\u{1}{target}\n")).collect()
+        let runs: String = self.defaults.iter().map(|(machine, target)| format!("run_on={machine}\u{1}{target}\n")).collect();
+        let assemblers: String = self.assemblers.iter().map(|(cpu, choice)| format!("assembler={cpu}\u{1}{choice}\n")).collect();
+        runs + assemblers.as_str()
     }
 
     fn default_for(&self, machine: Machine) -> Option<&str> {
@@ -88,6 +95,18 @@ impl Limoniter {
     /// What the file in front runs as, if anything: a listing tokenised, a file as it is, or the file selected in
     /// an image. None, with nothing said, if it's text that might be a listing for a machine not yet chosen.
     pub(super) fn runnable(&mut self) -> Result<Option<Runnable>, String> {
+        self.runnable_reporting(true)
+    }
+
+    /// The same, but for a menu: source isn't assembled by another program, and its problems aren't shown.
+    pub(super) fn runnable_quietly(&mut self) -> Result<Option<Runnable>, String> {
+        self.runnable_reporting(false)
+    }
+
+    fn runnable_reporting(&mut self, report: bool) -> Result<Option<Runnable>, String> {
+        if let Some(cpu) = self.doc_cpu(self.active) {
+            return self.assemble_to_run(cpu, report).map(Some);
+        }
         let doc = &self.docs[self.active];
         if let Some(browser) = &doc.browser {
             return match browser.selected_file() {
@@ -174,6 +193,7 @@ impl Limoniter {
                 self.dialog = Dialog::Run(Box::new(RunBox::Which { doc_id: self.docs[self.active].id }));
                 return;
             }
+            Err(problem) if problem.is_empty() => return,
             Err(problem) => return self.message("Run on machine", problem),
         };
         let chosen = self.running.default_for(runnable.machine).and_then(|name| self.target_named(name)).filter(|target| self.suits(*target, &runnable).is_ok());
@@ -213,6 +233,7 @@ impl Limoniter {
                 Err(why) => self.message("Run on", why),
             },
             Ok(None) => {}
+            Err(problem) if problem.is_empty() => {}
             Err(problem) => self.message("Run on", problem),
         }
     }
@@ -225,6 +246,7 @@ impl Limoniter {
                 Err(why) => self.message("Run on", why),
             },
             Ok(None) => self.dialog = Dialog::Run(Box::new(RunBox::Which { doc_id: self.docs[self.active].id })),
+            Err(problem) if problem.is_empty() => {}
             Err(problem) => self.message("Run on", problem),
         }
     }
@@ -378,12 +400,20 @@ impl Limoniter {
         };
         let focus_id = egui::Id::unique("built-in-spectrum");
         let (mut stop, mut restart) = (false, false);
+        // A program assembled from this document can be debugged: its breakpoints are set at their lines' addresses.
+        let assembly = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).map(|c| c.assembly.clone());
+        let breakpoints: Vec<u16> = match (&assembly, self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.text.code.as_ref())) {
+            (Some(assembly), Some(code)) => code.breakpoints.iter().filter_map(|line| assembly.address_of(0, *line)).map(|a| a as u16).collect(),
+            _ => Vec::new(),
+        };
+        let mut debug: Option<Debug> = None;
         let ctx = ui.ctx().clone();
         let session = &mut self.running.sessions[index];
         let title = format!("{}: {}", session.machine.name(), session.file);
         let SessionKind::BuiltIn { machine, texture, error, .. } = &mut session.kind else {
             return;
         };
+        machine.set_breakpoints(breakpoints);
         if error.is_none()
             && let Err(problem) = machine.catch_up()
         {
@@ -450,6 +480,9 @@ impl Limoniter {
                 None => "Click the screen to type on the Spectrum.".into(),
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
+            if machine.paused && error.is_none() {
+                debug = debugger(ui, machine, assembly.as_deref());
+            }
             if keyboard {
                 ui.add_space(4.0);
                 keyboard_used = crate::zx_keyboard::draw(ui, machine);
@@ -468,8 +501,32 @@ impl Limoniter {
         } else {
             machine.release_all();
         }
+        if let Some(action) = debug {
+            let done = match action {
+                Debug::CarryOn => {
+                    machine.carry_on();
+                    Ok(())
+                }
+                Debug::Step => machine.step(),
+                Debug::StepOver => machine.step_over(),
+            };
+            if let Err(problem) = done {
+                *error = Some(problem);
+            }
+        }
+        // Where it's stopped, marked in the source, which is brought to that line when it first stops there.
+        let stopped_line = if machine.paused { assembly.as_ref().and_then(|a| a.line_at(machine.registers().pc as i64)).filter(|(file, _)| *file == 0).map(|(_, line)| line) } else { None };
         if !machine.paused && error.is_none() {
             ctx.request_repaint_after(Duration::from_millis(15));
+        }
+        if let Some(doc) = self.docs.iter_mut().find(|d| d.id == doc_id)
+            && let Some(code) = &mut doc.text.code
+            && code.stopped != stopped_line
+        {
+            code.stopped = stopped_line;
+            if let Some(line) = stopped_line {
+                doc.text.move_caret(line, 0, false);
+            }
         }
         if restart {
             let SessionKind::BuiltIn { run, .. } = &self.running.sessions[index].kind else {
@@ -491,6 +548,27 @@ impl Limoniter {
         if stop {
             self.running.sessions.remove(index);
             self.pending_focus = true;
+        }
+    }
+
+    /// For a screenshot: runs the built-in Spectrum until it stops at a breakpoint, half a minute of its time at most.
+    pub(super) fn run_until_stopped_for_screenshot(&mut self) {
+        let doc_id = self.docs[self.active].id;
+        let breakpoints: Vec<u16> = match (self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id), self.docs[self.active].text.code.as_ref()) {
+            (Some(cache), Some(code)) => code.breakpoints.iter().filter_map(|line| cache.assembly.address_of(0, *line)).map(|a| a as u16).collect(),
+            _ => return,
+        };
+        for session in &mut self.running.sessions {
+            if let SessionKind::BuiltIn { machine, doc_id: d, .. } = &mut session.kind
+                && *d == doc_id
+            {
+                machine.set_breakpoints(breakpoints.clone());
+                for _ in 0..50 * 30 {
+                    if machine.frame().is_err() || machine.stopped.is_some() {
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -590,6 +668,65 @@ impl Limoniter {
         }
         true
     }
+}
+
+/// What the debugger's buttons ask for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Debug {
+    CarryOn,
+    Step,
+    StepOver,
+}
+
+/// While the built-in Spectrum is stopped: where, its registers, and buttons to carry on or step.
+fn debugger(ui: &mut Ui, machine: &mut crate::zx_machine::BuiltIn, assembly: Option<&crate::asm::Assembly>) -> Option<Debug> {
+    let r = machine.registers();
+    let mut action = None;
+    ui.add_space(4.0);
+    egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
+        let place = match assembly.and_then(|a| a.line_at(r.pc as i64).map(|(file, line)| (a, file, line))) {
+            Some((a, file, line)) => {
+                let name = a.files.get(file).and_then(|f| f.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                format!("Stopped at ${:04X}, line {} of {name}", r.pc, line + 1)
+            }
+            None if r.pc < 0x4000 => format!("Stopped at ${:04X}, in the ROM", r.pc),
+            None => format!("Stopped at ${:04X}", r.pc),
+        };
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(place).strong());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button("Step over").on_hover_text("Runs this instruction, or the whole of a CALL, RST, DJNZ or LDIR, and stops after it").clicked() {
+                    action = Some(Debug::StepOver);
+                }
+                if ui.small_button("Step").on_hover_text("Runs one instruction, into a CALL").clicked() {
+                    action = Some(Debug::Step);
+                }
+                if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
+                    action = Some(Debug::CarryOn);
+                }
+            });
+        });
+        let flags = r.af as u8;
+        let flag_names: String = [(7, 'S'), (6, 'Z'), (4, 'H'), (2, 'P'), (1, 'N'), (0, 'C')].iter().map(|(bit, name)| if flags & (1 << bit) != 0 { *name } else { '-' }).collect();
+        let mono = |text: String| RichText::new(text).monospace().size(12.0);
+        egui::Grid::new("z80-registers").num_columns(4).spacing([14.0, 2.0]).show(ui, |ui| {
+            for row in [
+                [format!("AF {:04X}", r.af), format!("BC {:04X}", r.bc), format!("DE {:04X}", r.de), format!("HL {:04X}", r.hl)],
+                [format!("AF' {:04X}", r.af2), format!("BC' {:04X}", r.bc2), format!("DE' {:04X}", r.de2), format!("HL' {:04X}", r.hl2)],
+                [format!("IX {:04X}", r.ix), format!("IY {:04X}", r.iy), format!("SP {:04X}", r.sp), format!("PC {:04X}", r.pc)],
+                [format!("I {:02X}  R {:02X}", r.i, r.r), format!("IM {}  {}", r.im, if r.iff { "EI" } else { "DI" }), format!("Flags {flag_names}"), format!("(SP) {:04X}", u16::from_le_bytes([machine.peek(r.sp), machine.peek(r.sp.wrapping_add(1))]))],
+            ] {
+                for cell in row {
+                    ui.label(mono(cell));
+                }
+                ui.end_row();
+            }
+        });
+        if assembly.is_none() {
+            ui.label(RichText::new("Run assembler source to stop at its lines: click beside a line's number to set a breakpoint.").color(theme::text_faint()).size(11.5));
+        }
+    });
+    action
 }
 
 /// Keys pressed on the computer, played on the Spectrum. Letters, digits, Space and Enter are held as long as

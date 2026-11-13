@@ -133,6 +133,8 @@ const FILE: &[Entry] = &[
             Item("Put this listing into it", Command::MachineBasicIn),
             Line,
             Item("Stop running", Command::StopRunning),
+            Line,
+            Item("Assembler\u{2026}", Command::ChooseAssembler),
             Item("Devices and emulators\u{2026}", Command::ManageDevices),
         ],
     ),
@@ -1070,7 +1072,7 @@ impl Limoniter {
             }
             Live::Machines => {
                 // What the file in front would run as, so each machine says whether it can take it.
-                let runnable = if self.no_file() { None } else { self.runnable().ok().flatten() };
+                let runnable = if self.no_file() { None } else { self.runnable_quietly().ok().flatten() };
                 let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None))];
                 targets.extend((0..self.sends.devices.len()).map(|n| (super::run_host::Target::Device(n), self.sends.devices[n].name.clone(), Pick::RunOn(Some(n)))));
                 for (target, name, pick) in targets {

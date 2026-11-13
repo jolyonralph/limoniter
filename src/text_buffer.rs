@@ -195,6 +195,21 @@ struct Snapshot {
     version: u64,
 }
 
+/// Marks for assembler source, by line.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CodeMarks {
+    pub breakpoints: std::collections::BTreeSet<usize>,
+    pub problems: Vec<(usize, String)>,
+    /// Where a program stopped at a breakpoint or a step is.
+    pub stopped: Option<usize>,
+}
+
+impl CodeMarks {
+    pub fn problem_at(&self, line: usize) -> Option<&str> {
+        self.problems.iter().find(|(l, _)| *l == line).map(|(_, m)| m.as_str())
+    }
+}
+
 pub struct TextBuffer {
     lines: LineStore,
     /// How this document's bytes and text relate. Undo brings it back along with the text.
@@ -231,6 +246,8 @@ pub struct TextBuffer {
     pub notice: Option<String>,
     /// Each line's change since the last commit, for the margin, when the file is in a Git repository.
     pub git_marks: Option<std::sync::Arc<Vec<Option<crate::git::Mark>>>>,
+    /// For assembler source: its breakpoints, the assembler's problems, and the line a stopped program is at.
+    pub code: Option<Box<CodeMarks>>,
 }
 
 /// Where a search has got to; large files are searched a little at a time between frames.
@@ -311,6 +328,7 @@ impl Default for TextBuffer {
             max_visual: 0,
             reveal: false,
             git_marks: None,
+            code: None,
             notice: None,
         }
     }

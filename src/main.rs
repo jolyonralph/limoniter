@@ -48,6 +48,8 @@ mod project;
 mod reformat;
 mod running;
 mod speaker;
+mod asm;
+mod assemblers;
 mod zx_keyboard;
 mod zx_machine;
 mod machine_link;

@@ -221,6 +221,12 @@ pub fn find_installed() -> Vec<(&'static Emulator, PathBuf)> {
     found
 }
 
+/// Any program, looked for where emulators are: assemblers use this too.
+pub fn find_program(programs: &'static [&'static str], folder_hints: &'static [&'static str]) -> Option<PathBuf> {
+    let seeker = Emulator { id: "", name: "", programs, folder_hints, mac_apps: &[], machines: &[], formats: &[], link: Link::None, website: "" };
+    find(&seeker)
+}
+
 fn find(emulator: &Emulator) -> Option<PathBuf> {
     let path: Vec<PathBuf> = std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).collect()).unwrap_or_default();
     let home = std::env::var_os("HOME").map(PathBuf::from);
