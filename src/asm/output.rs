@@ -36,6 +36,41 @@ pub fn spectrum_tape(assembly: &Assembly, stem: &str) -> Result<Vec<u8>, String>
     Ok(tape)
 }
 
+/// A Commodore program (.prg): its load address, then the bytes. Code that doesn't start at $0801, where BASIC
+/// programs go, has a BASIC line put there to start it, as 10 SYS 49152, so that RUN starts it.
+pub fn commodore_program(assembly: &Assembly) -> Result<Vec<u8>, String> {
+    let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+        return Err("Nothing was assembled.".into());
+    };
+    if high > 0x10000 {
+        return Err("The code goes past the top of the 64K.".into());
+    }
+    const BASIC: i64 = 0x0801;
+    let start = assembly.start().unwrap_or(low);
+    if low <= BASIC {
+        let mut prg = (low as u16).to_le_bytes().to_vec();
+        prg.extend(assembly.image(low, high));
+        return Ok(prg);
+    }
+    // 10 SYS start: the link to the next line, the line number, SYS's token, the address, and the end.
+    let digits = start.to_string();
+    let line_end = BASIC + 2 + 2 + 1 + 1 + digits.len() as i64 + 1;
+    if low < line_end + 2 {
+        return Err(format!("The code starts at ${low:04X}, too close after BASIC's start at $0801 for a line to start it. Start it at $0801 with a BASIC line of its own, or at $0810 or above."));
+    }
+    let mut prg = (BASIC as u16).to_le_bytes().to_vec();
+    prg.extend((line_end as u16).to_le_bytes());
+    prg.extend(10u16.to_le_bytes());
+    prg.push(0x9E);
+    prg.push(b' ');
+    prg.extend(digits.bytes());
+    prg.push(0);
+    prg.extend([0, 0]);
+    prg.resize(2 + (low - BASIC) as usize, 0);
+    prg.extend(assembly.image(low, high));
+    Ok(prg)
+}
+
 /// A .nex for the Spectrum Next (version 1.2 of the format): the 64K the program sees, as banks 5, 2 and 0 at
 /// $4000, $8000 and $C000, started at its entry with the stack below $FFFE.
 pub fn next_file(assembly: &Assembly, stack: Option<i64>) -> Result<Vec<u8>, String> {

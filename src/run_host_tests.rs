@@ -303,3 +303,16 @@ fn next_source_becomes_a_nex_file() {
     assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Next, crate::running::Format::Nex, "border.nex"));
     assert!(app.suits(run_host::Target::BuiltIn, &run).is_err(), "the built-in Spectrum isn't a Next");
 }
+
+#[test]
+fn source_for_the_6502_becomes_a_commodore_64_program() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "border.asm".into();
+    app.doc().text.set_content(["  *=$c000", "start lda #2", "  sta $d020", "  ldx #0", "- inx", "  bne -", "  rts"].iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6502), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::C64, crate::running::Format::Prg, "border.prg"));
+}

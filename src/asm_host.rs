@@ -105,7 +105,8 @@ impl Limoniter {
     }
 
     fn keep_assembled(&mut self, doc_id: u64, version: u64, choice: &Choice, assembled: Assembled, stem: &str, report: bool) -> Result<Runnable, String> {
-        let runnable = if assembled.assembly.ok() { runnable_from(&assembled, stem) } else { Err(String::new()) };
+        let cpu = self.doc_cpu(self.active).unwrap_or(Cpu::Z80);
+        let runnable = if assembled.assembly.ok() { runnable_from(cpu, &assembled, stem) } else { Err(String::new()) };
         if report {
             self.report_assembly(doc_id, choice, &assembled, &runnable);
         }
@@ -262,11 +263,17 @@ impl Limoniter {
 
 /// What a program assembled runs as: a tape for a Spectrum, or a .nex for the Next if the source says DEVICE
 /// ZXSPECTRUMNEXT.
-pub fn runnable_from(assembled: &Assembled, stem: &str) -> Result<Runnable, String> {
-    if let Some(tape) = &assembled.tape {
-        return Ok(Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: format!("{stem}.tap"), bytes: Arc::new(tape.clone()) });
+pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runnable, String> {
+    if let Some((format, bytes)) = &assembled.tape {
+        let name = format!("{stem}.{}", format.ending());
+        return Runnable::from_file(&name, bytes.clone()).ok_or_else(|| format!("{name} isn't a program Limoniter knows how to run."));
     }
     let assembly = &assembled.assembly;
+    if cpu == Cpu::M6502 {
+        // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
+        let bytes = crate::asm::output::commodore_program(assembly)?;
+        return Runnable::from_file(&format!("{stem}.prg"), bytes).ok_or_else(|| "The program couldn't be made.".to_string());
+    }
     let device = assembly.device.clone().unwrap_or_default();
     if device.contains("NEXT") {
         let bytes = crate::asm::output::next_file(assembly, None)?;

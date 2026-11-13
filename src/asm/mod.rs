@@ -4,6 +4,7 @@
 //! into its bytes. The syntax follows what's usual for each machine, sjasmplus's for the Z80 above all.
 
 pub mod expr;
+pub mod m6502;
 pub mod output;
 pub mod z80;
 
@@ -25,6 +26,14 @@ pub trait Isa {
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String>;
     /// Whether a colon can separate statements on a line (it can on the Z80, as sjasmplus allows).
     fn colon_separates(&self) -> bool {
+        false
+    }
+    /// What starts a local label, which belongs to the label before it.
+    fn local_prefixes(&self) -> &'static [char] {
+        &['.']
+    }
+    /// Whether an instruction's operand ends at a space, and what follows is a comment (Motorola's way).
+    fn operand_ends_at_space(&self) -> bool {
         false
     }
     /// How many clock cycles an instruction takes, as words to show ("11" or "7/12").
@@ -131,17 +140,21 @@ impl Assembly {
 /// other file it includes, by its full path.
 pub fn assemble(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>) -> Assembly {
     let mut previous: HashMap<String, i64> = HashMap::new();
+    let mut anonymous: HashMap<String, Vec<i64>> = HashMap::new();
     for _ in 0..12 {
         let mut state = Pass::new(isa, read, previous.clone(), false);
+        state.previous_anonymous = anonymous.clone();
         state.run_file(path, text);
-        let settled = state.symbols == previous && !state.unknown;
+        let settled = state.symbols == previous && state.anonymous == anonymous && !state.unknown;
         previous = state.symbols;
+        anonymous = state.anonymous;
         if settled {
             break;
         }
     }
     // The last pass, saying what's wrong.
     let mut state = Pass::new(isa, read, previous, true);
+    state.previous_anonymous = anonymous;
     state.run_file(path, text);
     state.finish()
 }
@@ -178,6 +191,9 @@ struct Pass<'a> {
     pc: i64,
     /// Inside DISP: how far the addresses the code is assembled for are from where it's put.
     shift: i64,
+    /// Anonymous labels (-, --, +, ++), where each was, in order, this pass and the last.
+    anonymous: HashMap<String, Vec<i64>>,
+    previous_anonymous: HashMap<String, Vec<i64>>,
     global: String,
     /// Inside a macro: what its local labels are known by.
     macro_scope: Option<String>,
@@ -205,6 +221,8 @@ impl<'a> Pass<'a> {
             unknown: false,
             pc: 0,
             shift: 0,
+            anonymous: HashMap::new(),
+            previous_anonymous: HashMap::new(),
             global: String::new(),
             macro_scope: None,
             macros: HashMap::new(),
@@ -297,14 +315,17 @@ impl<'a> Pass<'a> {
             return;
         }
         // 68000 and 6809 sources use a * in the first column for a comment line.
-        if raw.starts_with('*') {
+        if raw.starts_with('*') && !raw[1..].trim_start().starts_with('=') {
             return;
         }
         let at_start = !line.starts_with([' ', '\t']);
-        let (label, rest) = split_label(line, at_start, |w| self.is_keyword(w), |w| self.isa.is_instruction(&w.to_ascii_lowercase()));
+        // An anonymous label: - or + (or -- or ++) where a label goes.
+        let first = line.split_whitespace().next().unwrap_or("");
+        let anonymous = !first.is_empty() && (first.chars().all(|c| c == '-') || first.chars().all(|c| c == '+')) && first.len() <= 8;
+        let (label, rest) = if anonymous { (None, &line.trim_start()[first.len()..]) } else { split_label(line, at_start, |w| self.is_keyword(w), |w| self.isa.is_instruction(&w.to_ascii_lowercase())) };
         let rest = rest.trim();
         let word = rest.split(|c: char| c.is_whitespace()).next().unwrap_or("").to_ascii_lowercase();
-        let word = word.strip_prefix('.').unwrap_or(&word).to_string();
+        let word = word.trim_start_matches(['.', '!']).to_string();
         // Conditions are followed even when not assembling, to find their ends.
         if matches!(word.as_str(), "if" | "ifdef" | "ifndef" | "ifn" | "else" | "elseif" | "endif" | "endc" | "ifeq" | "ifne") {
             self.condition(&word, rest[rest.find(char::is_whitespace).unwrap_or(rest.len())..].trim());
@@ -313,12 +334,26 @@ impl<'a> Pass<'a> {
         if !self.active() {
             return;
         }
+        if anonymous {
+            let here = self.pc + self.shift;
+            self.anonymous.entry(first.to_string()).or_default().push(here);
+        }
+        // *= sets the address, as many 6502 assemblers write ORG.
+        if let Some(after) = rest.strip_prefix('*')
+            && let Some(value) = after.trim_start().strip_prefix('=')
+        {
+            match self.eval(value.trim()) {
+                Ok(v) => self.pc = v,
+                Err(problem) => self.problem(problem),
+            }
+            return;
+        }
         // A label given a value.
         if let Some(label) = &label {
             let (op, value) = split_word(rest);
-            match op.to_ascii_lowercase().trim_start_matches('.') {
-                "equ" | "=" | "defl" => {
-                    let variable = !op.eq_ignore_ascii_case("equ");
+            match op.to_ascii_lowercase().trim_start_matches(['.', '!']) {
+                name @ ("equ" | "=" | "defl" | "set") if name != "set" || !self.isa.is_instruction("set") || op.starts_with(['.', '!']) => {
+                    let variable = name != "equ";
                     match self.eval(value) {
                         Ok(v) => self.define(label, v, variable),
                         Err(problem) => self.problem(problem),
@@ -359,7 +394,7 @@ impl<'a> Pass<'a> {
 
     fn is_keyword(&self, word: &str) -> bool {
         let lower = word.to_ascii_lowercase();
-        let lower = lower.strip_prefix('.').unwrap_or(&lower);
+        let lower = lower.trim_start_matches(['.', '!']);
         DIRECTIVES.contains(&lower) || self.isa.is_instruction(lower) || self.macros.contains_key(lower)
     }
 
@@ -421,6 +456,10 @@ impl<'a> Pass<'a> {
     }
 
     fn eval(&mut self, text: &str) -> Result<i64, String> {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() && trimmed.len() <= 8 && (trimmed.chars().all(|c| c == '-') || trimmed.chars().all(|c| c == '+')) {
+            return self.anonymous_label(trimmed);
+        }
         match expr::eval(text, self)? {
             Value::Known(v) => Ok(v),
             Value::Unknown => {
@@ -432,6 +471,24 @@ impl<'a> Pass<'a> {
                     Ok(0)
                 }
             }
+        }
+    }
+
+    /// An anonymous label: - is the last one before, + the next one after (and -- and ++ their own).
+    fn anonymous_label(&mut self, name: &str) -> Result<i64, String> {
+        let found = if name.starts_with('-') {
+            self.anonymous.get(name).and_then(|all| all.last()).copied()
+        } else {
+            let seen = self.anonymous.get(name).map_or(0, Vec::len);
+            self.previous_anonymous.get(name).and_then(|all| all.get(seen)).copied()
+        };
+        match found {
+            Some(address) => Ok(address),
+            None if !self.last => {
+                self.unknown = true;
+                Ok(0)
+            }
+            None => Err(format!("there's no {name} label {}", if name.starts_with('-') { "before this" } else { "after this" })),
         }
     }
 
@@ -464,12 +521,12 @@ impl<'a> Pass<'a> {
     fn statement(&mut self, text: &str) {
         let (op, operands) = split_word(text);
         let lower = op.to_ascii_lowercase();
-        let directive = lower.strip_prefix('.').unwrap_or(&lower).to_string();
+        let directive = lower.trim_start_matches(['.', '!']).to_string();
         if let Some(found) = self.macros.get(&lower).cloned() {
             self.expand(&lower, &found, operands);
             return;
         }
-        if DIRECTIVES.contains(&directive.as_str()) && !(self.isa.is_instruction(&lower) && !lower.starts_with('.')) {
+        if DIRECTIVES.contains(&directive.as_str()) && !(self.isa.is_instruction(&lower) && !lower.starts_with(['.', '!'])) {
             self.directive(&directive, operands);
             return;
         }
@@ -478,8 +535,10 @@ impl<'a> Pass<'a> {
             return;
         }
         let isa = self.isa;
+        // Motorola's way: the operand ends at a space, and what follows is a comment.
+        let operands = if isa.operand_ends_at_space() { cut_at_space(operands.trim()) } else { operands.trim() };
         let mut line = Line { pass: self };
-        match isa.encode(&lower, operands.trim(), &mut line) {
+        match isa.encode(&lower, operands, &mut line) {
             Ok(bytes) => self.emit(bytes),
             Err(problem) => self.problem(problem),
         }
@@ -487,12 +546,80 @@ impl<'a> Pass<'a> {
 
     fn directive(&mut self, directive: &str, operands: &str) {
         let operands = operands.trim();
+        // Motorola's sizes: DC.B, DC.W, DC.L, DS.B and so on.
+        let (directive, size) = match directive.split_once('.') {
+            Some((name, size @ ("b" | "w" | "l" | "s"))) if matches!(name, "dc" | "ds" | "dcb" | "rs" | "blk") => (name, Some(size)),
+            _ => (directive, None),
+        };
+        let unit = match size {
+            Some("w") => 2,
+            Some("l") => 4,
+            _ => 1,
+        };
+        match (directive, size) {
+            ("dc", Some("w" | "l")) => return self.directive(if unit == 2 { "dw" } else { "dd" }, operands),
+            ("dc", Some(_)) => return self.directive("db", operands),
+            ("ds" | "rs" | "blk", Some(_)) => {
+                let count = self.eval(operands).unwrap_or(0);
+                return self.directive("ds", &format!("{}", count * unit));
+            }
+            ("dcb", _) => {
+                let items = split_operands(operands);
+                let count = self.eval(items.first().map(String::as_str).unwrap_or("0")).unwrap_or(0).clamp(0, 0x100_0000);
+                let value = items.get(1).map(|v| self.eval(v).unwrap_or(0)).unwrap_or(0);
+                let one = self.word_bytes(value, unit as usize);
+                return self.emit(one.repeat(count as usize));
+            }
+            _ => {}
+        }
+        match directive {
+            "fcc" | "fcs" if operands.starts_with(|c: char| c.is_ascii_punctuation() && c != '"' && c != '\'') => {
+                // FCC /text/: any mark can start and end the text.
+                let mark = operands.chars().next().expect("not empty");
+                let inner = &operands[1..];
+                let text = inner.split(mark).next().unwrap_or("");
+                let mut bytes = text.as_bytes().to_vec();
+                if directive == "fcs"
+                    && let Some(last) = bytes.last_mut()
+                {
+                    *last |= 0x80;
+                }
+                self.emit(bytes);
+            }
+            "pet" | "scr" => {
+                let mut bytes = Vec::new();
+                for item in split_operands(operands) {
+                    match string_value(&item) {
+                        Some(text) => bytes.extend(text.iter().map(|b| if directive == "pet" { petscii(*b) } else { screen_code(*b) })),
+                        None => bytes.push(self.eval(&item).unwrap_or(0) as u8),
+                    }
+                }
+                self.emit(bytes);
+            }
+            "fill" | "res" => {
+                let items = split_operands(operands);
+                let count = self.eval(items.first().map(String::as_str).unwrap_or("0")).unwrap_or(0).clamp(0, 0x100_0000);
+                let value = items.get(1).map(|v| self.eval(v).unwrap_or(0)).unwrap_or(0);
+                self.emit(vec![value as u8; count as usize]);
+            }
+            "cnop" => {
+                let items = split_operands(operands);
+                let offset = self.eval(items.first().map(String::as_str).unwrap_or("0")).unwrap_or(0);
+                let boundary = items.get(1).map(|v| self.eval(v).unwrap_or(1)).unwrap_or(1).max(1);
+                let pad = (boundary - (self.pc - offset).rem_euclid(boundary)) % boundary;
+                self.emit(vec![0; pad as usize]);
+            }
+            _ => self.plain_directive(directive, operands),
+        }
+    }
+
+    fn plain_directive(&mut self, directive: &str, operands: &str) {
         match directive {
             "org" => match self.eval(split_operands(operands).first().map(String::as_str).unwrap_or("")) {
                 Ok(v) => self.pc = v,
                 Err(problem) => self.problem(problem),
             },
-            "db" | "defb" | "byte" | "dm" | "defm" | "fcb" | "fcc" | "text" | "ascii" | "asc" | "dz" | "asciz" | "dc" | "abyt" | "dfb" => {
+            "db" | "defb" | "byte" | "by" | "dm" | "defm" | "fcb" | "fcc" | "text" | "tx" | "ascii" | "asc" | "dz" | "asciz" | "dc" | "abyt" | "dfb" | "raw" => {
                 let mut bytes = Vec::new();
                 for item in split_operands(operands) {
                     match string_value(&item) {
@@ -518,7 +645,7 @@ impl<'a> Pass<'a> {
                 }
                 self.emit(bytes);
             }
-            "dw" | "defw" | "word" | "fdb" | "addr" | "dd" | "dword" | "long" | "defd" => {
+            "dw" | "defw" | "word" | "wo" | "fdb" | "addr" | "dd" | "dword" | "long" | "defd" => {
                 let size = if matches!(directive, "dd" | "dword" | "long" | "defd") { 4 } else { 2 };
                 let mut bytes = Vec::new();
                 for item in split_operands(operands) {
@@ -547,7 +674,7 @@ impl<'a> Pass<'a> {
                 let pad = (boundary - self.pc.rem_euclid(boundary)) % boundary;
                 self.emit(vec![fill as u8; pad as usize]);
             }
-            "include" | "incsrc" | "use" | "get" => {
+            "include" | "incsrc" | "use" | "get" | "source" | "src" => {
                 let name = unquote(operands);
                 let path = self.beside(&name);
                 match (self.read)(&path) {
@@ -738,10 +865,13 @@ impl Scope for Pass<'_> {
     }
 
     fn full_name(&self, name: &str) -> String {
-        if let Some(name) = name.strip_prefix('@') {
+        let locals = self.isa.local_prefixes();
+        if !locals.contains(&'@')
+            && let Some(name) = name.strip_prefix('@')
+        {
             return name.to_string();
         }
-        if name.starts_with('.') {
+        if name.starts_with(locals) {
             return match &self.macro_scope {
                 Some(scope) => format!("{scope}{name}"),
                 None => format!("{}{name}", self.global),
@@ -763,7 +893,6 @@ impl Line<'_, '_> {
     }
 
     /// An expression's value if it's known now, without counting it as missing.
-    #[allow(dead_code)]
     pub fn known(&mut self, text: &str) -> Option<i64> {
         match expr::eval(text, self.pass) {
             Ok(Value::Known(v)) => Some(v),
@@ -782,8 +911,8 @@ impl Line<'_, '_> {
 }
 
 /// Words the assembler itself understands.
-const DIRECTIVES: [&str; 90] = [
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase",
+const DIRECTIVES: &[&str] = &[
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.
@@ -807,6 +936,48 @@ pub fn strip_comment(line: &str) -> &str {
         i += 1;
     }
     line
+}
+
+/// A character as PETSCII, the Commodores' character set: letters swap case.
+fn petscii(byte: u8) -> u8 {
+    match byte {
+        b'a'..=b'z' => byte - 32,
+        b'A'..=b'Z' => byte + 128,
+        other => other,
+    }
+}
+
+/// A character as a Commodore screen code.
+fn screen_code(byte: u8) -> u8 {
+    match byte {
+        b'@' => 0,
+        b'a'..=b'z' => byte - 96,
+        b'A'..=b'Z' => byte - 64 + 64,
+        b'[' => 27,
+        b']' => 29,
+        other => other,
+    }
+}
+
+/// An operand up to the first space outside quotes and brackets.
+fn cut_at_space(text: &str) -> &str {
+    let mut quote: Option<char> = None;
+    let mut depth = 0i32;
+    for (i, c) in text.char_indices() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some(_) => {}
+            None => match c {
+                '"' => quote = Some(c),
+                '\'' if text[i + 1..].contains('\'') => quote = Some(c),
+                '(' | '[' => depth += 1,
+                ')' | ']' => depth -= 1,
+                c if c.is_whitespace() && depth <= 0 => return &text[..i],
+                _ => {}
+            },
+        }
+    }
+    text
 }
 
 /// The text with /* block comments */ taken out, keeping its lines where they were.

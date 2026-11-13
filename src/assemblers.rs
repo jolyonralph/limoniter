@@ -11,18 +11,21 @@ use std::time::Duration;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Cpu {
     Z80,
+    M6502,
 }
 
 impl Cpu {
     pub fn name(self) -> &'static str {
         match self {
             Cpu::Z80 => "Z80",
+            Cpu::M6502 => "6502",
         }
     }
 
     pub fn id(self) -> &'static str {
         match self {
             Cpu::Z80 => "z80",
+            Cpu::M6502 => "6502",
         }
     }
 
@@ -30,6 +33,7 @@ impl Cpu {
     pub fn for_language(language: &str) -> Option<Cpu> {
         match language {
             "Assembly Z80" => Some(Cpu::Z80),
+            "Assembly 6502" => Some(Cpu::M6502),
             _ => None,
         }
     }
@@ -37,6 +41,7 @@ impl Cpu {
     pub fn isa(self) -> &'static dyn asm::Isa {
         match self {
             Cpu::Z80 => &asm::z80::Z80,
+            Cpu::M6502 => &asm::m6502::M6502,
         }
     }
 }
@@ -48,6 +53,8 @@ pub enum Style {
     Sjasmplus,
     /// pasmo: makes a tape with a BASIC loader itself.
     Pasmo,
+    /// ACME: makes a Commodore program, and a report of each line's address and bytes.
+    Acme,
 }
 
 /// An assembler of someone else's.
@@ -61,9 +68,10 @@ pub struct External {
     pub website: &'static str,
 }
 
-pub const KNOWN: [External; 2] = [
+pub const KNOWN: [External; 3] = [
     External { id: "sjasmplus", name: "sjasmplus", cpu: Cpu::Z80, programs: &["sjasmplus"], folder_hints: &["sjasmplus"], style: Style::Sjasmplus, website: "https://github.com/z00m128/sjasmplus" },
     External { id: "pasmo", name: "Pasmo", cpu: Cpu::Z80, programs: &["pasmo"], folder_hints: &["pasmo"], style: Style::Pasmo, website: "https://pasmo.speccy.org" },
+    External { id: "acme", name: "ACME", cpu: Cpu::M6502, programs: &["acme"], folder_hints: &["acme"], style: Style::Acme, website: "https://sourceforge.net/projects/acme-crossass/" },
 ];
 
 /// Limoniter's own assembler's name in the settings.
@@ -112,10 +120,10 @@ pub fn installed(cpu: Cpu) -> Vec<(&'static External, PathBuf)> {
     KNOWN.iter().filter(|e| e.cpu == cpu).filter_map(|e| crate::emulators::find_program(e.programs, e.folder_hints).map(|path| (e, path))).collect()
 }
 
-/// What assembling gave: the program, and, from pasmo, a ready tape.
+/// What assembling gave: the program, and, from another assembler, the file it made ready to run.
 pub struct Assembled {
     pub assembly: Assembly,
-    pub tape: Option<Vec<u8>>,
+    pub tape: Option<(crate::running::Format, Vec<u8>)>,
     /// What the assembler printed, for the Output panel.
     pub printed: Vec<String>,
 }
@@ -135,6 +143,7 @@ pub fn assemble_external(found: &External, program: &Path, source: &Path) -> Res
     let result = match found.style {
         Style::Sjasmplus => sjasmplus(program, source, &work),
         Style::Pasmo => pasmo(program, source, &work),
+        Style::Acme => acme(program, source, &work),
     };
     let _ = std::fs::remove_dir_all(&work);
     result
@@ -306,6 +315,13 @@ fn file_index(assembly: &mut Assembly, name: &str, source: &Path) -> usize {
 /// A problem as assemblers print it: "file.asm(12): error: what", "file.asm:12: what", or pasmo's
 /// "ERROR on line 12 of file file.asm".
 pub fn problem_line(line: &str) -> Option<(String, usize, String)> {
+    // ACME: "Error - File prog.asm, line 5 (Zone <untitled>): Syntax error."
+    if let Some(rest) = line.strip_prefix("Error - File ").or_else(|| line.strip_prefix("Serious error - File ")) {
+        let (file, rest) = rest.split_once(", line ")?;
+        let number_end = rest.find(|c: char| !c.is_ascii_digit())?;
+        let message = rest.split_once("): ").map_or("", |(_, m)| m).trim_end_matches('.');
+        return Some((file.to_string(), rest[..number_end].parse().ok()?, message.to_string()));
+    }
     if let Some(rest) = line.strip_prefix("ERROR on line ") {
         let (number, file) = rest.split_once(" of file ")?;
         return Some((file.trim().to_string(), number.trim().parse().ok()?, String::new()));
@@ -339,8 +355,52 @@ fn pasmo(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String
     if !ok && assembly.problems.is_empty() {
         assembly.problems.push(Problem { file: 0, line: 0, message: printed.join(" ") });
     }
-    let tape = if ok { std::fs::read(&tape).ok() } else { None };
+    let tape = if ok { std::fs::read(&tape).ok().map(|t| (crate::running::Format::Tap, t)) } else { None };
     Ok(Assembled { assembly, tape, printed })
+}
+
+fn acme(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String> {
+    let out = work.join("out.prg");
+    let report = work.join("out.lst");
+    let folder = source.parent().unwrap_or(Path::new("."));
+    let args = vec!["-f".to_string(), "cbm".into(), "-o".into(), out.display().to_string(), "-r".into(), report.display().to_string(), source.display().to_string()];
+    let (ok, printed) = run(program, &args, folder)?;
+    let mut assembly = Assembly { files: vec![source.to_path_buf()], ..Assembly::default() };
+    for line in &printed {
+        if let Some((file, number, message)) = problem_line(line) {
+            let file = file_index(&mut assembly, &file, source);
+            assembly.problems.push(Problem { file, line: number.saturating_sub(1), message });
+        }
+    }
+    if !ok && assembly.problems.is_empty() {
+        assembly.problems.push(Problem { file: 0, line: 0, message: printed.join(" ") });
+    }
+    // The report: "     2  c000 a901    lda #1", under the file it's from.
+    if let Ok(listing) = std::fs::read_to_string(&report) {
+        let mut file = 0;
+        for line in listing.lines() {
+            if let Some(name) = line.strip_prefix("; ******** Source: ") {
+                file = file_index(&mut assembly, name.trim(), source);
+                continue;
+            }
+            let mut words = line.split_whitespace();
+            let (Some(number), Some(address), Some(bytes)) = (words.next().and_then(|n| n.parse::<usize>().ok()), words.next(), words.next()) else {
+                continue;
+            };
+            let (Ok(address), true) = (i64::from_str_radix(address, 16), address.len() == 4 && bytes.len() % 2 == 0 && bytes.chars().all(|c| c.is_ascii_hexdigit())) else {
+                continue;
+            };
+            let bytes: Vec<u8> = (0..bytes.len()).step_by(2).filter_map(|i| u8::from_str_radix(&bytes[i..i + 2], 16).ok()).collect();
+            assembly.lines.push(asm::Placed { file, line: number - 1, address, bytes });
+        }
+    }
+    let program = if ok { std::fs::read(&out).ok() } else { None };
+    if let Some(prg) = program.as_ref().filter(|p| p.len() > 2) {
+        assembly.chunks = vec![asm::Chunk { address: u16::from_le_bytes([prg[0], prg[1]]) as i64, bytes: prg[2..].to_vec() }];
+    }
+    let label = assembly.lines.first().map(|p| p.address);
+    assembly.entry = label;
+    Ok(Assembled { assembly, tape: program.map(|p| (crate::running::Format::Prg, p)), printed })
 }
 
 #[cfg(test)]
@@ -354,6 +414,8 @@ mod tests {
         assert_eq!(problem_line("ERROR on line 6 of file prog.asm").map(|p| (p.0, p.1)), Some(("prog.asm".into(), 6)));
         assert_eq!(problem_line("prog.asm(790): warning[out0]: unstable"), None);
         assert_eq!(problem_line("Pass 3 complete"), None);
+        assert_eq!(problem_line("Error - File a.asm, line 5 (Zone <untitled>): Syntax error."), Some(("a.asm".into(), 5, "Syntax error".into())));
+        assert_eq!(problem_line("Warning - File a.asm, line 5 (Zone <untitled>): Label name not in leftmost column."), None);
     }
 
     #[test]
@@ -392,9 +454,21 @@ mod tests {
             let theirs = assemble_external(external("pasmo").unwrap(), Path::new(&program), &source).unwrap();
             assert!(theirs.assembly.ok(), "{:?}", theirs.assembly.problems);
             let tape = theirs.tape.unwrap();
-            assert!(tape.windows(5).any(|w| w == [0x3E, 2, 0xD3, 0xFE, 0x68]), "the code is on the tape");
+            assert!(tape.1.windows(5).any(|w| w == [0x3E, 2, 0xD3, 0xFE, 0x68]), "the code is on the tape");
             std::fs::write(&source, "  org $8000\n  nop\n  ld q,1\n").unwrap();
             let wrong = assemble_external(external("pasmo").unwrap(), Path::new(&program), &source).unwrap().assembly;
+            assert_eq!(wrong.problems.first().map(|p| p.line), Some(2), "{:?}", wrong.problems);
+        }
+        if let Ok(program) = std::env::var("LIMONITER_ACME") {
+            let text = "  *=$c000\nstart lda #1\n  sta $d020\n- inx\n  bne -\n  rts\n";
+            std::fs::write(&source, text).unwrap();
+            let theirs = assemble_external(external("acme").unwrap(), Path::new(&program), &source).unwrap();
+            assert!(theirs.assembly.ok(), "{:?}", theirs.assembly.problems);
+            let own = assemble_own(Cpu::M6502, &source, text).assembly;
+            assert_eq!(theirs.assembly.chunks, own.chunks);
+            assert_eq!(theirs.assembly.lines.iter().map(|p| (p.line, p.address, p.bytes.clone())).collect::<Vec<_>>(), own.lines.iter().map(|p| (p.line, p.address, p.bytes.clone())).collect::<Vec<_>>());
+            std::fs::write(&source, "  *=$c000\n  lda #1\n  ldq #2\n").unwrap();
+            let wrong = assemble_external(external("acme").unwrap(), Path::new(&program), &source).unwrap().assembly;
             assert_eq!(wrong.problems.first().map(|p| p.line), Some(2), "{:?}", wrong.problems);
         }
         let _ = std::fs::remove_dir_all(&folder);

@@ -152,3 +152,52 @@ fn a_next_file_matches_sjasmplus() {
     let differ: Vec<usize> = (0..ours.len()).filter(|i| ours[*i] != theirs[*i]).collect();
     assert!(differ.is_empty(), "differs at {:?}: ours {:02X?} theirs {:02X?}", &differ[..differ.len().min(8)], differ.iter().take(8).map(|i| ours[*i]).collect::<Vec<_>>(), differ.iter().take(8).map(|i| theirs[*i]).collect::<Vec<_>>());
 }
+
+fn m6502(text: &str) -> Assembly {
+    assemble(&m6502::M6502, Path::new("test.asm"), text, &no_files)
+}
+
+/// Every 6502 instruction in every mode, the undocumented ones too, as ACME assembles them.
+#[test]
+fn every_6502_instruction_is_assembled_as_acme_does() {
+    let source = include_str!("testdata/m6502_all.asm");
+    let assembly = m6502(source);
+    assert!(assembly.ok(), "{:?}", assembly.problems.iter().take(5).collect::<Vec<_>>());
+    let expected = include_bytes!("testdata/m6502_all.bin");
+    let ours = assembly.image(0x1000, 0x1000 + expected.len() as i64);
+    for placed in &assembly.lines {
+        let at = (placed.address - 0x1000) as usize;
+        assert_eq!(Some(&placed.bytes[..]), expected.get(at..at + placed.bytes.len()), "line {}: {}", placed.line + 1, source.lines().nth(placed.line).unwrap_or(""));
+    }
+    assert_eq!(ours, expected);
+}
+
+#[test]
+fn the_6502_says_how_long_instructions_take() {
+    let t = |text: &str| {
+        let a = m6502(text);
+        assert!(a.ok(), "{:?}", a.problems);
+        Isa::cycles(&m6502::M6502, &a.chunks[0].bytes).unwrap()
+    };
+    assert_eq!(t("  lda #1"), "2");
+    assert_eq!(t("  lda $1234,x"), "4/5");
+    assert_eq!(t("  sta $1234,x"), "5");
+    assert_eq!(t("  inc $10"), "5");
+    assert_eq!(t("  jsr $1000"), "6");
+    assert_eq!(t("- bne -"), "2/3");
+}
+
+#[test]
+fn a_commodore_program_starts_with_run() {
+    let at_basic = m6502("  *=$0801\n  !byte 1,2\n");
+    assert_eq!(output::commodore_program(&at_basic).unwrap(), vec![0x01, 0x08, 1, 2]);
+    let high = m6502("  *=$c000\nstart lda #1\n  rts\n");
+    let prg = output::commodore_program(&high).unwrap();
+    assert_eq!(&prg[..2], &[0x01, 0x08]);
+    // 10 SYS 49152, as the C64's BASIC lists it, then the code at $C000.
+    let listed = crate::basic::list(&prg, "prg", crate::charset::utf8());
+    let text = listed.lines.join("\n");
+    assert!(text.contains("10 SYS 49152") || text.contains("10 SYS  49152"), "{text}");
+    assert_eq!(&prg[2 + 0xC000 - 0x0801..], &[0xA9, 1, 0x60]);
+    assert!(output::commodore_program(&m6502("  *=$0805\n  nop\n")).is_err());
+}
