@@ -176,6 +176,8 @@ struct Pass<'a> {
     variables: std::collections::HashSet<String>,
     unknown: bool,
     pc: i64,
+    /// Inside DISP: how far the addresses the code is assembled for are from where it's put.
+    shift: i64,
     global: String,
     /// Inside a macro: what its local labels are known by.
     macro_scope: Option<String>,
@@ -202,6 +204,7 @@ impl<'a> Pass<'a> {
             variables: Default::default(),
             unknown: false,
             pc: 0,
+            shift: 0,
             global: String::new(),
             macro_scope: None,
             macros: HashMap::new(),
@@ -252,6 +255,7 @@ impl<'a> Pass<'a> {
             }
         };
         self.depth += 1;
+        let text = without_block_comments(text);
         for (number, line) in text.lines().enumerate() {
             if self.ended {
                 break;
@@ -297,7 +301,7 @@ impl<'a> Pass<'a> {
             return;
         }
         let at_start = !line.starts_with([' ', '\t']);
-        let (label, rest) = split_label(line, at_start, |w| self.is_keyword(w));
+        let (label, rest) = split_label(line, at_start, |w| self.is_keyword(w), |w| self.isa.is_instruction(&w.to_ascii_lowercase()));
         let rest = rest.trim();
         let word = rest.split(|c: char| c.is_whitespace()).next().unwrap_or("").to_ascii_lowercase();
         let word = word.strip_prefix('.').unwrap_or(&word).to_string();
@@ -335,7 +339,7 @@ impl<'a> Pass<'a> {
                 }
                 return;
             }
-            let here = self.pc;
+            let here = self.pc + self.shift;
             self.define(label, here, false);
         }
         if rest.is_empty() {
@@ -442,8 +446,8 @@ impl<'a> Pass<'a> {
             let (file, line) = self.at;
             match self.out.lines.last_mut() {
                 // Several statements on a line, or a macro's lines, all belong to the line they were written on.
-                Some(placed) if placed.file == file && placed.line == line && placed.address + placed.bytes.len() as i64 == address => placed.bytes.extend(bytes),
-                _ => self.out.lines.push(Placed { file, line, address, bytes }),
+                Some(placed) if placed.file == file && placed.line == line && placed.address + placed.bytes.len() as i64 == address + self.shift => placed.bytes.extend(bytes),
+                _ => self.out.lines.push(Placed { file, line, address: address + self.shift, bytes }),
             }
         }
     }
@@ -580,6 +584,12 @@ impl<'a> Pass<'a> {
                 }
                 self.ended = true;
             }
+            "disp" | "phase" => match self.eval(operands) {
+                Ok(v) => self.shift = v - self.pc,
+                Err(problem) => self.problem(problem),
+            },
+            "dephase" | "unphase" => self.shift = 0,
+            "ent" if self.shift != 0 => self.shift = 0,
             "ent" | "entry" | "start" => {
                 let value = if operands.is_empty() { Ok(self.pc) } else { self.eval(operands) };
                 match value {
@@ -724,7 +734,7 @@ impl Scope for Pass<'_> {
     }
 
     fn here(&self) -> i64 {
-        self.pc
+        self.pc + self.shift
     }
 
     fn full_name(&self, name: &str) -> String {
@@ -762,7 +772,7 @@ impl Line<'_, '_> {
     }
 
     pub fn here(&self) -> i64 {
-        self.pass.pc
+        self.pass.pc + self.pass.shift
     }
 
     /// Whether this is the pass that reports problems (and so values must be in range).
@@ -772,8 +782,8 @@ impl Line<'_, '_> {
 }
 
 /// Words the assembler itself understands.
-const DIRECTIVES: [&str; 86] = [
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc",
+const DIRECTIVES: [&str; 90] = [
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.
@@ -799,13 +809,67 @@ pub fn strip_comment(line: &str) -> &str {
     line
 }
 
+/// The text with /* block comments */ taken out, keeping its lines where they were.
+fn without_block_comments(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains("/*") {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len());
+    // They nest, as sjasmplus has them.
+    let mut inside = 0usize;
+    for line in text.split_inclusive('\n') {
+        let mut rest = line;
+        loop {
+            if inside > 0 {
+                let close = rest.find("*/");
+                let open = rest.find("/*");
+                match (open, close) {
+                    (Some(o), Some(c)) if o < c => {
+                        inside += 1;
+                        rest = &rest[o + 2..];
+                    }
+                    (Some(o), None) => {
+                        inside += 1;
+                        rest = &rest[o + 2..];
+                    }
+                    (_, Some(at)) => {
+                        inside -= 1;
+                        rest = &rest[at + 2..];
+                    }
+                    (None, None) => {
+                        if line.ends_with('\n') {
+                            out.push('\n');
+                        }
+                        break;
+                    }
+                }
+            } else {
+                // Only outside a line comment and quotes.
+                let code = strip_comment(rest);
+                match code.find("/*") {
+                    Some(at) if !code[..at].ends_with('/') => {
+                        out.push_str(&rest[..at]);
+                        inside = 1;
+                        rest = &rest[at + 2..];
+                    }
+                    _ => {
+                        out.push_str(rest);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
 /// The first two words of a line, in lower case and without dots, to see if it opens or closes a block.
 fn first_words(line: &str) -> Vec<String> {
     line.split_whitespace().take(2).map(|w| w.trim_end_matches(':').trim_start_matches('.').to_ascii_lowercase()).collect()
 }
 
 /// A label at the start of a line, and what follows it.
-fn split_label(line: &str, at_start: bool, is_keyword: impl Fn(&str) -> bool) -> (Option<String>, &str) {
+fn split_label(line: &str, at_start: bool, is_keyword: impl Fn(&str) -> bool, is_instruction: impl Fn(&str) -> bool) -> (Option<String>, &str) {
     let trimmed = line.trim_start();
     let length = trimmed.bytes().take_while(|c| expr::is_name_char(*c)).count();
     if length == 0 {
@@ -827,6 +891,13 @@ fn split_label(line: &str, at_start: bool, is_keyword: impl Fn(&str) -> bool) ->
         return (Some(name.to_string()), after);
     }
     if at_start && !is_keyword(name) {
+        return (Some(name.to_string()), after);
+    }
+    // A directive's name alone at the start of a line is a label (PRINT, as a routine is often called); an
+    // instruction alone there (RET, NOP) is still the instruction.
+    let next_is_keyword = split_word(after).0.split(':').next().is_some_and(|w| !w.is_empty() && is_keyword(w));
+    // So is any word there with an instruction or directive after it (SL1 LD SP,0: SL1 is a label).
+    if at_start && (next_is_keyword || after.trim().is_empty() && !is_instruction(name)) {
         return (Some(name.to_string()), after);
     }
     (None, line)

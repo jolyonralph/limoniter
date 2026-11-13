@@ -80,6 +80,17 @@ fn several_statements_on_a_line_and_comments() {
 }
 
 #[test]
+fn sjasmplus_ways_of_writing() {
+    // Block comments, DISP to assemble code for where it will be copied to, and a routine called PRINT.
+    let source = "  org $8000\n/* a comment /* nested */\n  over lines */ nop\n  ld a,1 /* here */ : ret\n  disp $c000\nthere: jp there\n  ent\nPRINT\n  call PRINT\nTEXT dw TEXT\nSL1 ret\n";
+    let assembly = z80(source);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.image(0x8000, 0x800C), vec![0x00, 0x3E, 1, 0xC9, 0xC3, 0x00, 0xC0, 0xCD, 0x07, 0x80, 0x0A, 0x80]);
+    assert_eq!(assembly.symbols.get("there"), Some(&0xC000));
+    assert_eq!(assembly.line_at(0xC000), Some((0, 5)), "the debugger finds code by where it runs");
+}
+
+#[test]
 fn includes_are_read_beside_the_file() {
     let read = |path: &Path| -> Result<Vec<u8>, String> {
         match path.file_name().and_then(|n| n.to_str()) {

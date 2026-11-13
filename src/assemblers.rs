@@ -187,8 +187,9 @@ fn sjasmplus(program: &Path, source: &Path, work: &Path) -> Result<Assembled, St
             assembly.problems.push(Problem { file, line: number.saturating_sub(1), message });
         }
     }
+    let mut reached = None;
     if let Ok(listing) = std::fs::read_to_string(work.join("out.lst")) {
-        read_listing(&listing, &mut assembly, source);
+        reached = read_listing(&listing, &mut assembly, source);
     }
     if let Ok(symbols) = std::fs::read_to_string(work.join("out.sym")) {
         for line in symbols.lines() {
@@ -208,16 +209,15 @@ fn sjasmplus(program: &Path, source: &Path, work: &Path) -> Result<Assembled, St
                 placed.bytes = bytes.to_vec();
             }
         }
-        let mut chunks: Vec<asm::Chunk> = Vec::new();
-        let mut placed: Vec<&asm::Placed> = assembly.lines.iter().filter(|p| !p.bytes.is_empty()).collect();
-        placed.sort_by_key(|p| p.address);
-        for p in placed {
-            match chunks.last_mut() {
-                Some(chunk) if chunk.address + chunk.bytes.len() as i64 == p.address => chunk.bytes.extend_from_slice(&p.bytes),
-                _ => chunks.push(asm::Chunk { address: p.address, bytes: p.bytes.clone() }),
-            }
+        // The memory from the first byte made to the last: lines like DS show no bytes in the listing, but filled
+        // the memory all the same.
+        let low = assembly.lines.iter().filter(|p| !p.bytes.is_empty()).map(|p| p.address).min();
+        let high = assembly.lines.iter().map(|p| p.address + p.bytes.len() as i64).chain(reached).max();
+        if let (Some(low), Some(high)) = (low, high)
+            && let Some(bytes) = memory.get(low as usize..(high as usize).min(memory.len()))
+        {
+            assembly.chunks = vec![asm::Chunk { address: low, bytes: bytes.to_vec() }];
         }
-        assembly.chunks = chunks;
     } else if assembly.problems.is_empty() {
         assembly.problems.push(Problem { file: 0, line: 0, message: "sjasmplus didn't save the memory it assembled".into() });
     }
@@ -232,8 +232,11 @@ fn sjasmplus(program: &Path, source: &Path, work: &Path) -> Result<Assembled, St
 
 /// sjasmplus's listing: each line's number, address and first bytes, under the file it's in. The bytes are only
 /// counted here; the memory saved gives them all.
-fn read_listing(listing: &str, assembly: &mut Assembly, source: &Path) {
+fn read_listing(listing: &str, assembly: &mut Assembly, source: &Path) -> Option<i64> {
     let mut files: Vec<usize> = Vec::new();
+    // The furthest address a line of the program's own was at, after the last code: where a DS at the end ends.
+    let mut furthest: Option<i64> = None;
+    let first_code = |a: &Assembly| a.lines.first().map(|p| p.address);
     let mut last: Option<(usize, usize, i64)> = None;
     for line in listing.lines() {
         if let Some(name) = line.strip_prefix("# file opened: ") {
@@ -268,6 +271,9 @@ fn read_listing(listing: &str, assembly: &mut Assembly, source: &Path) {
         let field: String = after_address.chars().take(13).collect();
         let count = field.split_whitespace().take_while(|w| w.len() == 2 && w.chars().all(|c| c.is_ascii_hexdigit())).count();
         if count == 0 {
+            if first_code(assembly).is_some_and(|first| address > first) {
+                furthest = Some(furthest.map_or(address, |f: i64| f.max(address)));
+            }
             continue;
         }
         let line_index = number - 1;
@@ -284,6 +290,7 @@ fn read_listing(listing: &str, assembly: &mut Assembly, source: &Path) {
             }
         }
     }
+    furthest
 }
 
 fn file_index(assembly: &mut Assembly, name: &str, source: &Path) -> usize {
@@ -392,4 +399,66 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&folder);
     }
+}
+
+/// With LIMONITER_SJASMPLUS and LIMONITER_ASM_SOURCES (a folder of programs): every program sjasmplus assembles
+/// cleanly, Limoniter's own assembler makes the same bytes of. Prints how each went.
+#[cfg(test)]
+#[test]
+#[ignore]
+fn real_programs_assemble_as_sjasmplus_does() {
+    let (Ok(program), Ok(folder)) = (std::env::var("LIMONITER_SJASMPLUS"), std::env::var("LIMONITER_ASM_SOURCES")) else {
+        return;
+    };
+    let mut files = Vec::new();
+    let mut folders = vec![PathBuf::from(folder)];
+    while let Some(folder) = folders.pop() {
+        for entry in std::fs::read_dir(&folder).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                folders.push(path);
+            } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("asm") || e.eq_ignore_ascii_case("a80") || e.eq_ignore_ascii_case("z80")) {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    let (mut same, mut differ, mut ours_failed, mut skipped) = (0, 0, 0, 0);
+    for path in files {
+        let Ok(text) = std::fs::read_to_string(&path) else { continue };
+        let theirs = match assemble_external(external("sjasmplus").unwrap(), Path::new(&program), &path) {
+            Ok(t) if t.assembly.ok() && !t.assembly.chunks.is_empty() => t.assembly,
+            _ => {
+                skipped += 1;
+                continue;
+            }
+        };
+        let ours = assemble_own(Cpu::Z80, &path, &text).assembly;
+        if !ours.ok() {
+            ours_failed += 1;
+            let p = &ours.problems[0];
+            println!("OURS FAILED {}: {}({}): {} [{} problems]", path.display(), ours.files.get(p.file).map(|f| f.display().to_string()).unwrap_or_default(), p.line + 1, p.message, ours.problems.len());
+            continue;
+        }
+        // Only where Limoniter's assembler put bytes: sjasmplus's memory also holds the system variables and so on.
+        let mut a = Vec::new();
+        let mut b = Vec::new();
+        let mut low = 0;
+        for chunk in &ours.chunks {
+            if a.is_empty() {
+                low = chunk.address;
+            }
+            a.extend(chunk.bytes.iter().copied());
+            b.extend(theirs.image(chunk.address, chunk.address + chunk.bytes.len() as i64));
+        }
+        if a == b {
+            same += 1;
+        } else {
+            differ += 1;
+            let at = (0..a.len()).find(|i| a[*i] != b[*i]).unwrap_or(0);
+            let line = theirs.line_at(low + at as i64);
+            println!("DIFFER {} at ${:04X} {:?}: ours {:02X?} theirs {:02X?}", path.display(), low + at as i64, line, &a[at..(at + 6).min(a.len())], &b[at..(at + 6).min(b.len())]);
+        }
+    }
+    println!("same {same}, differ {differ}, ours failed {ours_failed}, sjasmplus didn't {skipped}");
 }

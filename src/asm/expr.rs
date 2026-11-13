@@ -229,8 +229,10 @@ impl Parser<'_> {
                 let name = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default().to_string();
                 // A function: high(x), low(x).
                 self.space();
-                if self.peek() == Some(b'(') && matches!(name.to_ascii_lowercase().as_str(), "high" | "low" | "hi" | "lo") {
-                    let value = self.atom()?;
+                // high(x), or as sjasmplus also has it, high x.
+                let word_follows = self.peek().is_some_and(|c| is_name_start(c) || c.is_ascii_digit() || matches!(c, b'$' | b'#' | b'%' | b'('));
+                if word_follows && matches!(name.to_ascii_lowercase().as_str(), "high" | "low" | "hi" | "lo") {
+                    let value = self.unary()?;
                     return Ok(match value {
                         Value::Known(v) if name.to_ascii_lowercase().starts_with('h') => Value::Known((v >> 8) & 0xFF),
                         Value::Known(v) => Value::Known(v & 0xFF),
@@ -360,6 +362,8 @@ mod tests {
         assert_eq!(value("17 % 5"), Value::Known(2));
         assert_eq!(value("17 mod 5"), Value::Known(2));
         assert_eq!(value("high(start)+low($1234)"), Value::Known(0x80 + 0x34));
+        assert_eq!(value("low start"), Value::Known(0));
+        assert_eq!(value("high start + 1"), Value::Known(0x81));
         assert_eq!(value("<$1234"), Value::Known(0x34));
         assert_eq!(value(">$1234"), Value::Known(0x12));
         assert_eq!(value("3 > 2"), Value::Known(1));
