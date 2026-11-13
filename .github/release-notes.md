@@ -1,20 +1,9 @@
-## What's new in 0.5.0
+## What's new in 0.5.1
 
-**Write machine code, run it and debug it**
-- **Assemblers built in** for the Z80 (with the Next's extra instructions), the 6502, the 6809 and the 68000. Each gives exactly the same bytes as the tool people already use: sjasmplus, ACME, lwasm and vasm. They understand those tools' ways of writing too, ca65's as well for the 6502.
-- **Or use your own**: File › Run on › Assembler… picks sjasmplus or Pasmo for the Z80, ACME for the 6502, lwasm for the 6809 or vasm for the 68000. Problems go in the Output panel; click one to go to its line.
-- **F9 assembles and runs**: a Spectrum tape with a BASIC loader (48K or 128K), a Next `.nex`, a C64 program, or an Atari ST program in Hatari. A 6809 program is saved as a CoCo `.bin`. **Assemble and save** saves it without running.
-- **A debugger**: click beside a line number for a breakpoint. When the program stops there, the line is marked and the registers are shown, with Step, Step over and Carry on. It works on the built-in Spectrum, in ZEsarUX (so Next programs too) and for 6502 programs in VICE.
-- The status bar shows each line's address, bytes and how long it takes to run.
-
-**Spectrum BASIC**
-- **GRAPH mode** (Ctrl+Shift+9) types block graphics and UDGs as the Spectrum's GRAPHICS key does.
-- **UDGs are drawn as their pictures**, taken from the tape or snapshot the program came from, its DATA lines, or a file you choose.
-- **zmakebas and bas2tap listings** convert to programs exactly as those tools do. Settings chooses which way listings write graphics.
-- **A Spectrum keyboard** under the built-in Spectrum, with every key's words and symbols, for the key combinations.
-
-**Also**
-- Packaging for the Microsoft Store and winget is ready, for when Limoniter is published there.
+- **File › New as** starts a new file of a kind: Spectrum, Next, C64 or BBC BASIC (ready for F9, and GRAPH mode for the Spectrum's), Z80, 6502, 6809 or 68000 assembler with a few lines to begin with, Markdown, or text in a retro encoding. The list is yours to change: each kind is a file ending, an encoding, line endings, colouring and starting text (File › New as › Change this list, or Settings).
+- **Assemble and save as binary** (File › Run on) saves just the assembled bytes, with no loader or header, and says the address to load them at.
+- **One Assemblers box** (File › Run on › Assemblers, or Settings) chooses Limoniter's own assembler or an installed one for each processor, all in one place. A program you point to is matched to its processor.
+- **Fixed:** assembler source ending `.z80` opened as a Spectrum snapshot. It now opens as source; real snapshots still open as snapshots.
 
 ## Downloads
 
