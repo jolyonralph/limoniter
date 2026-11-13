@@ -541,6 +541,13 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runn
             }
         }
     }
+    // A dot command (put at $2000, saved as a file with no ending) runs from a Next's SD card, not on its own.
+    if let Some(dot) = assembly.outputs.iter().find(|o| !o.name.trim_end_matches('.').contains('.') || o.name.to_ascii_lowercase().contains("dot/"))
+        && assembly.lowest().is_some_and(|low| (0x2000..0x4000).contains(&low))
+    {
+        let name = Path::new(&dot.name).file_name().map_or_else(|| dot.name.clone(), |n| n.to_string_lossy().into_owned());
+        return Err(format!("This is a dot command, run by typing .{} on a Next: put {name} in the dot folder of the Next's SD card (open the card's image in Limoniter and add it, or copy it to the card).", name.trim_end_matches('.')));
+    }
     if cpu == Cpu::M6502 {
         // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
         let bytes = crate::asm::output::commodore_program(assembly)?;

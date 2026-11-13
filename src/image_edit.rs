@@ -75,6 +75,11 @@ impl ImageBrowser {
         self.abilities.as_ref().and_then(|a| a.as_ref().ok())
     }
 
+    /// Whether the image showing can be changed, as far as is known yet.
+    pub(crate) fn writable(&self) -> bool {
+        self.levels.len() == 1 && matches!(self.abilities, Some(Ok(_)))
+    }
+
     /// Why the image can't be changed, if it was tried and can't.
     pub(super) fn not_writable(&self) -> Option<&str> {
         self.abilities.as_ref().and_then(|a| a.as_ref().err()).map(String::as_str)

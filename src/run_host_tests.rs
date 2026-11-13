@@ -814,3 +814,20 @@ fn an_sjasmplus_next_project_writes_its_own_nex_and_runs_it() {
     assert!(app.script_output.iter().any(|l| l.starts_with("Wrote ") && l.contains("game.nex")), "{:?}", app.script_output);
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+#[test]
+fn a_dot_command_is_saved_and_f9_says_where_it_goes() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-dot-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("hello.asm");
+    std::fs::write(&path, "    DEVICE ZXSPECTRUMNEXT\n    ORG $2000\n    ld a,'H' : rst $10\n    or a : ret\n    SAVEBIN \"HELLO\", $2000, $-$2000\n").unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    let problem = app.assemble_to_run(crate::assemblers::Cpu::Z80, true).unwrap_err();
+    assert!(problem.contains("dot command") && problem.contains(".HELLO"), "{problem}");
+    assert_eq!(std::fs::read(folder.join("HELLO")).unwrap(), [0x3E, b'H', 0xD7, 0xB7, 0xC9], "SAVEBIN wrote it beside the source");
+    let _ = std::fs::remove_dir_all(&folder);
+}

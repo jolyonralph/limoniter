@@ -5474,9 +5474,14 @@ impl Limoniter {
                     }
                 }
                 let locked = read_only || doc.text.read_only;
-                let lock = RichText::new(if locked { "Read-only" } else { "Editable" }).color(if locked { theme::change_unsaved() } else { theme::text_faint() });
-                if ui.add(egui::Label::new(lock).sense(egui::Sense::click())).on_hover_text("Click to lock this file against changes, or unlock it").clicked() {
-                    toggle_lock = true;
+                if doc.browser.as_ref().is_some_and(|b| b.writable()) {
+                    // An image whose files can be changed: each change is saved as it's made, so there's no lock.
+                    ui.label(faint("Changes save at once".into())).on_hover_text("Files added, deleted or renamed on this image are saved to it straight away; Undo puts it back");
+                } else {
+                    let lock = RichText::new(if locked { "Read-only" } else { "Editable" }).color(if locked { theme::change_unsaved() } else { theme::text_faint() });
+                    if ui.add(egui::Label::new(lock).sense(egui::Sense::click())).on_hover_text("Click to lock this file against changes, or unlock it").clicked() {
+                        toggle_lock = true;
+                    }
                 }
                 let size_label = ui.label(faint(size));
                 if let Some(modified) = modified {
