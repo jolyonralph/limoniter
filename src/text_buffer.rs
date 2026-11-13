@@ -250,6 +250,8 @@ pub struct TextBuffer {
     pub code: Option<Box<CodeMarks>>,
     /// For Spectrum BASIC: GRAPH mode, and the pictures its UDGs were given.
     pub zx: Option<Box<crate::zx_graphics::ZxText>>,
+    /// What's known about the code, for completion, hover, going to definitions and the outline.
+    pub intel: Option<Box<crate::code_intel::CodeIntel>>,
 }
 
 /// Where a search has got to; large files are searched a little at a time between frames.
@@ -332,6 +334,7 @@ impl Default for TextBuffer {
             git_marks: None,
             code: None,
             zx: None,
+            intel: None,
             notice: None,
         }
     }

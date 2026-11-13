@@ -69,6 +69,16 @@ pub struct Chunk {
     pub bytes: Vec<u8>,
 }
 
+/// Where a label is defined or used: the file and line, and the label as it's written there (a local label is
+/// written .loop and known as main.loop).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub name: String,
+    pub written: String,
+    pub file: usize,
+    pub line: usize,
+}
+
 /// A SAVESNA, SAVETAP, SAVENEX or SAVEBIN line: what the source asks to be written.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Save {
@@ -95,6 +105,12 @@ pub struct Assembly {
     pub notes: Vec<String>,
     /// Whether ORG put it at an address, rather than wherever it's loaded.
     pub absolute: bool,
+    /// Where each label is defined, in the order they are.
+    pub definitions: Vec<Place>,
+    /// Where labels are used.
+    pub uses: Vec<Place>,
+    /// Where each macro is defined: its name, file and line.
+    pub macros: Vec<Place>,
 }
 
 impl Assembly {
@@ -241,6 +257,8 @@ struct Pass<'a> {
     collecting: Option<Collecting>,
     ended: bool,
     out: Assembly,
+    /// Labels used on the last pass; a RefCell, as expressions see the assembler only to read it.
+    used: std::cell::RefCell<Vec<Place>>,
     /// Where the line being assembled is: its file and line, or the line a macro was used on.
     at: (usize, usize),
     depth: usize,
@@ -273,6 +291,7 @@ impl<'a> Pass<'a> {
             collecting: None,
             ended: false,
             out: Assembly::default(),
+            used: Default::default(),
             at: (0, 0),
             depth: 0,
         }
@@ -289,6 +308,7 @@ impl<'a> Pass<'a> {
         }
         self.out.symbols = self.symbols.into_iter().collect();
         self.out.absolute = self.absolute;
+        self.out.uses = self.used.into_inner();
         self.out
     }
 
@@ -577,6 +597,10 @@ impl<'a> Pass<'a> {
         }
         if variable {
             self.variables.insert(name.clone());
+        }
+        if self.last && self.macro_scope.is_none() && !self.out.definitions.iter().any(|d| d.name == name) {
+            let (file, line) = self.at;
+            self.out.definitions.push(Place { name: name.clone(), written: label.to_string(), file, line });
         }
         self.symbols.insert(name, value);
     }
@@ -986,6 +1010,10 @@ impl<'a> Pass<'a> {
     fn collected(&mut self, done: Collecting) {
         match done.kind {
             CollectKind::Macro { name, params } => {
+                if self.last {
+                    let (file, line) = done.at;
+                    self.out.macros.push(Place { name: name.clone(), written: name.clone(), file, line });
+                }
                 self.macros.insert(name, Macro { params, body: done.body });
             }
             CollectKind::Repeat { times, counter } => {
@@ -1057,6 +1085,17 @@ impl Scope for Pass<'_> {
         self.acme
     }
 
+    fn used(&self, written: &str, full: &str) {
+        if !self.last || self.macro_scope.is_some() {
+            return;
+        }
+        let (file, line) = self.at;
+        let mut used = self.used.borrow_mut();
+        if !used.iter().rev().take(8).any(|u| u.file == file && u.line == line && u.name == full && u.written == written) {
+            used.push(Place { name: full.to_string(), written: written.to_string(), file, line });
+        }
+    }
+
     fn full_name(&self, name: &str) -> String {
         let locals = self.isa.local_prefixes();
         if !locals.contains(&'@')
@@ -1109,7 +1148,7 @@ impl Line<'_, '_> {
 }
 
 /// Words the assembler itself understands.
-const DIRECTIVES: &[&str] = &[
+pub const DIRECTIVES: &[&str] = &[
     "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone",
 ];
 

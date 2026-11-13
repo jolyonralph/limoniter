@@ -251,3 +251,19 @@ fn a_ca65_program_assembles_as_ca65_does() {
     let expected = include_bytes!("testdata/ca65_prog.bin");
     assert_eq!(assembly.image(0xC000, 0xC000 + expected.len() as i64), expected);
 }
+
+#[test]
+fn labels_are_known_where_defined_and_used() {
+    let source = "  org 32768\nmain: ld b,8\n.loop: djnz .loop\n  jp main\ncount equ 3\n  ld a,count+count\n  macro border c\n  ld a,c\n  endm\n";
+    let a = assemble(&crate::asm::z80::Z80, Path::new("t.asm"), source, &|_| Err("no".into()));
+    assert!(a.ok(), "{:?}", a.problems);
+    let def = |name: &str| a.definitions.iter().find(|d| d.name == name).map(|d| (d.line, d.written.as_str()));
+    assert_eq!(def("main"), Some((1, "main")));
+    assert_eq!(def("main.loop"), Some((2, ".loop")), "a local label is known in full, and written as it is");
+    assert_eq!(def("count"), Some((4, "count")));
+    let uses = |name: &str| a.uses.iter().filter(|u| u.name == name).map(|u| (u.line, u.written.as_str())).collect::<Vec<_>>();
+    assert_eq!(uses("main.loop"), [(2, ".loop")]);
+    assert_eq!(uses("main"), [(3, "main")]);
+    assert_eq!(uses("count"), [(5, "count")], "used twice on one line, listed once");
+    assert_eq!(a.macros.iter().map(|m| (m.name.as_str(), m.line)).collect::<Vec<_>>(), [("border", 6)]);
+}

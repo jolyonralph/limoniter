@@ -57,12 +57,79 @@ impl Limoniter {
         if self.no_file() {
             return;
         }
-        let wanted = self.doc_cpu(self.active).is_some();
+        let cpu = self.doc_cpu(self.active);
         let doc = &mut self.docs[self.active];
-        match (wanted, doc.text.code.is_some()) {
+        match (cpu.is_some(), doc.text.code.is_some()) {
             (true, false) => doc.text.code = Some(Box::default()),
             (false, true) => doc.text.code = None,
             _ => {}
+        }
+        self.intel_tick(cpu);
+    }
+
+    /// Keeps what's known about the code in front up to date: for assembler source, it's assembled quietly a
+    /// moment after typing stops, and with Limoniter's own assembler chosen, its problems are marked as you go.
+    fn intel_tick(&mut self, cpu: Option<Cpu>) {
+        let index = self.active;
+        let language = self.docs[index].language_name();
+        let doc = &mut self.docs[index];
+        if doc.hex_mode || doc.text.is_disk_backed() {
+            doc.text.intel = None;
+            return;
+        }
+        let Some(cpu) = cpu else {
+            // BASIC: its keywords.
+            let spectrum = match &doc.listing_of {
+                Some((basic::Machine::Next, _)) => Some(Some(basic::ZxDialect::Next)),
+                _ if language == highlight::BASIC_SINCLAIR => Some(Some(basic::ZxDialect::Spectrum)),
+                _ if language == highlight::BASIC_COMMODORE => Some(None),
+                _ => None,
+            };
+            match spectrum {
+                Some(dialect) if doc.text.intel.as_ref().is_none_or(|i| i.cpu.is_some() || i.words.is_empty()) => doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::keywords(basic::keywords(dialect)))),
+                Some(_) => {}
+                None => doc.text.intel = None,
+            }
+            return;
+        };
+        if doc.text.intel.as_ref().is_none_or(|i| i.cpu != Some(cpu)) {
+            doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::for_cpu(cpu)));
+            self.intel_wait = None;
+        }
+        let version = self.docs[index].text.version();
+        let doc_id = self.docs[index].id;
+        if self.docs[index].text.intel.as_ref().is_some_and(|i| i.assembly.is_some() && i.version == version) {
+            return;
+        }
+        // A moment after the last change, so typing isn't held up.
+        let now = std::time::Instant::now();
+        match self.intel_wait {
+            Some((id, v, since)) if id == doc_id && v == version => {
+                if now.duration_since(since) < Duration::from_millis(300) {
+                    return;
+                }
+            }
+            _ => {
+                let first = self.docs[index].text.intel.as_ref().is_some_and(|i| i.assembly.is_none());
+                self.intel_wait = Some((doc_id, version, now));
+                if !first {
+                    return;
+                }
+            }
+        }
+        let doc = &self.docs[index];
+        let path = std::path::absolute(doc.path_or_name()).unwrap_or_else(|_| doc.path_or_name());
+        let text = doc.text.all_lines().iter().map(|l| l.as_ref()).collect::<Vec<&str>>().join("\n");
+        let assembly = assemblers::assemble_own(cpu, &path, &text).assembly;
+        let own = self.assembler_for(cpu) == Choice::Own;
+        let doc = &mut self.docs[index];
+        if own && let Some(code) = doc.text.code.as_mut() {
+            code.problems = assembly.problems.iter().filter(|p| p.file == 0).map(|p| (p.line, p.message.clone())).collect();
+        }
+        if let Some(intel) = doc.text.intel.as_mut() {
+            intel.assembly = Some(Arc::new(assembly));
+            intel.version = version;
+            intel.file = 0;
         }
     }
 

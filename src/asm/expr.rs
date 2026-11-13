@@ -13,6 +13,8 @@ pub trait Scope {
     fn caret_is_power(&self) -> bool {
         false
     }
+    /// A label was used: as written, and its full name. Kept on the last pass, for going to it and finding uses.
+    fn used(&self, _written: &str, _full: &str) {}
 }
 
 /// What came of working one out.
@@ -261,6 +263,7 @@ impl Parser<'_> {
                     });
                 }
                 let full = self.scope.full_name(&name);
+                self.scope.used(&name, &full);
                 match self.scope.value(&full) {
                     Some(value) => Ok(Value::Known(value)),
                     None => {

@@ -1199,6 +1199,33 @@ fn clipboard_panel(ui: &mut Ui, items: &mut Vec<String>, actions: &mut Vec<Actio
 /// How long typing has to pause before the list is worked out again.
 const FUNCTIONS_PAUSE_SECONDS: f64 = 0.6;
 
+/// Assembler source's outline: where each ORG puts the code, the labels with their values (local labels under
+/// the label they belong to), and the macros. None for anything that isn't assembler source.
+pub fn assembler_outline(intel: &crate::code_intel::CodeIntel) -> Option<Vec<(usize, String, String)>> {
+    let assembly = intel.assembly.as_ref().filter(|_| intel.cpu.is_some())?;
+    let mut items: Vec<(usize, String, String)> = Vec::new();
+    // Each ORG: the address the first line after it was put at.
+    let mut last_org = None;
+    for placed in assembly.lines.iter().filter(|p| p.file == intel.file) {
+        if last_org.is_none_or(|(address, len): (i64, usize)| placed.address != address + len as i64 && !placed.bytes.is_empty()) && !placed.bytes.is_empty() {
+            items.push((placed.line, format!("at ${:04X}", placed.address), String::new()));
+        }
+        if !placed.bytes.is_empty() {
+            last_org = Some((placed.address, placed.bytes.len()));
+        }
+    }
+    for d in assembly.definitions.iter().filter(|d| d.file == intel.file) {
+        let value = assembly.symbols.get(&d.name).map_or_else(String::new, |v| format!("${:04X}", v & 0xFFFF_FFFF));
+        let name = if d.written == d.name { d.name.clone() } else { format!("    {}", d.written) };
+        items.push((d.line, name, value));
+    }
+    for m in assembly.macros.iter().filter(|m| m.file == intel.file) {
+        items.push((m.line, format!("macro {}", m.name), String::new()));
+    }
+    items.sort_by_key(|(line, name, _)| (*line, !name.starts_with("at $")));
+    Some(items)
+}
+
 fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, actions: &mut Vec<Action>) {
     let say = |ui: &mut Ui, text: &str| {
         ui.label(RichText::new(text).color(theme::text_faint()).size(12.5));
@@ -1211,6 +1238,27 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
     }
     if doc.text.is_disk_backed() {
         return say(ui, "This file is too large to list. It is being kept on disk.");
+    }
+    // Assembler source: its outline, from what the assembler knows.
+    if let Some(items) = doc.text.intel.as_deref().and_then(assembler_outline) {
+        ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text("Filter").desired_width(f32::INFINITY));
+        ui.add_space(2.0);
+        if items.is_empty() {
+            return say(ui, "No labels yet.");
+        }
+        let filter = panel.filter.to_lowercase();
+        let shown: Vec<&(usize, String, String)> = items.iter().filter(|(_, name, _)| filter.is_empty() || name.to_lowercase().contains(&filter)).collect();
+        let row = ui.text_style_height(&egui::TextStyle::Body) + 3.0;
+        egui::ScrollArea::vertical().id_salt("functions-scroll").auto_shrink([false, false]).show_rows(ui, row, shown.len(), |ui, range| {
+            for (line, name, value) in &shown[range] {
+                let words = if value.is_empty() { name.clone() } else { format!("{name}   {value}") };
+                let button = egui::Button::new(RichText::new(words).size(12.5).monospace()).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
+                if ui.add(button).on_hover_text(format!("Line {}", line + 1)).clicked() {
+                    actions.push(Action::GoToLine(*line));
+                }
+            }
+        });
+        return;
     }
     let (Some(engine), Some(syntax)) = (crate::highlight::engine(), doc.syntax) else {
         return say(ui, "This file has no language, so its functions can't be told apart. Choose one from Tools, Colour as.");

@@ -288,6 +288,57 @@ pub struct ViewState {
     wrap_width: Option<usize>,
     /// Under word wrap, the place along a row that going up and down tries to keep to.
     wrap_goal: Option<usize>,
+    /// The words offered to finish the one being typed, while the list is open.
+    pub completion: Option<Completion>,
+}
+
+/// The list of words offered to finish the one being typed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Completion {
+    pub line: usize,
+    /// Where the word being finished starts.
+    pub start: usize,
+    pub items: Vec<String>,
+    pub selected: usize,
+}
+
+/// Opens, updates or closes the list of words offered at the cursor. `asked` opens it whatever has been typed;
+/// otherwise it opens once two characters of a word are typed.
+pub fn offer_completions(buffer: &TextBuffer, state: &mut ViewState, asked: bool) {
+    let Some(intel) = buffer.intel.as_ref().filter(|_| !buffer.has_selection() && !buffer.has_multi()) else {
+        state.completion = None;
+        return;
+    };
+    let line = buffer.caret_line;
+    let text = buffer.line(line);
+    let col = buffer.caret_col;
+    let Some((start, prefix)) = crate::code_intel::prefix_at(&text, col) else {
+        state.completion = None;
+        return;
+    };
+    let long_enough = asked || prefix.chars().count() >= 2 || state.completion.is_some();
+    let items = if long_enough { intel.completions(line, &text, col) } else { Vec::new() };
+    state.completion = (!items.is_empty()).then(|| {
+        let keep = state.completion.as_ref().and_then(|c| c.items.get(c.selected)).and_then(|was| items.iter().position(|i| i == was)).unwrap_or(0);
+        Completion { line, start, items, selected: keep }
+    });
+}
+
+/// Puts the chosen word in place of the one being typed.
+fn accept_completion(buffer: &mut TextBuffer, state: &mut ViewState) {
+    let Some(completion) = state.completion.take() else {
+        return;
+    };
+    let Some(word) = completion.items.get(completion.selected) else {
+        return;
+    };
+    if buffer.caret_line != completion.line || buffer.caret_col < completion.start {
+        return;
+    }
+    let end = buffer.caret_col;
+    buffer.move_caret(completion.line, completion.start, false);
+    buffer.move_caret(completion.line, end, true);
+    buffer.type_text(word);
 }
 
 impl ViewState {
@@ -777,8 +828,57 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         state.cell_state = Some((buffer.version(), first_line, found));
         found
     };
-    let layout = TextLayout { font, cell, gutter, git_space, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width };
+    // Where the cursor is drawn, for the list of words offered to finish the one being typed.
+    let caret_spot = slots.iter().enumerate().find(|(_, slot)| slot.line == buffer.caret_line && slot.holds(buffer.caret_col)).map(|(row, slot)| pos2(view.min.x + gutter + (buffer.caret_col as f32 - slot.start as f32) * cell.x, view.min.y + ruler_h + (row + 1) as f32 * cell.y));
+    // Hovering over a label says what it is; over an instruction, what it became.
+    if let Some(intel) = buffer.intel.as_ref()
+        && state.completion.is_none()
+        && let Some(p) = response.hover_pos()
+        && p.x > view.min.x + gutter
+        && !response.dragged()
+    {
+        let (line, col) = to_position(pos2(p.x - cell.x / 2.0, p.y));
+        if line < buffer.line_count()
+            && let Some(words) = intel.describe(line, &buffer.line(line), col)
+        {
+            response.clone().on_hover_ui_at_pointer(|ui| {
+                ui.label(egui::RichText::new(words).font(FontId::monospace(options.font_size * 0.9)));
+            });
+        }
+    }
+    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
+    if !focused {
+        state.completion = None;
+    }
+    if let (Some(completion), Some(at)) = (state.completion.clone(), caret_spot) {
+        let mut chosen = None;
+        // Near the bottom, the list opens above the line instead.
+        let shown = completion.items.len().min(10) as f32 * (cell.y + 4.0) + 12.0;
+        let (at, pivot) = if at.y + shown > view.max.y { (pos2(at.x, at.y - cell.y), egui::Align2::LEFT_BOTTOM) } else { (at, egui::Align2::LEFT_TOP) };
+        egui::Area::new(id.with("completion")).order(egui::Order::Foreground).fixed_pos(at).pivot(pivot).show(ui.ctx(), |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_min_width(cell.x * 16.0);
+                egui::ScrollArea::vertical().max_height(cell.y * 10.0).show(ui, |ui| {
+                    for (index, item) in completion.items.iter().enumerate() {
+                        let shown = ui.selectable_label(index == completion.selected, egui::RichText::new(item).font(font.clone()));
+                        if index == completion.selected {
+                            shown.scroll_to_me(None);
+                        }
+                        if shown.clicked() {
+                            chosen = Some(index);
+                        }
+                    }
+                });
+            });
+        });
+        if let Some(index) = chosen {
+            if let Some(open) = state.completion.as_mut() {
+                open.selected = index;
+            }
+            accept_completion(buffer, state);
+        }
+    }
     command
 }
 
@@ -895,9 +995,46 @@ fn graph_key(buffer: &TextBuffer, event: &Event) -> Option<GraphKey> {
 fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, clip: &mut ClipState) {
     let events = ui.input(|i| i.events.clone());
     let current_mods = ui.input(|i| i.modifiers);
+    let (version, caret) = (buffer.version(), (buffer.caret_line, buffer.caret_col));
+    let mut typed_word = false;
+    let mut asked = false;
     // The text a GRAPH mode key would also have typed is left out, as the key has typed its graphic instead.
     let mut swallow = events.iter().filter(|event| matches!(graph_key(buffer, event), Some(GraphKey::Type(_) | GraphKey::Leave(true)))).count();
     for event in events {
+        // While words are offered, the arrows choose among them, Enter or Tab puts one in, and Escape closes them.
+        if let (Some(completion), Event::Key { key, pressed: true, modifiers, .. }) = (state.completion.as_mut(), &event)
+            && !modifiers.ctrl
+            && !modifiers.alt
+        {
+            let count = completion.items.len();
+            match key {
+                Key::ArrowDown => {
+                    completion.selected = (completion.selected + 1) % count;
+                    continue;
+                }
+                Key::ArrowUp => {
+                    completion.selected = (completion.selected + count - 1) % count;
+                    continue;
+                }
+                Key::Enter | Key::Tab => {
+                    accept_completion(buffer, state);
+                    state.last_activity = ui.input(|i| i.time);
+                    continue;
+                }
+                Key::Escape => {
+                    state.completion = None;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        if let Event::Key { key: Key::Space, pressed: true, modifiers, .. } = &event
+            && modifiers.command
+            && buffer.intel.is_some()
+        {
+            asked = true;
+            continue;
+        }
         if let Some(graph) = graph_key(buffer, &event) {
             match graph {
                 GraphKey::Type(text) => {
@@ -918,6 +1055,7 @@ fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             Event::Text(t) if swallow > 0 && t.chars().count() == 1 => swallow -= 1,
             Event::Text(t) if is_typed(&t, current_mods) => {
                 state.wrap_goal = None;
+                typed_word = t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '@'));
                 if !buffer.read_only {
                     scripting::note_typed(&t);
                     buffer.type_text(&t);
@@ -953,6 +1091,18 @@ fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             _ => continue,
         }
         state.last_activity = ui.input(|i| i.time);
+    }
+    // Typing a word, or Ctrl+Space, offers words to finish it; an edit keeps the list up to date, and moving
+    // away closes it.
+    if asked || typed_word {
+        offer_completions(buffer, state, asked);
+    } else if state.completion.is_some() {
+        let moved = (buffer.caret_line, buffer.caret_col) != caret;
+        if buffer.version() != version && buffer.caret_line == caret.0 {
+            offer_completions(buffer, state, false);
+        } else if moved || buffer.version() != version {
+            state.completion = None;
+        }
     }
 }
 
@@ -2367,6 +2517,35 @@ mod tests {
         crate::text_buffer::set_cell_profile(format.charset);
         let mut state = format.tracker();
         legacy_cells(raw, format, &mut state, &mut |_| true)
+    }
+
+    #[test]
+    fn typing_a_word_offers_ways_to_finish_it_and_enter_puts_one_in() {
+        use crate::assemblers::Cpu;
+        let source = ["  org 32768", "counter: db 0", "  ld a,(counter)", ""];
+        let mut bench = Bench::new(1);
+        bench.buffer.set_content(source.iter().map(|l| l.to_string()).collect());
+        let assembly = crate::assemblers::assemble_own(Cpu::Z80, std::path::Path::new("t.asm"), &source.join("\n")).assembly;
+        bench.buffer.intel = Some(Box::new(crate::code_intel::CodeIntel { assembly: Some(std::sync::Arc::new(assembly)), ..crate::code_intel::CodeIntel::for_cpu(Cpu::Z80) }));
+        bench.buffer.move_caret(3, 0, false);
+        bench.frame(vec![Event::Text("  ld hl,".into())]);
+        assert!(bench.state.completion.is_none(), "nothing to finish yet");
+        bench.frame(vec![Event::Text("c".into())]);
+        assert!(bench.state.completion.is_none(), "one letter isn't enough to offer anything by itself");
+        bench.frame(vec![Event::Text("o".into())]);
+        let offered = bench.state.completion.clone().expect("two letters are");
+        assert_eq!(offered.items.first().map(String::as_str), Some("counter"));
+        bench.frame(vec![key(Key::Enter)]);
+        assert_eq!(&*bench.buffer.line(3), "  ld hl,counter", "Enter puts it in, and makes no new line");
+        assert!(bench.state.completion.is_none());
+        // Ctrl+Space asks, whatever has been typed; Escape closes the list.
+        bench.frame(vec![Event::Text(" ; ".into())]);
+        bench.buffer.move_caret(2, 3, false);
+        bench.frame(vec![Event::Key { key: Key::Space, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::CTRL | Modifiers::COMMAND }]);
+        assert!(bench.state.completion.as_ref().is_some_and(|c| c.items.contains(&"ld".to_string())), "{:?}", bench.state.completion);
+        bench.frame(vec![key(Key::Escape)]);
+        assert!(bench.state.completion.is_none());
+        assert_eq!(&*bench.buffer.line(2), "  ld a,(counter)");
     }
 
     #[test]

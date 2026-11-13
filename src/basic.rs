@@ -889,6 +889,19 @@ pub fn zx_number(value: f64) -> Result<[u8; 5], String> {
 /// A keyword's token and its letters.
 type Keywords = Vec<(u8, Vec<char>)>;
 
+/// The keywords of a BASIC, for completing them as they're typed: Spectrum or NextBASIC, or Commodore BASIC V2.
+pub fn keywords(spectrum: Option<ZxDialect>) -> Vec<String> {
+    match spectrum {
+        Some(dialect) => {
+            let mut words: Vec<String> = zx_keywords(dialect).iter().map(|(_, w)| w.iter().collect::<String>()).filter(|w| w.starts_with(|c: char| c.is_ascii_alphabetic()) && w.len() > 1).collect();
+            words.sort();
+            words.dedup();
+            words
+        }
+        None => CBM_KEYWORDS.iter().filter(|w| w.starts_with(|c: char| c.is_ascii_alphabetic()) && w.len() > 1).map(|w| w.to_string()).collect(),
+    }
+}
+
 fn zx_keywords(dialect: ZxDialect) -> &'static [(u8, Vec<char>)] {
     static WORDS: std::sync::OnceLock<[Keywords; 2]> = std::sync::OnceLock::new();
     let lists = WORDS.get_or_init(|| {

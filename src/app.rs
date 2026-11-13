@@ -200,6 +200,10 @@ enum Command {
     /// A new file of a kind from the New as list, by its place in it.
     NewAs(usize),
     EditNewKinds,
+    /// For the label at the cursor in assembler source.
+    GoToDefinition,
+    FindUses,
+    RenameLabel,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -1234,6 +1238,7 @@ enum Dialog {
     RunTool { line: String, save_first: bool, error: String, focus: bool },
     Assembler(Box<asm_host::AssemblerBox>),
     NewKinds(Box<new_kinds::NewKindsBox>),
+    RenameLabel(Box<intel_host::RenameBox>),
     Spelling { found: crate::spelling::Found, chosen: usize },
     AssistReview(assistant::Review),
 }
@@ -1244,6 +1249,8 @@ pub struct Limoniter {
     untitled_count: usize,
     /// What File, New as offers.
     new_kinds: Vec<new_kinds::NewKind>,
+    /// The document and version waiting to be assembled quietly, and since when.
+    intel_wait: Option<(u64, u64, std::time::Instant)>,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1512,6 +1519,7 @@ impl Limoniter {
             active: 0,
             untitled_count: 0,
             new_kinds: new_kinds::kinds_from_settings(&settings),
+            intel_wait: None,
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -2340,6 +2348,9 @@ impl Limoniter {
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.git_tick(ctx);
         self.assembly_tick();
+        if self.intel_wait.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(350));
+        }
         if self.follow_live_views() {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
@@ -3528,6 +3539,9 @@ impl Limoniter {
             Command::AssembleAndSave => self.assemble_and_save(),
             Command::AssembleBinary => self.assemble_binary(),
             Command::NewAs(index) => self.new_of_kind(index),
+            Command::GoToDefinition => self.go_to_definition(),
+            Command::FindUses => self.find_uses(),
+            Command::RenameLabel => self.open_rename_box(),
             Command::EditNewKinds => self.open_new_kinds_box(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
@@ -4043,6 +4057,9 @@ impl Limoniter {
             (ctrl, Key::J, Command::Snippets),
             (Modifiers::NONE, Key::F5, Command::RunTool),
             (Modifiers::NONE, Key::F9, Command::RunOnMachine),
+            (Modifiers::NONE, Key::F12, Command::GoToDefinition),
+            (Modifiers::SHIFT, Key::F12, Command::FindUses),
+            (ctrl, Key::F12, Command::RenameLabel),
             (Modifiers::NONE, Key::F6, Command::ToggleTable),
             (Modifiers::NONE, Key::F7, Command::NextMistake),
             (ctrl_shift, Key::R, Command::RecordMacro),
@@ -5678,7 +5695,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -5972,6 +5989,20 @@ impl Limoniter {
                 "basic-listing" => self.open_basic_listing(),
                 "graph-mode" => self.toggle_graph_mode(),
                 "new-kinds" => self.open_new_kinds_box(),
+                "code-intel" => {
+                    // The outline, a problem marked as it's typed, and words offered to finish one being typed.
+                    highlight::load_now();
+                    self.doc().update_syntax();
+                    self.panels.functions = true;
+                    self.refresh_intel();
+                    let doc = &mut self.docs[self.active];
+                    let line = doc.text.line_count().saturating_sub(1);
+                    doc.text.move_caret(line, 0, false);
+                    doc.text.type_text("        ld hl,co");
+                    self.refresh_intel();
+                    let doc = &mut self.docs[self.active];
+                    crate::views::offer_completions(&doc.text, &mut doc.text_state, true);
+                }
                 "git-panel" => {
                     self.git.open = true;
                     self.git.blame_on = true;
@@ -7111,6 +7142,9 @@ mod zx_host;
 
 #[path = "new_kinds.rs"]
 mod new_kinds;
+
+#[path = "intel_host.rs"]
+mod intel_host;
 
 #[path = "live_host.rs"]
 mod live_host;
