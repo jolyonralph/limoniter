@@ -41,6 +41,8 @@ pub struct Breaks {
     wrote: Option<(u16, u8)>,
     /// Whether the last stop was at a breakpoint, rather than a step's end.
     at_breakpoint: bool,
+    /// While profiling: T-states and times run at each address, and the instruction running and when it began.
+    profile: Option<Box<Profile>>,
     /// Where the ROM starts each BASIC statement, while a BASIC program is being debugged; and whether that's
     /// what it stopped at.
     basic_at: std::collections::HashSet<u16>,
@@ -66,12 +68,40 @@ impl rustzx_core::host::DebugInterface for Breaks {
         self.at_breakpoint
     }
 
+    fn instruction_done(&mut self, next: u16, clock: usize, frame: usize) {
+        let Some(profile) = self.profile.as_mut().filter(|p| p.counting) else {
+            return;
+        };
+        if let Some((pc, began)) = profile.running {
+            // The frame's clock starts again each frame.
+            let spent = if clock >= began { clock - began } else { clock + frame - began };
+            profile.t_states[usize::from(pc)] += spent as u64;
+            profile.runs[usize::from(pc)] += 1;
+        }
+        profile.running = Some((next, clock));
+    }
+
     fn check_memory_write(&mut self, address: u16, value: u8) -> bool {
         if self.writes.contains(&address) {
             self.wrote = Some((address, value));
             return true;
         }
         false
+    }
+}
+
+/// What the profiler has counted: T-states spent at each address and how many times each ran.
+pub struct Profile {
+    pub t_states: Vec<u64>,
+    pub runs: Vec<u64>,
+    running: Option<(u16, usize)>,
+    /// Whether it's still counting; once stopped, what was counted is kept to read.
+    counting: bool,
+}
+
+impl Default for Profile {
+    fn default() -> Self {
+        Profile { t_states: vec![0; 65536], runs: vec![0; 65536], running: None, counting: true }
     }
 }
 
@@ -455,6 +485,27 @@ impl BuiltIn {
         if let Some(breaks) = self.emulator.debug_interface() {
             breaks.basic_at = if on { [crate::zx_basic_debug::STATEMENT_48, crate::zx_basic_debug::STATEMENT_128].into() } else { Default::default() };
         }
+    }
+
+    /// Starts counting where the time goes, afresh, or stops.
+    pub fn set_profiling(&mut self, on: bool) {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            match (on, breaks.profile.as_mut()) {
+                (true, _) => breaks.profile = Some(Box::default()),
+                (false, Some(profile)) => profile.counting = false,
+                (false, None) => {}
+            }
+        }
+    }
+
+    /// What's been counted so far, while profiling: T-states and runs at each address.
+    pub fn profile(&mut self) -> Option<(Vec<u64>, Vec<u64>)> {
+        let breaks = self.emulator.debug_interface()?;
+        breaks.profile.as_ref().map(|p| (p.t_states.clone(), p.runs.clone()))
+    }
+
+    pub fn profiling(&mut self) -> bool {
+        self.emulator.debug_interface().is_some_and(|b| b.profile.as_ref().is_some_and(|p| p.counting))
     }
 
     /// Stops before the next BASIC statement, wherever the program is.

@@ -60,6 +60,7 @@ mod dzrp;
 mod disasm;
 mod pixel_editor;
 mod screen_designer;
+mod profiler;
 mod zx_machine;
 mod machine_link;
 mod retro_screens;

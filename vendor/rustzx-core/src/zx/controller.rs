@@ -431,6 +431,7 @@ impl<H: Host> Z80Bus for ZXController<H> {
             }
         }
         if let Some(debug) = &mut self.debug_interface {
+            debug.instruction_done(addr, self.frame_clocks, self.machine.specs().clocks_frame);
             if debug.check_pc_breakpoint(addr) {
                 self.events |= EmulationEvents::PC_BREAKPOINT;
             }

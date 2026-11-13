@@ -86,6 +86,9 @@ pub trait DebugInterface {
     fn check_memory_write(&mut self, _addr: u16, _value: u8) -> bool {
         false
     }
+    /// After each instruction: the address of the next, and the clock within the frame and the frame's length.
+    /// (Added for Limoniter: the profiler.)
+    fn instruction_done(&mut self, _next: u16, _frame_clock: usize, _frame_length: usize) {}
 }
 
 /// Debug interface which does nothing

@@ -519,6 +519,12 @@ impl Limoniter {
             _ => Vec::new(),
         };
         let mut debug: Option<Debug> = None;
+        let mut go_to_line: Option<usize> = None;
+        // The source's lines, for the profile's busiest lines.
+        let line_texts_all: std::collections::BTreeMap<usize, String> = match self.docs.iter().find(|d| d.id == doc_id) {
+            Some(doc) if assembly.is_some() => (0..doc.text.line_count().min(20_000)).map(|l| (l, doc.text.line(l).to_string())).collect(),
+            _ => Default::default(),
+        };
         // The debugger's watches, conditions and memory window live with the source; borrowed while it's drawn.
         let doc_index = self.docs.iter().position(|d| d.id == doc_id);
         let mut code = doc_index.and_then(|i| self.docs[i].text.code.take());
@@ -571,6 +577,10 @@ impl Limoniter {
                         keyboard = !keyboard;
                     }
                     restart = ui.small_button("Restart").on_hover_text("Runs the program again from the start").clicked();
+                    let profiling = machine.profiling();
+                    if ui.selectable_label(profiling, "Profile").on_hover_text("Counts the T-states spent in each routine and line, from now; click again to stop counting, and what was counted stays to read").clicked() {
+                        machine.set_profiling(!profiling);
+                    }
                     let pause = if machine.paused { "Carry on" } else { "Pause" };
                     if ui.small_button(pause).clicked() {
                         machine.paused = !machine.paused;
@@ -650,6 +660,39 @@ impl Limoniter {
             if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
                 crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), true, true);
             }
+            if let Some((t_states, runs)) = machine.profile() {
+                let (routines, lines, total) = crate::profiler::summarise(&t_states, &runs, assembly.as_deref());
+                egui::CollapsingHeader::new(format!("Profile: {} T-states, {:.1} frames", total, total as f64 / 69888.0)).id_salt("profile").default_open(true).show(ui, |ui| {
+                    egui::Grid::new("profile-routines").num_columns(4).spacing([14.0, 2.0]).striped(true).show(ui, |ui| {
+                        for heading in ["Routine", "T-states", "Share", "Entered"] {
+                            ui.label(RichText::new(heading).strong().size(12.0));
+                        }
+                        ui.end_row();
+                        for routine in routines.iter().take(15) {
+                            let share = if total == 0 { 0.0 } else { routine.t_states as f64 * 100.0 / total as f64 };
+                            let name = ui.add(egui::Label::new(RichText::new(&routine.name).monospace().size(12.0)).sense(egui::Sense::click()));
+                            if name.clicked() {
+                                go_to_line = routine.line;
+                            }
+                            ui.label(RichText::new(routine.t_states.to_string()).monospace().size(12.0));
+                            ui.label(RichText::new(format!("{share:.1}%")).monospace().size(12.0));
+                            ui.label(RichText::new(if routine.entered > 0 { routine.entered.to_string() } else { String::new() }).monospace().size(12.0));
+                            ui.end_row();
+                        }
+                    });
+                    if !lines.is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("Busiest lines").size(12.0).color(theme::text_dim()));
+                        for hot in lines.iter().take(8) {
+                            let share = if total == 0 { 0.0 } else { hot.t_states as f64 * 100.0 / total as f64 };
+                            let text = line_texts_all.get(&hot.line).map(|t| t.trim().to_string()).unwrap_or_default();
+                            if ui.add(egui::Label::new(RichText::new(format!("{:>5}  {share:>5.1}%  {}", hot.line + 1, text)).monospace().size(12.0)).sense(egui::Sense::click())).clicked() {
+                                go_to_line = Some(hot.line);
+                            }
+                        }
+                    }
+                });
+            }
             if keyboard {
                 ui.add_space(4.0);
                 keyboard_used = crate::zx_keyboard::draw(ui, machine);
@@ -670,6 +713,10 @@ impl Limoniter {
         }
         if let (Some(i), Some(code)) = (doc_index, code.take()) {
             self.docs[i].text.code = Some(code);
+        }
+        if let (Some(i), Some(line)) = (doc_index, go_to_line) {
+            self.docs[i].text.move_caret(line, 0, false);
+            self.docs[i].text.reveal = true;
         }
         let SessionKind::BuiltIn { machine, error, .. } = &mut self.running.sessions[index].kind else {
             return;

@@ -215,6 +215,8 @@ fn file_stem(stem: &str) -> String {
 pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
     Some(match format {
         Format::Tap | Format::Tzx => Machine::Spectrum48,
+        // .z80 is also assembler source: a snapshot's header has control codes, and text has none.
+        Format::Z80 if !bytes.iter().take(30).any(|b| *b < 9 || (14..32).contains(b)) => return None,
         Format::Z80 => z80_machine(bytes),
         Format::Sna => {
             if bytes.len() == 49179 {

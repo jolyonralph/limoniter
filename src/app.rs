@@ -5989,6 +5989,20 @@ impl Limoniter {
                     self.run_until_stopped_for_screenshot();
                 }
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
+                "profile" => {
+                    // Counted for a number of frames, then left to read.
+                    for session in &mut self.running.sessions {
+                        if let run_host::SessionKind::BuiltIn { machine, .. } = &mut session.kind {
+                            machine.set_profiling(true);
+                        }
+                    }
+                    self.run_frames_for_screenshot(value.parse().unwrap_or(100));
+                    for session in &mut self.running.sessions {
+                        if let run_host::SessionKind::BuiltIn { machine, .. } = &mut session.kind {
+                            machine.set_profiling(false);
+                        }
+                    }
+                }
                 "basic-debug" => {
                     // A BASIC listing run on the built-in Spectrum, stopped at a line's breakpoint, for a picture.
                     let line: usize = value.parse().unwrap_or(1);
@@ -6118,7 +6132,13 @@ impl Limoniter {
                     let stem = self.doc().name();
                     self.doc().listing_of = Some((basic::Machine::Spectrum, stem));
                 }
-                "run-builtin" => self.run_on_target(run_host::Target::BuiltIn),
+                "run-builtin" => {
+                    // Source is known for what it is first, as it would be a moment after opening.
+                    highlight::load_now();
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    self.run_on_target(run_host::Target::BuiltIn);
+                }
                 "assembler-box" => {
                     highlight::load_now();
                     self.doc().resolved_syntax = None;
@@ -8601,6 +8621,7 @@ mod tests {
         std::fs::write(&path, source).unwrap();
         assert!(app.open_path(&path));
         assert!(app.docs[app.active].browser.is_none(), "assembler source isn't a snapshot");
+        assert!(crate::running::Runnable::from_file("source.z80", source.to_vec()).is_none(), "nor is it run as one");
         assert_eq!(&*app.docs[app.active].text.line(1), "start:  ld a,2");
     }
 
