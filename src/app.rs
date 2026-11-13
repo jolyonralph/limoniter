@@ -205,6 +205,7 @@ enum Command {
     FindUses,
     RenameLabel,
     Disassemble,
+    PixelEditor,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -296,6 +297,7 @@ impl Command {
                 | Command::AssembleAndSave
                 | Command::AssembleBinary
                 | Command::NewAs(_)
+                | Command::PixelEditor
                 | Command::EditNewKinds
                 | Command::MachineMemory
                 | Command::MachineScreen
@@ -1259,6 +1261,8 @@ pub struct Limoniter {
     new_kinds: Vec<new_kinds::NewKind>,
     /// The document and version waiting to be assembled quietly, and since when.
     intel_wait: Option<(u64, u64, std::time::Instant)>,
+    /// The character and sprite editor, while it's open.
+    pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1528,6 +1532,7 @@ impl Limoniter {
             untitled_count: 0,
             new_kinds: new_kinds::kinds_from_settings(&settings),
             intel_wait: None,
+            pixel_editor: None,
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -3551,6 +3556,11 @@ impl Limoniter {
             Command::FindUses => self.find_uses(),
             Command::RenameLabel => self.open_rename_box(),
             Command::Disassemble => self.open_disassemble_box(),
+            Command::PixelEditor => {
+                if self.pixel_editor.is_none() {
+                    self.pixel_editor = Some(Box::new(crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters)));
+                }
+            }
             Command::EditNewKinds => self.open_new_kinds_box(),
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
@@ -5919,6 +5929,22 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                "pixel-editor" => {
+                    // A few invaders, or a sprite, for a picture.
+                    let kind = if value == "sprites" { crate::pixel_editor::Kind::Sprites } else { crate::pixel_editor::Kind::Characters };
+                    let mut editor = crate::pixel_editor::Editor::new(kind);
+                    if kind == crate::pixel_editor::Kind::Characters {
+                        editor.sheet = crate::pixel_editor::Sheet::from_bytes(kind, &[0x18, 0x3C, 0x7E, 0xDB, 0xFF, 0x24, 0x5A, 0xA5, 0x18, 0x3C, 0x7E, 0xDB, 0xFF, 0x5A, 0x81, 0x42, 0x24, 0x18, 0x3C, 0x5A, 0xFF, 0xBD, 0xA5, 0x18]);
+                    } else {
+                        let ball: Vec<u8> = (0..256i32).map(|i| {
+                            let (x, y) = (i % 16, i / 16);
+                            let d = (x * 2 - 15).pow(2) + (y * 2 - 15).pow(2);
+                            if d < 120 { if (x + y) % 5 == 0 { 0xFF } else { 0xE0 } } else if d < 200 { 0x80 } else { crate::pixel_editor::TRANSPARENT }
+                        }).collect();
+                        editor.sheet = crate::pixel_editor::Sheet::from_bytes(kind, &ball);
+                    }
+                    self.pixel_editor = Some(Box::new(editor));
+                }
                 "debug-at" => {
                     // Stopped at a line, with watches, a condition and a window on memory, for a picture.
                     let line: usize = value.parse().unwrap_or(1);
@@ -6491,6 +6517,7 @@ impl Limoniter {
         self.dialogs(&ctx);
         self.draw_cycle(&ctx);
         self.draw_assistant_note(&ctx);
+        self.pixel_editor_window(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7193,6 +7220,9 @@ mod intel_host;
 
 #[path = "disasm_host.rs"]
 mod disasm_host;
+
+#[path = "pixel_host.rs"]
+mod pixel_host;
 
 #[path = "live_host.rs"]
 mod live_host;
