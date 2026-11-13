@@ -66,6 +66,13 @@ the address stopped at back to a line:
   first instruction (`pc = TEXT && TEXT < $e00000`, as the desktop's TEXT is in ROM); breakpoints are then set at
   TEXT plus each line's address, and the stop is reported relative to TEXT.
 
+- A real Next (`src/dzrp.rs`): DeZog's protocol to dezogif over a serial port (921600 baud) or a socket. dezogif
+  works in DZRP's simple mode, so breakpoints are RST 0 written with CMD_SET_BREAKPOINTS before each CONTINUE and put
+  back with CMD_RESTORE_MEM at each stop, and a step is a CONTINUE with breakpoints after the instruction and where
+  it can jump (`z80_next`, with instruction lengths checked against every instruction the assembler knows). The
+  program is written into its 8K banks and paged into slots 2 to 7, then PC and SP set. Tested against a stand-in
+  (`dzrp::tests::FakeNext`), not yet on a Next.
+
 The debugger's panel (`src/debug_panel.rs`) adds the call stack, watches, a memory window, conditions on breakpoints
 and write watchpoints. The built-in Spectrum's conditions are checked as breakpoints are reached (passing straight on
 when false), and its write watchpoints come from a hook added to a copy of rustzx-core (`vendor/rustzx-core`, see

@@ -7,6 +7,8 @@ license = "Apache-2.0"
 repository = "https://github.com/jolyonralph/limoniter"
 
 [dependencies]
+# The Next's debug cable (DeZog's dezogif), without libudev, which only lists ports.
+serialport = { version = "4", default-features = false }
 arboard = { version = "3.7.0", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "accesskit", "clipboard", "system_fonts"] }

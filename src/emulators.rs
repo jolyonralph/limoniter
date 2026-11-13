@@ -127,6 +127,19 @@ pub const KNOWN: &[Emulator] = &[
     },
 ];
 
+/// A real Next on DeZog's debug cable, standing where an emulator would in a session.
+pub static NEXT_CABLE: Emulator = Emulator {
+    id: "next-cable",
+    name: "ZX Spectrum Next (debug cable)",
+    programs: &[],
+    folder_hints: &[],
+    mac_apps: &[],
+    machines: &[Next, Spectrum48, Spectrum128],
+    formats: &[],
+    link: Link::None,
+    website: "https://github.com/maziac/dezogif",
+};
+
 pub fn by_id(id: &str) -> Option<&'static Emulator> {
     KNOWN.iter().find(|emulator| emulator.id == id)
 }

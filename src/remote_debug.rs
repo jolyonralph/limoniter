@@ -53,7 +53,7 @@ pub enum Emulator {
 
 #[path = "remote_debug_more.rs"]
 mod more;
-pub use more::Console;
+pub use more::{Console, NextProgram};
 
 /// What the debugger tells the window.
 #[derive(Clone, Debug, PartialEq)]
@@ -84,6 +84,21 @@ impl RemoteDebug {
                 Emulator::Vice => talk_vice(port, file, breakpoints, &asked, &tell, &wake),
                 Emulator::Xroar => more::talk_xroar(port, breakpoints, &asked, &tell, &wake),
             };
+            if let Err(problem) = talked {
+                let _ = tell.send(Told::Problem(problem));
+            }
+            wake();
+        });
+        RemoteDebug { asks, told, stopped: None, problem: None }
+    }
+
+    /// Starts running and debugging a program on a real Next, through dezogif, on the cable's serial port (or
+    /// host:port).
+    pub fn start_next(port: String, program: NextProgram, breakpoints: Vec<u16>, wake: impl Fn() + Send + 'static) -> RemoteDebug {
+        let (asks, asked) = channel();
+        let (tell, told) = channel();
+        std::thread::spawn(move || {
+            let talked = more::open_next(&port).and_then(|link| more::talk_next(link, program, breakpoints, &asked, &tell, &wake));
             if let Err(problem) = talked {
                 let _ = tell.send(Told::Problem(problem));
             }

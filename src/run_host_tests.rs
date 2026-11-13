@@ -101,13 +101,13 @@ fn a_program_runs_on_a_real_zesarux() {
     assert_eq!(lines, ["  10 PRINT \"HELLO\"", "  20 GO TO 20"]);
     app.active = running;
     let pid = match &app.running.sessions[0].kind {
-        run_host::SessionKind::App { child, .. } => child.id(),
+        run_host::SessionKind::App { child: Some(child), .. } => child.id(),
         _ => unreachable!(),
     };
     listing(&mut app, &["10 PRINT \"AGAIN\"", "20 GO TO 20"], basic::Machine::Spectrum);
     app.run_on_target(run_host::Target::Device(0));
     assert_eq!(app.running.sessions.len(), 1);
-    assert!(matches!(&app.running.sessions[0].kind, run_host::SessionKind::App { child, .. } if child.id() == pid), "loaded into the same ZEsarUX");
+    assert!(matches!(&app.running.sessions[0].kind, run_host::SessionKind::App { child: Some(child), .. } if child.id() == pid), "loaded into the same ZEsarUX");
     assert!(screen_says("AGAIN"), "the second program ran there");
     // A listing put in while a program runs stops it with BREAK, goes in, and is RUN.
     listing(&mut app, &["10 PRINT \"PUT BACK\"", "20 GO TO 20"], basic::Machine::Spectrum);
@@ -650,6 +650,75 @@ fn assembler_source_is_debugged_in_a_real_hatari() {
     ask(&mut app, crate::remote_debug::Ask::Step);
     ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
     assert_eq!(stopped_at(&mut app), Some(line + 1), "a step on");
+    app.stop_all_sessions();
+}
+
+/// Z80 source run on a Next over the debug cable: here, a stand-in for dezogif behind a socket, as dezogif over
+/// Wi-Fi is. It's loaded into the Next's banks, stops at its breakpoint, and steps over a CALL.
+#[test]
+fn z80_source_is_run_and_debugged_on_a_next_through_dezogif() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        let (mut socket, _) = listener.accept().unwrap();
+        socket.set_read_timeout(Some(Duration::from_millis(5))).unwrap();
+        let mut next = crate::dzrp::tests::FakeNext::new();
+        let mut buffer = [0u8; 4096];
+        loop {
+            match socket.read(&mut buffer) {
+                Ok(0) => return,
+                Ok(n) => {
+                    next.write_all(&buffer[..n]).unwrap();
+                }
+                Err(_) => {}
+            }
+            while let Ok(n) = next.read(&mut buffer) {
+                if socket.write_all(&buffer[..n]).is_err() {
+                    return;
+                }
+            }
+        }
+    });
+    crate::highlight::load_now();
+    let (mut app, ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "My Next".into(), place: Place::NextCable { port: address.to_string() }, preset: None, eject: false }];
+    // LD A,1; CALL sub; INC A; loop: JR loop; sub: INC A; RET
+    z80_source(&mut app, &["  device zxspectrumnext", "  org $8000", "start: ld a,1", "  call sub", "  inc a", "loop: jr loop", "sub: inc a", "  ret", "  ld b,a"]);
+    app.assembly_tick();
+    app.doc().text.code.as_mut().unwrap().breakpoints.insert(3);
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.script_output);
+    let stopped_at = |app: &mut Limoniter| {
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(20) {
+            ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+            if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
+                return Some(line);
+            }
+            let problem = match &app.running.sessions.first().map(|s| &s.kind) {
+                Some(run_host::SessionKind::App { debug: Some(d), .. }) => d.remote.problem.clone(),
+                _ => None,
+            };
+            assert!(problem.is_none(), "{problem:?}");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        None
+    };
+    let registers = |app: &Limoniter| match &app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.stopped.clone().and_then(|s| s.z80),
+        _ => None,
+    };
+    assert_eq!(stopped_at(&mut app), Some(3), "stopped at line 4, the CALL");
+    assert_eq!(registers(&app).map(|r| (r.pc, r.af >> 8)), Some((0x8002, 1)));
+    let ask = |app: &mut Limoniter, ask: crate::remote_debug::Ask| match &mut app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.ask(ask),
+        _ => panic!("it's being debugged"),
+    };
+    ask(&mut app, crate::remote_debug::Ask::StepOver);
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+    assert_eq!(stopped_at(&mut app), Some(4), "over the CALL");
+    assert_eq!(registers(&app).map(|r| (r.pc, r.af >> 8)), Some((0x8005, 2)), "and the subroutine ran");
     app.stop_all_sessions();
 }
 

@@ -824,6 +824,14 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 note(ui, hint("Runs .prg and .crt files, plays .sid and .mod tunes, and puts .d64, .g64, .d71, .g71 and .d81 disks in drive A, straight away. Needs firmware 3.11 or later, with the web remote control service on. A password is only needed if the Ultimate has a network password."));
                 ui.end_row();
             }
+            Place::NextCable { port } => {
+                ui.label("Serial port:");
+                ui.add(egui::TextEdit::singleline(port).hint_text(if cfg!(windows) { "COM8" } else { "/dev/ttyUSB0" }).desired_width(200.0));
+                ui.end_row();
+                ui.label("");
+                note(ui, hint("Runs and debugs Z80 source on a real Next, as DeZog does: the Next needs dezogif as its NMI ROM (machines/next/enNextMf.rom, from DeZog's dezogif releases) and a USB serial cable that can do 921600 baud, on the Joy 2 port (GND 8, the cable's RX to 7, its TX to 9) or the UART pins. Press the Next's NMI button once before running. Or host:port for dezogif over Wi-Fi."));
+                ui.end_row();
+            }
             Place::Emulator { emulator, program, options } => {
                 ui.label("Emulator:");
                 let known = crate::emulators::by_id(emulator);

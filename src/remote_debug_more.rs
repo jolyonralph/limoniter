@@ -437,6 +437,101 @@ fn interrupt(child_id: u32) {
     let _ = child_id;
 }
 
+// ---------- A real Next, through dezogif ----------
+
+/// Anything dezogif can be reached over: a serial port or a socket.
+pub trait Link: Read + Write + Send {}
+impl<T: Read + Write + Send> Link for T {}
+
+/// The cable's serial port, or host:port for dezogif over Wi-Fi.
+pub fn open_next(port: &str) -> Result<Box<dyn Link>, String> {
+    if let Some((host, number)) = port.rsplit_once(':').filter(|(host, number)| !host.is_empty() && number.parse::<u16>().is_ok() && !host.starts_with('/') && !host.contains('\\')) {
+        let address = std::net::ToSocketAddrs::to_socket_addrs(&(host, number.parse::<u16>().unwrap_or(0))).map_err(|e| e.to_string())?.next().ok_or("That address wasn't found.")?;
+        let stream = TcpStream::connect_timeout(&address, Duration::from_secs(5)).map_err(|e| format!("The Next couldn't be reached at {port}: {e}"))?;
+        stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
+        return Ok(Box::new(stream));
+    }
+    let serial = serialport::new(port, 921_600).timeout(Duration::from_millis(100)).open().map_err(|e| format!("The serial port {port} couldn't be opened: {e}"))?;
+    Ok(Box::new(serial))
+}
+
+/// What's loaded onto the Next before it runs: the 64K, which 16K quarters have code, and where it starts.
+pub struct NextProgram {
+    pub image: Vec<u8>,
+    pub used: [bool; 4],
+    pub pc: u16,
+    pub sp: u16,
+}
+
+/// The thread for a real Next: says hello to dezogif, loads the program into its banks, and debugs it.
+pub fn talk_next(link: Box<dyn Link>, program: NextProgram, breakpoints: Vec<u16>, asked: &Receiver<Ask>, tell: &Sender<Told>, wake: &dyn Fn()) -> Result<(), String> {
+    use crate::dzrp::{Dzrp, Message, NTF_PAUSE};
+    let say = |told: Told| {
+        let _ = tell.send(told);
+        wake();
+    };
+    let mut dzrp = Dzrp::new(link);
+    dzrp.init()?;
+    crate::dzrp::load_program(&mut dzrp, &program.image, &program.used, program.pc, program.sp)?;
+    let stop = |dzrp: &mut Dzrp<Box<dyn Link>>, paused: &[u8]| -> Result<Stop, String> {
+        let mut stop = Stop::z80(dzrp.registers()?);
+        stop.reason = crate::dzrp::pause_reason(paused);
+        stop.memory = Some(std::sync::Arc::new(dzrp.memory()?));
+        Ok(stop)
+    };
+    let mut set = breakpoints;
+    let mut next = Some(Ask::CarryOn);
+    loop {
+        let ask = match next.take() {
+            Some(ask) => ask,
+            None => asked.recv().unwrap_or(Ask::Finish),
+        };
+        match ask {
+            // Breakpoints go in as it carries on; dezogif can't change them while it runs.
+            Ask::Breakpoints(addresses) => set = addresses,
+            Ask::Watches(_) | Ask::Pause => {}
+            Ask::CarryOn | Ask::Step | Ask::StepOver => {
+                let (one, two, originals) = if ask == Ask::CarryOn {
+                    (None, None, dzrp.set_breakpoints(&set)?)
+                } else {
+                    let r = dzrp.registers()?;
+                    let memory = dzrp.memory()?;
+                    let (after, jump) = crate::dzrp::z80_next(&|a| memory[a as usize], &r, ask == Ask::StepOver);
+                    (Some(after), jump, Vec::new())
+                };
+                let placed: Vec<u16> = if ask == Ask::CarryOn { set.clone() } else { Vec::new() };
+                dzrp.carry_on(one, two)?;
+                say(Told::Running);
+                let paused = loop {
+                    if let Some(paused) = dzrp.paused.take() {
+                        break paused;
+                    }
+                    if let Some(Message::Notification { id: NTF_PAUSE, payload }) = dzrp.receive(Duration::from_millis(150))? {
+                        break payload;
+                    }
+                    match asked.try_recv() {
+                        Ok(Ask::Pause) => dzrp.pause()?,
+                        Ok(Ask::Finish) | Err(TryRecvError::Disconnected) => {
+                            dzrp.pause()?;
+                            next = Some(Ask::Finish);
+                        }
+                        Ok(Ask::Breakpoints(addresses)) => set = addresses,
+                        Ok(_) | Err(TryRecvError::Empty) => {}
+                    }
+                };
+                dzrp.restore(&placed, &originals)?;
+                if next.is_none() {
+                    say(Told::Stopped(stop(&mut dzrp, &paused)?));
+                }
+            }
+            Ask::Finish => {
+                dzrp.close();
+                return Ok(());
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

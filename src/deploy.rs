@@ -46,10 +46,13 @@ pub enum Place {
     /// An emulator Limoniter knows (by its id in `emulators::KNOWN`), the program that starts it, and options of
     /// the person's own for its command line. Programs are run on it rather than sent.
     Emulator { emulator: String, program: PathBuf, options: String },
+    /// A Next on DeZog's debug cable, with dezogif in its NMI ROM: the serial port it's on (COM8, /dev/ttyUSB0), or
+    /// host:port for dezogif over Wi-Fi. Programs are run and debugged on it, not sent.
+    NextCable { port: String },
 }
 
 impl Place {
-    pub const KINDS: [&'static str; 8] = ["Card or stick", "Folder", "SFTP server", "FTP server", "ZX Spectrum Next (NextSync)", "Ultimate 64 / 1541 Ultimate", "Command line", "Emulator"];
+    pub const KINDS: [&'static str; 9] = ["Card or stick", "Folder", "SFTP server", "FTP server", "ZX Spectrum Next (NextSync)", "Ultimate 64 / 1541 Ultimate", "Command line", "Emulator", "ZX Spectrum Next (debug cable)"];
 
     pub fn kind(&self) -> usize {
         match self {
@@ -61,6 +64,7 @@ impl Place {
             Place::Ultimate { .. } => 5,
             Place::Command { .. } => 6,
             Place::Emulator { .. } => 7,
+            Place::NextCable { .. } => 8,
         }
     }
 
@@ -73,6 +77,7 @@ impl Place {
             4 => Place::NextSync { folder: "/".into() },
             5 => Place::Ultimate { host: String::new() },
             7 => Place::Emulator { emulator: crate::emulators::KNOWN[0].id.into(), program: PathBuf::new(), options: String::new() },
+            8 => Place::NextCable { port: String::new() },
             _ => Place::Command { line: String::new() },
         }
     }
@@ -88,6 +93,7 @@ impl Place {
             Place::Ultimate { host } => format!("Ultimate at {host}"),
             Place::Command { line } => line.clone(),
             Place::Emulator { emulator, program, .. } => format!("{}, {}", crate::emulators::by_id(emulator).map_or(emulator.as_str(), |e| e.name), program.display()),
+            Place::NextCable { port } => format!("Next on {port} (debug cable)"),
         }
     }
 
@@ -125,6 +131,7 @@ impl Device {
             Place::Ultimate { host } => vec!["ultimate".into(), host.clone()],
             Place::Command { line } => vec!["command".into(), line.clone()],
             Place::Emulator { emulator, program, options } => vec!["emulator".into(), emulator.clone(), program.display().to_string(), options.clone()],
+            Place::NextCable { port } => vec!["nextcable".into(), port.clone()],
         };
         let mut parts = vec![self.name.clone(), self.preset.clone().unwrap_or_default(), if self.eject { "eject".into() } else { String::new() }];
         parts.extend(place);
@@ -146,6 +153,7 @@ impl Device {
             "ultimate" => Place::Ultimate { host: text(0) },
             "command" => Place::Command { line: text(0) },
             "emulator" => Place::Emulator { emulator: text(0), program: PathBuf::from(text(1)), options: text(2) },
+            "nextcable" => Place::NextCable { port: text(0) },
             _ => return None,
         };
         Some(Device { name: (*name).to_string(), place, preset: (!preset.is_empty()).then(|| (*preset).to_string()), eject: *eject == "eject" })
@@ -164,6 +172,7 @@ impl Device {
             Place::Command { line } if !line.contains("{file}") => Some("The command line needs {file} where the file goes.".into()),
             Place::Emulator { emulator, .. } if crate::emulators::by_id(emulator).is_none() => Some("Choose which emulator it is.".into()),
             Place::Emulator { program, .. } if !program.is_file() => Some("Choose the emulator's program: where it's installed.".into()),
+            Place::NextCable { port } if port.trim().is_empty() => Some("Say which serial port the cable is on (COM8, /dev/ttyUSB0), or host:port for dezogif over Wi-Fi.".into()),
             _ => None,
         }
     }
@@ -1133,6 +1142,7 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
         },
         Place::NextSync { .. } => failed("The Next fetches files itself; they aren't sent from here.".into()),
         Place::Emulator { .. } => failed("Programs are run on an emulator rather than sent to it.".into()),
+        Place::NextCable { .. } => failed("A Next on the debug cable runs assembled programs from Run on machine (F9); files aren't sent to it. Use NextSync for that.".into()),
         Place::Command { line } => {
             let file = s.scratch.join(&s.name);
             let written = std::fs::create_dir_all(&s.scratch).and_then(|()| match &s.payload {

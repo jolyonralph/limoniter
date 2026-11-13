@@ -32,7 +32,7 @@ pub(super) struct Session {
 
 pub(super) enum SessionKind {
     /// An emulator started as a program of its own, reachable on `port` if it can be reached at all.
-    App { child: Child, emulator: &'static Emulator, port: Option<u16>, log: PathBuf, debug: Option<Box<Debugging>> },
+    App { child: Option<Child>, emulator: &'static Emulator, port: Option<u16>, log: PathBuf, debug: Option<Box<Debugging>> },
     /// The built-in Spectrum, drawn in the preview pane of the document it was run from.
     BuiltIn { machine: Box<crate::zx_machine::BuiltIn>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
 }
@@ -187,6 +187,8 @@ impl Limoniter {
                     Place::NextSync { .. } => Err(format!("A Spectrum Next doesn't run {} programs.", run.machine.name())),
                     Place::Ultimate { .. } if run.machine == Machine::C64 && crate::deploy::ultimate_route(&run.name).is_some() => Ok(()),
                     Place::Ultimate { .. } => Err(format!("An Ultimate doesn't run {}.", run.name)),
+                    Place::NextCable { .. } if !(run.machine == Machine::Next || run.machine.is_classic_spectrum()) => Err(format!("A Spectrum Next doesn't run {} programs.", run.machine.name())),
+                    Place::NextCable { .. } if !self.running.assembled.as_ref().is_some_and(|c| c.doc_id == self.docs[self.active].id) => Err("The debug cable runs Z80 source assembled here; a file is sent with NextSync.".into()),
                     _ => Ok(()),
                 }
             }
@@ -276,6 +278,7 @@ impl Limoniter {
                 let device = self.sends.devices[n].clone();
                 match &device.place {
                     Place::Emulator { .. } => self.run_in_emulator(&device, &run),
+                    Place::NextCable { port } => self.run_on_cable(&device, port, &run),
                     place => {
                         runs = matches!(place, Place::Ultimate { .. });
                         self.deliver(device, &run);
@@ -387,7 +390,7 @@ impl Limoniter {
                 }
             });
             let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80: false }));
-            self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child, emulator, port, log, debug }, started: Instant::now() });
+            self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: Some(child), emulator, port, log, debug }, started: Instant::now() });
             return Ok(());
         }
         let debug = match (kind.filter(|_| debugging), port) {
@@ -404,7 +407,34 @@ impl Limoniter {
             }
             _ => None,
         };
-        self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child, emulator, port, log, debug }, started: Instant::now() });
+        self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: Some(child), emulator, port, log, debug }, started: Instant::now() });
+        Ok(())
+    }
+
+    /// Loads assembled Z80 source onto a real Next through dezogif, and runs it there, its breakpoints set.
+    fn run_on_cable(&mut self, device: &Device, port: &str, run: &Runnable) -> Result<(), String> {
+        let doc_id = self.docs[self.active].id;
+        let assembly = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).map(|c| c.assembly.clone()).ok_or("Assemble the source first: press F9 in it.")?;
+        let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+            return Err("Nothing was assembled.".into());
+        };
+        if low < 0x4000 {
+            return Err(format!("The code starts at ${low:04X}, in the ROM. Put it at $4000 or above."));
+        }
+        let image = assembly.image(0, 0x10000);
+        let used = [false, low < 0x8000, low < 0xC000 && high > 0x8000, high > 0xC000];
+        let program = crate::remote_debug::NextProgram { image, used, pc: assembly.start().unwrap_or(low) as u16, sp: 0xFFFE };
+        self.stop_session(&device.name);
+        let breakpoints = self.breakpoint_addresses(doc_id);
+        let wake = self.waker.clone();
+        let remote = crate::remote_debug::RemoteDebug::start_next(port.to_string(), program, breakpoints.clone(), move || {
+            if let Some(ctx) = &wake {
+                ctx.request_repaint();
+            }
+        });
+        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80: true }));
+        let log = std::env::temp_dir().join("limoniter-next-cable.log");
+        self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: None, emulator: &emulators::NEXT_CABLE, port: None, log, debug }, started: Instant::now() });
         Ok(())
     }
 
@@ -414,7 +444,7 @@ impl Limoniter {
             if session.target != target {
                 return true;
             }
-            if let SessionKind::App { child, .. } = &mut session.kind {
+            if let SessionKind::App { child: Some(child), .. } = &mut session.kind {
                 let _ = child.kill();
                 let _ = child.wait();
             }
@@ -426,7 +456,7 @@ impl Limoniter {
     pub(super) fn check_sessions(&mut self) -> bool {
         let mut ended = Vec::new();
         for (index, session) in self.running.sessions.iter_mut().enumerate() {
-            if let SessionKind::App { child, emulator, log, .. } = &mut session.kind
+            if let SessionKind::App { child: Some(child), emulator, log, .. } = &mut session.kind
                 && let Ok(Some(status)) = child.try_wait()
             {
                 let quick = session.started.elapsed() < Duration::from_secs(3);
