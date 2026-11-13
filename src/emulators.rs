@@ -13,6 +13,8 @@ pub enum Link {
     Zrcp,
     /// VICE's binary monitor: framed binary commands over TCP.
     ViceMonitor,
+    /// A GDB stub: the GDB remote serial protocol over TCP, as XRoar has.
+    Gdb,
 }
 
 pub struct Emulator {
@@ -112,6 +114,17 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://hatari.tuxfamily.org",
     },
+    Emulator {
+        id: "xroar",
+        name: "XRoar",
+        programs: &["xroar"],
+        folder_hints: &["xroar"],
+        mac_apps: &[("XRoar.app", "xroar")],
+        machines: &[CoCo],
+        formats: &[CocoBin],
+        link: Link::Gdb,
+        website: "https://www.6809.org.uk/xroar/",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Emulator> {
@@ -186,6 +199,14 @@ impl Emulator {
                 args.extend(["-autostart".into(), file]);
             }
             "b2" => args.extend(["-0".into(), file, "-b".into()]),
+            // XRoar needs the machine's BASIC ROMs, found in its ROM folder or named in the options.
+            "xroar" => {
+                args.extend(["-machine".into(), "cocous".into()]);
+                if let Some(port) = port {
+                    args.extend(["-gdb".into(), "-gdb-port".into(), port.to_string()]);
+                }
+                args.extend(["-run".into(), file]);
+            }
             "openmsx" => args.extend([if format == Cas { "-cassetteplayer" } else { "-carta" }.into(), file]),
             _ => args.push(file),
         }

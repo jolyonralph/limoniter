@@ -21,6 +21,8 @@ pub enum Machine {
     Msx,
     Cpc,
     AtariSt,
+    /// The Tandy Color Computer (and the Dragon, which runs the same machine code).
+    CoCo,
 }
 
 impl Machine {
@@ -40,6 +42,7 @@ impl Machine {
             Machine::Msx => "MSX",
             Machine::Cpc => "Amstrad CPC",
             Machine::AtariSt => "Atari ST",
+            Machine::CoCo => "Tandy Color Computer",
         }
     }
 
@@ -60,6 +63,7 @@ impl Machine {
             Machine::Msx => "msx",
             Machine::Cpc => "cpc",
             Machine::AtariSt => "atarist",
+            Machine::CoCo => "coco",
         }
     }
 
@@ -95,10 +99,12 @@ pub enum Format {
     Cas,
     /// An Atari ST program (.TOS, or .PRG on the ST itself).
     Tos,
+    /// A Color Computer binary, as LOADM loads it (Disk Extended Color BASIC's .BIN).
+    CocoBin,
 }
 
 impl Format {
-    pub const ALL: [Format; 21] = [
+    pub const ALL: [Format; 22] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -120,6 +126,7 @@ impl Format {
         Format::Rom,
         Format::Cas,
         Format::Tos,
+        Format::CocoBin,
     ];
 
     /// The file ending it's written with.
@@ -146,6 +153,7 @@ impl Format {
             Format::Rom => "rom",
             Format::Cas => "cas",
             Format::Tos => "tos",
+            Format::CocoBin => "bin",
         }
     }
 
@@ -224,6 +232,17 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
             if listed.dialect == basic::ZxDialect::Next.name() { Machine::Next } else { Machine::SpectrumPlus3 }
         }
         Format::Nex => Machine::Next,
+        // Blocks of 0, a length, an address and the bytes, ended by FF 00 00 and where it starts.
+        Format::CocoBin => {
+            let mut at = 0;
+            loop {
+                match bytes.get(at)? {
+                    0x00 => at += 5 + usize::from(u16::from_be_bytes([*bytes.get(at + 1)?, *bytes.get(at + 2)?])),
+                    0xFF if at + 5 == bytes.len() && bytes.get(at + 1..at + 3) == Some(&[0, 0][..]) => break Machine::CoCo,
+                    _ => return None,
+                }
+            }
+        }
         Format::Dsk => dsk_machine(bytes),
         Format::Trd | Format::Scl => Machine::Pentagon,
         Format::Prg => commodore_by_load(bytes.get(0..2)?),

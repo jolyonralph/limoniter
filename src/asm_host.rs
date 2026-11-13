@@ -470,8 +470,11 @@ pub enum Made {
 
 pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, String> {
     match cpu {
-        // A Color Computer binary, which LOADM loads, for an emulator such as XRoar or MAME.
-        Cpu::M6809 => Ok(Made::Saved { name: format!("{stem}.bin"), bytes: crate::asm::output::coco_binary(&assembled.assembly)? }),
+        // A Color Computer binary, which LOADM loads, and XRoar runs (and debugs).
+        Cpu::M6809 => {
+            let bytes = crate::asm::output::coco_binary(&assembled.assembly)?;
+            Ok(Made::Run(Runnable { machine: Machine::CoCo, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
+        }
         // An Atari ST program, if it isn't put at an address of its own: else the bytes as they go in memory.
         Cpu::M68k if !assembled.assembly.absolute && assembled.tape.is_none() && assembled.assembly.lowest() == Some(0) => {
             let shift = 0x10000;

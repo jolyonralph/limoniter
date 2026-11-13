@@ -71,7 +71,8 @@ impl Limoniter {
             SessionKind::App { port: Some(port), emulator, .. } => match emulator.link {
                 Link::Zrcp => Some(Reach::Zrcp(*port)),
                 Link::ViceMonitor => Some(Reach::Vice(*port)),
-                Link::None => None,
+                // XRoar's GDB stub is for debugging; its memory and BASIC aren't followed from here.
+                Link::Gdb | Link::None => None,
             },
             SessionKind::App { .. } => None,
         };

@@ -313,9 +313,12 @@ impl Limoniter {
         let kind = match emulator.link {
             Link::Zrcp if matches!(run.machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::Next) => Some(crate::remote_debug::Emulator::Zesarux),
             Link::ViceMonitor if run.format == crate::running::Format::Prg => Some(crate::remote_debug::Emulator::Vice),
+            Link::Gdb if run.machine == Machine::CoCo => Some(crate::remote_debug::Emulator::Xroar),
             _ => None,
         };
-        let debugging = kind.is_some() && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
+        // Hatari is debugged through its own debugger, on its console.
+        let hatari = emulator.id == "hatari" && run.format == crate::running::Format::Tos;
+        let debugging = (kind.is_some() || hatari) && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
         let mut run = run.clone();
         if debugging
             && run.format == crate::running::Format::Tap
@@ -347,20 +350,46 @@ impl Limoniter {
         let port = (emulator.link != Link::None).then(free_port).flatten();
         let program = emulator.program_for(program, run.machine);
         let mut args = emulator.arguments(run.machine, run.format, &file, port, options);
-        // Being debugged, it starts empty, and loads the program once its breakpoints are set.
-        if debugging {
+        // Being debugged, ZEsarUX and VICE start empty, and load the program once its breakpoints are set. XRoar
+        // stops as it's connected to, before it's loaded the program; Hatari stops as the program starts.
+        if debugging && matches!(kind, Some(crate::remote_debug::Emulator::Zesarux | crate::remote_debug::Emulator::Vice)) {
             let named = file.display().to_string();
             args.retain(|arg| *arg != named && arg != "-autostart");
+        }
+        if debugging && hatari {
+            let start = folder.join("start.ini");
+            // TEXT is the program running; the desktop's is in ROM.
+            std::fs::write(&start, "b pc = TEXT && TEXT < $e00000 :once\n").map_err(|e| e.to_string())?;
+            let at = args.len().saturating_sub(1);
+            args.splice(at..at, ["--parse".to_string(), start.display().to_string()]);
         }
         let log = folder.join("emulator.log");
         let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
         let err = out.try_clone().map_err(|e| e.to_string())?;
         let mut command = std::process::Command::new(&program);
-        command.args(&args).stdin(std::process::Stdio::null()).stdout(out).stderr(err);
+        if debugging && hatari {
+            command.args(&args).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+            drop(err);
+        } else {
+            command.args(&args).stdin(std::process::Stdio::null()).stdout(out).stderr(err);
+        }
         if let Some(home) = program.parent() {
             command.current_dir(home);
         }
-        let child = command.spawn().map_err(|e| format!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
+        let mut child = command.spawn().map_err(|e| format!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
+        if debugging && hatari && let (Some(input), Some(output), Some(errors)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) {
+            let breakpoints = self.breakpoint_addresses(doc_id);
+            let wake = self.waker.clone();
+            let console = crate::remote_debug::Console::new(input, output, errors);
+            let remote = crate::remote_debug::RemoteDebug::start_hatari(console, child.id(), breakpoints.clone(), move || {
+                if let Some(ctx) = &wake {
+                    ctx.request_repaint();
+                }
+            });
+            let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80: false }));
+            self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child, emulator, port, log, debug }, started: Instant::now() });
+            return Ok(());
+        }
         let debug = match (kind.filter(|_| debugging), port) {
             (Some(kind), Some(port)) => {
                 let breakpoints = self.breakpoint_addresses(doc_id);

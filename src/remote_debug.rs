@@ -47,7 +47,13 @@ impl Stop {
 pub enum Emulator {
     Zesarux,
     Vice,
+    /// XRoar, through its GDB stub.
+    Xroar,
 }
+
+#[path = "remote_debug_more.rs"]
+mod more;
+pub use more::Console;
 
 /// What the debugger tells the window.
 #[derive(Clone, Debug, PartialEq)]
@@ -76,8 +82,22 @@ impl RemoteDebug {
             let talked = match emulator {
                 Emulator::Zesarux => talk(port, file, breakpoints, &asked, &tell, &wake),
                 Emulator::Vice => talk_vice(port, file, breakpoints, &asked, &tell, &wake),
+                Emulator::Xroar => more::talk_xroar(port, breakpoints, &asked, &tell, &wake),
             };
             if let Err(problem) = talked {
+                let _ = tell.send(Told::Problem(problem));
+            }
+            wake();
+        });
+        RemoteDebug { asks, told, stopped: None, problem: None }
+    }
+
+    /// Starts debugging a program in Hatari, through its debugger on the console it was started with.
+    pub fn start_hatari(console: Console, child_id: u32, breakpoints: Vec<u16>, wake: impl Fn() + Send + 'static) -> RemoteDebug {
+        let (asks, asked) = channel();
+        let (tell, told) = channel();
+        std::thread::spawn(move || {
+            if let Err(problem) = more::talk_hatari(console, child_id, breakpoints, &asked, &tell, &wake) {
                 let _ = tell.send(Told::Problem(problem));
             }
             wake();

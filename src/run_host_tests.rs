@@ -419,7 +419,7 @@ fn source_for_the_6502_becomes_a_commodore_64_program() {
 }
 
 #[test]
-fn source_for_the_6809_is_saved_as_a_color_computer_binary() {
+fn source_for_the_6809_runs_as_a_color_computer_binary() {
     crate::highlight::load_now();
     let (mut app, _ctx) = app_with("");
     let folder = std::env::temp_dir().join(format!("limoniter-6809-{}", std::process::id()));
@@ -430,8 +430,12 @@ fn source_for_the_6809_is_saved_as_a_color_computer_binary() {
     assert!(app.open_path(&path));
     app.doc().update_syntax();
     assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6809), "{}", app.doc().language_name());
-    app.run_on_machine();
-    assert!(app.running.sessions.is_empty() && matches!(app.dialog, Dialog::None));
+    // F9 runs it as a Color Computer program, in XRoar; Assemble and save saves it.
+    let run = app.assemble_to_run(crate::assemblers::Cpu::M6809, true).unwrap();
+    assert_eq!((run.machine, run.format), (crate::running::Machine::CoCo, crate::running::Format::CocoBin));
+    assert_eq!(crate::running::Runnable::from_file("hello.bin", run.bytes.to_vec()).map(|r| r.machine), Some(crate::running::Machine::CoCo), "known again from its bytes");
+    assert_eq!(crate::running::Runnable::from_file("other.bin", vec![1, 2, 3]).map(|r| r.machine), None, "any other .bin isn't");
+    app.assemble_and_save();
     let saved = std::fs::read(folder.join("hello.bin")).expect("saved beside the source");
     assert_eq!(&saved[..5], &[0, 0, 17, 0x30, 0x00]);
     assert_eq!(&saved[saved.len() - 5..], &[0xFF, 0, 0, 0x30, 0x00]);
@@ -545,6 +549,107 @@ fn assembler_source_is_debugged_in_a_real_vice() {
         _ => String::new(),
     };
     assert!(words.contains("X 13"), "the subroutine ran: {words}");
+    app.stop_all_sessions();
+}
+
+/// With LIMONITER_XROAR naming XRoar, and LIMONITER_XROAR_OPTIONS its ROMs (-bas, -extbas): 6809 source stops at
+/// its breakpoint, steps, steps over a JSR, and gives its registers and memory.
+#[test]
+fn assembler_source_is_debugged_in_a_real_xroar() {
+    let Some(program) = std::env::var_os("LIMONITER_XROAR") else {
+        return;
+    };
+    let options = std::env::var("LIMONITER_XROAR_OPTIONS").unwrap_or_default();
+    crate::highlight::load_now();
+    let (mut app, ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "XRoar".into(), place: Place::Emulator { emulator: "xroar".into(), program: program.into(), options }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "colours.s09".into();
+    app.doc().text.set_content(["  org $3000", "start lda #7", "  ldx #$1234", "  jsr sub", "  ldb #9", "loop bra loop", "sub leax 1,x", "  rts", "  end start"].iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6809), "{}", app.doc().language_name());
+    app.assembly_tick();
+    app.doc().text.code.as_mut().unwrap().breakpoints.insert(2);
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.script_output);
+    let stopped_at = |app: &mut Limoniter| {
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(40) {
+            ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+            if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
+                return Some(line);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        None
+    };
+    let stop = |app: &Limoniter| match &app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.stopped.clone(),
+        _ => None,
+    };
+    assert_eq!(stopped_at(&mut app), Some(2), "stopped at its breakpoint, on line 3");
+    let at = stop(&app).unwrap();
+    assert!(at.words.contains(&"A 07".to_string()), "{:?}", at.words);
+    assert_eq!(at.memory.map(|m| (m[0x3000], m[0x3001])), Some((0x86, 7)), "LDA #7 at $3000, in XRoar's memory");
+    let ask = |app: &mut Limoniter, ask: crate::remote_debug::Ask| match &mut app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.ask(ask),
+        _ => panic!("it's being debugged"),
+    };
+    ask(&mut app, crate::remote_debug::Ask::Step);
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+    assert_eq!(stopped_at(&mut app), Some(3), "a step on, at the JSR");
+    ask(&mut app, crate::remote_debug::Ask::StepOver);
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+    assert_eq!(stopped_at(&mut app), Some(4), "over the JSR");
+    assert!(stop(&app).unwrap().words.contains(&"X 1235".to_string()), "the subroutine ran");
+    app.stop_all_sessions();
+}
+
+/// With LIMONITER_HATARI naming Hatari and LIMONITER_HATARI_OPTIONS its TOS: 68000 source stops at its
+/// breakpoint, where it is in the program, and steps.
+#[test]
+fn assembler_source_is_debugged_in_a_real_hatari() {
+    let Some(program) = std::env::var_os("LIMONITER_HATARI") else {
+        return;
+    };
+    let options = std::env::var("LIMONITER_HATARI_OPTIONS").unwrap_or_default();
+    crate::highlight::load_now();
+    let (mut app, ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "Hatari".into(), place: Place::Emulator { emulator: "hatari".into(), program: program.into(), options }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "hello.s".into();
+    app.doc().text.set_content(include_str!("asm/testdata/st_hello.s").lines().map(str::to_string).collect());
+    app.doc().update_syntax();
+    app.assembly_tick();
+    // The second instruction, MOVE.W #9,-(SP).
+    let line = app.doc().text.all_lines().iter().position(|l| l.contains("move.w") && l.contains("#9")).unwrap();
+    app.doc().text.code.as_mut().unwrap().breakpoints.insert(line);
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.script_output);
+    let stopped_at = |app: &mut Limoniter| {
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(60) {
+            ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+            if let Some(line) = app.doc().text.code.as_ref().and_then(|c| c.stopped) {
+                return Some(line);
+            }
+            let problem = match &app.running.sessions.first().map(|s| &s.kind) {
+                Some(run_host::SessionKind::App { debug: Some(d), .. }) => d.remote.problem.clone(),
+                _ => None,
+            };
+            assert!(problem.is_none(), "{problem:?}");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        None
+    };
+    assert_eq!(stopped_at(&mut app), Some(line), "stopped at its breakpoint");
+    let ask = |app: &mut Limoniter, ask: crate::remote_debug::Ask| match &mut app.running.sessions[0].kind {
+        run_host::SessionKind::App { debug: Some(d), .. } => d.remote.ask(ask),
+        _ => panic!("it's being debugged"),
+    };
+    ask(&mut app, crate::remote_debug::Ask::Step);
+    ctx.run_ui(Default::default(), |ui| app.remote_debug_panel(ui)).textures_delta.clear();
+    assert_eq!(stopped_at(&mut app), Some(line + 1), "a step on");
     app.stop_all_sessions();
 }
 

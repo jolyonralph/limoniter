@@ -48,9 +48,9 @@ Source for the Z80, 6502, 6809 or 68000 (told from its highlighting language) is
 Limoniter's own assembler (`src/asm/`: one framework, one module per processor) or the one chosen for the processor
 (`src/assemblers.rs`: sjasmplus, Pasmo, ACME, lwasm, vasm). Either way the result is an `asm::Assembly`: bytes at
 addresses, each source line's address and bytes, and problems by file and line. `src/asm_host.rs` turns it into
-something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line, an Atari ST `.tos` whose
-relocations are found by assembling the source a second time 64K further on) or a file to save (6809, and 68000 with
-an ORG), shows the problems, and keeps it for the debugger. Each processor's every instruction form is checked byte
+something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line, a Color Computer LOADM
+`.bin`, an Atari ST `.tos` whose relocations are found by assembling the source a second time 64K further on) or a
+file to save (68000 with an ORG), shows the problems, and keeps it for the debugger. Each processor's every instruction form is checked byte
 for byte against its reference assembler (`src/asm/testdata`).
 
 Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and
@@ -60,6 +60,17 @@ the address stopped at back to a line:
 - ZEsarUX (`src/remote_debug.rs`): ZRCP in step mode, started empty so the breakpoints are set before the program
   loads; a Spectrum tape is loaded in the built-in Spectrum and handed over as a snapshot at its first instruction.
 - VICE: binary monitor checkpoints, set before the program is autostarted through the monitor.
+- XRoar (`src/remote_debug_more.rs`): its GDB stub, which stops the machine as it's connected to, before `-run` has
+  loaded the program; `Z0` breakpoints, `Z2` write watchpoints, `s`, and step over by a breakpoint after a call.
+- Hatari: its own debugger on its console (stdin and both outputs piped). A `--parse` file stops at the program's
+  first instruction (`pc = TEXT && TEXT < $e00000`, as the desktop's TEXT is in ROM); breakpoints are then set at
+  TEXT plus each line's address, and the stop is reported relative to TEXT.
+
+The debugger's panel (`src/debug_panel.rs`) adds the call stack, watches, a memory window, conditions on breakpoints
+and write watchpoints. The built-in Spectrum's conditions are checked as breakpoints are reached (passing straight on
+when false), and its write watchpoints come from a hook added to a copy of rustzx-core (`vendor/rustzx-core`, see
+its LIMONITER.md). Spectrum BASIC is debugged by a breakpoint, inside Limoniter, where the ROM starts each statement
+(`src/zx_basic_debug.rs`), reading PPC and SUBPPC there, and the variables from VARS.
 
 ## Ground rules
 
