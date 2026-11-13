@@ -9,6 +9,10 @@ pub trait Scope {
     fn here(&self) -> i64;
     /// What a label written in the source is called in full: a local label belongs to the label before it.
     fn full_name(&self, name: &str) -> String;
+    /// Whether ^ raises to a power, as in ACME, rather than being exclusive or.
+    fn caret_is_power(&self) -> bool {
+        false
+    }
 }
 
 /// What came of working one out.
@@ -54,7 +58,7 @@ struct Parser<'a> {
 }
 
 /// Binary operators, loosest first.
-const OPERATORS: [(&str, u8); 18] = [
+const OPERATORS: [(&str, u8); 19] = [
     ("||", 1),
     ("&&", 2),
     ("|", 3),
@@ -73,6 +77,8 @@ const OPERATORS: [(&str, u8); 18] = [
     ("-", 9),
     ("*", 10),
     ("/", 10),
+    // ACME compares with a single =.
+    ("=", 6),
 ];
 
 impl Parser<'_> {
@@ -103,6 +109,9 @@ impl Parser<'_> {
         if rest.first() == Some(&b'%') {
             return Some(("%", 10));
         }
+        if rest.first() == Some(&b'^') && self.scope.caret_is_power() {
+            return Some(("**", 11));
+        }
         OPERATORS.iter().find(|(op, _)| rest.starts_with(op.as_bytes())).copied()
     }
 
@@ -119,7 +128,13 @@ impl Parser<'_> {
             }
             // A word operator is as long as its word; a symbol as long as itself.
             let rest = self.rest();
-            let length = if rest.first().is_some_and(u8::is_ascii_alphabetic) { rest.iter().take_while(|c| c.is_ascii_alphabetic()).count() } else { op.len() };
+            let length = if rest.first().is_some_and(u8::is_ascii_alphabetic) {
+                rest.iter().take_while(|c| c.is_ascii_alphabetic()).count()
+            } else if op == "**" {
+                1
+            } else {
+                op.len()
+            };
             self.at += length;
             let right = self.binary(level)?;
             left = left.map2(right, |a, b| apply(op, a, b))?;
@@ -216,9 +231,15 @@ impl Parser<'_> {
                 self.at += 1;
                 Ok(Value::Known(self.scope.here()))
             }
-            b'%' if self.rest().get(1).is_some_and(|c| *c == b'0' || *c == b'1') => {
+            b'%' if self.rest().get(1).is_some_and(|c| matches!(c, b'0' | b'1' | b'.' | b'#')) => {
+                // ACME writes binary with . for 0 and # for 1 too, to draw with.
                 self.at += 1;
-                self.digits(2)
+                let start = self.at;
+                while self.peek().is_some_and(|c| matches!(c, b'0' | b'1' | b'.' | b'#' | b'_')) {
+                    self.at += 1;
+                }
+                let bits: String = self.text[start..self.at].iter().filter(|c| **c != b'_').map(|c| if matches!(c, b'1' | b'#') { '1' } else { '0' }).collect();
+                i64::from_str_radix(&bits, 2).map(Value::Known).map_err(|_| "a binary number is missing its digits".into())
             }
             b'0'..=b'9' => self.number(),
             c if is_name_start(c) => {
@@ -294,7 +315,7 @@ fn apply(op: &str, a: i64, b: i64) -> Result<i64, String> {
         "|" => a | b,
         "^" => a ^ b,
         "&" => a & b,
-        "==" => (a == b) as i64,
+        "==" | "=" => (a == b) as i64,
         "!=" | "<>" => (a != b) as i64,
         "<=" => (a <= b) as i64,
         ">=" => (a >= b) as i64,
@@ -309,6 +330,8 @@ fn apply(op: &str, a: i64, b: i64) -> Result<i64, String> {
         "/" => a / b,
         "%" if b == 0 => return Err("division by zero".into()),
         "%" => a % b,
+        "**" if b < 0 => 0,
+        "**" => a.wrapping_pow(b.min(63) as u32),
         _ => return Err(format!("{op} isn't an operator")),
     })
 }
@@ -367,6 +390,8 @@ mod tests {
         assert_eq!(value("<$1234"), Value::Known(0x34));
         assert_eq!(value(">$1234"), Value::Known(0x12));
         assert_eq!(value("3 > 2"), Value::Known(1));
+        assert_eq!(value("3 = 3"), Value::Known(1));
+        assert_eq!(value("%..##..#."), Value::Known(0b0011_0010));
         assert_eq!(value("$+2"), Value::Known(0x9002));
         assert_eq!(value("*-start"), Value::Known(0x1000));
         assert_eq!(value(".loop"), Value::Known(0x8010));

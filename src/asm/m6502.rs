@@ -131,6 +131,10 @@ impl Isa for M6502 {
         opcodes(word.split('+').next().unwrap_or(word)).is_some()
     }
 
+    fn colon_separates(&self) -> bool {
+        true
+    }
+
     fn local_prefixes(&self) -> &'static [char] {
         &['.', '@', '_']
     }

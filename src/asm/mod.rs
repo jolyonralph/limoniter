@@ -161,6 +161,18 @@ pub fn assemble(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> 
     state.finish()
 }
 
+/// An ACME block, opened with { and closed with }.
+#[derive(Clone, Debug)]
+enum Block {
+    Plain,
+    If,
+    Macro,
+    For,
+    /// A zone: the label local labels belonged to before it.
+    Zone(String),
+    Pseudo,
+}
+
 /// Source lines waiting to be repeated or kept as a macro.
 struct Collecting {
     kind: CollectKind,
@@ -171,7 +183,8 @@ struct Collecting {
 
 enum CollectKind {
     Macro { name: String, params: Vec<String> },
-    Repeat { times: i64 },
+    /// Repeated lines; with a variable, as ACME's !for counts with one.
+    Repeat { times: i64, counter: Option<(String, i64)> },
 }
 
 #[derive(Clone)]
@@ -198,6 +211,10 @@ struct Pass<'a> {
     previous_anonymous: HashMap<String, Vec<i64>>,
     /// The 6809's direct page, as SETDP says (none: never assumed).
     direct_page: Option<i64>,
+    /// ACME's { } blocks open: what each one is, to close it as it opened.
+    blocks: Vec<Block>,
+    /// Whether the source has shown itself to be ACME's, by its ! directives.
+    acme: bool,
     global: String,
     /// Inside a macro: what its local labels are known by.
     macro_scope: Option<String>,
@@ -228,6 +245,8 @@ impl<'a> Pass<'a> {
             anonymous: HashMap::new(),
             previous_anonymous: HashMap::new(),
             direct_page: Some(0),
+            blocks: Vec::new(),
+            acme: false,
             global: String::new(),
             macro_scope: None,
             macros: HashMap::new(),
@@ -293,13 +312,73 @@ impl<'a> Pass<'a> {
         self.conditions.iter().all(|(on, _)| *on)
     }
 
+    /// ACME's way of writing a line, as the assembler's own: its { } blocks as IF, MACRO, REPT and the rest,
+    /// and its other directives' names. None if it isn't one.
+    fn translate(&mut self, line: &str) -> Option<String> {
+        let code = strip_comment(line).trim();
+        if code == "}" {
+            return Some(match self.blocks.pop() {
+                Some(Block::If) => "endif".into(),
+                Some(Block::Macro) => "endm".into(),
+                Some(Block::For) => "endr".into(),
+                Some(Block::Zone(previous)) => format!("endzone {previous}"),
+                Some(Block::Pseudo) => "dephase".into(),
+                _ => String::new(),
+            });
+        }
+        if code.starts_with('}') && code.ends_with('{') && code.contains("else") {
+            return Some("else".into());
+        }
+        let (word, rest) = split_word(code);
+        let directive = word.strip_prefix('!')?.to_ascii_lowercase();
+        self.acme = true;
+        let (body, opens) = match rest.trim().strip_suffix('{') {
+            Some(body) => (body.trim(), true),
+            None => (rest.trim(), false),
+        };
+        let (block, text) = match directive.as_str() {
+            "if" | "ifdef" | "ifndef" => (Block::If, format!("{directive} {body}")),
+            "macro" => (Block::Macro, format!("macro {body}")),
+            "for" => (Block::For, format!("for {body}")),
+            "zone" | "zn" => (Block::Zone(self.global.clone()), format!("zone {}", if body.is_empty() { "zone" } else { body })),
+            "pseudopc" => (Block::Pseudo, format!("phase {body}")),
+            // !addr marks a label as an address; it makes nothing.
+            "addr" | "address" => (Block::Plain, body.to_string()),
+            "set" => (Block::Plain, body.to_string()),
+            "warn" | "serious" => (Block::Plain, format!("{} {body}", if directive == "warn" { "message" } else { "error" })),
+            "8" | "08" => (Block::Plain, format!("byte {body}")),
+            "16" => (Block::Plain, format!("word {body}")),
+            "24" | "32" => (Block::Plain, format!("dd {body}")),
+            "bin" => (Block::Plain, format!("incbin {body}")),
+            "h" | "hex" => (Block::Plain, format!("byte {}", body.split_whitespace().flat_map(|w| (0..w.len() / 2).map(move |i| format!("${}", &w[i * 2..i * 2 + 2]))).collect::<Vec<_>>().join(","))),
+            _ if opens => (Block::Plain, format!("!{directive} {body}")),
+            _ => return None,
+        };
+        if opens {
+            self.blocks.push(block);
+        }
+        Some(text)
+    }
+
     /// One line of source, as written.
-    fn source_line(&mut self, file: usize, number: usize, raw: &str) {
+    fn source_line(&mut self, file: usize, number: usize, original: &str) {
+        let raw = original;
+        // ACME's blocks and directives, when the processor's the 6502.
+        let translated = if self.isa.name() == "6502" { self.translate(raw) } else { None };
+        let raw = translated.as_deref().map(|t| {
+            // Keep the label in front, if there was one.
+            let code = raw.trim_start();
+            if code.starts_with('!') || code.starts_with('}') { format!(" {t}") } else { t.to_string() }
+        });
+        let raw: &str = match &raw {
+            Some(text) => text,
+            None => original,
+        };
         let line = strip_comment(raw);
         // Lines kept for a macro or a repeat.
         if let Some(collecting) = &mut self.collecting {
             let word = first_words(line);
-            let opens = word.iter().any(|w| matches!(w.as_str(), "macro" | "rept" | "dup" | "repeat"));
+            let opens = word.iter().any(|w| matches!(w.as_str(), "macro" | "rept" | "dup" | "repeat" | "for"));
             let closes = word.iter().any(|w| matches!(w.as_str(), "endm" | "endr" | "edup" | "endmacro" | "endrepeat"));
             if opens {
                 collecting.depth += 1;
@@ -359,10 +438,12 @@ impl<'a> Pass<'a> {
             match op.to_ascii_lowercase().trim_start_matches(['.', '!']) {
                 name @ ("equ" | "=" | "defl" | "set") if name != "set" || !self.isa.is_instruction("set") || op.starts_with(['.', '!']) => {
                     let variable = name != "equ";
-                    match self.eval(value) {
+                    let (value, more) = self.first_statement(value);
+                    match self.eval(&value) {
                         Ok(v) => self.define(label, v, variable),
                         Err(problem) => self.problem(problem),
                     }
+                    self.more_statements(&more);
                     return;
                 }
                 "macro" => {
@@ -373,10 +454,12 @@ impl<'a> Pass<'a> {
                 _ => {}
             }
             if let Some(value) = rest.strip_prefix('=') {
+                let (value, more) = self.first_statement(value);
                 match self.eval(value.trim()) {
                     Ok(v) => self.define(label, v, true),
                     Err(problem) => self.problem(problem),
                 }
+                self.more_statements(&more);
                 return;
             }
             let here = self.pc + self.shift;
@@ -390,6 +473,21 @@ impl<'a> Pass<'a> {
                 break;
             }
             self.statement(statement.trim());
+        }
+    }
+
+    /// A label's value, and any statements after it on the line (after a colon, where colons separate them).
+    fn first_statement(&self, text: &str) -> (String, Vec<String>) {
+        let mut parts = self.statements(text).into_iter();
+        let first = parts.next().unwrap_or_default();
+        (first, parts.collect())
+    }
+
+    fn more_statements(&mut self, more: &[String]) {
+        for statement in more {
+            if !statement.trim().is_empty() {
+                self.statement(statement.trim());
+            }
         }
     }
 
@@ -527,8 +625,10 @@ impl<'a> Pass<'a> {
         let (op, operands) = split_word(text);
         let lower = op.to_ascii_lowercase();
         let directive = lower.trim_start_matches(['.', '!']).to_string();
-        if let Some(found) = self.macros.get(&lower).cloned() {
-            self.expand(&lower, &found, operands);
+        // A macro: ACME calls one with a + before its name.
+        let called = lower.strip_prefix('+').unwrap_or(&lower).to_string();
+        if let Some(found) = self.macros.get(&called).cloned() {
+            self.expand(&called, &found, operands);
             return;
         }
         if DIRECTIVES.contains(&directive.as_str()) && !(self.isa.is_instruction(&lower) && !lower.starts_with(['.', '!'])) {
@@ -744,7 +844,24 @@ impl<'a> Pass<'a> {
             }
             "rept" | "dup" | "repeat" => {
                 let times = self.eval(operands).unwrap_or(0);
-                self.collecting = Some(Collecting { kind: CollectKind::Repeat { times }, depth: 0, body: Vec::new(), at: self.at });
+                self.collecting = Some(Collecting { kind: CollectKind::Repeat { times, counter: None }, depth: 0, body: Vec::new(), at: self.at });
+            }
+            "for" => {
+                // !for name, last (from 1) or !for name, first, last.
+                let items = split_operands(operands);
+                let name = items.first().cloned().unwrap_or_default();
+                let (first, last) = match items.len() {
+                    2 => (1, self.eval(&items[1]).unwrap_or(0)),
+                    _ => (items.get(1).map(|v| self.eval(v).unwrap_or(0)).unwrap_or(0), items.get(2).map(|v| self.eval(v).unwrap_or(0)).unwrap_or(0)),
+                };
+                let times = (last - first + 1).max(0);
+                self.collecting = Some(Collecting { kind: CollectKind::Repeat { times, counter: Some((name, first)) }, depth: 0, body: Vec::new(), at: self.at });
+            }
+            "zone" => {
+                self.global = operands.trim().to_string();
+            }
+            "endzone" => {
+                self.global = operands.trim().to_string();
             }
             "endm" | "endr" | "edup" | "endmacro" | "endrepeat" => self.problem(format!("{} without its start", directive.to_ascii_uppercase())),
             "device" => self.out.device = Some(operands.split(',').next().unwrap_or("").trim().to_ascii_uppercase()),
@@ -816,13 +933,18 @@ impl<'a> Pass<'a> {
             CollectKind::Macro { name, params } => {
                 self.macros.insert(name, Macro { params, body: done.body });
             }
-            CollectKind::Repeat { times } => {
+            CollectKind::Repeat { times, counter } => {
                 if times > 65536 {
                     self.problem("a REPT can't repeat so many times");
                     return;
                 }
                 let at = self.at;
-                for _ in 0..times.max(0) {
+                for round in 0..times.max(0) {
+                    if let Some((name, first)) = &counter {
+                        self.variables.insert(self.full_name(name));
+                        let full = self.full_name(name);
+                        self.symbols.insert(full, first + round);
+                    }
                     for (file, line, text) in &done.body {
                         if self.ended {
                             break;
@@ -874,6 +996,10 @@ impl Scope for Pass<'_> {
 
     fn here(&self) -> i64 {
         self.pc + self.shift
+    }
+
+    fn caret_is_power(&self) -> bool {
+        self.acme
     }
 
     fn full_name(&self, name: &str) -> String {
@@ -929,7 +1055,7 @@ impl Line<'_, '_> {
 
 /// Words the assembler itself understands.
 const DIRECTIVES: &[&str] = &[
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb",
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.

@@ -668,7 +668,8 @@ fn real_programs_assemble_as_sjasmplus_does() {
             if a.is_empty() {
                 low = chunk.address;
             }
-            a.extend(chunk.bytes.iter().copied());
+            // The memory as it ends up: a later ORG can write over an earlier run.
+            a.extend(ours.image(chunk.address, chunk.address + chunk.bytes.len() as i64));
             b.extend(theirs.image(chunk.address, chunk.address + chunk.bytes.len() as i64));
         }
         if a == b {
@@ -681,4 +682,44 @@ fn real_programs_assemble_as_sjasmplus_does() {
         }
     }
     println!("same {same}, differ {differ}, ours failed {ours_failed}, sjasmplus didn't {skipped}");
+}
+
+/// With LIMONITER_ACME and LIMONITER_ACME_SOURCES (a folder of ACME programs): every program ACME assembles,
+/// Limoniter's own assembler makes the same bytes of. Prints how each went.
+#[cfg(test)]
+#[test]
+#[ignore]
+fn real_programs_assemble_as_acme_does() {
+    let (Ok(program), Ok(folder)) = (std::env::var("LIMONITER_ACME"), std::env::var("LIMONITER_ACME_SOURCES")) else {
+        return;
+    };
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&folder).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "a" || e == "asm")).collect();
+    files.sort();
+    let (mut same, mut differ, mut failed) = (0, 0, 0);
+    for path in files {
+        let Ok(text) = std::fs::read_to_string(&path) else { continue };
+        let Ok(theirs) = assemble_external(external("acme").unwrap(), Path::new(&program), &path) else { continue };
+        if !theirs.assembly.ok() || theirs.assembly.chunks.is_empty() {
+            println!("ACME couldn't: {}", path.display());
+            continue;
+        }
+        let ours = assemble_own(Cpu::M6502, &path, &text).assembly;
+        if !ours.ok() {
+            failed += 1;
+            for p in ours.problems.iter().take(3) {
+                println!("OURS FAILED {}: {}({}): {}", path.display(), ours.files.get(p.file).map(|f| f.display().to_string()).unwrap_or_default(), p.line + 1, p.message);
+            }
+            continue;
+        }
+        let chunk = &theirs.assembly.chunks[0];
+        let mine = ours.image(chunk.address, chunk.address + chunk.bytes.len() as i64);
+        if mine == chunk.bytes {
+            same += 1;
+        } else {
+            differ += 1;
+            let at = (0..mine.len()).find(|i| mine[*i] != chunk.bytes[*i]).unwrap_or(0);
+            println!("DIFFER {} at ${:04X} {:?}: ours {:02X?} theirs {:02X?}", path.display(), chunk.address + at as i64, theirs.assembly.line_at(chunk.address + at as i64), &mine[at..(at + 6).min(mine.len())], &chunk.bytes[at..(at + 6).min(chunk.bytes.len())]);
+        }
+    }
+    println!("same {same}, differ {differ}, ours failed {failed}");
 }
