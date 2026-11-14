@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editing text and hex · Limoniter user guide</title>
+  <meta name="description" content="Edit text and bytes in Limoniter: selecting, column editing, the undo tree, finding and replacing, laying out text, table view and hex mode.">
+  <link rel="canonical" href="https://limoniter.com/guide/editing.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/editing.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Editing text and hex · Limoniter user guide">
+  <meta property="og:description" content="Edit text and bytes in Limoniter: selecting, column editing, the undo tree, finding and replacing, laying out text, table view and hex mode.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/editing.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html" aria-current="page">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Editing text and hex</h1>
+        <div class="article-lead">
+<p>Limoniter edits text as any editor does, and adds a few things of its own: column editing, an undo that never loses anything, and a hex mode that works on files of any size. This page shows you how to use them.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#everyday-editing">Everyday editing</a></li>
+<li><a href="#editing-in-columns">Editing in columns</a></li>
+<li><a href="#undo-that-keeps-everything">Undo that keeps everything</a></li>
+<li><a href="#finding-and-replacing">Finding and replacing</a></li>
+<li><a href="#finding-your-way-around-a-file">Finding your way around a file</a></li>
+<li><a href="#laying-out-text-and-code">Laying out text and code</a></li>
+<li><a href="#table-view">Table view</a></li>
+<li><a href="#hex-mode">Hex mode</a></li>
+<li><a href="#comparing-files">Comparing files</a></li>
+</ul>
+</nav>
+<h2 id="everyday-editing">Everyday editing</h2>
+<p>Cut, copy, paste, undo and redo are where you'd expect: <kbd>Ctrl+X</kbd>, <kbd>Ctrl+C</kbd>, <kbd>Ctrl+V</kbd>, <kbd>Ctrl+Z</kbd> and <kbd>Ctrl+Y</kbd>. A few more that save time:</p>
+<ul><li><kbd>Ctrl+D</kbd> duplicates the line.</li><li><strong>Edit › Lines</strong> moves lines up and down, joins them, sorts them A to Z or Z to A, and trims spaces.</li><li><strong>Edit › Change case</strong> makes the selection UPPER CASE (<kbd>Alt+U</kbd>), lower case (<kbd>Alt+L</kbd>), Sentence case or Title Case.</li><li><strong>Edit › Swap with clipboard</strong> (<kbd>Ctrl+Shift+V</kbd>) puts the selection on the clipboard and what was on the clipboard in its place.</li><li><strong>Edit › Insert</strong> puts in the date, the time, the file's name or path, a GUID, a colour, a byte by its value, or the whole of another file.</li><li><strong>Edit › Snippets</strong> (<kbd>Ctrl+J</kbd>) puts in a piece of text you use often. In a snippet, <code>$CURSOR</code> is where the cursor goes, <code>$SELECTION</code> is what was selected, and <code>$DATE</code>, <code>$TIME</code> and <code>$FILE</code> are filled in.</li></ul>
+<h3 id="selecting-what-s-inside-quotes-or-brackets">Selecting what's inside quotes or brackets</h3>
+<p>To select the text inside the quotes around the cursor, press <kbd>Ctrl+Shift+Q</kbd>. Press it again to take the quotes too. In the same way, <kbd>Ctrl+Shift+B</kbd> selects inside brackets, <kbd>Ctrl+Shift+T</kbd> inside a tag, <kbd>Ctrl+Shift+W</kbd> a word, <kbd>Ctrl+Shift+L</kbd> a line and <kbd>Ctrl+Shift+G</kbd> a paragraph. Then type to replace it, or press Delete to remove it. <strong>Edit › Select</strong>, <strong>Edit › Replace inside</strong> and <strong>Edit › Delete</strong> do the same from the menu.</p>
+<h2 id="editing-in-columns">Editing in columns</h2>
+<p>To change the same place on many lines at once:</p>
+<ol class="steps"><li>Hold <kbd>Alt</kbd> and drag across the lines, or press <kbd>Shift+Alt</kbd> and the arrow keys, to select a block.</li><li>Type. What you type goes on every selected line, and Backspace and Delete work on every line too.</li></ol>
+<p><kbd>Alt+C</kbd> turns column mode on and off, so that every selection is a block (word wrap needs to be off). <strong>Edit › Columns</strong> fills, cuts and deletes columns, justifies them left, centre or right, numbers them, and adds up the numbers in them.</p>
+<h2 id="undo-that-keeps-everything">Undo that keeps everything</h2>
+<p>If you undo some changes and then type something else, the changes you undid aren't lost. Limoniter keeps every state the file has been in, as a tree.</p>
+<ol class="steps"><li>Choose <strong>Edit › Edit history</strong> (<kbd>Ctrl+Shift+H</kbd>).</li><li>The Edit history panel shows every state, with its branches.</li><li>Click any state to go back to it.</li></ol>
+<figure class="guide-shot"><button class="shot" data-full="../images/undo-tree.webp" aria-label="Enlarge: The Edit history panel beside some code"><img src="../images/undo-tree-close.webp" alt="The Edit history panel beside some code" loading="lazy" width="1280" height="720"></button><figcaption>The Edit history panel: every state is kept, branches and all.</figcaption></figure>
+<p>Saving keeps the history with the file, so it's there next time you open it. You can turn that off in <strong>Tools › Settings…</strong>, under Editing.</p>
+<p>To see the changes to just one part of a file, select the lines, or put the cursor in a function, and choose <strong>Edit › History of this part</strong> (<kbd>Ctrl+Alt+H</kbd>). Each change is listed, and any one of them can be taken back without undoing what you did afterwards anywhere else.</p>
+<h2 id="finding-and-replacing">Finding and replacing</h2>
+<ul><li><kbd>Ctrl+F</kbd> finds, and <kbd>Ctrl+R</kbd> replaces. <kbd>F3</kbd> and <kbd>Shift+F3</kbd> find the next and previous match.</li><li>Tick <strong>Match case</strong>, <strong>Whole word</strong> or <strong>Regular expression</strong> as you need, or <strong>Hex bytes</strong> to search for bytes such as <code>1B 5B</code>.</li><li><kbd>Ctrl+Shift+F</kbd> finds, or replaces, in every file in a folder (with <strong>Include subfolders</strong> and the file types you choose), in the open files, or in a project. Tick <strong>Keep a .bak copy of each file changed on disk</strong> if you'd like a copy of each file as it was.</li><li><strong>Search › Only show lines with the selection</strong> hides every line that doesn't contain the selected text.</li><li><kbd>Ctrl+G</kbd> goes to a line.</li></ul>
+<p>Searching runs in the background, so the window keeps working while a big search goes on.</p>
+<h2 id="finding-your-way-around-a-file">Finding your way around a file</h2>
+<ul><li><strong>Bookmarks</strong>: <kbd>Ctrl+F2</kbd> sets or clears one on the cursor's line, and <kbd>F2</kbd> and <kbd>Shift+F2</kbd> go to the next and previous.</li><li><strong>Colour tags</strong> mark sections in six colours. Select some lines, or put the cursor in a function or paragraph, and press <kbd>Ctrl+Shift+1</kbd> to <kbd>Ctrl+Shift+6</kbd>. Tags show down the left of the text and across the document map, and stay with the file. <kbd>F4</kbd> and <kbd>Shift+F4</kbd> go to the next and previous, and <kbd>Ctrl+Shift+0</kbd> takes one away.</li><li><strong>View › Narrow to the selection</strong> (<kbd>Ctrl+Shift+N</kbd>) shows only the selected lines, so that every command, Replace All included, works on just those. <strong>View › Show the whole file</strong> brings the rest back.</li><li><strong>View › Folding</strong> folds and unfolds everything, and hides or shows chosen lines.</li></ul>
+<h2 id="laying-out-text-and-code">Laying out text and code</h2>
+<ul><li><strong>Format › Reindent</strong> reindents by brackets; <strong>Tabs to spaces</strong> and <strong>Spaces to tabs</strong> change the indenting.</li><li><strong>Format › Paragraph</strong> reformats paragraphs to a width and margins, aligns them, breaks long lines at a column, or joins each paragraph into one line.</li><li><strong>Format › Lay out code</strong> arranges HTML, XML, JSON, JavaScript, CSS, SQL and C-like code, and <strong>Format › Compress</strong> puts them on as few lines as possible.</li><li><strong>Format › Comment out</strong> and <strong>Uncomment</strong> work in the file's language.</li></ul>
+<div class="note"><p>The formatters only ever change spacing. If anything else would change, the text is left as it was.</p></div>
+<h2 id="table-view">Table view</h2>
+<p>To work on comma-, tab-, semicolon- or pipe-separated data as rows and columns, choose <strong>View › Table view (CSV, TSV)</strong> (<kbd>F6</kbd>). A file that looks like such data is offered as a table when it opens.</p>
+<ul><li>Type, or double-click, to change a cell. <kbd>Enter</kbd> keeps it and moves down, <kbd>Tab</kbd> moves across, and <kbd>Esc</kbd> leaves it as it was.</li><li>Select a block of cells with Shift and the arrow keys, Shift+click, or by dragging. Copy and paste work with spreadsheets such as Excel and LibreOffice.</li><li>Click a heading to show the rows in that column's order, or type in the box above to show only the rows containing something. Neither changes the file; <strong>Sort the file by this column</strong> does.</li></ul>
+<p>The text is still the file: changing a cell changes only that field, and one Undo takes it back.</p>
+<h2 id="hex-mode">Hex mode</h2>
+<p>To see and edit a file's bytes, press <kbd>Ctrl+H</kbd>. Press it again to go back to text. <strong>View › Hex › As hex, in EBCDIC</strong> shows the characters as an IBM mainframe would.</p>
+<figure class="guide-shot"><button class="shot" data-full="../images/huge-hex.webp" aria-label="Enlarge: A 10 GB file open in hex view"><img src="../images/huge-hex-close.webp" alt="A 10 GB file open in hex view" loading="lazy" width="1280" height="720"></button><figcaption>A 10 GB file, straight into hex, read from disk as needed.</figcaption></figure>
+<ul><li><kbd>Tab</kbd> moves between the hex and the character panes.</li><li><kbd>Insert</kbd> switches between overwriting bytes and inserting them. <strong>View › Hex › Insert or delete bytes…</strong> adds or takes away a number of bytes at the cursor.</li><li><kbd>Ctrl+G</kbd> goes to an offset. Write <code>0x</code> in front of a hex offset, such as <code>0x1F00</code>.</li><li><strong>View › Hex › Copy the selected rows</strong> copies them as they look on screen.</li><li><strong>View › Hex › String explorer</strong> lists the readable text among the bytes, and says how each string is kept: with its length in front, a zero after it, padded to a width, with the top bit set on its last character, or ending in <code>$</code>. Click one to select it.</li></ul>
+<p>Hex mode works on files of any size. Typing, inserting, deleting, undo, search and Replace All all work, even on a file of many gigabytes, and saving copies the untouched parts straight across.</p>
+<p><strong>Tools › Settings…</strong>, under Hex mode, sets how many bytes go on a row, and whether files with zero bytes in them open in hex.</p>
+<h2 id="comparing-files">Comparing files</h2>
+<p>To see what's different between two files, choose <strong>Tools › Compare with…</strong> and pick the other file. The two are shown side by side with the differences marked.</p>
+<p>Within one file, <strong>View › Show › Changed lines</strong> marks the lines you've changed, and <strong>Search › Next change</strong> and <strong>Search › Previous change</strong> go from one to the next.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="getting-started.html"><span>Back</span>Getting started</a>
+<a class="pager-next" href="character-sets.html"><span>Next</span>Character sets and old machines&#x27; text</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

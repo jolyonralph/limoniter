@@ -163,7 +163,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("Terminal, in {folder}")).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = ui.small_button("\u{D7}").on_hover_text("Close it, ending the shell").clicked();
+                    close = crate::access::called(ui.small_button("\u{D7}"), "Close").on_hover_text("Close it, ending the shell").clicked();
                     restart = ui.small_button("Restart").on_hover_text("A fresh shell").clicked();
                 });
             });

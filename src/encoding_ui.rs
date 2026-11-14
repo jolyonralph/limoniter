@@ -53,7 +53,10 @@ pub enum MenuAction {
 
 /// An item in the status bar that opens its own selector when clicked.
 pub fn status_menu(ui: &mut Ui, label: String, tip: &str, add: impl FnOnce(&mut Ui) -> Option<MenuAction>) -> Option<MenuAction> {
-    let shown = ui.add(egui::Label::new(label).sense(egui::Sense::click())).on_hover_text(tip);
+    let shown = ui.add(egui::Label::new(label.clone()).sense(egui::Sense::click()));
+    crate::access::button(&shown, &label);
+    crate::access::describe(&shown, tip);
+    let shown = shown.on_hover_text(tip);
     let mut action = None;
     egui::Popup::menu(&shown).show(|ui| action = add(ui));
     action

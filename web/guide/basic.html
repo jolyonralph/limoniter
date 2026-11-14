@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BASIC listings · Limoniter user guide</title>
+  <meta name="description" content="List BASIC programs from Commodore, Spectrum, BBC, Atari, MSX, Apple II, TRS-80 and other machines, edit them as text, and turn them back into programs to save, run or send.">
+  <link rel="canonical" href="https://limoniter.com/guide/basic.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/basic.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="BASIC listings · Limoniter user guide">
+  <meta property="og:description" content="List BASIC programs from Commodore, Spectrum, BBC, Atari, MSX, Apple II, TRS-80 and other machines, edit them as text, and turn them back into programs to save, run or send.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/basic.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html" aria-current="page">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>BASIC listings</h1>
+        <div class="article-lead">
+<p>Old BASIC programs aren't saved as text: each keyword is kept as a single byte, a token. Limoniter lists them as the machine's own LIST would, lets you edit the listing as text, and turns it back into a program, byte for byte. This page shows you how.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#listing-a-program">Listing a program</a></li>
+<li><a href="#editing-a-listing">Editing a listing</a></li>
+<li><a href="#saving-a-listing-as-a-program">Saving a listing as a program</a></li>
+<li><a href="#writing-a-new-program">Writing a new program</a></li>
+<li><a href="#spectrum-graphics-and-udgs">Spectrum graphics and UDGs</a></li>
+<li><a href="#commodore-control-codes">Commodore control codes</a></li>
+<li><a href="#running-and-sending-a-program">Running and sending a program</a></li>
+</ul>
+</nav>
+<h2 id="listing-a-program">Listing a program</h2>
+<p>Open the program, from a file or from inside a disk image or tape. Choose <strong>View › Preview</strong> to see it listed beside the bytes, or instead of them.</p>
+<p>It lists Commodore BASIC V2 (C64, VIC-20 and PET), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC, MSX-BASIC, Atari BASIC, MBASIC, Applesoft, Color BASIC and Dragon BASIC, TRS-80 BASIC, ZX81 BASIC, SAM BASIC and Oric BASIC.</p>
+<figure class="guide-shot"><button class="shot" data-full="../images/send.webp" aria-label="Enlarge: A Commodore 64 BASIC listing with the Send to Ultimate 64 box"><img src="../images/send-close.webp" alt="A Commodore 64 BASIC listing with the Send to Ultimate 64 box" loading="lazy" width="1280" height="720"></button><figcaption>A C64 program listed as LIST shows it, about to be sent to an Ultimate 64.</figcaption></figure>
+<p>A damaged program is listed as far as its lines link up, and says where it stops.</p>
+<h2 id="editing-a-listing">Editing a listing</h2>
+<ol class="steps"><li>With the program in front, choose <strong>Format › Tokenised BASIC › Open the listing as text</strong>.</li><li>The listing opens in a new tab, as ordinary text. Edit it as you would any text. Typing a couple of letters of a keyword offers the keywords that finish it (Spectrum, Next and Commodore).</li><li>When you're done, save it as a program, run it, or send it, as below.</li></ol>
+<p>A listing remembers the program it came from, so you don't need to save it as a program before running or sending it: F9 and <strong>Send to device</strong> tokenise it on the way.</p>
+<h2 id="saving-a-listing-as-a-program">Saving a listing as a program</h2>
+<p>Choose one of these under <strong>Format › Tokenised BASIC</strong>:</p>
+<ul><li><strong>Save as a Spectrum tape (.tap)…</strong></li><li><strong>Save as a Spectrum Next program (.bas)…</strong></li><li><strong>Save as a Commodore program (.prg)…</strong></li><li><strong>Save as a BBC BASIC program…</strong></li></ul>
+<p>Listing and tokenising undo each other: tokenise a listing you haven't changed, and you get back the original bytes. The other BASICs (MSX, Atari, TRS-80, ZX81, SAM and Oric among them) are listed only.</p>
+<h2 id="writing-a-new-program">Writing a new program</h2>
+<p>To start a new program, choose <strong>File › New as</strong> and one of <strong>Spectrum BASIC</strong>, <strong>Spectrum Next BASIC</strong>, <strong>Commodore 64 BASIC</strong>, <strong>BBC BASIC</strong> or <strong>OpticBASIC (OpticOS)</strong>. It starts with a line to try, and it's ready to run with <kbd>F9</kbd> and to send as a program.</p>
+<p>Listings written for the zmakebas or bas2tap tools tokenise as those tools do, escapes and all.</p>
+<h2 id="spectrum-graphics-and-udgs">Spectrum graphics and UDGs</h2>
+<p>In a Spectrum listing, block graphics are shown as the matching Unicode characters (▝ ▘ ▀ …), user-defined graphics as <code>{UDG-A}</code>, and colour codes as <code>{INK 2}</code>. To have listings written zmakebas's or bas2tap's way instead, change <strong>Spectrum BASIC listings write graphics as</strong> in <strong>Tools › Settings…</strong>, under Editing.</p>
+<p>To type graphics as the Spectrum's GRAPHICS key does:</p>
+<ol class="steps"><li>Press <kbd>Ctrl+Shift+9</kbd>, or choose <strong>Format › Tokenised BASIC › Spectrum GRAPH mode</strong>. The status bar says GRAPH.</li><li>Press 1 to 8 for the block graphics, with Shift for the inverted ones, and A to U for the UDGs.</li><li>Press 9 or <kbd>Esc</kbd> to leave GRAPH mode.</li></ol>
+<p>UDGs are drawn as their pictures when Limoniter can find them: on the tape the program came from, in its snapshot, or in its own DATA lines. To take them from another file, choose <strong>Format › Tokenised BASIC › Spectrum UDG pictures from…</strong>. Put the cursor in one to see it as text again and edit it. <strong>Tools › Character and sprite editor</strong> draws new ones.</p>
+<h2 id="commodore-control-codes">Commodore control codes</h2>
+<p>In a Commodore listing, control codes inside strings are written in braces, as <code>petcat</code> writes them: <code>{clr}</code>, <code>{red}</code> and so on. Type them the same way, and they become the right bytes when the listing is tokenised.</p>
+<h2 id="running-and-sending-a-program">Running and sending a program</h2>
+<ul><li><kbd>F9</kbd> runs the program on the machine chosen for it: the built-in Spectrum, an emulator, or a real machine. See <a href="assembling-and-running.html">Assembling and running</a>.</li><li><strong>File › Send to device</strong> sends it, tokenised, to a real machine or its card: a NextBASIC listing goes to a Next as a <code>.bas</code>, a C64 listing as a <code>.prg</code>.</li><li>While a program runs on the built-in Spectrum, in ZEsarUX or in VICE, <strong>File › Run on › Take its BASIC program</strong> gives you the program in the machine's memory as a listing, and <strong>Put this listing into it</strong> puts your edited listing back without a reset.</li></ul>
+<p>To step through a Spectrum BASIC program line by line, with its variables, see <a href="debugging.html#debugging-spectrum-basic">Debugging</a>.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="disks-and-tapes.html"><span>Back</span>The disk and tape browser</a>
+<a class="pager-next" href="assembling-and-running.html"><span>Next</span>Assembling and running</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

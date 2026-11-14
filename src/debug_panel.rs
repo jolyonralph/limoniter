@@ -422,7 +422,7 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
             let mut gone = None;
             for (index, watch) in code.watches.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    if ui.small_button("\u{D7}").on_hover_text("Stop watching this").clicked() {
+                    if crate::access::called(ui.small_button("\u{D7}"), "Stop watching this").on_hover_text("Stop watching this").clicked() {
                         gone = Some(index);
                     }
                     let value = match eval(watch, &seen) {
@@ -513,7 +513,7 @@ pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> S
         let mut gone = None;
         for (index, watch) in code.write_watches.iter().enumerate() {
             ui.horizontal(|ui| {
-                if ui.small_button("\u{D7}").clicked() {
+                if crate::access::called(ui.small_button("\u{D7}"), "Stop watching this").clicked() {
                     gone = Some(index);
                 }
                 ui.label(RichText::new(watch).monospace().size(11.5));

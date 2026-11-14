@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Debugging · Limoniter user guide</title>
+  <meta name="description" content="Debug Z80, 6502, 6809 and 68000 programs and Spectrum BASIC with breakpoints, stepping, registers, watches, memory and the profiler, on the built-in Spectrum or in an emulator.">
+  <link rel="canonical" href="https://limoniter.com/guide/debugging.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/debugging.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Debugging · Limoniter user guide">
+  <meta property="og:description" content="Debug Z80, 6502, 6809 and 68000 programs and Spectrum BASIC with breakpoints, stepping, registers, watches, memory and the profiler, on the built-in Spectrum or in an emulator.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/debugging.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html" aria-current="page">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Debugging</h1>
+        <div class="article-lead">
+<p>When a program doesn't do what you meant, you can stop it at a line of your source, look at the registers and memory, and go on an instruction at a time. This page shows you how, on the built-in Spectrum first, and then in the emulators that work the same way.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#where-you-can-debug">Where you can debug</a></li>
+<li><a href="#stopping-at-a-line">Stopping at a line</a></li>
+<li><a href="#looking-at-the-program-while-it-s-stopped">Looking at the program while it's stopped</a></li>
+<li><a href="#stopping-only-when-something-s-true">Stopping only when something's true</a></li>
+<li><a href="#stopping-when-memory-is-written">Stopping when memory is written</a></li>
+<li><a href="#finding-where-the-time-goes">Finding where the time goes</a></li>
+<li><a href="#debugging-spectrum-basic">Debugging Spectrum BASIC</a></li>
+<li><a href="#in-emulators">In emulators</a></li>
+<li><a href="#on-a-real-spectrum-next">On a real Spectrum Next</a></li>
+</ul>
+</nav>
+<h2 id="where-you-can-debug">Where you can debug</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Source</th>
+<th scope="col">Where it's debugged</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Z80</th>
+<td>The built-in Spectrum, ZEsarUX (Spectrum and Next programs), or a Spectrum Next</td>
+</tr>
+<tr>
+<th scope="row">6502</th>
+<td>VICE</td>
+</tr>
+<tr>
+<th scope="row">6809</th>
+<td>XRoar</td>
+</tr>
+<tr>
+<th scope="row">68000</th>
+<td>Hatari</td>
+</tr>
+<tr>
+<th scope="row">Spectrum BASIC</th>
+<td>The built-in Spectrum</td>
+</tr>
+</tbody></table></div>
+<p>Debugging works with Limoniter's own assemblers and with the ones you've installed (sjasmplus programs can be debugged too), because either way each address is mapped back to its line.</p>
+<h2 id="stopping-at-a-line">Stopping at a line</h2>
+<ol class="steps"><li>Open your source, and click beside a line's number. A breakpoint mark appears there. Click it again to take it away.</li><li>Press <kbd>F9</kbd> to run the program, on the built-in Spectrum or the emulator you've chosen (see <a href="assembling-and-running.html">Assembling and running</a>).</li><li>When the program gets to that line, it stops. The line is marked, and the registers and flags are shown in a panel beside the source.</li></ol>
+<p>Then:</p>
+<ul><li><strong>Step</strong> runs one instruction, into a CALL.</li><li><strong>Step over</strong> runs the instruction, or the whole of a subroutine it calls (a CALL, RST, DJNZ or LDIR on the Z80), and stops after it.</li><li><strong>Carry on</strong> runs on until the next breakpoint.</li><li><strong>Pause</strong> stops the program wherever it is, with the same view.</li></ul>
+<h2 id="looking-at-the-program-while-it-s-stopped">Looking at the program while it's stopped</h2>
+<p>The panel beside the source has more, on the built-in Spectrum, in ZEsarUX and in VICE:</p>
+<ul><li><strong>Call stack</strong>: the calls the program is inside, read from the return addresses on the stack, each with its label and line.</li><li><strong>Watches</strong>: type an expression and click <strong>Watch</strong>, and it's worked out at every stop. Use registers, flags (ZF, CF…), labels, <code>[addr]</code> for a byte and <code>word[addr]</code> for a word, with arithmetic and comparisons. Click <strong>×</strong> to stop watching one.</li><li><strong>Memory</strong>: sixteen bytes a row at any address, label or expression typed in <strong>At</strong> (HL to begin with). What's changed since the last stop is picked out.</li></ul>
+<h2 id="stopping-only-when-something-s-true">Stopping only when something's true</h2>
+<p>To make a breakpoint stop only sometimes:</p>
+<ol class="steps"><li>Open <strong>Breakpoints</strong> in the debugger's panel. Each breakpoint is listed with its line.</li><li>Beside <strong>only when</strong>, type a condition, such as <code>A=0 &amp;&amp; [count]&gt;3</code>.</li></ol>
+<p>The program now passes straight on whenever the condition is false. Conditions work on the built-in Spectrum and in ZEsarUX.</p>
+<h2 id="stopping-when-memory-is-written">Stopping when memory is written</h2>
+<p>To find what's writing over something it shouldn't:</p>
+<ol class="steps"><li>Under <strong>Stop when written to</strong>, type an address or a label, or a range such as <code>buffer..buffer+31</code>.</li><li>Click <strong>Add</strong>.</li></ol>
+<p>The program stops after the instruction that wrote there, saying what was written where. XRoar and Hatari can stop on writes too.</p>
+<h2 id="finding-where-the-time-goes">Finding where the time goes</h2>
+<p>On the built-in Spectrum, <strong>Profile</strong> counts the T-states spent at every address while the program runs, contention and interrupts included.</p>
+<ol class="steps"><li>Start the program, and click <strong>Profile</strong>.</li><li>Let it run through the part you're interested in.</li><li>Click <strong>Profile</strong> again to stop counting.</li></ol>
+<p>The figures stay to read: the time spent in each routine (each label and what follows it), with its share and how often it was entered, and the busiest source lines. Click either to go there.</p>
+<h2 id="debugging-spectrum-basic">Debugging Spectrum BASIC</h2>
+<p>You can debug a Spectrum BASIC program, 48K or 128K, on the built-in Spectrum in the same way:</p>
+<ol class="steps"><li>Open the listing, and click beside a line's number for a breakpoint.</li><li>Press <kbd>F9</kbd>. The program stops as that line starts, with the line marked.</li><li>Use <strong>Next statement</strong> to run one statement at a time, or <strong>Carry on</strong> to run to the next breakpoint. <strong>Stop at the next statement</strong> pauses a running program where it is.</li></ol>
+<p>While it's stopped, its variables are listed: numbers, strings, arrays, and FOR loops with their limit and step. A program loaded from a tape stops before its first line runs, so a breakpoint on the first line works too.</p>
+<h2 id="in-emulators">In emulators</h2>
+<ul><li><strong>ZEsarUX</strong>: Z80 source runs and is debugged there through its remote protocol, with everything above. It runs Next programs, which the built-in Spectrum can't. A Spectrum program is loaded from its tape in Limoniter and handed over, so ZEsarUX can stop even at its first instruction.</li><li><strong>VICE</strong>: 6502 source is debugged through VICE's binary monitor, with breakpoints, A, X, Y, SP and the flags, Step, Step over (a JSR) and Carry on, and the call stack, watches and memory.</li><li><strong>XRoar</strong>: 6809 source runs as a Color Computer program, with breakpoints, the registers (A, B, D, X, Y, U, S, DP and CC), Step, Step over (a BSR, LBSR or JSR), Carry on, Pause, the memory window, and stopping when an address is written. XRoar needs the machine's BASIC ROMs, in its ROM folder or named in the device's options.</li><li><strong>Hatari</strong>: 68000 source runs as an Atari ST program, and stops at breakpoints wherever TOS loaded it, with the 68000's registers, Step, Step over and Carry on, and stopping when a watched byte changes.</li></ul>
+<h2 id="on-a-real-spectrum-next">On a real Spectrum Next</h2>
+<p>A device of the kind <strong>ZX Spectrum Next (debug cable)</strong> runs Z80 source on a Next itself, through DeZog's dezogif, over a USB serial cable or Wi-Fi, with breakpoints, stepping, the registers, call stack, watches and memory window.</p>
+<div class="note"><p>This is new: it's been tested against a stand-in for the Next, but not yet on a real one. Reports are very welcome.</p></div>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="assembling-and-running.html"><span>Back</span>Assembling and running</a>
+<a class="pager-next" href="git.html"><span>Next</span>Git</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

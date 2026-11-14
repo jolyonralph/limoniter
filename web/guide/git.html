@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Git · Limoniter user guide</title>
+  <meta name="description" content="Keep your work&#x27;s history with Git in Limoniter: the Git wizard for beginners, committing, pushing and pulling, branches, conflicts, history and blame.">
+  <link rel="canonical" href="https://limoniter.com/guide/git.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/git.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Git · Limoniter user guide">
+  <meta property="og:description" content="Keep your work&#x27;s history with Git in Limoniter: the Git wizard for beginners, committing, pushing and pulling, branches, conflicts, history and blame.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/git.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html" aria-current="page">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Git</h1>
+        <div class="article-lead">
+<p>Git keeps the history of your work: every version you've committed, which you can compare with, go back to, and share online. Limoniter does the everyday things in Git without a command line, and the Git wizard sets it up for you if you've never used it. This page shows you how.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#starting-with-git">Starting with Git</a></li>
+<li><a href="#committing-your-changes">Committing your changes</a></li>
+<li><a href="#seeing-what-s-changed">Seeing what's changed</a></li>
+<li><a href="#sharing-your-work">Sharing your work</a></li>
+<li><a href="#branches-putting-aside-and-tags">Branches, putting aside and tags</a></li>
+<li><a href="#settling-a-conflict">Settling a conflict</a></li>
+</ul>
+</nav>
+<h2 id="starting-with-git">Starting with Git</h2>
+<p>If you've never used Git, the Git wizard takes you from nothing to your first commit, and to your work online if you'd like:</p>
+<ol class="steps"><li>Choose <strong>Tools › Git › Git wizard…</strong>.</li><li>Follow the steps. The wizard gets Git if you haven't got it, asks for your name and email (which go with each commit), and then either starts keeping the history of a folder, with a first commit, or copies a project from GitHub.</li><li>If you'd like your work online, it connects your folder to a new GitHub repository.</li></ol>
+<p>Each step says what it does and why.</p>
+<p>When you open a folder that looks like a project but isn't keeping its history, Limoniter offers Git once: <strong>Show me how…</strong>, <strong>Not now</strong>, or <strong>Never for this folder</strong>.</p>
+<h2 id="committing-your-changes">Committing your changes</h2>
+<ol class="steps"><li>Open <strong>Source control</strong> with <kbd>Ctrl+Shift+G</kbd>, or <strong>Tools › Git › Source control</strong>. It shows the branch, what's changed, what's ready to commit, and anything in conflict.</li><li>Click <strong>+</strong> beside each file to put it in the next commit, or <strong>−</strong> to leave it out. <strong>↶</strong> throws away a file's changes.</li><li>Write what the commit does in the box, in a line, with more below it if needed.</li><li>Click the commit button. It says how many files go in, such as <strong>Commit 2 file(s)</strong>.</li></ol>
+<p>With nothing put in, the button says <strong>Commit all changes</strong>, and every change to files Git already has goes in. <strong>Add to the last commit</strong> folds your changes into the commit before, if you forgot something.</p>
+<p><strong>Write it for me</strong> asks the coding assistant to write the commit message from your changes, for you to read over first.</p>
+<h2 id="seeing-what-s-changed">Seeing what's changed</h2>
+<ul><li>Marks beside the line numbers show what's changed since the last commit: green for new lines, blue for changed ones, and a red notch where lines were taken out. They follow your edits as you type.</li><li><strong>Tools › Git › Put the change at the cursor in the next commit</strong> commits just part of a file; <strong>Undo the change at the cursor</strong> puts that part back as it was (and Undo takes that back in turn).</li><li><strong>Tools › Git › Compare with the last commit</strong> shows the file beside its last committed version.</li><li><strong>Tools › Git › History of this file…</strong> lists every commit that changed it. Compare any one with now, or open the file as it was.</li><li><strong>Tools › Git › Show who changed each line</strong> shows the author, date and commit of the cursor's line in the status bar.</li></ul>
+<h2 id="sharing-your-work">Sharing your work</h2>
+<ul><li><strong>Push</strong> sends your commits online.</li><li><strong>Pull</strong> brings in others' commits, when yours simply follow on from them, so nothing is merged by surprise.</li><li><strong>Fetch</strong> finds out what's online without changing anything. Source control shows how far ahead or behind your branch is.</li></ul>
+<p>When your commits and the ones online have both moved on, <strong>Pull, putting mine after theirs</strong> puts your commits after theirs (a rebase). If it stops at a conflict, sort it out and press <strong>Carry on</strong>, or <strong>Abort, back to how it was</strong> to undo the whole pull.</p>
+<p>Git runs in the background, and its own sign-in window, SSH keys and signing work as they do at a command line. Limoniter never holds a Git password. The messages people meet most often come with a line on what to do, such as "Pull first, then Push".</p>
+<h2 id="branches-putting-aside-and-tags">Branches, putting aside and tags</h2>
+<ul><li>Switch branches, or make a new one with <strong>New branch</strong>, from Source control.</li><li><strong>Put aside</strong> keeps every change to one side (a stash), so you can work on something else. <strong>Bring back</strong> brings them back, and <strong>Throw away</strong> drops them.</li><li><strong>Tags</strong> names a commit, as a release is named, with <strong>Tag this commit</strong>, and can push the tag online.</li></ul>
+<h2 id="settling-a-conflict">Settling a conflict</h2>
+<p>When a merge stops at a conflict, a bar over the file helps you settle each one:</p>
+<ol class="steps"><li>Put the cursor in a conflict.</li><li>Choose <strong>Keep mine</strong>, <strong>Keep theirs</strong> or <strong>Keep both</strong>.</li><li>Go to the <strong>Next conflict</strong>, and so on.</li></ol>
+<p>When they're all done, the file is marked settled. <strong>Ask the assistant</strong> suggests lines that do what both sides meant, shown first for you to accept or not. To give up on the merge, choose <strong>Abort the merge</strong>.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="debugging.html"><span>Back</span>Debugging</a>
+<a class="pager-next" href="remote-files.html"><span>Next</span>Remote files</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

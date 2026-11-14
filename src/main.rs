@@ -4,6 +4,7 @@
 mod amiga_palette_ui;
 mod ansi_art;
 mod addons;
+mod access;
 mod app;
 mod platform;
 #[cfg(target_os = "macos")]

@@ -741,6 +741,10 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     let (top, left) = (state.top, state.left);
     let sense = if input_on { Sense::click_and_drag() } else { Sense::hover() };
     let response = ui.interact(view, id, sense).on_hover_cursor(CursorIcon::Text);
+    // Screen readers are given the line the cursor is on, and where it is; the whole file could be far too big.
+    if crate::access::wanted(&response) {
+        crate::access::editor(&response, "Text", &buffer.line(buffer.caret_line.min(buffer.line_count().saturating_sub(1))), &buffer.position_text(), buffer.read_only);
+    }
     let filtering = pane.filter.is_some();
     let to_position = |p: Pos2| {
         let row = ((p.y - view.min.y - ruler_h) / cell.y).floor() as isize;
@@ -1968,6 +1972,10 @@ pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, form
     let (top, left) = (state.top, state.left);
     let sense = if input_on { Sense::click_and_drag() } else { Sense::hover() };
     let response = ui.interact(view, editor_id(), sense).on_hover_cursor(CursorIcon::Text);
+    if crate::access::wanted(&response) {
+        let pane = if buffer.ascii_pane { "characters" } else { "hex digits" };
+        crate::access::editor(&response, &format!("Hex, typing {pane}"), &buffer.position_text(), "", buffer.read_only);
+    }
     let (pressed, modifiers, pointer) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers, i.pointer.interact_pos()));
     if let Some(p) = pointer {
         let hit = hex_hit(p, view, top, left, cell, header, buffer.len());

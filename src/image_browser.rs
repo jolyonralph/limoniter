@@ -285,7 +285,18 @@ impl ImageBrowser {
                 for (index, entry) in entries.iter().enumerate() {
                     let icon = if entry.is_dir { "\u{1F4C1} " } else { "" };
                     let row = ui.add(egui::Button::selectable(self.selected == Some(index), format!("{icon}{}", entry.name)));
-                    if row.clicked() {
+                    // Read out as an option in the list, with its type, size and details; reached with Tab, it's
+                    // chosen, and Enter opens it.
+                    let size = if entry.is_dir { String::new() } else { short_size(entry.size) };
+                    let what = [entry.kind.as_str(), size.as_str(), entry.detail.as_str()].into_iter().filter(|w| !w.is_empty()).collect::<Vec<_>>().join(", ");
+                    crate::access::chosen(&row, egui::Role::ListBoxOption, self.selected == Some(index), &entry.name);
+                    crate::access::describe(&row, &what);
+                    if row.gained_focus() {
+                        self.selected = Some(index);
+                    }
+                    if row.has_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        action = Some(BrowserAction::Open(index));
+                    } else if row.clicked() {
                         self.selected = Some(index);
                     }
                     if row.double_clicked() {

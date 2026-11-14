@@ -389,6 +389,11 @@ fn byte_table(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, set: &'sta
             } else if response.hovered() {
                 ui.painter().rect_filled(rect, 0.0, theme::hover());
             }
+            let spoken = match entry.unicode {
+                Some(c) => format!("{byte:02X}: {}", if entry.name.is_empty() { c.to_string() } else { entry.name.clone() }),
+                None => format!("{byte:02X}: {}", entry.name),
+            };
+            crate::access::chosen(&response, egui::Role::ListBoxOption, state.selected == Some(byte), &spoken);
             if response.clicked() {
                 state.selected = Some(byte);
                 state.selected_char = None;
@@ -518,6 +523,7 @@ fn unicode_browser(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, actio
             } else if response.hovered() {
                 ui.painter().rect_filled(rect, 0.0, theme::hover());
             }
+            crate::access::chosen(&response, egui::Role::ListBoxOption, state.selected_char == Some(c), &format!("U+{:04X} {}", c as u32, charset::control_name(c as u32).map_or_else(|| c.to_string(), str::to_string)));
             if response.clicked() {
                 state.selected_char = Some(c);
                 state.selected = None;

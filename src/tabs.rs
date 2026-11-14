@@ -36,8 +36,11 @@ pub fn file_tab(ui: &mut Ui, title: &str, modified: bool, selected: bool) -> (bo
         ui.painter().line_segment([c + vec2(-3.5, -3.5), c + vec2(3.5, 3.5)], stroke);
         ui.painter().line_segment([c + vec2(3.5, -3.5), c + vec2(-3.5, 3.5)], stroke);
     }
+    crate::access::button(&close, &format!("Close {title}"));
     let closing = close.on_hover_text(if modified { "Close (it has unsaved changes)" } else { "Close" }).clicked();
-    let response = if modified { response.on_hover_text(format!("{title}, with unsaved changes")) } else { response };
+    let name = if modified { format!("{title}, with unsaved changes") } else { title.to_string() };
+    crate::access::chosen(&response, egui::Role::Tab, selected, &name);
+    let response = if modified { response.on_hover_text(name) } else { response };
     let _ = Align2::CENTER_CENTER;
     (response.clicked() && !closing, closing)
 }

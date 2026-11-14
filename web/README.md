@@ -8,6 +8,9 @@ The promotional site for https://limoniter.com, in plain HTML, CSS and JavaScrip
 - `compare.html` and `features.html`: made from `../COMPARISON.md` and `../FEATURES.md` by `tools/make-pages.py`, inside
   `tools/compare-template.html` and `tools/features-template.html`. Publishing makes them afresh; to see a change
   before then, run `python web/tools/make-pages.py` from the app folder. Don't edit the two pages themselves.
+- `guide/`: the user guide, made from the Markdown in `guide/src/` by `tools/make-guide.py`, inside
+  `tools/guide-template.html`. The order of the pages is set in the script. Publishing makes them afresh; to see a
+  change before then, run `python web/tools/make-guide.py` from the app folder. Don't edit the pages themselves.
 - `images/`: made by `tools/make-images.py SCREENSHOTS_FOLDER` from full-size screenshots: each as a whole window
   (`NAME.webp`) and a readable part of it (`NAME-close.webp`), the themes collage, and `social.png` for shared links.
 - `images/`: the icon and screenshots.

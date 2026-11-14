@@ -1105,7 +1105,7 @@ impl Limoniter {
                 let lines = self.script_output.len();
                 ui.label(format!("Output: {lines} line{}{}", if lines == 1 { "" } else { "s" }, if running { ", running" } else { "" }));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = ui.small_button("\u{D7}").on_hover_text("Close").clicked();
+                    close = crate::access::called(ui.small_button("\u{D7}"), "Close").on_hover_text("Close").clicked();
                     if running {
                         stop = ui.small_button("Stop").on_hover_text("Ends the command, and anything it started").clicked();
                     }
@@ -1121,7 +1121,7 @@ impl Limoniter {
                     // A place, as compilers and assemblers print them, goes there when clicked.
                     match crate::assemblers::problem_line(line).or_else(|| crate::tasks::place_in(line)) {
                         Some((file, number, _)) => {
-                            if ui.add(egui::Label::new(RichText::new(line).monospace().color(theme::accent())).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click())).on_hover_text("Go to this line").clicked() {
+                            if crate::access::clickable(ui.add(egui::Label::new(RichText::new(line).monospace().color(theme::accent())).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click()))).on_hover_text("Go to this line").clicked() {
                                 go_to = Some((file, number));
                             }
                         }

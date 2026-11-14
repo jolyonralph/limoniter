@@ -112,7 +112,7 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
   - Mainframe and business: COBOL, JCL, PL/I, RPG, REXX, MUMPS, xBase.
   - Others: APL, Forth, Logo, Modula-2, Prolog, Smalltalk, PostScript, RTF, Inform 6, ZIL, CONFIG.SYS.
   - Amiga: AmigaGuide and the Amiga Installer language.
-- Choose the language by hand under **Format, Colour as**.
+- Choose the language by hand under **Tools, Colour as**.
 
 ## Previews
 
@@ -309,7 +309,7 @@ Switched on under **View, Panels**:
 
 - **File › Run on machine** (**F9**) runs the file in front where its kind of program runs, asking the first time and remembering; **File › Run on** lists every place, and says why one can't take it.
 - What runs: a BASIC listing, tokenised (a BBC listing goes on a disc that boots it); a program, tape, snapshot or disk image as it is (`.tap`, `.tzx`, `.z80`, `.sna`, `.bas`, `.nex`, `.prg`, `.t64`, `.d64`, `.crt`, `.ssd`, `.dsk`, `.trd`, `.rom`, `.cas` and others); or the file selected in a disk image. Which machine is worked out from the file: a Commodore program by where it loads, a Z80 snapshot by its header, a +3DOS file by which BASIC it holds. Plain text asks which BASIC it is.
-- **The built-in ZX Spectrum** (48K and 128K) runs tapes and snapshots in a panel beside the file, with nothing to install: a BASIC program is loaded at once and running. Click its screen to type on it (Ctrl is Symbol Shift, Esc is Break); its sound, the beeper and the 128K's AY chip, comes out of the speakers, with a Mute button; Pause, Restart and switch it off. Z80 snapshots and TZX tapes are converted for it. Under its screen, the **Spectrum's keyboard** with everything printed on and around each key (keywords, Symbol Shift symbols in red, Extended mode words above and below): click Caps Shift or Symbol Shift and then a key to press them together, both shifts for Extended mode, or hold a key down with the mouse for games; buttons for Break, Delete, Edit, Caps Lock, Graphics, Extended, True and Inverse video, and LOAD "". The **Keyboard** button hides it.
+- **The built-in ZX Spectrum** (48K and 128K) runs tapes and snapshots in a panel beside the file, with nothing to install: a BASIC program is loaded at once and running. Click its screen to type on it (Ctrl is Symbol Shift, Esc is Break); its sound, the beeper and the 128K's AY chip, comes out of the speakers, with a Mute button; Pause, Restart and switch it off. Z80 snapshots and TZX tapes are converted for it. Under its screen, the **Spectrum's keyboard** with everything printed on and around each key (keywords, Symbol Shift symbols in red, Extended mode words above and below): click Caps Shift or Symbol Shift and then a key to press them together, both shifts for Extended mode, or hold a key down with the mouse for games; buttons for Break, Delete, Edit, Caps Lock, Graphics, Extended, True and Inverse video, and LOAD "". Under **OpticOS**, which takes keywords letter by letter, the keys show only its letters, symbols and keys (EDIT, CAPS LOCK, the cursor keys, DELETE, and Extended mode's `[ ] { } \ | ~`), and the buttons type `LOAD ""` a letter at a time. The **Keyboard** button hides it.
 - **Emulators** are a kind of device: ZEsarUX, Fuse and CSpect for the Spectrum and Next, VICE for Commodores, b2 for the BBC Micro, openMSX, and Hatari for the Atari ST. **Find emulators** adds the ones installed; any other can be pointed to, with extra options of your own.
 - **Real machines**: an Ultimate 64 runs a program as it arrives; a Spectrum Next (NextSync), a card or a folder receives it, to be started there.
 - A run shows in the status bar with **Stop**. Running again on ZEsarUX loads into the one already running.
@@ -378,6 +378,7 @@ Switched on under **View, Panels**:
 
 - Print with Windows' print dialog, with an optional header and line numbers; hex view can be printed too (up to 16 MB).
 - Font choice, larger and smaller text, full screen and always on top.
+- **Without a mouse, and with a screen reader**: F10 goes to the menus (the arrows and Enter open them), Ctrl+F6 takes the keyboard out of the editor to the rest of the window and Tab goes on from there, and a box that opens has the keyboard at once (Tab through it, Escape closes it). Screen readers are told the line the cursor is on and where it is, or in hex the byte; the file tabs, the command box's list, the image browser's files, the status bar's Read-only, encoding and line-ending items, and buttons that show only a symbol all have names.
 
 ## Themes
 

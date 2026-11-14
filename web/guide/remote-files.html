@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Remote files · Limoniter user guide</title>
+  <meta name="description" content="Open, edit and save files on a server over SFTP, open a file from a web address, and send files to FTP and SFTP servers on your machines.">
+  <link rel="canonical" href="https://limoniter.com/guide/remote-files.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/remote-files.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Remote files · Limoniter user guide">
+  <meta property="og:description" content="Open, edit and save files on a server over SFTP, open a file from a web address, and send files to FTP and SFTP servers on your machines.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/remote-files.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html" aria-current="page">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Remote files</h1>
+        <div class="article-lead">
+<p>Limoniter can open a file straight from a server over SFTP, edit it, and save it back, and it can fetch a file from a web address. This page shows you how.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#opening-a-file-on-a-server">Opening a file on a server</a></li>
+<li><a href="#editing-and-saving">Editing and saving</a></li>
+<li><a href="#saving-any-file-to-a-server">Saving any file to a server</a></li>
+<li><a href="#opening-a-file-from-the-web">Opening a file from the web</a></li>
+<li><a href="#sending-to-a-machine-s-server">Sending to a machine's server</a></li>
+</ul>
+</nav>
+<h2 id="opening-a-file-on-a-server">Opening a file on a server</h2>
+<ol class="steps"><li>Choose <strong>File › Open a remote file (SFTP)…</strong>.</li><li>Type the server's address, such as <code>sftp://user@host/folder</code> (add <code>:port</code> after the host if it isn't the usual one).</li><li>Choose a <strong>Key file</strong> to sign in with, or leave it empty to sign in with a password. Type the password if one is needed, and tick <strong>Remember it</strong> if you'd like it kept.</li><li>Click <strong>Connect</strong>.</li><li>Click folders to go into them, and double-click a file to open it.</li></ol>
+<p>The first time you connect to a server, its key's fingerprint is shown. Trust it only if it's what the server's owner says it should be, and then click <strong>Trust it and connect</strong>. After that, a server whose key has changed is refused, in case someone is in between.</p>
+<div class="note"><p>A kept password goes in your system's own store (Credential Manager on Windows, the keychain on a Mac, the keyring on Linux), never in Limoniter's settings.</p></div>
+<h2 id="editing-and-saving">Editing and saving</h2>
+<p>A remote file is edited in a copy on this computer, so everything works on it, very large files included. Each time you save, the file is sent back to the server in the background, to a new file beside the old one first, so the server's copy is never half-written.</p>
+<ul><li>If someone else has changed the file on the server since you opened it, Save asks before replacing it.</li><li>If sending fails, your changes are still saved on this computer, and the message says where.</li></ul>
+<h2 id="saving-any-file-to-a-server">Saving any file to a server</h2>
+<p>To put a file you're editing on a server:</p>
+<ol class="steps"><li>Choose <strong>File › Save to a server (SFTP)…</strong>.</li><li>Connect as above, and go to the folder you'd like it in.</li><li>Give it a <strong>File name</strong>, and click <strong>Save here</strong>.</li></ol>
+<h2 id="opening-a-file-from-the-web">Opening a file from the web</h2>
+<p>To open a file from a web address:</p>
+<ol class="steps"><li>Choose <strong>File › Open a file from the web (http/https)…</strong>.</li><li>Type or paste its address, such as <code>https://example.com/file.txt</code>.</li><li>Click <strong>Open</strong>.</li></ol>
+<p>The file is fetched and opened as any file is: a disk image in the browser, text in its character set. It has no file of its own until you save it where you choose.</p>
+<h2 id="sending-to-a-machine-s-server">Sending to a machine's server</h2>
+<p>Many machines can be reached over the network: a MiSTer or a Raspberry Pi over SFTP, or an Ultimate 64 or a networked Amiga over FTP. To send files to one, set it up once as a device under <strong>File › Send to device › Manage devices…</strong>, with the kind <strong>SFTP server</strong> or <strong>FTP server</strong>. The server's key is checked as for remote files. See <a href="assembling-and-running.html#sending-to-a-device">Sending to a device</a>.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="git.html"><span>Back</span>Git</a>
+<a class="pager-next" href="settings.html"><span>Next</span>Settings</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

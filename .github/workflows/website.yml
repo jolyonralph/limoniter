@@ -31,11 +31,14 @@ jobs:
       - name: Make the comparison and feature pages from their Markdown
         run: python3 web/tools/make-pages.py
 
+      - name: Make the user guide from its Markdown
+        run: python3 web/tools/make-guide.py
+
       - name: Gather the site, without the tools that make it
         run: |
           mkdir _site
           cp -r web/. _site/
-          rm -rf _site/tools _site/README.md
+          rm -rf _site/tools _site/README.md _site/guide/src
 
       - uses: actions/configure-pages@v6
 

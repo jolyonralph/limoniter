@@ -318,3 +318,39 @@ table.compare td.ours, table.compare tr.ours td, table.compare tr.ours th { back
 }
 .contents a:hover { color: var(--text); border-color: var(--accent); }
 .article ul ul { margin-top: 6px; }
+
+/* ---------- The user guide ---------- */
+
+.guide-layout { display: grid; gap: 8px 48px; grid-template-columns: 1fr; }
+@media (min-width: 960px) { .guide-layout { grid-template-columns: 230px minmax(0, 1fr); } }
+.guide-page { min-width: 0; }
+.guide-pages { font-size: 0.93rem; }
+.guide-pages-title { margin: 0 0 8px; color: var(--accent-2); font-family: var(--mono); font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.guide-pages ol { list-style: none; padding: 0; margin: 0; border-left: 1px solid var(--line); }
+.article .guide-pages li { margin: 0; max-width: none; }
+.guide-pages a { display: block; padding: 5px 0 5px 14px; margin-left: -1px; border-left: 2px solid transparent; color: var(--text-dim); text-decoration: none; }
+.guide-pages a:hover { color: var(--text); }
+.guide-pages a[aria-current="page"] { color: var(--text); border-left-color: var(--accent); font-weight: 600; }
+@media (min-width: 960px) { .guide-pages ol { position: sticky; top: 84px; } }
+/* On a narrow screen the list of pages comes after the page, which has its own back and next links. */
+@media (max-width: 959px) { .guide-pages { order: 2; border-top: 1px solid var(--line); padding-top: 22px; margin-top: 32px; } }
+
+.guide ol.steps { padding-left: 1.6em; }
+.guide ol.steps li { padding-left: 4px; }
+.guide .note { border-left: 3px solid var(--accent-2); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; padding: 2px 18px; margin: 18px 0; max-width: 52em; }
+.guide .note p { color: var(--text-dim); font-size: 0.97rem; }
+.guide .code-block { margin: 14px 0; max-width: 52em; }
+.guide-shot { margin: 22px 0; max-width: 52em; }
+.guide-shot figcaption { color: var(--text-dim); font-size: 0.92rem; margin-top: 10px; }
+.guide .table-scroll { max-width: 52em; }
+
+.guide-list { padding-left: 1.6em; }
+.guide-list li { margin-bottom: 14px; }
+.guide-list a { font-weight: 600; font-size: 1.05rem; }
+.guide-list p { margin: 2px 0 0; }
+
+.pager { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); max-width: 52em; }
+.pager a { display: flex; flex-direction: column; padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-decoration: none; font-weight: 600; }
+.pager a:hover { border-color: var(--accent); }
+.pager span { font-size: 0.8rem; font-weight: 400; color: var(--text-dim); }
+.pager-next { margin-left: auto; text-align: right; }

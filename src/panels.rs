@@ -147,6 +147,7 @@ fn history_panel(ui: &mut Ui, rows: &[crate::undo_tree::Row], hex: bool, actions
                 None => row.label.clone(),
             };
             let text_colour = if row.on_path { theme::text() } else { theme::text_dim() };
+            crate::access::chosen(&response, egui::Role::ListBoxOption, row.here, &words);
             painter.text(pos2(rect.min.x + graph, rect.center().y), Align2::LEFT_CENTER, words, FontId::proportional(12.5), text_colour);
             let Some(id) = row.id else {
                 continue;
@@ -579,7 +580,7 @@ fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, ope
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(egui::Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(egui::Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
                         *open = false;
                     }
                 });
@@ -1331,7 +1332,7 @@ fn tags_panel(ui: &mut Ui, panel: &mut TagsPanel, custom: &mut Vec<Tag>, actions
         if panel.group == MY_TAGS {
             for (place, tag) in custom.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    if ui.small_button("\u{D7}").on_hover_text("Take off the list").clicked() {
+                    if crate::access::called(ui.small_button("\u{D7}"), "Take off the list").on_hover_text("Take off the list").clicked() {
                         gone = Some(place);
                     }
                     tag_button(ui, &tag.name, &tag.before, &tag.after, actions);

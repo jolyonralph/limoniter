@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Character sets and old machines&#x27; text · Limoniter user guide</title>
+  <meta name="description" content="Open and edit text from older computers byte for byte: choosing a character set, line endings, the kinds-of-computer presets, the character table, previews and machine themes.">
+  <link rel="canonical" href="https://limoniter.com/guide/character-sets.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/character-sets.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Character sets and old machines&#x27; text · Limoniter user guide">
+  <meta property="og:description" content="Open and edit text from older computers byte for byte: choosing a character set, line endings, the kinds-of-computer presets, the character table, previews and machine themes.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/character-sets.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html" aria-current="page">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Character sets and old machines&#x27; text</h1>
+        <div class="article-lead">
+<p>Text from a Commodore 64, an Atari, a Spectrum or an IBM mainframe isn't ASCII, and a modern editor turns it into nonsense. Limoniter knows 178 single-byte character sets as well as Unicode, and opens and saves text in any of them byte for byte. This page shows you how to choose the right one and work with it.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#seeing-which-character-set-a-file-is-in">Seeing which character set a file is in</a></li>
+<li><a href="#opening-a-file-in-the-right-character-set">Opening a file in the right character set</a></li>
+<li><a href="#converting-text-to-another-character-set">Converting text to another character set</a></li>
+<li><a href="#line-endings">Line endings</a></li>
+<li><a href="#starting-a-file-for-a-particular-machine">Starting a file for a particular machine</a></li>
+<li><a href="#seeing-every-character">Seeing every character</a></li>
+<li><a href="#commodore-control-codes">Commodore control codes</a></li>
+<li><a href="#previews-of-old-screens">Previews of old screens</a></li>
+<li><a href="#machine-colours">Machine colours</a></li>
+<li><a href="#sending-text-to-the-machine">Sending text to the machine</a></li>
+</ul>
+</nav>
+<h2 id="seeing-which-character-set-a-file-is-in">Seeing which character set a file is in</h2>
+<p>The status bar shows the file's character set (its encoding) and its line endings. Some files say for themselves what they are, and some are known by where they came from: text on an Atari disk, for example, opens as ATASCII. When Limoniter can't tell, it's easy to choose.</p>
+<h2 id="opening-a-file-in-the-right-character-set">Opening a file in the right character set</h2>
+<p>If a file looks wrong, it's usually been read in the wrong character set. To read it again in another:</p>
+<ol class="steps"><li>Click the character set in the status bar, or choose <strong>Format › Encoding › Reopen with…</strong>.</li><li>Choose the character set it's really in, such as PETSCII, ATASCII, ZX Spectrum, CP437 or an EBCDIC code page.</li><li>The file is read again from its bytes. Nothing is changed or saved.</li></ol>
+<h2 id="converting-text-to-another-character-set">Converting text to another character set</h2>
+<p>Reopening changes how the bytes are read. Converting changes the bytes:</p>
+<ul><li><strong>Format › Encoding › Convert to…</strong> changes the file's character set, so it's saved in the new one.</li><li><strong>Format › Encoding › Save a copy in…</strong> writes a copy in another character set, and leaves the file as it is.</li></ul>
+<div class="note"><p>Bytes that have no Unicode equivalent are carried through exactly, and each line keeps its own line ending, so opening a file and saving it gives back exactly the same bytes.</p></div>
+<h2 id="line-endings">Line endings</h2>
+<p>Each line keeps its own ending: CRLF (Windows and DOS), LF (Unix, Linux and macOS), CR (classic Macintosh and Commodore), ATASCII's 0x9B, EBCDIC's NL (0x15), or fixed-width rows with none at all. To change them, click the line ending in the status bar. <strong>View › Show › Line endings</strong> marks the end of each line.</p>
+<h2 id="starting-a-file-for-a-particular-machine">Starting a file for a particular machine</h2>
+<p><strong>File › New as</strong> starts a file of a kind, with its character set, line endings and colouring already chosen: Commodore text (PETSCII), ZX Spectrum text, Amiga text, DOS text and others, as well as BASIC and assembler.</p>
+<p>To have every new file start out right for a machine, choose <strong>Format › Encoding › Kind of computer for new files…</strong> and pick a preset. Each fills in the character set, line endings and display together. There are 21, among them:</p>
+<ul><li>Modern Windows, DOS US, Classic Macintosh, Linux / Unix</li><li>Amiga plain text, Amiga ANSI, PC ANSI art</li><li>Commodore PET / VIC-20 / C64, Atari 8-bit, Atari ST</li><li>ZX Spectrum text, BBC Micro text, Teletext (40-column rows)</li><li>IBM mainframe text (EBCDIC with NL), IBM mainframe records (fixed 80-byte EBCDIC)</li><li>CP/M text, MSX text, Generic 7-bit ASCII</li></ul>
+<h2 id="seeing-every-character">Seeing every character</h2>
+<p>To see each byte of the character set the file is in, with its picture, its name and its Unicode value, open <strong>View › Panels › Characters</strong>. It follows the file in front, and also has a browser for all of Unicode.</p>
+<p><strong>View › Panels › Encoding preview</strong> shows the selected text, or the character at the cursor, as its code points and as the bytes it's stored as.</p>
+<p>Control codes, such as PETSCII's colour and cursor codes, can be shown by name: tick <strong>View › Show › Control characters as names</strong>.</p>
+<h2 id="commodore-control-codes">Commodore control codes</h2>
+<p>In Commodore BASIC listings, control codes are written in braces, as the <code>petcat</code> tool writes them: <code>{clr}</code> clears the screen, <code>{red}</code> changes the colour, and so on. You can type them like that, and they're turned back into the right bytes when the program is saved.</p>
+<h2 id="previews-of-old-screens">Previews of old screens</h2>
+<p>Many old text formats were meant to be seen on a screen, not read as text. <strong>View › Preview</strong> shows them as they'd look, beside the text or instead of it:</p>
+<ul><li>PC ANSI art (<code>.ans</code>, <code>.nfo</code>, <code>.diz</code> and others), with its colours and SAUCE record.</li><li>Amiga console text, in the Amiga's own pens, which you can set to Workbench 1.x's or 2.x's colours or your own.</li><li>Commodore PETSCII streams (<code>.seq</code>), with colours, reverse and cursor movement.</li><li>Teletext and BBC Mode 7 pages, with mosaics, double height and every national character set.</li><li>ZX Spectrum text, with its colour and position controls.</li></ul>
+<figure class="guide-shot"><button class="shot" data-full="../images/teletext.webp" aria-label="Enlarge: A teletext page file and its preview"><img src="../images/teletext-close.webp" alt="A teletext page file and its preview" loading="lazy" width="1280" height="720"></button><figcaption>A teletext page file beside the page it makes, in colour and double height.</figcaption></figure>
+<p>Nothing in a preview runs or fetches anything.</p>
+<h2 id="machine-colours">Machine colours</h2>
+<p>Out of the box, Commodore, Atari, Spectrum, BBC, teletext and Amiga text open in their machine's own colours. Limoniter chooses each document's theme by rules about its file ending, language, character set, or whether it's in hex or table view. To change the rules, or to give one document a theme of its own, see <strong>View › Theme</strong> and <a href="settings.html#themes">Settings</a>.</p>
+<h2 id="sending-text-to-the-machine">Sending text to the machine</h2>
+<p>When you send a file to a real machine with <strong>File › Send to device</strong>, the copy can be written in the machine's own character set and line endings, without changing the file you're editing. Set this under <strong>Write text as</strong> for the device in <strong>Manage devices…</strong>. See <a href="assembling-and-running.html#sending-to-a-device">Assembling and running</a>.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="editing.html"><span>Back</span>Editing text and hex</a>
+<a class="pager-next" href="disks-and-tapes.html"><span>Next</span>The disk and tape browser</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

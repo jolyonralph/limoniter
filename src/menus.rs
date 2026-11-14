@@ -1292,11 +1292,14 @@ impl Limoniter {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.spacing_mut().button_padding = egui::vec2(9.0, 4.0);
             first_menu_left = ui.cursor().min.x;
-            for (title, entries) in MENUS {
-                ui.menu_button(title, |ui| {
+            for (number, (title, entries)) in MENUS.iter().enumerate() {
+                let menu = ui.menu_button(*title, |ui| {
                     ui.set_min_width(MENU_WIDTH);
                     self.draw_entries(ui, entries, false, &mut chosen, &mut picks);
                 });
+                if number == 0 {
+                    ui.ctx().data_mut(|d| d.insert_temp(super::access_host::first_menu_key(), menu.response.id));
+                }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if command_box(ui).clicked() {
@@ -1362,6 +1365,7 @@ impl Limoniter {
             if field.changed() {
                 state.selected = 0;
             }
+            let field_id = field.id;
             ui.add_space(6.0);
             if found.is_empty() {
                 ui.label(RichText::new("Nothing matches that. Try another word.").color(theme::text_faint()));
@@ -1388,7 +1392,23 @@ impl Limoniter {
                         Some(false) => "Off".to_string(),
                         None => shown_shortcut(each.shortcut),
                     };
-                    ui.painter().text(egui::pos2(rect.max.x - 12.0, rect.center().y), egui::Align2::RIGHT_CENTER, right, egui::FontId::proportional(12.0), theme::text_faint());
+                    ui.painter().text(egui::pos2(rect.max.x - 12.0, rect.center().y), egui::Align2::RIGHT_CENTER, &right, egui::FontId::proportional(12.0), theme::text_faint());
+                    // Read out as an option in a list, the one chosen being the field's active one, so a screen reader
+                    // follows the arrows while the typing stays in the field.
+                    let mut spoken = name.to_string();
+                    if !place.is_empty() {
+                        spoken += &format!(", in {}", place.replace(" \u{203A} ", ", "));
+                    }
+                    if !right.is_empty() {
+                        spoken += &format!(", {right}");
+                    }
+                    crate::access::chosen(&response, egui::Role::ListBoxOption, here, &spoken);
+                    if !usable[index] {
+                        ui.ctx().accesskit_node_builder(response.id, |node| node.set_disabled());
+                    }
+                    if here {
+                        ui.ctx().accesskit_node_builder(field_id, |node| node.set_active_descendant(response.id.accesskit_id()));
+                    }
                     if response.clicked() && usable[index] {
                         run = Some(each.command);
                     }
@@ -1425,6 +1445,7 @@ fn command_box(ui: &mut Ui) -> egui::Response {
     ui.painter().rect(rect, 7.0, back, egui::Stroke::new(1.0, theme::border()), egui::StrokeKind::Inside);
     ui.painter().text(egui::pos2(rect.min.x + 10.0, rect.center().y), egui::Align2::LEFT_CENTER, "Find a command\u{2026}", egui::FontId::proportional(13.0), theme::text_faint());
     ui.painter().text(egui::pos2(rect.max.x - 10.0, rect.center().y), egui::Align2::RIGHT_CENTER, "F1", egui::FontId::proportional(12.0), theme::text_faint());
+    crate::access::button(&response, "Find a command (F1)");
     response.on_hover_text("Find any command by what it does")
 }
 

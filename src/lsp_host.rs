@@ -368,7 +368,7 @@ impl Limoniter {
                     let program = crate::emulators::split_options(&setting.command).into_iter().next().unwrap_or_default();
                     let found = lsp::on_path(&program);
                     ui.label(RichText::new(if found { "installed" } else { "not found" }).size(11.5).color(if found { theme::text_dim() } else { theme::text_faint() }));
-                    if ui.small_button("\u{D7}").clicked() {
+                    if crate::access::called(ui.small_button("\u{D7}"), "Remove this language server").clicked() {
                         gone = Some(index);
                     }
                     ui.end_row();
