@@ -147,6 +147,9 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
     }
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
     if !crate::basic::is_program_file(&extension, Some(bytes)) {
+        if !matches!(extension.as_str(), "bas" | "bbc") {
+            return FromBytes::Nothing(format!("This .{extension} file isn't a BASIC program."));
+        }
         return FromBytes::Nothing("This .bas file is a listing kept as text, not a tokenised program. Format, Tokenised BASIC can save it as one.".to_string());
     }
     FromBytes::Blocks(listing_blocks(&crate::basic::list(bytes, &extension, format.charset)))
