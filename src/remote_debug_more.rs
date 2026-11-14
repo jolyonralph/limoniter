@@ -82,7 +82,7 @@ impl Gdb {
         let flag_names: String = [(7, 'E'), (6, 'F'), (5, 'H'), (4, 'I'), (3, 'N'), (2, 'Z'), (1, 'V'), (0, 'C')].iter().map(|(bit, name)| if cc & (1 << bit) != 0 { *name } else { '-' }).collect();
         let words = vec![format!("A {a:02X}"), format!("B {b:02X}"), format!("D {:04X}", a << 8 | b), format!("X {x:04X}"), format!("Y {y:04X}"), format!("U {u:04X}"), format!("S {s:04X}"), format!("DP {dp:02X}"), format!("PC {pc:04X}"), format!("CC {flag_names}")];
         let memory = self.memory()?;
-        Ok(Stop { pc, z80: None, words, reason: None, memory: Some(std::sync::Arc::new(memory)) })
+        Ok(Stop { pc, words, memory: Some(std::sync::Arc::new(memory)), ..Stop::default() })
     }
 
     /// Replaces one kind of breakpoint (0 for running an instruction, 2 for a write) at these addresses.
@@ -170,6 +170,7 @@ pub fn talk_xroar(port: u16, breakpoints: Vec<u16>, asked: &Receiver<Ask>, tell:
             None => asked.recv().unwrap_or(Ask::Finish),
         };
         match ask {
+            Ask::Amiga(_) => {}
             Ask::Breakpoints(addresses) => {
                 gdb.set(0, &set, &addresses)?;
                 set = addresses;
@@ -342,7 +343,7 @@ fn hatari_stop(said: &[String], text: u32) -> Stop {
     }
     words.push(format!("PC {pc:06X}"));
     // Lines are found by where they are in the program, so the stop is told as that.
-    Stop { pc: pc.wrapping_sub(text) as u16, z80: None, words, reason: None, memory: None }
+    Stop { pc: pc.wrapping_sub(text) as u16, words, ..Stop::default() }
 }
 
 /// The Hatari thread: waits for the program to start (its first instruction, when TEXT is in RAM), then sets
@@ -386,6 +387,7 @@ pub fn talk_hatari(mut console: Console, child_id: u32, breakpoints: Vec<u16>, a
             None => asked.recv().unwrap_or(Ask::Finish),
         };
         match ask {
+            Ask::Amiga(_) => {}
             Ask::Breakpoints(addresses) => {
                 set = addresses;
                 set_all(&mut console, &set, &watches)?;
@@ -489,7 +491,7 @@ pub fn talk_next(link: Box<dyn Link>, program: NextProgram, breakpoints: Vec<u16
         match ask {
             // Breakpoints go in as it carries on; dezogif can't change them while it runs.
             Ask::Breakpoints(addresses) => set = addresses,
-            Ask::Watches(_) | Ask::Pause => {}
+            Ask::Watches(_) | Ask::Pause | Ask::Amiga(_) => {}
             Ask::CarryOn | Ask::Step | Ask::StepOver => {
                 let (one, two, originals) = if ask == Ask::CarryOn {
                     (None, None, dzrp.set_breakpoints(&set)?)

@@ -362,6 +362,12 @@ impl Limoniter {
         let port = (emulator.link != Link::None).then(free_port).flatten();
         let program = emulator.program_for(program, run.machine);
         let mut args = emulator.arguments(run.machine, run.format, &file, port, options);
+        // Amiga source assembled here is debugged through the emulator's GDB server, where it has one.
+        if run.machine == Machine::Amiga
+            && let Some(debug) = self.amiga_debuggable(doc_id, emulator, &program, run)
+        {
+            return self.start_amiga_debugging(device, emulator, run, &file, args, &program, debug);
+        }
         // Being debugged, ZEsarUX and VICE start empty, and load the program once its breakpoints are set. XRoar
         // stops as it's connected to, before it's loaded the program; Hatari stops as the program starts.
         if debugging && matches!(kind, Some(crate::remote_debug::Emulator::Zesarux | crate::remote_debug::Emulator::Vice)) {
@@ -859,6 +865,12 @@ impl Limoniter {
             }
             return;
         };
+        if debugging.remote.amiga.is_some() {
+            if let (Some(i), Some(code)) = (doc_index, code) {
+                self.docs[i].text.code = Some(code);
+            }
+            return self.amiga_debug_panel(ui, doc_id);
+        }
         let newly_stopped = debugging.remote.check();
         if debugging.breakpoints != breakpoints {
             debugging.breakpoints = breakpoints.clone();
@@ -1141,3 +1153,6 @@ fn spectrum_keys(machine: &mut crate::zx_machine::BuiltIn, events: &[egui::Event
 fn free_port() -> Option<u16> {
     std::net::TcpListener::bind(("127.0.0.1", 0)).ok().and_then(|listener| listener.local_addr().ok()).map(|address| address.port())
 }
+
+#[path = "amiga_debug_host.rs"]
+mod amiga_debug_host;

@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod amiga_copper;
+mod amiga_debug;
 mod amiga_hw;
 mod amiga_ndk;
 mod amiga_run;
