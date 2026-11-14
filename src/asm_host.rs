@@ -144,6 +144,7 @@ impl Limoniter {
             code.problems = assembly.problems.iter().filter(|p| p.file == 0).map(|p| (p.line, p.message.clone())).collect();
         }
         if let Some(intel) = doc.text.intel.as_mut() {
+            intel.hardware = (cpu == Cpu::M68k).then(|| Arc::new(crate::amiga_source::Source::scan(&text, Some(&assembly))));
             intel.assembly = Some(Arc::new(assembly));
             intel.version = version;
             intel.file = 0;

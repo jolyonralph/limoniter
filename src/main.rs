@@ -1,8 +1,11 @@
 // A window with no console behind it, in the version people actually run.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod amiga_copper;
+mod amiga_hw;
 mod amiga_ndk;
 mod amiga_palette_ui;
+mod amiga_source;
 mod ansi_art;
 mod addons;
 mod access;

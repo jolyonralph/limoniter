@@ -214,6 +214,7 @@ enum Command {
     ClearRecent,
     PixelEditor,
     ScreenDesigner,
+    AmigaHardware,
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
@@ -295,6 +296,7 @@ impl Command {
             Command::New
                 | Command::Clambers
                 | Command::AmigaNdk
+                | Command::AmigaHardware
                 | Command::CheckOpticos
                 | Command::Open
                 | Command::Help
@@ -1295,6 +1297,7 @@ pub struct Limoniter {
     pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
     /// The Spectrum screen designer, while it's open.
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
+    amiga_hw: Option<Box<amiga_hw_host::HwWindow>>,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
@@ -1575,6 +1578,7 @@ impl Limoniter {
             intel_wait: None,
             pixel_editor: None,
             screen_designer: None,
+            amiga_hw: None,
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
             task_run: None,
@@ -3617,6 +3621,7 @@ impl Limoniter {
             Command::OpenUrl => self.open_web_box(),
             Command::Clambers => self.open_clambers(),
             Command::AmigaNdk => self.open_ndk_box(),
+            Command::AmigaHardware => self.open_amiga_hardware(amiga_hw_host::Tab::Registers),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
@@ -6698,6 +6703,7 @@ impl Limoniter {
         self.draw_assistant_note(&ctx);
         self.pixel_editor_window(&ctx);
         self.screen_designer_window(&ctx);
+        self.amiga_hw_window(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7415,6 +7421,9 @@ mod disasm_host;
 
 #[path = "pixel_host.rs"]
 mod pixel_host;
+
+#[path = "amiga_hw_host.rs"]
+mod amiga_hw_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;

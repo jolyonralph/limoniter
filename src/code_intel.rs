@@ -32,6 +32,8 @@ pub struct CodeIntel {
     pub build_problems: Vec<(usize, String)>,
     /// For Amiga code: the system's functions, from the NDK.
     pub amiga: Option<Arc<crate::amiga_ndk::Index>>,
+    /// For 68000 source: what it does with the Amiga's custom chips and its copper lists.
+    pub hardware: Option<Arc<crate::amiga_source::Source>>,
 }
 
 impl PartialEq for CodeIntel {
@@ -150,6 +152,13 @@ impl CodeIntel {
             && let Some((_, _, word)) = word_at(text, col)
             && (word.starts_with("_LVO") || !self.assembly.as_ref().is_some_and(|a| a.symbols.contains_key(&word)))
             && let Some(words) = ndk.describe(&word)
+        {
+            return Some(words);
+        }
+        // The Amiga's custom chips: a register, a value written to one, or a copper instruction.
+        if let Some(hardware) = &self.hardware
+            && !in_comment_or_string(text, col)
+            && let Some(words) = hardware.describe(line, text, col)
         {
             return Some(words);
         }
