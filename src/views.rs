@@ -867,7 +867,12 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             && let Some(words) = intel.describe(line, &buffer.line(line), col)
         {
             response.clone().on_hover_ui_at_pointer(|ui| {
-                ui.label(egui::RichText::new(words).font(FontId::monospace(options.font_size * 0.9)));
+                let font = FontId::monospace(options.font_size * 0.9);
+                if words.contains('\u{25A0}') {
+                    ui.label(swatched(&words, font, ui.visuals().text_color()));
+                } else {
+                    ui.label(egui::RichText::new(words).font(font));
+                }
             });
         }
     }
@@ -2920,4 +2925,24 @@ mod shown_tests {
         }
         assert_eq!(shown.rows_from(2, 4), [2, 7, 8, 9]);
     }
+}
+
+/// Hover text with colour swatches: each \u{25A0} followed by #RRGGBB is drawn in that colour.
+fn swatched(words: &str, font: FontId, colour: egui::Color32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    let plain = egui::TextFormat { font_id: font.clone(), color: colour, ..Default::default() };
+    let mut rest = words;
+    while let Some(at) = rest.find('\u{25A0}') {
+        job.append(&rest[..at], 0.0, plain.clone());
+        let after = &rest[at + '\u{25A0}'.len_utf8()..];
+        let rgb = after.strip_prefix('#').and_then(|h| h.get(..6)).and_then(|h| u32::from_str_radix(h, 16).ok());
+        let swatch = match rgb {
+            Some(v) => egui::Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8),
+            None => colour,
+        };
+        job.append("\u{2588}\u{2588}", 0.0, egui::TextFormat { font_id: font.clone(), color: swatch, ..Default::default() });
+        rest = after;
+    }
+    job.append(rest, 0.0, plain);
+    job
 }

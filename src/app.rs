@@ -220,6 +220,9 @@ enum Command {
     StPictures,
     BlitterMinterms,
     TableGenerator,
+    AtariHardware,
+    AtariBlitter,
+    AtariTimers,
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
@@ -328,6 +331,9 @@ impl Command {
                 | Command::StPictures
                 | Command::BlitterMinterms
                 | Command::TableGenerator
+                | Command::AtariHardware
+                | Command::AtariBlitter
+                | Command::AtariTimers
                 | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
@@ -1315,6 +1321,8 @@ pub struct Limoniter {
     st_pictures: Option<Box<crate::st_converter::Converter>>,
     /// The blitter minterm calculator and the table generator, while they're open.
     demo_tools: demo_tools_host::DemoTools,
+    /// The Atari ST hardware guide and the blitter and timer calculators, while they're open.
+    st_tools: st_hw_host::StTools,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
@@ -1602,6 +1610,7 @@ impl Limoniter {
             bitplanes: None,
             st_pictures: None,
             demo_tools: Default::default(),
+            st_tools: Default::default(),
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
             task_run: None,
@@ -3664,6 +3673,9 @@ impl Limoniter {
             Command::EditTasks => self.edit_project_tasks(),
             Command::BlitterMinterms => self.open_blitter_calculator(),
             Command::TableGenerator => self.open_table_generator(),
+            Command::AtariHardware => self.open_atari_hardware(),
+            Command::AtariBlitter => self.open_atari_blitter(),
+            Command::AtariTimers => self.open_atari_timers(),
             Command::ScreenDesigner => {
                 if self.screen_designer.is_none() {
                     let mut designer = crate::screen_designer::Designer::default();
@@ -6740,6 +6752,7 @@ impl Limoniter {
         self.bitplane_window(&ctx);
         self.st_converter_window(&ctx);
         self.demo_tools_windows(&ctx);
+        self.st_tools_windows(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7468,6 +7481,8 @@ mod bitplane_host;
 mod st_converter_host;
 #[path = "demo_tools_host.rs"]
 mod demo_tools_host;
+#[path = "st_hw_host.rs"]
+mod st_hw_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;

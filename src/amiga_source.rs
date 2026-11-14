@@ -95,13 +95,13 @@ pub struct Source {
 
 /// A line split into its parts, as character spans.
 #[derive(Debug, Default, PartialEq, Eq)]
-struct Parts {
-    label: Option<String>,
-    mnemonic: Option<(usize, usize)>,
-    operands: Vec<(usize, usize)>,
+pub(crate) struct Parts {
+    pub label: Option<String>,
+    pub mnemonic: Option<(usize, usize)>,
+    pub operands: Vec<(usize, usize)>,
 }
 
-fn split(line: &str) -> Parts {
+pub(crate) fn split(line: &str) -> Parts {
     let chars: Vec<char> = line.chars().collect();
     let mut parts = Parts::default();
     let mut i = 0;
@@ -178,7 +178,7 @@ fn split(line: &str) -> Parts {
     parts
 }
 
-fn text_of(line: &str, span: (usize, usize)) -> String {
+pub(crate) fn text_of(line: &str, span: (usize, usize)) -> String {
     line.chars().skip(span.0).take(span.1 - span.0).collect()
 }
 

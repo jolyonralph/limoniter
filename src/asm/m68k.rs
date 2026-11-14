@@ -244,7 +244,11 @@ fn extension(ea: &Ea, size: Size, line: &mut Line, at: i64) -> Result<Vec<u16>, 
     Ok(match ea {
         Ea::Displacement(_, d) => vec![word(line.eval(d)?, "the offset")?],
         Ea::Indexed(_, d, x) => vec![brief(x, line.eval(d)?)?],
-        Ea::AbsoluteWord(a) => vec![word(line.eval(a)?, "the address")?],
+        // A short address is sign-extended, so $FFFF8240.W is the Atari ST's $FF8240, as vasm takes it.
+        Ea::AbsoluteWord(a) => {
+            let v = line.eval(a)?;
+            vec![word(if (0xFFFF_8000..=0xFFFF_FFFF).contains(&v) { v - 0x1_0000_0000 } else { v }, "the address")?]
+        }
         Ea::AbsoluteLong(a) => {
             let v = line.eval(a)?;
             vec![(v >> 16) as u16, v as u16]

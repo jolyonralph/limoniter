@@ -93,6 +93,8 @@ impl NewKind {
             Self::new("68000 assembler", "s", "utf-8", line, "Assembly 680x0", Program::None, "start:  clr.w -(sp)\n        trap #1             ; back to the desktop"),
             Self::new("Amiga demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::amiga_starters::DEMO),
             Self::new("Amiga copper only (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::amiga_starters::COPPER),
+            Self::new("Atari ST demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::st_starters::ST_DEMO),
+            Self::new("Atari STE demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::st_starters::STE_DEMO),
             Self::new("Markdown", "md", "utf-8", line, "Markdown", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),
