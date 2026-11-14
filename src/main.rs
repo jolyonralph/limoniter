@@ -14,6 +14,7 @@ mod deploy;
 mod big_jobs;
 mod associations;
 mod basic;
+mod basic_extra;
 mod basic_more;
 mod char_table;
 mod charset;

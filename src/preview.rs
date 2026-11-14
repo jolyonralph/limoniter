@@ -165,6 +165,10 @@ pub fn listing_blocks(listing: &crate::basic::Listing) -> Vec<Block> {
     if !listing.lines.is_empty() {
         blocks.push(Block { kind: BlockKind::Code, spans: vec![Span { text: listing.lines.join("\n"), code: true, ..Span::default() }], indent: 0, quote: 0, marker: None });
     }
+    if !listing.screen.is_empty() {
+        blocks.push(paragraph(vec![Span { text: "The screen when it was saved".into(), strong: true, ..Span::default() }]));
+        blocks.push(Block { kind: BlockKind::Code, spans: vec![Span { text: listing.screen.join("\n"), code: true, ..Span::default() }], indent: 0, quote: 0, marker: None });
+    }
     blocks
 }
 

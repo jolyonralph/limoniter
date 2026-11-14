@@ -8,6 +8,7 @@ mod acorn;
 mod apple2;
 mod atari8;
 mod amiga;
+mod cas;
 mod cbm;
 mod coco;
 pub mod cpm;
@@ -178,8 +179,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 60] = [
-    "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
+pub const IMAGE_ENDINGS: [&str; 61] = [
+    "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -192,7 +193,7 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
     }
     match ending.as_str() {
         // These endings are used for plain data too, so the bytes have to say so.
-        "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
+        "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" | "cas" => detect(head, len, &ending).is_some(),
         _ => true,
     }
 }
@@ -241,6 +242,8 @@ enum Format {
     Coco,
     /// A ZX Spectrum Next program, seen as its parts.
     Nex,
+    /// A TRS-80 or MSX cassette.
+    Cas,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -287,6 +290,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if nex::looks_like(head) {
         return Some(Format::Nex);
+    }
+    if ending == "cas" && cas::looks_like(head) {
+        return Some(Format::Cas);
     }
     if at(0, b"ZXTape!\x1A") {
         return Some(Format::ZxTape);
@@ -435,6 +441,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Z80) => Ok(Box::new(spectrum::Snapshot::open(source, false)?)),
         Some(Format::Sna) => Ok(Box::new(spectrum::Snapshot::open(source, true)?)),
         Some(Format::Nex) => Ok(Box::new(nex::Nex::open(source)?)),
+        Some(Format::Cas) => Ok(Box::new(cas::Cas::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }
