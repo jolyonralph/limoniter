@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kinds of file from older computers that Limoniter opens and the desktop doesn't know yet, so file managers can
+  name them and offer Limoniter for them. Installed to share/mime/packages/ by the .deb and the Flatpak. Only
+  extensions that mean one thing are here: .adf (Amiga or Acorn), .crt (also certificates), .po (also translations)
+  and .bas are left as they are.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-zx-spectrum-tape">
+    <comment>ZX Spectrum tape image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="ZXTape!\x1a" offset="0"/>
+    </magic>
+    <glob pattern="*.tap"/>
+    <glob pattern="*.tzx"/>
+  </mime-type>
+  <mime-type type="application/x-zx-spectrum-snapshot">
+    <comment>ZX Spectrum snapshot</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="ZXST" offset="0"/>
+    </magic>
+    <glob pattern="*.z80"/>
+    <glob pattern="*.sna"/>
+    <glob pattern="*.szx"/>
+  </mime-type>
+  <mime-type type="application/x-zx-spectrum-next">
+    <comment>ZX Spectrum Next program</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.nex"/>
+  </mime-type>
+  <mime-type type="application/x-trdos-disk">
+    <comment>TR-DOS disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.trd"/>
+    <glob pattern="*.scl"/>
+  </mime-type>
+  <mime-type type="application/x-zx-microdrive">
+    <comment>ZX Microdrive cartridge image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.mdr"/>
+  </mime-type>
+  <mime-type type="application/x-mgt-disk">
+    <comment>MGT +D or DISCiPLE disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.mgt"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-disk">
+    <comment>Commodore disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="GCR-1541" offset="0"/>
+    </magic>
+    <glob pattern="*.d64"/>
+    <glob pattern="*.d71"/>
+    <glob pattern="*.d81"/>
+    <glob pattern="*.g64"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-tape">
+    <comment>Commodore tape image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="C64 tape image file" offset="0"/>
+      <match type="string" value="C64S tape" offset="0"/>
+    </magic>
+    <glob pattern="*.t64"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-program">
+    <comment>Commodore program</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.prg"/>
+    <glob pattern="*.p00"/>
+  </mime-type>
+  <mime-type type="application/x-amiga-dms">
+    <comment>Amiga DMS disk archive</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="DMS!" offset="0"/>
+    </magic>
+    <glob pattern="*.dms"/>
+  </mime-type>
+  <mime-type type="application/x-acorn-dfs-disk">
+    <comment>BBC Micro disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.ssd"/>
+    <glob pattern="*.dsd"/>
+  </mime-type>
+  <mime-type type="application/x-atari-st-disk">
+    <comment>Atari ST disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.st"/>
+    <glob pattern="*.msa"/>
+  </mime-type>
+  <mime-type type="application/x-atari-8bit-disk">
+    <comment>Atari 8-bit disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.atr"/>
+  </mime-type>
+  <mime-type type="application/x-atari-8bit-program">
+    <comment>Atari 8-bit program</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.xex"/>
+  </mime-type>
+  <mime-type type="application/x-apple2-disk">
+    <comment>Apple II disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="WOZ1" offset="0"/>
+      <match type="string" value="WOZ2" offset="0"/>
+      <match type="string" value="2IMG" offset="0"/>
+    </magic>
+    <glob pattern="*.woz"/>
+    <glob pattern="*.2mg"/>
+    <glob pattern="*.nib"/>
+  </mime-type>
+  <mime-type type="application/x-dsk-disk">
+    <comment>DSK disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="MV - CPC" offset="0"/>
+      <match type="string" value="EXTENDED CPC DSK File" offset="0"/>
+    </magic>
+    <glob pattern="*.dsk"/>
+  </mime-type>
+  <mime-type type="application/x-cassette-image">
+    <comment>Cassette image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.cas"/>
+  </mime-type>
+  <mime-type type="application/x-teledisk">
+    <comment>Teledisk disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.td0"/>
+  </mime-type>
+  <mime-type type="application/x-imagedisk">
+    <comment>ImageDisk disk image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="IMD 1." offset="0"/>
+    </magic>
+    <glob pattern="*.imd"/>
+  </mime-type>
+  <mime-type type="application/x-hfe-floppy">
+    <comment>HxC floppy image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <magic priority="50">
+      <match type="string" value="HXCPICFE" offset="0"/>
+      <match type="string" value="HXCHFEV3" offset="0"/>
+    </magic>
+    <glob pattern="*.hfe"/>
+  </mime-type>
+  <mime-type type="application/x-scp-flux">
+    <comment>SuperCard Pro flux image</comment>
+    <sub-class-of type="application/octet-stream"/>
+    <glob pattern="*.scp"/>
+  </mime-type>
+</mime-info>

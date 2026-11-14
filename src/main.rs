@@ -181,6 +181,8 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: viewport
             .with_title("Limoniter")
+            // On a Wayland desktop, what ties the window to its .desktop file, for its icon and name in the dock.
+            .with_app_id("com.limoniter.Limoniter")
             .with_inner_size([1280.0, 720.0])
             .with_min_inner_size([480.0, 300.0])
             .with_drag_and_drop(true)

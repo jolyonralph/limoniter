@@ -1,0 +1,72 @@
+# Builds Limoniter as a Flatpak, from the source, with no network while it builds.
+#
+# Before building, list the crates it needs (cargo-sources.json, beside this file):
+#   sh packaging/flatpak/make-cargo-sources.sh
+# Then, from the app folder:
+#   flatpak-builder --user --install-deps-from=flathub --force-clean --repo=target/flatpak/repo \
+#     target/flatpak/build packaging/flatpak/com.limoniter.Limoniter.yml
+#   flatpak build-bundle target/flatpak/repo target/flatpak/Limoniter.flatpak com.limoniter.Limoniter
+#
+# For Flathub, its copy of this file builds a release rather than this folder: the source "type: dir" below
+# becomes "type: git" with the release's url, tag and commit, and cargo-sources.json is made from that release's
+# Cargo.lock.
+#
+# Inside the sandbox, Limoniter sees the files and devices allowed below. Programs it starts (emulators,
+# assemblers, the terminal panel's shell, hunspell, lp) are those of the Flatpak runtime, not the system's.
+
+id: com.limoniter.Limoniter
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: limoniter
+
+finish-args:
+  # The window, on Wayland or X11. It's drawn with OpenGL, through the graphics card (in --device=all, below).
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # The built-in Spectrum's sound.
+  - --socket=pulseaudio
+  # SFTP, opening files from the web, and emulators and devices reached over the network.
+  - --share=network
+  # An editor opens files from anywhere, as named on its command line, in recent files and in projects.
+  - --filesystem=host
+  # The graphics card, and serial ports for the Spectrum Next's debug cable.
+  - --device=all
+  # Kept SFTP passwords, in the Secret Service (GNOME Keyring or KWallet).
+  - --talk-name=org.freedesktop.secrets
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/limoniter/cargo
+    CARGO_NET_OFFLINE: 'true'
+
+modules:
+  - name: limoniter
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release --locked
+      - install -Dm755 target/release/limoniter /app/bin/limoniter
+      # The licences of everything built into the program, which the About box points to.
+      - python3 -I tools/gen_notices.py . /app/share/doc/limoniter/THIRD-PARTY-NOTICES.txt x86_64-unknown-linux-gnu
+      - install -Dm644 LICENSE /app/share/doc/limoniter/LICENSE
+      - install -Dm644 packaging/linux/com.limoniter.Limoniter.desktop /app/share/applications/com.limoniter.Limoniter.desktop
+      - install -Dm644 packaging/linux/com.limoniter.Limoniter.metainfo.xml /app/share/metainfo/com.limoniter.Limoniter.metainfo.xml
+      - install -Dm644 packaging/linux/com.limoniter.Limoniter.xml /app/share/mime/packages/com.limoniter.Limoniter.xml
+      - |
+        for icon in packaging/linux/icons/*/com.limoniter.Limoniter.png; do
+          size=$(basename "$(dirname "$icon")")
+          install -Dm644 "$icon" "/app/share/icons/hicolor/$size/apps/com.limoniter.Limoniter.png"
+        done
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - .claude
+          - .flatpak-builder
+          - target
+      - cargo-sources.json

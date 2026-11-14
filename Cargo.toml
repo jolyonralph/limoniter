@@ -14,7 +14,9 @@ vt100 = "0.16"
 serialport = { version = "4", default-features = false }
 arboard = { version = "3.7.0", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
-eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "accesskit", "clipboard", "system_fonts"] }
+# x11 and wayland matter only on Linux: without wayland, a Wayland desktop (GNOME's and KDE's usual one) can't
+# open the window.
+eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "accesskit", "clipboard", "system_fonts", "x11", "wayland"] }
 encoding_rs = "0.8"
 memchr = "2.8.3"
 miniz_oxide = "0.8"
@@ -30,7 +32,9 @@ roxmltree = "0.21"
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 ssh2 = "0.9"
-keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
+# On Linux, the Secret Service (GNOME Keyring, KWallet) over D-Bus, through zbus with no C library:
+# it keeps passwords across restarts, and works inside a Flatpak, where the kernel keyring is closed off.
+keyring = { version = "3", features = ["windows-native", "apple-native", "async-secret-service", "async-io", "crypto-rust"] }
 similar = { version = "2", default-features = false }
 syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "yaml-load"] }
 cpal = "0.18"

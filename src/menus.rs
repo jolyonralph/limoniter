@@ -1398,7 +1398,12 @@ impl Limoniter {
     }
 
     pub(super) fn about(&mut self) {
-        let notices = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|folder| folder.join("THIRD-PARTY-NOTICES.txt"))).filter(|path| path.is_file());
+        // Beside the program from the Windows installer; in share/doc/limoniter beside bin/ from the Linux packages.
+        let exe = std::env::current_exe().ok();
+        let folder = exe.as_deref().and_then(Path::parent);
+        let beside = folder.map(|folder| folder.join("THIRD-PARTY-NOTICES.txt"));
+        let shared = folder.and_then(Path::parent).map(|up| up.join("share/doc/limoniter/THIRD-PARTY-NOTICES.txt"));
+        let notices = beside.into_iter().chain(shared).find(|path| path.is_file());
         self.dialog = Dialog::About { notices };
     }
 }

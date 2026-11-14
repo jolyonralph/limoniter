@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- What software centres (GNOME Software, KDE Discover, Flathub) show about Limoniter. Add each release at the top of
+     <releases>. -->
+<component type="desktop-application">
+  <id>com.limoniter.Limoniter</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Limoniter</name>
+  <summary>Text and hex editor that also reads older computers' files and disks</summary>
+  <developer id="com.limoniter">
+    <name>Limoniter</name>
+  </developer>
+  <description>
+    <p>
+      Limoniter is a text and hex editor for everyday work that also understands the files, character sets and
+      disks of older computers.
+    </p>
+    <ul>
+      <li>Text and code with highlighting for many languages, column mode, find and replace with regular
+        expressions, comparison, and files of any size, read from disk as needed</li>
+      <li>Hex view and editing, with a string explorer and a character table</li>
+      <li>178 character sets, from ASCII and EBCDIC to PETSCII, the ZX Spectrum's and Teletext</li>
+      <li>Disk and tape images from the Spectrum, Commodore, Amiga, Atari, Apple, BBC Micro and more, opened as
+        folders, with files added, renamed and deleted</li>
+      <li>BASIC programs listed and tokenised, pictures shown, and assembler source run on a built-in ZX Spectrum,
+        an emulator or the real machine</li>
+      <li>SFTP, a terminal panel and scripting</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.limoniter.Limoniter.desktop</launchable>
+  <provides>
+    <binary>limoniter</binary>
+  </provides>
+  <url type="homepage">https://limoniter.com/</url>
+  <url type="bugtracker">https://github.com/jolyonralph/limoniter/issues</url>
+  <url type="vcs-browser">https://github.com/jolyonralph/limoniter</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Limoniter on Linux</caption>
+      <image>https://limoniter.com/images/linux.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>An Amiga disk opened as a folder</caption>
+      <image>https://limoniter.com/images/amiga-disk.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>A 10 GB file open in hex view</caption>
+      <image>https://limoniter.com/images/huge-hex.webp</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Utility</category>
+    <category>TextEditor</category>
+  </categories>
+  <keywords>
+    <keyword>text</keyword>
+    <keyword>hex</keyword>
+    <keyword>editor</keyword>
+    <keyword>retro</keyword>
+    <keyword>disk image</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <releases>
+    <release version="0.7.0" date="2026-11-14">
+      <url type="details">https://github.com/jolyonralph/limoniter/releases/tag/v0.7.0</url>
+    </release>
+  </releases>
+</component>

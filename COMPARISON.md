@@ -10,7 +10,7 @@ It reflects the editors as of November 2026, going by their own documentation an
 
 | Editor | Free or paid | Open source | Runs on |
 |---|---|---|---|
-| **Limoniter** | Free | Yes (Apache 2.0) | Windows; Linux (builds and runs); macOS (an app to download, not yet signed) |
+| **Limoniter** | Free | Yes (Apache 2.0) | Windows; Linux (an AppImage and a .deb); macOS (an app to download, not yet signed) |
 | Windows Notepad | Free, with Windows (some AI features need a Microsoft subscription) | No | Windows |
 | Notepad++ | Free | Yes (GPL) | Windows |
 | Visual Studio Code | Free (some extensions and AI plans are paid) | Core yes (MIT); Microsoft's build no | Windows, macOS, Linux |

@@ -1,6 +1,10 @@
 # What the build makes: about 10 GB, and all of it can be made again from the source.
 /target/
 
+# Made for the Flatpak from Cargo.lock (packaging/flatpak/make-cargo-sources.sh), and its build's cache.
+/packaging/flatpak/cargo-sources.json
+.flatpak-builder/
+
 # Working notes, kept on this computer and never uploaded.
 /MECHANICS.md
 /MISSING_FEATURES.md
