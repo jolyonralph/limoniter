@@ -189,11 +189,13 @@ The images below can have files added (**Add files…**, or drop them on the tab
 | Color Computer RS-DOS (JVC) | BASIC (tokenised or ASCII), data, machine code (plain bytes put in a LOADM block at an address) and text |
 | Apple II DOS 3.3 (.dsk, .do; either sector order) | Applesoft (a listing typed as text is tokenised), Integer BASIC, binary files with their load address, and high-bit text; the VTOC's bitmap, catalog and track/sector lists kept as DOS keeps them |
 | Apple II ProDOS (.po, .dsk, .2mg, .hdv) | Folders (growing a block at a time), seedling, sapling and tree files, dated, with their types: BIN with its load address, BAS, TXT, SYS, INT and untyped |
+| BBC Micro DFS (.ssd, .dsd) | Each side's 31-file catalogue, with load and exec addresses (BASIC at &1900, a listing tokenised first) and the locked flag kept; a side whose free space is split is compacted first, as *COMPACT would |
+| Acorn ADFS, old map (.ads, .adm, .adl, .adf) | Files and directories, kept in name order with their sequence numbers, and the free space map with its checksums; `.adl` images in their own sector order |
 
 - When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.
 - A file whose name is taken isn't replaced unless you tick **Replace it**.
-- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb, cpmtools, AppleCommander and a2kit.
-- Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Apple DOS 3.2, Amiga disks with directory caches or long names, and the rest) say why they're read only.
+- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb, cpmtools, AppleCommander and a2kit, beebtools, MMB_Utils and ADFSlib.
+- Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Apple DOS 3.2, Watford DFS's 62-file catalogues, RISC OS's D, E and F discs, Amiga disks with directory caches or long names, and the rest) say why they're read only.
 
 ## Documents and conversions
 
