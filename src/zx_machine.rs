@@ -221,6 +221,8 @@ pub struct BuiltIn {
     pub memory_before: Option<std::sync::Arc<Vec<u8>>>,
     /// Whether it's a 128K, whose own BASIC runs from another ROM.
     machine_128: bool,
+    /// Whether it runs OpticOS's ROM, which takes keywords letter by letter and has its own keys.
+    opticos: bool,
     /// Debugging a BASIC program: the lines to stop at, whether to stop at the next statement, and where it
     /// stopped, as a line and statement.
     basic_lines: Option<std::collections::BTreeSet<u16>>,
@@ -347,7 +349,7 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
@@ -371,7 +373,7 @@ impl BuiltIn {
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// OpticOS started, with the program's tape in: it boots (playing its chime), and LOAD "" is typed for it, then
@@ -387,7 +389,7 @@ impl BuiltIn {
         // The tape is left stopped: OpticOS keeps the tape routines where emulators catch them, so its LOAD is
         // given each block at once.
         emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
-        let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+        let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: false, opticos: true, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
         // Past the boot chime to the prompt, at once.
         for _ in 0..OPTICOS_BOOT_FRAMES {
             built.frame()?;
@@ -772,8 +774,22 @@ impl BuiltIn {
         self.emulator.send_compound_key(key, pressed);
     }
 
-    /// Types a character, with Caps Shift or Symbol Shift as the Spectrum needs for it.
+    /// Whether it runs OpticOS rather than Sinclair's BASIC.
+    pub fn is_opticos(&self) -> bool {
+        self.opticos
+    }
+
+    /// Types a character, with Caps Shift or Symbol Shift as the Spectrum needs for it. Under OpticOS, its own
+    /// characters too: ` with Symbol Shift and X, and [ ] { } \ | ~ through its Extended mode.
     pub fn type_char(&mut self, c: char) -> bool {
+        if self.opticos
+            && let Some(presses) = opticos_keys_for(c)
+        {
+            for keys in presses {
+                self.taps.push_back(Tap { keys, frames: 0 });
+            }
+            return true;
+        }
         let Some(keys) = keys_for(c) else {
             return false;
         };
@@ -925,6 +941,25 @@ pub fn keys_for(c: char) -> Option<Vec<ZXKey>> {
         _ => return None,
     };
     Some(vec![SymShift, symbol])
+}
+
+/// The keys OpticOS takes for the characters it has that Sinclair's BASIC types otherwise or not at all: the
+/// backquote on Symbol Shift and X (where Sinclair has £), and its Extended mode's [ ] { } \ | ~, as Caps Shift
+/// with Symbol Shift and then the key. Each is a press of keys together, in order.
+pub fn opticos_keys_for(c: char) -> Option<Vec<Vec<ZXKey>>> {
+    use ZXKey::*;
+    let extended = match c {
+        '`' => return Some(vec![vec![SymShift, X]]),
+        '[' => Y,
+        ']' => U,
+        '{' => F,
+        '}' => G,
+        '\\' => D,
+        '|' => S,
+        '~' => A,
+        _ => return None,
+    };
+    Some(vec![vec![Shift, SymShift], vec![extended]])
 }
 
 /// A Z80 snapshot as an SNA snapshot, which rustzx loads. Every version of Z80 is read, compressed or not, for the
@@ -1123,6 +1158,11 @@ mod tests {
         assert_eq!((run.machine, run.format), (Machine::OpticOs, Format::Tap));
         let mut spectrum = BuiltIn::start(&run).unwrap();
         assert_eq!(spectrum.peek(0), OPTICOS_ROM[0], "OpticOS's ROM, not Sinclair's");
+        assert!(spectrum.is_opticos(), "the keyboard under its screen shows OpticOS's keys");
+        // OpticOS's own characters: the backquote on Symbol Shift and X, and Extended mode once for [.
+        assert_eq!(format!("{:?}", opticos_keys_for('`')), "Some([[SymShift, X]])");
+        assert_eq!(format!("{:?}", opticos_keys_for('[')), "Some([[Shift, SymShift], [Y]])");
+        assert!(opticos_keys_for('a').is_none());
         for _ in 0..600 {
             spectrum.frame().unwrap();
         }
