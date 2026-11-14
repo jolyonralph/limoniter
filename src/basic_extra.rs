@@ -976,4 +976,51 @@ mod tests {
             let _ = looks_like_sam_basic(&file[..end]);
         }
     }
+
+    /// Real tapes, disks and programs from the TOSEC collections and the TRS-80 File Cabinet disks, where they're
+    /// kept beside the source: each machine's programs list in its own BASIC, and nothing in them panics.
+    #[test]
+    fn real_media_of_these_machines_list_their_programs() {
+        let root = std::path::Path::new("../testmedia");
+        if !root.is_dir() {
+            return;
+        }
+        let mut found: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for folder in ["trs80", "zx81", "msx", "sam-coupe", "oric"] {
+            let Ok(items) = std::fs::read_dir(root.join(folder)) else {
+                continue;
+            };
+            for path in items.flatten().map(|item| item.path()) {
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                let ending = path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
+                let bytes = std::fs::read(&path).unwrap();
+                if crate::basic::is_program_file(&ending, Some(&bytes)) && !crate::media::is_image(&name, &bytes, bytes.len() as u64) {
+                    *found.entry(crate::basic::list(&bytes, &ending, charset::utf8()).dialect).or_default() += 1;
+                    continue;
+                }
+                let Ok(volume) = crate::media::open(std::sync::Arc::new(bytes), &name) else {
+                    continue;
+                };
+                let mut entries = volume.list(None).unwrap();
+                for dir in entries.clone().iter().filter(|e| e.is_dir) {
+                    entries.extend(volume.list(Some(dir)).unwrap());
+                }
+                for entry in entries.iter().filter(|e| !e.is_dir) {
+                    let Ok(data) = volume.read(entry) else {
+                        continue;
+                    };
+                    let ending = entry.open_name.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
+                    if crate::basic::is_program_file(&ending, Some(&data)) {
+                        let listing = crate::basic::list(&data, &ending, charset::utf8());
+                        if !listing.lines.is_empty() {
+                            *found.entry(listing.dialect).or_default() += 1;
+                        }
+                    }
+                }
+            }
+        }
+        for dialect in ["TRS-80 Level II BASIC", "TRS-80 Model 4 BASIC", "ZX81 BASIC", "MSX-BASIC", "SAM BASIC", "Oric BASIC"] {
+            assert!(found.get(dialect).is_some_and(|n| *n > 0), "no {dialect} programs were listed: {found:?}");
+        }
+    }
 }
