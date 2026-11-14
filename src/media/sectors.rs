@@ -13,28 +13,28 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 /// A sector as the image recorded it.
-struct Sector {
-    id: u8,
-    size: usize,
+pub(super) struct Sector {
+    pub id: u8,
+    pub size: usize,
     /// None when the image has no data for it: it couldn't be read.
-    data: Option<Vec<u8>>,
-    error: bool,
+    pub data: Option<Vec<u8>>,
+    pub error: bool,
 }
 
 /// A track's sectors, by cylinder and head.
-type Tracks = BTreeMap<(u8, u8), Vec<Sector>>;
+pub(super) type Tracks = BTreeMap<(u8, u8), Vec<Sector>>;
 
 /// What's known of a disk once its tracks are laid out.
-struct Laid {
-    bytes: Vec<u8>,
-    shape: String,
-    notes: Vec<String>,
+pub(super) struct Laid {
+    pub bytes: Vec<u8>,
+    pub shape: String,
+    pub notes: Vec<String>,
     /// The tracks' shape, for a file system such as CP/M's that has to be told it.
-    tracks: super::cpm::Shape,
+    pub tracks: super::cpm::Shape,
 }
 
 /// The sectors in order, in the geometry most tracks have: sector size, first sector number and sectors per track.
-fn lay_out(tracks: &Tracks) -> Result<Laid, String> {
+pub(super) fn lay_out(tracks: &Tracks) -> Result<Laid, String> {
     let mut sizes: HashMap<usize, usize> = HashMap::new();
     for sector in tracks.values().flatten().filter(|s| s.data.is_some()) {
         *sizes.entry(sector.size).or_default() += 1;
@@ -601,11 +601,7 @@ pub fn open(source: Arc<dyn Source>, format: Kind) -> Result<Box<dyn Volume>, St
     }
     notes.extend(laid.notes);
     let disk: Arc<dyn Source> = Arc::new(plain.as_ref().clone());
-    let inner = match super::open_plain_disk(disk.clone())
-        .or_else(|problem| super::trsdos::Trsdos::open(disk.clone(), laid.tracks).map(|trs| Box::new(trs) as Box<dyn Volume>).map_err(|_| problem))
-        .or_else(|problem| super::coco::Coco::open_flat(disk.clone(), laid.tracks).map(|coco| Box::new(coco) as Box<dyn Volume>).map_err(|_| problem))
-        .or_else(|problem| super::cpm::open_guessed(disk, Some(laid.tracks), "").map(|cpm| Box::new(cpm) as Box<dyn Volume>).map_err(|_| problem))
-    {
+    let inner = match open_inner(disk, laid.tracks) {
         Ok(volume) => Some(volume),
         Err(problem) => {
             notes.push(format!("{problem} The disk's sectors are offered as a plain image to look at in hex or save."));
@@ -613,6 +609,15 @@ pub fn open(source: Arc<dyn Source>, format: Kind) -> Result<Box<dyn Volume>, St
         }
     };
     Ok(Box::new(SectorDisk { what: format!("{kind} \u{B7} {}", laid.shape), inner, plain, notes }))
+}
+
+/// The file system on a disk laid out from its sectors: whatever its bytes show, then the TRS-80's, the Color
+/// Computer's and CP/M's, which need the tracks' shape to judge it by.
+pub(super) fn open_inner(disk: Arc<dyn Source>, tracks: super::cpm::Shape) -> Result<Box<dyn Volume>, String> {
+    super::open_plain_disk(disk.clone())
+        .or_else(|problem| super::trsdos::Trsdos::open(disk.clone(), tracks).map(|trs| Box::new(trs) as Box<dyn Volume>).map_err(|_| problem))
+        .or_else(|problem| super::coco::Coco::open_flat(disk.clone(), tracks).map(|coco| Box::new(coco) as Box<dyn Volume>).map_err(|_| problem))
+        .or_else(|problem| super::cpm::open_guessed(disk, Some(tracks), "").map(|cpm| Box::new(cpm) as Box<dyn Volume>).map_err(|_| problem))
 }
 
 impl Volume for SectorDisk {
