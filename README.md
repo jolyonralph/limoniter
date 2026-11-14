@@ -2,8 +2,14 @@ Limoniter is an open-source text editor inspired by editors such as UltraEdit an
 
 ## Installing
 
-Download the Windows installer or the macOS app from [Releases](https://github.com/jolyonralph/limoniter/releases).
-Neither is signed yet, so Windows' SmartScreen and macOS's Gatekeeper will ask before running them the first time.
+Download the Windows installer, the macOS app, or for Linux the AppImage or the .deb, from
+[Releases](https://github.com/jolyonralph/limoniter/releases). The Windows and Mac downloads aren't signed yet, so
+Windows' SmartScreen and macOS's Gatekeeper will ask before running them the first time.
+
+On Linux, the AppImage runs on most distributions from 2022 on (glibc 2.35 or later): make it executable
+(`chmod +x Limoniter-*.AppImage`) and run it. The .deb is for Debian 12, Ubuntu 22.04 and later, and the systems made
+from them: `sudo apt install ./limoniter_*_amd64.deb`. Both are for 64-bit Intel and AMD computers. A Flatpak, built
+from source, is being readied for Flathub (`packaging/flatpak`).
 A Microsoft Store version (signed by the Store) and `winget install Limoniter` are on the way: see
 `packaging/windows-store` and `packaging/winget`.
 
@@ -12,7 +18,7 @@ A Microsoft Store version (signed by the Store) and `winget install Limoniter` a
 Limoniter is written in Rust. `cargo build --release` builds it on Windows, Linux and macOS.
 
 - **Windows** is the main platform: everything works, including file types in Explorer, Windows' spell checker and printing through the Windows print dialog.
-- **Linux** builds and runs, and passes the same tests. Spell checking uses hunspell or aspell if either is installed, printing goes to the default printer through CUPS (`lp`), and kept SFTP passwords go in the system keyring. Building needs a C compiler, `perl`, `make` and ALSA's headers (`libasound2-dev` on Debian and Ubuntu, `alsa-lib-devel` on Fedora) for the built-in Spectrum's sound. OpenSSL is built in. `packaging/linux/limoniter.desktop` adds it to the desktop's menus.
+- **Linux** builds and runs, and passes the same tests. Spell checking uses hunspell or aspell if either is installed, printing goes to the default printer through CUPS (`lp`), and kept SFTP passwords go in the system keyring. Building needs a C compiler, `perl`, `make` and ALSA's headers (`libasound2-dev` on Debian and Ubuntu, `alsa-lib-devel` on Fedora) for the built-in Spectrum's sound. OpenSSL is built in. `packaging/linux` makes the AppImage and the .deb (`make-appimage.sh`, `make-deb.sh`), and has the desktop entry, icons and file types they install.
 - **macOS** builds and passes all the tests (they run on GitHub's Macs for every change), and each release has a macOS app to download (`packaging/macos/make-app.sh`). It uses Finder, the keychain, hunspell or aspell, and CUPS in the same way.
 
 Offering Limoniter as the editor for chosen file types is only done on Windows so far.

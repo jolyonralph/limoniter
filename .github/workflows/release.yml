@@ -1,8 +1,8 @@
-# Makes a release: the Windows installer and the Mac app, built on GitHub's own computers, and offered together on
-# the repository's Releases page.
+# Makes a release: the Windows installer, the Mac app, and for Linux an AppImage and a .deb, built on GitHub's own
+# computers, and offered together on the repository's Releases page.
 #
 # To release: change the version in Cargo.toml, then push a matching tag, such as v0.2.0. Running this by hand from
-# the Actions tab builds both without releasing them, to try them first.
+# the Actions tab builds them all without releasing them, to try them first.
 #
 # It also makes:
 # - the Microsoft Store package (the Store-package download on the run's page), to upload in Partner Center. Its
@@ -10,6 +10,8 @@
 #   Center gives them when the name is reserved (Product identity).
 # - winget's manifests for the release (the winget-manifests download). With a WINGET_TOKEN secret (a GitHub token
 #   with public_repo), they're submitted to microsoft/winget-pkgs as a pull request.
+# - the Flatpak, built from source as Flathub would build it (the Flatpak download on the run's page), to try before
+#   sending a release to Flathub. It isn't on the Releases page, and a release doesn't wait for it.
 
 name: Release
 
@@ -92,8 +94,66 @@ jobs:
           path: target/macos/Limoniter-*-macOS.zip
           if-no-files-found: error
 
+  linux:
+    needs: check
+    # The oldest Ubuntu GitHub offers, so the AppImage and the .deb run on systems from 2022 on (glibc 2.35).
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Use the current Rust
+        run: rustup update stable --no-self-update
+
+      - name: Install ALSA's headers, for the built-in Spectrum's sound
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Make the .deb
+        run: sh packaging/linux/make-deb.sh
+
+      - name: Make the AppImage
+        run: sh packaging/linux/make-appimage.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Limoniter-Linux
+          path: |
+            target/linux/Limoniter-*-x86_64.AppImage
+            target/linux/limoniter_*_amd64.deb
+          if-no-files-found: error
+
+  flatpak:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # Flathub's own build image, with the Freedesktop SDK the manifest names. Privileged, so flatpak-builder can
+    # make its sandbox.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: List the crates it needs
+        run: sh packaging/flatpak/make-cargo-sources.sh
+
+      - name: Build it
+        run: |
+          version=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse \
+            --repo=target/flatpak/repo target/flatpak/build packaging/flatpak/com.limoniter.Limoniter.yml
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            target/flatpak/repo "target/flatpak/Limoniter-$version-x86_64.flatpak" com.limoniter.Limoniter
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Flatpak
+          path: target/flatpak/Limoniter-*.flatpak
+          if-no-files-found: error
+
   publish:
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:

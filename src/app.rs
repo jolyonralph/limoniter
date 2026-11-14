@@ -3782,7 +3782,9 @@ impl Limoniter {
             Command::PreviousTab => self.step_tab(false),
             Command::NextTab => self.step_tab(true),
             Command::NewInstance => {
-                let started = std::env::current_exe().and_then(|exe| std::process::Command::new(exe).spawn());
+                // From an AppImage, the program is inside it, there only while this copy runs: start the AppImage.
+                let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok);
+                let started = exe.and_then(|exe| std::process::Command::new(exe).spawn());
                 if let Err(e) = started {
                     warn(&format!("Couldn't open a new window.\n\n{e}"));
                 }

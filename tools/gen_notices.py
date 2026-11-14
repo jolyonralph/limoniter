@@ -1,7 +1,8 @@
 """Puts together THIRD-PARTY-NOTICES.txt, which the installer carries: the licence of everything built into the program.
 
 Most of these licences require their text to go with every copy, so it's made fresh from what's actually being built.
-    python -I tools/gen_notices.py <the app folder> <the file to write>
+    python -I tools/gen_notices.py <the app folder> <the file to write> [<the platform, as Rust names it>]
+The platform is Windows (x86_64-pc-windows-msvc) unless another is named, as the Linux packages name theirs.
 It says on the console if a package has no licence text of its own to quote.
 """
 import hashlib
@@ -11,7 +12,7 @@ import re
 import subprocess
 import sys
 
-TARGET = 'x86_64-pc-windows-msvc'
+TARGET = sys.argv[3] if len(sys.argv) > 3 else 'x86_64-pc-windows-msvc'
 # What a package's licence files are called.
 LICENCE_NAME = re.compile(r'^(licen[cs]e|copying|notice|unlicense|copyright|ofl|ufl)', re.IGNORECASE)
 LICENCE_FOLDERS = ('', 'fonts', 'licenses', 'licences', 'license', 'LICENSES')
@@ -23,7 +24,7 @@ def run(folder, *command):
 
 
 def packages_built_in(folder):
-    """Name and version of everything linked into the Windows program, leaving out build-time tools."""
+    """Name and version of everything linked into the program, leaving out build-time tools."""
     tree = run(folder, 'cargo', 'tree', '--locked', '-e', 'normal', '--target', TARGET, '--prefix', 'none', '-f', '{p}')
     found = set()
     for line in tree.splitlines():
@@ -138,7 +139,7 @@ def main():
     for digest in sorted(by_text, key=lambda each: by_text[each][0]):
         out += ['', RULE, 'This text applies to: ' + ', '.join(by_text[digest]), RULE, '', first_seen[digest]]
     os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
-    with open(target, 'w', encoding='utf-8', newline='\r\n') as file:
+    with open(target, 'w', encoding='utf-8', newline='\r\n' if 'windows' in TARGET else '\n') as file:
         file.write('\n'.join(out) + '\n')
 
     print(f'{len(wanted)} libraries, {len(by_text)} different licence texts')

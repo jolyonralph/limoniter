@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Limoniter
+GenericName=Text and hex editor
+Comment=Edit text and bytes, and explore files and disks from older computers
+Exec=limoniter %F
+Icon=com.limoniter.Limoniter
+Terminal=false
+Categories=Utility;TextEditor;
+Keywords=text;editor;hex;binary;retro;disk image;Spectrum;Commodore;Amiga;
+StartupNotify=true
+StartupWMClass=com.limoniter.Limoniter
+MimeType=text/plain;text/markdown;text/csv;text/x-log;text/html;text/css;text/xml;application/xml;application/json;application/x-yaml;application/toml;text/javascript;application/javascript;text/x-csrc;text/x-chdr;text/x-c++src;text/x-c++hdr;text/x-csharp;text/x-java;text/x-python;text/x-python3;text/x-rust;text/x-go;text/x-lua;text/x-sql;application/sql;text/x-asm;application/x-shellscript;text/x-tex;application/octet-stream;application/x-raw-disk-image;application/x-cd-image;application/x-amiga-disk-format;application/x-lha;application/x-stuffit;application/mac-binhex40;application/x-apple-diskimage;application/x-zx-spectrum-tape;application/x-zx-spectrum-snapshot;application/x-zx-spectrum-next;application/x-trdos-disk;application/x-zx-microdrive;application/x-mgt-disk;application/x-commodore-disk;application/x-commodore-tape;application/x-commodore-program;application/x-amiga-dms;application/x-acorn-dfs-disk;application/x-atari-st-disk;application/x-atari-8bit-disk;application/x-atari-8bit-program;application/x-apple2-disk;application/x-dsk-disk;application/x-cassette-image;application/x-teledisk;application/x-imagedisk;application/x-hfe-floppy;application/x-scp-flux;
