@@ -214,6 +214,8 @@ enum Command {
     ClearRecent,
     PixelEditor,
     ScreenDesigner,
+    BlitterMinterms,
+    TableGenerator,
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
@@ -316,6 +318,8 @@ impl Command {
                 | Command::NewAs(_)
                 | Command::PixelEditor
                 | Command::ScreenDesigner
+                | Command::BlitterMinterms
+                | Command::TableGenerator
                 | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
@@ -1295,6 +1299,8 @@ pub struct Limoniter {
     pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
     /// The Spectrum screen designer, while it's open.
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
+    /// The blitter minterm calculator and the table generator, while they're open.
+    demo_tools: demo_tools_host::DemoTools,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
@@ -1575,6 +1581,7 @@ impl Limoniter {
             intel_wait: None,
             pixel_editor: None,
             screen_designer: None,
+            demo_tools: Default::default(),
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
             task_run: None,
@@ -3629,6 +3636,8 @@ impl Limoniter {
             Command::BuildTask => self.run_build_task(),
             Command::TestTask => self.run_test_task(),
             Command::EditTasks => self.edit_project_tasks(),
+            Command::BlitterMinterms => self.open_blitter_calculator(),
+            Command::TableGenerator => self.open_table_generator(),
             Command::ScreenDesigner => {
                 if self.screen_designer.is_none() {
                     let mut designer = crate::screen_designer::Designer::default();
@@ -6698,6 +6707,7 @@ impl Limoniter {
         self.draw_assistant_note(&ctx);
         self.pixel_editor_window(&ctx);
         self.screen_designer_window(&ctx);
+        self.demo_tools_windows(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7415,6 +7425,9 @@ mod disasm_host;
 
 #[path = "pixel_host.rs"]
 mod pixel_host;
+
+#[path = "demo_tools_host.rs"]
+mod demo_tools_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;
