@@ -131,6 +131,10 @@ impl Parser<'_> {
         if rest.first() == Some(&b'%') {
             return Some(("%", 10));
         }
+        // After a value, ! is or, as Motorola's assemblers have it (the Amiga's headers write flags so).
+        if rest.first() == Some(&b'!') && rest.get(1) != Some(&b'=') {
+            return Some(("|", 3));
+        }
         if rest.first() == Some(&b'^') && self.scope.caret_is_power() {
             return Some(("**", 11));
         }
@@ -478,6 +482,8 @@ mod tests {
         assert_eq!(value("2+3*4"), Value::Known(14));
         assert_eq!(value("(2+3)*4"), Value::Known(20));
         assert_eq!(value("1<<4|1"), Value::Known(17));
+        assert_eq!(value("1<<4!2"), Value::Known(18), "! is or after a value");
+        assert_eq!(value("3 != 2"), Value::Known(1));
         assert_eq!(value("-1 & $FF"), Value::Known(255));
         assert_eq!(value("17 % 5"), Value::Known(2));
         assert_eq!(value("17 mod 5"), Value::Known(2));

@@ -159,15 +159,20 @@ pub struct Assembled {
 
 /// Assembles with Limoniter's own assembler. `text` is the source as it is in the editor.
 pub fn assemble_own(cpu: Cpu, path: &Path, text: &str) -> Assembled {
-    let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
-    let assembly = asm::assemble(cpu.isa(), path, text, &read);
+    let assembly = assemble_own_at(cpu, path, text, 0);
     Assembled { assembly, source: Some(text.to_string()), tape: None, printed: Vec::new() }
 }
 
-/// The same, as if it were `base` further on.
+/// The same, as if it were `base` further on. 68000 source, which may be for the Amiga, can draw on the NDK when
+/// there's one: INCLUDE finds its headers, and an _LVO name the source doesn't define is the function's offset.
 pub fn assemble_own_at(cpu: Cpu, path: &Path, text: &str, base: i64) -> Assembly {
-    let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
-    asm::assemble_at(cpu.isa(), path, text, &read, base)
+    // Each file is read once, not on every pass.
+    let files: std::cell::RefCell<std::collections::HashMap<PathBuf, Result<Vec<u8>, String>>> = Default::default();
+    let read = |p: &Path| files.borrow_mut().entry(p.to_path_buf()).or_insert_with(|| std::fs::read(p).map_err(|e| e.to_string())).clone();
+    let ndk = if cpu == Cpu::M68k { crate::amiga_ndk::current() } else { None };
+    let lvo = |name: &str| ndk.as_ref().and_then(|n| n.lvo(name));
+    let options = asm::Options { folders: ndk.as_ref().and_then(|n| n.include_folder()).into_iter().collect(), values: ndk.as_ref().map(|_| &lvo as &dyn Fn(&str) -> Option<i64>) };
+    asm::assemble_with(cpu.isa(), path, text, &read, base, &options)
 }
 
 /// Assembles a saved file with someone else's assembler.
@@ -405,7 +410,12 @@ fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
     let out = work.join("out.bin");
     let listing = work.join("out.lst");
     let folder = source.parent().unwrap_or(Path::new("."));
-    let args = vec!["-Fbin".to_string(), "-no-opt".into(), "-quiet".into(), "-o".into(), out.display().to_string(), "-L".into(), listing.display().to_string(), source.display().to_string()];
+    let mut args = vec!["-Fbin".to_string(), "-no-opt".into(), "-quiet".into(), "-o".into(), out.display().to_string(), "-L".into(), listing.display().to_string()];
+    // The NDK's headers, when there's one, for an Amiga program's INCLUDEs.
+    if let Some(headers) = crate::amiga_ndk::current().and_then(|n| n.include_folder()) {
+        args.push(format!("-I{}", headers.display()));
+    }
+    args.push(source.display().to_string());
     let (ok, printed) = run(program, &args, folder)?;
     let mut assembly = Assembly { files: vec![source.to_path_buf()], ..Assembly::default() };
     // "error 2030 in line 83 of \"prog.s\": displacement out of range"

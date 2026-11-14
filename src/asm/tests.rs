@@ -347,3 +347,62 @@ fn sjasmplus_fake_instructions_assemble_as_it_does() {
         panic!("differs at ${:04X}, line {line}: {}", 0x8000 + at, source.lines().nth(line.saturating_sub(1)).unwrap_or(""));
     }
 }
+
+/// A small types.i of the Amiga's kind, written for the test: macros using \1 and \2, \@, IFC, MEXIT and SET.
+const TYPES_I: &str = "\tIFND EXEC_TYPES_I\nEXEC_TYPES_I SET 1\n* Structure building\nSTRUCTURE   MACRO\t\t; structure name, initial offset\n\\1\t    EQU     0\nSOFFSET     SET     \\2\n\t    ENDM\nAPTR\t    MACRO\n\\1\t    EQU     SOFFSET\nSOFFSET     SET     SOFFSET+4\n\t    ENDM\nUBYTE\t    MACRO\n\\1\t    EQU     SOFFSET\nSOFFSET     SET     SOFFSET+1\n\t    ENDM\nBYTE\t    MACRO\n\\1\t    EQU     SOFFSET\nSOFFSET     SET     SOFFSET+1\n\t    ENDM\nLABEL\t    MACRO\n\\1\t    EQU     SOFFSET\n\t    ENDM\nSTRUCT\t    MACRO\n\\1\t    EQU     SOFFSET\nSOFFSET     SET     SOFFSET+\\2\n\t    ENDM\nBITDEF\t    MACRO   ; prefix,&name,&bitnum\n\t    BITDEF0 \\1,\\2,B_,\\3\n\\@BITDEF    SET     1<<\\3\n\t    BITDEF0 \\1,\\2,F_,\\@BITDEF\n\t    ENDM\nBITDEF0     MACRO   ; prefix,&name,&type,&value\n\\1\\3\\2\t    EQU     \\4\n\t    ENDM\n\tENDC\t; EXEC_TYPES_I\n";
+const NODES_I: &str = "\tIFND EXEC_NODES_I\nEXEC_NODES_I\tSET 1\n    IFND EXEC_TYPES_I\n    INCLUDE \"ndk/exec/types.i\"\n    ENDC ; EXEC_TYPES_I\n   STRUCTURE\tLN,0\t; List Node\n\tAPTR\tLN_SUCC\t; next\n\tAPTR\tLN_PRED\n\tUBYTE\tLN_TYPE\n\tBYTE\tLN_PRI\n\tAPTR\tLN_NAME\n\tLABEL\tLN_SIZE\t; Note: word aligned\n\tSTRUCT\tLN_PAD,<(2+6)/4>\nNT_TASK\tEQU 1\t* Exec task\n\tBITDEF\tMEM,CHIP,1\n\tBITDEF\tMEM,FAST,2\nMEMF_BOTH EQU MEMF_CHIP!MEMF_FAST\n\tENDC\n";
+
+fn amiga_headers(path: &Path) -> Result<Vec<u8>, String> {
+    let name = path.to_string_lossy().replace('\\', "/");
+    if name.ends_with("ndk/exec/types.i") {
+        Ok(TYPES_I.as_bytes().to_vec())
+    } else if name.ends_with("ndk/exec/nodes.i") {
+        Ok(NODES_I.as_bytes().to_vec())
+    } else {
+        no_files(path)
+    }
+}
+
+#[test]
+fn motorola_macros_build_the_amiga_s_structures() {
+    let source = "\tinclude \"ndk/exec/nodes.i\"\n\tinclude \"ndk/exec/nodes.i\"\n\tmove.l\tLN_NAME(a1),a0\n\tdc.w\tLN_SIZE,LN_PAD,NT_TASK,MEMB_CHIP,MEMF_CHIP,MEMF_BOTH\n";
+    let assembly = assemble(&m68k::M68k, Path::new("t.s"), source, &amiga_headers);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.chunks.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>(), [0x20, 0x69, 0x00, 0x0A, 0, 14, 0, 14, 0, 1, 0, 1, 0, 2, 0, 6]);
+}
+
+#[test]
+fn mexit_ifc_and_angle_brackets_work_in_motorola_macros() {
+    let source = "fetch MACRO\n\tIFC '\\1',''\n\tmoveq #1,d0\n\tMEXIT\n\tENDC\n\tmoveq #\\1,d0\n\tENDM\n\tfetch\n\tfetch <2+1>\n\tIFGT 3-2\n\tmoveq #4,d0\n\tENDC\n\tIFLE 3-2\n\tmoveq #5,d0\n\tENDC\n\tIFND nothing\n\tnop\n\tENDC\n";
+    let assembly = assemble(&m68k::M68k, Path::new("t.s"), source, &no_files);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.chunks.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>(), [0x70, 1, 0x70, 3, 0x70, 4, 0x4E, 0x71]);
+}
+
+#[test]
+fn values_given_from_outside_are_used_only_when_the_source_has_none() {
+    let lvo = |name: &str| match name {
+        "_LVOAllocMem" => Some(-198),
+        "_LVOFreeMem" => Some(-210),
+        _ => None,
+    };
+    let options = Options { folders: Vec::new(), values: Some(&lvo) };
+    let source = "\tjsr _LVOAllocMem(a6)\n\tjsr _LVOFreeMem(a6)\n_LVOFreeMem equ -6\n";
+    let assembly = assemble_with(&m68k::M68k, Path::new("t.s"), source, &no_files, 0, &options);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.chunks.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>(), [0x4E, 0xAE, 0xFF, 0x3A, 0x4E, 0xAE, 0xFF, 0xFA], "the source's own wins");
+    assert!(!assemble(&m68k::M68k, Path::new("t.s"), source, &no_files).ok(), "without them, it isn't defined");
+}
+
+#[test]
+fn include_looks_in_the_folders_given_after_the_source_s_own() {
+    let folder = std::env::temp_dir().join(format!("limoniter-include-{}", std::process::id()));
+    std::fs::create_dir_all(folder.join("exec")).unwrap();
+    std::fs::write(folder.join("exec/answer.i"), "ANSWER equ 42\n").unwrap();
+    let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
+    let options = Options { folders: vec![folder.clone()], values: None };
+    let assembly = assemble_with(&m68k::M68k, Path::new("/nowhere/t.s"), "\tinclude \"exec/answer.i\"\n\tdc.b ANSWER\n", &read, 0, &options);
+    let _ = std::fs::remove_dir_all(&folder);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.chunks.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>(), [42]);
+}

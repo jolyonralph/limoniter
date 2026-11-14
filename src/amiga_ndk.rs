@@ -6,7 +6,11 @@
 //! person's request it downloads it from Aminet and unpacks it beside the settings, or reads one already on the
 //! computer. Offsets and registers come from its SFD files (each function six bytes further down the library's jump
 //! table from its ==bias, an ==alias or ==varargs line sharing the slot before it, ==reserve skipping slots), and
-//! the words from its Autodocs, a page per function between form feeds.
+//! the words from its Autodocs, a page per function between form feeds. Its assembler headers (Include_I) give each
+//! structure's fields and the flags and values the system uses (see `headers`), and are where Limoniter's own
+//! assembler looks for what's INCLUDEd, after the source's own folder.
+
+pub mod headers;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -37,6 +41,8 @@ pub struct Index {
     pub functions: BTreeMap<String, Function>,
     /// Each function's autodoc page (and devices' and others' that have no SFD), by name.
     pub docs: BTreeMap<String, (String, String)>,
+    /// What the assembler headers name: structures' fields and sizes, flags and other values.
+    pub headers: BTreeMap<String, headers::Name>,
     /// The NDK's folder.
     pub folder: PathBuf,
 }
@@ -199,7 +205,20 @@ impl Index {
         if index.functions.is_empty() {
             return Err("There's no NDK there: no SFD folder with libraries' functions in it.".into());
         }
+        if let Some(headers) = index.include_folder() {
+            index.headers = headers::read(&headers);
+        }
         Ok(index)
+    }
+
+    /// The folder of assembler headers (Include_I), if it has one.
+    pub fn include_folder(&self) -> Option<PathBuf> {
+        Some(self.folder.join("Include_I")).filter(|f| f.is_dir())
+    }
+
+    /// A function's offset by its _LVO name (-198 for _LVOAllocMem), for a program that uses it without defining it.
+    pub fn lvo(&self, name: &str) -> Option<i64> {
+        self.functions.get(name.strip_prefix("_LVO")?).map(|f| f.offset as i64)
     }
 
     /// What to show for a word: the function's prototype, library, offset and registers, and its autodoc.
@@ -208,7 +227,7 @@ impl Index {
         let function = self.functions.get(name);
         let doc = self.docs.get(name);
         if function.is_none() && doc.is_none() {
-            return None;
+            return self.headers.get(word).map(|n| n.describe(word));
         }
         let mut out = String::new();
         if let Some(f) = function {
@@ -239,6 +258,20 @@ impl Index {
             }
         }
         Some(out)
+    }
+
+    /// Names from the assembler headers that finish a prefix of three letters or more: LN_ offers LN_SUCC,
+    /// LN_PRED and the rest, MEMF_ the memory flags.
+    pub fn complete_header_names(&self, prefix: &str) -> Vec<String> {
+        if prefix.len() < 3 {
+            return Vec::new();
+        }
+        let starts = |n: &str| n.len() > prefix.len() && n.is_char_boundary(prefix.len()) && n[..prefix.len()].eq_ignore_ascii_case(prefix);
+        let mut found: Vec<String> = self.headers.keys().filter(|n| starts(n)).take(400).cloned().collect();
+        // Those written as typed first.
+        found.sort_by_key(|n| !n.starts_with(prefix));
+        found.truncate(40);
+        found
     }
 
     /// Names that finish a prefix: functions, or `_LVO` names when that's how it was started.
@@ -448,5 +481,117 @@ mod tests {
         println!("{} functions, {} pages, {checked} offsets checked against FD files", index.functions.len(), index.docs.len());
         assert!(checked > 1000);
         assert!(index.describe("_LVOAllocMem").unwrap().contains("-198"));
+    }
+
+    /// A program using a real NDK's headers and _LVO offsets assembles as vasm assembles it with the LVO file:
+    /// LIMONITER_NDK=<folder> LIMONITER_VASM=<vasmm68k_mot> cargo test -- --ignored
+    #[test]
+    #[ignore]
+    fn a_program_using_a_real_ndk_assembles_as_vasm_does() {
+        let (Ok(folder), Ok(vasm)) = (std::env::var("LIMONITER_NDK"), std::env::var("LIMONITER_VASM")) else { return };
+        let started = std::time::Instant::now();
+        let index = Index::read(Path::new(&folder)).unwrap();
+        println!("NDK read in {:?}: {} names from its headers", started.elapsed(), index.headers.len());
+        let headers = index.include_folder().unwrap();
+        let program = "\tinclude \"exec/types.i\"\n\tinclude \"exec/memory.i\"\n\tinclude \"exec/execbase.i\"\n\tinclude \"intuition/intuition.i\"\n\tinclude \"dos/dosextens.i\"\nstart:\tmove.l\t4.w,a6\n\tmove.l\tThisTask(a6),a0\n\tmove.l\tLN_NAME(a0),d2\n\tmove.l\t#wd_SIZEOF,d0\n\tmove.l\t#MEMF_CHIP!MEMF_CLEAR,d1\n\tjsr\t_LVOAllocMem(a6)\n\tmove.l\td0,a1\n\tmove.w\t#pr_MsgPort+MP_SIGBIT,d0\n\tjsr\t_LVOFreeMem(a6)\n\tjsr\t_LVOOpenLibrary(a6)\n\trts\n";
+        let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
+        let lvo = |name: &str| index.lvo(name);
+        let options = crate::asm::Options { folders: vec![headers.clone()], values: Some(&lvo) };
+        let started = std::time::Instant::now();
+        let ours = crate::asm::assemble_with(&crate::asm::m68k::M68k, Path::new("/nowhere/t.s"), program, &read, 0, &options);
+        println!("assembled in {:?}, {} files", started.elapsed(), ours.files.len());
+        assert!(ours.ok(), "{:?}", ours.problems);
+        let work = std::env::temp_dir().join(format!("limoniter-vasm-program-{}", std::process::id()));
+        std::fs::create_dir_all(&work).unwrap();
+        std::fs::write(work.join("t.s"), format!("\tinclude \"lvo/exec_lib.i\"\n{program}")).unwrap();
+        let done = std::process::Command::new(vasm).args(["-Fbin", "-quiet", "-no-opt", "-o"]).arg(work.join("t.bin")).arg(format!("-I{}", headers.display())).arg(work.join("t.s")).output().unwrap();
+        assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+        let theirs = std::fs::read(work.join("t.bin")).unwrap();
+        let _ = std::fs::remove_dir_all(&work);
+        let ours: Vec<u8> = ours.chunks.iter().flat_map(|c| c.bytes.clone()).collect();
+        println!("{} bytes the same as vasm's", ours.len());
+        assert_eq!(ours, theirs);
+    }
+
+    /// Every one of a real NDK's assembler headers, included by itself, assembles with Limoniter's own assembler:
+    /// LIMONITER_NDK=<folder> cargo test -- --ignored
+    #[test]
+    #[ignore]
+    fn a_real_ndk_s_headers_assemble() {
+        let Ok(folder) = std::env::var("LIMONITER_NDK") else { return };
+        let headers = Path::new(&folder).join("Include_I");
+        let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
+        let options = crate::asm::Options { folders: vec![headers.clone()], values: None };
+        let mut names: Vec<String> = Vec::new();
+        for dir in std::fs::read_dir(&headers).unwrap().flatten().filter(|e| e.path().is_dir()) {
+            for file in std::fs::read_dir(dir.path()).unwrap().flatten() {
+                names.push(format!("{}/{}", dir.file_name().to_string_lossy(), file.file_name().to_string_lossy()));
+            }
+        }
+        names.sort();
+        // vasm can't assemble these by themselves either: one needs a FUNCDEF of the program's own, some have
+        // mistakes (a STRUCTURE with no offset, a field of a size not defined), some need what they don't include.
+        let broken = ["datatypes/animationclass.i", "datatypes/pictureclass.i", "datatypes/textclass.i", "devices/newstyle.i", "exec/exec_lib.i", "prefs/printertxt.i", "prefs/workbench.i", "resources/tuples.i", "workbench/icon.i"];
+        // With vasm (LIMONITER_VASM=<vasmm68k_mot>), every label's value is compared with what vasm makes it.
+        let vasm = std::env::var("LIMONITER_VASM").ok();
+        let work = std::env::temp_dir().join(format!("limoniter-vasm-{}", std::process::id()));
+        std::fs::create_dir_all(&work).unwrap();
+        let (mut failed, mut compared) = (Vec::new(), 0);
+        let mut assembled: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for name in &names {
+            let source = format!("\tinclude \"{name}\"\n");
+            let assembly = crate::asm::assemble_with(&crate::asm::m68k::M68k, &work.join("t.s"), &source, &read, 0, &options);
+            for p in assembly.problems.iter().take(3) {
+                println!("{name}: {}:{}: {}", assembly.files[p.file].display(), p.line + 1, p.message);
+            }
+            if !assembly.ok() {
+                failed.push(name.as_str());
+                continue;
+            }
+            for (label, value) in &assembly.symbols {
+                assembled.entry(label.clone()).or_insert(*value);
+            }
+            let Some(vasm) = &vasm else { continue };
+            std::fs::write(work.join("t.s"), &source).unwrap();
+            let listing = work.join("t.lst");
+            let status = std::process::Command::new(vasm).args(["-Fbin", "-quiet", "-o"]).arg(work.join("t.bin")).arg(format!("-I{}", headers.display())).arg("-L").arg(&listing).arg(work.join("t.s")).output().unwrap();
+            if !status.status.success() {
+                continue;
+            }
+            // "LN_SIZE EXPR(14=0xe) EQU"
+            let text = read_text(&listing).unwrap();
+            let headers_text: String = assembly.files.iter().skip(1).filter_map(|f| read_text(f)).collect();
+            for line in text.lines() {
+                let Some((label, rest)) = line.split_once(" EXPR(") else { continue };
+                let Some(value) = rest.split('=').next().and_then(|v| v.parse::<i64>().ok()) else { continue };
+                let ours = assembly.symbols.get(label).copied();
+                // vasm's own (CARG, _MOVEMBYTES and the like), and the names \@ made.
+                if ours.is_none() && !headers_text.contains(label) || label.starts_with('_') && label[1..].starts_with(|c: char| c.is_ascii_digit()) {
+                    continue;
+                }
+                assert_eq!(ours.map(|v| v as i32 as i64), Some(value as i32 as i64), "{label} in {name}");
+                compared += 1;
+            }
+        }
+        println!("{} headers, {} with problems, {compared} values the same as vasm's", names.len(), failed.len());
+        assert!(failed.iter().all(|f| broken.contains(f)), "{failed:?}");
+        // What the headers are read as for hints agrees with what they assemble to.
+        let read_for_hints = headers::read(&headers);
+        let mut agreed = 0;
+        for (label, name) in &read_for_hints {
+            if let Some(value) = assembled.get(label) {
+                assert_eq!(name.value as i32, *value as i32, "{label} in {}", name.header);
+                agreed += 1;
+            }
+        }
+        let fields = read_for_hints.values().filter(|n| matches!(n.what, headers::What::Field { .. })).count();
+        let sizes = read_for_hints.values().filter(|n| matches!(n.what, headers::What::Size { .. })).count();
+        println!("{} names read for hints ({fields} fields, {sizes} sizes), {agreed} the same as assembled", read_for_hints.len());
+        for (label, value) in [("LN_SIZE", 14), ("LN_NAME", 10), ("LIB_SIZE", 34), ("TC_SIZE", 92), ("MP_SIZE", 34), ("IO_SIZE", 32), ("MEMF_CHIP", 2), ("ThisTask", 276), ("pr_MsgPort", 92)] {
+            assert_eq!(read_for_hints.get(label).map(|n| n.value), Some(value), "{label}");
+        }
+        let missed: Vec<&String> = assembled.keys().filter(|l| !read_for_hints.contains_key(*l) && !l.starts_with("_LVO") && !l.starts_with("_0") && !l.ends_with("_I")).collect();
+        println!("{} assembled names not read for hints, such as {:?}", missed.len(), missed.iter().take(30).collect::<Vec<_>>());
+        assert!(agreed > 9000);
     }
 }

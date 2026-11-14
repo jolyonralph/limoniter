@@ -48,7 +48,7 @@ impl Limoniter {
         let busy = state.working.is_some();
         egui::Window::new("Amiga NDK").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(520.0);
-            ui.label("With Hyperion's Native Developer Kit for AmigaOS 3.2, resting the pointer on a system function in 68000 or C source shows its prototype, library, offset (_LVO), the registers its arguments go in, and its autodoc; typing _LVO offers the functions.");
+            ui.label("With Hyperion's Native Developer Kit for AmigaOS 3.2, resting the pointer on a system function in 68000 or C source shows its prototype, library, offset (_LVO), the registers its arguments go in, and its autodoc; typing _LVO offers the functions. Its headers' structure fields and flags (LN_NAME, MEMF_CHIP) are shown and offered too, and Limoniter's own 68000 assembler finds its headers and _LVO offsets.");
             ui.add_space(4.0);
             ui.label("The NDK is Hyperion's and free to download, but it isn't Limoniter's to include, so Limoniter only fetches it from Aminet when you ask (about 8 MB, 31 MB unpacked, kept beside the settings).");
             ui.add_space(6.0);

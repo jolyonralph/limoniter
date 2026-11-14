@@ -144,11 +144,12 @@ impl CodeIntel {
         {
             return Some(words.clone());
         }
-        // An Amiga system function, unless the program has a label of that name of its own.
+        // An Amiga system function, or a structure's field or a flag from the NDK's headers, unless the program
+        // has a label of that name of its own (one it has from INCLUDEing the header is the NDK's).
         if let Some(ndk) = &self.amiga
             && !(self.cpu.is_some() && in_comment_or_string(text, col))
             && let Some((_, _, word)) = word_at(text, col)
-            && (word.starts_with("_LVO") || !self.assembly.as_ref().is_some_and(|a| a.symbols.contains_key(&word)))
+            && (word.starts_with("_LVO") || self.assembly.as_ref().and_then(|a| a.symbols.get(&word)).is_none_or(|v| ndk.headers.get(&word).is_some_and(|n| n.value as i32 == *v as i32)))
             && let Some(words) = ndk.describe(&word)
         {
             return Some(words);
@@ -233,6 +234,14 @@ impl CodeIntel {
             && (self.cpu.is_none() || prefix.starts_with("_LVO"))
         {
             found.extend(ndk.complete(&prefix));
+        }
+        // And in an operand, the headers' fields and flags: LN_ offers LN_SUCC and the rest.
+        if let Some(ndk) = &self.amiga
+            && operand
+            && !prefix.starts_with("_LVO")
+        {
+            let names: Vec<String> = ndk.complete_header_names(&prefix).into_iter().filter(|n| !found.contains(n)).collect();
+            found.extend(names);
         }
         let typed_upper = prefix.chars().any(|c| c.is_ascii_uppercase()) && !prefix.chars().any(|c| c.is_ascii_lowercase());
         for word in self.words.iter().filter(|_| !operand) {
@@ -342,8 +351,27 @@ mod tests {
         assert!(asm.describe(0, "  nop ; AllocMem", 13).is_none(), "nothing in a comment");
         assert_eq!(asm.completions(0, "  jsr _LVOAll", 13), ["_LVOAllocMem"]);
         assert!(asm.completions(0, "  All", 5).iter().all(|w| w != "AllocMem"), "assembler gets them as _LVO names");
-        let c = CodeIntel { amiga: Some(ndk), ..CodeIntel::default() };
+        let c = CodeIntel { amiga: Some(ndk.clone()), ..CodeIntel::default() };
         assert!(c.describe(0, "x = 1; p = AllocMem(64, 0);", 13).unwrap().starts_with("APTR AllocMem"), "a semicolon isn't a comment in C");
         assert_eq!(c.completions(0, "x = 1; p = Allo", 15), ["AllocMem"]);
+    }
+
+    #[test]
+    fn amiga_structures_fields_are_described_and_offered_from_the_ndk_s_headers() {
+        use crate::amiga_ndk::headers::{Name, What};
+        let mut index = crate::amiga_ndk::Index::default();
+        let field = |value, kind: &str, size| Name { value, what: What::Field { structure: "LN".into(), kind: kind.into(), size }, header: "exec/nodes.i".into() };
+        index.headers.insert("LN_NAME".into(), field(10, "APTR", 4));
+        index.headers.insert("LN_PRI".into(), field(9, "BYTE", 1));
+        index.headers.insert("LN_SIZE".into(), Name { value: 14, what: What::Size { structure: "LN".into() }, header: "exec/nodes.i".into() });
+        let ndk = Arc::new(index);
+        let asm = CodeIntel { amiga: Some(ndk.clone()), ..CodeIntel::for_cpu(Cpu::M68k) };
+        assert_eq!(asm.describe(0, "  move.l LN_NAME(a1),a0", 12).as_deref(), Some("LN_NAME: offset 10 in LN (APTR, 4 bytes)\nexec/nodes.i"));
+        assert_eq!(asm.completions(0, "  move.l LN_", 12), ["LN_NAME", "LN_PRI", "LN_SIZE"]);
+        assert!(asm.completions(0, "  LN_", 5).is_empty(), "not where the instruction goes");
+        // The program's own LN_SIZE, of another value, is its own.
+        let assembly = crate::assemblers::assemble_own(Cpu::M68k, Path::new("t.s"), "LN_SIZE equ 3\n  dc.b LN_SIZE\n").assembly;
+        let own = CodeIntel { assembly: Some(Arc::new(assembly)), amiga: Some(ndk), ..CodeIntel::for_cpu(Cpu::M68k) };
+        assert!(own.describe(1, "  dc.b LN_SIZE", 10).unwrap().starts_with("LN_SIZE = 3"));
     }
 }
