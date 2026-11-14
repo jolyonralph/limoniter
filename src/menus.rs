@@ -484,8 +484,16 @@ const TOOLS: &[Entry] = &[
     Item("Disassemble\u{2026}", Command::Disassemble),
     Item("Character and sprite editor", Command::PixelEditor),
     Item("Spectrum screen designer", Command::ScreenDesigner),
-    Item("Amiga hardware and copper lists", Command::AmigaHardware),
-    Item("Amiga bitplane converter", Command::AmigaBitplanes),
+    Sub(
+        "Amiga",
+        &[
+            Item("Hardware registers and copper lists", Command::AmigaHardware),
+            Item("Bitplane, sprite and bob converter", Command::AmigaBitplanes),
+            Item("Blitter minterms", Command::BlitterMinterms),
+            Item("NDK (code hints)\u{2026}", Command::AmigaNdk),
+        ],
+    ),
+    Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
     Sub(
         "Tasks",
         &[

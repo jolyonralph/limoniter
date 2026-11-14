@@ -91,6 +91,8 @@ impl NewKind {
             Self::new("6502 assembler", "a65", "utf-8", line, "Assembly 6502", Program::None, "        * = $c000\nstart:  lda #2\n        sta $d020           ; a red border\n        rts"),
             Self::new("6809 assembler", "asm", "utf-8", line, "Assembly 6809", Program::None, "        org $3000\nstart:  lda #1\n        rts\n        end start"),
             Self::new("68000 assembler", "s", "utf-8", line, "Assembly 680x0", Program::None, "start:  clr.w -(sp)\n        trap #1             ; back to the desktop"),
+            Self::new("Amiga demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::amiga_starters::DEMO),
+            Self::new("Amiga copper only (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::amiga_starters::COPPER),
             Self::new("Markdown", "md", "utf-8", line, "Markdown", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),
