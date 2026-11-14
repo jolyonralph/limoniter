@@ -91,7 +91,7 @@ struct DosFile {
 }
 
 fn dos_vtoc_ok(vtoc: &[u8]) -> bool {
-    vtoc.len() >= 0x38 && (1..35).contains(&vtoc[1]) && vtoc[2] < 16 && vtoc[0x27] == 122 && vtoc[0x34] == 35 && vtoc[0x35] == 16
+    vtoc.len() >= 0x38 && (1..35).contains(&vtoc[1]) && vtoc[2] < 16 && vtoc[0x27] == 122 && vtoc[0x34] == 35 && matches!(vtoc[0x35], 13 | 16)
 }
 
 fn dos_catalog(disk: &Disk) -> Result<(u8, Vec<DosFile>), String> {
@@ -386,7 +386,9 @@ impl Apple2 {
             if length == DISK_140K
                 && let Ok((volume, files)) = dos_catalog(&disk)
             {
-                let what = format!("Apple II DOS 3.3, volume {volume} ({size}, {order_name})");
+                // DOS 3.2's disks have 13 sectors to a track, which its VTOC says; the catalog is the same.
+                let dos = if disk.sector(17, 0).is_ok_and(|vtoc| vtoc[0x35] == 13) { "DOS 3.2" } else { "DOS 3.3" };
+                let what = format!("Apple II {dos}, volume {volume} ({size}, {order_name})");
                 return Ok(Self { disk, system: System::Dos { files }, what });
             }
         }

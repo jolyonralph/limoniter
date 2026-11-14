@@ -5,6 +5,7 @@
 //! the file says about itself.
 
 mod apple2;
+mod atari8;
 mod atari_st;
 mod c64;
 mod gem;
@@ -43,10 +44,12 @@ pub enum Format {
     AppleHires,
     /// A ZX Spectrum Next Layer 2 or LoRes screen, or a palette.
     NextScreen,
+    /// An Atari 8-bit screen: Graphics 8, 15 (MicroPainter), 9 or 7.
+    Atari8,
 }
 
 impl Format {
-    pub const ALL: [Self; 11] = [Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen];
+    pub const ALL: [Self; 12] = [Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -61,6 +64,7 @@ impl Format {
             Self::GemImg => "GEM bit image",
             Self::AppleHires => "Apple II hi-res screen",
             Self::NextScreen => "ZX Spectrum Next screen",
+            Self::Atari8 => "Atari 8-bit screen",
         }
     }
 }
@@ -132,6 +136,9 @@ pub fn detect(name: &str, bytes: &[u8]) -> Option<Format> {
     if next::looks_like(&ending, bytes) {
         return Some(Format::NextScreen);
     }
+    if atari8::looks_like(&ending, bytes) {
+        return Some(Format::Atari8);
+    }
     None
 }
 
@@ -157,6 +164,7 @@ pub fn decode_named(format: Format, name: &str, bytes: &[u8]) -> Result<Picture,
             atari_st::decode(&ending(name), bytes)
         }
         Format::NextScreen => next::decode(&ending(name), bytes),
+        Format::Atari8 => atari8::decode(&ending(name), bytes),
         _ => decode(format, bytes),
     }
 }
@@ -179,6 +187,8 @@ pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
         Format::AppleHires => apple2::decode(bytes),
         // Without a name, the size says which: a palette's is the one that isn't a screen's.
         Format::NextScreen => next::decode(if bytes.len() <= 512 { "nxp" } else { "sl2" }, bytes),
+        // Without a name, a screen's size can't tell Graphics 8 from 15 or 9: the four-colour one is the likeliest.
+        Format::Atari8 => atari8::decode("", bytes),
     }
 }
 
@@ -204,7 +214,7 @@ pub fn to_png(picture: &Picture) -> Result<Vec<u8>, String> {
 /// A name to save a picture as PNG under: the file's own, with ".png" in place of its ending.
 pub fn png_name(name: &str) -> String {
     let path = std::path::Path::new(name);
-    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr"));
+    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic"));
     let stem = if known { path.file_stem() } else { path.file_name() };
     format!("{}.png", stem.map_or_else(|| "picture".into(), |s| s.to_string_lossy()))
 }
@@ -323,6 +333,7 @@ mod tests {
                             Format::GemImg => "img",
                             Format::AppleHires => "hgr",
                             Format::NextScreen => "sl2",
+                            Format::Atari8 => name.rsplit('.').next().unwrap_or("gr8"),
                         };
                         std::fs::write(out.join(format!("{number:04}.{ending}")), bytes).unwrap();
                         std::fs::write(out.join(format!("{number:04}.png")), to_png(&picture).unwrap()).unwrap();
