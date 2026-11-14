@@ -16,6 +16,8 @@
 //!   are as the Spectrum's (number high byte first, a length, the line, &0D), keywords single bytes from &85 or &FF
 //!   and a second byte, and a number's five-byte form after &0E. The keyword table and how LIST spaces each keyword
 //!   are from the SAM ROM's tables as sambasicvscode (github.com/spectecjr/sambasicvscode) sets them out.
+//! - Oric BASIC (Oric-1 and Atmos): a program from a tape, as it was in memory from &0501, lines linked as
+//!   Microsoft's 6502 BASICs link them, numbers as digits, keywords &80 to &F6 from the Atmos manual's table.
 
 use crate::basic::Listing;
 use crate::basic_more::{self, MsDialect};
@@ -27,6 +29,11 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
         Some(list_zx81(data))
     } else if looks_like_sam_basic(data) {
         Some(list_sam(data))
+    } else if extension == "tap" && crate::media::oric::looks_like(data) {
+        let program = crate::media::oric::first_program(data);
+        Some(program.map_or_else(|| Listing { dialect: "Oric BASIC", notes: vec!["There's no BASIC program on this Oric tape.".into()], ..Listing::default() }, |program| list_oric(&program, set)))
+    } else if looks_like_oric(data) {
+        Some(list_oric(data, set))
     } else if looks_like_trs80(data) {
         Some(list_trs80(data, set))
     } else {
@@ -41,7 +48,7 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
 /// Whether a file ending (and its bytes, when there are some) names a program in one of these BASICs.
 pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
     // A .p is also Pascal or Prolog source; a ZX81 program's system variables say what it is.
-    is_zx81_ending(extension) && data.is_none_or(|data| zx81_file(data).is_ok()) || extension == "bas" && data.is_some_and(looks_like_sam_basic)
+    is_zx81_ending(extension) && data.is_none_or(|data| zx81_file(data).is_ok()) || extension == "bas" && data.is_some_and(|data| looks_like_sam_basic(data) || looks_like_oric(data))
 }
 
 fn is_zx81_ending(extension: &str) -> bool {
@@ -689,6 +696,91 @@ pub fn list_sam(data: &[u8]) -> Listing {
     if !whole {
         let last = lines.last().map_or(0, |(number, _)| *number);
         listing.notes.push(format!("The program breaks off after line {last}, before the byte that ends it."));
+    }
+    listing
+}
+
+// ---------- Oric BASIC ----------
+
+/// The Oric-1's and Atmos's BASIC keywords, from &80 to &F6.
+const ORIC_TOKENS: [&str; 119] = [
+    "END", "EDIT", "STORE", "RECALL", "TRON", "TROFF", "POP", "PLOT", "PULL", "LORES", "DOKE", "REPEAT", "UNTIL", "FOR", "LLIST", "LPRINT", "NEXT",
+    "DATA", "INPUT", "DIM", "CLS", "READ", "LET", "GOTO", "RUN", "IF", "RESTORE", "GOSUB", "RETURN", "REM", "HIMEM", "GRAB", "RELEASE", "TEXT",
+    "HIRES", "SHOOT", "EXPLODE", "ZAP", "PING", "SOUND", "MUSIC", "PLAY", "CURSET", "CURMOV", "DRAW", "CIRCLE", "PATTERN", "FILL", "CHAR", "PAPER",
+    "INK", "STOP", "ON", "WAIT", "CLOAD", "CSAVE", "DEF", "POKE", "PRINT", "CONT", "LIST", "CLEAR", "GET", "CALL", "!", "NEW", "TAB(", "TO", "FN",
+    "SPC(", "@", "AUTO", "ELSE", "THEN", "NOT", "STEP", "+", "-", "*", "/", "^", "AND", "OR", ">", "=", "<", "SGN", "INT", "ABS", "USR", "FRE", "POS",
+    "HEX$", "&", "SQR", "RND", "LN", "EXP", "COS", "SIN", "TAN", "ATN", "PEEK", "DEEK", "LOG", "LEN", "STR$", "VAL", "ASC", "CHR$", "PI", "TRUE",
+    "FALSE", "KEY$", "SCRN", "POINT", "LEFT$", "RIGHT$", "MID$",
+];
+const ORIC_REM: u8 = 0x9D;
+const ORIC_DATA: u8 = 0x91;
+/// Where an Oric keeps a BASIC program, and so where a program's links count from.
+const ORIC_START: u16 = 0x0501;
+
+/// An Oric program's lines: a link to the next line (its address, the program being at &0501), the line number,
+/// the line, a zero. As numbers are kept as digits, a line ends at its first zero, and each link must be where
+/// the next line then is. Whether they run to the zero link that ends the program, too.
+fn oric_lines(program: &[u8]) -> (Vec<(u16, &[u8])>, bool) {
+    let mut lines = Vec::new();
+    let mut at = 0;
+    loop {
+        let Some(link) = program.get(at..at + 2).map(|b| u16::from_le_bytes([b[0], b[1]])) else {
+            return (lines, false);
+        };
+        if link == 0 {
+            return (lines, true);
+        }
+        let (Some(number), Some(end)) = (program.get(at + 2..at + 4), program.get(at + 4..).and_then(|rest| rest.iter().position(|&b| b == 0))) else {
+            return (lines, false);
+        };
+        let next = at + 4 + end + 1;
+        if usize::from(link) != usize::from(ORIC_START) + next {
+            return (lines, false);
+        }
+        lines.push((u16::from_le_bytes([number[0], number[1]]), &program[at + 4..at + 4 + end]));
+        at = next;
+    }
+}
+
+/// Whether bytes are an Oric BASIC program as it was in memory: lines linked from &0501, to the end.
+pub fn looks_like_oric(data: &[u8]) -> bool {
+    let (lines, whole) = oric_lines(data);
+    whole && !lines.is_empty()
+}
+
+/// Lists an Oric BASIC program, as LIST shows it: keywords written out where they're stored, with no spaces put in.
+pub fn list_oric(data: &[u8], set: &Charset) -> Listing {
+    let set = if set.id == "oric" { set } else { charset::known("oric") };
+    let mut listing = Listing { dialect: "Oric BASIC", ..Listing::default() };
+    let (lines, whole) = oric_lines(data);
+    if lines.is_empty() {
+        listing.notes.push("The program's lines don't link up as an Oric program's do, from &0501, so it can't be listed.".into());
+        return listing;
+    }
+    let char_of = |byte: u8, text: &mut String| match set.entry(0, byte).and_then(|e| e.unicode).filter(|c| !c.is_control() && *c != '{' && *c != '}') {
+        Some(c) => text.push(c),
+        None => text.push_str(&format!("{{${byte:02x}}}")),
+    };
+    for (number, body) in &lines {
+        let mut text = String::new();
+        let (mut quoted, mut plain) = (false, false);
+        for &byte in *body {
+            if byte == b'"' {
+                quoted = !quoted;
+            }
+            match ORIC_TOKENS.get(usize::from(byte.wrapping_sub(0x80))).filter(|_| byte >= 0x80 && !quoted && !plain) {
+                Some(word) => {
+                    text.push_str(word);
+                    plain = matches!(byte, ORIC_REM | ORIC_DATA);
+                }
+                None => char_of(byte, &mut text),
+            }
+        }
+        listing.lines.push(format!("{number} {text}"));
+    }
+    if !whole {
+        let last = lines.last().map_or(0, |(number, _)| *number);
+        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
     }
     listing
 }

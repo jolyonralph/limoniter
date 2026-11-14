@@ -534,7 +534,7 @@ impl Limoniter {
         let extension = doc.path_or_name().extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
         let bytes = self.document_bytes();
         if !basic::is_program_file(&extension, Some(&bytes)) {
-            return self.message("BASIC listing", "This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX81 .p files, and BBC, MSX, Atari and TRS-80 BASIC programs can be listed.".into());
+            return self.message("BASIC listing", "This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX81 .p files, Oric .tap tapes, and BBC, MSX, Atari, TRS-80 and SAM BASIC programs can be listed.".into());
         }
         let listing = basic::list(&bytes, &extension, doc.text.format.charset);
         // Colouring is ready for the listing when it opens.

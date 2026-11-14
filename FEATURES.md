@@ -161,6 +161,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | ZX Spectrum | +3DOS DSK disks, TR-DOS (`.trd`) and SCL, Microdrive cartridges (`.mdr`), TAP and TZX tapes, Z80 and SNA snapshots (BASIC, screen and memory) |
 | ZX Spectrum Next | `.nex` programs (V1.0 to V1.3): the loading screen (shown as the file's picture, with its palette), copper code, each 16K bank and anything appended, with every header setting in Info; F9 runs the whole program. NextZXOS SD card images (FAT16 or FAT32 partitions) can have files added, so a dot command goes in `/dot` |
 | SAM Coupé | `.mgt`, `.dsk` and SAD disks with SAMDOS, MasterDOS (with its folders and disk label) or BDOS, and Spectrum +D and DISCiPLE disks: every file type, with where CODE loads and runs, the line BASIC runs from and the date saved; Spectrum BASIC from them opens as a +3DOS file |
+| Oric-1 and Atmos | `.tap` tapes: BASIC programs and machine code, with where each loads and whether it runs when loaded |
 | Amstrad CPC / PCW | DSK disks (standard and extended), AMSDOS and CP/M |
 | Acorn | BBC/Electron DFS (`.ssd`, `.dsd`, Watford 62-file), ADFS S/M/L (`.ads`, `.adm`, `.adl`), RISC OS ADFS D/E/F (`.adf`), UEF tapes |
 | Macintosh | MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images; both forks and type/creator shown |
@@ -199,7 +200,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 
 ## BASIC programs
 
-- Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC (from disk or tape, saved from 32K or 16K machines), Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer), Dragon BASIC, TRS-80 Level II and Disk BASIC (Model I and III, from disk or tape), TRS-80 Model 4 BASIC, ZX81 BASIC (`.p`, `.81` and `.p81` files, with the screen saved with the program), and SAM BASIC with MasterDOS's and MasterBASIC's keywords.
+- Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC (from disk or tape, saved from 32K or 16K machines), Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer), Dragon BASIC, TRS-80 Level II and Disk BASIC (Model I and III, from disk or tape), TRS-80 Model 4 BASIC, ZX81 BASIC (`.p`, `.81` and `.p81` files, with the screen saved with the program), SAM BASIC with MasterDOS's and MasterBASIC's keywords, and Oric BASIC (from `.tap` tapes).
 - Tokenised from a listing: Spectrum (saved as `.tap`), Spectrum Next (`.bas`), Commodore (`.prg`) and BBC BASIC.
 - A listing opened from a program is sent as that program: edit a NextBASIC listing and Send to device sends it to the Next as a tokenised `.bas`, a C64 listing as a `.prg`, and so on, with no need to save it as a program first.
 - Listing and tokenising undo each other: tokenising a listing gives back the original bytes.
@@ -210,7 +211,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 - UDGs are drawn as their pictures, from the tape the program came from (a CODE block loaded at USR "a"), the snapshot it came from, its own DATA lines when it POKEs them in at USR "a", or a file chosen with Spectrum UDG pictures from. Putting the cursor in one shows it as text again, to edit.
 - ZX81 listings follow the ROM's own spacing; inverse characters are written `%A`, as zxtext2p reads them, and block graphics as the matching Unicode characters.
 - SAM BASIC listings space keywords as the SAM's LIST does, and write colour codes in strings as `{PEN 2}`, `{AT 1,5}`.
-- MSX-BASIC, Atari BASIC, and the TRS-80's, ZX81's and SAM's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops. MBASIC, MSX-BASIC and TRS-80 Model 4 programs, which are saved alike, are told apart by the tokens in them.
+- MSX-BASIC, Atari BASIC, and the TRS-80's, ZX81's, SAM's and Oric's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops. MBASIC, MSX-BASIC and TRS-80 Model 4 programs, which are saved alike, are told apart by the tokens in them.
 
 ## Searching and comparing
 

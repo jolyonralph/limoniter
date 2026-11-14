@@ -19,6 +19,7 @@ mod lha;
 mod lif;
 mod mac;
 mod nex;
+pub(crate) mod oric;
 mod rp9;
 mod sam;
 mod sectors;
@@ -247,6 +248,8 @@ enum Format {
     Cas,
     /// A SAM Coupé or +D disk.
     Sam,
+    /// An Oric tape.
+    OricTape,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -296,6 +299,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if ending == "cas" && cas::looks_like(head) {
         return Some(Format::Cas);
+    }
+    if ending == "tap" && oric::looks_like(head) {
+        return Some(Format::OricTape);
     }
     if at(0, b"ZXTape!\x1A") {
         return Some(Format::ZxTape);
@@ -449,6 +455,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Nex) => Ok(Box::new(nex::Nex::open(source)?)),
         Some(Format::Cas) => Ok(Box::new(cas::Cas::open(source)?)),
         Some(Format::Sam) => Ok(Box::new(sam::Sam::open(source)?)),
+        Some(Format::OricTape) => Ok(Box::new(oric::OricTape::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }
