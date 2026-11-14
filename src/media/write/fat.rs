@@ -107,7 +107,7 @@ fn serial() -> u32 {
 }
 
 /// Today's date and the time now, as FAT keeps them (local time isn't known here, so it's UTC).
-fn now() -> (u16, u16) {
+pub(super) fn now() -> (u16, u16) {
     let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let days = (seconds / 86_400) as i64;
     let secs = seconds % 86_400;

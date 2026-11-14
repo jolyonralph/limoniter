@@ -6,13 +6,17 @@
 //! marked in its BAM, a Spectrum tape's blocks carry their checksums. What it can't do safely it refuses, saying
 //! why, rather than leave an image the machine can't read.
 
+mod acorn;
+mod adfs;
 mod amiga;
+mod apple2;
 mod atari;
 mod cbm;
 mod coco;
 mod fat;
 mod plus3;
 mod tape;
+mod trdos;
 
 use super::{Entry, Format};
 use std::path::Path;
@@ -115,6 +119,15 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::Atari8) => Ok(Box::new(atari::Disk::open(bytes)?)),
         Some(Format::Coco) => Ok(Box::new(coco::Disk::open(bytes, &ending)?)),
         Some(Format::Dsk) => Ok(Box::new(plus3::Disk::open(bytes)?)),
+        Some(Format::Apple2) => apple2::open(bytes, &ending),
+        Some(Format::Dfs | Format::DoubleDfs) => Ok(Box::new(acorn::Dfs::open(bytes, ending == "dsd")?)),
+        // An Amiga disk that only looked like ADFS is still changed as the Amiga disk it is.
+        Some(Format::Adfs) => match adfs::Adfs::open(bytes.clone(), &ending) {
+            Ok(adfs) => Ok(Box::new(adfs)),
+            Err(problem) => amiga::Adf::open(bytes).map(|adf| Box::new(adf) as Box<dyn ImageWriter>).map_err(|_| problem),
+        },
+        Some(Format::TrDos) => Ok(Box::new(trdos::Trd::open(bytes)?)),
+        Some(Format::Scl) => Ok(Box::new(trdos::Scl::open(bytes)?)),
         Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
         None => Err("This isn't an image Limoniter can change.".into()),
     }
@@ -126,7 +139,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs | Format::TrDos | Format::Scl)
         )
 }
 
@@ -149,10 +162,21 @@ pub enum Blank {
     PcFloppy720,
     PcFloppy1440,
     AtariSt720,
+    AppleDos,
+    AppleProdos,
+    AppleProdos800,
+    BbcSsd40,
+    BbcSsd80,
+    BbcDsd80,
+    AdfsS,
+    AdfsM,
+    AdfsL,
+    TrDos,
+    Scl,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 16] = [
+    pub const ALL: [Blank; 27] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -169,6 +193,17 @@ impl Blank {
         Blank::PcFloppy720,
         Blank::PcFloppy1440,
         Blank::AtariSt720,
+        Blank::AppleDos,
+        Blank::AppleProdos,
+        Blank::AppleProdos800,
+        Blank::BbcSsd40,
+        Blank::BbcSsd80,
+        Blank::BbcDsd80,
+        Blank::AdfsS,
+        Blank::AdfsM,
+        Blank::AdfsL,
+        Blank::TrDos,
+        Blank::Scl,
     ];
 
     /// What it is, for the New image box.
@@ -190,6 +225,17 @@ impl Blank {
             Blank::PcFloppy720 => "PC floppy, 720K, FAT12 (.img)",
             Blank::PcFloppy1440 => "PC floppy, 1.44MB, FAT12 (.img)",
             Blank::AtariSt720 => "Atari ST floppy, 720K (.st)",
+            Blank::AppleDos => "Apple II disk, 140K, DOS 3.3 (.dsk)",
+            Blank::AppleProdos => "Apple II disk, 140K, ProDOS (.po)",
+            Blank::AppleProdos800 => "Apple II 3.5-inch disk, 800K, ProDOS (.po)",
+            Blank::BbcSsd40 => "BBC Micro disk, 100K, DFS (.ssd)",
+            Blank::BbcSsd80 => "BBC Micro disk, 200K, DFS (.ssd)",
+            Blank::BbcDsd80 => "BBC Micro disk, double-sided, 400K, DFS (.dsd)",
+            Blank::AdfsS => "BBC Micro / Master disc, 160K, ADFS S (.ads)",
+            Blank::AdfsM => "BBC Micro / Master disc, 320K, ADFS M (.adm)",
+            Blank::AdfsL => "BBC Micro / Master disc, 640K, ADFS L (.adl)",
+            Blank::TrDos => "ZX Spectrum TR-DOS disk, 640K (.trd)",
+            Blank::Scl => "ZX Spectrum TR-DOS archive (.scl)",
         }
     }
 
@@ -197,7 +243,8 @@ impl Blank {
         match self {
             Blank::SpectrumTap => "tap",
             Blank::SpectrumTzx => "tzx",
-            Blank::Plus3 | Blank::CocoSingle => "dsk",
+            Blank::Plus3 | Blank::CocoSingle | Blank::AppleDos => "dsk",
+            Blank::AppleProdos | Blank::AppleProdos800 => "po",
             Blank::D64 => "d64",
             Blank::D71 => "d71",
             Blank::D81 => "d81",
@@ -205,6 +252,13 @@ impl Blank {
             Blank::Atari90 | Blank::Atari130 => "atr",
             Blank::PcFloppy360 | Blank::PcFloppy720 | Blank::PcFloppy1440 => "img",
             Blank::AtariSt720 => "st",
+            Blank::BbcSsd40 | Blank::BbcSsd80 => "ssd",
+            Blank::BbcDsd80 => "dsd",
+            Blank::AdfsS => "ads",
+            Blank::AdfsM => "adm",
+            Blank::AdfsL => "adl",
+            Blank::TrDos => "trd",
+            Blank::Scl => "scl",
         }
     }
 
@@ -227,6 +281,17 @@ impl Blank {
             Blank::PcFloppy720 => fat::blank(fat::Floppy::Pc720, label),
             Blank::PcFloppy1440 => fat::blank(fat::Floppy::Pc1440, label),
             Blank::AtariSt720 => fat::blank(fat::Floppy::St720, label),
+            Blank::AppleDos => apple2::blank_dos(),
+            Blank::AppleProdos => apple2::blank_prodos(280, label),
+            Blank::AppleProdos800 => apple2::blank_prodos(1600, label),
+            Blank::BbcSsd40 => acorn::blank(40, false, label),
+            Blank::BbcSsd80 => acorn::blank(80, false, label),
+            Blank::BbcDsd80 => acorn::blank(80, true, label),
+            Blank::AdfsS => adfs::blank(640, label),
+            Blank::AdfsM => adfs::blank(1280, label),
+            Blank::AdfsL => adfs::blank(2560, label),
+            Blank::TrDos => trdos::blank(label),
+            Blank::Scl => trdos::blank_scl(),
         }
     }
 }
@@ -274,7 +339,8 @@ pub(crate) mod tests {
                 continue;
             }
             let volume = open(Arc::new(bytes.clone()), &name).unwrap_or_else(|e| panic!("{blank:?}: {e}"));
-            assert!(volume.list(None).unwrap().is_empty(), "{blank:?} isn't empty");
+            // A double-sided DFS disk's two sides are folders, each empty.
+            assert!(volume.list(None).unwrap().iter().all(|side| side.is_dir && volume.list(Some(side)).unwrap().is_empty()), "{blank:?} isn't empty");
             assert!(writer(&name, bytes).is_ok(), "{blank:?} can't be written to");
         }
     }
