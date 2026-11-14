@@ -30,7 +30,13 @@ fn save(volume: &dyn Volume, dir: Option<&Entry>, prefix: &str, out: &Path, list
                     listing.push_str(&format!("    BASIC {}: {} lines {:?}\n", basic.dialect, basic.lines.len(), basic.notes));
                     let _ = std::fs::write(out.join(format!("{}.lst", path.replace('/', "_"))), basic.lines.join("\n"));
                 }
-                let target = out.join(path.replace('/', "_"));
+                // A second file of the same name, as tapes often have, is kept as name#2.
+                let mut target = out.join(path.replace('/', "_"));
+                let mut copy = 1;
+                while target.exists() {
+                    copy += 1;
+                    target = out.join(format!("{}#{copy}", path.replace('/', "_")));
+                }
                 let _ = std::fs::write(target, &bytes);
             }
             Err(problem) => listing.push_str(&format!("  READ {path}: {problem}\n")),
