@@ -25,7 +25,10 @@ use crate::charset::{self, Charset};
 
 /// Lists a program in one of these BASICs, if its bytes (or, where they say nothing, its ending) show it's one.
 pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<Listing> {
-    if is_zx81_ending(extension) {
+    // A Commodore program's ending says what it is.
+    if matches!(extension, "prg" | "p00") {
+        None
+    } else if is_zx81_ending(extension) {
         Some(list_zx81(data))
     } else if looks_like_sam_basic(data) {
         Some(list_sam(data))
