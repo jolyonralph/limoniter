@@ -353,7 +353,7 @@ impl OricDisk {
                 0 => SEDORIC_SECTOR,
                 end => end,
             };
-            for entry in directory[16..used.clamp(16, SEDORIC_SECTOR)].chunks_exact(16) {
+            for entry in directory[16..used.clamp(16, SEDORIC_SECTOR)].as_chunks::<16>().0 {
                 if entry[12] != 0 || entry[13] != 0 {
                     files.push(read_file(&disk, entry));
                 }
@@ -401,8 +401,8 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
             header = Some((descriptor[3], word(4), word(6), word(8), usize::from(word(10))));
         }
         let count = header.map_or(0, |h| h.4);
-        for pair in descriptor[if first { 12 } else { 2 }..].chunks_exact(2) {
-            if sectors.len() < count && pair != [0, 0] {
+        for pair in descriptor[if first { 12 } else { 2 }..].as_chunks::<2>().0 {
+            if sectors.len() < count && *pair != [0, 0] {
                 sectors.push((pair[0], pair[1]));
             }
         }

@@ -395,7 +395,7 @@ fn generalised_bytes(block: &[u8]) -> Option<(Vec<u8>, bool)> {
     let symbol = |index: usize| -> Option<usize> {
         let from = at + index * (1 + 2 * data_pulses) + 1;
         let pulses = block.get(from..from + 2 * data_pulses)?;
-        Some(pulses.chunks_exact(2).take_while(|p| *p != [0, 0]).count())
+        Some(pulses.as_chunks::<2>().0.iter().take_while(|p| **p != [0, 0]).count())
     };
     let (zero, one) = (symbol(0)?, symbol(1)?);
     let zx81 = matches!((zero.min(one), zero.max(one)), (6..=10, 14..=22));
