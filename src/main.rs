@@ -18,6 +18,7 @@ mod basic_extra;
 mod basic_more;
 mod opticbasic;
 mod char_table;
+mod clambers;
 mod charset;
 mod code_format;
 mod codec;

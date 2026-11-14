@@ -207,6 +207,7 @@ enum Command {
     Disassemble,
     NewImage,
     OpenUrl,
+    Clambers,
     CleanRecent,
     ClearRecent,
     PixelEditor,
@@ -290,6 +291,7 @@ impl Command {
         matches!(
             self,
             Command::New
+                | Command::Clambers
                 | Command::Open
                 | Command::Help
                 | Command::NewInstance
@@ -630,6 +632,8 @@ struct Document {
     window_number: usize,
     /// For a disk, tape or CD image or an archive: the browser showing in the text's place.
     browser: Option<Box<image_browser::ImageBrowser>>,
+    /// The hidden game, playing in the text's place.
+    game: Option<Box<clambers_host::Playing>>,
 }
 
 /// Anything that changes what a recovery copy would hold.
@@ -724,6 +728,7 @@ impl Document {
             windows: Vec::new(),
             window_number: 1,
             browser: None,
+            game: None,
         }
     }
 
@@ -1890,6 +1895,9 @@ impl Limoniter {
     }
 
     fn save(&mut self, index: usize) -> bool {
+        if self.docs[index].game.is_some() {
+            return false;
+        }
         if self.docs[index].browser.is_some() {
             self.message("Save", "An image or archive is only read here, so nothing is saved over it. Save a copy takes a file out of it.".into());
             return false;
@@ -1901,6 +1909,9 @@ impl Limoniter {
     }
 
     fn save_as(&mut self, index: usize) -> bool {
+        if self.docs[index].game.is_some() {
+            return false;
+        }
         if self.docs[index].browser.is_some() {
             self.message("Save as", "An image or archive is only read here. Save a copy, in the browser, takes a file out of it.".into());
             return false;
@@ -3594,6 +3605,7 @@ impl Limoniter {
             Command::Disassemble => self.open_disassemble_box(),
             Command::NewImage => self.open_new_image_box(),
             Command::OpenUrl => self.open_web_box(),
+            Command::Clambers => self.open_clambers(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
             Command::ToggleTerminal => self.toggle_terminal(),
@@ -6613,6 +6625,10 @@ impl Limoniter {
                 self.browser_view(ui);
                 return;
             }
+            if self.docs[index].game.is_some() {
+                self.clambers_view(ui);
+                return;
+            }
             let doc = &mut self.docs[index];
             if doc.placeholder {
                 return;
@@ -7343,6 +7359,8 @@ mod addon_host;
 mod remote_host;
 #[path = "web_host.rs"]
 mod web_host;
+#[path = "clambers_host.rs"]
+mod clambers_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;

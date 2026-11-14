@@ -661,6 +661,15 @@ impl PaletteState {
     }
 }
 
+/// Commands found only by typing their whole name, never listed.
+pub(super) fn hidden_commands(query: &str) -> Vec<Found> {
+    if query.trim().eq_ignore_ascii_case("clambers") {
+        vec![Found { path: "Clambers".into(), shortcut: "", command: Command::Clambers }]
+    } else {
+        Vec::new()
+    }
+}
+
 /// Every command, with where it is in the menus, so the command box can find it by any of those words.
 pub(super) fn every_command() -> Vec<Found> {
     fn walk(entries: &[Entry], path: &str, out: &mut Vec<Found>) {
@@ -1329,7 +1338,8 @@ impl Limoniter {
         all.push(Found { path: format!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_NAME), shortcut: "", command: Command::RunOnBuiltIn });
         all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: format!("File \u{203A} Run on \u{203A} {}", device.name), shortcut: "", command: Command::RunOn(number) }));
         all.extend(self.addons.commands().into_iter().enumerate().map(|(number, listed)| Found { path: format!("Tools \u{203A} Add-ons \u{203A} {} \u{203A} {}", listed.addon, listed.title), shortcut: "", command: Command::AddOn(number) }));
-        let found = matching(&query, all);
+        let mut found = hidden_commands(&query);
+        found.extend(matching(&query, all));
         let usable: Vec<bool> = found.iter().map(|each| self.can(each.command)).collect();
         let states: Vec<Option<bool>> = found.iter().map(|each| if let Command::Toggle(flag) = each.command { Some(self.flag_on(flag)) } else { None }).collect();
         let Dialog::Palette(state) = &mut self.dialog else {
