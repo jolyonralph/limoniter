@@ -6,6 +6,8 @@
 //! marked in its BAM, a Spectrum tape's blocks carry their checksums. What it can't do safely it refuses, saying
 //! why, rather than leave an image the machine can't read.
 
+mod acorn;
+mod adfs;
 mod amiga;
 mod atari;
 mod cbm;
@@ -115,6 +117,12 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::Atari8) => Ok(Box::new(atari::Disk::open(bytes)?)),
         Some(Format::Coco) => Ok(Box::new(coco::Disk::open(bytes, &ending)?)),
         Some(Format::Dsk) => Ok(Box::new(plus3::Disk::open(bytes)?)),
+        Some(Format::Dfs | Format::DoubleDfs) => Ok(Box::new(acorn::Dfs::open(bytes, ending == "dsd")?)),
+        // An Amiga disk that only looked like ADFS is still changed as the Amiga disk it is.
+        Some(Format::Adfs) => match adfs::Adfs::open(bytes.clone(), &ending) {
+            Ok(adfs) => Ok(Box::new(adfs)),
+            Err(problem) => amiga::Adf::open(bytes).map(|adf| Box::new(adf) as Box<dyn ImageWriter>).map_err(|_| problem),
+        },
         Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
         None => Err("This isn't an image Limoniter can change.".into()),
     }
@@ -126,7 +134,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Dfs | Format::DoubleDfs | Format::Adfs)
         )
 }
 
@@ -149,10 +157,16 @@ pub enum Blank {
     PcFloppy720,
     PcFloppy1440,
     AtariSt720,
+    BbcSsd40,
+    BbcSsd80,
+    BbcDsd80,
+    AdfsS,
+    AdfsM,
+    AdfsL,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 16] = [
+    pub const ALL: [Blank; 22] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -169,6 +183,12 @@ impl Blank {
         Blank::PcFloppy720,
         Blank::PcFloppy1440,
         Blank::AtariSt720,
+        Blank::BbcSsd40,
+        Blank::BbcSsd80,
+        Blank::BbcDsd80,
+        Blank::AdfsS,
+        Blank::AdfsM,
+        Blank::AdfsL,
     ];
 
     /// What it is, for the New image box.
@@ -190,6 +210,12 @@ impl Blank {
             Blank::PcFloppy720 => "PC floppy, 720K, FAT12 (.img)",
             Blank::PcFloppy1440 => "PC floppy, 1.44MB, FAT12 (.img)",
             Blank::AtariSt720 => "Atari ST floppy, 720K (.st)",
+            Blank::BbcSsd40 => "BBC Micro disk, 100K, DFS (.ssd)",
+            Blank::BbcSsd80 => "BBC Micro disk, 200K, DFS (.ssd)",
+            Blank::BbcDsd80 => "BBC Micro disk, double-sided, 400K, DFS (.dsd)",
+            Blank::AdfsS => "BBC Micro / Master disc, 160K, ADFS S (.ads)",
+            Blank::AdfsM => "BBC Micro / Master disc, 320K, ADFS M (.adm)",
+            Blank::AdfsL => "BBC Micro / Master disc, 640K, ADFS L (.adl)",
         }
     }
 
@@ -205,6 +231,11 @@ impl Blank {
             Blank::Atari90 | Blank::Atari130 => "atr",
             Blank::PcFloppy360 | Blank::PcFloppy720 | Blank::PcFloppy1440 => "img",
             Blank::AtariSt720 => "st",
+            Blank::BbcSsd40 | Blank::BbcSsd80 => "ssd",
+            Blank::BbcDsd80 => "dsd",
+            Blank::AdfsS => "ads",
+            Blank::AdfsM => "adm",
+            Blank::AdfsL => "adl",
         }
     }
 
@@ -227,6 +258,12 @@ impl Blank {
             Blank::PcFloppy720 => fat::blank(fat::Floppy::Pc720, label),
             Blank::PcFloppy1440 => fat::blank(fat::Floppy::Pc1440, label),
             Blank::AtariSt720 => fat::blank(fat::Floppy::St720, label),
+            Blank::BbcSsd40 => acorn::blank(40, false, label),
+            Blank::BbcSsd80 => acorn::blank(80, false, label),
+            Blank::BbcDsd80 => acorn::blank(80, true, label),
+            Blank::AdfsS => adfs::blank(640, label),
+            Blank::AdfsM => adfs::blank(1280, label),
+            Blank::AdfsL => adfs::blank(2560, label),
         }
     }
 }
@@ -274,7 +311,8 @@ pub(crate) mod tests {
                 continue;
             }
             let volume = open(Arc::new(bytes.clone()), &name).unwrap_or_else(|e| panic!("{blank:?}: {e}"));
-            assert!(volume.list(None).unwrap().is_empty(), "{blank:?} isn't empty");
+            // A double-sided DFS disk's two sides are folders, each empty.
+            assert!(volume.list(None).unwrap().iter().all(|side| side.is_dir && volume.list(Some(side)).unwrap().is_empty()), "{blank:?} isn't empty");
             assert!(writer(&name, bytes).is_ok(), "{blank:?} can't be written to");
         }
     }
