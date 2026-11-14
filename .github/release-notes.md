@@ -1,33 +1,25 @@
-## What's new in 0.6.0
+## What's new in 0.7.0
 
-Limoniter becomes an IDE, for the old machines and the new.
+Limoniter now writes to the disks and tapes it reads, builds sjasmplus projects as sjasmplus does, and reads many more machines' media.
 
-**Knowing your code** (Z80, 6502, 6809 and 68000 source)
-- **Completion** as you type: instructions, directives, your labels and macros; BASIC keywords in Spectrum and Commodore listings.
-- **Hover** over a label for its value, or an instruction for its address, bytes and timing.
-- **Go to definition** (F12), **Find all uses** (Shift+F12) and **Rename** (Ctrl+F12), across INCLUDEd files.
-- **Problems as you type**, and an **outline** of labels, macros and ORGs in the Functions panel.
+**Changing disk and tape images**
+- **Add, delete and rename files** (or drop them on the tab) on Spectrum TAP/TZX tapes and +3 disks, Commodore D64/D71/D81, PC and Atari ST FAT disks, Amiga ADF, Atari 8-bit DOS 2 and Color Computer RS-DOS images; make folders, reorder a tape. Each change is saved at once and can be undone.
+- **File › New disk or tape image**: blank ones, formatted as their machine formats them.
+- Every writer is checked against its machine's own tools (c1541, mtools and fsck, amitools, atrcopy, ToolShed, cpmtools, fuse-utils).
 
-**Language servers** for everything else (Settings, Editing; off until switched on)
-- Completion, hover, definitions, uses, renaming and problems from rust-analyzer, clangd, pylsp, gopls and others.
+**For the Spectrum Next**
+- **sjasmplus projects build as sjasmplus builds them**: devices and paged memory (MMU, SLOT, PAGE), SAVENEX with all its commands, SAVESNA, SAVEBIN, SAVETAP and the rest, written beside the source; MODULE, STRUCT, DEFINE, IFUSED, RELOCATE, fake instructions and more. 52 real projects from GitHub give the same bytes as sjasmplus.
+- **.nex files open** as their loading screen, palette and banks; Next Layer 2 and LoRes screens are pictures.
+- **Dot commands** build, and go on a NextZXOS SD card image from the browser.
 
-**Debugging**
-- **Call stack, watches and a memory window** that picks out what changed.
-- **Conditional breakpoints** (`A=0 && [count]>3`) and **stopping when an address is written**.
-- **Spectrum BASIC**: breakpoints on lines, a statement at a time, and its variables, on the built-in Spectrum.
-- **6809 programs in XRoar** and **68000 programs in Hatari**.
-- **A real Next**, through DeZog's dezogif on a serial cable (not yet tried on a real Next: tell us how it goes).
-- **A profiler** on the built-in Spectrum: T-states by routine and line.
+**OpticOS**
+- **OpticBASIC**, the BASIC of the OpticOS replacement ROM, lists and tokenises exactly as the ROM does, and **F9 runs it** on the built-in Spectrum with the OpticOS ROM (included, MIT licence).
 
-**Tools for the old machines**
-- **Disassembler** for the Z80 (and Next), 6502 and 6809: traced, labelled, and always assembling back to the same bytes.
-- **Character and sprite editor**: UDGs, fonts and the Next's 256-colour sprites, to and from DB lines and files.
-- **Spectrum screen designer**: draw with INK, PAPER, BRIGHT and FLASH; bring in a PNG; save a .scr.
-
-**For every project**
-- **Terminal** (Ctrl+`): your shell in a panel, on a real pseudo-terminal.
-- **Tasks**: build, run and test commands found from Cargo, Make, npm, Go, pytest and CMake, or your project's own; **Ctrl+Shift+B** builds, **Ctrl+Shift+T** tests.
-- **Problems read back** from compilers and marked by their lines; **test results** listed test by test, with Run only this.
+**More media read**
+- **Floppy flux images** from a Greaseweazle, SuperCard Pro or KryoFlux (`.scp`, `.hfe`, KryoFlux streams): PC, Atari ST, Amiga, C64, Apple II and more, decoded to their files.
+- **Mac**: HFS+ disks and `.dmg` images; MacBinary, BinHex and StuffIt archives.
+- **Apple II WOZ** images; **Atari 8-bit** XEX programs and pictures.
+- **TRS-80** BASIC and tapes, **ZX81** programs, **MSX** tapes, **SAM Coupé** disks and BASIC, **Oric** tapes and BASIC.
 
 ## Downloads
 
