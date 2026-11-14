@@ -141,7 +141,7 @@ Shown at the machine's own pixel shape, with details from the file, and saved as
 - Kodak Photo CD (`.pcd`) at its highest resolution, up to 16Base (3072 x 2048).
 - ZSoft PCX (monochrome, EGA, 256-colour and 24-bit) and GEM bit images (`.img`, with XIMG palettes).
 - Apple II hi-res screens, in the colours an NTSC monitor gave them.
-- Atari 8-bit screens: Graphics 8 (`.gr8`), Graphics 15 and MicroPainter (`.mic`, and MicroPainter `.pic` and `.kmp`, with the colours saved with them), Graphics 9 (`.gr9`) and Graphics 7 (`.gr7`), in the Atari's NTSC colours.
+- Atari 8-bit screens: Graphics 8 (`.gr8`), Graphics 15 and MicroPainter (`.mic`, and MicroPainter `.pic` and `.kmp`, with the colours saved with them), Graphics 9 (`.gr9`) and Graphics 7 (`.gr7`), Koala MicroIllustrator's packed `.pic` pictures (Graphics 15 and 9, with their saved colours) and HIP pictures (`.hip`, a Graphics 9 and a Graphics 10 screen mixed, as the eye mixes them on screen), in the Atari's NTSC colours.
 
 ## Disk, tape and archive browser
 
