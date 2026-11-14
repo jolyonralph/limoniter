@@ -54,7 +54,7 @@ pub const KNOWN: &[Emulator] = &[
         programs: &["fuse", "fuse-sdl", "fuse-gtk"],
         folder_hints: &["fuse"],
         mac_apps: &[("Fuse.app", "Fuse")],
-        machines: &[Spectrum48, Spectrum128, SpectrumPlus3, Pentagon],
+        machines: &[Spectrum48, Spectrum128, SpectrumPlus3, Pentagon, OpticOs],
         formats: &[Tap, Tzx, Z80, Sna, Dsk, Trd, Scl],
         link: Link::None,
         website: "https://fuse-emulator.sourceforge.net",
@@ -188,6 +188,11 @@ impl Emulator {
                     args.extend(["--enable-remoteprotocol".into(), "--remoteprotocol-port".into(), port.to_string()]);
                 }
                 args.push(file);
+            }
+            // OpticOS: its ROM in a 48K, and the tape inserted for LOAD "" to be typed, as Fuse's auto-load types
+            // the Sinclair ROM's keyword.
+            "fuse" if machine == OpticOs => {
+                args.extend(["--machine".into(), "48".into(), "--rom-48".into(), crate::zx_machine::opticos_rom_file().display().to_string(), "--tape".into(), file]);
             }
             "fuse" => {
                 let id = match machine {

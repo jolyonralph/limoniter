@@ -14,10 +14,11 @@ pub(super) enum Program {
     Next,
     C64,
     Bbc,
+    OpticOs,
 }
 
 impl Program {
-    pub const ALL: [Self; 5] = [Self::None, Self::Spectrum, Self::Next, Self::C64, Self::Bbc];
+    pub const ALL: [Self; 6] = [Self::None, Self::Spectrum, Self::Next, Self::C64, Self::Bbc, Self::OpticOs];
 
     fn id(self) -> &'static str {
         match self {
@@ -26,6 +27,7 @@ impl Program {
             Self::Next => "next",
             Self::C64 => "c64",
             Self::Bbc => "bbc",
+            Self::OpticOs => "opticos",
         }
     }
 
@@ -36,6 +38,7 @@ impl Program {
             Self::Next => "A Spectrum Next program (.bas)",
             Self::C64 => "A Commodore 64 program (.prg)",
             Self::Bbc => "A BBC BASIC program",
+            Self::OpticOs => "An OpticOS program (.tap)",
         }
     }
 
@@ -46,6 +49,7 @@ impl Program {
             Self::Next => Some(basic::Machine::Next),
             Self::C64 => Some(basic::Machine::Commodore(basic::CbmMachine::C64)),
             Self::Bbc => Some(basic::Machine::Bbc),
+            Self::OpticOs => Some(basic::Machine::OpticOs),
         }
     }
 }
@@ -82,6 +86,7 @@ impl NewKind {
             Self::new("Spectrum Next BASIC", "bas", "utf-8", line, highlight::BASIC_SINCLAIR, Program::Next, "10 PRINT \"Hello from Limoniter\""),
             Self::new("Commodore 64 BASIC", "bas", "utf-8", line, highlight::BASIC_COMMODORE, Program::C64, "10 PRINT \"HELLO FROM LIMONITER\""),
             Self::new("BBC BASIC", "bas", "utf-8", line, "", Program::Bbc, "10 PRINT \"Hello from Limoniter\""),
+            Self::new("OpticBASIC (OpticOS)", "bas", "utf-8", line, "", Program::OpticOs, "DEF PROC hello\n  PRINT \"Hello from Limoniter\"\nENDPROC\nhello"),
             Self::new("Z80 assembler", "asm", "utf-8", line, "Assembly Z80", Program::None, "        org 32768\nstart:  ld a,2\n        out (254),a         ; a red border\n        ret"),
             Self::new("6502 assembler", "a65", "utf-8", line, "Assembly 6502", Program::None, "        * = $c000\nstart:  lda #2\n        sta $d020           ; a red border\n        rts"),
             Self::new("6809 assembler", "asm", "utf-8", line, "Assembly 6809", Program::None, "        org $3000\nstart:  lda #1\n        rts\n        end start"),

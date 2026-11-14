@@ -735,11 +735,28 @@ fn zx_block(block: &[u8], header: &mut Option<ZxHeader>, listing: &mut Listing) 
         if !listing.lines.is_empty() {
             listing.lines.push(String::new());
         }
+        // An OpticBASIC program (OpticOS's) is the whole block, its signature first.
+        if crate::opticbasic::is_program(body) {
+            optic_lines(body, listing);
+            return;
+        }
         let program = &body[..usize::from(found.program).min(body.len())];
         zx_lines(program, listing);
         if body.len() > program.len() {
             listing.notes.push(format!("{}'s variables, saved after its lines, aren't listed.", found.name));
         }
+    }
+}
+
+/// The name OpticBASIC listings go by.
+pub const OPTICBASIC: &str = "OpticBASIC (OpticOS)";
+
+/// An OpticBASIC program's lines added to a listing, as OpticOS lists them.
+fn optic_lines(program: &[u8], listing: &mut Listing) {
+    listing.dialect = OPTICBASIC;
+    match crate::opticbasic::list(program) {
+        Ok(lines) => listing.lines.extend(lines),
+        Err(problem) => listing.notes.push(problem),
     }
 }
 
@@ -1411,7 +1428,11 @@ pub fn plus3dos_basic(program_and_variables: &[u8], program_length: usize, run_f
 /// Lists whatever tokenised BASIC a file holds, telling the kind from its first bytes or else its name.
 pub fn list(data: &[u8], extension: &str, set: &Charset) -> Listing {
     use crate::basic_more;
-    if data.starts_with(b"PLUS3DOS") {
+    if crate::opticbasic::is_program(data) {
+        let mut listing = Listing::default();
+        optic_lines(data, &mut listing);
+        listing
+    } else if data.starts_with(b"PLUS3DOS") {
         list_plus3(data)
     } else if data.starts_with(b"ZXTape!\x1A") {
         list_tzx(data)
@@ -1467,6 +1488,9 @@ pub fn machine_of(dialect: &str, extension: &str, bytes: &[u8]) -> Option<Machin
     if dialect == "BBC BASIC" {
         return Some(Machine::Bbc);
     }
+    if dialect == OPTICBASIC {
+        return Some(Machine::OpticOs);
+    }
     // A .p00 file has its own header before the load address.
     let load = if extension == "p00" { bytes.get(26..28) } else { bytes.get(0..2) }.map(|b| u16::from_le_bytes([b[0], b[1]]))?;
     CbmMachine::ALL.into_iter().find(|machine| machine.dialect() == dialect && machine.load_address() == load).map(Machine::Commodore)
@@ -1482,6 +1506,8 @@ pub enum Machine {
     Commodore(CbmMachine),
     /// A BBC Micro or Master, saved as SAVE writes a program.
     Bbc,
+    /// A Spectrum with the OpticOS ROM: OpticBASIC, saved on a tape.
+    OpticOs,
 }
 
 impl Machine {
@@ -1492,6 +1518,7 @@ impl Machine {
             Machine::Next => "bas",
             Machine::Commodore(_) => "prg",
             Machine::Bbc => "bbc",
+            Machine::OpticOs => "tap",
         }
     }
 
@@ -1502,6 +1529,7 @@ impl Machine {
             Machine::Next => "Spectrum Next program",
             Machine::Commodore(_) => "Commodore program",
             Machine::Bbc => "BBC BASIC program",
+            Machine::OpticOs => "OpticOS tape",
         }
     }
 }

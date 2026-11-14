@@ -1,0 +1,35 @@
+OpticOS. Copyright (c) 2026 Optica Technology Design.
+
+This repository is dual-licensed:
+
+1. CODE - MIT License
+   Applies to all source code and tools: *.asm, *.py, *.c, *.sh and any
+   data tables generated from them, including font/make_font.py,
+   font/font4x8.py and the packed font image font/font4x8.bin.
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+2. ARTWORK AND TEXT - Creative Commons Attribution 4.0 International
+   (CC BY 4.0), https://creativecommons.org/licenses/by/4.0/
+   Applies to the font artwork (font/font4.txt), the boot-screen and font-sheet
+   images in assets/, and the written documents (README.md and docs/).
+
+This is original, clean-room work. It contains no Sinclair, Amstrad or Tasword
+code, fonts or artwork. "ZX Spectrum" and "Sinclair" are used only to name the
+machine OpticOS runs on and belong to their respective owners.

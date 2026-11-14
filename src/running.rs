@@ -23,6 +23,8 @@ pub enum Machine {
     AtariSt,
     /// The Tandy Color Computer (and the Dragon, which runs the same machine code).
     CoCo,
+    /// A 48K Spectrum with the OpticOS ROM in place of Sinclair's, for OpticBASIC programs.
+    OpticOs,
 }
 
 impl Machine {
@@ -43,6 +45,7 @@ impl Machine {
             Machine::Cpc => "Amstrad CPC",
             Machine::AtariSt => "Atari ST",
             Machine::CoCo => "Tandy Color Computer",
+            Machine::OpticOs => "ZX Spectrum 48K with OpticOS",
         }
     }
 
@@ -64,6 +67,7 @@ impl Machine {
             Machine::Cpc => "cpc",
             Machine::AtariSt => "atarist",
             Machine::CoCo => "coco",
+            Machine::OpticOs => "opticos",
         }
     }
 
@@ -188,6 +192,7 @@ impl Runnable {
             basic::Machine::Next => (Machine::Next, Format::Plus3dos, basic::plus3dos_file(&basic::tokenise_spectrum(lines, basic::ZxDialect::Next)?, Some(0))),
             basic::Machine::Commodore(cbm) => (commodore(cbm), Format::Prg, basic::tokenise_commodore(lines, cbm)?),
             basic::Machine::Bbc => (Machine::Bbc, Format::Ssd, bbc_disc(stem, &crate::basic_more::tokenise_bbc(lines)?)),
+            basic::Machine::OpticOs => (Machine::OpticOs, Format::Tap, crate::opticbasic::tape(&crate::opticbasic::tokenise(lines)?, stem, None)),
         };
         Ok(Runnable { machine, format, name: format!("{}.{}", file_stem(stem), format.ending()), bytes: Arc::new(bytes) })
     }

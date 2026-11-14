@@ -307,6 +307,7 @@ pub(super) fn tokenised<S: AsRef<str>>(lines: &[S], machine: basic::Machine, ste
         basic::Machine::Next => basic::tokenise_spectrum(lines, basic::ZxDialect::Next).map(|program| basic::plus3dos_file(&program, run_from)),
         basic::Machine::Commodore(cbm) => basic::tokenise_commodore(lines, cbm),
         basic::Machine::Bbc => crate::basic_more::tokenise_bbc(lines),
+        basic::Machine::OpticOs => crate::opticbasic::tokenise(lines).map(|program| crate::opticbasic::tape(&program, stem, None)),
     }?;
     Ok((bytes, machine.ending(), machine.kind()))
 }

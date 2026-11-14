@@ -15,6 +15,7 @@ mod big_jobs;
 mod associations;
 mod basic;
 mod basic_more;
+mod opticbasic;
 mod char_table;
 mod charset;
 mod code_format;

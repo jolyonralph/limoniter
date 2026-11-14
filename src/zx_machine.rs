@@ -248,10 +248,43 @@ pub struct BuiltIn {
     loudest: f32,
 }
 
+/// OpticOS's ROM (github.com/brixham99/OpticOS, MIT licence: see vendor/opticos), which a 48K runs in place of
+/// Sinclair's for OpticBASIC programs.
+pub const OPTICOS_ROM: &[u8; 16384] = include_bytes!("../vendor/opticos/opticos.rom");
+
+/// The OpticOS ROM as a file, for an emulator to be given: written once into Limoniter's temporary folder.
+pub fn opticos_rom_file() -> std::path::PathBuf {
+    let path = std::env::temp_dir().join("limoniter").join("opticos-1.0.1.rom");
+    if std::fs::read(&path).ok().as_deref() != Some(&OPTICOS_ROM[..]) {
+        let _ = std::fs::create_dir_all(path.parent().expect("in a folder"));
+        let _ = std::fs::write(&path, OPTICOS_ROM);
+    }
+    path
+}
+
+/// A ROM from memory, as rustzx loads one.
+struct RomBytes(Option<&'static [u8]>);
+
+impl rustzx_core::host::RomSet for RomBytes {
+    type Asset = BufferCursor<&'static [u8]>;
+
+    fn format(&self) -> rustzx_core::host::RomFormat {
+        rustzx_core::host::RomFormat::Binary16KPages
+    }
+
+    fn next_asset(&mut self) -> Option<Self::Asset> {
+        self.0.take().map(BufferCursor::new)
+    }
+}
+
+/// The frames to give OpticOS from switching on before typing: its chime is 1.2 seconds, and keys pressed during
+/// it, or just after, are lost.
+const OPTICOS_BOOT_FRAMES: usize = 200;
+
 impl BuiltIn {
     /// Whether it can run this; if not, what it can't do.
     pub fn takes(run: &Runnable) -> Result<(), &'static str> {
-        if !matches!(run.machine, Machine::Spectrum48 | Machine::Spectrum128) {
+        if !matches!(run.machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::OpticOs) {
             return Err("is a 48K and 128K; this is for another machine.");
         }
         match run.format {
@@ -290,8 +323,9 @@ impl BuiltIn {
             tape_fastload_enabled: true,
             kempston_enabled: false,
             mouse_enabled: false,
-            load_default_rom: true,
-            autoload_enabled: true,
+            // OpticOS has its own ROM, and its own LOAD "" typed, as the autoload snapshot is the Sinclair ROM's.
+            load_default_rom: machine != Machine::OpticOs,
+            autoload_enabled: machine != Machine::OpticOs,
             // The beeper, and the 128K's AY chip in stereo, at the speaker's own rate.
             ay_mode: rustzx_core::zx::sound::ay::ZXAYMode::ABC,
             ay_enabled: true,
@@ -302,6 +336,10 @@ impl BuiltIn {
         };
         let mut emulator = Emulator::<LimoniterHost>::new(settings, Context).map_err(|e| format!("The built-in Spectrum couldn't start: {e:?}"))?;
         emulator.set_debug_interface(Breaks::default());
+        if machine == Machine::OpticOs {
+            emulator.load_rom(RomBytes(Some(&OPTICOS_ROM[..]))).map_err(|e| format!("The OpticOS ROM couldn't be loaded: {e:?}"))?;
+            return Self::start_opticos(emulator, run, snapshot, speaker);
+        }
         match snapshot {
             Some(sna) => emulator.load_snapshot(Snapshot::Sna(BufferCursor::new(sna))).map_err(|e| format!("The snapshot couldn't be loaded: {e:?}"))?,
             None => {
@@ -334,6 +372,36 @@ impl BuiltIn {
             }
         }
         Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+    }
+
+    /// OpticOS started, with the program's tape in: it boots (playing its chime), and LOAD "" is typed for it, then
+    /// RUN for an OpticBASIC program that doesn't start itself.
+    fn start_opticos(mut emulator: Emulator<LimoniterHost>, run: &Runnable, snapshot: Option<Vec<u8>>, speaker: Option<crate::speaker::Speaker>) -> Result<BuiltIn, String> {
+        if snapshot.is_some() {
+            return Err("OpticOS runs tapes; a snapshot holds its own ROM's state.".into());
+        }
+        let tap = if run.format == Format::Tzx { tzx_to_tap(&run.bytes)? } else { run.bytes.to_vec() };
+        // An OpticBASIC program whose header names no PROC to start is RUN once it's loaded.
+        let blocks = crate::basic::tape_blocks(&tap).0;
+        let needs_run = blocks.len() >= 2 && blocks[0].len() >= 18 && blocks[0][1] == 0 && u16::from_le_bytes([blocks[0][14], blocks[0][15]]) >= 0x8000 && blocks[1].get(1..5) == Some(&crate::opticbasic::SIGNATURE[..]);
+        // The tape is left stopped: OpticOS keeps the tape routines where emulators catch them, so its LOAD is
+        // given each block at once.
+        emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
+        let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+        // Past the boot chime to the prompt, at once.
+        for _ in 0..OPTICOS_BOOT_FRAMES {
+            built.frame()?;
+        }
+        for c in "LOAD \"\"\n".chars() {
+            built.type_char(c);
+        }
+        if needs_run {
+            for c in "RUN\n".chars() {
+                built.type_char(c);
+            }
+        }
+        built.speaker = speaker;
+        Ok(built)
     }
 
     /// Runs the frames due since last time: at the Spectrum's own speed, catching up at most a few frames, so a
@@ -1045,6 +1113,26 @@ pub fn tzx_to_tap(tzx: &[u8]) -> Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// OpticOS boots in the built-in Spectrum, LOAD "" is typed, and an OpticBASIC program typed in Limoniter loads
+    /// and runs: its PRINT ends up on the screen's bitmap, and the program sits where OpticOS keeps it.
+    #[test]
+    fn opticos_boots_loads_and_runs_an_opticbasic_program() {
+        let lines = ["CLS", "FOR i = 1 TO 5", "PRINT i * 7", "NEXT"];
+        let run = Runnable::from_listing(&lines, crate::basic::Machine::OpticOs, "sevens").unwrap();
+        assert_eq!((run.machine, run.format), (Machine::OpticOs, Format::Tap));
+        let mut spectrum = BuiltIn::start(&run).unwrap();
+        assert_eq!(spectrum.peek(0), OPTICOS_ROM[0], "OpticOS's ROM, not Sinclair's");
+        for _ in 0..600 {
+            spectrum.frame().unwrap();
+        }
+        let program = crate::opticbasic::tokenise(&lines).unwrap();
+        let loaded: Vec<u8> = (0..program.len() as u16).map(|i| spectrum.peek(0x5DF0 + i)).collect();
+        assert_eq!(loaded, program, "loaded at PROG");
+        let ink = (0x4000..0x5800u16).filter(|a| spectrum.peek(*a) != 0).count();
+        assert!(ink > 20, "something was printed ({ink} bytes of the bitmap set)");
+    }
+
     use super::*;
     use std::sync::Arc;
 

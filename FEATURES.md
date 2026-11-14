@@ -201,6 +201,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 
 - Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC, Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer) and Dragon BASIC.
 - Tokenised from a listing: Spectrum (saved as `.tap`), Spectrum Next (`.bas`), Commodore (`.prg`) and BBC BASIC.
+- **OpticBASIC**, the BASIC of [OpticOS](https://github.com/brixham99/OpticOS) (a clean-room replacement ROM for the 48K Spectrum, with no line numbers): its programs on tape list as OpticOS lists them, indented by their blocks, and a listing tokenises back exactly as the ROM tokenises what's typed (checked against the programs OpticOS itself saved). **F9 runs it**: the built-in Spectrum starts with the OpticOS ROM (which comes with Limoniter, under its MIT licence), types `LOAD ""` and `RUN`, and the program runs; Fuse can run it too, given the ROM and the tape. **File › New as › OpticBASIC (OpticOS)** starts one.
 - A listing opened from a program is sent as that program: edit a NextBASIC listing and Send to device sends it to the Next as a tokenised `.bas`, a C64 listing as a `.prg`, and so on, with no need to save it as a program first.
 - Listing and tokenising undo each other: tokenising a listing gives back the original bytes.
 - Commodore control codes appear as `{clr}`, `{red}` and so on, as `petcat` writes them.

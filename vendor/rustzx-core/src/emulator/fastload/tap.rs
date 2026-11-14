@@ -17,6 +17,9 @@ pub fn fast_load_tap<H: Host>(emulator: &mut Emulator<H>) -> Result<()> {
     let mut length = emulator.cpu.regs.get_reg_16(RegName16::DE);
     // parity accumulator and current byte (h, l) regs
     let (mut parity_acc, mut current_byte) = (0, 0);
+    // The block's first byte is its flag, checked against A, whatever the Z flag says: the Sinclair ROM always
+    // calls LD-BYTES with Z clear, but another ROM (OpticOS) may not, and Fuse's trap checks the flag regardless.
+    let mut flag_checked = false;
     // move to next block
     if !emulator.controller.tape.next_block()? {
         return Ok(());
@@ -41,7 +44,8 @@ pub fn fast_load_tap<H: Host>(emulator: &mut Emulator<H>) -> Result<()> {
                 break 'loader;
             }
             // block type check, first byte
-            if (f & FLAG_ZERO) == 0 {
+            if !flag_checked {
+                flag_checked = true;
                 acc ^= current_byte;
                 // if type wrong
                 if acc != 0 {

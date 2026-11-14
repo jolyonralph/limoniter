@@ -349,6 +349,8 @@ impl Tape {
                     let (length, first, second) = (usize::from(word(11)), word(13), word(15));
                     let data = &body[..length.min(body.len())];
                     files.push(match header[0] {
+                        // An OpticBASIC program (OpticOS's ROM saves these as Programs too) is kept as it was saved.
+                        0 if crate::opticbasic::is_program(data) => (format!("{}.bas", tidy_name(&name)), "OpticBASIC program (OpticOS)".into(), if first < 0x8000 { "starts a PROC when loaded".to_string() } else { String::new() }, data.to_vec()),
                         0 => (format!("{}.bas", tidy_name(&name)), "BASIC (as a +3DOS file)".into(), if first < 10000 { format!("runs from line {first}") } else { String::new() }, as_plus3(data, usize::from(second), Some(first))),
                         3 if length == 6912 => (format!("{}.scr", tidy_name(&name)), "Screen".into(), format!("6912 bytes at {first}"), data.to_vec()),
                         3 => (format!("{}.code", tidy_name(&name)), "Code".into(), format!("{length} bytes at {first}"), data.to_vec()),
