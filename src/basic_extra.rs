@@ -12,6 +12,10 @@
 //!   first), a length, then the line in the ZX81's own character set, keywords &C0 to &FF; a number is its digits and
 //!   then &7E and its five-byte form, as on the Spectrum. The ROM disassembly (Logan and O'Hara's, and the annotated
 //!   one in github.com/Toysoft/ZX-81-ROMS) gives the keyword table and LIST's rules for spaces.
+//! - SAM BASIC, with MasterDOS's and MasterBASIC's keywords: a file from a SAM disk, its 9-byte header first. Lines
+//!   are as the Spectrum's (number high byte first, a length, the line, &0D), keywords single bytes from &85 or &FF
+//!   and a second byte, and a number's five-byte form after &0E. The keyword table and how LIST spaces each keyword
+//!   are from the SAM ROM's tables as sambasicvscode (github.com/spectecjr/sambasicvscode) sets them out.
 
 use crate::basic::Listing;
 use crate::basic_more::{self, MsDialect};
@@ -21,6 +25,8 @@ use crate::charset::{self, Charset};
 pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<Listing> {
     if is_zx81_ending(extension) {
         Some(list_zx81(data))
+    } else if looks_like_sam_basic(data) {
+        Some(list_sam(data))
     } else if looks_like_trs80(data) {
         Some(list_trs80(data, set))
     } else {
@@ -35,7 +41,7 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
 /// Whether a file ending (and its bytes, when there are some) names a program in one of these BASICs.
 pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
     // A .p is also Pascal or Prolog source; a ZX81 program's system variables say what it is.
-    is_zx81_ending(extension) && data.is_none_or(|data| zx81_file(data).is_ok())
+    is_zx81_ending(extension) && data.is_none_or(|data| zx81_file(data).is_ok()) || extension == "bas" && data.is_some_and(looks_like_sam_basic)
 }
 
 fn is_zx81_ending(extension: &str) -> bool {
@@ -504,6 +510,189 @@ pub fn list_zx81(data: &[u8]) -> Listing {
     listing
 }
 
+// ---------- SAM BASIC ----------
+
+/// What LIST puts round a SAM BASIC keyword: a space before (unless one was just printed), after (if the word ends
+/// in a letter or $), both, or neither.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Spacing {
+    B,
+    L,
+    T,
+    N,
+}
+use Spacing::{B, L, N, T};
+
+/// SAM BASIC's one-byte keywords, with MasterDOS's and MasterBASIC's from &F7.
+const SAM_KEYWORDS: [(u8, &str, Spacing); 120] = [
+    (0x85, "USING", B), (0x86, "WRITE", B), (0x87, "AT", B), (0x88, "TAB", B), (0x89, "OFF", B), (0x8A, "WHILE", B),
+    (0x8B, "UNTIL", B), (0x8C, "LINE", B), (0x8D, "THEN", B), (0x8E, "TO", B), (0x8F, "STEP", B), (0x90, "DIR", B),
+    (0x91, "FORMAT", B), (0x92, "ERASE", B), (0x93, "MOVE", B), (0x94, "SAVE", B), (0x95, "LOAD", B),
+    (0x96, "MERGE", B), (0x97, "VERIFY", B), (0x98, "OPEN", B), (0x99, "CLOSE", B), (0x9A, "CIRCLE", B),
+    (0x9B, "PLOT", B), (0x9C, "LET", B), (0x9D, "BLITZ", B), (0x9E, "BORDER", B), (0x9F, "CLS", B),
+    (0xA0, "PALETTE", B), (0xA1, "PEN", B), (0xA2, "PAPER", B), (0xA3, "FLASH", B), (0xA4, "BRIGHT", B),
+    (0xA5, "INVERSE", B), (0xA6, "OVER", B), (0xA7, "FATPIX", B), (0xA8, "CSIZE", B), (0xA9, "BLOCKS", B),
+    (0xAA, "MODE", B), (0xAB, "GRAB", B), (0xAC, "PUT", B), (0xAD, "BEEP", B), (0xAE, "SOUND", B), (0xAF, "NEW", B),
+    (0xB0, "RUN", B), (0xB1, "STOP", B), (0xB2, "CONTINUE", B), (0xB3, "CLEAR", B), (0xB4, "GO TO", B),
+    (0xB5, "GO SUB", B), (0xB6, "RETURN", B), (0xB7, "REM", B), (0xB8, "READ", B), (0xB9, "DATA", B),
+    (0xBA, "RESTORE", B), (0xBB, "PRINT", B), (0xBC, "LPRINT", B), (0xBD, "LIST", B), (0xBE, "LLIST", B),
+    (0xBF, "DUMP", B), (0xC0, "FOR", B), (0xC1, "NEXT", B), (0xC2, "PAUSE", B), (0xC3, "DRAW", B),
+    (0xC4, "DEFAULT", B), (0xC5, "DIM", B), (0xC6, "INPUT", B), (0xC7, "RANDOMIZE", B), (0xC8, "DEF FN", B),
+    (0xC9, "DEF KEYCODE", B), (0xCA, "DEF PROC", B), (0xCB, "END PROC", B), (0xCC, "RENUM", B), (0xCD, "DELETE", B),
+    (0xCE, "REF", B), (0xCF, "COPY", B), (0xD1, "KEYIN", B), (0xD2, "LOCAL", B), (0xD3, "LOOP IF", B),
+    (0xD4, "DO", B), (0xD5, "LOOP", B), (0xD6, "EXIT IF", B), (0xD7, "IF", B), (0xD8, "IF", B), (0xD9, "ELSE", B),
+    (0xDA, "ELSE", B), (0xDB, "END IF", B), (0xDC, "KEY", B), (0xDD, "ON ERROR", B), (0xDE, "ON", B),
+    (0xDF, "GET", B), (0xE0, "OUT", B), (0xE1, "POKE", B), (0xE2, "DPOKE", B), (0xE3, "RENAME", B),
+    (0xE4, "CALL", B), (0xE5, "ROLL", B), (0xE6, "SCROLL", B), (0xE7, "SCREEN", B), (0xE8, "DISPLAY", B),
+    (0xE9, "BOOT", B), (0xEA, "LABEL", B), (0xEB, "FILL", B), (0xEC, "WINDOW", B), (0xED, "AUTO", B),
+    (0xEE, "POP", B), (0xEF, "RECORD", B), (0xF0, "DEVICE", B), (0xF1, "PROTECT", B), (0xF2, "HIDE", B),
+    (0xF3, "ZAP", B), (0xF4, "POW", B), (0xF5, "BOOM", B), (0xF6, "ZOOM", B), (0xF7, "BACKUP", B), (0xF8, "TIME", B),
+    (0xF9, "DATE", B), (0xFA, "ALTER", B), (0xFB, "SORT", B), (0xFC, "JOIN", B), (0xFD, "EDIT", B),
+];
+/// Its functions and operators, stored as &FF and then these; MasterDOS's and MasterBASIC's below &3B.
+const SAM_FUNCTIONS: [(u8, &str, Spacing); 83] = [
+    (0x26, "EXIT PROC", L), (0x27, "EXIT DO", L), (0x28, "EXIT FOR", L), (0x29, "LOCN", L), (0x2A, "RESERVED", L),
+    (0x2B, "EQU", L), (0x2C, "TICS", L), (0x2D, "SHIFT$", L), (0x2E, "SVAL$", L), (0x2F, "USING$", L),
+    (0x30, "TIME$", L), (0x31, "DATE$", L), (0x32, "INP$", L), (0x33, "DIR$", L), (0x34, "FSTAT", L),
+    (0x35, "DSTAT", L), (0x36, "FPAGES", L), (0x37, "SCRAD", L), (0x38, "INARRAY", L), (0x3B, "PI", N),
+    (0x3C, "RND", N), (0x3D, "POINT", N), (0x3E, "FREE", N), (0x3F, "LENGTH", N), (0x40, "ITEM", N),
+    (0x41, "ATTR", N), (0x42, "FN", T), (0x43, "BIN", T), (0x44, "XMOUSE", N), (0x45, "YMOUSE", N),
+    (0x46, "XPEN", N), (0x47, "YPEN", N), (0x48, "RAMTOP", N), (0x4A, "INSTR", N), (0x4B, "INKEY$", N),
+    (0x4C, "SCREEN$", N), (0x4D, "MEM$", N), (0x4F, "PATH$", N), (0x50, "STRING$", N), (0x53, "SIN", T),
+    (0x54, "COS", T), (0x55, "TAN", T), (0x56, "ASN", T), (0x57, "ACS", T), (0x58, "ATN", T), (0x59, "LN", T),
+    (0x5A, "EXP", T), (0x5B, "ABS", T), (0x5C, "SGN", T), (0x5D, "SQR", T), (0x5E, "INT", T), (0x5F, "USR", T),
+    (0x60, "IN", T), (0x61, "PEEK", T), (0x62, "DPEEK", T), (0x63, "DVAR", T), (0x64, "SVAR", T),
+    (0x65, "BUTTON", T), (0x66, "EOF", T), (0x67, "PTR", T), (0x68, "XVAR", L), (0x69, "UDG", T), (0x6A, "NVAL", L),
+    (0x6B, "LEN", T), (0x6C, "CODE", T), (0x6D, "VAL$", T), (0x6E, "VAL", T), (0x6F, "TRUNC$", T), (0x70, "CHR$", T),
+    (0x71, "STR$", T), (0x72, "BIN$", T), (0x73, "HEX$", T), (0x74, "USR$", T), (0x76, "NOT", T), (0x7A, "MOD", B),
+    (0x7B, "DIV", B), (0x7C, "BOR", B), (0x7E, "BAND", B), (0x7F, "OR", B), (0x80, "AND", B), (0x81, "<>", N),
+    (0x82, "<=", N), (0x83, ">=", N),
+];
+const SAM_REM: u8 = 0xB7;
+
+/// A SAM BASIC program's lines, after its 9-byte file header: a line number (high byte first), a length (counting
+/// the &0D that ends the line), the line. A line number from &FF00 ends the program. None if the lines don't fit
+/// together that way, with whether they reached the end.
+fn sam_lines(program: &[u8]) -> Option<(Vec<(u16, &[u8])>, bool)> {
+    let mut lines = Vec::new();
+    let mut at = 0;
+    loop {
+        let Some(&high) = program.get(at) else {
+            return (!lines.is_empty()).then_some((lines, false));
+        };
+        if high == 0xFF {
+            return Some((lines, true));
+        }
+        let (Some(&low), Some(length)) = (program.get(at + 1), program.get(at + 2..at + 4)) else {
+            return (!lines.is_empty()).then_some((lines, false));
+        };
+        let length = usize::from(u16::from_le_bytes([length[0], length[1]]));
+        match program.get(at + 4..at + 4 + length) {
+            Some(body) if body.last() == Some(&0x0D) => lines.push((u16::from_be_bytes([high, low]), &body[..length - 1])),
+            _ => return (!lines.is_empty()).then_some((lines, false)),
+        }
+        at += 4 + length;
+    }
+}
+
+/// Whether a file is a SAM BASIC program as SAMDOS saves it: its header says type 16 and a length the file holds,
+/// and the program's lines run, each ending &0D, to the &FF that ends them (or at least two of them do, before damage).
+pub fn looks_like_sam_basic(data: &[u8]) -> bool {
+    if data.len() < 10 || data[0] != 16 {
+        return false;
+    }
+    let length = usize::from(data[7] & 0x1F) * 16384 + usize::from(u16::from_le_bytes([data[1], data[2]]) & 0x3FFF);
+    length + 9 <= data.len() && sam_lines(&data[9..]).is_some_and(|(lines, whole)| whole && !lines.is_empty() || lines.len() >= 2)
+}
+
+/// SAM BASIC's colour and position codes, which take one or two bytes after them.
+fn sam_control(byte: u8) -> Option<(&'static str, usize)> {
+    Some(match byte {
+        0x10 => ("PEN", 1),
+        0x11 => ("PAPER", 1),
+        0x12 => ("FLASH", 1),
+        0x13 => ("BRIGHT", 1),
+        0x14 => ("INVERSE", 1),
+        0x15 => ("OVER", 1),
+        0x16 => ("AT", 2),
+        0x17 => ("TAB", 2),
+        _ => return None,
+    })
+}
+
+/// A SAM BASIC line as LIST shows it, with the keywords spaced as the ROM's print routine spaces them.
+fn sam_line(body: &[u8]) -> String {
+    let set = charset::known("zx-spectrum");
+    // LIST has put a space after the line number, so the first keyword needs none before it.
+    let mut text = String::from(" ");
+    let (mut quoted, mut rest_plain) = (false, false);
+    let mut i = 0;
+    let char_of = |byte: u8, text: &mut String| match set.entry(0, byte).and_then(|e| e.unicode).filter(|c| !c.is_control() && *c != '{' && *c != '}').filter(|_| (0x20..0x90).contains(&byte)) {
+        Some(c) => text.push(c),
+        None => text.push_str(&format!("{{${byte:02x}}}")),
+    };
+    while i < body.len() {
+        let byte = body[i];
+        i += 1;
+        if byte == b'"' {
+            quoted = !quoted;
+        }
+        // Colour and position codes, written as the Spectrum's are: {PEN 2}, {AT 1,5}.
+        if let Some((name, count)) = sam_control(byte).filter(|(_, count)| i + count <= body.len()) {
+            let values: Vec<String> = body[i..i + count].iter().map(u8::to_string).collect();
+            text.push_str(&format!("{{{name} {}}}", values.join(",")));
+            i += count;
+            continue;
+        }
+        if quoted || rest_plain {
+            char_of(byte, &mut text);
+            continue;
+        }
+        // A number's digits are there to be read; &0E and the five bytes after it are its value, which LIST
+        // doesn't show. The same follows a procedure's name where it's called, and DEF FN's parameters.
+        if byte == 0x0E {
+            i += 5;
+            continue;
+        }
+        let word = if byte == 0xFF {
+            body.get(i).and_then(|&second| SAM_FUNCTIONS.iter().find(|(b, _, _)| *b == second)).inspect(|_| i += 1)
+        } else {
+            SAM_KEYWORDS.iter().find(|(b, _, _)| *b == byte)
+        };
+        match word {
+            Some(&(_, word, spacing)) => {
+                if matches!(spacing, B | L) && !text.ends_with(' ') {
+                    text.push(' ');
+                }
+                text.push_str(word);
+                if matches!(spacing, B | T) && word.ends_with(|c: char| c == '$' || c.is_ascii_alphabetic()) {
+                    text.push(' ');
+                }
+                rest_plain = byte == SAM_REM;
+            }
+            None => char_of(byte, &mut text),
+        }
+    }
+    text.split_off(1)
+}
+
+/// Lists a SAM BASIC program, as SAMDOS or MasterDOS saves it, its 9-byte header first.
+pub fn list_sam(data: &[u8]) -> Listing {
+    let mut listing = Listing { dialect: "SAM BASIC", ..Listing::default() };
+    let Some((lines, whole)) = data.get(9..).and_then(sam_lines) else {
+        listing.notes.push("The file doesn't hold SAM BASIC lines after its header.".into());
+        return listing;
+    };
+    for (number, body) in &lines {
+        listing.lines.push(format!("{number} {}", sam_line(body).trim_end()));
+    }
+    if !whole {
+        let last = lines.last().map_or(0, |(number, _)| *number);
+        listing.notes.push(format!("The program breaks off after line {last}, before the byte that ends it."));
+    }
+    listing
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -655,6 +844,44 @@ mod tests {
         assert!(list_zx81(&long).notes[0].contains("longer"));
         for cut in 0..file.len() {
             let _ = list_zx81(&file[..cut]);
+        }
+    }
+
+    /// A SAM BASIC file: its 9-byte header, then the lines and the &FF that ends them.
+    fn sam_file(lines: &[(u16, &[u8])]) -> Vec<u8> {
+        let mut program = Vec::new();
+        for (number, body) in lines {
+            program.extend(number.to_be_bytes());
+            program.extend((body.len() as u16 + 1).to_le_bytes());
+            program.extend_from_slice(body);
+            program.push(0x0D);
+        }
+        program.push(0xFF);
+        let mut file = vec![16, program.len() as u8, (program.len() >> 8) as u8, 0x00, 0x80, 0, 0, 0, 1];
+        file.extend(program);
+        file
+    }
+
+    #[test]
+    fn a_sam_basic_program_lists_with_the_roms_spacing() {
+        let number = |digits: &[u8], value: u8| [digits, &[0x0E, 0, 0, value, 0, 0]].concat();
+        let line10 = [&[0xBB, 0x87][..], &number(b"1", 1), b",", &number(b"2", 2), b";\"\x10\x02HI\":", &[0xB4], &number(b"10", 10)].concat();
+        let line20 = [&b"\x9Ca=\xFF\x3C:\x9Cb$=\xFF\x70"[..], &number(b"65", 65), b"\xFF\x80", &number(b"1", 1)].concat();
+        let file = sam_file(&[(10, &line10), (20, &line20), (30, b"\xB7\xBB stays")]);
+        assert!(looks_like_sam_basic(&file) && is_program_file("bas", Some(&file)));
+        let listing = crate::basic::list(&file, "bas", charset::utf8());
+        assert_eq!(listing.dialect, "SAM BASIC");
+        assert_eq!(listing.lines, ["10 PRINT AT 1,2;\"{PEN 2}HI\": GO TO 10", "20 LET a=RND: LET b$=CHR$ 65 AND 1", "30 REM {$bb} stays"]);
+        let mut cut = file.clone();
+        cut.truncate(9 + line10.len() + 5 + line20.len() + 5 + 2);
+        cut[1] = 0;
+        cut[2] = 0;
+        let listing = list_sam(&cut);
+        assert_eq!(listing.lines.len(), 2);
+        assert!(listing.notes[0].contains("breaks off"));
+        for end in 0..file.len() {
+            let _ = list_sam(&file[..end]);
+            let _ = looks_like_sam_basic(&file[..end]);
         }
     }
 }
