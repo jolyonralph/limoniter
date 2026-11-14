@@ -173,7 +173,21 @@ pub fn assemble(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> 
 /// Assembles a program as if everything were `base` further on: ORG's addresses too. Assembled twice, at two bases,
 /// the words that differ by the difference are the addresses that have to be moved when the program is.
 pub fn assemble_at(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64) -> Assembly {
-    let first = assemble_relocating(isa, path, text, read, base, &[], false);
+    assemble_with(isa, path, text, read, base, &Options::default())
+}
+
+/// What else a program can draw on, beyond its own files: folders INCLUDE and INCBIN look in after the source's
+/// own, and values for labels it uses but never defines (an Amiga's _LVO offsets, from the NDK).
+#[derive(Default)]
+pub struct Options<'a> {
+    pub folders: Vec<PathBuf>,
+    pub values: Option<&'a dyn Fn(&str) -> Option<i64>>,
+}
+
+/// Assembles a program as `assemble_at` does, with more to draw on.
+pub fn assemble_with(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64, options: &Options) -> Assembly {
+    let assemble_relocating = |table: &[i64], moved| assemble_relocating(isa, path, text, read, base, table, moved, options);
+    let first = assemble_relocating(&[], false);
     if first.relocations.is_empty() {
         return first;
     }
@@ -182,13 +196,13 @@ pub fn assemble_at(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) 
     let mut table: Vec<i64> = Vec::new();
     let mut assembly = first;
     for _ in 0..4 {
-        let moved = assemble_relocating(isa, path, text, read, base, &table, true);
+        let moved = assemble_relocating(&table, true);
         let found = relocations_between(&assembly, &moved);
         if found == table {
             break;
         }
         table = found;
-        assembly = assemble_relocating(isa, path, text, read, base, &table, false);
+        assembly = assemble_relocating(&table, false);
     }
     assembly
 }
@@ -224,7 +238,7 @@ fn relocations_between(normal: &Assembly, moved: &Assembly) -> Vec<i64> {
     out
 }
 
-fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64, table: &[i64], moved: bool) -> Assembly {
+fn assemble_relocating<'a>(isa: &'a dyn Isa, path: &Path, text: &str, read: &'a dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64, table: &[i64], moved: bool, options: &'a Options<'a>) -> Assembly {
     let mut previous: HashMap<String, i64> = HashMap::new();
     let mut anonymous: HashMap<String, Vec<i64>> = HashMap::new();
     let mut pages: HashMap<String, i64> = HashMap::new();
@@ -232,6 +246,7 @@ fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Pa
     let mut ever: HashMap<String, i64> = HashMap::new();
     for _ in 0..12 {
         let mut state = Pass::new(isa, read, previous.clone(), false);
+        state.options = Some(options);
         state.base = base;
         state.pc = base;
         state.previous_anonymous = anonymous.clone();
@@ -254,6 +269,7 @@ fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Pa
     }
     // The last pass, saying what's wrong.
     let mut state = Pass::new(isa, read, previous, true);
+    state.options = Some(options);
     state.base = base;
     state.pc = base;
     state.previous_anonymous = anonymous;
@@ -376,6 +392,10 @@ struct Pass<'a> {
     relocation_table: Vec<i64>,
     relocate_moved: bool,
     relocating: Option<(i64, bool, i64)>,
+    /// Folders to look in and values to fall back on.
+    options: Option<&'a Options<'a>>,
+    /// MEXIT was reached: the macro being expanded ends here.
+    leaving: bool,
 }
 
 /// A STRUCT: its fields' names, offsets, sizes and default values, and its size.
@@ -447,6 +467,8 @@ impl<'a> Pass<'a> {
             relocation_table: Vec::new(),
             relocate_moved: false,
             relocating: None,
+            options: None,
+            leaving: false,
         }
     }
 
@@ -635,6 +657,10 @@ impl<'a> Pass<'a> {
         if raw.starts_with('*') && !raw[1..].trim_start().starts_with('=') {
             return;
         }
+        // In Motorola's way, anywhere a statement could start.
+        if self.isa.operand_ends_at_space() && raw.trim_start().starts_with('*') {
+            return;
+        }
         let at_start = !line.starts_with([' ', '\t']);
         // An anonymous label: - or + (or -- or ++) where a label goes.
         let first = line.split_whitespace().next().unwrap_or("");
@@ -662,7 +688,7 @@ impl<'a> Pass<'a> {
             }
         }
         // Conditions are followed even when not assembling, to find their ends.
-        if matches!(word.as_str(), "if" | "ifdef" | "ifndef" | "ifn" | "else" | "elseif" | "endif" | "endc" | "ifeq" | "ifne" | "ifused" | "ifnused") {
+        if matches!(word.as_str(), "if" | "ifdef" | "ifndef" | "ifn" | "else" | "elseif" | "endif" | "endc" | "ifeq" | "ifne" | "ifused" | "ifnused" | "ifd" | "ifnd" | "ifc" | "ifnc" | "ifgt" | "ifge" | "iflt" | "ifle") {
             self.condition(&word, rest[rest.find(char::is_whitespace).unwrap_or(rest.len())..].trim());
             return;
         }
@@ -699,6 +725,8 @@ impl<'a> Pass<'a> {
                 name @ ("equ" | "=" | "defl" | "set") if name != "set" || !self.isa.is_instruction("set") || op.starts_with(['.', '!']) => {
                     let variable = name != "equ";
                     let (value, more) = self.first_statement(value);
+                    // Motorola's way: what follows the value after a space is a comment.
+                    let value = if self.isa.operand_ends_at_space() { cut_at_space(value.trim()).to_string() } else { value };
                     match self.eval(&value) {
                         Ok(v) => self.define(label, v, variable),
                         Err(problem) => self.problem(problem),
@@ -974,7 +1002,30 @@ impl<'a> Pass<'a> {
 
     fn condition(&mut self, word: &str, operand: &str) {
         let outer = self.active();
+        // Motorola's: IFD and IFND for IFDEF and IFNDEF, IFGT and the like comparing with 0.
+        let word = match word {
+            "ifd" => "ifdef",
+            "ifnd" => "ifndef",
+            other => other,
+        };
         match word {
+            "ifgt" | "ifge" | "iflt" | "ifle" => {
+                let value = if outer { self.eval(operand).unwrap_or(0) } else { 0 };
+                let on = match word {
+                    "ifgt" => value > 0,
+                    "ifge" => value >= 0,
+                    "iflt" => value < 0,
+                    _ => value <= 0,
+                };
+                self.conditions.push((on, on));
+            }
+            // IFC 'a','b': whether two strings are the same, as in a macro, IFC '\1','' for an argument left out.
+            "ifc" | "ifnc" => {
+                let items = split_operands(operand);
+                let text = |i: usize| items.get(i).map(|t| unquote(t.trim())).unwrap_or_default();
+                let on = (word == "ifc") == (text(0) == text(1));
+                self.conditions.push((on, on));
+            }
             "if" | "ifn" | "ifne" | "ifeq" => {
                 let value = if outer { self.eval(operand).unwrap_or(0) } else { 0 };
                 let on = match word {
@@ -1229,7 +1280,13 @@ impl<'a> Pass<'a> {
         // A macro: ACME calls one with a + before its name.
         let called = lower.strip_prefix('+').unwrap_or(&lower).to_string();
         if let Some(found) = self.macros.get(&called).cloned() {
+            // Motorola's way: what follows the arguments after a space is a comment.
+            let operands = if self.isa.operand_ends_at_space() { cut_at_space(operands.trim()) } else { operands };
             self.expand(&called, &found, operands);
+            return;
+        }
+        if lower == "mexit" && self.macro_scope.is_some() {
+            self.leaving = true;
             return;
         }
         if let Some(found) = self.structs.get(&lower).cloned() {
@@ -2131,6 +2188,12 @@ impl<'a> Pass<'a> {
         {
             return main.join(path);
         }
+        // Else in the folders given, such as the NDK's Include_I.
+        if !beside.exists()
+            && let Some(found) = self.options.into_iter().flat_map(|o| &o.folders).map(|f| f.join(path)).find(|p| p.exists())
+        {
+            return found;
+        }
         beside
     }
 
@@ -2176,12 +2239,16 @@ impl<'a> Pass<'a> {
             return;
         }
         self.expansions += 1;
-        let values = split_operands(operands);
+        // An argument in angle brackets is passed without them, as Motorola's assemblers have it.
+        let values: Vec<String> = split_operands(operands).into_iter().map(|v| if v.len() >= 2 && v.starts_with('<') && v.ends_with('>') && !self.isa.colon_separates() { v[1..v.len() - 1].to_string() } else { v }).collect();
         let at = self.at;
         let scope = self.macro_scope.replace(format!("{name}_{}", self.expansions));
+        let unique = format!("_{:06}", self.expansions);
         self.depth += 1;
+        let conditions = self.conditions.len();
         for (_, _, text) in &found.body {
-            if self.ended {
+            // MEXIT leaves the macro, and any IF in it.
+            if self.ended || self.leaving {
                 break;
             }
             let mut line = text.clone();
@@ -2198,9 +2265,18 @@ impl<'a> Pass<'a> {
                     line = replace_word(&line, param, value);
                     line = line.replace(&format!("\\{}", i + 1), value);
                 }
+                // Motorola's: \1 to \9 for the arguments, and \@ for a name of the macro's own each time it's used.
+                for i in found.params.len()..9 {
+                    line = line.replace(&format!("\\{}", i + 1), values.get(i).map(|v| v.trim()).unwrap_or(""));
+                }
+                line = line.replace("\\@", &unique);
             }
             self.at = at;
             self.source_line(at.0, at.1, &line);
+        }
+        if self.leaving {
+            self.leaving = false;
+            self.conditions.truncate(conditions);
         }
         self.depth -= 1;
         self.macro_scope = scope;
@@ -2231,6 +2307,8 @@ impl Scope for Pass<'_> {
             })
             // sjasmplus keeps labels from pass to pass: one defined on an earlier pass is still known.
             .or_else(|| self.ever.get(name).copied())
+            // Last, what's known from elsewhere, such as the NDK's _LVO offsets.
+            .or_else(|| self.options.and_then(|o| o.values).and_then(|values| values(name)))
     }
 
     fn page_of(&self, name: &str) -> Option<i64> {
