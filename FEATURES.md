@@ -196,6 +196,8 @@ The images below can have files added (**Add files…**, or drop them on the tab
 ## Documents and conversions
 
 - WordStar 3.x to 7 documents and HP MemoMaker documents, found inside disk images, can be opened as text or converted to Markdown, plain text or RTF.
+- Amiga and Atari ST documents too: IFF formatted text (FTXT, from the clipboard, NotePad and TextCraft), ProWrite and other IFF WORD documents, AmigaGuide hypertext, Arnor's Protext (Amiga, ST, PC and CPC), and 1st Word and 1st Word Plus (ST and Archimedes), each read in its machine's own character set.
+- ProWrite's larger type becomes Markdown headings, and each AmigaGuide node a section of its own with its links between them; numbered and bulleted paragraphs become Markdown lists.
 - Bold, underline, italics, page breaks, headers and footers are kept; what can't be carried over (printer codes, fonts, margins) is listed in notes.
 - Pictures can be saved as PNG; tokenised BASIC can be opened as a text listing and saved back as a program.
 
