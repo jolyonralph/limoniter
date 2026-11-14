@@ -142,6 +142,7 @@ const FILE: &[Entry] = &[
             Item("Assemble and save", Command::AssembleAndSave),
             Item("Assemble and save as binary\u{2026}", Command::AssembleBinary),
             Item("Assemblers\u{2026}", Command::ChooseAssembler),
+            Item("Amiga NDK (code hints)\u{2026}", Command::AmigaNdk),
             Item("Devices and emulators\u{2026}", Command::ManageDevices),
         ],
     ),

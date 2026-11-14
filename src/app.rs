@@ -207,6 +207,7 @@ enum Command {
     Disassemble,
     NewImage,
     OpenUrl,
+    AmigaNdk,
     Clambers,
     CheckOpticos,
     CleanRecent,
@@ -293,6 +294,7 @@ impl Command {
             self,
             Command::New
                 | Command::Clambers
+                | Command::AmigaNdk
                 | Command::CheckOpticos
                 | Command::Open
                 | Command::Help
@@ -1271,6 +1273,7 @@ enum Dialog {
     Disassemble(Box<disasm_host::DisasmBox>),
     NewImage(Box<image_browser::NewImageBox>),
     OpenUrl(Box<web_host::WebBox>),
+    AmigaNdk(Box<ndk_host::NdkBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
     Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
@@ -3613,6 +3616,7 @@ impl Limoniter {
             Command::NewImage => self.open_new_image_box(),
             Command::OpenUrl => self.open_web_box(),
             Command::Clambers => self.open_clambers(),
+            Command::AmigaNdk => self.open_ndk_box(),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
@@ -5083,6 +5087,7 @@ impl Limoniter {
                     Some(settings::Outcome::ClearRecent) => self.panels.recent.clear(),
                     Some(settings::Outcome::Themes) => self.open_theme_box(theme_host::ThemePage::Window),
                     Some(settings::Outcome::Assemblers) => self.open_assembler_box(),
+                    Some(settings::Outcome::AmigaNdk) => self.open_ndk_box(),
                     Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
                     Some(settings::Outcome::LanguageServers) => self.dialog = Dialog::LanguageServers(self.lsp.settings.clone()),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
@@ -5817,7 +5822,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.ndk_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7384,6 +7389,8 @@ mod web_host;
 mod clambers_host;
 #[path = "opticos_host.rs"]
 mod opticos_host;
+#[path = "ndk_host.rs"]
+mod ndk_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;

@@ -87,9 +87,16 @@ impl Limoniter {
                 _ if language == highlight::BASIC_COMMODORE => Some(None),
                 _ => None,
             };
+            // C for the Amiga: its system functions, when the NDK is there.
+            let amiga_c = spectrum.is_none() && amiga_c_source(doc);
             match spectrum {
                 Some(dialect) if doc.text.intel.as_ref().is_none_or(|i| i.cpu.is_some() || i.words.is_empty()) => doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::keywords(basic::keywords(dialect)))),
                 Some(_) => {}
+                None if amiga_c => match crate::amiga_ndk::current() {
+                    Some(ndk) => doc.text.intel.get_or_insert_with(Box::default).amiga = Some(ndk),
+                    None if doc.text.intel.as_ref().is_some_and(|i| i.lsp || !i.build_problems.is_empty()) => {}
+                    None => doc.text.intel = None,
+                },
                 // What a language server says is kept.
                 None if doc.text.intel.as_ref().is_some_and(|i| i.lsp || !i.build_problems.is_empty()) => {}
                 None => doc.text.intel = None,
@@ -99,6 +106,12 @@ impl Limoniter {
         if doc.text.intel.as_ref().is_none_or(|i| i.cpu != Some(cpu)) {
             doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::for_cpu(cpu)));
             self.intel_wait = None;
+        }
+        // 68000 source may be for the Amiga: its system functions, when the NDK is there.
+        if cpu == Cpu::M68k
+            && let Some(intel) = doc.text.intel.as_mut()
+        {
+            intel.amiga = crate::amiga_ndk::current();
         }
         let version = self.docs[index].text.version();
         let doc_id = self.docs[index].id;
@@ -561,4 +574,17 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runn
     let machine = if device.contains("128") { Machine::Spectrum128 } else { Machine::Spectrum48 };
     let bytes = crate::asm::output::spectrum_tape(assembly, stem)?;
     Ok(Runnable { machine, format: Format::Tap, name: format!("{stem}.tap"), bytes: Arc::new(bytes) })
+}
+
+/// Whether a document is C (or C++) for the Amiga: a C file that includes the Amiga's own headers near its top.
+fn amiga_c_source(doc: &super::Document) -> bool {
+    let name = doc.name().to_ascii_lowercase();
+    if ![".c", ".h", ".cpp", ".cc", ".cxx", ".hpp"].iter().any(|e| name.ends_with(e)) {
+        return false;
+    }
+    (0..doc.text.line_count().min(150)).any(|n| {
+        let line = doc.text.line(n);
+        let line = line.trim_start();
+        line.starts_with("#include") && ["<exec/", "<proto/", "<clib/", "<intuition/", "<dos/", "<graphics/", "<libraries/", "<workbench/", "<devices/", "<pragmas/", "<inline/"].iter().any(|h| line.contains(h))
+    })
 }

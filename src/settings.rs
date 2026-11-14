@@ -258,6 +258,7 @@ pub enum Outcome {
     OpenWindowsPage,
     Themes,
     Assemblers,
+    AmigaNdk,
     NewKinds,
     LanguageServers,
 }
@@ -337,6 +338,7 @@ enum Special {
     MarkdownView,
     ZxNotation,
     Assemblers,
+    AmigaNdk,
     NewKinds,
     LanguageServers,
     FileTypes,
@@ -400,6 +402,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Copy before paste", "Pasting over selected text swaps them: what was selected goes on the clipboard, ready to paste somewhere else", |t| &mut t.prefs.edit.copy_before_paste),
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
+            Row::Special("Amiga code hints", Special::AmigaNdk),
             Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
             Row::Special("Language servers", Special::LanguageServers),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
@@ -568,6 +571,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             Special::Assemblers => {
                 if ui.button("Choose\u{2026}").on_hover_text("Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers").clicked() {
                     *outcome = Some(Outcome::Assemblers);
+                }
+            }
+            Special::AmigaNdk => {
+                if ui.button("Amiga NDK\u{2026}").on_hover_text("System functions' prototypes, offsets, registers and autodocs for 68000 and C source, from Hyperion's NDK for AmigaOS 3.2, downloaded from Aminet when you ask").clicked() {
+                    *outcome = Some(Outcome::AmigaNdk);
                 }
             }
             Special::ZxNotation => {

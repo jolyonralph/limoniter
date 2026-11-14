@@ -30,6 +30,8 @@ pub struct CodeIntel {
     pub lsp_hover: Option<(usize, usize, String)>,
     /// What the last build task said about this file, by line.
     pub build_problems: Vec<(usize, String)>,
+    /// For Amiga code: the system's functions, from the NDK.
+    pub amiga: Option<Arc<crate::amiga_ndk::Index>>,
 }
 
 impl PartialEq for CodeIntel {
@@ -142,6 +144,15 @@ impl CodeIntel {
         {
             return Some(words.clone());
         }
+        // An Amiga system function, unless the program has a label of that name of its own.
+        if let Some(ndk) = &self.amiga
+            && !(self.cpu.is_some() && in_comment_or_string(text, col))
+            && let Some((_, _, word)) = word_at(text, col)
+            && (word.starts_with("_LVO") || !self.assembly.as_ref().is_some_and(|a| a.symbols.contains_key(&word)))
+            && let Some(words) = ndk.describe(&word)
+        {
+            return Some(words);
+        }
         if self.lsp && self.assembly.is_none() {
             return None;
         }
@@ -172,7 +183,8 @@ impl CodeIntel {
     /// What can finish the word being typed on a line: labels (a local label only in its own part of the program),
     /// and the language's words, best first.
     pub fn completions(&self, line: usize, text: &str, col: usize) -> Vec<String> {
-        if in_comment_or_string(text, col) {
+        // C's semicolons end statements, not lines: only assembler and BASIC have comments that way.
+        if (self.amiga.is_none() || self.cpu.is_some()) && in_comment_or_string(text, col) {
             return Vec::new();
         }
         let Some((word_start, prefix)) = prefix_at(text, col) else {
@@ -215,6 +227,12 @@ impl CodeIntel {
                     found.push(m.name.clone());
                 }
             }
+        }
+        // Amiga system functions: in assembler as _LVO names (after JSR or wherever they're typed), in C by name.
+        if let Some(ndk) = &self.amiga
+            && (self.cpu.is_none() || prefix.starts_with("_LVO"))
+        {
+            found.extend(ndk.complete(&prefix));
         }
         let typed_upper = prefix.chars().any(|c| c.is_ascii_uppercase()) && !prefix.chars().any(|c| c.is_ascii_lowercase());
         for word in self.words.iter().filter(|_| !operand) {
@@ -308,5 +326,24 @@ mod tests {
         let basic = CodeIntel::keywords(crate::basic::keywords(Some(crate::basic::ZxDialect::Spectrum)));
         assert!(basic.completions(0, "10 RAN", 6).contains(&"RANDOMIZE".to_string()));
         assert!(basic.completions(0, "10 PRINT \"ran", 13).is_empty(), "nothing in a string");
+    }
+
+    #[test]
+    fn amiga_functions_are_described_and_offered_from_the_ndk() {
+        let sfd = "==libname exec.library\n==bias 192\nAPTR\tAllocMem( ULONG byteSize, ULONG requirements ) (d0,d1)\n==end\n";
+        let mut index = crate::amiga_ndk::Index::default();
+        for f in crate::amiga_ndk::read_sfd(sfd) {
+            index.functions.insert(f.name.clone(), f);
+        }
+        let ndk = Arc::new(index);
+        let asm = CodeIntel { amiga: Some(ndk.clone()), ..CodeIntel::for_cpu(Cpu::M68k) };
+        let hover = asm.describe(0, "  jsr _LVOAllocMem(a6)", 10).unwrap();
+        assert!(hover.contains("_LVOAllocMem = -192") && hover.contains("byteSize in d0"), "{hover}");
+        assert!(asm.describe(0, "  nop ; AllocMem", 13).is_none(), "nothing in a comment");
+        assert_eq!(asm.completions(0, "  jsr _LVOAll", 13), ["_LVOAllocMem"]);
+        assert!(asm.completions(0, "  All", 5).iter().all(|w| w != "AllocMem"), "assembler gets them as _LVO names");
+        let c = CodeIntel { amiga: Some(ndk), ..CodeIntel::default() };
+        assert!(c.describe(0, "x = 1; p = AllocMem(64, 0);", 13).unwrap().starts_with("APTR AllocMem"), "a semicolon isn't a comment in C");
+        assert_eq!(c.completions(0, "x = 1; p = Allo", 15), ["AllocMem"]);
     }
 }
