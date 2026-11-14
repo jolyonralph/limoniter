@@ -18,6 +18,7 @@ mod iso;
 mod lha;
 mod lif;
 mod mac;
+mod macarc;
 mod nex;
 mod rp9;
 mod sectors;
@@ -26,6 +27,7 @@ mod trsdos;
 mod woz;
 pub(crate) mod xex;
 pub(crate) mod spectrum;
+mod stuffit;
 mod zip;
 
 use std::io::{Read, Seek, SeekFrom};
@@ -181,8 +183,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 66] = [
-    "woz", "xex", "obx", "scp", "hfe", "raw", "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
+pub const IMAGE_ENDINGS: [&str; 69] = [
+    "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -195,13 +197,13 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
         return xex::looks_like(head, len, &ending);
     }
     if !IMAGE_ENDINGS.contains(&ending.as_str()) {
-        return mac::looks_like_disk_copy(head, len);
+        return mac::looks_like_disk_copy(head, len) || macarc::kind_of(head, len, &ending).is_some();
     }
     match ending.as_str() {
         // These endings are used for plain data too, so the bytes have to say so.
         // A KryoFlux stream is only one by its bytes; other .raw files, such as a plain sector image, are bytes.
         "raw" => flux::detect(head, "raw").is_some(),
-        "scp" | "hfe" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
+        "scp" | "hfe" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
         "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
     }
@@ -257,6 +259,8 @@ enum Format {
     Xex,
     /// A floppy's flux: SuperCard Pro, HxC or KryoFlux.
     Flux(flux::Kind),
+    /// MacBinary, BinHex or StuffIt.
+    MacArchive(macarc::Kind),
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -282,6 +286,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if lha::looks_like_lha(head) {
         return Some(Format::Lha);
+    }
+    if let Some(kind) = macarc::kind_of(head, len, ending) {
+        return Some(Format::MacArchive(kind));
     }
     // Acorn's ADFS floppies are `.adf` too; they have a root directory or disc record where an Amiga's has none.
     if matches!(ending, "adf" | "adl" | "ads" | "adm" | "hdf") && !at(0, b"DOS") && acorn::looks_like_adfs(head) {
@@ -463,6 +470,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Woz) => woz::open(source),
         Some(Format::Xex) => Ok(Box::new(xex::Xex::open(source)?)),
         Some(Format::Flux(kind)) => flux::open(source, kind, name),
+        Some(Format::MacArchive(kind)) => macarc::open(source, kind),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }
@@ -678,7 +686,13 @@ pub mod tests {
                 continue;
             }
             let shown = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
-            match open(Arc::new(bytes), &name) {
+            // A KryoFlux stream opens as its folder's whole set, as the app opens it; the others are only read once.
+            let kryoflux = name.to_ascii_lowercase().ends_with(".raw");
+            if kryoflux && !name.to_ascii_lowercase().starts_with("track00.0") {
+                continue;
+            }
+            let opened = if kryoflux { open_file(&path) } else { open(Arc::new(bytes), &name) };
+            match opened {
                 Ok(volume) => {
                     report.push_str(&format!("# {shown}: {}\n", volume.describe()));
                     collect(&*volume, None, "", &shown, &mut report, &mut problems, 0, &mut |bytes| format!("{:x}", sha2::Sha256::digest(bytes)));
