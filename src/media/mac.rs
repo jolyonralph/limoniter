@@ -16,9 +16,9 @@ use std::sync::Arc;
 pub const MAC_TEXT_PRESET: &str = "classic-mac";
 
 /// Entries with this in `extra` are a file's resource fork; without, its data fork.
-const RESOURCE_FORK: u64 = 1;
+pub(super) const RESOURCE_FORK: u64 = 1;
 
-fn be(bytes: &[u8]) -> u64 {
+pub(super) fn be(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0, |n, b| (n << 8) | u64::from(*b))
 }
 
@@ -35,7 +35,7 @@ fn pascal(bytes: &[u8], most: usize) -> String {
 }
 
 /// A Mac date: seconds since the start of 1904, in the Mac's local time. Nothing for zero, which means none.
-fn mac_date(seconds: u64) -> String {
+pub(super) fn mac_date(seconds: u64) -> String {
     if seconds == 0 {
         return String::new();
     }
@@ -54,12 +54,12 @@ fn mac_date(seconds: u64) -> String {
 }
 
 /// A four-character code, as type and creator are shown.
-fn code(bytes: &[u8]) -> String {
+pub(super) fn code(bytes: &[u8]) -> String {
     mac_roman(bytes)
 }
 
 /// What the Finder would call a file of this type, and an ending where Limoniter has a use for one.
-fn file_kind(kind: &[u8]) -> (&'static str, Option<&'static str>) {
+pub(super) fn file_kind(kind: &[u8]) -> (&'static str, Option<&'static str>) {
     match kind {
         b"APPL" => ("Application", None),
         b"TEXT" => ("Text", None),
@@ -160,12 +160,17 @@ pub enum Kind {
     Hfs,
     HfsPlus,
     Partitioned,
+    /// A GUID partition table with an HFS+ volume in it.
+    Gpt,
 }
 
 pub fn kind_of(head: &[u8]) -> Option<Kind> {
     let at = |offset: usize, bytes: &[u8]| head.get(offset..offset + bytes.len()) == Some(bytes);
     if at(0, b"ER") && (at(512, b"PM") || at(2048, b"PM") || at(be(head.get(2..4).unwrap_or(&[0, 0])) as usize, b"PM")) {
         return Some(Kind::Partitioned);
+    }
+    if super::hfsplus::looks_like_gpt(head) {
+        return Some(Kind::Gpt);
     }
     match head.get(1024..1026)? {
         [0xD2, 0xD7] => Some(Kind::Mfs),
@@ -409,7 +414,7 @@ impl Hfs {
             return Err("This isn't an HFS disk.".into());
         }
         if &mdb[124..126] == b"H+" {
-            return Err("This is an HFS+ (Mac OS Extended) disk inside an HFS wrapper, which Limoniter can't read yet.".into());
+            return Err("This is an HFS+ (Mac OS Extended) disk inside an HFS wrapper, to be opened as HFS+.".into());
         }
         let block_size = be(&mdb[20..24]);
         if block_size == 0 || !block_size.is_multiple_of(512) {
@@ -538,42 +543,66 @@ impl Volume for Hfs {
 
 // ---------- Partition maps ----------
 
-struct Partition {
-    name: String,
-    kind: String,
-    volume: Option<Box<dyn Volume>>,
-    problem: Option<String>,
-    blocks: u64,
+/// A partition of a disk: its name and kind as the map gives them, and its file system if one could be read.
+pub(super) struct Partition {
+    pub(super) name: String,
+    pub(super) kind: String,
+    pub(super) volume: Option<Box<dyn Volume>>,
+    pub(super) problem: Option<String>,
+    /// The partition's length in bytes.
+    pub(super) blocks: u64,
+    /// The partition's bytes, where they can be opened as they are when there's no file system to read.
+    pub(super) raw: Option<Arc<dyn Source>>,
 }
 
-/// A disk with an Apple partition map: each partition, its file system read where it's HFS or MFS. A disk with one
-/// such partition, as a CD-ROM has, shows its files at once.
+/// A disk with an Apple partition map or a GUID partition table: each partition, its file system read where it's
+/// HFS, HFS+ or MFS. A disk with one such partition, as a CD-ROM has, shows its files at once.
 pub struct Partitioned {
     what: String,
+    scheme: &'static str,
     parts: Vec<Partition>,
 }
 
-/// Opens a disk's file system: a partition map, MFS or HFS, by the signatures at its start.
+/// Opens a disk's file system: a partition map, MFS, HFS or HFS+, by the signatures at its start.
 pub fn open_disk(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, String> {
-    let head = source.read_vec(0, source.len().min(4096) as usize)?;
+    let head = source.read_vec(0, source.len().min(0x8800) as usize)?;
     match kind_of(&head) {
         Some(Kind::Mfs) => Ok(Box::new(Mfs::open(source, what)?)),
+        // An HFS volume whose master directory block names an embedded HFS+ volume is only its wrapper.
+        Some(Kind::Hfs) if head.get(1024 + 124..1024 + 126) == Some(b"H+") => super::hfsplus::open_wrapped(source, what),
         Some(Kind::Hfs) => Ok(Box::new(Hfs::open(source, what)?)),
-        Some(Kind::HfsPlus) => Err("This is an HFS+ (Mac OS Extended) disk, which Limoniter can't read yet.".into()),
-        Some(Kind::Partitioned) => {
-            let map = Partitioned::open(source, what)?;
-            let mut readable: Vec<usize> = map.parts.iter().enumerate().filter(|(_, p)| p.volume.is_some()).map(|(i, _)| i).collect();
-            if readable.len() == 1 {
-                let only = readable.remove(0);
-                return Ok(map.parts.into_iter().nth(only).and_then(|p| p.volume).expect("a readable partition has its volume"));
-            }
-            Ok(Box::new(map))
-        }
-        None => Err("This disk has no Macintosh file system that Limoniter can find: no MFS, HFS or partition map.".into()),
+        Some(Kind::HfsPlus) => super::hfsplus::open(source, what),
+        Some(Kind::Gpt) => super::hfsplus::open_gpt(source, what),
+        Some(Kind::Partitioned) => Ok(Partitioned::open(source, what)?.into_volume()),
+        None => Err("This disk has no Macintosh file system that Limoniter can find: no MFS, HFS, HFS+ or partition map.".into()),
     }
 }
 
+/// Opens a partition's file system, which, unlike a whole disk's, can't be another partition map: a damaged map with
+/// a partition pointing back at itself would otherwise be opened again and again.
+pub(super) fn open_partition(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, String> {
+    let head = source.read_vec(0, source.len().min(0x8800) as usize)?;
+    if matches!(kind_of(&head), Some(Kind::Partitioned | Kind::Gpt)) {
+        return Err("This partition holds another partition map, so the disk is damaged.".into());
+    }
+    open_disk(source, what)
+}
+
 impl Partitioned {
+    pub(super) fn new(what: &str, scheme: &'static str, parts: Vec<Partition>) -> Self {
+        Self { what: what.to_string(), scheme, parts }
+    }
+
+    /// The map as a volume, or its one readable partition's file system when there's only one.
+    pub(super) fn into_volume(self) -> Box<dyn Volume> {
+        let mut readable: Vec<usize> = self.parts.iter().enumerate().filter(|(_, p)| p.volume.is_some()).map(|(i, _)| i).collect();
+        if readable.len() == 1 {
+            let only = readable.remove(0);
+            return self.parts.into_iter().nth(only).and_then(|p| p.volume).expect("a readable partition has its volume");
+        }
+        Box::new(self)
+    }
+
     fn open(source: Arc<dyn Source>, what: &str) -> Result<Self, String> {
         let ddm = source.read_vec(0, 512)?;
         // The map's entries are a block apart, in the driver descriptor's block size, as are their places.
@@ -595,23 +624,23 @@ impl Partitioned {
             let (start, blocks) = (be(&entry[8..12]) * block, be(&entry[12..16]) * block);
             let text = |bytes: &[u8]| mac_roman(&bytes[..bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len())]);
             let (name, kind) = (text(&entry[16..48]), text(&entry[48..80]));
-            let mut part = Partition { name, kind, volume: None, problem: None, blocks };
-            if matches!(part.kind.as_str(), "Apple_HFS" | "Apple_MFS") {
+            let mut part = Partition { name, kind, volume: None, problem: None, blocks, raw: None };
+            if matches!(part.kind.as_str(), "Apple_HFS" | "Apple_HFSX" | "Apple_MFS") {
                 let inner: Arc<dyn Source> = Arc::new(Slice { inner: source.clone(), start, len: blocks.min(source.len().saturating_sub(start)) });
-                match open_disk(inner, &format!("{what}, partition {}", i + 1)) {
+                match open_partition(inner, &format!("{what}, partition {}", i + 1)) {
                     Ok(volume) => part.volume = Some(volume),
                     Err(problem) => part.problem = Some(problem),
                 }
             }
             parts.push(part);
         }
-        Ok(Self { what: what.to_string(), parts })
+        Ok(Self::new(what, "Apple partition map", parts))
     }
 }
 
 impl Volume for Partitioned {
     fn describe(&self) -> String {
-        format!("{} \u{B7} Apple partition map \u{B7} {} partition(s)", self.what, self.parts.len())
+        format!("{} \u{B7} {} \u{B7} {} partition(s)", self.what, self.scheme, self.parts.len())
     }
 
     /// The partitions are the top folders; their entries carry which partition they're in, plus one, above the
@@ -624,7 +653,11 @@ impl Volume for Partitioned {
                 .enumerate()
                 .map(|(i, part)| {
                     let label = if part.name.is_empty() { format!("Partition {}", i + 1) } else { tidy_name(&part.name) };
-                    let mut entry = if part.volume.is_some() { Entry::dir(label, 0, (i as u64 + 1) << 8) } else { Entry::file(label, part.blocks, 0) };
+                    let mut entry = match (&part.volume, &part.raw) {
+                        (Some(_), _) => Entry::dir(label, 0, (i as u64 + 1) << 8),
+                        (None, Some(_)) => Entry { extra: (i as u64 + 1) << 8, ..Entry::file(label, part.blocks, 0) },
+                        (None, None) => Entry::file(label, part.blocks, 0),
+                    };
                     entry.kind = part.kind.clone();
                     entry.detail = part.problem.clone().unwrap_or_else(|| part.volume.as_ref().map_or_else(|| "not a file system Limoniter reads".into(), |v| v.describe()));
                     entry
@@ -643,12 +676,23 @@ impl Volume for Partitioned {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         let index = (entry.extra >> 8) as usize;
-        let volume = self.parts.get(index.wrapping_sub(1)).and_then(|p| p.volume.as_ref()).ok_or("That partition isn't one Limoniter reads.")?;
-        volume.read(&Entry { extra: entry.extra & 0xFF, ..entry.clone() })
+        let part = self.parts.get(index.wrapping_sub(1)).ok_or("That partition isn't one Limoniter reads.")?;
+        match (&part.volume, &part.raw) {
+            (Some(volume), _) => volume.read(&Entry { extra: entry.extra & 0xFF, ..entry.clone() }),
+            // A partition with no file system to read is opened as its bytes.
+            (None, Some(raw)) if raw.len() > MOST_FILE_BYTES => Err("This partition is larger than the 1 GB that can be opened.".into()),
+            (None, Some(raw)) => raw.read_vec(0, raw.len() as usize),
+            (None, None) => Err("That partition isn't one Limoniter reads.".into()),
+        }
     }
 
     fn text_preset(&self, entry: &Entry) -> Option<&'static str> {
-        (entry.extra & 0xFF != RESOURCE_FORK).then_some(MAC_TEXT_PRESET)
+        let volume = self.parts.get(((entry.extra >> 8) as usize).wrapping_sub(1)).and_then(|p| p.volume.as_ref())?;
+        volume.text_preset(&Entry { extra: entry.extra & 0xFF, ..entry.clone() })
+    }
+
+    fn notes(&self) -> Vec<String> {
+        self.parts.iter().filter_map(|p| p.volume.as_ref()).flat_map(|v| v.notes()).collect()
     }
 }
 
@@ -924,7 +968,7 @@ pub mod tests {
     }
 
     #[test]
-    fn hfs_plus_is_named_and_refused() {
+    fn hfs_plus_with_nothing_in_it_is_named_and_refused() {
         let mut disk = vec![0u8; 819_200];
         disk[1024..1026].copy_from_slice(b"H+");
         assert!(open(Arc::new(disk), "new.img").err().unwrap().contains("HFS+"));

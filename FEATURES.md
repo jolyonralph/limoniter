@@ -162,7 +162,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | ZX Spectrum Next | `.nex` programs (V1.0 to V1.3): the loading screen (shown as the file's picture, with its palette), copper code, each 16K bank and anything appended, with every header setting in Info; F9 runs the whole program. NextZXOS SD card images (FAT16 or FAT32 partitions) can have files added, so a dot command goes in `/dot` |
 | Amstrad CPC / PCW | DSK disks (standard and extended), AMSDOS and CP/M |
 | Acorn | BBC/Electron DFS (`.ssd`, `.dsd`, Watford 62-file), ADFS S/M/L (`.ads`, `.adm`, `.adl`), RISC OS ADFS D/E/F (`.adf`), UEF tapes |
-| Macintosh | MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images; both forks and type/creator shown |
+| Macintosh | MFS, HFS and HFS+ (Mac OS Extended, HFSX, HFS-wrapped) floppies, hard disks and CDs, Apple partition maps and GUID partition tables, Disk Copy 4.2 images, `.dmg` disk images (UDIF: zlib, bzip2, ADC and LZFSE, MacBinary-wrapped too); both forks and type/creator shown, hard and symbolic links followed, HFS+ compressed files (zlib, LZVN, LZFSE) read |
 | CP/M | 82 machine formats (Kaypro, Osborne, Epson QX-10, Apple II CP/M, 8-inch IBM and more), worked out automatically from the directory |
 | HP | LIF disks and tapes (Series 80, 9000 Series 200/300, Integral PC, HP-41/71B/75); LIF ASCII files offered as text |
 | Floppy archivists | ImageDisk (`.imd`), Teledisk (`.td0`), DMK, JV3 and JV1, unread sectors listed, the file system inside opened (FAT, CP/M, TRS-80 and more) |
