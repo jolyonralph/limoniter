@@ -579,7 +579,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    stop = ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Switch it off").clicked();
+                    stop = crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Switch it off").on_hover_text("Switch it off").clicked();
                     if ui.selectable_label(keyboard, "Keyboard").on_hover_text("Shows the Spectrum's keyboard under its screen, to click").clicked() {
                         keyboard = !keyboard;
                     }
@@ -614,6 +614,7 @@ impl Limoniter {
                 ui.allocate_exact_size(size, egui::Sense::hover())
             }).inner;
             let response = ui.interact(rect, focus_id, egui::Sense::click());
+            crate::access::named(&response, egui::Role::Canvas, "The Spectrum's screen: typing goes to the Spectrum while it has the keyboard");
             if let Some(texture) = texture {
                 ui.painter().image(texture.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
             }
@@ -677,7 +678,7 @@ impl Limoniter {
                         ui.end_row();
                         for routine in routines.iter().take(15) {
                             let share = if total == 0 { 0.0 } else { routine.t_states as f64 * 100.0 / total as f64 };
-                            let name = ui.add(egui::Label::new(RichText::new(&routine.name).monospace().size(12.0)).sense(egui::Sense::click()));
+                            let name = crate::access::clickable(ui.add(egui::Label::new(RichText::new(&routine.name).monospace().size(12.0)).sense(egui::Sense::click())));
                             if name.clicked() {
                                 go_to_line = routine.line;
                             }
@@ -693,7 +694,7 @@ impl Limoniter {
                         for hot in lines.iter().take(8) {
                             let share = if total == 0 { 0.0 } else { hot.t_states as f64 * 100.0 / total as f64 };
                             let text = line_texts_all.get(&hot.line).map(|t| t.trim().to_string()).unwrap_or_default();
-                            if ui.add(egui::Label::new(RichText::new(format!("{:>5}  {share:>5.1}%  {}", hot.line + 1, text)).monospace().size(12.0)).sense(egui::Sense::click())).clicked() {
+                            if crate::access::clickable(ui.add(egui::Label::new(RichText::new(format!("{:>5}  {share:>5.1}%  {}", hot.line + 1, text)).monospace().size(12.0)).sense(egui::Sense::click()))).clicked() {
                                 go_to_line = Some(hot.line);
                             }
                         }

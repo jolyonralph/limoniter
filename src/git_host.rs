@@ -228,7 +228,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Source control").color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
                         open = false;
                     }
                     if ui.add(Button::new(RichText::new("?").color(theme::text_dim())).frame(false)).on_hover_text("The Git wizard: setting up, and what it all means").clicked() {
@@ -383,7 +383,7 @@ impl Limoniter {
                 ui.label(RichText::new(letter).monospace().color(theme::text_dim()));
                 let name = entry.path.rsplit('/').next().unwrap_or(&entry.path);
                 let hover = format!("{} ({})", entry.path, change.map_or("", Change::word));
-                if ui.add(egui::Label::new(name).sense(egui::Sense::click()).truncate()).on_hover_text(hover).clicked() {
+                if crate::access::clickable(ui.add(egui::Label::new(name).sense(egui::Sense::click()).truncate())).on_hover_text(hover).clicked() {
                     act.push(PanelAct::Open(open_folder.join(&entry.path)));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

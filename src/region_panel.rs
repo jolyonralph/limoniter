@@ -356,7 +356,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("History of this part").color(theme::text()).size(13.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
                         action = Some(PartAction::Close);
                     }
                 });
@@ -420,6 +420,7 @@ impl Limoniter {
                         Kind::Written => theme::change_saved(),
                         _ => theme::change_unsaved(),
                     };
+                    crate::access::chosen(&response, egui::Role::ListBoxOption, here, &format!("{}, {}", short_time(shown.when), shown.summary));
                     ui.painter().circle_filled(dot, if here { 4.5 } else { 3.5 }, colour);
                     ui.painter().text(egui::pos2(rect.min.x + 22.0, rect.center().y), egui::Align2::LEFT_CENTER, short_time(shown.when), egui::FontId::proportional(11.5), theme::text_faint());
                     ui.painter().text(egui::pos2(rect.min.x + 92.0, rect.center().y), egui::Align2::LEFT_CENTER, shown.summary.as_str(), egui::FontId::proportional(12.5), theme::text());

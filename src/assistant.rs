@@ -723,7 +723,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Assistant").color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
                         open = false;
                     }
                     if !self.assist_log.entries.is_empty() && ui.add(Button::new(RichText::new("Clear").color(theme::text_dim()).size(11.5)).frame(false)).on_hover_text("Forget the history").clicked() {
@@ -804,7 +804,7 @@ impl Limoniter {
                     egui::Frame::group(ui.style()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.label(RichText::new(format!("{}  {} \u{B7} {}", entry.when, entry.tool.name(), entry.task.label())).color(theme::text_faint()).size(11.5));
-                        if ui.add(egui::Label::new(RichText::new(entry.place()).color(theme::accent())).sense(egui::Sense::click())).on_hover_text("Go there").clicked() {
+                        if crate::access::clickable(ui.add(egui::Label::new(RichText::new(entry.place()).color(theme::accent())).sense(egui::Sense::click()))).on_hover_text("Go there").clicked() {
                             acts.push(PanelAct::GoTo(entry.id));
                         }
                         if !entry.words.is_empty() {

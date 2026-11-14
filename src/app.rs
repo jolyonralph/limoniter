@@ -4390,7 +4390,7 @@ impl Limoniter {
                 let title = kind.map_or_else(|| "Preview".to_string(), |kind| format!("Preview: {}", kind.name()));
                 ui.label(RichText::new(title).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
                         open = false;
                     }
                 });
@@ -5486,7 +5486,9 @@ impl Limoniter {
                     ui.label(faint("Changes save at once".into())).on_hover_text("Files added, deleted or renamed on this image are saved to it straight away; Undo puts it back");
                 } else {
                     let lock = RichText::new(if locked { "Read-only" } else { "Editable" }).color(if locked { theme::change_unsaved() } else { theme::text_faint() });
-                    if ui.add(egui::Label::new(lock).sense(egui::Sense::click())).on_hover_text("Click to lock this file against changes, or unlock it").clicked() {
+                    let lock = ui.add(egui::Label::new(lock).sense(egui::Sense::click()));
+                    crate::access::chosen(&lock, egui::Role::CheckBox, locked, "Read-only");
+                    if lock.on_hover_text("Click to lock this file against changes, or unlock it").clicked() {
                         toggle_lock = true;
                     }
                 }
@@ -5536,7 +5538,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Find and replace").strong().size(14.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)).on_hover_text("Close").clicked();
+                    close = crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked();
                 });
             });
             ui.add_space(4.0);
@@ -5594,7 +5596,7 @@ impl Limoniter {
                     }
                     for (place, path) in self.find.favorite_files.iter().enumerate() {
                         ui.horizontal(|ui| {
-                            if ui.small_button("\u{D7}").on_hover_text("Take off the list").clicked() {
+                            if crate::access::called(ui.small_button("\u{D7}"), "Take off the list").on_hover_text("Take off the list").clicked() {
                                 gone = Some(place);
                             }
                             let name = path.file_name().map_or_else(|| path.display().to_string(), |name| name.to_string_lossy().into_owned());
@@ -5713,7 +5715,7 @@ impl Limoniter {
                 ui.horizontal(|ui| {
                     ui.label("Output window: results from Find in Files appear here.");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        close = ui.small_button("\u{D7}").on_hover_text("Close").clicked();
+                        close = crate::access::called(ui.small_button("\u{D7}"), "Close").on_hover_text("Close").clicked();
                     });
                 });
             });
@@ -5751,7 +5753,7 @@ impl Limoniter {
                 }
                 ui.label(summary);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = ui.small_button("\u{D7}").on_hover_text("Close").clicked();
+                    close = crate::access::called(ui.small_button("\u{D7}"), "Close").on_hover_text("Close").clicked();
                     if !finished && ui.small_button("Stop").clicked() {
                         job.cancel.store(true, Ordering::Relaxed);
                     }
@@ -5766,7 +5768,9 @@ impl Limoniter {
                 for hit in &hits[range] {
                     let label = format!("{}({}): {}", hit.path.display(), hit.line + 1, hit.text);
                     let text = RichText::new(label).monospace();
-                    if ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click())).clicked() {
+                    let row = ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click()));
+                    crate::access::button(&row, &format!("{}, line {}: {}", hit.path.display(), hit.line + 1, hit.text));
+                    if row.clicked() {
                         chosen = Some(hit.clone());
                     }
                 }
@@ -6530,6 +6534,7 @@ impl Limoniter {
         if zoom != 1.0 && ctx.input(|i| i.modifiers.command) {
             self.view.font_size = (self.view.font_size * zoom).clamp(8.0, 40.0);
         }
+        self.keyboard_routes(&ctx);
         self.shortcuts(ui);
 
         let mut chosen = None;
@@ -6656,6 +6661,7 @@ impl Limoniter {
             self.message("Limoniter", notice);
         }
         self.dialogs(&ctx);
+        self.focus_into_dialog(&ctx);
         self.draw_cycle(&ctx);
         self.draw_assistant_note(&ctx);
         self.pixel_editor_window(&ctx);
@@ -6673,6 +6679,8 @@ impl Limoniter {
 
 const HELP: &str = "Finding things to do\n\
     F1 finds any command by what it does. Every command is also in the menus, which are arranged by what they're for.\n\n\
+    Without a mouse\n\
+    F10 goes to the menus: the arrows move through them and Enter opens one. Ctrl+F6 takes the keyboard out of the text to the rest of the window, and Tab and Shift+Tab move on from there. A box that opens has the keyboard: Tab moves through it and Escape closes it.\n\n\
     Column editing\n\
     Alt+C turns Column Mode on and off, while Word wrap is off.\n\
     Hold Alt and drag, or press Shift+Alt+arrows, to select a block at any time.\n\
@@ -6954,7 +6962,7 @@ fn find_lists(ui: &mut Ui, find: &mut FindState) {
         let mut remove = None;
         for (index, text) in find.favourites.iter().enumerate() {
             ui.horizontal(|ui| {
-                if ui.small_button("\u{D7}").on_hover_text("Remove from favourites").clicked() {
+                if crate::access::called(ui.small_button("\u{D7}"), "Remove from favourites").on_hover_text("Remove from favourites").clicked() {
                     remove = Some(index);
                 }
                 if ui.add(Button::new(text.as_str()).frame_when_inactive(false)).clicked() {
@@ -7335,6 +7343,8 @@ mod big_log_tests;
 
 #[path = "script_host.rs"]
 mod script_host;
+#[path = "access_host.rs"]
+mod access_host;
 
 #[path = "addon_host.rs"]
 mod addon_host;
