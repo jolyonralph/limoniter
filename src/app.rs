@@ -208,6 +208,7 @@ enum Command {
     NewImage,
     OpenUrl,
     Clambers,
+    CheckOpticos,
     CleanRecent,
     ClearRecent,
     PixelEditor,
@@ -292,6 +293,7 @@ impl Command {
             self,
             Command::New
                 | Command::Clambers
+                | Command::CheckOpticos
                 | Command::Open
                 | Command::Help
                 | Command::NewInstance
@@ -1276,6 +1278,9 @@ enum Dialog {
 }
 
 pub struct Limoniter {
+    /// A check for a newer OpticOS ROM under way, and whether the day's has been started.
+    opticos_check: Option<opticos_host::OpticosCheck>,
+    opticos_started: bool,
     docs: Vec<Document>,
     active: usize,
     untitled_count: usize,
@@ -1558,6 +1563,8 @@ impl Limoniter {
             assist_job: None,
             assist_panel: assistant::AssistPanel::default(),
             assist_log,
+            opticos_check: None,
+            opticos_started: false,
             docs: Vec::new(),
             active: 0,
             untitled_count: 0,
@@ -3606,6 +3613,7 @@ impl Limoniter {
             Command::NewImage => self.open_new_image_box(),
             Command::OpenUrl => self.open_web_box(),
             Command::Clambers => self.open_clambers(),
+            Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
             Command::ToggleTerminal => self.toggle_terminal(),
@@ -6524,6 +6532,7 @@ impl Limoniter {
         let ctx = ui.ctx().clone();
         NO_FILE.set(self.no_file());
         self.apply_themes(&ctx);
+        self.poll_opticos_check();
         text_buffer::set_edit_prefs(self.prefs.edit);
         hex_buffer::set_bytes_per_row(self.prefs.hex_row);
         self.apply_tab_size();
@@ -7373,6 +7382,8 @@ mod remote_host;
 mod web_host;
 #[path = "clambers_host.rs"]
 mod clambers_host;
+#[path = "opticos_host.rs"]
+mod opticos_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;

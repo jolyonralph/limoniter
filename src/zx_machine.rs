@@ -250,16 +250,13 @@ pub struct BuiltIn {
     loudest: f32,
 }
 
-/// OpticOS's ROM (github.com/brixham99/OpticOS, MIT licence: see vendor/opticos), which a 48K runs in place of
-/// Sinclair's for OpticBASIC programs.
-pub const OPTICOS_ROM: &[u8; 16384] = include_bytes!("../vendor/opticos/opticos.rom");
-
 /// The OpticOS ROM as a file, for an emulator to be given: written once into Limoniter's temporary folder.
 pub fn opticos_rom_file() -> std::path::PathBuf {
-    let path = std::env::temp_dir().join("limoniter").join("opticos-1.0.1.rom");
-    if std::fs::read(&path).ok().as_deref() != Some(&OPTICOS_ROM[..]) {
+    let rom = crate::opticos_rom::current();
+    let path = std::env::temp_dir().join("limoniter").join(format!("opticos-{}.rom", rom.version));
+    if std::fs::read(&path).ok().as_deref() != Some(rom.bytes) {
         let _ = std::fs::create_dir_all(path.parent().expect("in a folder"));
-        let _ = std::fs::write(&path, OPTICOS_ROM);
+        let _ = std::fs::write(&path, rom.bytes);
     }
     path
 }
@@ -339,7 +336,7 @@ impl BuiltIn {
         let mut emulator = Emulator::<LimoniterHost>::new(settings, Context).map_err(|e| format!("The built-in Spectrum couldn't start: {e:?}"))?;
         emulator.set_debug_interface(Breaks::default());
         if machine == Machine::OpticOs {
-            emulator.load_rom(RomBytes(Some(&OPTICOS_ROM[..]))).map_err(|e| format!("The OpticOS ROM couldn't be loaded: {e:?}"))?;
+            emulator.load_rom(RomBytes(Some(crate::opticos_rom::current().bytes))).map_err(|e| format!("The OpticOS ROM couldn't be loaded: {e:?}"))?;
             return Self::start_opticos(emulator, run, snapshot, speaker);
         }
         match snapshot {
@@ -1157,7 +1154,7 @@ mod tests {
         let run = Runnable::from_listing(&lines, crate::basic::Machine::OpticOs, "sevens").unwrap();
         assert_eq!((run.machine, run.format), (Machine::OpticOs, Format::Tap));
         let mut spectrum = BuiltIn::start(&run).unwrap();
-        assert_eq!(spectrum.peek(0), OPTICOS_ROM[0], "OpticOS's ROM, not Sinclair's");
+        assert_eq!(spectrum.peek(0), crate::opticos_rom::current().bytes[0], "OpticOS's ROM, not Sinclair's");
         assert!(spectrum.is_opticos(), "the keyboard under its screen shows OpticOS's keys");
         // OpticOS's own characters: the backquote on Symbol Shift and X, and Extended mode once for [.
         assert_eq!(format!("{:?}", opticos_keys_for('`')), "Some([[SymShift, X]])");

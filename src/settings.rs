@@ -90,6 +90,8 @@ pub struct Prefs {
     pub backup_on_save: bool,
     /// How Spectrum BASIC listings write block graphics and UDGs.
     pub zx_notation: crate::zx_graphics::Notation,
+    /// Once a day, a newer OpticOS ROM is looked for on GitHub and installed.
+    pub opticos_updates: bool,
 }
 
 /// How long autosave waits, in seconds.
@@ -97,7 +99,7 @@ pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, opticos_updates: true }
     }
 }
 
@@ -105,7 +107,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -132,7 +134,8 @@ impl Prefs {
             self.autosave,
             self.autosave_seconds,
             self.backup_on_save,
-            self.zx_notation.id()
+            self.zx_notation.id(),
+            self.opticos_updates
         )
     }
 
@@ -211,6 +214,7 @@ impl Prefs {
                 "open_tables" => &mut prefs.open_tables,
                 "autosave" => &mut prefs.autosave,
                 "backup_on_save" => &mut prefs.backup_on_save,
+                "opticos_updates" => &mut prefs.opticos_updates,
                 "find_from_selection" => &mut prefs.find_from_selection,
                 "find_in_file_folder" => &mut prefs.find_in_file_folder,
                 "watch_files" => &mut prefs.watch_files,
@@ -396,6 +400,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Copy before paste", "Pasting over selected text swaps them: what was selected goes on the clipboard, ready to paste somewhere else", |t| &mut t.prefs.edit.copy_before_paste),
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
+            Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
             Row::Special("Language servers", Special::LanguageServers),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
         ],
@@ -687,6 +692,7 @@ mod tests {
             autosave_seconds: 300,
             backup_on_save: true,
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
+            opticos_updates: false,
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);
         assert_eq!(Prefs::from_settings(&Prefs::default().to_settings()), Prefs::default());

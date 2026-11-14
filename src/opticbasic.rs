@@ -457,7 +457,7 @@ mod tests {
     /// The programs on the tape the ROM saved, by their names there, and the sources they were typed from.
     fn examples() -> Vec<(String, Vec<u8>, &'static str)> {
         let tape = include_bytes!("../vendor/opticos/examples/opticos_examples.tap");
-        let sources: [(&str, &str); 11] = [
+        let sources: [(&str, &str); 12] = [
             ("examples", include_str!("../vendor/opticos/examples/menu.bas")),
             ("times", include_str!("../vendor/opticos/examples/times.bas")),
             ("guess", include_str!("../vendor/opticos/examples/guess.bas")),
@@ -469,10 +469,13 @@ mod tests {
             ("colour", include_str!("../vendor/opticos/examples/colour.bas")),
             ("hilo", include_str!("../vendor/opticos/examples/hilo.bas")),
             ("flag", include_str!("../vendor/opticos/examples/flag.bas")),
+            ("happybat", include_str!("../vendor/opticos/examples/happybat.bas")),
         ];
         let (blocks, _) = crate::basic::tape_blocks(tape);
         blocks
             .chunks(2)
+            // Programs only: the tape also holds code (happybat's machine code).
+            .filter(|pair| pair[0][1] == 0)
             .map(|pair| {
                 let name = String::from_utf8_lossy(&pair[0][2..12]).trim_end().to_string();
                 let data = pair[1][1..pair[1].len() - 1].to_vec();

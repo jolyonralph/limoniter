@@ -20,5 +20,6 @@ DEF PROC menu
   DATA "colour", "the eight colours and the clash rule"
   DATA "hilo", "guess my number (INPUT, TRY, CASE)"
   DATA "flag", "the Union Flag in colour cells and DRAW"
+  DATA "happybat", "Happy Bat, a game: runs by itself"
   DATA "", ""
 ENDPROC

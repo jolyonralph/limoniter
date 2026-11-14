@@ -18,6 +18,7 @@ mod basic;
 mod basic_extra;
 mod basic_more;
 mod opticbasic;
+mod opticos_rom;
 mod char_table;
 mod clambers;
 mod charset;
