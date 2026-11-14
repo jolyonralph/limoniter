@@ -1,25 +1,28 @@
-## What's new in 0.7.0
+## What's new in 0.8.0
 
-Limoniter now writes to the disks and tapes it reads, builds sjasmplus projects as sjasmplus does, and reads many more machines' media.
+Limoniter now runs on Linux, writes to many more machines' disks, and converts Amiga and Atari ST word processor documents.
 
-**Changing disk and tape images**
-- **Add, delete and rename files** (or drop them on the tab) on Spectrum TAP/TZX tapes and +3 disks, Commodore D64/D71/D81, PC and Atari ST FAT disks, Amiga ADF, Atari 8-bit DOS 2 and Color Computer RS-DOS images; make folders, reorder a tape. Each change is saved at once and can be undone.
-- **File › New disk or tape image**: blank ones, formatted as their machine formats them.
-- Every writer is checked against its machine's own tools (c1541, mtools and fsck, amitools, atrcopy, ToolShed, cpmtools, fuse-utils).
+**Linux**
+- **AppImage and .deb** downloads, for 64-bit Intel and AMD computers. It runs under Wayland and X11, and remote-file passwords are kept in GNOME Keyring or KWallet.
 
-**For the Spectrum Next**
-- **sjasmplus projects build as sjasmplus builds them**: devices and paged memory (MMU, SLOT, PAGE), SAVENEX with all its commands, SAVESNA, SAVEBIN, SAVETAP and the rest, written beside the source; MODULE, STRUCT, DEFINE, IFUSED, RELOCATE, fake instructions and more. 52 real projects from GitHub give the same bytes as sjasmplus.
-- **.nex files open** as their loading screen, palette and banks; Next Layer 2 and LoRes screens are pictures.
-- **Dot commands** build, and go on a NextZXOS SD card image from the browser.
+**Changing more disk images**
+- **Add, delete and rename files** on Apple II DOS 3.3 and ProDOS disks, BBC Micro DFS and ADFS discs, Spectrum TR-DOS disks and SCL archives, Mac HFS disks (resource forks, types and creators included), and Atari MyDOS and SpartaDOS disks; Applesoft and TR-DOS BASIC listings are tokenised as they go on.
+- **New blank images** for each of them: Apple II 140K and 800K, BBC 100K to 640K, TR-DOS 640K, Mac 400K, 800K and 1.4MB, MyDOS and SpartaDOS.
+- Each is checked against its machine's own tools: AppleCommander, a2kit, beebtools, MMB_Utils, Apple's fsck_hfs, hfsutils, lsatr, and a Pentagon's TR-DOS running in ZEsarUX.
 
-**OpticOS**
-- **OpticBASIC**, the BASIC of the OpticOS replacement ROM, lists and tokenises exactly as the ROM does, and **F9 runs it** on the built-in Spectrum with the OpticOS ROM (included, MIT licence).
+**Amiga and Atari ST documents**
+- **Converted to Markdown, plain text or RTF**: IFF formatted text (FTXT), ProWrite, AmigaGuide (each node a section, with its links), Protext, 1st Word and 1st Word Plus, WordPerfect 4 and 5 (Amiga, ST and DOS), Signum! 1 and 2, Final Writer and Wordworth. Bold, italics, underlining, headings, footnotes, headers and footers are kept.
 
 **More media read**
-- **Floppy flux images** from a Greaseweazle, SuperCard Pro or KryoFlux (`.scp`, `.hfe`, KryoFlux streams): PC, Atari ST, Amiga, C64, Apple II and more, decoded to their files.
-- **Mac**: HFS+ disks and `.dmg` images; MacBinary, BinHex and StuffIt archives.
-- **Apple II WOZ** images; **Atari 8-bit** XEX programs and pictures.
-- **TRS-80** BASIC and tapes, **ZX81** programs, **MSX** tapes, **SAM Coupé** disks and BASIC, **Oric** tapes and BASIC.
+- **Oric** Sedoric disks, **ZX81** programs on TZX tapes, **Color Computer and Dragon** `.cas` tapes, **Atari 8-bit** Koala and HIP pictures, **Compact Pro** archives and **Disk Copy 6** images.
+- **Flux images** of Commodore 1571 disks, Apple II 13-sector disks, and Mac 400K and 800K disks.
+
+**Easier to use**
+- **File › Open a file from the web**: opens a file from an http or https address.
+- **Open recent** has **Clean up** (removes files that are gone) and **Clear list**.
+- **Screen readers** can follow the editor, tabs, the command box and the image browser; **F10** opens the menus, and **Ctrl+F6** moves out of the editor.
+- **OpticOS**: the Spectrum keyboard shows OpticOS's own keys.
+- **A user guide** on the website: [limoniter.com/guide](https://limoniter.com/guide/).
 
 ## Downloads
 
