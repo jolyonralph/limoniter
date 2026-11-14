@@ -868,6 +868,9 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.label("Extra options:");
                 ui.add(egui::TextEdit::singleline(options).hint_text("Added to its command line").desired_width(320.0));
                 ui.end_row();
+                if let Some(known) = known.filter(|k| k.machines.contains(&crate::running::Machine::Amiga)) {
+                    crate::amiga_run::settings_rows(ui, &hint, known.id);
+                }
                 if let Some(known) = known {
                     ui.label("");
                     let machines: Vec<&str> = known.machines.iter().map(|m| m.name()).collect();

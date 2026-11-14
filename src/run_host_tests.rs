@@ -831,3 +831,67 @@ fn a_dot_command_is_saved_and_f9_says_where_it_goes() {
     assert_eq!(std::fs::read(folder.join("HELLO")).unwrap(), [0x3E, b'H', 0xD7, 0xB7, 0xC9], "SAVEBIN wrote it beside the source");
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+#[test]
+fn source_for_the_amiga_becomes_an_amiga_executable() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "demo.s".into();
+    app.doc().text.set_content(include_str!("asm/testdata/amiga_demo.s").lines().map(str::to_string).collect());
+    app.doc().update_syntax();
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Amiga, crate::running::Format::Hunk, "demo.exe"));
+    assert_eq!(run.bytes.as_slice(), include_bytes!("asm/testdata/amiga_demo.exe"), "as vasm makes it");
+    // What can't be made into hunks is marked on its line.
+    app.doc().text.set_content(vec!["\tsection a,code".into(), "start:\tnop".into(), "\tsection b,data".into(), "\tdc.w\tstart".into()]);
+    assert!(app.runnable().is_err());
+    let marked = app.doc().text.code.as_ref().map(|c| c.problems.clone()).unwrap_or_default();
+    assert!(marked.iter().any(|(line, message)| *line == 3 && message.contains("only a long")), "{marked:?}");
+    assert!(crate::emulators::KNOWN.iter().filter(|e| e.machines.contains(&crate::running::Machine::Amiga)).count() >= 2);
+}
+
+/// A real FS-UAE, where LIMONITER_FS_UAE says where it is (with a screen for it, as xvfb-run gives): 68000 source
+/// for the Amiga, made into an executable by Limoniter's own assembler, boots from its folder and writes a file
+/// there through dos.library. On FS-UAE's own AROS, unless LIMONITER_KICKSTART names a Kickstart (and
+/// LIMONITER_AMIGA the model: a500, a500plus or a1200).
+#[test]
+fn an_amiga_program_runs_on_a_real_fs_uae() {
+    let Some(program) = std::env::var_os("LIMONITER_FS_UAE") else {
+        return;
+    };
+    let mut settings = crate::amiga_run::Settings::default();
+    if let Ok(model) = std::env::var("LIMONITER_AMIGA") {
+        settings.model = crate::amiga_run::Model::ALL.into_iter().find(|m| m.id() == model).expect("a500, a500plus or a1200");
+    }
+    if let Some(rom) = std::env::var_os("LIMONITER_KICKSTART") {
+        settings.set_kickstart(settings.model, Some(rom.into()));
+    }
+    crate::amiga_run::set_settings(settings);
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "FS-UAE".into(), place: Place::Emulator { emulator: "fs-uae".into(), program: program.into(), options: std::env::var("LIMONITER_FS_UAE_OPTIONS").unwrap_or_default() }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "hello.s".into();
+    app.doc().text.set_content(include_str!("asm/testdata/amiga_hello.s").lines().map(str::to_string).collect());
+    app.doc().update_syntax();
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    let folder = match &app.running.sessions[0].kind {
+        run_host::SessionKind::App { log, .. } => log.parent().unwrap().to_path_buf(),
+        _ => panic!("it runs in FS-UAE"),
+    };
+    let began = std::time::Instant::now();
+    let mut written = None;
+    while began.elapsed() < Duration::from_secs(90) && written.is_none() {
+        written = std::fs::read_to_string(folder.join("dh0/result.txt")).ok().filter(|t| !t.is_empty());
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    if let Some(grab) = std::env::var_os("LIMONITER_GRAB") {
+        std::thread::sleep(Duration::from_secs(2));
+        let _ = std::process::Command::new("import").args(["-window", "root"]).arg(PathBuf::from(grab).join("fs-uae.png")).status();
+    }
+    app.check_sessions();
+    app.stop_all_sessions();
+    assert_eq!(written.as_deref(), Some("Hello from Limoniter\n"), "the program wrote its file, in {}s", began.elapsed().as_secs());
+}

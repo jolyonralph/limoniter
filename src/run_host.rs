@@ -344,6 +344,8 @@ impl Limoniter {
         std::fs::create_dir_all(&folder).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
         let file = folder.join(&run.name);
         std::fs::write(&file, run.bytes.as_slice()).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
+        // An Amiga boots from a folder made its hard drive, started from a configuration made for the run.
+        let file = if run.machine == Machine::Amiga { crate::amiga_run::prepare(emulator.id, &folder, run, &crate::amiga_run::settings())? } else { file };
         // An emulator already running, that can be reached, loads it where it is.
         if let Some(index) = self.running.sessions.iter().position(|s| s.target == device.name)
             && !debugging

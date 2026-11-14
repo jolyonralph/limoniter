@@ -50,7 +50,13 @@ Limoniter's own assembler (`src/asm/`: one framework, one module per processor) 
 addresses, each source line's address and bytes, and problems by file and line. `src/asm_host.rs` turns it into
 something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line, a Color Computer LOADM
 `.bin`, an Atari ST `.tos` whose relocations are found by assembling the source a second time 64K further on) or a
-file to save (68000 with an ORG), shows the problems, and keeps it for the debugger. Each processor's every instruction form is checked byte
+file to save (68000 with an ORG), shows the problems, and keeps it for the debugger. 68000 source for the Amiga
+(`asm::hunk::is_amiga_source`) is assembled with each SECTION 32 MB from the next, twice, the second time all moved
+16 MB and 256 bytes on: a long that moved by exactly that is an address, its value says which section, and it becomes
+a HUNK_RELOC32 entry; anything else that moved can't be moved by AmigaDOS and is a problem on its line. It runs on
+FS-UAE or WinUAE (`src/amiga_run.rs`): the program goes in a folder made DH0: with an S/Startup-Sequence that runs
+it, and the emulator is started with a configuration file made for the run (model, Kickstart or the emulator's own
+AROS). Each processor's every instruction form is checked byte
 for byte against its reference assembler (`src/asm/testdata`).
 
 Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and

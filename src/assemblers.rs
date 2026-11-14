@@ -163,6 +163,22 @@ pub fn assemble_own(cpu: Cpu, path: &Path, text: &str) -> Assembled {
     Assembled { assembly, source: Some(text.to_string()), tape: None, printed: Vec::new() }
 }
 
+/// Assembles with Limoniter's own assembler to run: the same, except that 68000 source for the Amiga is made into
+/// an Amiga executable, its sections as hunks.
+pub fn assemble_own_to_run(cpu: Cpu, path: &Path, text: &str) -> Assembled {
+    if cpu == Cpu::M68k && asm::hunk::is_amiga_source(text) {
+        let files: std::cell::RefCell<std::collections::HashMap<PathBuf, Result<Vec<u8>, String>>> = Default::default();
+        let read = |p: &Path| files.borrow_mut().entry(p.to_path_buf()).or_insert_with(|| std::fs::read(p).map_err(|e| e.to_string())).clone();
+        // The NDK's headers and _LVO offsets, as for any 68000 source.
+        let ndk = crate::amiga_ndk::current();
+        let lvo = |name: &str| ndk.as_ref().and_then(|n| n.lvo(name));
+        let options = asm::Options { folders: ndk.as_ref().and_then(|n| n.include_folder()).into_iter().collect(), values: ndk.as_ref().map(|_| &lvo as &dyn Fn(&str) -> Option<i64>) };
+        let (assembly, file) = asm::hunk::assemble_executable(path, text, &read, true, &options);
+        return Assembled { assembly, source: Some(text.to_string()), tape: file.map(|bytes| (crate::running::Format::Hunk, bytes)), printed: Vec::new() };
+    }
+    assemble_own(cpu, path, text)
+}
+
 /// The same, as if it were `base` further on. 68000 source, which may be for the Amiga, can draw on the NDK when
 /// there's one: INCLUDE finds its headers, and an _LVO name the source doesn't define is the function's offset.
 pub fn assemble_own_at(cpu: Cpu, path: &Path, text: &str, base: i64) -> Assembly {
@@ -410,7 +426,11 @@ fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
     let out = work.join("out.bin");
     let listing = work.join("out.lst");
     let folder = source.parent().unwrap_or(Path::new("."));
-    let mut args = vec!["-Fbin".to_string(), "-no-opt".into(), "-quiet".into(), "-o".into(), out.display().to_string(), "-L".into(), listing.display().to_string()];
+    // Source for the Amiga is made into an Amiga executable by vasm itself, with only the hunks Kickstart 1.3 knows.
+    let amiga = std::fs::read_to_string(source).is_ok_and(|text| asm::hunk::is_amiga_source(&text));
+    let format: &[&str] = if amiga { &["-Fhunkexe", "-kick1hunks"] } else { &["-Fbin"] };
+    let mut args: Vec<String> = format.iter().map(|f| f.to_string()).collect();
+    args.extend(["-no-opt".to_string(), "-quiet".into(), "-o".into(), out.display().to_string(), "-L".into(), listing.display().to_string()]);
     // The NDK's headers, when there's one, for an Amiga program's INCLUDEs.
     if let Some(headers) = crate::amiga_ndk::current().and_then(|n| n.include_folder()) {
         args.push(format!("-I{}", headers.display()));
@@ -449,6 +469,10 @@ fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
             let bytes: Vec<u8> = (0..bytes.len()).step_by(2).filter_map(|i| u8::from_str_radix(&bytes[i..i + 2], 16).ok()).collect();
             assembly.lines.push(asm::Placed { file, line: number.saturating_sub(1), address, bytes });
         }
+    }
+    if amiga {
+        let tape = if ok { std::fs::read(&out).ok().map(|bytes| (crate::running::Format::Hunk, bytes)) } else { None };
+        return Ok(Assembled { assembly, source: None, tape, printed });
     }
     if let (true, Ok(binary)) = (ok, std::fs::read(&out))
         && let Some(low) = assembly.lines.iter().map(|p| p.address).min()
@@ -645,6 +669,13 @@ mod tests {
             std::fs::write(&source, "\torg $1000\n\tmove.l d0,d1\n\tfrob d2\n").unwrap();
             let wrong = assemble_external(external("vasm").unwrap(), Path::new(&program), &source).unwrap().assembly;
             assert_eq!(wrong.problems.first().map(|p| p.line), Some(2), "{:?}", wrong.problems);
+            // Amiga source: vasm makes the executable, as Limoniter's own assembler does.
+            let text = include_str!("asm/testdata/amiga_demo.s");
+            std::fs::write(&source, text).unwrap();
+            let theirs = assemble_external(external("vasm").unwrap(), Path::new(&program), &source).unwrap();
+            assert!(theirs.assembly.ok(), "{:?}", theirs.assembly.problems);
+            let own = assemble_own_to_run(Cpu::M68k, &source, text);
+            assert_eq!(theirs.tape.map(|t| t.1), own.tape.map(|t| t.1));
         }
         if let Ok(program) = std::env::var("LIMONITER_ACME") {
             let text = "  *=$c000\nstart lda #1\n  sta $d020\n- inx\n  bne -\n  rts\n";
