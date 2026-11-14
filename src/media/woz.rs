@@ -28,18 +28,18 @@ use super::{Entry, InfoSection, Source, Volume};
 use std::sync::Arc;
 
 /// The 64 bytes a 6-and-2 (and Sony) encoded 6-bit value can be written as, in order.
-const SIX_AND_TWO: [u8; 64] = [
+pub(super) const SIX_AND_TWO: [u8; 64] = [
     0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F, 0xA6, 0xA7, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xCB, 0xCD, 0xCE, 0xCF, 0xD3, 0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
 ];
 /// The 32 bytes a 5-and-3 encoded 5-bit value can be written as, in order.
-const FIVE_AND_THREE: [u8; 32] = [
+pub(super) const FIVE_AND_THREE: [u8; 32] = [
     0xAB, 0xAD, 0xAE, 0xAF, 0xB5, 0xB6, 0xB7, 0xBA, 0xBB, 0xBD, 0xBE, 0xBF, 0xD6, 0xD7, 0xDA, 0xDB, 0xDD, 0xDE, 0xDF, 0xEA, 0xEB, 0xED, 0xEE, 0xEF, 0xF5, 0xF6, 0xF7, 0xFA, 0xFB, 0xFD, 0xFE, 0xFF,
 ];
 /// Where each sector of a DOS-order image is on the track: DOS 3.3 numbers its sectors in a different order from
 /// the address fields, so that it has time to deal with one before the next comes round.
 const DOS_TO_PHYSICAL: [usize; 16] = [0, 13, 11, 9, 7, 5, 3, 1, 14, 12, 10, 8, 6, 4, 2, 15];
 /// How many sectors a 3.5-inch track has, in each of its five speed zones of 16 tracks.
-const SONY_SECTORS: [usize; 5] = [12, 11, 10, 9, 8];
+pub(super) const SONY_SECTORS: [usize; 5] = [12, 11, 10, 9, 8];
 /// The length of a WOZ 1 track's record.
 const WOZ1_TRACK: usize = 6656;
 /// How many 5.25-inch tracks are looked at: 35, and the 40 some disks have.
@@ -183,7 +183,7 @@ fn nibbles(bits: &[u8]) -> Vec<u8> {
     out
 }
 
-fn inverse(table: &[u8]) -> [u8; 256] {
+pub(super) fn inverse(table: &[u8]) -> [u8; 256] {
     let mut out = [0xFF; 256];
     for (value, &byte) in table.iter().enumerate() {
         out[usize::from(byte)] = value as u8;
@@ -192,12 +192,12 @@ fn inverse(table: &[u8]) -> [u8; 256] {
 }
 
 /// A 4-and-4 encoded byte: its odd bits in the first, its even bits in the second, each with the rest set.
-fn four_and_four(a: u8, b: u8) -> u8 {
+pub(super) fn four_and_four(a: u8, b: u8) -> u8 {
     (a << 1 | 1) & b
 }
 
 /// Where the next data field's D5 AA AD is, a little after an address field.
-fn data_field(n: &[u8], from: usize) -> Option<usize> {
+pub(super) fn data_field(n: &[u8], from: usize) -> Option<usize> {
     (from..from + 64).find(|&i| n.get(i..i + 3) == Some(&[0xD5, 0xAA, 0xAD]))
 }
 
@@ -231,7 +231,7 @@ fn decode_62(field: &[u8], table: &[u8; 256]) -> Option<Vec<u8>> {
 
 /// A 5-and-3 data field's 410 bytes and checksum, as 256 bytes, or None if they don't add up. As DOS 3.2's RWTS
 /// writes it: 154 values of each byte's low three bits, stored backwards, then 256 of their top five.
-fn decode_53(field: &[u8], table: &[u8; 256]) -> Option<Vec<u8>> {
+pub(super) fn decode_53(field: &[u8], table: &[u8; 256]) -> Option<Vec<u8>> {
     let field = field.get(..411)?;
     let mut running = 0u8;
     let mut value = |byte: u8| -> Option<u8> {
@@ -319,7 +319,7 @@ fn read_525_track(n: &[u8], six: &[u8; 256], five: &[u8; 256]) -> (Found, Found)
 
 /// A Sony data field's 699 6-bit values and 4 of checksum, as its 524 bytes (12 of tags, 512 of data), or None if
 /// the checksum doesn't match. The three running sums are as the Macintosh's Sony driver keeps them.
-fn decode_sony(field: &[u8], table: &[u8; 256]) -> Option<Vec<u8>> {
+pub(super) fn decode_sony(field: &[u8], table: &[u8; 256]) -> Option<Vec<u8>> {
     let field = field.get(..703)?;
     let mut values = Vec::with_capacity(703);
     for &byte in field {

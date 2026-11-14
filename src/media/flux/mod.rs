@@ -127,6 +127,10 @@ enum Family {
     Amiga,
     Commodore,
     Apple,
+    /// DOS 3.2's 13 sectors a track.
+    Apple13,
+    /// The Macintosh's 400K and 800K disks.
+    Sony,
 }
 
 /// What came of one track.
@@ -177,6 +181,8 @@ fn decode(flux: &Flux, family: Family, pull: pll::Loop, nudge: f64) -> TrackRead
             }
         }
         Family::Apple => (read.found, read.cell) = (gcr::apple(&pll::cells(&flux.gaps, peak, pull)), Some(peak)),
+        Family::Apple13 => (read.found, read.cell) = (gcr::apple13(&pll::cells(&flux.gaps, peak, pull)), Some(peak)),
+        Family::Sony => (read.found, read.cell) = (gcr::sony(&pll::cells(&flux.gaps, peak, pull)), Some(peak)),
     }
     read
 }
@@ -267,7 +273,7 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     let mut probes: Vec<(u8, u8)> = [0, 1, places.len() / 4, places.len() / 2, places.len() * 3 / 4, places.len().saturating_sub(4)].iter().filter_map(|i| places.get(*i).copied()).collect();
     probes.dedup();
     let probe_flux = in_parallel(&probes, |place| container.flux(*place).ok().map(|(flux, _)| flux));
-    let families = [Family::Ibm, Family::Amiga, Family::Commodore, Family::Apple];
+    let families = [Family::Ibm, Family::Amiga, Family::Commodore, Family::Apple, Family::Apple13, Family::Sony];
     let scores: Vec<usize> = families
         .iter()
         .map(|family| {
@@ -278,7 +284,7 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     drop(probe_flux);
     let best = (0..families.len()).max_by_key(|&i| (scores[i], std::cmp::Reverse(i))).filter(|&i| scores[i] > 0).map(|i| families[i]);
     let Some(family) = best else {
-        notes.push("No sectors in an encoding Limoniter knows (IBM FM or MFM, Amiga MFM, Commodore 1541 GCR, Apple II 6-and-2 GCR) could be decoded from the flux.".into());
+        notes.push("No sectors in an encoding Limoniter knows (IBM FM or MFM, Amiga MFM, Commodore GCR, Apple II 6-and-2 or 5-and-3 GCR, Macintosh GCR) could be decoded from the flux.".into());
         return FluxDisk { what: container.name().to_string(), inner: None, plain: Arc::new(Vec::new()), plain_name: String::new(), notes, info };
     };
     // Every track, with the quick loop; then any track with a bad sector, or fewer good ones than most tracks have,
@@ -321,6 +327,8 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
         Family::Amiga => "Amiga MFM",
         Family::Commodore => "Commodore 1541 GCR",
         Family::Apple => "Apple II 6-and-2 GCR",
+        Family::Apple13 => "Apple II 5-and-3 GCR (DOS 3.2)",
+        Family::Sony => "Macintosh 3.5-inch GCR",
     };
     let found: Vec<((u8, u8), Found)> = places.iter().zip(reads).flat_map(|(place, read)| read.found.into_iter().map(move |f| (*place, f))).collect();
     let mut laid = match family {
@@ -328,6 +336,8 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
         Family::Amiga => lay_out_amiga(&found),
         Family::Commodore => lay_out_commodore(&found),
         Family::Apple => lay_out_apple(&found),
+        Family::Apple13 => lay_out_apple13(&found),
+        Family::Sony => lay_out_sony(&found),
     };
     let mut rows = vec![("Encoding".to_string(), encoding.to_string())];
     if let Some(cell) = cells.get(cells.len() / 2) {
@@ -400,6 +410,7 @@ impl Laid {
             ("img", Some(tracks)) => super::sectors::open_inner(disk, tracks),
             ("adf", _) => Ok(Box::new(super::amiga::open_adf(disk)?)),
             ("d64", _) => Ok(Box::new(super::cbm::Disk::open(disk, super::cbm::Kind::D64)?)),
+            ("d71", _) => Ok(Box::new(super::cbm::Disk::open(disk, super::cbm::Kind::D71)?)),
             (ending, _) => super::open(disk, &format!("disk.{ending}")),
         }
     }
@@ -532,16 +543,29 @@ fn sectors_1541(track: u8) -> usize {
     }
 }
 
-/// Commodore sectors into a D64: 35 tracks, or 40 when the extra five were used, by the zone's sector count.
+/// Commodore sectors into a D64: 35 tracks, or 40 when the extra five were used, by the zone's sector count. A
+/// 1571's double-sided disk, whose second side's headers number its tracks 36 to 70, goes into a D71: the first
+/// side's 35 tracks, then the second's.
 fn lay_out_commodore(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
-    let tracks: u8 = if found.iter().any(|(_, f)| f.data.is_some() && (36..=40).contains(&f.cylinder)) { 40 } else { 35 };
-    let start = |track: u8| (1..track).map(sectors_1541).sum::<usize>();
+    let double = found.iter().any(|((_, head), f)| *head == 1 && f.data.is_some() && (36..=70).contains(&f.cylinder));
+    let tracks: u8 = if double {
+        70
+    } else if found.iter().any(|(_, f)| f.data.is_some() && (36..=40).contains(&f.cylinder)) {
+        40
+    } else {
+        35
+    };
+    // Each track's sectors are as many as its zone's, the second side's as the first's.
+    let per_track = |track: u8| sectors_1541(if double && track > 35 { track - 35 } else { track });
+    let start = |track: u8| (1..track).map(per_track).sum::<usize>();
     let total = start(tracks + 1);
     let mut bytes = vec![0u8; total * 256];
     let mut have = vec![false; total];
     let mut seen_bad = std::collections::BTreeSet::new();
-    for (_, sector) in found {
-        if sector.cylinder == 0 || sector.cylinder > tracks || usize::from(sector.id) >= sectors_1541(sector.cylinder) {
+    for ((_, head), sector) in found {
+        // A single-sided disk's tracks are all on the first side; on a 1571's, the side must agree with the number.
+        let side_fits = !double || (*head == 1) == (sector.cylinder > 35);
+        if !side_fits || sector.cylinder == 0 || sector.cylinder > tracks || usize::from(sector.id) >= per_track(sector.cylinder) {
             continue;
         }
         let slot = start(sector.cylinder) + usize::from(sector.id);
@@ -563,8 +587,8 @@ fn lay_out_commodore(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
     let missing: Vec<String> = (0..total).filter(|s| !have[*s]).map(place).collect();
     let bad = seen_bad.into_iter().filter(|s| !have[*s]).map(place).collect();
     let good = have.iter().filter(|h| **h).count();
-    let shape = format!("{tracks} tracks, 17 to 21 \u{D7} 256-byte sectors");
-    Ok(Laid { bytes, shape, notes: missing_note(&missing).into_iter().collect(), good, expected: total, bad, ending: "d64", tracks: None })
+    let shape = if double { "1571, 2 sides of 35 tracks, 17 to 21 \u{D7} 256-byte sectors".to_string() } else { format!("{tracks} tracks, 17 to 21 \u{D7} 256-byte sectors") };
+    Ok(Laid { bytes, shape, notes: missing_note(&missing).into_iter().collect(), good, expected: total, bad, ending: if double { "d71" } else { "d64" }, tracks: None })
 }
 
 /// Apple II sectors into a DOS-ordered image of 35 tracks of 16: DOS 3.3 numbers its sectors in a different order
@@ -596,6 +620,79 @@ fn lay_out_apple(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
     let good = have.iter().filter(|h| **h).count();
     Ok(Laid { bytes, shape: "35 tracks, 16 \u{D7} 256-byte sectors".into(), notes: missing_note(&missing).into_iter().collect(), good, expected: have.len(), bad, ending: "do", tracks: None })
 }
+
+/// DOS 3.2 sectors into an image of 35 tracks of 16 sectors, as a 13-sector WOZ disk is read: each sector in its
+/// own place, the last three of each track left as zeros, so DOS 3.2's catalogue is found where DOS 3.3's is.
+fn lay_out_apple13(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
+    let mut bytes = vec![0u8; 35 * 16 * 256];
+    let mut have = vec![false; 35 * 13];
+    let mut seen_bad = std::collections::BTreeSet::new();
+    for (_, sector) in found {
+        if sector.cylinder >= 35 || sector.id >= 13 {
+            continue;
+        }
+        let (slot, place) = (usize::from(sector.cylinder) * 16 + usize::from(sector.id), usize::from(sector.cylinder) * 13 + usize::from(sector.id));
+        match &sector.data {
+            Some(data) if !have[place] => {
+                bytes[slot * 256..slot * 256 + 256].copy_from_slice(data);
+                have[place] = true;
+            }
+            None => {
+                seen_bad.insert(place);
+            }
+            _ => {}
+        }
+    }
+    let name = |place: usize| format!("track {} sector {}", place / 13, place % 13);
+    let missing: Vec<String> = (0..have.len()).filter(|p| !have[*p]).map(name).collect();
+    let bad = seen_bad.into_iter().filter(|p| !have[*p]).map(name).collect();
+    let good = have.iter().filter(|h| **h).count();
+    Ok(Laid { bytes, shape: "35 tracks, 13 \u{D7} 256-byte sectors".into(), notes: missing_note(&missing).into_iter().collect(), good, expected: have.len(), bad, ending: "do", tracks: None })
+}
+
+/// Macintosh sectors into a disk of 512-byte blocks: 80 tracks of 12 sectors on the outside down to 8 on the
+/// inside, each track's sides in turn, as the Sony driver numbers its blocks. Two sides make an 800K disk.
+fn lay_out_sony(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
+    let sides = if found.iter().any(|(_, f)| f.head == 1 && f.data.is_some()) { 2 } else { 1 };
+    let per_track = |track: usize| super::woz::SONY_SECTORS[track / 16];
+    let start = |track: usize, side: usize| (0..track).map(|t| per_track(t) * sides).sum::<usize>() + if side > 0 { side * per_track(track) } else { 0 };
+    let total = start(80, 0);
+    let mut bytes = vec![0u8; total * 512];
+    let mut have = vec![false; total];
+    let mut seen_bad = std::collections::BTreeSet::new();
+    for (_, sector) in found {
+        let (track, side, id) = (usize::from(sector.cylinder), usize::from(sector.head), usize::from(sector.id));
+        if track >= 80 || side >= sides || id >= per_track(track) {
+            continue;
+        }
+        let slot = start(track, side) + id;
+        match &sector.data {
+            Some(data) if !have[slot] => {
+                bytes[slot * 512..slot * 512 + 512].copy_from_slice(data);
+                have[slot] = true;
+            }
+            None => {
+                seen_bad.insert(slot);
+            }
+            _ => {}
+        }
+    }
+    let place = |slot: usize| {
+        let (mut track, mut side) = (0, 0);
+        while track < 79 && start(track, side) + per_track(track) <= slot {
+            (track, side) = if side + 1 < sides { (track, side + 1) } else { (track + 1, 0) };
+        }
+        let id = slot - start(track, side);
+        if sides == 2 { format!("track {track} side {side} sector {id}") } else { format!("track {track} sector {id}") }
+    };
+    let missing: Vec<String> = (0..total).filter(|s| !have[*s]).map(place).collect();
+    let bad = seen_bad.into_iter().filter(|s| !have[*s]).map(place).collect();
+    let good = have.iter().filter(|h| **h).count();
+    // A Mac disk opens as its file system by its bytes; a ProDOS one (an Apple IIgs disk) as a ProDOS-order image.
+    let ending = if super::mac::kind_of(&bytes[..bytes.len().min(4096)]).is_some() { "img" } else { "po" };
+    Ok(Laid { bytes, shape: format!("{}K, 80 tracks, {sides} side(s), 8 to 12 \u{D7} 512-byte sectors", total / 2), notes: missing_note(&missing).into_iter().collect(), good, expected: total, bad, ending, tracks: None })
+}
+
 
 impl Volume for FluxDisk {
     fn describe(&self) -> String {
@@ -956,5 +1053,53 @@ mod tests {
                 Err(problem) => println!("{shown}\tREFUSED\t{problem}"),
             }
         }
+    }
+
+    #[test]
+    fn a_1571_disk_decodes_both_sides_into_a_d71() {
+        let d64 = fixture("test.d64");
+        let mut gaps = Vec::new();
+        for track in 1..=70u8 {
+            let zone = if track > 35 { track - 35 } else { track };
+            let count = sectors_1541(zone);
+            // The second side holds the first's sectors again, each byte turned over, so the two can't be mixed up.
+            let first = (1..zone).map(sectors_1541).sum::<usize>();
+            let sectors: Vec<Vec<u8>> = (0..count).map(|s| d64[(first + s) * 256..][..256].iter().map(|b| if track > 35 { !b } else { *b }).collect()).collect();
+            let cells = gcr::tests::commodore_track(track, &sectors);
+            gaps.push(((zone - 1, u8::from(track > 35)), flux_of(&[cells.clone(), cells].concat(), 3500.0)));
+        }
+        let volume = super::super::open(Arc::new(scp::tests::scp_of(&gaps, 1)), "c128.scp").unwrap();
+        assert!(volume.describe().contains("1571, 2 sides of 35 tracks"), "{}", volume.describe());
+        let files = volume.list(None).unwrap();
+        let whole = volume.read(files.iter().find(|f| f.name == "Decoded disk.d71").unwrap()).unwrap();
+        let mut expected = d64.clone();
+        expected.extend(d64.iter().map(|b| !b));
+        assert_eq!(whole, expected);
+    }
+
+    /// Flux made by Greaseweazle's `gw convert` from a 1571 disk and a Mac 400K disk (mk1571.sh and mkmac.sh), and
+    /// a DOS 3.2 disk's WOZ bits as flux (woz2scp.py), in ../testmedia/flux/made beside the disks they came from:
+    /// each decodes to its disk exactly. Skipped when the folder isn't there.
+    #[test]
+    fn greaseweazle_made_flux_decodes_to_its_disks() {
+        let root = std::path::Path::new("../testmedia/flux/made");
+        if !root.is_dir() {
+            return;
+        }
+        let decoded = |name: &str, plain: &str| {
+            let bytes = std::fs::read(root.join(name)).unwrap();
+            let volume = super::super::open(Arc::new(bytes), name).unwrap();
+            let files = volume.list(None).unwrap();
+            let whole = files.iter().find(|f| f.name == plain).unwrap_or_else(|| panic!("{name}: {:?}", names(&files)));
+            (volume.describe(), volume.read(whole).unwrap())
+        };
+        let (what, disk) = decoded("gw-1571.scp", "Decoded disk.d71");
+        assert!(what.contains("Commodore 1571 disk"), "{what}");
+        assert_eq!(disk, std::fs::read(root.join("gw-1571.d71")).unwrap());
+        let (what, disk) = decoded("gw-mac400.scp", "Decoded disk.img");
+        assert!(what.contains("Macintosh 3.5-inch GCR \u{B7} 400K") && what.contains("MFS"), "{what}");
+        assert_eq!(disk, std::fs::read(root.join("gw-mac400.img")).unwrap());
+        let (what, _) = decoded("woz-dos32.scp", "Decoded disk.do");
+        assert!(what.contains("5-and-3 GCR (DOS 3.2)") && what.contains("Apple II DOS 3.2"), "{what}");
     }
 }
