@@ -442,7 +442,7 @@ impl Limoniter {
                 ui.radio_value(&mut state.kind, blank, blank.name());
             }
             ui.add_space(6.0);
-            let named = !matches!(state.kind, Blank::SpectrumTap | Blank::SpectrumTzx | Blank::Plus3 | Blank::Atari90 | Blank::Atari130 | Blank::CocoSingle);
+            let named = !matches!(state.kind, Blank::SpectrumTap | Blank::SpectrumTzx | Blank::Plus3 | Blank::Atari90 | Blank::Atari130 | Blank::AtariMyDos360 | Blank::CocoSingle);
             ui.add_enabled_ui(named, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Disk name");

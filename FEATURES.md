@@ -186,12 +186,16 @@ The images below can have files added (**Add files…**, or drop them on the tab
 | PC and Atari ST FAT12/16/32 | Long names where a name doesn't fit 8.3 (the NT lower-case flags where it only differs in case), folders, every copy of the FAT kept alike |
 | Amiga ADF (OFS and FFS, DD and HD) | Files and folders, extension blocks for large files, the bitmap and every checksum |
 | Atari 8-bit ATR, Atari DOS 2.0 and 2.5 | Single, enhanced and double density; DOS 2.5's second VTOC and its mark on files past sector 719 |
+| Atari 8-bit ATR, MyDOS | Folders, disks of up to 65535 sectors with their sectors linked by all 16 bits past 1023, and the VTOC running on below sector 360 |
+| Atari 8-bit ATR, SpartaDOS (2.x, 3.x, SpartaDOS X) | Files and folders through their sector maps, each dated now; the bitmap, the free count and the volume's sequence number |
+| Mac HFS (plain images, Disk Copy 4.2 and a disk's one HFS partition) | Files with both forks (`name.rsrc` goes on as `name`'s resource fork), folders, a type and creator from the kind chosen or the file's ending (TEXT/ttxt for text), the catalog and extents trees built again with their index nodes, overflow extents for files in many pieces, the bitmap, both master directory blocks and Disk Copy's checksum |
 | Color Computer RS-DOS (JVC) | BASIC (tokenised or ASCII), data, machine code (plain bytes put in a LOADM block at an address) and text |
 
 - When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.
 - A file whose name is taken isn't replaced unless you tick **Replace it**.
-- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb and cpmtools.
-- Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Amiga disks with directory caches or long names, and the rest) say why they're read only.
+- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy and lsatr (MyDOS and SpartaDOS), ToolShed's decb, cpmtools, and Apple's fsck_hfs with hfsutils for HFS.
+- Images Limoniter only reads (SpartaDOS 1, MFS and HFS+, Dragon DOS and OS-9, Amiga disks with directory caches or long names, and the rest) say why they're read only.
+- New blank images include 400K, 800K and 1.4MB Mac HFS floppies, a 360K MyDOS disk and a 180K SpartaDOS disk.
 
 ## Documents and conversions
 
