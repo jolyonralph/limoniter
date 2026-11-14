@@ -191,10 +191,11 @@ The images below can have files added (**Add files…**, or drop them on the tab
 | Apple II ProDOS (.po, .dsk, .2mg, .hdv) | Folders (growing a block at a time), seedling, sapling and tree files, dated, with their types: BIN with its load address, BAS, TXT, SYS, INT and untyped |
 | BBC Micro DFS (.ssd, .dsd) | Each side's 31-file catalogue, with load and exec addresses (BASIC at &1900, a listing tokenised first) and the locked flag kept; a side whose free space is split is compacted first, as *COMPACT would |
 | Acorn ADFS, old map (.ads, .adm, .adl, .adf) | Files and directories, kept in name order with their sequence numbers, and the free space map with its checksums; `.adl` images in their own sector order |
+| ZX Spectrum TR-DOS disks (.trd) and SCL archives | BASIC (a listing typed as text is tokenised, with the line to run from), code, screens, data arrays and sequential files, kept one after another as TR-DOS keeps them; a full disk is compacted over deleted files, as MOVE does |
 
 - When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.
 - A file whose name is taken isn't replaced unless you tick **Replace it**.
-- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb, cpmtools, AppleCommander and a2kit, beebtools, MMB_Utils and ADFSlib.
+- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb, cpmtools, AppleCommander and a2kit, beebtools, MMB_Utils, ADFSlib and trdos-list; a written TR-DOS disk is also loaded and run by a Pentagon's TR-DOS in ZEsarUX.
 - Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Apple DOS 3.2, Watford DFS's 62-file catalogues, RISC OS's D, E and F discs, Amiga disks with directory caches or long names, and the rest) say why they're read only.
 
 ## Documents and conversions
