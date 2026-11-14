@@ -144,6 +144,8 @@ const FILE: &[Entry] = &[
             Item("Assemblers\u{2026}", Command::ChooseAssembler),
             Item("Amiga NDK (code hints)\u{2026}", Command::AmigaNdk),
             Item("Amiga crunchers and music\u{2026}", Command::AmigaTools),
+            Item("Profile in Hatari", Command::HatariProfile),
+            Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),
             Item("Devices and emulators\u{2026}", Command::ManageDevices),
         ],
     ),

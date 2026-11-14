@@ -113,10 +113,14 @@ pub enum Format {
     Hunk,
     /// An Amiga floppy disk.
     Adf,
+    /// An Atari ST floppy disk, sector by sector.
+    St,
+    /// An Atari ST floppy disk packed by the Magic Shadow Archiver.
+    Msa,
 }
 
 impl Format {
-    pub const ALL: [Format; 24] = [
+    pub const ALL: [Format; 26] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -141,6 +145,8 @@ impl Format {
         Format::CocoBin,
         Format::Hunk,
         Format::Adf,
+        Format::St,
+        Format::Msa,
     ];
 
     /// The file ending it's written with.
@@ -170,6 +176,8 @@ impl Format {
             Format::CocoBin => "bin",
             Format::Hunk => "exe",
             Format::Adf => "adf",
+            Format::St => "st",
+            Format::Msa => "msa",
         }
     }
 
@@ -202,6 +210,9 @@ impl Runnable {
             return Some(Runnable { machine: Machine::Amiga, format: Format::Hunk, name: format!("{name}.exe"), bytes: Arc::new(bytes) });
         }
         let ending = name.rsplit_once('.').map(|(_, ending)| ending)?;
+        if matches!(ending.to_ascii_lowercase().as_str(), "prg" | "ttp" | "app" | "gtp") && is_atari_program(&bytes) {
+            return Some(Runnable { machine: Machine::AtariSt, format: Format::Tos, name: name.to_string(), bytes: Arc::new(bytes) });
+        }
         let format = Format::from_ending(ending)?;
         let machine = machine_for(format, &bytes)?;
         Some(Runnable { machine, format, name: name.to_string(), bytes: Arc::new(bytes) })
@@ -297,7 +308,19 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
             }
             Machine::AtariSt
         }
+        // A double-sided 720K or single-sided 360K floppy (or another of 9 to 11 sectors a track) whose boot sector
+        // says 512-byte sectors; .st is Smalltalk source too, which this rules out.
+        Format::St if bytes.len().is_multiple_of(512) && (327_680..=1_064_960).contains(&bytes.len()) && bytes.get(11..13) == Some(&[0, 2][..]) => Machine::AtariSt,
+        Format::St => return None,
+        Format::Msa if bytes.starts_with(&[0x0E, 0x0F]) => Machine::AtariSt,
+        Format::Msa => return None,
     })
+}
+
+/// Whether a file is an Atari ST program: $601A, then sizes of its parts that fit in the file.
+fn is_atari_program(bytes: &[u8]) -> bool {
+    let long = |at: usize| bytes.get(at..at + 4).map_or(u64::MAX, |b| u64::from(u32::from_be_bytes([b[0], b[1], b[2], b[3]])));
+    bytes.starts_with(&[0x60, 0x1A]) && bytes.len() >= 28 && 28 + long(2) + long(6) + long(14) <= bytes.len() as u64
 }
 
 /// A Commodore program says which machine it's for by where it loads.
@@ -397,6 +420,15 @@ mod tests {
         assert_eq!(run("demo.exe", hunks), Some((Machine::Amiga, Format::Hunk)));
         assert_eq!(run("setup.exe", b"MZ\x90\0".to_vec()), None, "a Windows program isn't run");
         assert_eq!(run("disk.adf", vec![0; 901_120]), Some((Machine::Amiga, Format::Adf)));
+        // Atari ST floppies, and a .PRG that's an ST program rather than a Commodore one.
+        let floppy = crate::st_run::bootable_floppy(&[0x60, 0x1A], "x.tos", None).unwrap();
+        assert_eq!(run("demo.st", floppy.clone()), Some((Machine::AtariSt, Format::St)));
+        assert_eq!(run("Object.st", b"Object subclass: #Account".to_vec()), None, "Smalltalk");
+        assert_eq!(run("demo.msa", crate::st_run::pack_msa(&floppy).unwrap()), Some((Machine::AtariSt, Format::Msa)));
+        let mut program = vec![0x60, 0x1A, 0, 0, 0, 2];
+        program.resize(30, 0);
+        assert_eq!(run("DEMO.PRG", program), Some((Machine::AtariSt, Format::Tos)));
+        assert_eq!(run("game.prg", vec![0x60, 0x1A, 0xA9, 0]), Some((Machine::C64, Format::Prg)), "too short for an ST program");
     }
 
     #[test]

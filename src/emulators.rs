@@ -110,9 +110,9 @@ pub const KNOWN: &[Emulator] = &[
         folder_hints: &["hatari"],
         mac_apps: &[("Hatari.app", "Hatari")],
         machines: &[AtariSt],
-        formats: &[Tos],
+        formats: &[Tos, St, Msa],
         link: Link::None,
-        website: "https://hatari.tuxfamily.org",
+        website: "https://www.hatari-emu.org",
     },
     Emulator {
         id: "xroar",
@@ -227,7 +227,7 @@ impl Emulator {
                 args.extend(["--machine".into(), id.into(), "--auto-load".into(), file]);
             }
             "cspect" => args.extend(["-zxnext".into(), "-w3".into(), file]),
-            // Hatari makes the program's folder a drive, and runs it.
+            // Hatari makes the program's folder a drive and runs it, or boots from a floppy (see `st_run`).
             "hatari" => args.push(file),
             "vice" => {
                 if let Some(port) = port {

@@ -871,6 +871,9 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 if let Some(known) = known.filter(|k| k.machines.contains(&crate::running::Machine::Amiga)) {
                     crate::amiga_run::settings_rows(ui, &hint, known.id);
                 }
+                if known.is_some_and(|k| k.id == "hatari") {
+                    crate::st_run::settings_rows(ui, &hint, program);
+                }
                 if let Some(known) = known {
                     ui.label("");
                     let machines: Vec<&str> = known.machines.iter().map(|m| m.name()).collect();
