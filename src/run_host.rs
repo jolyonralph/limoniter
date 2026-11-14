@@ -407,7 +407,7 @@ impl Limoniter {
             command.args(&args).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
             drop(err);
         } else {
-            command.args(&args).stdin(std::process::Stdio::null()).stdout(out).stderr(err);
+            command.args(&args).stdin(std::process::Stdio::null()).stdout(out.try_clone().map_err(|e| e.to_string())?).stderr(err);
         }
         if let Some(home) = program.parent() {
             command.current_dir(home);
@@ -416,7 +416,8 @@ impl Limoniter {
         if debugging && hatari && let (Some(input), Some(output), Some(errors)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) {
             let breakpoints = self.breakpoint_addresses(doc_id);
             let wake = self.waker.clone();
-            let console = crate::remote_debug::Console::new(input, output, errors);
+            // What Hatari prints, the program's own output among it, still goes to the log.
+            let console = crate::remote_debug::Console::logged(input, output, errors, Some(out));
             let remote = crate::remote_debug::RemoteDebug::start_hatari(console, child.id(), breakpoints.clone(), move || {
                 if let Some(ctx) = &wake {
                     ctx.request_repaint();

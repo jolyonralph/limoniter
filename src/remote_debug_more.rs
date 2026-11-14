@@ -234,15 +234,18 @@ pub struct Console {
 }
 
 impl Console {
-    /// Its input, and what it prints: Hatari's debugger writes to both its outputs.
-    pub fn new(input: std::process::ChildStdin, output: impl Read + Send + 'static, errors: impl Read + Send + 'static) -> Console {
+    /// Its input, and what it prints: Hatari's debugger writes to both its outputs. Everything it prints is also
+    /// written to a log, if given: the program's own output (TOS's console, which Hatari sends to the same place) is
+    /// kept there while it's debugged.
+    pub fn logged(input: std::process::ChildStdin, output: impl Read + Send + 'static, errors: impl Read + Send + 'static, log: Option<std::fs::File>) -> Console {
         let (send, lines) = std::sync::mpsc::channel();
-        Self::read_lines(errors, send.clone());
-        Self::read_lines(output, send);
+        let log = log.map(|file| std::sync::Arc::new(std::sync::Mutex::new(file)));
+        Self::read_lines(errors, send.clone(), log.clone());
+        Self::read_lines(output, send, log);
         Console { input, lines }
     }
 
-    fn read_lines(output: impl Read + Send + 'static, send: Sender<String>) {
+    fn read_lines(output: impl Read + Send + 'static, send: Sender<String>, log: Option<std::sync::Arc<std::sync::Mutex<std::fs::File>>>) {
         std::thread::spawn(move || {
             let mut reader = std::io::BufReader::new(output);
             let mut line = Vec::new();
@@ -262,6 +265,30 @@ impl Console {
                     if line == b"> " {
                         break;
                     }
+                    // The prompt after something printed without a line ending (the program's own console output,
+                    // say): when nothing more is waiting, what came before goes as a line of its own, then the prompt.
+                    if line.ends_with(b"> ") && reader.buffer().is_empty() {
+                        let before = line[..line.len() - 2].to_vec();
+                        if let Some(log) = &log
+                            && let Ok(mut file) = log.lock()
+                        {
+                            use std::io::Write;
+                            let _ = file.write_all(&before);
+                            let _ = file.write_all(b"\n");
+                        }
+                        if send.send(String::from_utf8_lossy(&before).trim_end_matches('\r').to_string()).is_err() {
+                            return;
+                        }
+                        line = b"> ".to_vec();
+                        break;
+                    }
+                }
+                if let Some(log) = &log
+                    && let Ok(mut file) = log.lock()
+                {
+                    use std::io::Write;
+                    let _ = file.write_all(&line);
+                    let _ = file.write_all(b"\n");
                 }
                 if send.send(String::from_utf8_lossy(&line).trim_end_matches('\r').to_string()).is_err() {
                     return;
