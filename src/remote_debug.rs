@@ -22,6 +22,8 @@ pub enum Ask {
     Pause,
     /// Lets ZEsarUX run on by itself, and ends.
     Finish,
+    /// What only an Amiga's debugger is asked, its addresses 32 bits wide.
+    Amiga(crate::amiga_debug::AmigaAsk),
 }
 
 /// Where a program stopped, and its registers: a Z80's, or another processor's as words to show.
@@ -34,6 +36,8 @@ pub struct Stop {
     pub reason: Option<String>,
     /// All 64K as they were when it stopped, where the emulator gives it.
     pub memory: Option<std::sync::Arc<Vec<u8>>>,
+    /// An Amiga's: its 68000's registers, where its hunks are, and the memory read.
+    pub amiga: Option<Box<crate::amiga_debug::AmigaStop>>,
 }
 
 impl Stop {
@@ -70,6 +74,8 @@ pub struct RemoteDebug {
     /// Where it last stopped, while it's stopped.
     pub stopped: Option<Stop>,
     pub problem: Option<String>,
+    /// What the panel keeps for an Amiga being debugged.
+    pub amiga: Option<Box<crate::amiga_debug::Shown>>,
 }
 
 impl RemoteDebug {
@@ -89,7 +95,7 @@ impl RemoteDebug {
             }
             wake();
         });
-        RemoteDebug { asks, told, stopped: None, problem: None }
+        RemoteDebug { asks, told, stopped: None, problem: None, amiga: None }
     }
 
     /// Starts running and debugging a program on a real Next, through dezogif, on the cable's serial port (or
@@ -104,7 +110,7 @@ impl RemoteDebug {
             }
             wake();
         });
-        RemoteDebug { asks, told, stopped: None, problem: None }
+        RemoteDebug { asks, told, stopped: None, problem: None, amiga: None }
     }
 
     /// Starts debugging a program in Hatari, through its debugger on the console it was started with.
@@ -117,11 +123,25 @@ impl RemoteDebug {
             }
             wake();
         });
-        RemoteDebug { asks, told, stopped: None, problem: None }
+        RemoteDebug { asks, told, stopped: None, problem: None, amiga: None }
+    }
+
+    /// Starts debugging an Amiga program in an emulator with a GDB server on a port (see `amiga_debug`).
+    pub fn start_amiga(port: u16, program: crate::amiga_debug::Program, breakpoints: Vec<i64>, wake: impl Fn() + Send + 'static) -> RemoteDebug {
+        let (asks, asked) = channel();
+        let (tell, told) = channel();
+        let shown = crate::amiga_debug::Shown { program: program.clone(), breakpoints: Some(breakpoints.clone()), ..Default::default() };
+        std::thread::spawn(move || {
+            if let Err(problem) = crate::amiga_debug::talk(port, program, breakpoints, &asked, &tell, &wake) {
+                let _ = tell.send(Told::Problem(problem));
+            }
+            wake();
+        });
+        RemoteDebug { asks, told, stopped: None, problem: None, amiga: Some(Box::new(shown)) }
     }
 
     pub fn ask(&mut self, ask: Ask) {
-        if matches!(ask, Ask::CarryOn | Ask::Step | Ask::StepOver) {
+        if matches!(ask, Ask::CarryOn | Ask::Step | Ask::StepOver | Ask::Amiga(crate::amiga_debug::AmigaAsk::RunTo(_))) {
             self.stopped = None;
         }
         let _ = self.asks.send(ask);
@@ -303,6 +323,7 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
             },
         };
         match ask {
+            Ask::Amiga(_) => {}
             Ask::Breakpoints(addresses) => set = link.set_breakpoints(&addresses, set)?,
             Ask::Watches(addresses) => link.set_watches(&addresses)?,
             Ask::Pause => say(Told::Stopped(link.stop()?)),
@@ -553,6 +574,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
         }
         let ask = asked.recv().unwrap_or(Ask::Finish);
         match ask {
+            Ask::Amiga(_) => {}
             Ask::Breakpoints(addresses) => vice.set_checkpoints(&addresses, &mut numbers)?,
             Ask::Watches(addresses) => vice.set_checkpoints_for(&addresses, &mut watch_numbers, 2)?,
             Ask::CarryOn => {

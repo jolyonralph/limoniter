@@ -29,9 +29,28 @@ pub struct Seen<'a> {
     pub labels: Option<&'a BTreeMap<String, i64>>,
 }
 
+/// What an expression can see on a processor with 32-bit addresses and big-endian words, as the 68000 has:
+/// registers (and anything else) by name, and memory.
+pub struct Wide<'a> {
+    pub names: &'a dyn Fn(&str) -> Option<i64>,
+    pub peek: &'a dyn Fn(u32) -> u8,
+}
+
 /// Works out an expression.
 pub fn eval(text: &str, seen: &Seen) -> Result<i64, String> {
-    let mut parser = Parser { chars: text.chars().collect(), at: 0, seen };
+    parse(text, seen, None)
+}
+
+/// Works out an expression for a 68000: its registers by name, labels, `[addr]` for a byte, `word[addr]` and
+/// `long[addr]`, big-endian.
+pub fn eval_wide(text: &str, wide: &Wide, labels: Option<&BTreeMap<String, i64>>) -> Result<i64, String> {
+    let none = |_: u16| 0;
+    let seen = Seen { registers: None, peek: &none, labels };
+    parse(text, &seen, Some(wide))
+}
+
+fn parse(text: &str, seen: &Seen, wide: Option<&Wide>) -> Result<i64, String> {
+    let mut parser = Parser { chars: text.chars().collect(), at: 0, seen, wide };
     let value = parser.or()?;
     parser.space();
     if parser.at < parser.chars.len() {
@@ -44,6 +63,7 @@ struct Parser<'a, 'b> {
     chars: Vec<char>,
     at: usize,
     seen: &'a Seen<'b>,
+    wide: Option<&'a Wide<'a>>,
 }
 
 impl Parser<'_, '_> {
@@ -185,11 +205,25 @@ impl Parser<'_, '_> {
             }
             return Ok(value);
         }
-        let word = self.take("word[");
-        if word || self.take("[") {
+        let long = self.take("long[");
+        let word = !long && self.take("word[");
+        if long || word || self.take("[") {
             let address = self.or()?;
             if !self.take("]") {
                 return Err("a [ has no ]".into());
+            }
+            if let Some(wide) = self.wide {
+                let byte = |i: u32| i64::from((wide.peek)((address as u32).wrapping_add(i)));
+                return Ok(if long {
+                    byte(0) << 24 | byte(1) << 16 | byte(2) << 8 | byte(3)
+                } else if word {
+                    byte(0) << 8 | byte(1)
+                } else {
+                    byte(0)
+                });
+            }
+            if long {
+                return Err("long[...] is for the 68000".into());
             }
             let peek = self.seen.peek;
             let low = i64::from(peek(address as u16));
@@ -234,6 +268,9 @@ impl Parser<'_, '_> {
                 self.at += 1;
             }
             let name: String = self.chars[start..self.at].iter().collect();
+            if let Some(value) = self.wide.and_then(|wide| (wide.names)(&name)) {
+                return Ok(value);
+            }
             if let Some(value) = self.seen.registers.and_then(|r| register(r, &name)) {
                 return Ok(value);
             }
@@ -290,7 +327,11 @@ fn register(r: &Registers, name: &str) -> Option<i64> {
 
 /// An address as a label and how far past it: "frame+3". Only labels within 256 bytes before it count.
 pub fn label_of(address: u16, assembly: &Assembly) -> Option<String> {
-    let address = i64::from(address);
+    label_at(i64::from(address), assembly)
+}
+
+/// The same, for an address of any width.
+pub fn label_at(address: i64, assembly: &Assembly) -> Option<String> {
     let (name, value) = assembly.definitions.iter().filter(|d| d.written == d.name).filter_map(|d| assembly.symbols.get(&d.name).map(|v| (&d.name, *v))).filter(|(_, v)| *v <= address && address - *v < 256).max_by_key(|(_, v)| *v)?;
     Some(if value == address { name.clone() } else { format!("{name}+{}", address - value) })
 }
@@ -418,68 +459,91 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         let labels = assembly.map(|a| &a.symbols);
         let seen = Seen { registers: Some(&r), peek: &peek, labels };
         // Watches: expressions worked out at every stop.
-        egui::CollapsingHeader::new("Watches").id_salt("debug-watches").default_open(true).show(ui, |ui| {
-            let mut gone = None;
-            for (index, watch) in code.watches.iter().enumerate() {
-                ui.horizontal(|ui| {
-                    if crate::access::called(ui.small_button("\u{D7}"), "Stop watching this").on_hover_text("Stop watching this").clicked() {
-                        gone = Some(index);
-                    }
-                    let value = match eval(watch, &seen) {
-                        Ok(v) => format!("{watch} = {v} (${:X})", v & 0xFFFF_FFFF),
-                        Err(problem) => format!("{watch}: {problem}"),
-                    };
-                    ui.label(mono(value));
-                });
-            }
-            if let Some(index) = gone {
-                code.watches.remove(index);
-            }
-            ui.horizontal(|ui| {
-                let field = ui.add(egui::TextEdit::singleline(&mut code.new_watch).hint_text("A, HL, [counter], word[ptr]...").desired_width(200.0));
-                if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button("Watch").clicked() {
-                    let watch = code.new_watch.trim().to_string();
-                    if !watch.is_empty() {
-                        code.watches.push(watch);
-                        code.new_watch.clear();
-                    }
-                }
-            });
-        });
+        watches_section(ui, code, &|watch| eval(watch, &seen), "A, HL, [counter], word[ptr]...");
         // A window on memory, at an address, a label, or anything an expression gives.
-        egui::CollapsingHeader::new("Memory").id_salt("debug-memory").default_open(true).show(ui, |ui| {
+        memory_section(ui, code, "HL, $5800, a label...", &|text| if text.trim().is_empty() { Ok(i64::from(r.hl)) } else { eval(text, &seen) }, 4, &|a| Some(peek(a as u16)), &|a| before.map(|b| b[(a & 0xFFFF) as usize]));
+    });
+    action
+}
+
+/// The watches: expressions worked out at every stop, with a field for another.
+fn watches_section(ui: &mut Ui, code: &mut CodeMarks, value: &dyn Fn(&str) -> Result<i64, String>, hint: &str) {
+    let mono = |text: String| RichText::new(text).monospace().size(12.0);
+    egui::CollapsingHeader::new("Watches").id_salt("debug-watches").default_open(true).show(ui, |ui| {
+        let mut gone = None;
+        for (index, watch) in code.watches.iter().enumerate() {
             ui.horizontal(|ui| {
-                ui.label("At");
-                ui.add(egui::TextEdit::singleline(&mut code.memory_at).hint_text("HL, $5800, a label...").desired_width(160.0));
-            });
-            let shown = if code.memory_at.trim().is_empty() { Ok(i64::from(r.hl)) } else { eval(&code.memory_at, &seen) };
-            match shown {
-                Ok(start) => {
-                    let start = (start as u16) & 0xFFF0;
-                    for row in 0..8u16 {
-                        let address = start.wrapping_add(row * 16);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.label(mono(format!("{address:04X}")).color(theme::text_dim()));
-                            for i in 0..16u16 {
-                                let at = address.wrapping_add(i);
-                                let byte = peek(at);
-                                let changed = before.is_some_and(|b| b[at as usize] != byte);
-                                let text = mono(format!("{byte:02X}"));
-                                ui.label(if changed { text.color(theme::accent()).strong() } else { text }).on_hover_text(format!("${at:04X} = {byte}"));
-                            }
-                            let chars: String = (0..16u16).map(|i| peek(address.wrapping_add(i))).map(|b| if (32..127).contains(&b) { b as char } else { '.' }).collect();
-                            ui.label(mono(chars).color(theme::text_dim()));
-                        });
-                    }
+                if crate::access::called(ui.small_button("\u{D7}"), "Stop watching this").on_hover_text("Stop watching this").clicked() {
+                    gone = Some(index);
                 }
-                Err(problem) => {
-                    ui.label(RichText::new(problem).color(theme::problem_mark()).size(11.5));
+                let value = match value(watch) {
+                    Ok(v) => format!("{watch} = {v} (${:X})", v & 0xFFFF_FFFF),
+                    Err(problem) => format!("{watch}: {problem}"),
+                };
+                ui.label(mono(value));
+            });
+        }
+        if let Some(index) = gone {
+            code.watches.remove(index);
+        }
+        ui.horizontal(|ui| {
+            let field = ui.add(egui::TextEdit::singleline(&mut code.new_watch).hint_text(hint).desired_width(200.0));
+            if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button("Watch").clicked() {
+                let watch = code.new_watch.trim().to_string();
+                if !watch.is_empty() {
+                    code.watches.push(watch);
+                    code.new_watch.clear();
                 }
             }
         });
     });
-    action
+}
+
+/// A window on memory, at what `start` makes of the address typed: 128 bytes, with those changed since the stop
+/// before standing out, and those not read shown as --. `digits` is how wide addresses are written. Gives where
+/// it starts, if the address could be worked out.
+fn memory_section(ui: &mut Ui, code: &mut CodeMarks, hint: &str, start: &dyn Fn(&str) -> Result<i64, String>, digits: usize, peek: &dyn Fn(u32) -> Option<u8>, before: &dyn Fn(u32) -> Option<u8>) -> Option<u32> {
+    let mono = |text: String| RichText::new(text).monospace().size(12.0);
+    let mask = if digits <= 4 { 0xFFFF } else { 0xFFFF_FFFF };
+    let mut shown_at = None;
+    egui::CollapsingHeader::new("Memory").id_salt("debug-memory").default_open(true).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("At");
+            ui.add(egui::TextEdit::singleline(&mut code.memory_at).hint_text(hint).desired_width(160.0));
+        });
+        match start(&code.memory_at) {
+            Ok(start) => {
+                let start = (start as u32) & mask & !0xF;
+                shown_at = Some(start);
+                for row in 0..8u32 {
+                    let address = start.wrapping_add(row * 16) & mask;
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        ui.label(mono(format!("{address:0digits$X}")).color(theme::text_dim()));
+                        for i in 0..16u32 {
+                            let at = address.wrapping_add(i) & mask;
+                            match peek(at) {
+                                Some(byte) => {
+                                    let changed = before(at).is_some_and(|b| b != byte);
+                                    let text = mono(format!("{byte:02X}"));
+                                    ui.label(if changed { text.color(theme::accent()).strong() } else { text }).on_hover_text(format!("${at:0digits$X} = {byte}"));
+                                }
+                                None => {
+                                    ui.label(mono("--".into()).color(theme::text_faint())).on_hover_text(format!("${at:0digits$X} hasn't been read"));
+                                }
+                            }
+                        }
+                        let chars: String = (0..16u32).map(|i| peek(address.wrapping_add(i) & mask)).map(|b| b.filter(|b| (32..127).contains(b)).map_or('.', char::from)).collect();
+                        ui.label(mono(chars).color(theme::text_dim()));
+                    });
+                }
+            }
+            Err(problem) => {
+                ui.label(RichText::new(problem).color(theme::problem_mark()).size(11.5));
+            }
+        }
+    });
+    shown_at
 }
 
 /// The breakpoints, each with the condition it stops on, and the addresses whose writing stops it: shown whether
@@ -551,6 +615,211 @@ pub fn write_addresses(code: &CodeMarks, labels: Option<&BTreeMap<String, i64>>)
         }
     }
     found
+}
+
+/// Where a 68000 program is, as words: the address, and its label and line if it's in the program. `source` is the
+/// address in the assembly.
+pub fn place_68k(address: u32, source: Option<i64>, assembly: Option<&Assembly>) -> String {
+    let in_program = source.zip(assembly).map(|(source, assembly)| {
+        let line = assembly.line_at(source).map(|(file, line)| {
+            let name = assembly.files.get(file).and_then(|f| f.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            format!(", line {} of {name}", line + 1)
+        });
+        let label = label_at(source, assembly).map(|l| format!(" {l}")).unwrap_or_default();
+        format!("{label}{}", line.unwrap_or_default())
+    });
+    match in_program {
+        Some(words) => format!("${address:08X}{words}"),
+        None if (0xF8_0000..0x100_0000).contains(&(address & 0xFF_FFFF)) => format!("${address:08X}, in the Kickstart ROM"),
+        None => format!("${address:08X}, outside the program"),
+    }
+}
+
+/// The panel while a 68000 program on an Amiga is stopped: where, the buttons, the registers (each can be clicked
+/// to change it), the calls it's inside, watches, a window on memory, the custom chips' registers and what's been
+/// printed. `cursor` is the address of the line the cursor is on, for Run to cursor. Gives what's to be asked of
+/// the debugger, memory to read among it.
+pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Shown, assembly: Option<&Assembly>, code: &mut CodeMarks, cursor: Option<i64>) -> Vec<crate::remote_debug::Ask> {
+    use crate::amiga_debug::{self as amiga, AmigaAsk};
+    use crate::remote_debug::Ask;
+    let mut asks = Vec::new();
+    let Some(now) = stop.amiga.as_deref() else {
+        return asks;
+    };
+    let mono = |text: String| RichText::new(text).monospace().size(12.0);
+    let r = now.registers;
+    let before = shown.before.clone().filter(|b| b.serial != now.serial);
+    let labels = assembly.map(|a| amiga::relocate_symbols(&a.symbols, &shown.program, &now.bases));
+    // Memory an expression wanted that hasn't been read, to be read for next time.
+    let missing = std::cell::RefCell::new(Vec::<u32>::new());
+    let peek = |a: u32| {
+        now.peek(a).unwrap_or_else(|| {
+            missing.borrow_mut().push(a);
+            0
+        })
+    };
+    let names = |name: &str| {
+        amiga::register_value(name, &r).or_else(|| {
+            // The custom chips' registers by name, unless the program has a label of that name.
+            let register = crate::amiga_hw::named(name).filter(|reg| !reg.is_cia() && !labels.as_ref().is_some_and(|l| l.contains_key(name)))?;
+            Some(i64::from(u16::from_be_bytes([peek(register.address), peek(register.address + 1)])))
+        })
+    };
+    let wide = Wide { names: &names, peek: &peek };
+    ui.add_space(4.0);
+    egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("Stopped at {}", place_68k(now.pc(), now.source, assembly))).strong());
+        });
+        ui.horizontal(|ui| {
+            if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
+                asks.push(Ask::CarryOn);
+            }
+            if ui.small_button("Step").on_hover_text("Runs to the next line, into a subroutine of the program's (a call into the ROM or a library is run whole)").clicked() {
+                asks.push(Ask::Step);
+            }
+            if ui.small_button("Step over").on_hover_text("Runs to the next line, running any subroutine it calls whole").clicked() {
+                asks.push(Ask::StepOver);
+            }
+            let to_cursor = ui.add_enabled(cursor.is_some(), egui::Button::new("Run to cursor").small()).on_hover_text("Runs on until the line the cursor is on, or a breakpoint before it").on_disabled_hover_text("Put the cursor on a line that makes code");
+            if to_cursor.clicked()
+                && let Some(address) = cursor
+            {
+                asks.push(Ask::Amiga(AmigaAsk::RunTo(address)));
+            }
+        });
+        if let Some(reason) = &stop.reason {
+            ui.label(RichText::new(reason).color(theme::accent()).size(12.0));
+        }
+        // The registers: click one to change it.
+        let mut cell = |ui: &mut Ui, index: usize, asks: &mut Vec<Ask>| {
+            let name = amiga::REGISTER_NAMES[index];
+            let value = r[index];
+            let width = if index == amiga::SR { 4 } else { 8 };
+            if let Some((_, text)) = shown.editing.as_mut().filter(|(i, _)| *i == index) {
+                let mut done = false;
+                ui.horizontal(|ui| {
+                    ui.label(mono(name.to_string()));
+                    let field = ui.add(egui::TextEdit::singleline(text).font(egui::TextStyle::Monospace).desired_width(74.0));
+                    if field.lost_focus() {
+                        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                            let typed = text.trim().to_string();
+                            let parsed = u32::from_str_radix(typed.trim_start_matches('$'), 16).map(i64::from).map_err(|e| e.to_string()).or_else(|_| eval_wide(&typed, &wide, labels.as_ref()));
+                            if let Ok(value) = parsed {
+                                asks.push(Ask::Amiga(AmigaAsk::SetRegister(index, value as u32)));
+                            }
+                        }
+                        done = true;
+                    } else if !field.has_focus() {
+                        field.request_focus();
+                    }
+                });
+                if done {
+                    shown.editing = None;
+                }
+                return;
+            }
+            let changed = before.as_ref().is_some_and(|b| b.registers[index] != value);
+            let text = mono(format!("{name} {value:0width$X}"));
+            let label = ui.add(egui::Label::new(if changed { text.color(theme::accent()).strong() } else { text }).sense(egui::Sense::click()));
+            if crate::access::called(label, &format!("{name}: click to change it")).on_hover_text(format!("{name} = {value} (${value:X}). Click to change it.")).clicked() {
+                shown.editing = Some((index, format!("{value:0width$X}")));
+            }
+        };
+        egui::Grid::new("m68k-registers").num_columns(4).spacing([14.0, 2.0]).show(ui, |ui| {
+            for row in 0..4 {
+                for column in 0..4 {
+                    cell(ui, row * 4 + column, &mut asks);
+                }
+                ui.end_row();
+            }
+            cell(ui, amiga::PC, &mut asks);
+            cell(ui, amiga::SR, &mut asks);
+            ui.label(mono(amiga::status_words(r[amiga::SR])));
+            ui.label(mono(now.long(r[amiga::A7]).map(|top| format!("(SP) {top:08X}")).unwrap_or_default()));
+            ui.end_row();
+        });
+        // The calls it's inside.
+        let calls = amiga::call_stack(now, &shown.program);
+        egui::CollapsingHeader::new(format!("Call stack ({})", calls.len())).id_salt("debug-calls").default_open(true).show(ui, |ui| {
+            ui.label(mono(format!("now   {}", place_68k(now.pc(), now.source, assembly))));
+            for call in &calls {
+                let at = shown.program.to_runtime(&now.bases, *call).unwrap_or(0);
+                ui.label(mono(format!("from  {}", place_68k(at, Some(*call), assembly))));
+            }
+            if calls.is_empty() {
+                ui.label(RichText::new("Not inside a JSR or BSR that can be seen.").color(theme::text_faint()).size(11.5));
+            }
+        });
+        watches_section(ui, code, &|watch| eval_wide(watch, &wide, labels.as_ref()), "D0, A0.w, [count], long[ptr], COLOR00...");
+        let at = memory_section(ui, code, "A0, $DFF180, a label...", &|text| if text.trim().is_empty() { Ok(i64::from(r[8])) } else { eval_wide(text, &wide, labels.as_ref()) }, 8, &|a| now.peek(a), &|a| before.as_ref().and_then(|b| b.peek(a)));
+        if let Some(at) = at.filter(|at| !now.has(*at, 128)) {
+            missing.borrow_mut().push(at);
+            missing.borrow_mut().push(at.wrapping_add(127));
+        }
+        // Changing memory: bytes in hex, at an address or anything an expression gives.
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Change").size(12.0));
+            ui.add(egui::TextEdit::singleline(&mut shown.poke_at).hint_text("at").desired_width(90.0));
+            ui.label(RichText::new("to").size(12.0));
+            let field = ui.add(egui::TextEdit::singleline(&mut shown.poke_bytes).hint_text("bytes, as 4E71 or 12 34").desired_width(130.0));
+            let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if entered || ui.small_button("Write").on_hover_text("Writes these bytes into the Amiga's memory").clicked() {
+                let digits: String = shown.poke_bytes.chars().filter(|c| !c.is_whitespace()).collect();
+                let bytes: Option<Vec<u8>> = (digits.len().is_multiple_of(2) && !digits.is_empty()).then(|| digits.as_bytes().chunks(2).map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap_or("x"), 16).ok()).collect()).flatten();
+                if let (Ok(at), Some(bytes)) = (eval_wide(&shown.poke_at, &wide, labels.as_ref()), bytes) {
+                    asks.push(Ask::Amiga(AmigaAsk::Write(at as u32, bytes)));
+                }
+            }
+        });
+        // The custom chips' registers, as the emulator keeps them: those not 0.
+        egui::CollapsingHeader::new("Custom chips").id_salt("debug-custom").default_open(false).show(ui, |ui| {
+            if !now.has(amiga::CUSTOM, 2) {
+                ui.label(RichText::new("The emulator didn't give them.").color(theme::text_faint()).size(11.5));
+                return;
+            }
+            egui::Grid::new("m68k-custom").num_columns(3).spacing([10.0, 1.0]).striped(true).show(ui, |ui| {
+                for offset in (0..amiga::CUSTOM_SIZE).step_by(2) {
+                    let (Some(register), Some(value)) = (crate::amiga_hw::custom(offset), now.word(amiga::CUSTOM + offset)) else { continue };
+                    if value == 0 || register.offset() != offset {
+                        continue;
+                    }
+                    let changed = before.as_ref().and_then(|b| b.word(amiga::CUSTOM + offset)).is_some_and(|b| b != value);
+                    let name = mono(register.name.clone());
+                    ui.label(if changed { name.color(theme::accent()).strong() } else { name }).on_hover_text(crate::amiga_hw::describe(register));
+                    ui.horizontal(|ui| {
+                        if register.colour().is_some() {
+                            let (red, green, blue) = crate::amiga_hw::rgb12(value);
+                            let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 2.0, egui::Color32::from_rgb(red * 17, green * 17, blue * 17));
+                        }
+                        ui.label(mono(format!("${value:04X}")));
+                    });
+                    let explained = crate::amiga_hw::explain(register, value);
+                    let short: String = explained.chars().take(60).collect();
+                    ui.label(RichText::new(short).size(11.5).color(theme::text_dim())).on_hover_text(crate::amiga_hw::field_lines(register, value).join("\n"));
+                    ui.end_row();
+                }
+            });
+        });
+        if !now.output.trim().is_empty() {
+            egui::CollapsingHeader::new("Output").id_salt("debug-output").default_open(false).show(ui, |ui| {
+                let lines: Vec<&str> = now.output.lines().collect();
+                let recent = lines[lines.len().saturating_sub(40)..].join("\n");
+                ui.label(RichText::new(recent).monospace().size(11.0));
+            });
+        }
+    });
+    // What expressions wanted that wasn't read: read it, a little around each, once.
+    let mut regions: Vec<(u32, u32)> = missing.into_inner().into_iter().map(|a| (a & !0x7F, 0x80)).collect();
+    regions.sort_unstable();
+    regions.dedup();
+    regions.retain(|region| !shown.reads.contains(region));
+    if !regions.is_empty() {
+        shown.reads.extend(regions.iter().copied());
+        asks.push(Ask::Amiga(AmigaAsk::Read(regions)));
+    }
+    asks
 }
 
 /// The conditions on breakpoints, by address.

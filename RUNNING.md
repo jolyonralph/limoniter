@@ -71,6 +71,19 @@ the address stopped at back to a line:
 - Hatari: its own debugger on its console (stdin and both outputs piped). A `--parse` file stops at the program's
   first instruction (`pc = TEXT && TEXT < $e00000`, as the desktop's TEXT is in ROM); breakpoints are then set at
   TEXT plus each line's address, and the stop is reported relative to TEXT.
+- FS-UAE and WinUAE (`src/amiga_debug.rs`, `src/amiga_debug_host.rs`): the GDB remote serial protocol, to the GDB
+  server in uae-dap's FS-UAE 4.x (`remote_debugger`, `remote_debugger_port`, `remote_debugger_trigger`) or in
+  Bartman's WinUAE (`debugging_features=gdbserver`, `debugging_trigger`, always port 2345), told to the emulator in
+  the configuration made for the run; an emulator has one if those words are in its program. The trigger is the
+  program's name as the Startup-Sequence runs it: as it starts, the emulator stops at its first instruction and
+  answers. `qOffsets` gives every hunk's address (`a;b;c`, or vAmiga's `Text=;Data=;Bss=`); a line's address in the
+  assembly (section start plus offset) maps to the hunk loaded there, and back. `Z0` breakpoints, `Z2` write
+  watchpoints, `vCont;s` and `vCont;c`, Ctrl+C to pause, `P` and `M` to change registers and memory; `O` packets
+  (kprintf) are kept as output. Stepping a line steps instructions until one starts a line; a call out of the program
+  (or any call, stepping over) runs on to a breakpoint after it, at the same stack depth. Breakpoints changed while it
+  runs are set with it stopped for a moment. The custom chips are read at $DFF000, which both servers give from the
+  chips' saved state. Tested against a stand-in server running a little 68000 (`amiga_debug_tests.rs`), and on both
+  real emulators with AROS (`LIMONITER_AMIGA_GDB`).
 
 - A real Next (`src/dzrp.rs`): DeZog's protocol to dezogif over a serial port (921600 baud) or a socket. dezogif
   works in DZRP's simple mode, so breakpoints are RST 0 written with CMD_SET_BREAKPOINTS before each CONTINUE and put

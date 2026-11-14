@@ -125,11 +125,12 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::Gdb,
         website: "https://www.6809.org.uk/xroar/",
     },
-    // The Amiga's are started with a configuration file made for the run (see `amiga_run`).
+    // The Amiga's are started with a configuration file made for the run (see `amiga_run`). uae-dap ships an FS-UAE
+    // with a GDB server, named for each system, and vscode-amiga-debug a WinUAE with one (see `amiga_debug`).
     Emulator {
         id: "fs-uae",
         name: "FS-UAE",
-        programs: &["fs-uae"],
+        programs: &["fs-uae", "fs-uae-linux_x64", "fs-uae-darwin_x64", "fs-uae-win32_x64"],
         folder_hints: &["fs-uae", "fsuae"],
         mac_apps: &[("FS-UAE.app", "fs-uae")],
         machines: &[Amiga],
@@ -140,7 +141,7 @@ pub const KNOWN: &[Emulator] = &[
     Emulator {
         id: "winuae",
         name: "WinUAE",
-        programs: &["winuae64", "winuae"],
+        programs: &["winuae64", "winuae", "winuae-gdb"],
         folder_hints: &["winuae"],
         mac_apps: &[],
         machines: &[Amiga],
