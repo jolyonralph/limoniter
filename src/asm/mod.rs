@@ -5,6 +5,7 @@
 
 pub mod device;
 pub mod expr;
+pub mod hunk;
 pub mod m6502;
 pub mod m6809;
 pub mod m68k;
@@ -119,6 +120,8 @@ pub struct Assembly {
     pub warnings: Vec<Problem>,
     /// sjasmplus's RELOCATE blocks: where each is put, whether it's HIGH, and how far DISP moves its addresses.
     pub relocations: Vec<(i64, i64, bool, i64)>,
+    /// The Amiga's sections, each put far from the others, when assembled to be made into hunks.
+    pub sections: Vec<hunk::Section>,
 }
 
 impl Assembly {
@@ -173,7 +176,7 @@ pub fn assemble(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> 
 /// Assembles a program as if everything were `base` further on: ORG's addresses too. Assembled twice, at two bases,
 /// the words that differ by the difference are the addresses that have to be moved when the program is.
 pub fn assemble_at(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64) -> Assembly {
-    let first = assemble_relocating(isa, path, text, read, base, &[], false);
+    let first = assemble_relocating(isa, path, text, read, base, &[], false, None);
     if first.relocations.is_empty() {
         return first;
     }
@@ -182,13 +185,13 @@ pub fn assemble_at(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) 
     let mut table: Vec<i64> = Vec::new();
     let mut assembly = first;
     for _ in 0..4 {
-        let moved = assemble_relocating(isa, path, text, read, base, &table, true);
+        let moved = assemble_relocating(isa, path, text, read, base, &table, true, None);
         let found = relocations_between(&assembly, &moved);
         if found == table {
             break;
         }
         table = found;
-        assembly = assemble_relocating(isa, path, text, read, base, &table, false);
+        assembly = assemble_relocating(isa, path, text, read, base, &table, false, None);
     }
     assembly
 }
@@ -224,7 +227,14 @@ fn relocations_between(normal: &Assembly, moved: &Assembly) -> Vec<i64> {
     out
 }
 
-fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64, table: &[i64], moved: bool) -> Assembly {
+/// Assembles a program to be made into the Amiga's hunks: each SECTION far from the others, all moved on by
+/// `shift` (see `hunk`).
+pub fn assemble_sections(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, shift: i64) -> Assembly {
+    assemble_relocating(isa, path, text, read, 0, &[], false, Some(shift))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) -> Result<Vec<u8>, String>, base: i64, table: &[i64], moved: bool, hunks: Option<i64>) -> Assembly {
     let mut previous: HashMap<String, i64> = HashMap::new();
     let mut anonymous: HashMap<String, Vec<i64>> = HashMap::new();
     let mut pages: HashMap<String, i64> = HashMap::new();
@@ -240,6 +250,7 @@ fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Pa
         state.ever = ever.clone();
         state.relocation_table = table.to_vec();
         state.relocate_moved = moved;
+        state.start_hunks(hunks);
         state.run_file(path, text);
         ever.extend(state.symbols.iter().map(|(k, v)| (k.clone(), *v)));
         let now_used = state.all_used.into_inner();
@@ -262,6 +273,7 @@ fn assemble_relocating(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Pa
     state.ever = ever;
     state.relocation_table = table.to_vec();
     state.relocate_moved = moved;
+    state.start_hunks(hunks);
     state.run_file(path, text);
     state.finish()
 }
@@ -376,6 +388,8 @@ struct Pass<'a> {
     relocation_table: Vec<i64>,
     relocate_moved: bool,
     relocating: Option<(i64, bool, i64)>,
+    /// The Amiga's sections, when the program is being made into hunks.
+    hunks: Option<hunk::Layout>,
 }
 
 /// A STRUCT: its fields' names, offsets, sizes and default values, and its size.
@@ -447,6 +461,16 @@ impl<'a> Pass<'a> {
             relocation_table: Vec::new(),
             relocate_moved: false,
             relocating: None,
+            hunks: None,
+        }
+    }
+
+    /// Puts the program in the Amiga's sections, moved on by `shift`, if it's to be made into hunks.
+    fn start_hunks(&mut self, shift: Option<i64>) {
+        if let Some(shift) = shift {
+            let layout = hunk::Layout::new(shift);
+            self.pc = layout.sections[0].start;
+            self.hunks = Some(layout);
         }
     }
 
@@ -462,6 +486,14 @@ impl<'a> Pass<'a> {
         if !self.conditions.is_empty() {
             let (file, line) = self.at;
             self.out.problems.push(Problem { file, line, message: "an IF has no ENDIF".into() });
+        }
+        if let Some(mut layout) = self.hunks.take() {
+            layout.sections[layout.current].end = self.pc;
+            if let Some(big) = layout.sections.iter().find(|s| s.size() >= hunk::SPACING / 2) {
+                let (file, line) = self.at;
+                self.out.problems.push(Problem { file, line, message: format!("the section {} is over 16 MB", big.name) });
+            }
+            self.out.sections = layout.sections;
         }
         self.out.symbols = self.symbols.into_iter().collect();
         self.out.absolute = self.absolute;
@@ -1325,6 +1357,18 @@ impl<'a> Pass<'a> {
 
     fn plain_directive(&mut self, directive: &str, operands: &str) {
         match directive {
+            "org" if self.hunks.is_some() => self.problem("an Amiga program is loaded wherever there's room, so it can't have an ORG: use SECTION for code, data and BSS"),
+            "section" | "code" | "data" | "bss" | "code_c" | "code_f" | "data_c" | "data_f" | "bss_c" | "bss_f" if self.hunks.is_some() => match hunk::parse_section(directive, operands) {
+                Ok((name, kind, memory)) => {
+                    let pc = self.pc;
+                    match self.hunks.as_mut().map(|layout| layout.switch(pc, &name, kind, memory)) {
+                        Some(Ok(pc)) => self.pc = pc,
+                        Some(Err(problem)) => self.problem(problem),
+                        None => {}
+                    }
+                }
+                Err(problem) => self.problem(problem),
+            },
             "org" => {
                 let items = split_operands(operands);
                 match self.eval(items.first().map(String::as_str).unwrap_or("")) {
@@ -2345,7 +2389,7 @@ impl Line<'_, '_> {
 
 /// Words the assembler itself understands.
 pub const DIRECTIVES: &[&str] = &[
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone", "define", "define+", "undefine", "defarray", "defarray+", "ifused", "ifnused", "struct", "ends", "dg", "dh", "inchob", "sldopt", "cspectmap", "d24", "outend", "savedev", "defg", "defh", "hex", "relocate_start", "relocate_end", "relocate_table",
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone", "define", "define+", "undefine", "defarray", "defarray+", "ifused", "ifnused", "struct", "ends", "dg", "dh", "inchob", "sldopt", "cspectmap", "d24", "outend", "savedev", "defg", "defh", "hex", "relocate_start", "relocate_end", "relocate_table", "code_c", "code_f", "data_c", "data_f", "bss_c", "bss_f",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.

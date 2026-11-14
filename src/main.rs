@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod amiga_ndk;
+mod amiga_run;
 mod amiga_palette_ui;
 mod ansi_art;
 mod addons;

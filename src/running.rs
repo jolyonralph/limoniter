@@ -25,6 +25,8 @@ pub enum Machine {
     CoCo,
     /// A 48K Spectrum with the OpticOS ROM in place of Sinclair's, for OpticBASIC programs.
     OpticOs,
+    /// An Amiga: which model is chosen with its Kickstart (see `amiga_run`).
+    Amiga,
 }
 
 impl Machine {
@@ -46,6 +48,7 @@ impl Machine {
             Machine::AtariSt => "Atari ST",
             Machine::CoCo => "Tandy Color Computer",
             Machine::OpticOs => "ZX Spectrum 48K with OpticOS",
+            Machine::Amiga => "Amiga",
         }
     }
 
@@ -68,6 +71,7 @@ impl Machine {
             Machine::AtariSt => "atarist",
             Machine::CoCo => "coco",
             Machine::OpticOs => "opticos",
+            Machine::Amiga => "amiga",
         }
     }
 
@@ -105,10 +109,14 @@ pub enum Format {
     Tos,
     /// A Color Computer binary, as LOADM loads it (Disk Extended Color BASIC's .BIN).
     CocoBin,
+    /// An Amiga executable (AmigaDOS's hunks), which has no ending of its own on the Amiga.
+    Hunk,
+    /// An Amiga floppy disk.
+    Adf,
 }
 
 impl Format {
-    pub const ALL: [Format; 22] = [
+    pub const ALL: [Format; 24] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -131,6 +139,8 @@ impl Format {
         Format::Cas,
         Format::Tos,
         Format::CocoBin,
+        Format::Hunk,
+        Format::Adf,
     ];
 
     /// The file ending it's written with.
@@ -158,6 +168,8 @@ impl Format {
             Format::Cas => "cas",
             Format::Tos => "tos",
             Format::CocoBin => "bin",
+            Format::Hunk => "exe",
+            Format::Adf => "adf",
         }
     }
 
@@ -184,6 +196,10 @@ impl Runnable {
             let stem = file_stem(name);
             let tape = crate::opticbasic::tape(&bytes[crate::opticbasic::SIGNATURE.len()..], &stem, None);
             return Some(Runnable { machine: Machine::OpticOs, format: Format::Tap, name: format!("{stem}.tap"), bytes: Arc::new(tape) });
+        }
+        // An Amiga program has no ending: it's known by how it starts.
+        if !name.contains('.') && machine_for(Format::Hunk, &bytes).is_some() {
+            return Some(Runnable { machine: Machine::Amiga, format: Format::Hunk, name: format!("{name}.exe"), bytes: Arc::new(bytes) });
         }
         let ending = name.rsplit_once('.').map(|(_, ending)| ending)?;
         let format = Format::from_ending(ending)?;
@@ -270,6 +286,11 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
             }
         }
         Format::Cas => Machine::Msx,
+        Format::Hunk if bytes.starts_with(&[0, 0, 3, 0xF3]) => Machine::Amiga,
+        Format::Hunk => return None,
+        // A double-density disk, or a high-density one.
+        Format::Adf if matches!(bytes.len(), 901_120 | 1_802_240) => Machine::Amiga,
+        Format::Adf => return None,
         Format::Tos => {
             if !bytes.starts_with(&[0x60, 0x1A]) {
                 return None;
@@ -371,6 +392,11 @@ mod tests {
         assert_eq!(run("game.rom", vec![0; 4]), None, "a ROM that isn't an MSX cartridge isn't guessed at");
         assert_eq!(run("notes.txt", vec![0; 4]), None);
         assert_eq!(run("game.bas", b"10 PRINT".to_vec()), None, "a .bas without a +3DOS header isn't a Spectrum's");
+        let hunks = vec![0, 0, 3, 0xF3, 0, 0, 0, 0];
+        assert_eq!(run("demo", hunks.clone()), Some((Machine::Amiga, Format::Hunk)), "an Amiga program has no ending");
+        assert_eq!(run("demo.exe", hunks), Some((Machine::Amiga, Format::Hunk)));
+        assert_eq!(run("setup.exe", b"MZ\x90\0".to_vec()), None, "a Windows program isn't run");
+        assert_eq!(run("disk.adf", vec![0; 901_120]), Some((Machine::Amiga, Format::Adf)));
     }
 
     #[test]

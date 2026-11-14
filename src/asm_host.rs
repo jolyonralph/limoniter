@@ -176,7 +176,7 @@ impl Limoniter {
         let assembled = match &choice {
             Choice::Own => {
                 let text = doc.text.all_lines().iter().map(|l| l.as_ref()).collect::<Vec<&str>>().join("\n");
-                assemblers::assemble_own(cpu, &path, &text)
+                assemblers::assemble_own_to_run(cpu, &path, &text)
             }
             Choice::Program { id, path: program } if report => {
                 let found = assemblers::external(id).ok_or("That assembler isn't known.")?;
@@ -519,6 +519,8 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, St
             let bytes = crate::asm::output::coco_binary(&assembled.assembly)?;
             Ok(Made::Run(Runnable { machine: Machine::CoCo, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
         }
+        // An Amiga executable, made by the assembler from source for the Amiga.
+        Cpu::M68k if assembled.tape.is_some() => runnable_from(cpu, assembled, stem).map(Made::Run),
         // An Atari ST program, if it isn't put at an address of its own: else the bytes as they go in memory.
         Cpu::M68k if !assembled.assembly.absolute && assembled.tape.is_none() && assembled.assembly.lowest() == Some(0) => {
             let shift = 0x10000;

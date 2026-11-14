@@ -125,6 +125,29 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::Gdb,
         website: "https://www.6809.org.uk/xroar/",
     },
+    // The Amiga's are started with a configuration file made for the run (see `amiga_run`).
+    Emulator {
+        id: "fs-uae",
+        name: "FS-UAE",
+        programs: &["fs-uae"],
+        folder_hints: &["fs-uae", "fsuae"],
+        mac_apps: &[("FS-UAE.app", "fs-uae")],
+        machines: &[Amiga],
+        formats: &[Hunk, Adf],
+        link: Link::None,
+        website: "https://fs-uae.net",
+    },
+    Emulator {
+        id: "winuae",
+        name: "WinUAE",
+        programs: &["winuae64", "winuae"],
+        folder_hints: &["winuae"],
+        mac_apps: &[],
+        machines: &[Amiga],
+        formats: &[Hunk, Adf],
+        link: Link::None,
+        website: "https://www.winuae.net",
+    },
 ];
 
 /// A real Next on DeZog's debug cable, standing where an emulator would in a session.
@@ -226,6 +249,9 @@ impl Emulator {
                 args.extend(["-run".into(), file]);
             }
             "openmsx" => args.extend([if format == Cas { "-cassetteplayer" } else { "-carta" }.into(), file]),
+            // The file is the configuration made for the run.
+            "fs-uae" => args.push(file),
+            "winuae" => args.extend(["-f".into(), file]),
             _ => args.push(file),
         }
         args
@@ -332,7 +358,8 @@ fn find_in(emulator: &Emulator, path: &[PathBuf], apps: &[PathBuf], roots: &[Pat
             if !emulator.folder_hints.iter().any(|hint| name.contains(hint)) {
                 continue;
             }
-            for inside in [folder.clone(), folder.join("bin")] {
+            // FS-UAE keeps its Windows program a little further down.
+            for inside in [folder.clone(), folder.join("bin"), folder.join("Windows").join("x86-64")] {
                 for program in emulator.programs {
                     let candidate = inside.join(exe(program));
                     if candidate.is_file() {
@@ -360,6 +387,8 @@ mod tests {
         assert_eq!(by_id("b2").unwrap().arguments(Bbc, Ssd, Path::new("/tmp/a.ssd"), None, ""), ["-0", "/tmp/a.ssd", "-b"]);
         assert_eq!(by_id("openmsx").unwrap().arguments(Msx, Cas, Path::new("/tmp/a.cas"), None, "-machine Philips_NMS_8250"), ["-machine", "Philips_NMS_8250", "-cassetteplayer", "/tmp/a.cas"]);
         assert_eq!(by_id("cspect").unwrap().arguments(Next, Nex, Path::new("/tmp/a.nex"), None, ""), ["-zxnext", "-w3", "/tmp/a.nex"]);
+        assert_eq!(by_id("fs-uae").unwrap().arguments(Amiga, Hunk, Path::new("/tmp/amiga.fs-uae"), None, "--fullscreen=1"), ["--fullscreen=1", "/tmp/amiga.fs-uae"]);
+        assert_eq!(by_id("winuae").unwrap().arguments(Amiga, Hunk, Path::new("C:\\run\\amiga.uae"), None, ""), ["-f", "C:\\run\\amiga.uae"]);
     }
 
     #[test]
