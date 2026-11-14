@@ -16,6 +16,7 @@ mod coco;
 mod fat;
 mod plus3;
 mod tape;
+mod trdos;
 
 use super::{Entry, Format};
 use std::path::Path;
@@ -125,6 +126,8 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
             Ok(adfs) => Ok(Box::new(adfs)),
             Err(problem) => amiga::Adf::open(bytes).map(|adf| Box::new(adf) as Box<dyn ImageWriter>).map_err(|_| problem),
         },
+        Some(Format::TrDos) => Ok(Box::new(trdos::Trd::open(bytes)?)),
+        Some(Format::Scl) => Ok(Box::new(trdos::Scl::open(bytes)?)),
         Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
         None => Err("This isn't an image Limoniter can change.".into()),
     }
@@ -136,7 +139,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs | Format::TrDos | Format::Scl)
         )
 }
 
@@ -168,10 +171,12 @@ pub enum Blank {
     AdfsS,
     AdfsM,
     AdfsL,
+    TrDos,
+    Scl,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 25] = [
+    pub const ALL: [Blank; 27] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -197,6 +202,8 @@ impl Blank {
         Blank::AdfsS,
         Blank::AdfsM,
         Blank::AdfsL,
+        Blank::TrDos,
+        Blank::Scl,
     ];
 
     /// What it is, for the New image box.
@@ -227,6 +234,8 @@ impl Blank {
             Blank::AdfsS => "BBC Micro / Master disc, 160K, ADFS S (.ads)",
             Blank::AdfsM => "BBC Micro / Master disc, 320K, ADFS M (.adm)",
             Blank::AdfsL => "BBC Micro / Master disc, 640K, ADFS L (.adl)",
+            Blank::TrDos => "ZX Spectrum TR-DOS disk, 640K (.trd)",
+            Blank::Scl => "ZX Spectrum TR-DOS archive (.scl)",
         }
     }
 
@@ -248,6 +257,8 @@ impl Blank {
             Blank::AdfsS => "ads",
             Blank::AdfsM => "adm",
             Blank::AdfsL => "adl",
+            Blank::TrDos => "trd",
+            Blank::Scl => "scl",
         }
     }
 
@@ -279,6 +290,8 @@ impl Blank {
             Blank::AdfsS => adfs::blank(640, label),
             Blank::AdfsM => adfs::blank(1280, label),
             Blank::AdfsL => adfs::blank(2560, label),
+            Blank::TrDos => trdos::blank(label),
+            Blank::Scl => trdos::blank_scl(),
         }
     }
 }
