@@ -8,6 +8,7 @@ mod acorn;
 mod apple2;
 mod atari8;
 mod amiga;
+mod cas;
 mod cbm;
 mod coco;
 pub mod cpm;
@@ -22,7 +23,9 @@ mod hfsplus;
 mod mac;
 mod macarc;
 mod nex;
+pub(crate) mod oric;
 mod rp9;
+mod sam;
 mod sectors;
 pub mod write;
 mod trsdos;
@@ -185,8 +188,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 70] = [
-    "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
+pub const IMAGE_ENDINGS: [&str; 73] = [
+    "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -205,7 +208,7 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
         // These endings are used for plain data too, so the bytes have to say so.
         // A KryoFlux stream is only one by its bytes; other .raw files, such as a plain sector image, are bytes.
         "raw" => flux::detect(head, "raw").is_some(),
-        "scp" | "hfe" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
+        "scp" | "hfe" | "cas" | "mgt" | "sad" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
         "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
     }
@@ -263,6 +266,12 @@ enum Format {
     Flux(flux::Kind),
     /// MacBinary, BinHex or StuffIt.
     MacArchive(macarc::Kind),
+    /// A TRS-80 or MSX cassette.
+    Cas,
+    /// A SAM Coupé or +D disk.
+    Sam,
+    /// An Oric tape.
+    OricTape,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -321,6 +330,12 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if matches!(ending, "xex" | "obx" | "com" | "exe" | "sys" | "obj") && xex::looks_like(head, len, ending) {
         return Some(Format::Xex);
+    }
+    if ending == "cas" && cas::looks_like(head) {
+        return Some(Format::Cas);
+    }
+    if ending == "tap" && oric::looks_like(head) {
+        return Some(Format::OricTape);
     }
     if at(0, b"ZXTape!\x1A") {
         return Some(Format::ZxTape);
@@ -389,6 +404,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     // A Color Computer or Dragon disk, by its VDK header or its size; tried when opened, with CP/M to fall back on.
     if matches!(ending, "dsk" | "jvc" | "vdk" | "os9") && coco::looks_like(head, len, ending) {
         return Some(Format::Coco);
+    }
+    if matches!(ending, "mgt" | "dsk" | "sad") && sam::looks_like(head, len) {
+        return Some(Format::Sam);
     }
     // A CP/M disk says nothing of itself: only a directory that makes sense in one of the known formats is believed.
     if matches!(ending, "img" | "dsk" | "cpm" | "ima") && cpm::looks_like(head, len) {
@@ -477,6 +495,9 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Xex) => Ok(Box::new(xex::Xex::open(source)?)),
         Some(Format::Flux(kind)) => flux::open(source, kind, name),
         Some(Format::MacArchive(kind)) => macarc::open(source, kind),
+        Some(Format::Cas) => Ok(Box::new(cas::Cas::open(source)?)),
+        Some(Format::Sam) => Ok(Box::new(sam::Sam::open(source)?)),
+        Some(Format::OricTape) => Ok(Box::new(oric::OricTape::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }

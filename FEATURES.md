@@ -152,15 +152,17 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | CD-ROM | ISO 9660 with Joliet and Rock Ridge names; raw `.bin` images (open the `.bin`, not the `.cue`) |
 | PC / DOS | FAT12, FAT16 and FAT32 floppy and hard disk images (`.img`, `.ima`, `.vfd`, `.vhd`), with MBR partitions and long names |
 | Atari ST | `.st` and packed `.msa` floppies |
-| MSX | FAT disk images |
+| MSX | FAT disk images; `.cas` tapes, with CSAVE BASIC programs, ASCII files and BSAVE binaries (with where they load and run) |
 | Commodore | 1541, 1571 and 1581 disks (D64, D71, D81); T64 tapes |
 | Atari 8-bit | ATR and XFD disks (single, enhanced and double density) with Atari DOS 2.0/2.5, MyDOS (with folders) or SpartaDOS (with folders and dates); text opens as ATASCII. Binary load files (`.xex`, `.com`, `.exe`, `.obx`, and AUTORUN.SYS and the like off a disk) open as their segments, each with its load addresses, and the run (RUNAD) and init (INITAD) addresses shown as such |
 | Tandy Color Computer and Dragon 32/64 | JVC (`.dsk`), VDK and OS-9 (`.os9`) images, and DMK; RS-DOS (Disk Extended Color BASIC), Dragon DOS, and OS-9 with its folders, dates and permissions |
-| TRS-80 | Model I, III and 4 disks as DMK, JV3 or JV1 images, with TRSDOS 2.3, Model III TRSDOS 1.3, or LDOS, LS-DOS, TRSDOS 6 and NEWDOS; copy-protected disks open as their sectors |
+| TRS-80 | Model I, III and 4 disks as DMK, JV3 or JV1 images, with TRSDOS 2.3, Model III TRSDOS 1.3, or LDOS, LS-DOS, TRSDOS 6 and NEWDOS; copy-protected disks open as their sectors; `.cas` tapes at 500 and 1500 baud, with BASIC programs and SYSTEM tapes (given as `/CMD` files) |
 | Apple II | DOS 3.3 and ProDOS disks (`.dsk`, `.do`, `.po`, `.2mg`, `.hdv`) in either sector order, 800K and hard disk ProDOS volumes with folders; Applesoft programs, text and hi-res screens recognised. WOZ 1 and 2 images (`.woz`) are read back from their bits into sectors: 16-sector (DOS 3.3, ProDOS), 13-sector (DOS 3.2) and 3.5-inch 400K/800K (ProDOS or HFS) disks, with a note of any sectors a copy-protected disk keeps out of reach; a disk with no file system gives its readable sectors as a disk image |
 | Amiga | ADF floppies (OFS, FFS and long-name variants), gzipped ADZ, DMS, HDF hard disks with partitions, LHA/LZH archives, Amiga Forever RP9 packages |
 | ZX Spectrum | +3DOS DSK disks, TR-DOS (`.trd`) and SCL, Microdrive cartridges (`.mdr`), TAP and TZX tapes, Z80 and SNA snapshots (BASIC, screen and memory) |
 | ZX Spectrum Next | `.nex` programs (V1.0 to V1.3): the loading screen (shown as the file's picture, with its palette), copper code, each 16K bank and anything appended, with every header setting in Info; F9 runs the whole program. NextZXOS SD card images (FAT16 or FAT32 partitions) can have files added, so a dot command goes in `/dot` |
+| SAM Coupé | `.mgt`, `.dsk` and SAD disks with SAMDOS, MasterDOS (with its folders and disk label) or BDOS, and Spectrum +D and DISCiPLE disks: every file type, with where CODE loads and runs, the line BASIC runs from and the date saved; Spectrum BASIC from them opens as a +3DOS file |
+| Oric-1 and Atmos | `.tap` tapes: BASIC programs and machine code, with where each loads and whether it runs when loaded |
 | Amstrad CPC / PCW | DSK disks (standard and extended), AMSDOS and CP/M |
 | Acorn | BBC/Electron DFS (`.ssd`, `.dsd`, Watford 62-file), ADFS S/M/L (`.ads`, `.adm`, `.adl`), RISC OS ADFS D/E/F (`.adf`), UEF tapes |
 | Macintosh | MFS, HFS and HFS+ (Mac OS Extended, HFSX, HFS-wrapped) floppies, hard disks and CDs, Apple partition maps and GUID partition tables, Disk Copy 4.2 images, `.dmg` disk images (UDIF: zlib, bzip2, ADC and LZFSE, MacBinary-wrapped too), MacBinary I, II and III (`.bin`, `.macbin`, or no ending) and BinHex 4.0 (`.hqx`) files with their CRCs checked; both forks and type/creator shown, hard and symbolic links followed, HFS+ compressed files (zlib, LZVN, LZFSE) read |
@@ -199,7 +201,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 
 ## BASIC programs
 
-- Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC, Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer) and Dragon BASIC.
+- Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC (from disk or tape, saved from 32K or 16K machines), Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer), Dragon BASIC, TRS-80 Level II and Disk BASIC (Model I and III, from disk or tape), TRS-80 Model 4 BASIC, ZX81 BASIC (`.p`, `.81` and `.p81` files, with the screen saved with the program), SAM BASIC with MasterDOS's and MasterBASIC's keywords, and Oric BASIC (from `.tap` tapes).
 - Tokenised from a listing: Spectrum (saved as `.tap`), Spectrum Next (`.bas`), Commodore (`.prg`) and BBC BASIC.
 - **OpticBASIC**, the BASIC of [OpticOS](https://github.com/brixham99/OpticOS) (a clean-room replacement ROM for the 48K Spectrum, with no line numbers): its programs on tape list as OpticOS lists them, indented by their blocks, and a listing tokenises back exactly as the ROM tokenises what's typed (checked against the programs OpticOS itself saved). **F9 runs it**: the built-in Spectrum starts with the OpticOS ROM (which comes with Limoniter, under its MIT licence), types `LOAD ""` and `RUN`, and the program runs; Fuse can run it too, given the ROM and the tape. **File › New as › OpticBASIC (OpticOS)** starts one.
 - A listing opened from a program is sent as that program: edit a NextBASIC listing and Send to device sends it to the Next as a tokenised `.bas`, a C64 listing as a `.prg`, and so on, with no need to save it as a program first.
@@ -209,7 +211,9 @@ The images below can have files added (**Add files…**, or drop them on the tab
 - Listings written for zmakebas or bas2tap tokenise as those tools do, byte for byte: their escapes, zmakebas's `#` comments, lines carried on with a backslash, and `` ` `` for £.
 - GRAPH mode (Ctrl+Shift+9, or File, Tokenised BASIC) types graphics as the Spectrum's GRAPHICS key does: 1 to 8 type the block graphics, Shift with them the inverted ones, and A to U the UDGs. 9 or Escape leaves it; the status bar says GRAPH while it's on.
 - UDGs are drawn as their pictures, from the tape the program came from (a CODE block loaded at USR "a"), the snapshot it came from, its own DATA lines when it POKEs them in at USR "a", or a file chosen with Spectrum UDG pictures from. Putting the cursor in one shows it as text again, to edit.
-- MSX-BASIC and Atari BASIC are listed only; protected MBASIC programs are reported, not listed.
+- ZX81 listings follow the ROM's own spacing; inverse characters are written `%A`, as zxtext2p reads them, and block graphics as the matching Unicode characters.
+- SAM BASIC listings space keywords as the SAM's LIST does, and write colour codes in strings as `{PEN 2}`, `{AT 1,5}`.
+- MSX-BASIC, Atari BASIC, and the TRS-80's, ZX81's, SAM's and Oric's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops. MBASIC, MSX-BASIC and TRS-80 Model 4 programs, which are saved alike, are told apart by the tokens in them.
 
 ## Searching and comparing
 

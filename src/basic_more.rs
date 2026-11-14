@@ -707,7 +707,10 @@ fn msx_float(bytes: &[u8]) -> String {
     format!("{sign}{text}")
 }
 
-/// Lists an MSX-BASIC program saved by SAVE: a byte &FF, then linked lines from &8001, each ending with &00.
+/// Lists an MSX-BASIC program saved by SAVE: a byte &FF, then linked lines, each ending with &00. The links are
+/// addresses where the program was in memory, from &8001 on most machines but &C001 on one with 16K, so they're
+/// followed from wherever they show the program was. A line can't be ended at its first zero byte, because numbers
+/// in it can hold zeros.
 pub fn list_msx(data: &[u8], set: &Charset) -> Listing {
     let set = if set.id.starts_with("msx") { set } else { charset::known("msx") };
     let mut listing = Listing { dialect: "MSX-BASIC", ..Listing::default() };
@@ -715,33 +718,21 @@ pub fn list_msx(data: &[u8], set: &Charset) -> Listing {
         listing.notes.push("An MSX-BASIC program starts with the byte &FF, and this doesn't.".into());
         return listing;
     }
-    // Lines are found by their links, which are addresses from &8001, where the program starts in memory: a line
-    // can't be ended at its first zero byte, because numbers in it can hold zeros.
-    const START: usize = 0x8001;
-    let memory = &data[1..];
-    let mut at = 0;
-    loop {
-        if at + 2 > memory.len() {
-            listing.notes.push("The program stops without its end marker.".into());
-            break;
-        }
-        let link = usize::from(u16::from_le_bytes([memory[at], memory[at + 1]]));
-        if link == 0 {
-            at += 2;
-            break;
-        }
-        let next = link.wrapping_sub(START);
-        if next <= at + 4 || next > memory.len() || memory[next - 1] != 0 {
-            listing.notes.push(format!("A line's link at byte {} doesn't point to the next line, so the listing stops there.", at + 1));
-            break;
-        }
-        let number = u16::from_le_bytes([memory[at + 2], memory[at + 3]]);
-        let body = &memory[at + 4..next - 1];
-        listing.lines.push(format!("{number} {}", msx_line(body, set, &mut listing.notes)));
-        at = next;
+    let Some(found) = microsoft_lines(data) else {
+        listing.notes.push("The program's line links don't lead from one line to the next, so it can't be listed.".into());
+        return listing;
+    };
+    for (number, body) in &found.lines {
+        listing.lines.push(format!("{number} {}", msx_line(&data[body.clone()], set, &mut listing.notes)));
     }
-    if at < memory.len() {
-        listing.notes.push(format!("{} byte(s) after the program aren't listed.", memory.len() - at));
+    if !found.whole {
+        let last = found.lines.last().map_or(0, |(number, _)| *number);
+        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
+    } else if let Some(end) = found.lines.last().map(|(_, body)| body.end + 3).filter(|&end| end < data.len()) {
+        // After the last line's zero come the two zeros of the end link; anything after them isn't the program.
+        if data[end..].iter().any(|&b| b != 0) {
+            listing.notes.push(format!("{} byte(s) after the program aren't listed.", data.len() - end));
+        }
     }
     listing.notes.push("Numbers are written from their stored values, without a ! or # to say their precision.".into());
     listing.notes.dedup();
@@ -1083,47 +1074,107 @@ fn mbf(bytes: &[u8]) -> String {
     if single { text } else { format!("{text}#") }
 }
 
+/// A Microsoft BASIC that keeps numbers in binary, as MBASIC 5 does: its name and its tokens. Functions follow a
+/// byte &FF; ELSE and the apostrophe are stored with a colon before them (the apostrophe as :REM').
+pub(crate) struct MsDialect {
+    pub name: &'static str,
+    pub code: fn(u8) -> Option<&'static str>,
+    pub function: fn(u8) -> Option<&'static str>,
+    pub data: u8,
+    pub rem: u8,
+    pub else_code: u8,
+    pub apostrophe: u8,
+}
+
+const MBASIC: MsDialect = MsDialect {
+    name: "Microsoft BASIC-80 (MBASIC)",
+    code: |byte| MBASIC_CODES.iter().find(|(b, _)| *b == byte).map(|(_, word)| *word),
+    function: |byte| byte.checked_sub(0x81).and_then(|f| MBASIC_FUNCTIONS.get(usize::from(f))).copied().filter(|w| !w.is_empty()),
+    data: 0x84,
+    rem: 0x8F,
+    else_code: 0xA2,
+    apostrophe: 0xDB,
+};
+
 /// Lists a Microsoft BASIC-80 (MBASIC) program as SAVE wrote it: a byte &FF, then linked lines, each ending with &00.
-/// The links are addresses where the program was in memory, which depends on the machine, so the first line's end
-/// is found by trying each zero byte until the links lead through the whole program.
 pub fn list_mbasic(data: &[u8], set: &Charset) -> Listing {
-    let mut listing = Listing { dialect: "Microsoft BASIC-80 (MBASIC)", ..Listing::default() };
+    list_microsoft(data, set, &MBASIC)
+}
+
+/// The lines of a program saved by a Microsoft BASIC that keeps its numbers in binary, found from their links.
+pub(crate) struct MsLines {
+    /// Where the program was in memory.
+    pub start: usize,
+    /// Each line's number and where its body is in the file, after the leading &FF.
+    pub lines: Vec<(u16, std::ops::Range<usize>)>,
+    /// Whether the links lead all the way to the program's end, rather than breaking off where it's damaged.
+    pub whole: bool,
+}
+
+/// Finds a program's lines. The links are addresses where the program was in memory, which depends on the machine,
+/// so the first line's end is found by trying each zero byte to see where the links then lead. If they never lead
+/// through the whole program, the longest run of at least two lines they lead through is given, as what's left of a
+/// damaged program.
+pub(crate) fn microsoft_lines(data: &[u8]) -> Option<MsLines> {
+    let memory = data.get(1..).filter(|memory| memory.len() >= 2)?;
+    let first_link = usize::from(u16::from_le_bytes([memory[0], memory[1]]));
+    let walk = |start: usize| -> MsLines {
+        let mut lines = Vec::new();
+        let mut at = 0;
+        loop {
+            let (Some(&low), Some(&high)) = (memory.get(at), memory.get(at + 1)) else {
+                return MsLines { start, lines, whole: false };
+            };
+            let link = usize::from(u16::from_le_bytes([low, high]));
+            if link == 0 {
+                return MsLines { start, lines, whole: true };
+            }
+            match link.checked_sub(start) {
+                Some(next) if next > at + 4 && next <= memory.len() && memory[next - 1] == 0 => {
+                    lines.push((u16::from_le_bytes([memory[at + 2], memory[at + 3]]), at + 5..next));
+                    at = next;
+                }
+                _ => return MsLines { start, lines, whole: false },
+            }
+        }
+    };
+    // A zero inside a number can make a wrong guess lead somewhere too, but rarely all the way, so the guess that
+    // leads through most lines is taken, and a whole program before a damaged one.
+    let mut best: Option<MsLines> = None;
+    for end in (5..memory.len().min(512)).filter(|&end| memory[end - 1] == 0 && first_link >= end) {
+        let found = walk(first_link - end);
+        let better = best.as_ref().is_none_or(|best| (found.whole, found.lines.len()) > (best.whole, best.lines.len()));
+        if (found.whole && !found.lines.is_empty() || found.lines.len() >= 2) && better {
+            best = Some(found);
+        }
+    }
+    best
+}
+
+/// Lists a program in a Microsoft BASIC that keeps its numbers in binary, from its lines' links.
+pub(crate) fn list_microsoft(data: &[u8], set: &Charset, dialect: &MsDialect) -> Listing {
+    let mut listing = Listing { dialect: dialect.name, ..Listing::default() };
     if data.first() == Some(&0xFE) {
         listing.notes.push("This program was saved protected (SAVE \"name\",P), so it's scrambled and can't be listed.".into());
         return listing;
     }
-    let memory = &data[1..];
-    let first_link = usize::from(u16::from_le_bytes([memory[0], memory[1]]));
-    let walk = |start: usize| -> Option<Vec<(u16, std::ops::Range<usize>)>> {
-        let mut lines = Vec::new();
-        let mut at = 0;
-        loop {
-            let link = usize::from(u16::from_le_bytes([*memory.get(at)?, *memory.get(at + 1)?]));
-            if link == 0 {
-                return Some(lines);
-            }
-            let next = link.checked_sub(start)?;
-            if next <= at + 4 || next > memory.len() || memory[next - 1] != 0 {
-                return None;
-            }
-            lines.push((u16::from_le_bytes([memory[at + 2], memory[at + 3]]), at + 4..next - 1));
-            at = next;
-        }
-    };
-    let lines = (5..memory.len().min(512)).filter(|&end| memory[end - 1] == 0 && first_link >= end).find_map(|end| walk(first_link - end).filter(|lines| !lines.is_empty()));
-    let Some(lines) = lines else {
+    let Some(found) = microsoft_lines(data) else {
         listing.notes.push("The program's line links don't lead from one line to the next, so it can't be listed.".into());
         return listing;
     };
-    for (number, body) in lines {
-        listing.lines.push(format!("{number} {}", mbasic_line(&memory[body], set, &mut listing.notes)));
+    for (number, body) in &found.lines {
+        listing.lines.push(format!("{number} {}", microsoft_line(&data[body.clone()], set, dialect, &mut listing.notes)));
+    }
+    if !found.whole {
+        let last = found.lines.last().map_or(0, |(number, _)| *number);
+        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
     }
     listing.notes.push("Numbers are written from their stored values; a double-precision one has a # after it.".into());
     listing.notes.dedup();
     listing
 }
 
-fn mbasic_line(body: &[u8], set: &Charset, notes: &mut Vec<String>) -> String {
+fn microsoft_line(body: &[u8], set: &Charset, dialect: &MsDialect, notes: &mut Vec<String>) -> String {
     let mut text = String::new();
     let (mut quoted, mut rest_plain, mut data) = (false, false, false);
     let mut i = 0;
@@ -1144,8 +1195,8 @@ fn mbasic_line(body: &[u8], set: &Charset, notes: &mut Vec<String>) -> String {
         data = false;
         match byte {
             // ELSE and the apostrophe are stored with a colon before them (and the apostrophe a REM), which LIST doesn't show.
-            b':' if body.get(i) == Some(&0xA2) => {}
-            b':' if body.get(i) == Some(&0x8F) && body.get(i + 1) == Some(&0xDB) => i += 1,
+            b':' if body.get(i) == Some(&dialect.else_code) => {}
+            b':' if body.get(i) == Some(&dialect.rem) && body.get(i + 1) == Some(&dialect.apostrophe) => i += 1,
             0x0B | 0x0C | 0x1C | 0x0E | 0x0D if i + 2 <= body.len() => {
                 let value = u16::from_le_bytes([body[i], body[i + 1]]);
                 i += 2;
@@ -1173,18 +1224,18 @@ fn mbasic_line(body: &[u8], set: &Charset, notes: &mut Vec<String>) -> String {
                 text.push_str(&mbf(&body[i..i + 8]));
                 i += 8;
             }
-            0xFF => match body.get(i).and_then(|&f| f.checked_sub(0x81)).and_then(|f| MBASIC_FUNCTIONS.get(usize::from(f))).filter(|w| !w.is_empty()) {
+            0xFF => match body.get(i).copied().and_then(dialect.function) {
                 Some(word) => {
                     text.push_str(word);
                     i += 1;
                 }
                 None => text.push_str("{$ff}"),
             },
-            0x80..=0xFE => match MBASIC_CODES.iter().find(|(b, _)| *b == byte) {
-                Some((_, word)) => {
+            0x80..=0xFE => match (dialect.code)(byte) {
+                Some(word) => {
                     text.push_str(word);
-                    rest_plain = matches!(byte, 0x8F | 0xDB);
-                    data = byte == 0x84;
+                    rest_plain = byte == dialect.rem || byte == dialect.apostrophe;
+                    data = byte == dialect.data;
                 }
                 None => text.push_str(&format!("{{${byte:02x}}}")),
             },

@@ -147,6 +147,9 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
     }
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
     if !crate::basic::is_program_file(&extension, Some(bytes)) {
+        if !matches!(extension.as_str(), "bas" | "bbc") {
+            return FromBytes::Nothing(format!("This .{extension} file isn't a BASIC program."));
+        }
         return FromBytes::Nothing("This .bas file is a listing kept as text, not a tokenised program. Format, Tokenised BASIC can save it as one.".to_string());
     }
     FromBytes::Blocks(listing_blocks(&crate::basic::list(bytes, &extension, format.charset)))
@@ -164,6 +167,10 @@ pub fn listing_blocks(listing: &crate::basic::Listing) -> Vec<Block> {
     }
     if !listing.lines.is_empty() {
         blocks.push(Block { kind: BlockKind::Code, spans: vec![Span { text: listing.lines.join("\n"), code: true, ..Span::default() }], indent: 0, quote: 0, marker: None });
+    }
+    if !listing.screen.is_empty() {
+        blocks.push(paragraph(vec![Span { text: "The screen when it was saved".into(), strong: true, ..Span::default() }]));
+        blocks.push(Block { kind: BlockKind::Code, spans: vec![Span { text: listing.screen.join("\n"), code: true, ..Span::default() }], indent: 0, quote: 0, marker: None });
     }
     blocks
 }
