@@ -100,7 +100,7 @@ fn tape_name(name: &str) -> [u8; 10] {
 }
 
 /// A +3DOS file's header fields: its type, length, and two parameters (autostart or address; program length).
-fn plus3_header(bytes: &[u8]) -> Option<(u8, u16, u16, u16)> {
+pub(super) fn plus3_header(bytes: &[u8]) -> Option<(u8, u16, u16, u16)> {
     if !bytes.starts_with(b"PLUS3DOS") || bytes.len() < 128 {
         return None;
     }
@@ -109,7 +109,7 @@ fn plus3_header(bytes: &[u8]) -> Option<(u8, u16, u16, u16)> {
 }
 
 /// Whether bytes are a listing typed as text, rather than a tokenised program.
-fn is_listing(bytes: &[u8]) -> bool {
+pub(super) fn is_listing(bytes: &[u8]) -> bool {
     !bytes.is_empty() && std::str::from_utf8(bytes).is_ok_and(|text| text.lines().any(|l| l.trim_start().starts_with(|c: char| c.is_ascii_digit())) && !text.contains('\0'))
 }
 

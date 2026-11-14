@@ -13,6 +13,7 @@ mod coco;
 mod fat;
 mod plus3;
 mod tape;
+mod trdos;
 
 use super::{Entry, Format};
 use std::path::Path;
@@ -115,6 +116,8 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::Atari8) => Ok(Box::new(atari::Disk::open(bytes)?)),
         Some(Format::Coco) => Ok(Box::new(coco::Disk::open(bytes, &ending)?)),
         Some(Format::Dsk) => Ok(Box::new(plus3::Disk::open(bytes)?)),
+        Some(Format::TrDos) => Ok(Box::new(trdos::Trd::open(bytes)?)),
+        Some(Format::Scl) => Ok(Box::new(trdos::Scl::open(bytes)?)),
         Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
         None => Err("This isn't an image Limoniter can change.".into()),
     }
@@ -126,7 +129,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::TrDos | Format::Scl)
         )
 }
 
@@ -149,10 +152,12 @@ pub enum Blank {
     PcFloppy720,
     PcFloppy1440,
     AtariSt720,
+    TrDos,
+    Scl,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 16] = [
+    pub const ALL: [Blank; 18] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -169,6 +174,8 @@ impl Blank {
         Blank::PcFloppy720,
         Blank::PcFloppy1440,
         Blank::AtariSt720,
+        Blank::TrDos,
+        Blank::Scl,
     ];
 
     /// What it is, for the New image box.
@@ -190,6 +197,8 @@ impl Blank {
             Blank::PcFloppy720 => "PC floppy, 720K, FAT12 (.img)",
             Blank::PcFloppy1440 => "PC floppy, 1.44MB, FAT12 (.img)",
             Blank::AtariSt720 => "Atari ST floppy, 720K (.st)",
+            Blank::TrDos => "ZX Spectrum TR-DOS disk, 640K (.trd)",
+            Blank::Scl => "ZX Spectrum TR-DOS archive (.scl)",
         }
     }
 
@@ -205,6 +214,8 @@ impl Blank {
             Blank::Atari90 | Blank::Atari130 => "atr",
             Blank::PcFloppy360 | Blank::PcFloppy720 | Blank::PcFloppy1440 => "img",
             Blank::AtariSt720 => "st",
+            Blank::TrDos => "trd",
+            Blank::Scl => "scl",
         }
     }
 
@@ -227,6 +238,8 @@ impl Blank {
             Blank::PcFloppy720 => fat::blank(fat::Floppy::Pc720, label),
             Blank::PcFloppy1440 => fat::blank(fat::Floppy::Pc1440, label),
             Blank::AtariSt720 => fat::blank(fat::Floppy::St720, label),
+            Blank::TrDos => trdos::blank(label),
+            Blank::Scl => trdos::blank_scl(),
         }
     }
 }
