@@ -31,7 +31,7 @@ pub enum Format {
     PhotoCd,
     /// A Commodore 64 bitmap: Koala Painter, Art Studio, Advanced Art Studio or Doodle!.
     C64,
-    /// An Atari ST screen: Degas, Degas Elite or NEOchrome.
+    /// An Atari ST screen: Degas, Degas Elite, NEOchrome or Spectrum 512.
     AtariSt,
     MacPaint,
     /// A RISC OS sprite file, of one sprite or many.
@@ -214,7 +214,7 @@ pub fn to_png(picture: &Picture) -> Result<Vec<u8>, String> {
 /// A name to save a picture as PNG under: the file's own, with ".png" in place of its ending.
 pub fn png_name(name: &str) -> String {
     let path = std::path::Path::new(name);
-    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic" | "hip"));
+    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "spu" | "spc" | "sps" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic" | "hip"));
     let stem = if known { path.file_stem() } else { path.file_name() };
     format!("{}.png", stem.map_or_else(|| "picture".into(), |s| s.to_string_lossy()))
 }

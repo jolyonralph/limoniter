@@ -495,6 +495,7 @@ const TOOLS: &[Entry] = &[
             Item("Crunchers and music\u{2026}", Command::AmigaTools),
         ],
     ),
+    Sub("Atari ST", &[Item("Picture, sprite and font converter", Command::StPictures)]),
     Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
     Sub(
         "Tasks",

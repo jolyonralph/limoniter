@@ -1,4 +1,5 @@
-//! Atari ST pictures: Degas and Degas Elite (.pi1-3, and .pc1-3 packed), and NEOchrome (.neo).
+//! Atari ST pictures: Degas and Degas Elite (.pi1-3, and .pc1-3 packed), NEOchrome (.neo), and Spectrum 512
+//! (.spu, and .spc and .sps packed).
 //!
 //! Both keep the ST's screen as it is, 32000 bytes, with a header before it:
 //! - Degas: a word for the resolution (0 low, 320x200 in 16 colours; 1 medium, 640x200 in 4; 2 high, 640x400 in
@@ -8,6 +9,8 @@
 //!   PackBits, the cycling at the very end.
 //! - NEOchrome: a flag word, the resolution, 16 palette words, a file name, its colour cycling (the range in one
 //!   word, its top bit on when it cycles; the speed and direction in the next), then the screen at byte 128.
+//!
+//! Spectrum 512 changes the palette 48 times a line, three palettes of 16, and is read as `st_spectrum` describes.
 //!
 //! A palette word is $0RGB, three bits a level on the ST; the STE added a fourth, as the level's lowest bit kept
 //! at the top of each nibble. The screen interleaves its bit planes a 16-bit word at a time: for each 16 pixels, a
@@ -23,6 +26,9 @@ enum Kind {
     Degas,
     DegasPacked,
     Neochrome,
+    SpectrumPlain,
+    SpectrumPacked,
+    SpectrumSmooshed,
 }
 
 fn be16(b: &[u8], at: usize) -> u16 {
@@ -32,6 +38,17 @@ fn be16(b: &[u8], at: usize) -> u16 {
 fn kind(ending: &str, bytes: &[u8]) -> Option<Kind> {
     if bytes.len() < 34 {
         return None;
+    }
+    if bytes.len() == 51104 && matches!(ending, "spu" | "") {
+        return Some(Kind::SpectrumPlain);
+    }
+    // Picture files read with no name are tried as packed Degas: a Spectrum header can't be one of those.
+    if bytes.starts_with(b"SP\0\0") {
+        return match ending {
+            "spc" | "pc1" => Some(Kind::SpectrumPacked),
+            "sps" => Some(Kind::SpectrumSmooshed),
+            _ => None,
+        };
     }
     let first = be16(bytes, 0);
     match bytes.len() {
@@ -121,6 +138,9 @@ fn unpack_degas(data: &[u8], width: usize, height: usize, planes: usize) -> (Vec
 
 pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
     let kind = kind(ending, bytes).ok_or("This isn't an Atari ST picture Limoniter knows.")?;
+    if matches!(kind, Kind::SpectrumPlain | Kind::SpectrumPacked | Kind::SpectrumSmooshed) {
+        return decode_spectrum(kind, bytes);
+    }
     let (resolution, palette_at) = match kind {
         Kind::Neochrome => (be16(bytes, 2), 4),
         _ => (be16(bytes, 0) & 3, 2),
@@ -144,6 +164,7 @@ pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
             short = ended_early;
             (screen, (bytes.len() >= 34 + used + 32).then_some(bytes.len() - 32))
         }
+        Kind::SpectrumPlain | Kind::SpectrumPacked | Kind::SpectrumSmooshed => unreachable!("read by decode_spectrum"),
     };
     let values = interleaved(&screen, width, height, planes);
     let mut picture = Picture::new(width, height);
@@ -181,6 +202,7 @@ pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
         Kind::Degas => "Degas",
         Kind::DegasPacked => "Degas Elite, packed",
         Kind::Neochrome => "NEOchrome",
+        _ => "Spectrum 512",
     };
     picture.note("Size", format!("{width}\u{D7}{height}"));
     picture.note(
@@ -208,6 +230,151 @@ pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
     if short {
         picture.note("Damaged", "The packed screen ends early; the rest is shown in colour 0");
     }
+    Ok(picture)
+}
+
+/// A run-length stream as Spectrum's packed files use it: a command, then bytes copied or one repeated.
+struct Runs<'a> {
+    data: &'a [u8],
+    at: usize,
+    count: usize,
+    repeat: Option<u8>,
+    smooshed: bool,
+}
+
+impl Runs<'_> {
+    fn next(&mut self) -> Option<u8> {
+        while self.count == 0 {
+            let b = *self.data.get(self.at)?;
+            self.at += 1;
+            // .SPC: under 128 copies b + 1, otherwise repeats 258 - b. .SPS: under 128 repeats b + 3, otherwise
+            // copies b - 127.
+            let repeats = (b >= 128) != self.smooshed;
+            self.count = match (self.smooshed, repeats) {
+                (false, false) => usize::from(b) + 1,
+                (false, true) => 258 - usize::from(b),
+                (true, true) => usize::from(b) + 3,
+                (true, false) => usize::from(b) - 127,
+            };
+            self.repeat = if repeats {
+                let v = *self.data.get(self.at)?;
+                self.at += 1;
+                Some(v)
+            } else {
+                None
+            };
+        }
+        self.count -= 1;
+        match self.repeat {
+            Some(v) => Some(v),
+            None => {
+                let v = *self.data.get(self.at)?;
+                self.at += 1;
+                Some(v)
+            }
+        }
+    }
+}
+
+/// Each plane's words from the second line down, a plane after another, into the screen.
+fn unpack_plane_words(runs: &mut Runs, screen: &mut [u8]) -> Option<()> {
+    for plane in 0..4 {
+        let mut at = 160 + plane * 2;
+        while at < SCREEN {
+            screen[at] = runs.next()?;
+            screen[at + 1] = runs.next()?;
+            at += 8;
+        }
+    }
+    Some(())
+}
+
+/// Spectrum 512's screen and 199 lines of 48 palette words, unpacked: the .SPU's layout.
+fn unpack_spectrum(kind: Kind, bytes: &[u8]) -> Option<Vec<u8>> {
+    if kind == Kind::SpectrumPlain {
+        return Some(bytes.to_vec());
+    }
+    let mut out = vec![0u8; 51104];
+    let palettes_at = 12usize.checked_add(u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize)?;
+    let mut runs = Runs { data: bytes.get(..palettes_at.min(bytes.len()))?, at: 12, count: 0, repeat: None, smooshed: kind == Kind::SpectrumSmooshed };
+    if kind == Kind::SpectrumPacked || bytes.last()? & 1 == 1 {
+        unpack_plane_words(&mut runs, &mut out)?;
+    } else {
+        // .SPS's other layout: each plane's bytes a column at a time, down the screen.
+        for plane in 0..4 {
+            for x in 0..40 {
+                let mut at = 160 + ((x & !1) << 2) + plane * 2 + (x & 1);
+                while at < SCREEN {
+                    out[at] = runs.next()?;
+                    at += 160;
+                }
+            }
+        }
+    }
+    let mut at = SCREEN;
+    let data = bytes.get(palettes_at..)?;
+    if kind == Kind::SpectrumPacked {
+        let mut from = 0;
+        while at < out.len() {
+            let bits = u16::from(*data.get(from)? & 0x7F) << 8 | u16::from(*data.get(from + 1)?);
+            from += 2;
+            for i in 0..16 {
+                if bits >> i & 1 != 0 {
+                    out[at] = *data.get(from)?;
+                    out[at + 1] = *data.get(from + 1)?;
+                    from += 2;
+                }
+                at += 2;
+            }
+        }
+    } else {
+        // Bits, the first the highest: 14 saying which of colours 1 to 14 are there, then 9 (RRRGGGBBB) for each.
+        let mut bit = 0usize;
+        let mut read = |count: usize| -> Option<u16> {
+            let mut v = 0u16;
+            for _ in 0..count {
+                let byte = *data.get(bit / 8)?;
+                v = v << 1 | u16::from(byte >> (7 - bit % 8) & 1);
+                bit += 1;
+            }
+            Some(v)
+        };
+        while at < out.len() {
+            let there = read(14)? << 1;
+            for i in (0..16).rev() {
+                let rgb = if there >> i & 1 != 0 { read(9)? } else { 0 };
+                out[at] = (rgb >> 6) as u8;
+                out[at + 1] = ((rgb & 0x3F) + (rgb & 0x38)) as u8;
+                at += 2;
+            }
+        }
+    }
+    Some(out)
+}
+
+fn decode_spectrum(kind: Kind, bytes: &[u8]) -> Result<Picture, String> {
+    let file = unpack_spectrum(kind, bytes).ok_or("This Spectrum 512 picture ends early or is damaged.")?;
+    let words: Vec<u16> = file[SCREEN..].chunks(2).map(|w| u16::from_be_bytes([w[0], w[1]])).collect();
+    let ste = words.iter().any(|w| w & 0x888 != 0);
+    let colours: Vec<[u8; 3]> = words.iter().map(|&w| crate::st_planar::colour_of_word(w, ste)).collect();
+    let values = interleaved(&file[160..SCREEN], 320, 199, 4);
+    let mut picture = Picture::new(320, 199);
+    for y in 0..199 {
+        for x in 0..320 {
+            let c = usize::from(values[y * 320 + x]);
+            picture.set(x, y, colours[y * 48 + crate::st_spectrum::slot(x, c)]);
+        }
+    }
+    picture.note("Size", "320\u{D7}199");
+    picture.note("Colours", if ste { "48 a line from 4096 (STE)" } else { "48 a line from 512" });
+    picture.note(
+        "Saved by",
+        match kind {
+            Kind::SpectrumPacked => "Spectrum 512, packed",
+            Kind::SpectrumSmooshed => "Spectrum 512, smooshed",
+            _ => "Spectrum 512",
+        },
+    );
     Ok(picture)
 }
 
