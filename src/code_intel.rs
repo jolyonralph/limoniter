@@ -34,6 +34,8 @@ pub struct CodeIntel {
     pub amiga: Option<Arc<crate::amiga_ndk::Index>>,
     /// For 68000 source: what it does with the Amiga's custom chips and its copper lists.
     pub hardware: Option<Arc<crate::amiga_source::Source>>,
+    /// For 68000 source: what it does with the Atari ST's hardware and which TOS functions it calls.
+    pub atari: Option<Arc<crate::st_source::Source>>,
 }
 
 impl PartialEq for CodeIntel {
@@ -146,9 +148,17 @@ impl CodeIntel {
         {
             return Some(words.clone());
         }
+        // The Atari ST's hardware and TOS calls; ST code gets nothing of the Amiga's.
+        let atari = self.atari.as_ref().filter(|st| st.atari);
+        if let Some(st) = atari
+            && !in_comment_or_string(text, col)
+            && let Some(words) = st.describe(line, text, col)
+        {
+            return Some(words);
+        }
         // An Amiga system function, or a structure's field or a flag from the NDK's headers, unless the program
         // has a label of that name of its own (one it has from INCLUDEing the header is the NDK's).
-        if let Some(ndk) = &self.amiga
+        if let Some(ndk) = self.amiga.as_ref().filter(|_| atari.is_none())
             && !(self.cpu.is_some() && in_comment_or_string(text, col))
             && let Some((_, _, word)) = word_at(text, col)
             && (word.starts_with("_LVO") || self.assembly.as_ref().and_then(|a| a.symbols.get(&word)).is_none_or(|v| ndk.headers.get(&word).is_some_and(|n| n.value as i32 == *v as i32)))
@@ -157,7 +167,7 @@ impl CodeIntel {
             return Some(words);
         }
         // The Amiga's custom chips: a register, a value written to one, or a copper instruction.
-        if let Some(hardware) = &self.hardware
+        if let Some(hardware) = self.hardware.as_ref().filter(|_| atari.is_none())
             && !in_comment_or_string(text, col)
             && let Some(words) = hardware.describe(line, text, col)
         {
@@ -193,6 +203,13 @@ impl CodeIntel {
     /// What can finish the word being typed on a line: labels (a local label only in its own part of the program),
     /// and the language's words, best first.
     pub fn completions(&self, line: usize, text: &str, col: usize) -> Vec<String> {
+        // In ST code's comments, the TOS functions' names, to say which a call is.
+        if self.atari.as_ref().is_some_and(|st| st.atari)
+            && in_comment_or_string(text, col)
+            && let Some((_, prefix)) = prefix_at(text, col)
+        {
+            return crate::st_source::Source::function_names(&prefix);
+        }
         // C's semicolons end statements, not lines: only assembler and BASIC have comments that way.
         if (self.amiga.is_none() || self.cpu.is_some()) && in_comment_or_string(text, col) {
             return Vec::new();

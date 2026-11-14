@@ -495,6 +495,14 @@ const TOOLS: &[Entry] = &[
             Item("Crunchers and music\u{2026}", Command::AmigaTools),
         ],
     ),
+    Sub(
+        "Atari ST",
+        &[
+            Item("Hardware registers and TOS calls", Command::AtariHardware),
+            Item("STE blitter", Command::AtariBlitter),
+            Item("MFP timers", Command::AtariTimers),
+        ],
+    ),
     Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
     Sub(
         "Tasks",
