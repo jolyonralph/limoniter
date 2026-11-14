@@ -774,6 +774,19 @@ pub fn tape_blocks(data: &[u8]) -> (Vec<&[u8]>, Option<String>) {
 /// Where each data block is on a tape: where the whole block starts (its length, or its TZX block ID), where its
 /// flag byte is, and the length from the flag to the checksum; and why the tape ended early if it did.
 pub fn tape_block_places(data: &[u8]) -> (Vec<(usize, usize, usize)>, Option<String>) {
+    block_places(data, false)
+}
+
+/// Each generalised data block (0x19) on a TZX tape, from its length on: how other machines' tapes, such as the
+/// ZX81's, are kept in a TZX file.
+pub fn tzx_generalised_blocks(data: &[u8]) -> Vec<&[u8]> {
+    if !data.starts_with(b"ZXTape!\x1A") {
+        return Vec::new();
+    }
+    block_places(data, true).0.into_iter().filter(|(at, _, _)| data[*at] == 0x19).map(|(_, start, length)| &data[start..start + length]).collect()
+}
+
+fn block_places(data: &[u8], generalised: bool) -> (Vec<(usize, usize, usize)>, Option<String>) {
     let mut blocks = Vec::new();
     if !data.starts_with(b"ZXTape!\x1A") {
         let mut at = 0;
@@ -805,6 +818,7 @@ pub fn tape_block_places(data: &[u8]) -> (Vec<(usize, usize, usize)>, Option<Str
             0x12 => (None, body + 4),
             0x13 => (None, body + 1 + 2 * count(body)),
             0x15 => (None, body + 8 + three(body + 5)),
+            0x19 => (generalised.then_some((body, 4 + four(body))), body + 4 + four(body)),
             0x20 | 0x23 | 0x24 => (None, body + 2),
             0x21 | 0x30 => (None, body + 1 + count(body)),
             0x22 | 0x25 | 0x27 => (None, body),

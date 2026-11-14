@@ -30,6 +30,9 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
         None
     } else if is_zx81_ending(extension) {
         Some(list_zx81(data))
+    } else if let Some((_, program)) = (extension == "tzx").then(|| crate::media::spectrum::zx81_programs(data).into_iter().next()).flatten().filter(|_| crate::basic::tape_blocks(data).0.is_empty()) {
+        // A ZX81 tape in a TZX file, with no Spectrum blocks on it, lists its first program.
+        Some(list_zx81(&program))
     } else if looks_like_sam_basic(data) {
         Some(list_sam(data))
     } else if extension == "tap" && crate::media::oric::looks_like(data) {
@@ -924,6 +927,53 @@ mod tests {
         let listing = crate::basic::list(&named, "p81", charset::utf8());
         assert_eq!(listing.lines[0], "10 PRINT \"HI\"");
         assert_eq!(listing.info, [("Name".to_string(), "NIM".to_string())]);
+    }
+
+    /// A TZX tape with each program in a generalised data block, as the ZX81 Tape Converter writes them: no pilot,
+    /// two symbols (a 0 four pulses, a 1 nine, each pulse two edges), the name and then the `.p` file's bytes.
+    fn zx81_tzx(programs: &[(&[u8], &[u8])]) -> Vec<u8> {
+        let mut tape = b"ZXTape!\x1A\x01\x14".to_vec();
+        for (name, program) in programs {
+            let bytes: Vec<u8> = name.iter().chain(program.iter()).copied().collect();
+            let mut block = Vec::new();
+            block.extend(1u16.to_le_bytes());
+            block.extend([0u8; 6]);
+            block.extend(((bytes.len() * 8) as u32).to_le_bytes());
+            block.extend([18, 2]);
+            for edges in [8usize, 18] {
+                block.push(3);
+                for i in 0..18 {
+                    let length: u16 = if i >= edges { 0 } else if i + 1 == edges { 4689 } else if i % 2 == 0 { 530 } else { 520 };
+                    block.extend(length.to_le_bytes());
+                }
+            }
+            block.extend(&bytes);
+            tape.push(0x19);
+            tape.extend((block.len() as u32).to_le_bytes());
+            tape.extend(block);
+        }
+        tape
+    }
+
+    #[test]
+    fn a_zx81_program_on_a_tzx_tape_lists() {
+        let file = zx81_p(&[(10, b"\xF5\x0B\x2D\x2E\x0B\x76")], &[]);
+        let tape = zx81_tzx(&[(b"\x33\x2E\xB2", &file)]);
+        let listing = crate::basic::list(&tape, "tzx", charset::utf8());
+        assert_eq!((listing.dialect, listing.lines.as_slice()), ("ZX81 BASIC", ["10 PRINT \"HI\"".to_string()].as_slice()));
+        let image = crate::media::open(std::sync::Arc::new(tape.clone()), "nim.tzx").unwrap();
+        assert_eq!(image.describe(), "ZX81 tape (TZX) \u{B7} 1 file(s)");
+        let files = image.list(None).unwrap();
+        assert_eq!((files[0].name.as_str(), files[0].kind.as_str()), ("NIM.p", "ZX81 program"));
+        assert_eq!(image.read(&files[0]).unwrap(), file);
+        for cut in 0..tape.len() {
+            if let Ok(image) = crate::media::open(std::sync::Arc::new(tape[..cut].to_vec()), "cut.tzx") {
+                for entry in image.list(None).unwrap() {
+                    let _ = image.read(&entry);
+                }
+            }
+            let _ = crate::basic::list(&tape[..cut], "tzx", charset::utf8());
+        }
     }
 
     #[test]

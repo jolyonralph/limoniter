@@ -33,6 +33,8 @@ mod woz;
 pub(crate) mod xex;
 pub(crate) mod spectrum;
 mod stuffit;
+#[cfg(test)]
+mod sweep;
 mod zip;
 
 use std::io::{Read, Seek, SeekFrom};
@@ -272,6 +274,8 @@ enum Format {
     Sam,
     /// An Oric tape.
     OricTape,
+    /// An Oric disk, in Euphoric's MFM_DISK form.
+    OricDisk,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -336,6 +340,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if ending == "tap" && oric::looks_like(head) {
         return Some(Format::OricTape);
+    }
+    if ending == "dsk" && oric::looks_like_disk(head) {
+        return Some(Format::OricDisk);
     }
     if at(0, b"ZXTape!\x1A") {
         return Some(Format::ZxTape);
@@ -498,6 +505,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Cas) => Ok(Box::new(cas::Cas::open(source)?)),
         Some(Format::Sam) => Ok(Box::new(sam::Sam::open(source)?)),
         Some(Format::OricTape) => Ok(Box::new(oric::OricTape::open(source)?)),
+        Some(Format::OricDisk) => Ok(Box::new(oric::OricDisk::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }
