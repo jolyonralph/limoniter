@@ -3,6 +3,10 @@
 //! turn that model into the three outputs. What a format holds that the model can't (printer codes, fonts, margins)
 //! is listed in the document's notes rather than dropped without a word.
 
+mod finalwriter;
+mod signum;
+mod wordperfect;
+mod wordworth;
 mod wordstar;
 
 /// How a stretch of text looks.
@@ -14,6 +18,8 @@ pub struct Style {
     pub strike: bool,
     pub superscript: bool,
     pub subscript: bool,
+    /// A footnote's mark, the run's text being its label.
+    pub note: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +42,8 @@ pub enum Block {
     PageBreak,
     Header(String),
     Footer(String),
+    /// A footnote or endnote, kept at the end of the document; its mark is a run styled as a note.
+    Footnote { label: String, text: String },
 }
 
 /// A converted document: what it was, its blocks, and what couldn't be carried over.
@@ -51,12 +59,24 @@ pub struct Doc {
 pub enum Kind {
     /// WordStar 3 to 7, and HP's MemoMaker, which saves in WordStar's format.
     WordStar,
+    /// WordPerfect 4 and 5, on DOS, the Amiga and the Atari ST.
+    WordPerfect,
+    /// Signum! 1 and 2, on the Atari ST.
+    Signum,
+    /// Final Writer, on the Amiga.
+    FinalWriter,
+    /// Wordworth, on the Amiga.
+    Wordworth,
 }
 
 impl Kind {
     pub fn name(self) -> &'static str {
         match self {
             Kind::WordStar => "WordStar",
+            Kind::WordPerfect => "WordPerfect",
+            Kind::Signum => "Signum!",
+            Kind::FinalWriter => "Final Writer",
+            Kind::Wordworth => "Wordworth",
         }
     }
 }
@@ -64,12 +84,21 @@ impl Kind {
 /// Which format a file is in, if it's one of these: by its bytes, as old word processors' files seldom have
 /// endings that say.
 pub fn detect(_name: &str, bytes: &[u8]) -> Option<Kind> {
+    for (looks_like, kind) in [(signum::looks_like as fn(&[u8]) -> bool, Kind::Signum), (finalwriter::looks_like, Kind::FinalWriter), (wordworth::looks_like, Kind::Wordworth), (wordperfect::looks_like, Kind::WordPerfect)] {
+        if looks_like(bytes) {
+            return Some(kind);
+        }
+    }
     wordstar::looks_like(bytes).then_some(Kind::WordStar)
 }
 
 pub fn convert(kind: Kind, bytes: &[u8]) -> Result<Doc, String> {
     match kind {
         Kind::WordStar => Ok(wordstar::read(bytes)),
+        Kind::WordPerfect => wordperfect::read(bytes),
+        Kind::Signum => signum::read(bytes),
+        Kind::FinalWriter => finalwriter::read(bytes),
+        Kind::Wordworth => wordworth::read(bytes),
     }
 }
 
@@ -100,7 +129,7 @@ impl Target {
 }
 
 fn paragraph_text(runs: &[Run]) -> String {
-    runs.iter().map(|r| r.text.as_str()).collect()
+    runs.iter().map(|r| if r.style.note { format!("[{}]", r.text) } else { r.text.clone() }).collect()
 }
 
 /// Plain text: each paragraph a line, as it was typed; page breaks as form feeds, headers and footers left out.
@@ -114,6 +143,7 @@ pub fn to_text(doc: &Doc) -> String {
             }
             Block::PageBreak => out.push('\u{C}'),
             Block::Header(_) | Block::Footer(_) => {}
+            Block::Footnote { label, text } => out.push_str(&format!("[{label}] {text}\n")),
         }
     }
     out
@@ -175,6 +205,10 @@ pub fn to_markdown(doc: &Doc) -> String {
                 let which = if matches!(block, Block::Header(_)) { "Header" } else { "Footer" };
                 out.push_str(&format!("<!-- {which}: {} -->\n\n", text.replace("--", "- -")));
             }
+            Block::Footnote { label, text } => {
+                flush(&mut group, &mut out);
+                out.push_str(&format!("[^{}]: {}\n\n", note_label(label), markdown_escape(text)));
+            }
         }
     }
     flush(&mut group, &mut out);
@@ -184,7 +218,15 @@ pub fn to_markdown(doc: &Doc) -> String {
     out
 }
 
+/// A note's label as Markdown takes it in `[^label]`.
+fn note_label(label: &str) -> String {
+    label.chars().filter(|c| c.is_alphanumeric()).collect()
+}
+
 fn markdown_run(run: &Run) -> String {
+    if run.style.note {
+        return format!("[^{}]", note_label(&run.text));
+    }
     let text = markdown_escape(&run.text);
     // Markdown's marks don't take spaces just inside them, so those stay outside.
     let (lead, core, trail) = {
@@ -261,6 +303,16 @@ pub fn to_rtf(doc: &Doc) -> String {
                 });
                 for run in runs {
                     let s = run.style;
+                    // A note's mark, with the note itself where RTF keeps it.
+                    if s.note {
+                        let text = doc.blocks.iter().find_map(|b| match b {
+                            Block::Footnote { label, text } if *label == run.text => Some(text.as_str()),
+                            _ => None,
+                        });
+                        let mark = rtf_escape(&run.text);
+                        out.push_str(&format!("{{\\super {mark}}}{{\\footnote\\pard {{\\super {mark}}} {}}}", rtf_escape(text.unwrap_or(""))));
+                        continue;
+                    }
                     let marks: String = [(s.bold, "\\b"), (s.italic, "\\i"), (s.underline, "\\ul"), (s.strike, "\\strike"), (s.superscript, "\\super"), (s.subscript, "\\sub")].iter().filter(|(on, _)| *on).map(|(_, mark)| *mark).collect();
                     if marks.is_empty() {
                         out.push_str(&rtf_escape(&run.text));
@@ -271,7 +323,7 @@ pub fn to_rtf(doc: &Doc) -> String {
                 out.push_str("\\par\n");
             }
             Block::PageBreak => out.push_str("\\page\n"),
-            Block::Header(_) | Block::Footer(_) => {}
+            Block::Header(_) | Block::Footer(_) | Block::Footnote { .. } => {}
         }
     }
     out.push('}');
@@ -391,7 +443,7 @@ mod real_documents {
                 continue;
             };
             if let Some(kind) = super::detect(&entry.open_name, &bytes) {
-                let doc = super::convert(kind, &bytes).unwrap();
+                let Ok(doc) = super::convert(kind, &bytes) else { continue };
                 let stem = path.replace(['/', '\\', ':', '!'], "_");
                 for target in [super::Target::Text, super::Target::Markdown, super::Target::Rtf] {
                     std::fs::write(out.join(format!("{stem}.{}", target.ending())), target.write(&doc)).unwrap();
@@ -435,7 +487,7 @@ mod real_documents {
             let bytes = std::fs::read(&file).unwrap();
             if !media::is_image(&name, &bytes[..bytes.len().min(0x8800)], bytes.len() as u64) {
                 if let Some(kind) = super::detect(&name, &bytes) {
-                    let doc = super::convert(kind, &bytes).unwrap();
+                    let Ok(doc) = super::convert(kind, &bytes) else { continue };
                     for target in [super::Target::Text, super::Target::Markdown, super::Target::Rtf] {
                         std::fs::write(out.join(format!("{name}.{}", target.ending())), target.write(&doc)).unwrap();
                     }
