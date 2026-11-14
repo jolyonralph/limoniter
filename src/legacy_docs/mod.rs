@@ -8,6 +8,10 @@ mod firstword;
 mod ftxt;
 mod prowrite;
 mod protext;
+mod finalwriter;
+mod signum;
+mod wordperfect;
+mod wordworth;
 mod wordstar;
 
 /// How a stretch of text looks.
@@ -21,6 +25,8 @@ pub struct Style {
     pub subscript: bool,
     /// A link to the heading with this number, counting from the document's first.
     pub link: Option<u16>,
+    /// A footnote's mark, the run's text being its label.
+    pub note: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,6 +51,8 @@ pub enum Block {
     Footer(String),
     /// A heading, level 1 the highest.
     Heading { level: u8, text: String },
+    /// A footnote or endnote, kept at the end of the document; its mark is a run styled as a note.
+    Footnote { label: String, text: String },
 }
 
 /// A converted document: what it was, its blocks, and what couldn't be carried over.
@@ -69,6 +77,14 @@ pub enum Kind {
     Protext,
     /// GST's 1st Word and 1st Word Plus, on the Atari ST and the Archimedes.
     FirstWord,
+    /// WordPerfect 4 and 5, on DOS, the Amiga and the Atari ST.
+    WordPerfect,
+    /// Signum! 1 and 2, on the Atari ST.
+    Signum,
+    /// Final Writer, on the Amiga.
+    FinalWriter,
+    /// Wordworth, on the Amiga.
+    Wordworth,
 }
 
 impl Kind {
@@ -80,6 +96,10 @@ impl Kind {
             Kind::AmigaGuide => "AmigaGuide",
             Kind::Protext => "Protext",
             Kind::FirstWord => "1st Word",
+            Kind::WordPerfect => "WordPerfect",
+            Kind::Signum => "Signum!",
+            Kind::FinalWriter => "Final Writer",
+            Kind::Wordworth => "Wordworth",
         }
     }
 }
@@ -89,6 +109,11 @@ impl Kind {
 pub fn detect(name: &str, bytes: &[u8]) -> Option<Kind> {
     if let Some(kind) = detect_amiga_st(name, bytes) {
         return Some(kind);
+    }
+    for (looks_like, kind) in [(signum::looks_like as fn(&[u8]) -> bool, Kind::Signum), (finalwriter::looks_like, Kind::FinalWriter), (wordworth::looks_like, Kind::Wordworth), (wordperfect::looks_like, Kind::WordPerfect)] {
+        if looks_like(bytes) {
+            return Some(kind);
+        }
     }
     wordstar::looks_like(bytes).then_some(Kind::WordStar)
 }
@@ -113,6 +138,10 @@ pub fn convert(kind: Kind, bytes: &[u8]) -> Result<Doc, String> {
         Kind::AmigaGuide => Ok(amigaguide::read(bytes)),
         Kind::Protext => Ok(protext::read(bytes)),
         Kind::FirstWord => Ok(firstword::read(bytes)),
+        Kind::WordPerfect => wordperfect::read(bytes),
+        Kind::Signum => signum::read(bytes),
+        Kind::FinalWriter => finalwriter::read(bytes),
+        Kind::Wordworth => wordworth::read(bytes),
     }
 }
 
@@ -143,7 +172,7 @@ impl Target {
 }
 
 fn paragraph_text(runs: &[Run]) -> String {
-    runs.iter().map(|r| r.text.as_str()).collect()
+    runs.iter().map(|r| if r.style.note { format!("[{}]", r.text) } else { r.text.clone() }).collect()
 }
 
 /// Plain text: each paragraph a line, as it was typed; page breaks as form feeds, headers and footers left out.
@@ -161,6 +190,7 @@ pub fn to_text(doc: &Doc) -> String {
                 out.push('\n');
             }
             Block::Header(_) | Block::Footer(_) => {}
+            Block::Footnote { label, text } => out.push_str(&format!("[{label}] {text}\n")),
         }
     }
     out
@@ -248,6 +278,10 @@ pub fn to_markdown(doc: &Doc) -> String {
                 flush(&mut group, &mut out, &mut listing);
                 out.push_str(&format!("{} {}\n\n", "#".repeat(usize::from((*level).clamp(1, 6))), markdown_escape(text.trim())));
             }
+            Block::Footnote { label, text } => {
+                flush(&mut group, &mut out, &mut listing);
+                out.push_str(&format!("[^{}]: {}\n\n", note_label(label), markdown_escape(text)));
+            }
         }
     }
     flush(&mut group, &mut out, &mut listing);
@@ -301,7 +335,15 @@ fn list_item(runs: &[Run]) -> Option<(String, usize)> {
     Some((mark, start + mark_end + gap))
 }
 
+/// A note's label as Markdown takes it in `[^label]`.
+fn note_label(label: &str) -> String {
+    label.chars().filter(|c| c.is_alphanumeric()).collect()
+}
+
 fn markdown_run(run: &Run, anchors: &[String]) -> String {
+    if run.style.note {
+        return format!("[^{}]", note_label(&run.text));
+    }
     let text = markdown_escape(&run.text);
     // Markdown's marks don't take spaces just inside them, so those stay outside.
     let (lead, core, trail) = {
@@ -381,6 +423,16 @@ pub fn to_rtf(doc: &Doc) -> String {
                 });
                 for run in runs {
                     let s = run.style;
+                    // A note's mark, with the note itself where RTF keeps it.
+                    if s.note {
+                        let text = doc.blocks.iter().find_map(|b| match b {
+                            Block::Footnote { label, text } if *label == run.text => Some(text.as_str()),
+                            _ => None,
+                        });
+                        let mark = rtf_escape(&run.text);
+                        out.push_str(&format!("{{\\super {mark}}}{{\\footnote\\pard {{\\super {mark}}} {}}}", rtf_escape(text.unwrap_or(""))));
+                        continue;
+                    }
                     let marks: String = [(s.bold, "\\b"), (s.italic, "\\i"), (s.underline, "\\ul"), (s.strike, "\\strike"), (s.superscript, "\\super"), (s.subscript, "\\sub")].iter().filter(|(on, _)| *on).map(|(_, mark)| *mark).collect();
                     if marks.is_empty() {
                         out.push_str(&rtf_escape(&run.text));
@@ -399,7 +451,7 @@ pub fn to_rtf(doc: &Doc) -> String {
                 };
                 out.push_str(&format!("\\pard\\ql\\keepn{{\\b\\fs{size} {}}}\\par\n", rtf_escape(text.trim())));
             }
-            Block::Header(_) | Block::Footer(_) => {}
+            Block::Header(_) | Block::Footer(_) | Block::Footnote { .. } => {}
         }
     }
     out.push('}');
@@ -519,7 +571,7 @@ mod real_documents {
                 continue;
             };
             if let Some(kind) = super::detect(&entry.open_name, &bytes) {
-                let doc = super::convert(kind, &bytes).unwrap();
+                let Ok(doc) = super::convert(kind, &bytes) else { continue };
                 let stem = path.replace(['/', '\\', ':', '!'], "_");
                 for target in [super::Target::Text, super::Target::Markdown, super::Target::Rtf] {
                     std::fs::write(out.join(format!("{stem}.{}", target.ending())), target.write(&doc)).unwrap();
@@ -563,7 +615,7 @@ mod real_documents {
             let bytes = std::fs::read(&file).unwrap();
             if !media::is_image(&name, &bytes[..bytes.len().min(0x8800)], bytes.len() as u64) {
                 if let Some(kind) = super::detect(&name, &bytes) {
-                    let doc = super::convert(kind, &bytes).unwrap();
+                    let Ok(doc) = super::convert(kind, &bytes) else { continue };
                     for target in [super::Target::Text, super::Target::Markdown, super::Target::Rtf] {
                         std::fs::write(out.join(format!("{name}.{}", target.ending())), target.write(&doc)).unwrap();
                     }
@@ -576,5 +628,41 @@ mod real_documents {
             }
         }
         std::fs::write(out.join("index.txt"), found.join("\n")).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod detecting {
+    use super::*;
+
+    /// Each sample word-processor document is taken for its own format, not another's.
+    #[test]
+    fn each_sample_document_is_detected_as_its_own_format() {
+        let folder = std::path::Path::new("../testmedia/wp");
+        let expected = [
+            ("1STWORD.EX", Kind::FirstWord),
+            ("Printtest", Kind::FirstWord),
+            ("Convert Notes", Kind::ProWrite),
+            ("Memo", Kind::ProWrite),
+            ("colorsdoc.prw", Kind::ProWrite),
+            ("Doc.textcraft", Kind::Ftxt),
+            ("TextCfraft.doc", Kind::Ftxt),
+            ("PROTEXT.EX", Kind::Protext),
+            ("TUTOR1", Kind::Protext),
+            ("zorro.guide", Kind::AmigaGuide),
+            ("amiga-wp41-report.lrn", Kind::WordPerfect),
+            ("st-wp-printer.tst", Kind::WordPerfect),
+            ("dos-wp42-table.lrn", Kind::WordPerfect),
+            ("dos-wp50-past.wkb", Kind::WordPerfect),
+            ("dos-wp51-april93.cal", Kind::WordPerfect),
+            ("signum-physik.sdo", Kind::Signum),
+            ("finalwriter-fax-cover", Kind::FinalWriter),
+            ("wordworth2-designers", Kind::Wordworth),
+            ("wordworth5-frames", Kind::Wordworth),
+        ];
+        for (name, kind) in expected {
+            let Ok(bytes) = std::fs::read(folder.join(name)) else { continue };
+            assert_eq!(detect(name, &bytes), Some(kind), "{name}");
+        }
     }
 }

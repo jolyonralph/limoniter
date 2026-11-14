@@ -207,6 +207,9 @@ The images below can have files added (**Add files…**, or drop them on the tab
 - WordStar 3.x to 7 documents and HP MemoMaker documents, found inside disk images, can be opened as text or converted to Markdown, plain text or RTF.
 - Amiga and Atari ST documents too: IFF formatted text (FTXT, from the clipboard, NotePad and TextCraft), ProWrite and other IFF WORD documents, AmigaGuide hypertext, Arnor's Protext (Amiga, ST, PC and CPC), and 1st Word and 1st Word Plus (ST and Archimedes), each read in its machine's own character set.
 - ProWrite's larger type becomes Markdown headings, and each AmigaGuide node a section of its own with its links between them; numbered and bulleted paragraphs become Markdown lists.
+- WordPerfect 4.x and 5.x documents, from DOS, the Amiga and the Atari ST (whose WordPerfect 4.1 and "5.0" save as 4.x does), converted the same way, footnotes and endnotes becoming Markdown footnotes.
+- Signum! 1 and 2 documents (`.SDO`) from the Atari ST: the text, with bold, italics and underlining; Signum!'s own bitmap fonts are named in the notes.
+- Final Writer and Wordworth documents from the Amiga: every section's paragraphs, bold, italics, underlining and centred lines, and the headers and footers.
 - Bold, underline, italics, page breaks, headers and footers are kept; what can't be carried over (printer codes, fonts, margins) is listed in notes.
 - Pictures can be saved as PNG; tokenised BASIC can be opened as a text listing and saved back as a program.
 
