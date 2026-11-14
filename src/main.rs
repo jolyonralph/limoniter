@@ -3,6 +3,7 @@
 
 mod amiga_ndk;
 mod amiga_palette_ui;
+mod amiga_tools;
 mod ansi_art;
 mod addons;
 mod access;
@@ -51,6 +52,7 @@ mod panels;
 mod pictures;
 mod preview;
 mod print;
+mod protracker;
 mod project;
 mod reformat;
 mod running;

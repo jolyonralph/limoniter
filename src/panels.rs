@@ -638,6 +638,24 @@ struct Properties {
     checksum: Option<Arc<Mutex<Option<String>>>>,
     /// An image's picture on the graphics card, for the place it came from; None if it couldn't be decoded.
     picture: Option<(String, Option<egui::TextureHandle>)>,
+    /// What a music module says about itself, for the document and version it was read from.
+    module: Option<((u64, u64), Vec<crate::media::InfoSection>)>,
+}
+
+/// A ProTracker module's sections for File properties, read again only when the file changes.
+fn module_sections<'a>(cache: &'a mut Option<((u64, u64), Vec<crate::media::InfoSection>)>, key: (u64, u64), doc: &DocView<'_>) -> &'a [crate::media::InfoSection] {
+    if cache.as_ref().is_none_or(|(k, _)| *k != key) {
+        let named = crate::protracker::named_as_module(&doc.name);
+        let sections = if doc.hex_mode && (named || crate::protracker::has_module_tag(&doc.hex.read(0, 1084))) && doc.hex.len() <= 64 << 20 {
+            crate::protracker::read(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|m| m.sections()).unwrap_or_default()
+        } else if !doc.hex_mode && named && !doc.text.is_disk_backed() {
+            doc.text.encode(doc.format, codec::Lossy::Omit).ok().and_then(|bytes| crate::protracker::read(&bytes, &doc.name).ok()).map(|m| m.sections()).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        *cache = Some((key, sections));
+    }
+    cache.as_ref().map_or(&[], |(_, sections)| sections.as_slice())
 }
 
 fn compute_stats(doc: &DocView<'_>) -> Stats {
@@ -742,6 +760,19 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
         });
         if let Some(image) = &doc.image {
             image_sections(ui, &mut p.picture, image, &mut rows_for_copy);
+        } else {
+            for info in module_sections(&mut p.module, key, doc) {
+                section(ui, &info.title, &format!("properties-module-{}", info.title), |ui| {
+                    for (label, value) in &info.rows {
+                        if label.is_empty() {
+                            ui.add(egui::Label::new(RichText::new(value).size(12.5)).wrap());
+                            rows_for_copy.push((format!("{}:", info.title), value.clone()));
+                        } else {
+                            property_row(ui, &format!("{label}:"), value, &mut rows_for_copy);
+                        }
+                    }
+                });
+            }
         }
         if doc.image.is_none() {
         section(ui, "Contents", "properties-contents", |ui| {

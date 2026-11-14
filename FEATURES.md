@@ -126,6 +126,7 @@ Shown beside the text or filling the window (**View, Preview**). Nothing in a pr
 - ZX Spectrum text with its colour and position controls.
 - Tokenised BASIC programs, listed as the machine's LIST would show them.
 - Pictures in older machines' formats (below).
+- ProTracker music modules (`.mod`, or `mod.name` as the Amiga had it, and anything with a tracker's tag such as `M.K.`): the title, the format and channels (ProTracker, NoiseTracker, StarTrekker, 6CHN, 8CHN, 16CH and the rest, and Soundtracker's older 15-sample modules), the song's order, how many patterns, and every sample with its name, length, loop, volume and finetune; a module that's been cut short, or a loop start written in bytes by an older tracker, is said plainly. A module opens with this beside its bytes, and File properties shows the same. Read only.
 
 ## Pictures
 
@@ -324,6 +325,16 @@ Switched on under **View, Panels**:
   - **Its memory** in hex view, looked at again every second; typing in it changes the machine's memory.
   - **Its screen as text**, in the machine's own characters.
   - **Take its BASIC program** as a listing, and **Put this listing into it** again, in place of the program, as LOAD would leave it: a program running is stopped first (BREAK on a Spectrum, RUN/STOP on a Commodore), and the new one is RUN.
+
+## Amiga crunchers and music
+
+**File › Run on › Amiga crunchers and music** (also in Settings, Editing), for Amiga demos. The tools are other people's, found where they're installed or where you point Limoniter, and run in the background with **Stop**; without one, Limoniter only says where to get it.
+
+- **Crunch a program** with **Shrinkler** or **Cranker**: the Amiga program (hunk executable) in front, in hex or not, or the one chosen in a disk image's browser. Shrinkler's options: data rather than a program (`-d`, with its header `-w`), hunk merging (`-h`), overlap (`-o`), the mini header (`-m`), the command line passed on (`-c`), no parity context (`-b`), effort `-1` to `-9` with iterations and references of your own, a line of text before decrunching (`-t`) and a register flashed while it works (`-f`). Cranker's: data, fast, merging hunks, and which decranker shows while loading. The crunched copy goes beside the original as `name_crunched`, with the size before and after, and the tool's own words in the Output panel.
+- **After F9 builds an Amiga program**, a crunched copy can be made beside the source each time, with the options chosen (Tools page, off to begin with).
+- **Music for a replayer**: a ProTracker module in front (or in a browser) is converted with **LSPConvert** for **LightSpeedPlayer**, writing its `.lsmusic` and `.lsbank` (and the insane player's source, or a WAV of how it'll sound) beside the module, with LSPConvert's options. **The Player 6.1A**'s **P61Con** is an Amiga program, so it's run on an Amiga or in an emulator; Limoniter finds the `P61.name` file it saves.
+- **Replay calls**, written by Limoniter as commented 68000 source to adapt, go into the 68000 source in front (or another open tab) at the cursor, or onto the clipboard: LSP with its CIA toolkit, from your own interrupt with DMACON set by the copper 11 lines later, the insane player or the micro player; or The Player's `P61_Init`, `P61_Music` and `P61_End`. They include the players' own files, from their packages, rather than copying them.
+- **Shrinkler's and LSPConvert's releases** can be downloaded from GitHub when you ask (never otherwise), and are kept beside the settings. The Tools page says whose each tool is and under what licence.
 
 ## Assembling
 

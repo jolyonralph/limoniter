@@ -43,6 +43,8 @@ pub enum Kind {
     Basic,
     /// A picture in an older machine's format, such as an Amiga IFF ILBM or a Spectrum screen.
     Picture,
+    /// A ProTracker music module: its title, samples and song order.
+    Module,
 }
 
 impl Kind {
@@ -56,12 +58,13 @@ impl Kind {
             Kind::Spectrum => "ZX Spectrum screen",
             Kind::Basic => "BASIC listing",
             Kind::Picture => "Picture",
+            Kind::Module => "Music module",
         }
     }
 
     /// Drawn as a machine's screen, rather than laid out as a document.
     pub fn is_screen(self) -> bool {
-        !matches!(self, Kind::Markdown | Kind::Basic | Kind::Picture)
+        !matches!(self, Kind::Markdown | Kind::Basic | Kind::Picture | Kind::Module)
     }
 
     /// Made from the file's exact bytes rather than its text, so it works from hex mode too.
@@ -88,6 +91,9 @@ pub fn kind_for_file(path: Option<&Path>, language: &str, format: &crate::codec:
     use crate::codec::Display;
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase);
     let id = format.charset.id.as_str();
+    if path.and_then(Path::file_name).is_some_and(|n| crate::protracker::named_as_module(&n.to_string_lossy())) && language != "Modula-2" {
+        return Some(Kind::Module);
+    }
     if extension.as_deref().is_some_and(|e| crate::basic::is_program_file(e, None)) {
         return Some(Kind::Basic);
     }
@@ -124,7 +130,7 @@ pub fn render_screen(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat
             crate::retro_screens::teletext(bytes, set, format.newline.parity(), mode7)
         }
         Kind::AnsiArt if is_amiga_console(format) => crate::ansi_art::render_amiga(bytes),
-        Kind::AnsiArt | Kind::Markdown | Kind::Basic | Kind::Picture => crate::ansi_art::render(bytes, dos),
+        Kind::AnsiArt | Kind::Markdown | Kind::Basic | Kind::Picture | Kind::Module => crate::ansi_art::render(bytes, dos),
     }
 }
 
@@ -139,6 +145,13 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         return match crate::pictures::detect(&name, bytes).ok_or_else(|| "This isn't a picture Limoniter can show any more.".to_string()).and_then(|f| crate::pictures::decode_named(f, &name, bytes)) {
             Ok(picture) => FromBytes::Picture(picture),
+            Err(why) => FromBytes::Nothing(why),
+        };
+    }
+    if kind == Kind::Module {
+        let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        return match crate::protracker::read(bytes, &name) {
+            Ok(module) => FromBytes::Blocks(module.blocks()),
             Err(why) => FromBytes::Nothing(why),
         };
     }
