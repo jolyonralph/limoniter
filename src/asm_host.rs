@@ -206,6 +206,12 @@ impl Limoniter {
     fn keep_assembled(&mut self, doc_id: u64, version: u64, choice: &Choice, assembled: Assembled, stem: &str, report: bool, save: bool) -> Result<Runnable, String> {
         let cpu = self.doc_cpu(self.active).unwrap_or(Cpu::Z80);
         let made = if assembled.assembly.ok() { made_from(cpu, &assembled, stem) } else { Err(String::new()) };
+        // An Amiga program is crunched beside the source too, if Run on, Amiga crunchers and music says to.
+        match &made {
+            Ok(Made::Run(run)) if report => self.crunch_after_build(doc_id, &run.name, &run.bytes),
+            Ok(Made::Saved { name, bytes }) if report => self.crunch_after_build(doc_id, name, bytes),
+            _ => {}
+        }
         // A file to save is saved (only when asked to assemble, not for a menu), and nothing runs.
         let saved = match &made {
             Ok(Made::Saved { name, bytes }) if save => {

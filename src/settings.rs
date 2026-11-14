@@ -259,6 +259,7 @@ pub enum Outcome {
     Themes,
     Assemblers,
     AmigaNdk,
+    AmigaTools,
     NewKinds,
     LanguageServers,
 }
@@ -339,6 +340,7 @@ enum Special {
     ZxNotation,
     Assemblers,
     AmigaNdk,
+    AmigaTools,
     NewKinds,
     LanguageServers,
     FileTypes,
@@ -403,6 +405,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
             Row::Special("Amiga code hints", Special::AmigaNdk),
+            Row::Special("Amiga crunchers and music", Special::AmigaTools),
             Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
             Row::Special("Language servers", Special::LanguageServers),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
@@ -576,6 +579,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             Special::AmigaNdk => {
                 if ui.button("Amiga NDK\u{2026}").on_hover_text("System functions' prototypes, offsets, registers and autodocs for 68000 and C source, from Hyperion's NDK for AmigaOS 3.2, downloaded from Aminet when you ask").clicked() {
                     *outcome = Some(Outcome::AmigaNdk);
+                }
+            }
+            Special::AmigaTools => {
+                if ui.button("Amiga crunchers and music\u{2026}").on_hover_text("Shrinkler and Cranker for programs (and crunching what F9 builds), LSPConvert and P61Con for music modules: where they are, and their options").clicked() {
+                    *outcome = Some(Outcome::AmigaTools);
                 }
             }
             Special::ZxNotation => {

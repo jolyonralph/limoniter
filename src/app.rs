@@ -208,6 +208,7 @@ enum Command {
     NewImage,
     OpenUrl,
     AmigaNdk,
+    AmigaTools,
     Clambers,
     CheckOpticos,
     CleanRecent,
@@ -300,6 +301,7 @@ impl Command {
                 | Command::Clambers
                 | Command::AmigaNdk
                 | Command::AmigaHardware
+                | Command::AmigaTools
                 | Command::CheckOpticos
                 | Command::Open
                 | Command::Help
@@ -1282,6 +1284,7 @@ enum Dialog {
     NewImage(Box<image_browser::NewImageBox>),
     OpenUrl(Box<web_host::WebBox>),
     AmigaNdk(Box<ndk_host::NdkBox>),
+    AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
     Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
@@ -1412,6 +1415,8 @@ pub struct Limoniter {
     /// Devices files are sent to, and sends under way.
     sends: deploy_host::Sends,
     running: run_host::Running,
+    /// Programs F9 built being crunched in the background.
+    amiga_jobs: Vec<amiga_tools_host::Job>,
     git: git_host::GitState,
     /// The Amiga's pens for ANSI previews, and the table that changes them.
     amiga_palette: crate::ansi_art::AmigaPalette,
@@ -1552,6 +1557,7 @@ impl Limoniter {
             remote_root,
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
+            amiga_jobs: Vec::new(),
             git: git_host::GitState::from_settings(&settings),
             amiga_palette: crate::ansi_art::AmigaPalette::from_settings(&settings),
             palette_editor: Default::default(),
@@ -1851,6 +1857,9 @@ impl Limoniter {
         if doc.picture.is_some() {
             return Some(preview::Kind::Picture);
         }
+        if doc.hex_mode && crate::protracker::has_module_tag(&doc.hex.read(0, 1084)) {
+            return Some(preview::Kind::Module);
+        }
         preview::kind_for_file(Some(&doc.path_or_name()), &doc.language_name(), &doc.text.format)
     }
 
@@ -1874,7 +1883,7 @@ impl Limoniter {
                 if std::fs::metadata(&full).is_ok_and(|meta| meta.permissions().readonly()) {
                     doc.set_read_only(true);
                 }
-                doc.preview_view = self.opening_view(Some(&full), doc.picture.is_some());
+                doc.preview_view = self.opening_view(Some(&full), doc.picture.is_some() || Self::preview_kind(&doc) == Some(preview::Kind::Module));
                 self.recall_history(&mut doc, &full);
                 self.recall_tags(&mut doc, &full);
                 // A blank, untouched only tab gives way to the file.
@@ -2432,6 +2441,7 @@ impl Limoniter {
             ctx.request_repaint_after(Duration::from_millis(50));
         }
         self.assembly_tick();
+        self.amiga_jobs_tick(ctx);
         if self.intel_wait.is_some() {
             ctx.request_repaint_after(Duration::from_millis(350));
         }
@@ -3634,6 +3644,7 @@ impl Limoniter {
             Command::Clambers => self.open_clambers(),
             Command::AmigaNdk => self.open_ndk_box(),
             Command::AmigaHardware => self.open_amiga_hardware(amiga_hw_host::Tab::Registers),
+            Command::AmigaTools => self.open_amiga_tools(),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
@@ -4370,7 +4381,7 @@ impl Limoniter {
         let mut note = None;
         match kind {
             _ if doc.placeholder => note = Some("No file open".to_string()),
-            None => note = Some("There's no preview for this kind of file yet. There are previews for Markdown, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.".to_string()),
+            None => note = Some("There's no preview for this kind of file yet. There are previews for Markdown, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, ProTracker music modules, and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.".to_string()),
             Some(kind) if kind.reads_bytes() && !doc.text.is_disk_backed() => {
                 // These are made from the exact bytes, so they work from hex mode as well as text.
                 let version = if doc.hex_mode { doc.hex.version() | 1 << 63 } else { doc.text.version() };
@@ -5108,6 +5119,7 @@ impl Limoniter {
                     Some(settings::Outcome::Themes) => self.open_theme_box(theme_host::ThemePage::Window),
                     Some(settings::Outcome::Assemblers) => self.open_assembler_box(),
                     Some(settings::Outcome::AmigaNdk) => self.open_ndk_box(),
+                    Some(settings::Outcome::AmigaTools) => self.open_amiga_tools(),
                     Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
                     Some(settings::Outcome::LanguageServers) => self.dialog = Dialog::LanguageServers(self.lsp.settings.clone()),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
@@ -5842,7 +5854,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.ndk_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7414,6 +7426,8 @@ mod clambers_host;
 mod opticos_host;
 #[path = "ndk_host.rs"]
 mod ndk_host;
+#[path = "amiga_tools_host.rs"]
+mod amiga_tools_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;
