@@ -1464,7 +1464,7 @@ pub fn list(data: &[u8], extension: &str, set: &Charset) -> Listing {
 /// as text. With no bytes to go by, it's taken to be one, and the preview says if it isn't.
 pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
     use crate::basic_more;
-    let tokenised = |data: &[u8]| data.starts_with(b"PLUS3DOS") || basic_more::looks_like_bbc(data) || matches!(data.first(), Some(0xFF | 0xFE)) || basic_more::looks_like_atari(data) || basic_more::looks_like_applesoft(data) || basic_more::looks_like_dragon(data);
+    let tokenised = |data: &[u8]| data.starts_with(b"PLUS3DOS") || crate::opticbasic::is_program(data) || basic_more::looks_like_bbc(data) || matches!(data.first(), Some(0xFF | 0xFE)) || basic_more::looks_like_atari(data) || basic_more::looks_like_applesoft(data) || basic_more::looks_like_dragon(data);
     // A .prg is also a Clipper or FoxPro source; a Commodore one starts with a load address, low byte 1.
     let commodore = |data: &[u8]| data.starts_with(b"C64File\0") || (data.len() >= 2 && data[0] == 0x01 && matches!(data[1], 0x04 | 0x08 | 0x10 | 0x12 | 0x1C));
     match extension {

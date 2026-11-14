@@ -179,6 +179,12 @@ pub struct Runnable {
 impl Runnable {
     /// A file as it is, if the machine it's for can be told from it.
     pub fn from_file(name: &str, bytes: Vec<u8>) -> Option<Runnable> {
+        // An OpticBASIC program, as taken off its tape, goes back on one for OpticOS to load.
+        if crate::opticbasic::is_program(&bytes) {
+            let stem = file_stem(name);
+            let tape = crate::opticbasic::tape(&bytes[crate::opticbasic::SIGNATURE.len()..], &stem, None);
+            return Some(Runnable { machine: Machine::OpticOs, format: Format::Tap, name: format!("{stem}.tap"), bytes: Arc::new(tape) });
+        }
         let ending = name.rsplit_once('.').map(|(_, ending)| ending)?;
         let format = Format::from_ending(ending)?;
         let machine = machine_for(format, &bytes)?;
