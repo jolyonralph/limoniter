@@ -43,7 +43,7 @@ pub enum Kind {
     Basic,
     /// A picture in an older machine's format, such as an Amiga IFF ILBM or a Spectrum screen.
     Picture,
-    /// A ProTracker music module: its title, samples and song order.
+    /// Music: a ProTracker module (its title, samples and song order), or Atari ST SNDH or YM music.
     Module,
 }
 
@@ -92,6 +92,9 @@ pub fn kind_for_file(path: Option<&Path>, language: &str, format: &crate::codec:
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase);
     let id = format.charset.id.as_str();
     if path.and_then(Path::file_name).is_some_and(|n| crate::protracker::named_as_module(&n.to_string_lossy())) && language != "Modula-2" {
+        return Some(Kind::Module);
+    }
+    if path.and_then(Path::file_name).is_some_and(|n| crate::st_music::named_as_sndh(&n.to_string_lossy()) || crate::st_music::named_as_ym(&n.to_string_lossy())) {
         return Some(Kind::Module);
     }
     if extension.as_deref().is_some_and(|e| crate::basic::is_program_file(e, None)) {
@@ -150,6 +153,13 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
     }
     if kind == Kind::Module {
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        // Atari ST music (SNDH or YM) goes by what it is, and anything else is taken for a ProTracker module.
+        if crate::st_music::recognised(&bytes[..bytes.len().min(64)], &name) {
+            return match crate::st_music::read(bytes, &name) {
+                Ok(music) => FromBytes::Blocks(music.blocks()),
+                Err(why) => FromBytes::Nothing(why),
+            };
+        }
         return match crate::protracker::read(bytes, &name) {
             Ok(module) => FromBytes::Blocks(module.blocks()),
             Err(why) => FromBytes::Nothing(why),

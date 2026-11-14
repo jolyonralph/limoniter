@@ -504,6 +504,7 @@ const TOOLS: &[Entry] = &[
             Item("Picture, sprite and font converter", Command::StPictures),
             Item("STE blitter", Command::AtariBlitter),
             Item("MFP timers", Command::AtariTimers),
+            Item("Music, packers and YM2149\u{2026}", Command::StTools),
             Line,
             Item("Profile in Hatari", Command::HatariProfile),
             Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),

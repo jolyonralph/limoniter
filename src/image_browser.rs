@@ -143,7 +143,7 @@ impl ImageBrowser {
         let (kind, picture) = if entry.is_dir || entry.size > crate::pictures::MOST_PICTURE_BYTES as u64 {
             (None, None)
         } else {
-            self.take(index).ok().map_or((None, None), |(name, bytes)| {
+            self.take(index).ok().map(|(name, bytes)| (name, crate::st_packers::contents(&bytes).into_owned())).map_or((None, None), |(name, bytes)| {
                 let document = if bytes.len() as u64 <= MOST_DOCUMENT_BYTES { legacy_docs::detect(&name, &bytes) } else { None };
                 (document, crate::pictures::detect(&name, &bytes))
             })
@@ -191,6 +191,11 @@ impl ImageBrowser {
         let taken = self.take(index).map(|(name, bytes)| {
             let level = self.level();
             (name, level.volume.reading_bytes(&level.entries[index], bytes))
+        });
+        // A file packed with Pack-Ice or Atomik opens as what it holds.
+        let taken = taken.map(|(name, bytes)| match crate::st_packers::unpack(&bytes) {
+            Some(Ok(unpacked)) => (name, unpacked.bytes),
+            _ => (name, bytes),
         });
         if let Ok((name, bytes)) = &taken
             && media::is_nested_image(name, bytes)
@@ -470,6 +475,7 @@ impl Limoniter {
             },
             Some(BrowserAction::SavePng(i)) => {
                 let png = browser.take(i).and_then(|(name, bytes)| {
+                    let bytes = crate::st_packers::contents(&bytes);
                     let format = crate::pictures::detect(&name, &bytes).ok_or("This isn't a picture Limoniter can read.")?;
                     let png = crate::pictures::to_png(&crate::pictures::decode_named(format, &name, &bytes)?)?;
                     Ok((name, png))
@@ -491,6 +497,7 @@ impl Limoniter {
             }
             Some(BrowserAction::Convert(i, target)) => {
                 let converted = browser.take(i).and_then(|(name, bytes)| {
+                    let bytes = crate::st_packers::contents(&bytes);
                     let kind = legacy_docs::detect(&name, &bytes).ok_or("This isn't a document Limoniter can convert.")?;
                     Ok((name, legacy_docs::convert(kind, &bytes)?))
                 });

@@ -211,6 +211,7 @@ enum Command {
     AmigaTools,
     HatariProfile,
     StFloppy,
+    StTools,
     Clambers,
     CheckOpticos,
     CleanRecent,
@@ -308,6 +309,7 @@ impl Command {
                 | Command::AmigaNdk
                 | Command::AmigaHardware
                 | Command::AmigaTools
+                | Command::StTools
                 | Command::CheckOpticos
                 | Command::Open
                 | Command::Help
@@ -1295,6 +1297,7 @@ enum Dialog {
     OpenUrl(Box<web_host::WebBox>),
     AmigaNdk(Box<ndk_host::NdkBox>),
     AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
+    StTools(Box<st_tools_host::StToolsBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
     Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
@@ -1876,6 +1879,9 @@ impl Limoniter {
         if doc.hex_mode && crate::protracker::has_module_tag(&doc.hex.read(0, 1084)) {
             return Some(preview::Kind::Module);
         }
+        if doc.hex_mode && crate::st_music::recognised(&doc.hex.read(0, 64), &doc.name()) {
+            return Some(preview::Kind::Module);
+        }
         preview::kind_for_file(Some(&doc.path_or_name()), &doc.language_name(), &doc.text.format)
     }
 
@@ -1890,6 +1896,10 @@ impl Limoniter {
         // Disk, tape and CD images and archives open in a browser, unless it turns out they can't be read as one.
         if self.encoding_prefs.get(&full).is_none() && self.open_image(&full) {
             self.pending_focus = true;
+            return true;
+        }
+        // A file packed with Pack-Ice or Atomik opens as what it holds, unless it's been given an encoding.
+        if self.encoding_prefs.get(&full).is_none() && self.open_unpacked(&full) {
             return true;
         }
         match Document::open(&full, self.encoding_prefs.get(&full)) {
@@ -1921,6 +1931,31 @@ impl Limoniter {
                 false
             }
         }
+    }
+
+    /// Opens a file packed with an Atari ST packer as what it holds, read-only, named for the file and its packer.
+    /// False if it isn't packed with one Limoniter knows, or doesn't unpack, so it opens as it is.
+    fn open_unpacked(&mut self, path: &Path) -> bool {
+        let mut head = [0u8; 12];
+        let len = std::fs::metadata(path).map_or(0, |m| m.len());
+        if len > 64 << 20 || std::fs::File::open(path).and_then(|mut f| std::io::Read::read_exact(&mut f, &mut head)).is_err() || crate::st_packers::packer(&head).is_none() {
+            return false;
+        }
+        let Some(Ok(unpacked)) = std::fs::read(path).ok().and_then(|bytes| crate::st_packers::unpack(&bytes)) else {
+            return false;
+        };
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        self.print_status = format!("{name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.", unpacked.packer.name(), unpacked.packed_size, unpacked.bytes.len());
+        let mut doc = Document::from_image_file(format!("{} \u{203A} {name}", unpacked.packer.name()), unpacked.bytes, None);
+        doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || Self::preview_kind(&doc) == Some(preview::Kind::Module));
+        panels::note_recent(&mut self.panels.recent, path);
+        if self.docs.len() == 1 && self.docs[0].is_blank() {
+            self.docs.clear();
+        }
+        self.docs.push(doc);
+        self.active = self.docs.len() - 1;
+        self.pending_focus = true;
+        true
     }
 
     /// The bytes to save or show in hex. Anything that won't fit is listed for the person,
@@ -3663,6 +3698,7 @@ impl Limoniter {
             Command::AmigaTools => self.open_amiga_tools(),
             Command::HatariProfile => self.profile_in_hatari(),
             Command::StFloppy => self.make_st_floppy(),
+            Command::StTools => self.open_st_tools(),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
@@ -5876,7 +5912,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7455,6 +7491,8 @@ mod ndk_host;
 mod st_host;
 #[path = "amiga_tools_host.rs"]
 mod amiga_tools_host;
+#[path = "st_tools_host.rs"]
+mod st_tools_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;

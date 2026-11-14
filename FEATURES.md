@@ -127,6 +127,7 @@ Shown beside the text or filling the window (**View, Preview**). Nothing in a pr
 - Tokenised BASIC programs, listed as the machine's LIST would show them.
 - Pictures in older machines' formats (below).
 - ProTracker music modules (`.mod`, or `mod.name` as the Amiga had it, and anything with a tracker's tag such as `M.K.`): the title, the format and channels (ProTracker, NoiseTracker, StarTrekker, 6CHN, 8CHN, 16CH and the rest, and Soundtracker's older 15-sample modules), the song's order, how many patterns, and every sample with its name, length, loop, volume and finetune; a module that's been cut short, or a loop start written in bytes by an older tracker, is said plainly. A module opens with this beside its bytes, and File properties shows the same. Read only.
+- Atari ST chip music. **SNDH** files (`.sndh`, and packed `.snd` off ST disks): the title, composer, ripper, converter and year, how many tunes and which plays first, each tune's name and length (in calls of the play routine, and in minutes at its rate, or in seconds for older files), the timer it's played from with its rate (Timer A to D or the VBL, in Hz; Timer C at 50 Hz when it doesn't say), and its flags in words (which timers it uses, whether it needs an STE, a Falcon's DSP or DMA sound, the YM2149). Checked against PSG play on all 5,897 files of the SNDH archive. **YM** files (Leonard's YM2!, YM3!, YM3b, YM5! and YM6!, as they come, packed with LHA): the song, author and comment, frames and frame rate, where it loops, the chip's clock, its attributes, its digidrums and the size of its 14 or 16 register streams; YM-Tracker and MIX1 files are named and described. Both open with this beside their bytes, and File properties shows the same. Read only.
 
 ## Pictures
 
@@ -174,6 +175,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 
 - Commodore file names are shown in PETSCII; Spectrum BASIC from tapes, disks and snapshots comes out as +3DOS files.
 - A damaged or unexpected image gives an error rather than a wrong file.
+- Files packed with the Atari ST's **Pack-Ice** (2.1, `Ice!`, and 2.3 and 2.4, `ICE!`, with its picture mode) or **Atomik 3.5** (`ATM5`) open as what they hold, read-only, whether opened from the disk or from a browser, so a packed picture shows as one and packed SNDH music as music. Checked byte for byte against two other depackers on 269 packed SNDH files.
 
 ### Changing images
 
@@ -339,6 +341,15 @@ Switched on under **View, Panels**:
 - **Music for a replayer**: a ProTracker module in front (or in a browser) is converted with **LSPConvert** for **LightSpeedPlayer**, writing its `.lsmusic` and `.lsbank` (and the insane player's source, or a WAV of how it'll sound) beside the module, with LSPConvert's options. **The Player 6.1A**'s **P61Con** is an Amiga program, so it's run on an Amiga or in an emulator; Limoniter finds the `P61.name` file it saves.
 - **Replay calls**, written by Limoniter as commented 68000 source to adapt, go into the 68000 source in front (or another open tab) at the cursor, or onto the clipboard: LSP with its CIA toolkit, from your own interrupt with DMACON set by the copper 11 lines later, the insane player or the micro player; or The Player's `P61_Init`, `P61_Music` and `P61_End`. They include the players' own files, from their packages, rather than copying them.
 - **Shrinkler's and LSPConvert's releases** can be downloaded from GitHub when you ask (never otherwise), and are kept beside the settings. The Tools page says whose each tool is and under what licence.
+
+## Atari ST music and packers
+
+**Tools › Atari ST › Music, packers and YM2149**, for Atari ST demos. The packers are other people's, found where they're installed or where you point Limoniter, and run in the background with **Stop**; without one, Limoniter only says where to get it.
+
+- **SNDH and YM music**: the music in front (or chosen in a browser, packed or not), with everything it says about itself, and what a packed file holds can be saved unpacked. For SNDH, **replay calls** written by Limoniter as commented 68000 source: init with the tune in `d0`, play from the timer the file asks for (the MFP's Timer A, B or D set to the nearest rate it can make, TOS's 200 Hz Timer C called every so many ticks, or the VBL), and exit, putting the old vector back; or from another timer of your choosing, with a warning when the music uses that timer itself. They go into the 68000 source in front at the cursor, or onto the clipboard.
+- **Pack** the program or data in front with **salvador** or **zx0** (ZX0), **LZSA** (format 1 or 2), **LZ4** (a frame, levels 1 to 12), **Shrinkler** (data mode, effort 1 to 9) or **UPX** (TOS programs, which then unpack themselves), with the size before and after and the tool's own words in the Output panel. Then the **depacking calls** for the format, naming the 68000 depacker to include (unzx0_68000.S, lzsa.s, lz4_frame.asm, ShrinklerDecompress.S) with where it comes from and its licence, rather than copying it.
+- **YM2149 note tables** as `dc.w`: tone periods for any tuning on the ST's 2 MHz clock (or the Spectrum's, CPC's or MSX's), envelope periods that make the buzzer shapes play a note, or ProTracker's own Amiga periods. **Envelope shapes**: all sixteen drawn as they sound, with the 68000 to set one going with its period.
+- **The packers' releases** can be downloaded (on Windows), or **salvador, LZSA, zx0 and LZ4 built from their source** with the C compiler here (elsewhere), only when you ask, and kept beside the settings. The Tools page says whose each tool is and under what licence.
 
 ## Assembling
 
