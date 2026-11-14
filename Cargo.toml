@@ -38,6 +38,8 @@ rustzx-core = { version = "0.16", features = ["embedded-roms", "autoload", "prec
 two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 unicode-normalization = "0.1"
 unicode_names2 = "1"
+bzip2 = "0.6"
+lzfse_rust = "0.2"
 
 [profile.dev.package."*"]
 opt-level = 2

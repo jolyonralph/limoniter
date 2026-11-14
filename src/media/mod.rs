@@ -12,11 +12,13 @@ mod cbm;
 mod coco;
 pub mod cpm;
 mod cpm_formats;
+mod dmg;
 mod fat;
 mod flux;
 mod iso;
 mod lha;
 mod lif;
+mod hfsplus;
 mod mac;
 mod macarc;
 mod nex;
@@ -183,8 +185,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 69] = [
-    "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
+pub const IMAGE_ENDINGS: [&str; 70] = [
+    "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -401,6 +403,10 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
     let head = source.read_vec(0, source.len().min(0x8800) as usize)?;
     if ending == "cue" {
         return Err("A .cue sheet only says how to read a .bin image beside it: open the .bin itself.".into());
+    }
+    // A UDIF disk image is known by the trailer at its end, not by anything at its start.
+    if dmg::looks_like(&*source) {
+        return dmg::open(source);
     }
     match detect(&head, source.len(), &ending) {
         Some(Format::Zip) if ending == "rp9" => Ok(Box::new(rp9::Rp9::open(source)?)),
