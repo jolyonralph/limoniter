@@ -206,6 +206,9 @@ enum Command {
     RenameLabel,
     Disassemble,
     NewImage,
+    OpenUrl,
+    CleanRecent,
+    ClearRecent,
     PixelEditor,
     ScreenDesigner,
     ToggleTerminal,
@@ -1260,6 +1263,7 @@ enum Dialog {
     RenameLabel(Box<intel_host::RenameBox>),
     Disassemble(Box<disasm_host::DisasmBox>),
     NewImage(Box<image_browser::NewImageBox>),
+    OpenUrl(Box<web_host::WebBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
     Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
@@ -3589,6 +3593,9 @@ impl Limoniter {
             Command::RenameLabel => self.open_rename_box(),
             Command::Disassemble => self.open_disassemble_box(),
             Command::NewImage => self.open_new_image_box(),
+            Command::OpenUrl => self.open_web_box(),
+            Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
+            Command::ClearRecent => self.panels.recent.clear(),
             Command::ToggleTerminal => self.toggle_terminal(),
             Command::RunTask(index) => {
                 if let Some(task) = self.tasks_here().get(index).cloned() {
@@ -5784,7 +5791,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7334,6 +7341,8 @@ mod addon_host;
 
 #[path = "remote_host.rs"]
 mod remote_host;
+#[path = "web_host.rs"]
+mod web_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;

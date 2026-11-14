@@ -1492,6 +1492,11 @@ fn open_files_panel(ui: &mut Ui, tabs: &[TabInfo], active: usize, actions: &mut 
 const MAX_RECENT: usize = 30;
 
 /// Puts a file at the top of the list, without repeats. Windows paths don't care about case.
+/// Takes files that are no longer there off the recent list.
+pub fn clean_recent(list: &mut Vec<PathBuf>) {
+    list.retain(|path| path.exists());
+}
+
 pub fn note_recent(list: &mut Vec<PathBuf>, path: &Path) {
     list.retain(|known| !known.as_os_str().eq_ignore_ascii_case(path.as_os_str()));
     list.insert(0, path.to_path_buf());
@@ -1519,7 +1524,12 @@ fn file_lists_panel(ui: &mut Ui, recent: &mut Vec<PathBuf>, actions: &mut Vec<Ac
         }
     });
     ui.add_space(3.0);
-    clear = ui.button("Clear list").clicked() || clear;
+    ui.horizontal(|ui| {
+        if ui.button("Clean up").on_hover_text("Take files that are no longer there off the list").clicked() {
+            clean_recent(recent);
+        }
+        clear = ui.button("Clear list").clicked() || clear;
+    });
     if clear {
         recent.clear();
     }

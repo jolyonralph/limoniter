@@ -117,6 +117,7 @@ const FILE: &[Entry] = &[
     Item("New disk or tape image\u{2026}", Command::NewImage),
     Keyed("Open\u{2026}", Command::Open, "Ctrl+O"),
     Entry::Live("Open recent", Live::RecentFiles),
+    Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
     Item("Open a remote file (SFTP)\u{2026}", Command::OpenRemote),
     Line,
     Keyed("Save", Command::Save, "Ctrl+S"),
@@ -1023,6 +1024,20 @@ impl Limoniter {
                         picks.push(Pick::File(path.clone()));
                         ui.close();
                     }
+                }
+                if !self.panels.recent.is_empty() {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Clean up").on_hover_text("Take files that are no longer there off the list").clicked() {
+                            picks.push(Pick::Command(Command::CleanRecent));
+                            ui.close();
+                        }
+                        ui.label(RichText::new("|").color(theme::text_faint()));
+                        if ui.button("Clear list").on_hover_text("Empty the list").clicked() {
+                            picks.push(Pick::Command(Command::ClearRecent));
+                            ui.close();
+                        }
+                    });
                 }
             }
             Live::Tasks => {

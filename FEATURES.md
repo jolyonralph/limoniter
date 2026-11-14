@@ -227,7 +227,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 
 Switched on under **View, Panels**:
 
-- Files on this computer, Project, Open files, and File lists (recently opened files).
+- Files on this computer, Project, Open files, and File lists (recently opened files). **File › Open recent** and File lists have **Clean up**, which takes off files that are no longer there, and **Clear list**.
 - Functions in the current file, Bookmarks, Tags (HTML and Markdown tags to wrap a selection, plus your own), Edit history.
 - Macros and Scripts.
 - File properties: size, counts, SHA-256 of the saved file, and everything a disk image or archive says about itself.
@@ -258,6 +258,7 @@ Switched on under **View, Panels**:
 
 ## Remote files
 
+- **File › Open a file from the web (http/https)**: give a web address and the file is fetched and opened as any file is (an image in the browser, text with its encoding found); it has no file of its own until you save it where you choose.
 - **File › Open a remote file (SFTP)** connects to a server, browses its folders and opens a file; **Save to a server** puts any document there.
 - A remote file is edited in a copy on this computer, so everything works on it, very large files included; each Save sends it back in the background, to a new file beside the old one first so the server's copy is never half-written.
 - If someone else changes the file on the server meanwhile, Save asks before replacing it.

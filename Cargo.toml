@@ -40,6 +40,7 @@ unicode-normalization = "0.1"
 unicode_names2 = "1"
 bzip2 = "0.6"
 lzfse_rust = "0.2"
+ureq = "3"
 
 [profile.dev.package."*"]
 opt-level = 2
