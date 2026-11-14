@@ -3,6 +3,11 @@
 //! turn that model into the three outputs. What a format holds that the model can't (printer codes, fonts, margins)
 //! is listed in the document's notes rather than dropped without a word.
 
+mod amigaguide;
+mod firstword;
+mod ftxt;
+mod prowrite;
+mod protext;
 mod wordstar;
 
 /// How a stretch of text looks.
@@ -14,6 +19,8 @@ pub struct Style {
     pub strike: bool,
     pub superscript: bool,
     pub subscript: bool,
+    /// A link to the heading with this number, counting from the document's first.
+    pub link: Option<u16>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +43,8 @@ pub enum Block {
     PageBreak,
     Header(String),
     Footer(String),
+    /// A heading, level 1 the highest.
+    Heading { level: u8, text: String },
 }
 
 /// A converted document: what it was, its blocks, and what couldn't be carried over.
@@ -51,25 +60,59 @@ pub struct Doc {
 pub enum Kind {
     /// WordStar 3 to 7, and HP's MemoMaker, which saves in WordStar's format.
     WordStar,
+    /// Commodore's IFF formatted text (FTXT), from the Amiga's clipboard, NotePad and others.
+    Ftxt,
+    /// IFF WORD documents: ProWrite and New Horizons' other word processors.
+    ProWrite,
+    AmigaGuide,
+    /// Arnor's Protext, on the Amiga, Atari ST, PC and CPC.
+    Protext,
+    /// GST's 1st Word and 1st Word Plus, on the Atari ST and the Archimedes.
+    FirstWord,
 }
 
 impl Kind {
     pub fn name(self) -> &'static str {
         match self {
             Kind::WordStar => "WordStar",
+            Kind::Ftxt => "IFF FTXT",
+            Kind::ProWrite => "ProWrite",
+            Kind::AmigaGuide => "AmigaGuide",
+            Kind::Protext => "Protext",
+            Kind::FirstWord => "1st Word",
         }
     }
 }
 
 /// Which format a file is in, if it's one of these: by its bytes, as old word processors' files seldom have
 /// endings that say.
-pub fn detect(_name: &str, bytes: &[u8]) -> Option<Kind> {
+pub fn detect(name: &str, bytes: &[u8]) -> Option<Kind> {
+    if let Some(kind) = detect_amiga_st(name, bytes) {
+        return Some(kind);
+    }
     wordstar::looks_like(bytes).then_some(Kind::WordStar)
+}
+
+/// The Amiga's and the Atari ST's formats: IFF forms by their type, the others by their own marks.
+fn detect_amiga_st(name: &str, bytes: &[u8]) -> Option<Kind> {
+    match ftxt::form_type(bytes) {
+        Some(b"FTXT") => Some(Kind::Ftxt),
+        Some(b"WORD") => Some(Kind::ProWrite),
+        _ if amigaguide::looks_like(name, bytes) => Some(Kind::AmigaGuide),
+        _ if firstword::looks_like(bytes) => Some(Kind::FirstWord),
+        _ if protext::looks_like(bytes) => Some(Kind::Protext),
+        _ => None,
+    }
 }
 
 pub fn convert(kind: Kind, bytes: &[u8]) -> Result<Doc, String> {
     match kind {
         Kind::WordStar => Ok(wordstar::read(bytes)),
+        Kind::Ftxt => ftxt::read(bytes),
+        Kind::ProWrite => prowrite::read(bytes),
+        Kind::AmigaGuide => Ok(amigaguide::read(bytes)),
+        Kind::Protext => Ok(protext::read(bytes)),
+        Kind::FirstWord => Ok(firstword::read(bytes)),
     }
 }
 
@@ -113,6 +156,10 @@ pub fn to_text(doc: &Doc) -> String {
                 out.push('\n');
             }
             Block::PageBreak => out.push('\u{C}'),
+            Block::Heading { text, .. } => {
+                out.push_str(text);
+                out.push('\n');
+            }
             Block::Header(_) | Block::Footer(_) => {}
         }
     }
@@ -137,54 +184,124 @@ fn markdown_escape(text: &str) -> String {
 pub fn to_markdown(doc: &Doc) -> String {
     let mut out = String::new();
     let mut group: Vec<String> = Vec::new();
-    let flush = |group: &mut Vec<String>, out: &mut String| {
+    // Whether the lines gathered are a list's items, which take no hard breaks between them.
+    let mut listing = false;
+    let flush = |group: &mut Vec<String>, out: &mut String, listing: &mut bool| {
+        let list = std::mem::take(listing);
         if group.is_empty() {
             return;
         }
         let last = group.len() - 1;
         for (i, line) in group.drain(..).enumerate() {
             out.push_str(&line);
-            out.push_str(if i == last { "\n" } else { "\\\n" });
+            out.push_str(if i == last || list { "\n" } else { "\\\n" });
         }
         out.push('\n');
     };
+    let anchors = heading_anchors(&doc.blocks);
     for block in &doc.blocks {
         match block {
             Block::Paragraph { runs, align } => {
                 let mut line = String::new();
+                let item = list_item(runs);
+                let mut skip = item.as_ref().map_or(0, |(_, length)| *length);
                 for run in runs {
-                    line.push_str(&markdown_run(run));
+                    // The list's own mark, which Markdown writes its own way, isn't written again.
+                    let taken = skip.min(run.text.len());
+                    skip -= taken;
+                    if taken < run.text.len() {
+                        line.push_str(&markdown_run(&Run { text: run.text[taken..].to_string(), style: run.style }, &anchors));
+                    }
                 }
                 // Leading spaces would make a code block; an indented first line is indented by nothing here.
                 let line = line.trim().to_string();
+                if let Some((mark, _)) = item.filter(|_| !line.is_empty()) {
+                    if !listing {
+                        flush(&mut group, &mut out, &mut listing);
+                        listing = true;
+                    }
+                    group.push(format!("{mark} {line}"));
+                    continue;
+                }
+                if listing {
+                    flush(&mut group, &mut out, &mut listing);
+                }
                 if line.is_empty() {
-                    flush(&mut group, &mut out);
+                    flush(&mut group, &mut out, &mut listing);
                 } else if *align == Align::Centre {
-                    flush(&mut group, &mut out);
+                    flush(&mut group, &mut out, &mut listing);
                     out.push_str(&format!("<p align=\"center\">{line}</p>\n\n"));
                 } else {
                     group.push(line);
                 }
             }
             Block::PageBreak => {
-                flush(&mut group, &mut out);
+                flush(&mut group, &mut out, &mut listing);
                 out.push_str("---\n\n");
             }
             Block::Header(text) | Block::Footer(text) => {
-                flush(&mut group, &mut out);
+                flush(&mut group, &mut out, &mut listing);
                 let which = if matches!(block, Block::Header(_)) { "Header" } else { "Footer" };
                 out.push_str(&format!("<!-- {which}: {} -->\n\n", text.replace("--", "- -")));
             }
+            Block::Heading { level, text } => {
+                flush(&mut group, &mut out, &mut listing);
+                out.push_str(&format!("{} {}\n\n", "#".repeat(usize::from((*level).clamp(1, 6))), markdown_escape(text.trim())));
+            }
         }
     }
-    flush(&mut group, &mut out);
+    flush(&mut group, &mut out, &mut listing);
     while out.ends_with("\n\n") {
         out.pop();
     }
     out
 }
 
-fn markdown_run(run: &Run) -> String {
+/// Each heading's anchor, as Markdown viewers make them from its text: lower case, spaces as hyphens, punctuation
+/// gone, and a number after any made before.
+fn heading_anchors(blocks: &[Block]) -> Vec<String> {
+    let mut anchors: Vec<String> = Vec::new();
+    for block in blocks {
+        if let Block::Heading { text, .. } = block {
+            let base: String = text.trim().to_lowercase().chars().filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_')).map(|c| if c == ' ' { '-' } else { c }).collect();
+            let mut anchor = base.clone();
+            let mut n = 0;
+            while anchors.contains(&anchor) {
+                n += 1;
+                anchor = format!("{base}-{n}");
+            }
+            anchors.push(anchor);
+        }
+    }
+    anchors
+}
+
+/// A paragraph that's a list's item, as typed: a bullet or a number and a full stop, then a space or tab. Its mark
+/// in Markdown, and how many bytes of the paragraph it took.
+fn list_item(runs: &[Run]) -> Option<(String, usize)> {
+    let text = paragraph_text(runs);
+    let start = text.len() - text.trim_start().len();
+    let rest = &text[start..];
+    let mark_end = if rest.starts_with(['\u{2022}', '\u{B7}', '\u{25CF}', '-', '*']) {
+        rest.chars().next()?.len_utf8()
+    } else {
+        let digits = rest.chars().take_while(char::is_ascii_digit).count();
+        if digits == 0 || digits > 3 || !rest[digits..].starts_with(['.', ')']) {
+            return None;
+        }
+        digits + 1
+    };
+    let gap = rest[mark_end..].len() - rest[mark_end..].trim_start_matches([' ', '\t']).len();
+    // A tab after the mark is how word processors set out a list; a space will do for a bullet, not for a number,
+    // which as often starts a sentence ("1. Introduction").
+    if gap == 0 || rest[mark_end..].trim().is_empty() || (!rest[mark_end..].starts_with('\t') && rest.as_bytes()[0].is_ascii_digit()) {
+        return None;
+    }
+    let mark = if rest.as_bytes()[0].is_ascii_digit() { format!("{}.", &rest[..mark_end - 1]) } else { "-".into() };
+    Some((mark, start + mark_end + gap))
+}
+
+fn markdown_run(run: &Run, anchors: &[String]) -> String {
     let text = markdown_escape(&run.text);
     // Markdown's marks don't take spaces just inside them, so those stay outside.
     let (lead, core, trail) = {
@@ -214,6 +331,9 @@ fn markdown_run(run: &Run) -> String {
     }
     if s.bold {
         core = format!("**{core}**");
+    }
+    if let Some(anchor) = s.link.and_then(|n| anchors.get(usize::from(n))) {
+        core = format!("[{core}](#{anchor})");
     }
     format!("{lead}{core}{trail}")
 }
@@ -271,6 +391,14 @@ pub fn to_rtf(doc: &Doc) -> String {
                 out.push_str("\\par\n");
             }
             Block::PageBreak => out.push_str("\\page\n"),
+            Block::Heading { level, text } => {
+                let size = match level {
+                    1 => 32,
+                    2 => 28,
+                    _ => 24,
+                };
+                out.push_str(&format!("\\pard\\ql\\keepn{{\\b\\fs{size} {}}}\\par\n", rtf_escape(text.trim())));
+            }
             Block::Header(_) | Block::Footer(_) => {}
         }
     }
