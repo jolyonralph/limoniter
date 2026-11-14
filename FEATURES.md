@@ -151,7 +151,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | CD-ROM | ISO 9660 with Joliet and Rock Ridge names; raw `.bin` images (open the `.bin`, not the `.cue`) |
 | PC / DOS | FAT12, FAT16 and FAT32 floppy and hard disk images (`.img`, `.ima`, `.vfd`, `.vhd`), with MBR partitions and long names |
 | Atari ST | `.st` and packed `.msa` floppies |
-| MSX | FAT disk images |
+| MSX | FAT disk images; `.cas` tapes, with CSAVE BASIC programs, ASCII files and BSAVE binaries (with where they load and run) |
 | Commodore | 1541, 1571 and 1581 disks (D64, D71, D81); T64 tapes |
 | Atari 8-bit | ATR and XFD disks (single, enhanced and double density) with Atari DOS 2.0/2.5, MyDOS (with folders) or SpartaDOS (with folders and dates); text opens as ATASCII |
 | Tandy Color Computer and Dragon 32/64 | JVC (`.dsk`), VDK and OS-9 (`.os9`) images, and DMK; RS-DOS (Disk Extended Color BASIC), Dragon DOS, and OS-9 with its folders, dates and permissions |
@@ -198,7 +198,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 
 ## BASIC programs
 
-- Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC, Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer), Dragon BASIC, TRS-80 Level II and Disk BASIC (Model I and III, from disk or tape), TRS-80 Model 4 BASIC, and ZX81 BASIC (`.p`, `.81` and `.p81` files, with the screen saved with the program).
+- Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC (from disk or tape, saved from 32K or 16K machines), Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer), Dragon BASIC, TRS-80 Level II and Disk BASIC (Model I and III, from disk or tape), TRS-80 Model 4 BASIC, and ZX81 BASIC (`.p`, `.81` and `.p81` files, with the screen saved with the program).
 - Tokenised from a listing: Spectrum (saved as `.tap`), Spectrum Next (`.bas`), Commodore (`.prg`) and BBC BASIC.
 - A listing opened from a program is sent as that program: edit a NextBASIC listing and Send to device sends it to the Next as a tokenised `.bas`, a C64 listing as a `.prg`, and so on, with no need to save it as a program first.
 - Listing and tokenising undo each other: tokenising a listing gives back the original bytes.
@@ -208,7 +208,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 - GRAPH mode (Ctrl+Shift+9, or File, Tokenised BASIC) types graphics as the Spectrum's GRAPHICS key does: 1 to 8 type the block graphics, Shift with them the inverted ones, and A to U the UDGs. 9 or Escape leaves it; the status bar says GRAPH while it's on.
 - UDGs are drawn as their pictures, from the tape the program came from (a CODE block loaded at USR "a"), the snapshot it came from, its own DATA lines when it POKEs them in at USR "a", or a file chosen with Spectrum UDG pictures from. Putting the cursor in one shows it as text again, to edit.
 - ZX81 listings follow the ROM's own spacing; inverse characters are written `%A`, as zxtext2p reads them, and block graphics as the matching Unicode characters.
-- MSX-BASIC, Atari BASIC, the TRS-80's and the ZX81's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops.
+- MSX-BASIC, Atari BASIC, the TRS-80's and the ZX81's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops. MBASIC, MSX-BASIC and TRS-80 Model 4 programs, which are saved alike, are told apart by the tokens in them.
 
 ## Searching and comparing
 

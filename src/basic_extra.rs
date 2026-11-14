@@ -4,8 +4,9 @@
 //!   as trs80-tool (github.com/lkesteloot/trs80) and the Level II reference manual list them. Numbers are kept as
 //!   their digits, so a line ends at its first zero byte. On disk a program starts &FF; on tape &D3 &D3 &D3 and a
 //!   one-letter name. Each line is a link to the next (an address in memory), a line number, then the line.
-//! - TRS-80 Model 4 BASIC (TRSDOS 6 and LS-DOS 6): a Microsoft BASIC 5 that keeps numbers in binary, as MBASIC does,
-//!   with its own token numbers, read out of the keyword table in LS-DOS 6.3's BASIC/CMD.
+//! - TRS-80 Model 4 BASIC (TRSDOS 6 and LS-DOS 6): a Microsoft BASIC 5 that keeps numbers in binary, as MBASIC and
+//!   MSX-BASIC do, with its own token numbers, read out of the keyword table in LS-DOS 6.3's BASIC/CMD. Which of the
+//!   three a program is, is told from its tokens here, and the program then listed by its own lister.
 //! - ZX81 BASIC: `.p` files, which are the ZX81's memory from &4009 as SAVE wrote it to tape, so the system
 //!   variables say where the program, the display file and the variables are. Lines are a line number (high byte
 //!   first), a length, then the line in the ZX81's own character set, keywords &C0 to &FF; a number is its digits and
@@ -22,10 +23,12 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
         Some(list_zx81(data))
     } else if looks_like_trs80(data) {
         Some(list_trs80(data, set))
-    } else if looks_like_trs80_model4(data) {
-        Some(list_trs80_model4(data, set))
     } else {
-        None
+        match microsoft_flavour(data)? {
+            Flavour::Model4 => Some(list_trs80_model4(data, set)),
+            Flavour::Msx => Some(basic_more::list_msx(data, set)),
+            Flavour::Mbasic => Some(basic_more::list_mbasic(data, set)),
+        }
     }
 }
 
@@ -92,13 +95,19 @@ fn trs80_lines(program: &[u8]) -> (Vec<(u16, &[u8])>, bool) {
 /// BASIC that keeps its numbers as digits has them. Hardly any line may have the codes &0B to &1F that start a
 /// binary number in MBASIC, Model 4 or MSX BASIC, outside its strings, REMs and DATA (a line feed, &0A, is often
 /// typed to break up a long line). A damaged program is believed if it isn't whole as one of those either.
+/// Below &8000 only, where TRS-80 BASIC keeps a program: an MSX program with no numbers in it would pass otherwise.
 pub fn looks_like_trs80(data: &[u8]) -> bool {
-    if data.first() != Some(&0xFF) {
+    if data.first() != Some(&0xFF) || basic_more::looks_like_coco(data) {
         return false;
     }
     let (lines, whole) = trs80_lines(&data[1..]);
     let binary = lines.iter().filter(|(_, body)| has_binary_codes(body)).count();
     if lines.is_empty() || binary * 20 > lines.len() {
+        return false;
+    }
+    // TRS-80 BASIC keeps programs low in memory, from &42E9 on a Model I with Level II; an MSX's are from &8001.
+    let start = u16::from_le_bytes([data[1], data[2]]).wrapping_sub(lines[0].1.len() as u16 + 5);
+    if start >= 0x8000 {
         return false;
     }
     whole || lines.len() >= 2 && basic_more::microsoft_lines(data).is_none_or(|found| !found.whole)
@@ -226,43 +235,78 @@ const MODEL4: MsDialect = MsDialect {
     apostrophe: 0xDC,
 };
 
-/// Whether a program starting &FF is Model 4 BASIC's, rather than MBASIC's or MSX-BASIC's, which keep their numbers
-/// the same way. Model 4 programs sit above &8000, where MBASIC's never reach and MSX's start at exactly &8001.
-/// Lower down, it's told from MBASIC by its commonest operator, =, which is &F1 in Model 4 BASIC and &F0 in MBASIC
-/// (where &F1 is <, and in Model 4 BASIC &F0 is >).
-pub fn looks_like_trs80_model4(data: &[u8]) -> bool {
-    let Some(found) = basic_more::microsoft_lines(data) else {
-        return false;
-    };
-    if found.start >= 0x8000 {
-        return found.start != 0x8001;
+/// The Microsoft BASICs that keep numbers in binary and save a program as &FF and its lines.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Flavour {
+    Mbasic,
+    Msx,
+    Model4,
+}
+
+/// Which Microsoft BASIC a program starting &FF is, of those that keep their numbers in binary: MBASIC, MSX-BASIC or
+/// TRS-80 Model 4 BASIC. Their tokens differ, so it's told by the = in its assignments (a statement that starts with
+/// a name, or FOR and a name), which is &F0 in MBASIC, &EF in MSX-BASIC and &F1 in Model 4 BASIC: elsewhere the same
+/// bytes are other operators, such as MSX-BASIC's + at &F1. A program without such an = is told by where it was in
+/// memory: an MSX's from &8001, or &C001 with 16K; a Model 4's elsewhere above &8000; MBASIC's
+/// lower. None if the lines don't link up as such a program's do.
+pub fn microsoft_flavour(data: &[u8]) -> Option<Flavour> {
+    // A Color Computer's program starts &FF too, then its length.
+    if data.first() != Some(&0xFF) || basic_more::looks_like_coco(data) {
+        return None;
     }
-    let (mut model4, mut mbasic) = (0, 0);
+    let found = basic_more::microsoft_lines(data)?;
+    let (mut msx, mut mbasic, mut model4) = (0, 0, 0);
     for (_, body) in &found.lines {
         let body = &data[body.clone()];
-        let mut i = 0;
-        while let Some(&byte) = body.get(i) {
-            i += match byte {
-                b'"' => body[i + 1..].iter().position(|&b| b == b'"').map_or(body.len(), |end| end + 2),
-                // REM, and the apostrophe in either BASIC: the rest of the line is as typed.
-                0x8F | 0xDB | 0xDC => body.len(),
-                0x0B..=0x0E | 0x1C => 3,
-                0x0F | 0xFF => 2,
-                0x1D => 5,
-                0x1F => 9,
-                0xF1 => {
-                    model4 += 1;
-                    1
+        // Each statement that starts with a name, or with FOR (&82 in all three) and a name, is an assignment, so
+        // the next token is the =.
+        let mut at = 0;
+        while at < body.len() {
+            let statement = &body[at..];
+            let name = statement.iter().position(|&b| b != b' ' && b != 0x82).unwrap_or(statement.len());
+            let after = statement[name..].iter().skip_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'$' | b'%' | b'!' | b'#'));
+            if statement.get(name).is_some_and(u8::is_ascii_alphabetic) {
+                match after.copied().find(|&b| b != b' ') {
+                    Some(0xEF) => msx += 1,
+                    Some(0xF0) => mbasic += 1,
+                    Some(0xF1) => model4 += 1,
+                    _ => {}
                 }
-                0xF0 => {
-                    mbasic += 1;
-                    1
+            }
+            // On to the next statement: past a colon outside a string, unless a REM or DATA makes the rest plain.
+            let mut quoted = false;
+            let mut next = None;
+            for (i, &b) in statement.iter().enumerate() {
+                match b {
+                    b'"' => quoted = !quoted,
+                    b':' if !quoted => {
+                        next = Some(i + 1);
+                        break;
+                    }
+                    0x8F | 0x84 if !quoted => break,
+                    _ => {}
                 }
-                _ => 1,
-            };
+            }
+            match next {
+                Some(next) => at += next,
+                None => break,
+            }
         }
     }
-    model4 > mbasic
+    let by_place = match found.start {
+        0x8001 | 0xC001 => Flavour::Msx,
+        0x8000.. => Flavour::Model4,
+        _ => Flavour::Mbasic,
+    };
+    Some(if msx > mbasic.max(model4) {
+        Flavour::Msx
+    } else if mbasic > msx.max(model4) {
+        Flavour::Mbasic
+    } else if model4 > msx.max(mbasic) {
+        Flavour::Model4
+    } else {
+        by_place
+    })
 }
 
 /// Lists a Model 4 BASIC program, as SAVE writes it to disk.
@@ -515,7 +559,7 @@ mod tests {
     }
 
     #[test]
-    fn model_4_basic_is_told_from_mbasic_and_msx() {
+    fn model_4_basic_is_told_from_mbasic_and_msx_by_its_equals() {
         // 10 FOR I=1 TO 2:PRINT CHR$(65):NEXT, numbers as Microsoft BASIC keeps them.
         let line = b"\x82 I\xF1\x12 \xCF \x13:\x91 \xFF\x96(\x0F\x41):\x83";
         let program = |base: u16, line: &[u8]| {
@@ -527,14 +571,18 @@ mod tests {
             out
         };
         let high = program(0x8400, line);
-        assert!(looks_like_trs80_model4(&high) && !looks_like_trs80(&high));
+        assert!(microsoft_flavour(&high) == Some(Flavour::Model4) && !looks_like_trs80(&high));
         assert_eq!(list_trs80_model4(&high, charset::utf8()).lines, ["10 FOR I=1 TO 2:PRINT CHR$(65):NEXT"]);
         let low = program(0x6000, line);
-        assert!(looks_like_trs80_model4(&low), "the = after FOR's variable says Model 4");
+        assert_eq!(microsoft_flavour(&low), Some(Flavour::Model4), "its = says Model 4");
         let mbasic = program(0x6000, b"\x82 I\xF0\x12 \xCE \x13:\x83");
-        assert!(!looks_like_trs80_model4(&mbasic));
+        assert_eq!(microsoft_flavour(&mbasic), Some(Flavour::Mbasic));
         let msx = program(0x8001, line);
-        assert!(!looks_like_trs80_model4(&msx), "MSX programs start at &8001");
+        assert_eq!(microsoft_flavour(&msx), Some(Flavour::Model4), "an = of Model 4's wherever it is");
+        let msx = program(0xC001, b"\x82 I\xEF\x12 \xD9 \x13:\x83");
+        assert_eq!(microsoft_flavour(&msx), Some(Flavour::Msx), "an MSX with 16K");
+        assert_eq!(crate::basic::list(&msx, "bas", charset::utf8()).lines, ["10 FOR I=1 TO 2:NEXT"]);
+        assert_eq!(microsoft_flavour(&program(0x8001, b"\x91")), Some(Flavour::Msx), "no =, but where MSX programs are");
     }
 
     /// A `.p` file: the system variables from &4009, the program's lines, a collapsed display file, no variables.

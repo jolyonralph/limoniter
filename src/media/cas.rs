@@ -101,21 +101,15 @@ fn msx_blocks(data: &[u8]) -> Vec<&[u8]> {
     starts.iter().enumerate().map(|(i, &at)| &data[at + 8..starts.get(i + 1).copied().unwrap_or(data.len())]).collect()
 }
 
-/// Where an MSX BASIC program in memory from &8001 ends: after the zero link that ends it. None if its links don't
-/// lead there.
+/// Where an MSX BASIC program from a tape ends: after the zero link that ends it. The program is as it was in memory,
+/// from &8001 on most machines but &C001 on one with 16K, so its links are followed from wherever they show it was.
+/// None if they don't lead to its end.
 fn msx_program_end(program: &[u8]) -> Option<usize> {
-    let mut at = 0;
-    loop {
-        let link = usize::from(u16::from_le_bytes([*program.get(at)?, *program.get(at + 1)?]));
-        if link == 0 {
-            return Some(at + 2);
-        }
-        let next = link.checked_sub(0x8001)?;
-        if next <= at + 4 || next > program.len() {
-            return None;
-        }
-        at = next;
-    }
+    let mut saved = vec![0xFF];
+    saved.extend_from_slice(program);
+    let found = crate::basic_more::microsoft_lines(&saved).filter(|found| found.whole)?;
+    // The last line's zero, then the end link's two, less the &FF put before.
+    found.lines.last().map(|(_, body)| (body.end + 2).min(program.len()))
 }
 
 fn msx_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {

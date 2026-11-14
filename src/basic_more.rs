@@ -707,7 +707,10 @@ fn msx_float(bytes: &[u8]) -> String {
     format!("{sign}{text}")
 }
 
-/// Lists an MSX-BASIC program saved by SAVE: a byte &FF, then linked lines from &8001, each ending with &00.
+/// Lists an MSX-BASIC program saved by SAVE: a byte &FF, then linked lines, each ending with &00. The links are
+/// addresses where the program was in memory, from &8001 on most machines but &C001 on one with 16K, so they're
+/// followed from wherever they show the program was. A line can't be ended at its first zero byte, because numbers
+/// in it can hold zeros.
 pub fn list_msx(data: &[u8], set: &Charset) -> Listing {
     let set = if set.id.starts_with("msx") { set } else { charset::known("msx") };
     let mut listing = Listing { dialect: "MSX-BASIC", ..Listing::default() };
@@ -715,33 +718,21 @@ pub fn list_msx(data: &[u8], set: &Charset) -> Listing {
         listing.notes.push("An MSX-BASIC program starts with the byte &FF, and this doesn't.".into());
         return listing;
     }
-    // Lines are found by their links, which are addresses from &8001, where the program starts in memory: a line
-    // can't be ended at its first zero byte, because numbers in it can hold zeros.
-    const START: usize = 0x8001;
-    let memory = &data[1..];
-    let mut at = 0;
-    loop {
-        if at + 2 > memory.len() {
-            listing.notes.push("The program stops without its end marker.".into());
-            break;
-        }
-        let link = usize::from(u16::from_le_bytes([memory[at], memory[at + 1]]));
-        if link == 0 {
-            at += 2;
-            break;
-        }
-        let next = link.wrapping_sub(START);
-        if next <= at + 4 || next > memory.len() || memory[next - 1] != 0 {
-            listing.notes.push(format!("A line's link at byte {} doesn't point to the next line, so the listing stops there.", at + 1));
-            break;
-        }
-        let number = u16::from_le_bytes([memory[at + 2], memory[at + 3]]);
-        let body = &memory[at + 4..next - 1];
-        listing.lines.push(format!("{number} {}", msx_line(body, set, &mut listing.notes)));
-        at = next;
+    let Some(found) = microsoft_lines(data) else {
+        listing.notes.push("The program's line links don't lead from one line to the next, so it can't be listed.".into());
+        return listing;
+    };
+    for (number, body) in &found.lines {
+        listing.lines.push(format!("{number} {}", msx_line(&data[body.clone()], set, &mut listing.notes)));
     }
-    if at < memory.len() {
-        listing.notes.push(format!("{} byte(s) after the program aren't listed.", memory.len() - at));
+    if !found.whole {
+        let last = found.lines.last().map_or(0, |(number, _)| *number);
+        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
+    } else if let Some(end) = found.lines.last().map(|(_, body)| body.end + 3).filter(|&end| end < data.len()) {
+        // After the last line's zero come the two zeros of the end link; anything after them isn't the program.
+        if data[end..].iter().any(|&b| b != 0) {
+            listing.notes.push(format!("{} byte(s) after the program aren't listed.", data.len() - end));
+        }
     }
     listing.notes.push("Numbers are written from their stored values, without a ! or # to say their precision.".into());
     listing.notes.dedup();
@@ -1121,8 +1112,9 @@ pub(crate) struct MsLines {
 }
 
 /// Finds a program's lines. The links are addresses where the program was in memory, which depends on the machine,
-/// so the first line's end is found by trying each zero byte until the links lead through the whole program. If they
-/// never do, the longest run of at least two lines they lead through is given, as what's left of a damaged program.
+/// so the first line's end is found by trying each zero byte to see where the links then lead. If they never lead
+/// through the whole program, the longest run of at least two lines they lead through is given, as what's left of a
+/// damaged program.
 pub(crate) fn microsoft_lines(data: &[u8]) -> Option<MsLines> {
     let memory = data.get(1..).filter(|memory| memory.len() >= 2)?;
     let first_link = usize::from(u16::from_le_bytes([memory[0], memory[1]]));
@@ -1146,13 +1138,13 @@ pub(crate) fn microsoft_lines(data: &[u8]) -> Option<MsLines> {
             }
         }
     };
+    // A zero inside a number can make a wrong guess lead somewhere too, but rarely all the way, so the guess that
+    // leads through most lines is taken, and a whole program before a damaged one.
     let mut best: Option<MsLines> = None;
     for end in (5..memory.len().min(512)).filter(|&end| memory[end - 1] == 0 && first_link >= end) {
         let found = walk(first_link - end);
-        if found.whole && !found.lines.is_empty() {
-            return Some(found);
-        }
-        if found.lines.len() >= 2 && best.as_ref().is_none_or(|best| found.lines.len() > best.lines.len()) {
+        let better = best.as_ref().is_none_or(|best| (found.whole, found.lines.len()) > (best.whole, best.lines.len()));
+        if (found.whole && !found.lines.is_empty() || found.lines.len() >= 2) && better {
             best = Some(found);
         }
     }
