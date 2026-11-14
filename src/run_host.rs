@@ -62,11 +62,13 @@ pub(super) struct Running {
     /// Something to say in the status bar, and since when.
     pub note: Option<(String, Instant)>,
     /// A run waiting for the add-ons' on_run functions: the document, and where it's to run.
-    pending: Option<(u64, Target)>,
+    pub(super) pending: Option<(u64, Target)>,
     /// For each processor, by its id, the assembler its source is assembled with.
     pub assemblers: Vec<(String, String)>,
     /// The last program assembled.
     pub assembled: Option<super::asm_host::AssembledCache>,
+    /// The Atari ST's side: a profile asked for, profiled runs going on, and the last profile (see `st_host`).
+    pub st: super::st_host::StRuns,
 }
 
 impl Running {
@@ -328,7 +330,8 @@ impl Limoniter {
         };
         // Hatari is debugged through its own debugger, on its console.
         let hatari = emulator.id == "hatari" && run.format == crate::running::Format::Tos;
-        let debugging = (kind.is_some() || hatari) && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
+        let profiling = emulator.id == "hatari" && self.running.st.asked.take() == Some(doc_id);
+        let debugging = (kind.is_some() || hatari) && !profiling && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok());
         let mut run = run.clone();
         if debugging
             && run.format == crate::running::Format::Tap
@@ -346,6 +349,10 @@ impl Limoniter {
         std::fs::write(&file, run.bytes.as_slice()).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
         // An Amiga boots from a folder made its hard drive, started from a configuration made for the run.
         let file = if run.machine == Machine::Amiga { crate::amiga_run::prepare(emulator.id, &folder, run, &crate::amiga_run::settings())? } else { file };
+        // An Atari is the machine chosen for Hatari, run from the folder or from a floppy made for the run.
+        let symbols = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id && run.format == crate::running::Format::Tos).map(|c| crate::st_run::symbols(&c.assembly));
+        let st = if emulator.id == "hatari" { Some(crate::st_run::prepare(&folder, &file, run, &crate::st_run::settings(), Some(program.as_path()), profiling, symbols.as_deref())?) } else { None };
+        let file = st.as_ref().map_or(file, |st| st.file.clone());
         // An emulator already running, that can be reached, loads it where it is.
         if let Some(index) = self.running.sessions.iter().position(|s| s.target == device.name)
             && !debugging
@@ -362,6 +369,10 @@ impl Limoniter {
         let port = (emulator.link != Link::None).then(free_port).flatten();
         let program = emulator.program_for(program, run.machine);
         let mut args = emulator.arguments(run.machine, run.format, &file, port, options);
+        if let Some(st) = &st {
+            let at = args.len().saturating_sub(1);
+            args.splice(at..at, st.options.iter().cloned());
+        }
         // Amiga source assembled here is debugged through the emulator's GDB server, where it has one.
         if run.machine == Machine::Amiga
             && let Some(debug) = self.amiga_debuggable(doc_id, emulator, &program, run)
@@ -376,8 +387,15 @@ impl Limoniter {
         }
         if debugging && hatari {
             let start = folder.join("start.ini");
-            // TEXT is the program running; the desktop's is in ROM.
-            std::fs::write(&start, "b pc = TEXT && TEXT < $e00000 :once\n").map_err(|e| e.to_string())?;
+            // TEXT is the program running; the desktop's is in ROM. Its labels are given to Hatari as it starts.
+            let mut stop = "b pc = TEXT && TEXT < $e00000 :once".to_string();
+            if let Some(symbols) = &symbols {
+                let (file, loads) = (folder.join("program.sym"), folder.join("symbols.ini"));
+                // By name: Hatari reads the commands from their own folder.
+                std::fs::write(&file, symbols).and_then(|()| std::fs::write(&loads, "symbols program.sym TEXT\n")).map_err(|e| e.to_string())?;
+                stop.push_str(&format!(" :file {}", loads.display()));
+            }
+            std::fs::write(&start, stop + "\n").map_err(|e| e.to_string())?;
             let at = args.len().saturating_sub(1);
             args.splice(at..at, ["--parse".to_string(), start.display().to_string()]);
         }
@@ -422,6 +440,9 @@ impl Limoniter {
             }
             _ => None,
         };
+        if let Some(profile) = st.and_then(|st| st.profile) {
+            self.running.st.profiling.push((device.name.clone(), doc_id, profile));
+        }
         self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: Some(child), emulator, port, log, debug }, started: Instant::now() });
         Ok(())
     }
@@ -482,10 +503,11 @@ impl Limoniter {
             }
         }
         for (index, problem) in ended.into_iter().rev() {
-            self.running.sessions.remove(index);
+            let target = self.running.sessions.remove(index).target;
             if let Some(problem) = problem {
                 self.message("Run on machine", problem);
             }
+            self.st_session_ended(&target);
         }
         false
     }

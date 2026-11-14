@@ -6,6 +6,7 @@ mod amiga_debug;
 mod amiga_hw;
 mod amiga_ndk;
 mod amiga_run;
+mod st_run;
 mod amiga_palette_ui;
 mod amiga_source;
 mod amiga_tools;

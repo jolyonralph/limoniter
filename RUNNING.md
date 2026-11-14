@@ -56,7 +56,13 @@ file to save (68000 with an ORG), shows the problems, and keeps it for the debug
 a HUNK_RELOC32 entry; anything else that moved can't be moved by AmigaDOS and is a problem on its line. It runs on
 FS-UAE or WinUAE (`src/amiga_run.rs`): the program goes in a folder made DH0: with an S/Startup-Sequence that runs
 it, and the emulator is started with a configuration file made for the run (model, Kickstart or the emulator's own
-AROS). Each processor's every instruction form is checked byte
+AROS). An Atari ST program runs in Hatari (`src/st_run.rs`), given its machine, memory, monitor, speed and
+CPU accuracy as Hatari's options (`--machine`, `--memsize`, `--ttram`, `--monitor`, `--cpuclock`, `--compatible`,
+`--cpu-exact`, `--fast-boot`, `--dsp`), after the person's own so these win, and a TOS: the one chosen, or the best
+found (told by its header: version at 2, country at $1C, date at $18, EmuTOS by "ETOS" at $2C), or a downloaded
+EmuTOS image for the machine's ROM size. It starts from the run's folder as GEMDOS drive C:, or from a 720K floppy
+made with the FAT writer (`media::write`), the program in AUTO and any boot sector code with the sector's words made
+to add up to $1234, booted with `--harddrive none`. Each processor's every instruction form is checked byte
 for byte against its reference assembler (`src/asm/testdata`).
 
 Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and
@@ -70,7 +76,12 @@ the address stopped at back to a line:
   loaded the program; `Z0` breakpoints, `Z2` write watchpoints, `s`, and step over by a breakpoint after a call.
 - Hatari: its own debugger on its console (stdin and both outputs piped). A `--parse` file stops at the program's
   first instruction (`pc = TEXT && TEXT < $e00000`, as the desktop's TEXT is in ROM); breakpoints are then set at
-  TEXT plus each line's address, and the stop is reported relative to TEXT.
+  TEXT plus each line's address, and the stop is reported relative to TEXT. That breakpoint's `:file` loads the
+  source's labels (`symbols file TEXT`, nm style, made from the assembly) so Hatari's own disassembly shows them.
+- Hatari's profiler (`src/st_host.rs`): with no console, a `--parse` file's breakpoint at the program's start runs
+  (`:trace :file`) `profile on` and sets three more, at Pterm, Pterm0 (`GemdosOpcode`) and a VBL count for the time
+  allowed, each running `profile save` and `quit`. When Hatari has gone the saved profile (each address's
+  instructions and cycles, and the program's TEXT range in its header) is summed by label and by source line.
 - FS-UAE and WinUAE (`src/amiga_debug.rs`, `src/amiga_debug_host.rs`): the GDB remote serial protocol, to the GDB
   server in uae-dap's FS-UAE 4.x (`remote_debugger`, `remote_debugger_port`, `remote_debugger_trigger`) or in
   Bartman's WinUAE (`debugging_features=gdbserver`, `debugging_trigger`, always port 2345), told to the emulator in

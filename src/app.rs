@@ -209,6 +209,8 @@ enum Command {
     OpenUrl,
     AmigaNdk,
     AmigaTools,
+    HatariProfile,
+    StFloppy,
     Clambers,
     CheckOpticos,
     CleanRecent,
@@ -3659,6 +3661,8 @@ impl Limoniter {
             Command::AmigaNdk => self.open_ndk_box(),
             Command::AmigaHardware => self.open_amiga_hardware(amiga_hw_host::Tab::Registers),
             Command::AmigaTools => self.open_amiga_tools(),
+            Command::HatariProfile => self.profile_in_hatari(),
+            Command::StFloppy => self.make_st_floppy(),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
@@ -6644,6 +6648,7 @@ impl Limoniter {
         self.assistant_panel(ui);
         self.machine_panel(ui);
         self.remote_debug_panel(ui);
+        self.st_profile_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
         self.full_preview_shown = full_preview;
         if self.show_file_tabs && !self.no_file() {
@@ -7446,6 +7451,8 @@ mod clambers_host;
 mod opticos_host;
 #[path = "ndk_host.rs"]
 mod ndk_host;
+#[path = "st_host.rs"]
+mod st_host;
 #[path = "amiga_tools_host.rs"]
 mod amiga_tools_host;
 
