@@ -13,6 +13,7 @@ mod coco;
 pub mod cpm;
 mod cpm_formats;
 mod fat;
+mod flux;
 mod iso;
 mod lha;
 mod lif;
@@ -180,8 +181,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 63] = [
-    "woz", "xex", "obx", "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
+pub const IMAGE_ENDINGS: [&str; 66] = [
+    "woz", "xex", "obx", "scp", "hfe", "raw", "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -198,7 +199,9 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
     }
     match ending.as_str() {
         // These endings are used for plain data too, so the bytes have to say so.
-        "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
+        // A KryoFlux stream is only one by its bytes; other .raw files, such as a plain sector image, are bytes.
+        "raw" => flux::detect(head, "raw").is_some(),
+        "scp" | "hfe" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
         "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
     }
@@ -252,6 +255,8 @@ enum Format {
     Woz,
     /// An Atari 8-bit binary load file, seen as its segments.
     Xex,
+    /// A floppy's flux: SuperCard Pro, HxC or KryoFlux.
+    Flux(flux::Kind),
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -259,6 +264,9 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     let at = |offset: usize, bytes: &[u8]| head.get(offset..offset + bytes.len()) == Some(bytes);
     if at(0, b"PK\x03\x04") || at(0, b"PK\x05\x06") {
         return Some(Format::Zip);
+    }
+    if let Some(kind) = flux::detect(head, ending) {
+        return Some(Format::Flux(kind));
     }
     if at(0, b"C64 tape image") || at(0, b"C64S tape") || at(0, b"C64 tape") {
         return Some(Format::T64);
@@ -389,7 +397,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
     }
     match detect(&head, source.len(), &ending) {
         Some(Format::Zip) if ending == "rp9" => Ok(Box::new(rp9::Rp9::open(source)?)),
-        Some(Format::Zip) => Ok(Box::new(zip::Zip::open(source)?)),
+        Some(Format::Zip) => flux::open_zip_set(source.clone()).unwrap_or_else(|| Ok(Box::new(zip::Zip::open(source)?))),
         Some(Format::T64) => Ok(Box::new(cbm::Tape::open(source)?)),
         Some(Format::Iso) => Ok(Box::new(iso::Iso::open(source, "ISO 9660")?)),
         Some(Format::RawCd) => {
@@ -454,6 +462,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Nex) => Ok(Box::new(nex::Nex::open(source)?)),
         Some(Format::Woz) => woz::open(source),
         Some(Format::Xex) => Ok(Box::new(xex::Xex::open(source)?)),
+        Some(Format::Flux(kind)) => flux::open(source, kind, name),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }
@@ -475,6 +484,10 @@ pub fn open_plain_disk(source: Arc<dyn Source>) -> Result<Box<dyn Volume>, Strin
 
 /// Opens an image file from disk.
 pub fn open_file(path: &Path) -> Result<Box<dyn Volume>, String> {
+    // A KryoFlux stream file is one track of a disk: the whole folder of them is opened.
+    if let Some(disk) = flux::open_stream_folder(path) {
+        return disk;
+    }
     let source: Arc<dyn Source> = Arc::new(FileSource::open(path)?);
     open(source, &path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())
 }

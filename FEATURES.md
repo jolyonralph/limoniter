@@ -166,7 +166,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | Macintosh | MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images; both forks and type/creator shown |
 | CP/M | 82 machine formats (Kaypro, Osborne, Epson QX-10, Apple II CP/M, 8-inch IBM and more), worked out automatically from the directory |
 | HP | LIF disks and tapes (Series 80, 9000 Series 200/300, Integral PC, HP-41/71B/75); LIF ASCII files offered as text |
-| Floppy archivists | ImageDisk (`.imd`), Teledisk (`.td0`), DMK, JV3 and JV1, unread sectors listed, the file system inside opened (FAT, CP/M, TRS-80 and more) |
+| Floppy archivists | ImageDisk (`.imd`), Teledisk (`.td0`), DMK, JV3 and JV1, unread sectors listed, the file system inside opened (FAT, CP/M, TRS-80 and more); flux images from a Greaseweazle, SuperCard Pro or KryoFlux (`.scp`, `.hfe`, KryoFlux stream folders or ZIPs) decoded from IBM FM and MFM, Amiga MFM, Commodore 1541 GCR and Apple II GCR, the best of every revolution kept, sectors that never read cleanly listed, and the decoded disk offered as a plain image to save |
 | Archives | ZIP (stored and deflated), LHA/LZH (all common methods, CRC checked) |
 
 - Commodore file names are shown in PETSCII; Spectrum BASIC from tapes, disks and snapshots comes out as +3DOS files.
