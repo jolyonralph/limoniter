@@ -7,6 +7,7 @@
 //! each partition of the disk inside: a `mish` block listing the partition's runs of sectors, each stored as it is,
 //! compressed (zlib, bzip2, ADC or LZFSE), or left out as zeros. The disk is put back together a run at a time as
 //! it's read, so a large image is never expanded whole. Its partitions are then opened as the Mac disks they are.
+//! Disk Copy 6's NDIF images, read the same way from their resource fork's table, are further down.
 
 use super::{Slice, Source, Volume, mac};
 use std::collections::BTreeSet;
@@ -180,7 +181,7 @@ fn udif_within(source: &dyn Source) -> Option<(u64, u64)> {
 pub fn looks_like(source: &dyn Source) -> bool {
     let len = source.len();
     let at = |offset: u64, mark: &[u8]| source.read_vec(offset, mark.len()).is_ok_and(|b| b == mark);
-    udif_within(source).is_some() || (len >= 512 && (at(0, b"encrcdsa") || at(len - 8, b"cdsaencr")))
+    udif_within(source).is_some() || ndif_forks(source).is_some() || (len >= 512 && (at(0, b"encrcdsa") || at(len - 8, b"cdsaencr")))
 }
 
 /// Opens a UDIF disk image: its partitions, the Mac ones opened as their files.
@@ -188,6 +189,9 @@ pub fn open(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     let len = image.len();
     if image.read_vec(0, 8).is_ok_and(|b| b == b"encrcdsa") || image.read_vec(len.saturating_sub(8), 8).is_ok_and(|b| b == b"cdsaencr") {
         return Err("This disk image is encrypted, and Limoniter can't read encrypted disk images.".into());
+    }
+    if udif_within(&*image).is_none() && ndif_forks(&*image).is_some() {
+        return open_ndif(image);
     }
     let (start, length) = udif_within(&*image).ok_or("This isn't a UDIF disk image: it has no trailer.")?;
     let image: Arc<dyn Source> = if start == 0 { image } else { Arc::new(Slice { inner: image, start, len: length }) };
@@ -251,7 +255,7 @@ fn unpack(image: Arc<dyn Source>) -> Result<(Udif, Vec<Part>, String), String> {
         if fork_at.saturating_add(fork_length) > len || fork_length > 64 * 1024 * 1024 {
             return Err("The disk image's table of contents is past its end, so it's damaged.".into());
         }
-        fork_blocks(&image.read_vec(fork_at, fork_length as usize)?)?
+        fork_resources(&image.read_vec(fork_at, fork_length as usize)?, b"blkx")?
     } else {
         return Err("The disk image has no table of contents, so its disk can't be put together.".into());
     };
@@ -332,9 +336,10 @@ fn plist_blocks(xml: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
     Ok(out)
 }
 
-/// The `blkx` resources of the resource fork the earliest UDIF images keep their table in, in the Resource
-/// Manager's layout: a header, the data, and a map of types, references and names.
-fn fork_blocks(fork: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
+/// The resources of one type in a resource fork, with their names: the `blkx` ones the earliest UDIF images keep
+/// their table in, or NDIF's `bcem`. The fork is in the Resource Manager's layout: a header, the data, and a map of
+/// types, references and names.
+fn fork_resources(fork: &[u8], kind: &[u8; 4]) -> Result<Vec<(String, Vec<u8>)>, String> {
     let damaged = || "The disk image's table of contents can't be read, so it's damaged.".to_string();
     let half = |at: usize| fork.get(at..at + 2).map(be).ok_or_else(damaged);
     let word = |at: usize| fork.get(at..at + 4).map(be).ok_or_else(damaged);
@@ -344,7 +349,7 @@ fn fork_blocks(fork: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
     let mut out = Vec::new();
     for t in 0..types as usize {
         let entry = types_at + 2 + t * 8;
-        if fork.get(entry..entry + 4) != Some(b"blkx") {
+        if fork.get(entry..entry + 4) != Some(kind) {
             continue;
         }
         let (count, list) = (half(entry + 4)? + 1, types_at + half(entry + 6)? as usize);
@@ -421,6 +426,94 @@ fn unadc(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
     }
     Ok(out)
 }
+
+// ---------- NDIF ----------
+//
+// Disk Copy 6's own format (NDIF, the New Disk Image Format, before UDIF), as ShrinkWrap wrote it too: the disk's
+// stored chunks in the data fork, and the table of them in the resource fork, in a `bcem` resource. That's 128
+// bytes of header (a version, the file system's ID, the disk's name as a Pascal string of up to 63 letters, its
+// number of 512-byte sectors, the most sectors a chunk holds, an offset added to every chunk's, a CRC, whether
+// it's one segment of several, and whether it's encrypted, then the number of chunks), then 12 bytes a chunk: its
+// first sector (three bytes), how it's kept (0 zeros, 2 as it is, &83 ADC, &FF the end; &80 to &82 and &F0 are
+// older compressions), where it is in the data fork and how many bytes it takes there. This is as Aaru's NDIF
+// reader (github.com/aaru-dps/Aaru) sets it out. Its resource fork being needed, an NDIF image is read from a
+// MacBinary file, as they were posted to the web.
+
+/// Where an NDIF image's forks are in a MacBinary file: its data fork's start and length, and its resource fork's.
+fn ndif_forks(source: &dyn Source) -> Option<((u64, u64), (u64, u64))> {
+    let head = source.read_vec(0, 128).ok()?;
+    let (data, resource) = (be(&head[83..87]), be(&head[87..91]));
+    let resource_at = 128 + data.div_ceil(128) * 128;
+    (head[0] == 0 && (1..=63).contains(&head[1]) && head[74] == 0 && &head[65..69] == b"rohd" && resource >= 256 && resource_at + resource <= source.len()).then_some(((128, data), (resource_at, resource)))
+}
+
+/// Opens an NDIF disk image from its MacBinary file.
+fn open_ndif(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
+    let ((data_at, data_length), (fork_at, fork_length)) = ndif_forks(&*image).ok_or("This isn't an NDIF disk image in a MacBinary file.")?;
+    let fork = image.read_vec(fork_at, fork_length.min(16 * 1024 * 1024) as usize)?;
+    let tables = fork_resources(&fork, b"bcem")?;
+    let damaged = || "The disk image's table of its chunks (its bcem resource) is damaged.".to_string();
+    let (_, table) = tables.first().ok_or("This disk image has no table of its chunks (a bcem resource), so it can't be read.")?;
+    let header = table.get(..128).ok_or_else(damaged)?;
+    let word = |at: usize| be(&header[at..at + 4]);
+    let name = mac::mac_roman(&header[5..5 + usize::from(header[4]).min(63)]);
+    let (sectors, offset, segmented, encrypted, count) = (word(68), word(76), word(84), word(116), word(124) as usize);
+    if encrypted != 0 {
+        return Err("This disk image is encrypted, and Limoniter can't read encrypted disk images.".into());
+    }
+    if segmented != 0 {
+        return Err("This disk image is one segment of several, which Limoniter can't put together yet.".into());
+    }
+    let chunk = |i: usize| -> Option<(u64, u8, u64, u64)> {
+        let entry = table.get(128 + i * 12..140 + i * 12)?;
+        Some((be(&entry[..3]), entry[3], be(&entry[4..8]), be(&entry[8..12])))
+    };
+    let mut chunks = Vec::new();
+    for i in 0..count.min(1_000_000) {
+        let found = chunk(i).ok_or_else(damaged)?;
+        if found.1 == 0xFF {
+            break;
+        }
+        chunks.push(found);
+    }
+    let mut runs = Vec::new();
+    let mut methods = BTreeSet::new();
+    for (i, &(sector, kind, at, stored)) in chunks.iter().enumerate() {
+        let end = chunks.get(i + 1).map_or(sectors, |next| next.0);
+        if end < sector || end > sectors {
+            return Err(damaged());
+        }
+        let method = match kind {
+            0 => Method::Zeros,
+            2 => Method::Raw,
+            0x83 => Method::Adc,
+            other => Method::Unknown(u32::from(other)),
+        };
+        let at = at + offset;
+        if method != Method::Zeros && at + stored > data_length {
+            return Err("The disk image's chunks run past the end of its data fork, so it's damaged or cut short.".into());
+        }
+        // Stored chunks are read straight from the image, however long; compressed ones are expanded whole.
+        if !matches!(method, Method::Zeros | Method::Raw) && (end - sector) * 512 > MOST_RUN_BYTES {
+            return Err(damaged());
+        }
+        methods.insert(match method {
+            Method::Unknown(code) => format!("NDIF compression {code:#X}"),
+            method => method.name(),
+        });
+        runs.push(Run { start: sector * 512, length: (end - sector) * 512, method, at, stored });
+    }
+    let data: Arc<dyn Source> = Arc::new(Slice { inner: image, start: data_at, len: data_length });
+    let disk: Arc<dyn Source> = Arc::new(Udif { image: data, runs, len: sectors * 512, recent: Mutex::new(Vec::new()) });
+    let what = format!("Disk Copy 6 image (NDIF, {}) \u{201C}{name}\u{201D}, {}K", methods.into_iter().collect::<Vec<_>>().join(", "), sectors / 2);
+    let head = disk.read_vec(0, disk.len().min(0x8800) as usize)?;
+    if mac::kind_of(&head).is_some() {
+        mac::open_disk(disk, &what)
+    } else {
+        super::open_plain_disk(disk).map_err(|_| format!("The disk inside this {what} has no file system Limoniter knows."))
+    }
+}
+
 
 #[cfg(test)]
 pub mod tests {
@@ -636,6 +729,85 @@ pub mod tests {
         assert!(volume.describe().starts_with("Apple disk image, ADC \u{B7} HFS \u{B7} Fixture"), "{}", volume.describe());
         let top = volume.list(None).unwrap();
         assert_eq!(volume.read(top.iter().find(|e| e.name == "F1").unwrap()).unwrap(), vec![1u8; 512]);
+    }
+
+    /// A resource fork with one resource of the type given, ID 128, as the Resource Manager lays it out.
+    fn resource_fork(kind: &[u8; 4], resource: &[u8]) -> Vec<u8> {
+        let data = [(resource.len() as u32).to_be_bytes().to_vec(), resource.to_vec()].concat();
+        let types = [&0u16.to_be_bytes()[..], kind, &0u16.to_be_bytes(), &10u16.to_be_bytes()].concat();
+        let reference = [&128i16.to_be_bytes()[..], &0xFFFFu16.to_be_bytes(), &[0, 0, 0, 0], &[0; 4]].concat();
+        let map = [&[0u8; 24][..], &28u16.to_be_bytes(), &(28 + types.len() as u16 + reference.len() as u16).to_be_bytes(), &types, &reference].concat();
+        let mut fork = [256u32, 256 + data.len() as u32, data.len() as u32, map.len() as u32].iter().flat_map(|n| n.to_be_bytes()).collect::<Vec<u8>>();
+        fork.resize(256, 0);
+        fork.extend(&data);
+        fork.extend(&map);
+        fork
+    }
+
+    /// An NDIF image of a disk in a MacBinary file: chunks of 64 sectors, ADC, stored or zeros by turns.
+    fn ndif(disk: &[u8], name: &[u8]) -> Vec<u8> {
+        let sectors = disk.len() / 512;
+        let mut data = Vec::new();
+        let mut chunks = Vec::new();
+        for (i, part) in disk.chunks(64 * 512).enumerate() {
+            let (kind, stored) = match i % 3 {
+                _ if part.iter().all(|b| *b == 0) => (0u8, Vec::new()),
+                0 => (0x83, adc_literals(part)),
+                _ => (2, part.to_vec()),
+            };
+            chunks.extend(&((i * 64) as u32).to_be_bytes()[1..]);
+            chunks.push(kind);
+            chunks.extend((data.len() as u32).to_be_bytes());
+            chunks.extend((stored.len() as u32).to_be_bytes());
+            data.extend(stored);
+        }
+        chunks.extend(&(sectors as u32).to_be_bytes()[1..]);
+        chunks.extend([0xFF, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let mut bcem = vec![0u8; 128];
+        bcem[4] = name.len() as u8;
+        bcem[5..5 + name.len()].copy_from_slice(name);
+        bcem[68..72].copy_from_slice(&(sectors as u32).to_be_bytes());
+        bcem[124..128].copy_from_slice(&((chunks.len() / 12) as u32).to_be_bytes());
+        bcem.extend(chunks);
+        let fork = resource_fork(b"bcem", &bcem);
+        let mut file = vec![0u8; 128];
+        file[1] = 4;
+        file[2..6].copy_from_slice(b"Test");
+        file[65..73].copy_from_slice(b"rohdddsk");
+        file[83..87].copy_from_slice(&(data.len() as u32).to_be_bytes());
+        file[87..91].copy_from_slice(&(fork.len() as u32).to_be_bytes());
+        // Its dates, as MacBinary I needs to be believed.
+        file[91..99].copy_from_slice(&[0xB0, 0, 0, 0, 0xB0, 0, 0, 0]);
+        file.extend(&data);
+        file.resize(128 + data.len().div_ceil(128) * 128, 0);
+        file.extend(fork);
+        file.resize(file.len().div_ceil(128) * 128, 0);
+        file
+    }
+
+    #[test]
+    fn disk_copy_6_ndif_images_open_from_macbinary() {
+        let hfs = super::super::tests::fixture("hfs.img");
+        let image = ndif(&hfs, b"Fixture");
+        assert!(is_image("Test.img.bin", &image[..image.len().min(0x8800)], image.len() as u64));
+        let volume = open(Arc::new(image.clone()), "Test.img.bin").unwrap();
+        assert!(volume.describe().starts_with("Disk Copy 6 image (NDIF, ADC, uncompressed"), "{}", volume.describe());
+        let top = volume.list(None).unwrap();
+        assert_eq!(volume.read(top.iter().find(|e| e.name == "F1").unwrap()).unwrap(), vec![1u8; 512]);
+        // Encrypted, or cut short, it says why.
+        let mut locked = image.clone();
+        let bcem_at = image.windows(8).rposition(|w| w == b"\x07Fixture").unwrap() - 4;
+        locked[bcem_at + 119] = 1;
+        assert!(open(Arc::new(locked), "Test.img.bin").err().unwrap().contains("encrypted"));
+        for cut in (0..image.len()).step_by(4099) {
+            if let Ok(volume) = open(Arc::new(image[..cut].to_vec()), "Test.img.bin")
+                && let Ok(entries) = volume.list(None)
+            {
+                for entry in entries.iter().take(5) {
+                    let _ = volume.read(entry);
+                }
+            }
+        }
     }
 
     #[test]

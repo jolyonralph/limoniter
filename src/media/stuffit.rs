@@ -11,6 +11,7 @@
 //! entry packed another way (6, fixed Huffman, and 14, the installers' method, are seldom seen), or with a password,
 //! says so rather than giving wrong bytes.
 
+pub(super) mod compactpro;
 mod tables;
 
 use super::mac::{self, MacFile, RESOURCE_FORK};

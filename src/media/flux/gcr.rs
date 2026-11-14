@@ -10,8 +10,11 @@
 //! The Apple II's 6-and-2 scheme writes bytes ("nibbles") whose top bit is always set, read by shifting cells in
 //! until that top bit arrives. Each sector has an address field (&D5 &AA &96, volume, track, sector and checksum
 //! each as two "4-and-4" nibbles) and a data field (&D5 &AA &AD, then 342 six-bit values and a checksum, each a
-//! nibble from a 64-entry table, chained by XOR).
+//! nibble from a 64-entry table, chained by XOR). DOS 3.2's 13-sector disks use an older 5-and-3 scheme (address
+//! fields &D5 &AA &B5), and the Macintosh's 400K and 800K disks the same nibbles at twice the rate, with their own
+//! fields; both are decoded as the WOZ reader decodes them.
 
+use super::super::woz;
 use super::Found;
 
 /// The 1541's 5-cell codes, by the 4 bits they stand for.
@@ -54,7 +57,7 @@ pub fn commodore(cells: &[u8]) -> Vec<Found> {
             continue;
         };
         let (sector, track) = (header[2], header[3]);
-        if header[0] != 0x08 || header[1] != header[2] ^ header[3] ^ header[4] ^ header[5] || track == 0 || track > 42 || sector >= 21 {
+        if header[0] != 0x08 || header[1] != header[2] ^ header[3] ^ header[4] ^ header[5] || track == 0 || track > 70 || sector >= 21 {
             continue;
         }
         at = header_at + 60;
@@ -155,6 +158,56 @@ pub fn apple(cells: &[u8]) -> Vec<Found> {
             i = start + 3 + 343;
         }
         found.push(Found { cylinder: track, head: 0, id: sector, size: 256, data });
+    }
+    found
+}
+
+/// Every DOS 3.2 sector on a track's cells: thirteen to a track, in the older 5-and-3 scheme, whose address field
+/// starts &D5 &AA &B5 and whose data field is 410 five-bit values and a checksum, as the WOZ reader decodes them.
+pub fn apple13(cells: &[u8]) -> Vec<Found> {
+    let table = woz::inverse(&woz::FIVE_AND_THREE);
+    let nibbles: Vec<u8> = apple_nibbles(cells).into_iter().map(|(_, n)| n).collect();
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i + 11 <= nibbles.len() {
+        if nibbles[i..i + 3] != [0xD5, 0xAA, 0xB5] {
+            i += 1;
+            continue;
+        }
+        let four = |k: usize| woz::four_and_four(nibbles[i + 3 + 2 * k], nibbles[i + 4 + 2 * k]);
+        let (volume, track, sector, check) = (four(0), four(1), four(2), four(3));
+        i += 11;
+        if volume ^ track ^ sector != check || sector >= 13 || track >= 80 {
+            continue;
+        }
+        let data = woz::data_field(&nibbles, i).and_then(|at| woz::decode_53(&nibbles[at + 3..], &table));
+        found.push(Found { cylinder: track, head: 0, id: sector, size: 256, data });
+    }
+    found
+}
+
+/// Every sector of a Macintosh 400K or 800K disk on a track's cells: Apple's 6-and-2 nibbles at twice the 5.25-inch
+/// rate, an address field (&D5 &AA &96, then the track's low six bits, the sector, the side with the track's top
+/// bits, the format and a checksum, each a 6-bit value) and a data field of 524 bytes, 12 of tags and 512 of data,
+/// as the Sony driver writes it and the WOZ reader decodes it. Its `cylinder` is the address field's track.
+pub fn sony(cells: &[u8]) -> Vec<Found> {
+    let six = woz::inverse(&woz::SIX_AND_TWO);
+    let nibbles: Vec<u8> = apple_nibbles(cells).into_iter().map(|(_, n)| n).collect();
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i + 8 <= nibbles.len() {
+        if nibbles[i..i + 3] != [0xD5, 0xAA, 0x96] {
+            i += 1;
+            continue;
+        }
+        let v: Vec<u8> = nibbles[i + 3..i + 8].iter().map(|&b| six[usize::from(b)]).collect();
+        i += 3;
+        if v.contains(&0xFF) || (v[0] ^ v[1] ^ v[2] ^ v[3]) & 0x3F != v[4] || v[1] >= 12 {
+            continue;
+        }
+        let (track, side) = (v[0] | (v[2] & 1) << 6, v[2] >> 5 & 1);
+        let data = woz::data_field(&nibbles, i + 5).and_then(|at| woz::decode_sony(&nibbles[(at + 4).min(nibbles.len())..], &six)).map(|bytes| bytes[12..].to_vec());
+        found.push(Found { cylinder: track, head: side, id: v[1], size: 512, data });
     }
     found
 }

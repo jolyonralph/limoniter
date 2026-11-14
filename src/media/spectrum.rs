@@ -4,6 +4,9 @@
 //! - TR-DOS disks (.trd) and their SCL archives, as the Beta Disk interface lays them out.
 //! - Microdrive cartridges (.mdr), as Interface 1 records them.
 //! - Tapes (.tap, .tzx) as lists of their files, and snapshots (.z80, .sna) as the BASIC, screen and memory in them.
+//!   A ZX81 program in a TZX file is in a generalised data block (0x19), as the ZX81 Tape Converter and other tools
+//!   write one: two symbols, one per bit, the bytes as the ZX81 saved them, its name first (the last letter
+//!   inverse) and then the `.p` file's bytes.
 //!
 //! A BASIC program from a tape, a TR-DOS disk, a cartridge or a snapshot is given back as a +3DOS file, so the
 //! BASIC listing reads it and a +3 or Spectrum Next can load it; the file says so in its kind.
@@ -322,6 +325,8 @@ impl Volume for Microdrive {
 /// A tape's files: each header block with the data block after it, and data with no header on its own.
 pub struct Tape {
     tzx: bool,
+    /// Whether all its files are ZX81 programs.
+    zx81: bool,
     files: Vec<(String, String, String, Vec<u8>)>,
     problem: Option<String>,
 }
@@ -360,13 +365,68 @@ impl Tape {
                 None => files.push((format!("Block {}.bin", index + 1), format!("Headerless block, flag {flag:02X}"), format!("{} bytes", body.len()), body.to_vec())),
             }
         }
-        Ok(Self { tzx, files, problem })
+        let spectrum = files.len();
+        for (name, program) in zx81_programs(&data) {
+            files.push((format!("{name}.p"), "ZX81 program".into(), format!("{} bytes", program.len()), program));
+        }
+        let zx81 = spectrum == 0 && files.len() > spectrum;
+        Ok(Self { tzx, zx81, files, problem })
     }
+}
+
+/// A generalised data block's bytes, when it carries bytes a bit at a time with two symbols, the shorter one 0;
+/// and whether its symbols are the ZX81's, a 0 four pulses and a 1 nine (as pairs of edges, eight and eighteen).
+fn generalised_bytes(block: &[u8]) -> Option<(Vec<u8>, bool)> {
+    let four = |at: usize| block.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize);
+    let (pilot_symbols, data_symbols) = (four(6)?, four(12)?);
+    // A table of 0 symbols has 256.
+    let (pilot_pulses, pilot_table) = (usize::from(*block.get(10)?), match *block.get(11)? {
+        0 => 256,
+        n => usize::from(n),
+    });
+    let (data_pulses, data_table) = (usize::from(*block.get(16)?), *block.get(17)?);
+    if data_table != 2 || data_symbols < 8 {
+        return None;
+    }
+    let mut at: usize = 18;
+    if pilot_symbols > 0 {
+        at = at.checked_add(pilot_table * (1 + 2 * pilot_pulses))?.checked_add(pilot_symbols.checked_mul(3)?)?;
+    }
+    let symbol = |index: usize| -> Option<usize> {
+        let from = at + index * (1 + 2 * data_pulses) + 1;
+        let pulses = block.get(from..from + 2 * data_pulses)?;
+        Some(pulses.as_chunks::<2>().0.iter().take_while(|p| **p != [0, 0]).count())
+    };
+    let (zero, one) = (symbol(0)?, symbol(1)?);
+    let zx81 = matches!((zero.min(one), zero.max(one)), (6..=10, 14..=22));
+    let stream = at + 2 * (1 + 2 * data_pulses);
+    let bytes = block.get(stream..stream.checked_add(data_symbols / 8)?)?;
+    Some((if zero > one { bytes.iter().map(|b| !b).collect() } else { bytes.to_vec() }, zx81))
+}
+
+/// The ZX81 programs on a TZX tape: each one's name, and its bytes as a `.p` file.
+pub fn zx81_programs(data: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let set = charset::known("zx81");
+    let mut programs = Vec::new();
+    for block in basic::tzx_generalised_blocks(data) {
+        let Some((bytes, zx81_pulses)) = generalised_bytes(block) else { continue };
+        let Some(name_length) = bytes.iter().take(128).position(|&b| b >= 0x80).map(|last| last + 1) else { continue };
+        let program = &bytes[name_length..];
+        // A program whose system variables don't make sense (one that sets its own up to run as it loads) is still
+        // the ZX81's, when its pulses are the ZX81's; the listing says what's wrong with it.
+        if !crate::basic_extra::is_program_file("p", Some(program)) && !(zx81_pulses && program.len() > 0x74) {
+            continue;
+        }
+        let name: String = bytes[..name_length].iter().map(|b| set.entry(0, b & 0x7F).and_then(|e| e.unicode).filter(|c| !c.is_control()).unwrap_or('_')).collect();
+        programs.push((tidy_name(&name), program.to_vec()));
+    }
+    programs
 }
 
 impl Volume for Tape {
     fn describe(&self) -> String {
-        format!("ZX Spectrum tape ({}) \u{B7} {} file(s)", if self.tzx { "TZX" } else { "TAP" }, self.files.len())
+        let machine = if self.zx81 { "ZX81" } else { "ZX Spectrum" };
+        format!("{machine} tape ({}) \u{B7} {} file(s)", if self.tzx { "TZX" } else { "TAP" }, self.files.len())
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {

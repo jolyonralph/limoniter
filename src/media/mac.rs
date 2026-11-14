@@ -82,6 +82,7 @@ pub(super) fn file_kind(kind: &[u8]) -> (&'static str, Option<&'static str>) {
         b"BMPf" | b"BMP " => ("BMP picture", Some("bmp")),
         b"ZIP " => ("Zip archive", Some("zip")),
         b"SIT!" | b"SITD" | b"SIT5" => ("StuffIt archive", Some("sit")),
+        b"PACT" => ("Compact Pro archive", Some("cpt")),
         _ => ("Document", None),
     }
 }

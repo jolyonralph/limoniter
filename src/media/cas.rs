@@ -1,5 +1,6 @@
-//! Cassette images in `.cas` files: the TRS-80's and the MSX's, which share the ending and nothing else. Both are
-//! the bytes the tape carried, not its sound, and each file on the tape is shown as a file.
+//! Cassette images in `.cas` files: the TRS-80's, the MSX's and the Color Computer's and Dragon's, which share the
+//! ending and nothing else. Each is the bytes the tape carried, not its sound, and each file on the tape is shown
+//! as a file.
 //!
 //! An MSX tape is a run of blocks, each after the eight bytes &1F &A6 &DE &BA &CC &13 &7D &74 that stand for the
 //! tone before it. A file starts with a header block: ten bytes saying its kind (&D3 a tokenised BASIC program
@@ -14,6 +15,13 @@
 //! link of zero. A SYSTEM (machine code) file starts &55 and a six-letter name, then blocks of &3C, a length (0
 //! for 256), a load address, the bytes and a checksum, and ends &78 and where it runs. This is how trs80-tool
 //! (github.com/lkesteloot/trs80) reads them. A SYSTEM file is given as the /CMD file that loads the same bytes.
+//!
+//! A Color Computer or Dragon tape is blocks, each after a leader of &55s and the sync byte &3C: a type (0 the name
+//! block that starts a file, 1 data, &FF the end of the file), a length, up to 255 bytes and a checksum. A name
+//! block gives an eight-letter name, the file's kind (0 BASIC, 1 data, 2 machine code), whether it's ASCII, and
+//! where it runs and loads. This is how the Color Computer's and Dragon's manuals and ToolShed's cecb read them. A
+//! tokenised BASIC program is given as Disk BASIC or Dragon DOS would keep it, so it lists; which of the two
+//! machines' BASICs it's in is told from its tokens.
 
 use super::{Entry, Source, Volume, tidy_name};
 use std::sync::Arc;
@@ -38,7 +46,7 @@ pub struct Cas {
 
 /// Whether a `.cas` file's start is an MSX or a TRS-80 tape's.
 pub fn looks_like(head: &[u8]) -> bool {
-    head.starts_with(&MSX_BLOCK) || trs80_header(head, 0).is_some()
+    head.starts_with(&MSX_BLOCK) || looks_like_coco(head) || trs80_header(head, 0).is_some()
 }
 
 impl Cas {
@@ -47,6 +55,16 @@ impl Cas {
         if data.starts_with(&MSX_BLOCK) {
             let (files, notes) = msx_files(&data);
             return Ok(Self { what: format!("MSX cassette (CAS) \u{B7} {} file(s)", files.len()), msx: true, files, notes });
+        }
+        if looks_like_coco(&data) {
+            let (files, notes) = coco_files(&data);
+            return Ok(Self { what: format!("Color Computer or Dragon cassette (CAS) \u{B7} {} file(s)", files.len()), msx: false, files, notes });
+        }
+        // A CoCo or Dragon leader with no file in the standard format after it is a tape with its own loader, not
+        // a TRS-80's, whose leader is followed by its sync byte.
+        let leader = data.iter().take_while(|&&b| b == 0x55).count();
+        if leader >= 16 && trs80_header(&data, 0).is_none_or(|(bit, _)| bit / 8 > leader + 64) {
+            return Err("This tape starts with a Color Computer or Dragon leader, but no file in their standard format follows it: it may load with a loader of its own.".into());
         }
         let (files, notes, speeds) = trs80_files(&data);
         if files.is_empty() {
@@ -345,6 +363,187 @@ fn trs80_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>, String) {
     (files, notes, speeds.join(" and "))
 }
 
+// ---------- Color Computer and Dragon ----------
+
+/// A byte from a bit position on a Color Computer or Dragon tape, whose bits were sent lowest first: a `.cas` file
+/// made from a recording isn't always lined up on bytes.
+fn lsb_byte(data: &[u8], bit: usize) -> Option<u8> {
+    let (at, shift) = (bit / 8, bit % 8);
+    let low = *data.get(at)?;
+    if shift == 0 {
+        return Some(low);
+    }
+    Some(((u16::from(*data.get(at + 1)?) << 8 | u16::from(low)) >> shift) as u8)
+}
+
+/// A block on a CoCo or Dragon tape: its type (0 a file's name block, 1 data, &FF the end), its bytes, and whether
+/// its checksum is right.
+struct CocoBlock {
+    kind: u8,
+    bytes: Vec<u8>,
+    good: bool,
+}
+
+/// The blocks of a CoCo or Dragon tape: each &3C sync after the leader of &55s, then the block's type, its length,
+/// its bytes and a checksum, the sum of all of those. A sync is looked for at every bit, as the bytes may not be
+/// lined up, and the leader's last byte is often spoilt; a block is believed when its checksum is right, or when
+/// it follows a clean leader (and is then marked bad). Anything else is taken to be other bytes, such as a
+/// program's own loader's.
+fn coco_blocks(data: &[u8], most: usize) -> Vec<CocoBlock> {
+    let mut blocks = Vec::new();
+    let mut bit = 0;
+    let end = data.len() * 8;
+    while bit + 24 <= end && blocks.len() < most {
+        if lsb_byte(data, bit) != Some(0x3C) {
+            bit += 1;
+            continue;
+        }
+        let (Some(kind), Some(length)) = (lsb_byte(data, bit + 8), lsb_byte(data, bit + 16)) else { break };
+        let length = usize::from(length);
+        let bytes: Option<Vec<u8>> = (0..=length).map(|i| lsb_byte(data, bit + 24 + i * 8)).collect();
+        let fits = matches!((kind, length), (0, 15..) | (1, _) | (0xFF, 0));
+        let Some(mut bytes) = bytes.filter(|_| fits) else {
+            bit += 1;
+            continue;
+        };
+        let checksum = bytes.pop().unwrap_or_default();
+        let good = bytes.iter().fold(kind.wrapping_add(length as u8), |sum, &b| sum.wrapping_add(b)) == checksum;
+        // A name block says its file is one of the four kinds, binary or ASCII.
+        let named = kind != 0 || (bytes[8] <= 3 && matches!(bytes[9], 0 | 0xFF));
+        if !named || (!good && (bit < 8 || lsb_byte(data, bit - 8) != Some(0x55))) {
+            bit += 1;
+            continue;
+        }
+        blocks.push(CocoBlock { kind, bytes, good });
+        bit += 24 + (length + 1) * 8;
+    }
+    blocks
+}
+
+/// Whether a `.cas` file is a Color Computer or Dragon tape: a name block, with a right checksum, near its start.
+fn looks_like_coco(head: &[u8]) -> bool {
+    coco_blocks(&head[..head.len().min(16384)], 1).first().is_some_and(|block| block.kind == 0 && block.good)
+}
+
+/// Whether a tokenised 6809 BASIC program is the Dragon's rather than the Color Computer's: in the Dragon's BASIC,
+/// GO is followed by its own tokens for TO and SUB (&BC and &BD, against &A5 and &A6), and IF by its THEN (&BF,
+/// against &A7). Bytes in quotes, which may be graphics characters, aren't counted. Above 0 for the Dragon, below
+/// for the Color Computer.
+fn dragon_evidence(program: &[u8]) -> i32 {
+    let (mut dragon, mut coco) = (0, 0);
+    let mut at = 0;
+    // Each line: a link, a line number, the line up to a zero.
+    while let Some(line) = program.get(at + 4..).and_then(|rest| rest.iter().position(|&b| b == 0).map(|end| &rest[..end])) {
+        at += 4 + line.len() + 1;
+        let mut quoted = false;
+        let mut previous = 0;
+        for &byte in line {
+            match (previous, byte) {
+                (_, b'"') => quoted = !quoted,
+                _ if quoted => {}
+                (0x81, 0xBC | 0xBD) | (_, 0xBF) => dragon += 1,
+                (0x81, 0xA5 | 0xA6) | (_, 0xA7) => coco += 1,
+                _ => {}
+            }
+            previous = byte;
+        }
+    }
+    dragon - coco
+}
+
+/// A CoCo or Dragon BASIC program from tape, given as its Disk BASIC (or Dragon DOS) file, so it lists as one.
+fn coco_basic_file(program: &[u8], load: u16, dragon: bool) -> (Vec<u8>, &'static str) {
+    let length = (program.len() as u16).to_be_bytes();
+    if dragon {
+        // Dragon DOS's header: &55, type 1, where it loads, its length, where it runs, &AA.
+        let mut file = vec![0x55, 1];
+        file.extend(load.to_be_bytes());
+        file.extend(length);
+        file.extend([0x8B, 0x8D, 0xAA]);
+        file.extend_from_slice(program);
+        (file, "BASIC program (Dragon)")
+    } else {
+        let mut file = vec![0xFF];
+        file.extend(length);
+        file.extend_from_slice(program);
+        (file, "BASIC program (Color Computer)")
+    }
+}
+
+fn coco_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
+    let (mut files, mut notes) = (Vec::new(), Vec::new());
+    let blocks = coco_blocks(data, usize::MAX);
+    // Each tokenised BASIC program's place in the files, where it was in memory, and which machine its tokens say.
+    let mut basic = Vec::new();
+    let mut index = 0;
+    while index < blocks.len() {
+        let number = files.len() + 1;
+        let header = blocks[index].kind == 0;
+        let name_block = header.then(|| &blocks[index]);
+        if header {
+            index += 1;
+        }
+        // The file's data blocks, up to the end block or the next file's name block.
+        let mut bytes = Vec::new();
+        let (mut bad, mut ended) = (0, false);
+        while let Some(block) = blocks.get(index) {
+            match block.kind {
+                0 => break,
+                0xFF => {
+                    index += 1;
+                    ended = true;
+                    break;
+                }
+                _ => {
+                    bytes.extend_from_slice(&block.bytes);
+                    bad += usize::from(!block.good);
+                    index += 1;
+                }
+            }
+        }
+        let Some(name_block) = name_block else {
+            notes.push(format!("{} bytes of data on the tape have no name block before them.", bytes.len()));
+            files.push(TapeFile { name: format!("Block {number}"), open_name: format!("Block {number}.bin"), kind: "Data with no name".into(), detail: format!("{} bytes", bytes.len()), data: bytes });
+            continue;
+        };
+        let head = &name_block.bytes;
+        let name = tidy_name(&head[..8].iter().map(|&b| if b.is_ascii_graphic() || b == b' ' { char::from(b) } else { '_' }).collect::<String>());
+        let name = if name == "_" { format!("File {number}") } else { name };
+        let (kind, ascii) = (head[8], head[9] == 0xFF);
+        let (run, load) = (u16::from_be_bytes([head[11], head[12]]), u16::from_be_bytes([head[13], head[14]]));
+        if !name_block.good {
+            notes.push(format!("{name}'s name block fails its checksum, so what it says of the file may be wrong."));
+        }
+        if bad > 0 {
+            notes.push(format!("{bad} of {name}'s blocks fail their checksums, so some of its bytes are wrong."));
+        }
+        if !ended {
+            notes.push(format!("{name} has no end block, so it may be cut short."));
+        }
+        let file = match (kind, ascii) {
+            (0, true) => TapeFile { open_name: format!("{name}.bas"), kind: "BASIC program (ASCII)".into(), detail: String::new(), data: bytes, name },
+            (0, false) => {
+                // Where the program was in memory, from its first line's link: it ends where the second line starts.
+                let first_end = bytes.get(4..).and_then(|rest| rest.iter().position(|&b| b == 0)).map(|end| end + 5);
+                let start = first_end.zip(bytes.get(..2)).map_or(0, |(end, link)| u16::from_be_bytes([link[0], link[1]]).wrapping_sub(end as u16));
+                basic.push((files.len(), start, dragon_evidence(&bytes)));
+                TapeFile { open_name: format!("{name}.bas"), kind: String::new(), detail: String::new(), data: bytes, name }
+            }
+            (2, _) => TapeFile { open_name: format!("{name}.bin"), kind: "Machine code".into(), detail: format!("loads at &{load:04X}, runs at &{run:04X}"), data: bytes, name },
+            (1, true) => TapeFile { open_name: format!("{name}.txt"), kind: "Data (ASCII)".into(), detail: String::new(), data: bytes, name },
+            _ => TapeFile { open_name: format!("{name}.dat"), kind: "Data".into(), detail: String::new(), data: bytes, name },
+        };
+        files.push(file);
+    }
+    // A program whose tokens don't say which machine it's for goes with the others on the tape.
+    let lean: i32 = basic.iter().map(|(_, _, evidence)| evidence.signum()).sum();
+    for (index, start, evidence) in basic {
+        let (data, what) = coco_basic_file(&files[index].data, start, evidence > 0 || (evidence == 0 && lean > 0));
+        (files[index].data, files[index].kind) = (data, what.into());
+    }
+    (files, notes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -471,5 +670,92 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A CoCo or Dragon tape file: a leader and name block, data blocks of up to 255 bytes, and the end block.
+    fn coco_file(name: &[u8; 8], kind: u8, load: u16, run: u16, data: &[u8]) -> Vec<u8> {
+        let block = |kind: u8, bytes: &[u8]| {
+            let mut out = vec![0x55; 2];
+            out.extend([0x3C, kind, bytes.len() as u8]);
+            out.extend(bytes);
+            out.push(bytes.iter().fold(kind.wrapping_add(bytes.len() as u8), |sum, &b| sum.wrapping_add(b)));
+            out
+        };
+        let mut head = name.to_vec();
+        head.extend([kind, 0, 0]);
+        head.extend(run.to_be_bytes());
+        head.extend(load.to_be_bytes());
+        let mut tape = vec![0x55; 128];
+        tape.extend(block(0, &head));
+        tape.extend([0x55; 128]);
+        for chunk in data.chunks(255) {
+            tape.extend(block(1, chunk));
+        }
+        tape.extend(block(0xFF, &[]));
+        tape
+    }
+
+    /// A 6809 BASIC program from &1E01, `10 IF A THEN 10` and `20 GOTO 10` (stored with no spaces), in the given
+    /// tokens for THEN and TO.
+    fn basic_6809(then: u8, to: u8) -> Vec<u8> {
+        let lines: [&[u8]; 2] = [&[0x85, b'A', then, b'1', b'0'], &[0x81, to, b'1', b'0']];
+        let mut out = Vec::new();
+        let mut address = 0x1E01u16;
+        for (number, body) in [10u16, 20].iter().zip(lines) {
+            address += 5 + body.len() as u16;
+            out.extend(address.to_be_bytes());
+            out.extend(number.to_be_bytes());
+            out.extend(body);
+            out.push(0);
+        }
+        out.extend([0, 0]);
+        out
+    }
+
+    #[test]
+    fn a_color_computer_or_dragon_tape_gives_its_files() {
+        let code: Vec<u8> = (0..600).map(|i| i as u8).collect();
+        let mut tape = coco_file(b"DRAGON  ", 0, 0, 0, &basic_6809(0xBF, 0xBC));
+        tape.extend(coco_file(b"COCO    ", 0, 0, 0, &basic_6809(0xA7, 0xA5)));
+        tape.extend(coco_file(b"GAME    ", 2, 0x0600, 0x0612, &code));
+        assert!(looks_like(&tape));
+        let cas = super::super::open(Arc::new(tape.clone()), "games.cas").unwrap();
+        assert_eq!(cas.describe(), "Color Computer or Dragon cassette (CAS) \u{B7} 3 file(s)");
+        assert!(cas.notes().is_empty(), "{:?}", cas.notes());
+        let files = cas.list(None).unwrap();
+        assert_eq!(files.iter().map(|f| f.kind.as_str()).collect::<Vec<_>>(), ["BASIC program (Dragon)", "BASIC program (Color Computer)", "Machine code"]);
+        let dragon = crate::basic::list(&cas.read(&files[0]).unwrap(), "bas", crate::charset::utf8());
+        assert_eq!((dragon.dialect, dragon.lines.as_slice()), ("Dragon BASIC", ["10 IFATHEN10".to_string(), "20 GOTO10".to_string()].as_slice()));
+        let coco = crate::basic::list(&cas.read(&files[1]).unwrap(), "bas", crate::charset::utf8());
+        assert_eq!(coco.lines, ["10 IFATHEN10", "20 GOTO10"]);
+        assert_eq!((files[2].open_name.as_str(), files[2].detail.as_str()), ("GAME.bin", "loads at &0600, runs at &0612"));
+        assert_eq!(cas.read(&files[2]).unwrap(), code);
+
+        // The same tape a bit out of step, as some made from recordings are: its bits are read across the bytes.
+        let mut shifted = vec![0u8; tape.len() + 1];
+        for (i, &byte) in tape.iter().enumerate() {
+            shifted[i] |= byte << 3;
+            shifted[i + 1] |= byte >> 5;
+        }
+        let cas = super::super::open(Arc::new(shifted), "shifted.cas").unwrap();
+        assert_eq!(cas.read(&cas.list(None).unwrap()[2]).unwrap(), code);
+
+        // A spoilt block says so; cut short anywhere, it never panics.
+        let mut spoilt = tape.clone();
+        let at = tape.len() - 40;
+        spoilt[at] ^= 0xFF;
+        let cas = super::super::open(Arc::new(spoilt), "spoilt.cas").unwrap();
+        assert!(cas.notes().iter().any(|n| n.contains("fail their checksums")), "{:?}", cas.notes());
+        for cut in 0..tape.len() {
+            if let Ok(cas) = super::super::open(Arc::new(tape[..cut].to_vec()), "cut.cas") {
+                for entry in cas.list(None).unwrap() {
+                    let _ = cas.read(&entry);
+                }
+            }
+        }
+        // A leader with nothing standard after it is a tape with its own loader.
+        let mut own = vec![0x55; 200];
+        own.extend((0..2000).map(|i| (i * 7) as u8));
+        assert!(Cas::open(Arc::new(own)).is_err());
     }
 }
