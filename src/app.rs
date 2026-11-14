@@ -7282,7 +7282,7 @@ const OPEN_FILTERS: &[(&str, &[&str])] = &[
     ("Source code", &["c", "h", "cpp", "hpp", "cs", "rs", "py", "js", "ts", "java", "go", "html", "htm", "css", "json", "xml", "yaml", "yml", "toml", "sql", "sh", "bat", "cmd", "ps1", "asm", "s", "a65", "z80", "pas", "cob", "cbl", "for", "f", "rexx", "jcl", "lua", "pl", "rb", "php"]),
     ("BASIC programs", &["prg", "p00", "bas", "bbc", "tap"]),
     ("ANSI art, PETSCII and teletext", &["ans", "ice", "diz", "nfo", "xb", "pcb", "avt", "seq", "ep1", "tti", "ttix"]),
-    ("Pictures", &["iff", "ilbm", "lbm", "bbm", "pic", "scr", "brush", "pcd", "koa", "kla", "art", "ocp", "dd", "pi1", "pi2", "pi3", "pc1", "pc2", "pc3", "neo", "pntg", "pnt", "mac", "ff9", "spr", "pcx", "pcc", "img", "ximg", "hgr"]),
+    ("Pictures", &["iff", "ilbm", "lbm", "bbm", "pic", "scr", "brush", "pcd", "koa", "kla", "art", "ocp", "dd", "pi1", "pi2", "pi3", "pc1", "pc2", "pc3", "neo", "pntg", "pnt", "mac", "ff9", "spr", "pcx", "pcc", "img", "ximg", "hgr", "gr8", "gr9", "gr7", "mic"]),
     ("Disk, tape and archive images", &crate::media::IMAGE_ENDINGS),
 ];
 

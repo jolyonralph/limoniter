@@ -72,6 +72,18 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
         let code = bytes.get(5..5 + length).unwrap_or(&[]).to_vec();
         return (Cpu::M6809, code, origin, vec![exec], format!("A Color Computer binary, {length} bytes at ${origin:04X}, starting at ${exec:04X}"));
     }
+    // An Atari binary load file: its segments laid out in memory, followed from its init and run addresses; or one
+    // segment of one, as its browser names it.
+    if matches!(ending.as_str(), "xex" | "obx" | "com" | "exe" | "sys" | "obj")
+        && let Some((memory, origin, starts, how)) = crate::media::xex::memory(bytes)
+    {
+        return (Cpu::M6502, memory, origin, starts, how);
+    }
+    if ending == "seg"
+        && let Some((origin, starts)) = crate::media::xex::starts_from_name(name)
+    {
+        return (Cpu::M6502, bytes.to_vec(), origin, starts, format!("A segment of an Atari binary load file, {} bytes at ${origin:04X}", bytes.len()));
+    }
     let origin = load_address.unwrap_or(0x8000);
     let found = match load_address {
         Some(at) => format!("A code file from a tape, loading at ${at:04X}"),
@@ -204,6 +216,13 @@ mod tests {
         let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
         let (cpu, code, origin, starts, _) = guess("t.tap", &tape, None);
         assert_eq!((cpu, origin, starts, code), (Cpu::Z80, 40000, vec![40000], vec![0x3E, 2, 0xD3, 0xFE, 0xC9]));
+        // An Atari binary load file: a routine at $0600 called as it loads, the program at $2000 run once loaded.
+        let mut xex = vec![0xFF, 0xFF, 0x00, 0x06, 0x00, 0x06, 0x60, 0xE2, 0x02, 0xE3, 0x02, 0x00, 0x06];
+        xex.extend([0x00, 0x20, 0x02, 0x20, 0x4C, 0x00, 0x20, 0xE0, 0x02, 0xE1, 0x02, 0x00, 0x20]);
+        let (cpu, code, origin, starts, _) = guess("GAME.XEX", &xex, None);
+        assert_eq!((cpu, origin, starts, code.len()), (Cpu::M6502, 0x0600, vec![0x0600, 0x2000], 0x2003 - 0x0600));
+        let (cpu, code, origin, starts, _) = guess("GAME.XEX \u{203A} segment 3 $2000-$2002 run $2000.seg", &[0x4C, 0x00, 0x20], None);
+        assert_eq!((cpu, origin, starts, code.len()), (Cpu::M6502, 0x2000, vec![0x2000], 3));
         // Anything else: where a tape said it loads, or $8000.
         assert_eq!(guess("udgs.code", &[1, 2], Some(65368)).2, 65368);
         assert_eq!(number("$8000"), Some(0x8000));

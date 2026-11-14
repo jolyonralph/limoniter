@@ -22,6 +22,8 @@ mod rp9;
 mod sectors;
 pub mod write;
 mod trsdos;
+mod woz;
+pub(crate) mod xex;
 pub(crate) mod spectrum;
 mod zip;
 
@@ -178,8 +180,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 60] = [
-    "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
+pub const IMAGE_ENDINGS: [&str; 63] = [
+    "woz", "xex", "obx", "iso", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -187,12 +189,17 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
     let ending = Path::new(name).extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
     // Mac disk images were often saved with no ending, or with a name whose last dot isn't one ("6.0.2 System
     // Tools"); Disk Copy's header says what they are, closely enough to believe whatever the name.
+    // Atari programs share their endings with other systems' files: only their bytes can say.
+    if matches!(ending.as_str(), "com" | "exe" | "sys" | "obj") {
+        return xex::looks_like(head, len, &ending);
+    }
     if !IMAGE_ENDINGS.contains(&ending.as_str()) {
         return mac::looks_like_disk_copy(head, len);
     }
     match ending.as_str() {
         // These endings are used for plain data too, so the bytes have to say so.
         "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
+        "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
     }
 }
@@ -241,6 +248,10 @@ enum Format {
     Coco,
     /// A ZX Spectrum Next program, seen as its parts.
     Nex,
+    /// An Apple II WOZ image: a disk's bits, read back into sectors.
+    Woz,
+    /// An Atari 8-bit binary load file, seen as its segments.
+    Xex,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -287,6 +298,12 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if nex::looks_like(head) {
         return Some(Format::Nex);
+    }
+    if woz::looks_like(head) {
+        return Some(Format::Woz);
+    }
+    if matches!(ending, "xex" | "obx" | "com" | "exe" | "sys" | "obj") && xex::looks_like(head, len, ending) {
+        return Some(Format::Xex);
     }
     if at(0, b"ZXTape!\x1A") {
         return Some(Format::ZxTape);
@@ -435,6 +452,8 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Z80) => Ok(Box::new(spectrum::Snapshot::open(source, false)?)),
         Some(Format::Sna) => Ok(Box::new(spectrum::Snapshot::open(source, true)?)),
         Some(Format::Nex) => Ok(Box::new(nex::Nex::open(source)?)),
+        Some(Format::Woz) => woz::open(source),
+        Some(Format::Xex) => Ok(Box::new(xex::Xex::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }
