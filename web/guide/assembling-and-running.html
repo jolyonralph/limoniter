@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assembling and running · Limoniter user guide</title>
+  <meta name="description" content="Run programs with F9 on the built-in ZX Spectrum, an emulator or a real machine; assemble Z80, 6502, 6809 and 68000 source; and send files to the machines they&#x27;re for.">
+  <link rel="canonical" href="https://limoniter.com/guide/assembling-and-running.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/assembling-and-running.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Assembling and running · Limoniter user guide">
+  <meta property="og:description" content="Run programs with F9 on the built-in ZX Spectrum, an emulator or a real machine; assemble Z80, 6502, 6809 and 68000 source; and send files to the machines they&#x27;re for.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/assembling-and-running.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html" aria-current="page">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Assembling and running</h1>
+        <div class="article-lead">
+<p>Press <kbd>F9</kbd>, and what you're editing runs: a BASIC listing, a tape, a snapshot, a disk image, or assembler source. It can run on the ZX Spectrum built into Limoniter, on an emulator you've installed, or on a real machine. This page shows you how to run things, how to assemble source, and how to send files to a machine.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#running-a-program">Running a program</a></li>
+<li><a href="#the-built-in-spectrum">The built-in Spectrum</a></li>
+<li><a href="#emulators">Emulators</a></li>
+<li><a href="#real-machines">Real machines</a></li>
+<li><a href="#assembling-source">Assembling source</a></li>
+<li><a href="#help-as-you-write">Help as you write</a></li>
+<li><a href="#other-tools-for-machine-code">Other tools for machine code</a></li>
+<li><a href="#sending-to-a-device">Sending to a device</a></li>
+</ul>
+</nav>
+<h2 id="running-a-program">Running a program</h2>
+<ol class="steps"><li>Open the program, or the listing or source, or select a program in a disk image.</li><li>Press <kbd>F9</kbd>, or choose <strong>File › Run on machine</strong>.</li><li>The first time you run a kind of program, Limoniter asks where it should run. Choose a machine. It remembers, so next time F9 runs it there straight away.</li></ol>
+<p>To run it somewhere else, choose from <strong>File › Run on</strong>, which lists every place that could run it, and says why any that can't won't.</p>
+<p>Limoniter works out the machine from the file: a Commodore program by where it loads, a Z80 snapshot by its header, a +3DOS file by which BASIC it holds. Plain text asks which BASIC it's for.</p>
+<p>A run shows in the status bar, with a <strong>Stop</strong> button. <strong>File › Run on › Stop running</strong> stops it too.</p>
+<div class="note"><p>The file that runs is written to a temporary folder of its own. Your file, and any disk image it came from, are never written to.</p></div>
+<h2 id="the-built-in-spectrum">The built-in Spectrum</h2>
+<p>Limoniter has a ZX Spectrum 48K and 128K built in, with nothing to install. It runs tapes and snapshots in a panel beside the file; a BASIC program is loaded and running at once.</p>
+<ul><li>Click its screen to type on it. Ctrl is Symbol Shift, and Esc is Break.</li><li>Its sound, the beeper and the 128K's AY chip, comes out of your speakers. <strong>Mute</strong> turns it off.</li><li><strong>Pause</strong>, <strong>Restart</strong> and <strong>Switch it off</strong> are under the screen.</li><li>Under the screen is the Spectrum's keyboard, with everything printed on and around each key. Click Caps Shift or Symbol Shift and then a key to press them together, or hold a key down with the mouse for games. <strong>Keyboard</strong> hides it.</li></ul>
+<h2 id="emulators">Emulators</h2>
+<p>Emulators are started as programs of their own: ZEsarUX, Fuse and CSpect for the Spectrum and Next, VICE for Commodores, b2 for the BBC Micro, openMSX, XRoar for the Dragon and Color Computer, and Hatari for the Atari ST.</p>
+<p>To set them up:</p>
+<ol class="steps"><li>Choose <strong>File › Run on › Devices and emulators…</strong>.</li><li>Click <strong>Find emulators</strong>. Limoniter adds the ones installed on your computer.</li><li>To add one it didn't find, click <strong>Add</strong>, choose the kind <strong>Emulator</strong>, and point it to the emulator's program. You can give it extra options of your own.</li></ol>
+<p>Only programs listed as emulators, by you or by Find emulators, are ever started.</p>
+<h2 id="real-machines">Real machines</h2>
+<p>The devices you send files to can run programs too. An Ultimate 64 or 1541 Ultimate runs a program as it arrives. A Spectrum Next, a card or a folder receives it, and you start it there.</p>
+<h2 id="assembling-source">Assembling source</h2>
+<p>Limoniter has its own assemblers for the Z80, 6502, 6809 and 68000, with nothing to install. To try one, choose <strong>File › New as</strong> and <strong>Z80 assembler</strong>, <strong>6502 assembler</strong>, <strong>6809 assembler</strong> or <strong>68000 assembler</strong>: the file starts with a few lines to begin with (on the Spectrum and the C64, they turn the border red).</p>
+<p>Press <kbd>F9</kbd>, and the source is assembled and run:</p>
+<ul><li><strong>Z80</strong> for the 48K or 128K goes on a tape with a BASIC loader that loads and calls it, and runs where Spectrum programs run. Source that says <code>DEVICE ZXSPECTRUMNEXT</code> becomes a <code>.nex</code> for the Next. sjasmplus projects build as sjasmplus builds them, including the files they save.</li><li><strong>6502</strong> becomes a C64 program, with a <code>10 SYS</code> line in front if it doesn't start at $0801, and runs where C64 programs run.</li><li><strong>6809</strong> becomes a Color Computer LOADM binary and runs in XRoar.</li><li><strong>68000</strong> without an ORG becomes an Atari ST program and runs in Hatari; with an ORG, the binary is saved beside the source.</li></ul>
+<p>Mistakes are listed in the Output panel, where clicking one goes to its line, and are marked beside their lines.</p>
+<h3 id="saving-instead-of-running">Saving instead of running</h3>
+<ul><li><strong>File › Run on › Assemble and save</strong> saves the program beside its source, without running it: a <code>.tap</code>, <code>.nex</code>, <code>.prg</code> or <code>.bin</code>.</li><li><strong>File › Run on › Assemble and save as binary…</strong> saves just the assembled bytes, from the lowest address to the highest, with no loader or header: for <code>LOAD "" CODE</code>, <code>INCBIN</code> or a ROM. The Output panel says the address to load them at.</li></ul>
+<h3 id="using-your-own-assembler">Using your own assembler</h3>
+<p>To use an assembler you've installed instead (sjasmplus or Pasmo for the Z80, ACME for the 6502, lwasm for the 6809, vasm for the 68000), choose <strong>File › Run on › Assemblers…</strong> and pick it for that processor. The choice is kept, and used by F9 and both kinds of Assemble and save.</p>
+<h2 id="help-as-you-write">Help as you write</h2>
+<p>Z80, 6502, 6809 and 68000 source is assembled quietly a moment after you stop typing, so Limoniter knows your code:</p>
+<ul><li><strong>Completion</strong>: type two letters of a word, or press <kbd>Ctrl+Space</kbd>, for instructions, directives, macros and your labels. <kbd>↑</kbd> and <kbd>↓</kbd> choose, <kbd>Enter</kbd> or <kbd>Tab</kbd> puts it in, and <kbd>Esc</kbd> closes the list.</li><li><strong>Hover</strong> over a label for its value and where it's defined, or over an instruction for its address, bytes and timing.</li><li><strong>Search › Go to definition</strong> (<kbd>F12</kbd>), <strong>Find all uses</strong> (<kbd>Shift+F12</kbd>) and <strong>Rename…</strong> (<kbd>Ctrl+F12</kbd>), which renames a label in every file it's used in.</li><li><strong>The Functions panel</strong> (<strong>View › Panels › Functions</strong>) shows the program's outline: each ORG, every label with its value, and macros.</li><li>The status bar shows the cursor line's address, bytes and T-states.</li></ul>
+<h2 id="other-tools-for-machine-code">Other tools for machine code</h2>
+<ul><li><strong>Tools › Disassemble…</strong> turns machine code back into source for the Z80, 6502 or 6809: from a C64 program, a snapshot, a tape's CODE block, a Color Computer binary or an Atari binary file. The source always assembles back to exactly the bytes it came from.</li><li><strong>Tools › Character and sprite editor</strong> draws the Spectrum's UDGs and fonts and the Next's 16×16 sprites, and puts them in your source as DB lines.</li><li><strong>Tools › Spectrum screen designer</strong> draws a Spectrum screen, cell by cell, and opens and saves <code>.scr</code> files.</li></ul>
+<h2 id="sending-to-a-device">Sending to a device</h2>
+<p>To send a copy of a file to the machine it's for, such as a card for a Gotek or SD2IEC, a Spectrum Next over Wi-Fi, or an Ultimate 64:</p>
+<ol class="steps"><li>Choose <strong>File › Send to device › Manage devices…</strong>.</li><li>Click <strong>Add</strong>, give the device a name, and choose its <strong>Kind</strong>: <strong>Card or stick</strong> (found by its volume label, whatever drive it's on today), <strong>Folder</strong>, <strong>SFTP server</strong>, <strong>FTP server</strong>, <strong>ZX Spectrum Next (NextSync)</strong>, <strong>Ultimate 64 / 1541 Ultimate</strong>, or <strong>Command line</strong> for a program of your own.</li><li>Fill in the details it asks for, and choose under <strong>Write text as</strong> whether text goes as it's saved or in the machine's own character set.</li><li>Click <strong>Done</strong>.</li></ol>
+<figure class="guide-shot"><button class="shot" data-full="../images/devices.webp" aria-label="Enlarge: The Devices box, setting up a Spectrum Next"><img src="../images/devices-close.webp" alt="The Devices box, setting up a Spectrum Next" loading="lazy" width="1280" height="720"></button><figcaption>Devices are set up once, by name, and then a file is sent with one command.</figcaption></figure>
+<p>Then choose the device under <strong>File › Send to device</strong>. The file you're editing goes on saving where it always does. After the first time, <kbd>Ctrl+Alt+S</kbd> sends the file in front again, to the same place under the same name.</p>
+<p>On a card, the copy is written under a temporary name and renamed once it's all there, so you can pull the card out straight away. If the copy on the device has changed since you last sent it, you're asked before it's replaced.</p>
+<div class="note"><p>For a Spectrum Next, Limoniter makes the file ready and waits. On the Next, type <code>.sync</code> and this computer's address the first time, and just <code>.sync</code> after that. The Next needs NextSync's <code>.sync</code> command.</p></div>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="basic.html"><span>Back</span>BASIC listings</a>
+<a class="pager-next" href="debugging.html"><span>Next</span>Debugging</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

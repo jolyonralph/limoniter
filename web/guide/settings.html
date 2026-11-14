@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Limoniter user guide</title>
+  <meta name="description" content="Change how Limoniter looks and behaves: the Settings window, themes for the window and for documents, autosave and backups, new files, hex mode, and file types on Windows.">
+  <link rel="canonical" href="https://limoniter.com/guide/settings.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/settings.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Settings · Limoniter user guide">
+  <meta property="og:description" content="Change how Limoniter looks and behaves: the Settings window, themes for the window and for documents, autosave and backups, new files, hex mode, and file types on Windows.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/settings.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html" aria-current="page">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Settings</h1>
+        <div class="article-lead">
+<p>Limoniter works without any setting up, but most of what it does can be changed to suit you. This page shows you where.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-settings-window">The Settings window</a></li>
+<li><a href="#themes">Themes</a></li>
+<li><a href="#saving-and-backups">Saving and backups</a></li>
+<li><a href="#new-files">New files</a></li>
+<li><a href="#language-servers">Language servers</a></li>
+<li><a href="#file-types-on-windows">File types on Windows</a></li>
+<li><a href="#other-things-you-can-change">Other things you can change</a></li>
+</ul>
+</nav>
+<h2 id="the-settings-window">The Settings window</h2>
+<p>Choose <strong>Tools › Settings…</strong>. Settings are in six sections down the left:</p>
+<ul><li><strong>Appearance</strong>: the colour theme, the editor's font and text size, and what's shown in the editor and the window (line numbers, ruler, document map, the cursor's line and column, rainbow brackets, file tabs and the status bar).</li><li><strong>Editing</strong>: tab size, whether the Tab key puts in spaces, word wrap, keeping the indent on new lines, what Home does, ignoring the Insert key, copying the whole line when nothing is selected, <strong>Copy before paste</strong>, how Spectrum BASIC listings write graphics, the assembler for each processor, language servers, and whether the undo history is kept after a file is closed.</li><li><strong>Hex mode</strong>: whether files with zero bytes in them open in hex, and how many bytes go on a row.</li><li><strong>Searching</strong>: whether Find starts with the selected text, and whether Find in Files starts in this file's folder.</li><li><strong>Files</strong>: checking for changes by other programs, autosave, backups, opening CSV files as tables, a window for each file, the format and kinds of new files, recently opened files, how Markdown opens, and printing.</li><li><strong>File types</strong>: offering Limoniter to Windows as the editor for the types you choose.</li></ul>
+<p>To find a setting, type a word in the <strong>Find a setting</strong> box above the sections.</p>
+<p>Many settings are also in the menus, such as <strong>View › Show</strong> for what's shown in the editor, and change there and in Settings alike.</p>
+<h2 id="themes">Themes</h2>
+<p>Limoniter has two kinds of theme: a <strong>window theme</strong> for the menus, panels and boxes, and a <strong>document theme</strong> for the text and everything drawn with it.</p>
+<figure class="guide-shot"><button class="shot" data-full="../images/themes.webp" aria-label="Enlarge: Four documents, each in a different document theme"><img src="../images/themes-close.webp" alt="Four documents, each in a different document theme" loading="lazy" width="1280" height="720"></button><figcaption>Each document can have its own theme, chosen by its ending, language or character set.</figcaption></figure>
+<ul><li><strong>View › Theme › Window</strong> chooses the window theme.</li><li><strong>View › Theme › Documents</strong> chooses the usual document theme.</li><li><strong>View › Theme › This document only</strong> gives the file in front a theme of its own.</li></ul>
+<h3 id="choosing-themes-by-rules">Choosing themes by rules</h3>
+<p>Each document's theme can be chosen by rules: by its file ending, its language, its character set, or whether it's in hex or table view. The first rule that fits wins. Out of the box, Commodore, Atari, Spectrum, BBC, teletext and Amiga text open in their machine's colours.</p>
+<p>To change the rules, or make your own theme:</p>
+<ol class="steps"><li>Choose <strong>View › Theme › Themes and rules…</strong>.</li><li>Copy a theme and change any colour, or make a whole theme from three colours. You see it on a sample as you go.</li><li>Add or change the rules for which documents get which theme.</li></ol>
+<p>Themes can be saved to a file and opened elsewhere, to share them.</p>
+<figure class="guide-shot"><button class="shot" data-full="../images/themes-editor.webp" aria-label="Enlarge: The Themes box with the Commodore 64 theme and its sample"><img src="../images/themes-editor-close.webp" alt="The Themes box with the Commodore 64 theme and its sample" loading="lazy" width="1280" height="720"></button><figcaption>Copy any theme and change it colour by colour, or make one from three colours.</figcaption></figure>
+<h2 id="saving-and-backups">Saving and backups</h2>
+<p>Two settings under <strong>Files</strong> are off until you turn them on:</p>
+<ul><li><strong>Save files by themselves</strong> (autosave) saves a changed file once it has had unsaved changes for the time you choose, from 15 seconds to 10 minutes. It leaves a file for you to save when saving would need a question answered: one never saved before, read-only, on a server, changed by another program, too large, or holding characters its character set can't. The status bar says when it's leaving one, and why.</li><li><strong>Keep a backup when saving</strong> keeps the file as it was beside it, with <code>.bak</code> added to its name, the first time it's saved in a session.</li></ul>
+<p>Whatever you choose, unsaved edits are copied to disk as you type, and offered back after a crash.</p>
+<h2 id="new-files">New files</h2>
+<ul><li><strong>Format for new files</strong> sets the character set, line endings and display new files start with, from the kinds-of-computer presets. It's also under <strong>Format › Encoding › Kind of computer for new files…</strong>.</li><li><strong>Kinds of new file (File, New as)</strong> changes the list under <strong>File › New as</strong>: add your own kinds, change them, remove them and put them in order. Each is a file ending, a character set, line endings, colouring, and text to start with.</li></ul>
+<h2 id="language-servers">Language servers</h2>
+<p>For C, C++, Rust, Python, JavaScript, TypeScript, Go, Java, Lua, shell scripts and others, Limoniter can use a language server you've installed (rust-analyzer, clangd, pylsp and the rest) for completion, hover, Go to definition, Find all uses, Rename and problems marked beside their lines. They're off until you tick <strong>Use them</strong> beside <strong>Language servers</strong>, under Editing. <strong>Which…</strong> shows which servers are installed, and lets you change the command for each language.</p>
+<h2 id="file-types-on-windows">File types on Windows</h2>
+<p>To make Limoniter the editor for some kinds of file on Windows:</p>
+<ol class="steps"><li>Open <strong>Tools › Settings…</strong> and choose <strong>File types</strong>.</li><li>Tick the types you'd like Limoniter to open.</li><li>Windows only lets you change a default yourself, so a Windows page opens: choose Limoniter for each type there.</li></ol>
+<p>This is only on Windows so far.</p>
+<h2 id="other-things-you-can-change">Other things you can change</h2>
+<ul><li><strong>View › Font…</strong> chooses the editor's font, and <strong>View › Larger text</strong> and <strong>Smaller text</strong> its size.</li><li><strong>View › Always on top</strong> keeps the window above others.</li><li><strong>Tools › Add-ons › Manage add-ons…</strong> turns add-ons on and off. A new add-on is off until you turn it on.</li><li><strong>Tools › Run › Run a command…</strong> (<kbd>F5</kbd>) runs a command in the file's folder, and <strong>Tools › Tasks</strong> runs a project's build and test commands.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="remote-files.html"><span>Back</span>Remote files</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

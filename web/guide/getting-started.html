@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Getting started · Limoniter user guide</title>
+  <meta name="description" content="Install Limoniter on Windows, macOS or Linux, open your first files, find your way around the window, and find any command with F1.">
+  <link rel="canonical" href="https://limoniter.com/guide/getting-started.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/getting-started.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Getting started · Limoniter user guide">
+  <meta property="og:description" content="Install Limoniter on Windows, macOS or Linux, open your first files, find your way around the window, and find any command with F1.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/getting-started.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html" aria-current="page">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Getting started</h1>
+        <div class="article-lead">
+<p>This page takes you from downloading Limoniter to finding your way around it: opening files, working with tabs, and finding any command when you don't know which menu it's in.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#installing-limoniter">Installing Limoniter</a></li>
+<li><a href="#opening-files">Opening files</a></li>
+<li><a href="#the-window">The window</a></li>
+<li><a href="#finding-a-command">Finding a command</a></li>
+<li><a href="#working-with-tabs">Working with tabs</a></li>
+<li><a href="#if-something-goes-wrong">If something goes wrong</a></li>
+</ul>
+</nav>
+<h2 id="installing-limoniter">Installing Limoniter</h2>
+<h3 id="windows">Windows</h3>
+<ol class="steps"><li>Download the installer from the <a href="https://github.com/jolyonralph/limoniter/releases/latest">latest release</a> on GitHub.</li><li>Run it. The installer isn't signed yet, so Windows SmartScreen may ask whether to run it the first time: choose <strong>More info</strong>, then <strong>Run anyway</strong>.</li><li>Start Limoniter from the Start menu.</li></ol>
+<p>Windows is Limoniter's main platform, and everything works there, including Windows' own spell checker, printing through the Windows print dialog, and offering Limoniter as the editor for chosen file types (see <a href="settings.html">Settings</a>).</p>
+<h3 id="macos">macOS</h3>
+<ol class="steps"><li>Download the Mac app from the <a href="https://github.com/jolyonralph/limoniter/releases/latest">latest release</a>. It's for Apple Silicon Macs (M1 and later).</li><li>Move it to your Applications folder and open it.</li><li>The app isn't signed by Apple, so the first time macOS won't open it straight away. Go to <strong>System Settings › Privacy &amp; Security</strong> and choose <strong>Open Anyway</strong>. On macOS 14 and earlier, Control-click the app and choose <strong>Open</strong> instead.</li></ol>
+<p>On a Mac, shortcuts use Cmd where this guide says Ctrl, Option and an arrow moves by a word, and Cmd+[ and Cmd+] go back and forward. Files open from Finder by double-clicking or with <strong>Open With</strong>.</p>
+<h3 id="linux">Linux</h3>
+<p>There's no ready-made Linux download yet, so you build Limoniter yourself. It builds, runs and passes the same tests as on Windows.</p>
+<ol class="steps"><li>Install Rust, a C compiler, <code>perl</code>, <code>make</code>, and ALSA's headers (<code>libasound2-dev</code> on Debian and Ubuntu, <code>alsa-lib-devel</code> on Fedora), which the built-in Spectrum's sound needs.</li><li>Build it:</li></ol>
+<div class="code-block"><pre><code>git clone https://github.com/jolyonralph/limoniter
+cd limoniter
+cargo build --release</code></pre></div>
+<ol class="steps" start="3"><li>Run <code>target/release/limoniter</code>. To add it to your desktop's menus, use <code>packaging/linux/limoniter.desktop</code> from the source.</li></ol>
+<p>On Linux, spell checking uses hunspell or aspell if either is installed, printing goes to the default printer through CUPS, and kept passwords go in the system keyring.</p>
+<h2 id="opening-files">Opening files</h2>
+<p>To open a file, do any of these:</p>
+<ul><li>Choose <strong>File › Open…</strong> (<kbd>Ctrl+O</kbd>) and pick it.</li><li>Drag it from your file manager onto the Limoniter window.</li><li>Choose it from <strong>File › Open recent</strong>.</li><li>On Windows, open it from Explorer: it joins the Limoniter window that's already open as a new tab.</li></ul>
+<p>To start a new file, press <kbd>Ctrl+N</kbd>. <strong>File › New as</strong> starts a file of a particular kind, such as Spectrum BASIC, Z80 assembler, Markdown or Commodore text, with the right character set, line endings and colouring already set.</p>
+<p>Limoniter opens almost anything. Text opens as text, in the character set it's in. A file that holds zero bytes opens in hex. A disk image, tape or archive opens in the disk browser, as a folder you can look through (see <a href="disks-and-tapes.html">The disk and tape browser</a>). A file of any size opens quickly: files of 64 MB and more are read from disk a part at a time, so even a 10 GB file opens straight away.</p>
+<div class="note"><p>Opening and saving give back the same file, byte for byte. Saving never changes bytes you didn't edit, so it's safe to open an old file just to look at it.</p></div>
+<p>To keep a file from being changed by accident, tick <strong>Edit › Read-only</strong>.</p>
+<h2 id="the-window">The window</h2>
+<figure class="guide-shot"><button class="shot" data-full="../images/command-box.webp" aria-label="Enlarge: The command box, finding a command by what it does"><img src="../images/command-box-close.webp" alt="The command box, finding a command by what it does" loading="lazy" width="1280" height="720"></button><figcaption>The command box: type what you want to do, and the commands that do it are listed.</figcaption></figure>
+<p>From top to bottom, the window has:</p>
+<ul><li><strong>The menu bar</strong>: File, Edit, Search, View, Format, Tools, Window and Help. Every command is in a menu, arranged by what it's for. On the right is the <strong>Find a command…</strong> box.</li><li><strong>The file tabs</strong>, one for each open file.</li><li><strong>The text</strong> of the file in front, with line numbers and the document map down the right.</li><li><strong>The status bar</strong>, with the cursor's line and column, the file's character set and its line endings. Click the character set or line endings to change them.</li></ul>
+<p>Panels open around the text under <strong>View › Panels</strong>: files on this computer, the open files, the functions in this file, bookmarks, the edit history, the character table and more. <strong>View › Panels › Close every panel</strong> puts them all away again. <strong>View › Output</strong> shows the Output panel, where commands, scripts and the assembler write what they have to say, and <strong>View › Terminal</strong> (<kbd>Ctrl+`</kbd>) opens your own shell in a panel under the text.</p>
+<p><strong>View › Preview</strong> shows a preview beside the text, or instead of it: Markdown, ANSI art, teletext pages, BASIC programs listed as the machine would list them, and pictures in older machines' formats.</p>
+<p>To make the text larger or smaller, use <strong>View › Larger text</strong> and <strong>View › Smaller text</strong>. <strong>View › Full screen</strong> fills the screen with Limoniter.</p>
+<h2 id="finding-a-command">Finding a command</h2>
+<p>You don't need to know which menu a command is in.</p>
+<ol class="steps"><li>Press <kbd>F1</kbd>, or click <strong>Find a command…</strong> at the right of the menu bar.</li><li>Type what you want to do, such as "sort", "wrap" or "hex".</li><li>Choose a command with <kbd>↑</kbd> and <kbd>↓</kbd>, and press <kbd>Enter</kbd> to do it. <kbd>Esc</kbd> closes the box.</li></ol>
+<p>The box finds commands by what they do as well as by their names, and it lists the commands of any add-ons you've turned on too.</p>
+<h2 id="working-with-tabs">Working with tabs</h2>
+<p>Each open file has a tab. Click a tab to bring its file to the front, and press <kbd>Ctrl+W</kbd> to close it.</p>
+<ul><li><kbd>Ctrl+Tab</kbd> goes to the file you used last. Keep Ctrl held and press Tab again to go further back, and let go to stay there. <kbd>Ctrl+Shift+Tab</kbd> goes the other way.</li><li><strong>Window › Previous tab</strong> and <strong>Window › Next tab</strong> go along the tabs in order.</li><li><strong>Window › List of open files</strong> shows them all in a panel.</li><li><strong>View › Split</strong> shows a file in two panes, one above the other or side by side, or opens another tab on the same file.</li><li><strong>File › New window</strong> opens a second Limoniter window.</li></ul>
+<p><kbd>Alt+Left</kbd> and <kbd>Alt+Right</kbd> go back and forward through the places the cursor has been, across files, as a web browser goes back and forward through pages.</p>
+<h2 id="if-something-goes-wrong">If something goes wrong</h2>
+<p>Limoniter copies your unsaved edits to disk as you type. If it stops unexpectedly, or the power goes, it offers them back the next time it starts. If you chose to decide later, <strong>File › Recover unsaved edits…</strong> offers them again.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="index.html"><span>Back</span>User guide</a>
+<a class="pager-next" href="editing.html"><span>Next</span>Editing text and hex</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

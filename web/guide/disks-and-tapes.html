@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The disk and tape browser · Limoniter user guide</title>
+  <meta name="description" content="Open disk images, tapes and archives from older computers as folders, take files out of them, put files on them, and make new blank images.">
+  <link rel="canonical" href="https://limoniter.com/guide/disks-and-tapes.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/disks-and-tapes.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="The disk and tape browser · Limoniter user guide">
+  <meta property="og:description" content="Open disk images, tapes and archives from older computers as folders, take files out of them, put files on them, and make new blank images.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/disks-and-tapes.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html" aria-current="page">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>The disk and tape browser</h1>
+        <div class="article-lead">
+<p>Limoniter opens the disk images, tapes and archives of older computers as if they were folders: Commodore D64s, Spectrum TAP files, Amiga ADFs, Apple II disks, CP/M disks, Macintosh HFS volumes, ZIP and StuffIt archives, and many more. This page shows you how to look inside them, take files out, and change the images Limoniter can write.</p>
+<p>The <a href="../features.html#disk-tape-and-archive-browser">full feature list</a> has every format, machine by machine.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#opening-an-image">Opening an image</a></li>
+<li><a href="#taking-a-file-out">Taking a file out</a></li>
+<li><a href="#changing-an-image">Changing an image</a></li>
+<li><a href="#making-a-new-image">Making a new image</a></li>
+<li><a href="#images-from-disk-archivists">Images from disk archivists</a></li>
+</ul>
+</nav>
+<h2 id="opening-an-image">Opening an image</h2>
+<p>Open the image as you'd open any file, with <strong>File › Open…</strong> (<kbd>Ctrl+O</kbd>) or by dropping it on the window. It opens as a browser tab, listing the files on it.</p>
+<figure class="guide-shot"><button class="shot" data-full="../images/amiga-disk.webp" aria-label="Enlarge: Fred Fish disk 801 in the disk browser"><img src="../images/amiga-disk-close.webp" alt="Fred Fish disk 801 in the disk browser" loading="lazy" width="1280" height="720"></button><figcaption>An Amiga floppy from the Fred Fish collection, opened as a folder.</figcaption></figure>
+<ul><li>To open a file, folder or an image inside the image, double-click it or press <kbd>Enter</kbd>.</li><li>To go up a folder, click <strong>↑ Up</strong> or press <kbd>Backspace</kbd>.</li><li>To see everything the image says about itself, and about the chosen file, click <strong>ℹ Info</strong>. It shows in the File properties panel.</li><li>To look at the image's own bytes, click <strong>Show the image in hex</strong>.</li></ul>
+<p>A file opens in a tab of its own, read-only, so everything works on it: previews, BASIC listings, pictures and character sets. Commodore file names are shown in PETSCII, and Spectrum BASIC from tapes, disks and snapshots comes out as a +3DOS file.</p>
+<div class="note"><p>An image is never changed just by opening it. Archives, and the kinds of image Limoniter doesn't write, are only ever read. A damaged or unexpected image gives an error, never a wrong file.</p></div>
+<h2 id="taking-a-file-out">Taking a file out</h2>
+<p>To copy a file off an image onto your computer:</p>
+<ol class="steps"><li>Select the file in the browser.</li><li>Click <strong>Save a copy…</strong>.</li><li>Choose where to put it. It's written out exactly as it is on the image.</li></ol>
+<p>A picture in an older machine's format can be saved as a PNG instead, with <strong>Save as PNG…</strong>, and a WordStar or HP MemoMaker document can be opened as plain text with <strong>Open as text</strong>.</p>
+<p>To run a program straight from an image, select it and press <kbd>F9</kbd>. See <a href="assembling-and-running.html">Assembling and running</a>.</p>
+<h2 id="changing-an-image">Changing an image</h2>
+<p>Some kinds of image can be changed: files added, deleted and renamed, folders made, and a tape's files put in a different order.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Image</th>
+<th scope="col">What you can put on it</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">ZX Spectrum TAP and TZX tapes</th>
+<td>Programs (a listing typed as text is tokenised), code at an address, screens, headerless blocks, or every block of another tape</td>
+</tr>
+<tr>
+<th scope="row">Spectrum +3 and Amstrad CPC DSK disks</th>
+<td>Files, with a +3DOS header put on a program, code or screen, or kept as they are</td>
+</tr>
+<tr>
+<th scope="row">Commodore D64, D71 and D81</th>
+<td>PRG, SEQ and USR files; PC64 <code>.P00</code> files are unwrapped</td>
+</tr>
+<tr>
+<th scope="row">PC and Atari ST FAT12, FAT16 and FAT32</th>
+<td>Files and folders, with long names</td>
+</tr>
+<tr>
+<th scope="row">Amiga ADF (OFS and FFS, DD and HD)</th>
+<td>Files and folders</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit ATR with Atari DOS 2.0 and 2.5</th>
+<td>Files, on single, enhanced and double density disks</td>
+</tr>
+<tr>
+<th scope="row">Color Computer RS-DOS (JVC)</th>
+<td>BASIC, data, machine code at an address, and text</td>
+</tr>
+</tbody></table></div>
+<p>Other images, such as MyDOS and SpartaDOS disks, are only read, and say why they're read only.</p>
+<h3 id="adding-files">Adding files</h3>
+<ol class="steps"><li>Click <strong>➕ Add files…</strong> and choose the files, or drop them from your file manager onto the browser tab.</li><li>Where it matters, the Add panel says what each file will go on as (a program, code at an address, a SEQ file…). Change it if you need to, and check the name it will have on the image.</li><li>If a file of that name is already there, it's kept unless you tick <strong>Replace it</strong>.</li><li>Click <strong>Add</strong>.</li></ol>
+<h3 id="renaming-deleting-and-making-folders">Renaming, deleting and making folders</h3>
+<ul><li>To rename a file, select it and click <strong>Rename</strong> (or press <kbd>F2</kbd>).</li><li>To take a file off the image, select it and click <strong>Delete</strong> (or press <kbd>Delete</kbd>).</li><li>On an image with folders, click <strong>New folder</strong>.</li><li>On a tape, the <strong>▲</strong> and <strong>▼</strong> buttons move the selected file earlier or later.</li></ul>
+<h3 id="undoing-a-change">Undoing a change</h3>
+<p>Each change is saved over the image straight away. The image is written whole and read back before it replaces the old one, so a change never leaves it half-written. If you change your mind, click <strong>↶ Undo</strong>: it puts the image back as it was before the change, for each of the last 20.</p>
+<div class="note"><p>Keep a copy of any image that matters to you before changing it, as you would with any other file.</p></div>
+<h2 id="making-a-new-image">Making a new image</h2>
+<p>To make a blank disk or tape, formatted as its machine would format it:</p>
+<ol class="steps"><li>Choose <strong>File › New disk or tape image…</strong>.</li><li>Choose the kind of image, and give the disk a name if you like.</li><li>Click <strong>Save as…</strong> and choose where to keep it.</li></ol>
+<p>It opens in the browser, ready for files to be added.</p>
+<h2 id="images-from-disk-archivists">Images from disk archivists</h2>
+<p>Limoniter also reads the images people make when they save old floppies: ImageDisk, Teledisk, DMK, JV3 and JV1 images, and flux images from a Greaseweazle, SuperCard Pro or KryoFlux. It decodes them, opens the file system inside, and lists any sectors that never read cleanly. A decoded flux image can be saved as a plain disk image.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="character-sets.html"><span>Back</span>Character sets and old machines&#x27; text</a>
+<a class="pager-next" href="basic.html"><span>Next</span>BASIC listings</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>
