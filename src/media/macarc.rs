@@ -21,6 +21,7 @@ pub enum Kind {
     BinHex,
     StuffIt,
     StuffIt5,
+    CompactPro,
 }
 
 fn be(bytes: &[u8]) -> u64 {
@@ -38,8 +39,8 @@ pub(super) fn crc16_arc(start: u16, bytes: &[u8]) -> u16 {
 }
 
 /// Which of these formats bytes are in, if any. A StuffIt archive's signature and a MacBinary II header's CRC are
-/// believed whatever the name; MacBinary I has only zeros and sizes to go by, so it needs a `.bin` or no ending,
-/// and BinHex, being text, needs `.hqx` or no ending.
+/// believed whatever the name; MacBinary I has only zeros and sizes to go by, so it needs a `.bin` or no ending (or
+/// `.cpt`, as Compact Pro archives were often kept in it), and BinHex, being text, needs `.hqx` or no ending.
 pub fn kind_of(head: &[u8], len: u64, ending: &str) -> Option<Kind> {
     if super::stuffit::looks_like_stuffit(head) {
         return Some(Kind::StuffIt);
@@ -47,13 +48,18 @@ pub fn kind_of(head: &[u8], len: u64, ending: &str) -> Option<Kind> {
     if super::stuffit::looks_like_stuffit5(head) {
         return Some(Kind::StuffIt5);
     }
-    let plain = matches!(ending, "" | "bin" | "macbin");
+    // Compact Pro's signature is only a byte 1 and its directory's offset; the directory, at the end, is checked
+    // when it's opened.
+    if ending == "cpt" && head.len() >= 8 && head[0] == 1 && (8..len).contains(&be(&head[4..8])) {
+        return Some(Kind::CompactPro);
+    }
+    let plain = matches!(ending, "" | "bin" | "macbin" | "cpt");
     if let Some(version) = macbinary_version(head, len)
         && (version > 1 || plain)
     {
         return Some(Kind::MacBinary(version));
     }
-    if matches!(ending, "" | "hqx" | "hcx") && binhex_start(head).is_some_and(|at| binhex_header_holds(&head[at..])) {
+    if matches!(ending, "" | "hqx" | "hcx" | "binhex") && binhex_start(head).is_some_and(|at| binhex_header_holds(&head[at..])) {
         return Some(Kind::BinHex);
     }
     None
@@ -66,6 +72,7 @@ pub fn open(source: Arc<dyn Source>, kind: Kind) -> Result<Box<dyn Volume>, Stri
         Kind::BinHex => Ok(Box::new(Wrapped::binhex(&*source)?)),
         Kind::StuffIt => Ok(Box::new(super::stuffit::StuffIt::open(source)?)),
         Kind::StuffIt5 => Ok(Box::new(super::stuffit::StuffIt::open5(source)?)),
+        Kind::CompactPro => Ok(Box::new(super::stuffit::compactpro::CompactPro::open(source)?)),
     }
 }
 

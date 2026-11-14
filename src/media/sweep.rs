@@ -38,6 +38,19 @@ fn save(volume: &dyn Volume, dir: Option<&Entry>, prefix: &str, out: &Path, list
                     target = out.join(format!("{}#{copy}", path.replace('/', "_")));
                 }
                 let _ = std::fs::write(target, &bytes);
+                // An archive or image inside is read through as well, its files beside it under "name!".
+                if super::is_nested_image(&entry.open_name, &bytes) {
+                    match open(Arc::new(bytes.clone()), &entry.open_name) {
+                        Ok(inner) => {
+                            listing.push_str(&format!("  {path}!: {}\n", inner.describe()));
+                            for note in inner.notes() {
+                                listing.push_str(&format!("  NOTE {note}\n"));
+                            }
+                            save(&*inner, None, &format!("{path}!/"), out, listing, depth + 1);
+                        }
+                        Err(problem) => listing.push_str(&format!("  INNER {path}: {problem}\n")),
+                    }
+                }
             }
             Err(problem) => listing.push_str(&format!("  READ {path}: {problem}\n")),
         }
