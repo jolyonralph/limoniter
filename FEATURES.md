@@ -162,11 +162,11 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | ZX Spectrum Next | `.nex` programs (V1.0 to V1.3): the loading screen (shown as the file's picture, with its palette), copper code, each 16K bank and anything appended, with every header setting in Info; F9 runs the whole program. NextZXOS SD card images (FAT16 or FAT32 partitions) can have files added, so a dot command goes in `/dot` |
 | Amstrad CPC / PCW | DSK disks (standard and extended), AMSDOS and CP/M |
 | Acorn | BBC/Electron DFS (`.ssd`, `.dsd`, Watford 62-file), ADFS S/M/L (`.ads`, `.adm`, `.adl`), RISC OS ADFS D/E/F (`.adf`), UEF tapes |
-| Macintosh | MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images; both forks and type/creator shown |
+| Macintosh | MFS and HFS floppies, hard disks and CDs, Apple partition maps, Disk Copy 4.2 images, MacBinary I, II and III (`.bin`, `.macbin`, or no ending) and BinHex 4.0 (`.hqx`) files with their CRCs checked; both forks and type/creator shown |
 | CP/M | 82 machine formats (Kaypro, Osborne, Epson QX-10, Apple II CP/M, 8-inch IBM and more), worked out automatically from the directory |
 | HP | LIF disks and tapes (Series 80, 9000 Series 200/300, Integral PC, HP-41/71B/75); LIF ASCII files offered as text |
 | Floppy archivists | ImageDisk (`.imd`), Teledisk (`.td0`), DMK, JV3 and JV1, unread sectors listed, the file system inside opened (FAT, CP/M, TRS-80 and more) |
-| Archives | ZIP (stored and deflated), LHA/LZH (all common methods, CRC checked) |
+| Archives | ZIP (stored and deflated), LHA/LZH (all common methods, CRC checked), StuffIt (`.sit`, classic and StuffIt 5) with folders: stored, RLE, LZW, Huffman, LZAH, MW, LZ+Huffman and Arsenic, every fork CRC checked; `.sit.hqx` and `.sit.bin` open straight through to the archive |
 
 - Commodore file names are shown in PETSCII; Spectrum BASIC from tapes, disks and snapshots comes out as +3DOS files.
 - A damaged or unexpected image gives an error rather than a wrong file.

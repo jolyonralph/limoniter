@@ -16,14 +16,14 @@ use std::sync::Arc;
 pub const MAC_TEXT_PRESET: &str = "classic-mac";
 
 /// Entries with this in `extra` are a file's resource fork; without, its data fork.
-const RESOURCE_FORK: u64 = 1;
+pub(super) const RESOURCE_FORK: u64 = 1;
 
 fn be(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0, |n, b| (n << 8) | u64::from(*b))
 }
 
 /// Mac Roman text, as Mac names and labels are written.
-fn mac_roman(bytes: &[u8]) -> String {
+pub(super) fn mac_roman(bytes: &[u8]) -> String {
     let set = charset::known("mac-roman");
     bytes.iter().map(|b| set.entry(0, *b).and_then(|e| e.unicode).filter(|c| !c.is_control()).unwrap_or('?')).collect()
 }
@@ -35,7 +35,7 @@ fn pascal(bytes: &[u8], most: usize) -> String {
 }
 
 /// A Mac date: seconds since the start of 1904, in the Mac's local time. Nothing for zero, which means none.
-fn mac_date(seconds: u64) -> String {
+pub(super) fn mac_date(seconds: u64) -> String {
     if seconds == 0 {
         return String::new();
     }
@@ -81,7 +81,7 @@ fn file_kind(kind: &[u8]) -> (&'static str, Option<&'static str>) {
         b"PNGf" => ("PNG picture", Some("png")),
         b"BMPf" | b"BMP " => ("BMP picture", Some("bmp")),
         b"ZIP " => ("Zip archive", Some("zip")),
-        b"SIT!" | b"SITD" | b"SIT5" => ("StuffIt archive", None),
+        b"SIT!" | b"SITD" | b"SIT5" => ("StuffIt archive", Some("sit")),
         _ => ("Document", None),
     }
 }
@@ -132,25 +132,32 @@ pub fn unwrap_disk_copy(source: Arc<dyn Source>) -> Result<Unwrapped, String> {
 
 // ---------- MFS ----------
 
-struct MacFile {
-    name: String,
-    kind: [u8; 4],
-    creator: [u8; 4],
-    flags: u16,
-    data: Fork,
-    resource: Fork,
-    created: u64,
-    modified: u64,
-    parent: u32,
-    id: u32,
+pub(super) struct MacFile {
+    pub(super) name: String,
+    pub(super) kind: [u8; 4],
+    pub(super) creator: [u8; 4],
+    pub(super) flags: u16,
+    pub(super) data: Fork,
+    pub(super) resource: Fork,
+    pub(super) created: u64,
+    pub(super) modified: u64,
+    pub(super) parent: u32,
+    pub(super) id: u32,
 }
 
 #[derive(Clone, Debug, Default)]
-struct Fork {
-    length: u64,
+pub(super) struct Fork {
+    pub(super) length: u64,
     /// MFS: the first allocation block. HFS: the first three extents, as (first block, count).
     start: u16,
     extents: [(u16, u16); 3],
+}
+
+impl Fork {
+    /// A fork known only by its length, as an archive's entry gives one.
+    pub(super) fn of_length(length: u64) -> Self {
+        Self { length, ..Default::default() }
+    }
 }
 
 /// Which a file system is at an image's start, by the signature of its volume information at byte 1024.
@@ -267,7 +274,7 @@ impl Mfs {
 }
 
 /// A file's entries: its data fork, and its resource fork beside it if it has one.
-fn file_entries(index: usize, file: &MacFile) -> Vec<Entry> {
+pub(super) fn file_entries(index: usize, file: &MacFile) -> Vec<Entry> {
     let name = tidy_name(&file.name);
     let (kind, ending) = file_kind(&file.kind);
     let mut data = Entry::file(name.clone(), file.data.length, index as u64);
