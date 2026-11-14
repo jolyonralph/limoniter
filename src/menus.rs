@@ -485,6 +485,7 @@ const TOOLS: &[Entry] = &[
     Item("Character and sprite editor", Command::PixelEditor),
     Item("Spectrum screen designer", Command::ScreenDesigner),
     Item("Amiga hardware and copper lists", Command::AmigaHardware),
+    Item("Amiga bitplane converter", Command::AmigaBitplanes),
     Sub(
         "Tasks",
         &[

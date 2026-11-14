@@ -2226,6 +2226,7 @@ dependencies = [
  "windows",
  "winresource",
  "xdms",
+ "zune-jpeg",
 ]
 
 [[package]]
