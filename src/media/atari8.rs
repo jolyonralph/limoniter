@@ -122,12 +122,13 @@ impl Atari8 {
             return Ok(atari);
         }
         let vtoc = disk.sector(360).map_err(|_| "This Atari disk is too small to have Atari DOS's directory.".to_string())?;
-        if !matches!(vtoc[0], 0..=3) {
+        // MyDOS's VTOC on a large disk says in its first byte how many 256-byte pieces its bitmap takes, plus 2.
+        if !matches!(vtoc[0], 0..=3) && !(sectors > 1040 && u64::from(vtoc[0]) == 2 + (sectors / 8 + 266) / 256) {
             return Err("This Atari disk has no Atari DOS VTOC: it may boot a program of its own. It can still be shown in hex.".into());
         }
         let mydos = sectors > 1040 || vtoc[0] == 3;
         let what = format!("Atari 8-bit {} disk ({size})", if mydos { "MyDOS" } else { "Atari DOS 2" });
-        let wide_links = sectors > 1040;
+        let wide_links = sectors > 1040 || (sectors > 1023 && vtoc[0] >= 3);
         let mut atari = Self { disk, system: System::Dos2, files: Vec::new(), what, notes: Vec::new(), wide_links };
         atari.dos2_directory(361, None, 0)?;
         // A file's first sector carries its file number. When most don't, what's in the directory's place isn't one:
@@ -144,6 +145,9 @@ impl Atari8 {
         // a blank DOS's VTOC, its own code in the sectors that says are free.)
         let formatted = vtoc[0] == 2 && matches!(le16(&vtoc, 1), 707 | 1010) && le16(&vtoc, 3) == 707.min(le16(&vtoc, 1)) && (0..720).all(|n| (vtoc[10 + n / 8] & (0x80 >> (n % 8)) != 0) == (n >= 4 && !(360..=368).contains(&n)))
             && (4..360).chain(369..720).all(|n| atari.disk.sector(n).is_ok_and(|data| data.iter().all(|&b| b == 0)));
+        // A larger disk MyDOS has freshly formatted: every sector its VTOC counts free, and nothing in them.
+        let formatted = formatted
+            || (mydos && le16(&vtoc, 1) > 0 && le16(&vtoc, 1) == le16(&vtoc, 3) && (4..340).chain(369..=sectors.min(4096)).all(|n| atari.disk.sector(n).is_ok_and(|data| data.iter().all(|&b| b == 0))));
         if (atari.files.is_empty() && !formatted && !atari.disk.sector(361)?.iter().any(|&b| b != 0)) || wrong * 2 > checked.len() {
             return Err("This Atari disk has no Atari DOS directory: it may boot a program of its own. It can still be shown in hex.".into());
         }
@@ -165,7 +169,7 @@ impl Atari8 {
                 }
                 let this = number;
                 number += 1;
-                if flag & 0x80 != 0 || flag & 0x43 == 0 {
+                if flag & 0x80 != 0 || flag & 0x53 == 0 {
                     continue;
                 }
                 let name = name_of(&entry[5..16]);

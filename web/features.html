@@ -226,6 +226,18 @@
 <td>Single, enhanced and double density; DOS 2.5's second VTOC and its mark on files past sector 719</td>
 </tr>
 <tr>
+<th scope="row">Atari 8-bit ATR, MyDOS</th>
+<td>Folders, disks of up to 65535 sectors with their sectors linked by all 16 bits past 1023, and the VTOC running on below sector 360</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit ATR, SpartaDOS (2.x, 3.x, SpartaDOS X)</th>
+<td>Files and folders through their sector maps, each dated now; the bitmap, the free count and the volume's sequence number</td>
+</tr>
+<tr>
+<th scope="row">Mac HFS (plain images, Disk Copy 4.2 and a disk's one HFS partition)</th>
+<td>Files with both forks (<code>name.rsrc</code> goes on as <code>name</code>'s resource fork), folders, a type and creator from the kind chosen or the file's ending (TEXT/ttxt for text), the catalog and extents trees built again with their index nodes, overflow extents for files in many pieces, the bitmap, both master directory blocks and Disk Copy's checksum</td>
+</tr>
+<tr>
 <th scope="row">Color Computer RS-DOS (JVC)</th>
 <td>BASIC (tokenised or ASCII), data, machine code (plain bytes put in a LOADM block at an address) and text</td>
 </tr>
@@ -250,7 +262,7 @@
 <td>BASIC (a listing typed as text is tokenised, with the line to run from), code, screens, data arrays and sequential files, kept one after another as TR-DOS keeps them; a full disk is compacted over deleted files, as MOVE does</td>
 </tr>
 </tbody></table></div>
-<ul><li>When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.</li><li>A file whose name is taken isn't replaced unless you tick <strong>Replace it</strong>.</li><li>Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb, cpmtools, AppleCommander and a2kit, beebtools, MMB_Utils, ADFSlib and trdos-list; a written TR-DOS disk is also loaded and run by a Pentagon's TR-DOS in ZEsarUX.</li><li>Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Apple DOS 3.2, Watford DFS's 62-file catalogues, RISC OS's D, E and F discs, Amiga disks with directory caches or long names, and the rest) say why they're read only.</li></ul>
+<ul><li>When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.</li><li>A file whose name is taken isn't replaced unless you tick <strong>Replace it</strong>.</li><li>Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy and lsatr (MyDOS and SpartaDOS), ToolShed's decb, cpmtools, AppleCommander and a2kit, beebtools, MMB_Utils, ADFSlib, trdos-list, and Apple's fsck_hfs with hfsutils for HFS; a written TR-DOS disk is also loaded and run by a Pentagon's TR-DOS in ZEsarUX.</li><li>Images Limoniter only reads (SpartaDOS 1, MFS and HFS+, Dragon DOS and OS-9, Apple DOS 3.2, Watford DFS's 62-file catalogues, RISC OS's D, E and F discs, Amiga disks with directory caches or long names, and the rest) say why they're read only.</li><li>New blank images include 400K, 800K and 1.4MB Mac HFS floppies, a 360K MyDOS disk and a 180K SpartaDOS disk.</li></ul>
 <h2 id="documents-and-conversions">Documents and conversions</h2>
 <ul><li>WordStar 3.x to 7 documents and HP MemoMaker documents, found inside disk images, can be opened as text or converted to Markdown, plain text or RTF.</li><li>Bold, underline, italics, page breaks, headers and footers are kept; what can't be carried over (printer codes, fonts, margins) is listed in notes.</li><li>Pictures can be saved as PNG; tokenised BASIC can be opened as a text listing and saved back as a program.</li></ul>
 <h2 id="basic-programs">BASIC programs</h2>

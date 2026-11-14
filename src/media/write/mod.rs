@@ -14,7 +14,9 @@ mod atari;
 mod cbm;
 mod coco;
 mod fat;
+mod hfs;
 mod plus3;
+mod sparta;
 mod tape;
 mod trdos;
 
@@ -116,7 +118,7 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::D81) => Ok(Box::new(cbm::Disk::open(bytes, cbm::Kind::D81)?)),
         Some(Format::Fat) => Ok(Box::new(fat::Fat::open(bytes)?)),
         Some(Format::Adf) => Ok(Box::new(amiga::Adf::open(bytes)?)),
-        Some(Format::Atari8) => Ok(Box::new(atari::Disk::open(bytes)?)),
+        Some(Format::Atari8) => atari::open(bytes),
         Some(Format::Coco) => Ok(Box::new(coco::Disk::open(bytes, &ending)?)),
         Some(Format::Dsk) => Ok(Box::new(plus3::Disk::open(bytes)?)),
         Some(Format::Apple2) => apple2::open(bytes, &ending),
@@ -128,6 +130,7 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         },
         Some(Format::TrDos) => Ok(Box::new(trdos::Trd::open(bytes)?)),
         Some(Format::Scl) => Ok(Box::new(trdos::Scl::open(bytes)?)),
+        Some(Format::MacDisk | Format::MacDiskCopy) => Ok(Box::new(hfs::Hfs::open(bytes)?)),
         Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
         None => Err("This isn't an image Limoniter can change.".into()),
     }
@@ -139,7 +142,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs | Format::TrDos | Format::Scl)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs | Format::TrDos | Format::Scl | Format::MacDisk | Format::MacDiskCopy)
         )
 }
 
@@ -173,10 +176,15 @@ pub enum Blank {
     AdfsL,
     TrDos,
     Scl,
+    AtariMyDos360,
+    AtariSparta180,
+    Mac400,
+    Mac800,
+    Mac1440,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 27] = [
+    pub const ALL: [Blank; 32] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -204,6 +212,11 @@ impl Blank {
         Blank::AdfsL,
         Blank::TrDos,
         Blank::Scl,
+        Blank::AtariMyDos360,
+        Blank::AtariSparta180,
+        Blank::Mac400,
+        Blank::Mac800,
+        Blank::Mac1440,
     ];
 
     /// What it is, for the New image box.
@@ -236,6 +249,11 @@ impl Blank {
             Blank::AdfsL => "BBC Micro / Master disc, 640K, ADFS L (.adl)",
             Blank::TrDos => "ZX Spectrum TR-DOS disk, 640K (.trd)",
             Blank::Scl => "ZX Spectrum TR-DOS archive (.scl)",
+            Blank::AtariMyDos360 => "Atari 8-bit disk, 360K, MyDOS (.atr)",
+            Blank::AtariSparta180 => "Atari 8-bit disk, 180K, SpartaDOS (.atr)",
+            Blank::Mac400 => "Macintosh floppy, 400K, HFS (.dsk)",
+            Blank::Mac800 => "Macintosh floppy, 800K, HFS (.dsk)",
+            Blank::Mac1440 => "Macintosh floppy, 1.4MB, HFS (.dsk)",
         }
     }
 
@@ -243,13 +261,13 @@ impl Blank {
         match self {
             Blank::SpectrumTap => "tap",
             Blank::SpectrumTzx => "tzx",
-            Blank::Plus3 | Blank::CocoSingle | Blank::AppleDos => "dsk",
+            Blank::Plus3 | Blank::CocoSingle | Blank::AppleDos | Blank::Mac400 | Blank::Mac800 | Blank::Mac1440 => "dsk",
             Blank::AppleProdos | Blank::AppleProdos800 => "po",
             Blank::D64 => "d64",
             Blank::D71 => "d71",
             Blank::D81 => "d81",
             Blank::AmigaDd | Blank::AmigaDdFfs | Blank::AmigaHd => "adf",
-            Blank::Atari90 | Blank::Atari130 => "atr",
+            Blank::Atari90 | Blank::Atari130 | Blank::AtariMyDos360 | Blank::AtariSparta180 => "atr",
             Blank::PcFloppy360 | Blank::PcFloppy720 | Blank::PcFloppy1440 => "img",
             Blank::AtariSt720 => "st",
             Blank::BbcSsd40 | Blank::BbcSsd80 => "ssd",
@@ -292,6 +310,11 @@ impl Blank {
             Blank::AdfsL => adfs::blank(2560, label),
             Blank::TrDos => trdos::blank(label),
             Blank::Scl => trdos::blank_scl(),
+            Blank::AtariMyDos360 => atari::blank_mydos(),
+            Blank::AtariSparta180 => sparta::blank(label),
+            Blank::Mac400 => hfs::blank(400, label),
+            Blank::Mac800 => hfs::blank(800, label),
+            Blank::Mac1440 => hfs::blank(1440, label),
         }
     }
 }
