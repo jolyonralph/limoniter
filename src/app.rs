@@ -214,6 +214,7 @@ enum Command {
     ClearRecent,
     PixelEditor,
     ScreenDesigner,
+    AmigaBitplanes,
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
@@ -316,6 +317,7 @@ impl Command {
                 | Command::NewAs(_)
                 | Command::PixelEditor
                 | Command::ScreenDesigner
+                | Command::AmigaBitplanes
                 | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
@@ -1295,6 +1297,8 @@ pub struct Limoniter {
     pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
     /// The Spectrum screen designer, while it's open.
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
+    /// The Amiga bitplane converter, while it's open.
+    bitplanes: Option<Box<crate::bitplane_tool::Converter>>,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
@@ -1575,6 +1579,7 @@ impl Limoniter {
             intel_wait: None,
             pixel_editor: None,
             screen_designer: None,
+            bitplanes: None,
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
             task_run: None,
@@ -3641,6 +3646,7 @@ impl Limoniter {
                     self.screen_designer = Some(Box::new(designer));
                 }
             }
+            Command::AmigaBitplanes => self.open_bitplane_converter(),
             Command::PixelEditor => {
                 if self.pixel_editor.is_none() {
                     self.pixel_editor = Some(Box::new(crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters)));
@@ -6698,6 +6704,7 @@ impl Limoniter {
         self.draw_assistant_note(&ctx);
         self.pixel_editor_window(&ctx);
         self.screen_designer_window(&ctx);
+        self.bitplane_window(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7415,6 +7422,9 @@ mod disasm_host;
 
 #[path = "pixel_host.rs"]
 mod pixel_host;
+
+#[path = "bitplane_host.rs"]
+mod bitplane_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;

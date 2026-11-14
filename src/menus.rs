@@ -484,6 +484,7 @@ const TOOLS: &[Entry] = &[
     Item("Disassemble\u{2026}", Command::Disassemble),
     Item("Character and sprite editor", Command::PixelEditor),
     Item("Spectrum screen designer", Command::ScreenDesigner),
+    Item("Amiga bitplane converter", Command::AmigaBitplanes),
     Sub(
         "Tasks",
         &[

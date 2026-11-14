@@ -23,6 +23,8 @@ miniz_oxide = "0.8"
 delharc = "0.8"
 xdms = "0.2"
 png = "0.18"
+# JPEG pictures, brought into the Amiga bitplane converter.
+zune-jpeg = "0.5"
 pulldown-cmark = { version = "0.13", default-features = false }
 raw-window-handle = "0.6"
 regex = "1.13.1"
