@@ -187,11 +187,13 @@ The images below can have files added (**Add files…**, or drop them on the tab
 | Amiga ADF (OFS and FFS, DD and HD) | Files and folders, extension blocks for large files, the bitmap and every checksum |
 | Atari 8-bit ATR, Atari DOS 2.0 and 2.5 | Single, enhanced and double density; DOS 2.5's second VTOC and its mark on files past sector 719 |
 | Color Computer RS-DOS (JVC) | BASIC (tokenised or ASCII), data, machine code (plain bytes put in a LOADM block at an address) and text |
+| Apple II DOS 3.3 (.dsk, .do; either sector order) | Applesoft (a listing typed as text is tokenised), Integer BASIC, binary files with their load address, and high-bit text; the VTOC's bitmap, catalog and track/sector lists kept as DOS keeps them |
+| Apple II ProDOS (.po, .dsk, .2mg, .hdv) | Folders (growing a block at a time), seedling, sapling and tree files, dated, with their types: BIN with its load address, BAS, TXT, SYS, INT and untyped |
 
 - When the kind of file matters, the Add panel says what each one will go on as (a program, code at an address, a SEQ file...) and lets you change it, with its name on the image.
 - A file whose name is taken isn't replaced unless you tick **Replace it**.
-- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb and cpmtools.
-- Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Amiga disks with directory caches or long names, and the rest) say why they're read only.
+- Every writer is tested against the reference tools of its machine: tzxlist (fuse-utils), VICE's c1541 (its VALIDATE finds nothing to fix), dosfstools' fsck.fat and mtools, amitools' xdftool, atrcopy, ToolShed's decb, cpmtools, AppleCommander and a2kit.
+- Images Limoniter only reads (MyDOS and SpartaDOS, Dragon DOS and OS-9, Apple DOS 3.2, Amiga disks with directory caches or long names, and the rest) say why they're read only.
 
 ## Documents and conversions
 
@@ -202,7 +204,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 ## BASIC programs
 
 - Listed: Commodore BASIC V2 (C64, VIC-20, PET; `.prg`, `.p00`), ZX Spectrum 48K and 128K, Spectrum Next NextBASIC, BBC BASIC II and IV, MSX-BASIC (from disk or tape, saved from 32K or 16K machines), Atari BASIC, Microsoft BASIC-80 (MBASIC), Applesoft BASIC, Color BASIC (Tandy Color Computer), Dragon BASIC, TRS-80 Level II and Disk BASIC (Model I and III, from disk or tape), TRS-80 Model 4 BASIC, ZX81 BASIC (`.p`, `.81` and `.p81` files, with the screen saved with the program), SAM BASIC with MasterDOS's and MasterBASIC's keywords, and Oric BASIC (from `.tap` tapes).
-- Tokenised from a listing: Spectrum (saved as `.tap`), Spectrum Next (`.bas`), Commodore (`.prg`) and BBC BASIC.
+- Tokenised from a listing: Spectrum (saved as `.tap`), Spectrum Next (`.bas`), Commodore (`.prg`) and BBC BASIC; Applesoft as it's added to an Apple II disk.
 - **OpticBASIC**, the BASIC of [OpticOS](https://github.com/brixham99/OpticOS) (a clean-room replacement ROM for the 48K Spectrum, with no line numbers): its programs on tape list as OpticOS lists them, indented by their blocks, and a listing tokenises back exactly as the ROM tokenises what's typed (checked against the programs OpticOS itself saved). **F9 runs it**: the built-in Spectrum starts with the OpticOS ROM (which comes with Limoniter, under its MIT licence), types `LOAD ""` and `RUN`, and the program runs; Fuse can run it too, given the ROM and the tape. **File › New as › OpticBASIC (OpticOS)** starts one.
 - A listing opened from a program is sent as that program: edit a NextBASIC listing and Send to device sends it to the Next as a tokenised `.bas`, a C64 listing as a `.prg`, and so on, with no need to save it as a program first.
 - Listing and tokenising undo each other: tokenising a listing gives back the original bytes.

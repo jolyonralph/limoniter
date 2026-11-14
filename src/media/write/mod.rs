@@ -7,6 +7,7 @@
 //! why, rather than leave an image the machine can't read.
 
 mod amiga;
+mod apple2;
 mod atari;
 mod cbm;
 mod coco;
@@ -115,6 +116,7 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::Atari8) => Ok(Box::new(atari::Disk::open(bytes)?)),
         Some(Format::Coco) => Ok(Box::new(coco::Disk::open(bytes, &ending)?)),
         Some(Format::Dsk) => Ok(Box::new(plus3::Disk::open(bytes)?)),
+        Some(Format::Apple2) => apple2::open(bytes, &ending),
         Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
         None => Err("This isn't an image Limoniter can change.".into()),
     }
@@ -126,7 +128,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2)
         )
 }
 
@@ -149,10 +151,13 @@ pub enum Blank {
     PcFloppy720,
     PcFloppy1440,
     AtariSt720,
+    AppleDos,
+    AppleProdos,
+    AppleProdos800,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 16] = [
+    pub const ALL: [Blank; 19] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -169,6 +174,9 @@ impl Blank {
         Blank::PcFloppy720,
         Blank::PcFloppy1440,
         Blank::AtariSt720,
+        Blank::AppleDos,
+        Blank::AppleProdos,
+        Blank::AppleProdos800,
     ];
 
     /// What it is, for the New image box.
@@ -190,6 +198,9 @@ impl Blank {
             Blank::PcFloppy720 => "PC floppy, 720K, FAT12 (.img)",
             Blank::PcFloppy1440 => "PC floppy, 1.44MB, FAT12 (.img)",
             Blank::AtariSt720 => "Atari ST floppy, 720K (.st)",
+            Blank::AppleDos => "Apple II disk, 140K, DOS 3.3 (.dsk)",
+            Blank::AppleProdos => "Apple II disk, 140K, ProDOS (.po)",
+            Blank::AppleProdos800 => "Apple II 3.5-inch disk, 800K, ProDOS (.po)",
         }
     }
 
@@ -197,7 +208,8 @@ impl Blank {
         match self {
             Blank::SpectrumTap => "tap",
             Blank::SpectrumTzx => "tzx",
-            Blank::Plus3 | Blank::CocoSingle => "dsk",
+            Blank::Plus3 | Blank::CocoSingle | Blank::AppleDos => "dsk",
+            Blank::AppleProdos | Blank::AppleProdos800 => "po",
             Blank::D64 => "d64",
             Blank::D71 => "d71",
             Blank::D81 => "d81",
@@ -227,6 +239,9 @@ impl Blank {
             Blank::PcFloppy720 => fat::blank(fat::Floppy::Pc720, label),
             Blank::PcFloppy1440 => fat::blank(fat::Floppy::Pc1440, label),
             Blank::AtariSt720 => fat::blank(fat::Floppy::St720, label),
+            Blank::AppleDos => apple2::blank_dos(),
+            Blank::AppleProdos => apple2::blank_prodos(280, label),
+            Blank::AppleProdos800 => apple2::blank_prodos(1600, label),
         }
     }
 }

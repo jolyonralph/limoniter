@@ -452,7 +452,8 @@ impl Volume for Apple2 {
                 for (index, file) in files.iter().enumerate().filter(|(_, f)| f.folder == folder) {
                     if file.storage == 0xD {
                         let at = folders.iter().position(|(name, parent)| *name == file.name && *parent == folder).unwrap_or(0);
-                        let mut entry = Entry::dir(tidy_name(&file.name), at as u64, 0);
+                        // Its key block goes in `extra`, for the writer to find it by.
+                        let mut entry = Entry::dir(tidy_name(&file.name), at as u64, file.key);
                         entry.detail = file.modified.clone();
                         out.push(entry);
                         continue;

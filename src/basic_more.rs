@@ -967,6 +967,114 @@ fn applesoft_lines(data: &[u8]) -> Option<Vec<(u16, &[u8])>> {
     }
 }
 
+/// Tokenises a listing into an Applesoft program to load at &0801, as Applesoft's own PARSE does it: spaces left
+/// out except in strings, REM and DATA, keywords found even with spaces inside them, `?` for PRINT, and AT before
+/// an N or O read as ATN, or as A and TO.
+pub fn tokenise_applesoft<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
+    let mut out = Vec::new();
+    let mut previous: Option<u16> = None;
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.as_ref().trim_start();
+        if trimmed.trim().is_empty() {
+            continue;
+        }
+        let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+        let number: u16 = trimmed[..digits].parse().ok().filter(|n| *n <= 63999).ok_or_else(|| format!("Line {} doesn't start with a line number from 0 to 63999.", index + 1))?;
+        if previous.is_some_and(|p| number <= p) {
+            return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
+        }
+        previous = Some(number);
+        let text: Vec<char> = trimmed[digits..].chars().collect();
+        if let Some(c) = text.iter().find(|c| !c.is_ascii() || c.is_ascii_control()) {
+            return Err(format!("Line {} has a character Applesoft doesn't have: {c:?}.", index + 1));
+        }
+        let mut body = Vec::new();
+        let (mut quoted, mut rem, mut data) = (false, false, false);
+        let mut at = 0;
+        while at < text.len() {
+            let c = text[at];
+            if !rem && c == '"' {
+                quoted = !quoted;
+                body.push(b'"');
+                at += 1;
+                continue;
+            }
+            if rem || quoted || (data && c != ':') {
+                body.push(c as u8);
+                at += 1;
+                continue;
+            }
+            data = false;
+            if c == ' ' {
+                at += 1;
+                continue;
+            }
+            if c == '?' {
+                body.push(0xBA);
+                at += 1;
+                continue;
+            }
+            if c.is_ascii_digit() || c == ':' || c == ';' {
+                body.push(c as u8);
+                at += 1;
+                continue;
+            }
+            // A keyword may have spaces among its letters; the first in the ROM's table to match is taken.
+            let matched = APPLESOFT_TOKENS.iter().enumerate().find_map(|(n, word)| {
+                let mut from = at;
+                for w in word.chars() {
+                    while text.get(from) == Some(&' ') {
+                        from += 1;
+                    }
+                    if text.get(from).map(char::to_ascii_uppercase) != Some(w) {
+                        return None;
+                    }
+                    from += 1;
+                }
+                Some((0x80 + n as u8, from))
+            });
+            match matched {
+                Some((token, mut end)) => {
+                    let mut token = token;
+                    if token == 0xC5 {
+                        let mut next = end;
+                        while text.get(next) == Some(&' ') {
+                            next += 1;
+                        }
+                        match text.get(next).map(char::to_ascii_uppercase) {
+                            Some('N') => (token, end) = (0xE1, next + 1),
+                            Some('O') => {
+                                body.push(b'A');
+                                at += 1;
+                                continue;
+                            }
+                            _ => {}
+                        }
+                    }
+                    body.push(token);
+                    rem = token == 0xB2;
+                    data = token == 0x83;
+                    at = end;
+                }
+                None => {
+                    body.push(c.to_ascii_uppercase() as u8);
+                    at += 1;
+                }
+            }
+        }
+        let next = 0x0801 + out.len() + 4 + body.len() + 1;
+        if next > 0xFFFF {
+            return Err("The program is too long for Applesoft's memory.".into());
+        }
+        out.extend((next as u16).to_le_bytes());
+        out.extend(number.to_le_bytes());
+        out.extend(body);
+        out.push(0);
+    }
+    out.extend([0, 0]);
+    Ok(out)
+}
+
 pub fn looks_like_applesoft(data: &[u8]) -> bool {
     applesoft_lines(data).is_some_and(|lines| lines.iter().all(|(_, body)| body.iter().all(|&b| b <= 0xEA || b == 0)))
 }
