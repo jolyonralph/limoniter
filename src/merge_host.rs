@@ -373,6 +373,8 @@ impl Limoniter {
         let lines = self.docs[index].text.all_lines();
         let doc = &mut self.docs[index];
         doc.text.move_caret(target.start, 0, false);
+        // The conflict near the top of the result, with a few lines before it, so all of it can be seen.
+        doc.text_state.set_top(target.start.saturating_sub(3));
         doc.text.reveal = true;
         if let Some(tab) = doc.merge.as_mut()
             && let Some(chunk) = tab.chunk_of(&lines, target)

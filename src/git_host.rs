@@ -908,6 +908,10 @@ impl Limoniter {
         if self.git.repo.is_some() || self.git.installed == Some(false) {
             return;
         }
+        // Not over a merge or a comparison: those are files being looked at, often Git's own copies.
+        if self.docs.get(self.active).is_some_and(|doc| doc.merge.is_some() || doc.compare.is_some()) {
+            return;
+        }
         let Some(folder) = self.git.repo_of.as_deref().and_then(Path::parent).map(Path::to_path_buf) else {
             return;
         };

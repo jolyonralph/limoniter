@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Limoniter: a powerful text and hex editor that speaks 8-bit</title>
-  <meta name="description" content="Limoniter is a free, open-source text and hex editor for Windows, macOS and Linux: column editing, an undo tree, Find in Files, compare, code layout, scripts and 10 GB files. It also edits the files of older computers byte for byte: PETSCII, ATASCII, EBCDIC, teletext and 170 more character sets. It opens their disks and tapes, lists their BASIC, and sends your work back to the machine.">
+  <meta name="description" content="Limoniter is a free, open-source text and hex editor for Windows, macOS and Linux: column editing, an undo tree, Find in Files, folder and file compare, three-way merge, code layout, scripts and 10 GB files. It also edits the files of older computers byte for byte: PETSCII, ATASCII, EBCDIC, teletext and 170 more character sets. It opens their disks and tapes, lists their BASIC, and sends your work back to the machine.">
   <link rel="canonical" href="https://limoniter.com/">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://limoniter.com/">
@@ -32,6 +32,7 @@
       <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
       <nav id="nav" class="nav">
         <a href="#features">Everyday work</a>
+        <a href="#compare">Compare and merge</a>
         <a href="#retro">Older computers</a>
         <a href="#machines">Machines</a>
         <a href="#send">Send to device</a>
@@ -49,7 +50,7 @@
         <div class="hero-text">
           <p class="eyebrow">Free and open source · Windows, macOS and Linux</p>
           <h1>A powerful editor for today's files, and one that speaks <span class="speaks-line"><span class="speaks">PETSCII</span><span class="cursor" aria-hidden="true"></span></span></h1>
-          <p class="lead">Limoniter is a full-strength text and hex editor for everyday work. It has column editing, an undo tree, Find in Files, side-by-side compare, code layout, macros, scripts and add-ons, and files of 10 GB open in milliseconds.</p>
+          <p class="lead">Limoniter is a full-strength text and hex editor for everyday work. It has column editing, an undo tree, Find in Files, <a href="#compare">folder and file compare with three-way merge</a>, code layout, macros, scripts and add-ons, and files of 10 GB open in milliseconds.</p>
           <p class="lead">It's also the only editor that knows the files of older computers. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, lists their BASIC, and sends your work back to the machine.</p>
           <div class="actions">
             <a class="button primary" href="#get">Download</a>
@@ -62,6 +63,12 @@
             <button class="slide active" data-full="images/teletext.webp" data-caption="A teletext page file beside the page it makes" aria-label="Enlarge: A teletext page file beside the page it makes">
               <img src="images/teletext-close.webp" alt="A teletext page and the file behind it" width="1280" height="720">
             </button>
+            <button class="slide" data-full="images/compare-folders.webp" data-caption="Two folders compared, file by file" aria-label="Enlarge: Two folders compared, file by file" tabindex="-1" aria-hidden="true">
+              <img src="images/compare-folders-close.webp" alt="Two versions of a project compared as a tree" width="1280" height="720" loading="lazy">
+            </button>
+            <button class="slide" data-full="images/merge.webp" data-caption="A three-way merge, with the result to edit" aria-label="Enlarge: A three-way merge, with the result to edit" tabindex="-1" aria-hidden="true">
+              <img src="images/merge-close.webp" alt="The merge tab with the original, mine and theirs above the result" width="1280" height="720" loading="lazy">
+            </button>
             <button class="slide" data-full="images/undo-tree.webp" data-caption="Undo as a tree, with every branch kept" aria-label="Enlarge: Undo as a tree, with every branch kept" tabindex="-1" aria-hidden="true">
               <img src="images/undo-tree-close.webp" alt="The Edit history panel beside some code" width="1280" height="720" loading="lazy">
             </button>
@@ -73,9 +80,6 @@
             </button>
             <button class="slide" data-full="images/table.webp" data-caption="A CSV file as a table, cells and all" aria-label="Enlarge: A CSV file as a table, cells and all" tabindex="-1" aria-hidden="true">
               <img src="images/table-close.webp" alt="A CSV file of minerals shown in table view" width="1280" height="720" loading="lazy">
-            </button>
-            <button class="slide" data-full="images/compare.webp" data-caption="Two versions of a file, side by side" aria-label="Enlarge: Two versions of a file, side by side" tabindex="-1" aria-hidden="true">
-              <img src="images/compare-close.webp" alt="The Compare view with changed lines marked" width="1280" height="720" loading="lazy">
             </button>
             <button class="slide" data-full="images/amiga-disk.webp" data-caption="An Amiga floppy, opened as a folder" aria-label="Enlarge: An Amiga floppy, opened as a folder" tabindex="-1" aria-hidden="true">
               <img src="images/amiga-disk-close.webp" alt="Fred Fish disk 801 in the disk browser" width="1280" height="720" loading="lazy">
@@ -117,7 +121,7 @@
           </article>
           <article class="card">
             <h3>Find, replace, compare</h3>
-            <p>Regular expressions, hex bytes, history and favourites. Find and Replace in Files across folders, open files or a project, in the background. Compare two files side by side, or narrow to a few lines and work on just those.</p>
+            <p>Regular expressions, hex bytes, history and favourites. Find and Replace in Files across folders, open files or a project, in the background. Compare files and whole folders, and merge three versions: <a href="#compare">more below</a>.</p>
           </article>
           <article class="card">
             <h3>Code, laid out and coloured</h3>
@@ -147,7 +151,52 @@
       </div>
     </section>
 
-    <section id="retro" class="section alt">
+    <section id="compare" class="section alt">
+      <div class="wrap">
+        <div class="split">
+          <div>
+            <h2>Compare and merge</h2>
+            <p>Compare two files or two whole folders, merge three versions of a file, and let Git use Limoniter for both. It's all in <strong>Tools › Compare files…</strong>, <strong>Compare folders…</strong> and <strong>Git › Merge</strong>.</p>
+            <ul class="ticks">
+              <li><strong>Files side by side, both editable.</strong> Changed lines and the words within them are marked. An arrow copies a difference across, and Undo takes it back. Spaces, case and line endings can be ignored, and the comparison saves as a patch.</li>
+              <li><strong>Whole folders as a tree.</strong> Each side can be a folder, a Git revision, a disk image or archive, or a folder on an SFTP server. Compare by size and time or by contents, and leave out what <code>.gitignore</code> leaves out. Save the result as an HTML report or one patch.</li>
+              <li><strong>Not only text.</strong> Binary files are compared byte by byte in hex, pictures as pictures with their differences shown, and files too big for memory in the background.</li>
+              <li><strong>Three-way merge.</strong> The original, mine and theirs are lined up above the result, which you can edit. Changes made on only one side are merged already, and each conflict waits for Take mine, Take theirs or Take both.</li>
+              <li><strong>Git, when you say so.</strong> Conflicted files get <strong>Resolve in merge…</strong>. One button makes <code>git difftool</code> and <code>git mergetool</code> open Limoniter. It asks first if another tool is set, and it can put your old settings back.</li>
+              <li><strong>Copying with care.</strong> Before anything is copied between folders, you see a list of what will change. Nothing is deleted, and every file that's replaced is backed up first.</li>
+            </ul>
+          </div>
+          <div class="terminal" aria-label="Resolving a Git conflict in Limoniter">
+            <div class="terminal-bar"><span></span><span></span><span></span></div>
+<pre><code><span class="dim">git</span>        <b>git mergetool</b>
+<span class="dim">git</span>        Merging: src/main.c
+
+<span class="dim">Limoniter</span>  Merge: main.c   1 conflict left
+           Take mine · <b>Take theirs</b> · Take both
+<span class="dim">Limoniter</span>  Saved, no conflicts left
+
+<span class="dim">git</span>        src/main.c is resolved
+<span class="dim">git</span>        <b>git commit</b></code></pre>
+          </div>
+        </div>
+        <div class="gallery compare-gallery">
+          <figure>
+            <button class="shot" data-full="images/compare-folders.webp" aria-label="Enlarge: comparing two folders"><img src="images/compare-folders-close.webp" alt="Two versions of a project compared as a tree, with each file marked the same, changed, or only on one side" loading="lazy" width="1280" height="720"></button>
+            <figcaption>Two versions of a project compared folder by folder, with what changed in words as well as colour.</figcaption>
+          </figure>
+          <figure>
+            <button class="shot" data-full="images/compare.webp" aria-label="Enlarge: comparing two files"><img src="images/compare-close.webp" alt="Two versions of a C file side by side, both editable, with changed lines and words marked" loading="lazy" width="1280" height="720"></button>
+            <figcaption>Two files side by side, both editable, with a difference copied across in one click.</figcaption>
+          </figure>
+          <figure>
+            <button class="shot" data-full="images/merge.webp" aria-label="Enlarge: a three-way merge"><img src="images/merge-close.webp" alt="The merge tab: the original, mine and theirs above, and the merged result below with one conflict left" loading="lazy" width="1280" height="720"></button>
+            <figcaption>A three-way merge: what merges cleanly is done already, and the conflict waits for you.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="retro" class="section">
       <div class="wrap">
         <h2>For older computers</h2>
         <p class="section-lead">This is where no other editor comes close. Limoniter knows the machines themselves: their character sets, screens, disks, programs and pictures.</p>
@@ -180,7 +229,7 @@
       </div>
     </section>
 
-    <section id="machines" class="section">
+    <section id="machines" class="section alt">
       <div class="wrap">
         <h2>Pick your machine</h2>
         <p class="section-lead">Here's what Limoniter knows about each one.</p>
@@ -190,7 +239,7 @@
       </div>
     </section>
 
-    <section id="send" class="section alt">
+    <section id="send" class="section">
       <div class="wrap split">
         <div>
           <h2>From the editor to the real machine</h2>
@@ -217,7 +266,7 @@
       </div>
     </section>
 
-    <section id="screens" class="section">
+    <section id="screens" class="section alt">
       <div class="wrap">
         <h2>Screenshots</h2>
         <div class="gallery">
@@ -246,10 +295,6 @@
             <figcaption>Copy any theme and change it colour by colour, or make one from three colours.</figcaption>
           </figure>
           <figure>
-            <button class="shot" data-full="images/compare.webp" aria-label="Enlarge: comparing two files"><img src="images/compare-close.webp" alt="The Compare view showing two files with changed lines highlighted" loading="lazy" width="1280" height="720"></button>
-            <figcaption>Two versions of a file side by side, with the differences marked.</figcaption>
-          </figure>
-          <figure>
             <button class="shot" data-full="images/amiga-disk.webp" aria-label="Enlarge: an Amiga floppy"><img src="images/amiga-disk-close.webp" alt="Fred Fish disk 801 open in the disk browser" loading="lazy" width="1280" height="720"></button>
             <figcaption>An Amiga floppy from the Fred Fish collection, opened as a folder.</figcaption>
           </figure>
@@ -261,7 +306,7 @@
       </div>
     </section>
 
-    <section id="get" class="section alt">
+    <section id="get" class="section">
       <div class="wrap">
         <h2>Get Limoniter</h2>
         <div class="platforms">

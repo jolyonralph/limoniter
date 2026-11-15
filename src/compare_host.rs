@@ -987,7 +987,8 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool) -> V
                 painter.text(egui::pos2(area.max.x - 6.0, rect.center().y), egui::Align2::RIGHT_CENTER, detail, egui::FontId::proportional(12.0), theme::text_dim());
             }
             let spoken = format!("{}: {}{}", row.status.words(), row.path, row.problem.as_deref().map(|p| format!(" ({p})")).unwrap_or_default());
-            let response = response.on_hover_text(&spoken);
+            // Only when the pointer is on it: a row chosen with the keys shouldn't show its words in a box.
+            let response = if response.hovered() { response.on_hover_text(&spoken) } else { response };
             crate::access::chosen(&response, egui::Role::ListItem, selected, &spoken);
             if response.clicked() {
                 let on_toggle = row.is_dir() && response.interact_pointer_pos().is_some_and(|p| {

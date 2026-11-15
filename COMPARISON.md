@@ -37,6 +37,8 @@ It reflects the editors as of November 2026, going by their own documentation an
 | Record and play macros | ✓ | ✗ | ✓ | ◐ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ◐ | ✓ |
 | Scripting | ✓ Rhai | ✗ | ◐ | ✓ | ✓ | ✓ | ◐ | ◐ | ✓ JavaScript | ✓ JavaScript | ✓ Python | ✓ AppleScript | ✗ |
 | Compare two files | ✓ | ✗ | ◐ | ✓ | ✓ | ✓ | ◐ | ◐ | ✓ | ✓ | ◐ | ✓ | ✓ |
+| Compare folders | ✓ folders, Git revisions, disk images, archives and SFTP | ✗ | ✗ | ◐ extensions | ◐ plug-ins | ✓ | ? | ✗ | ? | ? | ✗ | ✓ | ? |
+| Three-way merge | ✓ and as Git's merge tool | ✗ | ✗ | ✓ | ✓ | ✓ | ? | ◐ | ? | ? | ✗ | ? | ✗ |
 | Spell checking | ✓ | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ? | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Undo history as a tree | ✓ | ✗ | ✗ | ✗ | ✓ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Crash recovery of unsaved edits | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ? |
@@ -106,6 +108,7 @@ Some of these are possible elsewhere with separate tools (cpmtools, AppleCommand
 - Reads and writes text in the character sets of those machines, byte for byte, alongside 22 EBCDIC code pages and the usual modern ones.
 - Previews ANSI art, PETSCII, teletext and Spectrum screens, lists tokenised BASIC from ten dialects and saves several back, shows legacy pictures (Amiga IFF with colour cycling, Atari ST, C64, MacPaint, RISC OS sprites, PCX, GEM, Apple II, Kodak Photo CD) and saves them as PNG, and converts WordStar and MemoMaker documents.
 - Keeps an undo history as a tree, and the history of any part of a file.
+- Compares a folder file by file with a Git revision, or with what is inside a disk image or archive of an older computer.
 
 Each of these readers is checked against independent tools on real disks: cpmtools, AppleCommander, atrcopy, trs80-tool, ToolShed, ddosutils, netpbm and ImageMagick among them.
 

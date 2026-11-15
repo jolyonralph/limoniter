@@ -232,6 +232,7 @@ h3 { font-size: 1.12rem; margin: 0 0 8px; }
 @media (min-width: 640px) { .gallery { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 980px) { .gallery { grid-template-columns: repeat(3, 1fr); } }
 .gallery figure { margin: 0; }
+.compare-gallery { margin-top: 40px; }
 .gallery .shot { box-shadow: none; aspect-ratio: 16 / 9; }
 .gallery .shot img { height: 100%; object-fit: cover; object-position: top left; }
 .gallery figcaption { color: var(--text-dim); font-size: 0.92rem; margin-top: 10px; }

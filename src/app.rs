@@ -6629,6 +6629,14 @@ impl Limoniter {
 }
 
 impl eframe::App for Limoniter {
+    /// A picture shows the window as it would be with nobody at it: wherever the real mouse happens to be is ignored.
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if self.screenshot.is_some() {
+            raw_input.events.retain(|event| !matches!(event, egui::Event::PointerMoved(_) | egui::Event::PointerButton { .. } | egui::Event::MouseWheel { .. }));
+            raw_input.events.push(egui::Event::PointerGone);
+        }
+    }
+
     /// If drawing a frame ever fails, the very latest edits are written out before anything else happens.
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         recovery::IN_FRAME.store(true, Ordering::SeqCst);
