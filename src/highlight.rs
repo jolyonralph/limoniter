@@ -1010,6 +1010,17 @@ mod tests {
         assert_ne!(colour_of_text(&colours, &buffer, 3, ".org"), instruction, "ca65's directives");
         assert_ne!(colour_of_text(&colours, &buffer, 4, "jsr"), instruction, "branches stand out");
         assert_eq!(colour_of_text(&colours, &buffer, 5, "10"), number);
+        // KickAssembler's comments, multi labels and macro calls; 64tass's directives.
+        let (colours, buffer) = assembler_colours("x.kick", &["!loop:  inc $d020 // note", "        bne !loop-", "        :BasicUpstart2(start)", "/* all", "   comment */ lda #1", "show    .proc", "        lda ($fb),y"]);
+        let comment = colour_of_text(&colours, &buffer, 0, "note");
+        assert_ne!(colour_of_text(&colours, &buffer, 0, "!loop"), comment);
+        assert_eq!(colour_of_text(&colours, &buffer, 0, "!loop"), colour_of_text(&colours, &buffer, 1, "!loop-"));
+        assert_eq!(colour_of_text(&colours, &buffer, 3, "all"), comment);
+        assert_eq!(colour_of_text(&colours, &buffer, 4, "comment"), comment);
+        assert_ne!(colour_of_text(&colours, &buffer, 4, "lda"), comment, "after the comment's end");
+        assert_ne!(colour_of_text(&colours, &buffer, 2, "BasicUpstart2"), comment);
+        assert_ne!(colour_of_text(&colours, &buffer, 5, ".proc"), colour_of_text(&colours, &buffer, 5, "show"));
+        assert_eq!(colour_of_text(&colours, &buffer, 6, "lda"), colour_of_text(&colours, &buffer, 4, "lda"), "an instruction before brackets isn't a macro");
     }
 
     #[test]

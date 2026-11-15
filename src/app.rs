@@ -223,6 +223,7 @@ enum Command {
     AtariHardware,
     AtariBlitter,
     AtariTimers,
+    C64Hardware,
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
@@ -334,6 +335,7 @@ impl Command {
                 | Command::AtariHardware
                 | Command::AtariBlitter
                 | Command::AtariTimers
+                | Command::C64Hardware
                 | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
@@ -1323,6 +1325,7 @@ pub struct Limoniter {
     demo_tools: demo_tools_host::DemoTools,
     /// The Atari ST hardware guide and the blitter and timer calculators, while they're open.
     st_tools: st_hw_host::StTools,
+    c64_tools: c64_hw_host::C64Tools,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
@@ -1611,6 +1614,7 @@ impl Limoniter {
             st_pictures: None,
             demo_tools: Default::default(),
             st_tools: Default::default(),
+            c64_tools: Default::default(),
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
             task_run: None,
@@ -3676,6 +3680,7 @@ impl Limoniter {
             Command::AtariHardware => self.open_atari_hardware(),
             Command::AtariBlitter => self.open_atari_blitter(),
             Command::AtariTimers => self.open_atari_timers(),
+            Command::C64Hardware => self.open_c64_hardware(),
             Command::ScreenDesigner => {
                 if self.screen_designer.is_none() {
                     let mut designer = crate::screen_designer::Designer::default();
@@ -6753,6 +6758,7 @@ impl Limoniter {
         self.st_converter_window(&ctx);
         self.demo_tools_windows(&ctx);
         self.st_tools_windows(&ctx);
+        self.c64_tools_windows(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7483,6 +7489,8 @@ mod st_converter_host;
 mod demo_tools_host;
 #[path = "st_hw_host.rs"]
 mod st_hw_host;
+#[path = "c64_hw_host.rs"]
+mod c64_hw_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;

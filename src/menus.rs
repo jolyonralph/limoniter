@@ -504,6 +504,7 @@ const TOOLS: &[Entry] = &[
             Item("MFP timers", Command::AtariTimers),
         ],
     ),
+    Sub("Commodore 64", &[Item("VIC-II, SID, CIA and KERNAL guide", Command::C64Hardware)]),
     Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
     Sub(
         "Tasks",

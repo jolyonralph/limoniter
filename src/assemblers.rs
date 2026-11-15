@@ -71,6 +71,10 @@ pub enum Style {
     Lwasm,
     /// vasm (Motorola syntax): makes a plain binary, and a listing.
     Vasm,
+    /// KickAssembler, a Java program: makes a Commodore program, and a debug file of each line's address.
+    KickAss,
+    /// 64tass: makes a Commodore program, and a listing of each line's address and bytes.
+    Tass64,
 }
 
 /// An assembler of someone else's.
@@ -84,12 +88,14 @@ pub struct External {
     pub website: &'static str,
 }
 
-pub const KNOWN: [External; 5] = [
+pub const KNOWN: [External; 7] = [
     External { id: "sjasmplus", name: "sjasmplus", cpu: Cpu::Z80, programs: &["sjasmplus"], folder_hints: &["sjasmplus"], style: Style::Sjasmplus, website: "https://github.com/z00m128/sjasmplus" },
     External { id: "pasmo", name: "Pasmo", cpu: Cpu::Z80, programs: &["pasmo"], folder_hints: &["pasmo"], style: Style::Pasmo, website: "https://pasmo.speccy.org" },
     External { id: "lwasm", name: "lwasm (LWTOOLS)", cpu: Cpu::M6809, programs: &["lwasm"], folder_hints: &["lwtools", "lwasm"], style: Style::Lwasm, website: "http://www.lwtools.ca" },
     External { id: "vasm", name: "vasm", cpu: Cpu::M68k, programs: &["vasmm68k_mot"], folder_hints: &["vasm"], style: Style::Vasm, website: "http://sun.hasenbraten.de/vasm/" },
     External { id: "acme", name: "ACME", cpu: Cpu::M6502, programs: &["acme"], folder_hints: &["acme"], style: Style::Acme, website: "https://sourceforge.net/projects/acme-crossass/" },
+    External { id: "kickass", name: "KickAssembler", cpu: Cpu::M6502, programs: &["kickass"], folder_hints: &["kickass"], style: Style::KickAss, website: "http://theweb.dk/KickAssembler/" },
+    External { id: "64tass", name: "64tass", cpu: Cpu::M6502, programs: &["64tass"], folder_hints: &["64tass", "tass64"], style: Style::Tass64, website: "https://sourceforge.net/projects/tass64/" },
 ];
 
 /// Limoniter's own assembler's name in the settings.
@@ -135,7 +141,15 @@ pub fn external(id: &str) -> Option<&'static External> {
 
 /// The assemblers installed for a processor, where they are.
 pub fn installed(cpu: Cpu) -> Vec<(&'static External, PathBuf)> {
-    KNOWN.iter().filter(|e| e.cpu == cpu).filter_map(|e| crate::emulators::find_program(e.programs, e.folder_hints).map(|path| (e, path))).collect()
+    KNOWN
+        .iter()
+        .filter(|e| e.cpu == cpu)
+        .filter_map(|e| match e.style {
+            // KickAssembler is a .jar, run by Java.
+            Style::KickAss => crate::c64_assemblers::find_kickass().map(|path| (e, path)),
+            _ => crate::emulators::find_program(e.programs, e.folder_hints).map(|path| (e, path)),
+        })
+        .collect()
 }
 
 /// Which known assembler for a processor a program is, from its name: a renamed copy, such as sjasmplus-1.24.exe,
@@ -202,13 +216,15 @@ pub fn assemble_external(found: &External, program: &Path, source: &Path) -> Res
         Style::Acme => acme(program, source, &work),
         Style::Lwasm => lwasm(program, source, &work),
         Style::Vasm => vasm(program, source, &work),
+        Style::KickAss => crate::c64_assemblers::kickass(program, source, &work),
+        Style::Tass64 => crate::c64_assemblers::tass64(program, source, &work),
     };
     let _ = std::fs::remove_dir_all(&work);
     result
 }
 
 /// Runs a program in a folder, giving up after a while; what it printed, and whether it succeeded.
-fn run(program: &Path, args: &[String], folder: &Path) -> Result<(bool, Vec<String>), String> {
+pub(crate) fn run(program: &Path, args: &[String], folder: &Path) -> Result<(bool, Vec<String>), String> {
     let mut command = Command::new(program);
     command.args(args).current_dir(folder).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     #[cfg(windows)]
@@ -360,7 +376,7 @@ fn read_listing(listing: &str, assembly: &mut Assembly, source: &Path) -> Option
     furthest
 }
 
-fn file_index(assembly: &mut Assembly, name: &str, source: &Path) -> usize {
+pub(crate) fn file_index(assembly: &mut Assembly, name: &str, source: &Path) -> usize {
     let path = if Path::new(name).is_absolute() { PathBuf::from(name) } else { source.parent().unwrap_or(Path::new(".")).join(name) };
     let same = |a: &Path, b: &Path| a == b || a.file_name() == b.file_name() && (a.parent() == b.parent() || !a.is_absolute() || !b.is_absolute());
     if let Some(index) = assembly.files.iter().position(|f| same(f, &path)) {
@@ -373,6 +389,10 @@ fn file_index(assembly: &mut Assembly, name: &str, source: &Path) -> usize {
 /// A problem as assemblers print it: "file.asm(12): error: what", "file.asm:12: what", or pasmo's
 /// "ERROR on line 12 of file file.asm".
 pub fn problem_line(line: &str) -> Option<(String, usize, String)> {
+    // KickAssembler's and 64tass's ways.
+    if let Some(found) = crate::c64_assemblers::problem_line(line) {
+        return found;
+    }
     // ACME: "Error - File prog.asm, line 5 (Zone <untitled>): Syntax error."
     if let Some(rest) = line.strip_prefix("Error - File ").or_else(|| line.strip_prefix("Serious error - File ")) {
         let (file, rest) = rest.split_once(", line ")?;
@@ -607,7 +627,9 @@ mod tests {
         assert_eq!(recognise(Cpu::Z80, Path::new("/usr/bin/z80asm")), None, "two are known for the Z80, so a name that's neither isn't guessed");
         assert_eq!(recognise(Cpu::M6502, Path::new("/opt/acme/acme.exe")), Some("acme"));
         assert_eq!(recognise(Cpu::M6502, Path::new("/opt/acme/my-acme-build")), Some("acme"));
-        assert_eq!(recognise(Cpu::M6502, Path::new("/opt/bin/assembler")), Some("acme"), "the one known for the 6502");
+        assert_eq!(recognise(Cpu::M6502, Path::new("/opt/bin/assembler")), None, "three are known for the 6502");
+        assert_eq!(recognise(Cpu::M6502, Path::new("/opt/KickAssembler/KickAss.jar")), Some("kickass"));
+        assert_eq!(recognise(Cpu::M6502, Path::new("C:/c64/64tass-1.60/64tass.exe")), Some("64tass"));
         assert_eq!(recognise(Cpu::M6809, Path::new("lwasm.exe")), Some("lwasm"));
         assert_eq!(recognise(Cpu::M68k, Path::new("vasmm68k_mot_win32.exe")), Some("vasm"));
     }

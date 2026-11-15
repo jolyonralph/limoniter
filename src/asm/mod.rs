@@ -3,6 +3,7 @@
 //! data directives, and passes until every label has settled. Each processor (`Isa`) only turns one instruction
 //! into its bytes. The syntax follows what's usual for each machine, sjasmplus's for the Z80 above all.
 
+pub mod c64_syntax;
 pub mod device;
 pub mod expr;
 pub mod hunk;
@@ -558,6 +559,16 @@ impl<'a> Pass<'a> {
         };
         self.depth += 1;
         let text = without_block_comments(text);
+        // KickAssembler's and 64tass's ways of writing 6502 source, in the assembler's own.
+        let dialect = if self.isa.name() == "6502" { c64_syntax::dialect(path, &text) } else { None };
+        let translated = dialect.map(|d| c64_syntax::rewrite(d, &text));
+        if let Some(d) = dialect
+            && self.last
+            && self.depth == 1
+        {
+            self.out.notes.push(format!("Read as {} source: Limoniter's assembler knows its everyday forms; for the rest, choose {} in File, Run on, Assemblers.", d.name(), d.name()));
+        }
+        let text: &str = translated.as_deref().unwrap_or(&text);
         let mut joined: Option<(usize, String)> = None;
         for (number, line) in text.lines().enumerate() {
             if self.ended {
@@ -1584,6 +1595,28 @@ impl<'a> Pass<'a> {
             "zone" => {
                 self.global = operands.trim().to_string();
             }
+            // KickAssembler's BasicUpstart: a BASIC line, 10 SYS address, here; BasicUpstart2 puts it at $0801
+            // and goes on from $080E.
+            "basicupstart" | "basicupstart2" => {
+                if directive == "basicupstart2" {
+                    self.pc = 0x0801 + self.base;
+                    self.absolute = true;
+                }
+                let address = self.eval(operands).unwrap_or_else(|problem| {
+                    self.problem(problem);
+                    0
+                });
+                let digits = address.to_string();
+                let end = self.pc + self.shift + 2 + 2 + 1 + digits.len() as i64 + 1;
+                let mut bytes = self.word_bytes(end, 2);
+                bytes.extend([10, 0, 0x9E]);
+                bytes.extend(digits.bytes());
+                bytes.extend([0, 0, 0]);
+                self.emit(bytes);
+                if directive == "basicupstart2" {
+                    self.pc = 0x080E + self.base;
+                }
+            }
             // ca65's .proc: a label, and the scope its @ labels belong to.
             "proc" => {
                 let name = operands.split_whitespace().next().unwrap_or("").to_string();
@@ -2467,7 +2500,7 @@ impl Line<'_, '_> {
 
 /// Words the assembler itself understands.
 pub const DIRECTIVES: &[&str] = &[
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone", "define", "define+", "undefine", "defarray", "defarray+", "ifused", "ifnused", "struct", "ends", "dg", "dh", "inchob", "sldopt", "cspectmap", "d24", "outend", "savedev", "defg", "defh", "hex", "relocate_start", "relocate_end", "relocate_table", "code_c", "code_f", "data_c", "data_f", "bss_c", "bss_f",
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone", "define", "define+", "undefine", "defarray", "defarray+", "ifused", "ifnused", "struct", "ends", "dg", "dh", "inchob", "sldopt", "cspectmap", "d24", "outend", "savedev", "defg", "defh", "hex", "relocate_start", "relocate_end", "relocate_table", "code_c", "code_f", "data_c", "data_f", "bss_c", "bss_f", "basicupstart", "basicupstart2",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.
