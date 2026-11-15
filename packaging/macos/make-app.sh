@@ -5,13 +5,20 @@
 set -eu
 
 version=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n 1)
-cargo build --release --locked
+
+# One app for every Mac: built for Apple Silicon and for Intel, and the two joined into a universal program.
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+for target in aarch64-apple-darwin x86_64-apple-darwin; do
+  cargo build --release --locked --target "$target"
+done
 
 out=target/macos
 app="$out/Limoniter.app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp target/release/limoniter "$app/Contents/MacOS/limoniter"
+lipo -create -output "$app/Contents/MacOS/limoniter" \
+  target/aarch64-apple-darwin/release/limoniter target/x86_64-apple-darwin/release/limoniter
+lipo "$app/Contents/MacOS/limoniter" -verify_arch arm64 x86_64
 
 # The icon, at every size macOS asks for, from the logo.
 iconset="$out/Limoniter.iconset"
