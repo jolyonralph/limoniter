@@ -496,6 +496,7 @@ const TOOLS: &[Entry] = &[
         ],
     ),
     Sub("Atari ST", &[Item("Picture, sprite and font converter", Command::StPictures)]),
+    Sub("Commodore 64", &[Item("Picture, sprite and charset converter", Command::C64Pictures)]),
     Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
     Sub(
         "Tasks",

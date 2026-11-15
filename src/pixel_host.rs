@@ -4,6 +4,35 @@
 use super::*;
 use crate::pixel_editor::{Asked, Editor, Kind, Sheet};
 
+/// A file read into the editor: SpritePad's .spd as C64 sprites, a .prg (or .64c) without its load address, .spr
+/// as Next sprites unless C64 ones are being drawn, and anything else as the kind being drawn.
+fn load_into(editor: &mut Editor, path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let ending = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let kind = editor.sheet.kind;
+    let colours = editor.sheet.colours;
+    if ending == "spd" {
+        let sheet = Sheet::from_spd(bytes).ok_or_else(|| format!("{} isn't a SpritePad file Limoniter knows.", path.display()))?;
+        *editor = Editor::new(sheet.kind);
+        editor.sheet = sheet;
+        return Ok(());
+    }
+    let (kind, bytes, load) = match ending.as_str() {
+        "spr" if !kind.c64() => (Kind::Sprites, bytes, None),
+        "prg" | "64c" if bytes.len() > 2 => {
+            let kind = if kind.c64() { kind } else { Kind::C64Characters };
+            (kind, &bytes[2..], Some(u16::from_le_bytes([bytes[0], bytes[1]])))
+        }
+        _ => (kind, bytes, None),
+    };
+    *editor = Editor::new(kind);
+    editor.sheet = Sheet::from_bytes(kind, bytes);
+    editor.sheet.colours = colours;
+    if let Some(load) = load {
+        editor.load_address = load;
+    }
+    Ok(())
+}
+
 impl Limoniter {
     pub(super) fn pixel_editor_window(&mut self, ctx: &Context) {
         let Some(mut editor) = self.pixel_editor.take() else {
@@ -25,24 +54,35 @@ impl Limoniter {
         match asked {
             Asked::Close => return,
             Asked::Load => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Open characters or sprites").add_filter("UDGs, fonts and sprites", &["udg", "chr", "ch8", "fnt", "spr", "bin"]).add_filter("Any file", &["*"]).pick_file() {
-                match std::fs::read(&path) {
-                    Ok(bytes) => {
-                        let sprites = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("spr"));
-                        let kind = if sprites { Kind::Sprites } else { editor.sheet.kind };
-                        *editor = Editor::new(kind);
-                        editor.sheet = Sheet::from_bytes(kind, &bytes);
+                if let Some(path) = rfd::FileDialog::new().set_title("Open characters or sprites").add_filter("UDGs, fonts and sprites", &["udg", "chr", "ch8", "fnt", "spr", "bin", "prg", "64c", "spd"]).add_filter("Any file", &["*"]).pick_file() {
+                    match std::fs::read(&path) {
+                        Ok(bytes) => {
+                            if let Err(problem) = load_into(&mut editor, &path, &bytes) {
+                                self.message("Characters and sprites", problem);
+                            }
+                        }
+                        Err(e) => self.message("Characters and sprites", format!("Couldn't read {}.\n\n{e}", path.display())),
                     }
-                    Err(e) => self.message("Characters and sprites", format!("Couldn't read {}.\n\n{e}", path.display())),
-                }
                 }
             }
             Asked::Save => {
-                let (filter, ending) = if editor.sheet.kind == Kind::Sprites { ("Next sprites", "spr") } else { ("UDGs or a font", "udg") };
-                if let Some(path) = rfd::FileDialog::new().set_title("Save the characters or sprites").set_file_name(format!("{}.{ending}", editor.label)).add_filter(filter, &[ending, "chr", "bin"]).save_file()
-                    && let Err(e) = codec::write_file(&path, &editor.sheet.to_bytes())
-                {
-                    self.message("Characters and sprites", format!("Couldn't save {}.\n\n{e}", path.display()));
+                let kind = editor.sheet.kind;
+                let (filter, endings): (&str, &[&str]) = match kind {
+                    Kind::Sprites => ("Next sprites", &["spr", "bin"]),
+                    Kind::Characters => ("UDGs or a font", &["udg", "chr", "bin"]),
+                    Kind::C64Sprites | Kind::C64MultiSprites => ("C64 sprites", &["bin", "prg", "spd"]),
+                    _ => ("C64 characters", &["bin", "prg", "64c"]),
+                };
+                if let Some(path) = rfd::FileDialog::new().set_title("Save the characters or sprites").set_file_name(format!("{}.{}", editor.label, endings[0])).add_filter(filter, endings).save_file() {
+                    let ending = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                    let bytes = match ending.as_str() {
+                        "prg" | "64c" if kind.c64() => editor.prg(),
+                        "spd" if kind.c64_sprite() => editor.sheet.to_spd(),
+                        _ => editor.sheet.to_bytes(),
+                    };
+                    if let Err(e) = codec::write_file(&path, &bytes) {
+                        self.message("Characters and sprites", format!("Couldn't save {}.\n\n{e}", path.display()));
+                    }
                 }
             }
             Asked::Insert => {
@@ -195,9 +235,9 @@ mod tests {
     }
 
     #[test]
-    fn the_window_draws_in_both_kinds() {
+    fn the_window_draws_in_every_kind() {
         let (mut app, ctx) = app_with("");
-        for kind in [Kind::Characters, Kind::Sprites] {
+        for kind in Kind::ALL {
             app.pixel_editor = Some(Box::new(Editor::new(kind)));
             for _ in 0..3 {
                 ctx.run_ui(Default::default(), |ui| app.pixel_editor_window(ui.ctx())).textures_delta.clear();
@@ -223,5 +263,28 @@ mod tests {
         app.doc().text.move_caret(2, 0, true);
         let back = Sheet::from_text(Kind::Characters, &app.doc().text.selection_text()).unwrap();
         assert_eq!(back.to_bytes(), [0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18]);
+    }
+
+    #[test]
+    fn c64_files_load_by_their_kind() {
+        // A charset .prg: its load address kept, the rest characters.
+        let mut prg = vec![0x00, 0x30];
+        prg.extend((0..2048).map(|i| i as u8));
+        let mut editor = Editor::new(Kind::Characters);
+        load_into(&mut editor, Path::new("font.prg"), &prg).unwrap();
+        assert_eq!((editor.sheet.kind, editor.sheet.items.len(), editor.load_address), (Kind::C64Characters, 256, 0x3000));
+        assert_eq!(editor.prg(), prg);
+        // SpritePad's file becomes C64 sprites, whatever was being drawn.
+        let mut sprites = Editor::new(Kind::C64MultiSprites);
+        sprites.sheet.items[0][5] = 3;
+        let spd = sprites.sheet.to_spd();
+        load_into(&mut editor, Path::new("s.spd"), &spd).unwrap();
+        assert_eq!((editor.sheet.kind, editor.sheet.items.len()), (Kind::C64MultiSprites, 8));
+        assert_eq!(editor.sheet.to_spd(), spd);
+        assert!(load_into(&mut editor, Path::new("bad.spd"), b"nothing").is_err());
+        // .spr is the Next's, unless C64 sprites are being drawn.
+        let mut next = Editor::new(Kind::Characters);
+        load_into(&mut next, Path::new("a.spr"), &[0; 256]).unwrap();
+        assert_eq!(next.sheet.kind, Kind::Sprites);
     }
 }

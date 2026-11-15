@@ -218,6 +218,7 @@ enum Command {
     AmigaHardware,
     AmigaBitplanes,
     StPictures,
+    C64Pictures,
     BlitterMinterms,
     TableGenerator,
     ToggleTerminal,
@@ -326,6 +327,7 @@ impl Command {
                 | Command::ScreenDesigner
                 | Command::AmigaBitplanes
                 | Command::StPictures
+                | Command::C64Pictures
                 | Command::BlitterMinterms
                 | Command::TableGenerator
                 | Command::ToggleTerminal
@@ -1313,6 +1315,7 @@ pub struct Limoniter {
     bitplanes: Option<Box<crate::bitplane_tool::Converter>>,
     /// The Atari ST picture converter, while it's open.
     st_pictures: Option<Box<crate::st_converter::Converter>>,
+    c64_pictures: Option<Box<crate::c64_converter::Converter>>,
     /// The blitter minterm calculator and the table generator, while they're open.
     demo_tools: demo_tools_host::DemoTools,
     /// Language servers: whether they're used, which, and those running.
@@ -1601,6 +1604,7 @@ impl Limoniter {
             amiga_hw: None,
             bitplanes: None,
             st_pictures: None,
+            c64_pictures: None,
             demo_tools: Default::default(),
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
@@ -3678,6 +3682,7 @@ impl Limoniter {
             }
             Command::AmigaBitplanes => self.open_bitplane_converter(),
             Command::StPictures => self.open_st_converter(),
+            Command::C64Pictures => self.open_c64_converter(),
             Command::PixelEditor => {
                 if self.pixel_editor.is_none() {
                     self.pixel_editor = Some(Box::new(crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters)));
@@ -6739,6 +6744,7 @@ impl Limoniter {
         self.amiga_hw_window(&ctx);
         self.bitplane_window(&ctx);
         self.st_converter_window(&ctx);
+        self.c64_converter_window(&ctx);
         self.demo_tools_windows(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
@@ -7466,6 +7472,8 @@ mod amiga_hw_host;
 mod bitplane_host;
 #[path = "st_converter_host.rs"]
 mod st_converter_host;
+#[path = "c64_converter_host.rs"]
+mod c64_converter_host;
 #[path = "demo_tools_host.rs"]
 mod demo_tools_host;
 
