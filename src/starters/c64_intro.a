@@ -1,0 +1,379 @@
+; A Commodore 64 intro to start from (PAL), with music, in ACME's syntax.
+;
+; RUN starts it from a BASIC line. It switches the KERNAL and BASIC out, turns the CIAs' interrupts off and
+; runs a chain of three raster interrupts: stable raster bars in the top border, a smooth scroller near the
+; bottom (the scroll register set just for its row), and the music played once a frame, with the title's
+; colours going round. Space silences the SID, puts everything back and returns to BASIC.
+;
+; The music: a SID tune made for $1000 starts (init) at $1000 and is played once a frame at $1003. A stand-in
+; that plays nothing is there now; put the tune in its place (see music_init below). The code and words have
+; to stay below $1000, where the tune goes.
+
+!cpu 6510
+
+BARS_IRQ    = 17                ; the stable bars' first interrupt: stable from cycle 4 of line 19
+BAR_LINES   = 28                ; bars on lines 20 to 47, in the top border
+SCROLL_IRQ  = 220               ; the scroller's row (22, lines 227 to 234) gets its own scroll
+AFTER_IRQ   = 236               ; then back to no scroll, and the frame's work
+SCROLL_ROW  = $0400+40*22
+TITLE_ROW   = 8
+colours     = $3000             ; the bars' colours, a page made at the start
+
+; Zero page this uses (the BASIC's floating point work area, which it doesn't need while this runs).
+bar_count   = $fb
+frames      = $fc
+xscroll     = $fd
+text_at     = $fe               ; and $ff: where the scroller's text has got to
+
+; The BASIC line: 10 SYS 2061, then the end of the program.
+        * = $0801
+        !word basic_end         ; the next line's address
+        !word 10                ; its number
+        !byte $9e               ; SYS
+        !text "2061"
+        !byte 0
+basic_end
+        !word 0
+
+start
+!if start != 2061 {
+        !error "the SYS line has to say where start is"
+}
+        sei
+        lda #$7f
+        sta $dc0d               ; no CIA 1 interrupts (the KERNAL's timer)
+        sta $dd0d               ; nor CIA 2's NMIs
+        lda $dc0d               ; reading them clears any waiting
+        lda $dd0d
+        lda $01
+        sta saved_01
+        lda #$35                ; KERNAL and BASIC out, I/O in
+        sta $01
+        lda #<nmi
+        sta $fffa
+        lda #>nmi
+        sta $fffb               ; RESTORE now does nothing
+        lda $d020
+        sta saved_border
+        lda $d021
+        sta saved_paper
+
+        ; The screen: black, the title and the words.
+        lda #0
+        sta $d020
+        sta $d021
+        ldx #0
+-       lda #' '
+        sta $0400,x
+        sta $0500,x
+        sta $0600,x
+        sta $06e8,x
+        lda #14                 ; light blue
+        sta $d800,x
+        sta $d900,x
+        sta $da00,x
+        sta $dae8,x
+        inx
+        bne -
+        ldx #title_end-title-1
+-       lda title,x
+        sta $0400+40*TITLE_ROW+(40-(title_end-title))/2,x
+        dex
+        bpl -
+        ldx #words_end-words-1
+-       lda words,x
+        sta $0400+40*12+(40-(words_end-words))/2,x
+        lda #15                 ; light grey
+        sta $d800+40*12+(40-(words_end-words))/2,x
+        dex
+        bpl -
+        ldx #39
+        lda #1                  ; the scroller in white
+-       sta $d800+40*22,x
+        dex
+        bpl -
+
+        ; The bars' colours: the pattern, eight times over, so that an index can run round the page.
+        ldx #0
+-       txa
+        and #31
+        tay
+        lda pattern,y
+        sta colours,x
+        inx
+        bne -
+
+        lda #0
+        sta frames
+        lda #7
+        sta xscroll
+        lda #<scroll_text
+        sta text_at
+        lda #>scroll_text
+        sta text_at+1
+
+        lda #0                  ; the tune's first song
+        jsr music_init
+
+        ; The raster interrupts: the first at line BARS_IRQ.
+        lda #<bars_irq
+        sta $fffe
+        lda #>bars_irq
+        sta $ffff
+        lda #BARS_IRQ
+        sta $d012
+        lda $d011
+        and #$7f                ; line 0 to 255
+        sta $d011
+        lda #$01
+        sta $d01a               ; raster interrupts on
+        sta $d019               ; and none waiting
+        cli
+
+        ; Wait for space: row 7 of the keyboard, column 4.
+        lda #$7f
+        sta $dc00
+main
+!ifdef TEST_FRAMES {
+        lda frames
+        cmp #TEST_FRAMES
+        bcs exit                ; a test copy stops by itself
+}
+        lda $dc01
+        and #$10
+        bne main
+
+exit
+        sei
+        lda #0
+        sta $d01a               ; no raster interrupts
+        ldx #$18
+-       sta $d400,x             ; the SID silent
+        dex
+        bpl -
+        lda #$ff
+        sta $d019
+        lda #$c8
+        sta $d016               ; 40 columns, no scroll
+        lda saved_border
+        sta $d020
+        lda saved_paper
+        sta $d021
+        lda saved_01
+        sta $01                 ; the KERNAL and BASIC back
+        lda #$81
+        sta $dc0d               ; and the KERNAL's timer interrupt
+-       lda $dc01
+        and #$10
+        beq -                   ; until space is let go of
+        lda #$ff
+        sta $dc00
+        jsr $e544               ; clear the screen
+        lda #0
+        sta $c6                 ; nothing waiting to be typed
+        cli
+        rts                     ; READY.
+
+nmi     rti
+
+saved_01     !byte 0
+saved_border !byte 0
+saved_paper  !byte 0
+
+; The words, as screen codes.
+title   !scr "limoniter presents"
+title_end
+words   !scr "an intro with music"
+words_end
+
+; The title's colours, going round.
+title_colours
+        !byte 6, 14, 3, 13, 1, 13, 3, 14
+
+; The bars: blue, red, green and brown, each fading to white and back.
+pattern !byte 0, 6, 14, 3, 1, 3, 14, 6
+        !byte 0, 2, 10, 7, 1, 7, 10, 2
+        !byte 0, 5, 13, 15, 1, 15, 13, 5
+        !byte 0, 9, 8, 7, 1, 7, 8, 9
+
+; The scroller's words, ending with 0 to start again.
+scroll_text
+        !scr "hello from a c64 intro made with limoniter...   "
+        !scr "put a sid tune at $1000 and it plays here...   "
+        !scr "press space to go back to basic...          "
+        !byte 0
+
+; The interrupts. Timed loops must not cross a page, where a branch takes a cycle more.
+        !align 255, 0
+
+; Line 17: the first interrupt lets the second, a line on, come in during NOPs, so it's a cycle late at most.
+bars_irq
+        pha
+        txa
+        pha
+        lda #<bars_stable
+        sta $fffe
+        lda #>bars_stable
+        sta $ffff
+        inc $d012               ; the next line
+        lda #$01
+        sta $d019
+        tsx                     ; the stack as it is now, to come back to
+        cli
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+bars_stable
+        txs                     ; the second interrupt's return isn't wanted
+        ldx #8                  ; 41 cycles of waiting
+        dex
+        bne *-1
+        bit $ea                 ; and 3
+        lda $d012
+        cmp $d012               ; read in line 18's last cycle, or line 19's first
+        beq *+2                 ; a cycle more if it's still line 18: stable from here, cycle 4 of line 19
+        tya
+        pha
+        ldx bar_start
+        lda #BAR_LINES
+        sta bar_count
+        ldy #9                  ; 46 cycles: the first colour goes in cycle 8 of line 20, off the screen's edge
+        dey
+        bne *-1
+bar_line
+        lda colours,x           ; 4
+        sta $d020               ; 4: the colour changes in its last cycle
+        inx                     ; 2
+        ldy #8                  ; 2
+        dey                     ; 8 times round: 39
+        bne *-1
+        nop                     ; 2
+        nop                     ; 2
+        dec bar_count           ; 5
+        bne bar_line            ; 3: 63, one line
+        lda #0
+        sta $d020               ; black again, from the next line
+        inc bar_start           ; the bars move down a line a frame
+        lda #<scroll_irq
+        sta $fffe
+        lda #>scroll_irq
+        sta $ffff
+        lda #SCROLL_IRQ
+        sta $d012
+        lda #$01
+        sta $d019
+        pla
+        tay
+        pla
+        tax
+        pla
+        rti
+
+bar_start !byte 0
+
+; Line 220, after row 21's bad line: the scroller's row scrolls, in 38 columns to hide its edges.
+scroll_irq
+        pha
+        lda xscroll
+        ora #$c0                ; bit 3 clear: 38 columns
+        sta $d016
+        lda #<after_irq
+        sta $fffe
+        lda #>after_irq
+        sta $ffff
+        lda #AFTER_IRQ
+        sta $d012
+        lda #$01
+        sta $d019
+        pla
+        rti
+
+; Line 236, past the scroller: no scroll again, then move the scroller, colour the title and play the music.
+after_irq
+        pha
+        txa
+        pha
+        tya
+        pha
+        lda #$c8
+        sta $d016               ; 40 columns, no scroll
+        inc frames
+        dec xscroll             ; a pixel a frame
+        bpl +
+        lda #7                  ; a whole character: move the row along one
+        sta xscroll
+        ldx #0
+-       lda SCROLL_ROW+1,x
+        sta SCROLL_ROW,x
+        inx
+        cpx #39
+        bne -
+        ldy #0
+        lda (text_at),y
+        bne ++
+        lda #<scroll_text       ; the end: from the start again
+        sta text_at
+        lda #>scroll_text
+        sta text_at+1
+        lda (text_at),y
+++      sta SCROLL_ROW+39
+        inc text_at
+        bne +
+        inc text_at+1
++
+        ; The title's colours go round, a step every 4 frames.
+        lda frames
+        lsr
+        lsr
+        and #7
+        tay
+        ldx #0
+-       lda title_colours,y
+        sta $d800+40*TITLE_ROW,x
+        iny
+        tya
+        and #7
+        tay
+        inx
+        cpx #40
+        bne -
+        jsr music_play
+        lda #<bars_irq
+        sta $fffe
+        lda #>bars_irq
+        sta $ffff
+        lda #BARS_IRQ
+        sta $d012
+        lda #$01
+        sta $d019
+        pla
+        tay
+        pla
+        tax
+        pla
+        rti
+
+!if * > $1000 {
+        !error "the code has run into the music at $1000"
+}
+
+; The music. A stand-in that plays nothing, at the addresses a tune made for $1000 has. To play a tune, take
+; these three lines out and put it here instead: a .sid file's tune comes after its header ($7C bytes) and
+; its load address (2), so for one that loads at $1000:
+;       * = $1000
+;       !binary "tune.sid", , $7e
+        * = $1000
+music_init
+        jmp silence             ; $1000: start song A
+music_play
+        jmp silence             ; $1003: once a frame
+silence rts

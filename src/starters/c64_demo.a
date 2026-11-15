@@ -1,0 +1,320 @@
+; A Commodore 64 demo to start from (PAL), in ACME's syntax.
+;
+; RUN starts it from a BASIC line. It switches the KERNAL and BASIC out, turns the CIAs' interrupts off and
+; runs a chain of two raster interrupts: one at the top of the frame moves a sprite and the bars, the other is
+; made stable (two interrupts, the second coming during NOPs) and draws raster bars in the bottom border, a
+; colour a line, each changed in the same cycle every line. Space puts everything back and returns to BASIC.
+;
+; Tools > Commodore 64 has a raster line calculator and makes raster interrupt code like this; the cycle
+; counts show beside the code with View > Cycle counts (6502), and hovering over an instruction gives them too.
+
+!cpu 6510
+
+BAR_LINES   = 40                ; how many lines of bars, from line 253
+BARS_IRQ    = 250               ; the first half of the stable interrupt: stable from cycle 4 of line 252
+FRAME_IRQ   = 8                 ; the frame's work, in the vertical blank
+colours     = $3000             ; the bars' colours, a page made at the start
+
+; Zero page this uses (the BASIC's floating point work area, which it doesn't need while this runs).
+bar_count   = $fb
+frames      = $fc
+wave        = $fd
+
+; The BASIC line: 10 SYS 2061, then the end of the program.
+        * = $0801
+        !word basic_end         ; the next line's address
+        !word 10                ; its number
+        !byte $9e               ; SYS
+        !text "2061"
+        !byte 0
+basic_end
+        !word 0
+
+start
+!if start != 2061 {
+        !error "the SYS line has to say where start is"
+}
+        sei
+        lda #$7f
+        sta $dc0d               ; no CIA 1 interrupts (the KERNAL's timer)
+        sta $dd0d               ; nor CIA 2's NMIs
+        lda $dc0d               ; reading them clears any waiting
+        lda $dd0d
+        lda $01
+        sta saved_01
+        lda #$35                ; KERNAL and BASIC out, I/O in
+        sta $01
+        lda #<nmi
+        sta $fffa
+        lda #>nmi
+        sta $fffb               ; RESTORE now does nothing
+        lda $d020
+        sta saved_border
+        lda $d021
+        sta saved_paper
+
+        ; The screen: black, with words in the middle.
+        lda #0
+        sta $d020
+        sta $d021
+        ldx #0
+-       lda #' '
+        sta $0400,x
+        sta $0500,x
+        sta $0600,x
+        sta $06e8,x
+        lda #1                  ; white
+        sta $d800,x
+        sta $d900,x
+        sta $da00,x
+        sta $dae8,x
+        inx
+        bne -
+        ldx #message_end-message-1
+-       lda message,x
+        sta $0400+40*4+5,x
+        dex
+        bpl -
+        ldx #press_end-press-1
+-       lda press,x
+        sta $0400+40*20+4,x
+        lda #15                 ; light grey
+        sta $d800+40*20+4,x
+        dex
+        bpl -
+
+        ; The bars' colours: the pattern, eight times over, so that an index can run round the page.
+        ldx #0
+-       txa
+        and #31
+        tay
+        lda pattern,y
+        sta colours,x
+        inx
+        bne -
+
+        ; Sprite 0: a ball.
+        lda #ball/64
+        sta $07f8               ; its data's pointer, in the screen's last bytes
+        lda #172
+        sta $d000               ; x
+        lda #130
+        sta $d001               ; y
+        lda #0
+        sta $d010               ; x below 256
+        lda #7                  ; yellow
+        sta $d027
+        lda #1
+        sta $d015               ; sprite 0 on
+        lda #0
+        sta frames
+        sta wave
+
+        ; The raster interrupts: the first at line FRAME_IRQ.
+        lda #<frame_irq
+        sta $fffe
+        lda #>frame_irq
+        sta $ffff
+        lda #FRAME_IRQ
+        sta $d012
+        lda $d011
+        and #$7f                ; line 0 to 255
+        sta $d011
+        lda #$01
+        sta $d01a               ; raster interrupts on
+        sta $d019               ; and none waiting
+        cli
+
+        ; Wait for space: row 7 of the keyboard, column 4.
+        lda #$7f
+        sta $dc00
+main
+!ifdef TEST_FRAMES {
+        lda frames
+        cmp #TEST_FRAMES
+        bcs exit                ; a test copy stops by itself
+}
+        lda $dc01
+        and #$10
+        bne main
+
+exit
+        sei
+        lda #0
+        sta $d01a               ; no raster interrupts
+        sta $d015               ; no sprite
+        lda #$ff
+        sta $d019
+        lda saved_border
+        sta $d020
+        lda saved_paper
+        sta $d021
+        lda saved_01
+        sta $01                 ; the KERNAL and BASIC back
+        lda #$81
+        sta $dc0d               ; and the KERNAL's timer interrupt
+-       lda $dc01
+        and #$10
+        beq -                   ; until space is let go of
+        lda #$ff
+        sta $dc00
+        jsr $e544               ; clear the screen
+        lda #0
+        sta $c6                 ; nothing waiting to be typed
+        cli
+        rts                     ; READY.
+
+nmi     rti
+
+saved_01     !byte 0
+saved_border !byte 0
+saved_paper  !byte 0
+
+; The words, as screen codes.
+message !scr "limoniter c64 demo starter"
+message_end
+press   !scr "press space to go back to basic"
+press_end
+
+; The bars: blue, red, green and brown, each fading to white and back.
+pattern !byte 0, 6, 14, 3, 1, 3, 14, 6
+        !byte 0, 2, 10, 7, 1, 7, 10, 2
+        !byte 0, 5, 13, 15, 1, 15, 13, 5
+        !byte 0, 9, 8, 7, 1, 7, 8, 9
+
+; Where the ball goes up and down, between 60 and 200.
+sine    !byte 130, 137, 144, 150, 157, 163, 169, 174, 179, 184, 188, 192, 195, 197, 199, 200
+        !byte 200, 200, 199, 197, 195, 192, 188, 184, 179, 174, 169, 163, 157, 150, 144, 137
+        !byte 130, 123, 116, 110, 103, 97, 91, 86, 81, 76, 72, 68, 65, 63, 61, 60
+        !byte 60, 60, 61, 63, 65, 68, 72, 76, 81, 86, 91, 97, 103, 110, 116, 123
+
+; The interrupts. Timed loops must not cross a page, where a branch takes a cycle more.
+        !align 255, 0
+
+; In the vertical blank: the frame's work, then the bars' interrupt.
+frame_irq
+        pha
+        txa
+        pha
+        tya
+        pha
+        inc frames
+        inc wave
+        lda wave
+        and #63
+        tax
+        lda sine,x
+        sta $d001               ; the ball's height
+        dec bar_start           ; the bars move up a line a frame
+        lda #<bars_irq
+        sta $fffe
+        lda #>bars_irq
+        sta $ffff
+        lda #BARS_IRQ
+        sta $d012
+        lda #$01
+        sta $d019               ; this one's done
+        pla
+        tay
+        pla
+        tax
+        pla
+        rti
+
+; Line 250: the first interrupt lets the second, a line on, come in during NOPs, so it's a cycle late at most.
+bars_irq
+        pha
+        txa
+        pha
+        lda #<bars_stable
+        sta $fffe
+        lda #>bars_stable
+        sta $ffff
+        inc $d012               ; the next line
+        lda #$01
+        sta $d019
+        tsx                     ; the stack as it is now, to come back to
+        cli
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+bars_stable
+        txs                     ; the second interrupt's return isn't wanted
+        ldx #8                  ; 41 cycles of waiting
+        dex
+        bne *-1
+        bit $ea                 ; and 3
+        lda $d012
+        cmp $d012               ; read in line 251's last cycle, or line 252's first
+        beq *+2                 ; a cycle more if it's still line 251: stable from here, cycle 4 of line 252
+        tya
+        pha
+        ldx bar_start
+        lda #BAR_LINES
+        sta bar_count
+        ldy #9                  ; 46 cycles: the first colour goes in cycle 8 of line 253, off the screen's edge
+        dey
+        bne *-1
+bar_line
+        lda colours,x           ; 4
+        sta $d020               ; 4: the colour changes in its last cycle
+        inx                     ; 2
+        ldy #8                  ; 2
+        dey                     ; 8 times round: 39
+        bne *-1
+        nop                     ; 2
+        nop                     ; 2
+        dec bar_count           ; 5
+        bne bar_line            ; 3: 63, one line
+        lda #0
+        sta $d020               ; black again, from the next line
+        lda #<frame_irq
+        sta $fffe
+        lda #>frame_irq
+        sta $ffff
+        lda #FRAME_IRQ
+        sta $d012
+        lda #$01
+        sta $d019
+        pla
+        tay
+        pla
+        tax
+        pla
+        rti
+
+bar_start !byte 0
+
+; The ball's 63 bytes, 3 to a row, in the 64 its pointer counts in.
+        !align 63, 0
+ball    !byte %00000000, %11111111, %00000000
+        !byte %00000011, %11111111, %11000000
+        !byte %00000111, %11111111, %11100000
+        !byte %00011111, %11111111, %11111000
+        !byte %00011111, %11111111, %11111000
+        !byte %00111111, %11111111, %11111100
+        !byte %01111111, %11111111, %11111110
+        !byte %01111111, %11111111, %11111110
+        !byte %01111111, %11111111, %11111110
+        !byte %01111111, %11111111, %11111110
+        !byte %11111111, %11111111, %11111111
+        !byte %01111111, %11111111, %11111110
+        !byte %01111111, %11111111, %11111110
+        !byte %01111111, %11111111, %11111110
+        !byte %01111111, %11111111, %11111110
+        !byte %00111111, %11111111, %11111100
+        !byte %00011111, %11111111, %11111000
+        !byte %00011111, %11111111, %11111000
+        !byte %00000111, %11111111, %11100000
+        !byte %00000011, %11111111, %11000000
+        !byte %00000000, %11111111, %00000000
+        !byte 0

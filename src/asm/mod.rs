@@ -44,6 +44,10 @@ pub trait Isa {
     fn cycles(&self, _bytes: &[u8]) -> Option<String> {
         None
     }
+    /// The same, for an instruction at a known address: a 6502 branch takes longer into another page.
+    fn cycles_at(&self, bytes: &[u8], _address: i64) -> Option<String> {
+        self.cycles(bytes)
+    }
 }
 
 /// Where a problem is.
@@ -632,6 +636,11 @@ impl<'a> Pass<'a> {
             "16" => (Block::Plain, format!("word {body}")),
             "24" | "32" => (Block::Plain, format!("dd {body}")),
             "bin" => (Block::Plain, format!("incbin {body}")),
+            // !align and, equal [, fill]: on until the address ANDed with the first is the second, with NOPs.
+            "align" if split_operands(body).len() >= 2 => {
+                let items = split_operands(body);
+                (Block::Plain, format!("fill (({}) - *) & ({}), {}", items[1], items[0], items.get(2).map_or("$ea", String::as_str)))
+            }
             "h" | "hex" => (Block::Plain, format!("byte {}", body.split_whitespace().flat_map(|w| (0..w.len() / 2).map(move |i| format!("${}", &w[i * 2..i * 2 + 2]))).collect::<Vec<_>>().join(","))),
             _ if opens => (Block::Plain, format!("!{directive} {body}")),
             _ => return None,
