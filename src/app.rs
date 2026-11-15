@@ -248,6 +248,10 @@ enum Command {
     CompareFolders,
     /// Asks for two files and compares them side by side.
     CompareFiles,
+    /// Asks for a patch, then checks it against a folder or file before applying it.
+    ApplyPatch,
+    /// Lists the saved folder comparisons, to open, rename or delete.
+    CompareSessions,
     GitHistory,
     GitStageChange,
     GitUndoChange,
@@ -403,6 +407,8 @@ impl Command {
                 | Command::StopTool
                 | Command::CompareFolders
                 | Command::CompareFiles
+                | Command::ApplyPatch
+                | Command::CompareSessions
         )
     }
 
@@ -1325,6 +1331,10 @@ enum Dialog {
     RunTool { line: String, save_first: bool, error: String, focus: bool },
     Assembler(Box<asm_host::AssemblerBox>),
     NewKinds(Box<new_kinds::NewKindsBox>),
+    /// Saving a folder comparison by name, or looking after those saved.
+    CompareSession(Box<compare_host::sync_host::SessionBox>),
+    CompareRules(Box<compare_host::sync_host::RulesBox>),
+    ApplyPatch(Box<compare_host::sync_host::PatchBox>),
     RenameLabel(Box<intel_host::RenameBox>),
     Disassemble(Box<disasm_host::DisasmBox>),
     NewImage(Box<image_browser::NewImageBox>),
@@ -1348,6 +1358,11 @@ pub struct Limoniter {
     untitled_count: usize,
     /// What File, New as offers.
     new_kinds: Vec<new_kinds::NewKind>,
+    /// How files are compared by name, as Settings has it; each folder comparison starts with these.
+    compare_rules: crate::compare_rules::Rules,
+    /// Folder comparisons saved outside any project, and the file they're kept in.
+    compare_sessions: Vec<crate::compare_session::Session>,
+    compare_sessions_file: Option<PathBuf>,
     /// The document and version waiting to be assembled quietly, and since when.
     intel_wait: Option<(u64, u64, std::time::Instant)>,
     /// The character and sprite editor, while it's open.
@@ -1599,6 +1614,7 @@ impl Limoniter {
         let history_root = script_home.as_ref().map(|home| home.join("history"));
         let (remote_sites, known_hosts, remote_recent) = remote_host::read_remote_settings(&settings);
         let remote_root = script_home.as_ref().map(|home| home.join("remote-copies"));
+        let compare_sessions_file = script_home.as_ref().map(|home| home.join(crate::compare_session::FILE_NAME));
         let mut addons = crate::addons::AddOns::new(script_home.clone());
         addons.read_settings(&list_setting(&settings, "addon_on"), list_setting(&settings, "addons_shared").first().map(String::as_str));
         addons.refresh();
@@ -1658,6 +1674,9 @@ impl Limoniter {
             active: 0,
             untitled_count: 0,
             new_kinds: new_kinds::kinds_from_settings(&settings),
+            compare_rules: crate::compare_rules::Rules::from_settings(&settings),
+            compare_sessions: compare_sessions_file.as_deref().map_or_else(Vec::new, crate::compare_session::load),
+            compare_sessions_file,
             intel_wait: None,
             pixel_editor: None,
             merges: merge_host::MergeState::default(),
@@ -3554,6 +3573,8 @@ impl Limoniter {
                 | Command::Compare
                 | Command::CompareFolders
                 | Command::CompareFiles
+                | Command::ApplyPatch
+                | Command::CompareSessions
                 | Command::TogglePreview
                 | Command::SetPreview(_)
                 | Command::ParagraphSetup
@@ -3774,6 +3795,8 @@ impl Limoniter {
             }
             Command::GitWizard => self.open_git_wizard(),
             Command::Merge => self.merge_files_dialog(),
+            Command::ApplyPatch => self.apply_patch_to(None, None),
+            Command::CompareSessions => self.open_sessions_box(None),
             Command::ResolveInMerge => self.resolve_in_merge(),
             Command::GitUseTools => self.use_for_git(),
             Command::GitStopTools => self.stop_using_for_git(),
@@ -4398,7 +4421,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str()
         )
     }
 
@@ -5213,6 +5236,7 @@ impl Limoniter {
                     Some(settings::Outcome::AmigaNdk) => self.open_ndk_box(),
                     Some(settings::Outcome::AmigaTools) => self.open_amiga_tools(),
                     Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
+                    Some(settings::Outcome::CompareRules) => self.open_rules_box(None),
                     Some(settings::Outcome::LanguageServers) => self.dialog = Dialog::LanguageServers(self.lsp.settings.clone()),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
                 }
@@ -5954,7 +5978,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
         let mut close = false;

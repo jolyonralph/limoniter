@@ -262,6 +262,7 @@ pub enum Outcome {
     AmigaTools,
     NewKinds,
     LanguageServers,
+    CompareRules,
 }
 
 /// What's being chosen on the File types page, and what Windows has now.
@@ -344,6 +345,7 @@ enum Special {
     NewKinds,
     LanguageServers,
     FileTypes,
+    CompareRules,
 }
 
 #[derive(Clone, Copy)]
@@ -440,6 +442,8 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Special("Kinds of new file (File, New as)", Special::NewKinds),
             Row::Special("Recently opened files", Special::ClearRecent),
             Row::Special("Open Markdown files as", Special::MarkdownView),
+            Row::Heading("Comparing"),
+            Row::Special("How files are compared", Special::CompareRules),
             Row::Heading("Printing"),
             Row::Flag("Print the file name and page number", "Across the top of each page", |t| &mut t.prefs.print_header),
             Row::Flag("Print line numbers", "Down the left of the text", |t| &mut t.prefs.print_line_numbers),
@@ -592,6 +596,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                         ui.selectable_value(&mut target.prefs.zx_notation, notation, notation.label());
                     }
                 });
+            }
+            Special::CompareRules => {
+                if ui.button("Rules for comparing files\u{2026}").on_hover_text("By name: text leaving out spaces, case, line endings or lines such as timestamps; bytes; pictures; size and time only; or files always left out, such as *.o and target/. Each folder comparison starts with these, and can have its own").clicked() {
+                    *outcome = Some(Outcome::CompareRules);
+                }
             }
             // It's a whole page, so draw_row gives it room of its own.
             Special::FileTypes => {}

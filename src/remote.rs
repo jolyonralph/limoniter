@@ -246,6 +246,34 @@ impl Connection {
         self.sftp.stat(path(remote)).map(|stat| stamp_of(&stat)).map_err(|e| e.to_string())
     }
 
+    /// Whether something is at a path, without following a link: if so, whether it's a folder, and its stamp.
+    pub fn look(&self, remote: &str) -> Result<Option<(bool, Stamp)>, String> {
+        match self.sftp.lstat(path(remote)) {
+            Ok(stat) => Ok(Some((stat.is_dir(), stamp_of(&stat)))),
+            // LIBSSH2_FX_NO_SUCH_FILE
+            Err(e) if e.code() == ssh2::ErrorCode::SFTP(2) => Ok(None),
+            Err(e) => Err(format!("{remote} couldn't be looked at: {e}")),
+        }
+    }
+
+    /// Gives a file the modified time it's to have.
+    pub fn set_modified(&self, remote: &str, time: u64) -> Result<(), String> {
+        self.sftp.setstat(path(remote), ssh2::FileStat { size: None, uid: None, gid: None, perm: None, atime: Some(time), mtime: Some(time) }).map_err(|e| e.to_string())
+    }
+
+    pub fn make_folder(&self, remote: &str) -> Result<(), String> {
+        self.sftp.mkdir(path(remote), 0o755).map_err(|e| format!("{remote} couldn't be made: {e}"))
+    }
+
+    pub fn remove_file(&self, remote: &str) -> Result<(), String> {
+        self.sftp.unlink(path(remote)).map_err(|e| format!("{remote} couldn't be taken away: {e}"))
+    }
+
+    /// Takes away a folder, which has to be empty.
+    pub fn remove_folder(&self, remote: &str) -> Result<(), String> {
+        self.sftp.rmdir(path(remote)).map_err(|e| format!("{remote} couldn't be taken away: {e}"))
+    }
+
     /// Copies a remote file to a local one, counting the bytes as they come.
     pub fn download(&self, remote: &str, local: &Path, done: &AtomicU64, stop: &AtomicBool) -> Result<Stamp, String> {
         let stat = self.sftp.stat(path(remote)).map_err(|e| format!("{remote} couldn't be found: {e}"))?;

@@ -4,6 +4,7 @@
 //! Files too large to hold are compared the old way, read-only, as they're drawn.
 
 use super::*;
+use crate::compare_sync::{Snapshot, SyncKind, SyncPlan, SyncReport, SyncWay};
 use crate::diff_engine::{self as engine, Chunk, ChunkKind, Direction, FolderResult, Job, Mode, Side, Status, TextOptions};
 use std::collections::HashSet;
 use std::ops::Range;
@@ -91,6 +92,8 @@ pub(super) struct DiffView {
     pub current: Option<usize>,
     /// Something to say about the two, such as their line endings differing.
     note: String,
+    /// Lines matching this count as the same as each other, from a rule for comparing files.
+    pub ignore_lines: Option<regex::Regex>,
 }
 
 /// What the file comparison asks the window to do.
@@ -100,16 +103,16 @@ enum FileAct {
     ExportPatch,
 }
 
-/// A side's lines and what each is compared by.
-fn keys_of(text: &TextBuffer, options: &TextOptions) -> (Vec<Arc<str>>, Vec<u64>) {
+/// A side's lines and what each is compared by. Lines matching `ignore` are all alike.
+fn keys_of(text: &TextBuffer, options: &TextOptions, ignore: Option<&regex::Regex>) -> (Vec<Arc<str>>, Vec<u64>) {
     let lines = text.all_lines();
-    let keys = lines.iter().enumerate().map(|(i, line)| engine::line_key(line, (!options.ignore_line_endings).then(|| text.terminator(i)), options)).collect();
+    let keys = lines.iter().enumerate().map(|(i, line)| if ignore.is_some_and(|re| re.is_match(line.trim_end_matches('\r'))) { 0 } else { engine::line_key(line, (!options.ignore_line_endings).then(|| text.terminator(i)), options) }).collect();
     (lines, keys)
 }
 
 impl DiffView {
     fn new() -> Self {
-        Self { states: [ViewState::default(), ViewState::default()], options: TextOptions::default(), by_chars: false, in_step: true, chunks: Vec::new(), worked_out: None, active: 0, tops: [0, 0], current: None, note: String::new() }
+        Self { states: [ViewState::default(), ViewState::default()], options: TextOptions::default(), by_chars: false, in_step: true, chunks: Vec::new(), worked_out: None, active: 0, tops: [0, 0], current: None, note: String::new(), ignore_lines: None }
     }
 
     /// Works the differences out again if either side or the options have changed.
@@ -119,8 +122,8 @@ impl DiffView {
             return;
         }
         self.worked_out = Some(wanted);
-        let (left, left_keys) = keys_of(&docs[0].text, &self.options);
-        let (right, right_keys) = keys_of(&docs[1].text, &self.options);
+        let (left, left_keys) = keys_of(&docs[0].text, &self.options, self.ignore_lines.as_ref());
+        let (right, right_keys) = keys_of(&docs[1].text, &self.options, self.ignore_lines.as_ref());
         self.chunks = engine::diff_keys(&left_keys, &right_keys);
         if self.current.is_some_and(|at| self.chunks.get(at).is_none_or(|chunk| chunk.kind == ChunkKind::Same)) {
             self.current = None;
@@ -296,6 +299,9 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
         });
         if !dv.note.is_empty() {
             ui.label(RichText::new(&dv.note).color(theme::text_dim()).size(12.5));
+        }
+        if let Some(re) = &dv.ignore_lines {
+            ui.label(RichText::new(format!("Lines matching {} count as the same, by a rule for comparing files.", re.as_str())).color(theme::text_dim()).size(12.5));
         }
         ui.add_space(2.0);
     });
@@ -584,8 +590,9 @@ fn draw_picture_compare(ui: &mut Ui, pc: &mut PictureCompare) {
 // ---------- Folders ----------
 
 /// What kind of place a side of a folder comparison is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SideKind {
+    #[default]
     Folder,
     Git,
     Image,
@@ -604,22 +611,24 @@ impl SideKind {
 }
 
 /// A side of a folder comparison as it's being chosen.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SidePicker {
     pub kind: SideKind,
     /// The folder, the image or archive, the folder in a repository, or sftp://user@host/folder.
     pub path: String,
     /// For a Git revision: which one.
     pub revision: String,
+    /// For a server chosen from the saved sites: the key file it signs in with.
+    pub key_file: Option<PathBuf>,
 }
 
 impl SidePicker {
     pub fn of(side: &Side) -> Self {
         match side {
-            Side::Folder(path) => Self { kind: SideKind::Folder, path: path.display().to_string(), revision: "HEAD".into() },
-            Side::Git { repo, revision, folder } => Self { kind: SideKind::Git, path: if folder.is_empty() { repo.display().to_string() } else { repo.join(folder).display().to_string() }, revision: revision.clone() },
-            Side::Image { file, folder } => Self { kind: SideKind::Image, path: if folder.is_empty() { file.display().to_string() } else { format!("{}/{folder}", file.display()) }, revision: "HEAD".into() },
-            Side::Sftp { site, folder } => Self { kind: SideKind::Server, path: site.url(folder), revision: "HEAD".into() },
+            Side::Folder(path) => Self { kind: SideKind::Folder, path: path.display().to_string(), revision: "HEAD".into(), key_file: None },
+            Side::Git { repo, revision, folder } => Self { kind: SideKind::Git, path: if folder.is_empty() { repo.display().to_string() } else { repo.join(folder).display().to_string() }, revision: revision.clone(), key_file: None },
+            Side::Image { file, folder } => Self { kind: SideKind::Image, path: if folder.is_empty() { file.display().to_string() } else { format!("{}/{folder}", file.display()) }, revision: "HEAD".into(), key_file: None },
+            Side::Sftp { site, folder } => Self { kind: SideKind::Server, path: site.url(folder), revision: "HEAD".into(), key_file: site.key_file.clone() },
         }
     }
 
@@ -634,7 +643,8 @@ impl SidePicker {
             SideKind::Git => Side::git_of(Path::new(path), self.revision.trim()),
             SideKind::Image => Ok(Side::Image { file: PathBuf::from(path), folder: String::new() }),
             SideKind::Server => {
-                let (site, folder) = crate::remote::parse_url(path)?;
+                let (mut site, folder) = crate::remote::parse_url(path)?;
+                site.key_file = self.key_file.clone();
                 Ok(Side::Sftp { site, folder })
             }
         }
@@ -668,6 +678,21 @@ pub(super) struct FolderCompare {
     patch_job: Option<(PathBuf, Job<Result<String, String>>)>,
     /// The first comparison opens out every folder that differs.
     opened_once: bool,
+    pub sync_kind: SyncKind,
+    pub sync_way: SyncWay,
+    /// A sync being planned, waiting to be agreed to, or under way.
+    sync_plan_job: Option<Job<Result<(SyncPlan, PathBuf), String>>>,
+    sync: Option<sync_host::SyncPreview>,
+    pub sync_job: Option<Job<SyncReport>>,
+    /// How both sides were after the last sync, for telling conflicts.
+    pub snapshot: Option<Snapshot>,
+    snapshot_job: Option<Job<Snapshot>>,
+    /// A sync has been done: once it's compared again, how both sides are is remembered.
+    snapshot_wanted: bool,
+    /// The saved comparison this is, by name, and whether it's kept in the project.
+    pub session: Option<(String, bool)>,
+    /// What's remembered has changed since the saved comparison was last stored.
+    pub session_dirty: bool,
 }
 
 /// What the folder comparison asks the window to do.
@@ -676,8 +701,23 @@ enum FolderAct {
     OpenPair(usize),
     OpenOne(usize, bool),
     Browse(usize),
-    ExportReport,
+    ExportReport(ReportKind),
     ExportPatch,
+    /// Plan a sync, to show before it's done.
+    Sync,
+    SaveSession,
+    Rules,
+    /// Apply a patch to the left side, or the right.
+    ApplyPatch(bool),
+}
+
+/// Which report to save.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ReportKind {
+    /// An HTML page or plain text, by the name's ending.
+    Full,
+    Summary,
+    Csv,
 }
 
 impl FolderCompare {
@@ -698,7 +738,22 @@ impl FolderCompare {
             notice: None,
             patch_job: None,
             opened_once: false,
+            sync_kind: SyncKind::Update,
+            sync_way: SyncWay::LeftToRight,
+            sync_plan_job: None,
+            sync: None,
+            sync_job: None,
+            snapshot: None,
+            snapshot_job: None,
+            snapshot_wanted: false,
+            session: None,
+            session_dirty: false,
         }
+    }
+
+    /// Whether something's under way that the comparison has to wait for.
+    pub fn busy(&self) -> bool {
+        self.job.is_some() || self.copy_job.is_some() || self.patch_job.is_some() || self.sync_plan_job.is_some() || self.sync_job.is_some() || self.snapshot_job.is_some()
     }
 
     /// Starts comparing, on another thread.
@@ -769,9 +824,10 @@ impl FolderCompare {
         let (Some(preview), Some(result)) = (self.copy.take(), self.result.as_ref()) else {
             return;
         };
-        let source = result.tree(preview.plan.direction.goes_right()).clone();
+        let from_left = preview.plan.direction.goes_right();
+        let (source, target) = (result.tree(from_left).clone(), result.tree(!from_left).clone());
         self.copy_job = Some(Job::start(
-            move |progress, cancel| engine::run_copy(&preview.plan, &*source, &preview.backups, progress, cancel),
+            move |progress, cancel| engine::run_copy(&preview.plan, &*source, &*target, &preview.backups, progress, cancel),
             move || {
                 if let Some(ctx) = waker {
                     ctx.request_repaint();
@@ -802,9 +858,9 @@ fn short_time(time: Option<u64>) -> String {
     time.and_then(|secs| chrono::DateTime::from_timestamp(secs as i64, 0)).map_or_else(String::new, |when| when.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M").to_string())
 }
 
-fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool) -> Vec<FolderAct> {
+fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, sites: &[remote_host::SavedSite]) -> Vec<FolderAct> {
     let mut acts = Vec::new();
-    let busy = fc.job.is_some() || fc.copy_job.is_some();
+    let busy = fc.busy();
     let field_room = (ui.available_width() - 470.0).max(160.0);
     egui::Frame::new().inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 4 }).show(ui, |ui| {
         egui::Grid::new("folder-compare-sides").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
@@ -830,6 +886,19 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool) -> V
                     }
                     if picker.kind != SideKind::Server && ui.button("Browse\u{2026}").clicked() {
                         acts.push(FolderAct::Browse(n));
+                    }
+                    if picker.kind == SideKind::Server {
+                        egui::ComboBox::from_id_salt(("compare-site", n)).width(110.0).selected_text("Saved sites").show_ui(ui, |ui| {
+                            if sites.is_empty() {
+                                ui.label("None yet. Sites are kept when you connect with File, Open a remote file.");
+                            }
+                            for saved in sites {
+                                if ui.selectable_label(false, &saved.name).on_hover_text(saved.site.url("~/")).clicked() {
+                                    picker.path = saved.site.url("/~/");
+                                    picker.key_file = saved.site.key_file.clone();
+                                }
+                            }
+                        });
                     }
                     if picker.kind == SideKind::Git {
                         ui.label("at");
@@ -886,11 +955,72 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool) -> V
                 acts.push(FolderAct::OpenOne(usize::MAX, false));
             }
             ui.separator();
-            if ui.add_enabled(has_result, Button::new("Save a report\u{2026}")).on_hover_text("Save this comparison as an HTML page or plain text").clicked() {
-                acts.push(FolderAct::ExportReport);
-            }
+            ui.add_enabled_ui(has_result, |ui| {
+                ui.menu_button("Save a report \u{25BE}", |ui| {
+                    if ui.button("Every entry\u{2026}").on_hover_text("An HTML page or plain text, by the ending you give the name").clicked() {
+                        acts.push(FolderAct::ExportReport(ReportKind::Full));
+                        ui.close();
+                    }
+                    if ui.button("The counts only\u{2026}").on_hover_text("How many are the same and how many differ, for the whole and each folder at the top").clicked() {
+                        acts.push(FolderAct::ExportReport(ReportKind::Summary));
+                        ui.close();
+                    }
+                    if ui.button("As a CSV file\u{2026}").on_hover_text("A row for each entry, for a spreadsheet").clicked() {
+                        acts.push(FolderAct::ExportReport(ReportKind::Csv));
+                        ui.close();
+                    }
+                });
+            });
             if ui.add_enabled(has_result && fc.patch_job.is_none(), Button::new("Save as a patch\u{2026}")).on_hover_text("Save every difference in the text files as one unified diff").clicked() {
                 acts.push(FolderAct::ExportPatch);
+            }
+            ui.add_enabled_ui(!busy, |ui| {
+                ui.menu_button("Apply a patch \u{25BE}", |ui| {
+                    if ui.button("To the left\u{2026}").clicked() {
+                        acts.push(FolderAct::ApplyPatch(true));
+                        ui.close();
+                    }
+                    if ui.button("To the right\u{2026}").clicked() {
+                        acts.push(FolderAct::ApplyPatch(false));
+                        ui.close();
+                    }
+                });
+            });
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Sync");
+            egui::ComboBox::from_id_salt("sync-kind").width(90.0).selected_text(sync_host::kind_words(fc.sync_kind)).show_ui(ui, |ui| {
+                ui.selectable_value(&mut fc.sync_kind, SyncKind::Update, "Update").on_hover_text("Copy newer files and files that are missing. Nothing is deleted");
+                ui.selectable_value(&mut fc.sync_kind, SyncKind::Mirror, "Mirror").on_hover_text("Make one side exactly like the other, which deletes what the other hasn't got");
+            });
+            if fc.sync_kind == SyncKind::Mirror && fc.sync_way == SyncWay::Both {
+                fc.sync_way = SyncWay::LeftToRight;
+            }
+            egui::ComboBox::from_id_salt("sync-way").width(170.0).selected_text(sync_host::way_words(fc.sync_kind, fc.sync_way)).show_ui(ui, |ui| {
+                for way in [SyncWay::LeftToRight, SyncWay::RightToLeft, SyncWay::Both] {
+                    if way == SyncWay::Both && fc.sync_kind == SyncKind::Mirror {
+                        continue;
+                    }
+                    ui.selectable_value(&mut fc.sync_way, way, sync_host::way_words(fc.sync_kind, way));
+                }
+            });
+            if ui.add_enabled(has_result && !busy, Button::new("Sync\u{2026}")).on_hover_text("See everything it would do first, and untick what you don't want").clicked() {
+                acts.push(FolderAct::Sync);
+            }
+            ui.separator();
+            if ui.button("Rules\u{2026}").on_hover_text("How files are compared by name: as text leaving things out, as bytes, as pictures, by size and time only, or left out").clicked() {
+                acts.push(FolderAct::Rules);
+            }
+            ui.separator();
+            let save = match &fc.session {
+                Some((name, _)) => format!("Save \u{201C}{name}\u{201D}"),
+                None => "Save this comparison\u{2026}".to_string(),
+            };
+            if ui.button(save).on_hover_text("Keep both sides, how they're compared, the filters, rules and sync, to open again by name").clicked() {
+                acts.push(FolderAct::SaveSession);
+            }
+            if fc.snapshot.is_some() {
+                ui.label(RichText::new("Knows the last sync").color(theme::text_dim()).size(12.0)).on_hover_text("Files changed on both sides since then are shown as conflicts, and left alone unless you tick them");
             }
         });
         if let Some(problem) = &fc.problem {
@@ -899,7 +1029,17 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool) -> V
         if let Some(notice) = &fc.notice {
             ui.label(RichText::new(notice).color(theme::text_dim()).size(12.5));
         }
-        for progress in [fc.job.as_ref().map(|job| &job.progress), fc.copy_job.as_ref().map(|job| &job.progress), fc.patch_job.as_ref().map(|(_, job)| &job.progress)].into_iter().flatten() {
+        for progress in [
+            fc.job.as_ref().map(|job| &job.progress),
+            fc.copy_job.as_ref().map(|job| &job.progress),
+            fc.patch_job.as_ref().map(|(_, job)| &job.progress),
+            fc.sync_plan_job.as_ref().map(|job| &job.progress),
+            fc.sync_job.as_ref().map(|job| &job.progress),
+            fc.snapshot_job.as_ref().map(|job| &job.progress),
+        ]
+        .into_iter()
+        .flatten()
+        {
             let phase = progress.phase();
             let bar = match progress.share() {
                 Some(share) => egui::ProgressBar::new(share).text(format!("{phase} \u{B7} {} of {}", progress.done.load(std::sync::atomic::Ordering::Relaxed), progress.total.load(std::sync::atomic::Ordering::Relaxed))),
@@ -1081,7 +1221,7 @@ fn copy_preview_window(ctx: &Context, preview: &CopyPreview) -> Option<bool> {
     let mut answer = ctx.input(|i| i.key_pressed(Key::Escape)).then_some(false);
     let title = if plan.direction.goes_right() { "Copy to the right" } else { "Copy to the left" };
     egui::Window::new(title).collapsible(false).resizable(true).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.label(format!("Into {}:", plan.target.display()));
+        ui.label(format!("Into {}:", plan.target));
         ui.add_space(4.0);
         egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
             for folder in &plan.folders {
@@ -1117,7 +1257,8 @@ fn copy_preview_window(ctx: &Context, preview: &CopyPreview) -> Option<bool> {
 /// Where the files a copy replaces are kept.
 fn compare_backups_root() -> PathBuf {
     if cfg!(test) {
-        return std::env::temp_dir().join(format!("limoniter-test-compare-backups-{}", std::process::id()));
+        // Each test thread has its own, so one test tidying up never takes another's.
+        return std::env::temp_dir().join(format!("limoniter-test-compare-backups-{}-{:?}", std::process::id(), std::thread::current().id()).replace(['(', ')'], ""));
     }
     settings_folder().map_or_else(|| std::env::temp_dir().join("Limoniter compare backups"), |folder| folder.join("Compare backups"))
 }
@@ -1145,10 +1286,11 @@ impl Limoniter {
 
     /// Opens a tab comparing two sides of any kind. Either can be left to be chosen in the tab.
     pub fn open_folder_compare_sides(&mut self, left: Option<Side>, right: Option<Side>) {
-        let blank = || SidePicker { kind: SideKind::Folder, path: String::new(), revision: "HEAD".into() };
+        let blank = || SidePicker { revision: "HEAD".into(), ..SidePicker::default() };
         let both = left.is_some() && right.is_some();
         let pick = |side: Option<Side>| side.as_ref().map_or_else(blank, SidePicker::of);
         let mut folders = FolderCompare::new(pick(left), pick(right));
+        folders.filters.rules = self.compare_rules.clone();
         let title = |picker: &SidePicker| if picker.path.is_empty() { "?".to_string() } else { short_name(Path::new(picker.path.trim_end_matches(['/', '\\']))) };
         let name = format!("{} \u{2194} {}", title(&folders.pickers[0]), title(&folders.pickers[1]));
         if both {
@@ -1352,6 +1494,7 @@ impl Limoniter {
         let doc_id = self.docs[index].id;
         let mut file_acts = Vec::new();
         let mut folder_acts = Vec::new();
+        let mut store_session = false;
         match &mut *tab {
             CompareTab::Files(files) => {
                 self.reopen_closed_sides(files);
@@ -1359,6 +1502,7 @@ impl Limoniter {
             }
             CompareTab::Folders(folders) => {
                 folders.poll();
+                folders.poll_sync(self.known_hosts.clone(), self.waker.clone());
                 if let Some(report) = folders.copy_job.as_ref().and_then(Job::take) {
                     folders.copy_job = None;
                     folders.notice = Some(report.describe());
@@ -1371,10 +1515,10 @@ impl Limoniter {
                         Err(problem) => format!("The patch couldn't be saved: {problem}"),
                     });
                 }
-                if folders.job.is_some() || folders.copy_job.is_some() || folders.patch_job.is_some() {
+                if folders.busy() {
                     ui.ctx().request_repaint_after(Duration::from_millis(100));
                 }
-                folder_acts = draw_folder_compare(ui, folders, input_on);
+                folder_acts = draw_folder_compare(ui, folders, input_on, &self.remote_sites);
                 if let Some(preview) = &folders.copy {
                     match copy_preview_window(ui.ctx(), preview) {
                         Some(true) => folders.confirm_copy(self.waker.clone()),
@@ -1382,6 +1526,14 @@ impl Limoniter {
                         None => {}
                     }
                 }
+                if let Some(preview) = &mut folders.sync {
+                    match sync_host::sync_preview_window(ui.ctx(), preview) {
+                        Some(true) => folders.confirm_sync(self.waker.clone()),
+                        Some(false) => folders.sync = None,
+                        None => {}
+                    }
+                }
+                store_session = std::mem::take(&mut folders.session_dirty);
             }
             CompareTab::Bytes(bytes) => draw_byte_compare(ui, bytes),
             CompareTab::Pictures(pictures) => draw_picture_compare(ui, pictures),
@@ -1396,6 +1548,9 @@ impl Limoniter {
         }
         for act in file_acts {
             self.file_compare_act(doc_id, act);
+        }
+        if store_session {
+            self.store_compare_session(doc_id);
         }
         for act in folder_acts {
             self.folder_compare_act(doc_id, act);
@@ -1577,21 +1732,53 @@ impl Limoniter {
                         // A file on one side only opens by itself.
                         return Some(Err(found.left.is_some()));
                     }
-                    Some(Ok((file_side_of(result, &found.path, true), file_side_of(result, &found.path, false))))
+                    let rule = folders.filters.rules.rule_for(&found.path, &found.name, false).cloned();
+                    Some(Ok((file_side_of(result, &found.path, true), file_side_of(result, &found.path, false), rule)))
                 });
                 match found.flatten() {
-                    Some(Ok((Ok(left), Ok(right)))) => self.open_file_compare_sides(left, right),
-                    Some(Ok((Err(problem), _) | (_, Err(problem)))) => self.message("Compare", problem),
+                    Some(Ok((Ok(left), Ok(right), rule))) => self.open_ruled_pair(left, right, rule),
+                    Some(Ok((Err(problem), _, _) | (_, Err(problem), _))) => self.message("Compare", problem),
                     Some(Err(left)) => self.folder_compare_act(doc_id, FolderAct::OpenOne(row, left)),
                     None => {}
                 }
             }
-            FolderAct::ExportReport => {
-                let Some(path) = rfd::FileDialog::new().set_title("Save a report").add_filter("HTML page", &["html"]).add_filter("Plain text", &["txt"]).set_file_name("comparison.html").save_file() else {
+            FolderAct::ExportReport(kind) => {
+                let dialog = rfd::FileDialog::new().set_title("Save a report");
+                let dialog = match kind {
+                    ReportKind::Csv => dialog.add_filter("CSV file", &["csv"]).set_file_name("comparison.csv"),
+                    ReportKind::Summary => dialog.add_filter("Plain text", &["txt"]).add_filter("HTML page", &["html"]).set_file_name("comparison summary.txt"),
+                    ReportKind::Full => dialog.add_filter("HTML page", &["html"]).add_filter("Plain text", &["txt"]).set_file_name("comparison.html"),
+                };
+                let Some(path) = dialog.save_file() else {
                     return;
                 };
-                if let Some(Err(problem)) = self.save_folder_report(doc_id, &path) {
+                if let Some(Err(problem)) = self.save_folder_report_as(doc_id, &path, kind) {
                     self.message("Save a report", problem);
+                }
+            }
+            FolderAct::Sync => {
+                let root = compare_backups_root();
+                self.with_compare_tab(doc_id, |_, tab| {
+                    if let CompareTab::Folders(folders) = tab {
+                        folders.plan_sync(root, None);
+                    }
+                });
+            }
+            FolderAct::SaveSession => self.save_compare_session(doc_id),
+            FolderAct::Rules => self.open_rules_box(Some(doc_id)),
+            FolderAct::ApplyPatch(left) => {
+                let folder = self.with_compare_tab(doc_id, |_, tab| match tab {
+                    CompareTab::Folders(folders) => match folders.pickers[if left { 0 } else { 1 }].side() {
+                        Ok(Side::Folder(path)) => Ok(path),
+                        Ok(other) => Err(format!("A patch can only be applied to a folder on this computer, and {} isn't one.", other.describe())),
+                        Err(problem) => Err(problem),
+                    },
+                    _ => Err(String::new()),
+                });
+                match folder {
+                    Some(Ok(folder)) => self.apply_patch_to(Some(folder), Some(doc_id)),
+                    Some(Err(problem)) if !problem.is_empty() => self.message("Apply a patch", problem),
+                    _ => {}
                 }
             }
             FolderAct::ExportPatch => {
@@ -1604,12 +1791,24 @@ impl Limoniter {
     }
 
     /// Saves a folder comparison's report: an HTML page if the name ends .html or .htm, plain text otherwise.
+    #[cfg(test)]
     pub(super) fn save_folder_report(&mut self, doc_id: u64, path: &Path) -> Option<Result<(), String>> {
+        self.save_folder_report_as(doc_id, path, ReportKind::Full)
+    }
+
+    /// Saves a report of a kind: every entry or the counts only (each an HTML page if the name ends .html or
+    /// .htm, plain text otherwise), or a CSV file.
+    pub(super) fn save_folder_report_as(&mut self, doc_id: u64, path: &Path, kind: ReportKind) -> Option<Result<(), String>> {
         self.with_compare_tab(doc_id, |_, tab| {
             let CompareTab::Folders(folders) = tab else { return Err("This isn't a folder comparison.".to_string()) };
             let result = folders.result.as_ref().ok_or("Compare the folders first.")?;
             let html = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"));
-            let report = if html { engine::report_html(result, folders.hide_same) } else { engine::report_text(result, folders.hide_same) };
+            let report = match kind {
+                ReportKind::Csv => engine::report_csv(result, folders.hide_same),
+                ReportKind::Summary => engine::report_summary(result, html),
+                ReportKind::Full if html => engine::report_html(result, folders.hide_same),
+                ReportKind::Full => engine::report_text(result, folders.hide_same),
+            };
             codec::write_file(path, report.as_bytes()).map_err(|e| e.to_string())?;
             folders.notice = Some(format!("The report is saved in {}.", path.display()));
             Ok(())
@@ -1667,6 +1866,8 @@ impl Limoniter {
             }
             crate::project::PanelAction::CompareFolder(path) => self.open_folder_compare_sides(Some(Side::Folder(path)), None),
             crate::project::PanelAction::CompareWithHead(path) => self.compare_with_head(&path),
+            crate::project::PanelAction::OpenComparison(name) => self.open_compare_session(&name, true),
+            crate::project::PanelAction::ManageComparisons(name) => self.open_sessions_box(Some(name)),
             _ => {}
         }
     }
@@ -1834,6 +2035,9 @@ fn file_patch(names: &[String; 2], docs: [&Document; 2], options: &TextOptions) 
     let name = |n: usize| names[n].replace('\\', "/");
     engine::unified_diff(&name(0), &name(1), &left, &right, left_final, right_final, &chunks)
 }
+
+#[path = "sync_host.rs"]
+pub(super) mod sync_host;
 
 #[cfg(test)]
 #[path = "compare_host_tests.rs"]

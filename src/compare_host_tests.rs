@@ -48,7 +48,7 @@ fn wait_for_folders(app: &mut Limoniter, ctx: &Context) {
     loop {
         draw(app, ctx, Vec::new());
         let folders = folder_tab(app);
-        if folders.job.is_none() && folders.copy_job.is_none() && folders.patch_job.is_none() {
+        if !folders.busy() && !folders.snapshot_wanted {
             return;
         }
         assert!(began.elapsed() < Duration::from_secs(20), "the comparison never finished");
@@ -336,9 +336,9 @@ fn every_way_in_opens_the_compare_tab() {
     let picker = SidePicker::of(&side);
     assert_eq!(picker.kind, SideKind::Git);
     assert_eq!(picker.revision, "main");
-    let server = SidePicker { kind: SideKind::Server, path: "sftp://me@example.com/srv".into(), revision: String::new() };
+    let server = SidePicker { kind: SideKind::Server, path: "sftp://me@example.com/srv".into(), ..SidePicker::default() };
     assert!(matches!(server.side(), Ok(Side::Sftp { folder, .. }) if folder == "/srv"));
-    assert!(SidePicker { kind: SideKind::Folder, path: " ".into(), revision: String::new() }.side().is_err());
+    assert!(SidePicker { kind: SideKind::Folder, path: " ".into(), ..SidePicker::default() }.side().is_err());
     draw(&mut app, &ctx, Vec::new());
 }
 

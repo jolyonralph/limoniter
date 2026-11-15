@@ -11,7 +11,7 @@ const SHOW_RUNNING_AFTER: Duration = Duration::from_millis(400);
 const MOST_OUTPUT_LINES: usize = 100_000;
 
 /// What a command is called in a script, and in a recorded macro. Anything needing a box still asks when it's played.
-pub(super) const SCRIPT_COMMANDS: [(&str, Command); 164] = [
+pub(super) const SCRIPT_COMMANDS: [(&str, Command); 166] = [
     ("new_file", Command::New),
     ("open_file_box", Command::Open),
     ("save_file", Command::Save),
@@ -54,6 +54,8 @@ pub(super) const SCRIPT_COMMANDS: [(&str, Command); 164] = [
     ("compare", Command::Compare),
     ("compare_files", Command::CompareFiles),
     ("compare_folders", Command::CompareFolders),
+    ("compare_sessions", Command::CompareSessions),
+    ("apply_patch", Command::ApplyPatch),
     ("select_inside_quotes", Command::TextObject(text_objects::Action::SelectInside, text_objects::Object::Quotes)),
     ("select_inside_brackets", Command::TextObject(text_objects::Action::SelectInside, text_objects::Object::Brackets)),
     ("select_inside_tag", Command::TextObject(text_objects::Action::SelectInside, text_objects::Object::Tag)),
