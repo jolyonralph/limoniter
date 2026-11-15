@@ -25,6 +25,8 @@ pub struct Project {
     pub open_files: Vec<PathBuf>,
     /// Build, run and test commands of the project's own, run in its folder.
     pub tasks: Vec<crate::tasks::Task>,
+    /// Folder comparisons saved in the project, by name, listed under Comparisons in its panel.
+    pub comparisons: Vec<crate::compare_session::Session>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -32,7 +34,7 @@ fn folder_of(path: &Path) -> PathBuf {
 }
 
 /// A path as it's written in the project file: relative if it's on the same drive, and otherwise whole.
-fn stored(base: &Path, path: &Path) -> String {
+pub(crate) fn stored(base: &Path, path: &Path) -> String {
     relative_to(base, path).unwrap_or_else(|| path.to_path_buf()).to_string_lossy().replace('\\', "/")
 }
 
@@ -49,7 +51,7 @@ fn relative_to(base: &Path, path: &Path) -> Option<PathBuf> {
 }
 
 /// Back to a whole path, tidying away any `..`.
-fn resolved(base: &Path, written: &str) -> PathBuf {
+pub(crate) fn resolved(base: &Path, written: &str) -> PathBuf {
     let joined = base.join(written.replace('\\', "/"));
     let mut out = PathBuf::new();
     for part in joined.components() {
@@ -88,6 +90,7 @@ impl Project {
             "files": list(&self.files),
             "open_files": list(&self.open_files),
             "tasks": self.tasks.iter().map(|t| json!({ "name": t.name, "command": t.command, "kind": t.kind.id() })).collect::<Vec<_>>(),
+            "comparisons": crate::compare_session::list_to_json(&self.comparisons, Some(&base)),
         });
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
@@ -103,7 +106,8 @@ impl Project {
         let tasks = value.get("tasks").and_then(Value::as_array).map_or_else(Vec::new, |items| {
             items.iter().filter_map(|t| Some(crate::tasks::Task { name: t.get("name")?.as_str()?.to_string(), command: t.get("command")?.as_str()?.to_string(), kind: crate::tasks::Kind::from_id(t.get("kind").and_then(Value::as_str).unwrap_or("")) })).collect()
         });
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks };
+        let comparisons = crate::compare_session::list_from_json(value.get("comparisons"), Some(&base));
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -299,6 +303,10 @@ pub enum PanelAction {
     CompareFolder(PathBuf),
     /// Compare a folder, or a file, with how it was at the last commit.
     CompareWithHead(PathBuf),
+    /// Open a comparison saved in the project, by name.
+    OpenComparison(String),
+    /// Rename or delete the saved comparisons, starting with one.
+    ManageComparisons(String),
 }
 
 #[derive(Default)]
@@ -386,6 +394,27 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
     ui.label(RichText::new(&project.name).color(theme::text()).size(13.0)).on_hover_text(if project.notes.is_empty() { project.path.display().to_string() } else { format!("{}\n\n{}", project.path.display(), project.notes) });
     ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text("Filter").desired_width(f32::INFINITY));
     ui.add_space(2.0);
+    if !project.comparisons.is_empty() {
+        egui::CollapsingHeader::new(RichText::new("Comparisons").size(12.5)).id_salt("project-comparisons").default_open(true).show(ui, |ui| {
+            for session in &project.comparisons {
+                let response = ui.add(egui::Button::selectable(false, RichText::new(&session.name).size(12.5).color(theme::text())).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate));
+                let response = response.on_hover_text(format!("{}\n\u{2194} {}", session.left.describe(), session.right.describe()));
+                if response.clicked() {
+                    actions.push(PanelAction::OpenComparison(session.name.clone()));
+                }
+                response.context_menu(|ui| {
+                    if ui.button("Open").clicked() {
+                        actions.push(PanelAction::OpenComparison(session.name.clone()));
+                        ui.close();
+                    }
+                    if ui.button("Rename or delete\u{2026}").clicked() {
+                        actions.push(PanelAction::ManageComparisons(session.name.clone()));
+                        ui.close();
+                    }
+                });
+            }
+        });
+    }
     if project.files.is_empty() {
         ui.label(RichText::new("No files yet. Add some from Tools, Project.").color(theme::text_faint()).size(12.5));
         return actions;

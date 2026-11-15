@@ -111,7 +111,7 @@ Files that aren't text are compared byte by byte, with each byte that differs ma
 
 **Tools › Compare folders…** shows two folders side by side as a tree. Each entry says how it compares, in words as well as colour: the same, different (and which side is newer), only on the left, only on the right, or a file on one side and a folder on the other.
 
-1. Choose what each side is: a folder, a Git revision (HEAD for the last commit, or a branch, a tag or a commit), a disk image or archive, or a folder on a server (`sftp://user@host/folder`, for a server you've connected to before with File › Open a remote file).
+1. Choose what each side is: a folder, a Git revision (HEAD for the last commit, or a branch, a tag or a commit), a disk image or archive (**Browse…** picks the file), or a folder on a server (`sftp://user@host/folder`, for a server you've connected to before with File › Open a remote file). For a server, **Saved sites** fills it in from the sites you've used, starting in your home folder.
 2. Choose how to compare: by size and time, which is quick, or by contents. Where a side keeps no times, as a Git revision doesn't, files of the same size are compared by contents anyway.
 3. Type patterns in **Only** or **Leave out** to choose files, such as `*.rs; *.toml` or `target; *.log`, and tick **Leave out what .gitignore does** if you like. Then press **Compare**.
 
@@ -119,7 +119,40 @@ Comparing runs in the background, and **Stop** stops it. Click a folder's arrow 
 
 To copy files across, choose them (Ctrl and Shift add to the choice) and press **Copy to the right…** or **Copy to the left…**. You'll see a list of what will happen first. Nothing is ever deleted, and a file that's replaced is kept in a backup folder first.
 
-**Save a report…** saves the comparison as an HTML page or plain text, and **Save as a patch…** saves every difference in the text files as one unified diff.
+### Syncing
+
+To bring two sides into step, choose under **Sync**:
+
+- **Update** copies files that are newer, and files that are missing. Choose **Left to right**, **Right to left**, or **Both ways, newest wins**. An update never deletes anything.
+- **Mirror** makes one side exactly like the other: **Make the right like the left**, or the other way. That deletes files and folders the other side hasn't got.
+
+Press **Sync…** and you'll see every new file, replacement and deletion, with how many of each. Untick anything you don't want done. A mirror that deletes asks once more, saying how many files and folders it will delete. Each file replaced or deleted is kept first in a backup folder named for the time it was done, under Compare backups beside Limoniter's settings. A file that has changed since you compared is left alone, and so is a folder that still has files in it that weren't compared.
+
+A comparison you've saved remembers how both sides were after its last sync. Next time, a file changed on both sides since then is shown as a conflict and left unticked, and a file deleted from one side isn't copied back unless you tick it.
+
+You can sync into a folder on this computer or on an SFTP server. For a server, Limoniter signs in only with the password kept in your system's credential store, or the site's key file, and only to a server whose key you've trusted. A disk image, an archive or a Git revision is only read: to put files on a disk image, open it in a tab of its own.
+
+### Saving a comparison
+
+**Save this comparison…** keeps it by name: both sides, how they're compared, the filters and rules, **Hide what's the same**, and which way it syncs. With a project open, tick **Keep it in the project** and it's kept in the project file, listed under **Comparisons** in the Project panel; click it there to open it again. Otherwise it's kept beside Limoniter's settings. **Tools › Saved comparisons…** lists them all, to open, rename or delete. Once a comparison is saved, its button saves it again under the same name.
+
+### Rules for comparing files
+
+Rules say how files are compared, by name. Set them in **Tools › Settings…**, under Files, Comparing, or press **Rules…** in a comparison to give it its own. The first rule that matches a file decides:
+
+- **Text**, leaving out spaces and tabs, case, line endings, or lines matching a pattern you give, such as `^// Built on` for a line with a date in it. A pair opened from the comparison leaves out the same.
+- **Bytes**: compared byte by byte, and opened to show the bytes.
+- **Picture**: two files showing the same pixels are the same.
+- **Size and time only**: never read, even when comparing by contents.
+- **Always leave out**: not compared at all.
+
+Patterns are separated by `;`. One ending `/`, such as `target/`, is for folders only. The usual rules leave out `*.o`, `*.obj`, `target/`, `.git/` and the like, compare pictures as pictures, and programs and archives as bytes. **Put back the usual rules** brings them back.
+
+### Reports and patches
+
+**Save a report** offers every entry (an HTML page or plain text, by the ending you give the name), the counts only, for the whole comparison and each folder at the top, or a CSV file with a row for each entry, for a spreadsheet. **Save as a patch…** saves every difference in the text files as one unified diff.
+
+**Apply a patch** puts a unified diff's changes into a folder or a file: from **Tools › Apply a patch…**, or **Apply a patch** in a folder comparison for either side. It checks first, and shows for each file whether each change fits where the patch says, fits a few lines away, or can't be found. A file with a change that can't be found is left as it is. Each file is kept as it was before it's written, and its line endings stay as they were. A file open with changes not saved is left alone.
 
 In the Project panel, right-click a file for **Compare with…**, or a folder for **Compare folders…**. Both offer **Compare with the last commit**.
 

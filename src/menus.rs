@@ -483,6 +483,8 @@ const TOOLS: &[Entry] = &[
     Item("Compare with\u{2026}", Command::Compare),
     Item("Compare files\u{2026}", Command::CompareFiles),
     Item("Compare folders\u{2026}", Command::CompareFolders),
+    Item("Saved comparisons\u{2026}", Command::CompareSessions),
+    Item("Apply a patch\u{2026}", Command::ApplyPatch),
     Item("Count words", Command::WordCount),
     Item("Fingerprint (SHA-256)", Command::ComputeHash),
     Item("Convert a number", Command::ConvertNumber),

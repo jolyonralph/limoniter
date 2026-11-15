@@ -72,9 +72,22 @@ impl Side {
         Side::Folder(path.to_path_buf())
     }
 
-    /// Whether files can be copied into it.
+    /// Whether files can be copied into it: a folder here, or a folder on a server.
+    #[cfg(test)]
     pub fn writable(&self) -> bool {
-        matches!(self, Side::Folder(_))
+        self.refusal().is_none()
+    }
+
+    /// Why files can't be copied into it, if they can't.
+    pub fn refusal(&self) -> Option<String> {
+        match self {
+            Side::Folder(_) | Side::Sftp { .. } => None,
+            Side::Git { revision, .. } => Some(format!("{} is history kept by Git, so files can't be copied into it. Compare with the folder itself to change it.", revision_words(revision))),
+            Side::Image { file, .. } => Some(format!(
+                "Files can't be copied into {} from a comparison. Each kind of disk image has its own rules for names and kinds of file, and an archive is only read here; open the image in a tab of its own to add files to it, choosing how each one goes on.",
+                file.file_name().map_or_else(|| file.display().to_string(), |name| name.to_string_lossy().into_owned())
+            )),
+        }
     }
 }
 
@@ -115,6 +128,44 @@ pub trait Tree: Send + Sync {
         let _ = path;
         None
     }
+    /// Whether files can be written into it.
+    fn can_write(&self) -> bool {
+        false
+    }
+    /// What's at a path now, if anything, to check it hasn't changed since it was compared.
+    fn stat(&self, path: &str) -> Result<Option<Meta>, String> {
+        let _ = path;
+        Err(READ_ONLY.into())
+    }
+    /// Puts a file in place of whatever is at its path, whole or not at all, with its modified time if given.
+    fn write(&self, path: &str, bytes: &[u8], modified: Option<u64>) -> Result<(), String> {
+        let _ = (path, bytes, modified);
+        Err(READ_ONLY.into())
+    }
+    /// Makes a folder, and any it's in that aren't there.
+    fn make_folder(&self, path: &str) -> Result<(), String> {
+        let _ = path;
+        Err(READ_ONLY.into())
+    }
+    /// Takes a file away.
+    fn remove_file(&self, path: &str) -> Result<(), String> {
+        let _ = path;
+        Err(READ_ONLY.into())
+    }
+    /// Takes an empty folder away. One with anything in it is left, and that's said.
+    fn remove_folder(&self, path: &str) -> Result<(), String> {
+        let _ = path;
+        Err(READ_ONLY.into())
+    }
+}
+
+const READ_ONLY: &str = "This side can only be read.";
+
+/// Whether a path from the top stays inside it: parts with no "..", ".", backslash or nothing at all (nor, on
+/// Windows, a colon, which could name a drive), so nothing is ever written outside the side being written to.
+pub fn safe_path(path: &str) -> Result<(), String> {
+    let fine = !path.is_empty() && path.split('/').all(|part| !part.is_empty() && part != "." && part != ".." && !part.contains(['\\', '\0']) && !(cfg!(windows) && part.contains(':')));
+    if fine { Ok(()) } else { Err(format!("\u{201C}{path}\u{201D} isn't a path inside the folder, so it was left alone.")) }
 }
 
 /// Opens a side, ready to list. A server is connected to here, so this can take a while.
@@ -149,6 +200,21 @@ pub struct LocalTree {
 impl LocalTree {
     fn place(&self, path: &str) -> PathBuf {
         path.split('/').filter(|part| !part.is_empty()).fold(self.root.clone(), |at, part| at.join(part))
+    }
+
+    /// Where a path is, to write to: checked to stay inside the folder, through no link that could lead out.
+    fn place_to_write(&self, path: &str) -> Result<PathBuf, String> {
+        safe_path(path)?;
+        let mut at = self.root.clone();
+        let parts: Vec<&str> = path.split('/').collect();
+        for (n, part) in parts.iter().enumerate() {
+            at.push(part);
+            if std::fs::symlink_metadata(&at).is_ok_and(|meta| meta.file_type().is_symlink()) {
+                let what = if n + 1 == parts.len() { "is a link" } else { "goes through a link" };
+                return Err(format!("{path} {what}, which could lead outside the folder, so it was left alone."));
+            }
+        }
+        Ok(at)
     }
 }
 
@@ -195,6 +261,44 @@ impl Tree for LocalTree {
 
     fn local_path(&self, path: &str) -> Option<PathBuf> {
         Some(self.place(path))
+    }
+
+    fn can_write(&self) -> bool {
+        true
+    }
+
+    fn stat(&self, path: &str) -> Result<Option<Meta>, String> {
+        match std::fs::symlink_metadata(self.place_to_write(path)?) {
+            Ok(meta) => Ok(Some(Meta { is_dir: meta.is_dir(), size: if meta.is_dir() { 0 } else { meta.len() }, modified: seconds(meta.modified()) })),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    fn write(&self, path: &str, bytes: &[u8], modified: Option<u64>) -> Result<(), String> {
+        let target = self.place_to_write(path)?;
+        if let Some(folder) = target.parent() {
+            std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+        }
+        crate::codec::write_file(&target, bytes).map_err(|e| e.to_string())?;
+        if let Some(time) = modified {
+            let when = std::time::UNIX_EPOCH + Duration::from_secs(time);
+            let _ = std::fs::OpenOptions::new().write(true).open(&target).and_then(|file| file.set_modified(when));
+        }
+        Ok(())
+    }
+
+    fn make_folder(&self, path: &str) -> Result<(), String> {
+        std::fs::create_dir_all(self.place_to_write(path)?).map_err(|e| e.to_string())
+    }
+
+    fn remove_file(&self, path: &str) -> Result<(), String> {
+        std::fs::remove_file(self.place_to_write(path)?).map_err(|e| e.to_string())
+    }
+
+    fn remove_folder(&self, path: &str) -> Result<(), String> {
+        let place = self.place_to_write(path)?;
+        std::fs::remove_dir(&place).map_err(|e| if std::fs::read_dir(&place).is_ok_and(|mut entries| entries.next().is_some()) { "It still has files in it that weren't compared, so it was kept.".to_string() } else { e.to_string() })
     }
 }
 
@@ -306,9 +410,75 @@ impl Tree for ImageTree {
     }
 }
 
-/// A folder on an SFTP server.
+/// What a folder comparison needs of a server: listing, fetching and sending files, and making and taking away
+/// files and folders. An SFTP connection does it; tests use a pretend server.
+pub trait RemoteFs: Send {
+    fn home(&self) -> Result<String, String>;
+    fn list(&self, folder: &str) -> Result<Vec<remote::Entry>, String>;
+    /// Whether something is at a path: if so, whether it's a folder, and its size and time.
+    fn look(&self, path: &str) -> Result<Option<(bool, remote::Stamp)>, String>;
+    fn download(&self, path: &str, local: &Path) -> Result<(), String>;
+    /// Sends a file in place of what's there, so the one on the server is whole all the time.
+    fn upload(&self, local: &Path, path: &str) -> Result<(), String>;
+    fn set_modified(&self, path: &str, time: u64) -> Result<(), String>;
+    fn make_folder(&self, path: &str) -> Result<(), String>;
+    fn remove_file(&self, path: &str) -> Result<(), String>;
+    fn remove_folder(&self, path: &str) -> Result<(), String>;
+}
+
+impl RemoteFs for remote::Connection {
+    fn home(&self) -> Result<String, String> {
+        remote::Connection::home(self)
+    }
+    fn list(&self, folder: &str) -> Result<Vec<remote::Entry>, String> {
+        remote::Connection::list(self, folder)
+    }
+    fn look(&self, path: &str) -> Result<Option<(bool, remote::Stamp)>, String> {
+        remote::Connection::look(self, path)
+    }
+    fn download(&self, path: &str, local: &Path) -> Result<(), String> {
+        remote::Connection::download(self, path, local, &AtomicU64::new(0), &AtomicBool::new(false)).map(|_| ())
+    }
+    fn upload(&self, local: &Path, path: &str) -> Result<(), String> {
+        remote::Connection::upload(self, local, path, None, true, &AtomicU64::new(0), &AtomicBool::new(false)).map(|_| ()).map_err(|e| match e {
+            remote::UploadError::ChangedOnServer => "It changed on the server.".to_string(),
+            remote::UploadError::Failed(problem) => problem,
+        })
+    }
+    fn set_modified(&self, path: &str, time: u64) -> Result<(), String> {
+        remote::Connection::set_modified(self, path, time)
+    }
+    fn make_folder(&self, path: &str) -> Result<(), String> {
+        remote::Connection::make_folder(self, path)
+    }
+    fn remove_file(&self, path: &str) -> Result<(), String> {
+        remote::Connection::remove_file(self, path)
+    }
+    fn remove_folder(&self, path: &str) -> Result<(), String> {
+        remote::Connection::remove_folder(self, path)
+    }
+}
+
+/// A file on this computer for a moment, taken away again when it's done with.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        Self(std::env::temp_dir().join(format!("limoniter-compare-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed))))
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// A folder on an SFTP server. Files are written to it only by sending each to a new file beside the old and
+/// putting it in place, so a file there is never half written.
 pub struct SftpTree {
-    connection: Mutex<remote::Connection>,
+    connection: Mutex<Box<dyn RemoteFs>>,
     root: String,
     site: remote::Site,
 }
@@ -327,42 +497,133 @@ impl SftpTree {
             remote::Refused::UnknownHost(_) => format!("Limoniter hasn't connected to {} before. Connect to it once with File, Open a remote file, to check its key and trust it, and keep its password if it needs one.", site.host),
             other => other.describe(site),
         })?;
-        let root = if folder.is_empty() { connection.home()? } else { folder.to_string() };
+        Self::with(Box::new(connection), site, folder)
+    }
+
+    /// A tree on a connection already made, at a folder: the home folder for "" or "~", and "~/sub" in it.
+    pub fn with(connection: Box<dyn RemoteFs>, site: &remote::Site, folder: &str) -> Result<Self, String> {
+        let in_home = folder.trim_start_matches('/').strip_prefix('~').filter(|rest| rest.is_empty() || rest.starts_with('/'));
+        let root = match in_home {
+            _ if folder.is_empty() => connection.home()?,
+            Some(rest) if rest.trim_matches('/').is_empty() => connection.home()?,
+            Some(rest) => remote::join(&connection.home()?, rest.trim_matches('/')),
+            None => folder.to_string(),
+        };
         Ok(Self { connection: Mutex::new(connection), root, site: site.clone() })
     }
 
     fn place(&self, path: &str) -> String {
         if path.is_empty() { self.root.clone() } else { remote::join(&self.root, path) }
     }
+
+    fn connection(&self) -> std::sync::MutexGuard<'_, Box<dyn RemoteFs>> {
+        self.connection.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn url(&self, path: &str) -> String {
+        self.site.url(&self.place(path))
+    }
 }
 
 impl Tree for SftpTree {
     fn list(&self, folder: &str) -> Result<Vec<Item>, String> {
-        let connection = self.connection.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        Ok(connection.list(&self.place(folder))?.into_iter().map(|entry| Item { name: entry.name, is_dir: entry.folder, size: entry.size, modified: Some(entry.modified) }).collect())
+        Ok(self.connection().list(&self.place(folder))?.into_iter().map(|entry| Item { name: entry.name, is_dir: entry.folder, size: entry.size, modified: Some(entry.modified) }).collect())
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        let connection = self.connection.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let local = std::env::temp_dir().join(format!("limoniter-compare-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
-        let result = connection.download(&self.place(path), &local, &AtomicU64::new(0), &AtomicBool::new(false)).and_then(|_| std::fs::read(&local).map_err(|e| e.to_string()));
-        let _ = std::fs::remove_file(&local);
-        result.map_err(|e| format!("{} couldn't be read: {e}", self.site.url(&self.place(path))))
+        let local = Scratch::new();
+        self.connection().download(&self.place(path), &local.0).and_then(|()| std::fs::read(&local.0).map_err(|e| e.to_string())).map_err(|e| format!("{} couldn't be read: {e}", self.url(path)))
+    }
+
+    fn can_write(&self) -> bool {
+        true
+    }
+
+    fn stat(&self, path: &str) -> Result<Option<Meta>, String> {
+        safe_path(path)?;
+        Ok(self.connection().look(&self.place(path))?.map(|(is_dir, stamp)| Meta { is_dir, size: if is_dir { 0 } else { stamp.size }, modified: Some(stamp.modified) }))
+    }
+
+    fn write(&self, path: &str, bytes: &[u8], modified: Option<u64>) -> Result<(), String> {
+        safe_path(path)?;
+        if let Some((folder, _)) = path.rsplit_once('/') {
+            self.make_folder(folder)?;
+        }
+        let local = Scratch::new();
+        std::fs::write(&local.0, bytes).map_err(|e| e.to_string())?;
+        let connection = self.connection();
+        let place = self.place(path);
+        connection.upload(&local.0, &place).map_err(|e| format!("{} couldn't be sent: {e}", self.url(path)))?;
+        if let Some(time) = modified {
+            let _ = connection.set_modified(&place, time);
+        }
+        Ok(())
+    }
+
+    fn make_folder(&self, path: &str) -> Result<(), String> {
+        safe_path(path)?;
+        let connection = self.connection();
+        let mut at = String::new();
+        for part in path.split('/') {
+            at = join(&at, part);
+            match connection.look(&self.place(&at))? {
+                Some((true, _)) => {}
+                Some((false, _)) => return Err(format!("{} is a file, so a folder can't be made there.", self.url(&at))),
+                None => connection.make_folder(&self.place(&at))?,
+            }
+        }
+        Ok(())
+    }
+
+    fn remove_file(&self, path: &str) -> Result<(), String> {
+        safe_path(path)?;
+        self.connection().remove_file(&self.place(path))
+    }
+
+    fn remove_folder(&self, path: &str) -> Result<(), String> {
+        safe_path(path)?;
+        let connection = self.connection();
+        if !connection.list(&self.place(path))?.is_empty() {
+            return Err("It still has files in it that weren't compared, so it was kept.".into());
+        }
+        connection.remove_folder(&self.place(path))
     }
 }
 
-/// A tree held in memory, for tests.
+/// A tree held in memory, for tests. It can be written to when it's made `writable`.
 #[cfg(test)]
 #[derive(Default)]
 pub struct MemoryTree {
-    pub files: BTreeMap<String, (Vec<u8>, Option<u64>)>,
+    pub files: Mutex<BTreeMap<String, (Vec<u8>, Option<u64>)>>,
+    /// Folders made that may have nothing in them.
+    pub folders: Mutex<std::collections::BTreeSet<String>>,
+    pub writable: bool,
 }
 
 #[cfg(test)]
 impl MemoryTree {
     pub fn with(files: &[(&str, &str, Option<u64>)]) -> Self {
-        Self { files: files.iter().map(|(path, text, time)| (path.to_string(), (text.as_bytes().to_vec(), *time))).collect() }
+        Self { files: Mutex::new(files.iter().map(|(path, text, time)| (path.to_string(), (text.as_bytes().to_vec(), *time))).collect()), ..Self::default() }
+    }
+
+    pub fn writable_with(files: &[(&str, &str, Option<u64>)]) -> Self {
+        Self { writable: true, ..Self::with(files) }
+    }
+
+    /// A file's text and time, for a test to check.
+    pub fn get(&self, path: &str) -> Option<(String, Option<u64>)> {
+        self.files.lock().unwrap().get(path).map(|(bytes, time)| (String::from_utf8_lossy(bytes).into_owned(), *time))
+    }
+
+    fn has_folder(&self, path: &str) -> bool {
+        self.folders.lock().unwrap().contains(path) || self.files.lock().unwrap().keys().any(|file| file.starts_with(&format!("{path}/")))
+    }
+
+    fn writing(&self, path: &str) -> Result<(), String> {
+        if !self.writable {
+            return Err(READ_ONLY.into());
+        }
+        safe_path(path)
     }
 }
 
@@ -371,11 +632,18 @@ impl Tree for MemoryTree {
     fn list(&self, folder: &str) -> Result<Vec<Item>, String> {
         let prefix = if folder.is_empty() { String::new() } else { format!("{folder}/") };
         let mut items: BTreeMap<String, Item> = BTreeMap::new();
-        for (path, (bytes, time)) in &self.files {
+        let dir = |name: &str| Item { name: name.to_string(), is_dir: true, size: 0, modified: None };
+        for path in self.folders.lock().unwrap().iter() {
+            if let Some(rest) = path.strip_prefix(&prefix) {
+                let name = rest.split('/').next().unwrap_or(rest);
+                items.entry(name.to_string()).or_insert_with(|| dir(name));
+            }
+        }
+        for (path, (bytes, time)) in self.files.lock().unwrap().iter() {
             let Some(rest) = path.strip_prefix(&prefix) else { continue };
             match rest.split_once('/') {
-                Some((dir, _)) => {
-                    items.entry(dir.to_string()).or_insert(Item { name: dir.to_string(), is_dir: true, size: 0, modified: None });
+                Some((name, _)) => {
+                    items.entry(name.to_string()).or_insert_with(|| dir(name));
                 }
                 None => {
                     items.insert(rest.to_string(), Item { name: rest.to_string(), is_dir: false, size: bytes.len() as u64, modified: *time });
@@ -386,7 +654,45 @@ impl Tree for MemoryTree {
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        self.files.get(path).map(|(bytes, _)| bytes.clone()).ok_or_else(|| format!("{path} isn't there."))
+        self.files.lock().unwrap().get(path).map(|(bytes, _)| bytes.clone()).ok_or_else(|| format!("{path} isn't there."))
+    }
+
+    fn can_write(&self) -> bool {
+        self.writable
+    }
+
+    fn stat(&self, path: &str) -> Result<Option<Meta>, String> {
+        if let Some((bytes, time)) = self.files.lock().unwrap().get(path) {
+            return Ok(Some(Meta { is_dir: false, size: bytes.len() as u64, modified: *time }));
+        }
+        Ok(self.has_folder(path).then_some(Meta { is_dir: true, size: 0, modified: None }))
+    }
+
+    fn write(&self, path: &str, bytes: &[u8], modified: Option<u64>) -> Result<(), String> {
+        self.writing(path)?;
+        self.files.lock().unwrap().insert(path.to_string(), (bytes.to_vec(), modified));
+        Ok(())
+    }
+
+    fn make_folder(&self, path: &str) -> Result<(), String> {
+        self.writing(path)?;
+        self.folders.lock().unwrap().insert(path.to_string());
+        Ok(())
+    }
+
+    fn remove_file(&self, path: &str) -> Result<(), String> {
+        self.writing(path)?;
+        self.files.lock().unwrap().remove(path).map(|_| ()).ok_or_else(|| format!("{path} isn't there."))
+    }
+
+    fn remove_folder(&self, path: &str) -> Result<(), String> {
+        self.writing(path)?;
+        let inside = format!("{path}/");
+        if self.files.lock().unwrap().keys().any(|file| file.starts_with(&inside)) || self.folders.lock().unwrap().iter().any(|folder| folder.starts_with(&inside)) {
+            return Err("It still has files in it that weren't compared, so it was kept.".into());
+        }
+        self.folders.lock().unwrap().remove(path);
+        Ok(())
     }
 }
 
@@ -401,6 +707,8 @@ pub struct Filters {
     pub exclude: String,
     /// Leave out what each side's .gitignore files leave out, and the .git folder.
     pub gitignore: bool,
+    /// How files are compared by name, and which are always left out.
+    pub rules: crate::compare_rules::Rules,
 }
 
 /// The patterns in a list typed as "*.rs; *.toml, docs/**".
@@ -725,6 +1033,7 @@ impl Counts {
 }
 
 /// Two trees compared.
+#[derive(Clone)]
 pub struct FolderResult {
     pub left: Side,
     pub right: Side,
@@ -738,21 +1047,7 @@ pub struct FolderResult {
 impl FolderResult {
     /// The files, counted by how they compare. Folders aren't counted.
     pub fn counts(&self) -> Counts {
-        let mut counts = Counts::default();
-        for row in &self.rows {
-            if row.is_dir() && row.status != Status::TypeDiffers {
-                continue;
-            }
-            match row.status {
-                Status::Same => counts.same += 1,
-                Status::Different | Status::NewerLeft | Status::NewerRight => counts.different += 1,
-                Status::LeftOnly => counts.left_only += 1,
-                Status::RightOnly => counts.right_only += 1,
-                Status::TypeDiffers => counts.type_differs += 1,
-                Status::Unreadable => counts.unreadable += 1,
-            }
-        }
-        counts
+        count_rows(self.rows.iter())
     }
 
     pub fn tree(&self, left: bool) -> &Arc<dyn Tree> {
@@ -780,7 +1075,7 @@ pub fn walk(tree: &dyn Tree, filters: &Filters, progress: &Progress, cancel: &At
         }
         for item in items {
             let path = join(&folder, &item.name);
-            if matches_any(&exclude, &path, &item.name) || (filters.gitignore && ((item.is_dir && item.name == ".git") || ignored(&rules, &path, item.is_dir))) {
+            if matches_any(&exclude, &path, &item.name) || filters.rules.skips(&path, &item.name, item.is_dir) || (filters.gitignore && ((item.is_dir && item.name == ".git") || ignored(&rules, &path, item.is_dir))) {
                 continue;
             }
             if !item.is_dir && !include.is_empty() && !matches_any(&include, &path, &item.name) {
@@ -847,13 +1142,27 @@ pub fn build_rows(left: &BTreeMap<String, Item>, right: &BTreeMap<String, Item>)
     rows
 }
 
-/// How two files that are on both sides compare, without reading them if the mode allows.
-fn quick_status(left: Meta, right: Meta, mode: Mode) -> Option<Status> {
-    let by_time = || match (left.modified, right.modified) {
+/// Two files that differ: which is newer, if their times say.
+fn by_time(left: Meta, right: Meta) -> Status {
+    match (left.modified, right.modified) {
         (Some(a), Some(b)) if a > b + SAME_TIME => Status::NewerLeft,
         (Some(a), Some(b)) if b > a + SAME_TIME => Status::NewerRight,
         _ => Status::Different,
-    };
+    }
+}
+
+/// Whether a file's size and time are as they were, within the two seconds FAT keeps times to.
+pub fn same_size_and_time(a: Meta, b: Meta) -> bool {
+    a.size == b.size
+        && match (a.modified, b.modified) {
+            (Some(x), Some(y)) => x.abs_diff(y) <= SAME_TIME,
+            _ => true,
+        }
+}
+
+/// How two files that are on both sides compare, without reading them if the mode allows.
+fn quick_status(left: Meta, right: Meta, mode: Mode) -> Option<Status> {
+    let by_time = || by_time(left, right);
     if left.size != right.size {
         return Some(by_time());
     }
@@ -870,24 +1179,49 @@ fn quick_status(left: Meta, right: Meta, mode: Mode) -> Option<Status> {
 
 /// Works out how each pair of files compares, reading those the mode needs read, and then each folder from
 /// what's in it.
-pub fn compare_files(rows: &mut [Row], left: &dyn Tree, right: &dyn Tree, mode: Mode, progress: &Progress, cancel: &AtomicBool) -> Result<(), String> {
+pub fn compare_files(rows: &mut [Row], left: &dyn Tree, right: &dyn Tree, mode: Mode, rules: &crate::compare_rules::Rules, progress: &Progress, cancel: &AtomicBool) -> Result<(), String> {
+    use crate::compare_rules::{RuleKind, same_picture, same_text};
     let pairs: Vec<usize> = (0..rows.len()).filter(|&i| rows[i].is_file_pair()).collect();
     progress.done.store(0, Ordering::Relaxed);
     progress.total.store(pairs.len() as u64, Ordering::Relaxed);
+    // Each rule's pattern for lines to leave out, made once.
+    let patterns: Vec<Option<regex::Regex>> = rules.list.iter().map(|rule| rule.ignore_regex().ok().flatten()).collect();
     for i in pairs {
         if cancel.load(Ordering::Relaxed) {
             return Err("It was stopped.".into());
         }
         let (Some(l), Some(r)) = (rows[i].left, rows[i].right) else { continue };
-        rows[i].status = match quick_status(l, r, mode) {
+        let path = rows[i].path.clone();
+        let rule = rules.list.iter().position(|rule| rule.matches(&path, &rows[i].name, false));
+        let kind = rule.map(|at| rules.list[at].kind);
+        let loose = rule.is_some_and(|at| rules.list[at].loosens_text());
+        let quick = match kind {
+            Some(RuleKind::SizeAndTime) => Some(if same_size_and_time(l, r) { Status::Same } else { by_time(l, r) }),
+            // Files that differ in size may still be the same picture, or the same text with things left out.
+            Some(RuleKind::Picture) => quick_status(l, r, mode).filter(|status| *status == Status::Same),
+            _ if loose => quick_status(l, r, mode).filter(|status| *status == Status::Same),
+            _ => quick_status(l, r, mode),
+        };
+        rows[i].status = match quick {
             Some(status) => status,
-            None => match (left.hash(&rows[i].path, cancel), right.hash(&rows[i].path, cancel)) {
+            None => match (left.hash(&path, cancel), right.hash(&path, cancel)) {
                 (Ok(a), Ok(b)) if a == b => Status::Same,
-                (Ok(_), Ok(_)) => match (l.modified, r.modified) {
-                    (Some(a), Some(b)) if a > b + SAME_TIME => Status::NewerLeft,
-                    (Some(a), Some(b)) if b > a + SAME_TIME => Status::NewerRight,
-                    _ => Status::Different,
-                },
+                (Ok(_), Ok(_)) => {
+                    // Read, to see whether the rule makes them the same.
+                    let looser = if loose || kind == Some(RuleKind::Picture) {
+                        match (left.read(&path), right.read(&path)) {
+                            (Ok(a), Ok(b)) => match (kind, rule) {
+                                (Some(RuleKind::Picture), _) => same_picture(&rows[i].name, &a, &b),
+                                (_, Some(at)) => same_text(&a, &b, &rules.list[at], patterns[at].as_ref()),
+                                _ => None,
+                            },
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
+                    if looser == Some(true) { Status::Same } else { by_time(l, r) }
+                }
                 (Err(problem), _) | (_, Err(problem)) => {
                     if cancel.load(Ordering::Relaxed) {
                         return Err("It was stopped.".into());
@@ -935,7 +1269,7 @@ pub fn compare_trees(left: Side, right: Side, left_tree: Arc<dyn Tree>, right_tr
     let right_items = walk(&*right_tree, filters, progress, cancel)?;
     let mut rows = build_rows(&left_items, &right_items);
     progress.set_phase(if mode == Mode::Thorough { "Comparing contents" } else { "Comparing" });
-    compare_files(&mut rows, &*left_tree, &*right_tree, mode, progress, cancel)?;
+    compare_files(&mut rows, &*left_tree, &*right_tree, mode, &filters.rules, progress, cancel)?;
     Ok(FolderResult { left, right, mode, filters: filters.clone(), rows, left_tree, right_tree })
 }
 
@@ -977,6 +1311,8 @@ pub struct CopyItem {
     pub replaces: bool,
     pub size: u64,
     pub modified: Option<u64>,
+    /// What was there when it was compared, so a file changed since isn't written over unseen.
+    pub expected: Option<Meta>,
 }
 
 /// What a copy will do, to show before it's done.
@@ -988,8 +1324,8 @@ pub struct CopyPlan {
     pub folders: Vec<String>,
     /// What can't be copied, and why.
     pub skipped: Vec<(String, String)>,
-    /// Where the files go.
-    pub target: PathBuf,
+    /// Where the files go, in words.
+    pub target: String,
 }
 
 impl CopyPlan {
@@ -1002,12 +1338,21 @@ impl CopyPlan {
     }
 }
 
+/// Whether files can be written into one side of a comparison, or why not.
+pub fn check_writable(result: &FolderResult, left: bool) -> Result<(), String> {
+    let side = if left { &result.left } else { &result.right };
+    if let Some(refusal) = side.refusal() {
+        return Err(refusal);
+    }
+    if result.tree(left).can_write() { Ok(()) } else { Err(format!("Files can't be copied into {}.", side.describe())) }
+}
+
 /// Works out what copying the selected rows one way would do. A selected folder brings everything inside it
 /// that isn't already the same. Nothing is ever deleted.
 pub fn plan_copy(result: &FolderResult, selected: &[usize], direction: Direction) -> Result<CopyPlan, String> {
     let from_left = direction.goes_right();
-    let target_side = if from_left { &result.right } else { &result.left };
-    let target = result.tree(!from_left).local_path("").filter(|_| target_side.writable()).ok_or_else(|| format!("Files can only be copied into a folder on this computer, and {} isn't one.", target_side.describe()))?;
+    check_writable(result, !from_left)?;
+    let target = if from_left { &result.right } else { &result.left }.describe();
     let mut wanted: Vec<usize> = Vec::new();
     for &i in selected {
         let Some(row) = result.rows.get(i) else { continue };
@@ -1032,7 +1377,7 @@ pub fn plan_copy(result: &FolderResult, selected: &[usize], direction: Direction
                     plan.skipped.push((row.path.clone(), row.problem.clone().unwrap_or_else(|| "It couldn't be read.".into())));
                     continue;
                 }
-                plan.files.push(CopyItem { path: row.path.clone(), replaces: there.is_some(), size: source.size, modified: source.modified });
+                plan.files.push(CopyItem { path: row.path.clone(), replaces: there.is_some(), size: source.size, modified: source.modified, expected: there });
             }
         }
     }
@@ -1074,15 +1419,49 @@ fn local_place(root: &Path, path: &str) -> PathBuf {
     path.split('/').filter(|part| !part.is_empty()).fold(root.to_path_buf(), |at, part| at.join(part))
 }
 
-/// Does a copy. A file about to be replaced is first copied into `backup_root`, under its path; if that fails,
-/// the file is left alone. A copied file keeps the modified time it had.
-pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, backup_root: &Path, progress: &Progress, cancel: &AtomicBool) -> CopyReport {
+/// Keeps a copy of a file on a side, under its path in `backup_root` on this computer, before it's replaced or
+/// taken away. If that can't be done, the file mustn't be touched.
+pub fn keep_backup(tree: &dyn Tree, path: &str, backup_root: &Path) -> Result<(), String> {
+    safe_path(path)?;
+    let kept = local_place(backup_root, path);
+    if let Some(folder) = kept.parent() {
+        std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+    }
+    match tree.local_path(path) {
+        Some(here) => std::fs::copy(here, &kept).map(|_| ()).map_err(|e| e.to_string()),
+        None => tree.read(path).and_then(|bytes| crate::codec::write_file(&kept, &bytes).map_err(|e| e.to_string())),
+    }
+}
+
+/// Whether what's at a path is still what was there when it was compared: the same file by size and time, or
+/// nothing, as expected.
+pub fn still_as_compared(tree: &dyn Tree, path: &str, expected: Option<Meta>) -> Result<(), String> {
+    match (tree.stat(path)?, expected) {
+        (None, None) => Ok(()),
+        (Some(now), Some(then)) if now.is_dir == then.is_dir && (now.is_dir || same_size_and_time(now, then)) => Ok(()),
+        (Some(_), None) => Err("Something has been put there since the comparison, so it was left alone. Compare again first.".into()),
+        (None, Some(_)) => Err("It has gone since the comparison. Compare again first.".into()),
+        (Some(_), Some(_)) => Err("It has changed since the comparison, so it was left alone. Compare again first.".into()),
+    }
+}
+
+/// Copies one file from one side to the other, keeping its modified time.
+pub fn put_file(source: &dyn Tree, target: &dyn Tree, path: &str, modified: Option<u64>) -> Result<(), String> {
+    safe_path(path)?;
+    let bytes = source.read(path)?;
+    target.write(path, &bytes, modified)
+}
+
+/// Does a copy into `target`. A file about to be replaced is first copied into `backup_root`, under its path;
+/// if that fails, or the file has changed since it was compared, the file is left alone. A copied file keeps the
+/// modified time it had.
+pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, target: &dyn Tree, backup_root: &Path, progress: &Progress, cancel: &AtomicBool) -> CopyReport {
     let mut report = CopyReport::default();
     progress.total.store(plan.files.len() as u64 + plan.folders.len() as u64, Ordering::Relaxed);
     for folder in &plan.folders {
-        match std::fs::create_dir_all(local_place(&plan.target, folder)) {
+        match safe_path(folder).and_then(|()| target.make_folder(folder)) {
             Ok(()) => report.folders_made += 1,
-            Err(e) => report.failed.push((folder.clone(), e.to_string())),
+            Err(e) => report.failed.push((folder.clone(), e)),
         }
         progress.done.fetch_add(1, Ordering::Relaxed);
     }
@@ -1092,11 +1471,14 @@ pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, backup_root: &Path, progress
             continue;
         }
         progress.set_phase(format!("Copying {}", item.path));
-        let target = local_place(&plan.target, &item.path);
-        if item.replaces && target.is_file() {
-            let kept = local_place(backup_root, &item.path);
-            let backed = kept.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::copy(&target, &kept).map(|_| ()));
-            if let Err(e) = backed {
+        let checked = safe_path(&item.path).and_then(|()| still_as_compared(target, &item.path, item.expected));
+        if let Err(problem) = checked {
+            report.failed.push((item.path.clone(), problem));
+            progress.done.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+        if item.replaces {
+            if let Err(e) = keep_backup(target, &item.path, backup_root) {
                 report.failed.push((item.path.clone(), format!("It couldn't be backed up first ({e}), so it was left as it was.")));
                 progress.done.fetch_add(1, Ordering::Relaxed);
                 continue;
@@ -1104,20 +1486,8 @@ pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, backup_root: &Path, progress
             report.backed_up += 1;
             report.backup_folder = Some(backup_root.to_path_buf());
         }
-        let written = source.read(&item.path).and_then(|bytes| {
-            if let Some(folder) = target.parent() {
-                std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
-            }
-            crate::codec::write_file(&target, &bytes).map_err(|e| e.to_string())
-        });
-        match written {
-            Ok(()) => {
-                if let Some(time) = item.modified {
-                    let when = std::time::UNIX_EPOCH + Duration::from_secs(time);
-                    let _ = std::fs::OpenOptions::new().write(true).open(&target).and_then(|file| file.set_modified(when));
-                }
-                report.copied += 1;
-            }
+        match put_file(source, target, &item.path, item.modified) {
+            Ok(()) => report.copied += 1,
             Err(e) => report.failed.push((item.path.clone(), e)),
         }
         progress.done.fetch_add(1, Ordering::Relaxed);
@@ -1125,9 +1495,17 @@ pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, backup_root: &Path, progress
     report
 }
 
-/// A folder for this copy's backups, named for when it is, under the folder they're all kept in.
+/// A folder for this copy's backups, named for when it is, under the folder they're all kept in. A name already
+/// taken gets a number after it.
 pub fn backup_folder(under: &Path) -> PathBuf {
-    under.join(chrono::Local::now().format("%Y-%m-%d %H-%M-%S").to_string())
+    let stamp = chrono::Local::now().format("%Y-%m-%d %H-%M-%S").to_string();
+    let mut folder = under.join(&stamp);
+    let mut attempt = 1;
+    while folder.exists() {
+        attempt += 1;
+        folder = under.join(format!("{stamp} ({attempt})"));
+    }
+    folder
 }
 
 // ---------- Comparing text ----------
@@ -1591,6 +1969,77 @@ pub fn report_html(result: &FolderResult, hide_same: bool) -> String {
     out
 }
 
+/// Files counted by how they compare, among some rows.
+fn count_rows<'a>(rows: impl Iterator<Item = &'a Row>) -> Counts {
+    let mut counts = Counts::default();
+    for row in rows {
+        if row.is_dir() && row.status != Status::TypeDiffers {
+            continue;
+        }
+        match row.status {
+            Status::Same => counts.same += 1,
+            Status::Different | Status::NewerLeft | Status::NewerRight => counts.different += 1,
+            Status::LeftOnly => counts.left_only += 1,
+            Status::RightOnly => counts.right_only += 1,
+            Status::TypeDiffers => counts.type_differs += 1,
+            Status::Unreadable => counts.unreadable += 1,
+        }
+    }
+    counts
+}
+
+/// A report of the counts only: for the whole comparison, then for each folder at the top. Plain text, or an
+/// HTML page.
+pub fn report_summary(result: &FolderResult, html: bool) -> String {
+    let by = if result.mode == Mode::Thorough { "contents" } else { "size and modified time" };
+    let mut folders: Vec<(String, Counts)> = Vec::new();
+    let top_files = count_rows(result.rows.iter().filter(|row| row.parent.is_none() && !row.is_dir()));
+    if top_files != Counts::default() {
+        folders.push(("(files at the top)".to_string(), top_files));
+    }
+    for (i, row) in result.rows.iter().enumerate() {
+        if row.parent.is_none() && row.is_dir() {
+            folders.push((format!("{}/", row.path), count_rows(result.rows[i..row.end].iter())));
+        }
+    }
+    if html {
+        let mut out = String::from("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Folder comparison summary</title>\n<style>\nbody{font-family:system-ui,sans-serif;margin:24px;color:#222}\ntable{border-collapse:collapse;font-size:14px}\nth,td{padding:3px 10px;text-align:left;border-bottom:1px solid #ddd}\ntd.n{text-align:right;font-variant-numeric:tabular-nums}\n</style>\n</head>\n<body>\n<h1>Folder comparison summary</h1>\n");
+        out.push_str(&format!("<p>Left: {}<br>Right: {}<br>Compared by {by}</p>\n<p>{}</p>\n", html_escape(&result.left.describe()), html_escape(&result.right.describe()), html_escape(&result.counts().describe())));
+        out.push_str("<table>\n<thead><tr><th>Folder</th><th>Same</th><th>Different</th><th>Only on the left</th><th>Only on the right</th><th>Other</th></tr></thead>\n<tbody>\n");
+        for (name, c) in &folders {
+            out.push_str(&format!("<tr><td>{}</td><td class=\"n\">{}</td><td class=\"n\">{}</td><td class=\"n\">{}</td><td class=\"n\">{}</td><td class=\"n\">{}</td></tr>\n", html_escape(name), c.same, c.different, c.left_only, c.right_only, c.type_differs + c.unreadable));
+        }
+        out.push_str("</tbody>\n</table>\n</body>\n</html>\n");
+        return out;
+    }
+    let mut out = String::from("Folder comparison summary\n");
+    out.push_str(&format!("Left:  {}\nRight: {}\nCompared by {by}\n{}\n\n", result.left.describe(), result.right.describe(), result.counts().describe()));
+    let width = folders.iter().map(|(name, _)| name.chars().count()).max().unwrap_or(6).max(6);
+    out.push_str(&format!("{:<width$}  {:>8}  {:>9}  {:>16}  {:>17}  {:>6}\n", "Folder", "Same", "Different", "Only on the left", "Only on the right", "Other"));
+    for (name, c) in &folders {
+        out.push_str(&format!("{:<width$}  {:>8}  {:>9}  {:>16}  {:>17}  {:>6}\n", name, c.same, c.different, c.left_only, c.right_only, c.type_differs + c.unreadable));
+    }
+    out
+}
+
+/// A field for a CSV file: quoted when it has a comma, quote or line break in it, with quotes doubled.
+pub fn csv_field(text: &str) -> String {
+    if text.contains([',', '"', '\n', '\r']) { format!("\"{}\"", text.replace('"', "\"\"")) } else { text.to_string() }
+}
+
+/// The comparison as a CSV file for a spreadsheet: a row for each entry, with its status, path, whether it's a
+/// folder, and each side's size and modified time.
+pub fn report_csv(result: &FolderResult, hide_same: bool) -> String {
+    let mut out = String::from("Status,Path,Kind,Left size,Left modified,Right size,Right modified\r\n");
+    let size = |meta: Option<Meta>| meta.filter(|m| !m.is_dir).map_or_else(String::new, |m| m.size.to_string());
+    for row in report_rows(result, hide_same) {
+        let fields = [row.status.words().to_string(), row.path.clone(), if row.is_dir() { "Folder".into() } else { "File".into() }, size(row.left), time_words(row.left.and_then(|m| m.modified)), size(row.right), time_words(row.right.and_then(|m| m.modified))];
+        out.push_str(&fields.iter().map(|field| csv_field(field)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    out
+}
+
 // ---------- Bytes and pictures ----------
 
 /// The stretches of offsets where two lots of bytes differ, compared place by place. What one has past the
@@ -1722,7 +2171,7 @@ mod tests {
     #[test]
     fn filters_take_and_leave_out_files_and_folders() {
         let files = [("a.rs", "1", None), ("b.txt", "1", None), ("target/out.rs", "1", None), ("src/c.rs", "1", None), ("notes/n.txt", "1", None)];
-        let only_rust = Filters { include: "*.rs".into(), exclude: "target".into(), gitignore: false };
+        let only_rust = Filters { include: "*.rs".into(), exclude: "target".into(), ..Filters::default() };
         let result = compared(&files, &files, Mode::Quick, &only_rust);
         let paths: Vec<String> = result.rows.iter().map(|row| row.path.clone()).collect();
         assert_eq!(paths, ["src", "src/c.rs", "a.rs"], "folders with nothing taken in them go too");
@@ -1793,7 +2242,7 @@ mod tests {
         assert!(plan_copy(&result, &everything, Direction::RightToLeft).is_err());
         // Doing it backs up what's replaced, and keeps the time a file had.
         let backups = dir.join("backups");
-        let report = run_copy(&plan, &*result.left_tree, &backups, &Progress::default(), &AtomicBool::new(false));
+        let report = run_copy(&plan, &*result.left_tree, &*result.right_tree, &backups, &Progress::default(), &AtomicBool::new(false));
         assert_eq!((report.copied, report.backed_up, report.folders_made), (4, 1, 1), "{report:?}");
         assert_eq!(std::fs::read_to_string(dir.join("right/changed.txt")).unwrap(), "new!");
         assert_eq!(std::fs::read_to_string(backups.join("changed.txt")).unwrap(), "old");
@@ -2049,6 +2498,30 @@ mod tests {
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<td class=\"s\">Only on the right</td><td>new.txt</td>"));
         assert_eq!(html_escape("<a & \"b\">"), "&lt;a &amp; &quot;b&quot;&gt;");
+    }
+
+    #[test]
+    fn a_summary_counts_by_folder_and_a_csv_has_a_row_for_each() {
+        let left = [("a.txt", "1", Some(1)), ("docs/x.txt", "x", Some(1)), ("docs/y.txt", "y", Some(1)), ("odd, \"name\".txt", "q", Some(1))];
+        let right = [("a.txt", "1", Some(1)), ("docs/x.txt", "changed", Some(1)), ("docs/z.txt", "z", Some(1))];
+        let result = compared(&left, &right, Mode::Quick, &Filters::default());
+        let summary = report_summary(&result, false);
+        let docs = summary.lines().find(|line| line.starts_with("docs/")).unwrap();
+        let numbers: Vec<&str> = docs.split_whitespace().skip(1).collect();
+        assert_eq!(numbers, ["0", "1", "1", "1", "0"], "{summary}");
+        let top = summary.lines().find(|line| line.starts_with("(files at the top)")).unwrap();
+        assert!(top.split_whitespace().any(|n| n == "1"));
+        assert!(!summary.contains("y.txt"), "no entries, only counts");
+        assert!(report_summary(&result, true).contains("<td>docs/</td>"));
+        let csv = report_csv(&result, false);
+        let rows: Vec<&str> = csv.split("\r\n").filter(|row| !row.is_empty()).collect();
+        assert_eq!(rows[0], "Status,Path,Kind,Left size,Left modified,Right size,Right modified");
+        assert_eq!(rows.len(), 1 + result.rows.len());
+        assert!(csv.contains("Only on the left,\"odd, \"\"name\"\".txt\",File,1,"), "{csv}");
+        assert!(csv.contains("Different,docs,Folder,,,,"));
+        assert_eq!(report_csv(&result, true).split("\r\n").filter(|row| !row.is_empty()).count(), 1 + result.rows.iter().filter(|row| row.status != Status::Same).count());
+        assert_eq!(csv_field("plain"), "plain");
+        assert_eq!(csv_field("line\nbreak"), "\"line\nbreak\"");
     }
 
     #[test]
