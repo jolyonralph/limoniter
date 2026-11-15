@@ -392,6 +392,9 @@ impl Limoniter {
                             act.push(PanelAct::Unstage(entry.path.clone()));
                         }
                     } else {
+                        if change == Some(Change::Conflicted) && ui.small_button("Resolve in merge\u{2026}").on_hover_text("Each side, from Git's own copies, and the result to settle").clicked() {
+                            act.push(PanelAct::Merge(entry.path.clone()));
+                        }
                         if ui.small_button("+").on_hover_text("Put it in the next commit").clicked() {
                             act.push(PanelAct::Stage(entry.path.clone()));
                         }
@@ -497,6 +500,17 @@ impl Limoniter {
                 act.push(PanelAct::CompareHead);
             }
         });
+        egui::CollapsingHeader::new("Diff and merge tool").id_salt("git-tools").show(ui, |ui| {
+            ui.add(egui::Label::new(faint("git difftool and git mergetool can open Limoniter, in every repository. Whatever Git used before is kept, to put back.")).wrap());
+            ui.horizontal_wrapped(|ui| {
+                if ui.small_button("Use Limoniter for Git diff and merge").clicked() {
+                    act.push(PanelAct::UseForGit);
+                }
+                if ui.small_button("Stop using Limoniter for Git").clicked() {
+                    act.push(PanelAct::StopUsingForGit);
+                }
+            });
+        });
     }
 
     fn git_panel_act(&mut self, action: PanelAct) {
@@ -520,6 +534,11 @@ impl Limoniter {
                     self.open_path(&path);
                 }
             }
+            PanelAct::Merge(relative) => {
+                self.resolve_git_conflict(&root, &relative);
+            }
+            PanelAct::UseForGit => self.use_for_git(),
+            PanelAct::StopUsingForGit => self.stop_using_for_git(),
             PanelAct::Stage(path) => say(&mut self.git, git::stage(&root, &[path])),
             PanelAct::Unstage(path) => say(&mut self.git, git::unstage(&root, &[path], born)),
             PanelAct::StageAll => {
@@ -659,7 +678,7 @@ impl Limoniter {
     }
 
     /// The repository and the file in front's place in it.
-    fn git_file(&self) -> Option<(PathBuf, String)> {
+    pub(super) fn git_file(&self) -> Option<(PathBuf, String)> {
         let path = self.docs.get(self.active)?.path.clone()?;
         let root = git::repository_of(&path)?;
         let relative = git::relative(&root, &path)?;
@@ -812,11 +831,12 @@ impl Limoniter {
     /// The conflicts in the file in front, if git stopped a merge in it.
     pub(super) fn conflict_bar(&mut self, ui: &mut Ui) {
         let doc = &self.docs[self.active];
-        if doc.hex_mode || doc.text.is_disk_backed() || doc.text.line_count() > 200_000 {
+        if doc.hex_mode || doc.text.is_disk_backed() || doc.text.line_count() > 200_000 || doc.merge.is_some() {
             return;
         }
         let in_conflict = self.git_file().is_some_and(|(_, relative)| self.git.status.as_ref().and_then(|s| s.of(&relative)).is_some_and(|e| e.unstaged == Some(Change::Conflicted)));
         if !in_conflict {
+            self.marker_bar(ui);
             return;
         }
         let lines = doc.text.all_lines();
@@ -824,7 +844,7 @@ impl Limoniter {
         let caret = doc.text.caret_line;
         let here = found.iter().position(|c| c.start <= caret && caret <= c.end);
         let mut chosen: Option<Keep> = None;
-        let (mut next, mut settled, mut ask) = (false, false, false);
+        let (mut next, mut settled, mut ask, mut merge) = (false, false, false, false);
         Panel::top("conflict-bar").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if found.is_empty() {
@@ -844,9 +864,12 @@ impl Limoniter {
                     ui.label(RichText::new("Put the cursor in one to choose what to keep.").color(theme::text_dim()));
                 }
                 next = ui.button("Next conflict").clicked();
+                merge = ui.button("Resolve in merge\u{2026}").on_hover_text("Each side, from Git's own copies, and the result to settle").clicked();
             });
         });
-        if let (true, Some(at)) = (ask, here) {
+        if merge {
+            self.resolve_in_merge();
+        } else if let (true, Some(at)) = (ask, here) {
             let conflict = found[at].clone();
             if let Err(problem) = self.assist_conflict(conflict.start..conflict.end + 1) {
                 self.message("Ask the assistant", problem);
@@ -930,6 +953,10 @@ impl Limoniter {
 enum PanelAct {
     Wizard,
     Open(PathBuf),
+    /// A file in conflict, to resolve in the merge tab.
+    Merge(String),
+    UseForGit,
+    StopUsingForGit,
     Stage(String),
     Unstage(String),
     StageAll,

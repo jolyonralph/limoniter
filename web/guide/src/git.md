@@ -60,3 +60,39 @@ When a merge stops at a conflict, a bar over the file helps you settle each one:
 3. Go to the **Next conflict**, and so on.
 
 When they're all done, the file is marked settled. **Ask the assistant** suggests lines that do what both sides meant, shown first for you to accept or not. To give up on the merge, choose **Abort the merge**.
+
+## Merging in the merge tab
+
+The merge tab shows the three versions side by side, and the merged result below for you to edit:
+
+- At the top, left to right: the **original** both sides started from, **mine** and **theirs**. They scroll together and line up, with blank space where one side has fewer lines. Lines only one side changed are green on that side, lines both changed alike are yellow, and conflicts are red on all three.
+- Below is the **result**, an ordinary editor. Everything that merged by itself is already in it. Each conflict is still there between Git's markers (`<<<<<<<`, `|||||||`, `=======` and `>>>>>>>`).
+
+To settle the conflicts:
+
+1. Press **Next conflict** or **Previous conflict**, or click a red line at the top. The cursor goes to that conflict in the result.
+2. Choose **Take mine**, **Take theirs**, **Take both (mine first)**, **Take both (theirs first)** or **Take the original**. Or edit the lines by hand and take the markers out.
+3. The bar counts the conflicts still left. Press **Save the result** (or [[Ctrl+S]]) when there are none. If you save with conflicts still left, Limoniter asks first.
+
+There are three ways to open it:
+
+- When Git stops a merge, **Resolve in merge…** beside the file in Source control (or in the bar over the file) opens it from Git's own copies of each side. When you save the result with nothing left to settle, Limoniter offers to mark the file resolved in Git (`git add`).
+- A file with conflict markers in it, from anywhere, shows a bar offering **Resolve in merge…**, which reads the markers as the conflicts.
+- **Tools › Git › Merge three files…** asks for the original, mine and theirs, and where to save the result.
+
+## Using Limoniter for git difftool and git mergetool
+
+**Tools › Git › Use Limoniter for Git diff and merge** (also under **Diff and merge tool** in Source control) sets Git to open Limoniter for `git difftool` and `git mergetool`, in every repository on this computer. It changes only your own Git settings (`git config --global`), never a repository's. If Git already uses another tool, Limoniter shows you what's set and asks first.
+
+**Stop using Limoniter for Git** puts back exactly what was set before, and takes away anything that wasn't.
+
+`git mergetool` waits for the merge tab to close. If you saved the result with no conflicts left, Git marks the file resolved; if not, Git leaves it in conflict.
+
+From a command line:
+
+```
+limoniter --diff LEFT RIGHT
+limoniter --merge BASE MINE THEIRS RESULT
+```
+
+`--diff` compares two files side by side. `--merge` opens the merge tab in a window of its own, saving to RESULT, and when the tab is closed the program ends with exit code 0 if the result was saved with no conflicts left, or 1 if not. `limoniter --help` lists these.

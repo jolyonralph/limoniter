@@ -72,6 +72,8 @@
 <li><a href="#sharing-your-work">Sharing your work</a></li>
 <li><a href="#branches-putting-aside-and-tags">Branches, putting aside and tags</a></li>
 <li><a href="#settling-a-conflict">Settling a conflict</a></li>
+<li><a href="#merging-in-the-merge-tab">Merging in the merge tab</a></li>
+<li><a href="#using-limoniter-for-git-difftool-and-git-mergetool">Using Limoniter for git difftool and git mergetool</a></li>
 </ul>
 </nav>
 <h2 id="starting-with-git">Starting with Git</h2>
@@ -95,6 +97,21 @@
 <p>When a merge stops at a conflict, a bar over the file helps you settle each one:</p>
 <ol class="steps"><li>Put the cursor in a conflict.</li><li>Choose <strong>Keep mine</strong>, <strong>Keep theirs</strong> or <strong>Keep both</strong>.</li><li>Go to the <strong>Next conflict</strong>, and so on.</li></ol>
 <p>When they're all done, the file is marked settled. <strong>Ask the assistant</strong> suggests lines that do what both sides meant, shown first for you to accept or not. To give up on the merge, choose <strong>Abort the merge</strong>.</p>
+<h2 id="merging-in-the-merge-tab">Merging in the merge tab</h2>
+<p>The merge tab shows the three versions side by side, and the merged result below for you to edit:</p>
+<ul><li>At the top, left to right: the <strong>original</strong> both sides started from, <strong>mine</strong> and <strong>theirs</strong>. They scroll together and line up, with blank space where one side has fewer lines. Lines only one side changed are green on that side, lines both changed alike are yellow, and conflicts are red on all three.</li><li>Below is the <strong>result</strong>, an ordinary editor. Everything that merged by itself is already in it. Each conflict is still there between Git's markers (<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>|||||||</code>, <code>=======</code> and <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>).</li></ul>
+<p>To settle the conflicts:</p>
+<ol class="steps"><li>Press <strong>Next conflict</strong> or <strong>Previous conflict</strong>, or click a red line at the top. The cursor goes to that conflict in the result.</li><li>Choose <strong>Take mine</strong>, <strong>Take theirs</strong>, <strong>Take both (mine first)</strong>, <strong>Take both (theirs first)</strong> or <strong>Take the original</strong>. Or edit the lines by hand and take the markers out.</li><li>The bar counts the conflicts still left. Press <strong>Save the result</strong> (or <kbd>Ctrl+S</kbd>) when there are none. If you save with conflicts still left, Limoniter asks first.</li></ol>
+<p>There are three ways to open it:</p>
+<ul><li>When Git stops a merge, <strong>Resolve in merge…</strong> beside the file in Source control (or in the bar over the file) opens it from Git's own copies of each side. When you save the result with nothing left to settle, Limoniter offers to mark the file resolved in Git (<code>git add</code>).</li><li>A file with conflict markers in it, from anywhere, shows a bar offering <strong>Resolve in merge…</strong>, which reads the markers as the conflicts.</li><li><strong>Tools › Git › Merge three files…</strong> asks for the original, mine and theirs, and where to save the result.</li></ul>
+<h2 id="using-limoniter-for-git-difftool-and-git-mergetool">Using Limoniter for git difftool and git mergetool</h2>
+<p><strong>Tools › Git › Use Limoniter for Git diff and merge</strong> (also under <strong>Diff and merge tool</strong> in Source control) sets Git to open Limoniter for <code>git difftool</code> and <code>git mergetool</code>, in every repository on this computer. It changes only your own Git settings (<code>git config --global</code>), never a repository's. If Git already uses another tool, Limoniter shows you what's set and asks first.</p>
+<p><strong>Stop using Limoniter for Git</strong> puts back exactly what was set before, and takes away anything that wasn't.</p>
+<p><code>git mergetool</code> waits for the merge tab to close. If you saved the result with no conflicts left, Git marks the file resolved; if not, Git leaves it in conflict.</p>
+<p>From a command line:</p>
+<div class="code-block"><pre><code>limoniter --diff LEFT RIGHT
+limoniter --merge BASE MINE THEIRS RESULT</code></pre></div>
+<p><code>--diff</code> compares two files side by side. <code>--merge</code> opens the merge tab in a window of its own, saving to RESULT, and when the tab is closed the program ends with exit code 0 if the result was saved with no conflicts left, or 1 if not. <code>limoniter --help</code> lists these.</p>
         <nav class="pager" aria-label="Back and next">
 <a class="pager-back" href="debugging.html"><span>Back</span>Debugging</a>
 <a class="pager-next" href="remote-files.html"><span>Next</span>Remote files</a>

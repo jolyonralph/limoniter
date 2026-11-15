@@ -247,6 +247,13 @@ enum Command {
     GitHistory,
     GitStageChange,
     GitUndoChange,
+    /// Merges three files, chosen one after another, into a merge tab.
+    Merge,
+    /// Opens the file in front, which Git stopped a merge in or which has conflict markers, in a merge tab.
+    ResolveInMerge,
+    /// Sets Git to use Limoniter for git difftool and git mergetool, or puts back what it used before.
+    GitUseTools,
+    GitStopTools,
     Themes,
     Website,
     ToggleTable,
@@ -355,6 +362,9 @@ impl Command {
                 | Command::MachineBasicOut
                 | Command::SourceControl
                 | Command::GitWizard
+                | Command::Merge
+                | Command::GitUseTools
+                | Command::GitStopTools
                 | Command::Settings
                 | Command::ProjectOpen
                 | Command::ProjectNew
@@ -670,6 +680,8 @@ struct Document {
     browser: Option<Box<image_browser::ImageBrowser>>,
     /// The hidden game, playing in the text's place.
     game: Option<Box<clambers_host::Playing>>,
+    /// A merge of three versions, this document being its result.
+    merge: Option<Box<merge_host::MergeTab>>,
 }
 
 /// Anything that changes what a recovery copy would hold.
@@ -765,6 +777,7 @@ impl Document {
             window_number: 1,
             browser: None,
             game: None,
+            merge: None,
         }
     }
 
@@ -1328,6 +1341,8 @@ pub struct Limoniter {
     intel_wait: Option<(u64, u64, std::time::Instant)>,
     /// The character and sprite editor, while it's open.
     pixel_editor: Option<Box<crate::pixel_editor::Editor>>,
+    /// Merges: the one a run from the command line is waiting on, and the offer for files with conflict markers.
+    merges: merge_host::MergeState,
     /// The Spectrum screen designer, while it's open.
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
     amiga_hw: Option<Box<amiga_hw_host::HwWindow>>,
@@ -1518,7 +1533,7 @@ fn save_png(path: &Path, image: &egui::ColorImage) -> Result<(), String> {
 }
 
 impl Limoniter {
-    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, screenshot: Option<PathBuf>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, screenshot: Option<PathBuf>, launch: Option<ToolLaunch>) -> Self {
         let settings = read_settings_file();
         theme::set_window(theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light).window_theme());
         theme::apply(&cc.egui_ctx);
@@ -1535,10 +1550,18 @@ impl Limoniter {
         if app.docs.is_empty() {
             app.new_document();
         }
+        // A window for one diff or merge, as Git asks for, doesn't take files opened from elsewhere.
+        let tool = launch.is_some();
+        if let Some(launch) = launch {
+            app.waker = Some(cc.egui_ctx.clone());
+            app.start_tool(launch);
+        }
         if app.screenshot.is_none() {
             app.start_recovery();
         }
-        app.start_listening(&cc.egui_ctx);
+        if !tool {
+            app.start_listening(&cc.egui_ctx);
+        }
         app
     }
 
@@ -1626,6 +1649,7 @@ impl Limoniter {
             new_kinds: new_kinds::kinds_from_settings(&settings),
             intel_wait: None,
             pixel_editor: None,
+            merges: merge_host::MergeState::default(),
             screen_designer: None,
             amiga_hw: None,
             bitplanes: None,
@@ -2006,6 +2030,9 @@ impl Limoniter {
         if self.docs[index].browser.is_some() {
             self.message("Save", "An image or archive is only read here, so nothing is saved over it. Save a copy takes a file out of it.".into());
             return false;
+        }
+        if self.docs[index].merge.is_some() {
+            return self.save_merge(index);
         }
         match self.docs[index].path.clone() {
             Some(path) => self.write_to(index, &path),
@@ -2812,6 +2839,7 @@ impl Limoniter {
         }
         let closed = self.docs.remove(index);
         self.jumps.forget_doc(closed.id);
+        self.merge_closed(&closed);
         drop(closed);
         if self.docs.is_empty() {
             // Nothing takes its place: the window just shows no file until one is opened or made.
@@ -3593,6 +3621,9 @@ impl Limoniter {
                 | Command::GitCompareHead
                 | Command::GitHistory
                 | Command::GitStageChange
+                | Command::Merge
+                | Command::GitUseTools
+                | Command::GitStopTools
                 | Command::ToggleTable
                 | Command::AddOn(_)
                 | Command::ShowScripts
@@ -3770,6 +3801,10 @@ impl Limoniter {
                 self.git.refresh();
             }
             Command::GitWizard => self.open_git_wizard(),
+            Command::Merge => self.merge_files_dialog(),
+            Command::ResolveInMerge => self.resolve_in_merge(),
+            Command::GitUseTools => self.use_for_git(),
+            Command::GitStopTools => self.stop_using_for_git(),
             Command::GitCompareHead => self.compare_with_commit("HEAD"),
             Command::GitHistory => self.git_history(),
             Command::GitStageChange => self.stage_change_at_cursor(),
@@ -5494,6 +5529,7 @@ impl Limoniter {
                 for number in numbers {
                     let doc = &self.docs[i];
                     let name = if several { format!("{}:{number}", doc.name()) } else { doc.name() };
+                    let name = if doc.merge.is_some() { format!("Merge: {name}") } else { name };
                     let (chosen, closing) = tabs::file_tab(ui, &name, doc.is_modified(), i == self.active && number == doc.window_number);
                     if chosen {
                         self.active = i;
@@ -6770,6 +6806,10 @@ impl Limoniter {
                 self.clambers_view(ui);
                 return;
             }
+            if self.docs[index].merge.is_some() && !self.docs[index].hex_mode {
+                context_command = self.merge_view(ui, view, input_on);
+                return;
+            }
             let doc = &mut self.docs[index];
             if doc.placeholder {
                 return;
@@ -7583,6 +7623,10 @@ mod git_host;
 
 #[path = "git_wizard.rs"]
 mod git_wizard;
+
+#[path = "merge_host.rs"]
+mod merge_host;
+pub use merge_host::{ToolLaunch, USAGE, parse_tool_args, tool_exit_code};
 
 #[cfg(test)]
 #[path = "git_host_tests.rs"]

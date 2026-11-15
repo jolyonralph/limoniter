@@ -44,6 +44,8 @@ mod fold_multi_tests;
 mod find_files;
 mod formatters;
 mod git;
+mod git_setup;
+mod merge3;
 mod byte_store;
 mod hex_buffer;
 mod highlight;
@@ -186,11 +188,28 @@ fn main() -> eframe::Result {
         let _ = associations::remove_if_mine();
         return Ok(());
     }
+    let all: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    if all.iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!("{}", app::USAGE);
+        return Ok(());
+    }
+    // A diff or merge for Git: a window of its own, which Git waits on, rather than a tab in one already open.
+    let launch = match app::parse_tool_args(&all) {
+        Ok(launch) => launch,
+        Err(problem) => {
+            eprintln!("{problem}\n\n{}", app::USAGE);
+            std::process::exit(2);
+        }
+    };
     let mut files = Vec::new();
     let mut screenshot = None;
-    let mut args = std::env::args_os().skip(1);
+    let mut args = all.into_iter();
     while let Some(arg) = args.next() {
-        if arg == "--screenshot" {
+        if launch.is_some() && (arg == "--diff" || arg == "--merge") {
+            for _ in 0..if arg == "--diff" { 2 } else { 4 } {
+                args.next();
+            }
+        } else if arg == "--screenshot" {
             let Some(path) = args.next() else {
                 eprintln!("--screenshot needs a file to save the picture to.");
                 std::process::exit(2);
@@ -208,6 +227,7 @@ fn main() -> eframe::Result {
     }
     // Files opened from Explorer go to the window already open, unless each is to have a window of its own.
     if screenshot.is_none()
+        && launch.is_none()
         && !files.is_empty()
         && !settings::Prefs::from_settings(&app::read_settings_file()).new_window_per_file
         && let Some(folder) = app::settings_folder()
@@ -234,7 +254,12 @@ fn main() -> eframe::Result {
             .with_active(screenshot.is_none()),
         ..Default::default()
     };
-    eframe::run_native("Limoniter", options, Box::new(move |cc| Ok(Box::new(app::Limoniter::new(cc, files, screenshot)))))
+    let result = eframe::run_native("Limoniter", options, Box::new(move |cc| Ok(Box::new(app::Limoniter::new(cc, files, screenshot, launch)))));
+    // For git mergetool: whether the merge was finished, saved with no conflicts left.
+    if let Some(code) = app::tool_exit_code() {
+        std::process::exit(if result.is_err() { 1 } else { code });
+    }
+    result
 }
 
 #[cfg(test)]
