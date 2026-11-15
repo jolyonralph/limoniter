@@ -156,14 +156,15 @@
         <div class="split">
           <div>
             <h2>Compare and merge</h2>
-            <p>Compare two files or two whole folders, merge three versions of a file, and let Git use Limoniter for both. It's all in <strong>Tools › Compare files…</strong>, <strong>Compare folders…</strong> and <strong>Git › Merge</strong>.</p>
+            <p>Compare two files or two whole folders, keep folders in sync, merge three versions of a file, and let Git use Limoniter for both. It's all in <strong>Tools › Compare files…</strong>, <strong>Compare folders…</strong> and <strong>Git › Merge</strong>.</p>
             <ul class="ticks">
               <li><strong>Files side by side, both editable.</strong> Changed lines and the words within them are marked. An arrow copies a difference across, and Undo takes it back. Spaces, case and line endings can be ignored, and the comparison saves as a patch.</li>
               <li><strong>Whole folders as a tree.</strong> Each side can be a folder, a Git revision, a disk image or archive, or a folder on an SFTP server. Compare by size and time or by contents, and leave out what <code>.gitignore</code> leaves out. Save the result as an HTML report or one patch.</li>
               <li><strong>Not only text.</strong> Binary files are compared byte by byte in hex, pictures as pictures with their differences shown, and files too big for memory in the background.</li>
               <li><strong>Three-way merge.</strong> The original, mine and theirs are lined up above the result, which you can edit. Changes made on only one side are merged already, and each conflict waits for Take mine, Take theirs or Take both.</li>
               <li><strong>Git, when you say so.</strong> Conflicted files get <strong>Resolve in merge…</strong>. One button makes <code>git difftool</code> and <code>git mergetool</code> open Limoniter. It asks first if another tool is set, and it can put your old settings back.</li>
-              <li><strong>Copying with care.</strong> Before anything is copied between folders, you see a list of what will change. Nothing is deleted, and every file that's replaced is backed up first.</li>
+              <li><strong>Sync with care.</strong> <strong>Update</strong> copies what's new or newer, one way or both. <strong>Mirror</strong> makes one side match the other. Each shows every new file, replacement and deletion first, with a tick box. Deletions are confirmed again, and every file replaced or deleted is backed up first. Files changed on both sides since the last sync are shown as conflicts and left alone.</li>
+              <li><strong>Comparisons you come back to.</strong> Save a comparison, with its filters and rules, in your project or on its own, and open it again from the Project panel. Rules say how each kind of file is compared: as text that ignores timestamps, as bytes or as pictures, or skipped. Reports can be saved as HTML, text or CSV, and a patch can be applied to a folder, with a preview, after a backup.</li>
             </ul>
           </div>
           <div class="terminal" aria-label="Resolving a Git conflict in Limoniter">
