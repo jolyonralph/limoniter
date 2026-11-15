@@ -96,6 +96,31 @@ Hex mode works on files of any size. Typing, inserting, deleting, undo, search a
 
 ## Comparing files
 
-To see what's different between two files, choose **Tools › Compare with…** and pick the other file. The two are shown side by side with the differences marked.
+To see what's different between two files, choose **Tools › Compare with…** and pick another open file or one on disk, or choose **Tools › Compare files…** and pick two. They open side by side in a tab of their own.
+
+- Lines that differ are marked in colour, with a sign beside each: ~ changed, - only on the left, + only on the right. The words that differ within a line are marked more strongly; **Within lines** switches to single characters.
+- **Previous** and **Next**, or **Search › Next change**, go from one difference to the next.
+- Both sides can be edited, and each has its own **Save** and Undo. If a file is already open, its tab's text is used, unsaved edits and all, and what you change in the comparison changes there.
+- The arrows between the sides copy a difference across. **Copy to the right** and **Copy to the left** copy the one the cursor is in.
+- **Ignore spaces**, **Ignore case** and **Ignore line endings** leave those out. **Scroll together** keeps the sides in step.
+- **Save as a patch…** writes the differences as a unified diff, which patch and git apply can use.
+
+Files that aren't text are compared byte by byte, with each byte that differs marked. Pictures Limoniter can show are compared as pictures, with a third picture showing where they differ. Files too large to hold in memory are compared in the background and shown read-only.
+
+## Comparing folders
+
+**Tools › Compare folders…** shows two folders side by side as a tree. Each entry says how it compares, in words as well as colour: the same, different (and which side is newer), only on the left, only on the right, or a file on one side and a folder on the other.
+
+1. Choose what each side is: a folder, a Git revision (HEAD for the last commit, or a branch, a tag or a commit), a disk image or archive, or a folder on a server (`sftp://user@host/folder`, for a server you've connected to before with File › Open a remote file).
+2. Choose how to compare: by size and time, which is quick, or by contents. Where a side keeps no times, as a Git revision doesn't, files of the same size are compared by contents anyway.
+3. Type patterns in **Only** or **Leave out** to choose files, such as `*.rs; *.toml` or `target; *.log`, and tick **Leave out what .gitignore does** if you like. Then press **Compare**.
+
+Comparing runs in the background, and **Stop** stops it. Click a folder's arrow to open or close it, and tick **Hide what's the same** to see only the differences. Double-click a pair of files to compare them.
+
+To copy files across, choose them (Ctrl and Shift add to the choice) and press **Copy to the right…** or **Copy to the left…**. You'll see a list of what will happen first. Nothing is ever deleted, and a file that's replaced is kept in a backup folder first.
+
+**Save a report…** saves the comparison as an HTML page or plain text, and **Save as a patch…** saves every difference in the text files as one unified diff.
+
+In the Project panel, right-click a file for **Compare with…**, or a folder for **Compare folders…**. Both offer **Compare with the last commit**.
 
 Within one file, **View › Show › Changed lines** marks the lines you've changed, and **Search › Next change** and **Search › Previous change** go from one to the next.

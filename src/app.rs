@@ -244,6 +244,10 @@ enum Command {
     SourceControl,
     GitWizard,
     GitCompareHead,
+    /// Opens a tab comparing two folders, revisions, images or folders on a server.
+    CompareFolders,
+    /// Asks for two files and compares them side by side.
+    CompareFiles,
     GitHistory,
     GitStageChange,
     GitUndoChange,
@@ -387,6 +391,8 @@ impl Command {
                 | Command::Snippets
                 | Command::RunTool
                 | Command::StopTool
+                | Command::CompareFolders
+                | Command::CompareFiles
         )
     }
 
@@ -670,6 +676,8 @@ struct Document {
     browser: Option<Box<image_browser::ImageBrowser>>,
     /// The hidden game, playing in the text's place.
     game: Option<Box<clambers_host::Playing>>,
+    /// A comparison of files or folders, showing in the text's place.
+    compare: Option<Box<compare_host::CompareTab>>,
 }
 
 /// Anything that changes what a recovery copy would hold.
@@ -765,6 +773,7 @@ impl Document {
             window_number: 1,
             browser: None,
             game: None,
+            compare: None,
         }
     }
 
@@ -1041,6 +1050,9 @@ impl Document {
     }
 
     fn is_modified(&self) -> bool {
+        if let Some(compare) = &self.compare {
+            return compare.unsaved();
+        }
         if let Some(narrow) = &self.narrow {
             return self.carried || narrow.outer.is_modified() || self.text.version() != narrow.synced;
         }
@@ -1106,7 +1118,7 @@ impl Document {
     }
 
     fn is_blank(&self) -> bool {
-        self.placeholder || self.path.is_none() && !self.is_modified() && !self.hex_mode && self.text.line_count() == 1 && self.text.line(0).is_empty()
+        self.placeholder || self.path.is_none() && self.compare.is_none() && !self.is_modified() && !self.hex_mode && self.text.line_count() == 1 && self.text.line(0).is_empty()
     }
 }
 
@@ -1272,7 +1284,6 @@ enum Dialog {
     ParagraphSetup { width: String, left: String, first: String, align: Align, error: String },
     ProjectSettings { name: String, notes: String },
     RestorePick { backups: Vec<project::Backup>, chosen: usize },
-    Compare(Box<compare::Comparison>),
     Fill { value: String, skip_last: bool },
     /// Before saving a BASIC listing as a program: which Commodore machine, or which line a Spectrum program runs from.
     SaveBasic { machine: basic::Machine, run_from: String, error: String },
@@ -2003,6 +2014,9 @@ impl Limoniter {
         if self.docs[index].game.is_some() {
             return false;
         }
+        if self.docs[index].compare.is_some() {
+            return self.save_compare_tab(index);
+        }
         if self.docs[index].browser.is_some() {
             self.message("Save", "An image or archive is only read here, so nothing is saved over it. Save a copy takes a file out of it.".into());
             return false;
@@ -2014,7 +2028,7 @@ impl Limoniter {
     }
 
     fn save_as(&mut self, index: usize) -> bool {
-        if self.docs[index].game.is_some() {
+        if self.docs[index].game.is_some() || self.docs[index].compare.is_some() {
             return false;
         }
         if self.docs[index].browser.is_some() {
@@ -2408,66 +2422,19 @@ impl Limoniter {
         }
     }
 
-    /// Asks what to compare this file with.
+    /// Asks what to compare this file with: another open file, or one on disk.
     fn begin_compare(&mut self) {
         let doc = &self.docs[self.active];
-        if doc.hex_mode {
-            self.message("Compare", "Compare works on text, so it can't take a file open in hex mode.".into());
-            return;
-        }
         if doc.is_busy() {
             self.message("Compare", "Please wait for this file to finish being read or written first.".into());
             return;
         }
-        let others = self.docs.iter().enumerate().filter(|(index, other)| *index != self.active && !other.placeholder).map(|(index, other)| (index, other.name())).collect();
+        if doc.compare.is_some() || doc.browser.is_some() {
+            self.message("Compare", "This tab isn't a file that can be compared. Compare folders and Compare files are in the Tools menu.".into());
+            return;
+        }
+        let others = self.docs.iter().enumerate().filter(|(index, other)| *index != self.active && !other.placeholder && other.compare.is_none() && other.browser.is_none()).map(|(index, other)| (index, other.name())).collect();
         self.dialog = Dialog::ComparePick(others);
-    }
-
-    /// The lines to compare with, from another open file with its unsaved edits.
-    fn lines_of_open_file(&self, index: usize) -> Result<(String, crate::big_jobs::Side), String> {
-        let other = &self.docs[index];
-        if other.hex_mode {
-            return Err(format!("{} is open in hex mode, so it can't be compared.", other.name()));
-        }
-        if other.is_busy() {
-            return Err(format!("{} is still being read or written. Please try again when it's finished.", other.name()));
-        }
-        Ok((other.name(), crate::big_jobs::Side::Lines(other.text.store().clone())))
-    }
-
-    /// The lines of a file on disk to compare with: read in if it's small, or looked through where it is if not.
-    fn lines_of_file_on_disk(path: &Path) -> Result<(String, crate::big_jobs::Side), String> {
-        let name = path.display().to_string();
-        if std::fs::metadata(path).map_err(|e| e.to_string())?.len() > DISK_THRESHOLD {
-            let source = Source::open_as(path, None).map_err(|e| e.to_string())?;
-            return Ok((name, crate::big_jobs::Side::Scanning(source)));
-        }
-        let text = tools::text_of_file(path)?;
-        Ok((name, crate::big_jobs::Side::Lines(LineStore::from_vec(text.split('\n').map(Arc::from).collect()))))
-    }
-
-    /// Compares this file, with its unsaved edits, with those lines. Small files are compared there and then; if
-    /// either side is too large to hold, the comparison is worked out in the background and shows when it's done.
-    fn show_comparison(&mut self, other: Result<(String, crate::big_jobs::Side), String>) {
-        let (name, side) = match other {
-            Ok(other) => other,
-            Err(problem) => return self.message("Compare", problem),
-        };
-        let doc = &self.docs[self.active];
-        let left = doc.text.store().clone();
-        match side {
-            crate::big_jobs::Side::Lines(right) if !left.is_disk_backed() && !right.is_disk_backed() => {
-                let mut comparison = compare::Comparison::new(doc.name(), name, left, right);
-                comparison.step(true);
-                self.dialog = Dialog::Compare(Box::new(comparison));
-            }
-            side => {
-                if self.big_job.is_some() {
-                    return self.message("Compare", "Please wait for the file being worked through to finish.".into());
-                }
-                self.big_job = Some(crate::big_jobs::compare(doc.name(), name, left, side, doc.id));
-            }
-        }
     }
 
     /// Asks what to print with Windows' own window, then sends it on its way.
@@ -2713,9 +2680,8 @@ impl Limoniter {
                 }
                 return true;
             }
-            crate::big_jobs::Outcome::Compared(mut comparison) => {
-                comparison.step(true);
-                self.dialog = Dialog::Compare(comparison);
+            crate::big_jobs::Outcome::Compared(comparison) => {
+                self.show_streamed_compare(comparison);
                 return true;
             }
             crate::big_jobs::Outcome::Rewritten { path, format } => {
@@ -3501,6 +3467,10 @@ impl Limoniter {
         if !self.no_file() && self.table_command(command, ui) {
             return;
         }
+        // In a comparison, editing goes to the side in use.
+        if !self.no_file() && self.compare_command(command, ui) {
+            return;
+        }
         let hex = self.docs[self.active].hex_mode;
         // Nothing may change a document while it is loading or saving, or while a Replace All runs.
         let changes_document = !matches!(
@@ -3554,6 +3524,8 @@ impl Limoniter {
                 | Command::ShowLines
                 | Command::MakeSelections
                 | Command::Compare
+                | Command::CompareFolders
+                | Command::CompareFiles
                 | Command::TogglePreview
                 | Command::SetPreview(_)
                 | Command::ParagraphSetup
@@ -3771,6 +3743,8 @@ impl Limoniter {
             }
             Command::GitWizard => self.open_git_wizard(),
             Command::GitCompareHead => self.compare_with_commit("HEAD"),
+            Command::CompareFolders => self.compare_folders_command(),
+            Command::CompareFiles => self.compare_two_files(),
             Command::GitHistory => self.git_history(),
             Command::GitStageChange => self.stage_change_at_cursor(),
             Command::GitUndoChange => self.undo_change_at_cursor(),
@@ -4424,6 +4398,7 @@ impl Limoniter {
         let view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: doc.browser.as_ref().map(|b| b.view()) };
         let mut actions = Vec::new();
         let mut project_changed = false;
+        let mut compare_wanted = Vec::new();
         self.panels.show(ui, &view, &tabs, active, &mut actions);
         let library_actions = self.panels.show_library(ui, &mut self.library);
         let history_rows = if self.panels.history && !doc.placeholder { doc.text.history_rows() } else { Vec::new() };
@@ -4438,10 +4413,14 @@ impl Limoniter {
                     }
                     project_changed = true;
                 }
+                other => compare_wanted.push(other),
             }
         }
         if project_changed {
             self.save_project();
+        }
+        for action in compare_wanted {
+            self.project_compare(action);
         }
         for action in actions {
             self.run_panel_action(action, ui);
@@ -5107,11 +5086,6 @@ impl Limoniter {
                     self.restore_project(backup);
                 }
             }
-            Dialog::Compare(state) => {
-                if compare::window(ctx, state) {
-                    self.close_dialog();
-                }
-            }
             Dialog::ComparePick(others) => {
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
                 let (mut open_file, mut from_disk) = (None, false);
@@ -5127,15 +5101,15 @@ impl Limoniter {
                     ui.add_space(4.0);
                     cancelled |= ui.button("Cancel").clicked();
                 });
+                let this = self.docs[index].id;
                 if let Some(other) = open_file {
-                    let lines = self.lines_of_open_file(other);
                     self.close_dialog();
-                    self.show_comparison(lines);
+                    let other = self.docs[other].id;
+                    self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Open(other));
                 } else if from_disk {
                     self.close_dialog();
                     if let Some(path) = rfd::FileDialog::new().set_title("Compare with").pick_file() {
-                        let lines = Self::lines_of_file_on_disk(&path);
-                        self.show_comparison(lines);
+                        self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Path(path));
                     }
                 } else if cancelled {
                     self.close_dialog();
@@ -5519,6 +5493,10 @@ impl Limoniter {
     fn status_bar(&self, ui: &mut Ui) -> (Option<MenuAction>, bool) {
         if self.no_file() {
             ui.label(RichText::new("No file open. Open one from the File menu, or drop one here.").color(theme::text_faint()));
+            return (None, false);
+        }
+        if let Some(tab) = &self.docs[self.active].compare {
+            ui.label(RichText::new(tab.status_words()).color(theme::text_faint()));
             return (None, false);
         }
         let doc = &self.docs[self.active];
@@ -6265,8 +6243,13 @@ impl Limoniter {
                     }
                 }
                 "compare-with" => {
-                    let lines = Self::lines_of_file_on_disk(Path::new(value));
-                    self.show_comparison(lines);
+                    let this = self.docs[self.active].id;
+                    self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Path(PathBuf::from(value)));
+                }
+                "compare-folders" => {
+                    if let Some((left, right)) = value.split_once('|') {
+                        self.open_folder_compare(left, right);
+                    }
                 }
                 "convert" => {
                     if let Some(charset) = charset::by_id(value) {
@@ -6457,7 +6440,8 @@ impl Limoniter {
                         }
                     }
                     other.remove(6.min(other.len() - 1));
-                    self.show_comparison(Ok(("the other file".to_string(), crate::big_jobs::Side::Lines(LineStore::from_vec(other)))));
+                    let this = doc.id;
+                    self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Lines { name: "the other file".to_string(), lines: other });
                 }
                 "folds" => {
                     let text = &mut self.doc().text;
@@ -6770,6 +6754,10 @@ impl Limoniter {
                 self.clambers_view(ui);
                 return;
             }
+            if self.docs[index].compare.is_some() {
+                self.compare_view(ui, input_on);
+                return;
+            }
             let doc = &mut self.docs[index];
             if doc.placeholder {
                 return;
@@ -6944,7 +6932,8 @@ fn offer_changes(session: &mut recovery::Session, docs: &mut [Document]) -> Opti
         if doc.scanning.is_some() {
             continue;
         }
-        if !doc.is_modified() {
+        // A comparison's own text is nothing; its sides are its own files.
+        if !doc.is_modified() || doc.compare.is_some() {
             doc.recovery_key = None;
             session.remove(doc.id);
             continue;
@@ -6974,7 +6963,7 @@ fn offer_changes(session: &mut recovery::Session, docs: &mut [Document]) -> Opti
 fn save_everything_now(session: &mut recovery::Session, docs: &[Document]) {
     for doc in docs {
         let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            if doc.scanning.is_none() && doc.is_modified() {
+            if doc.scanning.is_none() && doc.compare.is_none() && doc.is_modified() {
                 let _ = session.write_now(&doc.snapshot());
             }
         }));
@@ -7580,6 +7569,9 @@ mod live_host;
 
 #[path = "git_host.rs"]
 mod git_host;
+
+#[path = "compare_host.rs"]
+pub(crate) mod compare_host;
 
 #[path = "git_wizard.rs"]
 mod git_wizard;
@@ -8741,31 +8733,34 @@ mod tests {
         assert_eq!(others.len(), 1, "not this file itself");
         assert_eq!(others[0].0, 1);
         draw(&mut app, &ctx, Vec::new());
-        let lines = app.lines_of_open_file(1);
-        app.show_comparison(lines);
-        let Dialog::Compare(state) = &app.dialog else {
-            panic!("it's showing");
+        app.dialog = Dialog::None;
+        let (ours, theirs) = (app.docs[0].id, app.docs[1].id);
+        app.open_file_compare_sides(compare_host::FileSide::Open(ours), compare_host::FileSide::Open(theirs));
+        let Some(compare_host::CompareTab::Files(files)) = app.docs[app.active].compare.as_deref() else {
+            panic!("it's showing, in a tab of its own");
         };
-        assert_eq!(state.differences, [1]);
-        assert_eq!(state.current, Some(0), "it starts at the first difference");
+        assert_eq!(files.diff.difference_count(), 1);
+        assert_eq!(files.diff.current, Some(1), "it starts at the first difference");
         draw(&mut app, &ctx, Vec::new());
-        draw(&mut app, &ctx, vec![key(Key::Escape, egui::Modifiers::NONE)]);
-        assert!(matches!(app.dialog, Dialog::None));
+        assert_eq!(app.docs.len(), 3);
+        app.active = 0;
         assert_eq!(lines_of(&app), ["same", "ours"], "comparing changes nothing");
     }
 
     #[test]
     fn compare_explains_what_it_cant_take() {
         let (mut app, ctx) = app_with("");
-        command(&mut app, &ctx, Command::ToggleHex);
-        command(&mut app, &ctx, Command::Compare);
-        assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("hex mode")));
+        let this = app.docs[0].id;
+        app.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Open(this));
+        assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("same file")));
         app.dialog = Dialog::None;
-        command(&mut app, &ctx, Command::ToggleHex);
-        app.new_document();
-        command(&mut app, &ctx, Command::ToggleHex);
-        app.active = 0;
-        assert!(app.lines_of_open_file(1).is_err());
+        app.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Path(PathBuf::from("/no/such/file.txt")));
+        assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("isn't a file")));
+        app.dialog = Dialog::None;
+        // A compare tab can't itself be compared.
+        app.open_folder_compare_sides(None, None);
+        command(&mut app, &ctx, Command::Compare);
+        assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("isn't a file")));
     }
 
     #[test]

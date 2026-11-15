@@ -218,8 +218,14 @@ fn the_panel_draws_a_real_tree_and_comparing_opens_compare() {
     let id = app.docs[0].text.history_rows().iter().find_map(|row| row.id).unwrap();
     let mut output = ctx.run_ui(sized(Vec::new()), |ui| app.history_action(HistoryAction::Compare(id), ui));
     output.textures_delta.clear();
-    assert!(matches!(app.dialog, Dialog::Compare(_)));
-    app.dialog = Dialog::None;
+    // The state as it was, on the left, against the text now, on the right, in a tab of its own.
+    let Some(compare_host::CompareTab::Files(files)) = app.docs[app.active].compare.as_deref() else {
+        panic!("a comparison opens");
+    };
+    assert!(files.diff.difference_count() > 0);
+    assert!(matches!(files.sources[1], compare_host::Source2::Open(id) if id == app.docs[0].id), "the right side is the file itself");
+    frame(&mut app, &ctx, Vec::new());
+    app.close_tab(app.active);
     // Saved, so that closing it has nothing to ask about: a test can't have a box waiting for an answer.
     app.doc().text.mark_saved();
     app.close_tab(0);

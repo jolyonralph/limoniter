@@ -239,8 +239,24 @@ The images below can have files added (**Add files…**, or drop them on the tab
 - Find and replace with match case, whole word, regular expressions and hex bytes; search history and favourites.
 - Find in Files and Replace in Files over a folder (with subfolders and file types), the open files or a project; optional `.bak` copies.
 - Searching runs in the background, so the window stays responsive.
-- Compare with another file: two files side by side with differences marked.
 - Go to line, matching bracket, next and previous change, next and previous colour tag.
+
+## Comparing files and folders
+
+- **Tools › Compare with…** compares the file in front with another open file or one on disk; **Compare files…** asks for two files. They open side by side in a tab of their own.
+- Both sides can be edited, with Undo, and saved. A file that's already open is compared as it is in its tab, unsaved edits and all, and edits made in the comparison are made there.
+- Changed lines are marked in colour and with a sign beside each line (~ changed, - only on the left, + only on the right), and the words or characters that differ within a line are marked more strongly.
+- Previous and Next go from one difference to the next (Search › Next change does too). An arrow between the sides copies a difference across, in one step that Undo takes back.
+- Spaces, case and line endings can be ignored. The two sides scroll together.
+- **Save as a patch** writes the differences as a unified diff, as patch and git apply read.
+- Files that aren't text are compared byte by byte, in hex, with each byte that differs marked. Pictures Limoniter can show are compared as pictures, with a third showing where they differ.
+- Files too large to hold in memory are compared in the background and shown read-only.
+- **Tools › Compare folders…** compares two folders as a tree, side by side: each entry is the same, different (and which side is newer), only on one side, or a file on one side and a folder on the other, in words as well as colour. Folders open and close, what's the same can be hidden, and double-clicking a pair of files compares them.
+- Either side can also be a Git revision (HEAD, a branch, a tag or a commit), a disk image or archive, or a folder on an SFTP server you've connected to before.
+- Compare by size and time, or by contents. Only some files can be taken (such as `*.rs; *.toml`), others left out, and what `.gitignore` files leave out can be left out too. Comparing runs in the background, with progress, and can be stopped.
+- **Copy to the right** and **Copy to the left** copy what's chosen across. A list of what will happen is shown first; nothing is deleted, and each file replaced is kept in a backup folder first.
+- **Save a report** saves the comparison as an HTML page or plain text, and **Save as a patch** saves every difference in the text files as one unified diff.
+- In the Project panel, a file's menu has **Compare with…** and a folder's has **Compare folders…**; both have **Compare with the last commit**.
 
 ## Panels
 
@@ -306,7 +322,7 @@ Switched on under **View, Panels**:
 - **Push**, **Pull** (only when it simply follows on, so nothing is merged by surprise) and **Fetch**; when your commits and the ones online have both moved on, **Pull, putting mine after theirs** (a rebase), with **Carry on** and **Abort** if it stops at a conflict, and **Abort the merge** for one partway through, with how far ahead or behind the branch is; switch branches, or make a new one. Git runs in the background, and its own sign-in window, SSH keys and signing work as they do at a command line; Limoniter never holds a Git password.
 - Marks beside the line numbers show what's changed since the last commit: green for new lines, blue for changed ones, and a red notch where lines were taken out. They follow your edits as you type.
 - **Put the change at the cursor in the next commit**, or **Undo the change at the cursor** (an edit, which Undo takes back).
-- **Compare with the last commit**, and a file's **History**: every commit that changed it, to compare with now or open as it was.
+- **Compare with the last commit**, and a file's **History**: every commit that changed it, to compare with now or open as it was. A comparison opens in a tab, with the file still editable beside the commit. A whole folder can be compared with the last commit too, from the Project panel or Compare folders.
 - **Put aside** every change (a stash), to bring back later or throw away; and **Tags**: tag the commit, as a release is named, and push it online.
 - **Write it for me**: the assistant writes the commit message from the changes, for you to read over. In a conflict, **Ask the assistant** suggests lines that do what both sides meant, shown first like any suggestion. Both are kept in the Assistant's history.
 - **Show who changed each line**: the author, date and commit of the line the cursor's on, in the status bar.
