@@ -1,0 +1,5 @@
+# Assembler sources built into the program or its tests stay with plain line ends on every system, as the starters
+# are offered and the tests compare them that way (Git on Windows would otherwise check them out with CR LF).
+src/**/*.s   text eol=lf
+src/**/*.asm text eol=lf
+src/**/*.a   text eol=lf

@@ -859,10 +859,13 @@ mod tests {
         let module = Path::new("/music/rink-a-dink.mod");
         let mut options = LspOptions { insane: true, getpos: true, setpos: true, shrink: true, ..LspOptions::default() };
         // SetPos isn't in the insane player.
-        assert_eq!(lsp_arguments(&options, module), ["/music/rink-a-dink.mod", "-insane", "-getpos", "-shrink", "-lsmusic", "/music/rink-a-dink.lsmusic", "-lsbank", "/music/rink-a-dink.lsbank", "-insanefile", "/music/rink-a-dink_insane.asm"]);
+        // The files go beside the module, with this system's own separator.
+        let beside = |name: &str| module.with_file_name(name).to_string_lossy().into_owned();
+        let (music, bank, insane) = (beside("rink-a-dink.lsmusic"), beside("rink-a-dink.lsbank"), beside("rink-a-dink_insane.asm"));
+        assert_eq!(lsp_arguments(&options, module), ["/music/rink-a-dink.mod", "-insane", "-getpos", "-shrink", "-lsmusic", &music, "-lsbank", &bank, "-insanefile", &insane]);
         assert_eq!(lsp_outputs(module, &options), [PathBuf::from("/music/rink-a-dink.lsmusic"), PathBuf::from("/music/rink-a-dink.lsbank"), PathBuf::from("/music/rink-a-dink_insane.asm")]);
         options.micro = true;
-        assert_eq!(lsp_arguments(&options, module), ["/music/rink-a-dink.mod", "-micro", "-shrink", "-lsmusic", "/music/rink-a-dink.lsmusic", "-lsbank", "/music/rink-a-dink.lsbank"]);
+        assert_eq!(lsp_arguments(&options, module), ["/music/rink-a-dink.mod", "-micro", "-shrink", "-lsmusic", &music, "-lsbank", &bank]);
         // The Amiga's mod.title gets title's files, not mod's.
         assert_eq!(lsp_outputs(Path::new("/m/mod.sowhat"), &options)[0], PathBuf::from("/m/sowhat.lsmusic"));
         assert_eq!(module_title(Path::new("/m/MOD.Tune")), "Tune");
