@@ -1,6 +1,6 @@
 # What Limoniter can do
 
-Limoniter is a text and hex editor for Windows, also released for Linux (as an AppImage and a .deb) and for Macs with Apple Silicon. Alongside everyday editing it knows the character sets, file formats and media of older computers: it opens 8-bit and 16-bit text byte for byte, previews retro screens, pictures and BASIC programs, and browses disk images, tapes and archives from classic machines without changing them. It compares files and whole folders, merges three versions of a file, and can be what Git uses to show differences and resolve conflicts.
+Limoniter is a text and hex editor for Windows, also released for Linux (as an AppImage and a .deb) and for Macs (Apple Silicon and Intel). Alongside everyday editing it knows the character sets, file formats and media of older computers: it opens 8-bit and 16-bit text byte for byte, previews retro screens, pictures and BASIC programs, and browses disk images, tapes and archives from classic machines without changing them. It compares files and whole folders, merges three versions of a file, and can be what Git uses to show differences and resolve conflicts.
 
 Every command is in the menus, arranged by what it is for. Press **F1** to find any command by describing what it does. On a Mac, shortcuts use Cmd where this list says Ctrl, Option and an arrow moves by a word, Cmd+[ and Cmd+] go back and forward, and files open from Finder by double-clicking or Open With.
 

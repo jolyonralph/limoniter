@@ -16,7 +16,7 @@ Windows is Limoniter's main platform, and everything works there, including Wind
 
 ### macOS
 
-1. Download the Mac app from the [latest release](https://github.com/jolyonralph/limoniter/releases/latest). It's for Apple Silicon Macs (M1 and later).
+1. Download the Mac app from the [latest release](https://github.com/jolyonralph/limoniter/releases/latest). It runs on Apple Silicon and Intel Macs.
 2. Move it to your Applications folder and open it.
 3. The app isn't signed by Apple, so the first time macOS won't open it straight away. Go to **System Settings › Privacy & Security** and choose **Open Anyway**. On macOS 14 and earlier, Control-click the app and choose **Open** instead.
 
