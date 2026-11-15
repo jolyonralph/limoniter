@@ -360,11 +360,28 @@ fn dsk_machine(bytes: &[u8]) -> Machine {
 
 /// A BBC Micro disc (an 80-track single-sided DFS image) holding one BASIC program, which boots by CHAINing it.
 pub fn bbc_disc(stem: &str, program: &[u8]) -> Vec<u8> {
+    let name = dfs_name(stem);
+    // BASIC's addresses are in the I/O processor.
+    bbc_booting(&name, program, 0xFF1900, 0xFF8023, &format!("CHAIN \"{name}\""))
+}
+
+/// A BBC Micro disc holding machine code, which boots by *RUNning it: loaded at `load` and started at `exec`.
+pub fn bbc_code_disc(stem: &str, code: &[u8], load: u16, exec: u16) -> Vec<u8> {
+    let name = dfs_name(stem);
+    bbc_booting(&name, code, 0xFF0000 | u32::from(load), 0xFF0000 | u32::from(exec), &format!("*RUN {name}"))
+}
+
+/// A DFS file name for a file: up to seven letters and digits, in capitals.
+fn dfs_name(stem: &str) -> String {
+    let name: String = stem.chars().filter(|c| c.is_ascii_alphanumeric()).take(7).collect::<String>().to_ascii_uppercase();
+    if name.is_empty() { "PROGRAM".to_string() } else { name }
+}
+
+/// A disc of one file, with a !BOOT that EXEC runs: `boot` is its one line.
+fn bbc_booting(name: &str, program: &[u8], load: u32, exec: u32, boot: &str) -> Vec<u8> {
     const SECTOR: usize = 256;
     const SECTORS: usize = 800;
-    let name: String = stem.chars().filter(|c| c.is_ascii_alphanumeric()).take(7).collect::<String>().to_ascii_uppercase();
-    let name = if name.is_empty() { "PROGRAM".to_string() } else { name };
-    let boot = format!("CHAIN \"{name}\"\r").into_bytes();
+    let boot = format!("{boot}\r").into_bytes();
     let mut disc = vec![0u8; SECTORS * SECTOR];
     // The files after the two catalogue sectors: !BOOT, then the program.
     let boot_start = 2;
@@ -375,7 +392,7 @@ pub fn bbc_disc(stem: &str, program: &[u8]) -> Vec<u8> {
     disc[..8].copy_from_slice(&title[..8]);
     disc[SECTOR..SECTOR + 4].copy_from_slice(&title[8..12]);
     // Listed highest start sector first, as DFS keeps them.
-    let files: [(&str, usize, u32, u32, usize); 2] = [(&name, program_start, 0x1900, 0x8023, program.len()), ("!BOOT", boot_start, 0, 0, boot.len())];
+    let files: [(&str, usize, u32, u32, usize); 2] = [(name, program_start, load, exec, program.len()), ("!BOOT", boot_start, 0, 0, boot.len())];
     for (i, (file, start, load, exec, length)) in files.iter().enumerate() {
         let mut padded = [b' '; 7];
         padded[..file.len()].copy_from_slice(file.as_bytes());
@@ -385,8 +402,8 @@ pub fn bbc_disc(stem: &str, program: &[u8]) -> Vec<u8> {
         entry[0..2].copy_from_slice(&(*load as u16).to_le_bytes());
         entry[2..4].copy_from_slice(&(*exec as u16).to_le_bytes());
         entry[4..6].copy_from_slice(&(*length as u16).to_le_bytes());
-        // The top bits of each, packed: exec, length, load, start sector. BASIC's addresses are in the I/O processor.
-        let high = |value: u32| if *load != 0 { 3 } else { ((value >> 16) & 3) as u8 };
+        // The top bits of each, packed: exec, length, load, start sector.
+        let high = |value: u32| ((value >> 16) & 3) as u8;
         entry[6] = (high(*exec) << 6) | ((((*length >> 16) & 3) as u8) << 4) | (high(*load) << 2) | (((*start >> 8) & 3) as u8);
         entry[7] = (*start & 0xFF) as u8;
     }
@@ -477,6 +494,23 @@ mod tests {
         let boot = entries.iter().find(|e| e.name.contains("!BOOT")).unwrap();
         assert_eq!(volume.read(boot).unwrap(), b"CHAIN \"HELLO\"\r");
         assert_eq!(disc.bytes[256 + 6] >> 4, 3, "it boots by EXECing !BOOT");
+    }
+
+    #[test]
+    fn bbc_machine_code_goes_on_a_disc_that_runs_it() {
+        let code = [0xA9, 0x41, 0x20, 0xEE, 0xFF, 0x60];
+        let disc = bbc_code_disc("hello-world", &code, 0x2000, 0x2002);
+        let volume = crate::media::open(Arc::new(disc.clone()), "hello.ssd").unwrap();
+        let entries = volume.list(None).unwrap();
+        let program = entries.iter().find(|e| e.name.contains("HELLOWO")).unwrap_or_else(|| panic!("{:?}", entries.iter().map(|e| &e.name).collect::<Vec<_>>()));
+        assert_eq!(volume.read(program).unwrap(), code);
+        let boot = entries.iter().find(|e| e.name.contains("!BOOT")).unwrap();
+        assert_eq!(volume.read(boot).unwrap(), b"*RUN HELLOWO\r");
+        // The program's catalogue entry: loaded at &FF2000 and run at &FF2002, in the I/O processor.
+        let entry = &disc[256 + 8..][..8];
+        assert_eq!((u16::from_le_bytes([entry[0], entry[1]]), u16::from_le_bytes([entry[2], entry[3]]), usize::from(u16::from_le_bytes([entry[4], entry[5]]))), (0x2000, 0x2002, code.len()));
+        assert_eq!((entry[6] >> 6, (entry[6] >> 2) & 3), (3, 3));
+        assert_eq!(disc[256 + 6] >> 4, 3, "it boots by EXECing !BOOT");
     }
 
     #[test]

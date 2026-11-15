@@ -206,6 +206,28 @@ fn a_commodore_program_starts_with_run() {
     assert!(output::commodore_program(&m6502("  *=$0805\n  nop\n")).is_err());
 }
 
+#[test]
+fn bbc_code_is_told_from_commodore_code_by_the_calls_it_makes() {
+    // OSWRCH and OSBYTE are the BBC's; CHROUT is the C64's.
+    assert!(output::calls_bbc_mos(&m6502("  *=$2000\n  lda #65\n  jsr $ffee\n  rts\n")));
+    assert!(output::calls_bbc_mos(&m6502("  *=$2000\n  lda #200\n  jmp $fff4\n")));
+    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  lda #65\n  jsr $ffd2\n  rts\n")));
+    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  lda #2\n  sta $d020\n  rts\n")), "no calls at all is a Commodore's, as before");
+    // OSNEWL is at the C64's CLALL, so it doesn't say which; and a call to the KERNAL too says Commodore.
+    assert!(!output::calls_bbc_mos(&m6502("  *=$2000\n  jsr $ffe7\n  rts\n")));
+    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  jsr $ffee\n  jsr $ffd2\n  rts\n")));
+    // Bytes that only look like a call, in data, don't count unless they're a whole line's three bytes.
+    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  !byte 1,$20,$ee,$ff\n")));
+}
+
+#[test]
+fn a_bbc_program_loads_where_it_was_put_and_starts_at_its_start() {
+    let (load, exec, code) = output::bbc_program(&m6502("  *=$2000\n  !byte 0\nstart jsr $ffee\n  rts\n")).unwrap();
+    assert_eq!((load, exec, code), (0x2000, 0x2000, vec![0, 0x20, 0xEE, 0xFF, 0x60]));
+    assert!(output::bbc_program(&m6502("  *=$1100\n  rts\n")).unwrap_err().contains("&1900"));
+    assert!(output::bbc_program(&m6502("  *=$7fff\n  nop\n  nop\n")).unwrap_err().contains("&7FFF"));
+}
+
 /// Every 6809 instruction, with every indexed mode, as lwasm assembles them.
 #[test]
 fn every_6809_instruction_is_assembled_as_lwasm_does() {

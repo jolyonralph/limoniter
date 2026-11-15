@@ -419,6 +419,27 @@ fn source_for_the_6502_becomes_a_commodore_64_program() {
 }
 
 #[test]
+fn source_for_the_6502_that_calls_the_bbcs_mos_runs_on_a_bbc_disc() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "hello.asm".into();
+    let source = ["  *=$2000", "start ldx #0", "- lda message,x", "  beq +", "  jsr $ffee", "  inx", "  bne -", "+ rts", "message !text \"HELLO\",13,10,0"];
+    app.doc().text.set_content(source.iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6502), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Bbc, crate::running::Format::Ssd, "hello.ssd"));
+    // b2 takes it, and VICE doesn't.
+    app.sends.devices = vec![
+        Device { name: "b2".into(), place: Place::Emulator { emulator: "b2".into(), program: "b2".into(), options: String::new() }, preset: None, eject: false },
+        Device { name: "VICE".into(), place: Place::Emulator { emulator: "vice".into(), program: "x64sc".into(), options: String::new() }, preset: None, eject: false },
+    ];
+    assert!(app.suits(run_host::Target::Device(0), &run).is_ok());
+    assert!(app.suits(run_host::Target::Device(1), &run).is_err());
+}
+
+#[test]
 fn source_for_the_6809_runs_as_a_color_computer_binary() {
     crate::highlight::load_now();
     let (mut app, _ctx) = app_with("");

@@ -71,6 +71,42 @@ pub fn commodore_program(assembly: &Assembly) -> Result<Vec<u8>, String> {
     Ok(prg)
 }
 
+/// The BBC Micro's MOS calls, which no Commodore KERNAL routine shares an address with: OSFIND, OSGBPB, OSBPUT,
+/// OSBGET, OSARGS, OSFILE, OSRDCH, OSASCI, OSWRCR, OSWRCH, OSWORD, OSBYTE and OSCLI. (OSNEWL, &FFE7, is left out:
+/// it's the C64's CLALL too.)
+const BBC_MOS_CALLS: [i64; 13] = [0xFFCE, 0xFFD1, 0xFFD4, 0xFFD7, 0xFFDA, 0xFFDD, 0xFFE0, 0xFFE3, 0xFFEC, 0xFFEE, 0xFFF1, 0xFFF4, 0xFFF7];
+
+/// Whether 6502 code is for a BBC Micro: it calls (JSR or JMP) the BBC's MOS, and no Commodore KERNAL routine
+/// (the jump table from $FF81 to $FFF3, one every three bytes).
+pub fn calls_bbc_mos(assembly: &Assembly) -> bool {
+    let called = || {
+        assembly.lines.iter().filter_map(|placed| match placed.bytes[..] {
+            [0x20 | 0x4C, low, high] => Some(i64::from(u16::from_le_bytes([low, high]))),
+            _ => None,
+        })
+    };
+    let kernal = |address: i64| (0xFF81..=0xFFF3).contains(&address) && (address - 0xFF81) % 3 == 0;
+    called().any(|address| BBC_MOS_CALLS.contains(&address)) && !called().any(kernal)
+}
+
+/// The lowest address machine code is loaded at from a BBC Micro's disc: PAGE with the DFS, above its workspace.
+pub const LOWEST_FOR_BBC_DISC: i64 = 0x1900;
+
+/// A BBC Micro program: where it loads, where it starts, and its bytes, for *RUN.
+pub fn bbc_program(assembly: &Assembly) -> Result<(u16, u16, Vec<u8>), String> {
+    let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+        return Err("Nothing was assembled.".into());
+    };
+    if low < LOWEST_FOR_BBC_DISC {
+        return Err(format!("The code starts at &{low:04X}, below &1900, where the disc system needs the memory to load it. Put it at &1900 or above (such as *=$1900 or ORG &2000)."));
+    }
+    if high > 0x8000 {
+        return Err(format!("The code goes up to &{:04X}, past &7FFF, the top of the BBC Micro's memory.", high - 1));
+    }
+    let start = assembly.start().unwrap_or(low);
+    Ok((low as u16, start as u16, assembly.image(low, high)))
+}
+
 /// A Color Computer binary (Disk Extended Color BASIC's LOADM file): each run of bytes after a header saying
 /// where it goes, then where to start. Dragons load it too, with a DECB loader.
 pub fn coco_binary(assembly: &Assembly) -> Result<Vec<u8>, String> {

@@ -630,6 +630,12 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runn
         let name = Path::new(&dot.name).file_name().map_or_else(|| dot.name.clone(), |n| n.to_string_lossy().into_owned());
         return Err(format!("This is a dot command, run by typing .{} on a Next: put {name} in the dot folder of the Next's SD card (open the card's image in Limoniter and add it, or copy it to the card).", name.trim_end_matches('.')));
     }
+    if cpu == Cpu::M6502 && crate::asm::output::calls_bbc_mos(assembly) {
+        // A BBC Micro's, on a disc that *RUNs it as it boots.
+        let (load, exec, code) = crate::asm::output::bbc_program(assembly)?;
+        let bytes = crate::running::bbc_code_disc(stem, &code, load, exec);
+        return Ok(Runnable { machine: Machine::Bbc, format: Format::Ssd, name: format!("{stem}.ssd"), bytes: Arc::new(bytes) });
+    }
     if cpu == Cpu::M6502 {
         // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
         let bytes = crate::asm::output::commodore_program(assembly)?;

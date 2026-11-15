@@ -44,7 +44,6 @@ M medium, L large. **From** says where the idea came from.
 | **Saved layouts**: named arrangements of the panels | Switching between writing, debugging and comparing | ✓ | M | MISSING_FEATURES 28 |
 | **Column markers** at chosen columns (such as 72 or 80) | Fixed-width formats, COBOL, assembler, commit messages | ✓ | S | MISSING_FEATURES 40 |
 | **HTML in the live preview** | Live preview does Markdown only | ✓ | M | MISSING_FEATURES 37 |
-| **6502 source on the BBC Micro**: assembled onto an `.ssd` whose `!BOOT` runs the code at its load address, and run in b2 with F9. Today 6502 source always becomes a Commodore 64 program, and b2 only runs discs and BBC BASIC | Writing machine code for the BBC as easily as for the C64 | ✓ | M | asked 15 November 2026 |
 | **BBC Micro development tools**: BeebAsm as an installed assembler, a guide to the MOS calls (OSWRCH, OSBYTE, OSWORD), vectors and the 6845, System VIA and video ULA on hover, Mode 7 and mode 0–6 starters, and a debugger (through b2's or another emulator's remote protocol, as with VICE) | Matching what the Amiga, ST and C64 got in 0.9 | | L | asked 15 November 2026 |
 | **CI on Ubuntu 26**: check the workflows before GitHub moves `ubuntu-latest` | GitHub warns on every run that the move began on 19 October 2026 | ✓ | S | release runs |
 | **Huge files**: fewer commands set aside above 64 MB (Fold all, the function list, previews, BASIC listings, part history) | Every command available, as UltraEdit and EmEditor manage | | L | FEATURES, COMPARISON |
@@ -69,3 +68,4 @@ M medium, L large. **From** says where the idea came from.
 | Idea | Version |
 |---|---|
 | A universal Mac app, for Intel Macs as well as Apple Silicon | 0.9.1 |
+| 6502 source on the BBC Micro: source that calls the MOS goes on a disc that *RUNs it, and runs in b2 with F9 | 0.10 (built, not yet released) |
