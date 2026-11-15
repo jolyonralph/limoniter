@@ -58,6 +58,8 @@ mod pictures;
 mod preview;
 mod print;
 mod protracker;
+mod sid;
+mod c64_tools;
 mod project;
 mod reformat;
 mod running;

@@ -91,7 +91,7 @@ pub fn kind_for_file(path: Option<&Path>, language: &str, format: &crate::codec:
     use crate::codec::Display;
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase);
     let id = format.charset.id.as_str();
-    if path.and_then(Path::file_name).is_some_and(|n| crate::protracker::named_as_module(&n.to_string_lossy())) && language != "Modula-2" {
+    if path.and_then(Path::file_name).is_some_and(|n| crate::protracker::named_as_module(&n.to_string_lossy()) || crate::sid::named_as_sid(&n.to_string_lossy())) && language != "Modula-2" {
         return Some(Kind::Module);
     }
     if extension.as_deref().is_some_and(|e| crate::basic::is_program_file(e, None)) {
@@ -150,6 +150,12 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
     }
     if kind == Kind::Module {
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if crate::sid::looks_like(bytes) || crate::sid::named_as_sid(&name) {
+            return match crate::sid::read(bytes) {
+                Ok(tune) => FromBytes::Blocks(tune.blocks()),
+                Err(why) => FromBytes::Nothing(why),
+            };
+        }
         return match crate::protracker::read(bytes, &name) {
             Ok(module) => FromBytes::Blocks(module.blocks()),
             Err(why) => FromBytes::Nothing(why),

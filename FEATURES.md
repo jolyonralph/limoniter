@@ -127,6 +127,7 @@ Shown beside the text or filling the window (**View, Preview**). Nothing in a pr
 - Tokenised BASIC programs, listed as the machine's LIST would show them.
 - Pictures in older machines' formats (below).
 - ProTracker music modules (`.mod`, or `mod.name` as the Amiga had it, and anything with a tracker's tag such as `M.K.`): the title, the format and channels (ProTracker, NoiseTracker, StarTrekker, 6CHN, 8CHN, 16CH and the rest, and Soundtracker's older 15-sample modules), the song's order, how many patterns, and every sample with its name, length, loop, volume and finetune; a module that's been cut short, or a loop start written in bytes by an older tracker, is said plainly. A module opens with this beside its bytes, and File properties shows the same. Read only.
+- C64 SID tunes (`.sid`, PSID and RSID): the title, author and release, load, init and play addresses, songs and their speeds, clock, SID models and extra SIDs; see Commodore 64 below.
 
 ## Pictures
 
@@ -154,7 +155,7 @@ Images and archives open as a browser tab. Folders open in place, an image insid
 | PC / DOS | FAT12, FAT16 and FAT32 floppy and hard disk images (`.img`, `.ima`, `.vfd`, `.vhd`), with MBR partitions and long names |
 | Atari ST | `.st` and packed `.msa` floppies |
 | MSX | FAT disk images; `.cas` tapes, with CSAVE BASIC programs, ASCII files and BSAVE binaries (with where they load and run) |
-| Commodore | 1541, 1571 and 1581 disks (D64, D71, D81); T64 tapes |
+| Commodore | 1541, 1571 and 1581 disks (D64, D71, D81); T64 tapes; `.tap` tapes (versions 0, 1 and 2): the KERNAL's own tape format is decoded from the pulses into its files, each header's name, type and addresses with its data, checksums checked and a damaged first copy read from the second, while what a turbo loader saved is said, with where it starts and its pulse lengths, rather than decoded; `.crt` cartridges, each ROM chip a file by bank and address, with the hardware type by name (all of the CRT format's list), EXROM and GAME, and what they map |
 | Atari 8-bit | ATR and XFD disks (single, enhanced and double density) with Atari DOS 2.0/2.5, MyDOS (with folders) or SpartaDOS (with folders and dates); text opens as ATASCII. Binary load files (`.xex`, `.com`, `.exe`, `.obx`, and AUTORUN.SYS and the like off a disk) open as their segments, each with its load addresses, and the run (RUNAD) and init (INITAD) addresses shown as such |
 | Tandy Color Computer and Dragon 32/64 | JVC (`.dsk`), VDK and OS-9 (`.os9`) images, and DMK; RS-DOS (Disk Extended Color BASIC), Dragon DOS, and OS-9 with its folders, dates and permissions; `.cas` tapes (even ones not lined up on bytes), with BASIC programs (told apart as Color Computer or Dragon BASIC by their tokens, and listed), machine code with where it loads and runs, and data, every block's checksum checked |
 | TRS-80 | Model I, III and 4 disks as DMK, JV3 or JV1 images, with TRSDOS 2.3, Model III TRSDOS 1.3, or LDOS, LS-DOS, TRSDOS 6 and NEWDOS; copy-protected disks open as their sectors; `.cas` tapes at 500 and 1500 baud, with BASIC programs and SYSTEM tapes (given as `/CMD` files) |
@@ -336,6 +337,19 @@ Switched on under **View, Panels**:
 - **Music for a replayer**: a ProTracker module in front (or in a browser) is converted with **LSPConvert** for **LightSpeedPlayer**, writing its `.lsmusic` and `.lsbank` (and the insane player's source, or a WAV of how it'll sound) beside the module, with LSPConvert's options. **The Player 6.1A**'s **P61Con** is an Amiga program, so it's run on an Amiga or in an emulator; Limoniter finds the `P61.name` file it saves.
 - **Replay calls**, written by Limoniter as commented 68000 source to adapt, go into the 68000 source in front (or another open tab) at the cursor, or onto the clipboard: LSP with its CIA toolkit, from your own interrupt with DMACON set by the copper 11 lines later, the insane player or the micro player; or The Player's `P61_Init`, `P61_Music` and `P61_End`. They include the players' own files, from their packages, rather than copying them.
 - **Shrinkler's and LSPConvert's releases** can be downloaded from GitHub when you ask (never otherwise), and are kept beside the settings. The Tools page says whose each tool is and under what licence.
+
+## Commodore 64: SID music and packers
+
+**Tools › Commodore 64 › SID music and packers**, for C64 demos. The packers are other people's, found where they're installed or where you point Limoniter, and run in the background with **Stop**; without one, Limoniter only says where to get it. It never downloads them.
+
+- **SID music** (`.sid`, PSID and RSID, versions 1 to 4): the preview and File properties show the title, author and release, where it loads, its init and play addresses, its songs and the start song, each song's speed (every frame or CIA timer), the clock (PAL, NTSC), the SID model (6581, 8580) and any second and third SID with their addresses and models, the BASIC and PlaySID flags, and the memory left free for a player; anything the format forbids is said plainly. Checked against sidplayfp on HVSC tunes.
+- **Its code as a program**: the tune's bytes at its load address open as a `.prg`, and **Disassemble** takes a `.sid` straight away, starting from its init and play routines.
+- **Replay calls** for 6502 source, written by Limoniter with the tune's own addresses: the song in A and a call to init, then play from a raster interrupt once a frame, or from CIA 1's timer for a song that says so, or nothing more for a tune that sets up its own interrupt; the ROMs switched out around a call to code under them, as players do; the tune included at its load address without its header. They go into the 6502 source in front (or another open tab) at the cursor, or onto the clipboard.
+- **Play in VICE** (vsid) at the song chosen, or **send it to an Ultimate 64** set up under Send to device, which plays it at once.
+- **Pack a program** (a `.prg` in front, in hex or not, or one chosen in a disk image's browser) with **Exomizer**, **TSCrunch** or **pucrunch** into a program that unpacks and starts itself (at its SYS, as BASIC with RUN, or at an address), or as data for your own code to unpack (Exomizer's `mem` or `raw`, forwards or backwards; TSCrunch in place; pucrunch's raw stream); or with **ZX0** (salvador or the original zx0, either format, forwards or backwards), the load address taken off first. The packed copy goes beside the original as `name_packed.prg` (or `.exo`, `.tsc`, `.pu`, `.zx0`), with the size before and after, and the packer's own words in the Output panel. For data, the box names the 6502 decruncher to use from the packer's own package, with its licence.
+- **After F9 builds a C64 program**, a packed copy that starts itself can be made beside the source each time (Tools page, off to begin with).
+- **Make a cartridge**: a normal 8K or 16K `.crt` from a binary, or from a program that loads at $8000, byte for byte as VICE's cartconv makes it.
+- The Tools page says whose each tool is and under what licence.
 
 ## Assembling
 
