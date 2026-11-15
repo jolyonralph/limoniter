@@ -514,6 +514,7 @@ const TOOLS: &[Entry] = &[
     Sub(
         "Commodore 64",
         &[
+            Item("VIC-II, SID, CIA and KERNAL guide", Command::C64Hardware),
             Item("Raster line calculator", Command::C64RasterLines),
             Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
             Check("Cycle counts beside 6502 code", Flag::CycleCounts),

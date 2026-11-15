@@ -146,6 +146,7 @@ impl Limoniter {
         if let Some(intel) = doc.text.intel.as_mut() {
             intel.hardware = (cpu == Cpu::M68k).then(|| Arc::new(crate::amiga_source::Source::scan(&text, Some(&assembly))));
             intel.atari = (cpu == Cpu::M68k).then(|| Arc::new(crate::st_source::Source::scan(&text, Some(&assembly))));
+            intel.c64 = (cpu == Cpu::M6502).then(|| Arc::new(crate::c64_source::Source::scan(&text, Some(&assembly))));
             intel.assembly = Some(Arc::new(assembly));
             intel.version = version;
             intel.file = 0;

@@ -228,6 +228,7 @@ enum Command {
     AtariTimers,
     C64RasterLines,
     C64RasterIrqs,
+    C64Hardware,
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
@@ -342,6 +343,7 @@ impl Command {
                 | Command::AtariTimers
                 | Command::C64RasterLines
                 | Command::C64RasterIrqs
+                | Command::C64Hardware
                 | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
@@ -1333,6 +1335,7 @@ pub struct Limoniter {
     /// The Atari ST hardware guide and the blitter and timer calculators, while they're open.
     st_tools: st_hw_host::StTools,
     c64_tools: c64_tools_host::C64Tools,
+    c64_hw: c64_hw_host::C64Tools,
     /// Language servers: whether they're used, which, and those running.
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
@@ -1622,6 +1625,7 @@ impl Limoniter {
             demo_tools: Default::default(),
             st_tools: Default::default(),
             c64_tools: Default::default(),
+            c64_hw: Default::default(),
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
             task_run: None,
@@ -3724,6 +3728,7 @@ impl Limoniter {
             Command::AtariTimers => self.open_atari_timers(),
             Command::C64RasterLines => self.open_c64_raster(),
             Command::C64RasterIrqs => self.open_c64_irqs(),
+            Command::C64Hardware => self.open_c64_hardware(),
             Command::ScreenDesigner => {
                 if self.screen_designer.is_none() {
                     let mut designer = crate::screen_designer::Designer::default();
@@ -6807,6 +6812,7 @@ impl Limoniter {
         self.demo_tools_windows(&ctx);
         self.st_tools_windows(&ctx);
         self.c64_tools_windows(&ctx);
+        self.c64_hw_windows(&ctx);
         self.recovery_tick(&ctx);
         let doc = &self.docs[self.active];
         if !doc.hex_mode && !doc.placeholder && doc.scanning.is_none() {
@@ -7543,6 +7549,8 @@ mod demo_tools_host;
 mod st_hw_host;
 #[path = "c64_tools_host.rs"]
 mod c64_tools_host;
+#[path = "c64_hw_host.rs"]
+mod c64_hw_host;
 
 #[path = "lsp_host.rs"]
 mod lsp_host;

@@ -36,6 +36,8 @@ pub struct CodeIntel {
     pub hardware: Option<Arc<crate::amiga_source::Source>>,
     /// For 68000 source: what it does with the Atari ST's hardware and which TOS functions it calls.
     pub atari: Option<Arc<crate::st_source::Source>>,
+    /// For 6502 source: what it does with the Commodore 64's chips and which KERNAL routines it calls.
+    pub c64: Option<Arc<crate::c64_source::Source>>,
 }
 
 impl PartialEq for CodeIntel {
@@ -119,6 +121,11 @@ impl CodeIntel {
         if let Some(found) = assembly.uses.iter().find(here).or_else(|| assembly.definitions.iter().find(here)) {
             return Some(found.name.clone());
         }
+        // KickAssembler's and 64tass's labels have other names in the assembler: .inner for a scope's own, loop__m2
+        // for a multi label.
+        if let Some(found) = assembly.uses.iter().chain(&assembly.definitions).find(|p| p.file == self.file && p.line == line && crate::asm::c64_syntax::written_name(&p.written) == word.trim_start_matches('!')) {
+            return Some(found.name.clone());
+        }
         // Somewhere that wasn't assembled, such as in an IF that was false: the label if there is one by that name.
         assembly.symbols.contains_key(&word).then_some(word)
     }
@@ -147,6 +154,13 @@ impl CodeIntel {
             && word_at(text, col).zip(word_at(text, *c)).is_some_and(|(a, b)| a.0 == b.0)
         {
             return Some(words.clone());
+        }
+        // The Commodore 64's chips and KERNAL, for 6502 source.
+        if let Some(c64) = self.c64.as_ref().filter(|s| s.c64)
+            && !in_comment_or_string(text, col)
+            && let Some(words) = c64.describe(line, text, col)
+        {
+            return Some(words);
         }
         // The Atari ST's hardware and TOS calls; ST code gets nothing of the Amiga's.
         let atari = self.atari.as_ref().filter(|st| st.atari);
@@ -187,7 +201,9 @@ impl CodeIntel {
                 format!("\nDefined on line {}{file}", d.line + 1)
             });
             let negative = if *value < 0 { format!(" ({value})") } else { String::new() };
-            return Some(format!("{name} = {} (${:04X}){negative}{}", value, value & 0xFFFF_FFFF, place.unwrap_or_default()));
+            // A KickAssembler multi label or a 64tass anonymous one by the name it was written with.
+            let shown = crate::asm::c64_syntax::written_name(&name);
+            return Some(format!("{shown} = {} (${:04X}){negative}{}", value, value & 0xFFFF_FFFF, place.unwrap_or_default()));
         }
         let (_, _, word) = word_at(text, col)?;
         if !self.words.iter().any(|w| w.eq_ignore_ascii_case(&word)) {

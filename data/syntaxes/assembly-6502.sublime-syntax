@@ -1,9 +1,10 @@
 %YAML 1.2
 ---
 # Written for Limoniter from the MOS 6502 and WDC 65C02 instruction sets, with the widely used undocumented
-# NMOS opcodes, and common ca65, ACME, DASM, 64tass and xa directives.
+# NMOS opcodes, and common ca65, ACME, DASM, 64tass, KickAssembler and xa directives; KickAssembler's // and
+# /* */ comments, !name: multi labels, :Macro() calls and #import.
 name: Assembly 6502
-file_extensions: [a65, s65, asm65, "6502", 65s, acme, ca65]
+file_extensions: [a65, s65, asm65, "6502", 65s, acme, ca65, tas, 64tass, kick, ka]
 scope: source.assembly.m6502
 variables:
   branch: (?:bcc|bcs|beq|bmi|bne|bpl|bra|bvc|bvs|brk|jmp|jsr|rti|rts|bb[rs][0-7]|wai|stp|kil|jam|hlt)
@@ -14,6 +15,14 @@ contexts:
     - include: comment
     - match: '^\s*[A-Za-z_.@][\w.@]*:'
       scope: entity.name.label.m6502
+    - match: '^\s*![A-Za-z_]?\w*:'
+      scope: entity.name.label.m6502
+    - match: '^\s*(?::[A-Za-z_]\w*|[A-Za-z_]\w*(?=\())'
+      scope: variable.function.macro.m6502
+      push: operands
+    - match: '(?i)^\s*#(?:import|importonce|importif|define|undef|if|elif|else|endif)\b'
+      scope: keyword.control.directive.m6502
+      push: operands
     - match: '^\s*\+?-*:?(?=\s)'
     - match: '(?i)(?<![\w.!])[.!][a-z]\w*(?:\.[a-z])?(?![\w])'
       scope: keyword.control.directive.m6502
@@ -44,6 +53,8 @@ contexts:
     - include: comment
     - include: strings
     - include: numbers
+    - match: '![A-Za-z_]?\w*[+-]+'
+      scope: entity.name.label.m6502
     - match: '(?i)(?<![\w.$@%])(?:a|x|y|s)(?![\w$@])'
       scope: variable.language.register.m6502
     - match: '[#+\-*/&|^~<>=!]'
@@ -51,6 +62,14 @@ contexts:
   comment:
     - match: ';.*$'
       scope: comment.line.semicolon.m6502
+    - match: '//.*$'
+      scope: comment.line.double-slash.m6502
+    - match: '/\*'
+      scope: punctuation.definition.comment.m6502
+      push:
+        - meta_scope: comment.block.m6502
+        - match: '\*/'
+          pop: true
   strings:
     - match: '"[^"\n]*"?'
       scope: string.quoted.double.m6502

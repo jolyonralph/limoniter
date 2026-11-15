@@ -46,7 +46,10 @@ through its binary monitor) can also:
 
 Source for the Z80, 6502, 6809 or 68000 (told from its highlighting language) is assembled when it's run, with
 Limoniter's own assembler (`src/asm/`: one framework, one module per processor) or the one chosen for the processor
-(`src/assemblers.rs`: sjasmplus, Pasmo, ACME, lwasm, vasm). Either way the result is an `asm::Assembly`: bytes at
+(`src/assemblers.rs`: sjasmplus, Pasmo, ACME, lwasm, vasm; `src/c64_assemblers.rs`: KickAssembler, whose debug
+file gives each line's address, and 64tass, whose listing does). KickAssembler's and 64tass's source is read by
+Limoniter's own assembler through `src/asm/c64_syntax.rs`, which rewrites each line into the assembler's own forms,
+one line for one. Either way the result is an `asm::Assembly`: bytes at
 addresses, each source line's address and bytes, and problems by file and line. `src/asm_host.rs` turns it into
 something to run (a tape with a BASIC loader, a `.nex`, a C64 `.prg` with a `SYS` line, a Color Computer LOADM
 `.bin`, an Atari ST `.tos` whose relocations are found by assembling the source a second time 64K further on) or a
