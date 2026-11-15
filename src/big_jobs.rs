@@ -474,9 +474,30 @@ pub enum Side {
 
 /// Compares two sides too large to hold in memory twice over. Each line is boiled down to a hash, the hashes are
 /// compared, and the comparison reads the lines it shows from the files as it's drawn.
-pub fn compare(left_name: String, right_name: String, left: LineStore, right: Side, doc_id: u64) -> BigJob {
-    // Progress in thousandths: the left side's lines, then the right's (scanning it first if need be).
+pub fn compare(left_name: String, right_name: String, left: Side, right: Side, doc_id: u64) -> BigJob {
+    // Progress in thousandths: half for each side, scanning it first if need be.
     BigJob::start("Compare", doc_id, 1000, move |done, cancel| {
+        let stopped = || Outcome::Failed("It was stopped.".to_string());
+        // A side still being read is waited for, then its lines are hashed.
+        let lines_of = |side: Side, from: u64| -> Result<LineStore, Outcome> {
+            match side {
+                Side::Lines(store) => Ok(store),
+                Side::Scanning(source) => {
+                    while !source.is_finished() {
+                        if cancel.load(Ordering::Relaxed) {
+                            source.stop();
+                            return Err(stopped());
+                        }
+                        done.store(from + (250.0 * source.progress()) as u64, Ordering::Relaxed);
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    if let Some(problem) = source.failure() {
+                        return Err(Outcome::Failed(problem));
+                    }
+                    Ok(LineStore::from_source(source))
+                }
+            }
+        };
         let hash_all = |store: &LineStore, from: u64, share: u64| -> Option<Vec<u64>> {
             let mut hashes = Vec::with_capacity(store.len());
             let mut at = 0;
@@ -491,29 +512,18 @@ pub fn compare(left_name: String, right_name: String, left: LineStore, right: Si
             }
             Some(hashes)
         };
-        let stopped = || Outcome::Failed("It was stopped.".to_string());
-        let Some(left_hashes) = hash_all(&left, 0, 450) else {
+        let left = match lines_of(left, 0) {
+            Ok(store) => store,
+            Err(outcome) => return outcome,
+        };
+        let Some(left_hashes) = hash_all(&left, 250, 250) else {
             return stopped();
         };
-        let right = match right {
-            Side::Lines(store) => store,
-            Side::Scanning(source) => {
-                while !source.is_finished() {
-                    if cancel.load(Ordering::Relaxed) {
-                        source.stop();
-                        return stopped();
-                    }
-                    done.store(450 + (225.0 * source.progress()) as u64, Ordering::Relaxed);
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                }
-                if let Some(problem) = source.failure() {
-                    return Outcome::Failed(problem);
-                }
-                LineStore::from_source(source)
-            }
+        let right = match lines_of(right, 500) {
+            Ok(store) => store,
+            Err(outcome) => return outcome,
         };
-        let (from, share) = if done.load(Ordering::Relaxed) > 450 { (675, 225) } else { (450, 450) };
-        let Some(right_hashes) = hash_all(&right, from, share) else {
+        let Some(right_hashes) = hash_all(&right, 750, 250) else {
             return stopped();
         };
         let runs = crate::compare::runs(&left_hashes, &right_hashes);

@@ -33,6 +33,7 @@ mod charset;
 mod code_format;
 mod codec;
 mod compare;
+mod diff_engine;
 mod columns;
 mod console;
 mod ebcdic;

@@ -1,9 +1,11 @@
-//! Compare: two lists of lines side by side, with the differences marked. It only reads; nothing here changes a file.
+//! Comparing files too large to hold: two lists of lines side by side, read from the files as they're drawn,
+//! with the differences marked. It only reads; nothing here changes a file. Files that fit in memory are
+//! compared in the compare tab instead, where both sides can be edited.
 
 use crate::line_store::LineStore;
 use crate::text_buffer::display_text;
 use crate::theme;
-use eframe::egui::{self, Align2, Color32, Context, FontId, Rect, Sense, pos2, vec2};
+use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, pos2, vec2};
 use similar::{Algorithm, DiffOp, capture_diff_slices_deadline};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -93,6 +95,7 @@ pub struct Comparison {
 
 impl Comparison {
     /// Compares two sides held in memory, line by line.
+    #[cfg(test)]
     pub fn new(left_name: String, right_name: String, left: LineStore, right: LineStore) -> Self {
         let runs = runs(&left.range_vec(0, left.len()), &right.range_vec(0, right.len()));
         Self::from_runs(left_name, right_name, left, right, runs)
@@ -180,12 +183,9 @@ fn side(ui: &egui::Ui, area: Rect, line: Option<&(usize, Arc<str>)>, back: Optio
     painter.text(pos2(area.min.x + number_width, area.min.y + 1.0), Align2::LEFT_TOP, shown, font, theme::editor_text());
 }
 
-/// Draws the window. Returns true when it's been closed.
-pub fn window(ctx: &Context, state: &mut Comparison) -> bool {
-    let mut close = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-    let screen = ctx.content_rect().size();
-    let size = vec2((screen.x * 0.92).max(300.0), (screen.y * 0.86).max(200.0));
-    egui::Window::new("Compare").collapsible(false).resizable(false).fixed_size(size).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+/// Draws the comparison, filling the space it's given.
+pub fn view(ui: &mut egui::Ui, state: &mut Comparison) {
+    egui::Frame::new().inner_margin(egui::Margin::symmetric(10, 6)).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.label(state.summary());
             let any = !state.differences.is_empty();
@@ -195,9 +195,8 @@ pub fn window(ctx: &Context, state: &mut Comparison) -> bool {
             if ui.add_enabled(any, egui::Button::new("Next difference")).clicked() {
                 state.step(true);
             }
-            ui.label(egui::RichText::new("Line endings aren't compared.").color(theme::text_faint()));
+            ui.label(egui::RichText::new("These files are too large to edit here, so they're only read. Line endings aren't compared.").color(theme::text_faint()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                close |= ui.button("Close").clicked();
                 if state.longest > 40 {
                     ui.add(egui::Slider::new(&mut state.across, 0..=state.longest).show_value(false).text("Across"));
                 }
@@ -240,7 +239,6 @@ pub fn window(ctx: &Context, state: &mut Comparison) -> bool {
             }
         });
     });
-    close
 }
 
 #[cfg(test)]
@@ -340,25 +338,22 @@ mod tests {
     }
 
     #[test]
-    fn the_window_draws_and_closes_with_escape() {
-        let ctx = Context::default();
+    fn the_view_draws() {
+        let ctx = egui::Context::default();
         let many: Vec<String> = (0..500).map(|i| format!("line {i}\twith a tab")).collect();
         let a: Vec<Arc<str>> = many.iter().map(|line| Arc::from(line.as_str())).collect();
         let mut b = a.clone();
         b[100] = Arc::from("changed");
         b.remove(300);
         let mut state = compared(&a, &b);
-        let frame = |events: Vec<egui::Event>, state: &mut Comparison| {
-            let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))), events, ..Default::default() };
-            let mut closed = false;
-            let mut output = ctx.run_ui(raw, |ui| closed = window(ui.ctx(), state));
+        let frame = |state: &mut Comparison| {
+            let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))), ..Default::default() };
+            let mut output = ctx.run_ui(raw, |ui| view(ui, state));
             output.textures_delta.clear();
-            closed
         };
-        assert!(!frame(Vec::new(), &mut state));
+        frame(&mut state);
         state.step(true);
-        assert!(!frame(Vec::new(), &mut state));
-        let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
-        assert!(frame(vec![escape], &mut state));
+        frame(&mut state);
+        assert_eq!(state.current, Some(0));
     }
 }

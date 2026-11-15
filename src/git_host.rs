@@ -674,7 +674,8 @@ impl Limoniter {
         let lines: Vec<Arc<str>> = codec::decode(&bytes, &mut format).lines.into_iter().map(Arc::from).collect();
         let short = if revision == "HEAD" { "the last commit".to_string() } else { format!("commit {}", &revision[..revision.len().min(8)]) };
         let name = format!("{} at {short}", self.docs[self.active].name());
-        self.show_comparison(Ok((name, crate::big_jobs::Side::Lines(LineStore::from_vec(lines)))));
+        let this = self.docs[self.active].id;
+        self.open_file_compare_sides(compare_host::FileSide::Lines { name, lines }, compare_host::FileSide::Open(this));
     }
 
     /// The repository and the file in front's place in it.

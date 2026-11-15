@@ -85,9 +85,14 @@ fn one_change_is_staged_and_another_undone_at_the_cursor() {
     assert_eq!(app.docs[app.active].text.line(0).as_ref(), "1");
     assert_eq!(app.docs[app.active].text.line(7).as_ref(), "EIGHT");
     assert!(app.docs[app.active].is_modified());
-    // Compared with the last commit, in the Compare window.
+    // Compared with the last commit, in a compare tab: the commit on the left, read-only, the file on the right.
+    let file_tab = app.docs[app.active].id;
     app.compare_with_commit("HEAD");
-    assert!(matches!(app.dialog, Dialog::Compare(_)));
+    let Some(compare_host::CompareTab::Files(files)) = app.docs[app.active].compare.as_deref() else {
+        panic!("a comparison opens");
+    };
+    assert_eq!(files.diff.difference_count(), 1, "the first line, put back as it was in the commit");
+    assert!(matches!(files.sources[1], compare_host::Source2::Open(id) if id == file_tab));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

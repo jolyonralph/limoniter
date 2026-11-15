@@ -467,20 +467,6 @@ impl Limoniter {
         }
     }
 
-    /// Compares two files side by side.
-    // Kept small on purpose: the side-by-side comparison it opens is to be replaced.
-    pub(super) fn open_file_compare(&mut self, left: PathBuf, right: PathBuf) {
-        match (Self::lines_of_file_on_disk(&left), Self::lines_of_file_on_disk(&right)) {
-            (Ok((left_name, crate::big_jobs::Side::Lines(left))), Ok((right_name, crate::big_jobs::Side::Lines(right)))) => {
-                let mut comparison = compare::Comparison::new(left_name, right_name, left, right);
-                comparison.step(true);
-                self.dialog = Dialog::Compare(Box::new(comparison));
-            }
-            (Err(problem), _) | (_, Err(problem)) => self.message("Compare", problem),
-            _ => self.message("Compare", "One of these files is too large to compare from the command line.".into()),
-        }
-    }
-
     /// The bar offering to resolve a file with conflict markers in the merge tab.
     pub(super) fn marker_bar(&mut self, ui: &mut Ui) {
         let index = self.active;

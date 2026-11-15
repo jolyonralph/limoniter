@@ -31,7 +31,7 @@ With nothing put in, the button says **Commit all changes**, and every change to
 
 - Marks beside the line numbers show what's changed since the last commit: green for new lines, blue for changed ones, and a red notch where lines were taken out. They follow your edits as you type.
 - **Tools › Git › Put the change at the cursor in the next commit** commits just part of a file; **Undo the change at the cursor** puts that part back as it was (and Undo takes that back in turn).
-- **Tools › Git › Compare with the last commit** shows the file beside its last committed version.
+- **Tools › Git › Compare with the last commit** shows the file beside its last committed version, in a tab of its own, where you can still edit the file. In the Project panel, a folder's menu compares the whole folder with the last commit.
 - **Tools › Git › History of this file…** lists every commit that changed it. Compare any one with now, or open the file as it was.
 - **Tools › Git › Show who changed each line** shows the author, date and commit of the cursor's line in the status bar.
 

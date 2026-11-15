@@ -294,6 +294,8 @@ pub struct ViewState {
     /// being typed (a line and column), for the window to ask about.
     pub hover_at: Option<(usize, usize)>,
     pub completion_wanted: Option<(usize, usize)>,
+    /// In a comparison: how each line differs from the other side's, drawn behind the text and in the margin.
+    pub diff: Option<std::sync::Arc<crate::diff_engine::Marks>>,
 }
 
 /// The list of words offered to finish the one being typed.
@@ -350,6 +352,17 @@ impl ViewState {
     pub fn same_place(&self) -> Self {
         Self { top: self.top, left: self.left, top_sub: self.top_sub, ..Self::default() }
     }
+
+    /// The line at the top of the view.
+    pub fn top(&self) -> usize {
+        self.top
+    }
+
+    /// Scrolls so that a line is at the top, as a comparison keeps its two sides in step.
+    pub fn set_top(&mut self, line: usize) {
+        self.top = line;
+        self.top_sub = 0;
+    }
 }
 
 /// What a view asks the window to do through its right-click menu.
@@ -364,7 +377,7 @@ pub enum ContextCommand {
     Assist,
 }
 
-fn cell_size(ui: &Ui, f: &FontId) -> Vec2 {
+pub(crate) fn cell_size(ui: &Ui, f: &FontId) -> Vec2 {
     ui.ctx().fonts_mut(|fonts| vec2(fonts.glyph_width(f, 'M'), fonts.row_height(f).ceil() + 2.0))
 }
 
@@ -587,6 +600,8 @@ struct TextLayout {
     slots: Vec<Slot>,
     mark_width: f32,
     fold_width: f32,
+    diff: Option<std::sync::Arc<crate::diff_engine::Marks>>,
+    diff_space: f32,
 }
 
 /// Where the rows on screen come from, for a view with no wrapping: one row per line.
@@ -626,7 +641,9 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     let fold_width = if options.fold_lines && (pane.filter.is_none() || pane.folded) && !buffer.is_disk_backed() { cell.x } else { 0.0 };
     // Room for the marks of what's changed since the last commit, when the file is in a Git repository.
     let git_space = if options.line_change && buffer.git_marks.is_some() { 6.0 } else { 0.0 };
-    let gutter = mark_width + fold_width + git_space + if options.line_numbers { (digits + 1) as f32 * cell.x } else { cell.x };
+    // In a comparison, a mark beside each line that differs says how, so colour isn't the only way to tell.
+    let diff_space = if state.diff.is_some() { cell.x * 1.5 } else { 0.0 };
+    let gutter = mark_width + fold_width + git_space + diff_space + if options.line_numbers { (digits + 1) as f32 * cell.x } else { cell.x };
 
     let outer = ui.available_rect_before_wrap();
     ui.allocate_rect(outer, Sense::hover());
@@ -876,7 +893,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             });
         }
     }
-    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width };
+    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
     if !focused {
         state.completion = None;
@@ -1624,6 +1641,55 @@ fn highlight_needle(b: &TextBuffer) -> Option<String> {
     (!text.trim().is_empty()).then_some(text)
 }
 
+/// The colour behind a line of a comparison, by how it differs.
+pub(crate) fn diff_colour(kind: crate::diff_engine::ChunkKind) -> Color32 {
+    match kind {
+        crate::diff_engine::ChunkKind::Changed => theme::compare_changed(),
+        crate::diff_engine::ChunkKind::LeftOnly => theme::compare_removed(),
+        crate::diff_engine::ChunkKind::RightOnly => theme::compare_added(),
+        crate::diff_engine::ChunkKind::Same => theme::editor_back(),
+    }
+}
+
+/// The mark beside a line of a comparison, by how it differs: in words for a screen reader, and as a sign.
+pub(crate) fn diff_sign(kind: crate::diff_engine::ChunkKind) -> &'static str {
+    match kind {
+        crate::diff_engine::ChunkKind::Changed => "~",
+        crate::diff_engine::ChunkKind::LeftOnly => "-",
+        crate::diff_engine::ChunkKind::RightOnly => "+",
+        crate::diff_engine::ChunkKind::Same => " ",
+    }
+}
+
+/// A comparison's marks in the margin: a sign for each line that differs, a bar beside the difference gone to,
+/// and a rule where the other side has lines this one hasn't.
+fn paint_diff_gutter(painter: &egui::Painter, marks: &crate::diff_engine::Marks, view: Rect, l: &TextLayout, row_y: &dyn Fn(usize) -> f32) {
+    let x = view.min.x + l.mark_width + l.fold_width + 2.0;
+    for (index, slot) in l.slots.iter().enumerate() {
+        let y = row_y(index);
+        if let Some(mark) = marks.line(slot.line)
+            && slot.sub == 0
+        {
+            painter.rect_filled(Rect::from_min_max(pos2(x - 2.0, y), pos2(x + l.diff_space - 3.0, y + l.cell.y)), 0.0, diff_colour(mark.kind));
+            painter.text(pos2(x + 1.0, y + 1.0), Align2::LEFT_TOP, diff_sign(mark.kind), l.font.clone(), theme::editor_text());
+        }
+        if marks.current.as_ref().is_some_and(|current| current.contains(&slot.line)) {
+            painter.rect_filled(Rect::from_min_size(pos2(view.min.x, y), vec2(3.0, l.cell.y)), 0.0, theme::caret());
+        }
+        if slot.sub == 0 && marks.gap_before(slot.line) {
+            painter.hline(view.min.x..=view.max.x, y, Stroke::new(2.0, theme::compare_added().lerp_to_gamma(theme::editor_text(), 0.35)));
+        }
+    }
+    // The other side's extra lines at the very end.
+    if let Some(last) = l.slots.last()
+        && last.line + 1 == marks.lines.len()
+        && marks.gap_before(marks.lines.len())
+    {
+        let y = row_y(l.slots.len());
+        painter.hline(view.min.x..=view.max.x, y, Stroke::new(2.0, theme::compare_added().lerp_to_gamma(theme::editor_text(), 0.35)));
+    }
+}
+
 fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &LineColours, start_state: CellState) {
     let painter = ui.painter_at(view);
     let mut cell_state = start_state;
@@ -1695,6 +1761,17 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             // A tagged section has a wash of its colour behind it, as well as the block in the margin.
             if let Some(colour) = tag {
                 painter.rect_filled(Rect::from_min_max(pos2(view.min.x + gutter, y), pos2(view.max.x, y + cell.y)), 0.0, colour.gamma_multiply(0.09));
+            }
+            if let Some(mark) = l.diff.as_ref().and_then(|marks| marks.line(r)) {
+                let back = diff_colour(mark.kind);
+                painter.rect_filled(Rect::from_min_max(pos2(view.min.x + gutter, y), pos2(view.max.x, y + cell.y)), 0.0, back);
+                let strong = back.lerp_to_gamma(theme::editor_text(), 0.22);
+                for (a, z) in char_spans_to_columns(&raw, &mark.spans) {
+                    let (a, z) = (a.max(start), z.min(start + count));
+                    if a < z {
+                        painter.rect_filled(Rect::from_min_max(pos2(col_x(a), y), pos2(col_x(z), y + cell.y)), 0.0, strong);
+                    }
+                }
             }
             if l.options.active_line && r == b.caret_line && !b.has_selection() {
                 painter.rect_filled(Rect::from_min_max(pos2(view.min.x, y), pos2(view.max.x, y + cell.y)), 0.0, theme::active_line());
@@ -1827,6 +1904,9 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
     // The line numbers and ruler stay put while the text scrolls under them.
     let gutter_rect = Rect::from_min_max(view.min, pos2(view.min.x + gutter, view.max.y));
     painter.rect_filled(gutter_rect, 0.0, theme::gutter_back());
+    if let Some(marks) = &l.diff {
+        paint_diff_gutter(&painter, marks, view, l, &row_y);
+    }
     for (index, slot) in l.slots.iter().enumerate() {
         // A tagged section's block runs down the left edge, through all of its rows.
         if let Some((first, last, colour)) = b.tag_at(slot.line) {

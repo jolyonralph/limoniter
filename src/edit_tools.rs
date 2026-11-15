@@ -231,12 +231,16 @@ impl Limoniter {
                 }
             }
             HistoryAction::Compare(id) => {
-                let other = if doc.text.is_disk_backed() {
-                    Err("This file is kept on disk, so it can't be compared.".to_string())
-                } else {
-                    doc.text.history_lines(id).map(|lines| (format!("{} as it was", doc.name()), crate::big_jobs::Side::Lines(crate::line_store::LineStore::from_vec(lines)))).ok_or_else(|| "That state is no longer kept.".to_string())
-                };
-                self.show_comparison(other);
+                if doc.text.is_disk_backed() {
+                    return self.message("Compare", "This file is kept on disk, so it can't be compared.".to_string());
+                }
+                match doc.text.history_lines(id) {
+                    Some(lines) => {
+                        let (this, name) = (doc.id, format!("{} as it was", doc.name()));
+                        self.open_file_compare_sides(compare_host::FileSide::Lines { name, lines }, compare_host::FileSide::Open(this));
+                    }
+                    None => self.message("Compare", "That state is no longer kept.".to_string()),
+                }
             }
             HistoryAction::Forget => {
                 if ask_yes_no("Forget this history", "Forget all the earlier states of this file, including any kept on disk?\n\nThis can't be undone. The text itself stays as it is.") {

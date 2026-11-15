@@ -293,6 +293,12 @@ pub fn in_background(work: impl FnOnce() -> Result<Report, String> + Send + 'sta
 pub enum PanelAction {
     Open(PathBuf),
     Remove(PathBuf),
+    /// Compare a file with another, to be chosen.
+    CompareWith(PathBuf),
+    /// Compare a folder with another, to be chosen.
+    CompareFolder(PathBuf),
+    /// Compare a folder, or a file, with how it was at the last commit.
+    CompareWithHead(PathBuf),
 }
 
 #[derive(Default)]
@@ -329,10 +335,21 @@ pub fn tree_of(project: &Project, filter: &str) -> TreeFolder {
     root
 }
 
-fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, active: Option<&Path>, actions: &mut Vec<PanelAction>, open_all: bool) {
+fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active: Option<&Path>, actions: &mut Vec<PanelAction>, open_all: bool) {
     for (name, inner) in &folder.folders {
         let id = format!("{salt}/{name}");
-        egui::CollapsingHeader::new(RichText::new(name).size(12.5)).id_salt(&id).default_open(true).open(open_all.then_some(true)).show(ui, |ui| draw_tree(ui, inner, &id, active, actions, open_all));
+        let here = place.join(name);
+        let shown = egui::CollapsingHeader::new(RichText::new(name).size(12.5)).id_salt(&id).default_open(true).open(open_all.then_some(true)).show(ui, |ui| draw_tree(ui, inner, &id, &here, active, actions, open_all));
+        shown.header_response.context_menu(|ui| {
+            if ui.button("Compare folders\u{2026}").on_hover_text("Compare this folder with another, side by side").clicked() {
+                actions.push(PanelAction::CompareFolder(here.clone()));
+                ui.close();
+            }
+            if ui.button("Compare with the last commit").on_hover_text("Compare this folder with how it was at the last Git commit").clicked() {
+                actions.push(PanelAction::CompareWithHead(here.clone()));
+                ui.close();
+            }
+        });
     }
     for (name, path) in &folder.files {
         let here = active.is_some_and(|active| same_file(active, path));
@@ -344,6 +361,14 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, active: Option<&Path>
             actions.push(PanelAction::Open(path.clone()));
         }
         response.context_menu(|ui| {
+            if !missing && ui.button("Compare with\u{2026}").on_hover_text("Compare this file with another, side by side").clicked() {
+                actions.push(PanelAction::CompareWith(path.clone()));
+                ui.close();
+            }
+            if !missing && ui.button("Compare with the last commit").clicked() {
+                actions.push(PanelAction::CompareWithHead(path.clone()));
+                ui.close();
+            }
             if ui.button("Take off the project").on_hover_text("The file itself stays").clicked() {
                 actions.push(PanelAction::Remove(path.clone()));
                 ui.close();
@@ -366,7 +391,8 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
         return actions;
     }
     let tree = tree_of(project, &state.filter);
-    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", active, &mut actions, !state.filter.trim().is_empty()));
+    let base = project.folder();
+    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", &base, active, &mut actions, !state.filter.trim().is_empty()));
     actions
 }
 

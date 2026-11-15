@@ -75,6 +75,7 @@
 <li><a href="#table-view">Table view</a></li>
 <li><a href="#hex-mode">Hex mode</a></li>
 <li><a href="#comparing-files">Comparing files</a></li>
+<li><a href="#comparing-folders">Comparing folders</a></li>
 </ul>
 </nav>
 <h2 id="everyday-editing">Everyday editing</h2>
@@ -111,7 +112,16 @@
 <p>Hex mode works on files of any size. Typing, inserting, deleting, undo, search and Replace All all work, even on a file of many gigabytes, and saving copies the untouched parts straight across.</p>
 <p><strong>Tools › Settings…</strong>, under Hex mode, sets how many bytes go on a row, and whether files with zero bytes in them open in hex.</p>
 <h2 id="comparing-files">Comparing files</h2>
-<p>To see what's different between two files, choose <strong>Tools › Compare with…</strong> and pick the other file. The two are shown side by side with the differences marked.</p>
+<p>To see what's different between two files, choose <strong>Tools › Compare with…</strong> and pick another open file or one on disk, or choose <strong>Tools › Compare files…</strong> and pick two. They open side by side in a tab of their own.</p>
+<ul><li>Lines that differ are marked in colour, with a sign beside each: ~ changed, - only on the left, + only on the right. The words that differ within a line are marked more strongly; <strong>Within lines</strong> switches to single characters.</li><li><strong>Previous</strong> and <strong>Next</strong>, or <strong>Search › Next change</strong>, go from one difference to the next.</li><li>Both sides can be edited, and each has its own <strong>Save</strong> and Undo. If a file is already open, its tab's text is used, unsaved edits and all, and what you change in the comparison changes there.</li><li>The arrows between the sides copy a difference across. <strong>Copy to the right</strong> and <strong>Copy to the left</strong> copy the one the cursor is in.</li><li><strong>Ignore spaces</strong>, <strong>Ignore case</strong> and <strong>Ignore line endings</strong> leave those out. <strong>Scroll together</strong> keeps the sides in step.</li><li><strong>Save as a patch…</strong> writes the differences as a unified diff, which patch and git apply can use.</li></ul>
+<p>Files that aren't text are compared byte by byte, with each byte that differs marked. Pictures Limoniter can show are compared as pictures, with a third picture showing where they differ. Files too large to hold in memory are compared in the background and shown read-only.</p>
+<h2 id="comparing-folders">Comparing folders</h2>
+<p><strong>Tools › Compare folders…</strong> shows two folders side by side as a tree. Each entry says how it compares, in words as well as colour: the same, different (and which side is newer), only on the left, only on the right, or a file on one side and a folder on the other.</p>
+<ol class="steps"><li>Choose what each side is: a folder, a Git revision (HEAD for the last commit, or a branch, a tag or a commit), a disk image or archive, or a folder on a server (<code>sftp://user@host/folder</code>, for a server you've connected to before with File › Open a remote file).</li><li>Choose how to compare: by size and time, which is quick, or by contents. Where a side keeps no times, as a Git revision doesn't, files of the same size are compared by contents anyway.</li><li>Type patterns in <strong>Only</strong> or <strong>Leave out</strong> to choose files, such as <code>*.rs; *.toml</code> or <code>target; *.log</code>, and tick <strong>Leave out what .gitignore does</strong> if you like. Then press <strong>Compare</strong>.</li></ol>
+<p>Comparing runs in the background, and <strong>Stop</strong> stops it. Click a folder's arrow to open or close it, and tick <strong>Hide what's the same</strong> to see only the differences. Double-click a pair of files to compare them.</p>
+<p>To copy files across, choose them (Ctrl and Shift add to the choice) and press <strong>Copy to the right…</strong> or <strong>Copy to the left…</strong>. You'll see a list of what will happen first. Nothing is ever deleted, and a file that's replaced is kept in a backup folder first.</p>
+<p><strong>Save a report…</strong> saves the comparison as an HTML page or plain text, and <strong>Save as a patch…</strong> saves every difference in the text files as one unified diff.</p>
+<p>In the Project panel, right-click a file for <strong>Compare with…</strong>, or a folder for <strong>Compare folders…</strong>. Both offer <strong>Compare with the last commit</strong>.</p>
 <p>Within one file, <strong>View › Show › Changed lines</strong> marks the lines you've changed, and <strong>Search › Next change</strong> and <strong>Search › Previous change</strong> go from one to the next.</p>
         <nav class="pager" aria-label="Back and next">
 <a class="pager-back" href="getting-started.html"><span>Back</span>Getting started</a>
