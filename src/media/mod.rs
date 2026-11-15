@@ -8,11 +8,13 @@ mod acorn;
 mod apple2;
 mod atari8;
 mod amiga;
+mod c64tap;
 mod cas;
 mod cbm;
 mod coco;
 pub mod cpm;
 mod cpm_formats;
+pub(crate) mod crt;
 mod dmg;
 mod fat;
 mod flux;
@@ -190,8 +192,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 73] = [
-    "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad",
+pub const IMAGE_ENDINGS: [&str; 74] = [
+    "crt", "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -210,6 +212,8 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
         // These endings are used for plain data too, so the bytes have to say so.
         // A KryoFlux stream is only one by its bytes; other .raw files, such as a plain sector image, are bytes.
         "raw" => flux::detect(head, "raw").is_some(),
+        // .crt is a certificate as often as a cartridge.
+        "crt" => crt::looks_like(head),
         "scp" | "hfe" | "cas" | "mgt" | "sad" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
         "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
@@ -276,6 +280,10 @@ enum Format {
     OricTape,
     /// An Oric disk, in Euphoric's MFM_DISK form.
     OricDisk,
+    /// A Commodore cartridge image (CRT).
+    Crt,
+    /// A Commodore tape's pulses (C64-TAPE-RAW).
+    C64Tap,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -289,6 +297,12 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     }
     if at(0, b"C64 tape image") || at(0, b"C64S tape") || at(0, b"C64 tape") {
         return Some(Format::T64);
+    }
+    if crt::looks_like(head) {
+        return Some(Format::Crt);
+    }
+    if c64tap::looks_like(head) {
+        return Some(Format::C64Tap);
     }
     if at(0x8001, b"CD001") {
         return Some(Format::Iso);
@@ -506,6 +520,8 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Sam) => Ok(Box::new(sam::Sam::open(source)?)),
         Some(Format::OricTape) => Ok(Box::new(oric::OricTape::open(source)?)),
         Some(Format::OricDisk) => Ok(Box::new(oric::OricDisk::open(source)?)),
+        Some(Format::Crt) => Ok(Box::new(crt::Crt::open(source)?)),
+        Some(Format::C64Tap) => Ok(Box::new(c64tap::C64Tape::open(source)?)),
         None => Err("This isn't an image or archive Limoniter can read yet.".into()),
     }
 }

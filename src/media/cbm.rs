@@ -34,7 +34,7 @@ fn sectors_1541(track: u8) -> u64 {
 const FILE_TYPES: [&str; 8] = ["DEL", "SEQ", "PRG", "USR", "REL", "CBM", "DIR", "???"];
 
 /// PETSCII as shown in a directory: the capitals and graphics set, with the padding (shifted space, 0xA0) taken off.
-fn petscii_name(bytes: &[u8]) -> String {
+pub(super) fn petscii_name(bytes: &[u8]) -> String {
     let set = charset::known("petscii-c64");
     let end = bytes.iter().position(|b| *b == 0xA0).unwrap_or(bytes.len());
     bytes[..end].iter().map(|b| set.entry(0, *b).and_then(|e| e.unicode).filter(|c| !c.is_control()).unwrap_or('?')).collect()

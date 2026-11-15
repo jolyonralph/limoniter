@@ -62,6 +62,8 @@ mod protracker;
 mod st_music;
 mod st_packers;
 mod st_tools;
+mod sid;
+mod c64_tools;
 mod project;
 mod reformat;
 mod running;

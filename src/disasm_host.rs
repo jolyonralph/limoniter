@@ -35,6 +35,14 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
         }
         return (Cpu::M6502, code, origin, starts, format!("A Commodore program, loading at ${origin:04X}"));
     }
+    // A SID tune: its C64 bytes at its load address, from its init and play routines.
+    if ending == "sid"
+        && let Ok(tune) = crate::sid::read(bytes)
+    {
+        let starts: Vec<u16> = [tune.init_address(), tune.play].into_iter().filter(|a| *a != 0).collect();
+        let found = format!("A SID tune, loading at ${:04X}, init ${:04X}{}", tune.load, tune.init_address(), if tune.play == 0 { String::new() } else { format!(", play ${:04X}", tune.play) });
+        return (Cpu::M6502, tune.data, tune.load, if starts.is_empty() { vec![tune.load] } else { starts }, found);
+    }
     // A 48K snapshot: the 48K from $4000, starting where it was saved.
     let sna = match ending.as_str() {
         "sna" if bytes.len() == 49179 => Some(bytes.to_vec()),

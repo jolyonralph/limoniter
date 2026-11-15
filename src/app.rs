@@ -212,6 +212,7 @@ enum Command {
     HatariProfile,
     StFloppy,
     StTools,
+    C64Tools,
     Clambers,
     CheckOpticos,
     CleanRecent,
@@ -313,6 +314,7 @@ impl Command {
                 | Command::AmigaHardware
                 | Command::AmigaTools
                 | Command::StTools
+                | Command::C64Tools
                 | Command::CheckOpticos
                 | Command::Open
                 | Command::Help
@@ -1304,6 +1306,7 @@ enum Dialog {
     AmigaNdk(Box<ndk_host::NdkBox>),
     AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
     StTools(Box<st_tools_host::StToolsBox>),
+    C64Tools(Box<c64_music_host::C64ToolsBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
     Tasks(Vec<crate::tasks::Task>),
     Spelling { found: crate::spelling::Found, chosen: usize },
@@ -1442,6 +1445,7 @@ pub struct Limoniter {
     running: run_host::Running,
     /// Programs F9 built being crunched in the background.
     amiga_jobs: Vec<amiga_tools_host::Job>,
+    c64_jobs: Vec<c64_music_host::Job>,
     git: git_host::GitState,
     /// The Amiga's pens for ANSI previews, and the table that changes them.
     amiga_palette: crate::ansi_art::AmigaPalette,
@@ -1583,6 +1587,7 @@ impl Limoniter {
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
             amiga_jobs: Vec::new(),
+            c64_jobs: Vec::new(),
             git: git_host::GitState::from_settings(&settings),
             amiga_palette: crate::ansi_art::AmigaPalette::from_settings(&settings),
             palette_editor: Default::default(),
@@ -1886,7 +1891,7 @@ impl Limoniter {
         if doc.picture.is_some() {
             return Some(preview::Kind::Picture);
         }
-        if doc.hex_mode && crate::protracker::has_module_tag(&doc.hex.read(0, 1084)) {
+        if doc.hex_mode && (crate::protracker::has_module_tag(&doc.hex.read(0, 1084)) || crate::sid::looks_like(&doc.hex.read(0, 0x7C))) {
             return Some(preview::Kind::Module);
         }
         if doc.hex_mode && crate::st_music::recognised(&doc.hex.read(0, 64), &doc.name()) {
@@ -2503,6 +2508,7 @@ impl Limoniter {
         }
         self.assembly_tick();
         self.amiga_jobs_tick(ctx);
+        self.c64_jobs_tick(ctx);
         if self.intel_wait.is_some() {
             ctx.request_repaint_after(Duration::from_millis(350));
         }
@@ -3709,6 +3715,7 @@ impl Limoniter {
             Command::HatariProfile => self.profile_in_hatari(),
             Command::StFloppy => self.make_st_floppy(),
             Command::StTools => self.open_st_tools(),
+            Command::C64Tools => self.open_c64_tools(),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
@@ -5928,7 +5935,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) {
             return;
         }
         let mut close = false;
@@ -7512,6 +7519,8 @@ mod st_host;
 mod amiga_tools_host;
 #[path = "st_tools_host.rs"]
 mod st_tools_host;
+#[path = "c64_music_host.rs"]
+mod c64_music_host;
 
 #[path = "deploy_host.rs"]
 mod deploy_host;

@@ -647,7 +647,9 @@ fn module_sections<'a>(cache: &'a mut Option<((u64, u64), Vec<crate::media::Info
     if cache.as_ref().is_none_or(|(k, _)| *k != key) {
         let named = crate::protracker::named_as_module(&doc.name);
         let st = doc.hex_mode && doc.hex.len() <= 64 << 20 && crate::st_music::recognised(&doc.hex.read(0, 64), &doc.name);
-        let sections = if st {
+        let sections = if doc.hex_mode && crate::sid::looks_like(&doc.hex.read(0, 0x7C)) && doc.hex.len() <= 1 << 20 {
+            crate::sid::read(&doc.hex.read(0, doc.hex.len())).map(|t| t.sections()).unwrap_or_default()
+        } else if st {
             crate::st_music::read(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|m| m.sections()).unwrap_or_default()
         } else if doc.hex_mode && (named || crate::protracker::has_module_tag(&doc.hex.read(0, 1084))) && doc.hex.len() <= 64 << 20 {
             crate::protracker::read(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|m| m.sections()).unwrap_or_default()
