@@ -222,6 +222,7 @@ enum Command {
     AmigaHardware,
     AmigaBitplanes,
     StPictures,
+    C64Pictures,
     BlitterMinterms,
     TableGenerator,
     AtariHardware,
@@ -338,6 +339,7 @@ impl Command {
                 | Command::ScreenDesigner
                 | Command::AmigaBitplanes
                 | Command::StPictures
+                | Command::C64Pictures
                 | Command::BlitterMinterms
                 | Command::TableGenerator
                 | Command::AtariHardware
@@ -1333,6 +1335,7 @@ pub struct Limoniter {
     bitplanes: Option<Box<crate::bitplane_tool::Converter>>,
     /// The Atari ST picture converter, while it's open.
     st_pictures: Option<Box<crate::st_converter::Converter>>,
+    c64_pictures: Option<Box<crate::c64_converter::Converter>>,
     /// The blitter minterm calculator and the table generator, while they're open.
     demo_tools: demo_tools_host::DemoTools,
     /// The Atari ST hardware guide and the blitter and timer calculators, while they're open.
@@ -1627,6 +1630,7 @@ impl Limoniter {
             amiga_hw: None,
             bitplanes: None,
             st_pictures: None,
+            c64_pictures: None,
             demo_tools: Default::default(),
             st_tools: Default::default(),
             c64_tools: Default::default(),
@@ -3750,6 +3754,7 @@ impl Limoniter {
             }
             Command::AmigaBitplanes => self.open_bitplane_converter(),
             Command::StPictures => self.open_st_converter(),
+            Command::C64Pictures => self.open_c64_converter(),
             Command::PixelEditor => {
                 if self.pixel_editor.is_none() {
                     self.pixel_editor = Some(Box::new(crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters)));
@@ -6816,6 +6821,7 @@ impl Limoniter {
         self.amiga_hw_window(&ctx);
         self.bitplane_window(&ctx);
         self.st_converter_window(&ctx);
+        self.c64_converter_window(&ctx);
         self.demo_tools_windows(&ctx);
         self.st_tools_windows(&ctx);
         self.c64_tools_windows(&ctx);
@@ -7552,6 +7558,8 @@ mod amiga_hw_host;
 mod bitplane_host;
 #[path = "st_converter_host.rs"]
 mod st_converter_host;
+#[path = "c64_converter_host.rs"]
+mod c64_converter_host;
 #[path = "demo_tools_host.rs"]
 mod demo_tools_host;
 #[path = "st_hw_host.rs"]

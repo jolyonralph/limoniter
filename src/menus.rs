@@ -515,6 +515,7 @@ const TOOLS: &[Entry] = &[
         "Commodore 64",
         &[
             Item("VIC-II, SID, CIA and KERNAL guide", Command::C64Hardware),
+            Item("Picture, sprite and charset converter", Command::C64Pictures),
             Item("Raster line calculator", Command::C64RasterLines),
             Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
             Item("SID music and packers\u{2026}", Command::C64Tools),

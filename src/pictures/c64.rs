@@ -5,6 +5,12 @@
 //! - OCP Advanced Art Studio (load $2000, 10018 bytes): multicolour bitmap, screen RAM, border, background, 14
 //!   spare bytes, colour RAM.
 //! - Doodle! (load $5C00, 9218 bytes): screen RAM in a 1024-byte block, then a hires bitmap.
+//! - FLI Designer (load $3C00, 17409 bytes): colour RAM, eight screen RAMs (one for each line of a cell), each in a
+//!   1024-byte block, then a multicolour bitmap; the background is black.
+//! - AFLI (load $4000, 16385 bytes): eight screen RAMs, then a hires bitmap.
+//!
+//! In the FLI ones the VIC-II can't show the first three columns' colours (the "FLI bug"), so they're left out, as
+//! RECOIL leaves them out: the picture is 296 pixels across.
 //!
 //! The bitmap is in 8x8 cells, left to right and down, each cell's 8 bytes its rows. In hires each bit is a pixel,
 //! the screen RAM's high nibble for 1 and low nibble for 0. In multicolour each pair of bits is a pixel twice as
@@ -19,6 +25,8 @@ enum Kind {
     ArtStudio,
     AdvancedArtStudio,
     Doodle,
+    Fli,
+    Afli,
 }
 
 fn kind(bytes: &[u8]) -> Option<Kind> {
@@ -29,6 +37,8 @@ fn kind(bytes: &[u8]) -> Option<Kind> {
         (0x2000, 9009) => Some(Kind::ArtStudio),
         (0x2000, 10018) => Some(Kind::AdvancedArtStudio),
         (0x5C00, 9218) => Some(Kind::Doodle),
+        (0x3C00, 17409) => Some(Kind::Fli),
+        (0x4000, 16385) => Some(Kind::Afli),
         _ => None,
     }
 }
@@ -44,12 +54,15 @@ fn colour(index: u8) -> [u8; 3] {
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     let kind = kind(bytes).ok_or("This isn't a Commodore 64 picture Limoniter knows.")?;
+    if matches!(kind, Kind::Fli | Kind::Afli) {
+        return Ok(decode_fli(bytes, kind == Kind::Fli));
+    }
     // Where the bitmap, screen RAM and colour RAM are, the background colour, and whether it's multicolour.
     let (bitmap, screen, colours, background, multicolour, name) = match kind {
         Kind::Koala => (2, 8002, Some(9002), bytes[10002], true, "Koala Painter"),
         Kind::ArtStudio => (2, 8002, None, 0, false, "OCP Art Studio"),
         Kind::AdvancedArtStudio => (2, 8002, Some(9018), bytes[9003], true, "OCP Advanced Art Studio"),
-        Kind::Doodle => (1026, 2, None, 0, false, "Doodle!"),
+        Kind::Doodle | Kind::Fli | Kind::Afli => (1026, 2, None, 0, false, "Doodle!"),
     };
     let mut picture = Picture::new(320, 200);
     for cell_y in 0..25 {
@@ -82,6 +95,37 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     picture.note("Colours", if multicolour { "4 in each 4\u{D7}8 cell, from the C64's 16" } else { "2 in each 8\u{D7}8 cell, from the C64's 16" });
     picture.note("Saved by", name);
     Ok(picture)
+}
+
+/// FLI and AFLI: the screen RAM for each line is the block for its place in the cell.
+fn decode_fli(bytes: &[u8], multicolour: bool) -> Picture {
+    let (colours, screens, bitmap) = if multicolour { (2, 0x402, 0x2402) } else { (0, 2, 0x2002) };
+    let at = |i: usize| bytes.get(i).copied().unwrap_or(0);
+    let mut picture = Picture::new(296, 200);
+    for y in 0..200 {
+        for x in 24..320 {
+            let cell = (y / 8) * 40 + x / 8;
+            let pixels = at(bitmap + cell * 8 + (y & 7));
+            let screen_byte = at(screens + (y & 7) * 1024 + cell);
+            let index = if multicolour {
+                match (pixels >> (6 - (x & 6))) & 3 {
+                    0 => 0,
+                    1 => screen_byte >> 4,
+                    2 => screen_byte & 15,
+                    _ => at(colours + cell),
+                }
+            } else if pixels & (0x80 >> (x & 7)) != 0 {
+                screen_byte >> 4
+            } else {
+                screen_byte & 15
+            };
+            picture.set(x - 24, y, colour(index));
+        }
+    }
+    picture.note("Size", if multicolour { "296\u{D7}200, each pixel twice as wide (FLI; the first 3 columns can't be shown)" } else { "296\u{D7}200 (AFLI; the first 3 columns can't be shown)" });
+    picture.note("Colours", if multicolour { "Black, one for the cell and 2 more in each 4\u{D7}1, from the C64's 16" } else { "2 in each 8\u{D7}1, from the C64's 16" });
+    picture.note("Saved by", if multicolour { "FLI Designer" } else { "AFLI editor" });
+    picture
 }
 
 #[cfg(test)]
