@@ -1044,7 +1044,8 @@ pub mod tests {
         for folder in folders.flatten().map(|f| f.path()).filter(|p| p.is_dir()) {
             for file in std::fs::read_dir(&folder).unwrap().flatten().map(|f| f.path()).filter(|p| p.is_file()) {
                 let name = file.file_name().unwrap().to_string_lossy().into_owned();
-                let bytes = std::fs::read(&file).unwrap();
+                // The user's own drive sometimes can't be read for a moment; such a file is passed over.
+                let Ok(bytes) = std::fs::read(&file) else { continue };
                 let mac = looks_like_disk_copy(&bytes[..bytes.len().min(84)], bytes.len() as u64) || name.ends_with(".zip") && folder.ends_with("mac128k");
                 if mac && let Ok(volume) = open(Arc::new(bytes), &name) {
                     disks += 1;

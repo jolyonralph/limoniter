@@ -23,6 +23,9 @@ pub(super) struct AssemblerBox {
     pub rows: Vec<AssemblerRow>,
     /// The processor being chosen for.
     pub showing: usize,
+    /// KickAssembler being downloaded, when asked, and what came of the last try.
+    pub kickass: Option<std::sync::mpsc::Receiver<Result<PathBuf, String>>>,
+    pub kickass_said: String,
 }
 
 pub(super) struct AssemblerRow {
@@ -421,16 +424,35 @@ impl Limoniter {
     pub(super) fn open_assembler_box(&mut self) {
         let showing = self.doc_cpu(self.active).and_then(|cpu| Cpu::ALL.iter().position(|c| *c == cpu)).unwrap_or(0);
         let rows = Cpu::ALL.iter().map(|cpu| AssemblerRow { cpu: *cpu, found: assemblers::installed(*cpu), chosen: self.assembler_for(*cpu) }).collect();
-        self.dialog = Dialog::Assembler(Box::new(AssemblerBox { rows, showing }));
+        self.dialog = Dialog::Assembler(Box::new(AssemblerBox { rows, showing, kickass: None, kickass_said: String::new() }));
     }
 
     pub(super) fn assembler_dialog(&mut self, ctx: &Context) -> bool {
         let Dialog::Assembler(state) = &mut self.dialog else {
             return false;
         };
+        // A download of KickAssembler that's finished: chosen for 6502 source.
+        if let Some(rx) = &state.kickass {
+            match rx.try_recv() {
+                Ok(Ok(path)) => {
+                    state.kickass = None;
+                    state.kickass_said = format!("Downloaded to {}.", path.display());
+                    if let Some(row) = state.rows.iter_mut().find(|r| r.cpu == Cpu::M6502) {
+                        row.found = assemblers::installed(Cpu::M6502);
+                        row.chosen = Choice::Program { id: "kickass", path };
+                    }
+                }
+                Ok(Err(problem)) => {
+                    state.kickass = None;
+                    state.kickass_said = problem;
+                }
+                Err(_) => ctx.request_repaint_after(std::time::Duration::from_millis(100)),
+            }
+        }
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
         let mut browse = false;
+        let mut fetch_kickass = false;
         egui::Window::new("Assemblers").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it.");
             ui.add_space(6.0);
@@ -464,6 +486,25 @@ impl Limoniter {
                 let words: Vec<String> = others.iter().map(|e| format!("{} ({})", e.name, e.website)).collect();
                 ui.add(egui::Label::new(RichText::new(format!("Not found on this computer: {}. Once installed, they appear here; or point to one.", words.join(", "))).color(theme::text_dim()).size(12.0)).wrap());
             }
+            // KickAssembler can be fetched from its author's website, on request, with a plain word about its terms.
+            if row.cpu == Cpu::M6502 && others.iter().any(|e| e.id == "kickass") {
+                ui.add_space(4.0);
+                ui.add(egui::Label::new(RichText::new(crate::c64_assemblers::KICKASS_NOTE).size(12.0)).wrap());
+                ui.horizontal(|ui| {
+                    if state.kickass.is_some() {
+                        ui.spinner();
+                        ui.label("Downloading\u{2026}");
+                    } else {
+                        fetch_kickass = ui.button("Download KickAssembler from theweb.dk").on_hover_text(crate::c64_assemblers::KICKASS_DOWNLOAD).clicked();
+                    }
+                });
+                if crate::c64_assemblers::find_java().is_none() {
+                    ui.colored_label(theme::change_unsaved(), "Java wasn't found on this computer; KickAssembler needs it to run.");
+                }
+            }
+            if !state.kickass_said.is_empty() {
+                ui.colored_label(theme::text_dim(), &state.kickass_said);
+            }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 browse = ui.button("Point to an assembler\u{2026}").clicked();
@@ -471,6 +512,16 @@ impl Limoniter {
                 close |= ui.button("Cancel").clicked();
             });
         });
+        if fetch_kickass
+            && let Dialog::Assembler(state) = &mut self.dialog
+        {
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(crate::c64_assemblers::download_kickass());
+            });
+            state.kickass_said.clear();
+            state.kickass = Some(rx);
+        }
         if browse
             && let Some(path) = rfd::FileDialog::new().set_title("The assembler program").pick_file()
             && let Dialog::Assembler(state) = &mut self.dialog

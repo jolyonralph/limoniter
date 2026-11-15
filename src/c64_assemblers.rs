@@ -27,6 +27,10 @@ pub fn find_kickass() -> Option<PathBuf> {
     if let Some(named) = std::env::var_os("KICKASS_JAR").map(PathBuf::from).filter(|p| p.is_file()) {
         return Some(named);
     }
+    // One downloaded by Limoniter, when asked.
+    if let Some(jar) = kickass_folder().map(|f| f.join("KickAss.jar")).filter(|p| p.is_file()) {
+        return Some(jar);
+    }
     let mut folders: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
     let mut roots: Vec<PathBuf> = Vec::new();
     for variable in ["HOME", "USERPROFILE"] {
@@ -59,6 +63,46 @@ pub fn find_kickass() -> Option<PathBuf> {
         }
     }
     folders.into_iter().map(|f| f.join("KickAss.jar")).find(|c| c.is_file())
+}
+
+/// Where KickAssembler's own download comes from: its author's website.
+pub const KICKASS_DOWNLOAD: &str = "https://theweb.dk/KickAssembler/KickAssembler.zip";
+
+/// What the person is told before KickAssembler is downloaded.
+pub const KICKASS_NOTE: &str = "KickAssembler is Mads Nielsen's, free to download from theweb.dk. Neither its download nor its website states a licence, so Limoniter doesn't include it: it fetches it from there only when you ask, and keeps it beside the settings. Check its terms yourself before you pass it on. It needs Java.";
+
+/// Where a downloaded KickAssembler is kept.
+fn kickass_folder() -> Option<PathBuf> {
+    if cfg!(test) {
+        return None;
+    }
+    crate::settings::data_folder().map(|dir| dir.join("kickassembler"))
+}
+
+/// Downloads KickAssembler from its website and keeps KickAss.jar and its manual (not KickAss.cfg, which can tell
+/// it to start an emulator itself). Gives the jar's path.
+pub fn download_kickass() -> Result<PathBuf, String> {
+    let folder = kickass_folder().ok_or("There's nowhere to keep it: Limoniter's settings folder couldn't be found.")?;
+    let response = ureq::get(KICKASS_DOWNLOAD).header("User-Agent", "Limoniter").call().map_err(|e| format!("theweb.dk couldn't be reached: {e}"))?;
+    let zip = response.into_body().with_config().limit(32 << 20).read_to_vec().map_err(|e| format!("The download stopped: {e}"))?;
+    unpack_kickass(zip, &folder)
+}
+
+/// Takes KickAss.jar and the manual out of KickAssembler's zip into a folder, with a note of where they came from.
+fn unpack_kickass(zip: Vec<u8>, folder: &Path) -> Result<PathBuf, String> {
+    let volume = crate::media::open(std::sync::Arc::new(zip), "KickAssembler.zip")?;
+    let entries = volume.list(None)?;
+    let jar = entries.iter().find(|e| e.name.eq_ignore_ascii_case("KickAss.jar")).ok_or("The download has no KickAss.jar in it.")?;
+    std::fs::create_dir_all(folder).map_err(|e| format!("{} couldn't be made: {e}", folder.display()))?;
+    let path = folder.join("KickAss.jar");
+    std::fs::write(&path, volume.read(jar)?).map_err(|e| format!("{} couldn't be saved: {e}", path.display()))?;
+    if let Some(manual) = entries.iter().find(|e| e.name.eq_ignore_ascii_case("KickAssembler.pdf"))
+        && let Ok(bytes) = volume.read(manual)
+    {
+        let _ = std::fs::write(folder.join("KickAssembler.pdf"), bytes);
+    }
+    let _ = std::fs::write(folder.join("README.txt"), format!("KickAssembler by Mads Nielsen, downloaded from {KICKASS_DOWNLOAD} when asked.\nNo licence is stated with it; see http://theweb.dk/KickAssembler/ for its terms.\n"));
+    Ok(path)
 }
 
 /// A problem as KickAssembler or 64tass prints it. Some(None) for a line in their way that isn't an error (a
@@ -468,5 +512,57 @@ mod tests {
         let lines: Vec<(usize, usize, i64, Vec<u8>)> = assembly.lines.iter().map(|p| (p.file, p.line, p.address, p.bytes.clone())).collect();
         assert_eq!(lines, [(0, 1, 0xC000, vec![1, 2, 3, 4, 5, 6]), (0, 4, 0xC006, vec![0xA9, 1]), (1, 0, 0xC008, vec![0x60]), (0, 8, 0xC009, vec![0xEA])]);
         assert_eq!(assembly.files[1], PathBuf::from("/src/inc.asm"));
+    }
+
+    fn stored_zip(files: &[(&str, Vec<u8>)]) -> Vec<u8> {
+        let (mut out, mut directory) = (Vec::new(), Vec::new());
+        for (name, bytes) in files {
+            let at = out.len() as u32;
+            let sizes = [(bytes.len() as u32).to_le_bytes(), (bytes.len() as u32).to_le_bytes()].concat();
+            out.extend(b"PK\x03\x04\x14\0\0\0\0\0\0\0\0\0\0\0\0\0");
+            out.extend(&sizes);
+            out.extend((name.len() as u16).to_le_bytes());
+            out.extend([0, 0]);
+            out.extend(name.as_bytes());
+            out.extend(bytes);
+            directory.extend(b"PK\x01\x02\x14\0\x14\0\0\0\0\0\0\0\0\0\0\0\0\0");
+            directory.extend(&sizes);
+            directory.extend((name.len() as u16).to_le_bytes());
+            directory.extend([0u8; 12]);
+            directory.extend(at.to_le_bytes());
+            directory.extend(name.as_bytes());
+        }
+        let start = out.len() as u32;
+        out.extend(&directory);
+        out.extend(b"PK\x05\x06\0\0\0\0");
+        out.extend((files.len() as u16).to_le_bytes());
+        out.extend((files.len() as u16).to_le_bytes());
+        out.extend((directory.len() as u32).to_le_bytes());
+        out.extend(start.to_le_bytes());
+        out.extend([0, 0]);
+        out
+    }
+
+    #[test]
+    fn kickassembler_s_zip_gives_its_jar_and_manual_but_not_its_settings() {
+        let zip = stored_zip(&[("KickAss.cfg", b"-execute x64sc".to_vec()), ("KickAss.jar", b"PK jar".to_vec()), ("KickAssembler.pdf", b"%PDF".to_vec())]);
+        let folder = std::env::temp_dir().join(format!("limoniter-kick-{}", std::process::id()));
+        let jar = unpack_kickass(zip, &folder).unwrap();
+        assert_eq!(std::fs::read(&jar).unwrap(), b"PK jar");
+        assert!(folder.join("KickAssembler.pdf").is_file());
+        assert!(!folder.join("KickAss.cfg").exists(), "its settings could start an emulator by themselves");
+        assert!(std::fs::read_to_string(folder.join("README.txt")).unwrap().contains("No licence"));
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    /// KickAssembler's real download, unpacked: LIMONITER_KICKASS_ZIP=<KickAssembler.zip> cargo test -- --ignored
+    #[test]
+    #[ignore]
+    fn kickassembler_s_real_zip_unpacks() {
+        let Ok(zip) = std::env::var("LIMONITER_KICKASS_ZIP") else { return };
+        let folder = std::env::temp_dir().join(format!("limoniter-kick-real-{}", std::process::id()));
+        let jar = unpack_kickass(std::fs::read(zip).unwrap(), &folder).unwrap();
+        assert!(std::fs::metadata(&jar).unwrap().len() > 100_000);
+        let _ = std::fs::remove_dir_all(&folder);
     }
 }
