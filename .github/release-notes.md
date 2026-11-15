@@ -1,28 +1,38 @@
-## What's new in 0.8.0
+## What's new in 0.9.0
 
-Limoniter now runs on Linux, writes to many more machines' disks, and converts Amiga and Atari ST word processor documents.
+Limoniter now compares files and whole folders, keeps folders in sync, and merges three versions of a file, and Git can use it for diffs and conflicts. There are also new tools for writing demos and intros on the Amiga, Atari ST and Commodore 64.
 
-**Linux**
-- **AppImage and .deb** downloads, for 64-bit Intel and AMD computers. It runs under Wayland and X11, and remote-file passwords are kept in GNOME Keyring or KWallet.
+**Compare and merge**
+- **Compare files…** opens two files side by side in a tab, and both sides can be edited. Changed lines and the words within them are marked. An arrow copies a difference across, and Undo takes it back. Spaces, case and line endings can be ignored, and the differences can be saved as a patch. Binary files are compared byte by byte in hex, and pictures as pictures, with where they differ shown.
+- **Compare folders…** compares two folders as a tree. Either side can be a folder, a Git revision, a disk image or archive, or a folder on an SFTP server. You can compare by size and time or by contents, and leave out what `.gitignore` leaves out.
+- **Update** and **Mirror** keep folders in sync. You see every copy and deletion before anything happens, deletions are confirmed a second time, and each file that's replaced or deleted is backed up first. Files changed on both sides since the last sync are shown as conflicts and left alone.
+- **Saved comparisons** keep their sides, filters and rules. They're saved in your project or on their own. **Rules** set how each kind of file is compared (as text that ignores timestamps, as bytes, as pictures, or skipped), and by default build folders such as `.git/`, `target/` and `node_modules/` are skipped.
+- **Reports** can be saved as HTML, text, a counts-only summary, or CSV. **Apply a patch** shows what fits before anything is changed, and backs up each file first.
+- **Merge** shows the original, mine and theirs above a result you can edit. Changes made on only one side are merged already, and each conflict waits for Take mine, Take theirs or Take both.
+- **Git:** files with conflicts get **Resolve in merge…**. **Use Limoniter for Git diff and merge** makes `git difftool` and `git mergetool` open Limoniter. It asks first if you already use another tool, and **Stop using Limoniter for Git** puts back your earlier settings. The command line takes `limoniter --diff LEFT RIGHT` and `limoniter --merge BASE MINE THEIRS RESULT`.
 
-**Changing more disk images**
-- **Add, delete and rename files** on Apple II DOS 3.3 and ProDOS disks, BBC Micro DFS and ADFS discs, Spectrum TR-DOS disks and SCL archives, Mac HFS disks (resource forks, types and creators included), and Atari MyDOS and SpartaDOS disks; Applesoft and TR-DOS BASIC listings are tokenised as they go on.
-- **New blank images** for each of them: Apple II 140K and 800K, BBC 100K to 640K, TR-DOS 640K, Mac 400K, 800K and 1.4MB, MyDOS and SpartaDOS.
-- Each is checked against its machine's own tools: AppleCommander, a2kit, beebtools, MMB_Utils, Apple's fsck_hfs, hfsutils, lsatr, and a Pentagon's TR-DOS running in ZEsarUX.
+**Amiga**
+- **Code hints** from the Amiga NDK 3.2, downloaded from Aminet when you ask: what each function does and its arguments, `_LVO` offsets in the 68000 assembler, and structure fields on hover.
+- **A guide to the hardware registers** for OCS, ECS and AGA, shown on hover, plus copper list tools.
+- **A bitplane converter** that turns a PNG or JPEG into planes, a palette, ILBM, source, sprites and bobs.
+- **Executables** built by the 68000 assembler, which run in FS-UAE or WinUAE, and source-level debugging through their GDB servers.
+- **Demo tools:** a blitter minterm calculator, a table generator, and demo and copper starters. Shrinkler, Cranker, LSPConvert and P61 can be run on your files, and ProTracker modules show their details.
 
-**Amiga and Atari ST documents**
-- **Converted to Markdown, plain text or RTF**: IFF formatted text (FTXT), ProWrite, AmigaGuide (each node a section, with its links), Protext, 1st Word and 1st Word Plus, WordPerfect 4 and 5 (Amiga, ST and DOS), Signum! 1 and 2, Final Writer and Wordworth. Bold, italics, underlining, headings, footnotes, headers and footers are kept.
+**Atari ST**
+- **A guide to the hardware registers**, shown on hover, TOS calls, and calculators for the STE blitter and MFP timers, plus ST and STE demo starters.
+- **A picture, sprite and font converter**, and Spectrum 512 pictures read and written.
+- **Running in Hatari**: choose the machine, memory, monitor and CPU. Limoniter finds your TOS, or downloads EmuTOS. It makes bootable floppies and uses Hatari's profiler by label and line.
+- **Music and packers:** SNDH and YM details, Pack-Ice and Atomik files unpacked wherever they're opened, and YM2149 tables.
 
-**More media read**
-- **Oric** Sedoric disks, **ZX81** programs on TZX tapes, **Color Computer and Dragon** `.cas` tapes, **Atari 8-bit** Koala and HIP pictures, **Compact Pro** archives and **Disk Copy 6** images.
-- **Flux images** of Commodore 1571 disks, Apple II 13-sector disks, and Mac 400K and 800K disks.
+**Commodore 64**
+- **KickAssembler and 64tass**, with KickAssembler downloaded when you ask (its download states no licence, and Limoniter says so first). A guide to the VIC-II, SID, CIA and KERNAL, shown on hover.
+- **Raster timing:** 6502 cycle counts, a raster line calculator, stable raster interrupts, and demo and intro starters.
+- **A picture, sprite and charset converter**, with C64 modes in the character and sprite editor.
+- **SID tunes, packers, CRT cartridges and TAP tapes.**
 
-**Easier to use**
-- **File › Open a file from the web**: opens a file from an http or https address.
-- **Open recent** has **Clean up** (removes files that are gone) and **Clear list**.
-- **Screen readers** can follow the editor, tabs, the command box and the image browser; **F10** opens the menus, and **Ctrl+F6** moves out of the editor.
-- **OpticOS**: the Spectrum keyboard shows OpticOS's own keys.
-- **A user guide** on the website: [limoniter.com/guide](https://limoniter.com/guide/).
+**Also**
+- **OpticOS 1.0.2**, and Limoniter checks OpticOS's releases for newer ROMs and installs them (this can be turned off).
+- Hatari keeps the program's output in the log while you're debugging.
 
 ## Downloads
 
