@@ -1,0 +1,259 @@
+# Cycles for each 6502/6510 opcode, from the instruction set reference at https://www.masswerk.at/6502/6502_instruction_set.html
+# (documented and "illegal" opcodes). Opcode, cycles, then + for one more on a page crossing or b for a branch
+# (one more taken, two into another page). jam: the opcode stops the processor.
+00 7
+01 6
+02 jam
+03 8
+04 3
+05 3
+06 5
+07 5
+08 3
+09 2
+0A 2
+0B 2
+0C 4
+0D 4
+0E 6
+0F 6
+10 2 b
+11 5 +
+12 jam
+13 8
+14 4
+15 4
+16 6
+17 6
+18 2
+19 4 +
+1A 2
+1B 7
+1C 4 +
+1D 4 +
+1E 7
+1F 7
+20 6
+21 6
+22 jam
+23 8
+24 3
+25 3
+26 5
+27 5
+28 4
+29 2
+2A 2
+2B 2
+2C 4
+2D 4
+2E 6
+2F 6
+30 2 b
+31 5 +
+32 jam
+33 8
+34 4
+35 4
+36 6
+37 6
+38 2
+39 4 +
+3A 2
+3B 7
+3C 4 +
+3D 4 +
+3E 7
+3F 7
+40 6
+41 6
+42 jam
+43 8
+44 3
+45 3
+46 5
+47 5
+48 3
+49 2
+4A 2
+4B 2
+4C 3
+4D 4
+4E 6
+4F 6
+50 2 b
+51 5 +
+52 jam
+53 8
+54 4
+55 4
+56 6
+57 6
+58 2
+59 4 +
+5A 2
+5B 7
+5C 4 +
+5D 4 +
+5E 7
+5F 7
+60 6
+61 6
+62 jam
+63 8
+64 3
+65 3
+66 5
+67 5
+68 4
+69 2
+6A 2
+6B 2
+6C 5
+6D 4
+6E 6
+6F 6
+70 2 b
+71 5 +
+72 jam
+73 8
+74 4
+75 4
+76 6
+77 6
+78 2
+79 4 +
+7A 2
+7B 7
+7C 4 +
+7D 4 +
+7E 7
+7F 7
+80 2
+81 6
+82 2
+83 6
+84 3
+85 3
+86 3
+87 3
+88 2
+89 2
+8A 2
+8B 2
+8C 4
+8D 4
+8E 4
+8F 4
+90 2 b
+91 6
+92 jam
+93 6
+94 4
+95 4
+96 4
+97 4
+98 2
+99 5
+9A 2
+9B 5
+9C 5
+9D 5
+9E 5
+9F 5
+A0 2
+A1 6
+A2 2
+A3 6
+A4 3
+A5 3
+A6 3
+A7 3
+A8 2
+A9 2
+AA 2
+AB 2
+AC 4
+AD 4
+AE 4
+AF 4
+B0 2 b
+B1 5 +
+B2 jam
+B3 5 +
+B4 4
+B5 4
+B6 4
+B7 4
+B8 2
+B9 4 +
+BA 2
+BB 4 +
+BC 4 +
+BD 4 +
+BE 4 +
+BF 4 +
+C0 2
+C1 6
+C2 2
+C3 8
+C4 3
+C5 3
+C6 5
+C7 5
+C8 2
+C9 2
+CA 2
+CB 2
+CC 4
+CD 4
+CE 6
+CF 6
+D0 2 b
+D1 5 +
+D2 jam
+D3 8
+D4 4
+D5 4
+D6 6
+D7 6
+D8 2
+D9 4 +
+DA 2
+DB 7
+DC 4 +
+DD 4 +
+DE 7
+DF 7
+E0 2
+E1 6
+E2 2
+E3 8
+E4 3
+E5 3
+E6 5
+E7 5
+E8 2
+E9 2
+EA 2
+EB 2
+EC 4
+ED 4
+EE 6
+EF 6
+F0 2 b
+F1 5 +
+F2 jam
+F3 8
+F4 4
+F5 4
+F6 6
+F7 6
+F8 2
+F9 4 +
+FA 2
+FB 7
+FC 4 +
+FD 4 +
+FE 7
+FF 7

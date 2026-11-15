@@ -1809,6 +1809,21 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         }
     }
 
+    // In 6502 source, each line's cycles at the right, where the line leaves room.
+    if let (Some(intel), Some(top), Some(bottom)) = (b.intel.as_deref(), l.slots.first(), l.slots.last()) {
+        let notes = crate::m6502_timing::line_notes(intel, b.version(), top.line, bottom.line);
+        let small = FontId::monospace((f.size * 0.85).round());
+        for (index, slot) in l.slots.iter().enumerate().filter(|(_, s)| s.sub == 0) {
+            if let Some(text) = notes.get(&slot.line) {
+                let right = view.max.x - cell.x;
+                let end = col_at(slot.start, display_text(&b.line(slot.line)).trim_end().chars().count());
+                if end + cell.x * (text.len() as f32 + 1.0) < right {
+                    painter.text(pos2(right, row_y(index) + 1.0), Align2::RIGHT_TOP, text, small.clone(), theme::gutter_text());
+                }
+            }
+        }
+    }
+
     // The line numbers and ruler stay put while the text scrolls under them.
     let gutter_rect = Rect::from_min_max(view.min, pos2(view.min.x + gutter, view.max.y));
     painter.rect_filled(gutter_rect, 0.0, theme::gutter_back());

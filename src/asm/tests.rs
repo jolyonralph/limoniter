@@ -185,7 +185,10 @@ fn the_6502_says_how_long_instructions_take() {
     assert_eq!(t("  sta $1234,x"), "5");
     assert_eq!(t("  inc $10"), "5");
     assert_eq!(t("  jsr $1000"), "6");
-    assert_eq!(t("- bne -"), "2/3");
+    // A branch takes one more taken, and another into a different page, which its address tells.
+    assert_eq!(t("- bne -"), "2/4");
+    let a = m6502("*=$1000\n- bne -\n");
+    assert_eq!(Isa::cycles_at(&m6502::M6502, &a.chunks[0].bytes, 0x1000).unwrap(), "2/3");
 }
 
 #[test]
@@ -405,4 +408,16 @@ fn include_looks_in_the_folders_given_after_the_source_s_own() {
     let _ = std::fs::remove_dir_all(&folder);
     assert!(assembly.ok(), "{:?}", assembly.problems);
     assert_eq!(assembly.chunks.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>(), [42]);
+}
+
+/// ACME's !align: on until the address ANDed with the first value is the second, with NOPs unless told otherwise
+/// (as ACME 0.97 assembled it).
+#[test]
+fn acme_aligns_by_and_and_equal() {
+    let a = m6502("*=$1001\n !byte 1\n !align 3, 0\n !byte 2\n !align 7, 5\n !byte 3\n !align 15, 0, $11\n !byte 4\n");
+    assert!(a.ok(), "{:?}", a.problems);
+    let mut want = vec![1, 0xEA, 0xEA, 2, 3];
+    want.extend([0x11; 10]);
+    want.push(4);
+    assert_eq!(a.image(0x1001, 0x1011), want);
 }

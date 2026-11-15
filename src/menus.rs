@@ -33,6 +33,7 @@ pub(super) enum Flag {
     FullScreen,
     Spelling,
     GitBlame,
+    CycleCounts,
     AssistantPanel,
     Panel(PanelFlag),
 }
@@ -504,6 +505,14 @@ const TOOLS: &[Entry] = &[
             Item("MFP timers", Command::AtariTimers),
         ],
     ),
+    Sub(
+        "Commodore 64",
+        &[
+            Item("Raster line calculator", Command::C64RasterLines),
+            Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
+            Check("Cycle counts beside 6502 code", Flag::CycleCounts),
+        ],
+    ),
     Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
     Sub(
         "Tasks",
@@ -799,6 +808,7 @@ impl Limoniter {
             Flag::FullScreen => self.full_screen,
             Flag::Spelling => self.prefs.spelling,
             Flag::GitBlame => self.git.blame_on,
+            Flag::CycleCounts => crate::m6502_timing::shown(),
             Flag::AssistantPanel => self.assist_panel.open,
             Flag::Panel(panel) => self.panel_on(panel),
         }
@@ -825,6 +835,10 @@ impl Limoniter {
             Flag::OutputWindow => &mut self.show_results,
             Flag::GitBlame => {
                 self.git.blame_on = !self.git.blame_on;
+                return;
+            }
+            Flag::CycleCounts => {
+                crate::m6502_timing::show(!crate::m6502_timing::shown());
                 return;
             }
             Flag::AssistantPanel => {

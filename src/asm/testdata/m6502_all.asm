@@ -208,6 +208,22 @@ start:
   asr #$12
   arr #$12
   sbx #$12
+  nop #$12
+  nop $34
+  nop $34,x
+  nop $1234
+  nop $1234,x
+  dop #$12
+  top $1234
+  lxa #0
+  ane #0
+  las $1234,y
+  tas $1234,y
+  sha ($34),y
+  sha $1234,y
+  shx $1234,y
+  shy $1234,x
+  jam
 zp = $fb
   lda zp
   sta zp,x

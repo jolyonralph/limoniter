@@ -196,8 +196,14 @@ impl CodeIntel {
         let placed = assembly.lines.iter().find(|p| p.file == self.file && p.line == line && !p.bytes.is_empty())?;
         let bytes: Vec<String> = placed.bytes.iter().take(8).map(|b| format!("{b:02X}")).collect();
         let more = if placed.bytes.len() > 8 { " \u{2026}" } else { "" };
-        let time = self.cpu.and_then(|cpu| cpu.isa().cycles(&placed.bytes)).map(|c| format!(", {c} {}", if self.cpu == Some(Cpu::Z80) { "T-states" } else { "cycles" })).unwrap_or_default();
-        Some(format!("${:04X}: {}{more} ({} byte{}{time})", placed.address, bytes.join(" "), placed.bytes.len(), if placed.bytes.len() == 1 { "" } else { "s" }))
+        let time = self.cpu.and_then(|cpu| cpu.isa().cycles_at(&placed.bytes, placed.address)).map(|c| format!(", {c} {}", if self.cpu == Some(Cpu::Z80) { "T-states" } else { "cycles" })).unwrap_or_default();
+        // On the 6502, what may add a cycle: an index crossing a page, a branch taken.
+        let why = if self.cpu == Some(Cpu::M6502) && crate::m6502_timing::is_instruction(&placed.bytes) {
+            crate::m6502_timing::explain(&placed.bytes, Some(placed.address)).and_then(|w| w.split_once(" (").map(|(_, why)| format!("\n({why}"))).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        Some(format!("${:04X}: {}{more} ({} byte{}{time}){why}", placed.address, bytes.join(" "), placed.bytes.len(), if placed.bytes.len() == 1 { "" } else { "s" }))
     }
 
     /// What can finish the word being typed on a line: labels (a local label only in its own part of the program),

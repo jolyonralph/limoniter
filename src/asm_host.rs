@@ -506,7 +506,8 @@ impl Limoniter {
         let shown: Vec<String> = placed.bytes.iter().take(8).map(|b| format!("{b:02X}")).collect();
         let more = if placed.bytes.len() > 8 { format!(" \u{2026} ({} bytes)", placed.bytes.len()) } else { String::new() };
         let cpu = self.doc_cpu(self.docs.iter().position(|d| d.id == doc_id)?)?;
-        let timing = cpu.isa().cycles(&placed.bytes).filter(|_| placed.bytes.len() <= 4).map(|t| format!(", {t} T-states")).unwrap_or_default();
+        let unit = if cpu == Cpu::Z80 { "T-states" } else { "cycles" };
+        let timing = cpu.isa().cycles_at(&placed.bytes, address).filter(|_| placed.bytes.len() <= 4).map(|t| format!(", {t} {unit}")).unwrap_or_default();
         Some(format!("${address:04X}: {}{more}{timing}", shown.join(" ")))
     }
 }

@@ -60,7 +60,7 @@ const OPCODES: &[(&str, &[(Mode, u8)])] = &[
     ("ldx", &[(Immediate, 0xA2), (ZeroPage, 0xA6), (ZeroPageY, 0xB6), (Absolute, 0xAE), (AbsoluteY, 0xBE)]),
     ("ldy", &[(Immediate, 0xA0), (ZeroPage, 0xA4), (ZeroPageX, 0xB4), (Absolute, 0xAC), (AbsoluteX, 0xBC)]),
     ("lsr", &[(Accumulator, 0x4A), (ZeroPage, 0x46), (ZeroPageX, 0x56), (Absolute, 0x4E), (AbsoluteX, 0x5E)]),
-    ("nop", &[(Implied, 0xEA)]),
+    ("nop", &[(Implied, 0xEA), (Immediate, 0x80), (ZeroPage, 0x04), (ZeroPageX, 0x14), (Absolute, 0x0C), (AbsoluteX, 0x1C)]),
     ("ora", &[(Immediate, 0x09), (ZeroPage, 0x05), (ZeroPageX, 0x15), (Absolute, 0x0D), (AbsoluteX, 0x1D), (AbsoluteY, 0x19), (IndirectX, 0x01), (IndirectY, 0x11)]),
     ("pha", &[(Implied, 0x48)]),
     ("php", &[(Implied, 0x08)]),
@@ -96,6 +96,15 @@ const OPCODES: &[(&str, &[(Mode, u8)])] = &[
     ("alr", &[(Immediate, 0x4B)]),
     ("arr", &[(Immediate, 0x6B)]),
     ("sbx", &[(Immediate, 0xCB)]),
+    // The unstable ones, which few programs use, and JAM, which stops the processor.
+    ("lxa", &[(Immediate, 0xAB)]),
+    ("ane", &[(Immediate, 0x8B)]),
+    ("las", &[(AbsoluteY, 0xBB)]),
+    ("tas", &[(AbsoluteY, 0x9B)]),
+    ("sha", &[(AbsoluteY, 0x9F), (IndirectY, 0x93)]),
+    ("shx", &[(AbsoluteY, 0x9E)]),
+    ("shy", &[(AbsoluteX, 0x9C)]),
+    ("jam", &[(Implied, 0x02)]),
 ];
 
 /// Other names some assemblers use for the undocumented ones.
@@ -108,6 +117,13 @@ fn canonical(mnemonic: &str) -> &str {
         "lse" => "sre",
         "aso" => "slo",
         "axa" | "aax" => "sax",
+        "dop" | "top" => "nop",
+        "xaa" => "ane",
+        "ahx" => "sha",
+        "sxa" => "shx",
+        "sya" => "shy",
+        "shs" => "tas",
+        "kil" => "jam",
         other => other,
     }
 }
@@ -145,7 +161,11 @@ impl Isa for M6502 {
     }
 
     fn cycles(&self, bytes: &[u8]) -> Option<String> {
-        cycles(*bytes.first()?)
+        crate::m6502_timing::cycles(bytes, None).map(|c| c.text())
+    }
+
+    fn cycles_at(&self, bytes: &[u8], address: i64) -> Option<String> {
+        crate::m6502_timing::cycles(bytes, Some(address)).map(|c| c.text())
     }
 
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
@@ -251,39 +271,4 @@ fn zero_page(line: &mut Line, text: &str, upper: &str) -> Result<u8, String> {
         return Err(format!("{upper}'s indirect address has to be in zero page ($00 to $FF), and {} is ${v:X}", text.trim()));
     }
     Ok(v as u8)
-}
-
-/// How long an instruction takes, in cycles: one more for crossing a page, or for a branch taken.
-fn cycles(op: u8) -> Option<String> {
-    let (name, mode) = OPCODES.iter().find_map(|(name, modes)| modes.iter().find(|(_, o)| *o == op).map(|(mode, _)| (*name, *mode)))?;
-    let writes = matches!(name, "sta" | "stx" | "sty" | "sax");
-    let changes = matches!(name, "asl" | "lsr" | "rol" | "ror" | "inc" | "dec" | "slo" | "rla" | "sre" | "rra" | "dcp" | "isc");
-    let base: (u32, bool) = match (mode, changes, writes) {
-        (Implied, ..) => match name {
-            "brk" => (7, false),
-            "rti" | "rts" => (6, false),
-            "pha" | "php" => (3, false),
-            "pla" | "plp" => (4, false),
-            _ => (2, false),
-        },
-        (Accumulator | Immediate, ..) => (2, false),
-        (Relative, ..) => return Some("2/3".into()),
-        (ZeroPage, true, _) => (5, false),
-        (ZeroPageX | ZeroPageY, true, _) => (6, false),
-        (Absolute, true, _) => (6, false),
-        (AbsoluteX | AbsoluteY, true, _) => (7, false),
-        (IndirectX | IndirectY, true, _) => (8, false),
-        (ZeroPage, ..) => (3, false),
-        (ZeroPageX | ZeroPageY, ..) => (4, false),
-        (Absolute, ..) if name == "jmp" => (3, false),
-        (Absolute, ..) if name == "jsr" => (6, false),
-        (Absolute, ..) => (4, false),
-        (AbsoluteX | AbsoluteY, _, true) => (5, false),
-        (AbsoluteX | AbsoluteY, ..) => (4, true),
-        (Indirect, ..) => (5, false),
-        (IndirectX, ..) => (6, false),
-        (IndirectY, _, true) => (6, false),
-        (IndirectY, ..) => (5, true),
-    };
-    Some(if base.1 { format!("{}/{}", base.0, base.0 + 1) } else { base.0.to_string() })
 }
