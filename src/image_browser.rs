@@ -247,7 +247,7 @@ impl ImageBrowser {
                         action = Some(BrowserAction::Convert(i, None));
                         ui.close();
                     }
-                    for (label, target) in [("Save as Markdown\u{2026}", Target::Markdown), ("Save as plain text\u{2026}", Target::Text), ("Save as RTF\u{2026}", Target::Rtf)] {
+                    for (label, target) in [("Save as Markdown\u{2026}", Target::Markdown), ("Save as plain text\u{2026}", Target::Text), ("Save as RTF\u{2026}", Target::Rtf), ("Save as CSV\u{2026}", Target::Csv)] {
                         if ui.button(label).clicked() {
                             action = Some(BrowserAction::Convert(i, Some(target)));
                             ui.close();
@@ -520,6 +520,7 @@ impl Limoniter {
                             Target::Markdown => "Markdown",
                             Target::Text => "plain text",
                             Target::Rtf => "RTF",
+            Target::Csv => "CSV",
                         })).set_file_name(format!("{stem}.{}", target.ending()));
                         if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
                             picker = picker.set_directory(folder);

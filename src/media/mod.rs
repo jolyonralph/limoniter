@@ -6,6 +6,7 @@
 
 mod acorn;
 mod apple2;
+mod cards;
 mod atari8;
 mod amiga;
 mod c64tap;
@@ -192,8 +193,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 74] = [
-    "crt", "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad",
+pub const IMAGE_ENDINGS: [&str; 76] = [
+    "crt", "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad", "epr", "card",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -214,7 +215,7 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
         "raw" => flux::detect(head, "raw").is_some(),
         // .crt is a certificate as often as a cartridge.
         "crt" => crt::looks_like(head),
-        "scp" | "hfe" | "cas" | "mgt" | "sad" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" => detect(head, len, &ending).is_some(),
+        "scp" | "hfe" | "cas" | "mgt" | "sad" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" | "card" => detect(head, len, &ending).is_some(),
         "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
     }
@@ -276,6 +277,8 @@ enum Format {
     Cas,
     /// A SAM Coupé or +D disk.
     Sam,
+    /// A Cambridge Z88 or Amstrad NC memory card.
+    Card,
     /// An Oric tape.
     OricTape,
     /// An Oric disk, in Euphoric's MFM_DISK form.
@@ -429,6 +432,10 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
     if matches!(ending, "mgt" | "dsk" | "sad") && sam::looks_like(head, len) {
         return Some(Format::Sam);
     }
+    // Z88 cards are known by their ending (their mark is at their very end); NC cards by their ZCN boot block.
+    if ending == "epr" || (ending == "card" && cards::looks_like_nc(head, len)) {
+        return Some(Format::Card);
+    }
     // A CP/M disk says nothing of itself: only a directory that makes sense in one of the known formats is believed.
     if matches!(ending, "img" | "dsk" | "cpm" | "ima") && cpm::looks_like(head, len) {
         return Some(Format::Cpm);
@@ -518,6 +525,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::MacArchive(kind)) => macarc::open(source, kind),
         Some(Format::Cas) => Ok(Box::new(cas::Cas::open(source)?)),
         Some(Format::Sam) => Ok(Box::new(sam::Sam::open(source)?)),
+        Some(Format::Card) => Ok(Box::new(cards::Card::open(source, &ending)?)),
         Some(Format::OricTape) => Ok(Box::new(oric::OricTape::open(source)?)),
         Some(Format::OricDisk) => Ok(Box::new(oric::OricDisk::open(source)?)),
         Some(Format::Crt) => Ok(Box::new(crt::Crt::open(source)?)),

@@ -108,6 +108,7 @@ enum Command {
     Format(formatters::Kind),
     Convert(conversions::Conversion),
     SaveSettingsFile,
+    SaveBbcZ80Program,
     SaveLayout,
     SaveDocumentAs(crate::legacy_docs::Target),
     GatherWindows,
@@ -4110,6 +4111,7 @@ impl Limoniter {
                 self.dialog = Dialog::SaveBasic { machine: basic::Machine::Commodore(cbm), run_from: String::new(), error: String::new() };
             }
             Command::SaveBbcProgram => self.save_tokenised(basic::Machine::Bbc, None),
+            Command::SaveBbcZ80Program => self.save_tokenised(basic::Machine::BbcZ80, None),
             Command::RenameFile => self.begin_rename(),
             Command::SaveLayout => self.dialog = Dialog::SaveLayout { name: String::new(), error: String::new() },
             Command::GatherWindows => {

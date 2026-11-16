@@ -14,6 +14,8 @@ pub(super) struct DisasmBox {
     pub x86: bool,
     pub x86_program: Option<crate::x86::Program>,
     pub x86_bits: u32,
+    /// Z80 code for a Cambridge Z88, whose RST &20 calls are named.
+    pub z88: bool,
     pub bytes: Vec<u8>,
     pub origin: String,
     pub starts: String,
@@ -145,12 +147,12 @@ impl Limoniter {
         // An x86 program (PE, ELF, MZ or .COM) is taken whole.
         if let Some(program) = crate::x86::recognise(&name, &bytes) {
             let found = program.what.clone();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, x86: true, x86_bits: program.bits, x86_program: Some(program), bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         let (cpu, code, origin, starts, found) = guess(&name, &bytes, load_address);
         let starts = starts.iter().map(|s| format!("${s:04X}")).collect::<Vec<_>>().join(", ");
-        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, x86: false, x86_program: None, x86_bits: 32, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
+        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
     }
 
     pub(super) fn disassemble_dialog(&mut self, ctx: &Context) -> bool {
@@ -178,6 +180,11 @@ impl Limoniter {
                     }
                 });
                 ui.end_row();
+                if !state.icl2900 && !state.x86 && state.cpu == Cpu::Z80 {
+                    ui.label("");
+                    ui.checkbox(&mut state.z88, "For a Cambridge Z88: name its operating system calls (RST $20 and the code after it)");
+                    ui.end_row();
+                }
                 // A program the file was found to be says its own mode, addresses and starts.
                 let whole = state.x86 && state.x86_program.is_some();
                 if state.x86 && !whole {
@@ -280,8 +287,8 @@ impl Limoniter {
                 state.error = format!("{} bytes from ${origin:04X} go past the end of 64K.", state.bytes.len());
                 return true;
             }
-            let (cpu, stem) = (state.cpu, state.stem.clone());
-            let source = crate::disasm::disassemble_checked(cpu, &state.bytes, origin, &starts);
+            let (cpu, stem, z88) = (state.cpu, state.stem.clone(), state.z88);
+            let source = crate::disasm::disassemble_checked_for(cpu, &state.bytes, origin, &starts, z88);
             self.dialog = Dialog::None;
             let mut doc = Document::untitled(format!("{stem}.asm"), &PRESETS[0]);
             doc.text.set_content(source.lines().map(str::to_string).collect());

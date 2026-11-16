@@ -5,6 +5,7 @@
 
 mod amigaguide;
 mod firstword;
+mod pipedream;
 mod ftxt;
 mod prowrite;
 mod protext;
@@ -53,6 +54,8 @@ pub enum Block {
     Heading { level: u8, text: String },
     /// A footnote or endnote, kept at the end of the document; its mark is a run styled as a note.
     Footnote { label: String, text: String },
+    /// A spreadsheet's cells: the first row its columns' names, the rest its rows.
+    Table(Vec<Vec<String>>),
 }
 
 /// A converted document: what it was, its blocks, and what couldn't be carried over.
@@ -85,6 +88,8 @@ pub enum Kind {
     FinalWriter,
     /// Wordworth, on the Amiga.
     Wordworth,
+    /// PipeDream, the Cambridge Z88's word processor and spreadsheet.
+    PipeDream,
 }
 
 impl Kind {
@@ -100,6 +105,7 @@ impl Kind {
             Kind::Signum => "Signum!",
             Kind::FinalWriter => "Final Writer",
             Kind::Wordworth => "Wordworth",
+            Kind::PipeDream => "PipeDream",
         }
     }
 }
@@ -138,6 +144,7 @@ fn detect_amiga_st(name: &str, bytes: &[u8]) -> Option<Kind> {
         _ if amigaguide::looks_like(name, bytes) => Some(Kind::AmigaGuide),
         _ if firstword::looks_like(bytes) => Some(Kind::FirstWord),
         _ if protext::looks_like(bytes) => Some(Kind::Protext),
+        _ if pipedream::looks_like(bytes) => Some(Kind::PipeDream),
         _ => None,
     }
 }
@@ -154,15 +161,18 @@ pub fn convert(kind: Kind, bytes: &[u8]) -> Result<Doc, String> {
         Kind::Signum => signum::read(bytes),
         Kind::FinalWriter => finalwriter::read(bytes),
         Kind::Wordworth => wordworth::read(bytes),
+        Kind::PipeDream => pipedream::read(bytes),
     }
 }
 
-/// The three outputs.
+/// The outputs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Target {
     Text,
     Markdown,
     Rtf,
+    /// A spreadsheet's cells, comma-separated; any other text a line of its own.
+    Csv,
 }
 
 impl Target {
@@ -171,6 +181,7 @@ impl Target {
             Target::Text => "txt",
             Target::Markdown => "md",
             Target::Rtf => "rtf",
+            Target::Csv => "csv",
         }
     }
 
@@ -179,6 +190,7 @@ impl Target {
             Target::Text => to_text(doc),
             Target::Markdown => to_markdown(doc),
             Target::Rtf => to_rtf(doc),
+            Target::Csv => to_csv(doc),
         }
     }
 }
@@ -203,6 +215,43 @@ pub fn to_text(doc: &Doc) -> String {
             }
             Block::Header(_) | Block::Footer(_) => {}
             Block::Footnote { label, text } => out.push_str(&format!("[{label}] {text}\n")),
+            // A spreadsheet as its rows, the cells a tab apart; its column names aren't part of it.
+            Block::Table(rows) => {
+                for row in rows.iter().skip(1) {
+                    out.push_str(row.join("\t").trim_end());
+                    out.push('\n');
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A cell as CSV writes it: quoted when it has a comma, a quote or a line end in it.
+fn csv_cell(text: &str) -> String {
+    if text.contains([',', '"', '\n', '\r']) { format!("\"{}\"", text.replace('"', "\"\"")) } else { text.to_string() }
+}
+
+/// CSV: a table's rows (not its column names), and any paragraphs as rows of one cell.
+pub fn to_csv(doc: &Doc) -> String {
+    let mut out = String::new();
+    for block in &doc.blocks {
+        match block {
+            Block::Table(rows) => {
+                for row in rows.iter().skip(1) {
+                    out.push_str(&row.iter().map(|c| csv_cell(c)).collect::<Vec<_>>().join(","));
+                    out.push('\n');
+                }
+            }
+            Block::Paragraph { runs, .. } => {
+                out.push_str(&csv_cell(paragraph_text(runs).trim_end()));
+                out.push('\n');
+            }
+            Block::Heading { text, .. } => {
+                out.push_str(&csv_cell(text));
+                out.push('\n');
+            }
+            _ => {}
         }
     }
     out
@@ -293,6 +342,18 @@ pub fn to_markdown(doc: &Doc) -> String {
             Block::Footnote { label, text } => {
                 flush(&mut group, &mut out, &mut listing);
                 out.push_str(&format!("[^{}]: {}\n\n", note_label(label), markdown_escape(text)));
+            }
+            Block::Table(rows) => {
+                flush(&mut group, &mut out, &mut listing);
+                let Some((names, cells)) = rows.split_first() else {
+                    continue;
+                };
+                out.push_str(&format!("| {} |\n", names.iter().map(|n| markdown_escape(n)).collect::<Vec<_>>().join(" | ")));
+                out.push_str(&format!("|{}\n", "---|".repeat(names.len())));
+                for row in cells {
+                    out.push_str(&format!("| {} |\n", row.iter().map(|c| markdown_escape(c)).collect::<Vec<_>>().join(" | ")));
+                }
+                out.push('\n');
             }
         }
     }
@@ -455,6 +516,11 @@ pub fn to_rtf(doc: &Doc) -> String {
                 out.push_str("\\par\n");
             }
             Block::PageBreak => out.push_str("\\page\n"),
+            Block::Table(rows) => {
+                for row in rows.iter().skip(1) {
+                    out.push_str(&format!("\\pard\\ql {}\\par\n", row.iter().map(|c| rtf_escape(c)).collect::<Vec<_>>().join("\\tab ")));
+                }
+            }
             Block::Heading { level, text } => {
                 let size = match level {
                     1 => 32,

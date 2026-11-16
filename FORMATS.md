@@ -50,6 +50,7 @@ Old word processors' documents are converted when they're opened, from a disk im
 | HTML | `.html`, `.htm` | ✓ | ✓ | text + markup | Coloured, laid out or compressed onto few lines; previewed as a web page, without its scripts or styles. |
 | RTF | `.rtf` | ✓ | ✓ | text | Coloured as RTF; old documents can be converted to it. |
 | WordStar document | — | ✓ | ✗ | markup | WordStar 3.x to 7 and HP MemoMaker, converted to plain text, Markdown or RTF. |
+| PipeDream document or spreadsheet | — | ✓ | ✗ | markup | Cambridge Z88; documents to text, Markdown or RTF, spreadsheets as tables and CSV. |
 | IFF formatted text (FTXT) | — | ✓ | ✗ | markup | Amiga clipboard, NotePad and TextCraft text. |
 | ProWrite and IFF WORD document | — | ✓ | ✗ | markup | Amiga; larger type becomes Markdown headings. |
 | AmigaGuide hypertext | `.guide` | ✓ | ✓ | text + markup | Edited as coloured text; converted with each node a section and links kept. |
@@ -86,6 +87,7 @@ Tokenised BASIC is listed as the machine's LIST would show it; some dialects can
 | BBC BASIC II and IV | `.bbc`, `.bas` | ✓ | ✓ | text | Tokenised as SAVE writes a program. |
 | Applesoft BASIC | `.bas` | ◐ | ◐ | text | Listed; tokenised only when added to an Apple II DOS 3.3 or ProDOS disk. |
 | Apple II Integer BASIC | `.int` | ✓ | ✗ | text | Listed as its LIST shows it; from DOS 3.3 (type I) and ProDOS (INT) disks. |
+| BBC BASIC (Z80) | `.bas` | ✓ | ✓ | text | As the Cambridge Z88, the Amstrad NC100, NC150 and NC200 and CP/M keep it; tokenised from a listing. |
 | ZX81 BASIC | `.p`, `.81`, `.p81` | ✓ | ✗ | text | Also from TZX tapes, with the screen saved with the program. |
 | MSX-BASIC | `.bas` | ✓ | ✗ | text | From disk or tape, saved from 32K or 16K machines. |
 | Atari BASIC | `.bas` | ✓ | ✗ | text | Listed only. |
@@ -197,6 +199,8 @@ Disk images open as a browser of their files. Those marked writable can have fil
 | Atari 8-bit disk image (XFD) | `.xfd` | ✓ | ✗ | directory | Same DOSes as ATR. |
 | Apple II disk image | `.dsk`, `.do`, `.po`, `.2mg`, `.hdv` | ✓ | ✓ | directory | DOS 3.3 and ProDOS written; DOS 3.2 and Apple II CP/M only read. |
 | Apple II WOZ image | `.woz` | ✓ | ✗ | directory | WOZ 1 and 2, read from their bits into sectors. |
+| Cambridge Z88 card | `.epr` | ✓ | ✗ | directory | File EPROM and flash cards, older versions of files shown too; application cards recognised. |
+| Amstrad NC memory card | `.card` | ✓ | ✗ | directory | ZCN's CP/M drives, one for each 256K; program cards (NC100PRG) recognised. |
 | Amiga floppy (ADF) | `.adf` | ✓ | ✓ | directory | OFS and FFS, DD and HD written; disks with directory caches or long names only read. |
 | Gzipped Amiga floppy (ADZ) | `.adz` | ✓ | ✗ | directory | Unzipped as it opens. |
 | Amiga DMS floppy | `.dms` | ✓ | ✗ | directory | Unpacked as it opens. |

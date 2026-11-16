@@ -276,6 +276,177 @@ fn z80_ed(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
     plain(2, text)
 }
 
+// ---------- Cambridge Z88 operating system calls ----------
+
+/// The Z88's operating system calls, entered with RST &20 and the call's code after it: one byte, or two (low
+/// byte first) when the first is &06, &09 or &0C. From the Z88 Developers' Notes, section 4's list of manifests;
+/// where two names share a code there, both are given.
+const OZ_CALLS: [(u16, &str); 137] = [
+    (0x0021, "os_bye"),
+    (0x0024, "os_prt"),
+    (0x0027, "os_out"),
+    (0x002A, "os_in"),
+    (0x002D, "os_tin"),
+    (0x0030, "os_xin"),
+    (0x0033, "os_pur"),
+    (0x0036, "os_ugb"),
+    (0x0039, "os_gb"),
+    (0x003C, "os_pb"),
+    (0x003F, "os_gbt"),
+    (0x0042, "os_pbt"),
+    (0x0045, "os_mv"),
+    (0x0048, "os_frm"),
+    (0x004B, "os_fwm"),
+    (0x004E, "os_mop"),
+    (0x0051, "os_mcl"),
+    (0x0054, "os_mal"),
+    (0x0057, "os_mfr"),
+    (0x005A, "os_mgb"),
+    (0x005D, "os_mpb"),
+    (0x0060, "os_bix"),
+    (0x0063, "os_box"),
+    (0x0066, "os_nq"),
+    (0x0069, "os_sp"),
+    (0x006C, "os_sr"),
+    (0x006F, "os_esc"),
+    (0x0072, "os_erc"),
+    (0x0075, "os_erh"),
+    (0x0078, "os_ust"),
+    (0x007B, "os_fn"),
+    (0x007E, "os_wait"),
+    (0x0081, "os_alm"),
+    (0x0084, "os_cli"),
+    (0x0087, "os_dor"),
+    (0x008A, "os_fc"),
+    (0x008D, "os_si"),
+    (0x0609, "gn_gdt"),
+    (0x060C, "dc_ini"),
+    (0x0809, "gn_pdt"),
+    (0x080C, "dc_bye"),
+    (0x0A09, "gn_gtm"),
+    (0x0A0C, "dc_ent"),
+    (0x0C09, "gn_ptm"),
+    (0x0C0C, "dc_nam"),
+    (0x0E09, "gn_sdo"),
+    (0x0E0C, "dc_in"),
+    (0x1009, "gn_gdn"),
+    (0x100C, "dc_out"),
+    (0x1209, "gn_pdn"),
+    (0x120C, "dc_prt"),
+    (0x1409, "gn_die"),
+    (0x140C, "dc_icl"),
+    (0x1609, "gn_dei"),
+    (0x1809, "gn_gmd"),
+    (0x180C, "dc_nq/dc_sp"),
+    (0x1A09, "gn_gmt"),
+    (0x1A0C, "dc_alt"),
+    (0x1C09, "gn_pmd"),
+    (0x1C0C, "dc_rbd"),
+    (0x1D0C, "dc_xin"),
+    (0x1E09, "gn_pmt"),
+    (0x2009, "gn_msc"),
+    (0x200C, "dc_gen"),
+    (0x2209, "gn_flo"),
+    (0x220C, "dc_pol"),
+    (0x2409, "gn_flc"),
+    (0x240C, "dc_scn"),
+    (0x2609, "gn_flw"),
+    (0x2809, "gn_flr"),
+    (0x2A09, "gn_flf"),
+    (0x2C09, "gn_fpb"),
+    (0x2E09, "gn_nln"),
+    (0x3009, "gn_cls"),
+    (0x3209, "gn_skc"),
+    (0x3409, "gn_skd"),
+    (0x3609, "gn_skt"),
+    (0x3809, "gn_sip"),
+    (0x3A09, "gn_sop"),
+    (0x3C09, "gn_soe"),
+    (0x3E09, "gn_rbe"),
+    (0x4009, "gn_wbe"),
+    (0x4209, "gn_cme"),
+    (0x4409, "gn_xnx"),
+    (0x4609, "gn_xin"),
+    (0x4809, "gn_xdl"),
+    (0x4A09, "gn_err"),
+    (0x4C09, "gn_esp"),
+    (0x4E09, "gn_fcm"),
+    (0x5009, "gn_fex"),
+    (0x5209, "gn_opw"),
+    (0x5409, "gn_wcl"),
+    (0x5609, "gn_wfn"),
+    (0x5809, "gn_prs"),
+    (0x5A09, "gn_pfs"),
+    (0x5C09, "gn_wsm"),
+    (0x5E09, "gn_esa"),
+    (0x6009, "gn_opf"),
+    (0x6209, "gn_cl"),
+    (0x6409, "gn_del"),
+    (0x6609, "gn_ren"),
+    (0x6809, "gn_aab"),
+    (0x6A09, "gn_fab"),
+    (0x6C09, "gn_lab"),
+    (0x6E09, "gn_uab"),
+    (0x7009, "gn_alp"),
+    (0x7209, "gn_m16"),
+    (0x7409, "gn_d16"),
+    (0x7609, "gn_m24"),
+    (0x7809, "gn_d24"),
+    (0xCA06, "os_wtb"),
+    (0xCC06, "os_wrt"),
+    (0xCE06, "os_wsq"),
+    (0xD006, "os_isq"),
+    (0xD206, "os_axp"),
+    (0xD406, "os_sci"),
+    (0xD606, "os_dly"),
+    (0xD806, "os_blp"),
+    (0xDA06, "os_bde"),
+    (0xDC06, "os_bhl"),
+    (0xDE06, "os_fth"),
+    (0xE006, "os_vth"),
+    (0xE206, "os_gth"),
+    (0xE406, "os_ren"),
+    (0xE606, "os_del"),
+    (0xE806, "os_cl"),
+    (0xEA06, "os_op"),
+    (0xEC06, "os_off"),
+    (0xEE06, "os_use"),
+    (0xF006, "os_epr"),
+    (0xF206, "os_ht"),
+    (0xF406, "os_map"),
+    (0xF606, "os_exit"),
+    (0xF806, "os_stk"),
+    (0xFA06, "os_ent"),
+    (0xFC06, "os_poll"),
+    (0xFE06, "os_dom"),
+];
+
+/// An OZ call after RST &20: how many bytes its code takes, and its name if it's a known one.
+fn oz_call(at: &dyn Fn(usize) -> u8) -> (usize, u16, Option<&'static str>) {
+    let first = at(1);
+    let (length, code) = if matches!(first, 0x06 | 0x09 | 0x0C) { (2, u16::from_le_bytes([first, at(2)])) } else { (1, u16::from(first)) };
+    let name = OZ_CALLS.binary_search_by_key(&code, |(c, _)| *c).ok().map(|i| OZ_CALLS[i].1);
+    (length, code, name)
+}
+
+/// A Z88 program's instruction: RST &20 is an OZ call with its code after it, written as the code's bytes with the
+/// call's name beside them; anything else is the Z80's.
+pub fn z88(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
+    if at(0) != 0xE7 {
+        return z80(at, pc);
+    }
+    let (length, code, name) = oz_call(at);
+    let bytes: Vec<String> = (1..=length).map(|i| hex8(at(i))).collect();
+    let note = match name {
+        Some(name) => name.to_string(),
+        None if length == 2 => format!("OZ call &{code:04X}"),
+        None => format!("OZ call &{code:02X}"),
+    };
+    // OS_Bye ends the program, as far as following its code goes.
+    let ends = name == Some("os_bye");
+    Decoded { length: 1 + length, text: format!("rst $20\n        db {}  ; {note}", bytes.join(",")), address: None, falls_through: !ends, target: None }
+}
+
 // ---------- 6502 ----------
 
 /// A 6502 instruction, from the assembler's own table of opcodes.
@@ -476,7 +647,8 @@ enum Seen {
 
 /// Disassembles `bytes`, which load at `origin`, tracing the code from each of `starts`. The source names every
 /// address jumped to, called or used inside the program with a label; what isn't code is DB.
-pub fn disassemble(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) -> String {
+/// For a Cambridge Z88 program, with `z88` set, RST &20 is an OZ call, named, with its code after it.
+pub fn disassemble_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88: bool) -> String {
     let end = usize::from(origin) + bytes.len();
     let inside = |a: u16| usize::from(a) >= usize::from(origin) && usize::from(a) < end;
     let decode = |a: u16| -> Decoded {
@@ -485,6 +657,7 @@ pub fn disassemble(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) -> Strin
         match cpu {
             Cpu::M6502 => m6502(&at, a),
             Cpu::M6809 => m6809(&at, a),
+            _ if z88 => self::z88(&at, a),
             _ => z80(&at, a),
         }
     };
@@ -578,8 +751,13 @@ pub fn disassemble(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) -> Strin
 
 /// The same, made safe: assembled again with Limoniter's own assembler, any instruction that wouldn't give back
 /// its bytes is written as DB, until it all assembles to exactly what it came from.
+#[cfg(test)]
 pub fn disassemble_checked(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) -> String {
-    let mut source = disassemble(cpu, bytes, origin, starts);
+    disassemble_checked_for(cpu, bytes, origin, starts, false)
+}
+
+pub fn disassemble_checked_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88: bool) -> String {
+    let mut source = disassemble_for(cpu, bytes, origin, starts, z88);
     for _ in 0..8 {
         let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("disassembly.asm"), &source, &|_| Err("no".into()));
         let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
@@ -626,7 +804,24 @@ pub fn disassemble_checked(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) 
 mod tests {
     use super::*;
 
-    fn round_trip(cpu: Cpu, bytes: &[u8], origin: u16) -> String {
+#[test]
+    fn a_z88_programs_os_calls_are_named_and_it_assembles_back() {
+        // ld a,'A' : rst $20 : db os_out : rst $20 : dw gn_nln : rst $20 : db $99 (unknown) : xor a : rst $20 : db os_bye
+        let program = [0x3E, 0x41, 0xE7, 0x27, 0xE7, 0x09, 0x2E, 0xE7, 0x99, 0xAF, 0xE7, 0x21, 0x00, 0x00];
+        let source = disassemble_checked_for(Cpu::Z80, &program, 0x2000, &[0x2000], true);
+        assert!(source.contains("rst $20\n        db $27  ; os_out"), "{source}");
+        assert!(source.contains("db $09,$2E  ; gn_nln"));
+        assert!(source.contains("; OZ call &99"));
+        assert!(source.contains("; os_bye"));
+        let after_bye: Vec<&str> = source.lines().skip_while(|l| !l.contains("os_bye")).skip(1).collect();
+        assert!(after_bye.iter().all(|l| l.trim_start().starts_with("db ")), "nothing after OS_Bye is taken for code: {after_bye:?}");
+        let assembly = crate::asm::assemble(Cpu::Z80.isa(), std::path::Path::new("z88.asm"), &source, &|_| Err("no".into()));
+        let bytes: Vec<u8> = assembly.lines.iter().flat_map(|l| l.bytes.clone()).collect();
+        assert_eq!(bytes, program);
+        assert!(!disassemble_checked(Cpu::Z80, &program, 0x2000, &[0x2000]).contains("os_out"), "only for a Z88");
+    }
+
+        fn round_trip(cpu: Cpu, bytes: &[u8], origin: u16) -> String {
         // Every byte taken as code: each instruction followed by the next.
         let source = disassemble_checked(cpu, bytes, origin, &[origin]);
         let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("t.asm"), &source, &|_| Err("no".into()));

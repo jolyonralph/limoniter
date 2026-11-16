@@ -226,6 +226,7 @@ impl Runnable {
             basic::Machine::Commodore(cbm) => (commodore(cbm), Format::Prg, basic::tokenise_commodore(lines, cbm)?),
             basic::Machine::Bbc => (Machine::Bbc, Format::Ssd, bbc_disc(stem, &crate::basic_more::tokenise_bbc(lines)?)),
             basic::Machine::OpticOs => (Machine::OpticOs, Format::Tap, crate::opticbasic::tape(&crate::opticbasic::tokenise(lines)?, stem, None)),
+            basic::Machine::BbcZ80 => return Err("BBC BASIC (Z80) programs can be saved, for a Z88 or an NC100, but there's no emulator to run them in yet.".into()),
         };
         Ok(Runnable { machine, format, name: format!("{}.{}", file_stem(stem), format.ending()), bytes: Arc::new(bytes) })
     }

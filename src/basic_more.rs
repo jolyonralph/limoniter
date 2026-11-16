@@ -325,8 +325,9 @@ fn bbc_name_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '`'
 }
 
-/// Tokenises one line's text after its number, as the ROM's tokeniser does.
-fn bbc_crunch(text: &str) -> Result<Vec<u8>, String> {
+/// Tokenises one line's text after its number, as the ROM's tokeniser does. For BBC BASIC (Z80), whose
+/// table has PUT where BASIC IV has EDIT and takes COLOR for COLOUR, `z80` is set.
+fn bbc_crunch(text: &str, z80: bool) -> Result<Vec<u8>, String> {
     let chars: Vec<char> = text.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;
@@ -401,7 +402,8 @@ fn bbc_crunch(text: &str) -> Result<Vec<u8>, String> {
         }
         if c.is_ascii_uppercase() {
             // The ROM tries each keyword in turn; a full stop ends an abbreviation.
-            let found = BBC_KEYWORDS.iter().find_map(|&(word, token, flags)| {
+            let keywords = BBC_KEYWORDS.iter().copied().filter(|(word, _, _)| !(z80 && *word == "EDIT")).chain(if z80 { Z80_ONLY_KEYWORDS.iter().copied() } else { [].iter().copied() });
+            let found = keywords.into_iter().find_map(|(word, token, flags)| {
                 let letters: Vec<char> = word.chars().collect();
                 for (k, &letter) in letters.iter().enumerate() {
                     match chars.get(i + k) {
@@ -478,7 +480,7 @@ pub fn tokenise_bbc<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
             return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
         }
         previous = Some(number);
-        let body = bbc_crunch(&trimmed[digits..]).map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
+        let body = bbc_crunch(&trimmed[digits..], false).map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
         let length = u8::try_from(body.len() + 4).map_err(|_| format!("Line {} is longer than the 251 bytes a line can hold.", index + 1))?;
         out.push(0x0D);
         out.extend(number.to_be_bytes());
@@ -486,6 +488,107 @@ pub fn tokenise_bbc<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
         out.extend(body);
     }
     out.extend([0x0D, 0xFF]);
+    Ok(out)
+}
+
+// ---------- BBC BASIC (Z80) ----------
+//
+// R.T. Russell's BBC BASIC (Z80), version 3, as the Cambridge Z88 and the Amstrad NC100, NC150 and NC200 have it
+// in ROM (and CP/M has it on disk). Its tokens and its encoded line numbers are the BBC Micro's, from its own
+// keyword table (main.asm's KEYWDS, github.com/jblang/bbcbasic-z80), except that &CE is PUT, not EDIT, and COLOR is
+// taken for COLOUR. Its lines are laid out its own way (main.asm's line insertion and SETTOP): a length byte that
+// counts the whole line, the line number low byte first, the tokens, and &0D; after the last, a zero length and
+// &FF &FF.
+
+/// The Z80 version's keywords that BASIC IV hasn't: PUT, a statement as BPUT is, and COLOR, said as COLOUR.
+const Z80_ONLY_KEYWORDS: [(&str, u8, u8); 2] = [("COLOR", 0xFB, 0x02), ("PUT", 0xCE, 0x02)];
+
+/// The lines of a BBC BASIC (Z80) program, each its number and its tokens. None unless every line is whole, the
+/// numbers go up, and the program ends where it should.
+fn bbc_z80_lines(data: &[u8]) -> Option<Vec<(u16, &[u8])>> {
+    let mut lines = Vec::new();
+    let mut at = 0;
+    let mut last = None;
+    loop {
+        let length = usize::from(*data.get(at)?);
+        if length == 0 {
+            let end = data.get(at + 1..at + 3);
+            return (!lines.is_empty() && end.is_none_or(|e| e == [0xFF, 0xFF])).then_some(lines);
+        }
+        if length < 4 || at + length > data.len() || data[at + length - 1] != 0x0D {
+            return None;
+        }
+        let number = u16::from_le_bytes([data[at + 1], data[at + 2]]);
+        if last.is_some_and(|l| number <= l) {
+            return None;
+        }
+        last = Some(number);
+        lines.push((number, &data[at + 3..at + length - 1]));
+        at += length;
+    }
+}
+
+pub fn looks_like_bbc_z80(data: &[u8]) -> bool {
+    bbc_z80_lines(data).is_some()
+}
+
+/// Lists a BBC BASIC (Z80) program as its LIST does: the number in five columns, then the line as stored.
+pub fn list_bbc_z80(data: &[u8]) -> Listing {
+    let mut listing = Listing { dialect: "BBC BASIC (Z80)", ..Listing::default() };
+    let Some(lines) = bbc_z80_lines(data) else {
+        listing.notes.push("The program's line lengths don't lead from one line to the next, so it can't be listed.".into());
+        return listing;
+    };
+    for (number, body) in lines {
+        let mut text = format!("{number:>5}");
+        let (mut quoted, mut rest_plain) = (false, false);
+        let mut i = 0;
+        while i < body.len() {
+            let byte = body[i];
+            i += 1;
+            if byte == b'"' && !rest_plain {
+                quoted = !quoted;
+            }
+            if quoted || rest_plain || byte < 0x80 {
+                bbc_char(byte, &mut text);
+            } else if byte == BBC_LINE_NUMBER && i + 3 <= body.len() {
+                text.push_str(&bbc_line_number([body[i], body[i + 1], body[i + 2]]).to_string());
+                i += 3;
+            } else if let Some(word) = if byte == 0xCE { Some("PUT") } else { bbc_keyword(byte) } {
+                text.push_str(word);
+                rest_plain = matches!(byte, 0xF4 | 0xDC);
+            } else {
+                bbc_char(byte, &mut text);
+            }
+        }
+        listing.lines.push(text);
+    }
+    listing
+}
+
+/// Tokenises a listing into a BBC BASIC (Z80) program, as its SAVE writes it.
+pub fn tokenise_bbc_z80<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
+    let mut out = Vec::new();
+    let mut previous: Option<u16> = None;
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.as_ref().trim_start();
+        if trimmed.trim().is_empty() {
+            continue;
+        }
+        let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+        let number: u16 = trimmed[..digits].parse().map_err(|_| format!("Line {} doesn't start with a line number from 0 to 65535.", index + 1))?;
+        if previous.is_some_and(|p| number <= p) {
+            return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
+        }
+        previous = Some(number);
+        let body = bbc_crunch(&trimmed[digits..], true).map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
+        let length = u8::try_from(body.len() + 4).map_err(|_| format!("Line {} is longer than the 251 bytes a line can hold.", index + 1))?;
+        out.push(length);
+        out.extend(number.to_le_bytes());
+        out.extend(body);
+        out.push(0x0D);
+    }
+    out.extend([0x00, 0xFF, 0xFF]);
     Ok(out)
 }
 
@@ -1660,6 +1763,26 @@ mod tests {
         assert!(!looks_like_coco(&[0xFF, 0x01, 0x80, 0x0A, 0x00, 0, 0, 0]), "an MSX program isn't one");
     }
 
+
+    #[test]
+    fn bbc_basic_z80_lays_lines_out_its_own_way_and_lists_back() {
+        let listing = ["10 PRINT \"HELLO\"", "20 COLOR 3:PUT 1,2", "30 GOTO 10", "65000 REM the end"];
+        let program = tokenise_bbc_z80(&listing).unwrap();
+        // Line 10: its length, its number low byte first, the line as typed with PRINT tokenised, and &0D.
+        assert_eq!(&program[..14], &[14, 10, 0, b' ', 0xF1, b' ', b'"', b'H', b'E', b'L', b'L', b'O', b'"', 0x0D]);
+        assert_eq!(&program[program.len() - 3..], &[0, 0xFF, 0xFF]);
+        assert!(program.windows(2).any(|w| w == [0xFB, b' ']), "COLOR is COLOUR's token");
+        assert!(program.contains(&0xCE), "PUT is &CE");
+        assert!(looks_like_bbc_z80(&program) && !looks_like_bbc(&program));
+        let listed = list_bbc_z80(&program);
+        assert_eq!(listed.dialect, "BBC BASIC (Z80)");
+        assert_eq!(listed.lines, ["   10 PRINT \"HELLO\"", "   20 COLOUR 3:PUT 1,2", "   30 GOTO 10", "65000 REM the end"]);
+        let again: Vec<&str> = listed.lines.iter().map(|l| l.as_str()).collect();
+        assert_eq!(tokenise_bbc_z80(&again).unwrap(), program, "listing and tokenising undo each other");
+        assert_eq!(crate::basic::list(&program, "bas", crate::charset::known("us-ascii")).dialect, "BBC BASIC (Z80)");
+        // The BBC Micro's EDIT isn't a keyword here.
+        assert!(!tokenise_bbc_z80(&["10 EDIT"]).unwrap().contains(&0xCE));
+    }
 
     #[test]
     fn integer_basic_lists_as_its_list_shows_it() {
