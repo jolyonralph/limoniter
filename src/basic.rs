@@ -1466,6 +1466,8 @@ pub fn list(data: &[u8], extension: &str, set: &Charset) -> Listing {
         basic_more::list_coco(data)
     } else if basic_more::looks_like_applesoft(data) {
         basic_more::list_applesoft(data)
+    } else if extension == "int" && basic_more::looks_like_integer(data) {
+        basic_more::list_integer(data)
     } else if basic_more::looks_like_mbasic(data) || data.first() == Some(&0xFE) {
         basic_more::list_mbasic(data, set)
     } else if data.first() == Some(&0xFF) {
@@ -1492,6 +1494,8 @@ pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
         "prg" => data.is_none_or(commodore),
         "p00" | "tap" | "tzx" => true,
         "bas" | "bbc" => data.is_none_or(tokenised),
+        // Integer BASIC, as an Apple II disk's file opens.
+        "int" => data.is_none_or(basic_more::looks_like_integer),
         _ => false,
     }
 }

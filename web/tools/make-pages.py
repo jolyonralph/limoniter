@@ -1,5 +1,5 @@
 """Makes the site's pages from the Markdown kept with the source, so they're pages of the site in its own style:
-web/compare.html from COMPARISON.md, and web/features.html from FEATURES.md.
+web/compare.html from COMPARISON.md, web/features.html from FEATURES.md, and web/formats.html from FORMATS.md.
 
     python web/tools/make-pages.py
 
@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[2]
-PAGES = [("COMPARISON.md", "compare-template.html", "compare.html"), ("FEATURES.md", "features-template.html", "features.html")]
+PAGES = [("COMPARISON.md", "compare-template.html", "compare.html"), ("FEATURES.md", "features-template.html", "features.html"), ("FORMATS.md", "formats-template.html", "formats.html")]
 
 MARKS = {"✓": "yes", "◐": "part", "✗": "no", "?": "unknown"}
 

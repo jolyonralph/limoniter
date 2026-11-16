@@ -68,6 +68,13 @@ made with the FAT writer (`media::write`), the program in AUTO and any boot sect
 to add up to $1234, booted with `--harddrive none`. Each processor's every instruction form is checked byte
 for byte against its reference assembler (`src/asm/testdata`).
 
+6502 source runs on a Commodore 64 (a `.prg`) or a BBC Micro (an `.ssd` that *RUNs it), and
+`asm::output::machine_6502` tells which from the code: calls to the BBC's MOS or use of its I/O pages (&FC00 to
+&FEFF) say BBC; calls to the KERNAL or use of the C64's chips ($D000 to $DFFF) say C64; and code that says neither
+(or both) is a C64's only if it starts below &1900, where a BBC disc can't load it. A line `; machine: c64` or
+`; machine: bbc` near the top of the source (`Micro6502::said_in`) comes before all that. When nothing says, F9 asks
+(`RunBox::Which6502`), and the answer is kept on the document (`machine_6502`) while it's open.
+
 Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and
 the address stopped at back to a line:
 

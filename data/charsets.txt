@@ -32717,11 +32717,11 @@ FB	D2B8	p	HANGUL SYLLABLE TEU
 <	FFEE	84
 
 @charset amstrad-cpm
-name: Amstrad CP/M Plus
-group: CP/M
+name: Amstrad PCW and CP/M Plus
+group: Amstrad
 source: Rebecca Bettencourt, Legacy Computing Character Encodings, github.com/kreativekorp/charsets
 version: kreativekorp/charsets commit db9120f7b6e4 (2026-11-02)
-scope: One machine's CP/M set, selectable. Other machines differ.
+scope: Amstrad's CP/M Plus set, on the PCW, the CPC 6128 and the Spectrum +3 (LocoScript has its own). Other machines' CP/M differs.
 model: none
 keep_bytes: false
 @table Text

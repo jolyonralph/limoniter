@@ -503,6 +503,39 @@ impl Limoniter {
     }
 
     /// Saves the picture this file holds as a PNG, beside the file if it has a place on disk.
+    /// Format, Save the document as: an old word processor's document, converted, in a file of its own.
+    pub(super) fn save_document_as(&mut self, target: crate::legacy_docs::Target) {
+        use crate::legacy_docs::Target;
+        let doc = &self.docs[self.active];
+        let whole = doc.path_or_name().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = whole.rsplit('\u{203A}').next().unwrap_or(&whole).trim().to_string();
+        let folder = doc.path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
+        let bytes = self.document_bytes();
+        let converted = crate::legacy_docs::detect(&name, &bytes).ok_or_else(|| "This isn't a document Limoniter can convert.".to_string()).and_then(|kind| crate::legacy_docs::convert(kind, &bytes));
+        let converted = match converted {
+            Ok(converted) => converted,
+            Err(problem) => return self.message("Save the document as", problem),
+        };
+        let stem = Path::new(&name).file_stem().map_or(name.clone(), |s| s.to_string_lossy().into_owned());
+        let kind = match target {
+            Target::Markdown => "Markdown",
+            Target::Text => "plain text",
+            Target::Rtf => "RTF",
+        };
+        let mut picker = rfd::FileDialog::new().set_title(format!("Save as {kind}")).set_file_name(format!("{stem}.{}", target.ending()));
+        if let Some(folder) = folder {
+            picker = picker.set_directory(folder);
+        }
+        let Some(path) = picker.save_file() else {
+            return;
+        };
+        match codec::write_file(&path, target.write(&converted).as_bytes()) {
+            Ok(()) if !converted.notes.is_empty() => self.message("Save the document as", format!("Saved {}, from {}.\n\n{}", path.display(), converted.format, converted.notes.join("\n"))),
+            Ok(()) => {}
+            Err(e) => self.message("Save the document as", format!("Couldn't save {}.\n\n{e}", path.display())),
+        }
+    }
+
     pub(super) fn save_picture_as_png(&mut self) {
         let doc = &self.docs[self.active];
         // A file opened out of an image is named for where it came from; its own name is the last part.
@@ -715,6 +748,29 @@ impl Limoniter {
         }
     }
 
+    /// File, This file, Move to the Recycle Bin: the file goes where it can be got back from, and its tab closes.
+    pub(super) fn move_file_to_bin(&mut self) {
+        let index = self.active;
+        let doc = &self.docs[index];
+        let Some(path) = doc.path.clone() else {
+            return;
+        };
+        let title = format!("Move to {}", crate::trash::BIN);
+        if doc.text.is_disk_backed() && !doc.hex_mode {
+            self.message(&title, "This file is so large that it's read from the disk as it's shown, so it can't be moved while it's open. Close it first, then move it from the file manager.".into());
+            return;
+        }
+        let name = path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+        let unsaved = if doc.is_modified() { "\n\nIts changes that haven't been saved will be lost." } else { "" };
+        if !super::ask_yes_no(&title, &format!("Move {name} to {}, and close it?{unsaved}", crate::trash::BIN)) {
+            return;
+        }
+        match crate::trash::move_to_bin(&path) {
+            Ok(()) => self.remove_tab(index),
+            Err(problem) => self.message(&title, problem),
+        }
+    }
+
     pub(super) fn open_with_usual_program(&mut self) {
         let Some(path) = self.docs[self.active].path.clone() else {
             return;
@@ -725,6 +781,48 @@ impl Limoniter {
     }
 
     // ---------- Snippets ----------
+
+    /// Edit, Surround with: the selection between two pieces of text, still selected inside them; with nothing
+    /// selected, the cursor between them.
+    pub(super) fn surround_selection(&mut self, before: &str, after: &str) {
+        if self.no_file() || !self.one_selection("Surround with") {
+            return;
+        }
+        let doc = &self.docs[self.active];
+        if doc.hex_mode || doc.text.is_block() {
+            self.message("Surround with", "Surrounding works on text selected in the ordinary way, not in hex or Column Mode.".into());
+            return;
+        }
+        if doc.text.read_only {
+            self.tell_read_only();
+            return;
+        }
+        let selection = doc.text.format.readable_text(&doc.text.selection_text()).replace("\r\n", "\n");
+        let text = &mut self.doc().text;
+        text.begin_undo_group(false);
+        if text.has_selection() {
+            text.delete_selection();
+        }
+        text.paste_text(before, false);
+        let inner_start = text.caret_char_position();
+        text.paste_text(&selection, false);
+        let inner_end = text.caret_char_position();
+        text.paste_text(after, false);
+        text.select_chars(inner_start, inner_end);
+        text.end_undo_group();
+        self.pending_focus = true;
+    }
+
+    /// Surrounds the selection with a tag, `<name attributes>` and `</name>`.
+    pub(super) fn surround_with_tag(&mut self, typed: &str) -> Result<(), String> {
+        let typed = typed.trim().trim_start_matches('<').trim_end_matches('>').trim();
+        let name: String = typed.chars().take_while(|c| !c.is_whitespace()).collect();
+        if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | ':' | '.')) || name.starts_with(|c: char| c.is_ascii_digit() || c == '-' || c == '.') {
+            return Err("Type a tag's name, such as p or div class=\"note\".".into());
+        }
+        self.surround_selection(&format!("<{typed}>"), &format!("</{name}>"));
+        Ok(())
+    }
 
     pub(super) fn insert_snippet(&mut self, index: usize) {
         let Some(snippet) = self.snippets.get(index).cloned() else {

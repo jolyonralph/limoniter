@@ -11,7 +11,7 @@ const SHOW_RUNNING_AFTER: Duration = Duration::from_millis(400);
 const MOST_OUTPUT_LINES: usize = 100_000;
 
 /// What a command is called in a script, and in a recorded macro. Anything needing a box still asks when it's played.
-pub(super) const SCRIPT_COMMANDS: [(&str, Command); 166] = [
+pub(super) const SCRIPT_COMMANDS: [(&str, Command); 171] = [
     ("new_file", Command::New),
     ("open_file_box", Command::Open),
     ("save_file", Command::Save),
@@ -110,6 +110,10 @@ pub(super) const SCRIPT_COMMANDS: [(&str, Command); 166] = [
     ("compress_css", Command::Format(formatters::Kind::CssCompact)),
     ("format_code_brace_same_line", Command::Format(formatters::Kind::CodeAttach)),
     ("format_code_brace_own_line", Command::Format(formatters::Kind::CodeBreak)),
+    ("base_sixty_four_encode", Command::Convert(crate::conversions::Conversion::Base64Encode)),
+    ("base_sixty_four_decode", Command::Convert(crate::conversions::Conversion::Base64Decode)),
+    ("json_to_xml", Command::Convert(crate::conversions::Conversion::JsonToXml)),
+    ("xml_to_json", Command::Convert(crate::conversions::Conversion::XmlToJson)),
     ("format_sql", Command::Format(formatters::Kind::Sql)),
     ("edi_to_lines", Command::Format(formatters::Kind::EdiLines)),
     ("edi_to_one_line", Command::Format(formatters::Kind::EdiOneLine)),
@@ -125,6 +129,7 @@ pub(super) const SCRIPT_COMMANDS: [(&str, Command); 166] = [
     ("trim_leading", Command::TrimLeading),
     ("trim_trailing", Command::TrimTrailing),
     ("tabs_to_spaces", Command::TabsToSpaces),
+    ("leading_tabs_to_spaces", Command::LeadingTabsToSpaces),
     ("spaces_to_tabs", Command::SpacesToTabs),
     ("indent", Command::Indent),
     ("outdent", Command::Outdent),

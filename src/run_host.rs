@@ -4,6 +4,7 @@
 use super::*;
 use crate::deploy::{Device, Payload, Place};
 use crate::emulators::{self, Emulator, Link};
+use crate::asm::output::Micro6502;
 use crate::running::{Machine, Runnable};
 use std::process::Child;
 use std::time::Instant;
@@ -98,6 +99,9 @@ impl Running {
 pub(super) enum RunBox {
     Where { runnable: Box<Runnable>, remember: bool },
     Which { doc_id: u64 },
+    /// 6502 source whose code doesn't say whether it's for a Commodore 64 or a BBC Micro; and where it was to
+    /// run, if it was asked for somewhere (None for F9).
+    Which6502 { doc_id: u64, target: Option<Target> },
 }
 
 /// The machines a plain text can be run as the BASIC of.
@@ -220,6 +224,7 @@ impl Limoniter {
                 return;
             }
             Err(problem) if problem.is_empty() => return,
+            Err(problem) if problem == super::asm_host::ASK_6502 => return self.ask_6502(None),
             Err(problem) => return self.message("Run on machine", problem),
         };
         let chosen = self.running.default_for(runnable.machine).and_then(|name| self.target_named(name)).filter(|target| self.suits(*target, &runnable).is_ok());
@@ -260,6 +265,7 @@ impl Limoniter {
             },
             Ok(None) => {}
             Err(problem) if problem.is_empty() => {}
+            Err(problem) if problem == super::asm_host::ASK_6502 => self.ask_6502(Some(target)),
             Err(problem) => self.message("Run on", problem),
         }
     }
@@ -273,8 +279,14 @@ impl Limoniter {
             },
             Ok(None) => self.dialog = Dialog::Run(Box::new(RunBox::Which { doc_id: self.docs[self.active].id })),
             Err(problem) if problem.is_empty() => {}
+            Err(problem) if problem == super::asm_host::ASK_6502 => self.ask_6502(Some(target)),
             Err(problem) => self.message("Run on", problem),
         }
+    }
+
+    /// Asks whether the 6502 source in front is for a Commodore 64 or a BBC Micro.
+    fn ask_6502(&mut self, target: Option<Target>) {
+        self.dialog = Dialog::Run(Box::new(RunBox::Which6502 { doc_id: self.docs[self.active].id, target }));
     }
 
     pub(super) fn run_on(&mut self, target: Target, run: Runnable) {
@@ -997,8 +1009,10 @@ impl Limoniter {
         // What's shown, read first, so the box can be drawn and then acted on.
         let shown = match state.as_ref() {
             RunBox::Where { runnable, remember } => Some((runnable.name.clone(), runnable.machine, self.targets_for(runnable), *remember)),
-            RunBox::Which { .. } => None,
+            RunBox::Which { .. } | RunBox::Which6502 { .. } => None,
         };
+        let which_6502 = matches!(state.as_ref(), RunBox::Which6502 { .. });
+        let mut as_6502: Option<Micro6502> = None;
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go: Option<Target> = None;
         let mut as_listing: Option<basic::Machine> = None;
@@ -1034,6 +1048,20 @@ impl Limoniter {
                     close |= ui.button("Cancel").clicked();
                 });
             }
+            None if which_6502 => {
+                ui.label("Is this 6502 program for a Commodore 64 or a BBC Micro? Its code doesn't say.");
+                ui.add_space(6.0);
+                if ui.button("Commodore 64").clicked() {
+                    as_6502 = Some(Micro6502::C64);
+                }
+                if ui.button("BBC Micro").clicked() {
+                    as_6502 = Some(Micro6502::Bbc);
+                }
+                ui.add_space(6.0);
+                ui.add(egui::Label::new(RichText::new("It's remembered while the file is open. To say in the source, put ; machine: c64 or ; machine: bbc near the top.").color(theme::text_dim())).wrap());
+                ui.add_space(6.0);
+                close |= ui.button("Cancel").clicked();
+            }
             None => {
                 ui.label("This isn't a program Limoniter knows how to run. Run it as a BASIC listing for:");
                 ui.add_space(6.0);
@@ -1058,6 +1086,18 @@ impl Limoniter {
                     doc.listing_of = as_listing.map(|machine| (machine, stem));
                     self.active = index;
                     self.run_on_machine();
+                }
+            }
+            RunBox::Which6502 { doc_id, target } if as_6502.is_some() => {
+                if let Some(index) = self.docs.iter().position(|doc| doc.id == doc_id) {
+                    self.docs[index].machine_6502 = as_6502;
+                    // What was assembled before the choice was made is made again with it.
+                    self.running.assembled = None;
+                    self.active = index;
+                    match target {
+                        Some(target) => self.run_on_target(target),
+                        None => self.run_on_machine(),
+                    }
                 }
             }
             RunBox::Where { runnable, .. } if go.is_some() => {

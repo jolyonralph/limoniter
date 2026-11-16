@@ -914,15 +914,19 @@ fn split_bytes(body: &[u8], charset: &Charset, policy: NewlinePolicy, out: &mut 
         }
         return;
     }
-    // EBCDIC has its own line feed, and a new line control as well.
-    let (lf, nl) = if charset.ebcdic { (0x25, Some(0x15)) } else { (0x0A, None) };
+    // EBCDIC has its own line feed, and a new line control as well; text with the top bit set has its own CR and LF.
+    let (cr, lf, nl) = match charset.cr_lf {
+        Some((cr, lf)) => (cr, lf, None),
+        None if charset.ebcdic => (0x0D, 0x25, Some(0x15)),
+        None => (0x0D, 0x0A, None),
+    };
     let mut i = 0;
     while i < body.len() {
         let byte = body[i];
         i += 1;
         match (byte, policy) {
             (b, NewlinePolicy::Standard) if Some(b) == nl => out.end_line(Eol::Nl),
-            (0x0D, NewlinePolicy::Standard) => {
+            (b, NewlinePolicy::Standard) if b == cr => {
                 if body.get(i) == Some(&lf) {
                     i += 1;
                     out.end_line(Eol::CrLf);
@@ -931,7 +935,7 @@ fn split_bytes(body: &[u8], charset: &Charset, policy: NewlinePolicy, out: &mut 
                 }
             }
             (b, NewlinePolicy::Standard) if b == lf => out.end_line(Eol::Lf),
-            (0x0D, NewlinePolicy::CrOnly) => out.end_line(Eol::Cr),
+            (b, NewlinePolicy::CrOnly) if b == cr => out.end_line(Eol::Cr),
             (0x9B, NewlinePolicy::AtasciiEol) => out.end_line(Eol::Atascii),
             _ => out.current.push(charset.decoded[usize::from(byte)]),
         }
@@ -999,6 +1003,15 @@ fn write_unicode(form: UnicodeForm, c: char, out: &mut Vec<u8>) {
 /// The bytes of a line ending in this encoding.
 pub fn eol_bytes(eol: Eol, charset: &Charset) -> Vec<u8> {
     let mut out = Vec::with_capacity(8);
+    if let Some((cr, lf)) = charset.cr_lf {
+        return match eol {
+            Eol::CrLf => vec![cr, lf],
+            Eol::Lf => vec![lf],
+            Eol::Cr => vec![cr],
+            Eol::Nl | Eol::None => out,
+            Eol::Atascii => vec![0x9B],
+        };
+    }
     if charset.ebcdic {
         return match eol {
             Eol::CrLf => vec![0x0D, 0x25],

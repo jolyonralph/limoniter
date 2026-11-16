@@ -16,6 +16,7 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 - Select every copy of the selection, or to the matching bracket.
 - Insert the date, time, file name or path, a GUID, a page break, a colour, a byte by its value, or another file.
 - Snippets (**Ctrl+J**) with `$CURSOR`, `$SELECTION`, `$DATE`, `$TIME` and `$FILE` filled in.
+- **Surround with** (Edit): puts the selection between brackets, quotes or a tag of your own, or into a snippet that has `$SELECTION`, and leaves it selected inside; with nothing selected, the cursor goes between the pair.
 - Swap with clipboard (**Ctrl+Shift+V**) puts the selection on the clipboard and the clipboard in its place.
 - Undo as a tree: undoing and then typing keeps the undone branch; the Edit history shows every state.
 - Edit history can be kept with the file between sessions.
@@ -23,13 +24,17 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 - Narrow to the selection (**Ctrl+Shift+N**): every command then works on just those lines.
 - Folding, hiding chosen lines, and showing only the lines that contain the selection.
 - Colour tags (**Ctrl+Shift+1** to **6**) mark sections in six colours, shown in the margin and the document map, and kept with the file.
-- Bookmarks, and back and forward (**Alt+Left**, **Alt+Right**) through where the cursor has been, across files.
+- Bookmarks, and back and forward (**Alt+Left**, **Alt+Right**) through where the cursor has been, across files. **Search, Bookmarks** goes to any of them by its line, and copies, cuts or deletes the bookmarked lines (or deletes every other line), swaps bookmarked and not, or clears them all.
 - Show line numbers, ruler, document map, changed lines, spaces and tabs, line endings, control characters by name, rainbow brackets and the cursor's line and column.
+- **Column markers** (View, Show): lines down the text after chosen columns, up to eight (80 to begin with; 7 and 72 for COBOL, 72 for commit messages), set in Settings.
+- **Line spacing** (Settings, Appearance): rows from as close as the font sets them to twice as far apart.
 - Spell checking with Windows' own dictionary, in Windows' language; **F7** goes to the next mistake with suggestions.
 
 ## Laying out text and code
 
-- Reindent by brackets; tabs to spaces and back; break long lines at a column; join each paragraph into one line.
+- Reindent by brackets; break long lines at a column; join each paragraph into one line.
+- **Tabs and spaces** (Format): whether the Tab key types spaces, the tab size, tabs to spaces (everywhere, or only in each line's indent), spaces to tabs in the indent, trimming spaces at either end of lines, and showing spaces and tabs.
+- **Convert** (Format): Base64 encode and decode (RFC 4648, in 76-character lines; URL-safe letters and missing padding read too), JSON to XML and XML to JSON (members as elements, `@name` as attributes, `#text` as an element's text, an array as the element repeated; numbers, true, false and empty elements come back as such).
 - Paragraphs: reformat to a width and margins, align left, centre, right or justify.
 - Lay out code: HTML, XML, JSON, JavaScript, CSS, SQL and C-like code (brace on the same line or its own line).
 - Compress HTML, XML, JSON, JavaScript and CSS onto as few lines as possible.
@@ -60,6 +65,7 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 - Go to an offset in decimal or hex (`0x...`).
 - Search for hex byte sequences as well as text.
 - Copy the selected rows as they look on screen.
+- **Value inspector** (View, Hex): the bytes at the cursor as every kind of number: 8-, 16-, 32- and 64-bit integers either way round, signed and not; IEEE floats and doubles either way round; IBM hexadecimal floating point (System/360 and ICL 2900), 32- and 64-bit; DEC VAX F, D, G and H floats, words swapped as a VAX keeps them; packed decimal (COBOL COMP-3); and RADIX-50, three characters a word as PDP-11 and VAX names keep them.
 - String explorer: lists readable strings in the bytes and how each is stored (length prefix, zero terminator, fixed-width padding, top bit set on the last character, `$` terminator, or line ending); can also find UTF-16 strings.
 
 ## Large files
@@ -77,14 +83,15 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
 
 ## Character sets and encodings
 
-- 178 single-byte character sets, plus UTF-8, UTF-16 and UTF-32 (both byte orders), UTF-7, and East Asian encodings (Shift-JIS, EUC-JP, ISO-2022-JP, GBK, GB 18030, Big5, EUC-KR).
+- 201 single-byte character sets, plus UTF-8, UTF-16 and UTF-32 (both byte orders), UTF-7, and East Asian encodings (Shift-JIS, EUC-JP, ISO-2022-JP, GBK, GB 18030, Big5, EUC-KR).
 - Windows and ISO-8859 code pages, KOI8, and 20 DOS code pages (CP437, CP850, CP866 and others).
 - 18 classic Macintosh encodings, HP Roman-8, DEC Multinational, NeXTSTEP and Palm OS.
 - 22 EBCDIC code pages for IBM mainframes, with and without the euro.
-- 8-bit home computers: Commodore PETSCII and screen codes (C64/C128, VIC-20, PET), Atari ATASCII and screen codes, Atari ST, ZX Spectrum, ZX80, ZX81 and QL, BBC Micro and Mode 7, Acorn Atom, RISC OS, Amiga, Amstrad CPC and CP/M Plus, MSX (five regional sets), Apple II, TRS-80, Sharp MZ and X1, Oric, Kaypro, Osborne and more.
+- 8-bit home computers: Commodore PETSCII and screen codes (C64/C128, VIC-20, PET), Atari ATASCII and screen codes, Atari ST, ZX Spectrum, ZX80, ZX81 and QL, BBC Micro and Mode 7, Acorn Atom, RISC OS, Amiga, Amstrad CPC, Amstrad PCW and CP/M Plus (the PCW's text and its screen, with its symbols and graphics), Amstrad NC100, NC150 and NC200, Cambridge Z88, MSX (five regional sets), Apple II, TRS-80, Sharp MZ and X1, Oric, Kaypro, Osborne and more.
 - 26 teletext national character sets.
+- The 7-bit national versions of ASCII (ISO 646): UK, German, French (1973 and 1982), Italian, Spanish (two), Portuguese (two), Swedish and Finnish (and for names), Norwegian (two), Danish, Swiss, Hungarian, Irish and Icelandic; DEC Special Graphics, the VT100's line drawing; and ASCII with the top bit set, as Prime computers kept text, its line feed 0x8A.
 - Opening and saving give back the same file byte for byte; bytes with no Unicode equivalent are carried through exactly.
-- Each line keeps its own line ending: CRLF, LF, CR, ATASCII (0x9B), EBCDIC NL (0x15), or fixed-width rows with none.
+- Each line keeps its own line ending: CRLF, LF, CR, ATASCII (0x9B), EBCDIC NL (0x15), Prime's 0x8D 0x8A, or fixed-width rows with none.
 - Change the encoding or line ending from the status bar; reopen with another encoding, convert, or save a copy in another.
 - Character table panel: every byte of the current character set with its glyph, name and Unicode value, and a Unicode browser.
 - Encoding preview panel: the selected text or the character at the cursor as code points and as the bytes it is stored as.
@@ -113,12 +120,15 @@ Every command is in the menus, arranged by what it is for. Press **F1** to find 
   - Others: APL, Forth, Logo, Modula-2, Prolog, Smalltalk, PostScript, RTF, Inform 6, ZIL, CONFIG.SYS.
   - Amiga: AmigaGuide and the Amiga Installer language.
 - Choose the language by hand under **Tools, Colour as**.
+- **Your own grammars**: Sublime Text `.sublime-syntax` files put in the grammars folder beside the settings (Settings, Editing, Open the folder) are read when Limoniter starts, and win over the built-in grammar for a file ending both know. Any that can't be read are listed there with the reason.
 
 ## Previews
 
 Shown beside the text or filling the window (**View, Preview**). Nothing in a preview runs or fetches anything.
 
 - Markdown, with headings, lists, tables, emphasis, code and links.
+- Web pages (`.html`, `.htm`), laid out from their HTML: headings, paragraphs, lists, quotes, preformatted text, tables, emphasis and links, pictures by what they say they are. Scripts, styles and the head are left out, and nothing is fetched.
+- An old word processor's document opened by itself (WordStar, WordPerfect, Protext, 1st Word, Signum!, Final Writer, Wordworth, ProWrite, FTXT, AmigaGuide), converted and laid out beside its raw text. **Format, Save the document as** saves it as plain text, Markdown or RTF.
 - PC ANSI art (`.ans`, `.ice`, `.diz`, `.nfo` and others) with ANSI.SYS colours, iCE colours and the SAUCE record; also BinaryText.
 - Amiga console text (the Amiga ANSI preset), drawn as the Amiga does, its colour codes choosing pens: plain text is pen 1 on pen 0. A table below sets the 16 pens, from Workbench 1.0–1.3's (the default), 2.04–3.x's or ANSI's usual colours, or any of the Amiga's 4096, picked from them all or typed as hex such as `f8f`; bold text can take pens 8–15.
 - Commodore PETSCII streams (`.seq`), drawn with colour codes, reverse and cursor movement, and Commodore screen memory.
@@ -133,6 +143,8 @@ Shown beside the text or filling the window (**View, Preview**). Nothing in a pr
 ## Pictures
 
 Shown at the machine's own pixel shape, with details from the file, and saved as PNG pixel for pixel.
+
+- PNG and JPEG pictures open as pictures, beside their bytes, as the older machines' formats do.
 
 - Amiga IFF ILBM and PBM, including HAM, HAM8, Extra Half-Brite and deep pictures; colour cycling (Deluxe Paint and Graphicraft) can be played.
 - Atari ST Degas, Degas Elite (packed or not) and NEOchrome, with playable colour cycling; and Spectrum 512 (`.spu`, packed `.spc` and smooshed `.sps`, STE Spectrum 4096 too), its 48 colours a line placed as the display routine changes them.
@@ -208,7 +220,7 @@ The images below can have files added (**Add files…**, or drop them on the tab
 
 ## Documents and conversions
 
-- WordStar 3.x to 7 documents and HP MemoMaker documents, found inside disk images, can be opened as text or converted to Markdown, plain text or RTF.
+- WordStar 3.x to 7 documents and HP MemoMaker documents, found inside disk images or opened by themselves, can be opened as text or converted to Markdown, plain text or RTF.
 - Amiga and Atari ST documents too: IFF formatted text (FTXT, from the clipboard, NotePad and TextCraft), ProWrite and other IFF WORD documents, AmigaGuide hypertext, Arnor's Protext (Amiga, ST, PC and CPC), and 1st Word and 1st Word Plus (ST and Archimedes), each read in its machine's own character set.
 - ProWrite's larger type becomes Markdown headings, and each AmigaGuide node a section of its own with its links between them; numbered and bulleted paragraphs become Markdown lists.
 - WordPerfect 4.x and 5.x documents, from DOS, the Amiga and the Atari ST (whose WordPerfect 4.1 and "5.0" save as 4.x does), converted the same way, footnotes and endnotes becoming Markdown footnotes.
@@ -232,7 +244,8 @@ The images below can have files added (**Add files…**, or drop them on the tab
 - UDGs are drawn as their pictures, from the tape the program came from (a CODE block loaded at USR "a"), the snapshot it came from, its own DATA lines when it POKEs them in at USR "a", or a file chosen with Spectrum UDG pictures from. Putting the cursor in one shows it as text again, to edit.
 - ZX81 listings follow the ROM's own spacing; inverse characters are written `%A`, as zxtext2p reads them, and block graphics as the matching Unicode characters.
 - SAM BASIC listings space keywords as the SAM's LIST does, and write colour codes in strings as `{PEN 2}`, `{AT 1,5}`.
-- MSX-BASIC, Atari BASIC, and the TRS-80's, ZX81's, SAM's and Oric's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops. MBASIC, MSX-BASIC and TRS-80 Model 4 programs, which are saved alike, are told apart by the tokens in them.
+- Apple II Integer BASIC programs, from DOS 3.3 and ProDOS disks, are listed as Integer BASIC's LIST shows them.
+- MSX-BASIC, Atari BASIC, Integer BASIC, and the TRS-80's, ZX81's, SAM's and Oric's BASICs are listed only; protected MBASIC programs are reported, not listed. A damaged program is listed as far as its lines link up, and says where it stops. MBASIC, MSX-BASIC and TRS-80 Model 4 programs, which are saved alike, are told apart by the tokens in them.
 
 ## Searching and comparing
 
@@ -271,7 +284,7 @@ Switched on under **View, Panels**:
 - Files on this computer, Project, Open files, and File lists (recently opened files). **File › Open recent** and File lists have **Clean up**, which takes off files that are no longer there, and **Clear list**.
 - Functions in the current file, Bookmarks, Tags (HTML and Markdown tags to wrap a selection, plus your own), Edit history.
 - Macros and Scripts.
-- File properties: size, counts, SHA-256 of the saved file, and everything a disk image or archive says about itself.
+- File properties: size, counts (with the lines of code, not comments or blank lines, in a language whose comments Limoniter knows), the file's owner and the program the system opens it with, SHA-256 of the saved file, and everything a disk image or archive says about itself.
 - JSON and XML managers showing the document as a tree.
 - Characters (the Character table), Encoding preview, String explorer.
 - Clipboard history (the last 50 items, never saved to disk).
@@ -285,7 +298,9 @@ Switched on under **View, Panels**:
 - **Test results**: a test task's output (cargo test, pytest, go test) is read test by test into a panel, failures first, each a click away from where it failed, with **Run again** and **Run only this** for a failing test.
 - Run a command (**F5**) in the file's folder, with `%FILE%`, `%NAME%`, `%STEM%` and `%DIR%`; output goes to the Output panel.
 - Projects: a named set of files with notes, backups and restore; paths kept relative so a project can be moved.
-- File, This file: rename, show in Explorer, open in its usual program, or split into parts. Save just the selection.
+- File, This file: rename, move to the Recycle Bin (or the Trash), show in Explorer, open in its usual program, or split into parts. Save just the selection.
+- **Save settings to a file** and **Restore settings from a file** (Tools): everything Limoniter remembers, and the encodings chosen for particular files, in one file to keep or take to another computer. Restoring takes effect at once, and the settings it replaces are kept beside them. Passwords stay in the computer's keychain.
+- **Check for a newer Limoniter** (Help), and once a day by itself (Settings, Editing): GitHub is asked for the latest release, and a newer one is shown with its notes and a link to the download page, once for each version. The Store's and Flathub's copies are kept up to date by them instead.
 - Coding assistant (**Ctrl+Shift+A**): asks Claude Code or Codex, if installed and signed in, to fix, clean up, explain or write code, or answer a question. Changes are shown first and come off with one Undo. The code is sent to Anthropic or OpenAI by that tool, which can read the folder's files but not change them or run commands.
 - **The Assistant panel** keeps the history of everything asked, between sessions: when, which tool, what was asked, about which lines (a click goes there), and what came of it: the answer to read, or the change suggested and whether it was put in or left out. **Show** brings a suggestion back, and one left out can still be put in while those lines are as they were. A request still working can be stopped from it, and the next one is written at the bottom.
 - Offer Limoniter to Windows as the editor for chosen file types (Settings, File types).
@@ -404,6 +419,8 @@ Switched on under **View, Panels**:
 - **File › Run on › Assemble and save** saves the program beside its source without running it: a `.tap`, `.nex`, `.prg` or `.bin`.
 - **File › Run on › Assemble and save as binary** saves just the assembled bytes, from the lowest address to the highest, with no loader or header: for `LOAD "" CODE` at that address, `INCBIN`, or a ROM. The Output panel says the address to load them at.
 - **Disassemble** (Tools): turns machine code back into source for the Z80 (with the Next's instructions), the 6502 or the 6809. It works out what the file holds: a C64 program's load address and the SYS its BASIC line calls, a snapshot's 48K and the PC it was saved at, a tape's CODE block, a Color Computer binary, an Atari binary load file (all its segments in memory, followed from its run and init addresses) or one of its segments, or a code file opened from a tape at the address the tape gives. The code is followed from where it starts through every jump and call, so data it never runs stays as data; every address jumped to, called or used gets a label; and the source is assembled again before it's shown, any line that wouldn't give back its bytes kept as bytes, so it always assembles to exactly what it came from. The whole 48K Spectrum ROM comes back byte for byte.
+- **x86 code** is disassembled too, from the 8086 to today's Intel and AMD processors (every instruction set extension, SSE to AVX-512 and AMX, from the iced-x86 decoder), into NASM-style source with each instruction's address and bytes beside it. What the file is says how: a DOS `.COM` program (16-bit, at $100), a DOS `.EXE` (its load module, entered at CS:IP, near jumps followed within their segment and far calls into another), a Windows program or DLL (PE, 32- or 64-bit: its executable sections at their addresses, followed from the entry point, every export by name and, for 64-bit programs, every function in the exception table), or a Linux program or library (ELF: its executable segments, from the entry point and the functions its symbol table names); anything else is plain code in the mode chosen (16, 32 or 64-bit). Code is followed through every jump and call, so what's never reached stays as data; places called are sub_ labels, places jumped to loc_ labels, unless the file names them.
+- **ICL 2900 code** is disassembled too (Tools, Disassemble, ICL 2900): every halfword is read as an instruction, one after another, and listed in SFL with its byte address and its halfwords in hex. All 123 functions of ICL's *2900 Order Code* (Technical Literature 6594899) are known, with every primary operand form (literals, LNB, XNB, PC and CTB, descriptors in DR and in store, modified by B, the image store, top of stack, and AML1's bit strings), the store-to-store functions' lengths, masks and literals, and the conditional jumps' masks. Jumps' literal operands, which count halfwords, are shown as the address they reach, with a label there.
 - **Character and sprite editor** (Tools): draws the Spectrum's UDGs and fonts (8×8, a byte a row) and the Next's 16×16 sprites in its 256 colours, with the left button drawing and the right rubbing out (to transparent, $E3, for sprites); flip, turn, shift a pixel, invert, clear and undo; add, copy and remove characters. They're put in the source as DB lines at the cursor, read back from DB lines selected, opened and saved as .udg, .chr and .spr files, and given to a Spectrum listing as its UDG pictures. **Commodore 64** modes too: a whole set of 256 characters, hires (8×8) or multicolour (4×8, pixels twice as wide), and sprites, hires (24×21) or multicolour (12×21), drawn in the C64's colours with each pixel value's colour chosen (the background, $D022/$D023 or $D025/$D026, and each sprite's own); opened and saved as raw `.bin`, `.prg` with its load address, and SpritePad's `.spd` for sprites, and put in the source as `!byte` lines.
 - **Spectrum screen designer** (Tools): draws a 256×192 Spectrum screen as the Spectrum keeps it, each 8×8 cell with one INK and one PAPER, BRIGHT and FLASH: a pencil (INK with the left button, PAPER with the right) and a brush for a cell's colours, the cells' grid, clear and undo, and the pixel, cell and attribute address under the mouse. Opens and saves .scr files (6912 bytes, in the Spectrum's own order), saves a PNG, and brings in a PNG picture, each cell given the two colours most of it is. A .scr in front opens in it.
 - **Amiga hardware registers and copper lists** (Tools › Amiga): a guide to every custom chip register from $DFF000 to $DFF1FE and both CIAs' (OCS, ECS and AGA), grouped by what they're for (bitplanes, colours, sprites, copper, blitter, audio, DMA and interrupts, the display window, the programmable beam, disk, ports, AGA extras, the CIAs), searchable by name, address or what they do, narrowed to one chipset, each with its bits explained and any value typed read into them. **Copper list** shows the copper list the cursor is in, line by line with its colours, a click away from each line, beside a picture of what it does to a PAL frame (raster bars and colour splits where the beam was, each other colour it sets line by line), and puts MOVE (by register name), WAIT and END lines in. **Gradient** makes a copper gradient: colour stops on a bar down the screen, 12-bit or AGA 24-bit colour for any of COLOR00–COLOR31, previewed as the copper will show it, and put into the source as `dc.w` WAIT and MOVE lines, with the WAIT for `$FFDF` that gets past line 255.
@@ -466,11 +483,13 @@ Switched on under **View, Panels**:
 - Saving never changes bytes you didn't edit.
 - Archives, and disk images of kinds Limoniter doesn't write, are only ever read; files inside images open read-only. A change to an image is written whole and read back before it replaces the old file, and can be undone.
 - Files can be opened read-only.
+- Other programs' changes are noticed when the window comes back into focus, and every two seconds as well if asked (Settings, Files). A changed file with no unsaved edits can be reloaded without asking, staying at its end if the cursor was there, to follow a log as it grows.
 
 ## Printing and display
 
 - Print with Windows' print dialog, with an optional header and line numbers; hex view can be printed too (up to 16 MB).
 - Font choice, larger and smaller text, full screen and always on top.
+- **Window, Layouts**: save which panels are open (and the output, assistant, document map, file tabs and status bar) under a name, such as Writing or Debugging, and switch between them. **Window, Gather windows** brings every box and tool window back onto the screen.
 - **Without a mouse, and with a screen reader**: F10 goes to the menus (the arrows and Enter open them), Ctrl+F6 takes the keyboard out of the editor to the rest of the window and Tab goes on from there, and a box that opens has the keyboard at once (Tab through it, Escape closes it). Screen readers are told the line the cursor is on and where it is, or in hex the byte; the file tabs, the command box's list, the image browser's files, the status bar's Read-only, encoding and line-ending items, and buttons that show only a symbol all have names.
 
 ## Themes

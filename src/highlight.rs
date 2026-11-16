@@ -42,6 +42,39 @@ pub struct Engine {
     comment_scope: Scope,
     /// Language names in menu order, each with its grammar's number.
     names: Vec<(String, usize)>,
+    /// Your own grammars, from the grammars folder: each file's name, and the language it gave or why it didn't.
+    own: Vec<(String, Result<String, String>)>,
+}
+
+/// Where your own grammars are kept: a folder of `.sublime-syntax` files beside the settings, read at start.
+pub fn grammars_folder() -> Option<std::path::PathBuf> {
+    if let Some(folder) = std::env::var_os("LIMONITER_GRAMMARS") {
+        return Some(folder.into());
+    }
+    // Tests never pick up grammars someone has put on the machine running them.
+    if cfg!(test) {
+        return None;
+    }
+    crate::settings::data_folder().map(|dir| dir.join("grammars"))
+}
+
+/// The `.sublime-syntax` files in a folder, in name order, each read as a grammar or with why it can't be. A
+/// grammar of yours comes after the built-in ones, so for a file ending both know, yours is used.
+fn read_own_grammars(folder: &std::path::Path) -> Vec<(String, Result<SyntaxDefinition, String>)> {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return Vec::new();
+    };
+    let mut files: Vec<std::path::PathBuf> = entries.filter_map(Result::ok).map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("sublime-syntax"))).collect();
+    files.sort();
+    files
+        .into_iter()
+        .map(|path| {
+            let file = path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+            let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned());
+            let grammar = std::fs::read_to_string(&path).map_err(|e| format!("couldn't be read: {e}")).and_then(|text| SyntaxDefinition::load_from_str(&text, true, stem.as_deref()).map_err(|e| e.to_string()));
+            (file, grammar)
+        })
+        .collect()
 }
 
 static ENGINE: OnceLock<Engine> = OnceLock::new();
@@ -346,6 +379,16 @@ impl Engine {
                 builder.add(grammar);
             }
         }
+        let mut own = Vec::new();
+        for (file, grammar) in grammars_folder().map_or_else(Vec::new, |folder| read_own_grammars(&folder)) {
+            match grammar {
+                Ok(grammar) => {
+                    own.push((file, Ok(grammar.name.clone())));
+                    builder.add(grammar);
+                }
+                Err(problem) => own.push((file, Err(problem))),
+            }
+        }
         let syntaxes = builder.build();
         let mut names: Vec<(String, usize)> = syntaxes
             .syntaxes()
@@ -362,7 +405,13 @@ impl Engine {
             string_scope: Scope::new("string").expect("a valid scope"),
             comment_scope: Scope::new("comment").expect("a valid scope"),
             names,
+            own,
         }
+    }
+
+    /// Your own grammars as they were read at start.
+    pub fn own_grammars(&self) -> &[(String, Result<String, String>)] {
+        &self.own
     }
 
     pub fn names(&self) -> &[(String, usize)] {
@@ -654,6 +703,29 @@ impl LineColours {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn your_own_grammars_are_read_from_their_folder_and_win_their_endings() {
+        let folder = std::env::temp_dir().join(format!("limoniter-grammars-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("good.sublime-syntax"), "%YAML 1.2\n---\nname: My Language\nfile_extensions: [mylang, txt]\nscope: source.mylang\ncontexts:\n  main:\n    - match: '\\bhello\\b'\n      scope: keyword.control.mylang\n").unwrap();
+        std::fs::write(folder.join("bad.sublime-syntax"), "name: [unclosed").unwrap();
+        std::fs::write(folder.join("notes.txt"), "not a grammar").unwrap();
+        let read = read_own_grammars(&folder);
+        assert_eq!(read.len(), 2, "only .sublime-syntax files");
+        assert_eq!(read[0].0, "bad.sublime-syntax");
+        assert!(read[0].1.is_err());
+        let mut builder = two_face::syntax::extra_newlines().into_builder();
+        for (_, grammar) in read {
+            if let Ok(grammar) = grammar {
+                builder.add(grammar);
+            }
+        }
+        let set = builder.build();
+        assert_eq!(set.find_syntax_by_extension("mylang").map(|s| s.name.as_str()), Some("My Language"));
+        assert_eq!(set.find_syntax_by_extension("txt").map(|s| s.name.as_str()), Some("My Language"), "yours comes first");
+        let _ = std::fs::remove_dir_all(&folder);
+    }
     use crate::rainbow::RainbowCache;
 
     fn test_engine() -> &'static Engine {

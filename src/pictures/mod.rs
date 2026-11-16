@@ -29,6 +29,10 @@ pub enum Format {
     SpectrumScreen,
     /// A Kodak Photo CD image pack, at the largest size it holds.
     PhotoCd,
+    /// A PNG, as today's programs save pictures.
+    Png,
+    /// A JPEG photograph.
+    Jpeg,
     /// A Commodore 64 bitmap: Koala Painter, Art Studio, Advanced Art Studio or Doodle!.
     C64,
     /// An Atari ST screen: Degas, Degas Elite, NEOchrome or Spectrum 512.
@@ -49,10 +53,12 @@ pub enum Format {
 }
 
 impl Format {
-    pub const ALL: [Self; 12] = [Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
+    pub const ALL: [Self; 14] = [Self::Png, Self::Jpeg, Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
 
     pub fn name(self) -> &'static str {
         match self {
+            Self::Png => "PNG picture",
+            Self::Jpeg => "JPEG picture",
             Self::Ilbm => "IFF ILBM picture",
             Self::SpectrumScreen => "ZX Spectrum screen",
             Self::PhotoCd => "Kodak Photo CD image",
@@ -101,6 +107,12 @@ impl Picture {
 
 /// Which picture format a file is, from its first bytes or, for formats with no signature, its name and size.
 pub fn detect(name: &str, bytes: &[u8]) -> Option<Format> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1A\n") {
+        return Some(Format::Png);
+    }
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return Some(Format::Jpeg);
+    }
     if ilbm::looks_like(bytes) {
         return Some(Format::Ilbm);
     }
@@ -174,6 +186,14 @@ pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
         return Err("This file is too large to be a picture of this kind.".into());
     }
     match format {
+        Format::Png => {
+            let (width, height, rgba) = crate::screen_designer::read_png(bytes)?;
+            today(width, height, rgba)
+        }
+        Format::Jpeg => {
+            let image = crate::quantise::read_jpeg(bytes)?;
+            today(image.width, image.height, image.rgba)
+        }
         Format::Ilbm => ilbm::decode(bytes),
         Format::SpectrumScreen => spectrum::decode(bytes),
         Format::PhotoCd => photo_cd::decode(bytes),
@@ -190,6 +210,19 @@ pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
         // Without a name, a screen's size can't tell Graphics 8 from 15 or 9: the four-colour one is the likeliest.
         Format::Atari8 => atari8::decode("", bytes),
     }
+}
+
+/// The largest side shown: a graphics card's textures go no bigger.
+const MOST_SIDE: usize = 16384;
+
+/// A picture in one of today's formats, with square pixels.
+fn today(width: usize, height: usize, rgba: Vec<u8>) -> Result<Picture, String> {
+    if width > MOST_SIDE || height > MOST_SIDE {
+        return Err(format!("At {width} by {height} pixels, it's too large to show."));
+    }
+    let mut picture = Picture { width, height, rgba, aspect: 1.0, info: Vec::new(), cycling: None };
+    picture.note("Size", format!("{width} \u{D7} {height} pixels"));
+    Ok(picture)
 }
 
 /// The picture as a PNG, pixel for pixel. The pixel's shape goes in its pHYs chunk, for programs that heed it.
@@ -222,6 +255,20 @@ pub fn png_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn png_and_jpeg_files_are_pictures_too() {
+        let mut picture = Picture::new(3, 2);
+        picture.set(2, 1, [10, 20, 30]);
+        let png = to_png(&picture).unwrap();
+        assert_eq!(detect("photo.png", &png), Some(Format::Png));
+        let back = decode(Format::Png, &png).unwrap();
+        assert_eq!((back.width, back.height, back.aspect), (3, 2, 1.0));
+        assert_eq!(&back.rgba[20..24], &[10, 20, 30, 255]);
+        assert_eq!(back.info, [("Size".to_string(), "3 \u{D7} 2 pixels".to_string())]);
+        assert_eq!(detect("x.jpg", &[0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10]), Some(Format::Jpeg));
+        assert!(decode(Format::Jpeg, &[0xFF, 0xD8, 0xFF, 0xE0]).is_err(), "a broken JPEG says so");
+    }
 
     #[test]
     fn a_png_round_trips_and_keeps_the_pixel_shape() {
@@ -322,6 +369,8 @@ mod tests {
                     if let Some(out) = &out {
                         std::fs::create_dir_all(out).unwrap();
                         let ending = match format {
+                            Format::Png => "png",
+                            Format::Jpeg => "jpg",
                             Format::Ilbm => "iff",
                             Format::SpectrumScreen => "scr",
                             Format::PhotoCd => "pcd",

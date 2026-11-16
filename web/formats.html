@@ -1,0 +1,1738 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>File and data formats Limoniter reads and writes</title>
+  <meta name="description" content="Every file and data format Limoniter opens: text and character sets, documents, BASIC programs, executables, pictures, disk, tape and archive images, with what it reads, what it writes and how each one opens.">
+  <link rel="canonical" href="https://limoniter.com/formats.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/formats.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="File and data formats in Limoniter">
+  <meta property="og:description" content="What Limoniter reads and writes, and how it opens each format.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from FORMATS.md by tools/make-pages.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="index.html">
+        <img src="images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="index.html#features">Everyday work</a>
+        <a href="index.html#retro">Older computers</a>
+        <a href="index.html#machines">Machines</a>
+        <a href="index.html#send">Send to device</a>
+        <a href="index.html#screens">Screenshots</a>
+        <a href="index.html#get">Download</a>
+        <a href="guide/index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article wide">
+    <div class="wrap">
+      <p class="back"><a href="index.html">‹ Limoniter</a></p>
+      <h1>File and data formats</h1>
+      <div class="article-lead">
+<p>This page lists every file and data format Limoniter understands. Read and Write say whether Limoniter can open the format and whether it can save or change it: ✓ fully, ◐ in part (the notes say how far), ✗ not at all. Opens as says what you see: editable text, the hex editor, a formatted document (markup), a picture (image), or a browsable list of files (directory).</p>
+      </div>
+      <p class="legend"><span class="yes"><span class="mark">✓</span> yes</span> <span class="part"><span class="mark">◐</span> in part</span> <span class="no"><span class="mark">✗</span> no</span></p>
+      <nav class="contents" aria-label="Sections">
+        <ul>
+<li><a href="#text-and-character-sets">Text and character sets</a></li>
+<li><a href="#documents-and-markup">Documents and markup</a></li>
+<li><a href="#data-and-tables">Data and tables</a></li>
+<li><a href="#programs-and-basic">Programs and BASIC</a></li>
+<li><a href="#assembler-source">Assembler source</a></li>
+<li><a href="#pictures-and-screens">Pictures and screens</a></li>
+<li><a href="#sound-and-music">Sound and music</a></li>
+<li><a href="#disk-images">Disk images</a></li>
+<li><a href="#tape-images">Tape images</a></li>
+<li><a href="#archives-and-compressed-files">Archives and compressed files</a></li>
+<li><a href="#snapshots-and-memory-images">Snapshots and memory images</a></li>
+<li><a href="#cartridges-and-roms">Cartridges and ROMs</a></li>
+<li><a href="#other">Other</a></li>
+        </ul>
+      </nav>
+<h2 id="text-and-character-sets">Text and character sets</h2>
+<p>Text in any of these encodings opens and saves byte for byte; bytes with no Unicode equivalent are carried through unchanged.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">UTF-8</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>With or without a byte order mark; any size of file.</td>
+</tr>
+<tr>
+<th scope="row">UTF-16</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Both byte orders.</td>
+</tr>
+<tr>
+<th scope="row">UTF-32</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Both byte orders.</td>
+</tr>
+<tr>
+<th scope="row">UTF-7</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Written as RFC 2152 describes.</td>
+</tr>
+<tr>
+<th scope="row">East Asian encodings (7)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Shift-JIS, EUC-JP, ISO-2022-JP, GBK, GB 18030, Big5 and EUC-KR.</td>
+</tr>
+<tr>
+<th scope="row">US-ASCII (7-bit)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Also the Generic 7-bit ASCII preset.</td>
+</tr>
+<tr>
+<th scope="row">Windows code pages (10)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Windows-1250 to 1258 and 874.</td>
+</tr>
+<tr>
+<th scope="row">ISO 8859 sets (15)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>ISO-8859-1 to 16.</td>
+</tr>
+<tr>
+<th scope="row">KOI8 sets (4)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>KOI8-R, KOI8-U, KOI8-T and KOI8-RU.</td>
+</tr>
+<tr>
+<th scope="row">DOS code pages (20)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>CP437, CP850, CP866 and others.</td>
+</tr>
+<tr>
+<th scope="row">Classic Macintosh encodings (18)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Mac Roman and its regional, Symbol and Dingbats variants.</td>
+</tr>
+<tr>
+<th scope="row">Other regional sets</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>TIS-620, VISCII, ARMSCII-8, Georgian, KZ-1048, PT154, Kamenický, KOI7 and others.</td>
+</tr>
+<tr>
+<th scope="row">HP Roman-8, DEC Multinational, NeXTSTEP, Palm OS</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Workstation and handheld sets.</td>
+</tr>
+<tr>
+<th scope="row">EBCDIC code pages (22)</th>
+<td><code>.ebc</code>, <code>.ebcdic</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>IBM mainframe sets, with and without the euro; NL line endings or fixed 80-byte records.</td>
+</tr>
+<tr>
+<th scope="row">Commodore PETSCII and screen codes</th>
+<td><code>.seq</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>C64 and C128, VIC-20 and PET.</td>
+</tr>
+<tr>
+<th scope="row">Atari ATASCII and screen codes</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Atari 8-bit, with its 0x9B line ending.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST character set</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Also the Atari ST preset.</td>
+</tr>
+<tr>
+<th scope="row">Amiga character set</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Amiga plain text and Amiga ANSI presets.</td>
+</tr>
+<tr>
+<th scope="row">Sinclair character sets</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>ZX Spectrum, ZX80, ZX81 and QL.</td>
+</tr>
+<tr>
+<th scope="row">Acorn character sets</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>BBC Micro, BBC Mode 7, Acorn Atom and RISC OS.</td>
+</tr>
+<tr>
+<th scope="row">Amstrad character sets</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>CPC, PCW and CP/M Plus (text and screen), and NC100, NC150 and NC200.</td>
+</tr>
+<tr>
+<th scope="row">Cambridge Z88 character set</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>ASCII with the pound sign, and the international OZ versions' letters at their ISO 8859-1 places.</td>
+</tr>
+<tr>
+<th scope="row">MSX character sets (5)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>International, Japanese, Brazilian, Russian and Korean.</td>
+</tr>
+<tr>
+<th scope="row">Other home computer sets</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Apple II, TRS-80, Sharp MZ and X1, Oric, Kaypro, Osborne, Enterprise, TI-99/4A and more.</td>
+</tr>
+<tr>
+<th scope="row">Teletext national character sets (26)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Every national option of the teletext standard.</td>
+</tr>
+<tr>
+<th scope="row">ISO 646 national sets (18)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>The 7-bit national versions of ASCII: UK, German, French, Italian, Spanish, Portuguese, Swedish, Norwegian, Danish, Swiss, Hungarian, Irish and Icelandic.</td>
+</tr>
+<tr>
+<th scope="row">DEC Special Graphics</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>The VT100's line drawing.</td>
+</tr>
+<tr>
+<th scope="row">ASCII with the top bit set (Prime)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Every byte has its top bit set; lines end 0x8A or 0x8D 0x8A.</td>
+</tr>
+<tr>
+<th scope="row">Line endings</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>CRLF, LF, CR, ATASCII (0x9B), EBCDIC NL (0x15) or fixed-width rows; each line keeps its own.</td>
+</tr>
+</tbody></table></div>
+<h2 id="documents-and-markup">Documents and markup</h2>
+<p>Old word processors' documents are converted when they're opened, from a disk image or archive or by themselves (shown laid out beside their raw text, and saved as text, Markdown or RTF with Format, Save the document as); the text formats here are edited directly.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Markdown</th>
+<td><code>.md</code>, <code>.markdown</code>, <code>.mdown</code>, <code>.mkd</code>, <code>.mdtext</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + markup</td>
+<td>Previewed with headings, lists, tables, emphasis, code and links.</td>
+</tr>
+<tr>
+<th scope="row">HTML</th>
+<td><code>.html</code>, <code>.htm</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + markup</td>
+<td>Coloured, laid out or compressed onto few lines; previewed as a web page, without its scripts or styles.</td>
+</tr>
+<tr>
+<th scope="row">RTF</th>
+<td><code>.rtf</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Coloured as RTF; old documents can be converted to it.</td>
+</tr>
+<tr>
+<th scope="row">WordStar document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>WordStar 3.x to 7 and HP MemoMaker, converted to plain text, Markdown or RTF.</td>
+</tr>
+<tr>
+<th scope="row">IFF formatted text (FTXT)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Amiga clipboard, NotePad and TextCraft text.</td>
+</tr>
+<tr>
+<th scope="row">ProWrite and IFF WORD document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Amiga; larger type becomes Markdown headings.</td>
+</tr>
+<tr>
+<th scope="row">AmigaGuide hypertext</th>
+<td><code>.guide</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + markup</td>
+<td>Edited as coloured text; converted with each node a section and links kept.</td>
+</tr>
+<tr>
+<th scope="row">Protext document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Arnor's Protext from the Amiga, Atari ST, PC and CPC.</td>
+</tr>
+<tr>
+<th scope="row">1st Word and 1st Word Plus document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Atari ST and Archimedes, each read in its own character set.</td>
+</tr>
+<tr>
+<th scope="row">WordPerfect document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>WordPerfect 4.x and 5.x from DOS, the Amiga and the Atari ST; footnotes kept.</td>
+</tr>
+<tr>
+<th scope="row">Signum! document</th>
+<td><code>.sdo</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Atari ST Signum! 1 and 2: text, bold, italics and underlining.</td>
+</tr>
+<tr>
+<th scope="row">Final Writer document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Amiga; paragraphs, styles, centred lines, headers and footers.</td>
+</tr>
+<tr>
+<th scope="row">Wordworth document</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>markup</td>
+<td>Amiga; paragraphs, styles, centred lines, headers and footers.</td>
+</tr>
+</tbody></table></div>
+<h2 id="data-and-tables">Data and tables</h2>
+<p>Delimited data can be edited as a table, with the text still the document underneath.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Comma-separated values (CSV)</th>
+<td><code>.csv</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Table view, RFC 4180 quoting, any size of file.</td>
+</tr>
+<tr>
+<th scope="row">Tab-separated values (TSV)</th>
+<td><code>.tsv</code>, <code>.tab</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Table view.</td>
+</tr>
+<tr>
+<th scope="row">Semicolon- and pipe-separated data</th>
+<td><code>.psv</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Table view, offered when a file looks like such data.</td>
+</tr>
+<tr>
+<th scope="row">JSON</th>
+<td><code>.json</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Tree panel; laid out or compressed.</td>
+</tr>
+<tr>
+<th scope="row">XML</th>
+<td><code>.xml</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Tree panel; laid out or compressed.</td>
+</tr>
+<tr>
+<th scope="row">EDI (X12 and EDIFACT)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>One segment to a line, or all on one line.</td>
+</tr>
+</tbody></table></div>
+<h2 id="programs-and-basic">Programs and BASIC</h2>
+<p>Tokenised BASIC is listed as the machine's LIST would show it; some dialects can be tokenised back from an edited listing.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Commodore BASIC program</th>
+<td><code>.prg</code>, <code>.p00</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>BASIC 2.0 (C64, VIC-20), 3.5 (C16, Plus/4), 4.0 (PET) and 7.0 (C128); control codes as <code>{clr}</code>.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum BASIC (48K and 128K)</th>
+<td><code>.tap</code>, <code>.tzx</code>, <code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Tokenised to a tape; zmakebas and bas2tap escapes understood.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next NextBASIC</th>
+<td><code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Tokenised as a +3DOS <code>.bas</code> file.</td>
+</tr>
+<tr>
+<th scope="row">OpticBASIC (OpticOS)</th>
+<td><code>.tap</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Tokenised exactly as the OpticOS ROM does, onto a tape.</td>
+</tr>
+<tr>
+<th scope="row">BBC BASIC II and IV</th>
+<td><code>.bbc</code>, <code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Tokenised as SAVE writes a program.</td>
+</tr>
+<tr>
+<th scope="row">Applesoft BASIC</th>
+<td><code>.bas</code></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td>text</td>
+<td>Listed; tokenised only when added to an Apple II DOS 3.3 or ProDOS disk.</td>
+</tr>
+<tr>
+<th scope="row">Apple II Integer BASIC</th>
+<td><code>.int</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Listed as its LIST shows it; from DOS 3.3 (type I) and ProDOS (INT) disks.</td>
+</tr>
+<tr>
+<th scope="row">ZX81 BASIC</th>
+<td><code>.p</code>, <code>.81</code>, <code>.p81</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Also from TZX tapes, with the screen saved with the program.</td>
+</tr>
+<tr>
+<th scope="row">MSX-BASIC</th>
+<td><code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>From disk or tape, saved from 32K or 16K machines.</td>
+</tr>
+<tr>
+<th scope="row">Atari BASIC</th>
+<td><code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Listed only.</td>
+</tr>
+<tr>
+<th scope="row">Microsoft BASIC-80 (MBASIC)</th>
+<td><code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Protected programs are reported, not listed.</td>
+</tr>
+<tr>
+<th scope="row">Color BASIC and Dragon BASIC</th>
+<td><code>.bas</code>, <code>.cas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Tandy Color Computer and Dragon, from disk or tape, told apart by their tokens.</td>
+</tr>
+<tr>
+<th scope="row">TRS-80 Level II and Disk BASIC</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Model I and III, from disk or tape.</td>
+</tr>
+<tr>
+<th scope="row">TRS-80 Model 4 BASIC</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>Listed only.</td>
+</tr>
+<tr>
+<th scope="row">SAM BASIC</th>
+<td><code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>With MasterDOS's and MasterBASIC's keywords.</td>
+</tr>
+<tr>
+<th scope="row">Oric BASIC</th>
+<td><code>.tap</code>, <code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>text</td>
+<td>From Oric tapes and Sedoric disks.</td>
+</tr>
+<tr>
+<th scope="row">Commodore program file (PRG)</th>
+<td><code>.prg</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Machine code disassembles to 6502 source; the 6502 assembler saves programs.</td>
+</tr>
+<tr>
+<th scope="row">PC64 program file (P00)</th>
+<td><code>.p00</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Unwrapped when added to a Commodore disk.</td>
+</tr>
+<tr>
+<th scope="row">Spectrum +3DOS file</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Recognised by its PLUS3DOS header; written by NextBASIC and the assembler's SAVE3DOS.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next program (NEX)</th>
+<td><code>.nex</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Versions 1.0 to 1.3; made by the Z80 assembler's SAVENEX.</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit binary load file</th>
+<td><code>.xex</code>, <code>.com</code>, <code>.exe</code>, <code>.obx</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Segments with load, run and init addresses; disassembled as 6502.</td>
+</tr>
+<tr>
+<th scope="row">Color Computer machine code (LOADM)</th>
+<td><code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Disassembled as 6809; made by the 6809 assembler.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST program</th>
+<td><code>.tos</code>, <code>.prg</code>, <code>.ttp</code></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Run and profiled in Hatari but not disassembled; made by the 68000 assembler.</td>
+</tr>
+<tr>
+<th scope="row">AmigaDOS executable (hunk)</th>
+<td>—</td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Run in an emulator and crunched with Shrinkler or Cranker; not disassembled.</td>
+</tr>
+<tr>
+<th scope="row">Raw machine code</th>
+<td><code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Disassembled for the Z80, 6502 or 6809; saved by Assemble and save as binary.</td>
+</tr>
+<tr>
+<th scope="row">DOS program (COM)</th>
+<td><code>.com</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Disassembled as 16-bit x86 into NASM-style source.</td>
+</tr>
+<tr>
+<th scope="row">DOS program (MZ EXE)</th>
+<td><code>.exe</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Disassembled from its entry point, following near and far calls.</td>
+</tr>
+<tr>
+<th scope="row">Windows program or DLL (PE)</th>
+<td><code>.exe</code>, <code>.dll</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>32- and 64-bit; disassembled from the entry point and every export.</td>
+</tr>
+<tr>
+<th scope="row">Linux program or library (ELF)</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Disassembled from the entry point and the functions its symbol table names.</td>
+</tr>
+<tr>
+<th scope="row">ICL 2900 machine code</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Disassembled into SFL, every halfword read as an instruction.</td>
+</tr>
+</tbody></table></div>
+<h2 id="assembler-source">Assembler source</h2>
+<p>Assembler source is plain text; Limoniter's own assemblers turn it into programs, or an installed assembler can be used instead.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Z80 assembler source</th>
+<td><code>.asm</code>, <code>.z80</code>, <code>.a80</code>, <code>.s</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Assembles as sjasmplus does, to <code>.tap</code>, <code>.nex</code>, <code>.sna</code>, +3DOS or raw binary.</td>
+</tr>
+<tr>
+<th scope="row">6502 assembler source (ACME and ca65)</th>
+<td><code>.a</code>, <code>.asm</code>, <code>.s</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Assembles as ACME does, to a C64 <code>.prg</code>, or a bootable BBC Micro disc.</td>
+</tr>
+<tr>
+<th scope="row">6502 assembler source (KickAssembler)</th>
+<td><code>.kick</code>, <code>.ka</code>, <code>.kickass</code>, <code>.asm</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Everyday KickAssembler syntax assembles to a C64 <code>.prg</code>; scripting is left to KickAssembler.</td>
+</tr>
+<tr>
+<th scope="row">6502 assembler source (64tass)</th>
+<td><code>.tas</code>, <code>.64tass</code>, <code>.asm</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Everyday 64tass syntax assembles to a C64 <code>.prg</code>; sections are left to 64tass.</td>
+</tr>
+<tr>
+<th scope="row">6809 assembler source</th>
+<td><code>.asm</code>, <code>.s</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Assembles as lwasm does, to a Color Computer LOADM binary.</td>
+</tr>
+<tr>
+<th scope="row">68000 assembler source</th>
+<td><code>.s</code>, <code>.asm</code>, <code>.i</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Assembles as vasm does, to an Atari ST <code>.TOS</code>, an AmigaDOS executable or raw binary.</td>
+</tr>
+<tr>
+<th scope="row">Other assembler source</th>
+<td><code>.asm</code>, <code>.s</code>, <code>.mac</code>, <code>.src</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>65816, 8080, 80x86, ARM, AVR, PIC, PDP-11, VAX and IBM HLASM are coloured but not assembled.</td>
+</tr>
+</tbody></table></div>
+<h2 id="pictures-and-screens">Pictures and screens</h2>
+<p>Pictures are shown at the machine's own pixel shape beside their bytes, and any of them can be saved as PNG; Write means Limoniter can also make the format.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">PNG</th>
+<td><code>.png</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Shown as a picture; every picture saves as PNG; PNGs are taken into the converters and screen designer.</td>
+</tr>
+<tr>
+<th scope="row">JPEG</th>
+<td><code>.jpg</code>, <code>.jpeg</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Shown as a picture, and taken into the Amiga, Atari ST and C64 picture converters.</td>
+</tr>
+<tr>
+<th scope="row">Amiga IFF ILBM picture</th>
+<td><code>.iff</code>, <code>.ilbm</code>, <code>.lbm</code>, <code>.bbm</code>, <code>.brush</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>HAM, HAM8, Extra Half-Brite and deep pictures; colour cycling plays; made by the converters.</td>
+</tr>
+<tr>
+<th scope="row">Amiga IFF PBM picture</th>
+<td><code>.iff</code>, <code>.lbm</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Chunky Deluxe Paint pictures.</td>
+</tr>
+<tr>
+<th scope="row">Degas and Degas Elite picture</th>
+<td><code>.pi1</code>, <code>.pi2</code>, <code>.pi3</code>, <code>.pc1</code>, <code>.pc2</code>, <code>.pc3</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Atari ST, packed or not, with colour cycling; made by the ST converter.</td>
+</tr>
+<tr>
+<th scope="row">NEOchrome picture</th>
+<td><code>.neo</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Atari ST, with colour cycling; made by the ST converter.</td>
+</tr>
+<tr>
+<th scope="row">Spectrum 512 picture</th>
+<td><code>.spu</code>, <code>.spc</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Atari ST, 48 colours a line, STE Spectrum 4096 too; made by the ST converter.</td>
+</tr>
+<tr>
+<th scope="row">Spectrum 512 smooshed picture</th>
+<td><code>.sps</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Atari ST.</td>
+</tr>
+<tr>
+<th scope="row">Koala Painter picture</th>
+<td><code>.koa</code>, <code>.kla</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Commodore 64 multicolour; made by the C64 converter.</td>
+</tr>
+<tr>
+<th scope="row">OCP Art Studio picture</th>
+<td><code>.art</code>, <code>.aas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Commodore 64 hires; made by the C64 converter.</td>
+</tr>
+<tr>
+<th scope="row">Advanced Art Studio picture</th>
+<td><code>.ocp</code>, <code>.mpic</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Commodore 64 multicolour; made by the C64 converter.</td>
+</tr>
+<tr>
+<th scope="row">Doodle! picture</th>
+<td><code>.dd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Commodore 64 hires.</td>
+</tr>
+<tr>
+<th scope="row">FLI Designer picture</th>
+<td><code>.fli</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Commodore 64, 296 pixels across as RECOIL shows it; made by the C64 converter.</td>
+</tr>
+<tr>
+<th scope="row">AFLI picture</th>
+<td><code>.afl</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>Commodore 64; made by the C64 converter.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum screen</th>
+<td><code>.scr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>6912 bytes, with or without a +3DOS header; made by the screen designer.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next Layer 2 and LoRes screen</th>
+<td><code>.sl2</code>, <code>.nxi</code>, <code>.slr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>256×192, 320×256 and 640×256, with their own palette or the Next's.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next palette</th>
+<td><code>.nxp</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Shown as its 256 colours.</td>
+</tr>
+<tr>
+<th scope="row">MacPaint picture</th>
+<td><code>.pntg</code>, <code>.pnt</code>, <code>.mac</code>, <code>.macp</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>With or without a MacBinary header.</td>
+</tr>
+<tr>
+<th scope="row">RISC OS sprite file</th>
+<td><code>.spr</code>, <code>,ff9</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>One sprite or a sheet of many.</td>
+</tr>
+<tr>
+<th scope="row">Kodak Photo CD image</th>
+<td><code>.pcd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>At its highest resolution, up to 16Base (3072 x 2048).</td>
+</tr>
+<tr>
+<th scope="row">ZSoft PCX picture</th>
+<td><code>.pcx</code>, <code>.pcc</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Monochrome, EGA, 256-colour and 24-bit.</td>
+</tr>
+<tr>
+<th scope="row">GEM bit image</th>
+<td><code>.img</code>, <code>.ximg</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>With XIMG palettes.</td>
+</tr>
+<tr>
+<th scope="row">Apple II hi-res screen</th>
+<td><code>.hgr</code>, <code>.hgr1</code>, <code>.hgr2</code>, <code>.a2hgr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>In the colours an NTSC monitor gave.</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit screen</th>
+<td><code>.gr7</code>, <code>.gr8</code>, <code>.gr9</code>, <code>.gr15</code>, <code>.mic</code>, <code>.pic</code>, <code>.kmp</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Graphics 7, 8, 9 and 15, and MicroPainter with its saved colours.</td>
+</tr>
+<tr>
+<th scope="row">Koala MicroIllustrator picture</th>
+<td><code>.pic</code>, <code>.kpi</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Atari 8-bit, packed, with its saved colours.</td>
+</tr>
+<tr>
+<th scope="row">HIP picture</th>
+<td><code>.hip</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>image + hex</td>
+<td>Atari 8-bit Graphics 9 and 10 screens mixed.</td>
+</tr>
+<tr>
+<th scope="row">Amiga raw bitplanes, sprites and bobs</th>
+<td><code>.raw</code>, <code>.bpl</code>, <code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image</td>
+<td>Read and made by the Amiga bitplane converter, given width, planes, layout and palette.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST raw screen and planes</th>
+<td><code>.raw</code>, <code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image</td>
+<td>Read and made by the ST converter, for the ST, STE, TT and Falcon.</td>
+</tr>
+<tr>
+<th scope="row">Spectrum UDGs and fonts</th>
+<td><code>.udg</code>, <code>.chr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image</td>
+<td>Opened and saved in the character and sprite editor.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next sprites</th>
+<td><code>.spr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image</td>
+<td>16×16 in 256 colours, in the character and sprite editor.</td>
+</tr>
+<tr>
+<th scope="row">Commodore 64 character set</th>
+<td><code>.64c</code>, <code>.bin</code>, <code>.prg</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image</td>
+<td>Hires or multicolour, in the character and sprite editor.</td>
+</tr>
+<tr>
+<th scope="row">Commodore 64 sprites (SpritePad)</th>
+<td><code>.spd</code>, <code>.bin</code>, <code>.prg</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image</td>
+<td>Hires or multicolour, in the character and sprite editor and the C64 converter.</td>
+</tr>
+<tr>
+<th scope="row">PC ANSI art</th>
+<td><code>.ans</code>, <code>.ice</code>, <code>.diz</code>, <code>.nfo</code>, <code>.pcb</code>, <code>.avt</code>, <code>.xb</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + image</td>
+<td>ANSI.SYS and iCE colours, SAUCE, PCBoard and Avatar codes; also BinaryText and XBin.</td>
+</tr>
+<tr>
+<th scope="row">Amiga console text</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + image</td>
+<td>Amiga ANSI colour codes drawn as the Amiga draws them, with pens you can set.</td>
+</tr>
+<tr>
+<th scope="row">Commodore PETSCII stream</th>
+<td><code>.seq</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + image</td>
+<td>Drawn with colour codes, reverse and cursor movement.</td>
+</tr>
+<tr>
+<th scope="row">Commodore screen memory</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + image</td>
+<td>Screen codes drawn as the screen.</td>
+</tr>
+<tr>
+<th scope="row">Teletext and BBC Mode 7 page</th>
+<td><code>.ep1</code>, <code>.tti</code>, <code>.ttix</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + image</td>
+<td>Mosaics, double height, concealing and all national sets.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum text with controls</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text + image</td>
+<td>Drawn with the Spectrum's colour and position controls.</td>
+</tr>
+</tbody></table></div>
+<h2 id="sound-and-music">Sound and music</h2>
+<p>Music files open in hex with everything the file says about itself beside them.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">ProTracker module</th>
+<td><code>.mod</code>, <code>mod.*</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>ProTracker, NoiseTracker, StarTrekker, multichannel and 15-sample Soundtracker modules; not played.</td>
+</tr>
+<tr>
+<th scope="row">C64 SID tune</th>
+<td><code>.sid</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>PSID and RSID versions 1 to 4; its code opens as a program and disassembles.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST SNDH music</th>
+<td><code>.sndh</code>, <code>.snd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Packed or not; tunes, timers and flags described.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST YM music</th>
+<td><code>.ym</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>YM2!, YM3!, YM3b, YM5! and YM6!, packed with LHA or not.</td>
+</tr>
+</tbody></table></div>
+<h2 id="disk-images">Disk images</h2>
+<p>Disk images open as a browser of their files. Those marked writable can have files added, deleted and renamed, and new blank ones can be made.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">CD-ROM image (ISO 9660)</th>
+<td><code>.iso</code>, <code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Joliet and Rock Ridge names; raw <code>.bin</code> images too (not the <code>.cue</code>).</td>
+</tr>
+<tr>
+<th scope="row">PC FAT disk image</th>
+<td><code>.img</code>, <code>.ima</code>, <code>.vfd</code>, <code>.vhd</code>, <code>.dsk</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>FAT12, 16 and 32 with MBR partitions and long names; also MSX disks and NextZXOS SD cards.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST floppy (ST)</th>
+<td><code>.st</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>FAT floppies.</td>
+</tr>
+<tr>
+<th scope="row">Atari ST packed floppy (MSA)</th>
+<td><code>.msa</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td>directory</td>
+<td>Written only as a bootable floppy made for a program.</td>
+</tr>
+<tr>
+<th scope="row">Commodore 1541 disk image (D64)</th>
+<td><code>.d64</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>PRG, SEQ and USR files; names in PETSCII.</td>
+</tr>
+<tr>
+<th scope="row">Commodore 1571 disk image (D71)</th>
+<td><code>.d71</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>PRG, SEQ and USR files.</td>
+</tr>
+<tr>
+<th scope="row">Commodore 1581 disk image (D81)</th>
+<td><code>.d81</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>PRG, SEQ and USR files.</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit disk image (ATR)</th>
+<td><code>.atr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Atari DOS 2.0 and 2.5, MyDOS and SpartaDOS 2.x, 3.x and X written; SpartaDOS 1 only read.</td>
+</tr>
+<tr>
+<th scope="row">Atari 8-bit disk image (XFD)</th>
+<td><code>.xfd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Same DOSes as ATR.</td>
+</tr>
+<tr>
+<th scope="row">Apple II disk image</th>
+<td><code>.dsk</code>, <code>.do</code>, <code>.po</code>, <code>.2mg</code>, <code>.hdv</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>DOS 3.3 and ProDOS written; DOS 3.2 and Apple II CP/M only read.</td>
+</tr>
+<tr>
+<th scope="row">Apple II WOZ image</th>
+<td><code>.woz</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>WOZ 1 and 2, read from their bits into sectors.</td>
+</tr>
+<tr>
+<th scope="row">Amiga floppy (ADF)</th>
+<td><code>.adf</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>OFS and FFS, DD and HD written; disks with directory caches or long names only read.</td>
+</tr>
+<tr>
+<th scope="row">Gzipped Amiga floppy (ADZ)</th>
+<td><code>.adz</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Unzipped as it opens.</td>
+</tr>
+<tr>
+<th scope="row">Amiga DMS floppy</th>
+<td><code>.dms</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Unpacked as it opens.</td>
+</tr>
+<tr>
+<th scope="row">Amiga hard disk image (HDF)</th>
+<td><code>.hdf</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>With partitions.</td>
+</tr>
+<tr>
+<th scope="row">Spectrum +3 and Amstrad CPC disk (DSK)</th>
+<td><code>.dsk</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Standard and extended; +3DOS, AMSDOS and CP/M, PCW disks too.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum TR-DOS disk</th>
+<td><code>.trd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>BASIC tokenised from a listing; a full disk is compacted as MOVE does.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum TR-DOS archive (SCL)</th>
+<td><code>.scl</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Same files as TR-DOS disks.</td>
+</tr>
+<tr>
+<th scope="row">SAM Coupé and +D disk</th>
+<td><code>.mgt</code>, <code>.dsk</code>, <code>.sad</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>SAMDOS, MasterDOS and BDOS, and Spectrum +D and DISCiPLE disks.</td>
+</tr>
+<tr>
+<th scope="row">Oric Sedoric disk</th>
+<td><code>.dsk</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>MFM_DISK images, one or two sides, every sector's CRC checked.</td>
+</tr>
+<tr>
+<th scope="row">Color Computer and Dragon disk (JVC)</th>
+<td><code>.dsk</code>, <code>.jvc</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td>directory</td>
+<td>Only single-sided RS-DOS disks are written; Dragon DOS and OS-9 are only read.</td>
+</tr>
+<tr>
+<th scope="row">Color Computer and Dragon disk (VDK)</th>
+<td><code>.vdk</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>RS-DOS, Dragon DOS and OS-9.</td>
+</tr>
+<tr>
+<th scope="row">OS-9 disk image</th>
+<td><code>.os9</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>With folders, dates and permissions.</td>
+</tr>
+<tr>
+<th scope="row">DMK, JV3 and JV1 sector images</th>
+<td><code>.dmk</code>, <code>.jv3</code>, <code>.jv1</code>, <code>.dsk</code>, <code>.dis</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>TRS-80 (TRSDOS, LDOS, NEWDOS) and other disks; copy-protected disks open as sectors.</td>
+</tr>
+<tr>
+<th scope="row">BBC Micro DFS disk</th>
+<td><code>.ssd</code>, <code>.dsd</code>, <code>.img</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Acorn DFS written; Watford 62-file catalogues only read.</td>
+</tr>
+<tr>
+<th scope="row">Acorn ADFS disk (old map)</th>
+<td><code>.ads</code>, <code>.adm</code>, <code>.adl</code>, <code>.adf</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>ADFS S, M and L, with free space map and checksums.</td>
+</tr>
+<tr>
+<th scope="row">RISC OS ADFS disc (D, E and F)</th>
+<td><code>.adf</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>New-map RISC OS discs.</td>
+</tr>
+<tr>
+<th scope="row">Macintosh HFS disk image</th>
+<td><code>.dsk</code>, <code>.img</code>, <code>.hfs</code>, <code>.toast</code>, <code>.cdr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Floppies, hard disks and CDs; a disk with one HFS partition can be written.</td>
+</tr>
+<tr>
+<th scope="row">Macintosh MFS disk image</th>
+<td><code>.dsk</code>, <code>.img</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>The first Mac floppies.</td>
+</tr>
+<tr>
+<th scope="row">Macintosh HFS+ disk image</th>
+<td><code>.dsk</code>, <code>.img</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>HFSX, HFS-wrapped and compressed files; Apple partition maps and GUID partition tables.</td>
+</tr>
+<tr>
+<th scope="row">Disk Copy 4.2 image</th>
+<td><code>.image</code>, <code>.dc42</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>HFS disks written with Disk Copy's checksum; Apple II ones only read.</td>
+</tr>
+<tr>
+<th scope="row">Disk Copy 6 NDIF image</th>
+<td><code>.img</code>, <code>.smi</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>In MacBinary, stored or ADC-compressed.</td>
+</tr>
+<tr>
+<th scope="row">Mac disk image (DMG)</th>
+<td><code>.dmg</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>UDIF with zlib, bzip2, ADC or LZFSE, MacBinary-wrapped too.</td>
+</tr>
+<tr>
+<th scope="row">CP/M disk image</th>
+<td><code>.img</code>, <code>.dsk</code>, <code>.cpm</code>, <code>.ima</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>82 machine formats, worked out from the directory.</td>
+</tr>
+<tr>
+<th scope="row">HP LIF disk and tape image</th>
+<td><code>.lif</code>, <code>.hpi</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Series 80, 9000 Series 200/300, Integral PC, HP-41/71B/75; LIF ASCII files open as text.</td>
+</tr>
+<tr>
+<th scope="row">ImageDisk image</th>
+<td><code>.imd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>The file system inside is opened; unread sectors listed.</td>
+</tr>
+<tr>
+<th scope="row">Teledisk image</th>
+<td><code>.td0</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>The file system inside is opened; unread sectors listed.</td>
+</tr>
+<tr>
+<th scope="row">SuperCard Pro flux image</th>
+<td><code>.scp</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Decoded from IBM, Amiga, Commodore, Apple and Mac encodings; the decoded disk can be saved.</td>
+</tr>
+<tr>
+<th scope="row">HxC flux image</th>
+<td><code>.hfe</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Decoded as SuperCard Pro images are.</td>
+</tr>
+<tr>
+<th scope="row">KryoFlux stream files</th>
+<td><code>.raw</code>, <code>.zip</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>A folder or ZIP of streams, decoded as SuperCard Pro images are.</td>
+</tr>
+</tbody></table></div>
+<h2 id="tape-images">Tape images</h2>
+<p>Tape images open as a browser of the files on the tape.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">ZX Spectrum tape (TAP)</th>
+<td><code>.tap</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Programs, code, screens and headerless blocks can be added and reordered.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum tape (TZX)</th>
+<td><code>.tzx</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>directory</td>
+<td>Other blocks kept when files are added; ZX81 programs come out as <code>.p</code> files.</td>
+</tr>
+<tr>
+<th scope="row">Commodore tape archive (T64)</th>
+<td><code>.t64</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Commodore file names in PETSCII.</td>
+</tr>
+<tr>
+<th scope="row">Commodore tape pulses (TAP)</th>
+<td><code>.tap</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Versions 0 to 2; KERNAL tape files decoded, turbo loaders described but not decoded.</td>
+</tr>
+<tr>
+<th scope="row">MSX, TRS-80, Color Computer and Dragon cassette (CAS)</th>
+<td><code>.cas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>BASIC programs, machine code and data, with checksums checked.</td>
+</tr>
+<tr>
+<th scope="row">Oric tape</th>
+<td><code>.tap</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Oric-1 and Atmos BASIC and machine code, with load addresses.</td>
+</tr>
+<tr>
+<th scope="row">Acorn tape (UEF)</th>
+<td><code>.uef</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>BBC Micro and Electron tapes, gzipped or not.</td>
+</tr>
+<tr>
+<th scope="row">ZX Microdrive cartridge</th>
+<td><code>.mdr</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Spectrum Microdrive cartridge images.</td>
+</tr>
+</tbody></table></div>
+<h2 id="archives-and-compressed-files">Archives and compressed files</h2>
+<p>Archives are only read; their files can be opened or saved out as they are.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">ZIP archive</th>
+<td><code>.zip</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Stored and deflated files.</td>
+</tr>
+<tr>
+<th scope="row">LHA and LZH archive</th>
+<td><code>.lha</code>, <code>.lzh</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>All common methods, CRC checked.</td>
+</tr>
+<tr>
+<th scope="row">StuffIt archive</th>
+<td><code>.sit</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>Classic and StuffIt 5, with folders and both forks.</td>
+</tr>
+<tr>
+<th scope="row">Compact Pro archive</th>
+<td><code>.cpt</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>With folders, RLE and LZH, every CRC checked.</td>
+</tr>
+<tr>
+<th scope="row">MacBinary file</th>
+<td><code>.bin</code>, <code>.macbin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>MacBinary I, II and III; both forks and type and creator shown.</td>
+</tr>
+<tr>
+<th scope="row">BinHex 4.0 file</th>
+<td><code>.hqx</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>CRCs checked; <code>.sit.hqx</code> and <code>.cpt.hqx</code> open straight through.</td>
+</tr>
+<tr>
+<th scope="row">Amiga Forever package (RP9)</th>
+<td><code>.rp9</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>The disks and files inside the package.</td>
+</tr>
+<tr>
+<th scope="row">Pack-Ice packed file</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Atari ST, versions 2.1 to 2.4; opens read-only as what it holds.</td>
+</tr>
+<tr>
+<th scope="row">Atomik 3.5 packed file</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>hex</td>
+<td>Atari ST; opens read-only as what it holds.</td>
+</tr>
+</tbody></table></div>
+<h2 id="snapshots-and-memory-images">Snapshots and memory images</h2>
+<p>Snapshots open as their BASIC program, screen and memory.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">ZX Spectrum Z80 snapshot</th>
+<td><code>.z80</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td>directory</td>
+<td>BASIC, screen and memory; disassembled from the saved PC.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum SNA snapshot</th>
+<td><code>.sna</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td>directory</td>
+<td>48K and 128K; written only by the Z80 assembler's SAVESNA.</td>
+</tr>
+</tbody></table></div>
+<h2 id="cartridges-and-roms">Cartridges and ROMs</h2>
+<p>Cartridge images open as a browser of their ROM chips, each a file by bank and address.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Commodore 64 cartridge (CRT)</th>
+<td><code>.crt</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td>directory</td>
+<td>Every hardware type read; only normal 8K and 16K cartridges are made, as cartconv makes them.</td>
+</tr>
+</tbody></table></div>
+<h2 id="other">Other</h2>
+<p>Formats that don't fit the sections above.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Format</th>
+<th scope="col">Endings</th>
+<th scope="col">Read</th>
+<th scope="col">Write</th>
+<th scope="col">Opens as</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Unified diff (patch)</th>
+<td><code>.diff</code>, <code>.patch</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Saved from comparisons and applied to a file or folder.</td>
+</tr>
+</tbody></table></div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="formats.html">File formats</a> · <a href="compare.html">How it compares</a></p>
+    </div>
+  </footer>
+</body>
+</html>

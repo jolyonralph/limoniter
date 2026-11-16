@@ -755,6 +755,74 @@ impl TextBuffer {
         }
     }
 
+    pub fn clear_bookmarks(&mut self) {
+        self.lines.set_bookmarks([]);
+    }
+
+    /// Bookmarks every line that isn't, and takes them off every line that is.
+    pub fn invert_bookmarks(&mut self) {
+        let marked = self.lines.bookmarks();
+        let mut next = marked.iter().peekable();
+        let others: Vec<usize> = (0..self.lines.len())
+            .filter(|line| {
+                if next.peek() == Some(&line) {
+                    next.next();
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+        self.lines.set_bookmarks(others);
+    }
+
+    /// The bookmarked lines' text, one after another, as they'd be copied.
+    pub fn bookmarked_text(&self) -> String {
+        self.lines.bookmarks().into_iter().map(|line| self.lines.get(line).to_string() + "\n").collect()
+    }
+
+    /// Deletes the bookmarked lines, or (`keep`) every line but those, as one undoable step. Returns how many lines
+    /// went.
+    pub fn delete_bookmarked(&mut self, keep: bool) -> usize {
+        let marked = self.lines.bookmarks();
+        let total = self.lines.len();
+        // The runs of lines to delete, from the bottom up so each leaves those above where they were.
+        let mut runs: Vec<(usize, usize)> = Vec::new();
+        let mut add = |line: usize| match runs.last_mut() {
+            Some((_, end)) if *end == line => *end += 1,
+            _ => runs.push((line, line + 1)),
+        };
+        if keep {
+            let mut next = marked.iter().peekable();
+            for line in 0..total {
+                if next.peek() == Some(&&line) {
+                    next.next();
+                } else {
+                    add(line);
+                }
+            }
+        } else {
+            marked.iter().for_each(|line| add(*line));
+        }
+        let gone: usize = runs.iter().map(|(start, end)| end - start).sum();
+        if gone == 0 {
+            return 0;
+        }
+        self.push_undo(None);
+        for (start, end) in runs.into_iter().rev() {
+            self.lines.replace_lines(start, end, Vec::new());
+        }
+        if self.lines.len() == 0 {
+            self.lines.replace_lines(0, 0, vec![Arc::from("")]);
+        }
+        self.multi.clear();
+        self.alt_block = false;
+        (self.anchor_line, self.anchor_col) = (self.caret_line.min(self.lines.len() - 1), 0);
+        (self.caret_line, self.caret_col) = (self.anchor_line, 0);
+        self.edited();
+        gone
+    }
+
     /// Goes to the next or previous bookmark, wrapping round. Returns false if there are none.
     pub fn go_to_bookmark(&mut self, forward: bool) -> bool {
         let marks = self.lines.bookmarks();
@@ -3204,6 +3272,15 @@ impl TextBuffer {
         self.rewrite_rows(expand_tabs);
     }
 
+    /// Turns the tabs in each line's indent into spaces, leaving any after the first other character alone.
+    pub fn leading_tabs_to_spaces(&mut self) {
+        self.rewrite_rows(|s| {
+            let body = s.trim_start_matches([' ', '\t']);
+            let indent = &s[..s.len() - body.len()];
+            format!("{}{body}", expand_tabs(indent))
+        });
+    }
+
     /// Turns the spaces that indent each line into tabs, leaving the rest of the line alone.
     pub fn spaces_to_tabs(&mut self) {
         self.rewrite_rows(|s| {
@@ -4863,6 +4940,9 @@ mod tests {
         b.trim_leading();
         assert_eq!(text(&b), ["a", "b"]);
         assert!(b.can_undo());
+        let mut b = buffer(&["\t \tx\ty", "x\ty"]);
+        b.leading_tabs_to_spaces();
+        assert_eq!(text(&b), [format!("{}x\ty", " ".repeat(16)), "x\ty".to_string()], "the indent goes to the tab stop at 16");
     }
 
     #[test]
@@ -5140,6 +5220,31 @@ mod tests {
         assert_eq!(b.char_at_caret(), None, "the caret is past the end of a one-letter line");
         b.move_caret(0, 0, false);
         assert_eq!(b.char_at_caret(), Some('x'));
+    }
+
+    #[test]
+    fn bookmarked_lines_are_copied_deleted_kept_and_swapped() {
+        let mut b = buffer(&["a", "b", "c", "d", "e"]);
+        for line in [1, 2, 4] {
+            b.toggle_bookmark(line);
+        }
+        assert_eq!(b.bookmarked_text(), "b\nc\ne\n");
+        b.invert_bookmarks();
+        assert_eq!(b.bookmarks(), [0, 3]);
+        b.invert_bookmarks();
+        assert_eq!(b.delete_bookmarked(false), 3);
+        assert_eq!(b.all_lines().iter().map(|l| l.to_string()).collect::<Vec<_>>(), ["a", "d"]);
+        assert!(b.bookmarks().is_empty());
+        b.undo();
+        assert_eq!(b.line_count(), 5);
+        assert_eq!(b.bookmarks(), [1, 2, 4], "undo brings the bookmarks back too");
+        assert_eq!(b.delete_bookmarked(true), 2);
+        assert_eq!(b.all_lines().iter().map(|l| l.to_string()).collect::<Vec<_>>(), ["b", "c", "e"]);
+        assert_eq!(b.bookmarks(), [0, 1, 2]);
+        assert_eq!(b.delete_bookmarked(false), 3);
+        assert_eq!(b.line_count(), 1, "a file always keeps one line");
+        b.clear_bookmarks();
+        assert_eq!(b.delete_bookmarked(false), 0);
     }
 
     #[test]

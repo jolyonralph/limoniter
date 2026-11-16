@@ -1117,6 +1117,122 @@ pub fn list_applesoft(data: &[u8]) -> Listing {
     listing
 }
 
+// ---------- Apple II Integer BASIC ----------
+
+/// Integer BASIC's tokens, &00 to &7F: the same word often has several, one for each place it can appear. From
+/// CiderPress II's Integer BASIC converter (FileConv/Code/IntegerBASIC.cs, Apache-2.0), whose table comes from
+/// Apple's FID; a trailing space is printed after the word, as LIST does.
+const INTEGER_TOKENS: [&str; 128] = [
+    "HIMEM:", "", "_ ", ":", "LOAD ", "SAVE ", "CON ", "RUN ", "RUN ", "DEL ", ",", "NEW ", "CLR ", "AUTO ", ",", "MAN ",
+    "HIMEM:", "LOMEM:", "+", "-", "*", "/", "=", "#", ">=", ">", "<=", "<>", "<", "AND ", "OR ", "MOD ",
+    "^ ", "+", "(", ",", "THEN ", "THEN ", ",", ",", "\"", "\"", "(", "!", "!", "(", "PEEK ", "RND ",
+    "SGN ", "ABS ", "PDL ", "RNDX ", "(", "+", "-", "NOT ", "(", "=", "#", "LEN(", "ASC(", "SCRN(", ",", "(",
+    "$", "$", "(", ",", ",", ";", ";", ";", ",", ",", ",", "TEXT ", "GR ", "CALL ", "DIM ", "DIM ",
+    "TAB ", "END ", "INPUT ", "INPUT ", "INPUT ", "FOR ", "=", "TO ", "STEP ", "NEXT ", ",", "RETURN ", "GOSUB ", "REM ", "LET ", "GOTO ",
+    "IF ", "PRINT ", "PRINT ", "PRINT ", "POKE ", ",", "COLOR=", "PLOT ", ",", "HLIN ", ",", "AT ", "VLIN ", ",", "AT ", "VTAB ",
+    "=", "=", ")", ")", "LIST ", ",", "LIST ", "POP ", "NODSP ", "NODSP ", "NOTRACE ", "DSP ", "DSP ", "TRACE ", "PR#", "IN#",
+];
+const INTEGER_EOL: u8 = 0x01;
+const INTEGER_OPEN_QUOTE: u8 = 0x28;
+const INTEGER_CLOSE_QUOTE: u8 = 0x29;
+const INTEGER_REM: u8 = 0x5D;
+
+/// An Integer BASIC program's lines, as a DOS 3.3 or ProDOS file holds it once its length word is off: each line
+/// a length byte (counting itself), a line number and its tokens, ending in &01. Every byte of the file has to be
+/// in a line, and the numbers have to go up.
+fn integer_lines(data: &[u8]) -> Option<Vec<(u16, &[u8])>> {
+    let mut lines = Vec::new();
+    let mut at = 0;
+    let mut last = None;
+    while at < data.len() {
+        let length = usize::from(data[at]);
+        if length < 4 || at + length > data.len() || data[at + length - 1] != INTEGER_EOL {
+            return None;
+        }
+        let number = u16::from_le_bytes([data[at + 1], data[at + 2]]);
+        if number > 32767 || last.is_some_and(|l| number <= l) {
+            return None;
+        }
+        last = Some(number);
+        lines.push((number, &data[at + 3..at + length - 1]));
+        at += length;
+    }
+    (!lines.is_empty()).then_some(lines)
+}
+
+pub fn looks_like_integer(data: &[u8]) -> bool {
+    integer_lines(data).is_some()
+}
+
+/// Lists an Integer BASIC program as its LIST shows it.
+pub fn list_integer(data: &[u8]) -> Listing {
+    let mut listing = Listing { dialect: "Integer BASIC (Apple II)", ..Listing::default() };
+    let Some(lines) = integer_lines(data) else {
+        listing.notes.push("The program's line lengths don't lead from one line to the next, so it can't be listed.".into());
+        return listing;
+    };
+    let shown = |byte: u8| {
+        let c = char::from(byte & 0x7F);
+        if c.is_control() { format!("{{${byte:02x}}}") } else { c.to_string() }
+    };
+    for (number, body) in lines {
+        let mut text = String::new();
+        let mut trailing_space = true;
+        let mut i = 0;
+        while i < body.len() {
+            let byte = body[i];
+            i += 1;
+            let mut new_trailing = false;
+            match byte {
+                INTEGER_OPEN_QUOTE => {
+                    text.push('"');
+                    while i < body.len() && body[i] != INTEGER_CLOSE_QUOTE {
+                        text += &shown(body[i]);
+                        i += 1;
+                    }
+                    text.push('"');
+                    i += 1;
+                }
+                INTEGER_REM => {
+                    if !trailing_space {
+                        text.push(' ');
+                    }
+                    text.push_str("REM ");
+                    text.extend(body[i..].iter().map(|b| shown(*b)));
+                    i = body.len();
+                }
+                // A number: its first digit says so, and the value follows as a 16-bit word.
+                0xB0..=0xB9 if i + 2 <= body.len() => {
+                    text += &u16::from_le_bytes([body[i], body[i + 1]]).to_string();
+                    i += 2;
+                }
+                // A variable's name, letters and digits with their top bits set.
+                0xC1..=0xDA => {
+                    text.push(char::from(byte & 0x7F));
+                    while i < body.len() && matches!(body[i], 0xC1..=0xDA | 0xB0..=0xB9) {
+                        text.push(char::from(body[i] & 0x7F));
+                        i += 1;
+                    }
+                }
+                0x00..=0x7F => {
+                    let word = INTEGER_TOKENS[usize::from(byte)];
+                    // Words start with a space unless they're punctuation, or the space is already there.
+                    let punctuation = word.starts_with(|c: char| ('!'..='?').contains(&c)) || byte < 0x12;
+                    if !punctuation && !trailing_space {
+                        text.push(' ');
+                    }
+                    text.push_str(word);
+                    new_trailing = word.ends_with(' ');
+                }
+                other => text += &format!("{{${other:02x}}}"),
+            }
+            trailing_space = new_trailing;
+        }
+        listing.lines.push(format!("{number} {}", text.trim_end()));
+    }
+    listing
+}
+
 // ---------- Microsoft BASIC-80 (MBASIC) ----------
 
 /// MBASIC 5.21's statement and operator tokens, as its own keyword table in MBASIC.COM has them.
@@ -1544,6 +1660,22 @@ mod tests {
         assert!(!looks_like_coco(&[0xFF, 0x01, 0x80, 0x0A, 0x00, 0, 0, 0]), "an MSX program isn't one");
     }
 
+
+    #[test]
+    fn integer_basic_lists_as_its_list_shows_it() {
+        let program = [
+            9, 10, 0, 0x61, 0x28, 0xC8, 0xC9, 0x29, 0x01, // 10 PRINT "HI"
+            11, 30, 0, 0xC1, 0x71, 0xC1, 0x12, 0xB1, 1, 0, 0x01, // 30 A=A+1
+            8, 40, 0, 0x5D, 0xCF, 0xCB, 0xA1, 0x01, // 40 REM OK!
+            8, 50, 0, 0x5F, 0xB1, 10, 0, 0x01, // 50 GOTO 10
+        ];
+        assert!(looks_like_integer(&program));
+        assert_eq!(list_integer(&program).lines, ["10 PRINT \"HI\"", "30 A=A+1", "40 REM OK!", "50 GOTO 10"]);
+        assert_eq!(crate::basic::list(&program, "int", crate::charset::known("us-ascii")).dialect, "Integer BASIC (Apple II)");
+        assert!(!looks_like_integer(&program[..program.len() - 1]), "every byte has to be in a line");
+        assert!(crate::basic::is_program_file("int", Some(&program)));
+        assert!(!crate::basic::is_program_file("int", Some(b"unit interface")));
+    }
 
     #[test]
     fn applesoft_lists_from_its_links() {

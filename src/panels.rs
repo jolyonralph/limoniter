@@ -284,6 +284,8 @@ pub struct Panels {
     pub scripts: bool,
     pub history: bool,
     pub strings: bool,
+    /// The value inspector: the bytes at the hex cursor as numbers.
+    pub inspector: bool,
     strings_panel: crate::strings_explorer::PanelState,
     macros_panel: crate::scripting::PanelState,
     scripts_panel: crate::scripting::PanelState,
@@ -312,7 +314,7 @@ impl Panels {
         flags + tags.as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 18] {
+    fn flags(&self) -> [(&'static str, bool); 19] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -332,7 +334,13 @@ impl Panels {
             ("scripts_panel", self.scripts),
             ("history_panel", self.history),
             ("strings_panel", self.strings),
+            ("inspector_panel", self.inspector),
         ]
+    }
+
+    /// Which panels are open, one "name=value" a line, as a saved layout keeps it.
+    pub fn open_ones(&self) -> String {
+        self.flags().iter().map(|(name, value)| format!("{name}={value}\n")).collect()
     }
 
     pub fn read_settings(&mut self, text: &str) {
@@ -359,6 +367,7 @@ impl Panels {
                 "clipboard_history" => self.clipboard_history = flag,
                 "encoding_preview" => self.encoding_preview = flag,
                 "strings_panel" => self.strings = flag,
+                "inspector_panel" => self.inspector = flag,
                 "file_explorer" => self.file_explorer = flag,
                 "open_files" => self.open_files = flag,
                 "bookmarks" => self.bookmarks = flag,
@@ -393,10 +402,11 @@ impl Panels {
         self.scripts = false;
         self.history = false;
         self.strings = false;
+        self.inspector = false;
     }
 
     fn right_count(&self) -> usize {
-        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings]
+        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector]
             .iter()
             .filter(|on| **on)
             .count()
@@ -455,6 +465,11 @@ impl Panels {
         let share = |part: f32, least: f32, most: f32| (whole * part * squeeze).clamp(least, most);
         let (props_width, tree_width, ascii_width, plain_width) =
             (share(0.13, 215.0, 300.0), share(0.107, 120.0, 260.0), share(0.107, 200.0, 280.0), share(0.105, 110.0, 240.0));
+        if self.inspector {
+            let mut open = true;
+            dock(ui, true, "inspector-panel", "Value inspector", ascii_width.max(250.0), &mut open, |ui| inspector_panel(ui, doc, actions));
+            self.inspector = open;
+        }
         if self.strings {
             let mut open = true;
             let state = &mut self.strings_panel;
@@ -627,7 +642,12 @@ fn grouped(value: u64) -> String {
 struct Stats {
     counts: Counts,
     current_size: Option<u64>,
+    /// Lines that are code, not comment or space, for a language whose comments are known.
+    code_lines: Option<u64>,
 }
+
+/// Who owns a file and what opens it, found in the background since asking the system can take a moment.
+type Owners = Arc<Mutex<Option<(Option<String>, Option<String>)>>>;
 
 #[derive(Default)]
 struct Properties {
@@ -640,6 +660,8 @@ struct Properties {
     picture: Option<(String, Option<egui::TextureHandle>)>,
     /// What a music module says about itself, for the document and version it was read from.
     module: Option<((u64, u64), Vec<crate::media::InfoSection>)>,
+    /// The owner and the program it opens with, for this path.
+    owners: Option<(PathBuf, Owners)>,
 }
 
 /// A ProTracker module's sections for File properties, read again only when the file changes.
@@ -669,12 +691,13 @@ fn compute_stats(doc: &DocView<'_>) -> Stats {
     }
     if doc.text.is_disk_backed() {
         let counts = Counts { lines: doc.text.line_count() as u64, ..Counts::default() };
-        return Stats { counts, current_size: None };
+        return Stats { counts, current_size: None, code_lines: None };
     }
     let lines = doc.text.all_lines();
     Stats {
         counts: count_lines(&lines, doc.text.insert_eol().char_count()),
         current_size: doc.text.encode(doc.format, codec::Lossy::Refuse).ok().map(|b| b.len() as u64),
+        code_lines: crate::tools::comment_marks(&doc.language).map(|marks| crate::file_info::lines_of_code(&lines, &marks)),
     }
 }
 
@@ -762,6 +785,20 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
                 row(ui, "Date accessed:", format_time(m.accessed()));
                 row(ui, "Attributes:", attribute_names(m));
             }
+            if let Some(path) = doc.path {
+                let (owner, program) = owner_and_program(ui, &mut p.owners, path);
+                for (label, value) in [("Owner:", owner), ("Opens with:", program)] {
+                    match value {
+                        Some(Some(value)) => row(ui, label, value),
+                        Some(None) => {}
+                        None => {
+                            property_cells(ui, label, |ui| {
+                                ui.spinner();
+                            });
+                        }
+                    }
+                }
+            }
         });
         if let Some(image) = &doc.image {
             image_sections(ui, &mut p.picture, image, &mut rows_for_copy);
@@ -811,6 +848,9 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
                 property_row(ui, "Characters:", &grouped(counts.characters), &mut rows_for_copy);
                 property_row(ui, "Lines:", &grouped(counts.lines), &mut rows_for_copy);
                 property_row(ui, "Non-empty lines:", &grouped(counts.non_empty), &mut rows_for_copy);
+                if let Some(code) = stats.code_lines {
+                    property_row(ui, "Lines of code:", &grouped(code), &mut rows_for_copy);
+                }
                 property_row(ui, "Average line length:", &grouped(counts.average), &mut rows_for_copy);
                 property_cells(ui, "Longest line:", |ui| {
                     ui.horizontal_wrapped(|ui| {
@@ -927,6 +967,47 @@ fn property_row(ui: &mut Ui, label: &str, value: &str, rows: &mut Vec<(String, S
 }
 
 /// The SHA-256 of the saved file, worked out in the background when asked for.
+/// The bytes at the hex cursor, read every way the inspector knows.
+fn inspector_panel(ui: &mut Ui, doc: &DocView<'_>, actions: &mut Vec<Action>) {
+    if doc.no_file || !doc.hex_mode {
+        ui.label(RichText::new("Switch to hex (Ctrl+H) to see the bytes at the cursor read as numbers.").color(theme::text_dim()));
+        return;
+    }
+    let at = doc.hex.caret;
+    let bytes = doc.hex.read(at, crate::inspect::MOST_BYTES);
+    ui.label(RichText::new(format!("At offset {at} (0x{at:X})")).color(theme::text_dim()).size(12.0));
+    ui.add_space(4.0);
+    let mut copy = Vec::new();
+    egui::ScrollArea::vertical().id_salt("inspector-scroll").auto_shrink([false, false]).show(ui, |ui| {
+        for reading in crate::inspect::readings(&bytes) {
+            property_row(ui, &format!("{}:", reading.label), &reading.value, &mut copy);
+        }
+    });
+    if !copy.is_empty() && ui.link(RichText::new("Copy all").size(12.5)).clicked() {
+        let text: Vec<String> = copy.iter().map(|(label, value)| format!("{label} {value}")).collect();
+        actions.push(Action::CopyText(text.join("\r\n")));
+    }
+}
+
+/// The owner and the program the file opens with: None for each while they're being found, then Some of what was.
+fn owner_and_program(ui: &Ui, cache: &mut Option<(PathBuf, Owners)>, path: &Path) -> (Option<Option<String>>, Option<Option<String>>) {
+    if cache.as_ref().is_none_or(|(kept, _)| kept != path) {
+        let slot: Owners = Arc::new(Mutex::new(None));
+        let (worker, target, ctx) = (slot.clone(), path.to_path_buf(), ui.ctx().clone());
+        std::thread::spawn(move || {
+            let found = std::panic::catch_unwind(|| (crate::file_info::owner(&target), crate::file_info::opens_with(&target))).unwrap_or((None, None));
+            *worker.lock().unwrap() = Some(found);
+            ctx.request_repaint();
+        });
+        *cache = Some((path.to_path_buf(), slot));
+    }
+    let found = cache.as_ref().and_then(|(_, slot)| slot.lock().unwrap().clone());
+    match found {
+        Some((owner, program)) => (Some(owner), Some(program)),
+        None => (None, None),
+    }
+}
+
 fn checksum_row(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, rows: &mut Vec<(String, String)>) {
     let Some(path) = doc.path else {
         return;

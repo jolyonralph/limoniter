@@ -933,6 +933,11 @@ impl LineStore {
         }
     }
 
+    pub fn set_bookmarks(&mut self, lines: impl IntoIterator<Item = usize>) {
+        let total = self.total;
+        self.bookmarks = lines.into_iter().filter(|line| *line < total).collect();
+    }
+
     pub fn folds(&self) -> &BTreeMap<usize, usize> {
         &self.folds
     }

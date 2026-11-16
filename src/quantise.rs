@@ -524,7 +524,7 @@ pub fn read_picture(name: &str, bytes: &[u8]) -> Result<Image, String> {
     Ok(Image { width: picture.width, height: picture.height, rgba: picture.rgba })
 }
 
-fn read_jpeg(bytes: &[u8]) -> Result<Image, String> {
+pub(crate) fn read_jpeg(bytes: &[u8]) -> Result<Image, String> {
     use zune_jpeg::zune_core::{bytestream::ZCursor, colorspace::ColorSpace, options::DecoderOptions};
     let options = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGBA);
     let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(bytes), options);

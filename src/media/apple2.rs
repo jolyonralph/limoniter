@@ -396,17 +396,46 @@ impl Apple2 {
     }
 }
 
-/// Names a file so the previews know it: an Applesoft program as .bas, a hi-res screen as .hgr.
-fn open_name(name: &str, applesoft: bool, hires: bool, text: bool) -> String {
+/// Names a file so the previews know it: an Applesoft program as .bas, Integer BASIC as .int, a hi-res screen as
+/// .hgr.
+fn open_name(name: &str, basic: Basic, hires: bool, text: bool) -> String {
     let tidy = tidy_name(name);
-    if applesoft {
+    if basic == Basic::Applesoft {
         format!("{tidy}.bas")
+    } else if basic == Basic::Integer {
+        format!("{tidy}.int")
     } else if hires {
         format!("{tidy}.hgr")
     } else if text && !tidy.contains('.') {
         format!("{tidy}.txt")
     } else {
         tidy
+    }
+}
+
+/// Which BASIC a file holds, by its type.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Basic {
+    None,
+    Applesoft,
+    Integer,
+}
+
+impl Basic {
+    fn of_dos(kind: u8) -> Self {
+        match kind {
+            0x02 => Basic::Applesoft,
+            0x01 => Basic::Integer,
+            _ => Basic::None,
+        }
+    }
+
+    fn of_prodos(kind: u8) -> Self {
+        match kind {
+            0xFC => Basic::Applesoft,
+            0xFA => Basic::Integer,
+            _ => Basic::None,
+        }
     }
 }
 
@@ -438,9 +467,9 @@ impl Volume for Apple2 {
                         let (address, length) = (le16(&first, 0), le16(&first, 2));
                         entry.size = length;
                         entry.detail = format!("${address:04X}, {length} bytes");
-                        entry.open_name = open_name(&file.name, false, hires(address, length), false);
+                        entry.open_name = open_name(&file.name, Basic::None, hires(address, length), false);
                     } else {
-                        entry.open_name = open_name(&file.name, file.kind == 0x02, false, file.kind == 0x00);
+                        entry.open_name = open_name(&file.name, Basic::of_dos(file.kind), false, file.kind == 0x00);
                     }
                     out.push(entry);
                 }
@@ -465,7 +494,7 @@ impl Volume for Apple2 {
                     }
                     let address = if matches!(file.kind, 0x06 | 0xFC | 0xFF) { format!("${:04X}, ", file.aux) } else { String::new() };
                     entry.detail = format!("{address}{}", file.modified);
-                    entry.open_name = open_name(&file.name, file.kind == 0xFC, (file.kind == 0x06 && hires(file.aux, file.length)) || (file.kind == 0x08 && file.length <= 8192), file.kind == 0x04);
+                    entry.open_name = open_name(&file.name, Basic::of_prodos(file.kind), (file.kind == 0x06 && hires(file.aux, file.length)) || (file.kind == 0x08 && file.length <= 8192), file.kind == 0x04);
                     out.push(entry);
                 }
                 Ok(out)

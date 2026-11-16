@@ -4,6 +4,7 @@ use crate::associations;
 use crate::char_table;
 use crate::charset::{self, Charset};
 use crate::columns;
+use crate::conversions;
 use crate::compare;
 use crate::formatters;
 use crate::project::{self, Project};
@@ -46,6 +47,8 @@ const CONVERT_TITLE: &str = "Convert to encoding";
 const ASM_SAMPLE_LINES: usize = 300;
 /// How long a search or Replace All may run in one frame, so the window stays responsive.
 const WORK_SLICE: Duration = Duration::from_millis(30);
+/// How often open files are looked at for changes, when that's asked for as well as on coming back into focus.
+const WATCH_EVERY: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Command {
@@ -103,6 +106,23 @@ enum Command {
     ParagraphSetup,
     AlignText(Align),
     Format(formatters::Kind),
+    Convert(conversions::Conversion),
+    SaveSettingsFile,
+    SaveLayout,
+    SaveDocumentAs(crate::legacy_docs::Target),
+    GatherWindows,
+    Surround(char, char),
+    SurroundTag,
+    MoveToBin,
+    LeadingTabsToSpaces,
+    ClearBookmarks,
+    InvertBookmarks,
+    CopyBookmarked,
+    CutBookmarked,
+    DeleteBookmarked,
+    DeleteUnbookmarked,
+    CheckUpdates,
+    RestoreSettingsFile,
     ProjectOpen,
     ProjectNew,
     ProjectClose,
@@ -374,6 +394,11 @@ impl Command {
                 | Command::GitUseTools
                 | Command::GitStopTools
                 | Command::Settings
+                | Command::SaveSettingsFile
+                | Command::SaveLayout
+                | Command::GatherWindows
+                | Command::CheckUpdates
+                | Command::RestoreSettingsFile
                 | Command::ProjectOpen
                 | Command::ProjectNew
                 | Command::ProjectClose
@@ -430,6 +455,12 @@ impl Command {
                 | Command::ParagraphReformat
                 | Command::AlignText(_)
                 | Command::Format(_)
+                | Command::Convert(_)
+                | Command::Surround(..)
+                | Command::SurroundTag
+                | Command::CutBookmarked
+                | Command::DeleteBookmarked
+                | Command::DeleteUnbookmarked
                 | Command::ColumnFill
                 | Command::ColumnCut
                 | Command::ColumnDelete
@@ -448,6 +479,7 @@ impl Command {
                 | Command::TrimLeading
                 | Command::TrimTrailing
                 | Command::TabsToSpaces
+                | Command::LeadingTabsToSpaces
                 | Command::SpacesToTabs
                 | Command::Indent
                 | Command::Outdent
@@ -642,6 +674,8 @@ struct Document {
     preview_view: settings::PreviewView,
     /// The picture format its bytes were in when it was loaded, for the preview and Save as PNG.
     picture: Option<crate::pictures::Format>,
+    /// The old word processor whose document this is, when it's opened by itself.
+    legacy: Option<crate::legacy_docs::Kind>,
     /// Set while only part of the file is showing. `text` then holds just that part.
     narrow: Option<edit_tools::Narrow>,
     language: Language,
@@ -659,6 +693,8 @@ struct Document {
     /// A BASIC listing, with the machine it goes back to as a program and the program's name: sending it sends
     /// the program, tokenised.
     listing_of: Option<(basic::Machine, String)>,
+    /// For 6502 source whose code doesn't say: the machine chosen when F9 asked.
+    machine_6502: Option<crate::asm::output::Micro6502>,
     /// Opened from a Spectrum tape's list of files: a program from it goes back as a tape.
     from_tape: bool,
     /// Where it loads, when the image it came from says (a tape's CODE block).
@@ -750,6 +786,7 @@ impl Document {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             preview_view: settings::PreviewView::Text,
             picture: None,
+            legacy: None,
             narrow: None,
             language: Language::Auto,
             resolved_syntax: None,
@@ -772,6 +809,7 @@ impl Document {
             remote: None,
             upload_wanted: false,
             listing_of: None,
+            machine_6502: None,
             from_tape: false,
             load_address: None,
             live: None,
@@ -1033,7 +1071,9 @@ impl Document {
     /// preset to suggest when the file's ending doesn't name one.
     fn load_bytes(&mut self, bytes: Vec<u8>, path: &Path, chosen: Option<TextFormat>, hint: Option<&'static codec::Preset>) {
         let doc = self;
-        doc.picture = crate::pictures::detect(&path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), &bytes);
+        let file_name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        doc.picture = crate::pictures::detect(&file_name, &bytes);
+        doc.legacy = if doc.picture.is_none() { crate::legacy_docs::detect_opened(&file_name, &bytes) } else { None };
         let found = codec::detect(&bytes);
         // A retro format named by its file ending is read as that, rather than guessed at or opened as binary.
         let by_ending = if chosen.is_none() && !found.has_bom { codec::preset_for_extension(path).or(hint) } else { None };
@@ -1231,7 +1271,7 @@ fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
         (crate::charset::all().len().to_string(), "character sets"),
         (if languages > 0 { languages.to_string() } else { "\u{2026}".into() }, "languages coloured"),
         (crate::media::IMAGE_ENDINGS.len().to_string(), "disk & archive formats"),
-        (crate::pictures::Format::ALL.len().to_string(), "legacy picture formats"),
+        (crate::pictures::Format::ALL.iter().filter(|f| !matches!(f, crate::pictures::Format::Png | crate::pictures::Format::Jpeg)).count().to_string(), "legacy picture formats"),
     ];
     ui.columns(tiles.len(), |columns| {
         for (column, (number, what)) in columns.iter_mut().zip(&tiles) {
@@ -1311,6 +1351,12 @@ enum Dialog {
     FixedToCsv { rows: (usize, usize), delimiter: char, starts: String, error: String, focus: bool },
     Number { first: String, step: String, error: String },
     Message { title: String, body: String },
+    /// Window, Layouts, Save this layout: its name, and what's wrong with it.
+    SaveLayout { name: String, error: String },
+    /// Edit, Surround with, A tag: what's typed, and what's wrong with it.
+    SurroundTag { value: String, error: String },
+    /// A newer Limoniter is out: its version and the start of its notes.
+    Update { version: String, notes: String },
     /// The About box: what Limoniter is, who made it, and where the list of what it can do is. The notices file,
     /// when it's beside the program.
     About { notices: Option<PathBuf> },
@@ -1352,6 +1398,14 @@ enum Dialog {
 pub struct Limoniter {
     /// A check for a newer OpticOS ROM under way, and whether the day's has been started.
     opticos_check: Option<opticos_host::OpticosCheck>,
+    update_check: Option<update_host::UpdateCheck>,
+    update_started: bool,
+    /// Window, Layouts: named arrangements of the panels.
+    layouts: Vec<crate::layouts::Layout>,
+    /// When open files were last looked at for changes by other programs.
+    last_watch: Option<std::time::Instant>,
+    /// A newer version found while something else was open, told about once that's closed.
+    update_waiting: Option<(String, String)>,
     opticos_started: bool,
     docs: Vec<Document>,
     active: usize,
@@ -1669,6 +1723,11 @@ impl Limoniter {
             assist_panel: assistant::AssistPanel::default(),
             assist_log,
             opticos_check: None,
+            update_check: None,
+            update_started: false,
+            layouts: crate::layouts::from_settings(&settings),
+            last_watch: None,
+            update_waiting: None,
             opticos_started: false,
             docs: Vec::new(),
             active: 0,
@@ -1949,6 +2008,9 @@ impl Limoniter {
         if doc.picture.is_some() {
             return Some(preview::Kind::Picture);
         }
+        if doc.legacy.is_some() {
+            return Some(preview::Kind::Document);
+        }
         if doc.hex_mode && (crate::protracker::has_module_tag(&doc.hex.read(0, 1084)) || crate::sid::looks_like(&doc.hex.read(0, 0x7C))) {
             return Some(preview::Kind::Module);
         }
@@ -1982,7 +2044,7 @@ impl Limoniter {
                 if std::fs::metadata(&full).is_ok_and(|meta| meta.permissions().readonly()) {
                     doc.set_read_only(true);
                 }
-                doc.preview_view = self.opening_view(Some(&full), doc.picture.is_some() || Self::preview_kind(&doc) == Some(preview::Kind::Module));
+                doc.preview_view = self.opening_view(Some(&full), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Document)));
                 self.recall_history(&mut doc, &full);
                 self.recall_tags(&mut doc, &full);
                 // A blank, untouched only tab gives way to the file.
@@ -2020,7 +2082,7 @@ impl Limoniter {
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.print_status = format!("{name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.", unpacked.packer.name(), unpacked.packed_size, unpacked.bytes.len());
         let mut doc = Document::from_image_file(format!("{} \u{203A} {name}", unpacked.packer.name()), unpacked.bytes, None);
-        doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || Self::preview_kind(&doc) == Some(preview::Kind::Module));
+        doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Document)));
         panels::note_recent(&mut self.panels.recent, path);
         if self.docs.len() == 1 && self.docs[0].is_blank() {
             self.docs.clear();
@@ -2326,6 +2388,34 @@ impl Limoniter {
     }
 
     /// Runs a formatter over the selection, or the whole file. It only goes in if it changed nothing but the layout.
+    /// Format, Convert: the selection, or the whole file, converted in place.
+    fn run_conversion(&mut self, conversion: conversions::Conversion) {
+        let title = conversion.title();
+        if !self.one_selection(title) {
+            return;
+        }
+        let doc = &self.docs[self.active];
+        if doc.text.is_block() {
+            self.message(title, "Turn off Column Mode first, then try again.".into());
+            return;
+        }
+        let whole = !doc.text.has_selection();
+        let Some(text) = doc.text.selection_or_all() else {
+            self.message(title, "This file is too large to convert as a whole. Select the part you want instead.".into());
+            return;
+        };
+        match conversion.apply(&text) {
+            Ok(converted) => {
+                let buffer = &mut self.doc().text;
+                buffer.replace_selection_or_all(&converted);
+                if whole {
+                    buffer.move_caret(0, 0, false);
+                }
+            }
+            Err(problem) => self.message(title, problem),
+        }
+    }
+
     fn run_formatter(&mut self, kind: formatters::Kind) {
         if !self.one_selection(kind.title()) {
             return;
@@ -2822,6 +2912,11 @@ impl Limoniter {
         if !self.confirm_close(index) {
             return;
         }
+        self.remove_tab(index);
+    }
+
+    /// Takes a document away, with any windows it has, without asking about unsaved changes.
+    fn remove_tab(&mut self, index: usize) {
         let closed = self.docs.remove(index);
         self.jumps.forget_doc(closed.id);
         self.merge_closed(&closed);
@@ -3745,6 +3840,7 @@ impl Limoniter {
             Command::StTools => self.open_st_tools(),
             Command::C64Tools => self.open_c64_tools(),
             Command::CheckOpticos => self.check_opticos_now(),
+            Command::CheckUpdates => self.check_updates_now(),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
             Command::ToggleTerminal => self.toggle_terminal(),
@@ -3884,6 +3980,8 @@ impl Limoniter {
                 let file_types = settings::FileTypesState::from_registered(associations::registered(), associations::this_program_shown());
                 self.dialog = Dialog::Settings(settings::WindowState { focus: true, file_types, ..settings::WindowState::default() });
             }
+            Command::SaveSettingsFile => self.save_settings_to_file(),
+            Command::RestoreSettingsFile => self.restore_settings_from_file(ui.ctx()),
             Command::Paste => self.paste_from_clipboard(ui),
             Command::SelectAll => {
                 let doc = self.doc();
@@ -4003,6 +4101,7 @@ impl Limoniter {
             Command::GraphMode => self.toggle_graph_mode(),
             Command::UdgPictures => self.choose_udg_pictures(),
             Command::SavePictureAsPng => self.save_picture_as_png(),
+            Command::SaveDocumentAs(target) => self.save_document_as(target),
             Command::Features => self.open_features(),
             Command::SaveSpectrumTape => self.dialog = Dialog::SaveBasic { machine: basic::Machine::Spectrum, run_from: String::new(), error: String::new() },
             Command::SaveNextProgram => self.dialog = Dialog::SaveBasic { machine: basic::Machine::Next, run_from: String::new(), error: String::new() },
@@ -4012,6 +4111,18 @@ impl Limoniter {
             }
             Command::SaveBbcProgram => self.save_tokenised(basic::Machine::Bbc, None),
             Command::RenameFile => self.begin_rename(),
+            Command::SaveLayout => self.dialog = Dialog::SaveLayout { name: String::new(), error: String::new() },
+            Command::GatherWindows => {
+                // Every box, tool window and add-on panel goes back where it first opens, which is on the screen,
+                // and the main window comes up if it was minimised.
+                let ctx = ui.ctx();
+                ctx.memory_mut(|memory| memory.reset_areas());
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+            Command::Surround(open, close) => self.surround_selection(&open.to_string(), &close.to_string()),
+            Command::SurroundTag => self.dialog = Dialog::SurroundTag { value: String::new(), error: String::new() },
+            Command::MoveToBin => self.move_file_to_bin(),
             Command::ShowInExplorer => self.show_in_explorer(),
             Command::OpenWithDefault => self.open_with_usual_program(),
             Command::Snippets => self.dialog = Dialog::Snippets(file_tools::SnippetBox { focus: true, ..Default::default() }),
@@ -4067,6 +4178,7 @@ impl Limoniter {
                 self.change_paragraph(move |rows| reformat::align_lines(rows, align, setup.width, setup.left));
             }
             Command::Format(kind) => self.run_formatter(kind),
+            Command::Convert(conversion) => self.run_conversion(conversion),
             Command::Upper => self.doc().text.change_case(CaseChange::Upper),
             Command::Lower => self.doc().text.change_case(CaseChange::Lower),
             Command::SentenceCase => self.doc().text.change_case(CaseChange::Sentence),
@@ -4128,6 +4240,7 @@ impl Limoniter {
             Command::TrimLeading => self.doc().text.trim_leading(),
             Command::TrimTrailing => self.doc().text.trim_trailing(),
             Command::TabsToSpaces => self.doc().text.tabs_to_spaces(),
+            Command::LeadingTabsToSpaces => self.doc().text.leading_tabs_to_spaces(),
             Command::SpacesToTabs => self.doc().text.spaces_to_tabs(),
             Command::Indent => self.doc().text.tab_key(false),
             Command::Outdent => self.doc().text.tab_key(true),
@@ -4137,6 +4250,18 @@ impl Limoniter {
             }
             Command::NextBookmark | Command::PreviousBookmark => {
                 self.doc().text.go_to_bookmark(command == Command::NextBookmark);
+            }
+            Command::ClearBookmarks => self.doc().text.clear_bookmarks(),
+            Command::InvertBookmarks => self.doc().text.invert_bookmarks(),
+            Command::CopyBookmarked | Command::CutBookmarked => {
+                let text = &self.docs[self.active].text;
+                ui.ctx().copy_text(text.format.readable_text(&text.bookmarked_text()));
+                if command == Command::CutBookmarked {
+                    self.doc().text.delete_bookmarked(false);
+                }
+            }
+            Command::DeleteBookmarked | Command::DeleteUnbookmarked => {
+                self.doc().text.delete_bookmarked(command == Command::DeleteUnbookmarked);
             }
             Command::FormatJson | Command::CompactJson => self.format_json(command == Command::FormatJson),
             Command::ComputeHash => {
@@ -4421,7 +4546,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str()
         )
     }
 
@@ -4442,6 +4567,138 @@ impl Limoniter {
             let _ = std::fs::write(path, &settings);
         }
         self.saved_settings = settings;
+    }
+
+    /// What a layout keeps: which panels are open, and the output, assistant, map, file tabs and status bar.
+    fn layout_now(&self) -> String {
+        format!(
+            "{}output_window={}\nassistant_panel={}\ndocument_map={}\nfile_tabs={}\nstatus_bar={}\n",
+            self.panels.open_ones(),
+            self.show_results,
+            self.assist_panel.open,
+            self.view.document_map,
+            self.show_file_tabs,
+            self.show_status
+        )
+    }
+
+    /// Puts a saved layout back. Anything it doesn't mention stays as it is.
+    fn apply_layout(&mut self, index: usize) {
+        let Some(layout) = self.layouts.get(index).cloned() else {
+            return;
+        };
+        self.panels.read_settings(&layout.open);
+        let switch = |name: &str| crate::layouts::switch(&layout.open, name);
+        self.show_results = switch("output_window").unwrap_or(self.show_results);
+        self.assist_panel.open = switch("assistant_panel").unwrap_or(self.assist_panel.open);
+        self.view.document_map = switch("document_map").unwrap_or(self.view.document_map);
+        self.show_file_tabs = switch("file_tabs").unwrap_or(self.show_file_tabs);
+        self.show_status = switch("status_bar").unwrap_or(self.show_status);
+        // The one used last comes first.
+        let used = self.layouts.remove(index);
+        self.layouts.insert(0, used);
+    }
+
+    /// The encodings chosen for particular files, as their file holds them.
+    fn encodings_text(&self) -> String {
+        encoding_prefs_path().and_then(|path| std::fs::read_to_string(path).ok()).unwrap_or_default()
+    }
+
+    /// Tools, Save settings to a file.
+    fn save_settings_to_file(&mut self) {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let Some(path) = rfd::FileDialog::new().set_title("Save settings to a file").set_file_name(format!("Limoniter settings {today}.txt")).add_filter("Text", &["txt"]).save_file() else {
+            return;
+        };
+        let text = crate::settings_file::bundle(&self.current_settings(), &self.encodings_text(), env!("CARGO_PKG_VERSION"), &today);
+        match std::fs::write(&path, text) {
+            Ok(()) => self.message("Save settings", format!("Saved to {}.\n\nPasswords for servers aren't in it: they're kept in this computer's keychain.", path.display())),
+            Err(e) => self.message("Save settings", format!("Couldn't save {}: {e}", path.display())),
+        }
+    }
+
+    /// Tools, Restore settings from a file: they're put in place of these, at once, and the settings as they were
+    /// are kept beside the settings file in case they're wanted back.
+    fn restore_settings_from_file(&mut self, ctx: &Context) {
+        let Some(path) = rfd::FileDialog::new().set_title("Restore settings from a file").add_filter("Text", &["txt"]).pick_file() else {
+            return;
+        };
+        let read = std::fs::read_to_string(&path).map_err(|e| format!("Couldn't read {}: {e}", path.display()));
+        let (settings, encodings) = match read.and_then(|text| crate::settings_file::unbundle(&text)) {
+            Ok(both) => both,
+            Err(problem) => return self.message("Restore settings", problem),
+        };
+        if !ask_yes_no("Restore settings", "Put the settings in this file in place of the ones Limoniter has now?\n\nThe ones it has now are kept as a file beside them, in case you want them back.") {
+            return;
+        }
+        let kept = self.write_settings_backup();
+        self.apply_settings(ctx, settings);
+        if let Some(prefs_path) = encoding_prefs_path() {
+            let _ = std::fs::write(&prefs_path, &encodings);
+            self.encoding_prefs = EncodingPrefs::load(Some(prefs_path));
+        }
+        self.save_settings_if_changed();
+        let note = kept.map_or_else(String::new, |kept| format!("\n\nThe settings it had before are in {}.", kept.display()));
+        self.message("Restore settings", format!("The settings from {} are in use.{note}", path.display()));
+    }
+
+    /// A copy of the settings as they are now, beside the settings file.
+    fn write_settings_backup(&self) -> Option<PathBuf> {
+        let folder = settings_folder()?;
+        let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S");
+        let backup = folder.join(format!("settings before restore {stamp}.txt"));
+        let text = crate::settings_file::bundle(&self.current_settings(), &self.encodings_text(), env!("CARGO_PKG_VERSION"), &stamp.to_string());
+        std::fs::create_dir_all(&folder).ok()?;
+        std::fs::write(&backup, text).ok().map(|()| backup)
+    }
+
+    /// Takes on settings read from a file, as if Limoniter had started with them: everything the settings file
+    /// holds, read by the same code that reads it at start.
+    fn apply_settings(&mut self, ctx: &Context, settings: String) {
+        let font_file = list_setting(&settings, "font_file").pop().map(PathBuf::from).filter(|path| path.exists());
+        if font_file != self.font_file {
+            install_fonts(ctx, font_file.as_deref());
+        }
+        let fresh = Self::build(settings, font_file, None);
+        self.view = fresh.view;
+        self.prefs = fresh.prefs;
+        // The panels keep what they're showing; only which are open, and the tags, come from the file.
+        self.panels.custom_tags.clear();
+        self.panels.read_settings(&fresh.saved_settings);
+        self.panels.recent = fresh.panels.recent;
+        self.show_file_tabs = fresh.show_file_tabs;
+        self.show_status = fresh.show_status;
+        self.new_file_preset = fresh.new_file_preset;
+        self.recent_projects = fresh.recent_projects;
+        self.find.history = fresh.find.history;
+        self.find.favourites = fresh.find.favourites;
+        self.find.favorite_files = fresh.find.favorite_files;
+        self.font_file = fresh.font_file;
+        self.library = fresh.library;
+        self.addons = fresh.addons;
+        self.remote_sites = fresh.remote_sites;
+        self.known_hosts = fresh.known_hosts;
+        self.remote_recent = fresh.remote_recent;
+        self.sends = fresh.sends;
+        self.running = fresh.running;
+        self.git = fresh.git;
+        self.amiga_palette = fresh.amiga_palette;
+        crate::ansi_art::set_amiga_palette(self.amiga_palette);
+        self.themes = fresh.themes;
+        self.applied_window = None;
+        self.snippets = fresh.snippets;
+        self.layouts = fresh.layouts;
+        self.run_history = fresh.run_history;
+        self.assistant = fresh.assistant;
+        self.new_kinds = fresh.new_kinds;
+        self.compare_rules = fresh.compare_rules;
+        // Servers already running carry on; only whether they're used, and which, change.
+        self.lsp.on = fresh.lsp.on;
+        self.lsp.settings = fresh.lsp.settings;
+        self.current_macro = fresh.current_macro;
+        text_buffer::set_tab_size(self.view.tab_size);
+        text_buffer::set_source_view(self.view.source_view);
+        ctx.request_repaint();
     }
 
     fn side_panels(&mut self, ui: &mut Ui) {
@@ -5987,6 +6244,8 @@ impl Limoniter {
         let mut fill = None;
         let mut number = None;
         let mut show_features = false;
+        let mut surround_tag = None;
+        let mut save_layout = None;
         let title = match &self.dialog {
             Dialog::None => return,
             Dialog::GoTo { .. } => "Go To".to_string(),
@@ -5994,6 +6253,9 @@ impl Limoniter {
             Dialog::SaveBasic { .. } => "Save as a BASIC program".to_string(),
             Dialog::Number { .. } => "Insert Number".to_string(),
             Dialog::Message { title, .. } => title.clone(),
+            Dialog::SaveLayout { .. } => "Save this layout".to_string(),
+            Dialog::SurroundTag { .. } => "Surround with a tag".to_string(),
+            Dialog::Update { .. } => "A newer Limoniter".to_string(),
             Dialog::About { .. } => "About Limoniter".to_string(),
             _ => return,
         };
@@ -6066,10 +6328,51 @@ impl Limoniter {
                     number = Some((first.clone(), step.clone()));
                 }
             }
+            Dialog::SurroundTag { value, error } => {
+                ui.label("The tag, with any attributes (p, or div class=\"note\"):");
+                ui.text_edit_singleline(value).request_focus();
+                if !error.is_empty() {
+                    ui.label(error.as_str());
+                }
+                let (ok, cancel) = ok_cancel(ui);
+                close |= cancel;
+                if ok || enter {
+                    surround_tag = Some(value.clone());
+                }
+            }
+            Dialog::SaveLayout { name, error } => {
+                ui.label("A name for the panels open now, such as Writing or Debugging:");
+                ui.text_edit_singleline(name).request_focus();
+                if !error.is_empty() {
+                    ui.label(error.as_str());
+                }
+                let (ok, cancel) = ok_cancel(ui);
+                close |= cancel;
+                if ok || enter {
+                    save_layout = Some(name.clone());
+                }
+            }
             Dialog::Message { body, .. } => {
                 ui.label(body.as_str());
                 ui.add_space(6.0);
                 close |= ui.button("OK").clicked() || enter;
+            }
+            Dialog::Update { version, notes } => {
+                ui.label(format!("Limoniter {version} is out. This is {}.", crate::update_check::running()));
+                if !notes.is_empty() {
+                    ui.add_space(6.0);
+                    egui::ScrollArea::vertical().max_height(260.0).max_width(520.0).show(ui, |ui| ui.label(RichText::new(notes.as_str()).color(theme::text_dim())));
+                }
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Open the download page").clicked() || enter {
+                        if let Err(problem) = crate::platform::open_web_page(crate::update_check::DOWNLOAD_PAGE) {
+                            warn(&problem);
+                        }
+                        close = true;
+                    }
+                    close |= ui.button("Not now").clicked();
+                });
             }
             Dialog::About { notices } => {
                 let (ok, features) = about_page(ui, notices.as_deref());
@@ -6082,6 +6385,22 @@ impl Limoniter {
         if show_features {
             close = true;
             self.open_features();
+        }
+        if let Some(name) = save_layout {
+            let name = name.trim().to_string();
+            if name.is_empty() {
+                self.dialog = Dialog::SaveLayout { name, error: "Type a name for it.".into() };
+            } else {
+                let open = self.layout_now();
+                crate::layouts::keep(&mut self.layouts, crate::layouts::Layout { name, open });
+                close = true;
+            }
+        }
+        if let Some(typed) = surround_tag {
+            self.dialog = Dialog::None;
+            if let Err(problem) = self.surround_with_tag(&typed) {
+                self.dialog = Dialog::SurroundTag { value: typed, error: problem };
+            }
         }
         if let Some(value) = goto {
             let doc = self.doc();
@@ -6593,16 +6912,30 @@ impl Limoniter {
             // Asking once per change, whatever the answer, so that it doesn't keep coming back.
             doc.disk_stamp = now;
             let modified = doc.is_modified();
-            let question = format!("{} has been changed by another application.\n\nDo you want to reload it?\n", path.display());
-            if !ask_yes_no("File Changed", &question) {
-                continue;
+            if !(self.prefs.reload_quietly && !modified) {
+                let question = format!("{} has been changed by another application.\n\nDo you want to reload it?\n", path.display());
+                if !ask_yes_no("File Changed", &question) {
+                    continue;
+                }
+                if modified && !ask_yes_no("File Changed", "Reload file and lose changes?") {
+                    continue;
+                }
             }
-            if modified && !ask_yes_no("File Changed", "Reload file and lose changes?") {
-                continue;
-            }
+            let doc = &self.docs[index];
+            let at_end = !doc.hex_mode && doc.text.caret_line + 1 >= doc.text.line_count();
+            let (line, col) = (doc.text.caret_line, doc.text.caret_col);
             match self.reopened(index, &path) {
                 Ok(mut fresh) => {
                     fresh.preview_view = self.docs[index].preview_view;
+                    // Following a log: at the end before, at the end now. Otherwise as near the same place as there is.
+                    let text = &mut fresh.text;
+                    let last = text.line_count().saturating_sub(1);
+                    if at_end {
+                        text.move_caret(last, usize::MAX, false);
+                    } else {
+                        text.move_caret(line.min(last), col, false);
+                    }
+                    text.reveal = true;
                     self.docs[index] = fresh;
                     self.pending_focus = true;
                 }
@@ -6614,8 +6947,14 @@ impl Limoniter {
     fn handle_window_events(&mut self, ctx: &Context) {
         // A script is working on the file in front, which has to stay the file in front until it's finished.
         if self.script.is_none() {
-            if self.prefs.watch_files && ctx.input(|i| i.raw.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true)))) {
+            let focused_again = ctx.input(|i| i.raw.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true))));
+            let due = self.prefs.watch_often && self.last_watch.is_none_or(|last| last.elapsed() >= WATCH_EVERY);
+            if self.prefs.watch_files && (focused_again || due) && matches!(self.dialog, Dialog::None) {
+                self.last_watch = Some(std::time::Instant::now());
                 self.check_for_changed_files();
+            }
+            if self.prefs.watch_files && self.prefs.watch_often {
+                ctx.request_repaint_after(WATCH_EVERY);
             }
             let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
             // Files dropped on an image that can be changed are put on it; anywhere else they open.
@@ -6709,6 +7048,7 @@ impl Limoniter {
         NO_FILE.set(self.no_file());
         self.apply_themes(&ctx);
         self.poll_opticos_check();
+        self.poll_update_check();
         text_buffer::set_edit_prefs(self.prefs.edit);
         hex_buffer::set_bytes_per_row(self.prefs.hex_row);
         self.apply_tab_size();
@@ -7578,6 +7918,8 @@ mod web_host;
 mod clambers_host;
 #[path = "opticos_host.rs"]
 mod opticos_host;
+#[path = "update_host.rs"]
+mod update_host;
 #[path = "ndk_host.rs"]
 mod ndk_host;
 #[path = "st_host.rs"]
@@ -8685,6 +9027,118 @@ mod tests {
         command(&mut app, &ctx, Command::NextTab);
         draw(&mut app, &ctx, Vec::new());
         assert_eq!(app.docs[0].text.caret_line, 0, "it's kept inside the file");
+    }
+
+    #[test]
+    fn restored_settings_are_used_at_once_and_keep_what_panels_show() {
+        let (mut app, ctx) = app_with("");
+        app.panels.recent = vec![PathBuf::from("before.txt")];
+        let saved = crate::settings_file::bundle("design=2\nruler=true\nstatus_bar=false\nfind_history=needle\nrecent_file=after.txt\nfunctions=true\n", "", "0", "today");
+        let (settings, _) = crate::settings_file::unbundle(&saved).unwrap();
+        app.apply_settings(&ctx, settings);
+        assert!(app.view.ruler && !app.show_status && app.panels.functions);
+        assert_eq!(app.find.history, ["needle"]);
+        assert_eq!(app.panels.recent, [PathBuf::from("after.txt")]);
+        draw(&mut app, &ctx, Vec::new());
+    }
+
+    #[test]
+    fn a_growing_log_is_reloaded_quietly_and_followed_at_its_end() {
+        let folder = std::env::temp_dir().join(format!("limoniter-watch-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let log = folder.join("server.log");
+        std::fs::write(&log, "one\ntwo\n").unwrap();
+        let (mut app, _ctx) = app_with("reload_quietly=true\n");
+        app.open_path(&log);
+        let index = app.active;
+        let last = app.docs[index].text.line_count() - 1;
+        app.docs[index].text.move_caret(last, 0, false);
+        std::fs::write(&log, "one\ntwo\nthree\nfour\n").unwrap();
+        app.docs[index].disk_stamp = None;
+        app.screenshot = None;
+        app.check_for_changed_files();
+        let text = &app.docs[index].text;
+        assert_eq!(text.line(2).as_ref(), "three", "reloaded without asking");
+        assert_eq!(text.caret_line, text.line_count() - 1, "still at the end");
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn the_selection_is_surrounded_and_stays_selected_inside() {
+        let (mut app, ctx) = app_with("");
+        app.doc().text.set_content(vec!["say hello there".into()]);
+        app.doc().text.select_chars((0, 4), (0, 9));
+        command(&mut app, &ctx, Command::Surround('(', ')'));
+        assert_eq!(lines_of(&app), ["say (hello) there"]);
+        assert_eq!(app.doc().text.selection_text(), "hello");
+        app.surround_with_tag("b class=\"x\"").unwrap();
+        assert_eq!(lines_of(&app), ["say (<b class=\"x\">hello</b>) there"]);
+        assert!(app.surround_with_tag("2x").is_err());
+        command(&mut app, &ctx, Command::Undo);
+        assert_eq!(lines_of(&app), ["say (hello) there"], "each surround is one undo");
+    }
+
+    #[test]
+    fn the_value_inspector_draws_in_text_and_in_hex() {
+        let (mut app, ctx) = app_with("inspector_panel=true\n");
+        assert!(app.panels.inspector);
+        app.doc().text.set_content(vec!["ABCDEFGH".into()]);
+        draw(&mut app, &ctx, Vec::new());
+        command(&mut app, &ctx, Command::ViewHex);
+        draw(&mut app, &ctx, Vec::new());
+        assert!(app.docs[app.active].hex_mode);
+    }
+
+    #[test]
+    fn an_old_word_processors_document_opened_by_itself_is_shown_converted() {
+        let folder = std::env::temp_dir().join(format!("limoniter-wordstar-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let file = folder.join("LETTER.WS");
+        std::fs::write(&file, b"Dear Sir, this letter\x8D\nis written in\x8D\nWordStar, as they were.\r\n").unwrap();
+        let plain = folder.join("notes.txt");
+        std::fs::write(&plain, "Caf\u{E9} au lait, et cr\u{E8}me br\u{FB}l\u{E9}e \u{E0} la carte.\n").unwrap();
+        let (mut app, ctx) = app_with("");
+        app.open_path(&file);
+        let doc = &app.docs[app.active];
+        assert_eq!(doc.legacy, Some(crate::legacy_docs::Kind::WordStar));
+        assert_eq!(Limoniter::preview_kind(doc), Some(preview::Kind::Document));
+        assert!(app.can(Command::SaveDocumentAs(crate::legacy_docs::Target::Markdown)));
+        let bytes = std::fs::read(&file).unwrap();
+        assert!(matches!(preview::render_bytes(preview::Kind::Document, &bytes, &doc.text.format, Some(&file)), preview::FromBytes::Blocks(blocks) if !blocks.is_empty()));
+        draw(&mut app, &ctx, Vec::new());
+        app.open_path(&plain);
+        assert_eq!(app.docs[app.active].legacy, None, "ordinary UTF-8 text isn't taken for WordStar");
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn a_saved_layout_puts_the_panels_back_and_is_kept_in_the_settings() {
+        let (mut app, ctx) = app_with("");
+        app.panels.functions = true;
+        app.show_results = true;
+        app.dialog = Dialog::SaveLayout { name: "Debugging".into(), error: String::new() };
+        draw(&mut app, &ctx, vec![egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE }]);
+        assert_eq!(app.layouts.len(), 1, "saved by pressing Enter");
+        app.panels.functions = false;
+        app.show_results = false;
+        app.apply_layout(0);
+        assert!(app.panels.functions && app.show_results);
+        let settings = app.current_settings();
+        assert_eq!(crate::layouts::from_settings(&settings), app.layouts);
+    }
+
+    #[test]
+    fn conversions_change_the_selection_or_the_whole_file_and_undo() {
+        let (mut app, ctx) = app_with("");
+        app.doc().text.set_content(vec!["foobar".into()]);
+        command(&mut app, &ctx, Command::Convert(conversions::Conversion::Base64Encode));
+        assert_eq!(lines_of(&app), ["Zm9vYmFy"]);
+        command(&mut app, &ctx, Command::Convert(conversions::Conversion::Base64Decode));
+        assert_eq!(lines_of(&app), ["foobar"]);
+        command(&mut app, &ctx, Command::Convert(conversions::Conversion::Base64Decode));
+        assert_eq!(lines_of(&app), ["foobar"], "a problem leaves the text alone");
+        command(&mut app, &ctx, Command::Undo);
+        assert_eq!(lines_of(&app), ["Zm9vYmFy"]);
     }
 
     #[test]

@@ -230,7 +230,7 @@ def main():
 
     for cid, table, name in [("msx", "x-msx", "International"), ("msx-jp", "x-msx-jp", "Japanese"), ("msx-br", "x-msx-br", "Brazilian"), ("msx-ru", "x-msx-ru", "Russian"), ("msx-kr", "x-msx-kr", "Korean")]:
         write_charset(out, cid, "MSX, " + name, "MSX", KR_SOURCE, KR_VERSION, "Single bytes. MSX's two-byte graphics (0x01 and a second byte) are kept as two bytes and aren't joined into one character.", [("Text", kr(table))])
-    write_charset(out, "amstrad-cpm", "Amstrad CP/M Plus", "CP/M", KR_SOURCE, KR_VERSION, "One machine's CP/M set, selectable. Other machines differ.", [("Text", kr("x-amstrad-cpm"))])
+    write_charset(out, "amstrad-cpm", "Amstrad PCW and CP/M Plus", "Amstrad", KR_SOURCE, KR_VERSION, "Amstrad's CP/M Plus set, on the PCW, the CPC 6128 and the Spectrum +3 (LocoScript has its own). Other machines' CP/M differs.", [("Text", kr("x-amstrad-cpm"))])
     out.close()
 
 

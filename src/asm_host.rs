@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::asm::Assembly;
+use crate::asm::output::Micro6502;
 use crate::assemblers::{self, Assembled, Choice, Cpu};
 use crate::running::{Format, Machine, Runnable};
 use std::sync::Arc;
@@ -210,7 +211,15 @@ impl Limoniter {
     #[allow(clippy::too_many_arguments)]
     fn keep_assembled(&mut self, doc_id: u64, version: u64, choice: &Choice, assembled: Assembled, stem: &str, report: bool, save: bool) -> Result<Runnable, String> {
         let cpu = self.doc_cpu(self.active).unwrap_or(Cpu::Z80);
-        let made = if assembled.assembly.ok() { made_from(cpu, &assembled, stem) } else { Err(String::new()) };
+        // For 6502 source: the machine a `; machine:` line names, and the one chosen when F9 asked.
+        let micro = match self.docs.iter().find(|d| d.id == doc_id) {
+            Some(doc) if cpu == Cpu::M6502 => {
+                let lines = doc.text.all_lines();
+                Micro { said: Micro6502::said_in(lines.iter().map(|l| l.as_ref())), asked: doc.machine_6502 }
+            }
+            _ => Micro::default(),
+        };
+        let made = if assembled.assembly.ok() { made_from(cpu, &assembled, stem, micro) } else { Err(String::new()) };
         // An Amiga program is crunched beside the source too, if Run on, Amiga crunchers and music says to.
         match &made {
             Ok(Made::Run(run)) if report => {
@@ -308,6 +317,7 @@ impl Limoniter {
                 let size = if assembled.tape.is_some() { "A tape was made".to_string() } else { format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
             }
+            Err(problem) if problem == ASK_6502 => lines.push("It doesn't say whether it's for a Commodore 64 or a BBC Micro. Put ; machine: c64 or ; machine: bbc near the top to say.".into()),
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
             Err(_) if assembly.ok() => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
@@ -579,7 +589,19 @@ pub enum Made {
     Saved { name: String, bytes: Vec<u8> },
 }
 
-pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, String> {
+/// What runnable_from gives back for 6502 code when it can't tell which machine it's for, and nothing says: F9
+/// asks.
+pub const ASK_6502: &str = "\u{1}which 6502 machine";
+
+/// The machine 6502 source is for, as it says and as chosen when asked. What the source says comes first, then
+/// what the code itself shows (see `machine_6502`), then what was chosen.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Micro {
+    pub said: Option<Micro6502>,
+    pub asked: Option<Micro6502>,
+}
+
+pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> Result<Made, String> {
     match cpu {
         // A Color Computer binary, which LOADM loads, and XRoar runs (and debugs).
         Cpu::M6809 => {
@@ -587,7 +609,7 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, St
             Ok(Made::Run(Runnable { machine: Machine::CoCo, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
         }
         // An Amiga executable, made by the assembler from source for the Amiga.
-        Cpu::M68k if assembled.tape.is_some() => runnable_from(cpu, assembled, stem).map(Made::Run),
+        Cpu::M68k if assembled.tape.is_some() => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
         // An Atari ST program, if it isn't put at an address of its own: else the bytes as they go in memory.
         Cpu::M68k if !assembled.assembly.absolute && assembled.tape.is_none() && assembled.assembly.lowest() == Some(0) => {
             let shift = 0x10000;
@@ -604,11 +626,11 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Made, St
             };
             Ok(Made::Saved { name: format!("{stem}.bin"), bytes: assembly.image(low, high) })
         }
-        _ => runnable_from(cpu, assembled, stem).map(Made::Run),
+        _ => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
     }
 }
 
-pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runnable, String> {
+pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> Result<Runnable, String> {
     if let Some((format, bytes)) = &assembled.tape {
         let name = format!("{stem}.{}", format.ending());
         return Runnable::from_file(&name, bytes.clone()).ok_or_else(|| format!("{name} isn't a program Limoniter knows how to run."));
@@ -630,16 +652,21 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str) -> Result<Runn
         let name = Path::new(&dot.name).file_name().map_or_else(|| dot.name.clone(), |n| n.to_string_lossy().into_owned());
         return Err(format!("This is a dot command, run by typing .{} on a Next: put {name} in the dot folder of the Next's SD card (open the card's image in Limoniter and add it, or copy it to the card).", name.trim_end_matches('.')));
     }
-    if cpu == Cpu::M6502 && crate::asm::output::calls_bbc_mos(assembly) {
-        // A BBC Micro's, on a disc that *RUNs it as it boots.
-        let (load, exec, code) = crate::asm::output::bbc_program(assembly)?;
-        let bytes = crate::running::bbc_code_disc(stem, &code, load, exec);
-        return Ok(Runnable { machine: Machine::Bbc, format: Format::Ssd, name: format!("{stem}.ssd"), bytes: Arc::new(bytes) });
-    }
     if cpu == Cpu::M6502 {
-        // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
-        let bytes = crate::asm::output::commodore_program(assembly)?;
-        return Runnable::from_file(&format!("{stem}.prg"), bytes).ok_or_else(|| "The program couldn't be made.".to_string());
+        return match micro.said.or_else(|| crate::asm::output::machine_6502(assembly)).or(micro.asked) {
+            // A BBC Micro's, on a disc that *RUNs it as it boots.
+            Some(Micro6502::Bbc) => {
+                let (load, exec, code) = crate::asm::output::bbc_program(assembly)?;
+                let bytes = crate::running::bbc_code_disc(stem, &code, load, exec);
+                Ok(Runnable { machine: Machine::Bbc, format: Format::Ssd, name: format!("{stem}.ssd"), bytes: Arc::new(bytes) })
+            }
+            // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
+            Some(Micro6502::C64) => {
+                let bytes = crate::asm::output::commodore_program(assembly)?;
+                Runnable::from_file(&format!("{stem}.prg"), bytes).ok_or_else(|| "The program couldn't be made.".to_string())
+            }
+            None => Err(ASK_6502.to_string()),
+        };
     }
     let device = assembly.device.clone().unwrap_or_default();
     if device.contains("NEXT") {

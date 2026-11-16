@@ -8,6 +8,12 @@ use crate::assemblers::Cpu;
 /// The box asking how to disassemble.
 pub(super) struct DisasmBox {
     pub cpu: Cpu,
+    /// ICL 2900 code, listed rather than traced, in place of `cpu`.
+    pub icl2900: bool,
+    /// x86 code, in place of `cpu`: the program the file was found to be, or plain code in `x86_bits`' mode.
+    pub x86: bool,
+    pub x86_program: Option<crate::x86::Program>,
+    pub x86_bits: u32,
     pub bytes: Vec<u8>,
     pub origin: String,
     pub starts: String,
@@ -102,6 +108,16 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
 
 /// A number as typed: $8000, 0x8000, #8000, 8000h or 32768.
 fn number(text: &str) -> Option<u16> {
+    number32(text).and_then(|n| u16::try_from(n).ok())
+}
+
+/// The same, up to 32 bits.
+fn number32(text: &str) -> Option<u32> {
+    number64(text).and_then(|n| u32::try_from(n).ok())
+}
+
+/// The same, up to 64 bits.
+fn number64(text: &str) -> Option<u64> {
     let t = text.trim();
     let (digits, radix) = if let Some(h) = t.strip_prefix('$').or_else(|| t.strip_prefix('#')).or_else(|| t.strip_prefix("0x")).or_else(|| t.strip_prefix("0X")) {
         (h, 16)
@@ -110,7 +126,7 @@ fn number(text: &str) -> Option<u16> {
     } else {
         (t, 10)
     };
-    u32::from_str_radix(digits, radix).ok().and_then(|n| u16::try_from(n).ok())
+    u64::from_str_radix(digits, radix).ok()
 }
 
 impl Limoniter {
@@ -126,9 +142,15 @@ impl Limoniter {
         if bytes.is_empty() {
             return self.message("Disassemble", "There's nothing in this file to disassemble.".into());
         }
+        // An x86 program (PE, ELF, MZ or .COM) is taken whole.
+        if let Some(program) = crate::x86::recognise(&name, &bytes) {
+            let found = program.what.clone();
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, x86: true, x86_bits: program.bits, x86_program: Some(program), bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            return;
+        }
         let (cpu, code, origin, starts, found) = guess(&name, &bytes, load_address);
         let starts = starts.iter().map(|s| format!("${s:04X}")).collect::<Vec<_>>().join(", ");
-        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
+        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, x86: false, x86_program: None, x86_bits: 32, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
     }
 
     pub(super) fn disassemble_dialog(&mut self, ctx: &Context) -> bool {
@@ -143,19 +165,49 @@ impl Limoniter {
             egui::Grid::new("disasm-grid").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 ui.label("Processor");
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut state.cpu, Cpu::Z80, "Z80 (and the Next's)");
-                    ui.radio_value(&mut state.cpu, Cpu::M6502, "6502");
-                    ui.radio_value(&mut state.cpu, Cpu::M6809, "6809");
+                    for (cpu, name) in [(Cpu::Z80, "Z80 (and the Next's)"), (Cpu::M6502, "6502"), (Cpu::M6809, "6809")] {
+                        if ui.radio(!state.icl2900 && !state.x86 && state.cpu == cpu, name).clicked() {
+                            (state.cpu, state.icl2900, state.x86) = (cpu, false, false);
+                        }
+                    }
+                    if ui.radio(state.x86, "x86").clicked() {
+                        (state.icl2900, state.x86) = (false, true);
+                    }
+                    if ui.radio(state.icl2900, "ICL 2900").clicked() {
+                        (state.icl2900, state.x86) = (true, false);
+                    }
                 });
                 ui.end_row();
-                ui.label("Loads at");
-                ui.add(egui::TextEdit::singleline(&mut state.origin).desired_width(120.0));
-                ui.end_row();
-                ui.label("Starts at");
-                ui.add(egui::TextEdit::singleline(&mut state.starts).hint_text("$8000, $8100...").desired_width(200.0));
-                ui.end_row();
+                // A program the file was found to be says its own mode, addresses and starts.
+                let whole = state.x86 && state.x86_program.is_some();
+                if state.x86 && !whole {
+                    ui.label("Mode");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut state.x86_bits, 16, "16-bit (8086, DOS)");
+                        ui.radio_value(&mut state.x86_bits, 32, "32-bit");
+                        ui.radio_value(&mut state.x86_bits, 64, "64-bit");
+                    });
+                    ui.end_row();
+                }
+                if !whole {
+                    ui.label("Loads at");
+                    ui.add(egui::TextEdit::singleline(&mut state.origin).desired_width(120.0));
+                    ui.end_row();
+                }
+                if !state.icl2900 && !whole {
+                    ui.label("Starts at");
+                    ui.add(egui::TextEdit::singleline(&mut state.starts).hint_text("$8000, $8100...").desired_width(200.0));
+                    ui.end_row();
+                }
             });
-            ui.label(RichText::new("The code is followed from where it starts, through every jump and call; what it never reaches is kept as data. Add more places it starts, comma between, for code reached some other way (interrupts, tables of addresses).").color(theme::text_faint()).size(11.5));
+            let how = if state.x86 && state.x86_program.is_some() {
+                "Its code is followed from where it's entered (and from what it exports or names), through every jump and call; what it never reaches is kept as data. Every x86 instruction up to today's (SSE, AVX, AVX-512, AMX) is known."
+            } else if state.icl2900 {
+                "Every halfword is read as an instruction, one after another, and listed in SFL with its byte address; what isn't an instruction is shown as it is. Jumps' targets get labels."
+            } else {
+                "The code is followed from where it starts, through every jump and call; what it never reaches is kept as data. Add more places it starts, comma between, for code reached some other way (interrupts, tables of addresses)."
+            };
+            ui.label(RichText::new(how).color(theme::text_faint()).size(11.5));
             if !state.error.is_empty() {
                 ui.colored_label(theme::change_unsaved(), &state.error);
             }
@@ -168,6 +220,53 @@ impl Limoniter {
             let Dialog::Disassemble(state) = &mut self.dialog else {
                 return true;
             };
+            if state.x86 {
+                let program = match &state.x86_program {
+                    Some(program) => program.clone(),
+                    None => {
+                        let Some(origin) = number64(&state.origin) else {
+                            state.error = "Say where it loads: $401000, or 4198400.".into();
+                            return true;
+                        };
+                        let starts: Option<Vec<u64>> = state.starts.split(',').filter(|s| !s.trim().is_empty()).map(number64).collect();
+                        let Some(starts) = starts else {
+                            state.error = "Say where it starts: addresses, comma between.".into();
+                            return true;
+                        };
+                        crate::x86::raw(&state.bytes, state.x86_bits, origin, &starts)
+                    }
+                };
+                let stem = state.stem.clone();
+                self.dialog = Dialog::None;
+                let source = crate::x86::disassemble(&program);
+                let mut doc = Document::untitled(format!("{stem}.asm"), &PRESETS[0]);
+                doc.text.set_content(source.lines().map(str::to_string).collect());
+                highlight::load_now();
+                let language = if program.bits == 64 { "Assembly x86_64" } else { "Assembly 80x86" };
+                if let Some((_, syntax)) = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == language)) {
+                    doc.set_language(Language::Named(*syntax));
+                }
+                doc.update_syntax();
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+                self.pending_focus = true;
+                return true;
+            }
+            if state.icl2900 {
+                let Some(origin) = number32(&state.origin) else {
+                    state.error = "Say where it loads, as a byte address: $8000, or 32768.".into();
+                    return true;
+                };
+                let listing = crate::icl2900::disassemble(&state.bytes, origin);
+                let stem = state.stem.clone();
+                self.dialog = Dialog::None;
+                let mut doc = Document::untitled(format!("{stem}.sfl"), &PRESETS[0]);
+                doc.text.set_content(listing.lines().map(str::to_string).collect());
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+                self.pending_focus = true;
+                return true;
+            }
             let Some(origin) = number(&state.origin) else {
                 state.error = "Say where it loads: $8000, or 32768.".into();
                 return true;

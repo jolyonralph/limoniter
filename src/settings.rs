@@ -71,6 +71,10 @@ pub struct Prefs {
     pub find_from_selection: bool,
     pub find_in_file_folder: bool,
     pub watch_files: bool,
+    /// Every few seconds as well, not only when the window comes back into focus.
+    pub watch_often: bool,
+    /// A changed file with no unsaved changes is reloaded without asking, staying at its end if it was there.
+    pub reload_quietly: bool,
     pub hex_row: usize,
     pub print_header: bool,
     pub print_line_numbers: bool,
@@ -92,6 +96,8 @@ pub struct Prefs {
     pub zx_notation: crate::zx_graphics::Notation,
     /// Once a day, a newer OpticOS ROM is looked for on GitHub and installed.
     pub opticos_updates: bool,
+    /// Once a day, GitHub is asked whether there's a newer Limoniter.
+    pub update_checks: bool,
 }
 
 /// How long autosave waits, in seconds.
@@ -99,7 +105,7 @@ pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, opticos_updates: true }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, opticos_updates: true, update_checks: true }
     }
 }
 
@@ -107,7 +113,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\nupdate_checks={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -121,6 +127,8 @@ impl Prefs {
             self.find_from_selection,
             self.find_in_file_folder,
             self.watch_files,
+            self.watch_often,
+            self.reload_quietly,
             self.hex_row,
             self.print_header,
             self.print_line_numbers,
@@ -135,7 +143,8 @@ impl Prefs {
             self.autosave_seconds,
             self.backup_on_save,
             self.zx_notation.id(),
-            self.opticos_updates
+            self.opticos_updates,
+            self.update_checks
         )
     }
 
@@ -215,9 +224,12 @@ impl Prefs {
                 "autosave" => &mut prefs.autosave,
                 "backup_on_save" => &mut prefs.backup_on_save,
                 "opticos_updates" => &mut prefs.opticos_updates,
+                "update_checks" => &mut prefs.update_checks,
                 "find_from_selection" => &mut prefs.find_from_selection,
                 "find_in_file_folder" => &mut prefs.find_in_file_folder,
                 "watch_files" => &mut prefs.watch_files,
+                "watch_often" => &mut prefs.watch_often,
+                "reload_quietly" => &mut prefs.reload_quietly,
                 "print_header" => &mut prefs.print_header,
                 "print_line_numbers" => &mut prefs.print_line_numbers,
                 _ => continue,
@@ -332,7 +344,9 @@ enum Special {
     Theme,
     Font,
     TextSize,
+    LineSpacing,
     TabSize,
+    MarkerColumns,
     HexRow,
     AutosaveTime,
     Preset,
@@ -344,6 +358,7 @@ enum Special {
     AmigaTools,
     NewKinds,
     LanguageServers,
+    OwnGrammars,
     FileTypes,
     CompareRules,
 }
@@ -374,8 +389,11 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Special("Color theme", Special::Theme),
             Row::Special("Editor font", Special::Font),
             Row::Special("Text size", Special::TextSize),
+            Row::Special("Line spacing", Special::LineSpacing),
             Row::Heading("In the editor"),
             Row::Flag("Ruler", "The column ruler above the text", |t| &mut t.view.ruler),
+            Row::Flag("Column markers", "Lines down the text after chosen columns, such as 72 or 80", |t| &mut t.view.column_markers),
+            Row::Special("Column marker columns", Special::MarkerColumns),
             Row::Flag("Line numbers", "Numbers down the left of the text", |t| &mut t.view.line_numbers),
             Row::Flag("Bookmark gutter", "The strip beside the line numbers that shows bookmarks", |t| &mut t.view.bookmark_gutter),
             Row::Flag("Document map", "The small picture of the whole file on the right", |t| &mut t.view.document_map),
@@ -408,8 +426,10 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Special("Assemblers", Special::Assemblers),
             Row::Special("Amiga code hints", Special::AmigaNdk),
             Row::Special("Amiga crunchers and music", Special::AmigaTools),
+            Row::Flag("Check for a newer Limoniter", "Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. Nothing is downloaded by itself. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once", |t| &mut t.prefs.update_checks),
             Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
             Row::Special("Language servers", Special::LanguageServers),
+            Row::Special("Your own highlighting grammars", Special::OwnGrammars),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
         ],
     ),
@@ -431,6 +451,8 @@ const SECTIONS: [(&str, &[Row]); 6] = [
         "Files",
         &[
             Row::Flag("Check for changes by other programs", "Each time the window comes back into focus", |t| &mut t.prefs.watch_files),
+            Row::Flag("Check every few seconds too", "For files that change while you watch, such as logs: every two seconds, as well as when the window comes back into focus", |t| &mut t.prefs.watch_often),
+            Row::Flag("Reload changed files without asking", "When a file has no unsaved changes of yours. If you were at its end, you stay at the end, to follow a log as it grows", |t| &mut t.prefs.reload_quietly),
             Row::Heading("Saving"),
             Row::Flag("Save files by themselves", "A file with unsaved changes is saved once it has had them for the time below. Untitled and read-only files, files open from a disk image, archive or server, and files of 64 MB and more are left for you to save", |t| &mut t.prefs.autosave),
             Row::Special("Save after", Special::AutosaveTime),
@@ -529,8 +551,32 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             Special::TextSize => {
                 ui.add(egui::Slider::new(&mut target.view.font_size, 8.0..=40.0).step_by(1.0));
             }
+            Special::LineSpacing => {
+                ui.add(egui::Slider::new(&mut target.view.line_spacing, crate::views::LINE_SPACINGS).step_by(0.05).custom_formatter(|n, _| format!("{n:.2}\u{D7}")));
+            }
             Special::TabSize => {
                 ui.add(egui::DragValue::new(&mut target.view.tab_size).range(MIN_TAB_SIZE..=MAX_TAB_SIZE));
+            }
+            Special::MarkerColumns => {
+                // What's typed is kept as it's typed, and taken whenever it reads as columns.
+                let id = egui::Id::unique("settings marker columns");
+                let mut typed = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| target.view.marker_columns.to_string());
+                let valid = crate::views::MarkerColumns::parse(&typed);
+                let edit = egui::TextEdit::singleline(&mut typed).desired_width(140.0).hint_text("72, 80");
+                let response = ui.add_enabled(target.view.column_markers, edit).on_hover_text("Up to eight columns, between commas: 7, 72 and 80 for COBOL, 72 for commit messages");
+                if response.changed()
+                    && let Some(columns) = crate::views::MarkerColumns::parse(&typed)
+                {
+                    target.view.marker_columns = columns;
+                }
+                if valid.is_none() {
+                    ui.label(RichText::new("Numbers from 1 to 9999, up to eight").color(theme::text_faint()));
+                }
+                if response.has_focus() {
+                    ui.data_mut(|d| d.insert_temp(id, typed));
+                } else {
+                    ui.data_mut(|d| d.remove::<String>(id));
+                }
             }
             Special::AutosaveTime => {
                 ui.add_enabled_ui(target.prefs.autosave, |ui| {
@@ -574,6 +620,27 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                 if ui.button("Change the list\u{2026}").on_hover_text("Each kind is a file ending, an encoding, line endings, colouring, and text to start with").clicked() {
                     *outcome = Some(Outcome::NewKinds);
                 }
+            }
+            Special::OwnGrammars => {
+                ui.vertical(|ui| {
+                    let folder = crate::highlight::grammars_folder();
+                    let button = Button::new("Open the folder");
+                    if ui.add_enabled(folder.is_some(), button).on_hover_text("Put Sublime Text grammars (.sublime-syntax files) here, and Limoniter reads them when it next starts. For a file ending both know, yours is used").clicked()
+                        && let Some(folder) = &folder
+                    {
+                        let _ = std::fs::create_dir_all(folder);
+                        let _ = crate::platform::open_folder(folder);
+                    }
+                    if let Some(engine) = crate::highlight::engine() {
+                        for (file, result) in engine.own_grammars() {
+                            let (words, colour) = match result {
+                                Ok(language) => (format!("{file}: {language}"), theme::text_dim()),
+                                Err(problem) => (format!("{file} wasn't read: {problem}"), theme::problem_mark()),
+                            };
+                            ui.label(RichText::new(words).color(colour).size(12.0));
+                        }
+                    }
+                });
             }
             Special::Assemblers => {
                 if ui.button("Choose\u{2026}").on_hover_text("Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers").clicked() {
@@ -704,6 +771,8 @@ mod tests {
             find_from_selection: false,
             find_in_file_folder: true,
             watch_files: false,
+            watch_often: true,
+            reload_quietly: true,
             hex_row: 32,
             print_header: false,
             print_line_numbers: true,
@@ -718,6 +787,7 @@ mod tests {
             backup_on_save: true,
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
             opticos_updates: false,
+            update_checks: false,
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);
         assert_eq!(Prefs::from_settings(&Prefs::default().to_settings()), Prefs::default());

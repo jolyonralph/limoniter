@@ -13,6 +13,10 @@ const EBCDIC_DATA: &str = include_str!("../data/charsets-ebcdic.txt");
 const MORE_DATA: &str = include_str!("../data/charsets-more.txt");
 /// More home and personal computers' sets, built by `tools/gen_retro.py`.
 const RETRO_DATA: &str = include_str!("../data/charsets-retro.txt");
+/// The Cambridge Z88's and the Amstrad NC's sets, built by `tools/gen_portables.py`.
+const PORTABLES_DATA: &str = include_str!("../data/charsets-portables.txt");
+/// The 7-bit national versions of ASCII, DEC's line drawing, and ASCII with the top bit set, from tools/gen_national.py.
+const NATIONAL_DATA: &str = include_str!("../data/charsets-national.txt");
 
 /// Bytes kept exactly as they were live here, in the last private-use row of Unicode.
 /// A file that really contains these characters has them kept as their separate bytes instead.
@@ -160,6 +164,9 @@ pub struct Charset {
     pub keep_bytes: bool,
     /// An IBM mainframe set, whose line endings are its own bytes: NL 0x15, LF 0x25 and CR 0x0D.
     pub ebcdic: bool,
+    /// The bytes of carriage return and line feed, where they aren't 0x0D and 0x0A: 0x8D and 0x8A in text with
+    /// the top bit set.
+    pub cr_lf: Option<(u8, u8)>,
     pub tables: Vec<Table>,
     /// What each byte becomes in the text when it isn't a line ending.
     pub decoded: [char; 256],
@@ -360,6 +367,7 @@ fn unicode_charset(id: &str, name: &str, form: UnicodeForm) -> Charset {
         model: Model::Plain,
         keep_bytes: false,
         ebcdic: false,
+        cr_lf: None,
         tables: Vec::new(),
         decoded: ['\0'; 256],
         labels: Vec::new(),
@@ -407,6 +415,7 @@ pub fn parse_definitions(text: &str, problems: &mut Vec<String>) -> Vec<Charset>
                 model: Model::Plain,
                 keep_bytes: false,
                 ebcdic: false,
+                cr_lf: None,
                 tables: Vec::new(),
                 decoded: ['\0'; 256],
                 labels: Vec::new(),
@@ -458,6 +467,10 @@ pub fn parse_definitions(text: &str, problems: &mut Vec<String>) -> Vec<Charset>
                 "scope" => charset.scope = value.to_string(),
                 "keep_bytes" => charset.keep_bytes = value.trim() == "true",
                 "ebcdic" => charset.ebcdic = value.trim() == "true",
+                "cr_lf" => {
+                    let bytes: Vec<u8> = value.split_whitespace().filter_map(|b| u8::from_str_radix(b, 16).ok()).collect();
+                    charset.cr_lf = (bytes.len() == 2).then(|| (bytes[0], bytes[1]));
+                }
                 "model" => {
                     charset.model = match value.trim() {
                         "petscii" => Model::Petscii,
@@ -508,6 +521,8 @@ fn registry() -> &'static Registry {
         sets.extend(parse_definitions(EBCDIC_DATA, &mut problems));
         sets.extend(parse_definitions(MORE_DATA, &mut problems));
         sets.extend(parse_definitions(RETRO_DATA, &mut problems));
+        sets.extend(parse_definitions(PORTABLES_DATA, &mut problems));
+        sets.extend(parse_definitions(NATIONAL_DATA, &mut problems));
         let exact = "Complete. A byte sequence that wouldn't come back the same when saved is kept as its exact bytes and shown as tokens.";
         sets.extend([
             multi_charset("shift-jis", "Shift-JIS (Japanese, Windows code page 932)", MultiForm::ShiftJis, exact),
@@ -843,7 +858,7 @@ mod tests {
         let mut problems = Vec::new();
         let sets = parse_definitions(RETRO_DATA, &mut problems);
         assert!(problems.is_empty(), "{problems:?}");
-        assert_eq!(sets.len(), 30);
+        assert_eq!(sets.len(), 31);
         // Apple II text is high-bit ASCII: typing A writes 0xC1, and the low byte with A in it is the inverse form.
         let apple = known("apple2e");
         assert_eq!(apple.decoded[0xC1], 'A');
@@ -859,6 +874,46 @@ mod tests {
         for id in ["trs80-m1", "oric", "sharp-mz-eu", "amstrad-cpc", "ti994a", "riscos", "koi7"] {
             assert!(by_id(id).is_some(), "{id}");
         }
+        // The PCW's screen shows symbols where its text has controls.
+        let screen = known("amstrad-pcw-screen");
+        assert_eq!((screen.decoded[0x00], screen.decoded[0x41], screen.decoded[0x80]), ('\u{221E}', 'A', '\u{25A0}'));
+        assert_eq!(known("amstrad-cpm").name, "Amstrad PCW and CP/M Plus");
+    }
+
+    #[test]
+    fn the_z88_and_nc_sets_load() {
+        let mut problems = Vec::new();
+        let sets = parse_definitions(PORTABLES_DATA, &mut problems);
+        assert!(problems.is_empty(), "{problems:?}");
+        assert_eq!(sets.len(), 2);
+        let z88 = known("z88");
+        assert_eq!((z88.decoded[0x41], z88.decoded[0xA3], z88.decoded[0xE9]), ('A', '\u{A3}', '\u{E9}'));
+        assert!(z88.entry(0, 0x85).is_some_and(|e| e.unicode.is_none()), "&80 to &9F are undefined");
+        let nc = known("amstrad-nc");
+        assert_eq!((nc.decoded[0x82], nc.decoded[0x9B], nc.decoded[0x9C], nc.decoded[0x9D], nc.decoded[0xFF]), ('\u{E9}', '\u{F8}', '\u{A3}', '\u{D8}', '\u{21B5}'));
+        assert_eq!(nc.decoded[0xC4], '\u{2500}', "CP437's box drawing");
+    }
+
+    #[test]
+    fn the_national_sets_load_and_read_and_write_their_own_letters() {
+        let mut problems = Vec::new();
+        let sets = parse_definitions(NATIONAL_DATA, &mut problems);
+        assert!(problems.is_empty(), "{problems:?}");
+        assert_eq!(sets.len(), 20);
+        let uk = known("iso-646-gb");
+        assert_eq!((uk.decoded[0x23], uk.decoded[0x41]), ('\u{A3}', 'A'));
+        let de = known("iso-646-de");
+        assert_eq!((de.decoded[0x40], de.decoded[0x5B], de.decoded[0x7E]), ('\u{A7}', '\u{C4}', '\u{DF}'));
+        assert!(de.entry(0, 0x80).is_none_or(|e| e.unicode.is_none()), "7-bit: nothing above 127");
+        let graphics = known("dec-special-graphics");
+        assert_eq!((graphics.decoded[0x6A], graphics.decoded[0x71], graphics.decoded[0x41]), ('\u{2518}', '\u{2500}', 'A'));
+        let prime = known("ascii-high-bit");
+        assert_eq!(prime.decoded[0xC1], 'A');
+        assert_eq!(prime.cr_lf, Some((0x8D, 0x8A)));
+        assert_eq!(crate::codec::eol_bytes(crate::codec::Eol::CrLf, prime), [0x8D, 0x8A]);
+        let mut format = crate::codec::TextFormat { charset: prime, ..Default::default() };
+        let text = crate::codec::decode(b"\xC8\xC9\x8A\xCF\xCB\x8D\x8A\xA1", &mut format);
+        assert_eq!(text.lines, ["HI", "OK", "!"], "0x8A ends a line, and 0x8D 0x8A too");
     }
 
     #[test]

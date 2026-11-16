@@ -916,3 +916,45 @@ fn an_amiga_program_runs_on_a_real_fs_uae() {
     app.stop_all_sessions();
     assert_eq!(written.as_deref(), Some("Hello from Limoniter\n"), "the program wrote its file, in {}s", began.elapsed().as_secs());
 }
+
+/// 6502 source whose code doesn't say which machine it's for is asked about; the answer is kept for the document,
+/// and a `; machine:` line in the source says it without asking.
+#[test]
+fn ambiguous_6502_source_asks_whether_its_for_a_c64_or_a_bbc_micro() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "plain.asm".into();
+    app.doc().text.set_content(["  *=$2000", "start lda #1", "  sta $70", "  rts"].iter().map(|l| l.to_string()).collect());
+    let id = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == "Assembly 6502").map(|(_, s)| *s)).unwrap();
+    app.doc().set_language(Language::Named(id));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6502));
+    let asked = |app: &Limoniter| matches!(&app.dialog, Dialog::Run(b) if matches!(b.as_ref(), run_host::RunBox::Which6502 { target: None, .. }));
+    let machine = |app: &Limoniter| match &app.dialog {
+        Dialog::Run(b) => match b.as_ref() {
+            run_host::RunBox::Where { runnable, .. } => Some(runnable.machine),
+            _ => None,
+        },
+        _ => None,
+    };
+    app.run_on_machine();
+    assert!(asked(&app), "it asks which machine");
+    app.close_dialog();
+    // As choosing BBC Micro does: it runs as a BBC Micro's, and isn't asked about again.
+    app.doc().machine_6502 = Some(crate::asm::output::Micro6502::Bbc);
+    app.running.assembled = None;
+    app.run_on_machine();
+    assert_eq!(machine(&app), Some(crate::running::Machine::Bbc));
+    app.close_dialog();
+    // What the source says comes before what was chosen.
+    app.doc().text.set_content(["; machine: c64", "  *=$2000", "start lda #1", "  sta $70", "  rts"].iter().map(|l| l.to_string()).collect());
+    app.run_on_machine();
+    assert_eq!(machine(&app), Some(crate::running::Machine::C64));
+    app.close_dialog();
+    // And code that says, by using the C64's chips, isn't asked about.
+    app.doc().machine_6502 = None;
+    app.doc().text.set_content(["  *=$2000", "start lda #2", "  sta $d020", "  rts"].iter().map(|l| l.to_string()).collect());
+    app.run_on_machine();
+    assert_eq!(machine(&app), Some(crate::running::Machine::C64));
+}

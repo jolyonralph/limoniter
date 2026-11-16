@@ -1,5 +1,6 @@
-# Builds Limoniter and runs its tests on Windows, Linux and macOS whenever anything is pushed, and checks it with
-# clippy. The tests marked #[ignore] need real servers, drives or huge files, and aren't run here.
+# Builds Limoniter and runs its tests on Windows, Linux (Ubuntu 24.04 and 26.04) and macOS (Apple Silicon and
+# Intel) whenever anything is pushed, and checks it with clippy. The tests marked #[ignore] need real servers, drives
+# or huge files, and aren't run here.
 
 name: Tests
 
@@ -21,10 +22,17 @@ jobs:
         include:
           - name: Windows
             os: windows-latest
+          # Both Ubuntus while ubuntu-latest moves from 24.04 to 26.04, so a change in the new one shows up here
+          # before it breaks anything.
           - name: Linux
-            os: ubuntu-latest
+            os: ubuntu-24.04
+          - name: Linux (Ubuntu 26.04)
+            os: ubuntu-26.04
           - name: macOS
             os: macos-latest
+          # The universal Mac app's Intel half, which Apple Silicon runners never run.
+          - name: macOS (Intel)
+            os: macos-15-intel
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:

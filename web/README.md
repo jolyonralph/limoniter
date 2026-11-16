@@ -5,9 +5,10 @@ The promotional site for https://limoniter.com, in plain HTML, CSS and JavaScrip
 - `index.html`: the page.
 - `css/style.css`: all the styling. Colours are set once at the top, for dark, and again for light.
 - `js/main.js`: the cycling word in the heading, the machine picker (its facts are in the `machines` list), enlarged screenshots, the copy button and the small-screen menu. The page still reads with JavaScript off.
-- `compare.html` and `features.html`: made from `../COMPARISON.md` and `../FEATURES.md` by `tools/make-pages.py`, inside
-  `tools/compare-template.html` and `tools/features-template.html`. Publishing makes them afresh; to see a change
-  before then, run `python web/tools/make-pages.py` from the app folder. Don't edit the two pages themselves.
+- `compare.html`, `features.html` and `formats.html`: made from `../COMPARISON.md`, `../FEATURES.md` and `../FORMATS.md` by
+  `tools/make-pages.py`, inside `tools/compare-template.html`, `tools/features-template.html` and
+  `tools/formats-template.html`. Publishing makes them afresh; to see a change
+  before then, run `python web/tools/make-pages.py` from the app folder. Don't edit the three pages themselves.
 - `guide/`: the user guide, made from the Markdown in `guide/src/` by `tools/make-guide.py`, inside
   `tools/guide-template.html`. The order of the pages is set in the script. Publishing makes them afresh; to see a
   change before then, run `python web/tools/make-guide.py` from the app folder. Don't edit the pages themselves.

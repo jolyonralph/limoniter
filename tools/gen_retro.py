@@ -92,6 +92,7 @@ SETS = [
     ("bbc-master", "x-bbc-master", "BBC Master (system font)", "Acorn", "The Master's upper half, as RISC OS's system font has it.", None),
     ("riscos", "x-riscos", "RISC OS (Acorn Latin-1)", "Acorn", "Acorn's Latin-1, with its own characters from 128 to 159.", None),
     ("amstrad-cpc", "x-amstrad-cpc", "Amstrad CPC", "Amstrad", "The CPC's firmware set, with its graphics. CP/M Plus is a separate set.", None),
+    ("amstrad-pcw-screen", "x-amstrad-cpm-video", "Amstrad PCW and +3 screen", "Amstrad", "What the PCW's screen (and the +3's, under CP/M) shows for each byte: symbols for 0 to 31 and graphics from 128, where text has controls. Text files are in the Amstrad PCW and CP/M Plus set.", None),
     ("enterprise", "x-enterprise", "Enterprise 64 and 128", "Other 8-bit computers", "The Enterprise's text set.", None),
     ("aquarius", "x-aquarius", "Mattel Aquarius", "Other 8-bit computers", "The Aquarius's set, with its graphics.", None),
     ("spectravideo", "x-spectravideo", "Spectravideo SV-318 and SV-328", "Other 8-bit computers", "The Spectravideo's text set.", None),

@@ -118,6 +118,18 @@ pub fn detect(name: &str, bytes: &[u8]) -> Option<Kind> {
     wordstar::looks_like(bytes).then_some(Kind::WordStar)
 }
 
+/// The most of a file read as an old word processor's document when it's opened by itself.
+pub const MOST_OPENED_BYTES: usize = 4 * 1024 * 1024;
+
+/// Which format a file opened by itself is in. WordStar and Protext are told apart from other text only by their
+/// bytes' habits, so a file that's valid UTF-8 is taken for text rather than either.
+pub fn detect_opened(name: &str, bytes: &[u8]) -> Option<Kind> {
+    if bytes.len() > MOST_OPENED_BYTES {
+        return None;
+    }
+    detect(name, bytes).filter(|kind| !matches!(kind, Kind::WordStar | Kind::Protext) || std::str::from_utf8(bytes).is_err())
+}
+
 /// The Amiga's and the Atari ST's formats: IFF forms by their type, the others by their own marks.
 fn detect_amiga_st(name: &str, bytes: &[u8]) -> Option<Kind> {
     match ftxt::form_type(bytes) {

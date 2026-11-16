@@ -2,7 +2,7 @@ description: Open and edit text from older computers byte for byte: choosing a c
 
 # Character sets and old machines' text
 
-Text from a Commodore 64, an Atari, a Spectrum or an IBM mainframe isn't ASCII, and a modern editor turns it into nonsense. Limoniter knows 178 single-byte character sets as well as Unicode, and opens and saves text in any of them byte for byte. This page shows you how to choose the right one and work with it.
+Text from a Commodore 64, an Atari, a Spectrum or an IBM mainframe isn't ASCII, and a modern editor turns it into nonsense. Limoniter knows 181 single-byte character sets as well as Unicode, and opens and saves text in any of them byte for byte. This page shows you how to choose the right one and work with it.
 
 ## Seeing which character set a file is in
 

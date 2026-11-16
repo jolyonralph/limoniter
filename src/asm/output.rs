@@ -76,17 +76,56 @@ pub fn commodore_program(assembly: &Assembly) -> Result<Vec<u8>, String> {
 /// it's the C64's CLALL too.)
 const BBC_MOS_CALLS: [i64; 13] = [0xFFCE, 0xFFD1, 0xFFD4, 0xFFD7, 0xFFDA, 0xFFDD, 0xFFE0, 0xFFE3, 0xFFEC, 0xFFEE, 0xFFF1, 0xFFF4, 0xFFF7];
 
-/// Whether 6502 code is for a BBC Micro: it calls (JSR or JMP) the BBC's MOS, and no Commodore KERNAL routine
-/// (the jump table from $FF81 to $FFF3, one every three bytes).
-pub fn calls_bbc_mos(assembly: &Assembly) -> bool {
-    let called = || {
-        assembly.lines.iter().filter_map(|placed| match placed.bytes[..] {
-            [0x20 | 0x4C, low, high] => Some(i64::from(u16::from_le_bytes([low, high]))),
+/// The machines 6502 source is run on, when F9 assembles it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Micro6502 {
+    C64,
+    Bbc,
+}
+
+impl Micro6502 {
+    /// What a `; machine:` line near the top of the source says, if one does: `c64` (or `commodore 64`) or `bbc`
+    /// (or `bbc micro`), after `;`, `//` or `*`, in any case.
+    pub fn said_in<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Micro6502> {
+        lines.into_iter().take(50).find_map(|line| {
+            let line = line.trim_start();
+            let comment = line.strip_prefix("//").or_else(|| line.strip_prefix(';')).or_else(|| line.strip_prefix('*'))?;
+            let comment = comment.trim_start_matches([';', '/', '*', ' ', '\t']).to_ascii_lowercase();
+            let value = comment.strip_prefix("machine")?.trim_start().strip_prefix(':')?.trim();
+            match value {
+                "c64" | "commodore 64" | "commodore64" => Some(Micro6502::C64),
+                "bbc" | "bbc micro" | "bbcmicro" => Some(Micro6502::Bbc),
+                _ => None,
+            }
+        })
+    }
+}
+
+/// Which machine 6502 code is for, when the code says. A BBC Micro's calls (JSR or JMP) its MOS or uses
+/// its I/O pages (FRED, JIM and SHEILA, &FC00 to &FEFF); a Commodore 64's calls the KERNAL (its jump table from $FF81 to $FFF3, one every three bytes) or uses its chips
+/// ($D000 to $DFFF). Code that does neither, or both, doesn't say, unless it starts below &1900, which a BBC Micro's
+/// disc can't load: that's a C64's.
+pub fn machine_6502(assembly: &Assembly) -> Option<Micro6502> {
+    // Each instruction with an absolute address (JSR, JMP and the absolute, indexed and indirect forms), and the
+    // address. A line of three bytes of data can look like one.
+    let absolute = |op: u8| matches!(op & 0x0F, 0x0C..=0x0F) || matches!(op & 0x1F, 0x19 | 0x1B) || op == 0x20;
+    let used = || {
+        assembly.lines.iter().filter_map(move |placed| match placed.bytes[..] {
+            [op, low, high] if absolute(op) => Some((op, i64::from(u16::from_le_bytes([low, high])))),
             _ => None,
         })
     };
-    let kernal = |address: i64| (0xFF81..=0xFFF3).contains(&address) && (address - 0xFF81) % 3 == 0;
-    called().any(|address| BBC_MOS_CALLS.contains(&address)) && !called().any(kernal)
+    let called = |(op, address): (u8, i64)| matches!(op, 0x20 | 0x4C).then_some(address);
+    // $FFE7, the C64's CLALL, is the BBC's OSNEWL as well, so it says neither.
+    let kernal = |address: i64| (0xFF81..=0xFFF3).contains(&address) && (address - 0xFF81) % 3 == 0 && address != 0xFFE7;
+    let bbc = used().filter_map(called).any(|a| BBC_MOS_CALLS.contains(&a)) || used().any(|(_, a)| (0xFC00..=0xFEFF).contains(&a));
+    let c64 = used().filter_map(called).any(kernal) || used().any(|(_, a)| (0xD000..=0xDFFF).contains(&a));
+    match (bbc, c64) {
+        (true, false) => Some(Micro6502::Bbc),
+        (false, true) => Some(Micro6502::C64),
+        (true, true) => None,
+        (false, false) => assembly.lowest().filter(|low| *low < LOWEST_FOR_BBC_DISC).map(|_| Micro6502::C64),
+    }
 }
 
 /// The lowest address machine code is loaded at from a BBC Micro's disc: PAGE with the DFS, above its workspace.

@@ -208,16 +208,45 @@ fn a_commodore_program_starts_with_run() {
 
 #[test]
 fn bbc_code_is_told_from_commodore_code_by_the_calls_it_makes() {
+    use output::Micro6502::{Bbc, C64};
+    let said = |text: &str| output::machine_6502(&m6502(text));
     // OSWRCH and OSBYTE are the BBC's; CHROUT is the C64's.
-    assert!(output::calls_bbc_mos(&m6502("  *=$2000\n  lda #65\n  jsr $ffee\n  rts\n")));
-    assert!(output::calls_bbc_mos(&m6502("  *=$2000\n  lda #200\n  jmp $fff4\n")));
-    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  lda #65\n  jsr $ffd2\n  rts\n")));
-    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  lda #2\n  sta $d020\n  rts\n")), "no calls at all is a Commodore's, as before");
-    // OSNEWL is at the C64's CLALL, so it doesn't say which; and a call to the KERNAL too says Commodore.
-    assert!(!output::calls_bbc_mos(&m6502("  *=$2000\n  jsr $ffe7\n  rts\n")));
-    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  jsr $ffee\n  jsr $ffd2\n  rts\n")));
+    assert_eq!(said("  *=$2000\n  lda #65\n  jsr $ffee\n  rts\n"), Some(Bbc));
+    assert_eq!(said("  *=$2000\n  lda #200\n  jmp $fff4\n"), Some(Bbc));
+    assert_eq!(said("  *=$c000\n  lda #65\n  jsr $ffd2\n  rts\n"), Some(C64));
+    // OSNEWL is at the C64's CLALL, so it doesn't say which; and a call to both says neither.
+    assert_eq!(said("  *=$2000\n  jsr $ffe7\n  rts\n"), None);
+    assert_eq!(said("  *=$c000\n  jsr $ffee\n  jsr $ffd2\n  rts\n"), None);
+    assert_eq!(said("  *=$2000\n  jsr $ffee\n  jsr $ffe7\n  rts\n"), Some(Bbc), "OSWRCH, then OSNEWL");
     // Bytes that only look like a call, in data, don't count unless they're a whole line's three bytes.
-    assert!(!output::calls_bbc_mos(&m6502("  *=$c000\n  !byte 1,$20,$ee,$ff\n")));
+    assert_eq!(said("  *=$c000\n  !byte 1,$20,$ee,$ff\n"), None);
+}
+
+#[test]
+fn the_machine_6502_code_is_for_is_told_from_its_calls_its_chips_and_where_it_starts() {
+    use output::Micro6502::{Bbc, C64};
+    let said = |text: &str| output::machine_6502(&m6502(text));
+    assert_eq!(said("  *=$2000\n  lda #65\n  jsr $ffee\n  rts\n"), Some(Bbc), "OSWRCH");
+    assert_eq!(said("  *=$2000\n  lda #1\n  sta $fe40\n  rts\n"), Some(Bbc), "the system VIA, in SHEILA");
+    assert_eq!(said("  *=$2000\n  lda #65\n  jsr $ffd2\n  rts\n"), Some(C64), "CHROUT");
+    assert_eq!(said("  *=$2000\n  ldx #0\n  sta $d800,x\n  rts\n"), Some(C64), "colour memory");
+    assert_eq!(said("  *=$c000\n  lda #1\n  sta $70\n  rts\n"), None, "nothing says");
+    assert_eq!(said("  *=$2000\n  jsr $ffee\n  sta $d020\n  rts\n"), None, "both say");
+    assert_eq!(said("  *=$1000\n  lda #1\n  sta $70\n  rts\n"), Some(C64), "below &1900, where a BBC disc can't load it");
+    assert_eq!(said("  *=$1000\n  jsr $ffee\n  rts\n"), Some(Bbc), "a BBC's call says more than where it starts");
+    // An immediate operand isn't an address.
+    assert_eq!(said("  *=$2000\n  lda #$d0\n  cmp #$20\n  rts\n"), None);
+}
+
+#[test]
+fn source_can_say_which_machine_its_for() {
+    use output::Micro6502::{self, Bbc, C64};
+    assert_eq!(Micro6502::said_in(["; machine: bbc", "  *=$2000"]), Some(Bbc));
+    assert_eq!(Micro6502::said_in(["  ; Machine: Commodore 64"]), Some(C64));
+    assert_eq!(Micro6502::said_in(["// machine: c64"]), Some(C64));
+    assert_eq!(Micro6502::said_in([";; machine:BBC Micro"]), Some(Bbc));
+    assert_eq!(Micro6502::said_in(["*=$2000", "; machine: atari"]), None);
+    assert_eq!(Micro6502::said_in(["  lda #1 ; machine: bbc"]), None, "only a line of its own");
 }
 
 #[test]

@@ -45,6 +45,10 @@ pub enum Kind {
     Picture,
     /// Music: a ProTracker module (its title, samples and song order), or Atari ST SNDH or YM music.
     Module,
+    /// An old word processor's document, converted and laid out.
+    Document,
+    /// A web page, laid out from its HTML: headings, paragraphs, lists, tables and links, with no scripts or styles.
+    Html,
 }
 
 impl Kind {
@@ -59,17 +63,19 @@ impl Kind {
             Kind::Basic => "BASIC listing",
             Kind::Picture => "Picture",
             Kind::Module => "Music module",
+            Kind::Document => "Converted document",
+            Kind::Html => "Web page",
         }
     }
 
     /// Drawn as a machine's screen, rather than laid out as a document.
     pub fn is_screen(self) -> bool {
-        !matches!(self, Kind::Markdown | Kind::Basic | Kind::Picture | Kind::Module)
+        !matches!(self, Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Document)
     }
 
     /// Made from the file's exact bytes rather than its text, so it works from hex mode too.
     pub fn reads_bytes(self) -> bool {
-        self != Kind::Markdown
+        !matches!(self, Kind::Markdown | Kind::Html)
     }
 }
 
@@ -133,7 +139,7 @@ pub fn render_screen(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat
             crate::retro_screens::teletext(bytes, set, format.newline.parity(), mode7)
         }
         Kind::AnsiArt if is_amiga_console(format) => crate::ansi_art::render_amiga(bytes),
-        Kind::AnsiArt | Kind::Markdown | Kind::Basic | Kind::Picture | Kind::Module => crate::ansi_art::render(bytes, dos),
+        Kind::AnsiArt | Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Document => crate::ansi_art::render(bytes, dos),
     }
 }
 
@@ -148,6 +154,21 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         return match crate::pictures::detect(&name, bytes).ok_or_else(|| "This isn't a picture Limoniter can show any more.".to_string()).and_then(|f| crate::pictures::decode_named(f, &name, bytes)) {
             Ok(picture) => FromBytes::Picture(picture),
+            Err(why) => FromBytes::Nothing(why),
+        };
+    }
+    if kind == Kind::Document {
+        let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let converted = crate::legacy_docs::detect(&name, bytes).ok_or_else(|| "This isn't a document Limoniter can convert any more.".to_string()).and_then(|kind| crate::legacy_docs::convert(kind, bytes));
+        return match converted {
+            Ok(doc) => {
+                let mut markdown = crate::legacy_docs::to_markdown(&doc);
+                markdown += &format!("\n\n---\n\n*Converted from {}.*\n", doc.format);
+                for note in &doc.notes {
+                    markdown += &format!("\n*{note}*\n");
+                }
+                FromBytes::Blocks(render(Kind::Markdown, &markdown))
+            }
             Err(why) => FromBytes::Nothing(why),
         };
     }
@@ -210,6 +231,8 @@ pub fn kind_for(path: Option<&Path>, language: &str) -> Option<Kind> {
     match extension.as_deref() {
         Some("md" | "markdown" | "mdown" | "mkd" | "mdtext") => Some(Kind::Markdown),
         _ if matches!(language, "Markdown" | "MultiMarkdown") => Some(Kind::Markdown),
+        Some("html" | "htm" | "xhtml") => Some(Kind::Html),
+        _ if language == "HTML" => Some(Kind::Html),
         _ => None,
     }
 }
@@ -250,8 +273,317 @@ pub struct Block {
 pub fn render(kind: Kind, text: &str) -> Vec<Block> {
     match kind {
         Kind::Markdown => markdown(text),
+        Kind::Html => html(text),
         _ => Vec::new(),
     }
+}
+
+/// Lays out a web page from its HTML. The parts that are about how it looks or what it does (scripts, styles, the
+/// head) are left out, and nothing in it is ever run or fetched: links are shown as links, pictures by what they
+/// say they are. Tags that aren't closed, as browsers allow, close with the block around them.
+fn html(text: &str) -> Vec<Block> {
+    let mut b = Builder::default();
+    // Inside a script, style or the head, whose text isn't shown, and how deep.
+    let mut hidden: Option<(String, usize)> = None;
+    let mut code = 0usize;
+    let mut pre = 0usize;
+    let mut heading: Option<u8> = None;
+    let mut rest = text;
+    while !rest.is_empty() {
+        if let Some(after) = rest.strip_prefix("<!--") {
+            rest = after.find("-->").map_or("", |at| &after[at + 3..]);
+            continue;
+        }
+        if rest.starts_with('<') && rest[1..].starts_with(|c: char| c.is_ascii_alphabetic() || c == '/' || c == '!' || c == '?') {
+            let end = tag_end(rest);
+            let tag = &rest[1..end.saturating_sub(1).max(1)];
+            rest = &rest[end..];
+            let closing = tag.starts_with('/');
+            let name: String = tag.trim_start_matches('/').chars().take_while(|c| c.is_ascii_alphanumeric()).collect::<String>().to_ascii_lowercase();
+            if let Some((hidden_name, depth)) = &mut hidden {
+                if name == *hidden_name {
+                    if closing {
+                        *depth -= 1;
+                        if *depth == 0 {
+                            hidden = None;
+                        }
+                    } else {
+                        *depth += 1;
+                    }
+                }
+                continue;
+            }
+            if closing {
+                html_close(&mut b, &name, &mut code, &mut pre, &mut heading);
+            } else {
+                if matches!(name.as_str(), "script" | "style" | "head" | "noscript" | "template" | "svg" | "object" | "iframe") && !tag.ends_with('/') {
+                    hidden = Some((name, 1));
+                    continue;
+                }
+                html_open(&mut b, &name, tag, &mut code, &mut pre, &mut heading);
+            }
+            continue;
+        }
+        let next = rest[1..].find('<').map_or(rest.len(), |at| at + 1);
+        let words = decode_entities(&rest[..next]);
+        rest = &rest[next..];
+        if hidden.is_some() {
+            continue;
+        }
+        if pre > 0 {
+            b.push_text(&words, true);
+            continue;
+        }
+        let mut collapsed = String::with_capacity(words.len());
+        for c in words.chars() {
+            if c.is_whitespace() && c != '\u{A0}' {
+                if !collapsed.ends_with(' ') {
+                    collapsed.push(' ');
+                }
+            } else {
+                collapsed.push(c);
+            }
+        }
+        // A space at the start of a block, or after one already there, isn't shown.
+        let at_start = b.spans.last().is_none_or(|span| span.text.ends_with([' ', '\n']));
+        let collapsed = if at_start { collapsed.trim_start() } else { collapsed.as_str() };
+        if !collapsed.is_empty() {
+            b.push_text(collapsed, code > 0);
+        }
+    }
+    if let Some(level) = heading {
+        b.push_block(BlockKind::Heading(level));
+    }
+    if pre > 0 {
+        b.push_block(BlockKind::Code);
+    }
+    if let Some(rows) = b.table.take() {
+        b.flush();
+        b.push_block(BlockKind::Table(rows));
+    }
+    b.flush();
+    b.blocks
+}
+
+/// Where a tag that starts the text ends, just past its `>`, passing over any `>` in quoted attributes.
+fn tag_end(text: &str) -> usize {
+    let mut quote = None;
+    for (at, c) in text.char_indices().skip(1) {
+        match (c, quote) {
+            ('"' | '\'', None) => quote = Some(c),
+            (c, Some(q)) if c == q => quote = None,
+            ('>', None) => return at + 1,
+            _ => {}
+        }
+    }
+    text.len()
+}
+
+/// An attribute's value from inside a tag.
+fn attribute(tag: &str, name: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(found) = lower[from..].find(name) {
+        let at = from + found;
+        from = at + name.len();
+        let before_ok = lower[..at].ends_with(|c: char| c.is_whitespace());
+        let after = lower[from..].trim_start();
+        if !before_ok || !after.starts_with('=') {
+            continue;
+        }
+        let value_start = tag.len() - after.len() + 1;
+        let value = tag[value_start..].trim_start();
+        let raw = match value.chars().next() {
+            Some(q @ ('"' | '\'')) => value[1..].split(q).next().unwrap_or(""),
+            _ => value.split(|c: char| c.is_whitespace() || c == '>' || c == '/').next().unwrap_or(""),
+        };
+        return Some(decode_entities(raw));
+    }
+    None
+}
+
+/// The end of a block of text, unless it's inside a table's cell, where it all stays in the cell.
+fn block_break(b: &mut Builder) {
+    if b.table.is_none() {
+        b.flush();
+    }
+}
+
+fn html_open(b: &mut Builder, name: &str, tag: &str, code: &mut usize, pre: &mut usize, heading: &mut Option<u8>) {
+    match name {
+        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+            b.flush();
+            *heading = Some(name.as_bytes()[1] - b'0');
+        }
+        "p" | "div" | "section" | "article" | "header" | "footer" | "main" | "nav" | "aside" | "figure" | "figcaption" | "address" | "dl" | "dt" | "dd" | "form" | "fieldset" | "details" | "summary" | "center" | "body" | "caption" => block_break(b),
+        "br" => b.push_text("\n", false),
+        "hr" => {
+            b.flush();
+            b.push_block(BlockKind::Rule);
+        }
+        "b" | "strong" => b.strong += 1,
+        "i" | "em" | "cite" | "var" | "dfn" => b.italic += 1,
+        "s" | "strike" | "del" => b.strike += 1,
+        "code" | "kbd" | "samp" | "tt" => *code += 1,
+        "a" => b.link = attribute(tag, "href").and_then(|href| safe_link(&href)),
+        "img" => {
+            let alt = attribute(tag, "alt").filter(|alt| !alt.trim().is_empty()).unwrap_or_else(|| "picture".into());
+            b.push_text(&format!("[image: {}]", alt.trim()), false);
+        }
+        "ul" | "ol" | "menu" => {
+            b.flush();
+            let start = attribute(tag, "start").and_then(|s| s.trim().parse().ok()).unwrap_or(1);
+            b.lists.push((name == "ol").then_some(start));
+        }
+        "li" => {
+            b.flush();
+            let marker = match b.lists.last_mut() {
+                Some(Some(number)) => {
+                    *number += 1;
+                    format!("{}.", *number - 1)
+                }
+                _ => "\u{2022}".to_string(),
+            };
+            b.marker = Some(marker);
+        }
+        "blockquote" => {
+            b.flush();
+            b.quote += 1;
+        }
+        "pre" => {
+            b.flush();
+            *pre += 1;
+        }
+        "table" => {
+            b.flush();
+            b.table = Some(Vec::new());
+        }
+        "tr" => {
+            b.flush_row();
+            b.row = Vec::new();
+        }
+        "td" | "th" => b.flush_cell(),
+        _ => {}
+    }
+}
+
+fn html_close(b: &mut Builder, name: &str, code: &mut usize, pre: &mut usize, heading: &mut Option<u8>) {
+    match name {
+        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+            if let Some(level) = heading.take() {
+                b.push_block(BlockKind::Heading(level));
+            }
+        }
+        "p" | "div" | "section" | "article" | "header" | "footer" | "main" | "nav" | "aside" | "figure" | "figcaption" | "address" | "dl" | "dt" | "dd" | "form" | "fieldset" | "details" | "summary" | "center" | "li" | "caption" => block_break(b),
+        "b" | "strong" => b.strong = b.strong.saturating_sub(1),
+        "i" | "em" | "cite" | "var" | "dfn" => b.italic = b.italic.saturating_sub(1),
+        "s" | "strike" | "del" => b.strike = b.strike.saturating_sub(1),
+        "code" | "kbd" | "samp" | "tt" => *code = code.saturating_sub(1),
+        "a" => b.link = None,
+        "ul" | "ol" | "menu" => {
+            b.flush();
+            b.lists.pop();
+        }
+        "blockquote" => {
+            b.flush();
+            b.quote = b.quote.saturating_sub(1);
+        }
+        "pre" if *pre > 0 => {
+            *pre -= 1;
+            // The line end just after <pre> isn't part of what's shown.
+            if let Some(first) = b.spans.first_mut()
+                && let Some(rest) = first.text.strip_prefix('\n')
+            {
+                first.text = rest.to_string();
+            }
+            b.push_block(BlockKind::Code);
+        }
+        // A cell is kept even when it's empty, so the columns stay in line.
+        "td" | "th" => {
+            let cell = std::mem::take(&mut b.spans);
+            if b.table.is_some() {
+                b.row.push(cell);
+            }
+        }
+        "tr" => b.flush_row(),
+        "table" => {
+            b.flush_row();
+            if let Some(rows) = b.table.take() {
+                b.push_block(BlockKind::Table(rows));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// HTML's character references: the common named ones, and any by number.
+fn decode_entities(text: &str) -> String {
+    if !text.contains('&') {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + 1..];
+        let end = after.find(';').filter(|end| *end <= 10);
+        let named = end.map(|end| &after[..end]);
+        let found = named.and_then(|name| {
+            if let Some(number) = name.strip_prefix('#') {
+                let value = match number.strip_prefix(['x', 'X']) {
+                    Some(hex) => u32::from_str_radix(hex, 16).ok(),
+                    None => number.parse().ok(),
+                };
+                return value.and_then(char::from_u32);
+            }
+            Some(match name {
+                "amp" => '&',
+                "lt" => '<',
+                "gt" => '>',
+                "quot" => '"',
+                "apos" => '\'',
+                "nbsp" => '\u{A0}',
+                "copy" => '\u{A9}',
+                "reg" => '\u{AE}',
+                "trade" => '\u{2122}',
+                "pound" => '\u{A3}',
+                "euro" => '\u{20AC}',
+                "deg" => '\u{B0}',
+                "middot" => '\u{B7}',
+                "bull" => '\u{2022}',
+                "hellip" => '\u{2026}',
+                "ndash" => '\u{2013}',
+                "mdash" => '\u{2014}',
+                "lsquo" => '\u{2018}',
+                "rsquo" => '\u{2019}',
+                "ldquo" => '\u{201C}',
+                "rdquo" => '\u{201D}',
+                "times" => '\u{D7}',
+                "eacute" => '\u{E9}',
+                "egrave" => '\u{E8}',
+                "aacute" => '\u{E1}',
+                "agrave" => '\u{E0}',
+                "uuml" => '\u{FC}',
+                "ouml" => '\u{F6}',
+                "auml" => '\u{E4}',
+                "szlig" => '\u{DF}',
+                "ccedil" => '\u{E7}',
+                _ => return None,
+            })
+        });
+        match (found, end) {
+            (Some(c), Some(end)) => {
+                out.push(c);
+                rest = &after[end + 1..];
+            }
+            _ => {
+                out.push('&');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Only these are handed to the browser. Anything else, such as a script or a file on this computer, stays plain text.
@@ -285,6 +617,23 @@ impl Builder {
     fn push_block(&mut self, kind: BlockKind) {
         let spans = std::mem::take(&mut self.spans);
         self.blocks.push(Block { kind, spans, indent: self.lists.len(), quote: self.quote, marker: self.marker.take() });
+    }
+
+    /// Ends a table cell in HTML, where cells and rows needn't be closed.
+    fn flush_cell(&mut self) {
+        if self.table.is_some() && !self.spans.is_empty() {
+            let cell = std::mem::take(&mut self.spans);
+            self.row.push(cell);
+        }
+    }
+
+    fn flush_row(&mut self) {
+        self.flush_cell();
+        if !self.row.is_empty()
+            && let Some(table) = &mut self.table
+        {
+            table.push(std::mem::take(&mut self.row));
+        }
     }
 
     /// Ends the text so far, if there is any. An item with nothing in it still gets its bullet.
@@ -639,6 +988,33 @@ mod tests {
         block.spans.iter().map(|span| span.text.as_str()).collect()
     }
 
+    fn texts(blocks: &[Block]) -> Vec<String> {
+        blocks.iter().map(|b| b.spans.iter().map(|s| s.text.as_str()).collect::<String>()).collect()
+    }
+
+    #[test]
+    fn a_web_page_is_laid_out_without_its_scripts_or_styles() {
+        let page = "<!DOCTYPE html><html><head><title>T</title><style>p{}</style></head><body>\n<h1>Big &amp; bold</h1>\n<p>One <b>two</b>\n   <i>three</i> <a href=\"https://example.com/x?a=1&amp;b=2\">four</a> <a href=\"javascript:alert(1)\">five</a></p>\n<script>document.write('<p>no</p>')</script>\n<ul><li>a<li>b</ul><ol start=\"3\"><li>c</li></ol>\n<pre>\n  keep   this\n</pre><hr><img src=x.png alt=\"A cat\"><br>caf&eacute; &#169; &#x263A;\n<!-- not shown <p>hidden</p> -->\n<table><tr><th>N</th><th>V</th></tr><tr><td>x</td><td></td></tr></table></body></html>";
+        let blocks = html(page);
+        let shown = texts(&blocks);
+        assert_eq!(blocks[0].kind, BlockKind::Heading(1));
+        assert_eq!(shown[0], "Big & bold");
+        assert_eq!(shown[1], "One two three four five");
+        assert!(blocks[1].spans.iter().any(|s| s.strong && s.text == "two") && blocks[1].spans.iter().any(|s| s.italic && s.text == "three"));
+        assert_eq!(blocks[1].spans.iter().find(|s| s.text == "four").and_then(|s| s.link.clone()).as_deref(), Some("https://example.com/x?a=1&b=2"));
+        assert!(blocks[1].spans.iter().find(|s| s.text == "five").is_some_and(|s| s.link.is_none()), "a script link isn't a link");
+        assert!(!shown.iter().any(|t| t.contains("no") && t.contains('p') || t.contains("hidden") || t.contains("p{}")));
+        assert_eq!(blocks.iter().filter_map(|b| b.marker.clone()).collect::<Vec<_>>(), ["\u{2022}", "\u{2022}", "3."]);
+        let code = blocks.iter().find(|b| b.kind == BlockKind::Code).unwrap();
+        assert_eq!(texts(std::slice::from_ref(code))[0], "  keep   this\n");
+        assert!(blocks.iter().any(|b| b.kind == BlockKind::Rule));
+        assert!(shown.iter().any(|t| t.trim_end() == "[image: A cat]\ncaf\u{E9} \u{A9} \u{263A}"), "{shown:?}");
+        let Some(BlockKind::Table(rows)) = blocks.iter().map(|b| b.kind.clone()).find(|k| matches!(k, BlockKind::Table(_))) else { panic!("no table") };
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].len(), 2, "the empty cell is kept");
+        assert_eq!(kind_for(Some(Path::new("index.HTM")), ""), Some(Kind::Html));
+    }
+
     #[test]
     fn markdown_files_are_recognised_by_name_or_language() {
         for name in ["a.md", "A.MD", "b.markdown", "c.mdown"] {
@@ -646,7 +1022,7 @@ mod tests {
         }
         assert_eq!(kind_for(None, "Markdown"), Some(Kind::Markdown), "an unsaved file viewed as Markdown");
         assert_eq!(kind_for(Some(Path::new("a.txt")), "No highlighting"), None);
-        assert_eq!(kind_for(Some(Path::new("a.html")), "HTML"), None, "not yet");
+        assert_eq!(kind_for(Some(Path::new("a.html")), "HTML"), Some(Kind::Html), "a web page has its own preview");
         assert_eq!(kind_for(None, "No highlighting"), None);
     }
 

@@ -4,6 +4,7 @@
 //! box searches them, and a test checks that nothing is left out.
 
 use super::*;
+use crate::conversions::Conversion;
 use crate::preview;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
 
@@ -12,6 +13,8 @@ use crate::text_objects::{Action as TextAction, Object as TextObject};
 pub(super) enum Flag {
     LineNumbers,
     Ruler,
+    ColumnMarkers,
+    SpacesForTab,
     DocumentMap,
     BookmarkGutter,
     FoldLines,
@@ -57,6 +60,7 @@ pub(super) enum PanelFlag {
     EncodingPreview,
     Clipboard,
     Strings,
+    Inspector,
 }
 
 /// Lists that change, drawn as they are now.
@@ -78,6 +82,10 @@ pub(super) enum Live {
     TabSize,
     Snippets,
     Tags,
+    Bookmarks,
+    SurroundSnippets,
+    Layouts,
+    DeleteLayouts,
 }
 
 pub(super) enum Entry {
@@ -155,6 +163,7 @@ const FILE: &[Entry] = &[
         "This file",
         &[
             Item("Rename\u{2026}", Command::RenameFile),
+            Item(crate::trash::MOVE_TO_BIN, Command::MoveToBin),
             Item(crate::platform::SHOW_IN_FILE_MANAGER, Command::ShowInExplorer),
             Item("Open in its usual program", Command::OpenWithDefault),
             Line,
@@ -257,6 +266,23 @@ const EDIT: &[Entry] = &[
     ),
     Sub("Snippets", &[Keyed("Choose or make one\u{2026}", Command::Snippets, "Ctrl+J"), Line, Entry::Live("Insert", Live::Snippets)]),
     Sub(
+        "Surround with",
+        &[
+            Item("( and )", Command::Surround('(', ')')),
+            Item("[ and ]", Command::Surround('[', ']')),
+            Item("{ and }", Command::Surround('{', '}')),
+            Item("< and >", Command::Surround('<', '>')),
+            Line,
+            Item("\" and \"", Command::Surround('"', '"')),
+            Item("' and '", Command::Surround('\'', '\'')),
+            Item("` and `", Command::Surround('`', '`')),
+            Item("\u{201C} and \u{201D}", Command::Surround('\u{201C}', '\u{201D}')),
+            Line,
+            Item("A tag\u{2026}", Command::SurroundTag),
+            Entry::Live("A snippet", Live::SurroundSnippets),
+        ],
+    ),
+    Sub(
         "Colour tag",
         &[
             Keyed("Red", Command::Tag(0), "Ctrl+Shift+1"),
@@ -298,7 +324,15 @@ const SEARCH: &[Entry] = &[
             Keyed("Set or clear", Command::ToggleBookmark, "Ctrl+F2"),
             Keyed("Next", Command::NextBookmark, "F2"),
             Keyed("Previous", Command::PreviousBookmark, "Shift+F2"),
+            Entry::Live("Go to", Live::Bookmarks),
             Line,
+            Item("Copy the bookmarked lines", Command::CopyBookmarked),
+            Item("Cut the bookmarked lines", Command::CutBookmarked),
+            Item("Delete the bookmarked lines", Command::DeleteBookmarked),
+            Item("Delete the lines that aren't bookmarked", Command::DeleteUnbookmarked),
+            Line,
+            Item("Swap bookmarked and not", Command::InvertBookmarks),
+            Item("Clear every bookmark", Command::ClearBookmarks),
             Check("Bookmarks panel", Flag::Panel(PanelFlag::Bookmarks)),
         ],
     ),
@@ -326,6 +360,7 @@ const VIEW: &[Entry] = &[
         &[
             Check("Line numbers", Flag::LineNumbers),
             Check("Ruler", Flag::Ruler),
+            Check("Column markers", Flag::ColumnMarkers),
             Check("Document map", Flag::DocumentMap),
             Check("Bookmark margin", Flag::BookmarkGutter),
             Check("Fold markers", Flag::FoldLines),
@@ -362,6 +397,7 @@ const VIEW: &[Entry] = &[
             Item("Copy the selected rows", Command::HexCopySelected),
             Line,
             Check("String explorer", Flag::Panel(PanelFlag::Strings)),
+            Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
         ],
     ),
     Sub("Split", &[Item("One above the other", Command::SplitHorizontal), Item("Side by side", Command::SplitVertical), Item("Another tab on this file", Command::DuplicateWindow)]),
@@ -387,6 +423,7 @@ const VIEW: &[Entry] = &[
             Check("Characters", Flag::Panel(PanelFlag::Characters)),
             Check("Encoding preview", Flag::Panel(PanelFlag::EncodingPreview)),
             Check("String explorer", Flag::Panel(PanelFlag::Strings)),
+            Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
             Check("Clipboard history", Flag::Panel(PanelFlag::Clipboard)),
             Line,
             Item("Close every panel", Command::HidePanels),
@@ -425,11 +462,32 @@ const FORMAT: &[Entry] = &[
         ],
     ),
     Item("Save the picture as PNG\u{2026}", Command::SavePictureAsPng),
+    Sub(
+        "Save the document as",
+        &[
+            Item("Plain text\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Text)),
+            Item("Markdown\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Markdown)),
+            Item("RTF\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Rtf)),
+        ],
+    ),
     Line,
     Item("Reindent", Command::Reindent),
-    Item("Tabs to spaces", Command::TabsToSpaces),
-    Item("Spaces to tabs", Command::SpacesToTabs),
-    Entry::Live("Tab size", Live::TabSize),
+    Sub(
+        "Tabs and spaces",
+        &[
+            Check("Tab key types spaces", Flag::SpacesForTab),
+            Entry::Live("Tab size", Live::TabSize),
+            Line,
+            Item("Tabs to spaces", Command::TabsToSpaces),
+            Item("Tabs to spaces, in the indent only", Command::LeadingTabsToSpaces),
+            Item("Spaces to tabs, in the indent", Command::SpacesToTabs),
+            Line,
+            Item("Trim spaces at the ends of lines", Command::TrimTrailing),
+            Item("Trim spaces at the starts of lines", Command::TrimLeading),
+            Line,
+            Check("Show spaces and tabs", Flag::Whitespace),
+        ],
+    ),
     Line,
     Sub(
         "Paragraph",
@@ -469,6 +527,16 @@ const FORMAT: &[Entry] = &[
             Item("JavaScript", Command::Format(formatters::Kind::JsCompact)),
             Item("CSS", Command::Format(formatters::Kind::CssCompact)),
             Item("EDI, onto one line", Command::Format(formatters::Kind::EdiOneLine)),
+        ],
+    ),
+    Sub(
+        "Convert",
+        &[
+            Item("Base64 encode", Command::Convert(Conversion::Base64Encode)),
+            Item("Base64 decode", Command::Convert(Conversion::Base64Decode)),
+            Line,
+            Item("JSON to XML", Command::Convert(Conversion::JsonToXml)),
+            Item("XML to JSON", Command::Convert(Conversion::XmlToJson)),
         ],
     ),
     Sub("Table", &[Item("Comma-separated to fixed columns\u{2026}", Command::CsvToFixed), Item("Fixed columns to comma-separated\u{2026}", Command::FixedToCsv)]),
@@ -607,6 +675,8 @@ const TOOLS: &[Entry] = &[
     ),
     Line,
     Item("Settings\u{2026}", Command::Settings),
+    Item("Save settings to a file\u{2026}", Command::SaveSettingsFile),
+    Item("Restore settings from a file\u{2026}", Command::RestoreSettingsFile),
 ];
 
 const WINDOW: &[Entry] = &[
@@ -617,10 +687,12 @@ const WINDOW: &[Entry] = &[
     Check("List of open files", Flag::Panel(PanelFlag::OpenFiles)),
     Item("Recently opened files", Command::ShowFileLists),
     Line,
+    Sub("Layouts", &[Entry::Live("Use", Live::Layouts), Line, Item("Save this layout\u{2026}", Command::SaveLayout), Sub("Delete", &[Entry::Live("Delete a layout", Live::DeleteLayouts)])]),
+    Item("Gather windows", Command::GatherWindows),
     Item("New window", Command::NewInstance),
 ];
 
-const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Item("Limoniter website", Command::Website), Item("Check for a newer OpticOS ROM", Command::CheckOpticos), Line, Item("About Limoniter", Command::About)];
+const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Item("Limoniter website", Command::Website), Item("Check for a newer Limoniter", Command::CheckUpdates), Item("Check for a newer OpticOS ROM", Command::CheckOpticos), Line, Item("About Limoniter", Command::About)];
 
 pub(super) const MENUS: [(&str, &[Entry]); 8] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
 
@@ -684,6 +756,8 @@ enum Pick {
     Language(Language),
     Snippet(usize),
     Line(usize),
+    UseLayout(usize),
+    DeleteLayout(usize),
 }
 
 /// One line in the command box.
@@ -773,6 +847,7 @@ impl Limoniter {
             PanelFlag::EncodingPreview => p.encoding_preview,
             PanelFlag::Clipboard => p.clipboard_history,
             PanelFlag::Strings => p.strings,
+            PanelFlag::Inspector => p.inspector,
         }
     }
 
@@ -796,6 +871,7 @@ impl Limoniter {
             PanelFlag::EncodingPreview => &mut p.encoding_preview,
             PanelFlag::Clipboard => &mut p.clipboard_history,
             PanelFlag::Strings => &mut p.strings,
+            PanelFlag::Inspector => &mut p.inspector,
         }
     }
 
@@ -805,6 +881,8 @@ impl Limoniter {
         match flag {
             Flag::LineNumbers => v.line_numbers,
             Flag::Ruler => v.ruler,
+            Flag::ColumnMarkers => v.column_markers,
+            Flag::SpacesForTab => self.prefs.edit.spaces_for_tab,
             Flag::DocumentMap => v.document_map,
             Flag::BookmarkGutter => v.bookmark_gutter,
             Flag::FoldLines => v.fold_lines,
@@ -837,6 +915,8 @@ impl Limoniter {
         let switch: &mut bool = match flag {
             Flag::LineNumbers => &mut v.line_numbers,
             Flag::Ruler => &mut v.ruler,
+            Flag::ColumnMarkers => &mut v.column_markers,
+            Flag::SpacesForTab => &mut self.prefs.edit.spaces_for_tab,
             Flag::DocumentMap => &mut v.document_map,
             Flag::BookmarkGutter => &mut v.bookmark_gutter,
             Flag::FoldLines => &mut v.fold_lines,
@@ -926,15 +1006,19 @@ impl Limoniter {
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
+            Command::SaveDocumentAs(_) => doc.legacy.is_some(),
             Command::GraphMode | Command::UdgPictures => !no_file && self.is_spectrum_basic(self.active),
             Command::OpenBasicListing => !t.is_disk_backed() && preview::kind_for_file(doc.path.as_deref(), "", &t.format) == Some(preview::Kind::Basic),
             Command::SaveSpectrumTape | Command::SaveNextProgram | Command::SaveCommodoreProgram | Command::SaveBbcProgram => text && !t.is_disk_backed(),
             Command::UsedFileBack | Command::UsedFileForward => self.docs.iter().filter(|doc| !doc.placeholder).count() > 1,
             Command::StopTool => self.tool_running(),
             Command::SplitFile => text && doc.path.is_some(),
+            Command::MoveToBin => !no_file && doc.path.is_some() && doc.merge.is_none(),
             Command::PartHistory => text && !t.is_disk_backed() && doc.narrow.is_none(),
             Command::Untag => text && self.tag_here_to_remove(),
             Command::NextTag | Command::PreviousTag => text && !t.tags().is_empty(),
+            Command::ClearBookmarks | Command::CopyBookmarked | Command::CutBookmarked | Command::DeleteBookmarked | Command::DeleteUnbookmarked => text && !t.bookmarks().is_empty(),
+            Command::InvertBookmarks => text && !t.is_disk_backed(),
             Command::Assist(_) => text && !t.is_disk_backed(),
             Command::ColumnFill | Command::ColumnCut | Command::ColumnDelete | Command::JustifyLeft | Command::JustifyCenter | Command::JustifyRight | Command::ColumnNumber => text && t.is_block(),
             Command::MakeSelections => one_line,
@@ -971,6 +1055,11 @@ impl Limoniter {
             | Command::ViewHex
             | Command::ViewEbcdic
             | Command::Settings
+            | Command::SaveSettingsFile
+            | Command::SaveLayout
+            | Command::GatherWindows
+            | Command::CheckUpdates
+            | Command::RestoreSettingsFile
             | Command::Print
             | Command::ReopenAs
             | Command::SaveCopyAs
@@ -1271,6 +1360,33 @@ impl Limoniter {
                     }
                 }
             }
+            Live::Layouts | Live::DeleteLayouts => {
+                if self.layouts.is_empty() {
+                    empty(ui, "Layouts you save will be listed here.");
+                }
+                for (index, layout) in self.layouts.iter().enumerate() {
+                    if ui.button(layout.name.as_str()).clicked() {
+                        picks.push(if live == Live::Layouts { Pick::UseLayout(index) } else { Pick::DeleteLayout(index) });
+                        ui.close();
+                    }
+                }
+            }
+            Live::SurroundSnippets => {
+                // The snippets that take in the selection: those with $SELECTION in them.
+                let usable = !self.no_file() && !self.docs[self.active].hex_mode;
+                let mut any = false;
+                for (index, snippet) in self.snippets.iter().enumerate().filter(|(_, s)| s.body.contains("$SELECTION")) {
+                    any = true;
+                    let preview: String = snippet.body.chars().take(200).collect();
+                    if ui.add_enabled(usable, Button::new(snippet.name.as_str())).on_hover_text(preview).clicked() {
+                        picks.push(Pick::Snippet(index));
+                        ui.close();
+                    }
+                }
+                if !any {
+                    empty(ui, "Snippets with $SELECTION in them will be listed here.");
+                }
+            }
             Live::Tags => {
                 let text = &self.docs[self.active].text;
                 let tags = if self.docs[self.active].hex_mode || self.no_file() { Vec::new() } else { text.tags() };
@@ -1286,6 +1402,25 @@ impl Limoniter {
                         RichText::new(if words.is_empty() { "(blank line)".to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         if ui.button(job).on_hover_text(format!("Lines {} to {}", first + 1, last + 1)).clicked() {
                             picks.push(Pick::Line(first));
+                            ui.close();
+                        }
+                    }
+                });
+            }
+            Live::Bookmarks => {
+                let text = &self.docs[self.active].text;
+                let marks = if self.docs[self.active].hex_mode || self.no_file() { Vec::new() } else { text.bookmarks() };
+                if marks.is_empty() {
+                    empty(ui, "Lines you bookmark (Ctrl+F2) will be listed here.");
+                }
+                egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                    for line in marks.into_iter().take(500) {
+                        let words: String = text.format.readable_text(&text.line(line)).trim().chars().take(48).collect();
+                        let mut job = egui::text::LayoutJob::default();
+                        RichText::new(format!("{}  ", line + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(if words.is_empty() { "(blank line)".to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        if ui.button(job).clicked() {
+                            picks.push(Pick::Line(line));
                             ui.close();
                         }
                     }
@@ -1308,6 +1443,12 @@ impl Limoniter {
                 Pick::Project(path) => self.open_project(&path),
                 Pick::Language(language) => self.doc().set_language(language),
                 Pick::Snippet(index) => self.insert_snippet(index),
+                Pick::UseLayout(index) => self.apply_layout(index),
+                Pick::DeleteLayout(index) => {
+                    if index < self.layouts.len() {
+                        self.layouts.remove(index);
+                    }
+                }
                 Pick::Line(line) => {
                     let text = &mut self.doc().text;
                     text.move_caret(line, 0, false);

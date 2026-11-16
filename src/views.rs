@@ -172,11 +172,61 @@ pub struct ViewOptions {
     pub line_change: bool,
     pub tab_size: usize,
     pub font_size: f32,
+    /// Lines down the text at chosen columns, such as 72 or 80.
+    pub column_markers: bool,
+    pub marker_columns: MarkerColumns,
+    /// How tall each row is, as a multiple of the font's own line height: 1 is as close as the font sets them.
+    pub line_spacing: f32,
+}
+
+/// The line spacings offered, from as close as the font allows to twice that.
+pub const LINE_SPACINGS: std::ops::RangeInclusive<f32> = 1.0..=2.0;
+
+/// The columns that column markers are drawn after, counted from 1 as the ruler and status bar count them: a
+/// marker at 80 is drawn between the 80th character and the 81st. Up to eight; a 0 is no marker.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct MarkerColumns([u16; 8]);
+
+impl Default for MarkerColumns {
+    fn default() -> Self {
+        Self([80, 0, 0, 0, 0, 0, 0, 0])
+    }
+}
+
+impl MarkerColumns {
+    pub fn columns(&self) -> impl Iterator<Item = usize> + '_ {
+        self.0.iter().filter(|c| **c > 0).map(|c| usize::from(*c))
+    }
+
+    /// Reads "72, 80" or "7 72 80": numbers from 1 to 9999 between commas or spaces, kept in order without
+    /// repeats. None if anything else is there.
+    pub fn parse(text: &str) -> Option<Self> {
+        let mut found: Vec<u16> = Vec::new();
+        for word in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|w| !w.is_empty()) {
+            let column: u16 = word.parse().ok().filter(|c| (1..=9999).contains(c))?;
+            found.push(column);
+        }
+        found.sort_unstable();
+        found.dedup();
+        if found.len() > 8 {
+            return None;
+        }
+        let mut out = [0; 8];
+        out[..found.len()].copy_from_slice(&found);
+        Some(Self(out))
+    }
+}
+
+impl std::fmt::Display for MarkerColumns {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let words: Vec<String> = self.columns().map(|c| c.to_string()).collect();
+        f.write_str(&words.join(", "))
+    }
 }
 
 impl Default for ViewOptions {
     fn default() -> Self {
-        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0 }
+        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), line_spacing: 1.0 }
     }
 }
 
@@ -184,8 +234,8 @@ impl ViewOptions {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\n",
-            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size
+            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\n",
+            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing
         )
     }
 
@@ -212,11 +262,20 @@ impl ViewOptions {
                 "highlight_selected" => options.highlight_selected = flag.unwrap_or(options.highlight_selected),
                 "line_change" => options.line_change = flag.unwrap_or(options.line_change),
                 "fold_lines" => options.fold_lines = flag.unwrap_or(options.fold_lines),
+                "column_markers" => options.column_markers = flag.unwrap_or(options.column_markers),
+                "marker_columns" => options.marker_columns = MarkerColumns::parse(value).unwrap_or(options.marker_columns),
                 "tab_size" => {
                     if let Ok(size) = value.trim().parse::<usize>()
                         && (MIN_TAB_SIZE..=MAX_TAB_SIZE).contains(&size)
                     {
                         options.tab_size = size;
+                    }
+                }
+                "line_spacing" => {
+                    if let Ok(spacing) = value.trim().parse::<f32>()
+                        && LINE_SPACINGS.contains(&spacing)
+                    {
+                        options.line_spacing = spacing;
                     }
                 }
                 "font_size" => {
@@ -375,6 +434,13 @@ pub enum ContextCommand {
     Tag(u8),
     Untag,
     Assist,
+}
+
+/// A text cell made taller for line spacing, and how far down it the text then sits.
+fn spaced_cell(cell: Vec2, spacing: f32) -> (Vec2, f32) {
+    let spacing = spacing.clamp(*LINE_SPACINGS.start(), *LINE_SPACINGS.end());
+    let height = (cell.y * spacing).round();
+    (vec2(cell.x, height), ((height - cell.y) / 2.0).floor())
 }
 
 pub(crate) fn cell_size(ui: &Ui, f: &FontId) -> Vec2 {
@@ -590,6 +656,8 @@ struct TextLayout {
     /// Room after the line numbers for the Git marks.
     git_space: f32,
     ruler_h: f32,
+    /// How far down its row the text sits, half the room line spacing adds.
+    pad: f32,
     options: ViewOptions,
     caret_on: bool,
     left: usize,
@@ -634,8 +702,8 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     let id = pane_id(pane.number);
     let (vbar_salt, hbar_salt, map_salt) = if pane.number == 0 { ("text-vbar", "text-hbar", "document-map") } else { ("text-vbar-2", "text-hbar-2", "document-map-2") };
     let font = FontId::monospace(options.font_size);
-    let cell = cell_size(ui, &font);
-    let ruler_h = if options.ruler { cell.y + 4.0 } else { 0.0 };
+    let (cell, pad) = spaced_cell(cell_size(ui, &font), options.line_spacing);
+    let ruler_h = if options.ruler { cell.y - 2.0 * pad + 4.0 } else { 0.0 };
     let digits = (buffer.line_count() + buffer.line_offset).to_string().len().max(4);
     let mark_width = if options.bookmark_gutter { cell.x } else { 0.0 };
     let fold_width = if options.fold_lines && (pane.filter.is_none() || pane.folded) && !buffer.is_disk_backed() { cell.x } else { 0.0 };
@@ -893,7 +961,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             });
         }
     }
-    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
+    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, pad, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
     if !focused {
         state.completion = None;
@@ -1500,7 +1568,7 @@ fn paint_invisibles(painter: &egui::Painter, line: &str, has_ending: bool, y: f3
     }
     if l.options.line_endings && has_ending && column >= left && column < left + count {
         let small = FontId::monospace((l.font.size * 0.85).round());
-        painter.text(pos2(col_x(column) + 1.0, y + 1.0), Align2::LEFT_TOP, '\u{B6}', small, theme::whitespace());
+        painter.text(pos2(col_x(column) + 1.0, y + 1.0 + l.pad), Align2::LEFT_TOP, '\u{B6}', small, theme::whitespace());
     }
 }
 
@@ -1671,7 +1739,7 @@ fn paint_diff_gutter(painter: &egui::Painter, marks: &crate::diff_engine::Marks,
             && slot.sub == 0
         {
             painter.rect_filled(Rect::from_min_max(pos2(x - 2.0, y), pos2(x + l.diff_space - 3.0, y + l.cell.y)), 0.0, diff_colour(mark.kind));
-            painter.text(pos2(x + 1.0, y + 1.0), Align2::LEFT_TOP, diff_sign(mark.kind), l.font.clone(), theme::editor_text());
+            painter.text(pos2(x + 1.0, y + 1.0 + l.pad), Align2::LEFT_TOP, diff_sign(mark.kind), l.font.clone(), theme::editor_text());
         }
         if marks.current.as_ref().is_some_and(|current| current.contains(&slot.line)) {
             painter.rect_filled(Rect::from_min_size(pos2(view.min.x, y), vec2(3.0, l.cell.y)), 0.0, theme::caret());
@@ -1757,7 +1825,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             let start = slot.start;
             let count = if slot.last { col_count } else { slot.end - slot.start };
             let col_x = |c: usize| col_at(start, c);
-            let text_pos = |c: usize| pos2(col_x(c), y + 1.0);
+            let text_pos = |c: usize| pos2(col_x(c), y + 1.0 + l.pad);
             // A tagged section has a wash of its colour behind it, as well as the block in the margin.
             if let Some(colour) = tag {
                 painter.rect_filled(Rect::from_min_max(pos2(view.min.x + gutter, y), pos2(view.max.x, y + cell.y)), 0.0, colour.gamma_multiply(0.09));
@@ -1804,7 +1872,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                 paint_invisibles(&painter, &raw, slot.last && r + 1 < b.line_count(), y, start, count, &col_x, l);
             }
             let on_row: Vec<&Token> = tokens.iter().filter(|token| token.column + token.width > start && token.column < start + count).collect();
-            paint_tokens(&painter, &on_row, y, cell, f, &col_x);
+            paint_tokens(&painter, &on_row, y + l.pad, vec2(cell.x, cell.y - 2.0 * l.pad), f, &col_x);
             for (column, bracket, depth) in &brackets {
                 if *column >= start && *column < start + count {
                     let color = depth.map_or(theme::mistake(), |d| theme::rainbow()[d % theme::rainbow().len()]);
@@ -1844,7 +1912,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             for (a, z, letter, rows) in &udgs {
                 let on_row = *a >= start && *a < start + count;
                 if on_row && !selected.is_some_and(|(from, to)| from < *z && to > *a) {
-                    let rect = Rect::from_min_max(pos2(col_x(*a), y), pos2(col_x(*z), y + cell.y));
+                    let rect = Rect::from_min_max(pos2(col_x(*a), y + l.pad), pos2(col_x(*z), y + cell.y - l.pad));
                     paint_udg(&painter, rect, rows, *letter, l.options.active_line && r == b.caret_line && !b.has_selection());
                 }
             }
@@ -1895,7 +1963,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                 let right = view.max.x - cell.x;
                 let end = col_at(slot.start, display_text(&b.line(slot.line)).trim_end().chars().count());
                 if end + cell.x * (text.len() as f32 + 1.0) < right {
-                    painter.text(pos2(right, row_y(index) + 1.0), Align2::RIGHT_TOP, text, small.clone(), theme::gutter_text());
+                    painter.text(pos2(right, row_y(index) + 1.0 + l.pad), Align2::RIGHT_TOP, text, small.clone(), theme::gutter_text());
                 }
             }
         }
@@ -1990,7 +2058,17 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         }
         if l.options.line_numbers {
             let right = view.min.x + gutter - cell.x * 0.75 - l.git_space;
-            painter.text(pos2(right, row_y(index) + 1.0), Align2::RIGHT_TOP, slot.line + 1 + b.line_offset, f.clone(), theme::gutter_text());
+            painter.text(pos2(right, row_y(index) + 1.0 + l.pad), Align2::RIGHT_TOP, slot.line + 1 + b.line_offset, f.clone(), theme::gutter_text());
+        }
+    }
+
+    if l.options.column_markers && !l.options.word_wrap {
+        let stroke = Stroke::new(1.0, theme::ruler_text().gamma_multiply(0.45));
+        let text_top = view.min.y + ruler_h;
+        for column in l.options.marker_columns.columns() {
+            if column >= left && column <= left + col_count {
+                painter.vline(col_at(left, column).round() + 0.5, text_top..=view.max.y, stroke);
+            }
         }
     }
 
@@ -2528,10 +2606,44 @@ mod tests {
     }
 
     #[test]
+    fn marker_columns_are_read_in_order_without_repeats() {
+        assert_eq!(MarkerColumns::parse("80 72, 7;72").unwrap().to_string(), "7, 72, 80");
+        assert_eq!(MarkerColumns::parse("").unwrap().columns().count(), 0);
+        assert!(MarkerColumns::parse("0").is_none() && MarkerColumns::parse("10000").is_none() && MarkerColumns::parse("72a").is_none());
+        assert!(MarkerColumns::parse("1 2 3 4 5 6 7 8 9").is_none());
+        assert_eq!(MarkerColumns::default().to_string(), "80");
+    }
+
+    #[test]
+    fn column_markers_draw_with_and_without_the_ruler() {
+        let mut b = Bench::new(50);
+        b.options.column_markers = true;
+        b.options.marker_columns = MarkerColumns::parse("1, 72, 5000").unwrap();
+        b.settle();
+        b.options.ruler = true;
+        b.settle();
+    }
+
+    #[test]
+    fn line_spacing_makes_rows_taller_and_clicks_still_land_on_their_line() {
+        let mut b = Bench::new(50);
+        b.options.ruler = false;
+        b.options.line_spacing = 2.0;
+        b.settle();
+        let base = b.ctx.fonts_mut(|fonts| fonts.row_height(&FontId::monospace(b.options.font_size))).ceil() + 2.0;
+        let (cell, pad) = spaced_cell(vec2(8.0, base), 2.0);
+        assert_eq!(cell.y, (base * 2.0).round());
+        assert!(pad > 0.0 && pad * 2.0 <= cell.y - base);
+        b.press_and_release(pos2(300.0, cell.y * 3.5), 0);
+        assert_eq!(b.buffer.caret_line, 3);
+        assert_eq!(spaced_cell(vec2(8.0, 20.0), 9.0).0.y, 40.0, "out of range is held to the range");
+    }
+
+    #[test]
     fn view_settings_are_remembered_and_bad_ones_are_ignored() {
-        let options = ViewOptions { whitespace: true, document_map: false, rainbow_parentheses: true, source_view: false, tab_size: 3, font_size: 18.0, ..ViewOptions::default() };
+        let options = ViewOptions { whitespace: true, document_map: false, rainbow_parentheses: true, source_view: false, tab_size: 3, font_size: 18.0, column_markers: true, marker_columns: MarkerColumns::parse("7, 72").unwrap(), line_spacing: 1.5, ..ViewOptions::default() };
         assert_eq!(ViewOptions::from_settings(&options.to_settings()), options);
-        let odd = ViewOptions::from_settings("ruler=maybe\nfont_size=900\ntab_size=0\nnonsense\nwhitespace=true");
+        let odd = ViewOptions::from_settings("ruler=maybe\nfont_size=900\ntab_size=0\nnonsense\nwhitespace=true\nmarker_columns=72,x\nline_spacing=7");
         assert_eq!(odd, ViewOptions { whitespace: true, ..ViewOptions::default() });
     }
 

@@ -47,6 +47,8 @@ unicode_names2 = "1"
 bzip2 = "0.6"
 lzfse_rust = "0.2"
 ureq = "3"
+# x86 disassembly, from the 8086 to AVX-512 and beyond (Tools, Disassemble).
+iced-x86 = { version = "1.22.0", default-features = false, features = ["std", "decoder", "nasm", "instr_info"] }
 
 [profile.dev.package."*"]
 opt-level = 2
@@ -66,7 +68,7 @@ objc2 = "0.6"
 ssh2 = { version = "0.9", features = ["vendored-openssl"] }
 
 [target."cfg(windows)".dependencies]
-windows = { version = "0.62", features = ["Win32_Globalization", "Win32_System_Com", "Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug"] }
+windows = { version = "0.62", features = ["Win32_Globalization", "Win32_System_Com", "Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug"] }
 
 [lints.clippy]
 # Shared state handed to worker threads reads more plainly spelt out where it's used than behind an alias.
