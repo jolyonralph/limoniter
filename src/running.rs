@@ -27,6 +27,8 @@ pub enum Machine {
     OpticOs,
     /// An Amiga: which model is chosen with its Kickstart (see `amiga_run`).
     Amiga,
+    /// The Atari 2600 (VCS), whose programs are its cartridges.
+    Atari2600,
 }
 
 impl Machine {
@@ -49,6 +51,7 @@ impl Machine {
             Machine::CoCo => "Tandy Color Computer",
             Machine::OpticOs => "ZX Spectrum 48K with OpticOS",
             Machine::Amiga => "Amiga",
+            Machine::Atari2600 => "Atari 2600",
         }
     }
 
@@ -72,6 +75,7 @@ impl Machine {
             Machine::CoCo => "coco",
             Machine::OpticOs => "opticos",
             Machine::Amiga => "amiga",
+            Machine::Atari2600 => "atari2600",
         }
     }
 
@@ -117,6 +121,8 @@ pub enum Format {
     St,
     /// An Atari ST floppy disk packed by the Magic Shadow Archiver.
     Msa,
+    /// An Atari 2600 cartridge, its ROM as it is.
+    A26,
 }
 
 impl Format {
@@ -125,12 +131,12 @@ impl Format {
         match self {
             Format::Tap | Format::Tzx | Format::Cas | Format::T64 => Some("tape"),
             Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa => Some("disk"),
-            Format::Crt | Format::Rom => Some("cartridge"),
+            Format::Crt | Format::Rom | Format::A26 => Some("cartridge"),
             _ => None,
         }
     }
 
-    pub const ALL: [Format; 26] = [
+    pub const ALL: [Format; 27] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -157,6 +163,7 @@ impl Format {
         Format::Adf,
         Format::St,
         Format::Msa,
+        Format::A26,
     ];
 
     /// The file ending it's written with.
@@ -188,6 +195,7 @@ impl Format {
             Format::Adf => "adf",
             Format::St => "st",
             Format::Msa => "msa",
+            Format::A26 => "a26",
         }
     }
 
@@ -325,11 +333,13 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         Format::St => return None,
         Format::Msa if bytes.starts_with(&[0x0E, 0x0F]) => Machine::AtariSt,
         Format::Msa => return None,
+        Format::A26 if crate::atari2600::detect(bytes).is_some() => Machine::Atari2600,
+        Format::A26 => return None,
     })
 }
 
 /// Whether a file is an Atari ST program: $601A, then sizes of its parts that fit in the file.
-fn is_atari_program(bytes: &[u8]) -> bool {
+pub fn is_atari_program(bytes: &[u8]) -> bool {
     let long = |at: usize| bytes.get(at..at + 4).map_or(u64::MAX, |b| u64::from(u32::from_be_bytes([b[0], b[1], b[2], b[3]])));
     bytes.starts_with(&[0x60, 0x1A]) && bytes.len() >= 28 && 28 + long(2) + long(6) + long(14) <= bytes.len() as u64
 }

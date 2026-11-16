@@ -291,8 +291,8 @@ fn condition(name: &str) -> Option<u16> {
 
 const PLAIN: [(&str, u16); 7] = [("rts", 0x4E75), ("rte", 0x4E73), ("rtr", 0x4E77), ("nop", 0x4E71), ("reset", 0x4E70), ("trapv", 0x4E76), ("illegal", 0x4AFC)];
 
-const OTHERS: [&str; 64] = [
-    "move", "movea", "moveq", "movem", "lea", "pea", "clr", "neg", "negx", "not", "tst", "add", "adda", "addi", "addq", "addx", "sub", "suba", "subi", "subq", "subx", "and", "andi", "or", "ori", "eor", "eori", "cmp", "cmpa", "cmpi", "cmpm", "mulu", "muls", "divu", "divs", "asl", "asr", "lsl", "lsr", "rol", "ror", "roxl", "roxr", "btst", "bchg", "bclr", "bset", "jmp", "jsr", "stop", "trap", "link", "unlk", "swap", "ext", "exg", "chk", "tas", "nbcd", "abcd", "sbcd", "dbra", "bsr", "bra",
+const OTHERS: [&str; 65] = [
+    "move", "movea", "moveq", "movem", "movep", "lea", "pea", "clr", "neg", "negx", "not", "tst", "add", "adda", "addi", "addq", "addx", "sub", "suba", "subi", "subq", "subx", "and", "andi", "or", "ori", "eor", "eori", "cmp", "cmpa", "cmpi", "cmpm", "mulu", "muls", "divu", "divs", "asl", "asr", "lsl", "lsr", "rol", "ror", "roxl", "roxr", "btst", "bchg", "bclr", "bset", "jmp", "jsr", "stop", "trap", "link", "unlk", "swap", "ext", "exg", "chk", "tas", "nbcd", "abcd", "sbcd", "dbra", "bsr", "bra",
 ];
 
 /// The mnemonic without its size, and the size.
@@ -440,6 +440,11 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
             words.extend(extension(ea, sz, line, here + 4)?);
             Ok(words)
         }
+        // MOVEP: alternate bytes, as for an 8-bit peripheral; to a register 4 (word) or 5 (long), from one 6 or 7.
+        ("movep", [Ea::Displacement(a, d), Ea::D(r)]) => Ok(vec![0x0108 | r << 9 | if sz == Size::Long { 0x140 } else { 0x100 } | a, line.eval(d)? as u16]),
+        ("movep", [Ea::D(r), Ea::Displacement(a, d)]) => Ok(vec![0x0108 | r << 9 | if sz == Size::Long { 0x1C0 } else { 0x180 } | a, line.eval(d)? as u16]),
+        ("movep", [Ea::Indirect(a), Ea::D(r)]) => Ok(vec![0x0108 | r << 9 | if sz == Size::Long { 0x140 } else { 0x100 } | a, 0]),
+        ("movep", [Ea::D(r), Ea::Indirect(a)]) => Ok(vec![0x0108 | r << 9 | if sz == Size::Long { 0x1C0 } else { 0x180 } | a, 0]),
         ("lea", [src, Ea::A(r)]) => with(0x41C0 | r << 9 | src.bits(), &[(src, Size::Long)], line),
         ("pea", [src]) => with(0x4840 | src.bits(), &[(src, Size::Long)], line),
         ("clr" | "neg" | "negx" | "not" | "tst", [ea]) => {

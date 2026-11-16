@@ -16,6 +16,12 @@ pub(super) struct DisasmBox {
     pub x86_bits: u32,
     /// Z80 code for a Cambridge Z88, whose RST &20 calls are named.
     pub z88: bool,
+    /// 68000 code: the program the file was found to be (an Amiga or Atari ST program, a boot block, a cartridge
+    /// or a ROM), or plain code for `machine`.
+    pub m68k_program: Option<crate::m68k_disasm::Program>,
+    pub machine: crate::m68k_disasm::Machine,
+    /// An Atari 2600 cartridge, disassembled bank by bank into DASM source.
+    pub vcs: Option<crate::atari2600::Cartridge>,
     pub bytes: Vec<u8>,
     pub origin: String,
     pub starts: String,
@@ -147,12 +153,27 @@ impl Limoniter {
         // An x86 program (PE, ELF, MZ or .COM) is taken whole.
         if let Some(program) = crate::x86::recognise(&name, &bytes) {
             let found = program.what.clone();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            return;
+        }
+        // An Atari 2600 cartridge: its banks, and how it switches them.
+        if let Some(cart) = crate::atari2600::recognise(&name, &bytes) {
+            let found = cart.describe();
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
+            return;
+        }
+        // A 68000 program (Amiga, Atari ST, a boot block, a Mega Drive cartridge, a Kickstart ROM) says the rest.
+        if let Some(program) = crate::m68k_disasm::recognise(&name, &bytes) {
+            let found = program.what.clone();
+            let machine = program.machine;
+            let origin = format!("${:X}", program.sections[0].base);
+            let starts = program.starts.iter().map(|s| format!("${s:X}")).collect::<Vec<_>>().join(", ");
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: Some(program), machine, vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
             return;
         }
         let (cpu, code, origin, starts, found) = guess(&name, &bytes, load_address);
         let starts = starts.iter().map(|s| format!("${s:04X}")).collect::<Vec<_>>().join(", ");
-        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
+        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
     }
 
     pub(super) fn disassemble_dialog(&mut self, ctx: &Context) -> bool {
@@ -167,7 +188,7 @@ impl Limoniter {
             egui::Grid::new("disasm-grid").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 ui.label("Processor");
                 ui.horizontal(|ui| {
-                    for (cpu, name) in [(Cpu::Z80, "Z80 (and the Next's)"), (Cpu::M6502, "6502"), (Cpu::M6809, "6809")] {
+                    for (cpu, name) in [(Cpu::Z80, "Z80 (and the Next's)"), (Cpu::M6502, "6502"), (Cpu::M6809, "6809"), (Cpu::M68k, "68000")] {
                         if ui.radio(!state.icl2900 && !state.x86 && state.cpu == cpu, name).clicked() {
                             (state.cpu, state.icl2900, state.x86) = (cpu, false, false);
                         }
@@ -185,8 +206,29 @@ impl Limoniter {
                     ui.checkbox(&mut state.z88, "For a Cambridge Z88: name its operating system calls (RST $20 and the code after it)");
                     ui.end_row();
                 }
+                let vcs = !state.icl2900 && !state.x86 && state.cpu == Cpu::M6502 && state.vcs.is_some();
+                if vcs && let Some(cart) = &mut state.vcs {
+                    ui.label("Bank switching");
+                    let size = cart.bytes.len();
+                    egui::ComboBox::from_id_salt("vcs-scheme").selected_text(cart.scheme.name()).show_ui(ui, |ui| {
+                        for scheme in crate::atari2600::Scheme::ALL.into_iter().filter(|s| crate::atari2600::Scheme::fits(*s, size)) {
+                            ui.selectable_value(&mut cart.scheme, scheme, scheme.name());
+                        }
+                    });
+                    ui.end_row();
+                }
+                let m68k = !state.icl2900 && !state.x86 && state.cpu == Cpu::M68k;
+                if m68k && state.m68k_program.as_ref().is_none_or(|p| p.layout == crate::m68k_disasm::Layout::Raw) {
+                    ui.label("Machine");
+                    ui.horizontal(|ui| {
+                        for machine in crate::m68k_disasm::Machine::ALL {
+                            ui.radio_value(&mut state.machine, machine, machine.name()).on_hover_text("Whose hardware and system calls to name");
+                        }
+                    });
+                    ui.end_row();
+                }
                 // A program the file was found to be says its own mode, addresses and starts.
-                let whole = state.x86 && state.x86_program.is_some();
+                let whole = vcs || (state.x86 && state.x86_program.is_some()) || (m68k && state.m68k_program.as_ref().is_some_and(|p| p.layout != crate::m68k_disasm::Layout::Raw));
                 if state.x86 && !whole {
                     ui.label("Mode");
                     ui.horizontal(|ui| {
@@ -207,7 +249,11 @@ impl Limoniter {
                     ui.end_row();
                 }
             });
-            let how = if state.x86 && state.x86_program.is_some() {
+            let how = if !state.icl2900 && !state.x86 && state.cpu == Cpu::M6502 && state.vcs.is_some() {
+                "Each bank is followed from its reset vector, and from bank to bank where the code switches; what's never reached is data, and short runs of it are drawn as the pixels they'd be. The TIA's and RIOT's registers are named, each instruction's cycles are beside it, and code that runs past a scanline's 76 cycles is pointed out. It's written for DASM."
+            } else if !state.icl2900 && !state.x86 && state.cpu == Cpu::M68k {
+                "The code is followed from where it starts through every branch, jump and call; what it never reaches is kept as data. An Amiga program's hunks become sections and its relocated longs labels, so it assembles into a working program again; the Amiga's and ST's hardware, library calls and TOS calls are named."
+            } else if state.x86 && state.x86_program.is_some() {
                 "Its code is followed from where it's entered (and from what it exports or names), through every jump and call; what it never reaches is kept as data. Every x86 instruction up to today's (SSE, AVX, AVX-512, AMX) is known."
             } else if state.icl2900 {
                 "Every halfword is read as an instruction, one after another, and listed in SFL with its byte address; what isn't an instruction is shown as it is. Jumps' targets get labels."
@@ -251,6 +297,61 @@ impl Limoniter {
                 highlight::load_now();
                 let language = if program.bits == 64 { "Assembly x86_64" } else { "Assembly 80x86" };
                 if let Some((_, syntax)) = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == language)) {
+                    doc.set_language(Language::Named(*syntax));
+                }
+                doc.update_syntax();
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+                self.pending_focus = true;
+                return true;
+            }
+            if state.cpu == Cpu::M6502
+                && let Some(cart) = state.vcs.clone()
+            {
+                let stem = state.stem.clone();
+                self.dialog = Dialog::None;
+                let source = crate::atari2600::disassemble(&cart);
+                let mut doc = Document::untitled(format!("{stem}.asm"), &PRESETS[0]);
+                doc.text.set_content(source.lines().map(str::to_string).collect());
+                highlight::load_now();
+                if let Some((_, syntax)) = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == "Assembly 6502")) {
+                    doc.set_language(Language::Named(*syntax));
+                }
+                doc.update_syntax();
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+                self.pending_focus = true;
+                return true;
+            }
+            if state.cpu == Cpu::M68k {
+                let program = match state.m68k_program.clone().filter(|p| p.layout != crate::m68k_disasm::Layout::Raw) {
+                    Some(program) => program,
+                    None => {
+                        let Some(origin) = number32(&state.origin) else {
+                            state.error = "Say where it loads: $40000, or 262144.".into();
+                            return true;
+                        };
+                        let starts: Option<Vec<u32>> = state.starts.split(',').filter(|s| !s.trim().is_empty()).map(number32).collect();
+                        let Some(starts) = starts.filter(|s| !s.is_empty()) else {
+                            state.error = "Say where it starts: addresses, comma between.".into();
+                            return true;
+                        };
+                        // A boot block, cartridge or ROM keeps what was found (its vectors); only where it is changes.
+                        let mut program = crate::m68k_disasm::raw(&state.bytes, origin, &starts, state.machine);
+                        if let Some(found) = state.m68k_program.as_ref().filter(|p| p.sections[0].base == origin) {
+                            program.pointers = found.pointers.clone();
+                            program.what = found.what.clone();
+                        }
+                        program
+                    }
+                };
+                let stem = state.stem.clone();
+                self.dialog = Dialog::None;
+                let source = crate::m68k_disasm::disassemble(&program);
+                let mut doc = Document::untitled(format!("{stem}.s"), &PRESETS[0]);
+                doc.text.set_content(source.lines().map(str::to_string).collect());
+                highlight::load_now();
+                if let Some((_, syntax)) = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == "Assembly 680x0")) {
                     doc.set_language(Language::Named(*syntax));
                 }
                 doc.update_syntax();

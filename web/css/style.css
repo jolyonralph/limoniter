@@ -82,15 +82,16 @@ kbd {
   border-bottom: 1px solid var(--line);
 }
 .top-inner { display: flex; align-items: center; gap: 16px; min-height: 60px; }
-.brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 1.15rem; letter-spacing: 0.01em; }
+.brand { display: flex; flex-shrink: 0; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 1.15rem; letter-spacing: 0.01em; }
 .brand img { image-rendering: pixelated; }
-.nav { margin-left: auto; display: flex; gap: 22px; }
-.nav a { color: var(--text-dim); text-decoration: none; font-size: 0.95rem; }
+.nav { margin-left: auto; display: flex; gap: 20px; }
+.nav a { color: var(--text-dim); text-decoration: none; font-size: 0.95rem; white-space: nowrap; }
 .nav a:hover { color: var(--text); }
 .nav .nav-github { color: var(--text); }
 .menu-button { display: none; }
 
-@media (max-width: 760px) {
+/* The links are many: below this width they go in a menu. */
+@media (max-width: 1180px) {
   .menu-button {
     display: block; margin-left: auto;
     background: none; color: var(--text); border: 1px solid var(--line); border-radius: 6px;
@@ -213,6 +214,8 @@ h3 { font-size: 1.12rem; margin: 0 0 8px; }
 
 .split { display: grid; gap: 40px; align-items: center; }
 @media (min-width: 980px) { .split { grid-template-columns: 1fr 1fr; } }
+.develop-split { margin-top: 56px; }
+.develop-split h3 { margin-top: 0; }
 .ticks { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 12px; }
 .ticks li { position: relative; padding-left: 26px; color: var(--text-dim); }
 .ticks li strong { color: var(--text); }

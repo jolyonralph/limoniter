@@ -97,6 +97,7 @@ impl NewKind {
             Self::new("Atari STE demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::st_starters::STE_DEMO),
             Self::new("C64 demo (6502)", "a65", "utf-8", line, "Assembly 6502", Program::None, crate::c64_starters::DEMO),
             Self::new("C64 intro with music (6502)", "a65", "utf-8", line, "Assembly 6502", Program::None, crate::c64_starters::INTRO),
+            Self::new("Atari 2600 (6502)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::atari2600::STARTER),
             Self::new("Markdown", "md", "utf-8", line, "Markdown", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),

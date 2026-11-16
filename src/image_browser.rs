@@ -426,7 +426,7 @@ impl Limoniter {
             Some(Ok((name, bytes))) => {
                 let place = browser.place();
                 let mut doc = Document::from_image_file(format!("{place} \u{203A} {name}"), bytes, browser.text_preset(i));
-                doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || Self::preview_kind(&doc) == Some(preview::Kind::Module));
+                doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound)));
                 doc.load_address = load_address;
                 let image = self.docs[index].path.clone();
                 let ending = image.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();

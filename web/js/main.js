@@ -49,6 +49,7 @@
       text: "PETSCII and screen codes, upper and lower case sets, with control codes written as {clr} and {red} as petcat writes them.",
       media: "D64, D71 and D81 disks and T64 tapes, with file names in PETSCII.",
       basic: "BASIC V2 programs (.prg, .p00) listed, and listings turned back into programs.",
+      develop: "6502 source in ACME, KickAssembler or 64tass syntax assembled to a .prg and run in VICE with F9, and debugged through VICE's monitor. Cycle counts sit beside every line, with a raster line calculator and raster interrupts built for you. SID tunes are described, packed programs made with Exomizer, TSCrunch or pucrunch, and pictures, sprites and charsets converted. Programs disassemble from their SYS.",
       pictures: "Koala Painter, OCP and Advanced Art Studio, and Doodle!. PETSCII streams (.seq) are drawn with colour, reverse and cursor movement.",
       send: "A card or stick for an SD2IEC, Kung Fu Flash or Gotek. On an Ultimate 64 or 1541 Ultimate, a .prg starts running and a .d64 goes into drive A.",
     },
@@ -58,6 +59,7 @@
       text: "The Spectrum character set, with its colour and position controls shown as the screen would.",
       media: "TAP and TZX tapes, +3DOS DSK, TR-DOS and SCL disks, Microdrive cartridges, and Z80 and SNA snapshots.",
       basic: "48K, 128K and NextBASIC programs listed. Listings can be saved as a .tap, or as a Next .bas.",
+      develop: "Z80 and Next source assembled to a tape or .nex and running on the built-in Spectrum with F9, with nothing to install. A debugger with breakpoints, watches and a profiler, Spectrum BASIC stepped line by line, a screen designer and a UDG editor. Snapshots and tapes disassemble back into source.",
       pictures: ".scr screens, with or without a +3DOS header.",
       send: "To a Spectrum Next over Wi-Fi: Limoniter serves the file, and .sync on the Next fetches it (NextSync).",
     },
@@ -67,6 +69,7 @@
       text: "Amiga text, and Amiga ANSI with the console's own sequences. Syntax colouring for AmigaGuide, the Installer language, AMOS, Blitz Basic and 680x0 assembler.",
       media: "ADF floppies (OFS and FFS), ADZ, DMS, HDF hard disks with partitions, LHA archives and RP9 packages.",
       basic: "AMOS and Blitz Basic source is coloured as you edit.",
+      develop: "68000 source in vasm and Devpac syntax built into an Amiga executable and booted in FS-UAE or WinUAE with F9, then debugged at source level. Every custom register is explained on hover, with copper lists and blitter minterms worked out. Shrinkler and Cranker pack it, and LightSpeedPlayer and The Player replay calls are written for you. Programs, boot blocks and Kickstart ROMs disassemble into source that rebuilds, and MOD, S3M, XM and IT modules play.",
       pictures: "IFF ILBM and PBM, including HAM, HAM8, Extra Half-Brite and deep pictures, with Deluxe Paint colour cycling.",
       send: "A stick for a Gotek, a CF card, or a shared folder or FTP server on a networked Amiga.",
     },
@@ -76,8 +79,19 @@
       text: "ATASCII and screen codes, with 0x9B line endings kept exactly as they are.",
       media: "ATR and XFD disks in single, enhanced and double density, with Atari DOS 2, MyDOS or SpartaDOS. Text inside opens as ATASCII.",
       basic: "Atari BASIC programs listed.",
+      develop: "Binary load files (.xex) disassemble from their run and init addresses.",
       pictures: "Text is shown in the machine's own character set.",
       send: "A TNFS server's folder for FujiNet, or a card for an SIO2SD or SDrive.",
+    },
+    {
+      name: "Atari 2600",
+      blurb: "The VCS, and its cartridges from 2K to 32K.",
+      text: "Source in DASM's syntax, with the TIA's and RIOT's registers known.",
+      media: "Cartridges (.a26) with their bank switching worked out: F8, F6, F4 and the Superchip's, FA, E0, E7, FE, 3F and DPC.",
+      basic: "Cartridges disassemble into DASM source that rebuilds them, bank by bank, with the registers named.",
+      develop: "DASM source is made into a cartridge and run in Stella or MAME with F9. A starter frame (sync, timed blanking, 192 lines, overscan) runs at once. Disassembly puts each instruction's cycles beside it and points out code that runs past a scanline's 76 cycles.",
+      pictures: "Short runs of data in a cartridge are drawn as the pixels they'd be.",
+      send: "A card for a Harmony or UnoCart cartridge, or a folder for an emulator.",
     },
     {
       name: "Atari ST",
@@ -85,6 +99,7 @@
       text: "The Atari ST character set, separate from the 8-bit one.",
       media: ".st and packed .msa floppies.",
       basic: "STOS source is coloured as you edit.",
+      develop: "68000 source built into a TOS program and run in Hatari, or from a bootable floppy, with F9; debugged and profiled there. Hover shows the hardware, MFP timers, STE blitter and TOS calls. SNDH replay calls are written for you, and ZX0, LZSA, LZ4, Shrinkler and UPX pack the result. TOS programs disassemble with their GEMDOS calls named.",
       pictures: "Degas, Degas Elite and NEOchrome, with colour cycling. GEM bit images (.img) too.",
       send: "A card for an ACSI2STM or UltraSatan, or a stick for a Gotek.",
     },
@@ -94,6 +109,7 @@
       text: "The BBC Micro character set, Mode 7 teletext with mosaics and double height, the Acorn Atom set and RISC OS's own.",
       media: "DFS (.ssd, .dsd), ADFS S, M and L, RISC OS ADFS D, E and F, and UEF tapes.",
       basic: "BBC BASIC II and IV listed, and listings turned back into programs.",
+      develop: "6502 source that calls the MOS goes on a disc that *RUNs it in b2 with F9. BBC BASIC (and the Z80 version on the Z88 and NC machines) is tokenised from a listing.",
       pictures: "RISC OS sprite files, a single sprite or a whole sheet.",
       send: "A card for an MMFS or a Gotek, or a folder for an emulator.",
     },
@@ -121,6 +137,7 @@
       text: "20 DOS code pages (CP437, CP850, CP866 and more), and Windows and ISO code pages.",
       media: "FAT12, FAT16 and FAT32 floppy and hard disk images, ISO 9660 CDs with Joliet and Rock Ridge, ZIP archives, ImageDisk and Teledisk.",
       basic: "QBasic source coloured, and MBASIC programs listed.",
+      develop: "DOS .COM and .EXE files, and Windows and Linux programs, disassemble into NASM source, from the 8086 to AVX-512.",
       pictures: "PC ANSI art with iCE colours and SAUCE, BinaryText, and ZSoft PCX.",
       send: "A stick or card for an old PC, a Gotek, or any folder.",
     },
@@ -130,6 +147,7 @@
       text: "CP/M text with Ctrl-Z kept, Kaypro and Osborne sets, the TRS-80 set and Amstrad CPC's.",
       media: "82 CP/M disk formats, worked out from the directory. TRS-80 disks with TRSDOS, LDOS and NEWDOS. Amstrad DSK with AMSDOS. CoCo and Dragon disks with RS-DOS, Dragon DOS and OS-9.",
       basic: "MBASIC, Color BASIC and Dragon BASIC listed.",
+      develop: "Z80 code disassembles. Color Computer and Dragon 6809 source is assembled and run in XRoar with F9.",
       pictures: "WordStar documents converted to Markdown, plain text or RTF.",
       send: "A card or a folder for an emulator, or a command line of your own.",
     },
@@ -146,7 +164,7 @@
 
   const picker = document.querySelector(".machine-picker");
   const detail = document.querySelector(".machine-detail");
-  const facts = [["text", "Text"], ["media", "Disks, tapes and archives"], ["basic", "Programs"], ["pictures", "Pictures and documents"], ["send", "Sending it back"]];
+  const facts = [["text", "Text"], ["media", "Disks, tapes and archives"], ["basic", "Programs"], ["develop", "Making things for it"], ["pictures", "Pictures and documents"], ["send", "Sending it back"]];
 
   const show = (n) => {
     const machine = machines[n];
@@ -163,6 +181,7 @@
     const list = document.createElement("dl");
     list.className = "machine-facts";
     for (const [key, label] of facts) {
+      if (!machine[key]) continue;
       const wrap = document.createElement("div");
       const dt = document.createElement("dt");
       dt.textContent = label;

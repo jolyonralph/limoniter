@@ -142,14 +142,30 @@ fn opcode(modes: &[(Mode, u8)], mode: Mode) -> Option<u8> {
     modes.iter().find(|(m, _)| *m == mode).map(|(_, op)| *op)
 }
 
+/// A mnemonic without the size forced after it: ACME's +1 and +2, DASM's .b, .z and .w.
+fn strip_size(mnemonic: &str) -> (&str, Option<u8>) {
+    if let Some((name, size)) = mnemonic.split_once('+') {
+        return match size {
+            "1" => (name, Some(1)),
+            "2" => (name, Some(2)),
+            _ => (mnemonic, None),
+        };
+    }
+    match mnemonic.rsplit_once('.') {
+        Some((name, "b" | "B" | "z" | "Z")) if opcodes(name).is_some() => (name, Some(1)),
+        Some((name, "w" | "W" | "a" | "A")) if opcodes(name).is_some() => (name, Some(2)),
+        _ => (mnemonic, None),
+    }
+}
+
 impl Isa for M6502 {
     fn name(&self) -> &'static str {
         "6502"
     }
 
     fn is_instruction(&self, word: &str) -> bool {
-        // ACME's +2 and the like after a mnemonic force a size: lda+2.
-        opcodes(word.split('+').next().unwrap_or(word)).is_some()
+        // ACME's +2 and the like after a mnemonic force a size: lda+2; DASM's .w and .b (or .z) do the same.
+        opcodes(strip_size(word).0).is_some()
     }
 
     fn colon_separates(&self) -> bool {
@@ -169,12 +185,8 @@ impl Isa for M6502 {
     }
 
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
-        // A size forced with +1 or +2 (ACME), or a: for absolute (ca65).
-        let (mnemonic, forced) = match mnemonic.split_once('+') {
-            Some((name, "1")) => (name, Some(1)),
-            Some((name, "2")) => (name, Some(2)),
-            _ => (mnemonic, None),
-        };
+        // A size forced with +1 or +2 (ACME), .b or .w (DASM), or a: for absolute (ca65).
+        let (mnemonic, forced) = strip_size(mnemonic);
         let modes = opcodes(mnemonic).ok_or_else(|| format!("{mnemonic} isn't a 6502 instruction"))?;
         let upper = mnemonic.to_ascii_uppercase();
         let text = operands.trim();

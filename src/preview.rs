@@ -25,6 +25,8 @@ pub fn add_bold_font(fonts: &mut egui::FontDefinitions) {
 
 /// The most text a preview will lay out. It's redone as you type, so a huge file would make typing slow.
 pub const MOST_PREVIEW_BYTES: usize = 4 * 1024 * 1024;
+/// Music and sound can be larger: modules with many samples run to tens of megabytes, and sound files more.
+pub const MOST_SOUND_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -43,8 +45,11 @@ pub enum Kind {
     Basic,
     /// A picture in an older machine's format, such as an Amiga IFF ILBM or a Spectrum screen.
     Picture,
-    /// Music: a ProTracker module (its title, samples and song order), or Atari ST SNDH or YM music.
+    /// Music: a tracker module (ProTracker, Scream Tracker 3, FastTracker 2 or Impulse Tracker), a C64 SID tune,
+    /// or Atari ST SNDH or YM music.
     Module,
+    /// A sound file: MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC or AU.
+    Sound,
     /// An old word processor's document, converted and laid out.
     Document,
     /// A web page, laid out from its HTML: headings, paragraphs, lists, tables and links, with no scripts or styles.
@@ -63,6 +68,7 @@ impl Kind {
             Kind::Basic => "BASIC listing",
             Kind::Picture => "Picture",
             Kind::Module => "Music module",
+            Kind::Sound => "Sound",
             Kind::Document => "Converted document",
             Kind::Html => "Web page",
         }
@@ -70,7 +76,7 @@ impl Kind {
 
     /// Drawn as a machine's screen, rather than laid out as a document.
     pub fn is_screen(self) -> bool {
-        !matches!(self, Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Document)
+        !matches!(self, Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Sound | Kind::Document)
     }
 
     /// Made from the file's exact bytes rather than its text, so it works from hex mode too.
@@ -100,8 +106,11 @@ pub fn kind_for_file(path: Option<&Path>, language: &str, format: &crate::codec:
     if path.and_then(Path::file_name).is_some_and(|n| crate::protracker::named_as_module(&n.to_string_lossy()) || crate::sid::named_as_sid(&n.to_string_lossy())) && language != "Modula-2" {
         return Some(Kind::Module);
     }
-    if path.and_then(Path::file_name).is_some_and(|n| crate::st_music::named_as_sndh(&n.to_string_lossy()) || crate::st_music::named_as_ym(&n.to_string_lossy())) {
+    if path.and_then(Path::file_name).is_some_and(|n| crate::st_music::named_as_sndh(&n.to_string_lossy()) || crate::st_music::named_as_ym(&n.to_string_lossy()) || crate::tracker::named_as_pc_module(&n.to_string_lossy())) {
         return Some(Kind::Module);
+    }
+    if extension.as_deref().is_some_and(|e| crate::sound::ENDINGS.contains(&e) && e != "snd") {
+        return Some(Kind::Sound);
     }
     if extension.as_deref().is_some_and(|e| crate::basic::is_program_file(e, None)) {
         return Some(Kind::Basic);
@@ -139,7 +148,7 @@ pub fn render_screen(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat
             crate::retro_screens::teletext(bytes, set, format.newline.parity(), mode7)
         }
         Kind::AnsiArt if is_amiga_console(format) => crate::ansi_art::render_amiga(bytes),
-        Kind::AnsiArt | Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Document => crate::ansi_art::render(bytes, dos),
+        Kind::AnsiArt | Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Sound | Kind::Document => crate::ansi_art::render(bytes, dos),
     }
 }
 
@@ -187,8 +196,22 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
                 Err(why) => FromBytes::Nothing(why),
             };
         }
+        // Scream Tracker 3, FastTracker 2 and Impulse Tracker go by their marks.
+        if crate::tracker::pc_format(bytes).is_some() {
+            return match crate::tracker::load(bytes, &name) {
+                Ok(song) => FromBytes::Blocks(song.blocks()),
+                Err(why) => FromBytes::Nothing(why),
+            };
+        }
         return match crate::protracker::read(bytes, &name) {
             Ok(module) => FromBytes::Blocks(module.blocks()),
+            Err(why) => FromBytes::Nothing(why),
+        };
+    }
+    if kind == Kind::Sound {
+        let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        return match crate::sound::info(bytes, &name) {
+            Ok(info) => FromBytes::Blocks(info.blocks()),
             Err(why) => FromBytes::Nothing(why),
         };
     }

@@ -415,6 +415,8 @@ struct Pass<'a> {
     leaving: bool,
     /// The Amiga's sections, when the program is being made into hunks.
     hunks: Option<hunk::Layout>,
+    /// In DASM's SEG.U: room is left, as for RAM, but nothing is written.
+    uninitialised: bool,
 }
 
 /// A STRUCT: its fields' names, offsets, sizes and default values, and its size.
@@ -489,6 +491,7 @@ impl<'a> Pass<'a> {
             options: None,
             leaving: false,
             hunks: None,
+            uninitialised: false,
         }
     }
 
@@ -1210,6 +1213,10 @@ impl<'a> Pass<'a> {
     }
 
     fn emit(&mut self, bytes: Vec<u8>) {
+        if self.uninitialised {
+            self.pc += bytes.len() as i64;
+            return;
+        }
         if let Some(index) = self.output
             && self.last
         {
@@ -1516,6 +1523,11 @@ impl<'a> Pass<'a> {
                 }
                 self.emit(vec![fill as u8; count as usize]);
             }
+            // DASM's: the processor (only the 6502 family is assembled here), and segments, where SEG.U is room
+            // for RAM, with no bytes written.
+            "processor" => {}
+            "seg" => self.uninitialised = false,
+            "seg.u" => self.uninitialised = true,
             "align" | "even" => {
                 let items = split_operands(operands);
                 let boundary = if directive == "even" { 2 } else { self.eval(items.first().map(String::as_str).unwrap_or("2")).unwrap_or(2).max(1) };
@@ -1560,11 +1572,12 @@ impl<'a> Pass<'a> {
                 }
                 self.ended = true;
             }
-            "disp" | "phase" => match self.eval(operands) {
+            // DASM's RORG is the same: code that runs at one address, put at another (a cartridge's banks).
+            "disp" | "phase" | "rorg" => match self.eval(operands) {
                 Ok(v) => self.shift = v - self.pc,
                 Err(problem) => self.problem(problem),
             },
-            "dephase" | "unphase" => self.shift = 0,
+            "dephase" | "unphase" | "rend" => self.shift = 0,
             "ent" if self.shift != 0 => self.shift = 0,
             "ent" | "entry" | "start" => {
                 let value = if operands.is_empty() { Ok(self.pc) } else { self.eval(operands) };
@@ -2509,7 +2522,7 @@ impl Line<'_, '_> {
 
 /// Words the assembler itself understands.
 pub const DIRECTIVES: &[&str] = &[
-    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "xdef", "xref", "set", "zmb", "for", "zone", "endzone", "define", "define+", "undefine", "defarray", "defarray+", "ifused", "ifnused", "struct", "ends", "dg", "dh", "inchob", "sldopt", "cspectmap", "d24", "outend", "savedev", "defg", "defh", "hex", "relocate_start", "relocate_end", "relocate_table", "code_c", "code_f", "data_c", "data_f", "bss_c", "bss_f", "basicupstart", "basicupstart2",
+    "org", "equ", "defl", "db", "defb", "byte", "dm", "defm", "fcb", "fcc", "text", "ascii", "asc", "dz", "asciz", "dc", "abyt", "dfb", "dw", "defw", "word", "fdb", "addr", "dd", "dword", "long", "defd", "ds", "defs", "block", "rmb", "dsb", "align", "even", "include", "incsrc", "use", "get", "incbin", "binary", "insert", "end", "ent", "entry", "macro", "rept", "dup", "repeat", "endm", "endr", "edup", "endmacro", "endrepeat", "device", "savesna", "savetap", "savenex", "savebin", "savetrd", "save3dos", "emptytap", "output", "display", "message", "echo", "print", "warning", "assert", "error", "fail", "opt", "list", "nolist", "title", "page", "section", "cpu", "setdp", "module", "endmodule", "slot", "mmu", "labelslist", "nam", "ttl", "spc", "disp", "phase", "dephase", "unphase", "by", "wo", "tx", "raw", "pet", "scr", "fill", "res", "source", "src", "to", "segment", "zeropage", "code", "data", "bss", "rodata", "import", "export", "importzp", "exportzp", "proc", "endproc", "scope", "endscope", "setcpu", "p02", "pc02", "incdir", "fcs", "dc.b", "dc.w", "dc.l", "ds.b", "ds.w", "ds.l", "dcb.b", "dcb.w", "dcb.l", "rs.b", "rs.w", "rs.l", "cnop", "processor", "seg", "seg.u", "rorg", "rend", "xdef", "xref", "set", "zmb", "for", "zone", "endzone", "define", "define+", "undefine", "defarray", "defarray+", "ifused", "ifnused", "struct", "ends", "dg", "dh", "inchob", "sldopt", "cspectmap", "d24", "outend", "savedev", "defg", "defh", "hex", "relocate_start", "relocate_end", "relocate_table", "code_c", "code_f", "data_c", "data_f", "bss_c", "bss_f", "basicupstart", "basicupstart2",
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.

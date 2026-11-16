@@ -1512,6 +1512,9 @@ pub struct Limoniter {
     preview_cycling: Option<f64>,
     /// Why a preview made from bytes has nothing to show, kept until the file changes.
     preview_note: Option<String>,
+    /// A module or sound file playing, and why the last one couldn't be.
+    music: Option<music_host::Music>,
+    music_note: Option<String>,
     project: Option<Project>,
     recent_projects: Vec<PathBuf>,
     /// Backing up or restoring on another thread, and whether it's a restore.
@@ -1798,6 +1801,8 @@ impl Limoniter {
             preview_picture: None,
             preview_cycling: None,
             preview_note: None,
+            music: None,
+            music_note: None,
             project: None,
             recent_projects,
             project_job: None,
@@ -2018,6 +2023,12 @@ impl Limoniter {
         if doc.hex_mode && crate::st_music::recognised(&doc.hex.read(0, 64), &doc.name()) {
             return Some(preview::Kind::Module);
         }
+        if doc.hex_mode && crate::tracker::pc_format(&doc.hex.read(0, 64)).is_some() {
+            return Some(preview::Kind::Module);
+        }
+        if doc.hex_mode && crate::sound::recognised(&doc.hex.read(0, 64), &doc.name()) {
+            return Some(preview::Kind::Sound);
+        }
         preview::kind_for_file(Some(&doc.path_or_name()), &doc.language_name(), &doc.text.format)
     }
 
@@ -2045,7 +2056,7 @@ impl Limoniter {
                 if std::fs::metadata(&full).is_ok_and(|meta| meta.permissions().readonly()) {
                     doc.set_read_only(true);
                 }
-                doc.preview_view = self.opening_view(Some(&full), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Document)));
+                doc.preview_view = self.opening_view(Some(&full), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound | preview::Kind::Document)));
                 self.recall_history(&mut doc, &full);
                 self.recall_tags(&mut doc, &full);
                 // A blank, untouched only tab gives way to the file.
@@ -2083,7 +2094,7 @@ impl Limoniter {
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.print_status = format!("{name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.", unpacked.packer.name(), unpacked.packed_size, unpacked.bytes.len());
         let mut doc = Document::from_image_file(format!("{} \u{203A} {name}", unpacked.packer.name()), unpacked.bytes, None);
-        doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Document)));
+        doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound | preview::Kind::Document)));
         panels::note_recent(&mut self.panels.recent, path);
         if self.docs.len() == 1 && self.docs[0].is_blank() {
             self.docs.clear();
@@ -4767,14 +4778,15 @@ impl Limoniter {
         let mut note = None;
         match kind {
             _ if doc.placeholder => note = Some("No file open".to_string()),
-            None => note = Some("There's no preview for this kind of file yet. There are previews for Markdown, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, ProTracker music modules, and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.".to_string()),
+            None => note = Some("There's no preview for this kind of file yet. There are previews for Markdown, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, tracker music modules (MOD, S3M, XM and IT), sound files (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC and AU), and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.".to_string()),
             Some(kind) if kind.reads_bytes() && !doc.text.is_disk_backed() => {
                 // These are made from the exact bytes, so they work from hex mode as well as text.
                 let version = if doc.hex_mode { doc.hex.version() | 1 << 63 } else { doc.text.version() };
                 let key = (doc.id, version, kind);
                 if self.preview_of != Some(key) {
                     // Only as much as could be shown is read, so a huge file isn't read in just to say it's too large.
-                    let enough = crate::pictures::MOST_PICTURE_BYTES.max(preview::MOST_PREVIEW_BYTES) + 1;
+                    let music = matches!(kind, preview::Kind::Module | preview::Kind::Sound);
+                    let enough = if music { preview::MOST_SOUND_BYTES } else { crate::pictures::MOST_PICTURE_BYTES.max(preview::MOST_PREVIEW_BYTES) } + 1;
                     let bytes = if doc.hex_mode { doc.hex.read(0, enough) } else { doc.text.encode(&doc.text.format, Lossy::Omit).unwrap_or_default() };
                     self.preview_screen = None;
                     self.preview_picture = None;
@@ -4782,7 +4794,11 @@ impl Limoniter {
                     self.preview_blocks.clear();
                     self.preview_note = None;
                     // Pictures are decoded rather than laid out, so they can be larger: a Photo CD image is 4 to 6 MB.
-                    let most = if kind == preview::Kind::Picture { crate::pictures::MOST_PICTURE_BYTES } else { preview::MOST_PREVIEW_BYTES };
+                    let most = match kind {
+                        preview::Kind::Picture => crate::pictures::MOST_PICTURE_BYTES,
+                        preview::Kind::Module | preview::Kind::Sound => preview::MOST_SOUND_BYTES,
+                        _ => preview::MOST_PREVIEW_BYTES,
+                    };
                     if bytes.len() > most {
                         note = Some(format!("This file is too large to preview. It can be up to {} MB.", most >> 20));
                     } else {
@@ -4874,6 +4890,13 @@ impl Limoniter {
                 crate::ansi_art::set_amiga_palette(self.amiga_palette);
                 self.preview_of = None;
                 self.save_settings_if_changed();
+            }
+        }
+        if matches!(kind, Some(preview::Kind::Module | preview::Kind::Sound)) && self.preview_note.is_none() {
+            let doc = &self.docs[self.active];
+            let head = if doc.hex_mode { doc.hex.read(0, 1084) } else { Vec::new() };
+            if kind == Some(preview::Kind::Sound) || music_host::playable(&head, &doc.name()) {
+                self.music_bar(ui);
             }
         }
         match (&self.preview_screen, kind) {
@@ -6521,6 +6544,8 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                // The music in front played from so many seconds in, and paused there so the picture is still.
+                "play-music" => self.play_music_at(value.parse().unwrap_or(0.0)),
                 // File properties shown, as Info shows it beside an image.
                 "properties" => self.panels.file_properties = value != "off",
                 // Files waiting to go on the image in front, as if dropped on it; semicolons between.
@@ -7058,6 +7083,7 @@ impl Limoniter {
         self.apply_themes(&ctx);
         self.poll_opticos_check();
         self.poll_update_check();
+        self.music_housekeeping();
         text_buffer::set_edit_prefs(self.prefs.edit);
         hex_buffer::set_bytes_per_row(self.prefs.hex_row);
         self.apply_tab_size();
@@ -7935,6 +7961,8 @@ mod ndk_host;
 mod st_host;
 #[path = "amiga_tools_host.rs"]
 mod amiga_tools_host;
+#[path = "music_host.rs"]
+mod music_host;
 #[path = "st_tools_host.rs"]
 mod st_tools_host;
 #[path = "c64_music_host.rs"]

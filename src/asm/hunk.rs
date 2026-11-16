@@ -23,9 +23,12 @@ pub const HUNK_BSS: u32 = 0x3EB;
 pub const HUNK_RELOC32: u32 = 0x3EC;
 pub const HUNK_SYMBOL: u32 = 0x3F0;
 pub const HUNK_END: u32 = 0x3F2;
-/// HUNK_DREL32, which executables use for 16-bit relocations (from Kickstart 2.0): not written, nor read here.
-#[cfg(test)]
+/// HUNK_DREL32, which executables use for 16-bit relocations (from Kickstart 2.0): read, not written.
 pub const HUNK_RELOC32SHORT: u32 = 0x3F7;
+/// HUNK_RELOC32SHORT as Kickstart 3.0's LoadSeg numbers it.
+pub const HUNK_RELOC32SHORT_V39: u32 = 0x3FC;
+pub const HUNK_NAME: u32 = 0x3E8;
+pub const HUNK_DEBUG: u32 = 0x3F1;
 
 /// What a section holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -304,7 +307,6 @@ fn labels_in(assembly: &Assembly, section: &Section) -> Vec<(String, i64)> {
 }
 
 /// A hunk of an executable, read back: its kind, memory, bytes (or BSS size) and relocations.
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoadedHunk {
     pub kind: Kind,
@@ -316,33 +318,46 @@ pub struct LoadedHunk {
     pub symbols: Vec<(String, u32)>,
 }
 
-/// Reads an executable's hunks, as LoadSeg would, to check one.
-#[cfg(test)]
+/// Reads an executable's hunks, as LoadSeg would: to check one, and to disassemble one. Debug and name hunks
+/// are passed over, and the 16-bit relocation tables of Kickstart 2.0's linkers (HUNK_RELOC32SHORT and
+/// HUNK_DREL32) read as the 32-bit ones.
 pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
     let mut at = 0;
-    let mut long = || -> Result<u32, String> {
-        let value = file.get(at..at + 4).ok_or("The file ends too soon.")?;
-        at += 4;
+    let long_at = |at: &mut usize| -> Result<u32, String> {
+        let value = file.get(*at..*at + 4).ok_or("The file ends too soon.")?;
+        *at += 4;
         Ok(u32::from_be_bytes(value.try_into().expect("four")))
     };
-    if long()? != HUNK_HEADER {
+    let word_at = |at: &mut usize| -> Result<u32, String> {
+        let value = file.get(*at..*at + 2).ok_or("The file ends too soon.")?;
+        *at += 2;
+        Ok(u32::from(u16::from_be_bytes(value.try_into().expect("two"))))
+    };
+    if long_at(&mut at)? != HUNK_HEADER {
         return Err("It isn't an Amiga executable: it doesn't start with HUNK_HEADER.".into());
     }
-    while long()? != 0 {}
-    let count = long()?;
-    let (first, last) = (long()?, long()?);
+    // Resident library names, which executables don't have, each a count of longs and then the name.
+    loop {
+        let n = long_at(&mut at)? as usize;
+        if n == 0 {
+            break;
+        }
+        at += n * 4;
+    }
+    let count = long_at(&mut at)?;
+    let (first, last) = (long_at(&mut at)?, long_at(&mut at)?);
     if count > 0xFFFF || last < first || last - first + 1 != count {
         return Err("Its header doesn't add up.".into());
     }
     let mut sizes = Vec::new();
     for _ in 0..count {
-        let size = long()?;
+        let size = long_at(&mut at)?;
         let memory = match size >> 30 {
             1 => Memory::Chip,
             2 => Memory::Fast,
             0 => Memory::Any,
             _ => {
-                long()?;
+                long_at(&mut at)?;
                 Memory::Any
             }
         };
@@ -350,13 +365,12 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
     }
     let mut hunks: Vec<LoadedHunk> = Vec::new();
     let mut current: Option<LoadedHunk> = None;
-    let mut at_short = None;
-    while let Ok(id) = long() {
+    while let Ok(id) = long_at(&mut at) {
         match id & 0x3FFF_FFFF {
             HUNK_CODE | HUNK_DATA | HUNK_BSS => {
                 let index = hunks.len();
                 let (size, memory) = *sizes.get(index).ok_or("It has more hunks than its header says.")?;
-                let length = long()? as usize * 4;
+                let length = long_at(&mut at)? as usize * 4;
                 let kind = match id & 0x3FFF_FFFF {
                     HUNK_CODE => Kind::Code,
                     HUNK_DATA => Kind::Data,
@@ -365,47 +379,62 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
                 let mut bytes = if kind == Kind::Bss {
                     Vec::new()
                 } else {
-                    let mut taken = Vec::with_capacity(length);
-                    for _ in 0..length / 4 {
-                        taken.extend(long()?.to_be_bytes());
-                    }
+                    let taken = file.get(at..at + length).ok_or("The file ends too soon.")?.to_vec();
+                    at += length;
                     taken
                 };
                 bytes.resize(size.max(bytes.len()), 0);
                 current = Some(LoadedHunk { kind, memory, bytes, relocations: Vec::new(), symbols: Vec::new() });
             }
             HUNK_RELOC32 => loop {
-                let n = long()?;
+                let n = long_at(&mut at)?;
                 if n == 0 {
                     break;
                 }
-                let target = long()?;
+                let target = long_at(&mut at)?;
                 for _ in 0..n {
-                    let place = long()?;
+                    let place = long_at(&mut at)?;
                     current.as_mut().ok_or("A relocation comes before its hunk.")?.relocations.push((place, target));
                 }
             },
-            HUNK_RELOC32SHORT => at_short = Some(()),
+            HUNK_RELOC32SHORT | HUNK_RELOC32SHORT_V39 => {
+                let begun = at;
+                loop {
+                    let n = word_at(&mut at)?;
+                    if n == 0 {
+                        break;
+                    }
+                    let target = word_at(&mut at)?;
+                    for _ in 0..n {
+                        let place = word_at(&mut at)?;
+                        current.as_mut().ok_or("A relocation comes before its hunk.")?.relocations.push((place, target));
+                    }
+                }
+                // The table is padded to a whole number of longs.
+                if (at - begun) % 4 != 0 {
+                    at += 2;
+                }
+            }
             HUNK_SYMBOL => loop {
-                let n = long()?;
+                let n = long_at(&mut at)?;
                 if n == 0 {
                     break;
                 }
-                let mut name = Vec::new();
-                for _ in 0..n & 0x00FF_FFFF {
-                    name.extend(long()?.to_be_bytes());
-                }
+                let length = (n & 0x00FF_FFFF) as usize * 4;
+                let mut name = file.get(at..at + length).ok_or("The file ends too soon.")?.to_vec();
+                at += length;
                 while name.last() == Some(&0) {
                     name.pop();
                 }
-                let value = long()?;
+                let value = long_at(&mut at)?;
                 current.as_mut().ok_or("A symbol comes before its hunk.")?.symbols.push((String::from_utf8_lossy(&name).into_owned(), value));
             },
+            HUNK_DEBUG | HUNK_NAME => {
+                let n = long_at(&mut at)? as usize;
+                at += n * 4;
+            }
             HUNK_END => hunks.extend(current.take()),
             other => return Err(format!("It has a hunk of a kind not read here (${other:X}).")),
-        }
-        if at_short.take().is_some() {
-            return Err("It has 16-bit relocations (HUNK_RELOC32SHORT), not read here.".into());
         }
     }
     hunks.extend(current.take());

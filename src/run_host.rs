@@ -1049,7 +1049,7 @@ impl Limoniter {
                 });
             }
             None if which_6502 => {
-                ui.label("Is this 6502 program for a Commodore 64 or a BBC Micro? Its code doesn't say.");
+                ui.label("Is this 6502 program for a Commodore 64, a BBC Micro or an Atari 2600? Its code doesn't say.");
                 ui.add_space(6.0);
                 if ui.button("Commodore 64").clicked() {
                     as_6502 = Some(Micro6502::C64);
@@ -1057,8 +1057,11 @@ impl Limoniter {
                 if ui.button("BBC Micro").clicked() {
                     as_6502 = Some(Micro6502::Bbc);
                 }
+                if ui.button("Atari 2600").clicked() {
+                    as_6502 = Some(Micro6502::Atari2600);
+                }
                 ui.add_space(6.0);
-                ui.add(egui::Label::new(RichText::new("It's remembered while the file is open. To say in the source, put ; machine: c64 or ; machine: bbc near the top.").color(theme::text_dim())).wrap());
+                ui.add(egui::Label::new(RichText::new("It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top.").color(theme::text_dim())).wrap());
                 ui.add_space(6.0);
                 close |= ui.button("Cancel").clicked();
             }

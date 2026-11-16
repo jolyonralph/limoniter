@@ -149,6 +149,29 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://www.winuae.net",
     },
+    Emulator {
+        id: "stella",
+        name: "Stella",
+        programs: &["Stella", "stella"],
+        folder_hints: &["stella"],
+        mac_apps: &[("Stella.app", "Stella")],
+        machines: &[Atari2600],
+        formats: &[A26],
+        link: Link::None,
+        website: "https://stella-emu.github.io",
+    },
+    // MAME's Atari 2600 needs no ROMs of its own: the cartridge is all there is.
+    Emulator {
+        id: "mame",
+        name: "MAME",
+        programs: &["mame", "mame64"],
+        folder_hints: &["mame"],
+        mac_apps: &[],
+        machines: &[Atari2600],
+        formats: &[A26],
+        link: Link::None,
+        website: "https://www.mamedev.org",
+    },
 ];
 
 /// A real Next on DeZog's debug cable, standing where an emulator would in a session.
@@ -253,6 +276,7 @@ impl Emulator {
             // The file is the configuration made for the run.
             "fs-uae" => args.push(file),
             "winuae" => args.extend(["-f".into(), file]),
+            "mame" => args.extend(["a2600".into(), "-cart".into(), file, "-skip_gameinfo".into()]),
             _ => args.push(file),
         }
         args

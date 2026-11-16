@@ -32,10 +32,10 @@
       <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
       <nav id="nav" class="nav">
         <a href="#features">Everyday work</a>
-        <a href="#compare">Compare and merge</a>
+        <a href="#compare">Compare</a>
         <a href="#retro">Older computers</a>
-        <a href="#machines">Machines</a>
-        <a href="#send">Send to device</a>
+        <a href="#develop">Development</a>
+        <a href="#send">Sending</a>
         <a href="#screens">Screenshots</a>
         <a href="#get">Download</a>
         <a href="guide/index.html">Guide</a>
@@ -51,7 +51,7 @@
           <p class="eyebrow">Free and open source · Windows, macOS and Linux</p>
           <h1>A powerful editor for today's files, and one that speaks <span class="speaks-line"><span class="speaks">PETSCII</span><span class="cursor" aria-hidden="true"></span></span></h1>
           <p class="lead">Limoniter is a full-strength text and hex editor for everyday work. It has column editing, an undo tree, Find in Files, <a href="#compare">folder and file compare with three-way merge</a>, code layout, macros, scripts and add-ons, and files of 10 GB open in milliseconds.</p>
-          <p class="lead">It's also the only editor that knows the files of older computers. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, lists their BASIC, and sends your work back to the machine.</p>
+          <p class="lead">It's also the only editor that knows the files of older computers, and a workshop for making new software for them. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, and lists their BASIC. It <a href="#develop">assembles and disassembles</a> Z80, 6502, 6809 and 68000 code, runs it in an emulator with <kbd>F9</kbd>, debugs it there at your source line, and sends your work back to the machine.</p>
           <div class="actions">
             <a class="button primary" href="#get">Download</a>
             <a class="button" href="https://github.com/jolyonralph/limoniter">Source on GitHub</a>
@@ -100,8 +100,8 @@
     <section class="numbers" aria-label="Limoniter in numbers">
       <div class="wrap numbers-grid">
         <div><strong>10 GB</strong><span>files opened in milliseconds, edited and searched</span></div>
-        <div><strong>1,000+</strong><span>automated tests, on Windows, macOS and Linux</span></div>
-        <div><strong>181</strong><span>single-byte character sets, from CP437 to Mode 7</span></div>
+        <div><strong>1,800+</strong><span>automated tests, on Windows, macOS and Linux</span></div>
+        <div><strong>201</strong><span>single-byte character sets, from CP437 to Mode 7</span></div>
         <div><strong>50+</strong><span>disk, tape and archive formats</span></div>
       </div>
     </section>
@@ -204,7 +204,7 @@
         <div class="cards">
           <article class="card">
             <h3>Their character sets</h3>
-            <p>181 single-byte sets, including PETSCII, ATASCII, ZX Spectrum, BBC Mode 7, Amiga, MSX, Apple II, TRS-80, 26 teletext sets and 18 classic Mac encodings. Bytes with no Unicode equivalent are carried through exactly.</p>
+            <p>201 single-byte sets, including PETSCII, ATASCII, ZX Spectrum, BBC Mode 7, Amiga, MSX, Apple II, TRS-80, 26 teletext sets and 18 classic Mac encodings. Bytes with no Unicode equivalent are carried through exactly.</p>
           </article>
           <article class="card">
             <h3>Their screens and pictures</h3>
@@ -230,7 +230,70 @@
       </div>
     </section>
 
-    <section id="machines" class="section alt">
+    <section id="develop" class="section alt">
+      <div class="wrap">
+        <h2>For writing new software for them</h2>
+        <p class="section-lead">The demo scene and homebrew games are still going strong, and Limoniter is built for them. The assemblers are built in, <kbd>F9</kbd> runs the program in an emulator, and the debugger stops it at your source line. You don't need to install anything to begin.</p>
+        <div class="cards">
+          <article class="card">
+            <h3>Assemblers built in</h3>
+            <p>Z80 (with the Spectrum Next's instructions), 6502, 6809 and 68000, in the syntaxes people use: sjasmplus, ACME, KickAssembler, 64tass, DASM, vasm and Devpac. They make tapes, <code>.prg</code> files, disks, C64 and Atari 2600 cartridges, Atari ST programs and Amiga executables, and mistakes are marked as you type. Your own assemblers can be used instead.</p>
+          </article>
+          <article class="card">
+            <h3><kbd>F9</kbd> runs it</h3>
+            <p>On the built-in ZX Spectrum, with nothing to install, or in VICE, ZEsarUX, Hatari, FS-UAE, WinUAE, b2, openMSX, XRoar, Stella or MAME. An Amiga program boots straight into it, and an ST program can go on a bootable floppy. <strong>Get an emulator</strong> installs the ones you don't have.</p>
+          </article>
+          <article class="card">
+            <h3>Debugging at source level</h3>
+            <p>Breakpoints beside your lines, Step and Step over, registers, the call stack, watches, conditional breakpoints and stopping when memory is written. This works on the built-in Spectrum, ZEsarUX, VICE, Hatari, FS-UAE and a real Next. A profiler shows where the time goes, and Spectrum BASIC can be stepped line by line.</p>
+          </article>
+          <article class="card">
+            <h3>Disassembly that builds again</h3>
+            <p>Z80, 6502, 6809, 68000 and x86 code is followed from where it starts into labelled source that assembles back to exactly the same bytes. An Amiga program comes back as sections with its relocations as labels, so it can be changed and rebuilt. Its hardware, library calls and TOS calls are named.</p>
+          </article>
+          <article class="card">
+            <h3>It knows the hardware</h3>
+            <p>Hover over <code>$dff180</code> or <code>COLOR00</code> for the register, its bits and what they do. This covers the Amiga's custom chips and CIAs, the ST's hardware and TOS calls, and the C64's VIC-II, SID, CIAs and KERNAL. 6502 cycle counts sit beside every line for timing raster code, and the Amiga's library functions come from the NDK.</p>
+          </article>
+          <article class="card">
+            <h3>The scene's toolbox</h3>
+            <p>There are demo starters that run at once: Amiga copper bars, ST Timer B rasters and C64 stable rasters. Shrinkler, Cranker, ZX0, LZSA, Exomizer and more pack the result. Replay calls for MOD, SNDH and SID music are written for you. There are bitplane, sprite and charset converters, sine tables in any assembler's syntax, and copper lists, blitter minterms and MFP timers worked out. Modules play in the preview.</p>
+          </article>
+        </div>
+        <div class="split develop-split">
+          <div>
+            <h3>Read the classics, then change them</h3>
+            <p><strong>Tools › Disassemble</strong> works out what a file is and where its code starts. That can be a C64 program, a Spectrum tape or snapshot, an Atari binary, a CoCo binary, an Amiga program or boot block, an Atari ST program or boot sector, an Atari 2600 cartridge with any of its bank-switching schemes, a Mega Drive cartridge, a Kickstart ROM, or a DOS, Windows or Linux program.</p>
+            <ul class="ticks">
+              <li><strong>Only what runs is code.</strong> The code is followed through every branch, jump, call and interrupt vector, so tables and text stay data.</li>
+              <li><strong>It always rebuilds.</strong> The source is assembled again before you see it, and anything that wouldn't come back byte for byte is kept as data. vasm makes the same bytes too.</li>
+              <li><strong>It explains itself.</strong> Each library call, chip register, GEMDOS function and Line-A routine is named beside the instruction.</li>
+              <li><strong>It reviews timing.</strong> On the 2600, each instruction's cycles are beside it, and any code that runs past a scanline's 76 cycles after a WSYNC is pointed out.</li>
+            </ul>
+          </div>
+          <div class="terminal" aria-label="An Amiga program, disassembled">
+            <div class="terminal-bar"><span></span><span></span><span></span></div>
+<pre><code><span class="dim">        section hunk0,code</span>
+<b>L0_000000:</b>
+        movea.l 4.w,a6
+        lea     L1_000000,a1
+        jsr     -552(a6)        <span class="dim">; exec OpenLibrary</span>
+        move.l  d0,L1_00000C
+        movea.l L1_00000C,a6
+        jsr     -60(a6)         <span class="dim">; dos Output</span>
+        lea     $DFF000,a5      <span class="dim">; the custom chips</span>
+        move.w  #$F00,$180(a5)  <span class="dim">; COLOR00</span>
+        move.l  #L0_000046,$6C.w
+        rts
+<b>L0_000046:</b>
+        move.w  #$20,$DFF09C    <span class="dim">; INTREQ</span>
+        rte</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="machines" class="section">
       <div class="wrap">
         <h2>Pick your machine</h2>
         <p class="section-lead">Here's what Limoniter knows about each one.</p>
@@ -240,7 +303,7 @@
       </div>
     </section>
 
-    <section id="send" class="section">
+    <section id="send" class="section alt">
       <div class="wrap split">
         <div>
           <h2>From the editor to the real machine</h2>
@@ -267,7 +330,7 @@
       </div>
     </section>
 
-    <section id="screens" class="section alt">
+    <section id="screens" class="section">
       <div class="wrap">
         <h2>Screenshots</h2>
         <div class="gallery">
@@ -307,7 +370,7 @@
       </div>
     </section>
 
-    <section id="get" class="section">
+    <section id="get" class="section alt">
       <div class="wrap">
         <h2>Get Limoniter</h2>
         <div class="platforms">
@@ -340,7 +403,7 @@ cargo build --release</code></pre>
         </div>
       </div>
     </section>
-    <section id="name" class="section alt">
+    <section id="name" class="section">
       <div class="wrap">
         <h2>Why is it called Limoniter?</h2>
         <p class="section-lead">Limonite is natural rust. The name nods to the language Limoniter is written in, and to the rust-brown iron oxide that older computers kept their data in.</p>

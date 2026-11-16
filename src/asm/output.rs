@@ -81,6 +81,7 @@ const BBC_MOS_CALLS: [i64; 13] = [0xFFCE, 0xFFD1, 0xFFD4, 0xFFD7, 0xFFDA, 0xFFDD
 pub enum Micro6502 {
     C64,
     Bbc,
+    Atari2600,
 }
 
 impl Micro6502 {
@@ -95,6 +96,7 @@ impl Micro6502 {
             match value {
                 "c64" | "commodore 64" | "commodore64" => Some(Micro6502::C64),
                 "bbc" | "bbc micro" | "bbcmicro" => Some(Micro6502::Bbc),
+                "atari 2600" | "atari2600" | "2600" | "vcs" | "atari vcs" => Some(Micro6502::Atari2600),
                 _ => None,
             }
         })
@@ -118,6 +120,13 @@ pub fn machine_6502(assembly: &Assembly) -> Option<Micro6502> {
     let called = |(op, address): (u8, i64)| matches!(op, 0x20 | 0x4C).then_some(address);
     // $FFE7, the C64's CLALL, is the BBC's OSNEWL as well, so it says neither.
     let kernal = |address: i64| (0xFF81..=0xFFF3).contains(&address) && (address - 0xFF81) % 3 == 0 && address != 0xFFE7;
+    // An Atari 2600 cartridge: code that waits for WSYNC, filling a cartridge's room up to its vectors.
+    if let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest())
+        && assembly.lines.iter().any(|p| p.bytes[..] == [0x85, 0x02])
+        && (matches!(high - low, 2048 | 4096) && high & 0xFFF == 0 || matches!(high - low, 8192 | 12288 | 16384 | 32768) && low == 0)
+    {
+        return Some(Micro6502::Atari2600);
+    }
     let bbc = used().filter_map(called).any(|a| BBC_MOS_CALLS.contains(&a)) || used().any(|(_, a)| (0xFC00..=0xFEFF).contains(&a));
     let c64 = used().filter_map(called).any(kernal) || used().any(|(_, a)| (0xD000..=0xDFFF).contains(&a));
     match (bbc, c64) {

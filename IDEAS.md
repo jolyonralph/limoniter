@@ -13,12 +13,12 @@ When an idea comes up, it goes in one of the lists, even if it may never be done
 Started on 15 November 2026 from what was still open in `MISSING_FEATURES.md` and `COMPARISON.md` (checked against
 `FEATURES.md`), and from the 0.9 releases.
 
-**0.10** marks a suggestion for the next version, which is yours to change. **Size** is a rough guess: S small,
+**0.11** marks a suggestion for the next version, which is yours to change. **Size** is a rough guess: S small,
 M medium, L large. **From** says where the idea came from.
 
 ## A. Needs you
 
-| Idea | What's needed from you | 0.10 | Size | From |
+| Idea | What's needed from you | 0.11 | Size | From |
 |---|---|---|---|---|
 | **Test the universal Mac app on an Intel Mac** | Run 0.9.1 on the 2018 MacBook Pro and say what goes wrong | ✓ | S | 0.9.1 |
 | **Greaseweazle testing**: flux images read from real disks | A Greaseweazle and disks of each kind, read and sent back as `.scp` or `.hfe` files | ✓ | M | FEATURES (Floppy archivists) |
@@ -35,8 +35,13 @@ M medium, L large. **From** says where the idea came from.
 
 ## B. Claude can do alone
 
-| Idea | Why | 0.10 | Size | From |
+| Idea | Why | 0.11 | Size | From |
 |---|---|---|---|---|
+| **CP/M formats examined more widely, with reading tested**: every disk format in `cpm_formats.rs` checked against cpmtools' diskdefs and real images (Kaypro, Osborne, Epson QX-10, 8-inch IBM, Apple II CP/M, PCW, CPC, NC/ZCN), user areas, CP/M 3 date stamps and passwords, and files in CP/M's own formats (`.com` disassembled as 8080 or Z80, `.prn`, `.sub`, `.lbr` libraries, squeezed `.?q?` and crunched `.?z?` files) | Reading is worked out from the directory, but only some of the 82 formats have been tried against real images; libraries and squeezed files are how most CP/M software was passed around | ✓ | M | asked 16 November 2026 |
+| **A built-in CP/M emulator**: CP/M 2.2 run inside Limoniter, a Z80 (rustzx-z80, already used by the Spectrum) with 64K of memory and the BDOS's calls answered by Limoniter itself, as RunCPM and iz-cpm do, so no CP/M or ROM is needed; its drives a folder on the computer or a CP/M disk image, its console the terminal panel (ADM-3A and VT52 codes turned into ANSI). Then `.com` files and assembled 8080/Z80 source would run with F9, and MBASIC, BBC BASIC (Z80) and Turbo Pascal could be run on what's in the editor | Viable: CP/M programs talk to the machine only through the BDOS (address 5) and BIOS jump table, which are a few dozen calls; the Z80 core is in the build already | ✓ | M | asked 16 November 2026 |
+| **More tracker playback**: Impulse Tracker's resonant filters, pitch envelopes, sample and instrument vibrato (FastTracker's automatic vibrato too), duplicate note checks and its overall level matched exactly; then more formats to play: MultiTracker (`.mtm`), Composer 669 (`.669`), Scream Tracker 2 (`.stm`), Ultra Tracker (`.ult`), OctaMED (`.med`, `.mmd0`–`3`), Oktalyzer (`.okt`) and DigiBooster | 0.11 plays MOD, S3M, XM and IT; these are what's left of IT, and the next most common formats on the Mod Archive. libopenmpt (ffmpeg here has it) is the reference to check against | | M | asked 16 November 2026 |
+| **Chip music played**: YM files (register dumps, so an AY-3-8910/YM2149 is all that's needed), then SNDH and Spectrum `.ay` (a 68000 or Z80 running the player, with the sound chip), and C64 SID tunes (a 6502 and a SID: the hardest) | The ST's and C64's music is described but plays only in VICE's vsid today; YM is the easiest, a small emulation of one chip | | M–L | asked 16 November 2026 |
+| **Save the music as a WAV**, from any module or sound file that plays, and the Amiga's 8SVX samples taken out of a module | So a tune can be used elsewhere, or its samples looked at | | S | asked 16 November 2026 |
 | **Tile and cascade documents**, and **scroll two views together** outside Compare | Several files side by side, beyond the split view; the window shows one document at a time today, so this needs room made for several | ✓ | M | MISSING_FEATURES 42 |
 | **BBC Micro development tools**: BeebAsm as an installed assembler, a guide to the MOS calls (OSWRCH, OSBYTE, OSWORD), vectors and the 6845, System VIA and video ULA on hover, Mode 7 and mode 0–6 starters, and a debugger (through b2's or another emulator's remote protocol, as with VICE) | Matching what the Amiga, ST and C64 got in 0.9 | | L | asked 15 November 2026 |
 | **More 6502 machines for F9**: Acorn Electron (the BBC's MOS calls, a disc or UEF tape; Elkulator or MAME), Atari 8-bit (an `.xex`, run in Altirra or atari800), Apple II (a DOS 3.3 disk that BRUNs it; AppleWin), Oric (a `.tap`; Oricutron), and VIC-20, Plus/4 and PET as choices for `; machine:` beside the C64, since VICE runs them already | 6502 source runs only on a C64 or a BBC Micro today | | M each | 6502 machine choice |
@@ -55,7 +60,9 @@ M medium, L large. **From** says where the idea came from.
 | **Amstrad PCW**: LocoScript 1–4 documents to text or RTF with their styles; Mallard BASIC listed and tokenised; programs run in JOYCE or MAME. (Its disks are read already: DSK images by the disk specification in their boot sector, raw 720K images as cpmtools' CF2DD.) | LocoScript is what most PCW owners' files are. No description of LocoScript's or Mallard BASIC's files has been found, so these wait for real files to work from | ✓ | L | Amstrad PCW, Z88 and NC100 (priority) |
 | **Cambridge Z88**: programs run in OZvm or MAME (PipeDream, file cards and OZ calls are done) | |  | M | Amstrad PCW, Z88 and NC100 (priority) |
 | **Amstrad NC100, NC150 and NC200**: cards the NC's own software keeps its files on (ZCN's cards and program cards are read); programs run in NC100em or MAME | No description of the NC's own card file system has been found; a real card image to work from would do | | M | Amstrad PCW, Z88 and NC100 (priority) |
-| **A 68000 disassembler**, for Atari ST programs, Amiga hunk executables and raw code, followed as the Z80, 6502 and 6809 are | The 68000 can be assembled, run and debugged but not disassembled | | M–L | File formats page |
+| **More for the Atari 2600**: a debugger through MAME's Lua scripting (MAME's GDB stub doesn't know the 6507) or Stella's; the timing review followed through branches and loops, not just straight-line code; the undocumented opcodes some cartridges use (LAX, SAX, DCP and the NOPs that switch banks); more bank switching (3E, UA, EF, F0, CV, the ARM-based Harmony and Melody); and cartridges opened as a browser of their banks | 0.11 reads, disassembles, builds and runs 2600 cartridges | | M | Atari 2600 development |
+| **Other cartridge systems**, to consider after the 2600 (asked 16 November 2026): the Atari 7800 and 5200, ColecoVision, Intellivision, the Vectrex (its 6809 is assembled already), the NES and Game Boy, the Master System and Game Gear (Z80), the Mega Drive (its 68000 is assembled and disassembled already) and the PC Engine, each read, disassembled with its hardware named, and run in MAME or its own emulator | MAME runs most of them with one command line | | L | asked 16 November 2026 |
+| **More from the 68000 disassembler**: the 68010 to 68060's instructions (and the FPU's and MMU's), Amiga libraries' bases followed through more ways of keeping them, structures' fields named from the NDK's headers (`$14(a6)` as `LIB_VERSION`), and copper lists in data shown as MOVE and WAIT | 0.11 disassembles the plain 68000; these make more of what's out there readable | | M | 68000 disassembler |
 | **Color BASIC and Dragon BASIC tokenised** from a listing, so programs can be added to Color Computer disks and tapes as BASIC | They're listed but not written | | M | File formats page |
 | **Huge files**: fewer commands set aside above 64 MB (Fold all, the function list, previews, BASIC listings, part history) | Every command available, as UltraEdit and EmEditor manage | | L | FEATURES, COMPARISON |
 | **Huge files**: UTF-16 files and hex mode above 1 GB; very long lines without slowing the window | Today these are read whole | | L | MISSING_FEATURES (Huge files) |
@@ -71,6 +78,10 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
+| Atari 2600: cartridges recognised with their bank switching, disassembled into DASM source that rebuilds them (registers named, cycles, scanline overruns pointed out), DASM source built with F9 and run in Stella or MAME, and a starter frame | 0.11.0 |
+| A 68000 disassembler: Amiga programs (hunks as sections, relocations as labels, so they rebuild), Atari ST programs, boot blocks, Mega Drive cartridges and Kickstart ROMs, with hardware, library and TOS calls named | 0.11.0 |
+| Tracker music played in the preview: ProTracker, Scream Tracker 3, FastTracker 2 and Impulse Tracker modules, with play, pause, loop, a position slider and the pattern as it plays (channels switched off and on by clicking) | 0.11.0 |
+| Sound files played: MP3, WAV, FLAC, Ogg Vorbis and AIFF (Symphonia), and the Amiga's 8SVX, Creative VOC and Sun/NeXT AU (read by Limoniter) | 0.11.0 |
 | A universal Mac app, for Intel Macs as well as Apple Silicon | 0.9.1 |
 | 6502 source on the BBC Micro: source that calls the MOS goes on a disc that *RUNs it, and runs in b2 with F9 | 0.10.0 |
 | Character sets for the Amstrad PCW (text, renamed so it's found, and its screen set), the Cambridge Z88 and the Amstrad NC100, NC150 and NC200 | 0.10.0 |

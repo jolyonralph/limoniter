@@ -173,14 +173,25 @@ Pictures are shown at the machine's own pixel shape beside their bytes, and any 
 
 ## Sound and music
 
-Music files open in hex with everything the file says about itself beside them.
+Music and sound files open with everything the file says about itself beside them, and those marked play there: Play, pause, stop, loop, and a slider to move through it, with a module's pattern shown as it plays and each channel switched off or on by clicking its number. Nothing here changes a music file, so there's no column for writing.
 
-| Format | Endings | Read | Write | Opens as | Notes |
-|---|---|---|---|---|---|
-| ProTracker module | `.mod`, `mod.*` | ✓ | ✗ | hex | ProTracker, NoiseTracker, StarTrekker, multichannel and 15-sample Soundtracker modules; not played. |
-| C64 SID tune | `.sid` | ✓ | ✗ | hex | PSID and RSID versions 1 to 4; its code opens as a program and disassembles. |
-| Atari ST SNDH music | `.sndh`, `.snd` | ✓ | ✗ | hex | Packed or not; tunes, timers and flags described. |
-| Atari ST YM music | `.ym` | ✓ | ✗ | hex | YM2!, YM3!, YM3b, YM5! and YM6!, packed with LHA or not. |
+| Format | Endings | Plays | Opens as | Notes |
+|---|---|---|---|---|
+| ProTracker module | `.mod`, `mod.*` | ✓ | hex | ProTracker, NoiseTracker, StarTrekker, multichannel and 15-sample Soundtracker modules, with ProTracker's effects and its period limits. |
+| Scream Tracker 3 module | `.s3m` | ✓ | hex | 8- and 16-bit samples, ST3's shared effect memory and fast volume slides; AdLib channels aren't played. |
+| FastTracker 2 module | `.xm` | ✓ | hex | Instruments with volume and panning envelopes, fadeout, linear or Amiga pitch, and the volume column's effects; instruments' automatic vibrato isn't played. |
+| Impulse Tracker module | `.it` | ◐ | hex | Instruments, envelopes, new note actions, surround and IT 2.14 and 2.15 compressed samples; the overall level can differ from Impulse Tracker's, and filters, pitch envelopes and sample vibrato aren't played. |
+| MP3 | `.mp3`, `.mp2` | ✓ | hex | MPEG audio layers 1, 2 and 3, with their ID3 tags. |
+| WAV | `.wav` | ✓ | hex | PCM of any size, float, and IMA and Microsoft ADPCM. |
+| FLAC | `.flac` | ✓ | hex | With its tags. |
+| Ogg Vorbis | `.ogg`, `.oga` | ✓ | hex | With its tags. |
+| AIFF | `.aif`, `.aiff`, `.aifc` | ✓ | hex | Classic Mac and Amiga sound. |
+| Amiga IFF 8SVX sample | `.8svx`, `.iff` | ✓ | hex | Plain or Fibonacci-delta packed, mono or stereo, with its name, author and notes. |
+| Creative Voice File | `.voc` | ✓ | hex | Sound Blaster sound from DOS games: 8-bit and 16-bit blocks, silences and stereo. |
+| Sun and NeXT audio | `.au`, `.snd` | ✓ | hex | μ-law, A-law, 8- to 32-bit linear and float. |
+| C64 SID tune | `.sid` | ✗ | hex | PSID and RSID versions 1 to 4; its code opens as a program and disassembles, and it plays in VICE's vsid. |
+| Atari ST SNDH music | `.sndh`, `.snd` | ✗ | hex | Packed or not; tunes, timers and flags described. |
+| Atari ST YM music | `.ym` | ✗ | hex | YM2!, YM3!, YM3b, YM5! and YM6!, packed with LHA or not. |
 
 ## Disk images
 
@@ -278,6 +289,7 @@ Cartridge images open as a browser of their ROM chips, each a file by bank and a
 | Format | Endings | Read | Write | Opens as | Notes |
 |---|---|---|---|---|---|
 | Commodore 64 cartridge (CRT) | `.crt` | ✓ | ◐ | directory | Every hardware type read; only normal 8K and 16K cartridges are made, as cartconv makes them. |
+| Atari 2600 cartridge | `.a26`, `.bin` | ✓ | ✓ | hex | 2K to 32K: 4K, F8, F6, F4 (and Superchip), FA, E0, E7, FE, 3F and DPC told apart; disassembled into DASM source that rebuilds it, and made from DASM source with F9 to run in Stella or MAME. |
 
 ## Other
 

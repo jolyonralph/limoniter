@@ -1,10 +1,10 @@
 //! Getting an emulator that isn't installed, the simplest way there is on this computer, and only when asked:
 //!
-//! - Windows: the emulator's latest release from its own GitHub page (ZEsarUX, b2, openMSX, FS-UAE, VICE), unpacked
+//! - Windows: the emulator's latest release from its own GitHub page (ZEsarUX, b2, openMSX, FS-UAE, VICE, Stella), unpacked
 //!   into Limoniter's emulators folder beside its settings, where Find emulators then finds it.
-//! - Linux: Debian's and Ubuntu's own packages (Fuse, VICE, Hatari, openMSX, FS-UAE), installed with apt in the
+//! - Linux: Debian's and Ubuntu's own packages (Fuse, VICE, Hatari, openMSX, FS-UAE, Stella, MAME), installed with apt in the
 //!   Terminal panel, where the command can be seen and the password typed.
-//! - A Mac: Homebrew (VICE, Hatari, openMSX, FS-UAE, XRoar, and ZEsarUX's app), in the Terminal panel the same way,
+//! - A Mac: Homebrew (VICE, Hatari, openMSX, FS-UAE, XRoar, MAME, and ZEsarUX's and Stella's apps), in the Terminal panel the same way,
 //!   when Homebrew is installed.
 //! - Anything else: the emulator's own download page.
 
@@ -34,6 +34,7 @@ fn github(id: &str) -> Option<(&'static str, fn(&str) -> bool)> {
         "openmsx" => ("openMSX/openMSX", |n| n.ends_with("-windows-vc-x64-bin.zip")),
         "fs-uae" => ("FrodeSolheim/fs-uae", |n| n.ends_with("_Windows_x86-64.zip")),
         "vice" => ("VICE-Team/svn-mirror", |n| n.starts_with("GTK3VICE-") && n.ends_with("-win64.zip")),
+        "stella" => ("stella-emu/stella", |n| n.starts_with("Stella-") && n.ends_with("-windows.zip")),
         _ => return None,
     })
 }
@@ -46,6 +47,8 @@ fn apt_package(id: &str) -> Option<&'static str> {
         "hatari" => "hatari",
         "openmsx" => "openmsx",
         "fs-uae" => "fs-uae",
+        "stella" => "stella",
+        "mame" => "mame",
         _ => return None,
     })
 }
@@ -59,6 +62,8 @@ fn brew_package(id: &str) -> Option<(&'static str, bool)> {
         "fs-uae" => ("fs-uae", false),
         "xroar" => ("xroar", false),
         "zesarux" => ("zesarux", true),
+        "stella" => ("stella", true),
+        "mame" => ("mame", false),
         _ => return None,
     })
 }

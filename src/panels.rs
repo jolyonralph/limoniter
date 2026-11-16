@@ -664,7 +664,7 @@ struct Properties {
     owners: Option<(PathBuf, Owners)>,
 }
 
-/// A ProTracker module's sections for File properties, read again only when the file changes.
+/// A music module's or sound file's sections for File properties, read again only when the file changes.
 fn module_sections<'a>(cache: &'a mut Option<((u64, u64), Vec<crate::media::InfoSection>)>, key: (u64, u64), doc: &DocView<'_>) -> &'a [crate::media::InfoSection] {
     if cache.as_ref().is_none_or(|(k, _)| *k != key) {
         let named = crate::protracker::named_as_module(&doc.name);
@@ -673,6 +673,10 @@ fn module_sections<'a>(cache: &'a mut Option<((u64, u64), Vec<crate::media::Info
             crate::sid::read(&doc.hex.read(0, doc.hex.len())).map(|t| t.sections()).unwrap_or_default()
         } else if st {
             crate::st_music::read(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|m| m.sections()).unwrap_or_default()
+        } else if doc.hex_mode && crate::tracker::pc_format(&doc.hex.read(0, 64)).is_some() && doc.hex.len() <= 256 << 20 {
+            crate::tracker::load(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|m| m.sections()).unwrap_or_default()
+        } else if doc.hex_mode && crate::sound::recognised(&doc.hex.read(0, 64), &doc.name) && doc.hex.len() <= 512 << 20 {
+            crate::sound::info(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|i| i.sections()).unwrap_or_default()
         } else if doc.hex_mode && (named || crate::protracker::has_module_tag(&doc.hex.read(0, 1084))) && doc.hex.len() <= 64 << 20 {
             crate::protracker::read(&doc.hex.read(0, doc.hex.len()), &doc.name).map(|m| m.sections()).unwrap_or_default()
         } else if !doc.hex_mode && named && !doc.text.is_disk_backed() {

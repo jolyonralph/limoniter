@@ -1138,13 +1138,12 @@
 </tr>
 </tbody></table></div>
 <h2 id="sound-and-music">Sound and music</h2>
-<p>Music files open in hex with everything the file says about itself beside them.</p>
+<p>Music and sound files open with everything the file says about itself beside them, and those marked play there: Play, pause, stop, loop, and a slider to move through it, with a module's pattern shown as it plays and each channel switched off or on by clicking its number. Nothing here changes a music file, so there's no column for writing.</p>
 <div class="table-scroll" tabindex="0"><table class="compare">
 <thead><tr>
 <th scope="col">Format</th>
 <th scope="col">Endings</th>
-<th scope="col">Read</th>
-<th scope="col">Write</th>
+<th scope="col">Plays</th>
 <th scope="col">Opens as</th>
 <th scope="col">Notes</th>
 </tr></thead><tbody>
@@ -1152,22 +1151,96 @@
 <th scope="row">ProTracker module</th>
 <td><code>.mod</code>, <code>mod.*</code></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
-<td class="no"><span class="mark" aria-label="No">✗</span></td>
 <td>hex</td>
-<td>ProTracker, NoiseTracker, StarTrekker, multichannel and 15-sample Soundtracker modules; not played.</td>
+<td>ProTracker, NoiseTracker, StarTrekker, multichannel and 15-sample Soundtracker modules, with ProTracker's effects and its period limits.</td>
+</tr>
+<tr>
+<th scope="row">Scream Tracker 3 module</th>
+<td><code>.s3m</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>8- and 16-bit samples, ST3's shared effect memory and fast volume slides; AdLib channels aren't played.</td>
+</tr>
+<tr>
+<th scope="row">FastTracker 2 module</th>
+<td><code>.xm</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Instruments with volume and panning envelopes, fadeout, linear or Amiga pitch, and the volume column's effects; instruments' automatic vibrato isn't played.</td>
+</tr>
+<tr>
+<th scope="row">Impulse Tracker module</th>
+<td><code>.it</code></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
+<td>hex</td>
+<td>Instruments, envelopes, new note actions, surround and IT 2.14 and 2.15 compressed samples; the overall level can differ from Impulse Tracker's, and filters, pitch envelopes and sample vibrato aren't played.</td>
+</tr>
+<tr>
+<th scope="row">MP3</th>
+<td><code>.mp3</code>, <code>.mp2</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>MPEG audio layers 1, 2 and 3, with their ID3 tags.</td>
+</tr>
+<tr>
+<th scope="row">WAV</th>
+<td><code>.wav</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>PCM of any size, float, and IMA and Microsoft ADPCM.</td>
+</tr>
+<tr>
+<th scope="row">FLAC</th>
+<td><code>.flac</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>With its tags.</td>
+</tr>
+<tr>
+<th scope="row">Ogg Vorbis</th>
+<td><code>.ogg</code>, <code>.oga</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>With its tags.</td>
+</tr>
+<tr>
+<th scope="row">AIFF</th>
+<td><code>.aif</code>, <code>.aiff</code>, <code>.aifc</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Classic Mac and Amiga sound.</td>
+</tr>
+<tr>
+<th scope="row">Amiga IFF 8SVX sample</th>
+<td><code>.8svx</code>, <code>.iff</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Plain or Fibonacci-delta packed, mono or stereo, with its name, author and notes.</td>
+</tr>
+<tr>
+<th scope="row">Creative Voice File</th>
+<td><code>.voc</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Sound Blaster sound from DOS games: 8-bit and 16-bit blocks, silences and stereo.</td>
+</tr>
+<tr>
+<th scope="row">Sun and NeXT audio</th>
+<td><code>.au</code>, <code>.snd</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>μ-law, A-law, 8- to 32-bit linear and float.</td>
 </tr>
 <tr>
 <th scope="row">C64 SID tune</th>
 <td><code>.sid</code></td>
-<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td class="no"><span class="mark" aria-label="No">✗</span></td>
 <td>hex</td>
-<td>PSID and RSID versions 1 to 4; its code opens as a program and disassembles.</td>
+<td>PSID and RSID versions 1 to 4; its code opens as a program and disassembles, and it plays in VICE's vsid.</td>
 </tr>
 <tr>
 <th scope="row">Atari ST SNDH music</th>
 <td><code>.sndh</code>, <code>.snd</code></td>
-<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td class="no"><span class="mark" aria-label="No">✗</span></td>
 <td>hex</td>
 <td>Packed or not; tunes, timers and flags described.</td>
@@ -1175,7 +1248,6 @@
 <tr>
 <th scope="row">Atari ST YM music</th>
 <td><code>.ym</code></td>
-<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td class="no"><span class="mark" aria-label="No">✗</span></td>
 <td>hex</td>
 <td>YM2!, YM3!, YM3b, YM5! and YM6!, packed with LHA or not.</td>
@@ -1735,6 +1807,14 @@
 <td class="part"><span class="mark" aria-label="In part">◐</span></td>
 <td>directory</td>
 <td>Every hardware type read; only normal 8K and 16K cartridges are made, as cartconv makes them.</td>
+</tr>
+<tr>
+<th scope="row">Atari 2600 cartridge</th>
+<td><code>.a26</code>, <code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>2K to 32K: 4K, F8, F6, F4 (and Superchip), FA, E0, E7, FE, 3F and DPC told apart; disassembled into DASM source that rebuilds it, and made from DASM source with F9 to run in Stella or MAME.</td>
 </tr>
 </tbody></table></div>
 <h2 id="other">Other</h2>

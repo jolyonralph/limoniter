@@ -317,7 +317,7 @@ impl Limoniter {
                 let size = if assembled.tape.is_some() { format!("A {} was made", run.format.medium().unwrap_or("tape")) } else { format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
             }
-            Err(problem) if problem == ASK_6502 => lines.push("It doesn't say whether it's for a Commodore 64 or a BBC Micro. Put ; machine: c64 or ; machine: bbc near the top to say.".into()),
+            Err(problem) if problem == ASK_6502 => lines.push("It doesn't say whether it's for a Commodore 64, a BBC Micro or an Atari 2600. Put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top to say.".into()),
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
             Err(_) if assembly.ok() => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
@@ -664,6 +664,17 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
             Some(Micro6502::C64) => {
                 let bytes = crate::asm::output::commodore_program(assembly)?;
                 Runnable::from_file(&format!("{stem}.prg"), bytes).ok_or_else(|| "The program couldn't be made.".to_string())
+            }
+            // An Atari 2600 cartridge: its ROM, from the lowest address to the highest.
+            Some(Micro6502::Atari2600) => {
+                let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+                    return Err("Nothing was assembled.".into());
+                };
+                let bytes = assembly.image(low, high);
+                if crate::atari2600::detect(&bytes).is_none() {
+                    return Err(format!("{} bytes isn't the size of an Atari 2600 cartridge (2K, 4K, 8K, 12K, 16K or 32K, up to the vectors at $FFFC).", bytes.len()));
+                }
+                Ok(Runnable { machine: Machine::Atari2600, format: Format::A26, name: format!("{stem}.a26"), bytes: Arc::new(bytes) })
             }
             None => Err(ASK_6502.to_string()),
         };
