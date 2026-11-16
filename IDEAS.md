@@ -72,31 +72,31 @@ M medium, L large. **From** says where the idea came from.
 | Idea | Version |
 |---|---|
 | A universal Mac app, for Intel Macs as well as Apple Silicon | 0.9.1 |
-| 6502 source on the BBC Micro: source that calls the MOS goes on a disc that *RUNs it, and runs in b2 with F9 | 0.10 (built, not yet released) |
-| Character sets for the Amstrad PCW (text, renamed so it's found, and its screen set), the Cambridge Z88 and the Amstrad NC100, NC150 and NC200 | 0.10 (built, not yet released) |
-| An x86 disassembler (8086 to AVX-512): Tools, Disassemble, for DOS .COM and .EXE, Windows PE and Linux ELF files, or plain code | 0.10 (built, not yet released) |
-| An ICL 2900 disassembler: Tools, Disassemble lists 2900 code in SFL, from ICL's *2900 Order Code* | 0.10 (built, not yet released) |
-| A file formats page on the website (`FORMATS.md`, made into `web/formats.html`): every format with what's read, what's written and how it opens | 0.10 (built, not yet released) |
-| 6502 source whose code doesn't say whether it's for a C64 or a BBC Micro: F9 asks, and `; machine: c64` or `; machine: bbc` in the source says | 0.10 (built, not yet released) |
-| Tests run on an Intel Mac in CI as well as Apple Silicon, and on Ubuntu 26.04 beside 24.04 before `ubuntu-latest` moves (in `tests.yml`; not yet run on GitHub) | 0.10 (built, not yet released) |
-| Format, Convert: Base64 encode and decode, JSON to XML and XML to JSON | 0.10 (built, not yet released) |
-| Your own highlighting grammars: `.sublime-syntax` files in the grammars folder beside the settings | 0.10 (built, not yet released) |
-| Help, Check for a newer Limoniter, and once a day by itself, which can be turned off; not for the Store's or Flathub's copies | 0.10 (built, not yet released) |
-| Tools, Save settings to a file and Restore settings from a file | 0.10 (built, not yet released) |
-| Window, Layouts: named arrangements of the panels; Window, Gather windows | 0.10 (built, not yet released) |
-| Column markers at chosen columns, and line spacing | 0.10 (built, not yet released) |
-| Web pages (HTML) in the live preview | 0.10 (built, not yet released) |
-| The value inspector panel: integers and IEEE floats either way round, IBM hexadecimal floats (32 and 64-bit), VAX F, D, G and H floats, packed decimal and RADIX-50 | 0.10 (built, not yet released) |
-| ISO 646's national sets, DEC Special Graphics, and ASCII with the top bit set (Prime), with 0x8D 0x8A line ends | 0.10 (built, not yet released) |
-| Old word processors' documents opened by themselves shown converted, and Format, Save the document as | 0.10 (built, not yet released) |
-| PNG and JPEG shown as pictures when opened | 0.10 (built, not yet released) |
-| Apple II Integer BASIC listed, from DOS 3.3 and ProDOS disks | 0.10 (built, not yet released) |
-| Edit, Surround with: brackets, quotes, a tag or a snippet | 0.10 (built, not yet released) |
-| Format, Tabs and spaces menu, with tabs to spaces in the indent only | 0.10 (built, not yet released) |
-| Search, Bookmarks: go to, copy, cut and delete bookmarked lines, delete the rest, swap and clear | 0.10 (built, not yet released) |
-| Checking open files for changes every two seconds, and reloading untouched ones without asking, following a log's end | 0.10 (built, not yet released) |
-| File properties: owner, the program it opens with, and lines of code | 0.10 (built, not yet released) |
-| File, This file, Move to the Recycle Bin (or the Trash) | 0.10 (built, not yet released) |
-| BBC BASIC (Z80) programs, as the Z88 and NC machines and CP/M keep them: listed, and tokenised from a listing (Format, Tokenised BASIC) | 0.10 (built, not yet released) |
-| Cambridge Z88: file EPROM and flash card images in the browser, PipeDream documents and spreadsheets converted (to text, Markdown, RTF or CSV), and OZ calls named by the Z80 disassembler | 0.10 (built, not yet released) |
-| Amstrad NC100, NC150 and NC200: ZCN memory card images in the browser, and program cards (NC100PRG) recognised | 0.10 (built, not yet released) |
+| 6502 source on the BBC Micro: source that calls the MOS goes on a disc that *RUNs it, and runs in b2 with F9 | 0.10.0 |
+| Character sets for the Amstrad PCW (text, renamed so it's found, and its screen set), the Cambridge Z88 and the Amstrad NC100, NC150 and NC200 | 0.10.0 |
+| An x86 disassembler (8086 to AVX-512): Tools, Disassemble, for DOS .COM and .EXE, Windows PE and Linux ELF files, or plain code | 0.10.0 |
+| An ICL 2900 disassembler: Tools, Disassemble lists 2900 code in SFL, from ICL's *2900 Order Code* | 0.10.0 |
+| A file formats page on the website (`FORMATS.md`, made into `web/formats.html`): every format with what's read, what's written and how it opens | 0.10.0 |
+| 6502 source whose code doesn't say whether it's for a C64 or a BBC Micro: F9 asks, and `; machine: c64` or `; machine: bbc` in the source says | 0.10.0 |
+| Tests run on an Intel Mac in CI as well as Apple Silicon, and on Ubuntu 26.04 beside 24.04 before `ubuntu-latest` moves (in `tests.yml`; not yet run on GitHub) | 0.10.0 |
+| Format, Convert: Base64 encode and decode, JSON to XML and XML to JSON | 0.10.0 |
+| Your own highlighting grammars: `.sublime-syntax` files in the grammars folder beside the settings | 0.10.0 |
+| Help, Check for a newer Limoniter, and once a day by itself, which can be turned off; not for the Store's or Flathub's copies | 0.10.0 |
+| Tools, Save settings to a file and Restore settings from a file | 0.10.0 |
+| Window, Layouts: named arrangements of the panels; Window, Gather windows | 0.10.0 |
+| Column markers at chosen columns, and line spacing | 0.10.0 |
+| Web pages (HTML) in the live preview | 0.10.0 |
+| The value inspector panel: integers and IEEE floats either way round, IBM hexadecimal floats (32 and 64-bit), VAX F, D, G and H floats, packed decimal and RADIX-50 | 0.10.0 |
+| ISO 646's national sets, DEC Special Graphics, and ASCII with the top bit set (Prime), with 0x8D 0x8A line ends | 0.10.0 |
+| Old word processors' documents opened by themselves shown converted, and Format, Save the document as | 0.10.0 |
+| PNG and JPEG shown as pictures when opened | 0.10.0 |
+| Apple II Integer BASIC listed, from DOS 3.3 and ProDOS disks | 0.10.0 |
+| Edit, Surround with: brackets, quotes, a tag or a snippet | 0.10.0 |
+| Format, Tabs and spaces menu, with tabs to spaces in the indent only | 0.10.0 |
+| Search, Bookmarks: go to, copy, cut and delete bookmarked lines, delete the rest, swap and clear | 0.10.0 |
+| Checking open files for changes every two seconds, and reloading untouched ones without asking, following a log's end | 0.10.0 |
+| File properties: owner, the program it opens with, and lines of code | 0.10.0 |
+| File, This file, Move to the Recycle Bin (or the Trash) | 0.10.0 |
+| BBC BASIC (Z80) programs, as the Z88 and NC machines and CP/M keep them: listed, and tokenised from a listing (Format, Tokenised BASIC) | 0.10.0 |
+| Cambridge Z88: file EPROM and flash card images in the browser, PipeDream documents and spreadsheets converted (to text, Markdown, RTF or CSV), and OZ calls named by the Z80 disassembler | 0.10.0 |
+| Amstrad NC100, NC150 and NC200: ZCN memory card images in the browser, and program cards (NC100PRG) recognised | 0.10.0 |
