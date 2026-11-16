@@ -314,7 +314,7 @@ impl Limoniter {
         match runnable {
             Ok(run) => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
-                let size = if assembled.tape.is_some() { "A tape was made".to_string() } else { format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
+                let size = if assembled.tape.is_some() { format!("A {} was made", run.format.medium().unwrap_or("tape")) } else { format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
             }
             Err(problem) if problem == ASK_6502 => lines.push("It doesn't say whether it's for a Commodore 64 or a BBC Micro. Put ; machine: c64 or ; machine: bbc near the top to say.".into()),

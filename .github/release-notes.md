@@ -48,8 +48,17 @@ Lots of everyday editing improvements, previews of web pages, pictures and old d
 - **NC memory card images** (`.card`) in ZCN's format open in the browser, and program cards are recognised.
 
 **Also**
+- **The table generator and the character and sprite editor** write their data in the form you choose:
+  - assemblers: 68000 `dc` lines, Z80 `db`, ACME or 64tass for the 6502, 6809 `fcb`, NASM
+  - BASIC DATA lines
+  - arrays for C, PHP, Python, JavaScript or Rust
+  - Spectrum BASIC that sets the UDGs, for characters
 - **Apple II Integer BASIC** programs are listed.
 - **A file formats page** on the website lists every format Limoniter reads or writes.
+
+**Fixed**
+- The Amiga, Atari ST and C64 hardware guides' lists of registers ran across the window on top of each other.
+- Assembling for a machine that runs from a disk said a tape was made.
 
 ## Downloads
 

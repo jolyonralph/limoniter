@@ -86,7 +86,7 @@ impl Limoniter {
                 }
             }
             Asked::Insert => {
-                let text = editor.sheet.to_db(&editor.label);
+                let text = editor.sheet.to_form(&editor.label, editor.output);
                 if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
                     self.message("Characters and sprites", "Open the source to put them in, with the cursor where they go.".into());
                 } else {

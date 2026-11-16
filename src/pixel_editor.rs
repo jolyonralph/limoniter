@@ -213,6 +213,7 @@ impl Sheet {
 
     /// DB lines for source: a line a character, or a row of a sprite a line, labelled if a label's given. The C64's
     /// are `!byte`, as ACME has it.
+    #[cfg(test)]
     pub fn to_db(&self, label: &str) -> String {
         let bytes = self.to_bytes();
         let (per_line, word) = match self.kind {
@@ -228,6 +229,38 @@ impl Sheet {
         for line in bytes.chunks(per_line) {
             let items: Vec<String> = line.iter().map(|b| format!("${b:02X}")).collect();
             out.push_str(&format!("        {word} {}\n", items.join(",")));
+        }
+        out
+    }
+
+    /// The bytes in a form chosen: an assembler's or language's (as the table generator writes them), or, for the
+    /// Spectrum's characters, BASIC that pokes them into the UDGs.
+    pub fn to_form(&self, label: &str, form: Output) -> String {
+        let Output::Table(form) = form else {
+            return self.to_zx_basic(label);
+        };
+        let per_line = match self.kind {
+            Kind::Sprites | Kind::C64Sprites | Kind::C64MultiSprites => 16,
+            _ => 8,
+        };
+        let values: Vec<i64> = self.to_bytes().into_iter().map(i64::from).collect();
+        let base = if form == crate::table_gen::Form::Basic { crate::table_gen::Base::Decimal } else { crate::table_gen::Base::Hex };
+        crate::table_gen::write(&values, crate::table_gen::Size::Byte, false, base, per_line, label, form)
+    }
+
+    /// Spectrum BASIC that sets the UDGs, as a subroutine from line 9000 (GO SUB 9000): one loop pokes every byte
+    /// from USR "a" on, READ from DATA lines, one character a line, each row in BIN so the picture can be seen.
+    /// Only the 21 UDGs A to U are set (the 128's BASIC uses T and U for its own words, so 19 there).
+    pub fn to_zx_basic(&self, label: &str) -> String {
+        let bytes = self.to_bytes();
+        let count = (bytes.len() / 8).min(21);
+        let last = char::from(b'A' + count.saturating_sub(1) as u8);
+        let mut out = format!("9000 REM {}UDGs A to {last}\n", if label.is_empty() { String::new() } else { format!("{label}: ") });
+        out.push_str("9010 RESTORE 9030\n");
+        out.push_str(&format!("9020 FOR n=USR \"a\" TO USR \"a\"+{}: READ b: POKE n,b: NEXT n: RETURN\n", count * 8 - 1));
+        for (index, character) in bytes.chunks(8).take(count).enumerate() {
+            let rows: Vec<String> = character.iter().map(|b| format!("BIN {b:08b}")).collect();
+            out.push_str(&format!("{} DATA {}\n", 9030 + index * 10, rows.join(",")));
         }
         out
     }
@@ -305,6 +338,24 @@ fn c64_colour32(index: u8) -> Color32 {
     Color32::from_rgb(c[0], c[1], c[2])
 }
 
+/// How characters and sprites go into the source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Output {
+    /// As the table generator writes values: an assembler's data lines, BASIC DATA, or a language's array.
+    Table(crate::table_gen::Form),
+    /// Spectrum BASIC that pokes the characters into the UDGs.
+    ZxBasicUdgs,
+}
+
+impl Output {
+    pub fn name(self) -> &'static str {
+        match self {
+            Output::Table(form) => form.name(),
+            Output::ZxBasicUdgs => "Spectrum BASIC: set the UDGs",
+        }
+    }
+}
+
 /// What the editor is showing: the sheet, which item, the colour drawn with, and what was there before a stroke.
 pub struct Editor {
     pub sheet: Sheet,
@@ -312,6 +363,8 @@ pub struct Editor {
     pub colour: u8,
     /// A label for DB lines.
     pub label: String,
+    /// How they go into the source.
+    pub output: Output,
     /// Where a C64 .prg of them loads.
     pub load_address: u16,
     /// What it was before each change, to undo.
@@ -348,7 +401,8 @@ impl Editor {
             Kind::C64MultiCharacters | Kind::C64MultiSprites => 2,
             _ => 1,
         };
-        Editor { sheet: Sheet::new(kind, count), current: 0, colour, label: label.into(), load_address: 0x2000, undo: Vec::new(), stroke: false }
+        let output = Output::Table(if kind.c64() { crate::table_gen::Form::Acme } else { crate::table_gen::Form::Z80 });
+        Editor { sheet: Sheet::new(kind, count), current: 0, colour, label: label.into(), output, load_address: 0x2000, undo: Vec::new(), stroke: false }
     }
 
     fn remember(&mut self) {
@@ -529,9 +583,17 @@ impl Editor {
         });
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label("Label for DB lines");
-            ui.add(egui::TextEdit::singleline(&mut self.label).desired_width(120.0));
-            if ui.button("Put in the source").on_hover_text("As DB lines at the cursor").clicked() {
+            egui::ComboBox::from_id_salt("pixel-output").selected_text(self.output.name()).width(230.0).show_ui(ui, |ui| {
+                if kind == Kind::Characters {
+                    ui.selectable_value(&mut self.output, Output::ZxBasicUdgs, Output::ZxBasicUdgs.name());
+                }
+                for form in crate::table_gen::Form::ALL {
+                    ui.selectable_value(&mut self.output, Output::Table(form), form.name());
+                }
+            });
+            ui.label("Label");
+            ui.add(egui::TextEdit::singleline(&mut self.label).desired_width(100.0));
+            if ui.button("Put in the source").on_hover_text("In the form chosen, at the cursor").clicked() {
                 asked = Some(Asked::Insert);
             }
             if ui.button("From the selection").on_hover_text("Reads the numbers in the DB lines selected").clicked() {
@@ -631,6 +693,27 @@ fn paint(ui: &Ui, rect: Rect, sheet: &Sheet, item: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn characters_go_out_in_each_form_and_as_spectrum_basic_that_sets_the_udgs() {
+        let ship = [0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18, 0, 0, 0, 0, 0, 0, 0, 0x81];
+        let sheet = Sheet::from_bytes(Kind::Characters, &ship);
+        let use_form = |form| sheet.to_form("ship", Output::Table(form));
+        assert!(use_form(crate::table_gen::Form::Z80).starts_with("ship:\n        db      $18,$3C"));
+        assert!(use_form(crate::table_gen::Form::Acme).starts_with("ship\n        !byte   $18"));
+        assert!(use_form(crate::table_gen::Form::Basic).starts_with("1000 REM ship\n1010 DATA 24,60,126,255"));
+        assert!(use_form(crate::table_gen::Form::C).starts_with("const uint8_t ship[16] = {"));
+        let basic = sheet.to_form("ship", Output::ZxBasicUdgs);
+        assert_eq!(
+            basic,
+            "9000 REM ship: UDGs A to B\n9010 RESTORE 9030\n9020 FOR n=USR \"a\" TO USR \"a\"+15: READ b: POKE n,b: NEXT n: RETURN\n\
+             9030 DATA BIN 00011000,BIN 00111100,BIN 01111110,BIN 11111111,BIN 11111111,BIN 01111110,BIN 00111100,BIN 00011000\n\
+             9040 DATA BIN 00000000,BIN 00000000,BIN 00000000,BIN 00000000,BIN 00000000,BIN 00000000,BIN 00000000,BIN 10000001\n"
+        );
+        // It's a Spectrum program as it stands.
+        let lines: Vec<&str> = basic.lines().collect();
+        assert!(crate::basic::tokenise_spectrum(&lines, crate::basic::ZxDialect::Spectrum).is_ok());
+    }
 
     #[test]
     fn characters_go_to_bytes_and_db_lines_and_back() {

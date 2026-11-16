@@ -120,6 +120,16 @@ pub enum Format {
 }
 
 impl Format {
+    /// What kind of thing a file of this format is, when it holds the program rather than being it.
+    pub fn medium(self) -> Option<&'static str> {
+        match self {
+            Format::Tap | Format::Tzx | Format::Cas | Format::T64 => Some("tape"),
+            Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa => Some("disk"),
+            Format::Crt | Format::Rom => Some("cartridge"),
+            _ => None,
+        }
+    }
+
     pub const ALL: [Format; 26] = [
         Format::Tap,
         Format::Tzx,

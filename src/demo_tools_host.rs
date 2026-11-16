@@ -15,8 +15,15 @@ impl Limoniter {
         self.demo_tools.blitter.get_or_insert_with(Box::default);
     }
 
+    /// Opens the table generator, writing tables the way the file in front's language reads them when it first opens.
     pub(super) fn open_table_generator(&mut self) {
-        self.demo_tools.tables.get_or_insert_with(Box::default);
+        if self.demo_tools.tables.is_none() {
+            let mut generator = Box::<crate::table_gen::Generator>::default();
+            if let Some(form) = crate::table_gen::Form::for_language(&self.docs[self.active].language_name()) {
+                generator.form = form;
+            }
+            self.demo_tools.tables = Some(generator);
+        }
     }
 
     /// Text from a tool, at the cursor in the file in front, as one undoable change.

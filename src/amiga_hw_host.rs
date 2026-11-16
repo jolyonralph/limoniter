@@ -93,25 +93,28 @@ impl HwWindow {
         ui.separator();
         let searching = !self.search.trim().is_empty();
         ui.horizontal_top(|ui| {
-            egui::ScrollArea::vertical().id_salt("amiga-hw-list").max_height(440.0).min_scrolled_height(440.0).show(ui, |ui| {
-                ui.set_width(250.0);
-                for area in Area::ALL {
-                    let shown: Vec<&Register> = amiga_hw::registers().iter().filter(|r| r.area == area && self.chipset.is_none_or(|c| r.since <= c) && matches(r, &self.search)).collect();
-                    if shown.is_empty() {
-                        continue;
-                    }
-                    let header = egui::CollapsingHeader::new(format!("{} ({})", area.name(), shown.len())).id_salt(("amiga-hw-area", area as u8));
-                    let header = if searching { header.open(Some(true)) } else { header.default_open(false) };
-                    header.show(ui, |ui| {
-                        for register in shown {
-                            let label = if register.is_cia() { format!("${:06X}  {}", register.address, register.name) } else { format!("${:03X}  {}", register.offset(), register.name) };
-                            let chosen = self.selected == Some(register.address);
-                            if ui.selectable_label(chosen, RichText::new(label).monospace()).on_hover_text(&register.about).clicked() {
-                                self.selected = Some(register.address);
-                            }
+            // In a row, a list laid out by itself would be laid out across; it goes down.
+            ui.vertical(|ui| {
+                egui::ScrollArea::vertical().id_salt("amiga-hw-list").max_height(440.0).min_scrolled_height(440.0).show(ui, |ui| {
+                    ui.set_width(250.0);
+                    for area in Area::ALL {
+                        let shown: Vec<&Register> = amiga_hw::registers().iter().filter(|r| r.area == area && self.chipset.is_none_or(|c| r.since <= c) && matches(r, &self.search)).collect();
+                        if shown.is_empty() {
+                            continue;
                         }
-                    });
-                }
+                        let header = egui::CollapsingHeader::new(format!("{} ({})", area.name(), shown.len())).id_salt(("amiga-hw-area", area as u8));
+                        let header = if searching { header.open(Some(true)) } else { header.default_open(false) };
+                        header.show(ui, |ui| {
+                            for register in shown {
+                                let label = if register.is_cia() { format!("${:06X}  {}", register.address, register.name) } else { format!("${:03X}  {}", register.offset(), register.name) };
+                                let chosen = self.selected == Some(register.address);
+                                if ui.selectable_label(chosen, RichText::new(label).monospace()).on_hover_text(&register.about).clicked() {
+                                    self.selected = Some(register.address);
+                                }
+                            }
+                        });
+                    }
+                });
             });
             ui.separator();
             ui.vertical(|ui| {

@@ -1,7 +1,8 @@
 //! Tables for demo code, worked out ahead so the 68000 (or Z80, or 6502) only looks them up: sine and cosine,
 //! a straight ramp and easing curves, multiplication and division, perspective (1/z), and pseudo-random
-//! numbers from a seed. They go into the source as dc.b, dc.w or dc.l lines, or as a C array, or out as a
-//! binary file.
+//! numbers from a seed. They go into the source in the form the assembler or language in hand reads (68000 dc
+//! lines, Z80 or x86 db, 6502 !byte or .byte, 6809 fcb, BASIC DATA lines, or a C, PHP, Python, JavaScript or Rust
+//! array), or out as a binary file.
 //!
 //! How values are rounded: each is worked out as a real number, multiplied by 2 to the power of the fraction
 //! bits, then rounded to the nearest whole number, halves away from zero (2.5 to 3, -2.5 to -3). A value that
@@ -149,14 +150,6 @@ impl Size {
     pub fn range(self, signed: bool) -> (i64, i64) {
         let bits = self.bytes() as u32 * 8;
         if signed { (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1) } else { (0, (1i64 << bits) - 1) }
-    }
-
-    fn directive(self) -> &'static str {
-        match self {
-            Size::Byte => "dc.b",
-            Size::Word => "dc.w",
-            Size::Long => "dc.l",
-        }
     }
 
     fn c_type(self, signed: bool) -> &'static str {
@@ -349,16 +342,71 @@ fn c_number(value: i64, size: Size, base: Base) -> String {
 }
 
 /// dc.b, dc.w or dc.l lines, so many values to a line, under a label when there is one.
+#[cfg(test)]
 pub fn as_source(values: &[i64], size: Size, base: Base, per_line: usize, label: &str) -> String {
+    as_directives(values, size, base, per_line, label, Form::Motorola)
+}
+
+/// Data lines for an assembler: its own directive for the size, its own way of writing hex, and its own label.
+fn as_directives(values: &[i64], size: Size, base: Base, per_line: usize, label: &str, form: Form) -> String {
+    let directive = form.directives()[match size {
+        Size::Byte => 0,
+        Size::Word => 1,
+        Size::Long => 2,
+    }];
     let mut out = String::new();
     if !label.is_empty() {
-        out.push_str(&format!("{label}:\n"));
+        out.push_str(&format!("{label}{}\n", if form.label_colon() { ":" } else { "" }));
     }
     for line in values.chunks(per_line.max(1)) {
-        let items: Vec<String> = line.iter().map(|v| asm_number(*v, size, base)).collect();
-        out.push_str(&format!("        {}    {}\n", size.directive(), items.join(",")));
+        let items: Vec<String> = line
+            .iter()
+            .map(|v| {
+                let number = asm_number(*v, size, base);
+                if form == Form::Nasm { number.replacen('$', "0x", 1) } else { number }
+            })
+            .collect();
+        out.push_str(&format!("        {directive:<6}  {}\n", items.join(",")));
     }
     out
+}
+
+/// BASIC DATA lines from line 1000 in tens, in decimal, which every BASIC reads, with the label in a REM first.
+pub fn as_basic(values: &[i64], per_line: usize, label: &str) -> String {
+    let mut out = String::new();
+    let mut number = 1000;
+    if !label.is_empty() {
+        out.push_str(&format!("{number} REM {label}\n"));
+        number += 10;
+    }
+    for line in values.chunks(per_line.max(1)) {
+        out.push_str(&format!("{number} DATA {}\n", line.iter().map(i64::to_string).collect::<Vec<_>>().join(",")));
+        number += 10;
+    }
+    out
+}
+
+/// An array in a scripting language or Rust: its opening, the values as that language writes numbers, its close.
+fn as_array(values: &[i64], size: Size, signed: bool, base: Base, per_line: usize, name: &str, form: Form) -> String {
+    let name = if name.is_empty() { "table" } else { name };
+    let (open, close) = match form {
+        Form::Php => (format!("${name} = ["), "];".to_string()),
+        Form::Python => (format!("{name} = ["), "]".to_string()),
+        Form::JavaScript => (format!("const {name} = ["), "];".to_string()),
+        _ => {
+            let kind = match (size, signed) {
+                (Size::Byte, true) => "i8",
+                (Size::Byte, false) => "u8",
+                (Size::Word, true) => "i16",
+                (Size::Word, false) => "u16",
+                (Size::Long, true) => "i32",
+                (Size::Long, false) => "u32",
+            };
+            (format!("const {}: [{kind}; {}] = [", name.to_uppercase(), values.len()), "];".to_string())
+        }
+    };
+    let lines: Vec<String> = values.chunks(per_line.max(1)).map(|line| format!("    {}", line.iter().map(|v| c_number(*v, size, base)).collect::<Vec<_>>().join(", "))).collect();
+    format!("{open}\n{},\n{close}\n", lines.join(",\n"))
 }
 
 /// A C array of the stdint.h type for the size.
@@ -386,12 +434,92 @@ pub fn as_binary(values: &[i64], size: Size, big_endian: bool) -> Vec<u8> {
     out
 }
 
-/// How the table goes into the source.
+/// Values written in a form: an assembler's data lines, BASIC DATA lines, or a language's array.
+pub fn write(values: &[i64], size: Size, signed: bool, base: Base, per_line: usize, label: &str, form: Form) -> String {
+    match form {
+        Form::Basic => as_basic(values, per_line, label),
+        Form::C => as_c(values, size, signed, base, per_line, label),
+        Form::Php | Form::Python | Form::JavaScript | Form::Rust => as_array(values, size, signed, base, per_line, label, form),
+        assembler => as_directives(values, size, base, per_line, label, assembler),
+    }
+}
+
+/// How the table goes into the source: which assembler's data lines, or which language's array.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Form {
+    /// 68000 assemblers (vasm, Devpac, ASM-One): dc.b, dc.w, dc.l.
     #[default]
-    Assembler,
+    Motorola,
+    /// Z80 assemblers (sjasmplus, Pasmo, Limoniter's own): db, dw, dd.
+    Z80,
+    /// ACME, for the 6502: !byte, !word, !32.
+    Acme,
+    /// 64tass and ca65, for the 6502: .byte, .word, .dword.
+    Dot,
+    /// 6809 assemblers (lwasm): fcb, fdb, fqb.
+    M6809,
+    /// NASM, for x86: db, dw, dd, with hex as 0x.
+    Nasm,
+    Basic,
     C,
+    Php,
+    Python,
+    JavaScript,
+    Rust,
+}
+
+impl Form {
+    pub const ALL: [Form; 12] = [Form::Motorola, Form::Z80, Form::Acme, Form::Dot, Form::M6809, Form::Nasm, Form::Basic, Form::C, Form::Php, Form::Python, Form::JavaScript, Form::Rust];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Form::Motorola => "68000: dc.b, dc.w, dc.l",
+            Form::Z80 => "Z80: db, dw, dd",
+            Form::Acme => "6502, ACME: !byte, !word",
+            Form::Dot => "6502, 64tass or ca65: .byte, .word",
+            Form::M6809 => "6809: fcb, fdb",
+            Form::Nasm => "x86, NASM: db, dw, dd",
+            Form::Basic => "BASIC DATA lines",
+            Form::C => "C array",
+            Form::Php => "PHP array",
+            Form::Python => "Python list",
+            Form::JavaScript => "JavaScript array",
+            Form::Rust => "Rust array",
+        }
+    }
+
+    fn directives(self) -> [&'static str; 3] {
+        match self {
+            Form::Z80 | Form::Nasm => ["db", "dw", "dd"],
+            Form::Acme => ["!byte", "!word", "!32"],
+            Form::Dot => [".byte", ".word", ".dword"],
+            Form::M6809 => ["fcb", "fdb", "fqb"],
+            _ => ["dc.b", "dc.w", "dc.l"],
+        }
+    }
+
+    /// Whether a label is written with a colon; ACME, 64tass and lwasm take a label by its place at the start.
+    fn label_colon(self) -> bool {
+        !matches!(self, Form::Acme | Form::Dot | Form::M6809)
+    }
+
+    /// The one to start with for source in this language, by its highlighting's name.
+    pub fn for_language(language: &str) -> Option<Form> {
+        Some(match language {
+            "Assembly Z80" => Form::Z80,
+            "Assembly 6502" => Form::Acme,
+            "Assembly 6809" => Form::M6809,
+            "Assembly 680x0" => Form::Motorola,
+            "Assembly x86_64" | "Assembly 80x86" => Form::Nasm,
+            "C" | "C++" => Form::C,
+            "PHP" => Form::Php,
+            "Python" => Form::Python,
+            "JavaScript" | "TypeScript" => Form::JavaScript,
+            "Rust" => Form::Rust,
+            _ if language.contains("BASIC") || language == "BASIC" => Form::Basic,
+            _ => return None,
+        })
+    }
 }
 
 /// The generator's window.
@@ -408,7 +536,7 @@ pub struct Generator {
 
 impl Default for Generator {
     fn default() -> Self {
-        Generator { settings: Settings::default(), base: Base::Hex, per_line: 8, label: String::new(), form: Form::Assembler, big_endian: true, table: Table::default(), made_from: None }
+        Generator { settings: Settings::default(), base: Base::Hex, per_line: 8, label: String::new(), form: Form::Motorola, big_endian: true, table: Table::default(), made_from: None }
     }
 }
 
@@ -435,10 +563,7 @@ impl Generator {
     pub fn text(&mut self) -> String {
         let (size, signed, base, per_line, form, label) = (self.settings.size, self.settings.signed, self.base, self.per_line, self.form, self.label());
         let values = &self.table().values;
-        match form {
-            Form::Assembler => as_source(values, size, base, per_line, &label),
-            Form::C => as_c(values, size, signed, base, per_line, &label),
-        }
+        write(values, size, signed, base, per_line, &label, form)
     }
 
     pub fn draw(&mut self, ui: &mut Ui) -> Option<Asked> {
@@ -530,8 +655,11 @@ impl Generator {
         ui.label(RichText::new("Rounded to the nearest whole number, halves away from zero.").small().color(crate::theme::text_dim()));
         ui.separator();
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.form, Form::Assembler, "dc lines");
-            ui.selectable_value(&mut self.form, Form::C, "C array");
+            egui::ComboBox::from_id_salt("table-form").selected_text(self.form.name()).width(230.0).show_ui(ui, |ui| {
+                for form in Form::ALL {
+                    ui.selectable_value(&mut self.form, form, form.name());
+                }
+            });
             ui.separator();
             ui.selectable_value(&mut self.base, Base::Hex, "Hex");
             ui.selectable_value(&mut self.base, Base::Decimal, "Decimal");
@@ -732,6 +860,31 @@ mod tests {
             let count = dice.values.iter().filter(|v| **v == face).count();
             assert!((800..1200).contains(&count), "{face}: {count}");
         }
+    }
+
+    #[test]
+    fn each_assembler_and_language_gets_its_own_form() {
+        let values = [0, 402, -402];
+        let text = |form| {
+            let mut g = Generator { form, per_line: 8, label: "sine".into(), ..Generator::default() };
+            g.settings.size = Size::Word;
+            g.settings.signed = true;
+            g.table = Table { values: values.to_vec(), ..Table::default() };
+            g.made_from = Some(g.settings.clone());
+            g.text()
+        };
+        assert_eq!(text(Form::Motorola), "sine:\n        dc.w    $0000,$0192,$FE6E\n");
+        assert_eq!(text(Form::Z80), "sine:\n        dw      $0000,$0192,$FE6E\n");
+        assert_eq!(text(Form::Acme), "sine\n        !word   $0000,$0192,$FE6E\n");
+        assert_eq!(text(Form::Dot), "sine\n        .word   $0000,$0192,$FE6E\n");
+        assert_eq!(text(Form::M6809), "sine\n        fdb     $0000,$0192,$FE6E\n");
+        assert_eq!(text(Form::Nasm), "sine:\n        dw      0x0000,0x0192,0xFE6E\n");
+        assert_eq!(text(Form::Basic), "1000 REM sine\n1010 DATA 0,402,-402\n");
+        assert_eq!(text(Form::Php), "$sine = [\n    0x0000, 0x0192, -0x0192,\n];\n");
+        assert_eq!(text(Form::Python), "sine = [\n    0x0000, 0x0192, -0x0192,\n]\n");
+        assert_eq!(text(Form::JavaScript), "const sine = [\n    0x0000, 0x0192, -0x0192,\n];\n");
+        assert_eq!(text(Form::Rust), "const SINE: [i16; 3] = [\n    0x0000, 0x0192, -0x0192,\n];\n");
+        assert_eq!(Form::for_language("Assembly Z80"), Some(Form::Z80));
     }
 
     #[test]

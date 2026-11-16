@@ -3878,7 +3878,14 @@ impl Limoniter {
             Command::C64Pictures => self.open_c64_converter(),
             Command::PixelEditor => {
                 if self.pixel_editor.is_none() {
-                    self.pixel_editor = Some(Box::new(crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters)));
+                    let mut editor = crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters);
+                    // Written the way the file in front reads them: a Spectrum listing sets the UDGs.
+                    if !self.no_file() && self.is_spectrum_basic(self.active) {
+                        editor.output = crate::pixel_editor::Output::ZxBasicUdgs;
+                    } else if let Some(form) = crate::table_gen::Form::for_language(&self.docs[self.active].language_name()) {
+                        editor.output = crate::pixel_editor::Output::Table(form);
+                    }
+                    self.pixel_editor = Some(Box::new(editor));
                 }
             }
             Command::EditNewKinds => self.open_new_kinds_box(),

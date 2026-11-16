@@ -111,24 +111,27 @@ impl HwWindow {
         ui.separator();
         let searching = !self.search.trim().is_empty();
         ui.horizontal_top(|ui| {
-            egui::ScrollArea::vertical().id_salt("st-hw-list").max_height(440.0).min_scrolled_height(440.0).show(ui, |ui| {
-                ui.set_width(260.0);
-                for chip in Chip::ALL {
-                    let shown: Vec<&Register> = st_hw::registers().iter().filter(|r| r.chip == chip && self.machine.is_none_or(|m| r.machines & m.bit() != 0) && matches(r, &self.search)).collect();
-                    if shown.is_empty() {
-                        continue;
-                    }
-                    let header = egui::CollapsingHeader::new(format!("{} ({})", chip.name(), shown.len())).id_salt(("st-hw-chip", chip as u8));
-                    let header = if searching { header.open(Some(true)) } else { header.default_open(chip == Chip::Video) };
-                    header.show(ui, |ui| {
-                        for register in shown {
-                            let label = format!("${:06X}  {}", register.address, register.name);
-                            if ui.selectable_label(register.holds(self.selected), RichText::new(label).monospace()).on_hover_text(&register.about).clicked() {
-                                self.selected = register.address;
-                            }
+            // In a row, a list laid out by itself would be laid out across; it goes down.
+            ui.vertical(|ui| {
+                egui::ScrollArea::vertical().id_salt("st-hw-list").max_height(440.0).min_scrolled_height(440.0).show(ui, |ui| {
+                    ui.set_width(260.0);
+                    for chip in Chip::ALL {
+                        let shown: Vec<&Register> = st_hw::registers().iter().filter(|r| r.chip == chip && self.machine.is_none_or(|m| r.machines & m.bit() != 0) && matches(r, &self.search)).collect();
+                        if shown.is_empty() {
+                            continue;
                         }
-                    });
-                }
+                        let header = egui::CollapsingHeader::new(format!("{} ({})", chip.name(), shown.len())).id_salt(("st-hw-chip", chip as u8));
+                        let header = if searching { header.open(Some(true)) } else { header.default_open(chip == Chip::Video) };
+                        header.show(ui, |ui| {
+                            for register in shown {
+                                let label = format!("${:06X}  {}", register.address, register.name);
+                                if ui.selectable_label(register.holds(self.selected), RichText::new(label).monospace()).on_hover_text(&register.about).clicked() {
+                                    self.selected = register.address;
+                                }
+                            }
+                        });
+                    }
+                });
             });
             ui.separator();
             ui.vertical(|ui| {
@@ -241,29 +244,32 @@ impl HwWindow {
         });
         ui.separator();
         ui.horizontal_top(|ui| {
-            egui::ScrollArea::vertical().id_salt("st-calls-list").max_height(440.0).min_scrolled_height(440.0).show(ui, |ui| {
-                ui.set_width(260.0);
-                let searching = !self.call_search.trim().is_empty();
-                for trap in [Trap::Gemdos, Trap::Bios, Trap::Xbios] {
-                    let shown: Vec<&Function> = st_tos::FUNCTIONS.iter().filter(|f| f.trap == trap && call_matches(f, &self.call_search)).collect();
-                    if shown.is_empty() {
-                        continue;
-                    }
-                    let header = egui::CollapsingHeader::new(format!("{} (trap #{}, {})", trap.name(), trap.number(), shown.len())).id_salt(("st-calls", trap.number()));
-                    let header = if searching { header.open(Some(true)) } else { header.default_open(trap == Trap::Gemdos) };
-                    header.show(ui, |ui| {
-                        for function in shown {
-                            let chosen = self.call == Some((function.trap, function.number));
-                            if ui.selectable_label(chosen, RichText::new(format!("${:02X}  {}", function.number, function.name)).monospace()).on_hover_text(function.about).clicked() {
-                                self.call = Some((function.trap, function.number));
+            // In a row, a list laid out by itself would be laid out across; it goes down.
+            ui.vertical(|ui| {
+                egui::ScrollArea::vertical().id_salt("st-calls-list").max_height(440.0).min_scrolled_height(440.0).show(ui, |ui| {
+                    ui.set_width(260.0);
+                    let searching = !self.call_search.trim().is_empty();
+                    for trap in [Trap::Gemdos, Trap::Bios, Trap::Xbios] {
+                        let shown: Vec<&Function> = st_tos::FUNCTIONS.iter().filter(|f| f.trap == trap && call_matches(f, &self.call_search)).collect();
+                        if shown.is_empty() {
+                            continue;
+                        }
+                        let header = egui::CollapsingHeader::new(format!("{} (trap #{}, {})", trap.name(), trap.number(), shown.len())).id_salt(("st-calls", trap.number()));
+                        let header = if searching { header.open(Some(true)) } else { header.default_open(trap == Trap::Gemdos) };
+                        header.show(ui, |ui| {
+                            for function in shown {
+                                let chosen = self.call == Some((function.trap, function.number));
+                                if ui.selectable_label(chosen, RichText::new(format!("${:02X}  {}", function.number, function.name)).monospace()).on_hover_text(function.about).clicked() {
+                                    self.call = Some((function.trap, function.number));
+                                }
                             }
+                        });
+                    }
+                    egui::CollapsingHeader::new("Line-A ($A000-$A00F)").id_salt("st-calls-linea").show(ui, |ui| {
+                        for (n, (name, about)) in st_tos::LINE_A.iter().enumerate() {
+                            ui.label(RichText::new(format!("$A00{n:X}  {name}")).monospace()).on_hover_text(*about);
                         }
                     });
-                }
-                egui::CollapsingHeader::new("Line-A ($A000-$A00F)").id_salt("st-calls-linea").show(ui, |ui| {
-                    for (n, (name, about)) in st_tos::LINE_A.iter().enumerate() {
-                        ui.label(RichText::new(format!("$A00{n:X}  {name}")).monospace()).on_hover_text(*about);
-                    }
                 });
             });
             ui.separator();
