@@ -1,68 +1,41 @@
-## What's new in 0.10.0
+## What's new in 0.11.0
 
-Lots of everyday editing improvements, previews of web pages, pictures and old documents, a value inspector for hex, two new disassemblers, and support for the Cambridge Z88 and the Amstrad NC100, NC150 and NC200.
+Music and sound play in the preview, there's a 68000 disassembler, and the Atari 2600 is supported from end to end: disassemble a cartridge, write your own, and run it in Stella or MAME.
 
-**Editing**
-- **Surround with** (Edit): puts the selection in brackets, quotes, a tag or a snippet, and leaves it selected.
-- **Bookmarks** (Search): go to any bookmark from a list; copy, cut or delete the bookmarked lines, or delete every other line; swap bookmarked and not; clear them all.
-- **Tabs and spaces** (Format): whether Tab types spaces, the tab size, and converting tabs and spaces, including in the indent only.
-- **Convert** (Format): Base64 encode and decode, and JSON to XML and back.
-- **Column markers** at chosen columns (such as 72 or 80), and **line spacing**.
-- **Your own highlighting grammars:** put Sublime Text `.sublime-syntax` files in the grammars folder (Settings, Editing).
+**Music and sound**
+- **Tracker modules play**, with Limoniter's own player:
+  - ProTracker `.mod` files from the Amiga
+  - the PC's Scream Tracker 3 (`.s3m`), FastTracker 2 (`.xm`) and Impulse Tracker (`.it`) modules
+  - each with its own tracker's effects
+- **The player** has Play, Pause, Stop, Loop and a slider to move through the song. The pattern scrolls past as it plays, and clicking a channel's number switches it off or on. The music keeps playing while you work on other files.
+- **Sound files play** too: MP3, WAV, FLAC, Ogg Vorbis and AIFF, and the Amiga's 8SVX samples, Creative VOC files and Sun and NeXT `.au` files. Their tags (title, artist, album) are shown beside them.
 
-**Files and windows**
-- **Window, Layouts** saves which panels are open under a name, so you can switch between them. **Window, Gather windows** brings every box back onto the screen.
-- **Move to the Recycle Bin** (File, This file), or to the Trash on Mac and Linux.
-- **Changes made by other programs** can be checked for every two seconds. Files with no unsaved changes can be reloaded without asking, staying at the end to follow a growing log.
-- **File properties** shows the file's owner, the program it opens with, and its lines of code.
-- **Save and restore settings** (Tools) puts all of Limoniter's settings in one file, to keep or to move to another computer.
-- **Check for a newer Limoniter** (Help) asks GitHub. It also runs once a day by itself, which can be turned off.
+**The 68000**
+- **A 68000 disassembler** (Tools, Disassemble) works out what a file is:
+  - Amiga programs come back as sections, with their relocations as labels, so they can be changed and rebuilt
+  - Atari ST programs, with their symbols
+  - Amiga boot blocks and Atari ST boot sectors
+  - Mega Drive cartridges, followed from their vectors
+  - Kickstart ROMs
+- **What the code does is named beside it:** the Amiga's library calls (`jsr -552(a6) ; exec OpenLibrary`) and custom chip registers, and the ST's hardware and GEMDOS, BIOS and XBIOS calls.
+- **The source always assembles back** to exactly the same bytes, with Limoniter's own assembler or vasm.
 
-**Previews and conversions**
-- **Web pages** (`.html`) are laid out in the preview, without their scripts or styles.
-- **PNG and JPEG** open as pictures.
-- **Old word processors' documents** opened by themselves are shown converted: WordStar, WordPerfect, Protext, 1st Word, Signum!, Final Writer, Wordworth, ProWrite and others. **Format, Save the document as** saves them as text, Markdown, RTF or CSV.
-
-**Hex and character sets**
-- **The value inspector** (View, Hex) reads the bytes at the cursor as numbers:
-  - integers and IEEE floats, in either byte order
-  - IBM hexadecimal floats
-  - VAX F, D, G and H floats
-  - packed decimal
-  - RADIX-50
-- **New character sets:**
-  - the national versions of ASCII (ISO 646)
-  - DEC Special Graphics
-  - ASCII with the top bit set, as Prime computers kept text
-  - the Amstrad PCW's text and screen sets, the Cambridge Z88's, and the Amstrad NC's
-
-**Machine code**
-- **An x86 disassembler** covers everything from the 8086 to AVX-512. It reads DOS `.COM` and `.EXE` files, Windows programs and DLLs, and Linux programs, and follows their code from where it starts.
-- **An ICL 2900 disassembler** lists the code in SFL, from ICL's *2900 Order Code*.
-- **6502 source** runs on a BBC Micro when it calls the MOS, and on a C64 when it uses the KERNAL. When the code doesn't say, F9 asks, or a `; machine:` line in the source can say.
-
-**Cambridge Z88 and Amstrad NC100, NC150 and NC200**
-- **BBC BASIC (Z80)** programs are listed, and tokenised from a listing.
-- **Z88 card images** (`.epr`) open in the browser, and **PipeDream** documents and spreadsheets are converted.
-- **The Z80 disassembler** names the Z88's operating system calls when asked.
-- **NC memory card images** (`.card`) in ZCN's format open in the browser, and program cards are recognised.
+**The Atari 2600**
+- **Cartridges** (`.a26`) are recognised with their bank switching worked out: F8, F6, F4 and the Superchip's, FA, E0, E7, FE, 3F and DPC.
+- **Disassembled into DASM source** that rebuilds the cartridge:
+  - code followed from bank to bank
+  - the TIA's and RIOT's registers named
+  - each instruction's cycles beside it
+  - code that runs past a scanline's 76 cycles pointed out
+  - graphics drawn as pixels
+- **DASM source** is made into a cartridge, and **F9** runs it in **Stella** or **MAME**.
+- **File, New as, Atari 2600** starts a whole frame that runs straight away.
+- **Get an emulator** now installs Stella and MAME.
 
 **Also**
-- **Get an emulator** (File, Send to device, Manage devices) installs any emulator Limoniter runs programs in:
-  - on Windows, it downloads and installs ZEsarUX, b2, openMSX, FS-UAE and VICE itself
-  - on Linux and Mac, it runs apt or Homebrew in the Terminal panel
-  - otherwise, it opens the emulator's download page
-- **The table generator and the character and sprite editor** write their data in the form you choose:
-  - assemblers: 68000 `dc` lines, Z80 `db`, ACME or 64tass for the 6502, 6809 `fcb`, NASM
-  - BASIC DATA lines
-  - arrays for C, PHP, Python, JavaScript or Rust
-  - Spectrum BASIC that sets the UDGs, for characters
-- **Apple II Integer BASIC** programs are listed.
-- **A file formats page** on the website lists every format Limoniter reads or writes.
-
-**Fixed**
-- The Amiga, Atari ST and C64 hardware guides' lists of registers ran across the window on top of each other.
-- Assembling for a machine that runs from a disk said a tape was made.
+- **The assembler** reads DASM's `processor`, `seg.u`, `rorg` and `.w`, and the 68000's MOVEP.
+- **Amiga programs** with debug hunks or Kickstart 2.0's short relocation tables are read.
+- **The website's home page** shows what Limoniter does for writing new software for older machines, and its figures are up to date.
 
 ## Downloads
 
