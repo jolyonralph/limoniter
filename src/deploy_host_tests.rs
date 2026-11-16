@@ -147,3 +147,21 @@ fn a_listing_knows_its_machine_only_when_that_is_clear() {
     assert_eq!(machine_of("Commodore BASIC 7.0", "prg", &[0x01, 0x1C]), Some(Machine::Commodore(CbmMachine::C128)));
     assert_eq!(machine_of("Atari BASIC", "bas", &[]), None);
 }
+
+#[test]
+fn the_devices_box_lists_emulators_to_get_and_adds_one_downloaded() {
+    let (mut app, ctx) = app_with("");
+    app.open_devices_box();
+    let Dialog::Devices(state) = &mut app.dialog else { panic!("no Devices box") };
+    state.getting = Some(crate::emulators::KNOWN.iter().filter(|e| !e.programs.is_empty()).map(|e| (e, None)).collect());
+    // As a download finishing would hand it back.
+    let vice = crate::emulators::by_id("vice").unwrap();
+    let (send, receive) = std::sync::mpsc::channel();
+    send.send(Ok(PathBuf::from("emulators/vice/bin/x64sc"))).unwrap();
+    state.download = Some((vice, receive));
+    draw(&mut app, &ctx, Vec::new());
+    let Dialog::Devices(state) = &app.dialog else { panic!("the box closed") };
+    assert!(state.download.is_none());
+    assert!(state.get_note.contains("VICE is installed"));
+    assert!(state.devices.iter().any(|d| matches!(&d.place, Place::Emulator { emulator, .. } if emulator == "vice")));
+}

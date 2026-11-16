@@ -134,6 +134,7 @@ mod trash;
 mod file_info;
 mod inspect;
 mod layouts;
+mod emulator_get;
 mod spelling;
 mod strings_explorer;
 mod tabs;

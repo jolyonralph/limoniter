@@ -322,6 +322,8 @@ fn find(emulator: &Emulator) -> Option<PathBuf> {
             }
         }
     }
+    // Where Limoniter's own downloads go, each in a folder named for its emulator.
+    roots.extend(crate::emulator_get::folder());
     if cfg!(windows) {
         roots.extend(["C:\\Emulators", "C:\\emulators", "C:\\Games", "D:\\Emulators", "E:\\emulators"].map(PathBuf::from));
     }

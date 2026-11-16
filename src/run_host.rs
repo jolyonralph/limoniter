@@ -1039,7 +1039,7 @@ impl Limoniter {
                 if !any {
                     let suggestions: Vec<String> = emulators::KNOWN.iter().filter(|e| e.machines.contains(machine)).map(|e| format!("{} ({})", e.name, e.website)).collect();
                     let words = if suggestions.is_empty() { String::new() } else { format!(" Emulators that run them: {}.", suggestions.join(", ")) };
-                    ui.add(egui::Label::new(RichText::new(format!("Nothing set up runs {} programs yet. Find emulators, under Devices and emulators, adds any that are installed.{words}", machine.name())).color(theme::text_dim())).wrap());
+                    ui.add(egui::Label::new(RichText::new(format!("Nothing set up runs {} programs yet. Find emulators, under Devices and emulators, adds any that are installed, and Get an emulator there installs one.{words}", machine.name())).color(theme::text_dim())).wrap());
                 }
                 ui.add_space(6.0);
                 ui.checkbox(&mut keep, format!("Always run {} programs there (F9)", machine.name()));

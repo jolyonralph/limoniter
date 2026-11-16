@@ -153,6 +153,11 @@ pub(super) struct DevicesBox {
     pub found: Option<usize>,
     /// Something to say about the device selected, such as an emulator that wasn't found.
     pub told: String,
+    /// The list of emulators to get, while it's open: each one and where it's installed, if it is.
+    pub getting: Option<Vec<(&'static crate::emulators::Emulator, Option<PathBuf>)>>,
+    /// An emulator being downloaded, and what's said about the last one.
+    pub download: Option<(&'static crate::emulators::Emulator, std::sync::mpsc::Receiver<Result<PathBuf, String>>)>,
+    pub get_note: String,
 }
 
 /// The key a file is remembered by: its path, or for one never saved, its tab.
@@ -462,7 +467,7 @@ impl Limoniter {
     }
 
     pub(super) fn open_devices_box(&mut self) {
-        self.dialog = Dialog::Devices(Box::new(DevicesBox { devices: self.sends.devices.clone(), selected: 0, password: String::new(), keep: true, found: None, told: String::new() }));
+        self.dialog = Dialog::Devices(Box::new(DevicesBox { devices: self.sends.devices.clone(), selected: 0, password: String::new(), keep: true, found: None, told: String::new(), getting: None, download: None, get_note: String::new() }));
     }
 
     /// The box that sends.
@@ -585,6 +590,29 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut done = false;
         let mut forget = None;
+        let mut get_wanted: Option<(&'static crate::emulators::Emulator, crate::emulator_get::Way)> = None;
+        // A download that's finished: the emulator goes in the list, as Find emulators would add it.
+        if let Some((emulator, result)) = state.download.as_ref().and_then(|(e, r)| r.try_recv().ok().map(|result| (*e, result))) {
+            state.download = None;
+            match result {
+                Ok(program) => {
+                    state.get_note = format!("{} is installed, and added to the list.", emulator.name);
+                    if let Some(list) = &mut state.getting
+                        && let Some(row) = list.iter_mut().find(|(e, _)| e.id == emulator.id)
+                    {
+                        row.1 = Some(program.clone());
+                    }
+                    if !state.devices.iter().any(|d| matches!(&d.place, Place::Emulator { emulator: id, .. } if id == emulator.id)) {
+                        state.devices.push(Device { name: emulator.name.to_string(), place: Place::Emulator { emulator: emulator.id.into(), program, options: String::new() }, preset: None, eject: false });
+                        state.selected = state.devices.len() - 1;
+                    }
+                }
+                Err(problem) => state.get_note = problem,
+            }
+        }
+        if state.download.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        }
         let names_clash = state.devices.iter().enumerate().any(|(i, a)| state.devices.iter().skip(i + 1).any(|b| b.name.trim().eq_ignore_ascii_case(a.name.trim())));
         let first_problem = state.devices.iter().find_map(|device| device.problem().map(|p| format!("{}: {p}", if device.name.trim().is_empty() { "A device" } else { device.name.as_str() })));
         egui::Window::new("Devices").collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
@@ -621,6 +649,14 @@ impl Limoniter {
                             state.selected = state.devices.len() - 1;
                         }
                     }
+                    if ui.button("Get an emulator\u{2026}").on_hover_text("Installs one that isn't here: downloaded, or with this computer's own installer, or from its page").clicked() {
+                        state.getting = if state.getting.is_some() {
+                            None
+                        } else {
+                            let installed = crate::emulators::find_installed();
+                            Some(crate::emulators::KNOWN.iter().filter(|e| !e.programs.is_empty()).map(|e| (e, installed.iter().find(|(f, _)| f.id == e.id).map(|(_, p)| p.clone()))).collect())
+                        };
+                    }
                     if let Some(added) = state.found {
                         ui.label(RichText::new(match added {
                             0 => "No more were found.".to_string(),
@@ -651,6 +687,44 @@ impl Limoniter {
                     device_editor(ui, device, &drives, &mut state.password, &mut state.keep, &mut forget, &mut state.told);
                 });
             });
+            if let Some(list) = &state.getting {
+                ui.separator();
+                ui.label(RichText::new("Each one is got the simplest way there is on this computer. Anything run in the Terminal panel can be seen there first.").color(theme::text_faint()).size(12.0));
+                egui::Grid::new("get-emulators").num_columns(3).spacing([12.0, 4.0]).show(ui, |ui| {
+                    for (emulator, installed) in list {
+                        let machines: Vec<&str> = emulator.machines.iter().map(|m| m.name()).collect();
+                        ui.label(emulator.name).on_hover_text(machines.join(", "));
+                        match installed {
+                            Some(path) => {
+                                ui.label(RichText::new("Installed").color(theme::text_dim())).on_hover_text(path.display().to_string());
+                                ui.label("");
+                            }
+                            None => {
+                                let way = crate::emulator_get::way(emulator);
+                                ui.label(RichText::new("Not installed").color(theme::text_faint()));
+                                let busy = state.download.is_some();
+                                if ui.add_enabled(!busy || way != crate::emulator_get::Way::Download, egui::Button::new(crate::emulator_get::button(&way))).on_hover_text(match &way {
+                                    crate::emulator_get::Way::Download => format!("Its latest release, from {}, unpacked beside Limoniter's settings", emulator.website),
+                                    crate::emulator_get::Way::Command(command) => format!("Runs {command} in the Terminal panel"),
+                                    crate::emulator_get::Way::Page => emulator.website.to_string(),
+                                }).clicked() {
+                                    get_wanted = Some((*emulator, way));
+                                }
+                            }
+                        }
+                        ui.end_row();
+                    }
+                });
+                if let Some((emulator, _)) = &state.download {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(format!("Downloading {}\u{2026}", emulator.name));
+                    });
+                }
+                if !state.get_note.is_empty() {
+                    ui.label(RichText::new(&state.get_note).color(theme::text_dim()));
+                }
+            }
             ui.separator();
             if names_clash {
                 ui.colored_label(theme::rainbow_mistake(), "Two devices have the same name.");
@@ -666,6 +740,39 @@ impl Limoniter {
                 }
             });
         });
+        if let Some((emulator, way)) = get_wanted {
+            match way {
+                crate::emulator_get::Way::Download => {
+                    let (send, receive) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        let _ = send.send(crate::emulator_get::download(emulator));
+                    });
+                    if let Dialog::Devices(state) = &mut self.dialog {
+                        state.download = Some((emulator, receive));
+                        state.get_note.clear();
+                    }
+                }
+                crate::emulator_get::Way::Command(command) => {
+                    if self.terminal.is_none() {
+                        self.toggle_terminal();
+                    }
+                    if let Some(terminal) = self.terminal.as_mut() {
+                        terminal.send(format!("{command}\r").as_bytes());
+                    }
+                    if let Dialog::Devices(state) = &mut self.dialog {
+                        state.get_note = format!("{command} is running in the Terminal panel. When it's done, Find emulators adds {}.", emulator.name);
+                    }
+                }
+                crate::emulator_get::Way::Page => {
+                    if let Err(problem) = crate::platform::open_web_page(emulator.website) {
+                        warn(&problem);
+                    }
+                    if let Dialog::Devices(state) = &mut self.dialog {
+                        state.get_note = format!("Once {} is installed, Find emulators adds it.", emulator.name);
+                    }
+                }
+            }
+        }
         if let Some(key) = forget {
             deploy::forget_password(&key);
             self.sends.passwords.remove(&key);

@@ -48,6 +48,10 @@ Lots of everyday editing improvements, previews of web pages, pictures and old d
 - **NC memory card images** (`.card`) in ZCN's format open in the browser, and program cards are recognised.
 
 **Also**
+- **Get an emulator** (File, Send to device, Manage devices) installs any emulator Limoniter runs programs in:
+  - on Windows, it downloads and installs ZEsarUX, b2, openMSX, FS-UAE and VICE itself
+  - on Linux and Mac, it runs apt or Homebrew in the Terminal panel
+  - otherwise, it opens the emulator's download page
 - **The table generator and the character and sprite editor** write their data in the form you choose:
   - assemblers: 68000 `dc` lines, Z80 `db`, ACME or 64tass for the 6502, 6809 `fcb`, NASM
   - BASIC DATA lines
