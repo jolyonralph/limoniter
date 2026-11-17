@@ -1,41 +1,36 @@
-## What's new in 0.11.0
+## What's new in 0.12.0
 
-Music and sound play in the preview, there's a 68000 disassembler, and the Atari 2600 is supported from end to end: disassemble a cartridge, write your own, and run it in Stella or MAME.
+Limoniter now speaks French, German, Italian and Spanish. It also makes sound effects for four sound chips, finds the music and graphics inside old games and disks, and shows where a program sits in memory after every build. There are new graphics editors for the Spectrum, the Next and the Atari 2600.
 
-**Music and sound**
-- **Tracker modules play**, with Limoniter's own player:
-  - ProTracker `.mod` files from the Amiga
-  - the PC's Scream Tracker 3 (`.s3m`), FastTracker 2 (`.xm`) and Impulse Tracker (`.it`) modules
-  - each with its own tracker's effects
-- **The player** has Play, Pause, Stop, Loop and a slider to move through the song. The pattern scrolls past as it plays, and clicking a channel's number switches it off or on. The music keeps playing while you work on other files.
-- **Sound files play** too: MP3, WAV, FLAC, Ogg Vorbis and AIFF, and the Amiga's 8SVX samples, Creative VOC files and Sun and NeXT `.au` files. Their tags (title, artist, album) are shown beside them.
+**Languages**
+- **The whole window in French, German, Italian or Spanish** (Settings, Appearance, Language): the menus, settings, buttons, messages, and the comments in the source Limoniter writes for you.
+- **Each language is listed under its own name** (Deutsch, Español, Français, Italiano), with a globe beside the setting, so you can always find your way back.
 
-**The 68000**
-- **A 68000 disassembler** (Tools, Disassemble) works out what a file is:
-  - Amiga programs come back as sections, with their relocations as labels, so they can be changed and rebuilt
-  - Atari ST programs, with their symbols
-  - Amiga boot blocks and Atari ST boot sectors
-  - Mega Drive cartridges, followed from their vectors
-  - Kickstart ROMs
-- **What the code does is named beside it:** the Amiga's library calls (`jsr -552(a6) ; exec OpenLibrary`) and custom chip registers, and the ST's hardware and GEMDOS, BIOS and XBIOS calls.
-- **The source always assembles back** to exactly the same bytes, with Limoniter's own assembler or vasm.
+**Sound effects** (Tools, Sound effects)
+- **Effects for four sound chips:** the **AY** (ZX Spectrum 128, Amstrad CPC, MSX), the C64's **SID**, the Atari 2600's **TIA** and the Spectrum's **beeper**.
+- **Draw the notes and the volume** on a graph, type each frame's values, or start from a preset (pickup, laser, explosion, power-up, hit, jump, blip, siren) and change its shape. Random and Vary make new ones.
+- **Each change plays straight away.** The AY uses the built-in Spectrum's own emulation, and the beeper runs its player on a Z80, so what you hear is what the player does.
+- **AYFX banks** from AYFX Editor open, and are saved the way it saves them.
+- **Out come the effects with a player to call** once a frame. **Program to run** opens a program that plays each one in turn, for F9 on the built-in Spectrum, VICE, Stella or MAME.
 
-**The Atari 2600**
-- **Cartridges** (`.a26`) are recognised with their bank switching worked out: F8, F6, F4 and the Superchip's, FA, E0, E7, FE, 3F and DPC.
-- **Disassembled into DASM source** that rebuilds the cartridge:
-  - code followed from bank to bank
-  - the TIA's and RIOT's registers named
-  - each instruction's cycles beside it
-  - code that runs past a scanline's 76 cycles pointed out
-  - graphics drawn as pixels
-- **DASM source** is made into a cartridge, and **F9** runs it in **Stella** or **MAME**.
-- **File, New as, Atari 2600** starts a whole frame that runs straight away.
-- **Get an emulator** now installs Stella and MAME.
+**Ripper** (Tools, Ripper)
+- **Music found in any file:** a game, a demo, a snapshot, or a disk, tape or archive image, including every file inside it and a DMS disk's raw tracks.
+  - Tracker modules (ProTracker and its kin, S3M, XM, IT), SID, SNDH (Pack-Ice packed too), YM, PT3 and AY files.
+  - Each is measured from its own header. Open it in a tab to hear it, or save one or all of them.
+- **Graphics found in any bytes:** see them as characters, C64 multicolour and sprites, NES and Game Boy tiles, Amiga and Atari ST bitplanes, a Spectrum screen, or the Next's 8-bit colours, at any offset and width. Save as a PNG, copy as source, or open in the right editor.
+
+**Building programs**
+- **A memory map after every build** for the Spectrum, C64, BBC Micro, Color Computer and Atari 2600. A bar over the Output panel shows the program among the machine's ROM, screen, system areas and I/O, and how much memory is still free. It warns when code lands somewhere it can't go or shouldn't, such as ROM, the C64's I/O, the screen or contended memory.
+
+**Graphics editors**
+- **Spectrum screen designer:** lines, boxes, ellipses, fill, text in the ROM's font, selections, scrolling, an attribute lock, redo and zoom.
+- **Picture converter** for the Spectrum, Timex hi-res, Next, CPC, MSX and BBC Micro.
+- **Spectrum Next Layer 2 painter:** every Layer 2 mode and LoRes, with palette editing. The Next's tilemap can be made from a picture, and sprites cut from a sheet, each with a `.nex` that shows them.
+- **Atari 2600 sprites and playfield:** sprite frames with a colour on each line, playfields made from pictures, out as DASM tables and programs that show them.
 
 **Also**
-- **The assembler** reads DASM's `processor`, `seg.u`, `rorg` and `.w`, and the 68000's MOVEP.
-- **Amiga programs** with debug hunks or Kickstart 2.0's short relocation tables are read.
-- **The website's home page** shows what Limoniter does for writing new software for older machines, and its figures are up to date.
+- **AMOS and STOS programs** are listed, and tokenised back from a listing.
+- **Column mode with Word wrap on** now offers to turn Word wrap off for you.
 
 ## Downloads
 
