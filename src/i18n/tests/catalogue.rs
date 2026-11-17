@@ -217,7 +217,8 @@ pub fn catalogue() -> BTreeSet<String> {
         if name.contains("/tests") || name.ends_with("_tests.rs") || name.contains("/i18n") {
             continue;
         }
-        let text = std::fs::read_to_string(path).unwrap();
+        // As Git leaves it on Windows too, with \r\n line ends, it's read with \n.
+        let text = std::fs::read_to_string(path).unwrap().replace("\r\n", "\n");
         // Up to the tests at the end of a file.
         let text = text.split("\n#[cfg(test)]\nmod tests {").next().unwrap_or(&text);
         after(text, "i18n::tr(\"", &mut out);
@@ -361,7 +362,7 @@ pub fn catalogue() -> BTreeSet<String> {
     // The starters File, New opens.
     for entry in std::fs::read_dir(root.join("src/starters")).unwrap().flatten() {
         if let Ok(text) = std::fs::read_to_string(entry.path()) {
-            source_comments(&text, &mut out);
+            source_comments(&text.replace("\r\n", "\n"), &mut out);
         }
     }
     out.retain(|s| wordy(s) && s.len() < 2000);
