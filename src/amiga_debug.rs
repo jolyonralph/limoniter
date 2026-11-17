@@ -339,7 +339,7 @@ impl Gdb {
             match TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), Duration::from_secs(2)) {
                 Ok(stream) => break stream,
                 Err(_) if began.elapsed() < wait && !give_up() => std::thread::sleep(Duration::from_millis(200)),
-                Err(e) => return Err(format!("The emulator's debugger couldn't be reached on port {port}: {e}")),
+                Err(e) => return Err(crate::i18n::tf!("The emulator's debugger couldn't be reached on port {port}: {e}")),
             }
         };
         stream.set_read_timeout(Some(Duration::from_millis(50))).map_err(|e| e.to_string())?;
@@ -349,12 +349,12 @@ impl Gdb {
 
     pub fn send(&mut self, data: &str) -> Result<(), String> {
         let sum = data.bytes().fold(0u8, |a, b| a.wrapping_add(b));
-        self.stream.write_all(format!("${data}#{sum:02x}").as_bytes()).map_err(|e| format!("The emulator couldn't be told: {e}"))
+        self.stream.write_all(format!("${data}#{sum:02x}").as_bytes()).map_err(|e| crate::i18n::tf!("The emulator couldn't be told: {e}"))
     }
 
     /// Ctrl+C, which stops it.
     pub fn interrupt(&mut self) -> Result<(), String> {
-        self.stream.write_all(&[3]).map_err(|e| format!("The emulator couldn't be told: {e}"))
+        self.stream.write_all(&[3]).map_err(|e| crate::i18n::tf!("The emulator couldn't be told: {e}"))
     }
 
     /// The next packet, if one comes within `wait`. What the server prints (O packets) is kept as output, not
@@ -393,10 +393,10 @@ impl Gdb {
                 return Ok(None);
             }
             match self.stream.read(&mut buffer) {
-                Ok(0) => return Err("The emulator closed the connection.".into()),
+                Ok(0) => return Err(crate::i18n::tr("The emulator closed the connection.").into()),
                 Ok(got) => self.pending.extend_from_slice(&buffer[..got]),
                 Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
-                Err(e) => return Err(format!("The emulator stopped answering: {e}")),
+                Err(e) => return Err(crate::i18n::tf!("The emulator stopped answering: {e}")),
             }
         }
     }
@@ -404,9 +404,9 @@ impl Gdb {
     /// Sends a packet and waits for the answer, up to `wait`.
     pub fn command_within(&mut self, data: &str, wait: Duration) -> Result<String, String> {
         self.send(data)?;
-        let said = self.packet(wait)?.ok_or_else(|| format!("The emulator didn't answer {data}."))?;
+        let said = self.packet(wait)?.ok_or_else(|| crate::i18n::tf!("The emulator didn't answer {data}."))?;
         if said.len() == 3 && said.starts_with('E') {
-            return Err(format!("The emulator refused {data} ({said})."));
+            return Err(crate::i18n::tf!("The emulator refused {data} ({said})."));
         }
         Ok(said)
     }
@@ -431,14 +431,14 @@ impl Gdb {
                 return Ok(true);
             }
             if began.elapsed() > wait {
-                return Err("The emulator's debugger didn't answer: the program never started, or this emulator has no GDB server.".into());
+                return Err(crate::i18n::tr("The emulator's debugger didn't answer: the program never started, or this emulator has no GDB server.").into());
             }
         }
     }
 
     pub fn registers(&mut self) -> Result<[u32; 18], String> {
         let said = self.command("g")?;
-        parse_registers(&said).ok_or_else(|| format!("The emulator's registers weren't understood: {said}"))
+        parse_registers(&said).ok_or_else(|| crate::i18n::tf!("The emulator's registers weren't understood: {said}"))
     }
 
     /// Memory, a little at a time; None if the server wouldn't read it.
@@ -449,7 +449,7 @@ impl Gdb {
             let take = (length - at).min(0x100);
             let address = start.wrapping_add(at);
             self.send(&format!("m{address:x},{take:x}"))?;
-            let said = self.packet(Duration::from_secs(10))?.ok_or("The emulator stopped answering.")?;
+            let said = self.packet(Duration::from_secs(10))?.ok_or(crate::i18n::tr("The emulator stopped answering."))?;
             match hex_bytes(&said).filter(|b| b.len() == take as usize) {
                 Some(got) => bytes.extend(got),
                 None => return Ok(None),
@@ -467,8 +467,8 @@ impl Gdb {
     pub fn set_register(&mut self, index: usize, value: u32) -> Result<(), String> {
         match self.command(&format!("P{index:x}={value:08x}"))?.as_str() {
             "OK" => Ok(()),
-            "" => Err("This emulator can't change registers.".into()),
-            said => Err(format!("The emulator didn't change it ({said}).")),
+            "" => Err(crate::i18n::tr("This emulator can't change registers.").into()),
+            said => Err(crate::i18n::tf!("The emulator didn't change it ({said}).")),
         }
     }
 }
@@ -571,7 +571,7 @@ impl Session<'_> {
         loop {
             if let Some(reply) = self.gdb.packet(Duration::from_millis(100))? {
                 if self.gdb.ended {
-                    return Err("The program has ended.".into());
+                    return Err(crate::i18n::tr("The program has ended.").into());
                 }
                 if !is_stop(&reply) {
                     continue;
@@ -622,9 +622,9 @@ impl Session<'_> {
     fn step_one(&mut self) -> Result<String, String> {
         self.gdb.send("vCont;s")?;
         loop {
-            let reply = self.gdb.packet(Duration::from_secs(10))?.ok_or("The emulator didn't step.")?;
+            let reply = self.gdb.packet(Duration::from_secs(10))?.ok_or(crate::i18n::tr("The emulator didn't step."))?;
             if self.gdb.ended {
-                return Err("The program has ended.".into());
+                return Err(crate::i18n::tr("The program has ended.").into());
             }
             if is_stop(&reply) {
                 return Ok(reply);
@@ -735,7 +735,7 @@ pub fn talk(port: u16, program: Program, breakpoints: Vec<i64>, asked: &Receiver
     gdb.command("?")?;
     let bases = parse_offsets(&gdb.command("qOffsets")?);
     if bases.is_empty() {
-        return Err("The emulator didn't say where the program was loaded.".into());
+        return Err(crate::i18n::tr("The emulator didn't say where the program was loaded.").into());
     }
     let mut session = Session { gdb, program, bases, wanted: breakpoints, temporary: Vec::new(), set: Vec::new(), watches_wanted: Vec::new(), watches_set: Vec::new(), reads: Vec::new(), serial: 0, asked, tell, wake };
     for ask in early.into_inner() {

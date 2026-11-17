@@ -26,8 +26,8 @@ impl Limoniter {
     /// From the menu: checks now, and says what it found.
     pub(super) fn check_updates_now(&mut self) {
         match UpdatedBy::this_copy() {
-            UpdatedBy::Store => self.message("Check for a newer Limoniter", format!("This is Limoniter {}, from the Microsoft Store, which brings each new version to it by itself.", update_check::running())),
-            UpdatedBy::Flathub => self.message("Check for a newer Limoniter", format!("This is Limoniter {}, from Flathub. Your software centre, or flatpak update, brings each new version.", update_check::running())),
+            UpdatedBy::Store => self.message("Check for a newer Limoniter", crate::i18n::tf!("This is Limoniter {}, from the Microsoft Store, which brings each new version to it by itself.", update_check::running())),
+            UpdatedBy::Flathub => self.message("Check for a newer Limoniter", crate::i18n::tf!("This is Limoniter {}, from Flathub. Your software centre, or flatpak update, brings each new version.", update_check::running())),
             UpdatedBy::DownloadPage => self.start_update_check(true),
         }
     }
@@ -62,7 +62,7 @@ impl Limoniter {
                     self.update_waiting = Some((version, notes));
                 }
             }
-            Ok(Outcome::UpToDate) if asked => self.message("Check for a newer Limoniter", format!("Limoniter {} is the latest.", update_check::running())),
+            Ok(Outcome::UpToDate) if asked => self.message("Check for a newer Limoniter", crate::i18n::tf!("Limoniter {} is the latest.", update_check::running())),
             Err(problem) if asked => self.message("Check for a newer Limoniter", problem),
             _ => {}
         }

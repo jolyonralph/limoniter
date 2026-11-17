@@ -124,7 +124,7 @@ impl Server {
     /// Starts a server's program in a folder, and says hello.
     pub fn start(command: &str, root: &Path) -> Result<Server, String> {
         let parts = crate::emulators::split_options(command);
-        let (program, args) = parts.split_first().ok_or("No command for the language server.")?;
+        let (program, args) = parts.split_first().ok_or(crate::i18n::tr("No command for the language server."))?;
         let mut child = std::process::Command::new(program)
             .args(args)
             .current_dir(root)
@@ -132,9 +132,9 @@ impl Server {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .spawn()
-            .map_err(|e| format!("The language server {program} couldn't be started: {e}"))?;
-        let stdin = child.stdin.take().ok_or("No way to talk to the language server.")?;
-        let stdout = child.stdout.take().ok_or("No way to hear the language server.")?;
+            .map_err(|e| crate::i18n::tf!("The language server {program} couldn't be started: {e}"))?;
+        let stdin = child.stdin.take().ok_or(crate::i18n::tr("No way to talk to the language server."))?;
+        let stdout = child.stdout.take().ok_or(crate::i18n::tr("No way to hear the language server."))?;
         let mut server = Server::over(program.clone(), root.to_path_buf(), Box::new(stdin), stdout);
         server.child = Some(child);
         Ok(server)

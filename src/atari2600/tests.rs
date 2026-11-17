@@ -2,7 +2,7 @@ use super::*;
 use std::path::Path;
 
 fn assemble(source: &str) -> crate::asm::Assembly {
-    let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, Path::new("t.s"), source, &|_| Err("no".into()));
+    let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()));
     assert!(assembly.ok(), "{:?}\n{source}", assembly.problems.first().map(|p| (&p.message, source.lines().nth(p.line))));
     assembly
 }

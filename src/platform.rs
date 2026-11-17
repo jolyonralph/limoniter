@@ -82,7 +82,7 @@ pub fn open_folder(folder: &Path) -> Result<(), String> {
     } else {
         "xdg-open"
     };
-    Command::new(program).arg(folder).spawn().map(|_| ()).map_err(|e| format!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
+    Command::new(program).arg(folder).spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
 }
 
 /// Shows a file in the file manager, selected where it can be.
@@ -107,7 +107,7 @@ pub fn reveal(file: &Path) -> Result<(), String> {
         command.arg(file.parent().unwrap_or(file));
         command
     };
-    command.spawn().map(|_| ()).map_err(|e| format!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
+    command.spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
 }
 
 /// Opens a web page in the system's browser.
@@ -135,15 +135,15 @@ pub fn open_web_page(address: &str) -> Result<(), String> {
         command.arg(address);
         command
     };
-    command.spawn().map(|_| ()).map_err(|e| format!("Couldn't open the browser.\n\n{e}"))
+    command.spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("Couldn't open the browser.\n\n{e}"))
 }
 
 /// Opens a file in the program the system uses for its kind.
 #[cfg(not(windows))]
 pub fn open_with_default(file: &Path) -> Result<(), String> {
     let program = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-    let status = Command::new(program).arg(file).status().map_err(|e| format!("Couldn't ask the system to open it.\n\n{e}"))?;
-    if status.success() { Ok(()) } else { Err("The system has no program set to open this kind of file.".into()) }
+    let status = Command::new(program).arg(file).status().map_err(|e| crate::i18n::tf!("Couldn't ask the system to open it.\n\n{e}"))?;
+    if status.success() { Ok(()) } else { Err(crate::i18n::tr("The system has no program set to open this kind of file.").into()) }
 }
 
 /// Whether this is the Microsoft Store's Limoniter: a packaged app, installed under WindowsApps. Its file types are

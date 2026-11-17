@@ -114,7 +114,7 @@ pub fn decompress(bytes: &[u8], samples: usize, wide: bool, it215: bool) -> Vec<
 
 pub fn load(bytes: &[u8]) -> Result<Song, String> {
     if bytes.len() < 0xC0 || !bytes.starts_with(b"IMPM") {
-        return Err("This isn't an Impulse Tracker module: it doesn't start IMPM.".into());
+        return Err(crate::i18n::tr("This isn't an Impulse Tracker module: it doesn't start IMPM.").into());
     }
     let orders = usize::from(u16_le(bytes, 0x20));
     let instrument_count = usize::from(u16_le(bytes, 0x22));
@@ -152,7 +152,7 @@ pub fn load(bytes: &[u8]) -> Result<Song, String> {
         song.surround[c] = stereo && pan & 0x7F == 100;
         song.channel_volumes[c] = bytes[0x80 + c].min(64);
     }
-    song.orders = bytes.get(0xC0..0xC0 + orders).ok_or("The module's order is cut short.")?.to_vec();
+    song.orders = bytes.get(0xC0..0xC0 + orders).ok_or(crate::i18n::tr("The module's order is cut short."))?.to_vec();
     while song.orders.last() == Some(&255) {
         song.orders.pop();
     }

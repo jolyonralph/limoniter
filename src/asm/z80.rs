@@ -366,7 +366,7 @@ impl Values<'_, '_, '_> {
     fn displacement(&mut self, text: &str) -> Result<u8, String> {
         let value = self.line.eval(text)?;
         if self.line.checking() && !(-128..=127).contains(&value) {
-            return Err(format!("the offset {value} is out of reach (-128 to 127)"));
+            return Err(crate::i18n::tf!("the offset {value} is out of reach (-128 to 127)"));
         }
         Ok(value as u8)
     }
@@ -376,7 +376,7 @@ impl Values<'_, '_, '_> {
         let target = self.line.eval(text)?;
         let offset = target - (self.line.here() + 2);
         if self.line.checking() && !(-128..=127).contains(&offset) {
-            return Err(format!("{text} is {offset} bytes away, out of a relative jump's reach (-128 to 127); use JP"));
+            return Err(crate::i18n::tf!("{text} is {offset} bytes away, out of a relative jump's reach (-128 to 127); use JP"));
         }
         Ok(offset as u8)
     }
@@ -394,7 +394,7 @@ fn as_r(op: &Op) -> Option<(u8, Option<u8>, Option<&str>)> {
 
 /// Two register fields that can go in one instruction: IXH can't go with H, nor (IX+d) with IXH.
 fn compatible(a: (u8, Option<u8>, Option<&str>), b: (u8, Option<u8>, Option<&str>)) -> Result<Option<u8>, String> {
-    let wrong = Err("those registers can't be used together".to_string());
+    let wrong = Err(crate::i18n::tr("those registers can't be used together").to_string());
     match (a.2.is_some(), b.2.is_some()) {
         (true, true) => return wrong,
         (true, false) => return if b.1.is_some() { wrong } else { Ok(a.1) },
@@ -472,14 +472,14 @@ impl Isa for Z80 {
         }
         if let Some((_, bytes)) = PLAIN.iter().find(|(name, _)| *name == mnemonic) {
             if !operands.is_empty() {
-                return Err(format!("{} takes nothing after it", mnemonic.to_ascii_uppercase()));
+                return Err(crate::i18n::tf!("{} takes nothing after it", mnemonic.to_ascii_uppercase()));
             }
             return Ok(bytes.to_vec());
         }
         let texts = split_operands(operands);
         let ops: Vec<Op> = texts.iter().map(|t| operand(t)).collect();
         let mut v = Values { line };
-        let wrong = || Err(format!("{} {} isn't a Z80 instruction", mnemonic.to_ascii_uppercase(), operands));
+        let wrong = || Err(crate::i18n::tf!("{} {} isn't a Z80 instruction", mnemonic.to_ascii_uppercase(), operands));
         match (mnemonic, ops.as_slice()) {
             ("ld", [a, b]) => load(a, b, &mut v).unwrap_or_else(wrong),
             ("push", [Op::Pair(p)]) => match p.stack_number() {
@@ -504,7 +504,7 @@ impl Isa for Z80 {
                 let n = match (target, source) {
                     (t, s) if s == t => 2,
                     (_, Pair::Hl | Pair::Ix | Pair::Iy) => return wrong(),
-                    (_, s) => s.number().ok_or("that pair can't be added")?,
+                    (_, s) => s.number().ok_or(crate::i18n::tr("that pair can't be added"))?,
                 };
                 Ok(build(target.prefix(), &[0x09 | n << 4], None, &[]))
             }
@@ -539,7 +539,7 @@ impl Isa for Z80 {
                 0 => Ok(vec![0xED, 0x46]),
                 1 => Ok(vec![0xED, 0x56]),
                 2 => Ok(vec![0xED, 0x5E]),
-                _ => Err("IM takes 0, 1 or 2".into()),
+                _ => Err(crate::i18n::tr("IM takes 0, 1 or 2").into()),
             },
             ("jp", [Op::At(Pair::Hl)]) | ("jp", [Op::Pair(Pair::Hl)]) => Ok(vec![0xE9]),
             ("jp", [Op::Indexed(prefix, disp)]) if disp == "0" => Ok(vec![*prefix, 0xE9]),
@@ -550,7 +550,7 @@ impl Isa for Z80 {
                 Ok(build(None, &[0xC3], None, &v.word(target)?))
             }
             ("jp", [_, _]) => {
-                let cc = condition(&texts[0]).ok_or_else(|| format!("{} isn't a condition", texts[0]))?;
+                let cc = condition(&texts[0]).ok_or_else(|| crate::i18n::tf!("{} isn't a condition", texts[0]))?;
                 Ok(build(None, &[0xC2 | cc << 3], None, &v.word(&texts[1])?))
             }
             ("call", [target]) => {
@@ -558,19 +558,19 @@ impl Isa for Z80 {
                 Ok(build(None, &[0xCD], None, &v.word(target)?))
             }
             ("call", [_, _]) => {
-                let cc = condition(&texts[0]).ok_or_else(|| format!("{} isn't a condition", texts[0]))?;
+                let cc = condition(&texts[0]).ok_or_else(|| crate::i18n::tf!("{} isn't a condition", texts[0]))?;
                 Ok(build(None, &[0xC4 | cc << 3], None, &v.word(&texts[1])?))
             }
             // A label may be named like a register (DE, say): after JR and DJNZ it can only be the label.
             ("jr", [_]) => Ok(vec![0x18, v.relative(&texts[0])?]),
             ("jr", [_, _]) => {
-                let cc = condition(&texts[0]).filter(|cc| *cc < 4).ok_or_else(|| format!("JR can't use the condition {}", texts[0]))?;
+                let cc = condition(&texts[0]).filter(|cc| *cc < 4).ok_or_else(|| crate::i18n::tf!("JR can't use the condition {}", texts[0]))?;
                 Ok(vec![0x20 | cc << 3, v.relative(&texts[1])?])
             }
             ("djnz", [_]) => Ok(vec![0x10, v.relative(&texts[0])?]),
             ("ret", []) => Ok(vec![0xC9]),
             ("ret", [_]) => {
-                let cc = condition(&texts[0]).ok_or_else(|| format!("{} isn't a condition", texts[0]))?;
+                let cc = condition(&texts[0]).ok_or_else(|| crate::i18n::tf!("{} isn't a condition", texts[0]))?;
                 Ok(vec![0xC0 | cc << 3])
             }
             ("rst", [Op::Value(value)]) => {
@@ -578,7 +578,7 @@ impl Isa for Z80 {
                 match n {
                     0 | 8 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 => Ok(vec![0xC7 | n as u8]),
                     1..=7 => Ok(vec![0xC7 | (n as u8) << 3]),
-                    _ => Err(format!("RST can't go to {n}")),
+                    _ => Err(crate::i18n::tf!("RST can't go to {n}")),
                 }
             }
             ("in", [Op::R(7, None), Op::Memory(port)]) => Ok(vec![0xDB, v.byte(port)?]),
@@ -605,7 +605,7 @@ impl Isa for Z80 {
             ("bit" | "res" | "set", [Op::Value(bit), op, rest @ ..]) => {
                 let b = v.line.eval(bit)?;
                 if !(0..=7).contains(&b) {
-                    return Err(format!("there's no bit {b} in a byte"));
+                    return Err(crate::i18n::tf!("there's no bit {b} in a byte"));
                 }
                 let base = match mnemonic {
                     "bit" => 0x40,

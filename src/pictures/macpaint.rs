@@ -25,7 +25,7 @@ pub fn looks_like(ending: &str, bytes: &[u8]) -> bool {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
-    let data = body(bytes).filter(|d| d.len() > 512).ok_or("This is too short to be a MacPaint picture.")?;
+    let data = body(bytes).filter(|d| d.len() > 512).ok_or(crate::i18n::tr("This is too short to be a MacPaint picture."))?;
     let mut page = Vec::with_capacity(ROW * HEIGHT);
     let mut at = 512;
     while page.len() < ROW * HEIGHT && at < data.len() {

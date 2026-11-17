@@ -404,7 +404,7 @@ fn pump(from: &mut dyn Read, to: &mut dyn Write, done: &AtomicU64, stop: &Atomic
     let mut buffer = vec![0u8; CHUNK];
     loop {
         if stop.load(Ordering::Relaxed) {
-            return Err("Stopped.".into());
+            return Err(crate::i18n::tr("Stopped.").into());
         }
         let n = from.read(&mut buffer).map_err(|e| e.to_string())?;
         if n == 0 {
@@ -502,7 +502,7 @@ impl Ftp {
         loop {
             line.clear();
             if self.reader.read_line(&mut line).map_err(|e| e.to_string())? == 0 {
-                return Err("The server closed the connection.".into());
+                return Err(crate::i18n::tr("The server closed the connection.").into());
             }
             text += &line;
             let bytes = line.as_bytes();
@@ -515,7 +515,7 @@ impl Ftp {
                     _ => {}
                 }
             } else if code.is_none() {
-                return Err(format!("The server said something unexpected: {}", line.trim_end()));
+                return Err(crate::i18n::tf!("The server said something unexpected: {}", line.trim_end()));
             }
         }
     }
@@ -535,8 +535,8 @@ impl Ftp {
         self.writer.write_all(format!("USER {user}\r\n").as_bytes()).map_err(|e| e.to_string())?;
         match self.reply()? {
             (230, _) => Ok(()),
-            (331 | 332, _) => self.command(&format!("PASS {password}"), &[230, 202]).map(|_| ()).map_err(|text| format!("The server didn't accept the sign-in.\n\n{text}")),
-            (_, text) => Err(format!("The server didn't accept the sign-in.\n\n{text}")),
+            (331 | 332, _) => self.command(&format!("PASS {password}"), &[230, 202]).map(|_| ()).map_err(|text| crate::i18n::tf!("The server didn't accept the sign-in.\n\n{text}")),
+            (_, text) => Err(crate::i18n::tf!("The server didn't accept the sign-in.\n\n{text}")),
         }
     }
 
@@ -551,7 +551,7 @@ impl Ftp {
         }
         for part in folder.split('/').filter(|p| !p.is_empty()) {
             if self.command(&format!("CWD {part}"), &[250]).is_err() {
-                self.command(&format!("MKD {part}"), &[257]).map_err(|text| format!("Couldn't make the folder {part}.\n\n{text}"))?;
+                self.command(&format!("MKD {part}"), &[257]).map_err(|text| crate::i18n::tf!("Couldn't make the folder {part}.\n\n{text}"))?;
                 self.command(&format!("CWD {part}"), &[250])?;
             }
         }
@@ -563,7 +563,7 @@ impl Ftp {
     fn data(&mut self) -> Result<TcpStream, String> {
         let port = match self.command("EPSV", &[229]) {
             Ok(text) => {
-                let inside = text.split('(').nth(1).and_then(|rest| rest.split(')').next()).ok_or("The server's passive reply couldn't be read.")?;
+                let inside = text.split('(').nth(1).and_then(|rest| rest.split(')').next()).ok_or(crate::i18n::tr("The server's passive reply couldn't be read."))?;
                 inside.trim_matches('|').parse::<u16>().map_err(|_| "The server's passive reply couldn't be read.".to_string())?
             }
             Err(_) => {
@@ -571,7 +571,7 @@ impl Ftp {
                 let inside = text.split_once('(').map_or(text.get(3..).unwrap_or_default(), |(_, rest)| rest);
                 let numbers: Vec<u16> = inside.split(|c: char| !c.is_ascii_digit()).filter(|s| !s.is_empty()).filter_map(|s| s.parse().ok()).take(6).collect();
                 if numbers.len() < 6 {
-                    return Err("The server's passive reply couldn't be read.".into());
+                    return Err(crate::i18n::tr("The server's passive reply couldn't be read.").into());
                 }
                 numbers[4] * 256 + numbers[5]
             }
@@ -594,7 +594,7 @@ impl Ftp {
 }
 
 fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, String> {
-    let addresses: Vec<_> = (host.trim(), port).to_socket_addrs().map_err(|e| format!("Couldn't find {host}.\n\n{e}"))?.collect();
+    let addresses: Vec<_> = (host.trim(), port).to_socket_addrs().map_err(|e| crate::i18n::tf!("Couldn't find {host}.\n\n{e}"))?.collect();
     let mut last = format!("Couldn't find {host}.");
     for address in addresses {
         match TcpStream::connect_timeout(&address, TIMEOUT) {
@@ -636,7 +636,7 @@ pub fn ultimate_route(name: &str) -> Option<(&'static str, bool)> {
 /// Sends a file to an Ultimate's REST interface (firmware 3.11 and later): a program to run, a tune to play, a
 /// cartridge to start, or a disk to put in drive A.
 pub fn ultimate_send(host: &str, password: &str, name: &str, payload: &Payload, done: &AtomicU64) -> Result<String, String> {
-    let (route, as_form) = ultimate_route(name).ok_or_else(|| format!("An Ultimate can run .prg and .crt files, play .sid and .mod files, and mount .d64, .g64, .d71, .g71 and .d81 disks. It wouldn't know what to do with {name}."))?;
+    let (route, as_form) = ultimate_route(name).ok_or_else(|| crate::i18n::tf!("An Ultimate can run .prg and .crt files, play .sid and .mod files, and mount .d64, .g64, .d71, .g71 and .d81 disks. It wouldn't know what to do with {name}."))?;
     let data = payload.all().map_err(|e| e.to_string())?;
     let (host_only, port) = match host.trim().rsplit_once(':') {
         Some((h, p)) if p.parse::<u16>().is_ok() && !h.contains(':') => (h, p.parse().unwrap_or(80)),
@@ -671,18 +671,18 @@ pub fn ultimate_send(host: &str, password: &str, name: &str, payload: &Payload, 
         stream.write_all(&tail)?;
         stream.flush()
     };
-    send().map_err(|e| format!("Couldn't send it to {host}.\n\n{e}"))?;
+    send().map_err(|e| crate::i18n::tf!("Couldn't send it to {host}.\n\n{e}"))?;
     let mut answer = Vec::new();
     let _ = stream.read_to_end(&mut answer);
     let answer = String::from_utf8_lossy(&answer);
-    let status: u16 = answer.split(' ').nth(1).and_then(|code| code.parse().ok()).ok_or_else(|| format!("{host} didn't answer as an Ultimate does."))?;
+    let status: u16 = answer.split(' ').nth(1).and_then(|code| code.parse().ok()).ok_or_else(|| crate::i18n::tf!("{host} didn't answer as an Ultimate does."))?;
     let body = answer.split_once("\r\n\r\n").map_or("", |(_, body)| body);
     let errors: Vec<String> = serde_json::from_str::<serde_json::Value>(body.trim()).ok().and_then(|json| json.get("errors").and_then(|e| e.as_array()).map(|list| list.iter().filter_map(|e| e.as_str().map(str::to_string)).collect())).unwrap_or_default();
     match status {
         200..=299 if errors.is_empty() => Ok(if as_form { format!("{name} is in drive A.") } else { format!("{name} has started.") }),
-        403 => Err(format!("{host} wants its network password. Edit the device to give it.")),
-        404 => Err(format!("{host} doesn't know this request. Its firmware may be older than 3.11, which added it.")),
-        _ => Err(format!("{host} didn't do it.\n\n{}", if errors.is_empty() { answer.lines().next().unwrap_or_default().to_string() } else { errors.join("\n") })),
+        403 => Err(crate::i18n::tf!("{host} wants its network password. Edit the device to give it.")),
+        404 => Err(crate::i18n::tf!("{host} doesn't know this request. Its firmware may be older than 3.11, which added it.")),
+        _ => Err(crate::i18n::tf!("{host} didn't do it.\n\n{}", if errors.is_empty() { answer.lines().next().unwrap_or_default().to_string() } else { errors.join("\n") })),
     }
 }
 
@@ -724,7 +724,7 @@ pub struct NextSync {
 impl NextSync {
     /// Starts listening for the Next. Fails if something else, such as NextSync's own server, has the port.
     pub fn start(port: u16) -> Result<NextSync, String> {
-        let listener = TcpListener::bind(("0.0.0.0", port)).map_err(|e| format!("Couldn't listen for the Next on port {port}. Is NextSync's own server running?\n\n{e}"))?;
+        let listener = TcpListener::bind(("0.0.0.0", port)).map_err(|e| crate::i18n::tf!("Couldn't listen for the Next on port {port}. Is NextSync's own server running?\n\n{e}"))?;
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
         let shared = Arc::new(Mutex::new(NextShared::default()));
         let stop = Arc::new(AtomicBool::new(false));
@@ -869,7 +869,7 @@ fn serve_next(mut stream: TcpStream, shared: &Mutex<NextShared>, stop: &AtomicBo
         let n = match stream.read(&mut buffer) {
             Ok(0) => break,
             Ok(n) => n,
-            Err(e) => return Err(format!("The connection to the Next was lost.\n\n{e}")),
+            Err(e) => return Err(crate::i18n::tf!("The connection to the Next was lost.\n\n{e}")),
         };
         let packet = match &buffer[..n] {
             b"Sync3" => {
@@ -926,7 +926,7 @@ fn serve_next(mut stream: TcpStream, shared: &Mutex<NextShared>, stop: &AtomicBo
             }
             _ => next_packet(b"Error", 0),
         };
-        stream.write_all(&packet).map_err(|e| format!("The connection to the Next was lost.\n\n{e}"))?;
+        stream.write_all(&packet).map_err(|e| crate::i18n::tf!("The connection to the Next was lost.\n\n{e}"))?;
         last = packet;
     }
     let mut shared = lock(shared);
@@ -972,13 +972,13 @@ fn run_command(line: &str, file: &Path) -> Result<String, String> {
     let log = file.with_extension("limoniter-log");
     let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
     let err = out.try_clone().map_err(|e| e.to_string())?;
-    let mut child = crate::platform::shell_command(&filled).stdout(out).stderr(err).stdin(std::process::Stdio::null()).spawn().map_err(|e| format!("Couldn't run it.\n\n{e}"))?;
+    let mut child = crate::platform::shell_command(&filled).stdout(out).stderr(err).stdin(std::process::Stdio::null()).spawn().map_err(|e| crate::i18n::tf!("Couldn't run it.\n\n{e}"))?;
     let began = std::time::Instant::now();
     loop {
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
             let said = std::fs::read_to_string(&log).unwrap_or_default();
             let said: String = said.trim().chars().rev().take(2000).collect::<Vec<_>>().into_iter().rev().collect();
-            return if status.success() { Ok(said) } else { Err(format!("The command line failed ({status}).\n\n{said}")) };
+            return if status.success() { Ok(said) } else { Err(crate::i18n::tf!("The command line failed ({status}).\n\n{said}")) };
         }
         if began.elapsed() > Duration::from_secs(5) {
             return Ok("It's still running.".into());

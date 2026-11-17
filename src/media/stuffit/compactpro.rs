@@ -58,7 +58,7 @@ fn directory(source: &dyn Source) -> Option<(usize, usize, Vec<u8>)> {
 
 impl CompactPro {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
-        let (count, first, bytes) = directory(&*source).ok_or("This isn't a Compact Pro archive, or its directory is damaged: the directory's CRC is wrong.")?;
+        let (count, first, bytes) = directory(&*source).ok_or(crate::i18n::tr("This isn't a Compact Pro archive, or its directory is damaged: the directory's CRC is wrong."))?;
         let mut members = Vec::new();
         // Each folder open at this point, with how many of its entries are still to come.
         let mut open: Vec<(usize, usize)> = Vec::new();
@@ -101,7 +101,7 @@ impl CompactPro {
     /// A fork's bytes: the run-length coding undone, and LZH's first if it was packed with it.
     fn unpack(&self, member: &Member, resource: bool) -> Result<Vec<u8>, String> {
         if member.flags & 1 != 0 {
-            return Err("This file is encrypted with a password, which Limoniter can't open.".into());
+            return Err(crate::i18n::tr("This file is encrypted with a password, which Limoniter can't open.").into());
         }
         let (size, at, length, lzh) = if resource {
             (member.file.resource.length, member.at, member.packed.0, member.flags & 2 != 0)
@@ -109,10 +109,10 @@ impl CompactPro {
             (member.file.data.length, member.at + member.packed.0, member.packed.1, member.flags & 4 != 0)
         };
         if size > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         if at + length > self.source.len() {
-            return Err("The archive ends before this file's packed data does, so it's damaged or cut short.".into());
+            return Err(crate::i18n::tr("The archive ends before this file's packed data does, so it's damaged or cut short.").into());
         }
         let input = self.source.read_vec(at, length as usize)?;
         let runs = if lzh { lzh_unpack(&input, size as usize) } else { input };
@@ -174,7 +174,7 @@ fn unrle81(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
 fn lzh_code(bits: &mut Bits, size: usize) -> Result<Code, String> {
     let count = bits.bits(8)? as usize;
     if count * 2 > size {
-        return Err("This file's packed data has an impossible code table, so it's damaged.".into());
+        return Err(crate::i18n::tr("This file's packed data has an impossible code table, so it's damaged.").into());
     }
     let mut lengths = vec![0i32; size];
     for pair in 0..count {
@@ -265,14 +265,14 @@ impl Volume for CompactPro {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let member = self.members.get(entry.location as usize).filter(|m| !m.folder).ok_or("That file isn't in the archive.")?;
+        let member = self.members.get(entry.location as usize).filter(|m| !m.folder).ok_or(crate::i18n::tr("That file isn't in the archive."))?;
         let resource = entry.extra == RESOURCE_FORK;
         let fork = self.unpack(member, resource)?;
         // The CRC-32 is of both forks, the resource fork first, so it's checked with the other fork too.
         let (first, second) = if resource { (fork.clone(), self.unpack(member, false)?) } else { (self.unpack(member, true)?, fork.clone()) };
         let crc = first.iter().chain(&second).fold(0xFFFF_FFFF, |crc, &b| crc32_byte(crc, b));
         if crc != member.crc {
-            return Err("This file's CRC is wrong once it's unpacked, so the archive is damaged.".into());
+            return Err(crate::i18n::tr("This file's CRC is wrong once it's unpacked, so the archive is damaged.").into());
         }
         Ok(fork)
     }

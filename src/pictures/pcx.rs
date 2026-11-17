@@ -59,7 +59,7 @@ pub fn looks_like(ending: &str, bytes: &[u8]) -> bool {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
-    let h = header(bytes).ok_or("This isn't a PCX picture of a kind Limoniter knows.")?;
+    let h = header(bytes).ok_or(crate::i18n::tr("This isn't a PCX picture of a kind Limoniter knows."))?;
     let line = h.row * h.planes;
     let size = line * h.height;
     let mut data = Vec::with_capacity(size);

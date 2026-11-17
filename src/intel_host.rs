@@ -75,7 +75,7 @@ impl Limoniter {
             return;
         };
         let Some(place) = intel.definition(&name).cloned() else {
-            return self.message("Go to definition", format!("{name} isn't defined anywhere Limoniter's assembler can see."));
+            return self.message("Go to definition", crate::i18n::tf!("{name} isn't defined anywhere Limoniter's assembler can see."));
         };
         let file = Self::place_file(&intel, &place);
         self.go_to_place(&file, place.line + 1);
@@ -98,13 +98,13 @@ impl Limoniter {
         };
         let places = intel.places(&name);
         let defined = intel.definition(&name).cloned();
-        self.script_print(format!("{name}: {} place{}", places.len(), if places.len() == 1 { "" } else { "s" }), true);
+        self.script_print(if places.len() == 1 { crate::i18n::tf!("{name}: {} place", places.len()) } else { crate::i18n::tf!("{name}: {} places", places.len()) }, true);
         for place in places {
             let file = Self::place_file(&intel, &place);
             let shown = Path::new(&file).file_name().map_or_else(|| file.clone(), |f| f.to_string_lossy().into_owned());
             let text = self.line_of_file(&file, place.line).unwrap_or_default();
             let mark = if defined.as_ref().is_some_and(|d| d.file == place.file && d.line == place.line) { "  (defined)" } else { "" };
-            self.script_print(format!("{shown}({}): {}{mark}", place.line + 1, text.trim()), false);
+            self.script_print(crate::i18n::tf!("{shown}({}): {}{mark}", place.line + 1, text.trim()), false);
         }
     }
 
@@ -137,8 +137,8 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go = false;
-        egui::Window::new("Rename").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(format!("Rename {} everywhere it's defined and used, in every file the source includes:", state.written));
+        egui::Window::new(crate::i18n::tr("Rename")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tf!("Rename {} everywhere it's defined and used, in every file the source includes:", state.written));
             let field = ui.text_edit_singleline(&mut state.new);
             field.request_focus();
             go = field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
@@ -146,8 +146,8 @@ impl Limoniter {
                 ui.colored_label(theme::change_unsaved(), &state.error);
             }
             ui.horizontal(|ui| {
-                go |= ui.button("Rename").clicked();
-                close |= ui.button("Cancel").clicked();
+                go |= ui.button(crate::i18n::tr("Rename")).clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             });
         });
         if go {
@@ -162,7 +162,7 @@ impl Limoniter {
                 return true;
             }
             if !state.name.is_empty() && local.is_some() != new.starts_with(['.', '@']) && local != Some('_') {
-                state.error = format!("{} is a local label, so its new name starts with {} too.", state.written, local.unwrap_or('.'));
+                state.error = crate::i18n::tf!("{} is a local label, so its new name starts with {} too.", state.written, local.unwrap_or('.'));
                 return true;
             }
             let (name, written) = (state.name.clone(), state.written.clone());
@@ -188,7 +188,7 @@ impl Limoniter {
             return;
         };
         if intel.assembly.as_ref().is_some_and(|a| a.symbols.keys().any(|k| k == &name.replacen(written, new, 1)) && written != new) {
-            return self.message("Rename", format!("There's already a label called {new}."));
+            return self.message("Rename", crate::i18n::tf!("There's already a label called {new}."));
         }
         let mut by_file: std::collections::BTreeMap<String, std::collections::BTreeSet<usize>> = Default::default();
         for place in intel.places(name) {
@@ -224,7 +224,7 @@ impl Limoniter {
             buffer.end_undo_group();
         }
         self.active = start;
-        self.script_print(format!("Renamed {written} to {new} in {changed} place{}.", if changed == 1 { "" } else { "s" }), true);
+        self.script_print(if changed == 1 { crate::i18n::tf!("Renamed {written} to {new} in {changed} place.") } else { crate::i18n::tf!("Renamed {written} to {new} in {changed} places.") }, true);
     }
 }
 

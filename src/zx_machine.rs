@@ -306,7 +306,7 @@ impl BuiltIn {
 
     /// Starts it, making sound at `rate` if there's a rate, to go to the speaker if there's one.
     fn start_inner(run: &Runnable, rate: Option<u32>, speaker: Option<crate::speaker::Speaker>) -> Result<BuiltIn, String> {
-        Self::takes(run).map_err(|why| format!("The built-in Spectrum {why}"))?;
+        Self::takes(run).map_err(|why| crate::i18n::tf!("The built-in Spectrum {why}"))?;
         // A snapshot says which Spectrum it's from; a tape loads on a 128K only if it says so.
         let (machine, snapshot) = match run.format {
             Format::Sna => (if run.bytes.len() == 49179 { Machine::Spectrum48 } else { Machine::Spectrum128 }, Some(run.bytes.to_vec())),
@@ -333,18 +333,18 @@ impl BuiltIn {
             sound_volume: 100,
             sound_sample_rate: rate.unwrap_or(44100) as usize,
         };
-        let mut emulator = Emulator::<LimoniterHost>::new(settings, Context).map_err(|e| format!("The built-in Spectrum couldn't start: {e:?}"))?;
+        let mut emulator = Emulator::<LimoniterHost>::new(settings, Context).map_err(|e| crate::i18n::tf!("The built-in Spectrum couldn't start: {e:?}"))?;
         emulator.set_debug_interface(Breaks::default());
         if machine == Machine::OpticOs {
-            emulator.load_rom(RomBytes(Some(crate::opticos_rom::current().bytes))).map_err(|e| format!("The OpticOS ROM couldn't be loaded: {e:?}"))?;
+            emulator.load_rom(RomBytes(Some(crate::opticos_rom::current().bytes))).map_err(|e| crate::i18n::tf!("The OpticOS ROM couldn't be loaded: {e:?}"))?;
             return Self::start_opticos(emulator, run, snapshot, speaker);
         }
         match snapshot {
-            Some(sna) => emulator.load_snapshot(Snapshot::Sna(BufferCursor::new(sna))).map_err(|e| format!("The snapshot couldn't be loaded: {e:?}"))?,
+            Some(sna) => emulator.load_snapshot(Snapshot::Sna(BufferCursor::new(sna))).map_err(|e| crate::i18n::tf!("The snapshot couldn't be loaded: {e:?}"))?,
             None => {
                 let tap = if run.format == Format::Tzx { tzx_to_tap(&run.bytes)? } else { run.bytes.to_vec() };
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
-                emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
+                emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| crate::i18n::tf!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
                 let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
@@ -377,7 +377,7 @@ impl BuiltIn {
     /// RUN for an OpticBASIC program that doesn't start itself.
     fn start_opticos(mut emulator: Emulator<LimoniterHost>, run: &Runnable, snapshot: Option<Vec<u8>>, speaker: Option<crate::speaker::Speaker>) -> Result<BuiltIn, String> {
         if snapshot.is_some() {
-            return Err("OpticOS runs tapes; a snapshot holds its own ROM's state.".into());
+            return Err(crate::i18n::tr("OpticOS runs tapes; a snapshot holds its own ROM's state.").into());
         }
         let tap = if run.format == Format::Tzx { tzx_to_tap(&run.bytes)? } else { run.bytes.to_vec() };
         // An OpticBASIC program whose header names no PROC to start is RUN once it's loaded.
@@ -385,7 +385,7 @@ impl BuiltIn {
         let needs_run = blocks.len() >= 2 && blocks[0].len() >= 18 && blocks[0][1] == 0 && u16::from_le_bytes([blocks[0][14], blocks[0][15]]) >= 0x8000 && blocks[1].get(1..5) == Some(&crate::opticbasic::SIGNATURE[..]);
         // The tape is left stopped: OpticOS keeps the tape routines where emulators catch them, so its LOAD is
         // given each block at once.
-        emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| format!("The tape couldn't be loaded: {e:?}"))?;
+        emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| crate::i18n::tf!("The tape couldn't be loaded: {e:?}"))?;
         let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: false, opticos: true, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
         // Past the boot chime to the prompt, at once.
         for _ in 0..OPTICOS_BOOT_FRAMES {
@@ -431,7 +431,7 @@ impl BuiltIn {
         // A breakpoint whose condition isn't true is passed straight on; enough of them in a frame and it stops
         // anyway, so a mistake can't hold the window up.
         for _ in 0..20_000 {
-            let info = self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| format!("The built-in Spectrum stopped: {e:?}"))?;
+            let info = self.emulator.emulate_frames(Duration::from_millis(500)).map_err(|e| crate::i18n::tf!("The built-in Spectrum stopped: {e:?}"))?;
             if !matches!(info.stop_reason, rustzx_core::EmulationStopReason::Breakpoint) {
                 break;
             }
@@ -528,7 +528,7 @@ impl BuiltIn {
                 return Ok(machine.snapshot());
             }
         }
-        Err("The program didn't start from its tape within a minute.".into())
+        Err(crate::i18n::tr("The program didn't start from its tape within a minute.").into())
     }
 
     /// The addresses to stop at.
@@ -1068,8 +1068,8 @@ fn decompress(data: &[u8], most: Option<usize>) -> Result<Vec<u8>, String> {
             break;
         }
         if data[i] == 0xED && data.get(i + 1) == Some(&0xED) {
-            let count = *data.get(i + 2).ok_or("This Z80 snapshot is cut short.")?;
-            let value = *data.get(i + 3).ok_or("This Z80 snapshot is cut short.")?;
+            let count = *data.get(i + 2).ok_or(crate::i18n::tr("This Z80 snapshot is cut short."))?;
+            let value = *data.get(i + 3).ok_or(crate::i18n::tr("This Z80 snapshot is cut short."))?;
             out.extend(std::iter::repeat_n(value, usize::from(count)));
             i += 4;
         } else if most.is_some() && data[i..].starts_with(&[0x00, 0xED, 0xED, 0x00]) {
@@ -1087,7 +1087,7 @@ fn decompress(data: &[u8], most: Option<usize>) -> Result<Vec<u8>, String> {
 /// left out.
 pub fn tzx_to_tap(tzx: &[u8]) -> Result<Vec<u8>, String> {
     if !tzx.starts_with(b"ZXTape!\x1A") {
-        return Err("This isn't a TZX tape.".into());
+        return Err(crate::i18n::tr("This isn't a TZX tape.").into());
     }
     let short = || "This TZX tape is cut short.".to_string();
     let n16 = |at: usize| -> Result<usize, String> { Ok(usize::from(u16::from_le_bytes([*tzx.get(at).ok_or_else(short)?, *tzx.get(at + 1).ok_or_else(short)?]))) };
@@ -1133,12 +1133,12 @@ pub fn tzx_to_tap(tzx: &[u8]) -> Result<Vec<u8>, String> {
             0x33 => 1 + 3 * usize::from(*tzx.get(at).ok_or_else(short)?),
             0x35 => 20 + n32(at + 16)?,
             0x5A => 9,
-            other => return Err(format!("This TZX tape has a block (ID {other:#04X}) the built-in Spectrum can't read.")),
+            other => return Err(crate::i18n::tf!("This TZX tape has a block (ID {other:#04X}) the built-in Spectrum can't read.")),
         };
         at += skip;
     }
     if tap.is_empty() {
-        return Err("This TZX tape has nothing on it the built-in Spectrum can load.".into());
+        return Err(crate::i18n::tr("This TZX tape has nothing on it the built-in Spectrum can load.").into());
     }
     Ok(tap)
 }
@@ -1259,7 +1259,7 @@ mod tests {
     #[test]
     fn programs_stop_at_breakpoints_and_step() {
         // A program at 32768: three instructions, a CALL, and a loop; loaded by a tape's BASIC loader.
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org 32768\nstart: ld a,7\n  ld bc,$1234\n  call sub\n  ld de,$5678\nloop: jr loop\nsub: ld hl,$abcd\n  ret\n", &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org 32768\nstart: ld a,7\n  ld bc,$1234\n  call sub\n  ld de,$5678\nloop: jr loop\nsub: ld hl,$abcd\n  ret\n", &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems);
         let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
         let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
@@ -1295,7 +1295,7 @@ mod tests {
     #[test]
     fn conditions_write_watches_and_the_call_stack() {
         let source = "  org 32768\nstart: ld b,5\nloop: ld a,b\n  call sub\n  djnz loop\n  ld (count),a\ndone: jr done\nsub: ld (total),a\n  ret\ncount: db 0\ntotal: db 0\n";
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), source, &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems);
         let at = |name: &str| assembly.symbols[name] as u16;
         let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
@@ -1331,7 +1331,7 @@ mod tests {
 
     #[test]
     fn a_128k_program_stops_at_breakpoints_too() {
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  device zxspectrum128\n  org 32768\nstart: ld a,7\n  ld bc,$1234\nloop: jr loop\n", &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  device zxspectrum128\n  org 32768\nstart: ld a,7\n  ld bc,$1234\nloop: jr loop\n", &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems);
         let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
         let run = Runnable { machine: Machine::Spectrum128, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
@@ -1406,6 +1406,25 @@ mod tests {
         let screen = machine.screen_text();
         assert!(screen.iter().any(|row| row == "HELLO WORLD"), "{screen:?}");
         assert!(screen.iter().any(|row| row == "OK"), "inverse text reads too");
+    }
+
+    #[test]
+    fn the_sound_effects_designer_s_programs_are_heard() {
+        // Its AY program on the 128 and its beeper program on the 48K, each with every preset, as F9 builds them.
+        for (machine, sfx_machine) in [(Machine::Spectrum128, crate::sfx::Machine::Spectrum128), (Machine::Spectrum48, crate::sfx::Machine::Spectrum48Beeper)] {
+            let effects = crate::sfx::Preset::ALL.iter().map(|&p| crate::sfx::Effect::from_shape(p.name(), sfx_machine, &crate::sfx::Shape::preset(p))).collect();
+            let source = crate::sfx::Bank { machine: sfx_machine, effects }.source("sfx", true).unwrap();
+            let assembly = crate::assemblers::assemble_own_at(crate::assemblers::Cpu::Z80, std::path::Path::new("sfx.asm"), &source, 0);
+            assert!(assembly.ok(), "{:?}", assembly.problems.first());
+            let tape = crate::asm::output::spectrum_tape(&assembly, "sfx").unwrap();
+            let run = Runnable { machine, format: Format::Tap, name: "sfx.tap".into(), bytes: std::sync::Arc::new(tape) };
+            let mut built = BuiltIn::start_inner(&run, Some(44100), None).unwrap();
+            // The 128 takes a while to load through its menu.
+            run_until(&mut built, 800, |_| false);
+            let mut quiet = BuiltIn::start_inner(&Runnable { machine, ..tape_of(&["10 PAUSE 0"]) }, Some(44100), None).unwrap();
+            run_until(&mut quiet, 800, |_| false);
+            assert!(built.loudest > quiet.loudest * 3.0, "{machine:?}: heard {} against {} from a quiet program", built.loudest, quiet.loudest);
+        }
     }
 
     #[test]

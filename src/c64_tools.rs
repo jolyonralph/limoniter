@@ -319,7 +319,7 @@ pub fn pack_arguments(tool: Tool, options: &PackOptions, input: &Path, output: &
     let input_text = input.display().to_string();
     let output_text = output.display().to_string();
     let runnable = options.runnable && tool.makes_runnable() && !raw_input;
-    let address = || hex_address(&options.address).ok_or_else(|| format!("\"{}\" isn't an address in hex, such as $0810.", options.address.trim()));
+    let address = || hex_address(&options.address).ok_or_else(|| crate::i18n::tf!("\"{}\" isn't an address in hex, such as $0810.", options.address.trim()));
     let mut args: Vec<String> = Vec::new();
     match tool {
         Tool::Exomizer => {
@@ -351,8 +351,8 @@ pub fn pack_arguments(tool: Tool, options: &PackOptions, input: &Path, output: &
                 // TSCrunch reads the address as hex, whatever it looks like.
                 let start = match options.start {
                     Start::Address => address()?,
-                    Start::Sys => sys.ok_or("The program has no BASIC line with a SYS for TSCrunch to start at: give an address.")?,
-                    Start::Basic => return Err("TSCrunch's self-unpacking programs start at an address, not with RUN: choose one.".into()),
+                    Start::Sys => sys.ok_or(crate::i18n::tr("The program has no BASIC line with a SYS for TSCrunch to start at: give an address."))?,
+                    Start::Basic => return Err(crate::i18n::tr("TSCrunch's self-unpacking programs start at an address, not with RUN: choose one.").into()),
                 };
                 args.extend(["-x".into(), format!("${start:04x}")]);
             } else {
@@ -396,7 +396,7 @@ pub fn pack_arguments(tool: Tool, options: &PackOptions, input: &Path, output: &
             }
             args.extend([input_text, output_text]);
         }
-        Tool::Vsid => return Err("vsid plays tunes; it doesn't pack.".into()),
+        Tool::Vsid => return Err(crate::i18n::tr("vsid plays tunes; it doesn't pack.").into()),
     }
     Ok(args)
 }
@@ -426,15 +426,15 @@ pub fn decruncher(tool: Tool, options: &PackOptions) -> &'static str {
 /// Packs `input` into `output`. A program for a packer that wants raw bytes is given without its load address,
 /// through a copy in `scratch`.
 pub fn pack(tool: Tool, program: &Path, options: &PackOptions, input: &Path, output: &Path, stop: &AtomicBool) -> Result<Outcome, String> {
-    let before = std::fs::metadata(input).map_err(|e| format!("{} couldn't be read: {e}", input.display()))?.len();
+    let before = std::fs::metadata(input).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", input.display()))?.len();
     let _ = std::fs::remove_file(output);
     let started = Instant::now();
     let folder = output.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let raw = wants_raw(tool) && input.extension().is_some_and(|e| e.eq_ignore_ascii_case("prg"));
     let (used, stripped) = if raw {
-        let bytes = std::fs::read(input).map_err(|e| format!("{} couldn't be read: {e}", input.display()))?;
+        let bytes = std::fs::read(input).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", input.display()))?;
         let copy = folder.join(format!(".{}.raw", output.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()));
-        std::fs::write(&copy, bytes.get(2..).unwrap_or(&[])).map_err(|e| format!("{} couldn't be written: {e}", copy.display()))?;
+        std::fs::write(&copy, bytes.get(2..).unwrap_or(&[])).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", copy.display()))?;
         (copy.clone(), Some(copy))
     } else {
         (input.to_path_buf(), None)
@@ -457,7 +457,7 @@ pub fn pack(tool: Tool, program: &Path, options: &PackOptions, input: &Path, out
 pub fn play_in_vsid(vsid: &Path, tune: &Path, song: u16) -> Result<(), String> {
     let mut command = std::process::Command::new(vsid);
     command.args(["-tune".to_string(), song.to_string(), tune.display().to_string()]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-    command.spawn().map(|_| ()).map_err(|e| format!("{} couldn't be started: {e}", vsid.display()))
+    command.spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", vsid.display()))
 }
 
 #[cfg(test)]

@@ -36,7 +36,7 @@ fn envelope(h: &[u8], points_at: usize, count: u8, sustain: u8, loop_start: u8, 
 
 pub fn load(bytes: &[u8]) -> Result<Song, String> {
     if bytes.len() < 80 || !bytes.starts_with(b"Extended Module: ") {
-        return Err("This isn't a FastTracker 2 module: it doesn't start \u{201C}Extended Module:\u{201D}.".into());
+        return Err(crate::i18n::tr("This isn't a FastTracker 2 module: it doesn't start \u{201C}Extended Module:\u{201D}.").into());
     }
     let header_size = u32_le(bytes, 60) as usize;
     let length = usize::from(u16_le(bytes, 64));

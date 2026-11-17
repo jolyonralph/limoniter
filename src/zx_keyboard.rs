@@ -365,7 +365,7 @@ pub fn draw(ui: &mut Ui, machine: &mut BuiltIn) -> bool {
             let tip = describe(cap, opticos);
             let label = format!("Spectrum key {}", tip.lines().next().unwrap_or(cap.main));
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
-            response.on_hover_text(tip);
+            response.on_hover_text(crate::i18n::tr(&tip));
         }
     }
     if let Some(key) = pressed {
@@ -379,7 +379,7 @@ pub fn draw(ui: &mut Ui, machine: &mut BuiltIn) -> bool {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         for (name, how, action) in combinations {
-            if ui.small_button(*name).on_hover_text(*how).clicked() {
+            if ui.small_button(crate::i18n::tr(name)).on_hover_text(*how).clicked() {
                 used = true;
                 press(machine, action);
             }

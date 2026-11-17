@@ -27,7 +27,7 @@ impl Scp {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         let header = source.read_vec(0, (0x10 + 168 * 4).min(source.len() as usize))?;
         if !looks_like(&header) {
-            return Err("This isn't a SuperCard Pro image.".into());
+            return Err(crate::i18n::tr("This isn't a SuperCard Pro image.").into());
         }
         let revolutions = usize::from(header[5]);
         let tick = 25.0 * f64::from(header[11]) + 25.0;
@@ -42,7 +42,7 @@ impl Scp {
         }
         offsets.retain(|(_, o)| *o + 4 <= source.len());
         if offsets.is_empty() {
-            return Err("This SuperCard Pro image has no tracks in it.".into());
+            return Err(crate::i18n::tr("This SuperCard Pro image has no tracks in it.").into());
         }
         // Each track number is cylinder × 2 + side, unless the header says one side only and the image numbers its
         // tracks one after another, as some older writers did.
@@ -73,10 +73,10 @@ impl Scp {
 
     /// One track's flux, every revolution one after another.
     pub fn flux(&self, place: (u8, u8)) -> Result<Flux, String> {
-        let offset = self.tracks.iter().find(|(p, _)| *p == place).map(|(_, o)| *o).ok_or("That track isn't in the image.")?;
+        let offset = self.tracks.iter().find(|(p, _)| *p == place).map(|(_, o)| *o).ok_or(crate::i18n::tr("That track isn't in the image."))?;
         let table = self.source.read_vec(offset, (4 + 12 * self.revolutions).min((self.source.len() - offset) as usize))?;
         if !table.starts_with(b"TRK") {
-            return Err(format!("Track {} side {}'s header is missing, so the image is damaged.", place.0, place.1));
+            return Err(crate::i18n::tf!("Track {} side {}'s header is missing, so the image is damaged.", place.0, place.1));
         }
         let mut gaps = Vec::new();
         let mut revolutions = 0;
@@ -88,10 +88,10 @@ impl Scp {
             }
             // A revolution is at most a few hundred thousand changes; anything past the file's end is damage.
             if count > 4_000_000 || start + count * 2 > self.source.len() {
-                return Err(format!("Track {} side {}'s flux runs past the end of the image, so it's damaged.", place.0, place.1));
+                return Err(crate::i18n::tf!("Track {} side {}'s flux runs past the end of the image, so it's damaged.", place.0, place.1));
             }
             if gaps.len() as u64 + count > 16_000_000 {
-                return Err(format!("Track {} side {} has more flux than any disk holds, so the image is damaged.", place.0, place.1));
+                return Err(crate::i18n::tf!("Track {} side {} has more flux than any disk holds, so the image is damaged.", place.0, place.1));
             }
             let values = self.source.read_vec(start, count as usize * 2)?;
             let mut carry = 0u64;

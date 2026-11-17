@@ -32,7 +32,7 @@ impl Disk {
 
     fn sector(&self, sector: u64) -> Result<Vec<u8>, String> {
         if sector == 0 || sector > self.sectors {
-            return Err(format!("sector {sector} isn't on the disk"));
+            return Err(crate::i18n::tf!("sector {sector} isn't on the disk"));
         }
         let at = if sector <= 3 || self.sector_size == 128 || self.padded_boot {
             (sector - 1) * if sector <= 3 && !self.padded_boot { 128 } else { self.sector_size }
@@ -41,7 +41,7 @@ impl Disk {
         };
         let length = self.length(sector);
         if self.offset + at + length > self.source.len() {
-            return Err(format!("sector {sector} is past the end of the image"));
+            return Err(crate::i18n::tf!("sector {sector} is past the end of the image"));
         }
         self.source.read_vec(self.offset + at, length as usize)
     }
@@ -101,7 +101,7 @@ impl Atari8 {
             (0, if len == 183_936 || len == 184_320 { 256 } else { 128 }, len)
         };
         if !matches!(sector_size, 128 | 256 | 512) {
-            return Err(format!("This Atari image says its sectors are {sector_size} bytes, which isn't a size Atari disks have."));
+            return Err(crate::i18n::tf!("This Atari image says its sectors are {sector_size} bytes, which isn't a size Atari disks have."));
         }
         let padded_boot = sector_size > 128 && data.is_multiple_of(sector_size) && !(data - 384).is_multiple_of(sector_size);
         let sectors = if sector_size == 128 || padded_boot { data / sector_size } else { 3 + data.saturating_sub(384) / sector_size };
@@ -124,7 +124,7 @@ impl Atari8 {
         let vtoc = disk.sector(360).map_err(|_| "This Atari disk is too small to have Atari DOS's directory.".to_string())?;
         // MyDOS's VTOC on a large disk says in its first byte how many 256-byte pieces its bitmap takes, plus 2.
         if !matches!(vtoc[0], 0..=3) && !(sectors > 1040 && u64::from(vtoc[0]) == 2 + (sectors / 8 + 266) / 256) {
-            return Err("This Atari disk has no Atari DOS VTOC: it may boot a program of its own. It can still be shown in hex.".into());
+            return Err(crate::i18n::tr("This Atari disk has no Atari DOS VTOC: it may boot a program of its own. It can still be shown in hex.").into());
         }
         let mydos = sectors > 1040 || vtoc[0] == 3;
         let what = format!("Atari 8-bit {} disk ({size})", if mydos { "MyDOS" } else { "Atari DOS 2" });
@@ -149,7 +149,7 @@ impl Atari8 {
         let formatted = formatted
             || (mydos && le16(&vtoc, 1) > 0 && le16(&vtoc, 1) == le16(&vtoc, 3) && (4..340).chain(369..=sectors.min(4096)).all(|n| atari.disk.sector(n).is_ok_and(|data| data.iter().all(|&b| b == 0))));
         if (atari.files.is_empty() && !formatted && !atari.disk.sector(361)?.iter().any(|&b| b != 0)) || wrong * 2 > checked.len() {
-            return Err("This Atari disk has no Atari DOS directory: it may boot a program of its own. It can still be shown in hex.".into());
+            return Err(crate::i18n::tr("This Atari disk has no Atari DOS directory: it may boot a program of its own. It can still be shown in hex.").into());
         }
         Ok(atari)
     }
@@ -203,7 +203,7 @@ impl Atari8 {
             let tail = data.len() - 3;
             let (a, b, count) = (data[tail], data[tail + 1], data[tail + 2]);
             if !wide && u64::from(a >> 2) != file.number {
-                return Err(format!("sector {sector} belongs to another file, so this one's chain is broken"));
+                return Err(crate::i18n::tf!("sector {sector} belongs to another file, so this one's chain is broken"));
             }
             let used = if size == 128 { usize::from(count & 0x7F) } else { usize::from(count) };
             out.extend_from_slice(&data[..used.min(tail)]);
@@ -296,7 +296,7 @@ impl Volume for Atari8 {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         match self.system {
             System::Dos2 => self.dos2_read(file),
             System::Sparta => self.sparta_read(file.start, file.length),

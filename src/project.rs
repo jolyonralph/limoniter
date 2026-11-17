@@ -96,9 +96,9 @@ impl Project {
     }
 
     pub fn from_text(path: &Path, text: &str) -> Result<Self, String> {
-        let value: Value = serde_json::from_str(text).map_err(|e| format!("That isn't a project file.\n\n{e}"))?;
+        let value: Value = serde_json::from_str(text).map_err(|e| crate::i18n::tf!("That isn't a project file.\n\n{e}"))?;
         if value.get("limoniter_project").is_none() {
-            return Err("That isn't a project file.".to_string());
+            return Err(crate::i18n::tr("That isn't a project file.").to_string());
         }
         let base = folder_of(path);
         let list = |name: &str| -> Vec<PathBuf> { value.get(name).and_then(Value::as_array).map_or_else(Vec::new, |items| items.iter().filter_map(Value::as_str).map(|item| resolved(&base, item)).collect()) };
@@ -196,7 +196,7 @@ pub fn backup(project: &Project, stamp: &str) -> Result<Report, String> {
         attempt += 1;
         folder = root.join(format!("{stamp}-{attempt}"));
     }
-    std::fs::create_dir_all(&folder).map_err(|e| format!("Couldn't make {}.\n\n{e}", folder.display()))?;
+    std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("Couldn't make {}.\n\n{e}", folder.display()))?;
     let mut report = Report { folder: folder.clone(), ..Report::default() };
     let mut listed = Vec::new();
     for (number, path) in std::iter::once(&project.path).chain(&project.files).enumerate() {
@@ -212,7 +212,7 @@ pub fn backup(project: &Project, stamp: &str) -> Result<Report, String> {
     }
     let manifest = serde_json::to_string_pretty(&json!({ "project": project.name, "files": listed })).unwrap_or_default();
     // A backup without its list couldn't be put back, so it isn't one.
-    codec::write_file(&folder.join(MANIFEST), manifest.as_bytes()).map_err(|e| format!("Couldn't finish the backup.\n\n{e}"))?;
+    codec::write_file(&folder.join(MANIFEST), manifest.as_bytes()).map_err(|e| crate::i18n::tf!("Couldn't finish the backup.\n\n{e}"))?;
     Ok(report)
 }
 
@@ -284,7 +284,7 @@ pub fn in_background(work: impl FnOnce() -> Result<Report, String> + Send + 'sta
     let outcome: Outcome = Arc::new(Mutex::new(None));
     let report = outcome.clone();
     std::thread::spawn(move || {
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).unwrap_or_else(|_| Err("Copying the files failed unexpectedly.".to_string()));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).unwrap_or_else(|_| Err(crate::i18n::tr("Copying the files failed unexpectedly.").to_string()));
         *report.lock().unwrap() = Some(result);
     });
     outcome
@@ -349,11 +349,11 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
         let here = place.join(name);
         let shown = egui::CollapsingHeader::new(RichText::new(name).size(12.5)).id_salt(&id).default_open(true).open(open_all.then_some(true)).show(ui, |ui| draw_tree(ui, inner, &id, &here, active, actions, open_all));
         shown.header_response.context_menu(|ui| {
-            if ui.button("Compare folders\u{2026}").on_hover_text("Compare this folder with another, side by side").clicked() {
+            if ui.button(crate::i18n::tr("Compare folders\u{2026}")).on_hover_text(crate::i18n::tr("Compare this folder with another, side by side")).clicked() {
                 actions.push(PanelAction::CompareFolder(here.clone()));
                 ui.close();
             }
-            if ui.button("Compare with the last commit").on_hover_text("Compare this folder with how it was at the last Git commit").clicked() {
+            if ui.button(crate::i18n::tr("Compare with the last commit")).on_hover_text(crate::i18n::tr("Compare this folder with how it was at the last Git commit")).clicked() {
                 actions.push(PanelAction::CompareWithHead(here.clone()));
                 ui.close();
             }
@@ -369,15 +369,15 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
             actions.push(PanelAction::Open(path.clone()));
         }
         response.context_menu(|ui| {
-            if !missing && ui.button("Compare with\u{2026}").on_hover_text("Compare this file with another, side by side").clicked() {
+            if !missing && ui.button(crate::i18n::tr("Compare with\u{2026}")).on_hover_text(crate::i18n::tr("Compare this file with another, side by side")).clicked() {
                 actions.push(PanelAction::CompareWith(path.clone()));
                 ui.close();
             }
-            if !missing && ui.button("Compare with the last commit").clicked() {
+            if !missing && ui.button(crate::i18n::tr("Compare with the last commit")).clicked() {
                 actions.push(PanelAction::CompareWithHead(path.clone()));
                 ui.close();
             }
-            if ui.button("Take off the project").on_hover_text("The file itself stays").clicked() {
+            if ui.button(crate::i18n::tr("Take off the project")).on_hover_text(crate::i18n::tr("The file itself stays")).clicked() {
                 actions.push(PanelAction::Remove(path.clone()));
                 ui.close();
             }
@@ -388,26 +388,26 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
 pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, active: Option<&Path>) -> Vec<PanelAction> {
     let mut actions = Vec::new();
     let Some(project) = project else {
-        ui.label(RichText::new("No project is open. Tools, Project can make one or open one.").color(theme::text_faint()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("No project is open. Tools, Project can make one or open one.")).color(theme::text_faint()).size(12.5));
         return actions;
     };
     ui.label(RichText::new(&project.name).color(theme::text()).size(13.0)).on_hover_text(if project.notes.is_empty() { project.path.display().to_string() } else { format!("{}\n\n{}", project.path.display(), project.notes) });
-    ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text("Filter").desired_width(f32::INFINITY));
+    ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Filter")).desired_width(f32::INFINITY));
     ui.add_space(2.0);
     if !project.comparisons.is_empty() {
-        egui::CollapsingHeader::new(RichText::new("Comparisons").size(12.5)).id_salt("project-comparisons").default_open(true).show(ui, |ui| {
+        egui::CollapsingHeader::new(RichText::new(crate::i18n::tr("Comparisons")).size(12.5)).id_salt("project-comparisons").default_open(true).show(ui, |ui| {
             for session in &project.comparisons {
                 let response = ui.add(egui::Button::selectable(false, RichText::new(&session.name).size(12.5).color(theme::text())).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate));
-                let response = response.on_hover_text(format!("{}\n\u{2194} {}", session.left.describe(), session.right.describe()));
+                let response = response.on_hover_text(crate::i18n::tf!("{}\n\u{2194} {}", session.left.describe(), session.right.describe()));
                 if response.clicked() {
                     actions.push(PanelAction::OpenComparison(session.name.clone()));
                 }
                 response.context_menu(|ui| {
-                    if ui.button("Open").clicked() {
+                    if ui.button(crate::i18n::tr("Open")).clicked() {
                         actions.push(PanelAction::OpenComparison(session.name.clone()));
                         ui.close();
                     }
-                    if ui.button("Rename or delete\u{2026}").clicked() {
+                    if ui.button(crate::i18n::tr("Rename or delete\u{2026}")).clicked() {
                         actions.push(PanelAction::ManageComparisons(session.name.clone()));
                         ui.close();
                     }
@@ -416,7 +416,7 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
         });
     }
     if project.files.is_empty() {
-        ui.label(RichText::new("No files yet. Add some from Tools, Project.").color(theme::text_faint()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("No files yet. Add some from Tools, Project.")).color(theme::text_faint()).size(12.5));
         return actions;
     }
     let tree = tree_of(project, &state.filter);

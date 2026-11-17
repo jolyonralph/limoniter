@@ -67,8 +67,8 @@ fn lock(shared: &Mutex<Shared>) -> std::sync::MutexGuard<'_, Shared> {
 
 /// The speakers, and the rate they play at.
 fn speakers() -> Result<(cpal::Device, cpal::SupportedStreamConfig), String> {
-    let device = cpal::default_host().default_output_device().ok_or("There's no sound device to play through.")?;
-    let config = device.default_output_config().map_err(|e| format!("The sound device can't be used ({e})."))?;
+    let device = cpal::default_host().default_output_device().ok_or(crate::i18n::tr("There's no sound device to play through."))?;
+    let config = device.default_output_config().map_err(|e| crate::i18n::tf!("The sound device can't be used ({e})."))?;
     Ok((device, config))
 }
 
@@ -105,7 +105,7 @@ fn stream<T: SizedSample + FromSample<f32>>(device: &cpal::Device, config: &cpal
             |_| {},
             None,
         )
-        .map_err(|e| format!("The sound device wouldn't play ({e})."))
+        .map_err(|e| crate::i18n::tf!("The sound device wouldn't play ({e})."))
 }
 
 /// What a file is to be played as: a module, or a sound file.
@@ -135,9 +135,9 @@ impl Music {
             SampleFormat::I16 => stream::<i16>(&device, &config, shared.clone()),
             SampleFormat::U16 => stream::<u16>(&device, &config, shared.clone()),
             SampleFormat::I32 => stream::<i32>(&device, &config, shared.clone()),
-            other => Err(format!("The sound device wants samples as {other}, which Limoniter doesn't make.")),
+            other => Err(crate::i18n::tf!("The sound device wants samples as {other}, which Limoniter doesn't make.")),
         }?;
-        stream.play().map_err(|e| format!("The sound device wouldn't start ({e})."))?;
+        stream.play().map_err(|e| crate::i18n::tf!("The sound device wouldn't start ({e})."))?;
         Ok(Music { doc, shared, _stream: stream, rate, length, song, silenced: vec![false; channels], dragging: None })
     }
 
@@ -189,7 +189,7 @@ impl Limoniter {
         let ours = self.music.as_ref().is_some_and(|m| m.doc == id);
         if !ours {
             ui.horizontal(|ui| {
-                if ui.button("\u{25B6} Play").on_hover_text("Play it through the computer's speakers").clicked() {
+                if ui.button(crate::i18n::tr("\u{25B6} Play")).on_hover_text(crate::i18n::tr("Play it through the computer's speakers")).clicked() {
                     let doc = &self.docs[self.active];
                     let bytes = if doc.hex_mode { doc.hex.read(0, doc.hex.len()) } else { doc.text.encode(&doc.text.format, crate::codec::Lossy::Omit).unwrap_or_default() };
                     match Music::start(id, bytes, &name) {
@@ -203,7 +203,7 @@ impl Limoniter {
                 if let Some(note) = &self.music_note {
                     ui.label(RichText::new(note).color(theme::text_faint()));
                 } else if self.music.is_some() {
-                    ui.label(RichText::new("Another file is playing; this stops it.").color(theme::text_faint()));
+                    ui.label(RichText::new(crate::i18n::tr("Another file is playing; this stops it.")).color(theme::text_faint()));
                 }
             });
             ui.add_space(4.0);
@@ -217,18 +217,18 @@ impl Limoniter {
         let mut stop = false;
         ui.horizontal(|ui| {
             let (label, hint) = if paused || ended { ("\u{25B6} Play", "Carry on playing") } else { ("\u{23F8} Pause", "Pause, to carry on from here") };
-            if ui.button(label).on_hover_text(hint).clicked() {
+            if ui.button(crate::i18n::tr(label)).on_hover_text(crate::i18n::tr(hint)).clicked() {
                 if ended {
                     music.seek(0.0);
                 }
                 let mut shared = lock(&music.shared);
                 shared.paused = !(paused || ended);
             }
-            if ui.button("\u{25A0} Stop").on_hover_text("Stop playing").clicked() {
+            if ui.button(crate::i18n::tr("\u{25A0} Stop")).on_hover_text(crate::i18n::tr("Stop playing")).clicked() {
                 stop = true;
             }
             let mut looped = looping;
-            if ui.checkbox(&mut looped, "Loop").on_hover_text("Start again from where the song loops back to, or from the start, when it ends").changed() {
+            if ui.checkbox(&mut looped, crate::i18n::tr("Loop")).on_hover_text(crate::i18n::tr("Start again from where the song loops back to, or from the start, when it ends")).changed() {
                 let mut shared = lock(&music.shared);
                 shared.looping = looped;
                 if let Source::Tracker(player) = &mut shared.source {
@@ -237,7 +237,7 @@ impl Limoniter {
             }
             let shown = music.dragging.unwrap_or(time);
             let total = music.length.map_or_else(|| "?".to_string(), clock);
-            ui.label(RichText::new(format!("{} / {total}", clock(shown))).monospace());
+            ui.label(RichText::new(crate::i18n::tf!("{} / {total}", clock(shown))).monospace());
         });
         if let Some(length) = music.length.filter(|l| *l > 0.0) {
             let mut at = music.dragging.unwrap_or(time).min(length);
@@ -273,7 +273,7 @@ impl Limoniter {
 fn pattern_view(ui: &mut Ui, song: &Song, place: crate::tracker::play::Place, silenced: &mut [bool], shared: &Mutex<Shared>) {
     let Some(pattern) = song.pattern(place.pattern) else { return };
     let playing = song.orders.iter().filter(|&&p| p < 254).count();
-    ui.label(RichText::new(format!("Position {} of {playing} \u{B7} pattern {} \u{B7} row {}", place.position + 1, place.pattern, place.row)).color(theme::text_dim()).size(12.5));
+    ui.label(RichText::new(crate::i18n::tf!("Position {} of {playing} \u{B7} pattern {} \u{B7} row {}", place.position + 1, place.pattern, place.row)).color(theme::text_dim()).size(12.5));
     const AROUND: usize = 6;
     let font = egui::FontId::monospace(12.0);
     egui::ScrollArea::horizontal().id_salt("music-pattern").show(ui, |ui| {
@@ -290,7 +290,7 @@ fn pattern_view(ui: &mut Ui, song: &Song, place: crate::tracker::play::Place, si
                     let label = format!("{:^width$}", c + 1, width = cell - 1);
                     let text = if *off { RichText::new(label).font(font.clone()).color(theme::text_faint()).strikethrough() } else { RichText::new(label).font(font.clone()).color(theme::text_dim()) };
                     let button = Button::new(text).frame(false);
-                    if ui.add_sized([char_width * cell as f32, height], button).on_hover_text(if *off { "Switch this channel back on" } else { "Switch this channel off" }).clicked() {
+                    if ui.add_sized([char_width * cell as f32, height], button).on_hover_text(if *off { crate::i18n::tr("Switch this channel back on") } else { crate::i18n::tr("Switch this channel off") }).clicked() {
                         *off = !*off;
                         changed = true;
                     }

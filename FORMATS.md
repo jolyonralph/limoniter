@@ -88,6 +88,8 @@ Tokenised BASIC is listed as the machine's LIST would show it; some dialects can
 | Applesoft BASIC | `.bas` | ◐ | ◐ | text | Listed; tokenised only when added to an Apple II DOS 3.3 or ProDOS disk. |
 | Apple II Integer BASIC | `.int` | ✓ | ✗ | text | Listed as its LIST shows it; from DOS 3.3 (type I) and ProDOS (INT) disks. |
 | BBC BASIC (Z80) | `.bas` | ✓ | ✓ | text | As the Cambridge Z88, the Amstrad NC100, NC150 and NC200 and CP/M keep it; tokenised from a listing. |
+| AMOS program | `.AMOS` | ✓ | ✓ | text | AMOS 1.0 to AMOS Professional; listed with AMOS's spacing, locked procedures unlocked; tokenised back with every keyword of AMOS Professional and its four standard extensions. Memory banks are listed but not kept. |
+| STOS BASIC program | `.bas` | ✓ | ✓ | text | Atari ST; listed as STOS's LIST shows it and tokenised back as STOS does; extensions' instructions kept by number. Memory banks are listed but not kept. |
 | ZX81 BASIC | `.p`, `.81`, `.p81` | ✓ | ✗ | text | Also from TZX tapes, with the screen saved with the program. |
 | MSX-BASIC | `.bas` | ✓ | ✗ | text | From disk or tape, saved from 32K or 16K machines. |
 | Atari BASIC | `.bas` | ✓ | ✗ | text | Listed only. |
@@ -146,8 +148,14 @@ Pictures are shown at the machine's own pixel shape beside their bytes, and any 
 | Doodle! picture | `.dd` | ✓ | ✗ | image + hex | Commodore 64 hires. |
 | FLI Designer picture | `.fli` | ✓ | ✓ | image + hex | Commodore 64, 296 pixels across as RECOIL shows it; made by the C64 converter. |
 | AFLI picture | `.afl` | ✓ | ✓ | image + hex | Commodore 64; made by the C64 converter. |
-| ZX Spectrum screen | `.scr` | ✓ | ✓ | image + hex | 6912 bytes, with or without a +3DOS header; made by the screen designer. |
-| ZX Spectrum Next Layer 2 and LoRes screen | `.sl2`, `.nxi`, `.slr` | ✓ | ✗ | image + hex | 256×192, 320×256 and 640×256, with their own palette or the Next's. |
+| ZX Spectrum screen | `.scr` | ✓ | ✓ | image + hex | 6912 bytes, with or without a +3DOS header; made by the screen designer and the picture converter, which also writes Timex hi-colour (12288 bytes) and hi-res (12289). |
+| ZX Spectrum Next Layer 2 and LoRes screen | `.sl2`, `.nxi`, `.slr` | ✓ | ✓ | image + hex | 256×192, 320×256 and 640×256, with their own palette or the Next's; written by the picture converter and the Layer 2 painter. |
+| ZX Spectrum Next palette | `.nxp` | ✓ | ✓ | image + hex | 256 colours of two bytes (or one); written by the painter and converter. |
+| ZX Spectrum Next tiles, tilemap and sprites | `.til`, `.map`, `.spr` | ✗ | ✓ | — | 4-bit 8×8 tiles, two-byte map places, 8- or 4-bit 16×16 sprite patterns; written by the picture converter with a `.nex` that shows them. |
+| BMP picture | `.bmp` | ✓ | ✓ | image + hex | 1, 4, 8, 16, 24 and 32 bits a pixel, RLE4 and RLE8; written at 4 and 8 bits for the Next. |
+| Amstrad CPC screen | `.scr` | ✗ | ✓ | — | 16K from &C000 with AMSDOS's header, mode 0, 1 or 2, written by the picture converter with a BASIC loader. |
+| MSX Screen 2 picture | `.sc2` | ✗ | ✓ | — | BSAVEd VRAM for `BLOAD ,S`, written by the picture converter. |
+| BBC Micro screen dump | — | ✗ | ✓ | — | MODE 0, 1, 2, 4 or 5 screen memory for `*LOAD`, written by the picture converter with a loader. |
 | ZX Spectrum Next palette | `.nxp` | ✓ | ✗ | image + hex | Shown as its 256 colours. |
 | MacPaint picture | `.pntg`, `.pnt`, `.mac`, `.macp` | ✓ | ✗ | image + hex | With or without a MacBinary header. |
 | RISC OS sprite file | `.spr`, `,ff9` | ✓ | ✗ | image + hex | One sprite or a sheet of many. |

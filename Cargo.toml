@@ -43,6 +43,11 @@ cpal = "0.18"
 # Sound files to play: MP3, WAV, FLAC, Ogg Vorbis and AIFF, decoded in Rust with no C library.
 symphonia = { version = "0.6", default-features = false, features = ["mp1", "mp2", "mp3", "wav", "aiff", "pcm", "adpcm", "flac", "ogg", "vorbis", "id3v1", "id3v2"] }
 rustzx-core = { version = "0.16", features = ["embedded-roms", "autoload", "precise-border", "sound", "ay"] }
+# The sound effects designer: the AY's sound (as the built-in Spectrum makes it), and a Z80 to run the beeper's player.
+aym = "0.16"
+# tf!: format! whose words are translated.
+limoniter-macros = { path = "macros" }
+rustzx-z80 = "0.16"
 two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 unicode-normalization = "0.1"
 unicode_names2 = "1"

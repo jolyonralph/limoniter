@@ -82,7 +82,7 @@ pub fn release_from(text: &str) -> Result<(String, String), String> {
     if json["draft"].as_bool() == Some(true) || json["prerelease"].as_bool() == Some(true) {
         return Ok((String::new(), String::new()));
     }
-    let tag = json["tag_name"].as_str().ok_or("The release has no version.")?;
+    let tag = json["tag_name"].as_str().ok_or(crate::i18n::tr("The release has no version."))?;
     let body = json["body"].as_str().unwrap_or("").replace("\r\n", "\n");
     // How to download and install it is on the page it's downloaded from.
     let body = body.find("## Downloads").map_or(body.as_str(), |at| &body[..at]);
@@ -100,8 +100,8 @@ fn latest() -> Result<(String, String), String> {
         .header("User-Agent", "Limoniter")
         .header("Accept", "application/vnd.github+json")
         .call()
-        .map_err(|e| format!("GitHub couldn't be asked: {e}"))?;
-    let text = response.into_body().with_config().limit(1 << 20).read_to_string().map_err(|e| format!("GitHub's answer couldn't be read: {e}"))?;
+        .map_err(|e| crate::i18n::tf!("GitHub couldn't be asked: {e}"))?;
+    let text = response.into_body().with_config().limit(1 << 20).read_to_string().map_err(|e| crate::i18n::tf!("GitHub's answer couldn't be read: {e}"))?;
     release_from(&text)
 }
 

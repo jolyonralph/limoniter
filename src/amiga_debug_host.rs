@@ -26,7 +26,7 @@ impl Limoniter {
         }
         let breakpoints = self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.text.code.as_ref()).is_some_and(|c| !c.breakpoints.is_empty());
         if breakpoints {
-            self.message("Run on machine", format!("This {} has no GDB server, {NO_SERVER}", emulator.name));
+            self.message("Run on machine", crate::i18n::tf!("This {} has no GDB server, {NO_SERVER}", emulator.name));
         }
         None
     }
@@ -44,21 +44,21 @@ impl Limoniter {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn start_amiga_debugging(&mut self, device: &Device, emulator: &'static Emulator, run: &Runnable, config: &Path, args: Vec<String>, program: &Path, debug: Program) -> Result<(), String> {
         let doc_id = self.docs[self.active].id;
-        let folder = config.parent().ok_or("The run has no folder.")?.to_path_buf();
+        let folder = config.parent().ok_or(crate::i18n::tr("The run has no folder."))?.to_path_buf();
         // The program's name as the startup-sequence runs it: the emulator stops as that starts.
-        let trigger = std::fs::read_to_string(folder.join("dh0").join("s").join("startup-sequence")).ok().and_then(|text| text.lines().next().map(|l| l.trim().to_string())).filter(|t| !t.is_empty()).ok_or("The Amiga's drive has no program to start.")?;
+        let trigger = std::fs::read_to_string(folder.join("dh0").join("s").join("startup-sequence")).ok().and_then(|text| text.lines().next().map(|l| l.trim().to_string())).filter(|t| !t.is_empty()).ok_or(crate::i18n::tr("The Amiga's drive has no program to start."))?;
         let port = if emulator.id == "winuae" {
             let port = crate::amiga_debug::WINUAE_PORT;
             if std::net::TcpListener::bind(("127.0.0.1", port)).is_err() {
-                return Err(format!("WinUAE's GDB server always listens on port {port}, and something else is using it: another WinUAE being debugged, perhaps."));
+                return Err(crate::i18n::tf!("WinUAE's GDB server always listens on port {port}, and something else is using it: another WinUAE being debugged, perhaps."));
             }
             port
         } else {
-            free_port().ok_or("No port was free for the emulator's debugger.")?
+            free_port().ok_or(crate::i18n::tr("No port was free for the emulator's debugger."))?
         };
         let mut text = std::fs::read_to_string(config).map_err(|e| e.to_string())?;
         text.push_str(&crate::amiga_debug::config_lines(emulator.id, port, &trigger));
-        std::fs::write(config, text).map_err(|e| format!("The emulator's configuration couldn't be written.\n\n{e}"))?;
+        std::fs::write(config, text).map_err(|e| crate::i18n::tf!("The emulator's configuration couldn't be written.\n\n{e}"))?;
         let log = folder.join("emulator.log");
         let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
         let err = out.try_clone().map_err(|e| e.to_string())?;
@@ -71,7 +71,7 @@ impl Limoniter {
                 command.env("LD_LIBRARY_PATH", home);
             }
         }
-        let child = command.spawn().map_err(|e| format!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
+        let child = command.spawn().map_err(|e| crate::i18n::tf!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
         let wake = self.waker.clone();
         let remote = crate::remote_debug::RemoteDebug::start_amiga(port, debug, self.amiga_breakpoints(doc_id), move || {
             if let Some(ctx) = &wake {
@@ -157,7 +157,7 @@ impl Limoniter {
         let waiting = shown.now.is_none();
         let mut pause = false;
         Panel::right("remote-debug").default_size(400.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
-            ui.label(RichText::new(format!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
+            ui.label(RichText::new(crate::i18n::tf!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
             ui.separator();
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 if let Some(problem) = &problem {
@@ -174,14 +174,14 @@ impl Limoniter {
                     }
                     None if problem.is_some() => {}
                     None if waiting => {
-                        ui.add(egui::Label::new(RichText::new("Waiting for the Amiga to start the program: it stops at its first breakpoint, or on its first line if there's one there.").color(theme::text_dim())).wrap());
+                        ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Waiting for the Amiga to start the program: it stops at its first breakpoint, or on its first line if there's one there.")).color(theme::text_dim())).wrap());
                     }
                     None => {
                         ui.horizontal(|ui| {
-                            ui.label("Running");
-                            pause = ui.small_button("Pause").on_hover_text("Stops it where it is").clicked();
+                            ui.label(crate::i18n::tr("Running"));
+                            pause = ui.small_button(crate::i18n::tr("Pause")).on_hover_text(crate::i18n::tr("Stops it where it is")).clicked();
                         });
-                        ui.add(egui::Label::new(RichText::new("Click beside a line's number for a breakpoint; it stops there.").color(theme::text_faint()).size(11.5)).wrap());
+                        ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Click beside a line's number for a breakpoint; it stops there.")).color(theme::text_faint()).size(11.5)).wrap());
                     }
                 }
                 if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {

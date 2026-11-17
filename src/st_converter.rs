@@ -124,7 +124,7 @@ impl Default for Converter {
 }
 
 fn combo<T: Copy + PartialEq>(ui: &mut Ui, id: &str, label: &str, value: &mut T, all: &[T], name: impl Fn(T) -> String) {
-    ui.label(label);
+    ui.label(crate::i18n::tr(label));
     egui::ComboBox::from_id_salt(id).selected_text(name(*value)).show_ui(ui, |ui| {
         for &item in all {
             ui.selectable_value(value, item, name(item));
@@ -145,7 +145,7 @@ fn swatches(ui: &mut Ui, palette: &[[u8; 3]], levels: st::Levels) {
             let (rect, response) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
             ui.painter().rect_filled(rect, 1.0, Color32::from_rgb(c[0], c[1], c[2]));
             let word = if levels == st::Levels::Falcon { format!("${:08X}", st::falcon_long(c)) } else { format!("${:03X}", st::st_word(c, levels)) };
-            response.on_hover_text(format!("Colour {i}: #{:02X}{:02X}{:02X} ({word})", c[0], c[1], c[2]));
+            response.on_hover_text(crate::i18n::tf!("Colour {i}: #{:02X}{:02X}{:02X} ({word})", c[0], c[1], c[2]));
         }
     });
 }
@@ -275,25 +275,25 @@ impl Converter {
         let mut asked = None;
         self.keep_up(ui.ctx());
         ui.horizontal(|ui| {
-            ui.label("Machine");
+            ui.label(crate::i18n::tr("Machine"));
             for machine in Machine::ALL {
-                ui.selectable_value(&mut self.settings.machine, machine, machine.name());
+                ui.selectable_value(&mut self.settings.machine, machine, crate::i18n::tr(machine.name()));
             }
         });
         ui.horizontal(|ui| {
-            if ui.button("Open a picture\u{2026}").on_hover_text("PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads").clicked() {
+            if ui.button(crate::i18n::tr("Open a picture\u{2026}")).on_hover_text(crate::i18n::tr("PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads")).clicked() {
                 asked = Some(Asked::OpenPicture);
             }
             match &self.picture {
-                Some((name, image)) => ui.label(RichText::new(format!("{name}, {}\u{D7}{}", image.width, image.height)).color(crate::theme::text_dim())),
-                None => ui.label(RichText::new("No picture yet").color(crate::theme::text_dim())),
+                Some((name, image)) => ui.label(RichText::new(crate::i18n::tf!("{name}, {}\u{D7}{}", image.width, image.height)).color(crate::theme::text_dim())),
+                None => ui.label(RichText::new(crate::i18n::tr("No picture yet")).color(crate::theme::text_dim())),
             };
         });
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, Tab::Picture, "Screen picture");
-            ui.selectable_value(&mut self.tab, Tab::Sprite, "Sprite");
-            ui.selectable_value(&mut self.tab, Tab::Font, "Font");
-            ui.selectable_value(&mut self.tab, Tab::Raw, "Raw planes to picture");
+            ui.selectable_value(&mut self.tab, Tab::Picture, crate::i18n::tr("Screen picture"));
+            ui.selectable_value(&mut self.tab, Tab::Sprite, crate::i18n::tr("Sprite"));
+            ui.selectable_value(&mut self.tab, Tab::Font, crate::i18n::tr("Font"));
+            ui.selectable_value(&mut self.tab, Tab::Raw, crate::i18n::tr("Raw planes to picture"));
         });
         ui.separator();
         match self.tab {
@@ -334,8 +334,8 @@ impl Converter {
                         }
                     };
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("{w}\u{D7}{h}, {what}, average difference {error:.3} (Oklab){}", if busy { " \u{2014} working\u{2026}" } else { "" })).color(crate::theme::text_dim()));
-                        ui.checkbox(&mut self.true_shape, "Pixels their true shape");
+                        ui.label(RichText::new(crate::i18n::tf!("{w}\u{D7}{h}, {what}, average difference {error:.3} (Oklab){}", if busy { " \u{2014} working\u{2026}" } else { "" })).color(crate::theme::text_dim()));
+                        ui.checkbox(&mut self.true_shape, crate::i18n::tr("Pixels their true shape"));
                     });
                     self.preview(ui, w, h, &rgba, aspect, self.serial ^ 0x5A5A);
                     if spectrum {
@@ -345,7 +345,7 @@ impl Converter {
                 } else if busy {
                     ui.spinner();
                 } else {
-                    ui.label("Open a picture to convert it.");
+                    ui.label(crate::i18n::tr("Open a picture to convert it."));
                 }
             });
         });
@@ -358,7 +358,7 @@ impl Converter {
             s.screen = Screen::Low;
         }
         egui::Grid::new("st-settings").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-            ui.label("Screen");
+            ui.label(crate::i18n::tr("Screen"));
             let before = s.screen;
             egui::ComboBox::from_id_salt("st-screen").selected_text(s.screen.name(machine)).show_ui(ui, |ui| {
                 for &screen in machine.screens() {
@@ -369,13 +369,13 @@ impl Converter {
                 (s.width, s.height) = s.screen.size();
             }
             ui.end_row();
-            ui.label("Size");
+            ui.label(crate::i18n::tr("Size"));
             ui.add_enabled_ui(s.screen != Screen::Spectrum, |ui| {
                 ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(&mut s.width).range(16..=2048)).on_hover_text("Pixels across: the planes' rows are rounded up to 16");
-                    ui.label("\u{D7}");
-                    ui.add(egui::DragValue::new(&mut s.height).range(1..=2048)).on_hover_text("Pixels down");
-                    if ui.small_button("Screen").on_hover_text("The whole screen's size").clicked() {
+                    ui.add(egui::DragValue::new(&mut s.width).range(16..=2048)).on_hover_text(crate::i18n::tr("Pixels across: the planes' rows are rounded up to 16"));
+                    ui.label(crate::i18n::tr("\u{D7}"));
+                    ui.add(egui::DragValue::new(&mut s.height).range(1..=2048)).on_hover_text(crate::i18n::tr("Pixels down"));
+                    if ui.small_button(crate::i18n::tr("Screen")).on_hover_text(crate::i18n::tr("The whole screen's size")).clicked() {
                         (s.width, s.height) = s.screen.size();
                     }
                 });
@@ -384,20 +384,20 @@ impl Converter {
             combo(ui, "st-fit", "Fitting", &mut s.fit, &Fit::ALL, |f| f.name().to_string());
             combo(ui, "st-filter", "Scaling", &mut s.filter, &Filter::ALL, |f| f.name().to_string());
             combo(ui, "st-dither", "Dithering", &mut s.dither, &Dither::ALL, |d| d.name().to_string());
-            ui.label("Strength");
+            ui.label(crate::i18n::tr("Strength"));
             ui.add_enabled(s.dither != Dither::None, egui::Slider::new(&mut s.strength, 0.0..=1.0));
             ui.end_row();
             let indexed = !matches!(s.screen, Screen::Spectrum | Screen::FalconTrue | Screen::High);
             if indexed {
-                ui.label("");
-                ui.checkbox(&mut s.black_background, "Colour 0 black").on_hover_text("Keep the background and border black");
+                ui.label(crate::i18n::tr(""));
+                ui.checkbox(&mut s.black_background, crate::i18n::tr("Colour 0 black")).on_hover_text(crate::i18n::tr("Keep the background and border black"));
                 ui.end_row();
-                ui.label("Colours given");
+                ui.label(crate::i18n::tr("Colours given"));
                 ui.horizontal(|ui| {
-                    if ui.button("Palette file\u{2026}").on_hover_text("A Degas or NEOchrome picture, ST words in assembler or C, raw words, or an IFF, JASC or GIMP palette").clicked() {
+                    if ui.button(crate::i18n::tr("Palette file\u{2026}")).on_hover_text(crate::i18n::tr("A Degas or NEOchrome picture, ST words in assembler or C, raw words, or an IFF, JASC or GIMP palette")).clicked() {
                         *asked = Some(Asked::OpenPalette);
                     }
-                    if !s.given.is_empty() && ui.small_button("\u{D7}").on_hover_text("Forget it").clicked() {
+                    if !s.given.is_empty() && ui.small_button(crate::i18n::tr("\u{D7}")).on_hover_text(crate::i18n::tr("Forget it")).clicked() {
                         s.given.clear();
                         s.keep_given = 0;
                         self.palette_name = None;
@@ -405,9 +405,9 @@ impl Converter {
                 });
                 ui.end_row();
                 if !s.given.is_empty() {
-                    ui.label("Keep");
+                    ui.label(crate::i18n::tr("Keep"));
                     let most = s.given.len().min(1 << s.screen.planes().min(8));
-                    ui.add(egui::Slider::new(&mut s.keep_given, 0..=most).text(format!("of {}", s.given.len()))).on_hover_text("These many of its first colours are kept as they are; the rest are found from the picture");
+                    ui.add(egui::Slider::new(&mut s.keep_given, 0..=most).text(crate::i18n::tf!("of {}", s.given.len()))).on_hover_text(crate::i18n::tr("These many of its first colours are kept as they are; the rest are found from the picture"));
                     ui.end_row();
                 }
             }
@@ -417,7 +417,7 @@ impl Converter {
         }
         ui.add_space(6.0);
         egui::Grid::new("st-out").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-            ui.label("Name");
+            ui.label(crate::i18n::tr("Name"));
             ui.text_edit_singleline(&mut self.name);
             ui.end_row();
         });
@@ -429,16 +429,16 @@ impl Converter {
         ui.add_space(4.0);
         let (st_screen, spectrum, indexed) = (c.is_st_screen(), c.screen == Screen::Spectrum, !matches!(c.screen, Screen::Spectrum | Screen::FalconTrue));
         ui.horizontal_wrapped(|ui| {
-            if ui.button("Save everything\u{2026}").on_hover_text("Into a folder: the screen, the palette, the pictures this screen can be saved as and the source").clicked() {
+            if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the screen, the palette, the pictures this screen can be saved as and the source")).clicked() {
                 *asked = Some(Asked::SaveAll);
             }
-            if ui.button("Raw screen\u{2026}").clicked() {
+            if ui.button(crate::i18n::tr("Raw screen\u{2026}")).clicked() {
                 *asked = Some(Asked::SaveScreen);
             }
             if c.screen != Screen::FalconTrue {
-                ui.menu_button("Palette", |ui| {
+                ui.menu_button(crate::i18n::tr("Palette"), |ui| {
                     for (label, kind) in [("Raw words\u{2026}", PaletteKind::Raw), ("Assembler (dc.w)\u{2026}", PaletteKind::Asm), ("C array\u{2026}", PaletteKind::C)] {
-                        if ui.button(label).clicked() {
+                        if ui.button(crate::i18n::tr(label)).clicked() {
                             *asked = Some(Asked::SavePalette(kind));
                             ui.close();
                         }
@@ -446,26 +446,26 @@ impl Converter {
                 });
             }
             if st_screen {
-                if ui.button("Degas\u{2026}").on_hover_text(".PI1-3, or .PC1-3 packed").clicked() {
+                if ui.button(crate::i18n::tr("Degas\u{2026}")).on_hover_text(crate::i18n::tr(".PI1-3, or .PC1-3 packed")).clicked() {
                     *asked = Some(Asked::SaveDegas);
                 }
-                if ui.button("NEOchrome\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("NEOchrome\u{2026}")).clicked() {
                     *asked = Some(Asked::SaveNeo);
                 }
             }
-            if spectrum && ui.button("Spectrum\u{2026}").on_hover_text(".SPU, or .SPC packed").clicked() {
+            if spectrum && ui.button(crate::i18n::tr("Spectrum\u{2026}")).on_hover_text(crate::i18n::tr(".SPU, or .SPC packed")).clicked() {
                 *asked = Some(Asked::SaveSpectrum);
             }
-            if indexed && ui.button("IFF ILBM\u{2026}").clicked() {
+            if indexed && ui.button(crate::i18n::tr("IFF ILBM\u{2026}")).clicked() {
                 *asked = Some(Asked::SaveIlbm);
             }
             if st_screen || spectrum || indexed {
-                ui.checkbox(&mut self.packed, "Packed");
+                ui.checkbox(&mut self.packed, crate::i18n::tr("Packed"));
             }
-            if ui.button("Source\u{2026}").on_hover_text("Assembler: the sizes, a routine showing it, the palette and INCBIN of the screen").clicked() {
+            if ui.button(crate::i18n::tr("Source\u{2026}")).on_hover_text(crate::i18n::tr("Assembler: the sizes, a routine showing it, the palette and INCBIN of the screen")).clicked() {
                 *asked = Some(Asked::SaveSource);
             }
-            if c.screen != Screen::FalconTrue && ui.button("Copy the palette").clicked() {
+            if c.screen != Screen::FalconTrue && ui.button(crate::i18n::tr("Copy the palette")).clicked() {
                 ui.ctx().copy_text(st::palette_asm(c, &self.name));
             }
         });
@@ -478,7 +478,7 @@ impl Converter {
                 ui.set_width(340.0);
                 egui::Grid::new("st-small").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
                     if self.tab == Tab::Sprite {
-                        ui.label("See-through");
+                        ui.label(crate::i18n::tr("See-through"));
                         egui::ComboBox::from_id_salt("st-clear")
                             .selected_text(match self.transparent {
                                 Transparent::Alpha => "Where the picture is",
@@ -486,56 +486,56 @@ impl Converter {
                                 Transparent::Opaque => "Nowhere",
                             })
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut self.transparent, Transparent::Alpha, "Where the picture is");
-                                ui.selectable_value(&mut self.transparent, Transparent::TopLeft, "The top left pixel's colour");
-                                ui.selectable_value(&mut self.transparent, Transparent::Opaque, "Nowhere");
+                                ui.selectable_value(&mut self.transparent, Transparent::Alpha, crate::i18n::tr("Where the picture is"));
+                                ui.selectable_value(&mut self.transparent, Transparent::TopLeft, crate::i18n::tr("The top left pixel's colour"));
+                                ui.selectable_value(&mut self.transparent, Transparent::Opaque, crate::i18n::tr("Nowhere"));
                             });
                         ui.end_row();
-                        ui.label("Size");
+                        ui.label(crate::i18n::tr("Size"));
                         ui.horizontal(|ui| {
                             ui.add(egui::DragValue::new(&mut self.sprite_size.0).range(1..=320));
-                            ui.label("\u{D7}");
+                            ui.label(crate::i18n::tr("\u{D7}"));
                             ui.add(egui::DragValue::new(&mut self.sprite_size.1).range(1..=400));
                         });
                         ui.end_row();
-                        ui.label("");
-                        ui.checkbox(&mut self.sprite_screen_palette, "The screen picture's palette").on_hover_text("Colours from the screen picture, for a sprite drawn on it");
+                        ui.label(crate::i18n::tr(""));
+                        ui.checkbox(&mut self.sprite_screen_palette, crate::i18n::tr("The screen picture's palette")).on_hover_text(crate::i18n::tr("Colours from the screen picture, for a sprite drawn on it"));
                         ui.end_row();
-                        ui.label("Bit planes");
+                        ui.label(crate::i18n::tr("Bit planes"));
                         ui.add(egui::Slider::new(&mut self.sprite_settings.planes, 1..=4));
                         ui.end_row();
-                        ui.label("");
-                        ui.checkbox(&mut self.sprite_settings.preshifted, "16 copies, pre-shifted").on_hover_text("Each a pixel further right, and a word wider, so it's drawn at any pixel without shifting");
+                        ui.label(crate::i18n::tr(""));
+                        ui.checkbox(&mut self.sprite_settings.preshifted, crate::i18n::tr("16 copies, pre-shifted")).on_hover_text(crate::i18n::tr("Each a pixel further right, and a word wider, so it's drawn at any pixel without shifting"));
                         ui.end_row();
                         combo(ui, "st-mask", "Mask", &mut self.sprite_settings.mask, &MaskKind::ALL, |m| m.name().to_string());
-                        ui.label("Mask bits set");
+                        ui.label(crate::i18n::tr("Mask bits set"));
                         ui.horizontal(|ui| {
-                            ui.selectable_value(&mut self.sprite_settings.mask_background, true, "On the background");
-                            ui.selectable_value(&mut self.sprite_settings.mask_background, false, "On the sprite");
+                            ui.selectable_value(&mut self.sprite_settings.mask_background, true, crate::i18n::tr("On the background"));
+                            ui.selectable_value(&mut self.sprite_settings.mask_background, false, crate::i18n::tr("On the sprite"));
                         });
                         ui.end_row();
                     } else {
-                        ui.label("Characters");
+                        ui.label(crate::i18n::tr("Characters"));
                         ui.horizontal(|ui| {
-                            ui.selectable_value(&mut self.font_settings.size, 8, "8\u{D7}8");
-                            ui.selectable_value(&mut self.font_settings.size, 16, "16\u{D7}16");
+                            ui.selectable_value(&mut self.font_settings.size, 8, crate::i18n::tr("8\u{D7}8"));
+                            ui.selectable_value(&mut self.font_settings.size, 16, crate::i18n::tr("16\u{D7}16"));
                         });
                         ui.end_row();
                         combo(ui, "st-ink", "Set where", &mut self.font_settings.ink, &Ink::ALL, |i| i.name().to_string());
-                        ui.label("First is");
-                        ui.add(egui::DragValue::new(&mut self.font_settings.first).range(0..=255)).on_hover_text("The first character's code: 32 is the space");
+                        ui.label(crate::i18n::tr("First is"));
+                        ui.add(egui::DragValue::new(&mut self.font_settings.first).range(0..=255)).on_hover_text(crate::i18n::tr("The first character's code: 32 is the space"));
                         ui.end_row();
-                        ui.label("At most");
+                        ui.label(crate::i18n::tr("At most"));
                         ui.add(egui::DragValue::new(&mut self.font_settings.count).range(1..=256));
                         ui.end_row();
                     }
-                    ui.label("Name");
+                    ui.label(crate::i18n::tr("Name"));
                     ui.text_edit_singleline(&mut self.name);
                     ui.end_row();
-                    ui.label("Source");
+                    ui.label(crate::i18n::tr("Source"));
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut self.inline, true, "dc.w");
-                        ui.selectable_value(&mut self.inline, false, "INCBIN");
+                        ui.selectable_value(&mut self.inline, true, crate::i18n::tr("dc.w"));
+                        ui.selectable_value(&mut self.inline, false, crate::i18n::tr("INCBIN"));
                     });
                     ui.end_row();
                 });
@@ -544,7 +544,7 @@ impl Converter {
                     if let Some(s) = &self.sprite {
                         ui.label(dim(format!("{} words a row, {} bytes a copy, {} in all", s.words(), s.copy_bytes(), s.copy_bytes() * s.copies())));
                     }
-                    if ui.add_enabled(self.sprite.is_some(), egui::Button::new("Save the sprite\u{2026}")).on_hover_text("Its raw data and source").clicked() {
+                    if ui.add_enabled(self.sprite.is_some(), egui::Button::new(crate::i18n::tr("Save the sprite\u{2026}"))).on_hover_text(crate::i18n::tr("Its raw data and source")).clicked() {
                         *asked = Some(Asked::SaveSprite);
                     }
                 } else {
@@ -552,7 +552,7 @@ impl Converter {
                     if let Some(f) = &self.font {
                         ui.label(dim(format!("{} characters, {} bytes", f.glyphs.len(), f.data().len())));
                     }
-                    if ui.add_enabled(self.font.as_ref().is_some_and(|f| !f.glyphs.is_empty()), egui::Button::new("Save the font\u{2026}")).on_hover_text("Its raw data and source").clicked() {
+                    if ui.add_enabled(self.font.as_ref().is_some_and(|f| !f.glyphs.is_empty()), egui::Button::new(crate::i18n::tr("Save the font\u{2026}"))).on_hover_text(crate::i18n::tr("Its raw data and source")).clicked() {
                         *asked = Some(Asked::SaveFont);
                     }
                 }
@@ -572,7 +572,7 @@ impl Converter {
                         swatches(ui, &palette, self.settings.machine.st_levels());
                     }
                     None => {
-                        ui.label("Open a picture to make them from it.");
+                        ui.label(crate::i18n::tr("Open a picture to make them from it."));
                     }
                 }
             });
@@ -585,33 +585,33 @@ impl Converter {
             ui.vertical(|ui| {
                 ui.set_width(340.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Open raw planes\u{2026}").clicked() {
+                    if ui.button(crate::i18n::tr("Open raw planes\u{2026}")).clicked() {
                         *asked = Some(Asked::OpenRaw);
                     }
                     if let Some((name, bytes)) = &self.raw_file {
-                        ui.label(RichText::new(format!("{name}, {} bytes", bytes.len())).color(crate::theme::text_dim()));
+                        ui.label(RichText::new(crate::i18n::tf!("{name}, {} bytes", bytes.len())).color(crate::theme::text_dim()));
                     }
                 });
                 let r = &mut self.raw;
                 egui::Grid::new("st-raw").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-                    ui.label("Starting at");
+                    ui.label(crate::i18n::tr("Starting at"));
                     ui.add(egui::DragValue::new(&mut r.offset).range(0..=usize::MAX).hexadecimal(1, false, true));
                     ui.end_row();
-                    ui.label("Size");
+                    ui.label(crate::i18n::tr("Size"));
                     ui.horizontal(|ui| {
                         ui.add(egui::DragValue::new(&mut r.width).range(16..=2048).speed(16.0));
-                        ui.label("\u{D7}");
+                        ui.label(crate::i18n::tr("\u{D7}"));
                         ui.add(egui::DragValue::new(&mut r.height).range(1..=2048));
                     });
                     ui.end_row();
-                    ui.label("Planes");
+                    ui.label(crate::i18n::tr("Planes"));
                     ui.horizontal(|ui| {
                         for (planes, label) in [(1, "1"), (2, "2"), (4, "4"), (8, "8"), (16, "True colour")] {
-                            ui.selectable_value(&mut r.planes, planes, label);
+                            ui.selectable_value(&mut r.planes, planes, crate::i18n::tr(label));
                         }
                     });
                     ui.end_row();
-                    ui.label("Palette");
+                    ui.label(crate::i18n::tr("Palette"));
                     egui::ComboBox::from_id_salt("st-raw-colours")
                         .selected_text(match self.raw_colours {
                             RawColours::Greys => "Shades of grey",
@@ -620,16 +620,16 @@ impl Converter {
                             RawColours::InFile => "Words in the file",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.raw_colours, RawColours::Greys, "Shades of grey");
-                            ui.selectable_value(&mut self.raw_colours, RawColours::Converted, "The screen picture's");
-                            ui.selectable_value(&mut self.raw_colours, RawColours::Given, "The palette file's");
-                            ui.selectable_value(&mut self.raw_colours, RawColours::InFile, "Words in the file");
+                            ui.selectable_value(&mut self.raw_colours, RawColours::Greys, crate::i18n::tr("Shades of grey"));
+                            ui.selectable_value(&mut self.raw_colours, RawColours::Converted, crate::i18n::tr("The screen picture's"));
+                            ui.selectable_value(&mut self.raw_colours, RawColours::Given, crate::i18n::tr("The palette file's"));
+                            ui.selectable_value(&mut self.raw_colours, RawColours::InFile, crate::i18n::tr("Words in the file"));
                         });
                     ui.end_row();
                     if self.raw_colours == RawColours::InFile {
-                        ui.label("Palette at");
+                        ui.label(crate::i18n::tr("Palette at"));
                         let mut at = r.palette_at.unwrap_or(0);
-                        ui.add(egui::DragValue::new(&mut at).range(0..=usize::MAX).hexadecimal(1, false, true)).on_hover_text("Where 16 palette words are: 2 in a Degas picture, 4 in NEOchrome");
+                        ui.add(egui::DragValue::new(&mut at).range(0..=usize::MAX).hexadecimal(1, false, true)).on_hover_text(crate::i18n::tr("Where 16 palette words are: 2 in a Degas picture, 4 in NEOchrome"));
                         r.palette_at = Some(at);
                         ui.end_row();
                     }
@@ -638,13 +638,13 @@ impl Converter {
                     let rows = self.raw.rows_in(bytes.len());
                     ui.horizontal(|ui| {
                         ui.label(dim(format!("{rows} rows fit")));
-                        if ui.small_button("Use them").clicked() && rows > 0 {
+                        if ui.small_button(crate::i18n::tr("Use them")).clicked() && rows > 0 {
                             self.raw.height = rows;
                         }
                     });
                     ui.horizontal(|ui| {
                         for (label, offset, planes, width, height, palette) in [("Degas low", 34, 4, 320, 200, 2), ("NEOchrome", 128, 4, 320, 200, 4), ("Screen", 0, 4, 320, 200, 0)] {
-                            if ui.small_button(label).clicked() {
+                            if ui.small_button(crate::i18n::tr(label)).clicked() {
                                 self.raw = RawView { offset, width, height, planes, palette_at: (palette > 0).then_some(palette) };
                                 if palette > 0 {
                                     self.raw_colours = RawColours::InFile;
@@ -653,10 +653,10 @@ impl Converter {
                         }
                     });
                 }
-                if ui.button("Palette file\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Palette file\u{2026}")).clicked() {
                     *asked = Some(Asked::OpenPalette);
                 }
-                if ui.add_enabled(self.raw_shown.is_some(), egui::Button::new("Save as PNG\u{2026}")).clicked() {
+                if ui.add_enabled(self.raw_shown.is_some(), egui::Button::new(crate::i18n::tr("Save as PNG\u{2026}"))).clicked() {
                     *asked = Some(Asked::SavePng);
                 }
             });
@@ -669,7 +669,7 @@ impl Converter {
                     let (w, h) = (self.raw.width.clamp(1, 4096), self.raw.height.clamp(1, 4096));
                     self.preview(ui, w, h, &rgba, 1.0, 1);
                 } else {
-                    ui.label("Open a file of raw ST planes, ripped from a program or saved here, to see them as a picture.");
+                    ui.label(crate::i18n::tr("Open a file of raw ST planes, ripped from a program or saved here, to see them as a picture."));
                 }
             });
         });

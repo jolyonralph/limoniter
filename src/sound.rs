@@ -113,7 +113,7 @@ fn be32(b: &[u8], at: usize) -> u32 {
 /// its NAME, AUTH and ANNO if it has them.
 pub fn read_8svx(bytes: &[u8]) -> Result<Pcm, String> {
     if !(bytes.starts_with(b"FORM") && bytes.get(8..12) == Some(b"8SVX")) {
-        return Err("This isn't an IFF 8SVX sound.".into());
+        return Err(crate::i18n::tr("This isn't an IFF 8SVX sound.").into());
     }
     let mut at = 12;
     let (mut rate, mut packed, mut body, mut stereo) = (8363u32, false, None, false);
@@ -146,7 +146,7 @@ pub fn read_8svx(bytes: &[u8]) -> Result<Pcm, String> {
         }
         at += 8 + size + (size & 1);
     }
-    let body = body.ok_or("The 8SVX file has no BODY of samples.")?;
+    let body = body.ok_or(crate::i18n::tr("The 8SVX file has no BODY of samples."))?;
     let raw: Vec<i8> = if packed {
         // Fibonacci-delta: two 4-bit steps a byte, after a byte to start from.
         const STEPS: [i8; 16] = [-34, -21, -13, -8, -5, -3, -2, -1, 0, 1, 2, 3, 5, 8, 13, 21];
@@ -179,7 +179,7 @@ pub fn read_8svx(bytes: &[u8]) -> Result<Pcm, String> {
 /// each block gives.
 pub fn read_voc(bytes: &[u8]) -> Result<Pcm, String> {
     if !bytes.starts_with(b"Creative Voice File\x1A") {
-        return Err("This isn't a Creative Voice File.".into());
+        return Err(crate::i18n::tr("This isn't a Creative Voice File.").into());
     }
     let mut at = usize::from(u16::from_le_bytes([bytes[20], bytes[21]]));
     let (mut rate, mut channels, mut bits) = (0u32, 1usize, 8u32);
@@ -242,7 +242,7 @@ pub fn read_voc(bytes: &[u8]) -> Result<Pcm, String> {
         at += 4 + size;
     }
     if rate == 0 || samples.is_empty() {
-        return Err("The VOC file has no sound in a form Limoniter plays.".into());
+        return Err(crate::i18n::tr("The VOC file has no sound in a form Limoniter plays.").into());
     }
     let seconds = samples.len() as f64 / channels as f64 / f64::from(rate);
     Ok(Pcm { rate, channels, info: Info { format: "Creative Voice File (VOC)".into(), codec: codec.into(), rate, channels, bits: Some(bits), seconds: Some(seconds), tags }, samples })
@@ -251,7 +251,7 @@ pub fn read_voc(bytes: &[u8]) -> Result<Pcm, String> {
 /// A Sun/NeXT .au file: a big-endian header, then samples in μ-law, A-law, linear 8, 16, 24 or 32-bit, or float.
 pub fn read_au(bytes: &[u8]) -> Result<Pcm, String> {
     if !bytes.starts_with(b".snd") || bytes.len() < 24 {
-        return Err("This isn't a Sun or NeXT sound file.".into());
+        return Err(crate::i18n::tr("This isn't a Sun or NeXT sound file.").into());
     }
     let offset = be32(bytes, 4) as usize;
     let size = be32(bytes, 8) as usize;
@@ -268,7 +268,7 @@ pub fn read_au(bytes: &[u8]) -> Result<Pcm, String> {
         5 => ("32-bit linear", 32, data.as_chunks::<4>().0.iter().map(|p| i32::from_be_bytes([p[0], p[1], p[2], p[3]]) as f32 / 2_147_483_648.0).collect()),
         6 => ("32-bit float", 32, data.as_chunks::<4>().0.iter().map(|p| f32::from_be_bytes([p[0], p[1], p[2], p[3]])).collect()),
         27 => ("A-law", 8, data.iter().map(|&b| alaw(b)).collect()),
-        other => return Err(format!("This .au file's samples are in encoding {other}, which Limoniter doesn't play.")),
+        other => return Err(crate::i18n::tf!("This .au file's samples are in encoding {other}, which Limoniter doesn't play.")),
     };
     let mut tags = Vec::new();
     if let Some(note) = bytes.get(24..offset.min(bytes.len())) {
@@ -318,12 +318,12 @@ fn open_symphonia(bytes: std::sync::Arc<[u8]>, name: &str) -> Result<Box<dyn For
         hint.with_extension(&ending.to_ascii_lowercase());
     }
     let stream = MediaSourceStream::new(Box::new(Cursor::new(bytes)), Default::default());
-    symphonia::default::get_probe().probe(&hint, stream, FormatOptions::default(), MetadataOptions::default()).map_err(|e| format!("This isn't a sound file Limoniter can play ({e})."))
+    symphonia::default::get_probe().probe(&hint, stream, FormatOptions::default(), MetadataOptions::default()).map_err(|e| crate::i18n::tf!("This isn't a sound file Limoniter can play ({e})."))
 }
 
 fn symphonia_info(reader: &mut Box<dyn FormatReader>) -> Result<(Info, u32), String> {
-    let track = reader.first_track_known_codec(TrackType::Audio).ok_or("There's no sound in the file that Limoniter can play.")?.clone();
-    let params = track.codec_params.as_ref().and_then(|p| p.audio()).ok_or("There's no sound in the file that Limoniter can play.")?.clone();
+    let track = reader.first_track_known_codec(TrackType::Audio).ok_or(crate::i18n::tr("There's no sound in the file that Limoniter can play."))?.clone();
+    let params = track.codec_params.as_ref().and_then(|p| p.audio()).ok_or(crate::i18n::tr("There's no sound in the file that Limoniter can play."))?.clone();
     let codec = symphonia::default::get_codecs().get_audio_decoder(params.codec).map(|c| c.codec.info.long_name.to_string()).unwrap_or_default();
     let rate = params.sample_rate.unwrap_or(44_100);
     let seconds = match (track.time_base, track.duration) {
@@ -421,9 +421,9 @@ impl SoundPlayer {
             let bytes: std::sync::Arc<[u8]> = bytes.into();
             let mut reader = open_symphonia(bytes.clone(), name)?;
             let (info, track) = symphonia_info(&mut reader)?;
-            let params = reader.tracks().iter().find(|t| t.id == track).and_then(|t| t.codec_params.as_ref()).and_then(|p| p.audio()).cloned().ok_or("The sound's track has gone.")?;
+            let params = reader.tracks().iter().find(|t| t.id == track).and_then(|t| t.codec_params.as_ref()).and_then(|p| p.audio()).cloned().ok_or(crate::i18n::tr("The sound's track has gone."))?;
             let time_base = reader.tracks().iter().find(|t| t.id == track).and_then(|t| t.time_base);
-            let decoder = symphonia::default::get_codecs().make_audio_decoder(&params, &AudioDecoderOptions::default()).map_err(|e| format!("Limoniter can't decode this sound ({e})."))?;
+            let decoder = symphonia::default::get_codecs().make_audio_decoder(&params, &AudioDecoderOptions::default()).map_err(|e| crate::i18n::tf!("Limoniter can't decode this sound ({e})."))?;
             return Ok(SoundPlayer::with(Feed::Decoding { reader, decoder, track, channels: info.channels.max(1), rate: info.rate, done: false, time_base, pending: None, bytes, name: name.to_string() }, info, out_rate));
         };
         let info = match &feed {

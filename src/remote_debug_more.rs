@@ -21,7 +21,7 @@ struct Gdb {
 impl Gdb {
     fn send(&mut self, data: &str) -> Result<(), String> {
         let sum = data.bytes().fold(0u8, |a, b| a.wrapping_add(b));
-        self.stream.write_all(format!("${data}#{sum:02x}").as_bytes()).map_err(|e| format!("XRoar couldn't be told: {e}"))
+        self.stream.write_all(format!("${data}#{sum:02x}").as_bytes()).map_err(|e| crate::i18n::tf!("XRoar couldn't be told: {e}"))
     }
 
     /// The next packet, if one comes within `wait`.
@@ -46,10 +46,10 @@ impl Gdb {
                 return Ok(None);
             }
             match self.stream.read(&mut buffer) {
-                Ok(0) => return Err("XRoar closed the connection.".into()),
+                Ok(0) => return Err(crate::i18n::tr("XRoar closed the connection.").into()),
                 Ok(got) => self.pending.extend_from_slice(&buffer[..got]),
                 Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
-                Err(e) => return Err(format!("XRoar stopped answering: {e}")),
+                Err(e) => return Err(crate::i18n::tf!("XRoar stopped answering: {e}")),
             }
         }
     }
@@ -147,7 +147,7 @@ pub fn talk_xroar(port: u16, breakpoints: Vec<u16>, asked: &Receiver<Ask>, tell:
         match TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), Duration::from_secs(2)) {
             Ok(stream) => break stream,
             Err(_) if began.elapsed() < Duration::from_secs(20) => std::thread::sleep(Duration::from_millis(100)),
-            Err(e) => return Err(format!("XRoar couldn't be reached to debug on port {port}: {e}")),
+            Err(e) => return Err(crate::i18n::tf!("XRoar couldn't be reached to debug on port {port}: {e}")),
         }
     };
     stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
@@ -298,7 +298,7 @@ impl Console {
     }
 
     fn type_line(&mut self, command: &str) -> Result<(), String> {
-        self.input.write_all(format!("{command}\n").as_bytes()).and_then(|()| self.input.flush()).map_err(|e| format!("Hatari couldn't be told: {e}"))
+        self.input.write_all(format!("{command}\n").as_bytes()).and_then(|()| self.input.flush()).map_err(|e| crate::i18n::tf!("Hatari couldn't be told: {e}"))
     }
 
     /// What it printed until its prompt, if the prompt comes within `wait`.
@@ -312,7 +312,7 @@ impl Console {
                 Ok(line) => said.push(line),
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) if began.elapsed() < wait => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => return Ok(None),
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Err("Hatari has stopped.".into()),
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Err(crate::i18n::tr("Hatari has stopped.").into()),
             }
         }
     }
@@ -332,7 +332,7 @@ impl Console {
 
     /// Where it is, and its registers.
     fn stop(&mut self, text: u32) -> Result<Stop, String> {
-        let pc = hatari_value(&self.command("e pc")?).ok_or("Hatari didn't say where it is.")?;
+        let pc = hatari_value(&self.command("e pc")?).ok_or(crate::i18n::tr("Hatari didn't say where it is."))?;
         let mut stop = hatari_stop(&self.command("r")?, text);
         stop.pc = pc.wrapping_sub(text) as u16;
         stop.words.retain(|w| !w.starts_with("PC "));
@@ -392,7 +392,7 @@ pub fn talk_hatari(mut console: Console, child_id: u32, breakpoints: Vec<u16>, a
             return Ok(());
         }
     }
-    let text = hatari_value(&console.command("e TEXT")?).ok_or("Hatari didn't say where the program is.")?;
+    let text = hatari_value(&console.command("e TEXT")?).ok_or(crate::i18n::tr("Hatari didn't say where the program is."))?;
     let set_all = |console: &mut Console, breakpoints: &[u16], watches: &[u16]| -> Result<(), String> {
         console.command("b all")?;
         for offset in breakpoints {
@@ -475,12 +475,12 @@ impl<T: Read + Write + Send> Link for T {}
 /// The cable's serial port, or host:port for dezogif over Wi-Fi.
 pub fn open_next(port: &str) -> Result<Box<dyn Link>, String> {
     if let Some((host, number)) = port.rsplit_once(':').filter(|(host, number)| !host.is_empty() && number.parse::<u16>().is_ok() && !host.starts_with('/') && !host.contains('\\')) {
-        let address = std::net::ToSocketAddrs::to_socket_addrs(&(host, number.parse::<u16>().unwrap_or(0))).map_err(|e| e.to_string())?.next().ok_or("That address wasn't found.")?;
-        let stream = TcpStream::connect_timeout(&address, Duration::from_secs(5)).map_err(|e| format!("The Next couldn't be reached at {port}: {e}"))?;
+        let address = std::net::ToSocketAddrs::to_socket_addrs(&(host, number.parse::<u16>().unwrap_or(0))).map_err(|e| e.to_string())?.next().ok_or(crate::i18n::tr("That address wasn't found."))?;
+        let stream = TcpStream::connect_timeout(&address, Duration::from_secs(5)).map_err(|e| crate::i18n::tf!("The Next couldn't be reached at {port}: {e}"))?;
         stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
         return Ok(Box::new(stream));
     }
-    let serial = serialport::new(port, 921_600).timeout(Duration::from_millis(100)).open().map_err(|e| format!("The serial port {port} couldn't be opened: {e}"))?;
+    let serial = serialport::new(port, 921_600).timeout(Duration::from_millis(100)).open().map_err(|e| crate::i18n::tf!("The serial port {port} couldn't be opened: {e}"))?;
     Ok(Box::new(serial))
 }
 

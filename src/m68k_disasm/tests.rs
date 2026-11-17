@@ -17,7 +17,7 @@ impl Names for Plain {
 }
 
 fn assemble(source: &str) -> crate::asm::Assembly {
-    crate::asm::assemble(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err("no".into()))
+    crate::asm::assemble(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()))
 }
 
 /// Every instruction vasm assembled in m68k_all (each form of each instruction), decoded one after another and
@@ -87,7 +87,7 @@ fn every_opcode_decoded_is_written_so_it_assembles_back() {
 fn reassembled_tos(source: &str) -> Vec<u8> {
     let normal = assemble(source);
     assert!(normal.ok(), "{:?}", normal.problems.first());
-    let moved = crate::asm::assemble_with(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err("no".into()), 0x10_0000, &crate::asm::Options { folders: Vec::new(), values: None });
+    let moved = crate::asm::assemble_with(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()), 0x10_0000, &crate::asm::Options { folders: Vec::new(), values: None });
     crate::asm::output::atari_program(&normal, &moved, 0x10_0000).unwrap()
 }
 
@@ -103,7 +103,7 @@ fn an_atari_st_program_comes_back_the_same_with_its_calls_named() {
 }
 
 fn reassembled_amiga(source: &str) -> Vec<u8> {
-    let (assembly, file) = crate::asm::hunk::assemble_executable(Path::new("t.s"), source, &|_| Err("no".into()), false, &crate::asm::Options { folders: Vec::new(), values: None });
+    let (assembly, file) = crate::asm::hunk::assemble_executable(Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()), false, &crate::asm::Options { folders: Vec::new(), values: None });
     assert!(assembly.ok(), "{:?}\n{source}", assembly.problems.first().map(|p| (&p.message, source.lines().nth(p.line))));
     file.unwrap()
 }

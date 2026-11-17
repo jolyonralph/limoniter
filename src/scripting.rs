@@ -139,7 +139,7 @@ impl Run {
             Ok(FromScript::Call(call)) => Next::Call(call),
             Ok(FromScript::Finished(result)) => Next::Finished(result),
             Err(RecvTimeoutError::Timeout) => Next::Nothing,
-            Err(RecvTimeoutError::Disconnected) => Next::Finished(Err("It stopped unexpectedly.".into())),
+            Err(RecvTimeoutError::Disconnected) => Next::Finished(Err(crate::i18n::tr("It stopped unexpectedly.").into())),
         }
     }
 
@@ -179,7 +179,7 @@ fn start_with(name: &str, source: &str, repeat: Repeat, function: Option<String>
             let result = perform(&code, repeat, function.as_deref(), to_host.clone(), from_host, thread_stop);
             let _ = to_host.send(FromScript::Finished(result));
         })
-        .map_err(|e| format!("It couldn't be started: {e}"))?;
+        .map_err(|e| crate::i18n::tf!("It couldn't be started: {e}"))?;
     let keep_steps = source.contains("\"undo\"") || source.contains("\"redo\"");
     Ok(Run { name: name.to_string(), started: Instant::now(), keep_steps, from_script, to_script, stop })
 }
@@ -196,7 +196,7 @@ fn perform(code: &str, repeat: Repeat, function: Option<&str>, to_host: Sender<F
     })?;
     if let Some(function) = function {
         if !ast.iter_functions().any(|f| f.name == function && f.params.is_empty()) {
-            return Err(format!("It has no function called {function}() that takes nothing."));
+            return Err(crate::i18n::tf!("It has no function called {function}() that takes nothing."));
         }
         let options = rhai::CallFnOptions::new().eval_ast(true);
         return engine.call_fn_with_options::<Dynamic>(options, &mut rhai::Scope::new(), &ast, function, ()).map(|_| ()).map_err(|e| describe(&e));
@@ -405,14 +405,14 @@ fn build_engine(bridge: &Rc<Bridge>) -> Engine {
 fn place_on_line(buffer: &TextBuffer, line: i64) -> Result<usize, String> {
     let count = buffer.line_count();
     if line < 1 || line as u64 > count as u64 {
-        return Err(format!("There's no line {line}. This file has {count} line{}, counted from 1.", if count == 1 { "" } else { "s" }));
+        return Err(if count == 1 { crate::i18n::tf!("There's no line {line}. This file has {count} line, counted from 1.") } else { crate::i18n::tf!("There's no line {line}. This file has {count} lines, counted from 1.") });
     }
     Ok(line as usize - 1)
 }
 
 fn place_in_line(column: i64) -> Result<usize, String> {
     if column < 1 {
-        return Err(format!("There's no column {column}. Columns are counted from 1."));
+        return Err(crate::i18n::tf!("There's no column {column}. Columns are counted from 1."));
     }
     Ok(column as usize - 1)
 }
@@ -455,17 +455,17 @@ pub fn on_text(buffer: &mut TextBuffer, state: &mut ViewState, call: Call) -> Re
         Call::Column => Answer::Number(buffer.caret_char_position().1 as i64 + 1),
         Call::Text => {
             if buffer.is_disk_backed() {
-                return Err("This file is too large to read all at once. It is being kept on disk, so read it with line_text.".into());
+                return Err(crate::i18n::tr("This file is too large to read all at once. It is being kept on disk, so read it with line_text.").into());
             }
             let lines = buffer.all_lines();
             if lines.iter().map(|line| line.len() + 1).sum::<usize>() > MOST_TEXT_BYTES {
-                return Err("This file is too large to read all at once, so read it with line_text.".into());
+                return Err(crate::i18n::tr("This file is too large to read all at once, so read it with line_text.").into());
             }
             Answer::Text(lines.iter().map(|line| readable(&buffer.format, line)).collect::<Vec<_>>().join("\n"))
         }
         Call::Selected => {
             if buffer.selection_too_large_to_copy() {
-                return Err("That selection is too large to read all at once.".into());
+                return Err(crate::i18n::tr("That selection is too large to read all at once.").into());
             }
             Answer::Text(readable(&buffer.format, &buffer.selection_text()).replace("\r\n", "\n"))
         }
@@ -477,7 +477,7 @@ pub fn on_text(buffer: &mut TextBuffer, state: &mut ViewState, call: Call) -> Re
         }
         Call::GoToPlace(place) => {
             if !buffer.go_to(&place) {
-                return Err(format!("There's no place called {place} in this file."));
+                return Err(crate::i18n::tf!("There's no place called {place} in this file."));
             }
             Answer::Nothing
         }
@@ -511,7 +511,7 @@ pub fn on_text(buffer: &mut TextBuffer, state: &mut ViewState, call: Call) -> Re
         Call::InsertLine(line, text) => {
             let count = buffer.line_count() as i64;
             if line < 1 || line > count + 1 {
-                return Err(format!("A line can go in from 1 to {}, which is after the last.", count + 1));
+                return Err(crate::i18n::tf!("A line can go in from 1 to {}, which is after the last.", count + 1));
             }
             let rows = rows_of(buffer, &text);
             buffer.insert_lines_keeping_cursor(line as usize - 1, rows);
@@ -524,7 +524,7 @@ pub fn on_text(buffer: &mut TextBuffer, state: &mut ViewState, call: Call) -> Re
         }
         Call::SetText(text) => {
             if buffer.is_disk_backed() {
-                return Err("This file is too large to replace all at once. It is being kept on disk.".into());
+                return Err(crate::i18n::tr("This file is too large to replace all at once. It is being kept on disk.").into());
             }
             buffer.select_all();
             if text.is_empty() {
@@ -534,7 +534,7 @@ pub fn on_text(buffer: &mut TextBuffer, state: &mut ViewState, call: Call) -> Re
             }
             Answer::Nothing
         }
-        other => return Err(format!("Limoniter couldn't do this here: {other:?}")),
+        other => return Err(crate::i18n::tf!("Limoniter couldn't do this here: {other:?}")),
     };
     Ok(answer)
 }
@@ -549,10 +549,10 @@ pub fn key_named(name: &str) -> Result<(Key, Modifiers), String> {
             "ctrl" => modifiers |= Modifiers::CTRL,
             "shift" => modifiers |= Modifiers::SHIFT,
             "alt" => modifiers |= Modifiers::ALT,
-            other => return Err(format!("{other} isn't a key that can be held down. Use Ctrl, Shift or Alt.")),
+            other => return Err(crate::i18n::tf!("{other} isn't a key that can be held down. Use Ctrl, Shift or Alt.")),
         }
     }
-    KEYS.iter().find(|(known, _)| known.eq_ignore_ascii_case(key)).map(|(_, key)| (*key, modifiers)).ok_or_else(|| format!("press doesn't know a key called {key}. It knows {}.", KEYS.map(|(known, _)| known).join(", ")))
+    KEYS.iter().find(|(known, _)| known.eq_ignore_ascii_case(key)).map(|(_, key)| (*key, modifiers)).ok_or_else(|| crate::i18n::tf!("press doesn't know a key called {key}. It knows {}.", KEYS.map(|(known, _)| known).join(", ")))
 }
 
 const KEYS: [(&str, Key); 14] = [
@@ -717,18 +717,18 @@ pub struct PanelState {
 pub fn panel(ui: &mut Ui, kind: Kind, state: &mut PanelState, library: &Library, actions: &mut Vec<LibraryAction>) {
     ui.horizontal(|ui| match kind {
         Kind::Macro => {
-            if ui.button(if recording() { "Stop recording" } else { "Record" }).on_hover_text("Record what you type and which commands you use").clicked() {
+            if ui.button(if recording() { crate::i18n::tr("Stop recording") } else { crate::i18n::tr("Record") }).on_hover_text(crate::i18n::tr("Record what you type and which commands you use")).clicked() {
                 actions.push(LibraryAction::Record);
             }
-            if ui.button("Load...").on_hover_text("Add a macro from a file").clicked() {
+            if ui.button(crate::i18n::tr("Load...")).on_hover_text(crate::i18n::tr("Add a macro from a file")).clicked() {
                 actions.push(LibraryAction::LoadMacro);
             }
         }
         Kind::Script => {
-            if ui.button("New...").on_hover_text("Start a new script, with notes on what scripts can do").clicked() {
+            if ui.button(crate::i18n::tr("New...")).on_hover_text(crate::i18n::tr("Start a new script, with notes on what scripts can do")).clicked() {
                 actions.push(LibraryAction::New);
             }
-            if ui.button("Load...").on_hover_text("Add a script from a file").clicked() {
+            if ui.button(crate::i18n::tr("Load...")).on_hover_text(crate::i18n::tr("Add a script from a file")).clicked() {
                 actions.push(LibraryAction::LoadScript);
             }
         }
@@ -755,43 +755,43 @@ pub fn panel(ui: &mut Ui, kind: Kind, state: &mut PanelState, library: &Library,
     egui::Panel::bottom(buttons_id).frame(egui::Frame::new()).show(ui, |ui| {
         ui.add_space(4.0);
         let Some(path) = chosen else {
-            ui.label(RichText::new(format!("Choose a {} to change it.", kind.word())).color(theme::text_faint()).size(12.5));
+            ui.label(RichText::new(crate::i18n::tf!("Choose a {} to change it.", kind.word())).color(theme::text_faint()).size(12.5));
             return;
         };
         ui.horizontal_wrapped(|ui| {
-            if ui.button("Edit").on_hover_text("Open it in a tab to change it").clicked() {
+            if ui.button(crate::i18n::tr("Edit")).on_hover_text(crate::i18n::tr("Open it in a tab to change it")).clicked() {
                 actions.push(LibraryAction::Edit(path.clone()));
             }
-            if ui.button("Rename...").clicked() {
+            if ui.button(crate::i18n::tr("Rename...")).clicked() {
                 actions.push(LibraryAction::Rename(path.clone()));
             }
-            if ui.button("Delete...").clicked() {
+            if ui.button(crate::i18n::tr("Delete...")).clicked() {
                 actions.push(LibraryAction::Delete(path.clone()));
             }
-            if kind == Kind::Macro && ui.button("Several times...").on_hover_text("Play it a number of times, or to the end of the file").clicked() {
+            if kind == Kind::Macro && ui.button(crate::i18n::tr("Several times...")).on_hover_text(crate::i18n::tr("Play it a number of times, or to the end of the file")).clicked() {
                 actions.push(LibraryAction::PlayTimes(path.clone()));
             }
             let held = library.key_of(&path);
             ui.menu_button(held.map_or_else(|| "Key".to_string(), |digit| format!("Ctrl+Alt+{digit}")), |ui| {
-                if ui.button("No key").clicked() {
+                if ui.button(crate::i18n::tr("No key")).clicked() {
                     actions.push(LibraryAction::SetKey(path.clone(), None));
                     ui.close();
                 }
                 for digit in 1..=9 {
-                    if ui.button(format!("Ctrl+Alt+{digit}")).clicked() {
+                    if ui.button(crate::i18n::tf!("Ctrl+Alt+{digit}")).clicked() {
                         actions.push(LibraryAction::SetKey(path.clone(), Some(digit)));
                         ui.close();
                     }
                 }
             })
             .response
-            .on_hover_text("A key to play it with");
+            .on_hover_text(crate::i18n::tr("A key to play it with"));
         });
     });
     egui::ScrollArea::vertical().id_salt(kind.folder()).auto_shrink([false, false]).show(ui, |ui| {
         for item in items {
             ui.horizontal(|ui| {
-                if ui.small_button("Play").on_hover_text("Play it on the file in front").clicked() {
+                if ui.small_button(crate::i18n::tr("Play")).on_hover_text(crate::i18n::tr("Play it on the file in front")).clicked() {
                     actions.push(LibraryAction::Play(item.path.clone()));
                 }
                 let selected = state.selected.as_deref() == Some(item.path.as_path());
@@ -799,7 +799,7 @@ pub fn panel(ui: &mut Ui, kind: Kind, state: &mut PanelState, library: &Library,
                     Some(digit) => format!("{} (Ctrl+Alt+{digit})", item.name),
                     None => item.name.clone(),
                 };
-                if ui.selectable_label(selected, label).clicked() {
+                if ui.selectable_label(selected, crate::i18n::tr(&label)).clicked() {
                     state.selected = Some(item.path.clone());
                 }
             });
@@ -911,13 +911,13 @@ impl Library {
     /// Writes a new one under a name. Nothing is overwritten unless that's asked for.
     pub fn save(&mut self, kind: Kind, name: &str, source: &str, overwrite: bool) -> Result<PathBuf, String> {
         let name = checked_name(name)?;
-        let folder = self.folder(kind).ok_or("There's nowhere to keep it, because the settings folder couldn't be found.")?;
-        std::fs::create_dir_all(&folder).map_err(|e| format!("The folder couldn't be made: {e}"))?;
+        let folder = self.folder(kind).ok_or(crate::i18n::tr("There's nowhere to keep it, because the settings folder couldn't be found."))?;
+        std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("The folder couldn't be made: {e}"))?;
         let path = folder.join(format!("{name}.{EXTENSION}"));
         if !overwrite && path.exists() {
-            return Err(format!("There's already a {} called {name}.", kind.word()));
+            return Err(crate::i18n::tf!("There's already a {} called {name}.", kind.word()));
         }
-        std::fs::write(&path, source).map_err(|e| format!("It couldn't be saved: {e}"))?;
+        std::fs::write(&path, source).map_err(|e| crate::i18n::tf!("It couldn't be saved: {e}"))?;
         self.refresh();
         Ok(path)
     }
@@ -930,7 +930,7 @@ impl Library {
         {
             return Ok(from.to_path_buf());
         }
-        let source = std::fs::read_to_string(from).map_err(|e| format!("It couldn't be read: {e}"))?;
+        let source = std::fs::read_to_string(from).map_err(|e| crate::i18n::tf!("It couldn't be read: {e}"))?;
         self.save(kind, &name, &source, false)
     }
 
@@ -940,9 +940,9 @@ impl Library {
         // A change of capitals alone is the same file as far as Windows is concerned.
         let same = path.to_string_lossy().eq_ignore_ascii_case(&target.to_string_lossy());
         if !same && target.exists() {
-            return Err(format!("There's already one called {name}."));
+            return Err(crate::i18n::tf!("There's already one called {name}."));
         }
-        std::fs::rename(path, &target).map_err(|e| format!("It couldn't be renamed: {e}"))?;
+        std::fs::rename(path, &target).map_err(|e| crate::i18n::tf!("It couldn't be renamed: {e}"))?;
         for (_, key_path) in &mut self.keys {
             if key_path == path {
                 key_path.clone_from(&target);
@@ -953,7 +953,7 @@ impl Library {
     }
 
     pub fn delete(&mut self, path: &Path) -> Result<(), String> {
-        std::fs::remove_file(path).map_err(|e| format!("It couldn't be deleted: {e}"))?;
+        std::fs::remove_file(path).map_err(|e| crate::i18n::tf!("It couldn't be deleted: {e}"))?;
         self.keys.retain(|(_, key_path)| key_path != path);
         self.refresh();
         Ok(())
@@ -992,15 +992,15 @@ impl Library {
 pub fn checked_name(name: &str) -> Result<String, String> {
     let name = name.trim().trim_end_matches('.');
     if name.is_empty() {
-        return Err("Give it a name.".into());
+        return Err(crate::i18n::tr("Give it a name.").into());
     }
     if name.chars().any(|c| matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') || c.is_control()) {
-        return Err("A name can't have any of these in it: < > : \" / \\ | ? *".into());
+        return Err(crate::i18n::tr("A name can't have any of these in it: < > : \" / \\ | ? *").into());
     }
     let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
     let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.ends_with(|c: char| c.is_ascii_digit()));
     if reserved {
-        return Err("Windows keeps that name for itself, so choose another.".into());
+        return Err(crate::i18n::tr("Windows keeps that name for itself, so choose another.").into());
     }
     Ok(name.to_string())
 }

@@ -116,9 +116,9 @@ pub fn folder() -> Option<PathBuf> {
 }
 
 fn get(address: &str) -> Result<Vec<u8>, String> {
-    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| format!("{address} couldn't be reached: {e}"))?;
+    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("{address} couldn't be reached: {e}"))?;
     let mut bytes = Vec::new();
-    response.into_body().into_reader().take(MOST_DOWNLOAD).read_to_end(&mut bytes).map_err(|e| format!("The download stopped: {e}"))?;
+    response.into_body().into_reader().take(MOST_DOWNLOAD).read_to_end(&mut bytes).map_err(|e| crate::i18n::tf!("The download stopped: {e}"))?;
     Ok(bytes)
 }
 
@@ -131,21 +131,21 @@ fn pick_asset(release: &str, wanted: fn(&str) -> bool) -> Result<(String, String
         .and_then(|assets| assets.iter().find(|a| a["name"].as_str().is_some_and(wanted)))
         .and_then(|a| a["browser_download_url"].as_str())
         .map(|url| (tag.clone(), url.to_string()))
-        .ok_or_else(|| format!("The latest release ({tag}) has no download for Windows that Limoniter knows."))
+        .ok_or_else(|| crate::i18n::tf!("The latest release ({tag}) has no download for Windows that Limoniter knows."))
 }
 
 /// Downloads an emulator's latest Windows release and unpacks it into its own folder, replacing any there before.
 /// Gives the emulator's program.
 pub fn download(emulator: &Emulator) -> Result<PathBuf, String> {
-    let (repo, wanted) = github(emulator.id).ok_or_else(|| format!("{} isn't downloaded by Limoniter: get it from {}.", emulator.name, emulator.website))?;
-    let home = folder().ok_or("There's nowhere to keep it: Limoniter's settings folder couldn't be found.")?;
+    let (repo, wanted) = github(emulator.id).ok_or_else(|| crate::i18n::tf!("{} isn't downloaded by Limoniter: get it from {}.", emulator.name, emulator.website))?;
+    let home = folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?;
     let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest"))?).map_err(|_| "GitHub's answer wasn't text.".to_string())?;
     let (_, address) = pick_asset(&release, wanted)?;
     let zip = get(&address)?;
     let target = home.join(emulator.id);
     let _ = std::fs::remove_dir_all(&target);
     unzip(zip, &target)?;
-    find_program(&target, emulator.programs).ok_or_else(|| format!("{} was unpacked into {}, but its program wasn't found in it.", emulator.name, target.display()))
+    find_program(&target, emulator.programs).ok_or_else(|| crate::i18n::tf!("{} was unpacked into {}, but its program wasn't found in it.", emulator.name, target.display()))
 }
 
 /// Unpacks a zip into a folder. When everything in it is in one folder, that folder's contents go straight in.
@@ -157,7 +157,7 @@ fn unzip(zip: Vec<u8>, target: &Path) -> Result<(), String> {
 }
 
 fn write_folder(volume: &dyn crate::media::Volume, dir: Option<&crate::media::Entry>, target: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(target).map_err(|e| format!("{} couldn't be made: {e}", target.display()))?;
+    std::fs::create_dir_all(target).map_err(|e| crate::i18n::tf!("{} couldn't be made: {e}", target.display()))?;
     for entry in volume.list(dir)? {
         // Nothing in the zip is let out of the folder.
         if entry.name.contains(['/', '\\', ':']) || entry.name == ".." || entry.name == "." {
@@ -167,7 +167,7 @@ fn write_folder(volume: &dyn crate::media::Volume, dir: Option<&crate::media::En
         if entry.is_dir {
             write_folder(volume, Some(&entry), &path)?;
         } else {
-            std::fs::write(&path, volume.read(&entry)?).map_err(|e| format!("{} couldn't be written: {e}", path.display()))?;
+            std::fs::write(&path, volume.read(&entry)?).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", path.display()))?;
         }
     }
     Ok(())

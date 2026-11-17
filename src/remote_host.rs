@@ -261,7 +261,7 @@ impl Limoniter {
                     let task = Task::Upload { local: link.local.clone(), remote: link.path.clone(), expected: None, force: true };
                     self.start_remote(Purpose::Send(id), link.site, task);
                 } else {
-                    self.message("Save", format!("Your version is saved on this computer, at {}.", link.local.display()));
+                    self.message("Save", crate::i18n::tf!("Your version is saved on this computer, at {}.", link.local.display()));
                 }
             }
             (purpose, Outcome::Failed(problem)) => match (&mut self.dialog, purpose) {
@@ -296,12 +296,12 @@ impl Limoniter {
         let recent = self.remote_recent.clone();
         egui::Window::new(title).collapsible(false).resizable(true).default_size([640.0, 520.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             egui::Grid::new("remote-sign-in").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                ui.label("Address:");
+                ui.label(crate::i18n::tr("Address:"));
                 ui.horizontal(|ui| {
-                    let field = ui.add(egui::TextEdit::singleline(&mut state.address).hint_text("sftp://user@host:port/folder").desired_width(380.0));
+                    let field = ui.add(egui::TextEdit::singleline(&mut state.address).hint_text(crate::i18n::tr("sftp://user@host:port/folder")).desired_width(380.0));
                     connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                     if !sites.is_empty() || !recent.is_empty() {
-                        egui::ComboBox::from_id_salt("remote-sites").selected_text("Recent").width(90.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("remote-sites").selected_text(crate::i18n::tr("Recent")).width(90.0).show_ui(ui, |ui| {
                             for saved in &sites {
                                 if ui.selectable_label(false, saved.site.url("")).clicked() {
                                     state.address = saved.site.url("");
@@ -317,38 +317,38 @@ impl Limoniter {
                     }
                 });
                 ui.end_row();
-                ui.label("Key file:");
+                ui.label(crate::i18n::tr("Key file:"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text("None: sign in with a password").desired_width(380.0));
-                    if ui.button("Browse\u{2026}").clicked()
-                        && let Some(file) = rfd::FileDialog::new().set_title("Private key").pick_file()
+                    ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(380.0));
+                    if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
+                        && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
                     {
                         state.key_file = file.display().to_string();
                     }
                 });
                 ui.end_row();
-                ui.label(if state.key_file.trim().is_empty() { "Password:" } else { "Passphrase:" });
+                ui.label(if state.key_file.trim().is_empty() { crate::i18n::tr("Password:") } else { crate::i18n::tr("Passphrase:") });
                 ui.horizontal(|ui| {
-                    let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).hint_text("Asked for only if needed").desired_width(240.0));
+                    let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).hint_text(crate::i18n::tr("Asked for only if needed")).desired_width(240.0));
                     connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                     if state.key_file.trim().is_empty() {
-                        ui.checkbox(&mut state.remember, "Remember it").on_hover_text(format!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
+                        ui.checkbox(&mut state.remember, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
                     }
                 });
                 ui.end_row();
             });
             ui.horizontal(|ui| {
-                if ui.add_enabled(!busy, egui::Button::new("Connect")).clicked() {
+                if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tr("Connect"))).clicked() {
                     connect = true;
                 }
-                if ui.small_button("Forget the kept password").clicked() {
+                if ui.small_button(crate::i18n::tr("Forget the kept password")).clicked() {
                     forget_password = true;
                 }
                 if busy {
                     ui.spinner();
                 }
                 if let Some(share) = fetching {
-                    ui.label(format!("Fetching: {:.0}%", share * 100.0));
+                    ui.label(crate::i18n::tf!("Fetching: {:.0}%", share * 100.0));
                 }
             });
             if !state.status.is_empty() {
@@ -357,19 +357,19 @@ impl Limoniter {
             if let Some(print) = &state.trust {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(print).monospace());
-                    if ui.button("Trust it and connect").clicked() {
+                    if ui.button(crate::i18n::tr("Trust it and connect")).clicked() {
                         trust = true;
                     }
                 });
             }
-            if state.changed_key && ui.button("Forget the old key").on_hover_text("Only once you're sure the new key is right").clicked() {
+            if state.changed_key && ui.button(crate::i18n::tr("Forget the old key")).on_hover_text(crate::i18n::tr("Only once you're sure the new key is right")).clicked() {
                 forget_key = true;
             }
             ui.separator();
             if let Some(folder) = state.folder.clone() {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(&folder).strong());
-                    if folder != "/" && ui.small_button("Up").clicked() {
+                    if folder != "/" && ui.small_button(crate::i18n::tr("Up")).clicked() {
                         go_to = Some(remote::parent(&folder));
                     }
                 });
@@ -378,7 +378,7 @@ impl Limoniter {
                         let label = if entry.folder { format!("\u{1F4C1} {}", entry.name) } else { format!("    {}", entry.name) };
                         let size = if entry.folder { String::new() } else { short_size(entry.size) };
                         let response = ui.horizontal(|ui| {
-                            let response = ui.selectable_label(!entry.folder && entry.name == state.file_name, label);
+                            let response = ui.selectable_label(!entry.folder && entry.name == state.file_name, crate::i18n::tr(&label));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(size).color(theme::text_faint())));
                             response
                         });
@@ -395,20 +395,20 @@ impl Limoniter {
                 });
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("File name:");
+                    ui.label(crate::i18n::tr("File name:"));
                     ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(300.0));
                     let name_ok = !state.file_name.trim().is_empty() && !state.file_name.contains('/');
                     if state.saving.is_some() {
-                        if ui.add_enabled(name_ok && !busy, egui::Button::new("Save here")).clicked() {
+                        if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Save here"))).clicked() {
                             save_here = true;
                         }
-                    } else if ui.add_enabled(name_ok && !busy, egui::Button::new("Open")).clicked() {
+                    } else if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Open"))).clicked() {
                         open = Some(remote::join(&folder, state.file_name.trim()));
                     }
                 });
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Close").clicked() {
+                if ui.button(crate::i18n::tr("Close")).clicked() {
                     close = true;
                 }
             });

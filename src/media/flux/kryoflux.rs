@@ -67,7 +67,7 @@ pub fn decode(stream: &[u8]) -> Result<(Flux, Option<String>), String> {
                 if kind == 0x0D {
                     break;
                 }
-                let body = stream.get(i + 4..i + 4 + size).ok_or("A KryoFlux stream ends partway through one of its blocks, so it's damaged.")?;
+                let body = stream.get(i + 4..i + 4 + size).ok_or(crate::i18n::tr("A KryoFlux stream ends partway through one of its blocks, so it's damaged."))?;
                 match kind {
                     0x02 => indexes += 1,
                     // The stream's end, and whether the board kept up: 1 is a buffer overrun, 2 no index found.
@@ -123,8 +123,8 @@ impl Files {
 
     pub fn read(&self, place: (u8, u8)) -> Result<Vec<u8>, String> {
         match self {
-            Files::Folder(files) => std::fs::read(files.get(&place).ok_or("That track isn't in the set.")?).map_err(|e| e.to_string()),
-            Files::Zip(zip, files) => zip.read(files.get(&place).ok_or("That track isn't in the set.")?),
+            Files::Folder(files) => std::fs::read(files.get(&place).ok_or(crate::i18n::tr("That track isn't in the set."))?).map_err(|e| e.to_string()),
+            Files::Zip(zip, files) => zip.read(files.get(&place).ok_or(crate::i18n::tr("That track isn't in the set."))?),
             Files::Single(_, source) => source.read_vec(0, source.len() as usize),
         }
     }

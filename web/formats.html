@@ -569,6 +569,22 @@
 <td>As the Cambridge Z88, the Amstrad NC100, NC150 and NC200 and CP/M keep it; tokenised from a listing.</td>
 </tr>
 <tr>
+<th scope="row">AMOS program</th>
+<td><code>.AMOS</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>AMOS 1.0 to AMOS Professional; listed with AMOS's spacing, locked procedures unlocked; tokenised back with every keyword of AMOS Professional and its four standard extensions. Memory banks are listed but not kept.</td>
+</tr>
+<tr>
+<th scope="row">STOS BASIC program</th>
+<td><code>.bas</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>Atari ST; listed as STOS's LIST shows it and tokenised back as STOS does; extensions' instructions kept by number. Memory banks are listed but not kept.</td>
+</tr>
+<tr>
 <th scope="row">ZX81 BASIC</th>
 <td><code>.p</code>, <code>.81</code>, <code>.p81</code></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
@@ -950,15 +966,63 @@
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td>image + hex</td>
-<td>6912 bytes, with or without a +3DOS header; made by the screen designer.</td>
+<td>6912 bytes, with or without a +3DOS header; made by the screen designer and the picture converter, which also writes Timex hi-colour (12288 bytes) and hi-res (12289).</td>
 </tr>
 <tr>
 <th scope="row">ZX Spectrum Next Layer 2 and LoRes screen</th>
 <td><code>.sl2</code>, <code>.nxi</code>, <code>.slr</code></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
-<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td>image + hex</td>
-<td>256×192, 320×256 and 640×256, with their own palette or the Next's.</td>
+<td>256×192, 320×256 and 640×256, with their own palette or the Next's; written by the picture converter and the Layer 2 painter.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next palette</th>
+<td><code>.nxp</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>256 colours of two bytes (or one); written by the painter and converter.</td>
+</tr>
+<tr>
+<th scope="row">ZX Spectrum Next tiles, tilemap and sprites</th>
+<td><code>.til</code>, <code>.map</code>, <code>.spr</code></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>—</td>
+<td>4-bit 8×8 tiles, two-byte map places, 8- or 4-bit 16×16 sprite patterns; written by the picture converter with a <code>.nex</code> that shows them.</td>
+</tr>
+<tr>
+<th scope="row">BMP picture</th>
+<td><code>.bmp</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>image + hex</td>
+<td>1, 4, 8, 16, 24 and 32 bits a pixel, RLE4 and RLE8; written at 4 and 8 bits for the Next.</td>
+</tr>
+<tr>
+<th scope="row">Amstrad CPC screen</th>
+<td><code>.scr</code></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>—</td>
+<td>16K from &amp;C000 with AMSDOS's header, mode 0, 1 or 2, written by the picture converter with a BASIC loader.</td>
+</tr>
+<tr>
+<th scope="row">MSX Screen 2 picture</th>
+<td><code>.sc2</code></td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>—</td>
+<td>BSAVEd VRAM for <code>BLOAD ,S</code>, written by the picture converter.</td>
+</tr>
+<tr>
+<th scope="row">BBC Micro screen dump</th>
+<td>—</td>
+<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>—</td>
+<td>MODE 0, 1, 2, 4 or 5 screen memory for <code>*LOAD</code>, written by the picture converter with a loader.</td>
 </tr>
 <tr>
 <th scope="row">ZX Spectrum Next palette</th>

@@ -27,14 +27,15 @@ impl Limoniter {
     }
 
     /// Text from a tool, at the cursor in the file in front, as one undoable change.
-    fn insert_from_tool(&mut self, title: &str, text: &str) {
+    pub(super) fn insert_from_tool(&mut self, title: &str, text: &str) {
         if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
             self.message(title, "Open the source to put it in, with the cursor where it goes.".into());
             return;
         }
         let doc = &mut self.docs[self.active];
         doc.text.begin_undo_group(false);
-        doc.text.type_text(text);
+        // Its comments in the language chosen.
+        doc.text.type_text(&crate::i18n::comments(text));
         doc.text.end_undo_group();
     }
 
@@ -42,7 +43,7 @@ impl Limoniter {
         if let Some(mut blitter) = self.demo_tools.blitter.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new("Blitter minterms").open(&mut open).resizable(false).default_pos([220.0, 90.0]).show(ctx, |ui| {
+            egui::Window::new(crate::i18n::tr("Blitter minterms")).open(&mut open).resizable(false).default_pos([220.0, 90.0]).show(ctx, |ui| {
                 asked = blitter.draw(ui);
             });
             if let Some(crate::blitter::Asked::Insert(text)) = asked {
@@ -55,16 +56,16 @@ impl Limoniter {
         if let Some(mut generator) = self.demo_tools.tables.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new("Table generator").open(&mut open).resizable(false).default_pos([260.0, 110.0]).show(ctx, |ui| {
+            egui::Window::new(crate::i18n::tr("Table generator")).open(&mut open).resizable(false).default_pos([260.0, 110.0]).show(ctx, |ui| {
                 asked = generator.draw(ui);
             });
             match asked {
                 Some(crate::table_gen::Asked::Insert(text)) => self.insert_from_tool("Table generator", &text),
                 Some(crate::table_gen::Asked::Save(bytes, name)) => {
-                    if let Some(path) = rfd::FileDialog::new().set_title("Save the table").set_file_name(name).add_filter("Binary file", &["bin", "dat", "raw"]).add_filter("Any file", &["*"]).save_file()
+                    if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the table")).set_file_name(name).add_filter(crate::i18n::tr("Binary file"), &["bin", "dat", "raw"]).add_filter(crate::i18n::tr("Any file"), &["*"]).save_file()
                         && let Err(e) = codec::write_file(&path, &bytes)
                     {
-                        self.message("Table generator", format!("Couldn't save {}.\n\n{e}", path.display()));
+                        self.message("Table generator", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
                     }
                 }
                 None => {}

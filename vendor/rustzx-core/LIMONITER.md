@@ -10,3 +10,5 @@ And `DebugInterface::instruction_done`, called after each instruction with the f
 - `emulator/fastload/tap.rs`: the fast tape load always checks a block's first byte as its flag, rather than only
   when the Z flag is clear, as Fuse's trap does: the Sinclair ROM always enters LD-BYTES with Z clear, but OpticOS
   (a replacement ROM Limoniter runs) doesn't, and its LOAD then never matched a block.
+
+- `zx::roms` is public, so the screen designer can write text in the 48K ROM's own font (at $3D00).

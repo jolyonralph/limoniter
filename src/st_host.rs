@@ -36,7 +36,7 @@ impl Limoniter {
         match self.runnable() {
             Ok(Some(run)) if run.machine == Machine::AtariSt && run.format == Format::Tos => Some(run),
             Ok(Some(run)) => {
-                self.message(title, format!("{} isn't an Atari ST program. Assemble 68000 source with no ORG, or open a .PRG or .TOS.", run.name));
+                self.message(title, crate::i18n::tf!("{} isn't an Atari ST program. Assemble 68000 source with no ORG, or open a .PRG or .TOS.", run.name));
                 None
             }
             Ok(None) => {
@@ -79,12 +79,12 @@ impl Limoniter {
         let boot = match &settings.boot_sector {
             Some(path) => match std::fs::read(path) {
                 Ok(bytes) => Some(bytes),
-                Err(e) => return self.message("Make a bootable ST floppy", format!("The boot sector code {} couldn't be read.\n\n{e}", path.display())),
+                Err(e) => return self.message("Make a bootable ST floppy", crate::i18n::tf!("The boot sector code {} couldn't be read.\n\n{e}", path.display())),
             },
             None => None,
         };
         let stem = run.name.rsplit_once('.').map_or(run.name.as_str(), |(stem, _)| stem).to_string();
-        let Some(path) = rfd::FileDialog::new().set_title("Save the bootable floppy").set_file_name(format!("{stem}.st")).add_filter("Atari ST floppy", &["st", "msa"]).save_file() else {
+        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the bootable floppy")).set_file_name(format!("{stem}.st")).add_filter(crate::i18n::tr("Atari ST floppy"), &["st", "msa"]).save_file() else {
             return;
         };
         let made = st_run::bootable_floppy(&run.bytes, &run.name, boot.as_deref()).and_then(|disk| {
@@ -95,9 +95,9 @@ impl Limoniter {
         match made {
             Ok(()) => {
                 let booting = if boot.is_some() { " Its boot sector runs the code chosen in Devices, under Hatari, first." } else { "" };
-                self.message("Make a bootable ST floppy", format!("Saved {}: the program is AUTO\\{} on it, so TOS runs it as the floppy boots.{booting}", path.display(), st_run::atari_name(&run.name)));
+                self.message("Make a bootable ST floppy", crate::i18n::tf!("Saved {}: the program is AUTO\\{} on it, so TOS runs it as the floppy boots.{booting}", path.display(), st_run::atari_name(&run.name)));
             }
-            Err(problem) => self.message("Make a bootable ST floppy", format!("The floppy couldn't be made.\n\n{problem}")),
+            Err(problem) => self.message("Make a bootable ST floppy", crate::i18n::tf!("The floppy couldn't be made.\n\n{problem}")),
         }
     }
 
@@ -110,9 +110,9 @@ impl Limoniter {
             let outcome = match std::fs::read_to_string(&file) {
                 Ok(text) => {
                     let profile = st_run::read_profile(&text);
-                    if profile.counted.is_empty() { Err("Hatari's profile had nothing in it.".to_string()) } else { Ok(st_run::summarise(&profile, None, assembly.as_deref())) }
+                    if profile.counted.is_empty() { Err(crate::i18n::tr("Hatari's profile had nothing in it.").to_string()) } else { Ok(st_run::summarise(&profile, None, assembly.as_deref())) }
                 }
-                Err(_) => Err("Hatari was closed before the profile was saved: it's saved when the program ends, or when the time set in Devices, under Hatari, is up.".to_string()),
+                Err(_) => Err(crate::i18n::tr("Hatari was closed before the profile was saved: it's saved when the program ends, or when the time set in Devices, under Hatari, is up.").to_string()),
             };
             self.running.st.last = Some(Box::new(Shown { doc_id, file, outcome }));
         }
@@ -136,8 +136,8 @@ impl Limoniter {
         let (mut close, mut go_to_line) = (false, None);
         Panel::right("hatari-profile").default_size(380.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Profiled in Hatari").color(theme::text_dim()).size(12.5));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| close = ui.small_button("Close").clicked());
+                ui.label(RichText::new(crate::i18n::tr("Profiled in Hatari")).color(theme::text_dim()).size(12.5));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| close = ui.small_button(crate::i18n::tr("Close")).clicked());
             });
             ui.separator();
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -151,7 +151,7 @@ impl Limoniter {
                 let total = summary.program + summary.elsewhere;
                 let share = |cycles: u64, of: u64| if of == 0 { 0.0 } else { cycles as f64 * 100.0 / of as f64 };
                 let seconds = if summary.cycles_per_second == 0 { 0.0 } else { total as f64 / summary.cycles_per_second as f64 };
-                ui.label(format!("{} cycles in the program, {:.1}% of the {:.2} seconds counted; the rest was TOS and interrupts.", summary.program, share(summary.program, total), seconds));
+                ui.label(crate::i18n::tf!("{} cycles in the program, {:.1}% of the {:.2} seconds counted; the rest was TOS and interrupts.", summary.program, share(summary.program, total), seconds));
                 if !summary.routines.is_empty() {
                     ui.add_space(4.0);
                     egui::Grid::new("hatari-profile-routines").num_columns(4).spacing([14.0, 2.0]).striped(true).show(ui, |ui| {
@@ -164,7 +164,7 @@ impl Limoniter {
                                 go_to_line = routine.line;
                             }
                             ui.label(RichText::new(routine.cycles.to_string()).monospace().size(12.0));
-                            ui.label(RichText::new(format!("{:.1}%", share(routine.cycles, summary.program))).monospace().size(12.0));
+                            ui.label(RichText::new(crate::i18n::tf!("{:.1}%", share(routine.cycles, summary.program))).monospace().size(12.0));
                             ui.label(RichText::new(if routine.entered > 0 { routine.entered.to_string() } else { String::new() }).monospace().size(12.0));
                             ui.end_row();
                         }
@@ -172,7 +172,7 @@ impl Limoniter {
                 }
                 if !summary.lines.is_empty() {
                     ui.add_space(4.0);
-                    ui.label(RichText::new("Busiest lines (cycles, share of the program's, times run)").size(12.0).color(theme::text_dim()));
+                    ui.label(RichText::new(crate::i18n::tr("Busiest lines (cycles, share of the program's, times run)")).size(12.0).color(theme::text_dim()));
                     for hot in summary.lines.iter().take(15) {
                         let text = format!("{:>5} {:>9} {:>5.1}% {:>7}  {}", hot.line + 1, hot.cycles, share(hot.cycles, summary.program), hot.runs, line_text(hot.line));
                         if crate::access::clickable(ui.add(egui::Label::new(RichText::new(text).monospace().size(12.0)).sense(egui::Sense::click()))).clicked() {
@@ -181,14 +181,14 @@ impl Limoniter {
                     }
                 } else if !summary.busiest.is_empty() {
                     ui.add_space(4.0);
-                    ui.label(RichText::new("Busiest instructions (offset in the program, cycles)").size(12.0).color(theme::text_dim()));
+                    ui.label(RichText::new(crate::i18n::tr("Busiest instructions (offset in the program, cycles)")).size(12.0).color(theme::text_dim()));
                     for (offset, cycles, text) in summary.busiest.iter().take(25) {
                         let instruction = text.split_whitespace().skip_while(|w| w.chars().all(|c| c.is_ascii_hexdigit())).collect::<Vec<_>>().join(" ");
-                        ui.label(RichText::new(format!("+{offset:06X} {cycles:>9}  {instruction}")).monospace().size(12.0));
+                        ui.label(RichText::new(crate::i18n::tf!("+{offset:06X} {cycles:>9}  {instruction}")).monospace().size(12.0));
                     }
                 }
                 ui.add_space(6.0);
-                ui.label(RichText::new(format!("Hatari's own profile, with every address (for its hatari_profile tool): {}", shown.file.display())).size(11.5).color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tf!("Hatari's own profile, with every address (for its hatari_profile tool): {}", shown.file.display())).size(11.5).color(theme::text_faint()));
             });
         });
         if close {

@@ -110,9 +110,9 @@ pub mod tests {
         let mut output = ctx.run_ui(Default::default(), |ui| {
             let painted = ui.allocate_response(egui::vec2(20.0, 20.0), egui::Sense::click());
             super::button(&painted, "Close");
-            let label = ui.add(egui::Label::new("Read-only").sense(egui::Sense::click()));
+            let label = ui.add(egui::Label::new(crate::i18n::tr("Read-only")).sense(egui::Sense::click()));
             super::chosen(&label, accesskit::Role::CheckBox, true, "Read-only");
-            let symbol = ui.button("\u{D7}");
+            let symbol = ui.button(crate::i18n::tr("\u{D7}"));
             super::rename(&symbol, "Close the panel");
         });
         output.textures_delta.clear();

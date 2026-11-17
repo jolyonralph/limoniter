@@ -2207,6 +2207,7 @@ name = "limoniter"
 version = "0.11.0"
 dependencies = [
  "arboard",
+ "aym",
  "bzip2",
  "chrono",
  "cpal",
@@ -2215,6 +2216,7 @@ dependencies = [
  "encoding_rs",
  "iced-x86",
  "keyring",
+ "limoniter-macros",
  "lzfse_rust",
  "memchr",
  "miniz_oxide 0.8.9",
@@ -2228,6 +2230,7 @@ dependencies = [
  "rhai",
  "roxmltree",
  "rustzx-core",
+ "rustzx-z80",
  "serde_json",
  "serialport",
  "sha2",
@@ -2245,6 +2248,10 @@ dependencies = [
  "xdms",
  "zune-jpeg",
 ]
+
+[[package]]
+name = "limoniter-macros"
+version = "0.1.0"
 
 [[package]]
 name = "linebender_resource_handle"

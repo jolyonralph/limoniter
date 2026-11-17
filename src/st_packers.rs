@@ -83,10 +83,10 @@ pub fn contents(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
 fn unpack_with(bytes: &[u8], packer: Packer, packed: u64, unpacked: u64) -> Result<Unpacked, String> {
     let name = packer.name();
     if packed < 12 || packed > bytes.len() as u64 {
-        return Err(format!("This {name} file says it's {packed} bytes packed, but the file is {} bytes: it may be cut short.", bytes.len()));
+        return Err(crate::i18n::tf!("This {name} file says it's {packed} bytes packed, but the file is {} bytes: it may be cut short.", bytes.len()));
     }
     if unpacked > MOST {
-        return Err(format!("This {name} file says it unpacks to {unpacked} bytes, more than Limoniter unpacks."));
+        return Err(crate::i18n::tf!("This {name} file says it unpacks to {unpacked} bytes, more than Limoniter unpacks."));
     }
     let data = &bytes[..packed as usize];
     let result = match packer {
@@ -94,7 +94,7 @@ fn unpack_with(bytes: &[u8], packer: Packer, packed: u64, unpacked: u64) -> Resu
         Packer::Ice24 => ice(data, unpacked as usize, 1),
         Packer::Atomik35 => atomik(data, unpacked as usize),
     };
-    result.map(|(bytes, picture)| Unpacked { packer, bytes, packed_size: packed, picture }).map_err(|why| format!("This {name} file couldn't be unpacked: {why}."))
+    result.map(|(bytes, picture)| Unpacked { packer, bytes, packed_size: packed, picture }).map_err(|why| crate::i18n::tf!("This {name} file couldn't be unpacked: {why}."))
 }
 
 /// Reads a packed stream backwards from its end: the control bits, most significant first, from a word of
@@ -115,7 +115,7 @@ impl<'a> Backwards<'a> {
 
     fn byte(&mut self) -> Result<u8, String> {
         if self.at <= self.floor {
-            return Err("the packed data runs out too soon".into());
+            return Err(crate::i18n::tr("the packed data runs out too soon").into());
         }
         self.at -= 1;
         Ok(self.data[self.at])
@@ -145,7 +145,7 @@ impl<'a> Backwards<'a> {
     fn start(&mut self) -> Result<(), String> {
         self.bits = self.word()?;
         if self.bits == 0 {
-            return Err("the first control bits are missing".into());
+            return Err(crate::i18n::tr("the first control bits are missing").into());
         }
         Ok(())
     }
@@ -174,13 +174,13 @@ impl<'a> Backwards<'a> {
 /// Copies `length` bytes from `distance` further on, downwards, as the packers' strings do.
 fn copy_back(out: &mut [u8], at: &mut usize, length: usize, distance: usize) -> Result<(), String> {
     if length > *at {
-        return Err("a repeat runs past the start".into());
+        return Err(crate::i18n::tr("a repeat runs past the start").into());
     }
     for _ in 0..length {
         *at -= 1;
         let from = *at + distance;
         if from >= out.len() {
-            return Err("a repeat reaches past the end".into());
+            return Err(crate::i18n::tr("a repeat reaches past the end").into());
         }
         out[*at] = out[from];
     }
@@ -252,7 +252,7 @@ fn ice(data: &[u8], size: usize, width: usize) -> Result<(Vec<u8>, bool), String
         if at == 0 {
             // 2.3 and 2.4 still read one more bit, saying there's no run, before their end.
             if input.bit()? == 1 {
-                return Err("there's more after the end".into());
+                return Err(crate::i18n::tr("there's more after the end").into());
             }
             break;
         }
@@ -273,7 +273,7 @@ fn unscramble_ice_picture(out: &mut [u8], groups: usize) -> Result<(), String> {
     let mut at = out.len();
     for _ in 0..groups {
         if at < 8 {
-            return Err("the picture runs past the start".into());
+            return Err(crate::i18n::tr("the picture runs past the start").into());
         }
         let mut planes = [0u16; 4];
         for _ in 0..4 {
@@ -358,7 +358,7 @@ fn atomik(data: &[u8], size: usize) -> Result<(Vec<u8>, bool), String> {
                     let byte = match &common {
                         Some(table) => table[n],
                         None => {
-                            let next = *out.get(at).ok_or("a change refers past the end")?;
+                            let next = *out.get(at).ok_or(crate::i18n::tr("a change refers past the end"))?;
                             next.wrapping_sub(if n > 7 { (n as u8).wrapping_add(0xF0) } else { n as u8 })
                         }
                     };

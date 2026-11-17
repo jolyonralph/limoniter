@@ -1237,12 +1237,12 @@ impl TextBuffer {
     }
 
     pub fn position_text(&self) -> String {
-        let mut s = format!("Line {}, Column {}", self.caret_line + 1 + self.line_offset, self.caret_col + 1);
+        let mut s = crate::i18n::tf!("Line {}, Column {}", self.caret_line + 1 + self.line_offset, self.caret_col + 1);
         if self.has_multi() {
-            s += &format!("   {} selections", self.multi.len());
+            s += &crate::i18n::tf!("   {} selections", self.multi.len());
         } else if self.has_selection() {
             if self.is_block() {
-                s += &format!(
+                s += &crate::i18n::tf!(
                     "   Block {} x {}",
                     self.caret_line.abs_diff(self.anchor_line) + 1,
                     self.caret_col.abs_diff(self.anchor_col)
@@ -1250,10 +1250,10 @@ impl TextBuffer {
             } else {
                 let rows = self.caret_line.abs_diff(self.anchor_line);
                 if rows > 10_000 {
-                    s += &format!("   Selected {} lines", rows + 1);
+                    s += &crate::i18n::tf!("   Selected {} lines", rows + 1);
                 } else {
                     let chars = self.selection_text().replace("\r\n", "\n").chars().count();
-                    s += &format!("   Selected {chars} chars");
+                    s += &crate::i18n::tf!("   Selected {chars} chars");
                 }
             }
         }
@@ -2326,7 +2326,7 @@ impl TextBuffer {
         let (top, bottom, left, right) = if count == 0 {
             let bounds = self.block_bounds();
             if !self.has_selection() || bounds.3 == bounds.2 {
-                return Err("Highlight the columns first, or enter how many to take.".to_string());
+                return Err(crate::i18n::tr("Highlight the columns first, or enter how many to take.").to_string());
             }
             bounds
         } else {
@@ -2340,7 +2340,7 @@ impl TextBuffer {
         let widest = self.lines.range_vec(top, bottom + 1).iter().map(|line| visual_len(line)).max().unwrap_or(0);
         let right = right.min(widest);
         if right <= left {
-            return Err("There's no text in those columns.".to_string());
+            return Err(crate::i18n::tr("There's no text in those columns.").to_string());
         }
         self.alt_block = !self.column_mode;
         (self.anchor_line, self.anchor_col) = (top, left);
@@ -2732,10 +2732,10 @@ impl TextBuffer {
     /// Selects every copy of the selected text, line by line. Says why not if it can't.
     pub fn make_selections(&mut self) -> Result<usize, String> {
         if self.column_mode || self.is_block() || !self.has_selection() || self.caret_line != self.anchor_line {
-            return Err("Select some text on one line first. Every copy of it will be selected too.".to_string());
+            return Err(crate::i18n::tr("Select some text on one line first. Every copy of it will be selected too.").to_string());
         }
         if self.lines.is_disk_backed() {
-            return Err("This file is too large for that. It is being kept on disk so that it opens quickly.".to_string());
+            return Err(crate::i18n::tr("This file is too large for that. It is being kept on disk so that it opens quickly.").to_string());
         }
         let needle = self.selection_text();
         let mut spots = Vec::new();
@@ -2744,12 +2744,12 @@ impl TextBuffer {
                 let start = char_of_byte(line, byte);
                 spots.push(Spot { line: number, anchor: start, head: start + needle.chars().count() });
                 if spots.len() > MOST_SPOTS {
-                    return Err(format!("There are too many copies. It can select up to {MOST_SPOTS}."));
+                    return Err(crate::i18n::tf!("There are too many copies. It can select up to {MOST_SPOTS}."));
                 }
             }
         }
         if spots.len() < 2 {
-            return Err("There are no other copies of that text.".to_string());
+            return Err(crate::i18n::tr("There are no other copies of that text.").to_string());
         }
         // Editing what can't be seen would be a nasty surprise.
         for spot in &spots {

@@ -154,13 +154,13 @@ fn operand(text: &str) -> Result<Ea, String> {
     if let Some(inner) = lower.strip_prefix("-(").and_then(|r| r.strip_suffix(')')) {
         return match register(inner) {
             Some(Ea::A(r)) => Ok(Ea::PreDecrement(r)),
-            _ => Err(format!("-({inner}) needs an address register")),
+            _ => Err(crate::i18n::tf!("-({inner}) needs an address register")),
         };
     }
     if let Some(inner) = lower.strip_prefix('(').and_then(|r| r.strip_suffix(")+")) {
         return match register(inner) {
             Some(Ea::A(r)) => Ok(Ea::PostIncrement(r)),
-            _ => Err(format!("({inner})+ needs an address register")),
+            _ => Err(crate::i18n::tf!("({inner})+ needs an address register")),
         };
     }
     // d(An), d(An,Xn), (d,An), (d,An,Xn), (An), and the same from PC.
@@ -176,9 +176,9 @@ fn operand(text: &str) -> Result<Ea, String> {
             (true, [d, base, x]) => (d.clone(), base.clone(), Some(x.clone())),
             (false, [base]) => (outside.to_string(), base.clone(), None),
             (false, [base, x]) => (outside.to_string(), base.clone(), Some(x.clone())),
-            _ => return Err(format!("{text} isn't an address the 68000 has")),
+            _ => return Err(crate::i18n::tf!("{text} isn't an address the 68000 has")),
         };
-        let index = index.map(|x| index_register(&x).ok_or_else(|| format!("{x} isn't an index register"))).transpose()?;
+        let index = index.map(|x| index_register(&x).ok_or_else(|| crate::i18n::tf!("{x} isn't an index register"))).transpose()?;
         if base.eq_ignore_ascii_case("pc") {
             return Ok(match index {
                 Some(x) => Ea::PcIndexed(displacement, x),
@@ -190,7 +190,7 @@ fn operand(text: &str) -> Result<Ea, String> {
             if index.is_none() && outside.is_empty() && inside.len() == 1 {
                 return Ok(Ea::AbsoluteLong(text.to_string()));
             }
-            return Err(format!("{base} isn't an address register"));
+            return Err(crate::i18n::tf!("{base} isn't an address register"));
         };
         return Ok(match index {
             Some(x) => Ea::Indexed(r, displacement, x),
@@ -231,13 +231,13 @@ fn extension(ea: &Ea, size: Size, line: &mut Line, at: i64) -> Result<Vec<u16>, 
     let checking = line.checking();
     let brief = |x: &Index, d: i64| -> Result<u16, String> {
         if checking && !(-128..=127).contains(&d) {
-            return Err(format!("the offset {d} doesn't fit in 8 bits (-128 to 127)"));
+            return Err(crate::i18n::tf!("the offset {d} doesn't fit in 8 bits (-128 to 127)"));
         }
         Ok((x.address as u16) << 15 | x.reg << 12 | (x.long as u16) << 11 | (d as u8 as u16))
     };
     let word = |v: i64, what: &str| -> Result<u16, String> {
         if checking && !(-32768..=65535).contains(&v) {
-            return Err(format!("{what} {v} doesn't fit in 16 bits"));
+            return Err(crate::i18n::tf!("{what} {v} doesn't fit in 16 bits"));
         }
         Ok(v as u16)
     };
@@ -348,7 +348,7 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
     let here = line.here();
     let texts = split_operands(operands);
     let ops: Vec<Ea> = texts.iter().map(|t| operand(t)).collect::<Result<_, _>>()?;
-    let wrong = || Err(format!("{upper} {operands} isn't a 68000 instruction"));
+    let wrong = || Err(crate::i18n::tf!("{upper} {operands} isn't a 68000 instruction"));
     let sz = size.unwrap_or(Size::Word);
     // The opcode word, then each address's extension words, the source's first.
     let with = |op: u16, eas: &[(&Ea, Size)], line: &mut Line| -> Result<Vec<u16>, String> {
@@ -372,12 +372,12 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         let offset = target - (here + 2);
         if mnemonic.ends_with(".s") || mnemonic.ends_with(".b") {
             if line.checking() && (!(-128..=127).contains(&offset) || offset == 0) {
-                return Err(format!("{operands} is {offset} bytes away, out of a short branch's reach; use {}.W", name.to_ascii_uppercase()));
+                return Err(crate::i18n::tf!("{operands} is {offset} bytes away, out of a short branch's reach; use {}.W", name.to_ascii_uppercase()));
             }
             return Ok(vec![base | (offset as u8 as u16)]);
         }
         if line.checking() && !(-32768..=32767).contains(&offset) {
-            return Err(format!("{operands} is too far away for a branch"));
+            return Err(crate::i18n::tf!("{operands} is too far away for a branch"));
         }
         return Ok(vec![base, offset as u16]);
     }
@@ -396,7 +396,7 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         ("moveq", [Ea::Immediate(v), Ea::D(r)]) => {
             let v = line.eval(v)?;
             if line.checking() && !(-128..=255).contains(&v) {
-                return Err(format!("MOVEQ takes -128 to 127, and {v} isn't"));
+                return Err(crate::i18n::tf!("MOVEQ takes -128 to 127, and {v} isn't"));
             }
             Ok(vec![0x7000 | r << 9 | (v as u8 as u16)])
         }
@@ -412,7 +412,7 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
                 Size::Word => 3,
             };
             if matches!(dst, Ea::Immediate(_) | Ea::PcDisplacement(_) | Ea::PcIndexed(..)) {
-                return Err(format!("{upper} can't write to {}", texts[1]));
+                return Err(crate::i18n::tf!("{upper} can't write to {}", texts[1]));
             }
             let d = dst.bits();
             let op = code << 12 | (d & 7) << 9 | (d >> 3) << 6 | src.bits();
@@ -460,7 +460,7 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         ("addq" | "subq", [Ea::Immediate(v), dst]) => {
             let v = line.eval(v)?;
             if line.checking() && !(1..=8).contains(&v) {
-                return Err(format!("{upper} takes 1 to 8, and {v} isn't"));
+                return Err(crate::i18n::tf!("{upper} takes 1 to 8, and {v} isn't"));
             }
             let base = if name == "addq" { 0x5000 } else { 0x5100 };
             with(base | ((v as u16) & 7) << 9 | sz.bits() << 6 | dst.bits(), &[(dst, sz)], line)
@@ -529,7 +529,7 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
                 [Ea::Immediate(count), Ea::D(r)] => {
                     let n = line.eval(count)?;
                     if line.checking() && !(1..=8).contains(&n) {
-                        return Err(format!("{upper} shifts 1 to 8 places at once, and {n} isn't"));
+                        return Err(crate::i18n::tf!("{upper} shifts 1 to 8 places at once, and {n} isn't"));
                     }
                     Ok(vec![0xE000 | ((n as u16) & 7) << 9 | left | sz.bits() << 6 | kind << 3 | r])
                 }
@@ -563,7 +563,7 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         ("trap", [Ea::Immediate(v)]) => {
             let n = line.eval(v)?;
             if line.checking() && !(0..16).contains(&n) {
-                return Err(format!("TRAP takes 0 to 15, and {n} isn't"));
+                return Err(crate::i18n::tf!("TRAP takes 0 to 15, and {n} isn't"));
             }
             Ok(vec![0x4E40 | n as u16 & 15])
         }

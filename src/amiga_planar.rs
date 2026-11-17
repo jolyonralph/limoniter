@@ -1226,7 +1226,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let try_run = |name: &str, args: &[&str], input: &std::path::Path| -> Result<Vec<u8>, String> {
             let out = Command::new(tool(name)).args(args).arg(input).output().map_err(|e| e.to_string())?;
-            if out.status.success() && !out.stdout.is_empty() { Ok(out.stdout) } else { Err(format!("{name} {args:?}: {}", String::from_utf8_lossy(&out.stderr))) }
+            if out.status.success() && !out.stdout.is_empty() { Ok(out.stdout) } else { Err(crate::i18n::tf!("{name} {args:?}: {}", String::from_utf8_lossy(&out.stderr))) }
         };
         let run = |name: &str, args: &[&str], input: &std::path::Path| -> Vec<u8> { try_run(name, args, input).unwrap() };
         let image = test_card(97, 61);

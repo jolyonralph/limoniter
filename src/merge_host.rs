@@ -50,7 +50,7 @@ pub fn parse_tool_args(args: &[std::ffi::OsString]) -> Result<Option<ToolLaunch>
     let at = |flag: &str| args.iter().position(|arg| arg == flag);
     let after = |i: usize, count: usize, flag: &str, names: &str| -> Result<Vec<PathBuf>, String> {
         let got: Vec<PathBuf> = args.iter().skip(i + 1).take(count).map(PathBuf::from).collect();
-        if got.len() < count { Err(format!("{flag} needs {names}.")) } else { Ok(got) }
+        if got.len() < count { Err(crate::i18n::tf!("{flag} needs {names}.")) } else { Ok(got) }
     };
     if let Some(i) = at("--diff") {
         let files = after(i, 2, "--diff", "two files: LEFT RIGHT")?;
@@ -134,7 +134,7 @@ pub(super) struct MergeState {
 /// A file's text, in its own encoding, and that encoding. Text only.
 fn text_of(bytes: &[u8], name: &str) -> Result<(String, TextFormat), String> {
     if codec::looks_binary(bytes) {
-        return Err(format!("{name} looks like a binary file, so it can't be merged as lines of text."));
+        return Err(crate::i18n::tf!("{name} looks like a binary file, so it can't be merged as lines of text."));
     }
     let utf8_bom = b"\xEF\xBB\xBF";
     let body = bytes.strip_prefix(utf8_bom).unwrap_or(bytes);
@@ -154,7 +154,7 @@ fn text_of_file(path: &Path) -> Result<(String, TextFormat), String> {
     match std::fs::read(path) {
         Ok(bytes) => text_of(&bytes, &path.display().to_string()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok((String::new(), TextFormat::default())),
-        Err(error) => Err(format!("{} couldn't be read: {error}", path.display())),
+        Err(error) => Err(crate::i18n::tf!("{} couldn't be read: {error}", path.display())),
     }
 }
 
@@ -196,7 +196,7 @@ impl Limoniter {
         if let Some(open) = self.docs.iter().position(|doc| doc.path.as_deref().is_some_and(|p| same_path(p, &full))) {
             if self.docs[open].is_modified() {
                 self.active = open;
-                self.message("Merge", format!("{} is open with unsaved changes. Save or close it first, then merge again.", self.docs[open].name()));
+                self.message("Merge", crate::i18n::tf!("{} is open with unsaved changes. Save or close it first, then merge again.", self.docs[open].name()));
                 return None;
             }
             self.docs.remove(open);
@@ -256,7 +256,7 @@ impl Limoniter {
         let Some(base) = pick("Merge: the original both were changed from") else { return };
         let Some(mine) = pick("Merge: mine, one changed version") else { return };
         let Some(theirs) = pick("Merge: theirs, the other changed version") else { return };
-        let mut dialog = rfd::FileDialog::new().set_title("Merge: save the result as").set_file_name(name_of(&mine));
+        let mut dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Merge: save the result as")).set_file_name(name_of(&mine));
         if let Some(folder) = mine.parent() {
             dialog = dialog.set_directory(folder);
         }
@@ -491,9 +491,9 @@ impl Limoniter {
         let (mut resolve, mut dismiss) = (false, false);
         Panel::top("marker-bar").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(format!("This file has {count} conflict(s) marked in it.")).strong());
-                resolve = ui.button("Resolve in merge\u{2026}").on_hover_text("Each side above, and the result to settle below").clicked();
-                dismiss = ui.button("Not now").clicked();
+                ui.label(RichText::new(crate::i18n::tf!("This file has {count} conflict(s) marked in it.")).strong());
+                resolve = ui.button(crate::i18n::tr("Resolve in merge\u{2026}")).on_hover_text(crate::i18n::tr("Each side above, and the result to settle below")).clicked();
+                dismiss = ui.button(crate::i18n::tr("Not now")).clicked();
             });
         });
         if resolve {
@@ -523,8 +523,8 @@ impl Limoniter {
                 };
                 let colour = if left > 0 { theme::rainbow_mistake() } else { theme::text() };
                 ui.label(RichText::new(said).strong().color(colour));
-                previous = ui.add_enabled(left > 0, Button::new("Previous conflict")).clicked();
-                next = ui.add_enabled(left > 0, Button::new("Next conflict")).clicked();
+                previous = ui.add_enabled(left > 0, Button::new(crate::i18n::tr("Previous conflict"))).clicked();
+                next = ui.add_enabled(left > 0, Button::new(crate::i18n::tr("Next conflict"))).clicked();
                 ui.separator();
                 for (choice, label, tip) in [
                     (Take::Mine, "Take mine", "Just mine, above"),
@@ -533,15 +533,15 @@ impl Limoniter {
                     (Take::TheirsFirst, "Take both (theirs first)", "Theirs, then mine"),
                     (Take::Base, "Take the original", "The lines as they were before either side changed them"),
                 ] {
-                    if ui.add_enabled(here.is_some(), Button::new(label)).on_hover_text(tip).on_disabled_hover_text("Put the cursor in a conflict in the result first").clicked() {
+                    if ui.add_enabled(here.is_some(), Button::new(label)).on_hover_text(crate::i18n::tr(tip)).on_disabled_hover_text(crate::i18n::tr("Put the cursor in a conflict in the result first")).clicked() {
                         take = Some(choice);
                     }
                 }
                 if here.is_none() && left > 0 {
-                    ui.label(RichText::new("Or edit the result by hand.").color(theme::text_dim()));
+                    ui.label(RichText::new(crate::i18n::tr("Or edit the result by hand.")).color(theme::text_dim()));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    save = ui.button("Save the result").clicked();
+                    save = ui.button(crate::i18n::tr("Save the result")).clicked();
                 });
             });
         });
@@ -584,7 +584,7 @@ impl Limoniter {
         let global = git_setup::Global::default();
         let program = match std::env::current_exe() {
             Ok(program) => program,
-            Err(problem) => return self.message("Git", format!("Couldn't tell where Limoniter is: {problem}")),
+            Err(problem) => return self.message("Git", crate::i18n::tf!("Couldn't tell where Limoniter is: {problem}")),
         };
         let Some(backup) = settings::data_folder().map(|folder| folder.join(git_setup::BACKUP_FILE)) else {
             return self.message("Git", "There's no settings folder to keep Git's settings in as they were.".into());
@@ -639,7 +639,7 @@ fn sides_view(ui: &mut Ui, tab: &mut MergeTab) -> Option<usize> {
     let number_width = (digits + 1) as f32 * cell;
     if tab.longest * (cell as usize).max(1) > pane as usize {
         ui.horizontal(|ui| {
-            ui.add(egui::Slider::new(&mut tab.across, 0..=tab.longest).show_value(false).text("Across"));
+            ui.add(egui::Slider::new(&mut tab.across, 0..=tab.longest).show_value(false).text(crate::i18n::tr("Across")));
         });
     }
     let mut area = egui::ScrollArea::vertical().id_salt("merge-sides").auto_shrink([false, false]);

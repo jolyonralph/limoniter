@@ -31,7 +31,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(TITLE).open(&mut open).resizable(true).default_pos([140.0, 70.0]).default_width(900.0).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_pos([140.0, 70.0]).default_width(900.0).show(ctx, |ui| {
             asked = converter.draw(ui);
         });
         if !open {
@@ -46,20 +46,20 @@ impl Limoniter {
     }
 
     fn bitplane_asked(&mut self, c: &mut Converter, asked: Asked) -> Result<(), String> {
-        let write = |path: &Path, bytes: &[u8]| codec::write_file(path, bytes).map_err(|e| format!("Couldn't save {}.\n\n{e}", path.display()));
-        let read = |path: &Path| std::fs::read(path).map_err(|e| format!("Couldn't read {}.\n\n{e}", path.display()));
+        let write = |path: &Path, bytes: &[u8]| codec::write_file(path, bytes).map_err(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
+        let read = |path: &Path| std::fs::read(path).map_err(|e| crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display()));
         let name = c.name.clone();
         match asked {
             Asked::OpenPicture => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Open a picture to convert").add_filter("Pictures", &["png", "jpg", "jpeg", "iff", "ilbm", "lbm", "pcx", "neo", "pi1", "scr"]).add_filter("Any file", &["*"]).pick_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), &["png", "jpg", "jpeg", "iff", "ilbm", "lbm", "pcx", "neo", "pi1", "scr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                    let image = planar::read_picture(&file, &read(&path)?).map_err(|e| format!("Couldn't open {}.\n\n{e}", path.display()))?;
+                    let image = planar::read_picture(&file, &read(&path)?).map_err(|e| crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display()))?;
                     c.set_picture(&file, image);
                 }
             }
             Asked::OpenPalette => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Open a palette").add_filter("Palettes", &["pal", "iff", "ilbm", "gpl", "s", "asm", "i", "c", "h", "txt", "raw", "bin"]).add_filter("Any file", &["*"]).pick_file() {
-                    let colours = planar::read_palette(&read(&path)?).ok_or_else(|| format!("No palette was found in {}.", path.display()))?;
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a palette")).add_filter(crate::i18n::tr("Palettes"), &["pal", "iff", "ilbm", "gpl", "s", "asm", "i", "c", "h", "txt", "raw", "bin"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                    let colours = planar::read_palette(&read(&path)?).ok_or_else(|| crate::i18n::tf!("No palette was found in {}.", path.display()))?;
                     c.settings.keep_given = colours.len().min(c.settings.mode.registers(c.settings.settled().planes));
                     c.settings.given = colours;
                     c.palette_name = path.file_name().map(|n| n.to_string_lossy().into_owned());
@@ -68,7 +68,7 @@ impl Limoniter {
                 }
             }
             Asked::OpenRaw => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Open raw planes").add_filter("Any file", &["*"]).pick_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open raw planes")).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let bytes = read(&path)?;
                     let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                     let rows = c.raw.rows_in(bytes.len());
@@ -81,14 +81,14 @@ impl Limoniter {
             }
             Asked::SavePng => {
                 if let Some(picture) = c.raw_picture()
-                    && let Some(path) = rfd::FileDialog::new().set_title("Save as PNG").set_file_name("planes.png").add_filter("PNG picture", &["png"]).save_file()
+                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as PNG")).set_file_name("planes.png").add_filter(crate::i18n::tr("PNG picture"), &["png"]).save_file()
                 {
                     write(&path, &crate::pictures::to_png(&picture)?)?;
                 }
             }
             Asked::SaveSprites => {
                 let Some(s) = &c.sprites else { return Ok(()) };
-                if let Some(path) = rfd::FileDialog::new().set_title("Save the sprites' source").set_file_name(format!("{name}_sprites.s")).add_filter("Assembler source", &["s", "asm", "i"]).save_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the sprites' source")).set_file_name(format!("{name}_sprites.s")).add_filter(crate::i18n::tr("Assembler source"), &["s", "asm", "i"]).save_file() {
                     let raw = path.with_extension("spr");
                     let raw_name = raw.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                     write(&raw, &sprites::sprites_raw(s))?;
@@ -97,7 +97,7 @@ impl Limoniter {
             }
             Asked::SaveBob => {
                 let Some(b) = &c.bob else { return Ok(()) };
-                if let Some(path) = rfd::FileDialog::new().set_title("Save the bob's source").set_file_name(format!("{name}_bob.s")).add_filter("Assembler source", &["s", "asm", "i"]).save_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the bob's source")).set_file_name(format!("{name}_bob.s")).add_filter(crate::i18n::tr("Assembler source"), &["s", "asm", "i"]).save_file() {
                     let (planes, mask) = (path.with_extension("bpl"), path.with_extension("msk"));
                     let file = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                     write(&planes, &b.planes())?;
@@ -112,7 +112,7 @@ impl Limoniter {
                 let raw_name = format!("{name}.raw");
                 match asked {
                     Asked::SavePlanes => {
-                        if let Some(path) = rfd::FileDialog::new().set_title("Save the planes").set_file_name(&raw_name).add_filter("Raw planes", &["raw", "bpl", "bin"]).save_file() {
+                        if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the planes")).set_file_name(&raw_name).add_filter(crate::i18n::tr("Raw planes"), &["raw", "bpl", "bin"]).save_file() {
                             write(&path, &planes())?;
                         }
                     }
@@ -123,22 +123,22 @@ impl Limoniter {
                             PaletteKind::Copper => ("s", planar::palette_copper(&converted.palette, converted.chipset).into_bytes()),
                             PaletteKind::C => ("h", planar::palette_c(&converted.palette, converted.chipset, &name).into_bytes()),
                         };
-                        if let Some(path) = rfd::FileDialog::new().set_title("Save the palette").set_file_name(format!("{name}_palette.{ending}")).save_file() {
+                        if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the palette")).set_file_name(format!("{name}_palette.{ending}")).save_file() {
                             write(&path, &bytes)?;
                         }
                     }
                     Asked::SaveIlbm => {
-                        if let Some(path) = rfd::FileDialog::new().set_title("Save as IFF ILBM").set_file_name(format!("{name}.iff")).add_filter("IFF ILBM picture", &["iff", "ilbm", "lbm"]).save_file() {
+                        if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as IFF ILBM")).set_file_name(format!("{name}.iff")).add_filter(crate::i18n::tr("IFF ILBM picture"), &["iff", "ilbm", "lbm"]).save_file() {
                             write(&path, &planar::to_ilbm(converted, c.packed))?;
                         }
                     }
                     Asked::SaveSource => {
-                        if let Some(path) = rfd::FileDialog::new().set_title("Save the source").set_file_name(format!("{name}.s")).add_filter("Assembler source", &["s", "asm", "i"]).save_file() {
+                        if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the source")).set_file_name(format!("{name}.s")).add_filter(crate::i18n::tr("Assembler source"), &["s", "asm", "i"]).save_file() {
                             write(&path, planar::asm_source(converted, &name, &raw_name, c.interleaved, c.fetch).as_bytes())?;
                         }
                     }
                     Asked::SaveAll => {
-                        if let Some(folder) = rfd::FileDialog::new().set_title("Save everything into a folder").pick_folder() {
+                        if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
                             write(&folder.join(&raw_name), &planes())?;
                             write(&folder.join(format!("{name}.pal")), &planar::palette_words(&converted.palette, converted.chipset))?;
                             write(&folder.join(format!("{name}_palette.s")), planar::palette_copper(&converted.palette, converted.chipset).as_bytes())?;

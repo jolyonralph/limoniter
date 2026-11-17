@@ -286,7 +286,7 @@ impl RemoteFs for FakeServer {
     }
     fn list(&self, folder: &str) -> Result<Vec<Entry>, String> {
         if !self.folders.lock().unwrap().contains(folder) {
-            return Err(format!("{folder} couldn't be listed: no such folder"));
+            return Err(crate::i18n::tf!("{folder} couldn't be listed: no such folder"));
         }
         let prefix = format!("{folder}/");
         let mut out = Vec::new();
@@ -309,20 +309,20 @@ impl RemoteFs for FakeServer {
         Ok(self.files.lock().unwrap().get(path).map(|(bytes, time)| (false, Stamp { size: bytes.len() as u64, modified: *time })))
     }
     fn download(&self, path: &str, local: &Path) -> Result<(), String> {
-        let bytes = self.files.lock().unwrap().get(path).map(|(bytes, _)| bytes.clone()).ok_or("no such file")?;
+        let bytes = self.files.lock().unwrap().get(path).map(|(bytes, _)| bytes.clone()).ok_or(crate::i18n::tr("no such file"))?;
         std::fs::write(local, bytes).map_err(|e| e.to_string())
     }
     fn upload(&self, local: &Path, path: &str) -> Result<(), String> {
         let parent = crate::remote::parent(path);
         if !self.folders.lock().unwrap().contains(&parent) {
-            return Err(format!("{parent} isn't there"));
+            return Err(crate::i18n::tf!("{parent} isn't there"));
         }
         let bytes = std::fs::read(local).map_err(|e| e.to_string())?;
         self.files.lock().unwrap().insert(path.into(), (bytes, 0));
         Ok(())
     }
     fn set_modified(&self, path: &str, time: u64) -> Result<(), String> {
-        self.files.lock().unwrap().get_mut(path).ok_or("no such file")?.1 = time;
+        self.files.lock().unwrap().get_mut(path).ok_or(crate::i18n::tr("no such file"))?.1 = time;
         Ok(())
     }
     fn make_folder(&self, path: &str) -> Result<(), String> {

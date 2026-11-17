@@ -43,15 +43,15 @@ impl Site {
 
 /// Reads sftp://user@host:port/path into its parts. The port is 22 unless it's given.
 pub fn parse_url(url: &str) -> Result<(Site, String), String> {
-    let rest = url.trim().strip_prefix("sftp://").ok_or("A remote file is written sftp://user@host/path.")?;
+    let rest = url.trim().strip_prefix("sftp://").ok_or(crate::i18n::tr("A remote file is written sftp://user@host/path."))?;
     let (place, path) = rest.split_once('/').map_or((rest, "/".to_string()), |(place, path)| (place, format!("/{path}")));
-    let (user, host_port) = place.rsplit_once('@').ok_or("Say who to sign in as: sftp://user@host/path.")?;
+    let (user, host_port) = place.rsplit_once('@').ok_or(crate::i18n::tr("Say who to sign in as: sftp://user@host/path."))?;
     let (host, port) = match host_port.rsplit_once(':') {
-        Some((host, port)) if !host.ends_with(']') || host.starts_with('[') => (host, port.parse::<u16>().map_err(|_| format!("\u{201C}{port}\u{201D} isn't a port number."))?),
+        Some((host, port)) if !host.ends_with(']') || host.starts_with('[') => (host, port.parse::<u16>().map_err(|_| crate::i18n::tf!("\u{201C}{port}\u{201D} isn't a port number."))?),
         _ => (host_port, 22),
     };
     if user.is_empty() || host.is_empty() {
-        return Err("Say who to sign in as and where: sftp://user@host/path.".to_string());
+        return Err(crate::i18n::tr("Say who to sign in as and where: sftp://user@host/path.").to_string());
     }
     Ok((Site { host: host.trim_matches(|c| c == '[' || c == ']').to_string(), port, user: user.to_string(), key_file: None }, path))
 }
@@ -231,7 +231,7 @@ impl Connection {
         let mut entries: Vec<Entry> = self
             .sftp
             .readdir(path(folder))
-            .map_err(|e| format!("{folder} couldn't be listed: {e}"))?
+            .map_err(|e| crate::i18n::tf!("{folder} couldn't be listed: {e}"))?
             .into_iter()
             .filter_map(|(full, stat)| {
                 let name = full.to_string_lossy().replace('\\', "/").rsplit('/').next()?.to_string();
@@ -252,7 +252,7 @@ impl Connection {
             Ok(stat) => Ok(Some((stat.is_dir(), stamp_of(&stat)))),
             // LIBSSH2_FX_NO_SUCH_FILE
             Err(e) if e.code() == ssh2::ErrorCode::SFTP(2) => Ok(None),
-            Err(e) => Err(format!("{remote} couldn't be looked at: {e}")),
+            Err(e) => Err(crate::i18n::tf!("{remote} couldn't be looked at: {e}")),
         }
     }
 
@@ -262,25 +262,25 @@ impl Connection {
     }
 
     pub fn make_folder(&self, remote: &str) -> Result<(), String> {
-        self.sftp.mkdir(path(remote), 0o755).map_err(|e| format!("{remote} couldn't be made: {e}"))
+        self.sftp.mkdir(path(remote), 0o755).map_err(|e| crate::i18n::tf!("{remote} couldn't be made: {e}"))
     }
 
     pub fn remove_file(&self, remote: &str) -> Result<(), String> {
-        self.sftp.unlink(path(remote)).map_err(|e| format!("{remote} couldn't be taken away: {e}"))
+        self.sftp.unlink(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be taken away: {e}"))
     }
 
     /// Takes away a folder, which has to be empty.
     pub fn remove_folder(&self, remote: &str) -> Result<(), String> {
-        self.sftp.rmdir(path(remote)).map_err(|e| format!("{remote} couldn't be taken away: {e}"))
+        self.sftp.rmdir(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be taken away: {e}"))
     }
 
     /// Copies a remote file to a local one, counting the bytes as they come.
     pub fn download(&self, remote: &str, local: &Path, done: &AtomicU64, stop: &AtomicBool) -> Result<Stamp, String> {
-        let stat = self.sftp.stat(path(remote)).map_err(|e| format!("{remote} couldn't be found: {e}"))?;
+        let stat = self.sftp.stat(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be found: {e}"))?;
         if stat.is_dir() {
-            return Err(format!("{remote} is a folder."));
+            return Err(crate::i18n::tf!("{remote} is a folder."));
         }
-        let mut from = self.sftp.open(path(remote)).map_err(|e| format!("{remote} couldn't be opened: {e}"))?;
+        let mut from = self.sftp.open(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be opened: {e}"))?;
         if let Some(folder) = local.parent() {
             std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
         }
@@ -289,9 +289,9 @@ impl Connection {
         let mut total = 0u64;
         loop {
             if stop.load(Ordering::Relaxed) {
-                return Err("It was stopped.".to_string());
+                return Err(crate::i18n::tr("It was stopped.").to_string());
             }
-            let got = from.read(&mut buffer).map_err(|e| format!("Reading {remote} failed: {e}"))?;
+            let got = from.read(&mut buffer).map_err(|e| crate::i18n::tf!("Reading {remote} failed: {e}"))?;
             if got == 0 {
                 break;
             }
@@ -317,18 +317,18 @@ impl Connection {
         let temp = format!("{remote}.limoniter-tmp");
         let result = (|| -> Result<(), String> {
             let mut from = std::fs::File::open(local).map_err(|e| e.to_string())?;
-            let mut to = self.sftp.create(path(&temp)).map_err(|e| format!("{temp} couldn't be made: {e}"))?;
+            let mut to = self.sftp.create(path(&temp)).map_err(|e| crate::i18n::tf!("{temp} couldn't be made: {e}"))?;
             let mut buffer = vec![0u8; CHUNK];
             let mut total = 0u64;
             loop {
                 if stop.load(Ordering::Relaxed) {
-                    return Err("It was stopped.".to_string());
+                    return Err(crate::i18n::tr("It was stopped.").to_string());
                 }
                 let got = from.read(&mut buffer).map_err(|e| e.to_string())?;
                 if got == 0 {
                     break;
                 }
-                to.write_all(&buffer[..got]).map_err(|e| format!("Sending failed: {e}"))?;
+                to.write_all(&buffer[..got]).map_err(|e| crate::i18n::tf!("Sending failed: {e}"))?;
                 total += got as u64;
                 done.store(total, Ordering::Relaxed);
             }
@@ -357,10 +357,10 @@ impl Connection {
         }
         let aside = format!("{target}.limoniter-old");
         let _ = self.sftp.unlink(path(&aside));
-        self.sftp.rename(path(target), path(&aside), None).map_err(|e| format!("{target} couldn't be replaced: {e}"))?;
+        self.sftp.rename(path(target), path(&aside), None).map_err(|e| crate::i18n::tf!("{target} couldn't be replaced: {e}"))?;
         if let Err(e) = self.sftp.rename(path(temp), path(target), None) {
             let _ = self.sftp.rename(path(&aside), path(target), None);
-            return Err(format!("{target} couldn't be replaced: {e}"));
+            return Err(crate::i18n::tf!("{target} couldn't be replaced: {e}"));
         }
         let _ = self.sftp.unlink(path(&aside));
         Ok(())

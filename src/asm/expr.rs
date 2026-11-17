@@ -60,7 +60,7 @@ pub fn eval(text: &str, scope: &dyn Scope) -> Result<Value, String> {
     let value = parser.binary(0)?;
     parser.space();
     if parser.at < parser.text.len() {
-        return Err(format!("\"{}\" wasn't understood", text[parser.at..].trim()));
+        return Err(crate::i18n::tf!("\"{}\" wasn't understood", text[parser.at..].trim()));
     }
     Ok(value)
 }
@@ -218,7 +218,7 @@ impl Parser<'_> {
     fn atom(&mut self) -> Result<Value, String> {
         self.space();
         let Some(first) = self.peek() else {
-            return Err("a value is missing".into());
+            return Err(crate::i18n::tr("a value is missing").into());
         };
         match first {
             b'(' | b'[' => {
@@ -227,7 +227,7 @@ impl Parser<'_> {
                 let value = self.binary(0)?;
                 self.space();
                 if self.peek() != Some(close) {
-                    return Err(format!("a \"{}\" is missing", close as char));
+                    return Err(crate::i18n::tf!("a \"{}\" is missing", close as char));
                 }
                 self.at += 1;
                 Ok(value)
@@ -237,15 +237,15 @@ impl Parser<'_> {
                 let quote = first;
                 let start = self.at + 1;
                 let Some(length) = self.text[start..].iter().position(|c| *c == quote) else {
-                    return Err("a quote isn't closed".into());
+                    return Err(crate::i18n::tr("a quote isn't closed").into());
                 };
                 let bytes = &self.text[start..start + length];
                 self.at = start + length + 1;
                 match bytes {
-                    [] => Err("an empty character".into()),
+                    [] => Err(crate::i18n::tr("an empty character").into()),
                     // Up to four characters, packed first-is-highest, as sjasmplus has them.
                     _ if bytes.len() <= 4 => Ok(Value::Known(bytes.iter().fold(0i64, |v, b| (v << 8) | *b as i64))),
-                    _ => Err("a character value can only be one to four characters".into()),
+                    _ => Err(crate::i18n::tr("a character value can only be one to four characters").into()),
                 }
             }
             // sjasmplus: $$$ is the address code is put at (inside DISP), and $$$label a label's.
@@ -303,11 +303,11 @@ impl Parser<'_> {
                 let address = self.binary(0)?;
                 self.space();
                 if self.peek() != Some(b'}') {
-                    return Err("a \"}\" is missing".into());
+                    return Err(crate::i18n::tr("a \"}\" is missing").into());
                 }
                 self.at += 1;
                 Ok(match address {
-                    Value::Known(a) => Value::Known(self.scope.peek(a, size).ok_or("{address} reads the memory of a DEVICE, and there's none")?),
+                    Value::Known(a) => Value::Known(self.scope.peek(a, size).ok_or(crate::i18n::tr("{address} reads the memory of a DEVICE, and there's none"))?),
                     unknown => unknown,
                 })
             }
@@ -360,7 +360,7 @@ impl Parser<'_> {
                     }
                 }
             }
-            _ => Err(format!("\"{}\" wasn't understood", String::from_utf8_lossy(self.rest()).trim())),
+            _ => Err(crate::i18n::tf!("\"{}\" wasn't understood", String::from_utf8_lossy(self.rest()).trim())),
         }
     }
 
@@ -402,7 +402,7 @@ impl Parser<'_> {
             Some('d') if digits[..digits.len() - 1].chars().all(|c| c.is_ascii_digit()) => (&digits[..digits.len() - 1], 10),
             _ => (&digits[..], 10),
         };
-        let value = i64::from_str_radix(body, radix).map_err(|_| format!("\"{digits}\" isn't a number"))?;
+        let value = i64::from_str_radix(body, radix).map_err(|_| crate::i18n::tf!("\"{digits}\" isn't a number"))?;
         self.at += word.len();
         Ok(Value::Known(value))
     }
@@ -426,13 +426,13 @@ fn apply(op: &str, a: i64, b: i64) -> Result<i64, String> {
         "+" => a.wrapping_add(b),
         "-" => a.wrapping_sub(b),
         "*" => a.wrapping_mul(b),
-        "/" if b == 0 => return Err("division by zero".into()),
+        "/" if b == 0 => return Err(crate::i18n::tr("division by zero").into()),
         "/" => a / b,
-        "%" if b == 0 => return Err("division by zero".into()),
+        "%" if b == 0 => return Err(crate::i18n::tr("division by zero").into()),
         "%" => a % b,
         "**" if b < 0 => 0,
         "**" => a.wrapping_pow(b.min(63) as u32),
-        _ => return Err(format!("{op} isn't an operator")),
+        _ => return Err(crate::i18n::tf!("{op} isn't an operator")),
     })
 }
 

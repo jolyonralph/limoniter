@@ -78,11 +78,11 @@ fn scratch_copy(name: &str, bytes: &[u8]) -> Result<(PathBuf, PathBuf), String> 
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let folder = std::env::temp_dir().join(format!("limoniter-amiga-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
     let _ = std::fs::remove_dir_all(&folder);
-    std::fs::create_dir_all(&folder).map_err(|e| format!("A folder to work in couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("A folder to work in couldn't be made: {e}"))?;
     // Only the file's own name, whatever path it came with.
     let safe = name.rsplit(['/', '\\', ':', '\u{203A}']).next().unwrap_or(name).trim();
     let path = folder.join(if safe.is_empty() { "file" } else { safe });
-    std::fs::write(&path, bytes).map_err(|e| format!("{} couldn't be written: {e}", path.display()))?;
+    std::fs::write(&path, bytes).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", path.display()))?;
     Ok((folder, path))
 }
 
@@ -194,11 +194,11 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut action: Option<Act> = None;
         let busy = state.job.is_some();
-        egui::Window::new("Amiga crunchers and music").collapsible(false).resizable(true).default_width(600.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Amiga crunchers and music")).collapsible(false).resizable(true).default_width(600.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(640.0);
             ui.horizontal(|ui| {
                 for (page, label) in [(Page::Crunch, "Crunch a program"), (Page::Music, "Music for a replayer"), (Page::Tools, "Tools")] {
-                    if ui.selectable_label(state.page == page, label).clicked() {
+                    if ui.selectable_label(state.page == page, crate::i18n::tr(label)).clicked() {
                         state.page = page;
                     }
                 }
@@ -213,8 +213,8 @@ impl Limoniter {
             if let Some(job) = &state.job {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(format!("{}\u{2026}", job.what));
-                    if ui.button("Stop").clicked() {
+                    ui.label(crate::i18n::tf!("{}\u{2026}", job.what));
+                    if ui.button(crate::i18n::tr("Stop")).clicked() {
                         job.stop.store(true, Ordering::Relaxed);
                     }
                 });
@@ -227,7 +227,7 @@ impl Limoniter {
                         ui.colored_label(theme::change_saved(), words);
                     }
                     Ok(_) => {
-                        ui.colored_label(theme::rainbow_mistake(), "It didn't succeed: what it printed is in the Output panel.");
+                        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("It didn't succeed: what it printed is in the Output panel."));
                     }
                     Err(problem) => {
                         ui.colored_label(theme::rainbow_mistake(), problem);
@@ -238,7 +238,7 @@ impl Limoniter {
                 ui.label(RichText::new(&state.status).color(theme::text_dim()));
             }
             ui.horizontal(|ui| {
-                close |= ui.add_enabled(!busy, Button::new("Close")).clicked();
+                close |= ui.add_enabled(!busy, Button::new(crate::i18n::tr("Close"))).clicked();
             });
         });
         if let Some(act) = action {
@@ -290,7 +290,7 @@ impl Limoniter {
                 }
             }
             Act::Choose(tool) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(format!("Where is {}?", tool.name())).pick_file()
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
                     && let Dialog::AmigaTools(state) = &mut self.dialog
                 {
                     state.prefs.set_path(tool, Some(path));
@@ -304,7 +304,7 @@ impl Limoniter {
                 }
             }
             Act::Folder => {
-                if let Some(folder) = rfd::FileDialog::new().set_title("Where to put what's made").pick_folder()
+                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
                     && let Dialog::AmigaTools(state) = &mut self.dialog
                     && let Some(source) = &mut state.source
                 {
@@ -323,16 +323,16 @@ impl Limoniter {
         };
         let tool = state.cruncher;
         let Some(program) = found(&state.found, tool) else {
-            state.result = Some(Err(format!("{} wasn't found. {}", tool.name(), tool.how_to_get())));
+            state.result = Some(Err(crate::i18n::tf!("{} wasn't found. {}", tool.name(), tool.how_to_get())));
             return;
         };
         let Some(folder) = source.folder.clone() else {
-            state.result = Some(Err("Choose a folder for the crunched file first.".into()));
+            state.result = Some(Err(crate::i18n::tr("Choose a folder for the crunched file first.").into()));
             return;
         };
         let output = folder.join(state.output_name.trim());
         if state.output_name.trim().is_empty() || source.path.as_deref() == Some(output.as_path()) {
-            state.result = Some(Err("Give the crunched file a name of its own.".into()));
+            state.result = Some(Err(crate::i18n::tr("Give the crunched file a name of its own.").into()));
             return;
         }
         let prefs = state.prefs.clone();
@@ -346,7 +346,7 @@ impl Limoniter {
                     let (folder, path) = scratch_copy(&name, &bytes)?;
                     (Some(folder), path)
                 }
-                (None, None) => return Err("There's nothing to crunch.".into()),
+                (None, None) => return Err(crate::i18n::tr("There's nothing to crunch.").into()),
             };
             let result = tools::crunch(tool, &program, &prefs, &input, &output, stop);
             if let Some(folder) = scratch {
@@ -364,11 +364,11 @@ impl Limoniter {
             return;
         };
         let Some(program) = found(&state.found, Tool::LspConvert) else {
-            state.result = Some(Err(format!("LSPConvert wasn't found. {}", Tool::LspConvert.how_to_get())));
+            state.result = Some(Err(crate::i18n::tf!("LSPConvert wasn't found. {}", Tool::LspConvert.how_to_get())));
             return;
         };
         let Some(folder) = source.folder.clone() else {
-            state.result = Some(Err("Choose a folder for LSPConvert's files first.".into()));
+            state.result = Some(Err(crate::i18n::tr("Choose a folder for LSPConvert's files first.").into()));
             return;
         };
         let mut options = state.prefs.lsp.clone();
@@ -394,7 +394,7 @@ impl Limoniter {
                 let _ = std::fs::remove_dir_all(scratch);
                 outcome
             }
-            (None, None) => Err("There's no module to convert.".into()),
+            (None, None) => Err(crate::i18n::tr("There's no module to convert.").into()),
         }));
     }
 
@@ -413,7 +413,7 @@ impl Limoniter {
             return;
         };
         let Some(program) = prefs.find(tool) else {
-            self.script_print(format!("Crunching after building is on, but {} wasn't found, so the program wasn't crunched (Run on, Amiga crunchers and music).", tool.name()), false);
+            self.script_print(crate::i18n::tf!("Crunching after building is on, but {} wasn't found, so the program wasn't crunched (Run on, Amiga crunchers and music).", tool.name()), false);
             return;
         };
         let output = folder.join(tools::crunched_name(name));
@@ -425,7 +425,7 @@ impl Limoniter {
             let _ = std::fs::remove_dir_all(scratch);
             result
         });
-        self.script_print(format!("{what}, in the background\u{2026}"), false);
+        self.script_print(crate::i18n::tf!("{what}, in the background\u{2026}"), false);
         self.amiga_jobs.push(job);
     }
 
@@ -472,7 +472,7 @@ fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
         ui.strong(&source.name);
         let size = source.bytes.as_ref().map(|b| b.len() as u64).or_else(|| source.path.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()));
         if let Some(size) = size {
-            ui.label(format!("{} bytes", tools::group(size)));
+            ui.label(crate::i18n::tf!("{} bytes", tools::group(size)));
         }
     });
     ui.horizontal_wrapped(|ui| {
@@ -480,7 +480,7 @@ fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
             Some(folder) => note(ui, format!("What's made goes in {}", folder.display())),
             None => note(ui, "Choose where what's made goes:"),
         }
-        if ui.small_button("Choose a folder\u{2026}").clicked() {
+        if ui.small_button(crate::i18n::tr("Choose a folder\u{2026}")).clicked() {
             *action = Some(Act::Folder);
         }
     });
@@ -493,7 +493,7 @@ fn tool_status(ui: &mut egui::Ui, found: &[(Tool, Option<PathBuf>)], tool: Tool)
             true
         }
         None => {
-            ui.colored_label(theme::rainbow_mistake(), format!("{} wasn't found.", tool.name()));
+            ui.colored_label(theme::rainbow_mistake(), crate::i18n::tf!("{} wasn't found.", tool.name()));
             note(ui, tool.how_to_get());
             note(ui, "Point Limoniter at it, or fetch it, on the Tools page.");
             false
@@ -503,7 +503,7 @@ fn tool_status(ui: &mut egui::Ui, found: &[(Tool, Option<PathBuf>)], tool: Tool)
 
 fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option<Act>) {
     let Some(source) = &state.source else {
-        ui.label("Open an Amiga program (it can be in hex), or choose one in a disk image's browser, then come back here.");
+        ui.label(crate::i18n::tr("Open an Amiga program (it can be in hex), or choose one in a disk image's browser, then come back here."));
         return;
     };
     file_line(ui, source, action);
@@ -511,7 +511,7 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         for tool in Tool::CRUNCHERS {
-            ui.radio_value(&mut state.cruncher, tool, tool.name());
+            ui.radio_value(&mut state.cruncher, tool, crate::i18n::tr(tool.name()));
         }
     });
     let ready = tool_status(ui, &state.found, state.cruncher);
@@ -523,28 +523,28 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
             if data_default && !s.data {
                 note(ui, "It isn't a program, so it can only be crunched as data (-d).");
             }
-            ui.checkbox(&mut s.data, "Data, not a program (-d)").on_hover_text("Crunch raw data, to decrunch with ShrinklerDecompress.S in your own code");
+            ui.checkbox(&mut s.data, crate::i18n::tr("Data, not a program (-d)")).on_hover_text(crate::i18n::tr("Crunch raw data, to decrunch with ShrinklerDecompress.S in your own code"));
             ui.add_enabled_ui(s.data, |ui| {
-                ui.checkbox(&mut s.data_header, "Write a header with the sizes (-w)");
+                ui.checkbox(&mut s.data_header, crate::i18n::tr("Write a header with the sizes (-w)"));
             });
             ui.add_enabled_ui(!s.data, |ui| {
-                ui.checkbox(&mut s.hunk_merge, "Merge hunks of the same memory type (-h)");
-                ui.checkbox(&mut s.overlap, "Overlap crunched and decrunched data, to save memory (-o)");
-                ui.checkbox(&mut s.mini, "Smaller, more restricted decrunch header (-m)");
-                ui.checkbox(&mut s.command_line, "Pass the command line on to the program (-c)");
+                ui.checkbox(&mut s.hunk_merge, crate::i18n::tr("Merge hunks of the same memory type (-h)"));
+                ui.checkbox(&mut s.overlap, crate::i18n::tr("Overlap crunched and decrunched data, to save memory (-o)"));
+                ui.checkbox(&mut s.mini, crate::i18n::tr("Smaller, more restricted decrunch header (-m)"));
+                ui.checkbox(&mut s.command_line, crate::i18n::tr("Pass the command line on to the program (-c)"));
                 ui.horizontal(|ui| {
-                    ui.label("Text before decrunching (-t):");
+                    ui.label(crate::i18n::tr("Text before decrunching (-t):"));
                     ui.text_edit_singleline(&mut s.text);
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Flash a register while decrunching (-f):");
-                    ui.add(egui::TextEdit::singleline(&mut s.flash).desired_width(80.0).hint_text("DFF180"));
+                    ui.label(crate::i18n::tr("Flash a register while decrunching (-f):"));
+                    ui.add(egui::TextEdit::singleline(&mut s.flash).desired_width(80.0).hint_text(crate::i18n::tr("DFF180")));
                 });
             });
-            ui.checkbox(&mut s.bytes, "No parity context, for byte-oriented data (-b)");
+            ui.checkbox(&mut s.bytes, crate::i18n::tr("No parity context, for byte-oriented data (-b)"));
             ui.horizontal(|ui| {
-                ui.label("Effort:");
-                egui::ComboBox::from_id_salt("shrinkler-preset").selected_text(format!("-{}", s.preset)).show_ui(ui, |ui| {
+                ui.label(crate::i18n::tr("Effort:"));
+                egui::ComboBox::from_id_salt("shrinkler-preset").selected_text(crate::i18n::tf!("-{}", s.preset)).show_ui(ui, |ui| {
                     for n in 1..=9u8 {
                         let label = match n {
                             1 => "-1 fastest".to_string(),
@@ -552,18 +552,18 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
                             9 => "-9 smallest (slow)".to_string(),
                             _ => format!("-{n}"),
                         };
-                        ui.selectable_value(&mut s.preset, n, label);
+                        ui.selectable_value(&mut s.preset, n, crate::i18n::tr(&label));
                     }
                 });
                 let mut iterations = s.iterations.is_some();
-                if ui.checkbox(&mut iterations, "iterations (-i)").changed() {
+                if ui.checkbox(&mut iterations, crate::i18n::tr("iterations (-i)")).changed() {
                     s.iterations = iterations.then_some(u32::from(s.preset));
                 }
                 if let Some(n) = &mut s.iterations {
                     ui.add(egui::DragValue::new(n).range(1..=99));
                 }
                 let mut references = s.references.is_some();
-                if ui.checkbox(&mut references, "references (-r)").changed() {
+                if ui.checkbox(&mut references, crate::i18n::tr("references (-r)")).changed() {
                     s.references = references.then_some(100_000);
                 }
                 if let Some(n) = &mut s.references {
@@ -573,12 +573,12 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
         }
         Tool::Cranker => {
             let c = &mut state.prefs.cranker;
-            ui.checkbox(&mut c.data, "Data, not a program (-cd)");
-            ui.checkbox(&mut c.fast, "Fast: crunches less (-1)");
+            ui.checkbox(&mut c.data, crate::i18n::tr("Data, not a program (-cd)"));
+            ui.checkbox(&mut c.fast, crate::i18n::tr("Fast: crunches less (-1)"));
             ui.add_enabled_ui(!c.data, |ui| {
-                ui.checkbox(&mut c.merge, "Merge hunks (-m; Cranker calls it dangerous)");
+                ui.checkbox(&mut c.merge, crate::i18n::tr("Merge hunks (-m; Cranker calls it dangerous)"));
                 ui.horizontal(|ui| {
-                    ui.label("While loading (-d):");
+                    ui.label(crate::i18n::tr("While loading (-d):"));
                     egui::ComboBox::from_id_salt("decranker").selected_text(c.decranker.clone()).show_ui(ui, |ui| {
                         for name in tools::DECRANKERS {
                             ui.selectable_value(&mut c.decranker, name.to_string(), name);
@@ -586,7 +586,7 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
                     });
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Text while loading (-t):");
+                    ui.label(crate::i18n::tr("Text while loading (-t):"));
                     ui.text_edit_singleline(&mut c.text);
                 });
             });
@@ -595,35 +595,35 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
     }
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.label("Save as:");
+        ui.label(crate::i18n::tr("Save as:"));
         ui.text_edit_singleline(&mut state.output_name);
     });
     let busy = state.job.is_some();
-    if ui.add_enabled(ready && !busy, Button::new(format!("Crunch with {}", state.cruncher.name()))).clicked() {
+    if ui.add_enabled(ready && !busy, Button::new(crate::i18n::tf!("Crunch with {}", state.cruncher.name()))).clicked() {
         *action = Some(Act::Crunch);
     }
 }
 
 fn music_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, target: Option<&str>, action: &mut Option<Act>) {
     let Some(source) = &state.source else {
-        ui.label("Open a ProTracker module (.mod, or mod.name), or choose one in a disk image's browser, then come back here.");
+        ui.label(crate::i18n::tr("Open a ProTracker module (.mod, or mod.name), or choose one in a disk image's browser, then come back here."));
         return;
     };
     file_line(ui, source, action);
     let Some(module) = &source.module else {
-        ui.colored_label(theme::rainbow_mistake(), "This isn't a ProTracker module.");
+        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("This isn't a ProTracker module."));
         return;
     };
     note(ui, format!("{}: {} channels, {} positions, {} patterns, {} samples.", if module.title.is_empty() { "Untitled" } else { &module.title }, module.channels, module.order.len(), module.patterns, module.used_samples().count()));
     if module.channels != 4 {
-        ui.colored_label(theme::rainbow_mistake(), "Both players play 4-channel modules only.");
+        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("Both players play 4-channel modules only."));
     }
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.label("Player:");
-        egui::ComboBox::from_id_salt("replay").selected_text(state.replay.name()).show_ui(ui, |ui| {
+        ui.label(crate::i18n::tr("Player:"));
+        egui::ComboBox::from_id_salt("replay").selected_text(crate::i18n::tr(state.replay.name())).show_ui(ui, |ui| {
             for replay in Replay::ALL {
-                ui.selectable_value(&mut state.replay, replay, replay.name());
+                ui.selectable_value(&mut state.replay, replay, crate::i18n::tr(replay.name()));
             }
         });
     });
@@ -642,17 +642,17 @@ fn music_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, target: Option<&str>
         ui.horizontal_wrapped(|ui| {
             let micro = state.replay == Replay::LspMicro;
             let insane = state.replay == Replay::LspInsane;
-            ui.add_enabled(!micro, egui::Checkbox::new(&mut l.getpos, "-getpos")).on_hover_text("LSP_MusicGetPos can say where in the song it is");
-            ui.add_enabled(!micro && !insane, egui::Checkbox::new(&mut l.setpos, "-setpos")).on_hover_text("LSP_MusicSetPos can jump to a position");
-            ui.checkbox(&mut l.shrink, "-shrink").on_hover_text("Leave out sample data that's never played");
-            ui.checkbox(&mut l.adpcm, "-adpcm").on_hover_text("A sample bank that packs to less than half (decoded when LSP starts)");
-            ui.checkbox(&mut l.fixed50hz, "-fixed50hz").on_hover_text("Plays at 50 Hz whatever the BPM, with no CIA timer");
-            ui.checkbox(&mut l.nosettempo, "-nosettempo").on_hover_text("For very old modules: Fxx above $20 isn't a tempo");
-            ui.checkbox(&mut l.nosampleoptim, "-nosampleoptim").on_hover_text("Keep the module's own sample layout");
-            ui.checkbox(&mut l.preview_wav, "-amigapreview").on_hover_text("Also write a WAV of how LSP will sound on the Amiga");
+            ui.add_enabled(!micro, egui::Checkbox::new(&mut l.getpos, "-getpos")).on_hover_text(crate::i18n::tr("LSP_MusicGetPos can say where in the song it is"));
+            ui.add_enabled(!micro && !insane, egui::Checkbox::new(&mut l.setpos, "-setpos")).on_hover_text(crate::i18n::tr("LSP_MusicSetPos can jump to a position"));
+            ui.checkbox(&mut l.shrink, crate::i18n::tr("-shrink")).on_hover_text(crate::i18n::tr("Leave out sample data that's never played"));
+            ui.checkbox(&mut l.adpcm, crate::i18n::tr("-adpcm")).on_hover_text(crate::i18n::tr("A sample bank that packs to less than half (decoded when LSP starts)"));
+            ui.checkbox(&mut l.fixed50hz, crate::i18n::tr("-fixed50hz")).on_hover_text(crate::i18n::tr("Plays at 50 Hz whatever the BPM, with no CIA timer"));
+            ui.checkbox(&mut l.nosettempo, crate::i18n::tr("-nosettempo")).on_hover_text(crate::i18n::tr("For very old modules: Fxx above $20 isn't a tempo"));
+            ui.checkbox(&mut l.nosampleoptim, crate::i18n::tr("-nosampleoptim")).on_hover_text(crate::i18n::tr("Keep the module's own sample layout"));
+            ui.checkbox(&mut l.preview_wav, crate::i18n::tr("-amigapreview")).on_hover_text(crate::i18n::tr("Also write a WAV of how LSP will sound on the Amiga"));
         });
         note(ui, "LSPConvert writes the .lsmusic (the score) and .lsbank (the samples, for chip memory) beside the module, and for insane mode the player's source too.");
-        if ui.add_enabled(ready && state.job.is_none(), Button::new("Convert with LSPConvert")).clicked() {
+        if ui.add_enabled(ready && state.job.is_none(), Button::new(crate::i18n::tr("Convert with LSPConvert"))).clicked() {
             *action = Some(Act::Convert);
         }
     }
@@ -665,20 +665,20 @@ fn music_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, target: Option<&str>
     ui.horizontal(|ui| {
         match target {
             Some(name) => {
-                if ui.button(format!("Insert into {name}")).on_hover_text("At the cursor, as one change to undo").clicked() {
+                if ui.button(crate::i18n::tf!("Insert into {name}")).on_hover_text(crate::i18n::tr("At the cursor, as one change to undo")).clicked() {
                     *action = Some(Act::Insert(snippet.clone()));
                 }
             }
             None => note(ui, "Open 68000 source to insert them into it."),
         }
-        if ui.button("Copy").clicked() {
+        if ui.button(crate::i18n::tr("Copy")).clicked() {
             *action = Some(Act::Copy(snippet.clone()));
         }
     });
 }
 
 fn tool_status_p61(ui: &mut egui::Ui, found: &[(Tool, Option<PathBuf>)]) {
-    ui.colored_label(theme::rainbow_mistake(), "P61Con runs only on an Amiga.");
+    ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("P61Con runs only on an Amiga."));
     note(ui, Tool::P61Con.how_to_get());
     if let Some(path) = self::found(found, Tool::P61Con) {
         note(ui, format!("There's a copy at {}, to copy to the Amiga (or the emulator's hard disk folder).", path.display()));
@@ -702,13 +702,13 @@ fn tools_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option<
             None => note(ui, format!("Not found. {}", tool.how_to_get())),
         }
         ui.horizontal(|ui| {
-            if ui.small_button("Choose\u{2026}").on_hover_text("Point Limoniter at the program").clicked() {
+            if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Point Limoniter at the program")).clicked() {
                 *action = Some(Act::Choose(tool));
             }
-            if state.prefs.path(tool).is_some() && ui.small_button("Forget").on_hover_text("Go back to looking where it's usually installed").clicked() {
+            if state.prefs.path(tool).is_some() && ui.small_button(crate::i18n::tr("Forget")).on_hover_text(crate::i18n::tr("Go back to looking where it's usually installed")).clicked() {
                 *action = Some(Act::Forget(tool));
             }
-            if tool.release().is_some() && ui.add_enabled(state.downloading.is_none(), Button::new("Download its release").small()).on_hover_text(tool.release().map_or("", |r| r.0)).clicked() {
+            if tool.release().is_some() && ui.add_enabled(state.downloading.is_none(), Button::new(crate::i18n::tr("Download its release")).small()).on_hover_text(tool.release().map_or("", |r| r.0)).clicked() {
                 *action = Some(Act::Download(tool));
             }
         });
@@ -716,9 +716,9 @@ fn tools_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option<
     }
     ui.separator();
     ui.horizontal(|ui| {
-        ui.label("After F9 builds an Amiga program, crunch a copy with:");
+        ui.label(crate::i18n::tr("After F9 builds an Amiga program, crunch a copy with:"));
         egui::ComboBox::from_id_salt("after-build").selected_text(state.prefs.after_build.map_or("Nothing", Tool::name)).show_ui(ui, |ui| {
-            ui.selectable_value(&mut state.prefs.after_build, None, "Nothing");
+            ui.selectable_value(&mut state.prefs.after_build, None, crate::i18n::tr("Nothing"));
             for tool in Tool::CRUNCHERS {
                 ui.selectable_value(&mut state.prefs.after_build, Some(tool), tool.name());
             }

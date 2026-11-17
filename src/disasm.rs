@@ -759,7 +759,7 @@ pub fn disassemble_checked(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) 
 pub fn disassemble_checked_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88: bool) -> String {
     let mut source = disassemble_for(cpu, bytes, origin, starts, z88);
     for _ in 0..8 {
-        let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("disassembly.asm"), &source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("disassembly.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
         let mut changed = false;
         let image = |placed: &crate::asm::Placed| placed.bytes.clone();
@@ -815,7 +815,7 @@ mod tests {
         assert!(source.contains("; os_bye"));
         let after_bye: Vec<&str> = source.lines().skip_while(|l| !l.contains("os_bye")).skip(1).collect();
         assert!(after_bye.iter().all(|l| l.trim_start().starts_with("db ")), "nothing after OS_Bye is taken for code: {after_bye:?}");
-        let assembly = crate::asm::assemble(Cpu::Z80.isa(), std::path::Path::new("z88.asm"), &source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(Cpu::Z80.isa(), std::path::Path::new("z88.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         let bytes: Vec<u8> = assembly.lines.iter().flat_map(|l| l.bytes.clone()).collect();
         assert_eq!(bytes, program);
         assert!(!disassemble_checked(Cpu::Z80, &program, 0x2000, &[0x2000]).contains("os_out"), "only for a Z88");
@@ -824,7 +824,7 @@ mod tests {
         fn round_trip(cpu: Cpu, bytes: &[u8], origin: u16) -> String {
         // Every byte taken as code: each instruction followed by the next.
         let source = disassemble_checked(cpu, bytes, origin, &[origin]);
-        let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("t.asm"), &source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("t.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}\n{source}", assembly.problems.first());
         assert_eq!(assembly.image(i64::from(origin), i64::from(origin) + bytes.len() as i64), bytes, "{source}");
         source
@@ -842,7 +842,7 @@ mod tests {
                 at += d.length;
             }
             let source = format!("  org $8000\n{}\n", lines.iter().map(|l| format!("  {l}")).collect::<Vec<_>>().join("\n"));
-            let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), &source, &|_| Err("no".into()));
+            let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
             assert!(assembly.ok(), "{name}: {:?}", assembly.problems.first().map(|p| (p, source.lines().nth(p.line))));
             let back = assembly.image(0x8000, 0x8000 + binary.len() as i64);
             let first = back.iter().zip(binary.iter()).position(|(a, b)| a != b);
@@ -863,7 +863,7 @@ mod tests {
             at += d.length;
         }
         let source = format!("  * = $1000\n{}\n", lines.iter().map(|l| format!("  {l}")).collect::<Vec<_>>().join("\n"));
-        let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("t.asm"), &source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("t.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems.first().map(|p| (p, source.lines().nth(p.line))));
         let back = assembly.image(0x1000, 0x1000 + binary.len() as i64);
         let first = back.iter().zip(binary.iter()).position(|(a, b)| a != b);
@@ -882,7 +882,7 @@ mod tests {
             at += d.length;
         }
         let source = format!(" org $3000\n{}\n", lines.iter().map(|l| format!(" {l}")).collect::<Vec<_>>().join("\n"));
-        let assembly = crate::asm::assemble(&crate::asm::m6809::M6809, std::path::Path::new("t.asm"), &source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::m6809::M6809, std::path::Path::new("t.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems.first().map(|p| (p, source.lines().nth(p.line))));
         let back = assembly.image(0x3000, 0x3000 + binary.len() as i64);
         let first = back.iter().zip(binary.iter()).position(|(a, b)| a != b);
@@ -898,7 +898,7 @@ mod tests {
         let rom = include_bytes!("../vendor/rustzx-core/src/zx/roms/48.rom");
         let starts: Vec<u16> = (0..8).map(|n| n * 8).chain([0x66]).collect();
         let source = disassemble_checked(Cpu::Z80, rom, 0, &starts);
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("rom.asm"), &source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("rom.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems.first());
         let back = assembly.image(0, 0x4000);
         if let Some(first) = back.iter().zip(rom.iter()).position(|(a, b)| a != b) {

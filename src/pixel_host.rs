@@ -11,7 +11,7 @@ fn load_into(editor: &mut Editor, path: &Path, bytes: &[u8]) -> Result<(), Strin
     let kind = editor.sheet.kind;
     let colours = editor.sheet.colours;
     if ending == "spd" {
-        let sheet = Sheet::from_spd(bytes).ok_or_else(|| format!("{} isn't a SpritePad file Limoniter knows.", path.display()))?;
+        let sheet = Sheet::from_spd(bytes).ok_or_else(|| crate::i18n::tf!("{} isn't a SpritePad file Limoniter knows.", path.display()))?;
         *editor = Editor::new(sheet.kind);
         editor.sheet = sheet;
         return Ok(());
@@ -41,7 +41,7 @@ impl Limoniter {
         let spectrum_basic = !self.no_file() && self.docs[self.active].text.zx.is_some();
         let mut open = true;
         let mut asked = None;
-        egui::Window::new("Characters and sprites").open(&mut open).resizable(false).default_pos([200.0, 120.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Characters and sprites")).open(&mut open).resizable(false).default_pos([200.0, 120.0]).show(ctx, |ui| {
             asked = editor.draw(ui, spectrum_basic);
         });
         if !open {
@@ -54,14 +54,14 @@ impl Limoniter {
         match asked {
             Asked::Close => return,
             Asked::Load => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Open characters or sprites").add_filter("UDGs, fonts and sprites", &["udg", "chr", "ch8", "fnt", "spr", "bin", "prg", "64c", "spd"]).add_filter("Any file", &["*"]).pick_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open characters or sprites")).add_filter(crate::i18n::tr("UDGs, fonts and sprites"), &["udg", "chr", "ch8", "fnt", "spr", "bin", "prg", "64c", "spd"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     match std::fs::read(&path) {
                         Ok(bytes) => {
                             if let Err(problem) = load_into(&mut editor, &path, &bytes) {
                                 self.message("Characters and sprites", problem);
                             }
                         }
-                        Err(e) => self.message("Characters and sprites", format!("Couldn't read {}.\n\n{e}", path.display())),
+                        Err(e) => self.message("Characters and sprites", crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display())),
                     }
                 }
             }
@@ -73,7 +73,7 @@ impl Limoniter {
                     Kind::C64Sprites | Kind::C64MultiSprites => ("C64 sprites", &["bin", "prg", "spd"]),
                     _ => ("C64 characters", &["bin", "prg", "64c"]),
                 };
-                if let Some(path) = rfd::FileDialog::new().set_title("Save the characters or sprites").set_file_name(format!("{}.{}", editor.label, endings[0])).add_filter(filter, endings).save_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the characters or sprites")).set_file_name(format!("{}.{}", editor.label, endings[0])).add_filter(filter, endings).save_file() {
                     let ending = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
                     let bytes = match ending.as_str() {
                         "prg" | "64c" if kind.c64() => editor.prg(),
@@ -81,7 +81,7 @@ impl Limoniter {
                         _ => editor.sheet.to_bytes(),
                     };
                     if let Err(e) = codec::write_file(&path, &bytes) {
-                        self.message("Characters and sprites", format!("Couldn't save {}.\n\n{e}", path.display()));
+                        self.message("Characters and sprites", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
                     }
                 }
             }
@@ -125,7 +125,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new("Spectrum screen").open(&mut open).resizable(false).default_pos([160.0, 80.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Spectrum screen")).open(&mut open).resizable(false).default_pos([160.0, 80.0]).show(ctx, |ui| {
             asked = designer.draw(ui);
         });
         if !open {
@@ -134,37 +134,45 @@ impl Limoniter {
         match asked {
             Some(Asked::Close) => return,
             Some(Asked::Open) => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Open a screen or a picture").add_filter("Spectrum screens and pictures", &["scr", "png"]).add_filter("Any file", &["*"]).pick_file() {
-                    let read = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| {
-                        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) {
-                            crate::screen_designer::read_png(&bytes).map(|(w, h, rgba)| Screen::from_picture(w, h, &rgba))
-                        } else {
-                            Screen::from_scr(&bytes).ok_or_else(|| "It isn't a Spectrum screen: those are 6912 bytes.".into())
-                        }
-                    });
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a Spectrum screen")).add_filter(crate::i18n::tr("Spectrum screens"), &["scr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                    let read = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| Screen::from_scr(&bytes).ok_or_else(|| "It isn't a Spectrum screen: those are 6912 bytes (or 6144 without colours).".to_string()));
                     match read {
                         Ok(screen) => {
                             designer.remember();
                             designer.screen = screen;
                         }
-                        Err(problem) => self.message("Spectrum screen", format!("Couldn't open {}.\n\n{problem}", path.display())),
+                        Err(problem) => self.message("Spectrum screen", crate::i18n::tf!("Couldn't open {}.\n\n{problem}", path.display())),
+                    }
+                }
+            }
+            Some(Asked::BringIn) => {
+                self.screen_designer = Some(designer);
+                self.bring_picture_to_designer();
+                return;
+            }
+            Some(Asked::SaveTap) => {
+                let scr = designer.screen.to_scr();
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen as a tape")).set_file_name("screen.tap").add_filter(crate::i18n::tr("Spectrum tape"), &["tap"]).save_file() {
+                    let name = path.file_stem().map_or_else(|| "screen".to_string(), |s| s.to_string_lossy().into_owned());
+                    if let Err(e) = codec::write_file(&path, &crate::retro_convert::spectrum_tape(&name, &scr)) {
+                        self.message("Spectrum screen", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
                     }
                 }
             }
             Some(Asked::Save) => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Save the screen").set_file_name("screen.scr").add_filter("Spectrum screen", &["scr"]).save_file()
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen")).set_file_name("screen.scr").add_filter(crate::i18n::tr("Spectrum screen"), &["scr"]).save_file()
                     && let Err(e) = codec::write_file(&path, &designer.screen.to_scr())
                 {
-                    self.message("Spectrum screen", format!("Couldn't save {}.\n\n{e}", path.display()));
+                    self.message("Spectrum screen", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
                 }
             }
             Some(Asked::SavePng) => {
                 let picture = crate::pictures::decode(crate::pictures::Format::SpectrumScreen, &designer.screen.to_scr());
                 if let Ok(png) = picture.and_then(|p| crate::pictures::to_png(&p))
-                    && let Some(path) = rfd::FileDialog::new().set_title("Save the screen as PNG").set_file_name("screen.png").add_filter("PNG picture", &["png"]).save_file()
+                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen as PNG")).set_file_name("screen.png").add_filter(crate::i18n::tr("PNG picture"), &["png"]).save_file()
                     && let Err(e) = codec::write_file(&path, &png)
                 {
-                    self.message("Spectrum screen", format!("Couldn't save {}.\n\n{e}", path.display()));
+                    self.message("Spectrum screen", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
                 }
             }
             None => {}
@@ -201,10 +209,10 @@ impl Limoniter {
         let folder = terminal.folder.display().to_string();
         Panel::bottom("terminal-panel").default_size(240.0).resizable(true).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("Terminal, in {folder}")).color(theme::text_dim()).size(12.5));
+                ui.label(RichText::new(crate::i18n::tf!("Terminal, in {folder}")).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = crate::access::called(ui.small_button("\u{D7}"), "Close").on_hover_text("Close it, ending the shell").clicked();
-                    restart = ui.small_button("Restart").on_hover_text("A fresh shell").clicked();
+                    close = crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Close").on_hover_text(crate::i18n::tr("Close it, ending the shell")).clicked();
+                    restart = ui.small_button(crate::i18n::tr("Restart")).on_hover_text(crate::i18n::tr("A fresh shell")).clicked();
                 });
             });
             crate::terminal::draw(ui, terminal, font_size);

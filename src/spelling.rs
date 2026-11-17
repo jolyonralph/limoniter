@@ -164,7 +164,7 @@ mod pipe_checker {
                 }
                 return Ok(Self { _child: child, input, output });
             }
-            Err("Spell checking here uses hunspell or aspell, and neither is installed. Install either one, with an English dictionary, and start Limoniter again.".into())
+            Err(crate::i18n::tr("Spell checking here uses hunspell or aspell, and neither is installed. Install either one, with an English dictionary, and start Limoniter again.").into())
         }
 
         fn send(&mut self, line: &str) -> std::io::Result<()> {
@@ -258,7 +258,7 @@ mod windows_checker {
             // SAFETY: this thread is the checker's own, and it's set up for COM once, before anything else uses it.
             unsafe {
                 let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-                let factory: ISpellCheckerFactory = CoCreateInstance(&SpellCheckerFactory, None, CLSCTX_INPROC_SERVER).map_err(|e| format!("Windows' spell checker isn't available: {e}"))?;
+                let factory: ISpellCheckerFactory = CoCreateInstance(&SpellCheckerFactory, None, CLSCTX_INPROC_SERVER).map_err(|e| crate::i18n::tf!("Windows' spell checker isn't available: {e}"))?;
                 let mut name = [0u16; 85];
                 let length = GetUserDefaultLocaleName(&mut name);
                 let mut wanted = vec![String::from_utf16_lossy(&name[..(length.max(1) as usize - 1)])];
@@ -271,7 +271,7 @@ mod windows_checker {
                         return Ok(Self { inner });
                     }
                 }
-                Err("Windows has no spelling dictionary for its language. One can be added in Windows Settings, under Time and language.".into())
+                Err(crate::i18n::tr("Windows has no spelling dictionary for its language. One can be added in Windows Settings, under Time and language.").into())
             }
         }
 

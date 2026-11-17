@@ -140,7 +140,7 @@ impl Table {
             bits.skip(8);
             let length = (bits.sum & 0xFF) + 1;
             if length > 16 {
-                return Err("a Huffman table has a code longer than 16 bits".into());
+                return Err(crate::i18n::tr("a Huffman table has a code longer than 16 bits").into());
             }
             bits.skip(16);
             let sequence = (bits.sum & 0xFFFF) << 16;
@@ -166,7 +166,7 @@ fn correct(data: &[u8], start: usize, tables: usize, width: usize, height: usize
     let (mut plane, mut row, mut column, mut count) = (0usize, 0usize, 0usize, 0usize);
     loop {
         if bits.ended {
-            return Err("the corrections stop before the last row".into());
+            return Err(crate::i18n::tr("the corrections stop before the last row").into());
         }
         if bits.is_sync() {
             bits.skip(16);
@@ -180,7 +180,7 @@ fn correct(data: &[u8], start: usize, tables: usize, width: usize, height: usize
             (plane, count) = match kind {
                 0 => (0, width),
                 2 | 3 => (kind - 1, width / 2),
-                _ => return Err("a sync mark names a channel that isn't one".into()),
+                _ => return Err(crate::i18n::tr("a sync mark names a channel that isn't one").into()),
             };
             column = 0;
             continue;
@@ -216,7 +216,7 @@ type Channels = (Vec<u8>, Vec<u8>, Vec<u8>);
 fn read_whole(data: &[u8], sector: usize, width: usize, height: usize) -> Result<Channels, String> {
     let size = width * height * 3 / 2;
     let start = sector * SECTOR;
-    let whole = data.get(start..start + size).ok_or("The image pack is too short to hold its photo.")?;
+    let whole = data.get(start..start + size).ok_or(crate::i18n::tr("The image pack is too short to hold its photo."))?;
     let (mut luma, mut c1, mut c2) = (Vec::with_capacity(width * height), Vec::with_capacity(size / 6), Vec::with_capacity(size / 6));
     for pair in whole.chunks_exact(width * 3) {
         luma.extend_from_slice(&pair[..width * 2]);
@@ -229,7 +229,7 @@ fn read_whole(data: &[u8], sector: usize, width: usize, height: usize) -> Result
 /// The photo as PhotoYCC at the largest size the pack holds, the right way up.
 pub fn decode_ycc(data: &[u8]) -> Result<Ycc, String> {
     if !looks_like(data) {
-        return Err("This isn't a Photo CD image pack.".into());
+        return Err(crate::i18n::tr("This isn't a Photo CD image pack.").into());
     }
     let (mut luma, mut c1, mut c2) = read_whole(data, 96, BASE_WIDTH, BASE_HEIGHT)?;
     let (mut width, mut height) = (BASE_WIDTH, BASE_HEIGHT);

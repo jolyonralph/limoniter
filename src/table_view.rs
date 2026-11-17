@@ -202,11 +202,11 @@ impl Limoniter {
         let ending = doc.path.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).is_some_and(is_table_ending);
         Panel::top("table-offer").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("This looks like {name}-separated data.")).strong());
-                show = ui.button("Show it as a table").clicked();
-                dismiss = ui.button("No thanks").clicked();
+                ui.label(RichText::new(crate::i18n::tf!("This looks like {name}-separated data.")).strong());
+                show = ui.button(crate::i18n::tr("Show it as a table")).clicked();
+                dismiss = ui.button(crate::i18n::tr("No thanks")).clicked();
                 if ending {
-                    always = ui.button("Always open .csv and .tsv files as tables").on_hover_text("Also in Settings, under Files").clicked();
+                    always = ui.button(crate::i18n::tr("Always open .csv and .tsv files as tables")).on_hover_text(crate::i18n::tr("Also in Settings, under Files")).clicked();
                 }
             });
         });
@@ -265,7 +265,7 @@ impl Limoniter {
         }
         let Some(index) = state.index.clone() else {
             let share = working.map_or(0.0, |(_, share)| share);
-            ui.centered_and_justified(|ui| ui.label(format!("Reading the records\u{2026} {:.0}%", share * 100.0)));
+            ui.centered_and_justified(|ui| ui.label(crate::i18n::tf!("Reading the records\u{2026} {:.0}%", share * 100.0)));
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
             return;
         };
@@ -375,11 +375,11 @@ impl Limoniter {
         // ---------- The bar above the table ----------
         egui::Frame::new().inner_margin(egui::Margin { left: 8, right: 8, top: 6, bottom: 6 }).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Separated by");
+                ui.label(crate::i18n::tr("Separated by"));
                 let mut chosen = delimiter;
                 egui::ComboBox::from_id_salt("table-delimiter").width(110.0).selected_text(table::DELIMITERS.iter().find(|(_, d)| *d == delimiter).map_or("?", |(n, _)| n)).show_ui(ui, |ui| {
                     for (name, d) in table::DELIMITERS {
-                        ui.selectable_value(&mut chosen, d, name);
+                        ui.selectable_value(&mut chosen, d, crate::i18n::tr(name));
                     }
                 });
                 if chosen != delimiter {
@@ -387,13 +387,13 @@ impl Limoniter {
                     state.widths.clear();
                     state.order = None;
                 }
-                ui.checkbox(&mut state.dialect.header, "First row is headings");
-                ui.checkbox(&mut state.frozen, "Keep the first column in view").on_hover_text("When the table is scrolled sideways");
-                ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text("Show rows containing\u{2026}").desired_width(200.0));
+                ui.checkbox(&mut state.dialect.header, crate::i18n::tr("First row is headings"));
+                ui.checkbox(&mut state.frozen, crate::i18n::tr("Keep the first column in view")).on_hover_text(crate::i18n::tr("When the table is scrolled sideways"));
+                ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Show rows containing\u{2026}")).desired_width(200.0));
                 let total = records.len() - first_data;
                 ui.label(RichText::new(if shown.len() == total { format!("{total} rows, {columns} columns") } else { format!("{} of {total} rows", shown.len()) }).color(theme::text_dim()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Show as text").clicked() {
+                    if ui.button(crate::i18n::tr("Show as text")).clicked() {
                         action = Some(Action::TextView);
                     }
                 });
@@ -401,23 +401,23 @@ impl Limoniter {
             ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.add_enabled_ui(!read_only, |ui| {
-                    if ui.small_button("Insert row").on_hover_text("An empty row below this one").clicked() {
+                    if ui.small_button(crate::i18n::tr("Insert row")).on_hover_text(crate::i18n::tr("An empty row below this one")).clicked() {
                         action = Some(Action::InsertRow);
                     }
-                    if ui.add_enabled(!shown.is_empty(), egui::Button::new("Delete row").small()).clicked() {
+                    if ui.add_enabled(!shown.is_empty(), egui::Button::new(crate::i18n::tr("Delete row")).small()).clicked() {
                         action = Some(Action::DeleteRow);
                     }
-                    if ui.small_button("Insert column").on_hover_text("An empty column before this one").clicked() {
+                    if ui.small_button(crate::i18n::tr("Insert column")).on_hover_text(crate::i18n::tr("An empty column before this one")).clicked() {
                         action = Some(Action::InsertColumn);
                     }
-                    if ui.add_enabled(columns > 1, egui::Button::new("Delete column").small()).clicked() {
+                    if ui.add_enabled(columns > 1, egui::Button::new(crate::i18n::tr("Delete column")).small()).clicked() {
                         action = Some(Action::DeleteColumn);
                     }
-                    if ui.small_button("Sort the file by this column").on_hover_text("Puts the rows of the file itself in order. Clicking a heading only changes how they're shown.").clicked() {
+                    if ui.small_button(crate::i18n::tr("Sort the file by this column")).on_hover_text(crate::i18n::tr("Puts the rows of the file itself in order. Clicking a heading only changes how they're shown.")).clicked() {
                         action = Some(Action::SortFile);
                     }
                 });
-                ui.label(RichText::new(&figures).color(theme::text_dim())).on_hover_text("Double-click or type to change a cell; Enter keeps it, Esc doesn't. Shift and the arrow keys, or dragging, select a block to copy, paste over or clear.");
+                ui.label(RichText::new(&figures).color(theme::text_dim())).on_hover_text(crate::i18n::tr("Double-click or type to change a cell; Enter keeps it, Esc doesn't. Shift and the arrow keys, or dragging, select a block to copy, paste over or clear."));
             });
         });
 
@@ -578,10 +578,10 @@ impl Limoniter {
                 if response.clicked() {
                     heading_clicked = Some(column);
                 }
-                response.on_hover_text("Click to show the rows in order of this column; again for the other way; a third time as in the file.");
+                response.on_hover_text(crate::i18n::tr("Click to show the rows in order of this column; again for the other way; a third time as in the file."));
                 // The edge of a heading can be dragged to make the column wider or narrower, or double-clicked to fit.
                 let edge = Rect::from_center_size(egui::pos2(rect.right(), rect.center().y), egui::vec2(8.0, row_height));
-                let drag = ui.interact(edge, focus_id.with(("edge", column)), Sense::click_and_drag()).on_hover_cursor(egui::CursorIcon::ResizeHorizontal).on_hover_text("Drag to change the width; double-click to fit what's in it");
+                let drag = ui.interact(edge, focus_id.with(("edge", column)), Sense::click_and_drag()).on_hover_cursor(egui::CursorIcon::ResizeHorizontal).on_hover_text(crate::i18n::tr("Drag to change the width; double-click to fit what's in it"));
                 if drag.dragged() {
                     dragged = Some((column, (widths[column] + drag.drag_delta().x).max(MIN_WIDTH)));
                 }
@@ -708,7 +708,7 @@ impl Limoniter {
         });
         state.scrolled = now_scrolled;
         if shown.is_empty() {
-            ui.label(RichText::new(if records.len() > first_data { "No rows contain that." } else { "There are no rows yet. Insert row adds one." }).color(theme::text_dim()));
+            ui.label(RichText::new(if records.len() > first_data { crate::i18n::tr("No rows contain that.") } else { crate::i18n::tr("There are no rows yet. Insert row adds one.") }).color(theme::text_dim()));
         }
 
         if let Some((column, width)) = dragged {

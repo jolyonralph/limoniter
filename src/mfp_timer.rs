@@ -127,34 +127,34 @@ impl Calculator {
     pub fn draw(&mut self, ui: &mut Ui) -> Option<Asked> {
         let mut asked = None;
         ui.horizontal(|ui| {
-            ui.label("Timer");
+            ui.label(crate::i18n::tr("Timer"));
             for timer in Timer::ALL {
                 ui.selectable_value(&mut self.timer, timer, timer.letter().to_string());
             }
-            ui.label(format!("(vector ${:03X})", self.timer.vector()));
+            ui.label(crate::i18n::tf!("(vector ${:03X})", self.timer.vector()));
         });
         if self.timer == Timer::B {
             ui.horizontal(|ui| {
-                ui.radio_value(&mut self.event, false, "At a rate");
-                ui.radio_value(&mut self.event, true, "Every so many display lines");
+                ui.radio_value(&mut self.event, false, crate::i18n::tr("At a rate"));
+                ui.radio_value(&mut self.event, true, crate::i18n::tr("Every so many display lines"));
             });
         }
         let found = match self.want() {
             Want::Lines(_) => {
                 ui.horizontal(|ui| {
-                    ui.label("An interrupt every");
+                    ui.label(crate::i18n::tr("An interrupt every"));
                     ui.add(egui::DragValue::new(&mut self.lines).range(1..=256));
-                    ui.label("lines");
+                    ui.label(crate::i18n::tr("lines"));
                 });
-                ui.label(RichText::new("Event count mode counts the display's lines (its display-enable signal), so it only counts where the picture is; the first interrupt comes that many lines into the picture. Reload the count in the VBL handler each frame.").small());
+                ui.label(RichText::new(crate::i18n::tr("Event count mode counts the display's lines (its display-enable signal), so it only counts where the picture is; the first interrupt comes that many lines into the picture. Reload the count in the VBL handler each frame.")).small());
                 let data = if self.lines >= 256 { 0 } else { self.lines as u8 };
                 vec![(8u8, data, 0.0, 0.0)]
             }
             Want::Rate(_) => {
                 ui.horizontal(|ui| {
-                    ui.label("Wanted rate");
+                    ui.label(crate::i18n::tr("Wanted rate"));
                     ui.add(egui::DragValue::new(&mut self.hz).range(0.01..=614_400.0).speed(1.0).max_decimals(3));
-                    ui.label("Hz");
+                    ui.label(crate::i18n::tr("Hz"));
                     for (hz, what) in [(50.0, "50 Hz"), (200.0, "200 Hz"), (12_517.0, "12.5 kHz"), (440.0, "A440")] {
                         if ui.small_button(what).clicked() {
                             self.hz = hz;
@@ -164,23 +164,23 @@ impl Calculator {
                 });
                 let found = st_hw::timer_settings(self.hz);
                 if found.is_empty() {
-                    ui.label("No setting gives that rate: the MFP's timers go from 48 Hz-ish (200 x 256) up to 614.4 kHz.");
+                    ui.label(crate::i18n::tr("No setting gives that rate: the MFP's timers go from 48 Hz-ish (200 x 256) up to 614.4 kHz."));
                 }
                 egui::Grid::new("mfp-timer-settings").striped(true).num_columns(5).show(ui, |ui| {
-                    ui.label(RichText::new("Control").strong());
-                    ui.label(RichText::new("Divider").strong());
-                    ui.label(RichText::new("Data").strong());
-                    ui.label(RichText::new("Real rate").strong());
-                    ui.label(RichText::new("Error").strong());
+                    ui.label(RichText::new(crate::i18n::tr("Control")).strong());
+                    ui.label(RichText::new(crate::i18n::tr("Divider")).strong());
+                    ui.label(RichText::new(crate::i18n::tr("Data")).strong());
+                    ui.label(RichText::new(crate::i18n::tr("Real rate")).strong());
+                    ui.label(RichText::new(crate::i18n::tr("Error")).strong());
                     ui.end_row();
                     for (i, (control, data, rate, error)) in found.iter().enumerate() {
-                        if ui.selectable_label(self.chosen == i, format!("{control}")).clicked() {
+                        if ui.selectable_label(self.chosen == i, crate::i18n::tf!("{control}")).clicked() {
                             self.chosen = i;
                         }
-                        ui.label(format!("{}", PRESCALERS[*control as usize - 1]));
-                        ui.label(format!("{data} ({})", if *data == 0 { 256 } else { *data as u32 }));
-                        ui.label(format!("{rate:.3} Hz"));
-                        ui.label(format!("{error:+.3}%"));
+                        ui.label(crate::i18n::tf!("{}", PRESCALERS[*control as usize - 1]));
+                        ui.label(crate::i18n::tf!("{data} ({})", if *data == 0 { 256 } else { *data as u32 }));
+                        ui.label(crate::i18n::tf!("{rate:.3} Hz"));
+                        ui.label(crate::i18n::tf!("{error:+.3}%"));
                         ui.end_row();
                     }
                 });
@@ -195,13 +195,13 @@ impl Calculator {
         };
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label("Handler");
+            ui.label(crate::i18n::tr("Handler"));
             ui.add(egui::TextEdit::singleline(&mut self.handler).desired_width(120.0).font(egui::TextStyle::Monospace));
-            if ui.button("Put the register writes in at the cursor").on_hover_text("In supervisor mode, with interrupts off (move.w #$2700,sr) while they're made").clicked() {
+            if ui.button(crate::i18n::tr("Put the register writes in at the cursor")).on_hover_text(crate::i18n::tr("In supervisor mode, with interrupts off (move.w #$2700,sr) while they're made")).clicked() {
                 asked = Some(Asked::Insert(source(self.timer, control, data, &self.handler, &said)));
             }
         });
-        ui.label(RichText::new("The handler ends by clearing its in-service bit (TOS runs the MFP in software end-of-interrupt mode), then RTE.").small());
+        ui.label(RichText::new(crate::i18n::tr("The handler ends by clearing its in-service bit (TOS runs the MFP in software end-of-interrupt mode), then RTE.")).small());
         asked
     }
 }

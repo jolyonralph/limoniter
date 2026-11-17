@@ -52,7 +52,7 @@ impl Side {
 
     /// The same place in a Git revision: the repository a folder or file is in, at that revision.
     pub fn git_of(path: &Path, revision: &str) -> Result<Side, String> {
-        let repo = crate::git::repository_of(path).ok_or_else(|| format!("{} isn't in a Git repository.", path.display()))?;
+        let repo = crate::git::repository_of(path).ok_or_else(|| crate::i18n::tf!("{} isn't in a Git repository.", path.display()))?;
         let folder = crate::git::relative(&repo, path).unwrap_or_default();
         Ok(Side::Git { repo, revision: revision.to_string(), folder })
     }
@@ -165,7 +165,7 @@ const READ_ONLY: &str = "This side can only be read.";
 /// Windows, a colon, which could name a drive), so nothing is ever written outside the side being written to.
 pub fn safe_path(path: &str) -> Result<(), String> {
     let fine = !path.is_empty() && path.split('/').all(|part| !part.is_empty() && part != "." && part != ".." && !part.contains(['\\', '\0']) && !(cfg!(windows) && part.contains(':')));
-    if fine { Ok(()) } else { Err(format!("\u{201C}{path}\u{201D} isn't a path inside the folder, so it was left alone.")) }
+    if fine { Ok(()) } else { Err(crate::i18n::tf!("\u{201C}{path}\u{201D} isn't a path inside the folder, so it was left alone.")) }
 }
 
 /// Opens a side, ready to list. A server is connected to here, so this can take a while.
@@ -173,7 +173,7 @@ pub fn open_tree(side: &Side, known: &remote::KnownHosts) -> Result<Arc<dyn Tree
     match side {
         Side::Folder(root) => {
             if !root.is_dir() {
-                return Err(format!("{} isn't a folder.", root.display()));
+                return Err(crate::i18n::tf!("{} isn't a folder.", root.display()));
             }
             Ok(Arc::new(LocalTree { root: root.clone() }))
         }
@@ -211,7 +211,7 @@ impl LocalTree {
             at.push(part);
             if std::fs::symlink_metadata(&at).is_ok_and(|meta| meta.file_type().is_symlink()) {
                 let what = if n + 1 == parts.len() { "is a link" } else { "goes through a link" };
-                return Err(format!("{path} {what}, which could lead outside the folder, so it was left alone."));
+                return Err(crate::i18n::tf!("{path} {what}, which could lead outside the folder, so it was left alone."));
             }
         }
         Ok(at)
@@ -222,7 +222,7 @@ impl Tree for LocalTree {
     fn list(&self, folder: &str) -> Result<Vec<Item>, String> {
         let place = self.place(folder);
         let mut items = Vec::new();
-        for entry in std::fs::read_dir(&place).map_err(|e| format!("{} couldn't be listed: {e}", place.display()))? {
+        for entry in std::fs::read_dir(&place).map_err(|e| crate::i18n::tf!("{} couldn't be listed: {e}", place.display()))? {
             let entry = entry.map_err(|e| e.to_string())?;
             let name = entry.file_name().to_string_lossy().into_owned();
             let Ok(kind) = entry.file_type() else { continue };
@@ -238,19 +238,19 @@ impl Tree for LocalTree {
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        std::fs::read(self.place(path)).map_err(|e| format!("{path} couldn't be read: {e}"))
+        std::fs::read(self.place(path)).map_err(|e| crate::i18n::tf!("{path} couldn't be read: {e}"))
     }
 
     fn hash(&self, path: &str, cancel: &AtomicBool) -> Result<[u8; 32], String> {
         use std::io::Read;
-        let mut file = std::fs::File::open(self.place(path)).map_err(|e| format!("{path} couldn't be read: {e}"))?;
+        let mut file = std::fs::File::open(self.place(path)).map_err(|e| crate::i18n::tf!("{path} couldn't be read: {e}"))?;
         let mut hasher = Sha256::new();
         let mut buffer = vec![0u8; 256 * 1024];
         loop {
             if cancel.load(Ordering::Relaxed) {
-                return Err("It was stopped.".into());
+                return Err(crate::i18n::tr("It was stopped.").into());
             }
-            let got = file.read(&mut buffer).map_err(|e| format!("{path} couldn't be read: {e}"))?;
+            let got = file.read(&mut buffer).map_err(|e| crate::i18n::tf!("{path} couldn't be read: {e}"))?;
             if got == 0 {
                 break;
             }
@@ -315,9 +315,9 @@ impl GitTree {
     pub fn open(repo: &Path, revision: &str, folder: &str) -> Result<Self, String> {
         let revision = revision.trim();
         if revision.is_empty() {
-            return Err("Say which revision: HEAD, a branch, a tag or a commit.".into());
+            return Err(crate::i18n::tr("Say which revision: HEAD, a branch, a tag or a commit.").into());
         }
-        crate::git::run(repo, &["rev-parse", "--verify", "--quiet", &format!("{revision}^{{tree}}")]).map_err(|_| format!("{revision} isn't a revision of this repository."))?;
+        crate::git::run(repo, &["rev-parse", "--verify", "--quiet", &format!("{revision}^{{tree}}")]).map_err(|_| crate::i18n::tf!("{revision} isn't a revision of this repository."))?;
         let folder = folder.trim_matches('/');
         let prefix = if folder.is_empty() { String::new() } else { format!("{folder}/") };
         let mut args = vec!["ls-tree", "-r", "-t", "-l", "-z", revision];
@@ -359,7 +359,7 @@ impl Tree for GitTree {
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        crate::git::file_at(&self.repo, &self.revision, &format!("{}{path}", self.prefix)).ok_or_else(|| format!("{path} couldn't be read from {}.", revision_words(&self.revision)))
+        crate::git::file_at(&self.repo, &self.revision, &format!("{}{path}", self.prefix)).ok_or_else(|| crate::i18n::tf!("{path} couldn't be read from {}.", revision_words(&self.revision)))
     }
 }
 
@@ -376,10 +376,10 @@ impl ImageTree {
     pub fn open(file: &Path, folder: &str) -> Result<Self, String> {
         let source: Arc<dyn crate::media::Source> = Arc::new(crate::media::FileSource::open(file)?);
         let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let volume = crate::media::open(source, &name).map_err(|e| format!("{name} couldn't be read as a disk image or archive: {e}"))?;
+        let volume = crate::media::open(source, &name).map_err(|e| crate::i18n::tf!("{name} couldn't be read as a disk image or archive: {e}"))?;
         let mut top = None;
         for part in folder.split('/').filter(|part| !part.is_empty()) {
-            let found = volume.list(top.as_ref())?.into_iter().find(|entry| entry.is_dir && entry.name == part).ok_or_else(|| format!("{name} has no folder {folder}."))?;
+            let found = volume.list(top.as_ref())?.into_iter().find(|entry| entry.is_dir && entry.name == part).ok_or_else(|| crate::i18n::tf!("{name} has no folder {folder}."))?;
             top = Some(found);
         }
         Ok(Self { volume, top, seen: Mutex::new(HashMap::new()) })
@@ -389,7 +389,7 @@ impl ImageTree {
 impl Tree for ImageTree {
     fn list(&self, folder: &str) -> Result<Vec<Item>, String> {
         let mut seen = self.seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let dir = if folder.is_empty() { self.top.clone() } else { Some(seen.get(folder).cloned().ok_or_else(|| format!("{folder} hasn't been listed."))?) };
+        let dir = if folder.is_empty() { self.top.clone() } else { Some(seen.get(folder).cloned().ok_or_else(|| crate::i18n::tf!("{folder} hasn't been listed."))?) };
         let entries = self.volume.list(dir.as_ref())?;
         let mut items = Vec::new();
         for entry in entries {
@@ -405,7 +405,7 @@ impl Tree for ImageTree {
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        let entry = self.seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(path).cloned().ok_or_else(|| format!("{path} hasn't been listed."))?;
+        let entry = self.seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(path).cloned().ok_or_else(|| crate::i18n::tf!("{path} hasn't been listed."))?;
         self.volume.read(&entry)
     }
 }
@@ -532,7 +532,7 @@ impl Tree for SftpTree {
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
         let local = Scratch::new();
-        self.connection().download(&self.place(path), &local.0).and_then(|()| std::fs::read(&local.0).map_err(|e| e.to_string())).map_err(|e| format!("{} couldn't be read: {e}", self.url(path)))
+        self.connection().download(&self.place(path), &local.0).and_then(|()| std::fs::read(&local.0).map_err(|e| e.to_string())).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", self.url(path)))
     }
 
     fn can_write(&self) -> bool {
@@ -553,7 +553,7 @@ impl Tree for SftpTree {
         std::fs::write(&local.0, bytes).map_err(|e| e.to_string())?;
         let connection = self.connection();
         let place = self.place(path);
-        connection.upload(&local.0, &place).map_err(|e| format!("{} couldn't be sent: {e}", self.url(path)))?;
+        connection.upload(&local.0, &place).map_err(|e| crate::i18n::tf!("{} couldn't be sent: {e}", self.url(path)))?;
         if let Some(time) = modified {
             let _ = connection.set_modified(&place, time);
         }
@@ -568,7 +568,7 @@ impl Tree for SftpTree {
             at = join(&at, part);
             match connection.look(&self.place(&at))? {
                 Some((true, _)) => {}
-                Some((false, _)) => return Err(format!("{} is a file, so a folder can't be made there.", self.url(&at))),
+                Some((false, _)) => return Err(crate::i18n::tf!("{} is a file, so a folder can't be made there.", self.url(&at))),
                 None => connection.make_folder(&self.place(&at))?,
             }
         }
@@ -584,7 +584,7 @@ impl Tree for SftpTree {
         safe_path(path)?;
         let connection = self.connection();
         if !connection.list(&self.place(path))?.is_empty() {
-            return Err("It still has files in it that weren't compared, so it was kept.".into());
+            return Err(crate::i18n::tr("It still has files in it that weren't compared, so it was kept.").into());
         }
         connection.remove_folder(&self.place(path))
     }
@@ -654,7 +654,7 @@ impl Tree for MemoryTree {
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        self.files.lock().unwrap().get(path).map(|(bytes, _)| bytes.clone()).ok_or_else(|| format!("{path} isn't there."))
+        self.files.lock().unwrap().get(path).map(|(bytes, _)| bytes.clone()).ok_or_else(|| crate::i18n::tf!("{path} isn't there."))
     }
 
     fn can_write(&self) -> bool {
@@ -682,14 +682,14 @@ impl Tree for MemoryTree {
 
     fn remove_file(&self, path: &str) -> Result<(), String> {
         self.writing(path)?;
-        self.files.lock().unwrap().remove(path).map(|_| ()).ok_or_else(|| format!("{path} isn't there."))
+        self.files.lock().unwrap().remove(path).map(|_| ()).ok_or_else(|| crate::i18n::tf!("{path} isn't there."))
     }
 
     fn remove_folder(&self, path: &str) -> Result<(), String> {
         self.writing(path)?;
         let inside = format!("{path}/");
         if self.files.lock().unwrap().keys().any(|file| file.starts_with(&inside)) || self.folders.lock().unwrap().iter().any(|folder| folder.starts_with(&inside)) {
-            return Err("It still has files in it that weren't compared, so it was kept.".into());
+            return Err(crate::i18n::tr("It still has files in it that weren't compared, so it was kept.").into());
         }
         self.folders.lock().unwrap().remove(path);
         Ok(())
@@ -1063,7 +1063,7 @@ pub fn walk(tree: &dyn Tree, filters: &Filters, progress: &Progress, cancel: &At
     let mut folders: Vec<(String, Vec<IgnoreRule>)> = vec![(String::new(), Vec::new())];
     while let Some((folder, inherited)) = folders.pop() {
         if cancel.load(Ordering::Relaxed) {
-            return Err("It was stopped.".into());
+            return Err(crate::i18n::tr("It was stopped.").into());
         }
         let items = tree.list(&folder)?;
         let mut rules = inherited;
@@ -1188,7 +1188,7 @@ pub fn compare_files(rows: &mut [Row], left: &dyn Tree, right: &dyn Tree, mode: 
     let patterns: Vec<Option<regex::Regex>> = rules.list.iter().map(|rule| rule.ignore_regex().ok().flatten()).collect();
     for i in pairs {
         if cancel.load(Ordering::Relaxed) {
-            return Err("It was stopped.".into());
+            return Err(crate::i18n::tr("It was stopped.").into());
         }
         let (Some(l), Some(r)) = (rows[i].left, rows[i].right) else { continue };
         let path = rows[i].path.clone();
@@ -1224,7 +1224,7 @@ pub fn compare_files(rows: &mut [Row], left: &dyn Tree, right: &dyn Tree, mode: 
                 }
                 (Err(problem), _) | (_, Err(problem)) => {
                     if cancel.load(Ordering::Relaxed) {
-                        return Err("It was stopped.".into());
+                        return Err(crate::i18n::tr("It was stopped.").into());
                     }
                     rows[i].problem = Some(problem);
                     Status::Unreadable
@@ -1344,7 +1344,7 @@ pub fn check_writable(result: &FolderResult, left: bool) -> Result<(), String> {
     if let Some(refusal) = side.refusal() {
         return Err(refusal);
     }
-    if result.tree(left).can_write() { Ok(()) } else { Err(format!("Files can't be copied into {}.", side.describe())) }
+    if result.tree(left).can_write() { Ok(()) } else { Err(crate::i18n::tf!("Files can't be copied into {}.", side.describe())) }
 }
 
 /// Works out what copying the selected rows one way would do. A selected folder brings everything inside it
@@ -1439,9 +1439,9 @@ pub fn still_as_compared(tree: &dyn Tree, path: &str, expected: Option<Meta>) ->
     match (tree.stat(path)?, expected) {
         (None, None) => Ok(()),
         (Some(now), Some(then)) if now.is_dir == then.is_dir && (now.is_dir || same_size_and_time(now, then)) => Ok(()),
-        (Some(_), None) => Err("Something has been put there since the comparison, so it was left alone. Compare again first.".into()),
-        (None, Some(_)) => Err("It has gone since the comparison. Compare again first.".into()),
-        (Some(_), Some(_)) => Err("It has changed since the comparison, so it was left alone. Compare again first.".into()),
+        (Some(_), None) => Err(crate::i18n::tr("Something has been put there since the comparison, so it was left alone. Compare again first.").into()),
+        (None, Some(_)) => Err(crate::i18n::tr("It has gone since the comparison. Compare again first.").into()),
+        (Some(_), Some(_)) => Err(crate::i18n::tr("It has changed since the comparison, so it was left alone. Compare again first.").into()),
     }
 }
 
@@ -1862,7 +1862,7 @@ pub fn folder_patch(result: &FolderResult, cancel: &AtomicBool) -> Result<String
     let mut out = String::new();
     for row in &result.rows {
         if cancel.load(Ordering::Relaxed) {
-            return Err("It was stopped.".into());
+            return Err(crate::i18n::tr("It was stopped.").into());
         }
         if row.is_dir() || row.status == Status::Same || row.status == Status::Unreadable {
             continue;

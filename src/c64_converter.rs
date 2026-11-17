@@ -32,18 +32,18 @@ pub enum Asked {
 }
 
 /// Work done in the background, and the settings it was started for.
-struct Job<S, T> {
+pub(crate) struct Job<S, T> {
     done: Option<(S, T)>,
     working: Option<(S, mpsc::Receiver<T>)>,
 }
 
 impl<S: Clone + PartialEq + Send + 'static, T: Send + 'static> Job<S, T> {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Job { done: None, working: None }
     }
 
     /// Takes in what's finished, and starts again if the settings have changed. Whether something new came in.
-    fn keep_up(&mut self, ctx: &egui::Context, settings: &S, image: Option<&Arc<Image>>, work: impl FnOnce(&Image, &S) -> T + Send + 'static) -> bool {
+    pub(crate) fn keep_up(&mut self, ctx: &egui::Context, settings: &S, image: Option<&Arc<Image>>, work: impl FnOnce(&Image, &S) -> T + Send + 'static) -> bool {
         let mut fresh = false;
         if let Some((s, receiver)) = &self.working {
             match receiver.try_recv() {
@@ -76,11 +76,16 @@ impl<S: Clone + PartialEq + Send + 'static, T: Send + 'static> Job<S, T> {
         fresh
     }
 
-    fn result(&self) -> Option<&T> {
+    /// Whether what's done was done for these settings.
+    pub(crate) fn is_for(&self, settings: &S) -> bool {
+        self.done.as_ref().is_some_and(|(s, _)| s == settings)
+    }
+
+    pub(crate) fn result(&self) -> Option<&T> {
         self.done.as_ref().map(|d| &d.1)
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.done = None;
     }
 }
@@ -124,8 +129,8 @@ impl Default for Converter {
     }
 }
 
-fn combo<T: Copy + PartialEq>(ui: &mut Ui, id: &str, label: &str, value: &mut T, all: &[T], name: impl Fn(T) -> String) {
-    ui.label(label);
+pub(crate) fn combo<T: Copy + PartialEq>(ui: &mut Ui, id: &str, label: &str, value: &mut T, all: &[T], name: impl Fn(T) -> String) {
+    ui.label(crate::i18n::tr(label));
     egui::ComboBox::from_id_salt(id).selected_text(name(*value)).show_ui(ui, |ui| {
         for &item in all {
             ui.selectable_value(value, item, name(item));
@@ -136,7 +141,7 @@ fn combo<T: Copy + PartialEq>(ui: &mut Ui, id: &str, label: &str, value: &mut T,
 
 /// A choice of one of the C64's colours, or none ("found from the picture") if `auto` is given.
 fn colour_choice(ui: &mut Ui, id: &str, label: &str, value: &mut Option<u8>, auto: Option<&str>) {
-    ui.label(label);
+    ui.label(crate::i18n::tr(label));
     let text = value.map_or_else(|| auto.unwrap_or("").to_string(), |c| format!("{c}: {}", NAMES[usize::from(c & 15)]));
     egui::ComboBox::from_id_salt(id).selected_text(text).show_ui(ui, |ui| {
         if let Some(auto) = auto {
@@ -161,7 +166,7 @@ fn swatches(ui: &mut Ui, colours: &[[u8; 3]; 16], used: &[(String, u8)]) {
             let rgb = colours[usize::from(c & 15)];
             let (rect, response) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
             ui.painter().rect_filled(rect, 1.0, Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
-            response.on_hover_text(format!("{what}: colour {c}, {}", NAMES[usize::from(c & 15)]));
+            response.on_hover_text(crate::i18n::tf!("{what}: colour {c}, {}", NAMES[usize::from(c & 15)]));
             ui.label(dim(what.clone()));
         }
     });
@@ -264,18 +269,18 @@ impl Converter {
         let tab = self.tab;
         self.keep_up(ui.ctx());
         ui.horizontal(|ui| {
-            if ui.button("Open a picture\u{2026}").on_hover_text("PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads").clicked() {
+            if ui.button(crate::i18n::tr("Open a picture\u{2026}")).on_hover_text(crate::i18n::tr("PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads")).clicked() {
                 asked = Some(Asked::OpenPicture);
             }
             match &self.picture {
-                Some((name, image)) => ui.label(RichText::new(format!("{name}, {}\u{D7}{}", image.width, image.height)).color(crate::theme::text_dim())),
-                None => ui.label(RichText::new("No picture yet").color(crate::theme::text_dim())),
+                Some((name, image)) => ui.label(RichText::new(crate::i18n::tf!("{name}, {}\u{D7}{}", image.width, image.height)).color(crate::theme::text_dim())),
+                None => ui.label(RichText::new(crate::i18n::tr("No picture yet")).color(crate::theme::text_dim())),
             };
         });
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, Tab::Bitmap, "Bitmap picture");
-            ui.selectable_value(&mut self.tab, Tab::Characters, "Characters");
-            ui.selectable_value(&mut self.tab, Tab::Sprites, "Sprites");
+            ui.selectable_value(&mut self.tab, Tab::Bitmap, crate::i18n::tr("Bitmap picture"));
+            ui.selectable_value(&mut self.tab, Tab::Characters, crate::i18n::tr("Characters"));
+            ui.selectable_value(&mut self.tab, Tab::Sprites, crate::i18n::tr("Sprites"));
         });
         if self.tab != tab {
             self.shown = None;
@@ -302,13 +307,13 @@ impl Converter {
             combo(ui, &format!("{id}-filter"), "Scaling", filter, &Filter::ALL, |f| f.name().to_string());
         }
         combo(ui, &format!("{id}-dither"), "Dithering", dither, &Dither::ALL, |d| d.name().to_string());
-        ui.label("Strength");
+        ui.label(crate::i18n::tr("Strength"));
         ui.add_enabled(*dither != Dither::None, egui::Slider::new(strength, 0.0..=1.0));
         ui.end_row();
     }
 
     fn name_row(&mut self, ui: &mut Ui) {
-        ui.label("Name");
+        ui.label(crate::i18n::tr("Name"));
         ui.text_edit_singleline(&mut self.name);
         ui.end_row();
     }
@@ -338,22 +343,22 @@ impl Converter {
             Mode::Afli => ("AFLI\u{2026}", ".afl"),
         };
         ui.horizontal_wrapped(|ui| {
-            if ui.button("Save everything\u{2026}").on_hover_text("Into a folder: the picture file, raw bitmap, screen and colour RAM, the source and the viewer").clicked() {
+            if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the picture file, raw bitmap, screen and colour RAM, the source and the viewer")).clicked() {
                 *asked = Some(Asked::SaveAll);
             }
             if ui.button(picture).on_hover_text(ending).clicked() {
                 *asked = Some(Asked::SavePicture);
             }
-            if b.mode == Mode::Multicolour && ui.button("Advanced Art Studio\u{2026}").on_hover_text(".ocp").clicked() {
+            if b.mode == Mode::Multicolour && ui.button(crate::i18n::tr("Advanced Art Studio\u{2026}")).on_hover_text(crate::i18n::tr(".ocp")).clicked() {
                 *asked = Some(Asked::SaveAdvancedArtStudio);
             }
-            if ui.button("Raw data\u{2026}").on_hover_text("The bitmap, screen RAM and colour RAM, each a file").clicked() {
+            if ui.button(crate::i18n::tr("Raw data\u{2026}")).on_hover_text(crate::i18n::tr("The bitmap, screen RAM and colour RAM, each a file")).clicked() {
                 *asked = Some(Asked::SaveRaw);
             }
-            if ui.button("Source\u{2026}").on_hover_text("ACME assembler: a program showing it, with the data").clicked() {
+            if ui.button(crate::i18n::tr("Source\u{2026}")).on_hover_text(crate::i18n::tr("ACME assembler: a program showing it, with the data")).clicked() {
                 *asked = Some(Asked::SaveSource);
             }
-            if ui.button("Viewer (.prg)\u{2026}").on_hover_text("A program that shows it: LOAD and RUN").clicked() {
+            if ui.button(crate::i18n::tr("Viewer (.prg)\u{2026}")).on_hover_text(crate::i18n::tr("A program that shows it: LOAD and RUN")).clicked() {
                 *asked = Some(Asked::SaveViewer);
             }
         });
@@ -363,11 +368,11 @@ impl Converter {
         let s = &mut self.char_settings;
         egui::Grid::new("c64-chars").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
             combo(ui, "c64c-mode", "Mode", &mut s.mode, &CharMode::ALL, |m| m.name().to_string());
-            ui.label("Size");
+            ui.label(crate::i18n::tr("Size"));
             ui.horizontal(|ui| {
-                ui.add(egui::DragValue::new(&mut s.columns).range(1..=40)).on_hover_text("Characters across");
-                ui.label("\u{D7}");
-                ui.add(egui::DragValue::new(&mut s.rows).range(1..=25)).on_hover_text("Characters down");
+                ui.add(egui::DragValue::new(&mut s.columns).range(1..=40)).on_hover_text(crate::i18n::tr("Characters across"));
+                ui.label(crate::i18n::tr("\u{D7}"));
+                ui.add(egui::DragValue::new(&mut s.rows).range(1..=25)).on_hover_text(crate::i18n::tr("Characters down"));
                 ui.label(dim("characters"));
             });
             ui.end_row();
@@ -375,25 +380,25 @@ impl Converter {
             colour_choice(ui, "c64c-background", "Background", &mut s.background, Some("Found from the picture"));
             if s.mode != CharMode::Petscii {
                 let limit = if s.mode == CharMode::Extended { 64 } else { 256 };
-                ui.label("At most");
-                ui.add(egui::Slider::new(&mut s.most, 1..=limit).text("characters"));
+                ui.label(crate::i18n::tr("At most"));
+                ui.add(egui::Slider::new(&mut s.most, 1..=limit).text(crate::i18n::tr("characters")));
                 ui.end_row();
             }
             if s.mode == CharMode::Hires {
-                ui.label("");
-                ui.checkbox(&mut s.inverses, "128 and their inverses").on_hover_text("Characters 128 to 255 are 0 to 127 inverted, as in the ROM, so a cell can use a shape inverted");
+                ui.label(crate::i18n::tr(""));
+                ui.checkbox(&mut s.inverses, crate::i18n::tr("128 and their inverses")).on_hover_text(crate::i18n::tr("Characters 128 to 255 are 0 to 127 inverted, as in the ROM, so a cell can use a shape inverted"));
                 ui.end_row();
             }
             if s.mode == CharMode::Petscii {
-                ui.label("Set");
+                ui.label(crate::i18n::tr("Set"));
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut s.lower_case, false, "Upper case and graphics");
-                    ui.selectable_value(&mut s.lower_case, true, "Lower case");
+                    ui.selectable_value(&mut s.lower_case, false, crate::i18n::tr("Upper case and graphics"));
+                    ui.selectable_value(&mut s.lower_case, true, crate::i18n::tr("Lower case"));
                 });
                 ui.end_row();
-                ui.label("Character ROM");
+                ui.label(crate::i18n::tr("Character ROM"));
                 ui.horizontal(|ui| {
-                    if ui.button("Open\u{2026}").on_hover_text("The C64's 4096-byte character ROM (chargen), as VICE and other emulators keep it").clicked() {
+                    if ui.button(crate::i18n::tr("Open\u{2026}")).on_hover_text(crate::i18n::tr("The C64's 4096-byte character ROM (chargen), as VICE and other emulators keep it")).clicked() {
                         *asked = Some(Asked::OpenRom);
                     }
                     if let Some((name, _)) = &self.rom {
@@ -416,16 +421,16 @@ impl Converter {
                     ui.label(dim(format!("{} characters ({} different cells{})", c.charset.len(), c.unique, if c.unique > c.charset.len() { ", made to fit" } else { "" })));
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Save everything\u{2026}").on_hover_text("Into a folder: the characters, screen and colour maps, the source and the viewer").clicked() {
+                    if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the characters, screen and colour maps, the source and the viewer")).clicked() {
                         *asked = Some(Asked::SaveAll);
                     }
-                    if ui.button("Raw data\u{2026}").on_hover_text("The characters, screen map and colour map, each a file").clicked() {
+                    if ui.button(crate::i18n::tr("Raw data\u{2026}")).on_hover_text(crate::i18n::tr("The characters, screen map and colour map, each a file")).clicked() {
                         *asked = Some(Asked::SaveRaw);
                     }
-                    if ui.button("Source\u{2026}").clicked() {
+                    if ui.button(crate::i18n::tr("Source\u{2026}")).clicked() {
                         *asked = Some(Asked::SaveSource);
                     }
-                    if ui.button("Viewer (.prg)\u{2026}").clicked() {
+                    if ui.button(crate::i18n::tr("Viewer (.prg)\u{2026}")).clicked() {
                         *asked = Some(Asked::SaveViewer);
                     }
                 });
@@ -437,18 +442,18 @@ impl Converter {
     fn sprite_settings_ui(&mut self, ui: &mut Ui, asked: &mut Option<Asked>) {
         let s = &mut self.sprite_settings;
         egui::Grid::new("c64-sprites").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-            ui.label("Kind");
+            ui.label(crate::i18n::tr("Kind"));
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut s.multicolour, true, "Multicolour (12\u{D7}21)");
-                ui.selectable_value(&mut s.multicolour, false, "Hires (24\u{D7}21)");
+                ui.selectable_value(&mut s.multicolour, true, crate::i18n::tr("Multicolour (12\u{D7}21)"));
+                ui.selectable_value(&mut s.multicolour, false, crate::i18n::tr("Hires (24\u{D7}21)"));
             });
             ui.end_row();
             if s.multicolour {
-                ui.label("");
-                ui.checkbox(&mut s.overlay, "A hires sprite on each").on_hover_text("Each frame two sprites: the multicolour one and a hires one on it, in one more colour at full width");
+                ui.label(crate::i18n::tr(""));
+                ui.checkbox(&mut s.overlay, crate::i18n::tr("A hires sprite on each")).on_hover_text(crate::i18n::tr("Each frame two sprites: the multicolour one and a hires one on it, in one more colour at full width"));
                 ui.end_row();
             }
-            ui.label("See-through");
+            ui.label(crate::i18n::tr("See-through"));
             egui::ComboBox::from_id_salt("c64s-clear")
                 .selected_text(match s.see_through {
                     SeeThrough::Alpha => "Where the picture is",
@@ -456,9 +461,9 @@ impl Converter {
                     SeeThrough::Nowhere => "Nowhere",
                 })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut s.see_through, SeeThrough::Alpha, "Where the picture is");
-                    ui.selectable_value(&mut s.see_through, SeeThrough::TopLeft, "The top left pixel's colour");
-                    ui.selectable_value(&mut s.see_through, SeeThrough::Nowhere, "Nowhere");
+                    ui.selectable_value(&mut s.see_through, SeeThrough::Alpha, crate::i18n::tr("Where the picture is"));
+                    ui.selectable_value(&mut s.see_through, SeeThrough::TopLeft, crate::i18n::tr("The top left pixel's colour"));
+                    ui.selectable_value(&mut s.see_through, SeeThrough::Nowhere, crate::i18n::tr("Nowhere"));
                 });
             ui.end_row();
             Self::common(ui, "c64s", &mut s.palette, &mut s.dither, &mut s.strength, None);
@@ -474,18 +479,18 @@ impl Converter {
                     _ => None,
                 };
             }
-            ui.label("Expanded");
+            ui.label(crate::i18n::tr("Expanded"));
             ui.horizontal(|ui| {
-                ui.checkbox(&mut s.expand_x, "Across ($D01D)");
-                ui.checkbox(&mut s.expand_y, "Down ($D017)");
+                ui.checkbox(&mut s.expand_x, crate::i18n::tr("Across ($D01D)"));
+                ui.checkbox(&mut s.expand_y, crate::i18n::tr("Down ($D017)"));
             });
             ui.end_row();
-            ui.label("First sprite at");
-            ui.add(egui::DragValue::new(&mut s.address).range(0..=0xFFC0).speed(64.0).hexadecimal(4, false, true)).on_hover_text("Where the sprites go in memory, on a 64-byte boundary: their pointers follow from it");
+            ui.label(crate::i18n::tr("First sprite at"));
+            ui.add(egui::DragValue::new(&mut s.address).range(0..=0xFFC0).speed(64.0).hexadecimal(4, false, true)).on_hover_text(crate::i18n::tr("Where the sprites go in memory, on a 64-byte boundary: their pointers follow from it"));
             s.address &= 0xFFC0;
             ui.end_row();
-            ui.label("Screen RAM at");
-            ui.add(egui::DragValue::new(&mut s.screen).range(0..=0xFC00).speed(1024.0).hexadecimal(4, false, true)).on_hover_text("The pointers are its last 8 bytes");
+            ui.label(crate::i18n::tr("Screen RAM at"));
+            ui.add(egui::DragValue::new(&mut s.screen).range(0..=0xFC00).speed(1024.0).hexadecimal(4, false, true)).on_hover_text(crate::i18n::tr("The pointers are its last 8 bytes"));
             s.screen &= 0xFC00;
             ui.end_row();
         });
@@ -494,19 +499,19 @@ impl Converter {
         if let Some(sp) = self.sprites.result() {
             ui.label(dim(format!("{} sprites, {} bytes; the first's pointer ${:02X} in VIC bank {}{}", sp.set.sprites.len(), sp.set.sprites.len() * 64, sp.first_pointer(), sp.bank(), if (self.sprite_settings.address >> 14) != (self.sprite_settings.screen >> 14) { " \u{2014} not the screen RAM's bank" } else { "" })));
             ui.horizontal_wrapped(|ui| {
-                if ui.button("Save everything\u{2026}").on_hover_text("Into a folder: the sprites raw, as SpritePad's .spd, the source and the viewer").clicked() {
+                if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the sprites raw, as SpritePad's .spd, the source and the viewer")).clicked() {
                     *asked = Some(Asked::SaveAll);
                 }
-                if ui.button("Raw sprites\u{2026}").on_hover_text("64 bytes each").clicked() {
+                if ui.button(crate::i18n::tr("Raw sprites\u{2026}")).on_hover_text(crate::i18n::tr("64 bytes each")).clicked() {
                     *asked = Some(Asked::SaveRaw);
                 }
-                if ui.button("SpritePad (.spd)\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("SpritePad (.spd)\u{2026}")).clicked() {
                     *asked = Some(Asked::SaveSpd);
                 }
-                if ui.button("Source\u{2026}").on_hover_text("ACME: the pointers and registers, a program showing the first ones, and the sprites").clicked() {
+                if ui.button(crate::i18n::tr("Source\u{2026}")).on_hover_text(crate::i18n::tr("ACME: the pointers and registers, a program showing the first ones, and the sprites")).clicked() {
                     *asked = Some(Asked::SaveSource);
                 }
-                if ui.button("Viewer (.prg)\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Viewer (.prg)\u{2026}")).clicked() {
                     *asked = Some(Asked::SaveViewer);
                 }
             });
@@ -555,8 +560,8 @@ impl Converter {
         match shown {
             Some((what, w, h, rgba, aspect, used)) => {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("{what}{working}")).color(crate::theme::text_dim()));
-                    ui.checkbox(&mut self.true_shape, "Pixels their true shape");
+                    ui.label(RichText::new(crate::i18n::tf!("{what}{working}")).color(crate::theme::text_dim()));
+                    ui.checkbox(&mut self.true_shape, crate::i18n::tr("Pixels their true shape"));
                 });
                 self.preview(ui, w, h, &rgba, aspect);
                 swatches(ui, colours, &used);
@@ -565,7 +570,7 @@ impl Converter {
                 ui.spinner();
             }
             None => {
-                ui.label("Open a picture to convert it.");
+                ui.label(crate::i18n::tr("Open a picture to convert it."));
             }
         }
     }

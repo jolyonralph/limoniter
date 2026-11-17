@@ -45,13 +45,13 @@ pub fn parse(text: &str) -> Result<u8, String> {
     }
     let mut parser = Parser { chars: body.chars().filter(|c| !c.is_whitespace()).collect(), at: 0 };
     if parser.chars.is_empty() {
-        return Err("Type an expression over A, B and C, such as AB + aC.".into());
+        return Err(crate::i18n::tr("Type an expression over A, B and C, such as AB + aC.").into());
     }
     let value = parser.or()?;
     match parser.peek() {
         None => Ok(value),
-        Some(')') => Err("There's a ) without its (.".into()),
-        Some(c) => Err(format!("'{c}' isn't understood there.")),
+        Some(')') => Err(crate::i18n::tr("There's a ) without its (.").into()),
+        Some(c) => Err(crate::i18n::tf!("'{c}' isn't understood there.")),
     }
 }
 
@@ -120,7 +120,7 @@ impl Parser {
 
     fn primary(&mut self) -> Result<u8, String> {
         let Some(c) = self.peek() else {
-            return Err("The expression stops before it's finished.".into());
+            return Err(crate::i18n::tr("The expression stops before it's finished.").into());
         };
         self.at += 1;
         match c {
@@ -134,10 +134,10 @@ impl Parser {
             '1' => Ok(0xFF),
             '(' => {
                 let value = self.or()?;
-                if self.take(&[')']) { Ok(value) } else { Err("A ( isn't closed.".into()) }
+                if self.take(&[')']) { Ok(value) } else { Err(crate::i18n::tr("A ( isn't closed.").into()) }
             }
-            ')' => Err("There's a ) where a source should be.".into()),
-            other => Err(format!("'{other}' isn't a source: the blitter's are A, B and C (a, b and c for NOT).")),
+            ')' => Err(crate::i18n::tr("There's a ) where a source should be.").into()),
+            other => Err(crate::i18n::tf!("'{other}' isn't a source: the blitter's are A, B and C (a, b and c for NOT).")),
         }
     }
 }
@@ -433,9 +433,9 @@ impl Blitter {
 
     pub fn draw(&mut self, ui: &mut Ui) -> Option<Asked> {
         let mut asked = None;
-        ui.label(RichText::new("The function").strong());
+        ui.label(RichText::new(crate::i18n::tr("The function")).strong());
         ui.horizontal(|ui| {
-            ui.label("D =");
+            ui.label(crate::i18n::tr("D ="));
             let edit = ui.add(egui::TextEdit::singleline(&mut self.expression).desired_width(220.0).font(egui::TextStyle::Monospace));
             crate::access::called(edit.clone(), "The expression over A, B and C");
             if edit.changed() {
@@ -448,15 +448,15 @@ impl Blitter {
                     Err(problem) => self.problem = Some(problem),
                 }
             }
-            egui::ComboBox::from_id_salt("blitter-common").selected_text("Common").show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("blitter-common").selected_text(crate::i18n::tr("Common")).show_ui(ui, |ui| {
                 for (name, lf) in COMMON {
-                    if ui.selectable_label(self.lf == *lf, *name).clicked() {
+                    if ui.selectable_label(self.lf == *lf, crate::i18n::tr(name)).clicked() {
                         self.set_lf(*lf);
                     }
                 }
             });
         });
-        ui.label(RichText::new("A&B | ~A&C and AB + aC both work: a lower-case letter is NOT; + or | is OR, ^ XOR, & or nothing AND.").small().color(crate::theme::text_dim()));
+        ui.label(RichText::new(crate::i18n::tr("A&B | ~A&C and AB + aC both work: a lower-case letter is NOT; + or | is OR, ^ XOR, & or nothing AND.")).small().color(crate::theme::text_dim()));
         if let Some(problem) = &self.problem {
             ui.colored_label(crate::theme::rainbow_mistake(), problem);
         }
@@ -464,80 +464,80 @@ impl Blitter {
         ui.horizontal_wrapped(|ui| {
             for bit in (0..8u8).rev() {
                 let mut on = self.lf & 1 << bit != 0;
-                if ui.checkbox(&mut on, RichText::new(minterm_name(bit)).monospace()).on_hover_text(format!("Bit {bit} of LF")).changed() {
+                if ui.checkbox(&mut on, RichText::new(minterm_name(bit)).monospace()).on_hover_text(crate::i18n::tf!("Bit {bit} of LF")).changed() {
                     self.set_lf(self.lf ^ 1 << bit);
                 }
             }
         });
         egui::Grid::new("blitter-results").num_columns(2).spacing([12.0, 4.0]).show(ui, |ui| {
-            ui.label("LF");
-            ui.label(RichText::new(format!("${:02X}  ({}, %{:08b})", self.lf, self.lf, self.lf)).monospace().strong());
+            ui.label(crate::i18n::tr("LF"));
+            ui.label(RichText::new(crate::i18n::tf!("${:02X}  ({}, %{:08b})", self.lf, self.lf, self.lf)).monospace().strong());
             ui.end_row();
-            ui.label("Shortest");
-            ui.label(RichText::new(format!("{}    {}", classic(self.lf), c_style(self.lf))).monospace());
+            ui.label(crate::i18n::tr("Shortest"));
+            ui.label(RichText::new(crate::i18n::tf!("{}    {}", classic(self.lf), c_style(self.lf))).monospace());
             ui.end_row();
-            ui.label("Minterms");
+            ui.label(crate::i18n::tr("Minterms"));
             ui.label(RichText::new(minterms(self.lf)).monospace());
             ui.end_row();
-            ui.label("Reads");
+            ui.label(crate::i18n::tr("Reads"));
             ui.label(sources_read(self.lf));
             ui.end_row();
         });
         ui.separator();
-        ui.label(RichText::new("BLTCON0 and BLTCON1").strong());
+        ui.label(RichText::new(crate::i18n::tr("BLTCON0 and BLTCON1")).strong());
         ui.horizontal(|ui| {
-            ui.label("A shift");
+            ui.label(crate::i18n::tr("A shift"));
             ui.add(egui::DragValue::new(&mut self.a_shift).range(0..=15));
-            ui.label("B shift");
+            ui.label(crate::i18n::tr("B shift"));
             ui.add(egui::DragValue::new(&mut self.b_shift).range(0..=15));
-            ui.checkbox(&mut self.descending, "Descending").on_hover_text("Addresses go down: for overlapping copies upwards, and fills, which work from the end");
+            ui.checkbox(&mut self.descending, crate::i18n::tr("Descending")).on_hover_text(crate::i18n::tr("Addresses go down: for overlapping copies upwards, and fills, which work from the end"));
         });
         ui.horizontal(|ui| {
-            if ui.checkbox(&mut self.automatic, "Channels the function reads").on_hover_text("USEA to USEC follow the function, and D is on").changed() {
+            if ui.checkbox(&mut self.automatic, crate::i18n::tr("Channels the function reads")).on_hover_text(crate::i18n::tr("USEA to USEC follow the function, and D is on")).changed() {
                 self.follow_function();
             }
             ui.add_enabled_ui(!self.automatic, |ui| {
                 for (i, name) in ["A", "B", "C", "D"].iter().enumerate() {
-                    ui.checkbox(&mut self.channels[i], *name);
+                    ui.checkbox(&mut self.channels[i], crate::i18n::tr(name));
                 }
             });
         });
         ui.horizontal(|ui| {
-            ui.label("Fill");
-            ui.selectable_value(&mut self.fill, Fill::None, "None");
-            ui.selectable_value(&mut self.fill, Fill::Inclusive, "Inclusive");
-            ui.selectable_value(&mut self.fill, Fill::Exclusive, "Exclusive");
+            ui.label(crate::i18n::tr("Fill"));
+            ui.selectable_value(&mut self.fill, Fill::None, crate::i18n::tr("None"));
+            ui.selectable_value(&mut self.fill, Fill::Inclusive, crate::i18n::tr("Inclusive"));
+            ui.selectable_value(&mut self.fill, Fill::Exclusive, crate::i18n::tr("Exclusive"));
             ui.add_enabled(self.fill != Fill::None, egui::Checkbox::new(&mut self.carry_in, "Carry in"));
         });
         let (con0, con1) = (self.con0(), self.con1());
-        ui.label(RichText::new(format!("BLTCON0 ${con0:04X}    BLTCON1 ${con1:04X}")).monospace().strong().size(15.0));
+        ui.label(RichText::new(crate::i18n::tf!("BLTCON0 ${con0:04X}    BLTCON1 ${con1:04X}")).monospace().strong().size(15.0));
         ui.horizontal(|ui| {
-            ui.label("Put in as");
-            ui.selectable_value(&mut self.form, Form::MoveWords, "move.w").on_hover_text("move.w to each");
-            ui.selectable_value(&mut self.form, Form::MoveLong, "move.l").on_hover_text("One move.l, to BLTCON0 and BLTCON1 together");
-            ui.selectable_value(&mut self.form, Form::Words, "dc.w");
-            ui.label("off");
-            ui.add(egui::TextEdit::singleline(&mut self.register).desired_width(28.0)).on_hover_text("The register holding $DFF000");
+            ui.label(crate::i18n::tr("Put in as"));
+            ui.selectable_value(&mut self.form, Form::MoveWords, crate::i18n::tr("move.w")).on_hover_text(crate::i18n::tr("move.w to each"));
+            ui.selectable_value(&mut self.form, Form::MoveLong, crate::i18n::tr("move.l")).on_hover_text(crate::i18n::tr("One move.l, to BLTCON0 and BLTCON1 together"));
+            ui.selectable_value(&mut self.form, Form::Words, crate::i18n::tr("dc.w"));
+            ui.label(crate::i18n::tr("off"));
+            ui.add(egui::TextEdit::singleline(&mut self.register).desired_width(28.0)).on_hover_text(crate::i18n::tr("The register holding $DFF000"));
         });
         ui.label(RichText::new(source_lines(self.form, con0, con1, &self.register).trim_end()).monospace().color(crate::theme::text_dim()));
         ui.horizontal(|ui| {
-            if ui.button("Insert at the cursor").clicked() {
+            if ui.button(crate::i18n::tr("Insert at the cursor")).clicked() {
                 asked = Some(Asked::Insert(source_lines(self.form, con0, con1, &self.register)));
             }
-            if ui.button("Copy").clicked() {
+            if ui.button(crate::i18n::tr("Copy")).clicked() {
                 ui.ctx().copy_text(source_lines(self.form, con0, con1, &self.register));
             }
-            if ui.button("Take apart below").on_hover_text("Shows these values' fields below").clicked() {
+            if ui.button(crate::i18n::tr("Take apart below")).on_hover_text(crate::i18n::tr("Shows these values' fields below")).clicked() {
                 self.con0_text = format!("${con0:04X}");
                 self.con1_text = format!("${con1:04X}");
             }
         });
         ui.separator();
-        ui.label(RichText::new("Take a value apart").strong());
+        ui.label(RichText::new(crate::i18n::tr("Take a value apart")).strong());
         ui.horizontal(|ui| {
-            ui.label("BLTCON0");
+            ui.label(crate::i18n::tr("BLTCON0"));
             ui.add(egui::TextEdit::singleline(&mut self.con0_text).desired_width(70.0).font(egui::TextStyle::Monospace));
-            ui.label("BLTCON1");
+            ui.label(crate::i18n::tr("BLTCON1"));
             ui.add(egui::TextEdit::singleline(&mut self.con1_text).desired_width(70.0).font(egui::TextStyle::Monospace));
         });
         match (read_number(&self.con0_text), read_number(&self.con1_text)) {
@@ -545,13 +545,13 @@ impl Blitter {
                 for line in decode(con0, con1) {
                     ui.label(RichText::new(line).monospace());
                 }
-                if ui.button("Use this function above").clicked() {
+                if ui.button(crate::i18n::tr("Use this function above")).clicked() {
                     self.set_lf(con0 as u8);
                     self.a_shift = (con0 >> 12) as u8;
                 }
             }
             _ => {
-                ui.label("Type each as $hex, %binary or decimal, up to $FFFF.");
+                ui.label(crate::i18n::tr("Type each as $hex, %binary or decimal, up to $FFFF."));
             }
         }
         asked

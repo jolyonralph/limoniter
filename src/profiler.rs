@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn the_time_goes_where_the_program_spends_it() {
         let source = "  org 32768\nmain: call slow\n  call quick\n  jr main\nslow: ld b,200\n.wait: djnz .wait\n  ret\nquick: ld a,1\n  ret\n";
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), source, &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), source, &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok());
         let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
         let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };

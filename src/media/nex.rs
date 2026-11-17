@@ -36,7 +36,7 @@ impl Nex {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         let header = source.read_vec(0, 512.min(source.len() as usize))?;
         if header.len() < 512 || !looks_like(&header) {
-            return Err("This isn't a .nex file: it has no \"NextV1\" header.".into());
+            return Err(crate::i18n::tr("This isn't a .nex file: it has no \"NextV1\" header.").into());
         }
         let screen = header[10];
         let screen2 = header[152];
@@ -140,7 +140,7 @@ impl Volume for Nex {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let part = self.parts.get(entry.location as usize).ok_or("That part isn't in the file.")?;
+        let part = self.parts.get(entry.location as usize).ok_or(crate::i18n::tr("That part isn't in the file."))?;
         let bytes = self.source.read_vec(part.at, part.length as usize)?;
         // A Layer 2 or LoRes screen comes with its palette in front, as its own files have it.
         if Some(entry.location as usize) == self.screen

@@ -27,7 +27,7 @@ fn row_offset(y: usize) -> usize {
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     if bytes.len() < 8184 {
-        return Err("An Apple II hi-res screen is 8192 bytes.".into());
+        return Err(crate::i18n::tr("An Apple II hi-res screen is 8192 bytes.").into());
     }
     let mut picture = Picture::new(WIDTH, HEIGHT);
     for y in 0..HEIGHT {

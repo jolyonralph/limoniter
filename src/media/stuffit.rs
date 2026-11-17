@@ -184,7 +184,7 @@ impl StuffIt {
     pub fn open5(source: Arc<dyn Source>) -> Result<Self, String> {
         let head = source.read_vec(0, 100).map_err(|_| "This StuffIt 5 archive is cut short.".to_string())?;
         if head[82] != 5 {
-            return Err(format!("This is a StuffIt 5 archive of version {}, which Limoniter doesn't know.", head[82]));
+            return Err(crate::i18n::tf!("This is a StuffIt 5 archive of version {}, which Limoniter doesn't know.", head[82]));
         }
         let mut members = Vec::new();
         let mut notes = Vec::new();
@@ -204,11 +204,11 @@ impl StuffIt {
         while done < count {
             done += 1;
             if members.len() > 1_000_000 {
-                return Err("This StuffIt archive has more entries than Limoniter lists.".into());
+                return Err(crate::i18n::tr("This StuffIt archive has more entries than Limoniter lists.").into());
             }
             let start = cursor.at;
             if cursor.number(4)? != 0xA5A5_A5A5 {
-                return Err(format!("This StuffIt 5 archive is damaged: its entry {} isn't where the one before says.", members.len() + 1));
+                return Err(crate::i18n::tf!("This StuffIt 5 archive is damaged: its entry {} isn't where the one before says.", members.len() + 1));
             }
             let version = cursor.number(1)?;
             cursor.at += 1;
@@ -280,22 +280,22 @@ impl StuffIt {
     /// A fork's bytes, unpacked and checked.
     fn unpack(&self, packed: &Packed, size: u64) -> Result<Vec<u8>, String> {
         if packed.encrypted {
-            return Err("This file is encrypted with a password, which Limoniter can't open.".into());
+            return Err(crate::i18n::tr("This file is encrypted with a password, which Limoniter can't open.").into());
         }
         if size > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         if !unpacks(packed.method) {
-            return Err(format!("This file is packed with StuffIt's method {} ({}), which Limoniter can't unpack.", packed.method, method_name(packed.method)));
+            return Err(crate::i18n::tf!("This file is packed with StuffIt's method {} ({}), which Limoniter can't unpack.", packed.method, method_name(packed.method)));
         }
         if packed.at + packed.length > self.source.len() {
-            return Err("The archive ends before this file's packed data does, so it's damaged or cut short.".into());
+            return Err(crate::i18n::tr("The archive ends before this file's packed data does, so it's damaged or cut short.").into());
         }
         let input = self.source.read_vec(packed.at, packed.length as usize)?;
         let size = size as usize;
         let out = match packed.method {
             _ if size == 0 => Vec::new(),
-            0 => input.get(..size).ok_or("This stored file is shorter than its header says.")?.to_vec(),
+            0 => input.get(..size).ok_or(crate::i18n::tr("This stored file is shorter than its header says."))?.to_vec(),
             1 => unrle90(&input, Some(size))?,
             2 => lzw(&input, size)?,
             3 => huffman(&input, size)?,
@@ -305,11 +305,11 @@ impl StuffIt {
             _ => arsenic(&input, size)?,
         };
         if out.len() != size {
-            return Err(format!("This file unpacks to {} bytes where its header says {size}, so it's damaged.", out.len()));
+            return Err(crate::i18n::tf!("This file unpacks to {} bytes where its header says {size}, so it's damaged.", out.len()));
         }
         // Arsenic checks its own CRC-32; the others have StuffIt's CRC-16 in the header.
         if packed.method != 15 && crc16_arc(0, &out) != packed.crc {
-            return Err("This file unpacked, but its CRC doesn't match, so it's damaged.".into());
+            return Err(crate::i18n::tr("This file unpacked, but its CRC doesn't match, so it's damaged.").into());
         }
         Ok(out)
     }
@@ -353,7 +353,7 @@ impl Volume for StuffIt {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let member = self.members.get(entry.location as usize).filter(|m| !m.folder).ok_or("That file isn't in the archive.")?;
+        let member = self.members.get(entry.location as usize).filter(|m| !m.folder).ok_or(crate::i18n::tr("That file isn't in the archive."))?;
         if entry.extra == RESOURCE_FORK { self.unpack(&member.resource, member.file.resource.length) } else { self.unpack(&member.data, member.file.data.length) }
     }
 
@@ -426,7 +426,7 @@ impl Code {
             let bit = ((code >> place) & 1) as usize;
             let child = self.nodes[node][bit];
             if child & LEAF != 0 || (place == 0 && child != 0) {
-                return Err("The packed data's Huffman code is impossible, so it's damaged.".into());
+                return Err(crate::i18n::tr("The packed data's Huffman code is impossible, so it's damaged.").into());
             }
             if place == 0 {
                 self.nodes[node][bit] = LEAF | symbol;
@@ -450,7 +450,7 @@ impl Code {
         for length in 1..=32 {
             for (symbol, _) in lengths.iter().enumerate().filter(|(_, l)| **l == length) {
                 if next >> length != 0 {
-                    return Err("The packed data's Huffman code is impossible, so it's damaged.".into());
+                    return Err(crate::i18n::tr("The packed data's Huffman code is impossible, so it's damaged.").into());
                 }
                 code.add(symbol as u32, next as u32, length as u32)?;
                 next += 1;
@@ -547,7 +547,7 @@ fn huffman(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
             return Ok(LEAF | bits.bits(8)?);
         }
         if depth > 256 || code.nodes.len() > 512 {
-            return Err("The packed data's Huffman tree is impossible, so it's damaged.".into());
+            return Err(crate::i18n::tr("The packed data's Huffman tree is impossible, so it's damaged.").into());
         }
         code.nodes.push([0, 0]);
         let node = code.nodes.len() - 1;
@@ -575,7 +575,7 @@ fn huffman(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
 fn lzah(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
     use delharc::decode::{Decoder, Lh1Decoder};
     let mut out = vec![0; size];
-    Lh1Decoder::new(input).fill_buffer(&mut out).map_err(|e| format!("The file couldn't be unpacked: {e}"))?;
+    Lh1Decoder::new(input).fill_buffer(&mut out).map_err(|e| crate::i18n::tf!("The file couldn't be unpacked: {e}"))?;
     Ok(out)
 }
 
@@ -619,7 +619,7 @@ fn mw(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
                 break;
             }
             if next >= MOST {
-                return Err("This file's MW data has more strings than StuffIt makes, so it's damaged.".into());
+                return Err(crate::i18n::tr("This file's MW data has more strings than StuffIt makes, so it's damaged.").into());
             }
             halves[next] = code as u16;
             next += 1;
@@ -659,7 +659,7 @@ fn lz_huffman(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
             (first, second, written_code(&mut bits, &meta, usize::from(first_byte & 7) + 10)?)
         }
         1..=5 => (Code::from_lengths(&widen(tables::FIRST_LENGTHS[set - 1]))?, Code::from_lengths(&widen(tables::SECOND_LENGTHS[set - 1]))?, Code::from_lengths(&widen(tables::OFFSET_LENGTHS[set - 1]))?),
-        _ => return Err(format!("This file's packed data starts with a code set ({set}) StuffIt doesn't have, so it's damaged.")),
+        _ => return Err(crate::i18n::tf!("This file's packed data starts with a code set ({set}) StuffIt doesn't have, so it's damaged.")),
     };
     let mut out = Vec::with_capacity(size);
     let mut after_match = false;
@@ -697,7 +697,7 @@ fn written_code(bits: &mut Bits, meta: &Code, count: usize) -> Result<Code, Stri
     let mut length = 0i32;
     let mut i = 0;
     let set = |lengths: &mut Vec<i32>, i: usize, length: i32| -> Result<(), String> {
-        *lengths.get_mut(i).ok_or("The packed data's code lengths run past the end, so it's damaged.")? = length;
+        *lengths.get_mut(i).ok_or(crate::i18n::tr("The packed data's code lengths run past the end, so it's damaged."))? = length;
         Ok(())
     };
     while i < count {
@@ -796,7 +796,7 @@ impl<'a> Arithmetic<'a> {
         self.code = self.code.wrapping_sub(scale.wrapping_mul(low));
         self.range = if low + size == total { self.range.wrapping_sub(scale.wrapping_mul(low)) } else { size.wrapping_mul(scale) };
         if self.range <= 0 {
-            return Err("The packed data is damaged: its arithmetic coding goes wrong.".into());
+            return Err(crate::i18n::tr("The packed data is damaged: its arithmetic coding goes wrong.").into());
         }
         while self.range <= HALF {
             self.range <<= 1;
@@ -827,7 +827,7 @@ fn arsenic(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
     let mut selector = Model::new(0, 10, 8, 1024);
     let mut moved: Vec<Model> = [(2, 3, 8), (4, 7, 4), (8, 15, 4), (16, 31, 4), (32, 63, 2), (64, 127, 2), (128, 255, 1)].iter().map(|&(first, last, step)| Model::new(first, last, step, 1024)).collect();
     if coder.number(&mut initial, 8)? != u32::from(b'A') || coder.number(&mut initial, 8)? != u32::from(b's') {
-        return Err("This file's Arsenic data doesn't start as Arsenic does, so it's damaged.".into());
+        return Err(crate::i18n::tr("This file's Arsenic data doesn't start as Arsenic does, so it's damaged.").into());
     }
     let block_bits = coder.number(&mut initial, 4)? + 9;
     let block_size = 1usize << block_bits;
@@ -924,7 +924,7 @@ fn arsenic(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
                 1
             };
             if out.len() + run > size {
-                return Err(format!("This file's Arsenic data unpacks to more than the {size} bytes its header says, so it's damaged."));
+                return Err(crate::i18n::tf!("This file's Arsenic data unpacks to more than the {size} bytes its header says, so it's damaged."));
             }
             for _ in 0..run {
                 out.push(last);
@@ -932,7 +932,7 @@ fn arsenic(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
             }
         }
     }
-    if !crc == stored_crc { Ok(out) } else { Err("This file unpacked, but its CRC doesn't match, so it's damaged.".into()) }
+    if !crc == stored_crc { Ok(out) } else { Err(crate::i18n::tr("This file unpacked, but its CRC doesn't match, so it's damaged.").into()) }
 }
 
 /// The CRC-32 of zip and Ethernet, a byte at a time.

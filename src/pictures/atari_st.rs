@@ -137,7 +137,7 @@ fn unpack_degas(data: &[u8], width: usize, height: usize, planes: usize) -> (Vec
 }
 
 pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
-    let kind = kind(ending, bytes).ok_or("This isn't an Atari ST picture Limoniter knows.")?;
+    let kind = kind(ending, bytes).ok_or(crate::i18n::tr("This isn't an Atari ST picture Limoniter knows."))?;
     if matches!(kind, Kind::SpectrumPlain | Kind::SpectrumPacked | Kind::SpectrumSmooshed) {
         return decode_spectrum(kind, bytes);
     }
@@ -353,7 +353,7 @@ fn unpack_spectrum(kind: Kind, bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 fn decode_spectrum(kind: Kind, bytes: &[u8]) -> Result<Picture, String> {
-    let file = unpack_spectrum(kind, bytes).ok_or("This Spectrum 512 picture ends early or is damaged.")?;
+    let file = unpack_spectrum(kind, bytes).ok_or(crate::i18n::tr("This Spectrum 512 picture ends early or is damaged."))?;
     let words: Vec<u16> = file[SCREEN..].chunks(2).map(|w| u16::from_be_bytes([w[0], w[1]])).collect();
     let ste = words.iter().any(|w| w & 0x888 != 0);
     let colours: Vec<[u8; 3]> = words.iter().map(|&w| crate::st_planar::colour_of_word(w, ste)).collect();

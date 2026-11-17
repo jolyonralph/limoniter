@@ -309,7 +309,7 @@ impl Limoniter {
         if self.script.is_some() {
             return;
         }
-        let started = std::fs::read_to_string(path).map_err(|e| format!("{} couldn't be read.\n\n{e}", path.display())).and_then(|source| scripting::start_function(name, &source, function));
+        let started = std::fs::read_to_string(path).map_err(|e| crate::i18n::tf!("{} couldn't be read.\n\n{e}", path.display())).and_then(|source| scripting::start_function(name, &source, function));
         match started {
             Ok(run) => {
                 self.script = Some(Box::new(ScriptRun { run, waiting: None, printed: false, after }));
@@ -341,7 +341,7 @@ impl Limoniter {
         let name = name_of_path(path);
         let open = self.docs.iter().position(|doc| doc.path.as_deref().is_some_and(|known| same_path(known, path)));
         if open == Some(self.active) && !self.no_file() {
-            self.message(&name, format!("{name} is the file in front, and would be working on itself. Go to the file you want it to work on, then play it from there."));
+            self.message(&name, crate::i18n::tf!("{name} is the file in front, and would be working on itself. Go to the file you want it to work on, then play it from there."));
             return;
         }
         let source = match open {
@@ -349,7 +349,7 @@ impl Limoniter {
             _ => match std::fs::read_to_string(path) {
                 Ok(source) => source,
                 Err(e) => {
-                    self.message(&name, format!("{} couldn't be read.\n\n{e}", path.display()));
+                    self.message(&name, crate::i18n::tf!("{} couldn't be read.\n\n{e}", path.display()));
                     return;
                 }
             },
@@ -380,7 +380,7 @@ impl Limoniter {
         run.waiting = None;
         if let Err(problem) = result {
             let undo = if changed { "\n\nWhat it changed before that can be taken back with one Undo." } else { "" };
-            self.message(&run.run.name, format!("{} stopped.\n\n{problem}{undo}", run.run.name));
+            self.message(&run.run.name, crate::i18n::tf!("{} stopped.\n\n{problem}{undo}", run.run.name));
         }
         if let Some(after) = run.after.take() {
             self.do_after(after);
@@ -404,7 +404,7 @@ impl Limoniter {
         }
         self.pending_focus = true;
         if changed {
-            self.message(&name, format!("{name} was stopped. One Undo takes back what it had done."));
+            self.message(&name, crate::i18n::tf!("{name} was stopped. One Undo takes back what it had done."));
         }
     }
 
@@ -497,19 +497,19 @@ impl Limoniter {
     fn script_call(&mut self, call: Call, run: &mut ScriptRun, ui: &Ui) -> Option<Result<Answer, String>> {
         if scripting::is_about_text(&call) {
             if self.no_file() {
-                return Some(Err("No file is open. new_file() or open_file() can give it one.".into()));
+                return Some(Err(crate::i18n::tr("No file is open. new_file() or open_file() can give it one.").into()));
             }
             let doc = &self.docs[self.active];
             if doc.hex_mode {
-                return Some(Err("This file is showing in hex mode. A script needs it in text mode for this.".into()));
+                return Some(Err(crate::i18n::tr("This file is showing in hex mode. A script needs it in text mode for this.").into()));
             }
             if scripting::edits_text(&call) && doc.text.read_only {
-                return Some(Err("This file is locked against changes, so it can't be changed.".into()));
+                return Some(Err(crate::i18n::tr("This file is locked against changes, so it can't be changed.").into()));
             }
         }
         let needs_file = matches!(call, Call::Save | Call::SaveAs(_) | Call::FileName | Call::FilePath | Call::IsModified);
         if needs_file && self.no_file() {
-            return Some(Err("No file is open.".into()));
+            return Some(Err(crate::i18n::tr("No file is open.").into()));
         }
         let name = run.run.name.clone();
         Some(match call {
@@ -562,7 +562,7 @@ impl Limoniter {
                     self.run(*command, ui);
                     Ok(Answer::Nothing)
                 }
-                None => Err(format!("There's no command called {wanted}.")),
+                None => Err(crate::i18n::tf!("There's no command called {wanted}.")),
             },
             Call::Message(text) => {
                 self.message(&name, text);
@@ -593,7 +593,7 @@ impl Limoniter {
             }
             Call::Save => {
                 if self.docs[self.active].path.is_none() {
-                    Err("This file has no name yet. Use save_as to give it one.".to_string())
+                    Err(crate::i18n::tr("This file has no name yet. Use save_as to give it one.").to_string())
                 } else {
                     let active = self.active;
                     Ok(Answer::Yes(self.save(active)))
@@ -602,7 +602,7 @@ impl Limoniter {
             Call::SaveAs(path) => {
                 let path = self.place_for_script(&path);
                 if path.exists() {
-                    Err(format!("{} is there already. A script can't write over another file.", path.display()))
+                    Err(crate::i18n::tf!("{} is there already. A script can't write over another file.", path.display()))
                 } else {
                     let active = self.active;
                     Ok(Answer::Yes(self.write_to(active, &path)))
@@ -631,7 +631,7 @@ impl Limoniter {
             }
             Call::SendDevice => Ok(Answer::Text(self.send_pending.as_ref().map_or_else(String::new, |pending| pending.device.name.clone()))),
             Call::SetSendName(name) => match (&mut self.send_pending, crate::deploy::name_problem(&name)) {
-                (None, _) => Err("set_send_name only works in an add-on's on_send function.".into()),
+                (None, _) => Err(crate::i18n::tr("set_send_name only works in an add-on's on_send function.").into()),
                 (Some(_), Some(problem)) => Err(problem),
                 (Some(pending), None) => {
                     pending.name = name.trim().to_string();
@@ -743,12 +743,12 @@ impl Limoniter {
                 }
             }
             Command::LoadMacro => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Load macro").add_filter("Limoniter macro", &[scripting::EXTENSION]).pick_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Load macro")).add_filter(crate::i18n::tr("Limoniter macro"), &[scripting::EXTENSION]).pick_file() {
                     self.load_into_library(Kind::Macro, &path);
                 }
             }
             Command::LoadScript => {
-                if let Some(path) = rfd::FileDialog::new().set_title("Load script").add_filter("Limoniter script", &[scripting::EXTENSION]).pick_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Load script")).add_filter(crate::i18n::tr("Limoniter script"), &[scripting::EXTENSION]).pick_file() {
                     self.load_into_library(Kind::Script, &path);
                 }
             }
@@ -835,15 +835,15 @@ impl Limoniter {
         let mut outcome = BoxOutcome::Nothing;
         match state {
             ScriptBox::SaveMacro { source, name, error, focus } => script_box("Save macro", ctx, |ui| {
-                ui.label("Give it a name to keep it. Without one it stays until you record another or close Limoniter.");
+                ui.label(crate::i18n::tr("Give it a name to keep it. Without one it stays until you record another or close Limoniter."));
                 let enter = named_field(ui, name, focus);
                 error_line(ui, error);
                 ui.add_space(6.0);
-                ui.collapsing("What was recorded", |ui| {
+                ui.collapsing(crate::i18n::tr("What was recorded"), |ui| {
                     egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| ui.label(RichText::new(source.as_str()).monospace().size(12.0)));
                 });
                 ui.add_space(6.0);
-                let (save, later) = ui.horizontal(|ui| (ui.button("Save").clicked(), ui.button("Don't save").clicked())).inner;
+                let (save, later) = ui.horizontal(|ui| (ui.button(crate::i18n::tr("Save")).clicked(), ui.button(crate::i18n::tr("Don't save")).clicked())).inner;
                 if save || enter {
                     outcome = BoxOutcome::SaveMacro(name.clone(), source.clone());
                 } else if later {
@@ -853,7 +853,7 @@ impl Limoniter {
             ScriptBox::PlayTimes { times, until_end, error, focus, path } => script_box("Play several times", ctx, |ui| {
                 ui.add_enabled_ui(!*until_end, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Times:");
+                        ui.label(crate::i18n::tr("Times:"));
                         let field = ui.add(egui::TextEdit::singleline(times).desired_width(80.0));
                         if *focus {
                             field.request_focus();
@@ -861,7 +861,7 @@ impl Limoniter {
                         }
                     });
                 });
-                ui.checkbox(until_end, "Keep going until the end of the file").on_hover_text("It plays until a run doesn't move the cursor down a line, and doesn't remove any lines");
+                ui.checkbox(until_end, crate::i18n::tr("Keep going until the end of the file")).on_hover_text(crate::i18n::tr("It plays until a run doesn't move the cursor down a line, and doesn't remove any lines"));
                 error_line(ui, error);
                 let (ok, cancel) = ok_cancel(ui);
                 if ok || ui.input(|i| i.key_pressed(Key::Enter)) {
@@ -875,7 +875,7 @@ impl Limoniter {
                 }
             }),
             ScriptBox::NewScript { name, error, focus } => script_box("New script", ctx, |ui| {
-                ui.label("Name:");
+                ui.label(crate::i18n::tr("Name:"));
                 let enter = named_field(ui, name, focus);
                 error_line(ui, error);
                 let (ok, cancel) = ok_cancel(ui);
@@ -886,7 +886,7 @@ impl Limoniter {
                 }
             }),
             ScriptBox::NewAddOn { name, error, focus } => script_box("New add-on", ctx, |ui| {
-                ui.label("Name:");
+                ui.label(crate::i18n::tr("Name:"));
                 let enter = named_field(ui, name, focus);
                 error_line(ui, error);
                 let (ok, cancel) = ok_cancel(ui);
@@ -897,7 +897,7 @@ impl Limoniter {
                 }
             }),
             ScriptBox::Rename { path, name, error, focus } => script_box("Rename", ctx, |ui| {
-                ui.label("New name:");
+                ui.label(crate::i18n::tr("New name:"));
                 let enter = named_field(ui, name, focus);
                 error_line(ui, error);
                 let (ok, cancel) = ok_cancel(ui);
@@ -908,9 +908,9 @@ impl Limoniter {
                 }
             }),
             ScriptBox::Delete { path, name } => script_box("Delete", ctx, |ui| {
-                ui.label(format!("Delete {name}? This can't be undone."));
+                ui.label(crate::i18n::tf!("Delete {name}? This can't be undone."));
                 ui.add_space(6.0);
-                let (delete, cancel) = ui.horizontal(|ui| (ui.button("Delete").clicked(), ui.button("Cancel").clicked())).inner;
+                let (delete, cancel) = ui.horizontal(|ui| (ui.button(crate::i18n::tr("Delete")).clicked(), ui.button(crate::i18n::tr("Cancel")).clicked())).inner;
                 if delete {
                     outcome = BoxOutcome::Delete(path.clone());
                 } else if cancel {
@@ -930,7 +930,7 @@ impl Limoniter {
             ScriptBox::Confirm { title, question } => script_box(title, ctx, |ui| {
                 ui.label(question.as_str());
                 ui.add_space(6.0);
-                let (yes, no) = ui.horizontal(|ui| (ui.button("Yes").clicked(), ui.button("No").clicked())).inner;
+                let (yes, no) = ui.horizontal(|ui| (ui.button(crate::i18n::tr("Yes")).clicked(), ui.button(crate::i18n::tr("No")).clicked())).inner;
                 if yes {
                     outcome = BoxOutcome::Answer(Answer::Yes(true));
                 } else if no || cancelled {
@@ -1041,10 +1041,10 @@ impl Limoniter {
         }
         let name = run.run.name.clone();
         let mut stop = ctx.input(|i| i.key_pressed(Key::Escape));
-        egui::Window::new("Playing").collapsible(false).resizable(false).max_width(280.0).anchor(egui::Align2::RIGHT_BOTTOM, [-20.0, -36.0]).show(ctx, |ui| {
-            ui.label(format!("{name}: {} seconds so far", waited.as_secs()));
+        egui::Window::new(crate::i18n::tr("Playing")).collapsible(false).resizable(false).max_width(280.0).anchor(egui::Align2::RIGHT_BOTTOM, [-20.0, -36.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tf!("{name}: {} seconds so far", waited.as_secs()));
             ui.add_space(4.0);
-            stop |= ui.button("Stop").on_hover_text("Stops it where it is (Esc). One Undo takes back what it had done").clicked();
+            stop |= ui.button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Stops it where it is (Esc). One Undo takes back what it had done")).clicked();
         });
         if stop {
             self.stop_script();
@@ -1112,17 +1112,20 @@ impl Limoniter {
         Panel::bottom("results-panel").default_size(190.0).resizable(true).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let lines = self.script_output.len();
-                ui.label(format!("Output: {lines} line{}{}", if lines == 1 { "" } else { "s" }, if running { ", running" } else { "" }));
+                ui.label(if lines == 1 { crate::i18n::tf!("Output: {lines} line{}", if running { ", running" } else { "" }) } else { crate::i18n::tf!("Output: {lines} lines{}", if running { ", running" } else { "" }) });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = crate::access::called(ui.small_button("\u{D7}"), "Close").on_hover_text("Close").clicked();
+                    close = crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Close").on_hover_text(crate::i18n::tr("Close")).clicked();
                     if running {
-                        stop = ui.small_button("Stop").on_hover_text("Ends the command, and anything it started").clicked();
+                        stop = ui.small_button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Ends the command, and anything it started")).clicked();
                     }
-                    if ui.small_button("Copy all").clicked() {
+                    if ui.small_button(crate::i18n::tr("Copy all")).clicked() {
                         ui.ctx().copy_text(self.script_output.join("\n"));
                     }
                 });
             });
+            if let Some(map) = &self.memory_map {
+                crate::memory_map::bar(ui, map);
+            }
             ui.separator();
             let row = ui.text_style_height(&egui::TextStyle::Monospace) + 2.0;
             egui::ScrollArea::both().id_salt("script-output").auto_shrink([false, false]).stick_to_bottom(true).show_rows(ui, row, self.script_output.len(), |ui, range| {
@@ -1130,7 +1133,7 @@ impl Limoniter {
                     // A place, as compilers and assemblers print them, goes there when clicked.
                     match crate::assemblers::problem_line(line).or_else(|| crate::tasks::place_in(line)) {
                         Some((file, number, _)) => {
-                            if crate::access::clickable(ui.add(egui::Label::new(RichText::new(line).monospace().color(theme::accent())).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click()))).on_hover_text("Go to this line").clicked() {
+                            if crate::access::clickable(ui.add(egui::Label::new(RichText::new(line).monospace().color(theme::accent())).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::click()))).on_hover_text(crate::i18n::tr("Go to this line")).clicked() {
                                 go_to = Some((file, number));
                             }
                         }
@@ -1154,6 +1157,7 @@ impl Limoniter {
         }
         if close {
             self.script_output.clear();
+            self.memory_map = None;
             self.show_results = false;
             self.pending_focus = true;
         }

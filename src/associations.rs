@@ -36,10 +36,10 @@ fn clean_type(text: &str) -> Result<Option<String>, String> {
         return Ok(None);
     }
     if !name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')) || name.ends_with('.') {
-        return Err(format!("\"{}\" isn't a file type. Use something like log or .log.", text.trim()));
+        return Err(crate::i18n::tf!("\"{}\" isn't a file type. Use something like log or .log.", text.trim()));
     }
     if REFUSED_TYPES.contains(&name.as_str()) {
-        return Err(format!(".{name} files are run by Windows, so an editor shouldn't take them over."));
+        return Err(crate::i18n::tf!(".{name} files are run by Windows, so an editor shouldn't take them over."));
     }
     Ok(Some(name))
 }
@@ -400,7 +400,7 @@ pub fn open_windows_page() -> Result<(), String> {
     let (verb, page) = (wide("open"), wide(&format!("ms-settings:defaultapps?registeredAppUser={APP_NAME}")));
     // SAFETY: the strings are terminated and outlive the call, and the rest may be null.
     let result = unsafe { ShellExecuteW(0, verb.as_ptr(), page.as_ptr(), std::ptr::null(), std::ptr::null(), SW_SHOWNORMAL) };
-    if result > 32 { Ok(()) } else { Err("Windows wouldn't open its settings. Look for Default apps in Windows Settings.".to_string()) }
+    if result > 32 { Ok(()) } else { Err(crate::i18n::tr("Windows wouldn't open its settings. Look for Default apps in Windows Settings.").to_string()) }
 }
 
 #[cfg(not(windows))]
@@ -410,17 +410,17 @@ pub fn registered() -> Vec<String> {
 
 #[cfg(not(windows))]
 pub fn register(_types: &[String]) -> Result<(), String> {
-    Err("This only works on Windows.".to_string())
+    Err(crate::i18n::tr("This only works on Windows.").to_string())
 }
 
 #[cfg(not(windows))]
 pub fn remove() -> Result<(), String> {
-    Err("This only works on Windows.".to_string())
+    Err(crate::i18n::tr("This only works on Windows.").to_string())
 }
 
 #[cfg(not(windows))]
 pub fn open_windows_page() -> Result<(), String> {
-    Err("This only works on Windows.".to_string())
+    Err(crate::i18n::tr("This only works on Windows.").to_string())
 }
 
 /// This copy of the program, for showing which one would be registered.

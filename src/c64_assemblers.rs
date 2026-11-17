@@ -82,9 +82,9 @@ fn kickass_folder() -> Option<PathBuf> {
 /// Downloads KickAssembler from its website and keeps KickAss.jar and its manual (not KickAss.cfg, which can tell
 /// it to start an emulator itself). Gives the jar's path.
 pub fn download_kickass() -> Result<PathBuf, String> {
-    let folder = kickass_folder().ok_or("There's nowhere to keep it: Limoniter's settings folder couldn't be found.")?;
-    let response = ureq::get(KICKASS_DOWNLOAD).header("User-Agent", "Limoniter").call().map_err(|e| format!("theweb.dk couldn't be reached: {e}"))?;
-    let zip = response.into_body().with_config().limit(32 << 20).read_to_vec().map_err(|e| format!("The download stopped: {e}"))?;
+    let folder = kickass_folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?;
+    let response = ureq::get(KICKASS_DOWNLOAD).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("theweb.dk couldn't be reached: {e}"))?;
+    let zip = response.into_body().with_config().limit(32 << 20).read_to_vec().map_err(|e| crate::i18n::tf!("The download stopped: {e}"))?;
     unpack_kickass(zip, &folder)
 }
 
@@ -92,10 +92,10 @@ pub fn download_kickass() -> Result<PathBuf, String> {
 fn unpack_kickass(zip: Vec<u8>, folder: &Path) -> Result<PathBuf, String> {
     let volume = crate::media::open(std::sync::Arc::new(zip), "KickAssembler.zip")?;
     let entries = volume.list(None)?;
-    let jar = entries.iter().find(|e| e.name.eq_ignore_ascii_case("KickAss.jar")).ok_or("The download has no KickAss.jar in it.")?;
-    std::fs::create_dir_all(folder).map_err(|e| format!("{} couldn't be made: {e}", folder.display()))?;
+    let jar = entries.iter().find(|e| e.name.eq_ignore_ascii_case("KickAss.jar")).ok_or(crate::i18n::tr("The download has no KickAss.jar in it."))?;
+    std::fs::create_dir_all(folder).map_err(|e| crate::i18n::tf!("{} couldn't be made: {e}", folder.display()))?;
     let path = folder.join("KickAss.jar");
-    std::fs::write(&path, volume.read(jar)?).map_err(|e| format!("{} couldn't be saved: {e}", path.display()))?;
+    std::fs::write(&path, volume.read(jar)?).map_err(|e| crate::i18n::tf!("{} couldn't be saved: {e}", path.display()))?;
     if let Some(manual) = entries.iter().find(|e| e.name.eq_ignore_ascii_case("KickAssembler.pdf"))
         && let Ok(bytes) = volume.read(manual)
     {
@@ -194,7 +194,7 @@ pub fn kickass(program: &Path, source: &Path, work: &Path) -> Result<Assembled, 
     }
     let mut args: Vec<String> = Vec::new();
     let runner = if jar {
-        let java = find_java().ok_or("KickAssembler needs Java, which wasn't found: install it (from adoptium.net, or your system's packages), or set JAVA_HOME.")?;
+        let java = find_java().ok_or(crate::i18n::tr("KickAssembler needs Java, which wasn't found: install it (from adoptium.net, or your system's packages), or set JAVA_HOME."))?;
         args.extend(["-jar".to_string(), program.display().to_string()]);
         java
     } else {

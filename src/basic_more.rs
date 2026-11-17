@@ -334,7 +334,7 @@ fn bbc_crunch(text: &str, z80: bool) -> Result<Vec<u8>, String> {
     let mut start = true;
     let mut line_numbers = false;
     let push_char = |out: &mut Vec<u8>, c: char| -> Result<(), String> {
-        u8::try_from(c as u32).ok().filter(u8::is_ascii).map(|b| out.push(b)).ok_or_else(|| format!("'{c}' isn't in BBC BASIC's character set"))
+        u8::try_from(c as u32).ok().filter(u8::is_ascii).map(|b| out.push(b)).ok_or_else(|| crate::i18n::tf!("'{c}' isn't in BBC BASIC's character set"))
     };
     while i < chars.len() {
         let c = chars[i];
@@ -342,7 +342,7 @@ fn bbc_crunch(text: &str, z80: bool) -> Result<Vec<u8>, String> {
             && let Some(close) = chars[i..].iter().position(|ch| *ch == '}')
         {
             let inside: String = chars[i + 1..i + close].iter().collect();
-            let byte = inside.strip_prefix('$').and_then(|hex| u8::from_str_radix(hex, 16).ok()).ok_or_else(|| format!("{{{inside}}} isn't a byte"))?;
+            let byte = inside.strip_prefix('$').and_then(|hex| u8::from_str_radix(hex, 16).ok()).ok_or_else(|| crate::i18n::tf!("{{{inside}}} isn't a byte"))?;
             out.push(byte);
             i += close + 1;
             continue;
@@ -359,7 +359,7 @@ fn bbc_crunch(text: &str, z80: bool) -> Result<Vec<u8>, String> {
         if line_numbers {
             if c.is_ascii_digit() {
                 let digits: String = chars[i..].iter().take_while(|ch| ch.is_ascii_digit()).collect();
-                let number: u16 = digits.parse().ok().filter(|n| *n <= 32767).ok_or_else(|| format!("{digits} is past the last line number there can be, 32767"))?;
+                let number: u16 = digits.parse().ok().filter(|n| *n <= 32767).ok_or_else(|| crate::i18n::tf!("{digits} is past the last line number there can be, 32767"))?;
                 out.push(BBC_LINE_NUMBER);
                 out.extend(bbc_line_bytes(number));
                 i += digits.len();
@@ -472,16 +472,16 @@ pub fn tokenise_bbc<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
             continue;
         }
         let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
-        let number: u16 = trimmed[..digits].parse().map_err(|_| format!("Line {} doesn't start with a line number.", index + 1))?;
+        let number: u16 = trimmed[..digits].parse().map_err(|_| crate::i18n::tf!("Line {} doesn't start with a line number.", index + 1))?;
         if number > 32767 {
-            return Err(format!("Line {}: {number} is past the last line number there can be, 32767.", index + 1));
+            return Err(crate::i18n::tf!("Line {}: {number} is past the last line number there can be, 32767.", index + 1));
         }
         if previous.is_some_and(|p| number <= p) {
-            return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
+            return Err(crate::i18n::tf!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
         }
         previous = Some(number);
-        let body = bbc_crunch(&trimmed[digits..], false).map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
-        let length = u8::try_from(body.len() + 4).map_err(|_| format!("Line {} is longer than the 251 bytes a line can hold.", index + 1))?;
+        let body = bbc_crunch(&trimmed[digits..], false).map_err(|problem| crate::i18n::tf!("Line {} (BASIC line {number}): {problem}", index + 1))?;
+        let length = u8::try_from(body.len() + 4).map_err(|_| crate::i18n::tf!("Line {} is longer than the 251 bytes a line can hold.", index + 1))?;
         out.push(0x0D);
         out.extend(number.to_be_bytes());
         out.push(length);
@@ -576,13 +576,13 @@ pub fn tokenise_bbc_z80<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
             continue;
         }
         let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
-        let number: u16 = trimmed[..digits].parse().map_err(|_| format!("Line {} doesn't start with a line number from 0 to 65535.", index + 1))?;
+        let number: u16 = trimmed[..digits].parse().map_err(|_| crate::i18n::tf!("Line {} doesn't start with a line number from 0 to 65535.", index + 1))?;
         if previous.is_some_and(|p| number <= p) {
-            return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
+            return Err(crate::i18n::tf!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
         }
         previous = Some(number);
-        let body = bbc_crunch(&trimmed[digits..], true).map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
-        let length = u8::try_from(body.len() + 4).map_err(|_| format!("Line {} is longer than the 251 bytes a line can hold.", index + 1))?;
+        let body = bbc_crunch(&trimmed[digits..], true).map_err(|problem| crate::i18n::tf!("Line {} (BASIC line {number}): {problem}", index + 1))?;
+        let length = u8::try_from(body.len() + 4).map_err(|_| crate::i18n::tf!("Line {} is longer than the 251 bytes a line can hold.", index + 1))?;
         out.push(length);
         out.extend(number.to_le_bytes());
         out.extend(body);
@@ -1082,14 +1082,14 @@ pub fn tokenise_applesoft<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String>
             continue;
         }
         let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
-        let number: u16 = trimmed[..digits].parse().ok().filter(|n| *n <= 63999).ok_or_else(|| format!("Line {} doesn't start with a line number from 0 to 63999.", index + 1))?;
+        let number: u16 = trimmed[..digits].parse().ok().filter(|n| *n <= 63999).ok_or_else(|| crate::i18n::tf!("Line {} doesn't start with a line number from 0 to 63999.", index + 1))?;
         if previous.is_some_and(|p| number <= p) {
-            return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
+            return Err(crate::i18n::tf!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
         }
         previous = Some(number);
         let text: Vec<char> = trimmed[digits..].chars().collect();
         if let Some(c) = text.iter().find(|c| !c.is_ascii() || c.is_ascii_control()) {
-            return Err(format!("Line {} has a character Applesoft doesn't have: {c:?}.", index + 1));
+            return Err(crate::i18n::tf!("Line {} has a character Applesoft doesn't have: {c:?}.", index + 1));
         }
         let mut body = Vec::new();
         let (mut quoted, mut rem, mut data) = (false, false, false);
@@ -1167,7 +1167,7 @@ pub fn tokenise_applesoft<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String>
         }
         let next = 0x0801 + out.len() + 4 + body.len() + 1;
         if next > 0xFFFF {
-            return Err("The program is too long for Applesoft's memory.".into());
+            return Err(crate::i18n::tr("The program is too long for Applesoft's memory.").into());
         }
         out.extend((next as u16).to_le_bytes());
         out.extend(number.to_le_bytes());

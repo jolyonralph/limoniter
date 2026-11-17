@@ -39,19 +39,19 @@ pub fn unpack_msa(source: &dyn Source) -> Result<Vec<u8>, String> {
     let data = source.read_vec(0, source.len().min(8 * 1024 * 1024) as usize)?;
     let word = |at: usize| data.get(at..at + 2).map(|b| usize::from(u16::from_be_bytes([b[0], b[1]])));
     let (Some(sectors), Some(sides), Some(first), Some(last)) = (word(2), word(4), word(6), word(8)) else {
-        return Err("The MSA header is cut short.".into());
+        return Err(crate::i18n::tr("The MSA header is cut short.").into());
     };
     if sectors == 0 || sectors > 64 || sides > 1 || last < first || last > 255 {
-        return Err("The MSA header doesn't describe a disk.".into());
+        return Err(crate::i18n::tr("The MSA header doesn't describe a disk.").into());
     }
     let track_size = sectors * 512;
     let mut out = vec![0u8; (last + 1) * (sides + 1) * track_size];
     let mut at = 10;
     for track in first..=last {
         for side in 0..=sides {
-            let length = word(at).ok_or("The MSA image ends early.")?;
+            let length = word(at).ok_or(crate::i18n::tr("The MSA image ends early."))?;
             at += 2;
-            let packed = data.get(at..at + length).ok_or("The MSA image ends early.")?;
+            let packed = data.get(at..at + length).ok_or(crate::i18n::tr("The MSA image ends early."))?;
             at += length;
             let start = (track * (sides + 1) + side) * track_size;
             let target = &mut out[start..start + track_size];
@@ -113,7 +113,7 @@ impl Fat {
             return Ok(fat);
         }
         if !looks_like_fat(&head) {
-            return Err("This doesn't start with a FAT boot sector.".into());
+            return Err(crate::i18n::tr("This doesn't start with a FAT boot sector.").into());
         }
         let word = |at: usize| u64::from(u16::from_le_bytes([head[at], head[at + 1]]));
         let long = |at: usize| u64::from(u32::from_le_bytes([head[at], head[at + 1], head[at + 2], head[at + 3]]));
@@ -135,7 +135,7 @@ impl Fat {
             Width::Fat32
         };
         if fat_sectors == 0 || total == 0 || data_sector >= total {
-            return Err("The FAT boot sector's sizes don't add up.".into());
+            return Err(crate::i18n::tr("The FAT boot sector's sizes don't add up.").into());
         }
         let label_at = if width == Width::Fat32 { 71 } else { 43 };
         let has_label = head[if width == Width::Fat32 { 66 } else { 38 }] == 0x29;
@@ -303,11 +303,11 @@ impl Volume for Fat {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         if entry.size > super::MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let bytes = self.read_chain(entry.location, entry.size)?;
         if (bytes.len() as u64) < entry.size {
-            return Err(format!("Only {} of this file's {} bytes could be found on the disk.", bytes.len(), entry.size));
+            return Err(crate::i18n::tf!("Only {} of this file's {} bytes could be found on the disk.", bytes.len(), entry.size));
         }
         Ok(bytes)
     }

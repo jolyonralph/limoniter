@@ -143,9 +143,9 @@ fn address_of(triple: &[u8]) -> u64 {
 impl Sam {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         let head = source.read_vec(0, source.len().min(SECTOR as u64 * 2) as usize)?;
-        let shape = shape_of(&head, source.len()).ok_or("This isn't the size or shape of a SAM Coupé disk.")?;
+        let shape = shape_of(&head, source.len()).ok_or(crate::i18n::tr("This isn't the size or shape of a SAM Coupé disk."))?;
         let sector = |track: u8, number: u8| -> Option<Vec<u8>> { shape.offset(track, number).and_then(|at| source.read_vec(at, SECTOR).ok()) };
-        let first = sector(0, 1).ok_or("The disk's first sector can't be read.")?;
+        let first = sector(0, 1).ok_or(crate::i18n::tr("The disk's first sector can't be read."))?;
         // MasterDOS keeps a label at 210 and the number of extra directory tracks at 255; BDOS writes its name at 232.
         let (dos, tracks) = if &first[232..236] == b"BDOS" {
             ("BDOS", 4)
@@ -206,9 +206,9 @@ impl Sam {
         let mut seen = std::collections::HashSet::new();
         for _ in 0..count {
             if !seen.insert((track, number)) {
-                return Err(format!("{}'s chain of sectors comes back on itself.", file.name));
+                return Err(crate::i18n::tf!("{}'s chain of sectors comes back on itself.", file.name));
             }
-            let at = self.shape.offset(track, number).ok_or_else(|| format!("{}'s sectors lead to track {track}, sector {number}, which isn't on the disk.", file.name))?;
+            let at = self.shape.offset(track, number).ok_or_else(|| crate::i18n::tf!("{}'s sectors lead to track {track}, sector {number}, which isn't on the disk.", file.name))?;
             let data = self.source.read_vec(at, SECTOR)?;
             out.extend_from_slice(&data[..510]);
             (track, number) = (data[510], data[511]);
@@ -227,7 +227,7 @@ impl Sam {
         for index in (0..1560).filter(|i| file.entry[15 + i / 8] & (1 << (i % 8)) != 0) {
             let track_index = 4 + index / 10;
             let track = (track_index % 80) as u8 | if track_index >= 80 { 0x80 } else { 0 };
-            let at = self.shape.offset(track, (index % 10) as u8 + 1).ok_or_else(|| format!("{}'s sector map has sectors that aren't on the disk.", file.name))?;
+            let at = self.shape.offset(track, (index % 10) as u8 + 1).ok_or_else(|| crate::i18n::tf!("{}'s sector map has sectors that aren't on the disk.", file.name))?;
             out.extend_from_slice(&self.source.read_vec(at, SECTOR)?[..chunk]);
         }
         Ok(out)
@@ -321,7 +321,7 @@ impl Volume for Sam {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         let kind = file.entry[0] & 0x1F;
         let wanted = entry.size as usize;
         let data = if kind == 8 {

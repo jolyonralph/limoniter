@@ -65,7 +65,7 @@ pub struct Card {
 impl Card {
     pub fn open(source: Arc<dyn Source>, ending: &str) -> Result<Self, String> {
         if source.len() > MOST_CARD {
-            return Err("This is larger than any Z88 or NC memory card.".into());
+            return Err(crate::i18n::tr("This is larger than any Z88 or NC memory card.").into());
         }
         let bytes = Arc::new(source.read_vec(0, source.len() as usize)?);
         let (kind, notes) = if ending == "epr" || bytes.ends_with(b"oz") || bytes.ends_with(b"OZ") { z88(&bytes)? } else { nc(&bytes)? };
@@ -75,7 +75,7 @@ impl Card {
 
 fn z88(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
     if bytes.len() < BANK || !bytes.len().is_multiple_of(BANK) {
-        return Err("A Z88 card image is a whole number of 16K banks.".into());
+        return Err(crate::i18n::tr("A Z88 card image is a whole number of 16K banks.").into());
     }
     let top = &bytes[bytes.len() - BANK..];
     let banks = usize::from(top[0x3FFC]).max(1);
@@ -88,7 +88,7 @@ fn z88(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
         return Ok((Kind::Z88Applications { banks }, notes));
     }
     if &top[0x3FFE..] != b"oz" {
-        return Err("This isn't a Z88 card: there's no oz or OZ at its very top.".into());
+        return Err(crate::i18n::tr("This isn't a Z88 card: there's no oz or OZ at its very top.").into());
     }
     let id = [top[0x3FF8], top[0x3FF9], top[0x3FFA], top[0x3FFB]];
     // The files run up from the bottom of the card to the header at the top of its last bank.
@@ -170,7 +170,7 @@ fn nc(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
         drives.push(ZcnDrive { letter, base, system_blocks, files });
     }
     if drives.is_empty() {
-        return Err("This card has no ZCN drive on it. Cards the NC's own software keeps files on aren't read yet.".into());
+        return Err(crate::i18n::tr("This card has no ZCN drive on it. Cards the NC's own software keeps files on aren't read yet.").into());
     }
     if !bytes.len().is_multiple_of(ZCN_DRIVE) && bytes.len() > ZCN_DRIVE {
         notes.push("The card isn't a whole number of 256K drives; the last part is read as far as it goes.".into());
@@ -220,22 +220,22 @@ impl Volume for Card {
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         match &self.kind {
             Kind::Z88Files { files, .. } => {
-                let file = files.get(entry.location as usize).ok_or("That file isn't on the card.")?;
+                let file = files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the card."))?;
                 Ok(self.bytes[file.start..file.start + file.length].to_vec())
             }
             Kind::Zcn { drives } => {
-                let drive = drives.get((entry.location >> 16) as usize).ok_or("That drive isn't on the card.")?;
-                let file = drive.files.get((entry.location & 0xFFFF) as usize).ok_or("That file isn't on the card.")?;
+                let drive = drives.get((entry.location >> 16) as usize).ok_or(crate::i18n::tr("That drive isn't on the card."))?;
+                let file = drive.files.get((entry.location & 0xFFFF) as usize).ok_or(crate::i18n::tr("That file isn't on the card."))?;
                 let mut out = Vec::with_capacity(file.size);
                 for block in &file.blocks {
                     let at = drive.base + 1024 * (usize::from(*block) + 1 + drive.system_blocks);
-                    let chunk = self.bytes.get(at..at + 1024).ok_or("A block of the file is past the end of the card.")?;
+                    let chunk = self.bytes.get(at..at + 1024).ok_or(crate::i18n::tr("A block of the file is past the end of the card."))?;
                     out.extend_from_slice(chunk);
                 }
                 out.truncate(file.size);
                 Ok(out)
             }
-            Kind::Z88Applications { .. } | Kind::NcProgram { .. } => Err("There are no files to read on this card.".into()),
+            Kind::Z88Applications { .. } | Kind::NcProgram { .. } => Err(crate::i18n::tr("There are no files to read on this card.").into()),
         }
     }
 

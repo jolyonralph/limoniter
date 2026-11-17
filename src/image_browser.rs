@@ -155,7 +155,7 @@ impl ImageBrowser {
     /// A file's bytes and the name to open it under.
     fn take(&self, index: usize) -> Result<(String, Vec<u8>), String> {
         let level = self.level();
-        let entry = level.entries.get(index).ok_or("Nothing is selected.")?;
+        let entry = level.entries.get(index).ok_or(crate::i18n::tr("Nothing is selected."))?;
         let bytes = level.volume.read(entry)?;
         Ok((entry.open_name.clone(), bytes))
     }
@@ -225,40 +225,40 @@ impl ImageBrowser {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let at_top = self.levels.len() == 1 && level.folders.is_empty();
-            if ui.add_enabled(!at_top, Button::new("\u{2191} Up")).on_hover_text("Up a folder (Backspace)").clicked() {
+            if ui.add_enabled(!at_top, Button::new(crate::i18n::tr("\u{2191} Up"))).on_hover_text(crate::i18n::tr("Up a folder (Backspace)")).clicked() {
                 action = Some(BrowserAction::Up);
             }
             let chosen = self.selected.filter(|i| *i < level.entries.len());
-            if ui.add_enabled(chosen.is_some(), Button::new("Open")).on_hover_text("Open the file, folder or image inside (Enter, or double-click)").clicked() {
+            if ui.add_enabled(chosen.is_some(), Button::new(crate::i18n::tr("Open"))).on_hover_text(crate::i18n::tr("Open the file, folder or image inside (Enter, or double-click)")).clicked() {
                 action = chosen.map(BrowserAction::Open);
             }
             let is_file = chosen.is_some_and(|i| !level.entries[i].is_dir);
-            if ui.add_enabled(is_file, Button::new("Save a copy\u{2026}")).on_hover_text("Write the file out of the image, exactly as it is").clicked() {
+            if ui.add_enabled(is_file, Button::new(crate::i18n::tr("Save a copy\u{2026}"))).on_hover_text(crate::i18n::tr("Write the file out of the image, exactly as it is")).clicked() {
                 action = chosen.map(BrowserAction::SaveCopy);
             }
             if let (Some(i), Some(format)) = (chosen, picture)
-                && ui.button("Save as PNG\u{2026}").on_hover_text(format!("Save this {} as a PNG, pixel for pixel", format.name())).clicked()
+                && ui.button(crate::i18n::tr("Save as PNG\u{2026}")).on_hover_text(crate::i18n::tf!("Save this {} as a PNG, pixel for pixel", format.name())).clicked()
             {
                 action = Some(BrowserAction::SavePng(i));
             }
             if let (Some(i), Some(kind)) = (chosen, document) {
-                ui.menu_button(format!("Convert ({})", kind.name()), |ui| {
-                    if ui.button("Open as text").on_hover_text("The document's text in a new tab, its formatting codes taken out").clicked() {
+                ui.menu_button(crate::i18n::tf!("Convert ({})", kind.name()), |ui| {
+                    if ui.button(crate::i18n::tr("Open as text")).on_hover_text(crate::i18n::tr("The document's text in a new tab, its formatting codes taken out")).clicked() {
                         action = Some(BrowserAction::Convert(i, None));
                         ui.close();
                     }
                     for (label, target) in [("Save as Markdown\u{2026}", Target::Markdown), ("Save as plain text\u{2026}", Target::Text), ("Save as RTF\u{2026}", Target::Rtf), ("Save as CSV\u{2026}", Target::Csv)] {
-                        if ui.button(label).clicked() {
+                        if ui.button(crate::i18n::tr(label)).clicked() {
                             action = Some(BrowserAction::Convert(i, Some(target)));
                             ui.close();
                         }
                     }
                 });
             }
-            if self.levels.len() == 1 && ui.button("Show the image in hex").on_hover_text("Open the image file itself, read only, as bytes").clicked() {
+            if self.levels.len() == 1 && ui.button(crate::i18n::tr("Show the image in hex")).on_hover_text(crate::i18n::tr("Open the image file itself, read only, as bytes")).clicked() {
                 action = Some(BrowserAction::ImageInHex);
             }
-            if ui.selectable_label(info_open, "\u{2139} Info").on_hover_text("Show everything the image says about itself, and about the chosen file, in File properties").clicked() {
+            if ui.selectable_label(info_open, crate::i18n::tr("\u{2139} Info")).on_hover_text(crate::i18n::tr("Show everything the image says about itself, and about the chosen file, in File properties")).clicked() {
                 action = Some(BrowserAction::ToggleInfo);
             }
         });
@@ -268,9 +268,9 @@ impl ImageBrowser {
         if self.levels.len() == 1
             && let Some(why) = self.not_writable().filter(|w| !w.is_empty())
         {
-            ui.label(RichText::new(format!("Read only: {why}")).color(theme::text_faint()).size(11.5));
+            ui.label(RichText::new(crate::i18n::tf!("Read only: {why}")).color(theme::text_faint()).size(11.5));
         } else if let Some(free) = self.free.or_else(|| self.abilities().and_then(|a| a.free)) {
-            ui.label(RichText::new(format!("{} free", short_size(free))).color(theme::text_faint()).size(11.5));
+            ui.label(RichText::new(crate::i18n::tf!("{} free", short_size(free))).color(theme::text_faint()).size(11.5));
         }
         self.edit_panels(ui, &mut edit);
         if let Some(edit) = edit {
@@ -279,7 +279,7 @@ impl ImageBrowser {
         ui.separator();
         let entries = &self.levels.last().expect("a browser always has its image").entries;
         if entries.is_empty() && self.problem.is_none() {
-            ui.label(RichText::new("This folder is empty.").color(theme::text_faint()));
+            ui.label(RichText::new(crate::i18n::tr("This folder is empty.")).color(theme::text_faint()));
         }
         egui::ScrollArea::vertical().id_salt("image-browser").auto_shrink([false, false]).show(ui, |ui| {
             egui::Grid::new("image-browser-grid").num_columns(4).spacing([18.0, 3.0]).striped(true).show(ui, |ui| {
@@ -401,7 +401,7 @@ impl Limoniter {
         let doc = match image_document(path) {
             Ok(doc) => doc,
             Err(problem) => {
-                self.message("Open an image", format!("{name} couldn't be read as an image, so it opens as a file instead.\n\n{problem}"));
+                self.message("Open an image", crate::i18n::tf!("{name} couldn't be read as an image, so it opens as a file instead.\n\n{problem}"));
                 return false;
             }
         };
@@ -426,7 +426,7 @@ impl Limoniter {
             Some(Ok((name, bytes))) => {
                 let place = browser.place();
                 let mut doc = Document::from_image_file(format!("{place} \u{203A} {name}"), bytes, browser.text_preset(i));
-                doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound)));
+                doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound)) || Self::amos_or_stos(&doc));
                 doc.load_address = load_address;
                 let image = self.docs[index].path.clone();
                 let ending = image.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
@@ -461,14 +461,14 @@ impl Limoniter {
             Some(BrowserAction::Open(i)) => self.open_from_browser(index, i),
             Some(BrowserAction::SaveCopy(i)) => match browser.take(i) {
                 Ok((name, bytes)) => {
-                    let mut picker = rfd::FileDialog::new().set_title("Save a copy of the file").set_file_name(&name);
+                    let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a copy of the file")).set_file_name(&name);
                     if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
                         picker = picker.set_directory(folder);
                     }
                     if let Some(target) = picker.save_file()
                         && let Err(e) = codec::write_file(&target, &bytes)
                     {
-                        self.message("Save a copy", format!("Couldn't save {}.\n\n{e}", target.display()));
+                        self.message("Save a copy", crate::i18n::tf!("Couldn't save {}.\n\n{e}", target.display()));
                     }
                 }
                 Err(problem) => self.message("Save a copy", problem),
@@ -476,20 +476,20 @@ impl Limoniter {
             Some(BrowserAction::SavePng(i)) => {
                 let png = browser.take(i).and_then(|(name, bytes)| {
                     let bytes = crate::st_packers::contents(&bytes);
-                    let format = crate::pictures::detect(&name, &bytes).ok_or("This isn't a picture Limoniter can read.")?;
+                    let format = crate::pictures::detect(&name, &bytes).ok_or(crate::i18n::tr("This isn't a picture Limoniter can read."))?;
                     let png = crate::pictures::to_png(&crate::pictures::decode_named(format, &name, &bytes)?)?;
                     Ok((name, png))
                 });
                 match png {
                     Ok((name, png)) => {
-                        let mut picker = rfd::FileDialog::new().set_title("Save the picture as PNG").set_file_name(crate::pictures::png_name(&name)).add_filter("PNG picture", &["png"]);
+                        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the picture as PNG")).set_file_name(crate::pictures::png_name(&name)).add_filter(crate::i18n::tr("PNG picture"), &["png"]);
                         if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
                             picker = picker.set_directory(folder);
                         }
                         if let Some(target) = picker.save_file()
                             && let Err(e) = codec::write_file(&target, &png)
                         {
-                            self.message("Save as PNG", format!("Couldn't save {}.\n\n{e}", target.display()));
+                            self.message("Save as PNG", crate::i18n::tf!("Couldn't save {}.\n\n{e}", target.display()));
                         }
                     }
                     Err(problem) => self.message("Save as PNG", problem),
@@ -498,7 +498,7 @@ impl Limoniter {
             Some(BrowserAction::Convert(i, target)) => {
                 let converted = browser.take(i).and_then(|(name, bytes)| {
                     let bytes = crate::st_packers::contents(&bytes);
-                    let kind = legacy_docs::detect(&name, &bytes).ok_or("This isn't a document Limoniter can convert.")?;
+                    let kind = legacy_docs::detect(&name, &bytes).ok_or(crate::i18n::tr("This isn't a document Limoniter can convert."))?;
                     Ok((name, legacy_docs::convert(kind, &bytes)?))
                 });
                 let (name, doc) = match converted {
@@ -516,7 +516,7 @@ impl Limoniter {
                         self.active = self.docs.len() - 1;
                     }
                     Some(target) => {
-                        let mut picker = rfd::FileDialog::new().set_title(format!("Save as {}", match target {
+                        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tf!("Save as {}", match target {
                             Target::Markdown => "Markdown",
                             Target::Text => "plain text",
                             Target::Rtf => "RTF",
@@ -527,9 +527,9 @@ impl Limoniter {
                         }
                         if let Some(path) = picker.save_file() {
                             match codec::write_file(&path, target.write(&doc).as_bytes()) {
-                                Ok(()) if !lost.is_empty() => self.message("Convert a document", format!("Saved {}, from {}.{lost}", path.display(), doc.format)),
+                                Ok(()) if !lost.is_empty() => self.message("Convert a document", crate::i18n::tf!("Saved {}, from {}.{lost}", path.display(), doc.format)),
                                 Ok(()) => {}
-                                Err(e) => self.message("Convert a document", format!("Couldn't save {}.\n\n{e}", path.display())),
+                                Err(e) => self.message("Convert a document", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display())),
                             }
                         }
                     }

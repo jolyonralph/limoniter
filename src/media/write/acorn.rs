@@ -164,7 +164,7 @@ fn dfs_name(name: &str) -> Result<(u8, [u8; 7]), String> {
     let (stem, _) = super::stem_and_ending(rest);
     let kept: Vec<u8> = stem.chars().filter(|c| allowed(*c)).take(7).map(|c| c as u8).collect();
     if kept.is_empty() {
-        return Err(format!("\"{name}\" has no characters a DFS name can hold."));
+        return Err(crate::i18n::tf!("\"{name}\" has no characters a DFS name can hold."));
     }
     let mut out = [b' '; 7];
     out[..kept.len()].copy_from_slice(&kept);
@@ -178,7 +178,7 @@ fn allowed(c: char) -> bool {
 impl Dfs {
     pub fn open(bytes: Vec<u8>, double: bool) -> Result<Self, String> {
         if bytes.len() < 512 {
-            return Err("The image is too short to hold a DFS catalogue.".into());
+            return Err(crate::i18n::tr("The image is too short to hold a DFS catalogue.").into());
         }
         let mut dfs = Self { bytes, double };
         let mut most = 0;
@@ -212,14 +212,14 @@ impl Dfs {
         let (names, info) = (self.sector(side, 0), self.sector(side, 1));
         let sectors = u32::from(info[6] & 3) << 8 | u32::from(info[7]);
         if sectors < 2 {
-            return Err(format!("Side {} has no DFS catalogue.", side + 1));
+            return Err(crate::i18n::tf!("Side {} has no DFS catalogue.", side + 1));
         }
         if self.at(side, 3) + 256 <= self.bytes.len() && self.sector(side, 2)[..8].iter().all(|b| *b == 0xAA) {
-            return Err("This is a Watford DFS disk with a second catalogue, which is only read here.".into());
+            return Err(crate::i18n::tr("This is a Watford DFS disk with a second catalogue, which is only read here.").into());
         }
         let count = usize::from(info[5]);
         if !count.is_multiple_of(8) || count > 31 * 8 {
-            return Err("The catalogue's file count isn't a whole number of entries, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("The catalogue's file count isn't a whole number of entries, so the disk is damaged.").into());
         }
         let mut files = Vec::new();
         for at in (8..8 + count).step_by(8) {
@@ -235,14 +235,14 @@ impl Dfs {
                 start: u32::from(high & 3) << 8 | u32::from(about[7]),
             };
             if file.start < 2 || file.start + file.sectors() > sectors {
-                return Err(format!("{} lies outside the disk, so the catalogue is damaged.", file.shown()));
+                return Err(crate::i18n::tf!("{} lies outside the disk, so the catalogue is damaged.", file.shown()));
             }
             files.push(file);
         }
         let mut sorted = files.clone();
         sorted.sort_by_key(|f| f.start);
         if sorted.windows(2).any(|pair| pair[0].start + pair[0].sectors() > pair[1].start) {
-            return Err("Two files on the disk overlap, so the catalogue is damaged.".into());
+            return Err(crate::i18n::tr("Two files on the disk overlap, so the catalogue is damaged.").into());
         }
         Ok(Side { sectors, files })
     }
@@ -273,16 +273,16 @@ impl Dfs {
         match folder {
             Some(side) if self.double && side.is_dir && side.location < 2 => Ok(side.location as u8),
             None if !self.double => Ok(0),
-            None => Err("Open Side 1 or Side 2 first: each side of a double-sided disk has its own catalogue.".into()),
-            Some(_) => Err("DFS has no folders.".into()),
+            None => Err(crate::i18n::tr("Open Side 1 or Side 2 first: each side of a double-sided disk has its own catalogue.").into()),
+            Some(_) => Err(crate::i18n::tr("DFS has no folders.").into()),
         }
     }
 
     fn find(files: &[DfsFile], entry: &Entry) -> Result<usize, String> {
         if entry.is_dir {
-            return Err("A side of the disk can't be changed, only the files on it.".into());
+            return Err(crate::i18n::tr("A side of the disk can't be changed, only the files on it.").into());
         }
-        files.iter().position(|f| f.shown() == entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))
+        files.iter().position(|f| f.shown() == entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))
     }
 
     /// The first gap after the catalogue big enough for a file of this many sectors.
@@ -343,21 +343,21 @@ impl ImageWriter for Dfs {
             files.remove(index);
         }
         if bytes.len() >= 1 << 18 {
-            return Err(format!("{} is larger than the 256K a DFS file can be.", file.name));
+            return Err(crate::i18n::tf!("{} is larger than the 256K a DFS file can be.", file.name));
         }
         if files.len() >= 31 {
-            return Err("The catalogue is full: a DFS side holds 31 files.".into());
+            return Err(crate::i18n::tr("The catalogue is full: a DFS side holds 31 files.").into());
         }
         let wanted = new.sectors();
         let free = sectors - 2 - files.iter().map(DfsFile::sectors).sum::<u32>();
         if wanted > free {
-            return Err(format!("{} needs {wanted} sectors; the side has {free} free.", file.name));
+            return Err(crate::i18n::tf!("{} needs {wanted} sectors; the side has {free} free.", file.name));
         }
         new.start = match Self::gap(sectors, &files, wanted) {
             Some(start) => start,
             None => {
                 self.compact(side, &mut files);
-                Self::gap(sectors, &files, wanted).ok_or("The side's free space can't be put in one run.")?
+                Self::gap(sectors, &files, wanted).ok_or(crate::i18n::tr("The side's free space can't be put in one run."))?
             }
         };
         for (n, chunk) in bytes.chunks(256).enumerate() {

@@ -41,7 +41,7 @@ struct Disk {
 impl Disk {
     fn read(&self, at: u64, length: usize) -> Result<Vec<u8>, String> {
         if at + length as u64 > self.length {
-            return Err("a sector past the end of the image".into());
+            return Err(crate::i18n::tr("a sector past the end of the image").into());
         }
         self.source.read_vec(self.offset + at, length)
     }
@@ -97,7 +97,7 @@ fn dos_vtoc_ok(vtoc: &[u8]) -> bool {
 fn dos_catalog(disk: &Disk) -> Result<(u8, Vec<DosFile>), String> {
     let vtoc = disk.sector(17, 0)?;
     if !dos_vtoc_ok(&vtoc) {
-        return Err("no DOS 3.3 VTOC".into());
+        return Err(crate::i18n::tr("no DOS 3.3 VTOC").into());
     }
     let mut files = Vec::new();
     let (mut track, mut sector) = (u64::from(vtoc[1]), u64::from(vtoc[2]));
@@ -313,7 +313,7 @@ fn prodos_read(disk: &Disk, storage: u8, key: u64, length: u64) -> Result<Vec<u8
             let fork_length = u64::from(extended[5]) | u64::from(extended[6]) << 8 | u64::from(extended[7]) << 16;
             return prodos_read(disk, extended[0] & 15, le16(&extended, 1), fork_length);
         }
-        other => return Err(format!("a file of storage type {other}, which ProDOS 8 doesn't have")),
+        other => return Err(crate::i18n::tf!("a file of storage type {other}, which ProDOS 8 doesn't have")),
     }
     out.truncate(length as usize);
     Ok(out)
@@ -355,7 +355,7 @@ impl Apple2 {
             let order = match le32(12) {
                 0 => Some(Order::Dos),
                 1 => Some(Order::Prodos),
-                _ => return Err("This 2IMG holds a nibble image, which Limoniter doesn't decode yet.".into()),
+                _ => return Err(crate::i18n::tr("This 2IMG holds a nibble image, which Limoniter doesn't decode yet.").into()),
             };
             (le32(24), le32(28), order)
         } else {
@@ -392,7 +392,7 @@ impl Apple2 {
                 return Ok(Self { disk, system: System::Dos { files }, what });
             }
         }
-        Err("This Apple II disk has no DOS 3.3 catalog or ProDOS volume: it's probably a game or program that loads itself its own way. It can still be shown in hex.".into())
+        Err(crate::i18n::tr("This Apple II disk has no DOS 3.3 catalog or ProDOS volume: it's probably a game or program that loads itself its own way. It can still be shown in hex.").into())
     }
 }
 
@@ -505,7 +505,7 @@ impl Volume for Apple2 {
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         match &self.system {
             System::Dos { files, .. } => {
-                let file = files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+                let file = files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
                 let mut data = dos_read(&self.disk, file)?;
                 match file.kind {
                     // A text file ends at its first zero.
@@ -531,7 +531,7 @@ impl Volume for Apple2 {
                 Ok(data)
             }
             System::Prodos { files, .. } => {
-                let file = files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+                let file = files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
                 prodos_read(&self.disk, file.storage, file.key, file.length)
             }
         }

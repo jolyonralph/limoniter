@@ -87,13 +87,13 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape)) && wizard.job.is_none();
         let mut go: Option<Do> = None;
         let step = wizard.step;
-        egui::Window::new("Git, step by step").collapsible(false).resizable(false).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Git, step by step")).collapsible(false).resizable(false).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(560.0);
             let steps = ["Welcome", "Get Git", "Who you are", "Your project", "Online", "Done"];
             let at = [Step::Welcome, Step::Install, Step::Identity, Step::Project, Step::Online, Step::Done].iter().position(|s| *s == step).unwrap_or(0);
             ui.horizontal_wrapped(|ui| {
                 for (n, name) in steps.iter().enumerate() {
-                    let text = RichText::new(format!("{}. {name}", n + 1));
+                    let text = RichText::new(crate::i18n::tf!("{}. {name}", n + 1));
                     ui.label(if n == at { text.strong().color(theme::accent()) } else { text.color(theme::text_faint()) });
                 }
             });
@@ -107,14 +107,14 @@ impl Limoniter {
                     para(ui, "Git keeps the history of a folder of files. Whenever you like, you make a commit: a snapshot of how everything is, with a line saying what you did. Later you can see what changed, compare any two versions, and go back to any of them.");
                     para(ui, "It's how almost all software is made, but it's just as good for a novel, a website, notes, or a BASIC program. It's free, and everything stays on your computer unless you choose to put it online, on GitHub for example, where it's backed up and can be shared.");
                     para(ui, "This takes a few minutes, a step at a time. Limoniter then shows what's changed beside each line, and lets you commit, compare and go back from the Source control panel (Ctrl+Shift+G).");
-                    if ui.button("Let's start").clicked() {
+                    if ui.button(crate::i18n::tr("Let's start")).clicked() {
                         go = Some(Do::To(Step::Install));
                     }
                 }
                 Step::Install => match git::version() {
                     Some(version) => {
                         para(ui, &format!("Git {version} is installed. \u{2714}"));
-                        if ui.button("Next").clicked() {
+                        if ui.button(crate::i18n::tr("Next")).clicked() {
                             go = Some(Do::To(Step::Identity));
                         }
                     }
@@ -128,10 +128,10 @@ impl Limoniter {
                             para(ui, "On Linux, install it with your package manager, such as: sudo apt install git (Debian, Ubuntu) or sudo dnf install git (Fedora).");
                         }
                         ui.horizontal(|ui| {
-                            if ui.button("Open the download page").clicked() {
+                            if ui.button(crate::i18n::tr("Open the download page")).clicked() {
                                 go = Some(Do::Web("https://git-scm.com/downloads".into()));
                             }
-                            if ui.button("I've installed it: look again").clicked() {
+                            if ui.button(crate::i18n::tr("I've installed it: look again")).clicked() {
                                 go = Some(Do::To(Step::Install));
                             }
                         });
@@ -141,15 +141,15 @@ impl Limoniter {
                     para(ui, "Each commit says who made it. Git needs a name and an email for that; they're saved in Git's own settings, for every project.");
                     para(ui, "If you'll put work on GitHub and would rather your email wasn't public, GitHub gives you a private one to use instead (in GitHub's Settings, Emails, it ends @users.noreply.github.com).");
                     egui::Grid::new("git-identity").num_columns(2).show(ui, |ui| {
-                        ui.label("Your name:");
+                        ui.label(crate::i18n::tr("Your name:"));
                         ui.add(egui::TextEdit::singleline(&mut wizard.name).desired_width(300.0));
                         ui.end_row();
-                        ui.label("Your email:");
+                        ui.label(crate::i18n::tr("Your email:"));
                         ui.add(egui::TextEdit::singleline(&mut wizard.email).desired_width(300.0));
                         ui.end_row();
                     });
                     let ready = !wizard.name.trim().is_empty() && wizard.email.contains('@');
-                    if ui.add_enabled(ready, Button::new("Save, and next")).clicked() {
+                    if ui.add_enabled(ready, Button::new(crate::i18n::tr("Save, and next"))).clicked() {
                         go = Some(Do::Identity);
                     }
                 }
@@ -157,45 +157,45 @@ impl Limoniter {
                     let in_repo = wizard.folder.as_deref().and_then(git::repository_of);
                     if let Some(root) = in_repo.filter(|_| wizard.start == Start::ThisFolder) {
                         para(ui, &format!("{} is already keeping its history with Git. \u{2714}", root.display()));
-                        if ui.button("Next").clicked() {
+                        if ui.button(crate::i18n::tr("Next")).clicked() {
                             go = Some(Do::To(Step::Online));
                         }
                     } else {
-                        ui.radio_value(&mut wizard.start, Start::ThisFolder, "Start keeping the history of a folder");
-                        ui.radio_value(&mut wizard.start, Start::Copy, "Copy a project that's already online, from GitHub or elsewhere");
+                        ui.radio_value(&mut wizard.start, Start::ThisFolder, crate::i18n::tr("Start keeping the history of a folder"));
+                        ui.radio_value(&mut wizard.start, Start::Copy, crate::i18n::tr("Copy a project that's already online, from GitHub or elsewhere"));
                         ui.add_space(4.0);
                         match wizard.start {
                             Start::ThisFolder => {
                                 ui.horizontal(|ui| {
                                     ui.label(wizard.folder.as_ref().map_or_else(|| "No folder chosen".to_string(), |f| f.display().to_string()));
-                                    if ui.button("Choose\u{2026}").clicked() {
+                                    if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked() {
                                         go = Some(Do::ChooseFolder);
                                     }
                                 });
                                 para(ui, "Git will start keeping this folder's history, and make a first commit of everything in it as it is now.");
                                 para(ui, "These kinds of file are left out (a .gitignore file lists them, and you can change it at any time):");
                                 ui.add(egui::TextEdit::multiline(&mut wizard.ignore).font(egui::TextStyle::Monospace).desired_rows(5).desired_width(f32::INFINITY));
-                                if ui.add_enabled(wizard.folder.is_some() && wizard.job.is_none(), Button::new("Start, with a first commit")).clicked() {
+                                if ui.add_enabled(wizard.folder.is_some() && wizard.job.is_none(), Button::new(crate::i18n::tr("Start, with a first commit"))).clicked() {
                                     go = Some(Do::Start);
                                 }
                             }
                             Start::Copy => {
                                 para(ui, "On GitHub, the green Code button on a project's page gives its address.");
                                 egui::Grid::new("git-copy").num_columns(2).show(ui, |ui| {
-                                    ui.label("Its address:");
-                                    ui.add(egui::TextEdit::singleline(&mut wizard.copy_from).hint_text("https://github.com/someone/project.git").desired_width(320.0));
+                                    ui.label(crate::i18n::tr("Its address:"));
+                                    ui.add(egui::TextEdit::singleline(&mut wizard.copy_from).hint_text(crate::i18n::tr("https://github.com/someone/project.git")).desired_width(320.0));
                                     ui.end_row();
-                                    ui.label("Into:");
+                                    ui.label(crate::i18n::tr("Into:"));
                                     ui.horizontal(|ui| {
                                         ui.label(wizard.folder.as_ref().map_or_else(|| "No folder chosen".to_string(), |f| f.display().to_string()));
-                                        if ui.button("Choose\u{2026}").clicked() {
+                                        if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked() {
                                             go = Some(Do::ChooseFolder);
                                         }
                                     });
                                     ui.end_row();
                                 });
                                 let ready = wizard.folder.is_some() && !wizard.copy_from.trim().is_empty() && wizard.job.is_none();
-                                if ui.add_enabled(ready, Button::new("Copy it")).on_hover_text("A folder named after the project is made inside the one chosen").clicked() {
+                                if ui.add_enabled(ready, Button::new(crate::i18n::tr("Copy it"))).on_hover_text(crate::i18n::tr("A folder named after the project is made inside the one chosen")).clicked() {
                                     go = Some(Do::Copy);
                                 }
                             }
@@ -207,24 +207,24 @@ impl Limoniter {
                     let connected = root.as_deref().map(git::remotes).unwrap_or_default();
                     if let Some((name, url)) = connected.first() {
                         para(ui, &format!("It's connected to {url} (as {name}). \u{2714} Push, in the Source control panel, sends your commits there."));
-                        if ui.button("Next").clicked() {
+                        if ui.button(crate::i18n::tr("Next")).clicked() {
                             go = Some(Do::To(Step::Done));
                         }
                     } else {
                         para(ui, "This step is up to you. Putting your project online keeps a copy safe if your computer fails, and lets you share it or work on it from another computer. GitHub is the best known place, and free; projects there can be private.");
                         para(ui, "1. Make a free GitHub account, if you haven't one, and sign in.\n2. Make a new repository there. Give it a name, choose private or public, and leave the boxes to add files unticked.\n3. Copy its address (it ends .git) into the box below.");
-                        if ui.button("Open GitHub to make a repository").clicked() {
+                        if ui.button(crate::i18n::tr("Open GitHub to make a repository")).clicked() {
                             let name = root.as_deref().and_then(Path::file_name).map(|n| n.to_string_lossy().replace(' ', "-")).unwrap_or_default();
                             go = Some(Do::Web(format!("https://github.com/new?name={name}")));
                         }
-                        ui.add(egui::TextEdit::singleline(&mut wizard.online).hint_text("https://github.com/you/project.git").desired_width(400.0));
+                        ui.add(egui::TextEdit::singleline(&mut wizard.online).hint_text(crate::i18n::tr("https://github.com/you/project.git")).desired_width(400.0));
                         para(ui, if cfg!(target_os = "linux") { "When it's sent, Git asks GitHub who you are. On Linux that's easiest with GitHub's own gh program (gh auth login), or an SSH key." } else { "When it's sent, a window from Git asks you to sign in to GitHub, the first time only." });
                         ui.horizontal(|ui| {
                             let ready = root.is_some() && !wizard.online.trim().is_empty() && wizard.job.is_none();
-                            if ui.add_enabled(ready, Button::new("Connect, and send it")).clicked() {
+                            if ui.add_enabled(ready, Button::new(crate::i18n::tr("Connect, and send it"))).clicked() {
                                 go = Some(Do::Online);
                             }
-                            if ui.button("Not now").clicked() {
+                            if ui.button(crate::i18n::tr("Not now")).clicked() {
                                 go = Some(Do::To(Step::Done));
                             }
                         });
@@ -234,7 +234,7 @@ impl Limoniter {
                     para(ui, "That's it. From now on:");
                     para(ui, "\u{2022} Coloured marks beside the line numbers show what's changed since your last commit: green for new lines, blue for changed ones, a red notch where lines were taken out.\n\u{2022} When you've done something worth keeping, open Source control (Ctrl+Shift+G), write a line saying what you did, and press Commit.\n\u{2022} Push sends your commits online; Pull brings in ones made elsewhere.\n\u{2022} History shows every version of a file, to compare with now or open as it was.");
                     para(ui, "Commit little and often: each commit is a point you can always come back to.");
-                    if ui.button("Open Source control").clicked() {
+                    if ui.button(crate::i18n::tr("Open Source control")).clicked() {
                         go = Some(Do::Finish);
                     }
                 }
@@ -242,7 +242,7 @@ impl Limoniter {
             if let Some(job) = &wizard.job {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(format!("{}\u{2026}", job.title));
+                    ui.label(crate::i18n::tf!("{}\u{2026}", job.title));
                 });
             }
             if let Some((said, problem)) = &wizard.said {
@@ -250,10 +250,10 @@ impl Limoniter {
             }
             ui.separator();
             ui.horizontal(|ui| {
-                if at > 0 && wizard.job.is_none() && ui.button("Back").clicked() {
+                if at > 0 && wizard.job.is_none() && ui.button(crate::i18n::tr("Back")).clicked() {
                     go = Some(Do::To([Step::Welcome, Step::Install, Step::Identity, Step::Project, Step::Online, Step::Done][at - 1]));
                 }
-                close |= ui.add_enabled(wizard.job.is_none(), Button::new("Close")).clicked();
+                close |= ui.add_enabled(wizard.job.is_none(), Button::new(crate::i18n::tr("Close"))).clicked();
             });
         });
         let Some(wizard) = self.git.wizard.as_mut() else {
@@ -277,7 +277,7 @@ impl Limoniter {
                 Err(problem) => wizard.said = Some((problem, true)),
             },
             Some(Do::ChooseFolder) => {
-                if let Some(folder) = rfd::FileDialog::new().set_title("Choose the folder").pick_folder() {
+                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Choose the folder")).pick_folder() {
                     wizard.ignore = git::suggested_ignore(&folder);
                     wizard.folder = Some(folder);
                 }
@@ -350,7 +350,7 @@ pub(super) fn start_repository(folder: &Path, ignore: &str) -> Result<String, St
     git::init(folder)?;
     let ignore_file = folder.join(".gitignore");
     if !ignore.trim().is_empty() && !ignore_file.exists() {
-        std::fs::write(&ignore_file, ignore).map_err(|e| format!("Couldn't write .gitignore: {e}"))?;
+        std::fs::write(&ignore_file, ignore).map_err(|e| crate::i18n::tf!("Couldn't write .gitignore: {e}"))?;
     }
     git::run(folder, &["add", "--all"])?;
     git::commit(folder, "First version\n\nThe files as they were when Git started keeping their history.", false)

@@ -63,7 +63,7 @@ impl Meta {
 
     /// The document's settings. A set that's no longer defined is an error rather than a silent swap.
     pub fn format(&self) -> Result<TextFormat, String> {
-        let set = charset::by_id(&self.charset_id).ok_or_else(|| format!("The character set {} isn't available.", self.charset_id))?;
+        let set = charset::by_id(&self.charset_id).ok_or_else(|| crate::i18n::tf!("The character set {} isn't available.", self.charset_id))?;
         Ok(TextFormat {
             charset: set,
             has_bom: self.has_bom,
@@ -112,7 +112,7 @@ pub fn eol_from(code: u8) -> Result<Eol, String> {
         3 => Ok(Eol::Atascii),
         4 => Ok(Eol::None),
         5 => Ok(Eol::Nl),
-        _ => Err("It holds an unknown line ending.".to_string()),
+        _ => Err(crate::i18n::tr("It holds an unknown line ending.").to_string()),
     }
 }
 
@@ -277,7 +277,7 @@ struct Reader<'a> {
 impl Reader<'_> {
     fn take(&mut self, count: usize) -> Result<&[u8], String> {
         if count > self.data.len() {
-            return Err("It ends too soon.".to_string());
+            return Err(crate::i18n::tr("It ends too soon.").to_string());
         }
         let (head, rest) = self.data.split_at(count);
         self.data = rest;
@@ -299,22 +299,22 @@ impl Reader<'_> {
 /// Reads a copy, checking first that every byte is what was written.
 pub fn read_snapshot(data: &[u8]) -> Result<(Meta, Body), String> {
     if data.len() < 32 {
-        return Err("It's too short to be a recovery copy.".to_string());
+        return Err(crate::i18n::tr("It's too short to be a recovery copy.").to_string());
     }
     let (content, sum) = data.split_at(data.len() - 32);
     if Sha256::digest(content).as_slice() != sum {
-        return Err("Its checksum doesn't match, so it's damaged.".to_string());
+        return Err(crate::i18n::tr("Its checksum doesn't match, so it's damaged.").to_string());
     }
-    let end = content.windows(2).position(|pair| pair == b"\n\n").ok_or("It has no header.")?;
+    let end = content.windows(2).position(|pair| pair == b"\n\n").ok_or(crate::i18n::tr("It has no header."))?;
     let head = std::str::from_utf8(&content[..end]).map_err(|_| "Its header can't be read.")?;
     let mut lines = head.lines();
     if !matches!(lines.next(), Some(MAGIC)) {
-        return Err("It isn't a recovery copy this version can read.".to_string());
+        return Err(crate::i18n::tr("It isn't a recovery copy this version can read.").to_string());
     }
     let values: BTreeMap<&str, &str> = lines.filter_map(|line| line.split_once('=')).collect();
     let text = |key: &str| values.get(key).copied().unwrap_or("");
-    let decoded = |key: &str| from_hex(text(key)).and_then(|bytes| String::from_utf8(bytes).ok()).ok_or_else(|| format!("Its {key} can't be read."));
-    let (caret_line, caret_char) = text("caret").split_once(',').ok_or("Its cursor position can't be read.")?;
+    let decoded = |key: &str| from_hex(text(key)).and_then(|bytes| String::from_utf8(bytes).ok()).ok_or_else(|| crate::i18n::tf!("Its {key} can't be read."));
+    let (caret_line, caret_char) = text("caret").split_once(',').ok_or(crate::i18n::tr("Its cursor position can't be read."))?;
     let meta = Meta {
         name: decoded("name")?,
         path: values.get("path").and_then(|p| path_from_hex(p)),
@@ -335,7 +335,7 @@ pub fn read_snapshot(data: &[u8]) -> Result<(Meta, Body), String> {
     }
     let source = values.get("source").and_then(|p| path_from_hex(p)).map(|path| SourceRef { path, len: text("source_len").parse().unwrap_or(0), modified: stamp_from(text("source_time")) });
     if text("kind") == "hex-on-disk" {
-        let source = source.ok_or("It doesn't say which file it edits.")?;
+        let source = source.ok_or(crate::i18n::tr("It doesn't say which file it edits."))?;
         let mut pieces = Vec::new();
         for _ in 0..r.number()? {
             let added = r.byte()? != 0;

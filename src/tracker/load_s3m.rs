@@ -5,7 +5,7 @@ use super::{Cell, Format, Loop, NOTE_CUT, Pattern, Sample, Song, Vol, st_fx, st_
 
 pub fn load(bytes: &[u8]) -> Result<Song, String> {
     if bytes.len() < 0x60 || bytes.get(44..48) != Some(b"SCRM") {
-        return Err("This isn't a Scream Tracker 3 module: there's no SCRM at byte 44.".into());
+        return Err(crate::i18n::tr("This isn't a Scream Tracker 3 module: there's no SCRM at byte 44.").into());
     }
     let orders = usize::from(u16_le(bytes, 0x20));
     let instruments = usize::from(u16_le(bytes, 0x22));
@@ -33,7 +33,7 @@ pub fn load(bytes: &[u8]) -> Result<Song, String> {
     let stereo = bytes[0x33] & 0x80 != 0;
     song.fast_slides = made_with == 0x1300 || flags & 0x40 != 0;
     song.shared_memory = true;
-    song.orders = bytes.get(0x60..0x60 + orders).ok_or("The module's order is cut short.")?.to_vec();
+    song.orders = bytes.get(0x60..0x60 + orders).ok_or(crate::i18n::tr("The module's order is cut short."))?.to_vec();
     while song.orders.last() == Some(&255) {
         song.orders.pop();
     }

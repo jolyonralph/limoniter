@@ -156,23 +156,23 @@ fn rsdos_read(disk: &Disk, fat: &[u8], file: &File) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     let mut granule = file.first;
     for _ in 0..fat.len() {
-        let next = *fat.get(granule as usize).ok_or("the file's chain of granules leaves the disk")?;
+        let next = *fat.get(granule as usize).ok_or(crate::i18n::tr("the file's chain of granules leaves the disk"))?;
         let places = rsdos_granule(granule);
         // The last granule says how many of its sectors are used; the length cuts the last of those.
         let (count, last) = if next >= 0xC0 { (u64::from(next & 0x0F).clamp(1, 9), true) } else { (9, false) };
         for &(track, sector) in places.iter().take(count as usize) {
-            out.extend(disk.sector(track, 0, sector).ok_or_else(|| format!("track {track} isn't on the disk"))?);
+            out.extend(disk.sector(track, 0, sector).ok_or_else(|| crate::i18n::tf!("track {track} isn't on the disk"))?);
         }
         if last {
             out.truncate(file.size as usize);
             return Ok(out);
         }
         if next == 0xFF {
-            return Err("the file's chain of granules runs into a free one".into());
+            return Err(crate::i18n::tr("the file's chain of granules runs into a free one").into());
         }
         granule = u64::from(next);
     }
-    Err("the file's chain of granules loops".into())
+    Err(crate::i18n::tr("the file's chain of granules loops").into())
 }
 
 // ---------- Dragon DOS ----------
@@ -253,7 +253,7 @@ fn os9_read(disk: &Disk, runs: &[(u64, u64)], size: u64) -> Result<Vec<u8>, Stri
             if out.len() as u64 >= size {
                 break 'runs;
             }
-            out.extend(disk.lsn(lsn + n).ok_or_else(|| format!("sector {} isn't on the disk", lsn + n))?);
+            out.extend(disk.lsn(lsn + n).ok_or_else(|| crate::i18n::tf!("sector {} isn't on the disk", lsn + n))?);
         }
     }
     out.truncate(size as usize);
@@ -345,7 +345,7 @@ impl Coco {
     /// A disk laid out plainly, as the sectors of a DMK or other sector image come.
     pub fn open_flat(source: Arc<dyn Source>, shape: super::cpm::Shape) -> Result<Self, String> {
         if shape.sector_size != 256 || shape.per_track != 18 {
-            return Err("not a CoCo or Dragon disk's tracks".into());
+            return Err(crate::i18n::tr("not a CoCo or Dragon disk's tracks").into());
         }
         Self::on(Disk { source, offset: 0, per_track: 18, heads: shape.heads }, "")
     }
@@ -363,7 +363,7 @@ impl Coco {
         if let Some((system, files)) = dragon_dos(&disk) {
             return Ok(Self { disk, system, files, what: format!("Dragon DOS disk{within}") });
         }
-        Err("This disk has no RS-DOS, Dragon DOS or OS-9 directory: it may boot a program of its own. It can still be shown in hex.".into())
+        Err(crate::i18n::tr("This disk has no RS-DOS, Dragon DOS or OS-9 directory: it may boot a program of its own. It can still be shown in hex.").into())
     }
 }
 
@@ -389,7 +389,7 @@ impl Volume for Coco {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         match &self.system {
             System::RsDos { fat } => rsdos_read(&self.disk, fat, file),
             System::DragonDos | System::Os9 => os9_read(&self.disk, &file.runs, file.size),

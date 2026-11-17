@@ -33,7 +33,7 @@ impl Hfe {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         let header = source.read_vec(0, 32.min(source.len() as usize))?;
         if !looks_like(&header) {
-            return Err("This isn't an HxC (HFE) image.".into());
+            return Err(crate::i18n::tr("This isn't an HxC (HFE) image.").into());
         }
         let version = if header.starts_with(b"HXCHFEV3") { 3 } else { 1 };
         let (count, sides, encoding) = (usize::from(header[9]), header[10], header[11]);
@@ -41,10 +41,10 @@ impl Hfe {
         let interface = header[16];
         let list = u64::from(u16::from_le_bytes([header[18], header[19]])) * 512;
         if bit_rate == 0 || bit_rate > 2000 {
-            return Err(format!("This HFE image gives a bit rate of {bit_rate} kbit/s, which no floppy disk has."));
+            return Err(crate::i18n::tf!("This HFE image gives a bit rate of {bit_rate} kbit/s, which no floppy disk has."));
         }
         if list + count as u64 * 4 > source.len() {
-            return Err("This HFE image's track list is past its end, so it's damaged.".into());
+            return Err(crate::i18n::tr("This HFE image's track list is past its end, so it's damaged.").into());
         }
         let cylinders = source
             .read_vec(list, count * 4)?
@@ -68,10 +68,10 @@ impl Hfe {
 
     /// One side of a cylinder as gaps between its 1 cells, the cells' timing taken from the rate.
     pub fn flux(&self, place: (u8, u8)) -> Result<Flux, String> {
-        let (start, length) = *self.cylinders.get(usize::from(place.0)).ok_or("That track isn't in the image.")?;
+        let (start, length) = *self.cylinders.get(usize::from(place.0)).ok_or(crate::i18n::tr("That track isn't in the image."))?;
         let blocks = length.div_ceil(512);
         if start + blocks as u64 * 512 > self.source.len() {
-            return Err(format!("Track {} runs past the end of the HFE image, so it's damaged.", place.0));
+            return Err(crate::i18n::tf!("Track {} runs past the end of the HFE image, so it's damaged.", place.0));
         }
         let raw = self.source.read_vec(start, blocks * 512)?;
         let mut bytes: Vec<u8> = raw.chunks(512).flat_map(|block| block[usize::from(place.1) * 256..][..256].iter().map(|b| b.reverse_bits())).collect();

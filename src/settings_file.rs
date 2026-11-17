@@ -27,7 +27,7 @@ pub fn bundle(settings: &str, encodings: &str, version: &str, date: &str) -> Str
 pub fn unbundle(text: &str) -> Result<(String, String), String> {
     let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
     if !text.starts_with(HEADER) {
-        return Err("This isn't a file of Limoniter's settings: they start with \u{201C}# Limoniter settings\u{201D}.".into());
+        return Err(crate::i18n::tr("This isn't a file of Limoniter's settings: they start with \u{201C}# Limoniter settings\u{201D}.").into());
     }
     let (mut settings, mut encodings) = (String::new(), String::new());
     for line in text.lines() {

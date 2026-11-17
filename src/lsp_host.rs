@@ -128,13 +128,13 @@ impl Limoniter {
             Some(i) => i,
             None => match Server::start(&setting.command, &root) {
                 Ok(server) => {
-                    self.script_print(format!("Started {} for {language}, in {}", setting.command, root.display()), false);
+                    self.script_print(crate::i18n::tf!("Started {} for {language}, in {}", setting.command, root.display()), false);
                     self.lsp.servers.push((key, server));
                     self.lsp.servers.len() - 1
                 }
                 Err(problem) => {
                     self.lsp.failed.insert(language.clone());
-                    self.script_print(format!("{problem}. It's in Settings, Editing, Language servers."), false);
+                    self.script_print(crate::i18n::tf!("{problem}. It's in Settings, Editing, Language servers."), false);
                     return;
                 }
             },
@@ -265,7 +265,7 @@ impl Limoniter {
             Some(result) => Some((result, path)),
             None => {
                 let name = self.lsp.servers[server].1.name.clone();
-                self.message(what, format!("The language server ({name}) didn't answer in time. It may still be reading the project; try again in a moment."));
+                self.message(what, crate::i18n::tf!("The language server ({name}) didn't answer in time. It may still be reading the project; try again in a moment."));
                 None
             }
         }
@@ -302,10 +302,10 @@ impl Limoniter {
         let places = lsp::locations(&result);
         let doc = &self.docs[self.active];
         let word = crate::code_intel::word_at(&doc.text.line(doc.text.caret_line), doc.text.caret_col).map(|w| w.2).unwrap_or_default();
-        self.script_print(format!("{word}: {} place{}", places.len(), if places.len() == 1 { "" } else { "s" }), true);
+        self.script_print(if places.len() == 1 { crate::i18n::tf!("{word}: {} place", places.len()) } else { crate::i18n::tf!("{word}: {} places", places.len()) }, true);
         for place in places {
             let text = self.line_of_path(&place.path, place.line);
-            self.script_print(format!("{}({}): {}", place.path.display(), place.line + 1, text.trim()), false);
+            self.script_print(crate::i18n::tf!("{}({}): {}", place.path.display(), place.line + 1, text.trim()), false);
         }
     }
 
@@ -347,7 +347,7 @@ impl Limoniter {
             buffer.end_undo_group();
         }
         self.active = start;
-        self.script_print(format!("Renamed to {new_name} in {changed} place{}.", if changed == 1 { "" } else { "s" }), true);
+        self.script_print(if changed == 1 { crate::i18n::tf!("Renamed to {new_name} in {changed} place.") } else { crate::i18n::tf!("Renamed to {new_name} in {changed} places.") }, true);
     }
 
     /// The box saying which command serves which language.
@@ -357,8 +357,8 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
-        egui::Window::new("Language servers").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("Each language, as the highlighter names it (Format, Colour as), and the command that starts its server. A server is started for a file in that language, in its project's folder.");
+        egui::Window::new(crate::i18n::tr("Language servers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tr("Each language, as the highlighter names it (Format, Colour as), and the command that starts its server. A server is started for a file in that language, in its project's folder."));
             ui.add_space(6.0);
             let mut gone = None;
             egui::Grid::new("lsp-servers").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -367,8 +367,8 @@ impl Limoniter {
                     ui.add(egui::TextEdit::singleline(&mut setting.command).desired_width(260.0));
                     let program = crate::emulators::split_options(&setting.command).into_iter().next().unwrap_or_default();
                     let found = lsp::on_path(&program);
-                    ui.label(RichText::new(if found { "installed" } else { "not found" }).size(11.5).color(if found { theme::text_dim() } else { theme::text_faint() }));
-                    if crate::access::called(ui.small_button("\u{D7}"), "Remove this language server").clicked() {
+                    ui.label(RichText::new(if found { crate::i18n::tr("installed") } else { crate::i18n::tr("not found") }).size(11.5).color(if found { theme::text_dim() } else { theme::text_faint() }));
+                    if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Remove this language server").clicked() {
                         gone = Some(index);
                     }
                     ui.end_row();
@@ -378,17 +378,17 @@ impl Limoniter {
                 list.remove(index);
             }
             ui.horizontal(|ui| {
-                if ui.button("Add").clicked() {
+                if ui.button(crate::i18n::tr("Add")).clicked() {
                     list.push(ServerSetting { language: String::new(), command: String::new() });
                 }
-                if ui.button("Put back the usual list").clicked() {
+                if ui.button(crate::i18n::tr("Put back the usual list")).clicked() {
                     *list = lsp::usual_servers();
                 }
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                keep = ui.button("OK").clicked();
-                close |= ui.button("Cancel").clicked();
+                keep = ui.button(crate::i18n::tr("OK")).clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             });
         });
         if keep {

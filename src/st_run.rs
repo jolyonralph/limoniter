@@ -541,8 +541,8 @@ pub fn download_emutos(into: &Path) -> Result<usize, String> {
     let mut archives = Vec::new();
     for size in [192, 256, 512] {
         let address = emutos_address(size);
-        let response = ureq::get(&address).header("User-Agent", "Limoniter").call().map_err(|e| format!("SourceForge couldn't be reached: {e}"))?;
-        let bytes = response.into_body().with_config().limit(16 << 20).read_to_vec().map_err(|e| format!("EmuTOS couldn't be downloaded: {e}"))?;
+        let response = ureq::get(&address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("SourceForge couldn't be reached: {e}"))?;
+        let bytes = response.into_body().with_config().limit(16 << 20).read_to_vec().map_err(|e| crate::i18n::tf!("EmuTOS couldn't be downloaded: {e}"))?;
         archives.push((format!("emutos-{size}k.zip"), bytes));
     }
     unpack_emutos(archives, into)
@@ -553,7 +553,7 @@ pub fn download_emutos(into: &Path) -> Result<usize, String> {
 pub fn unpack_emutos(archives: Vec<(String, Vec<u8>)>, into: &Path) -> Result<usize, String> {
     let fresh = into.with_extension("new");
     let _ = std::fs::remove_dir_all(&fresh);
-    std::fs::create_dir_all(&fresh).map_err(|e| format!("The folder for EmuTOS couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&fresh).map_err(|e| crate::i18n::tf!("The folder for EmuTOS couldn't be made: {e}"))?;
     let mut images = 0;
     for (name, bytes) in archives {
         let volume = crate::media::open(Arc::new(bytes), &name)?;
@@ -579,16 +579,16 @@ pub fn unpack_emutos(archives: Vec<(String, Vec<u8>)>, into: &Path) -> Result<us
                     continue;
                 };
                 let bytes = volume.read(&entry)?;
-                std::fs::write(fresh.join(&kept), bytes).map_err(|e| format!("{kept} couldn't be written: {e}"))?;
+                std::fs::write(fresh.join(&kept), bytes).map_err(|e| crate::i18n::tf!("{kept} couldn't be written: {e}"))?;
             }
         }
     }
     if images == 0 {
         let _ = std::fs::remove_dir_all(&fresh);
-        return Err("The download had no EmuTOS images in it.".into());
+        return Err(crate::i18n::tr("The download had no EmuTOS images in it.").into());
     }
     let _ = std::fs::remove_dir_all(into);
-    std::fs::rename(&fresh, into).map_err(|e| format!("EmuTOS couldn't be put in place: {e}"))?;
+    std::fs::rename(&fresh, into).map_err(|e| crate::i18n::tf!("EmuTOS couldn't be put in place: {e}"))?;
     Ok(images)
 }
 
@@ -682,13 +682,13 @@ pub fn prepare(folder: &Path, program: &Path, run: &Runnable, settings: &Setting
     if let Some(rom) = &tos
         && !rom.is_file()
     {
-        return Err(format!("The TOS chosen for the {} isn't there: {}.\n\nChoose another in File, Devices, under Hatari.", model.short_name(), rom.display()));
+        return Err(crate::i18n::tf!("The TOS chosen for the {} isn't there: {}.\n\nChoose another in File, Devices, under Hatari.", model.short_name(), rom.display()));
     }
     let mut options = options(settings, tos.as_deref());
     let mut file = program.to_path_buf();
     if settings.start == Start::Floppy && run.format == Format::Tos {
         let boot = match &settings.boot_sector {
-            Some(path) => Some(std::fs::read(path).map_err(|e| format!("The boot sector code {} couldn't be read.\n\n{e}", path.display()))?),
+            Some(path) => Some(std::fs::read(path).map_err(|e| crate::i18n::tf!("The boot sector code {} couldn't be read.\n\n{e}", path.display()))?),
             None => None,
         };
         let disk = bootable_floppy(&run.bytes, &run.name, boot.as_deref())?;
@@ -780,7 +780,7 @@ pub fn install_boot_code(disk: &mut [u8], code: &[u8]) -> Result<(), String> {
         sector[0x1E..510].fill(0);
         sector[0x1E..0x1E + code.len()].copy_from_slice(code);
     } else {
-        return Err(format!("The boot sector code is {} bytes: it has to be a whole boot sector (512 bytes) or code of at most 480.", code.len()));
+        return Err(crate::i18n::tf!("The boot sector code is {} bytes: it has to be a whole boot sector (512 bytes) or code of at most 480.", code.len()));
     }
     fix_boot_checksum(sector);
     Ok(())
@@ -794,7 +794,7 @@ pub fn bootable_floppy(program: &[u8], name: &str, boot: Option<&[u8]>) -> Resul
     let mut disk = writer("boot.st", blank)?;
     disk.make_folder(None, "AUTO")?;
     let volume = crate::media::open(Arc::new(disk.bytes().to_vec()), "boot.st")?;
-    let auto = volume.list(None)?.into_iter().find(|e| e.is_dir && e.name.eq_ignore_ascii_case("AUTO")).ok_or("The AUTO folder couldn't be made.")?;
+    let auto = volume.list(None)?.into_iter().find(|e| e.is_dir && e.name.eq_ignore_ascii_case("AUTO")).ok_or(crate::i18n::tr("The AUTO folder couldn't be made."))?;
     disk.add(Some(&auto), &Addition { name: atari_name(name), bytes: program.to_vec(), ..Default::default() })?;
     let mut bytes = disk.bytes().to_vec();
     if let Some(code) = boot {
@@ -808,11 +808,11 @@ pub fn bootable_floppy(program: &[u8], name: &str, boot: Option<&[u8]>) -> Resul
 pub fn pack_msa(disk: &[u8]) -> Result<Vec<u8>, String> {
     let word = |at: usize| usize::from(u16::from_le_bytes([disk[at], disk[at + 1]]));
     if disk.len() < 512 {
-        return Err("This isn't a floppy image.".into());
+        return Err(crate::i18n::tr("This isn't a floppy image.").into());
     }
     let (sectors, sides, total) = (word(24), word(26), word(19));
     if sectors == 0 || sectors > 64 || !(1..=2).contains(&sides) || total == 0 || total % (sectors * sides) != 0 || total * 512 > disk.len() {
-        return Err("The floppy's boot sector doesn't describe its tracks, so it can't be packed as MSA.".into());
+        return Err(crate::i18n::tr("The floppy's boot sector doesn't describe its tracks, so it can't be packed as MSA.").into());
     }
     let tracks = total / (sectors * sides);
     let track_size = sectors * 512;
@@ -985,16 +985,16 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
             ui.add(egui::Label::new(hint(&text)).wrap());
         });
     };
-    ui.label("Atari:");
-    egui::ComboBox::from_id_salt("st-model").width(320.0).selected_text(settings.model.name()).show_ui(ui, |ui| {
+    ui.label(crate::i18n::tr("Atari:"));
+    egui::ComboBox::from_id_salt("st-model").width(320.0).selected_text(crate::i18n::tr(settings.model.name())).show_ui(ui, |ui| {
         for model in Model::ALL {
-            ui.selectable_value(&mut settings.model, model, model.name());
+            ui.selectable_value(&mut settings.model, model, crate::i18n::tr(model.name()));
         }
     });
     ui.end_row();
     let model = settings.model;
     let mut choices = settings.choices(model);
-    ui.label("Memory:");
+    ui.label(crate::i18n::tr("Memory:"));
     ui.horizontal(|ui| {
         egui::ComboBox::from_id_salt("st-memory").width(90.0).selected_text(memory_name(choices.memory)).show_ui(ui, |ui| {
             for size in MEMORY {
@@ -1002,7 +1002,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
             }
         });
         if model.is_030() {
-            ui.label("TT-RAM:");
+            ui.label(crate::i18n::tr("TT-RAM:"));
             egui::ComboBox::from_id_salt("st-ttram").width(80.0).selected_text(if choices.tt_ram == 0 { "None".to_string() } else { format!("{} MB", choices.tt_ram) }).show_ui(ui, |ui| {
                 for size in TT_RAM {
                     ui.selectable_value(&mut choices.tt_ram, size, if size == 0 { "None".to_string() } else { format!("{size} MB") });
@@ -1011,44 +1011,44 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
         }
     });
     ui.end_row();
-    ui.label("Monitor:");
+    ui.label(crate::i18n::tr("Monitor:"));
     ui.horizontal(|ui| {
         if !model.monitors().contains(&choices.monitor) {
             choices.monitor = model.monitors()[0];
         }
-        egui::ComboBox::from_id_salt("st-monitor").width(150.0).selected_text(choices.monitor.name()).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("st-monitor").width(150.0).selected_text(crate::i18n::tr(choices.monitor.name())).show_ui(ui, |ui| {
             for monitor in model.monitors() {
-                ui.selectable_value(&mut choices.monitor, *monitor, monitor.name());
+                ui.selectable_value(&mut choices.monitor, *monitor, crate::i18n::tr(monitor.name()));
             }
         });
-        ui.label("Speed:");
-        egui::ComboBox::from_id_salt("st-clock").width(70.0).selected_text(format!("{} MHz", choices.clock)).show_ui(ui, |ui| {
+        ui.label(crate::i18n::tr("Speed:"));
+        egui::ComboBox::from_id_salt("st-clock").width(70.0).selected_text(crate::i18n::tf!("{} MHz", choices.clock)).show_ui(ui, |ui| {
             for clock in [8, 16, 32] {
-                ui.selectable_value(&mut choices.clock, clock, format!("{clock} MHz"));
+                ui.selectable_value(&mut choices.clock, clock, crate::i18n::tf!("{clock} MHz"));
             }
         });
     });
     ui.end_row();
-    ui.label("Processor:");
+    ui.label(crate::i18n::tr("Processor:"));
     ui.horizontal(|ui| {
-        ui.checkbox(&mut settings.cycle_exact, "Cycle-exact").on_hover_text("Hatari's --cpu-exact: every instruction takes the cycles it does on the real chip, as raster and sync effects need. Slower.");
-        ui.checkbox(&mut settings.compatible, "Exact prefetch").on_hover_text("Hatari's --compatible: the 68000's prefetch as it really is, for self-modifying code");
-        ui.checkbox(&mut settings.fast_boot, "Fast boot").on_hover_text("Hatari's --fast-boot: skips TOS's memory test");
+        ui.checkbox(&mut settings.cycle_exact, crate::i18n::tr("Cycle-exact")).on_hover_text(crate::i18n::tr("Hatari's --cpu-exact: every instruction takes the cycles it does on the real chip, as raster and sync effects need. Slower."));
+        ui.checkbox(&mut settings.compatible, crate::i18n::tr("Exact prefetch")).on_hover_text(crate::i18n::tr("Hatari's --compatible: the 68000's prefetch as it really is, for self-modifying code"));
+        ui.checkbox(&mut settings.fast_boot, crate::i18n::tr("Fast boot")).on_hover_text(crate::i18n::tr("Hatari's --fast-boot: skips TOS's memory test"));
     });
     ui.end_row();
-    ui.label("TOS:");
+    ui.label(crate::i18n::tr("TOS:"));
     let mut found_note = None;
     ui.horizontal(|ui| {
         let mut text = choices.tos.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-        if ui.add(egui::TextEdit::singleline(&mut text).hint_text("Found, or EmuTOS").desired_width(170.0)).changed() {
+        if ui.add(egui::TextEdit::singleline(&mut text).hint_text(crate::i18n::tr("Found, or EmuTOS")).desired_width(170.0)).changed() {
             choices.tos = (!text.trim().is_empty()).then(|| PathBuf::from(text.trim()));
         }
-        if ui.button("Choose\u{2026}").on_hover_text(format!("The TOS ROM for the {}", model.short_name())).clicked()
-            && let Some(chosen) = rfd::FileDialog::new().set_title(format!("TOS ROM for the {}", model.short_name())).add_filter("TOS ROM", &["img", "rom", "bin", "tos"]).pick_file()
+        if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tf!("The TOS ROM for the {}", model.short_name())).clicked()
+            && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tf!("TOS ROM for the {}", model.short_name())).add_filter(crate::i18n::tr("TOS ROM"), &["img", "rom", "bin", "tos"]).pick_file()
         {
             choices.tos = Some(chosen);
         }
-        if ui.button("Find").on_hover_text("Looks for TOS ROMs where Hatari and Steem keep them, and in folders of emulators, and chooses the best for each machine").clicked() {
+        if ui.button(crate::i18n::tr("Find")).on_hover_text(crate::i18n::tr("Looks for TOS ROMs where Hatari and Steem keep them, and in folders of emulators, and chooses the best for each machine")).clicked() {
             let found = found_for_box(hatari, true);
             let mut chosen = 0;
             for each in Model::ALL {
@@ -1071,7 +1071,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
         }
     });
     ui.end_row();
-    ui.label("");
+    ui.label(crate::i18n::tr(""));
     let said = match &choices.tos {
         Some(path) => match identify_file(path) {
             Some(t) if t.suits.contains(&model) => format!("{}.", t.name),
@@ -1086,7 +1086,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
     };
     note(ui, found_note.map_or(said.clone(), |n| format!("{n} {said}")));
     ui.end_row();
-    ui.label("EmuTOS:");
+    ui.label(crate::i18n::tr("EmuTOS:"));
     ui.horizontal(|ui| {
         let busy = DOWNLOAD.lock().is_ok_and(|d| d.is_some());
         let have = emutos_folder().is_some_and(|f| f.join("license.txt").is_file());
@@ -1099,7 +1099,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
         if busy {
             ui.spinner();
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(150));
-        } else if ui.button(if have { "Download again" } else { "Download" }).on_hover_text(EMUTOS_PAGE).clicked()
+        } else if ui.button(if have { crate::i18n::tr("Download again") } else { crate::i18n::tr("Download") }).on_hover_text(EMUTOS_PAGE).clicked()
             && let Some(folder) = emutos_folder()
         {
             let (tx, rx) = std::sync::mpsc::channel();
@@ -1110,7 +1110,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
                 *d = Some(rx);
             }
         }
-        if have && !busy && ui.button("Remove").on_hover_text("Deletes the downloaded EmuTOS").clicked()
+        if have && !busy && ui.button(crate::i18n::tr("Remove")).on_hover_text(crate::i18n::tr("Deletes the downloaded EmuTOS")).clicked()
             && let Some(folder) = emutos_folder()
         {
             let _ = std::fs::remove_dir_all(folder);
@@ -1129,7 +1129,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
         }
         *download = None;
     }
-    ui.label("");
+    ui.label(crate::i18n::tr(""));
     let have = emutos_folder().and_then(|f| emutos_in(&f, model, &settings.emutos_language));
     let said = DOWNLOAD_SAID.lock().map(|s| s.clone()).unwrap_or_default();
     let state = match have {
@@ -1138,34 +1138,34 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
     };
     note(ui, format!("{said} EmuTOS is a free TOS (GPL) from the EmuTOS team, used when there's no TOS of Atari's. Limoniter only fetches it from SourceForge when you ask (version {EMUTOS_VERSION}, about 9 MB, kept beside the settings), with the right image for each machine. {state}").trim().to_string());
     ui.end_row();
-    ui.label("Start from:");
+    ui.label(crate::i18n::tr("Start from:"));
     ui.horizontal(|ui| {
-        ui.radio_value(&mut settings.start, Start::Folder, "A folder as drive C:");
-        ui.radio_value(&mut settings.start, Start::Floppy, "A bootable floppy");
+        ui.radio_value(&mut settings.start, Start::Folder, crate::i18n::tr("A folder as drive C:"));
+        ui.radio_value(&mut settings.start, Start::Floppy, crate::i18n::tr("A bootable floppy"));
     });
     ui.end_row();
     if settings.start == Start::Floppy {
-        ui.label("Boot sector:");
+        ui.label(crate::i18n::tr("Boot sector:"));
         ui.horizontal(|ui| {
             let mut text = settings.boot_sector.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-            if ui.add(egui::TextEdit::singleline(&mut text).hint_text("None").desired_width(170.0)).changed() {
+            if ui.add(egui::TextEdit::singleline(&mut text).hint_text(crate::i18n::tr("None")).desired_width(170.0)).changed() {
                 settings.boot_sector = (!text.trim().is_empty()).then(|| PathBuf::from(text.trim()));
             }
-            if ui.button("Choose\u{2026}").on_hover_text("Code for the floppy's boot sector: a whole boot sector (512 bytes) or code of up to 480 bytes").clicked()
-                && let Some(chosen) = rfd::FileDialog::new().set_title("Boot sector code").pick_file()
+            if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Code for the floppy's boot sector: a whole boot sector (512 bytes) or code of up to 480 bytes")).clicked()
+                && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tr("Boot sector code")).pick_file()
             {
                 settings.boot_sector = Some(chosen);
             }
         });
         ui.end_row();
     }
-    ui.label("");
+    ui.label(crate::i18n::tr(""));
     note(ui, match settings.start {
         Start::Folder => "The program is put in a folder that's drive C: (Hatari's GEMDOS hard drive), which it can write files to, and started straight away.".to_string(),
         Start::Floppy => "The program is put in the AUTO folder of a 720K floppy made for the run, which the Atari boots from, as a demo on a disk does. Boot sector code, if chosen, goes on it with its checksum made $1234, so TOS runs it first.".to_string(),
     });
     ui.end_row();
-    ui.label("Profile for:");
+    ui.label(crate::i18n::tr("Profile for:"));
     ui.horizontal(|ui| {
         ui.add(egui::DragValue::new(&mut settings.profile_seconds).range(1..=3600).suffix(" s"));
         ui.label(hint("at most, with File, Run on, Profile in Hatari"));
@@ -1338,7 +1338,7 @@ mod tests {
         assert_eq!(profile.counted.len(), 3);
         assert_eq!(profile.counted[1], Counted { address: 0xE822, instructions: 3, cycles: 36, text: "0000E822 3f3c 0009                MOVE.W #$0009,-(A7) [6a90]".into() });
         let source = "start:\tpea\tmessage\nloop:\tmove.w\t#9,-(sp)\n\ttrap\t#1\nmessage:\tdc.b\t\"Hi\",0\n";
-        let assembly = crate::asm::assemble(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err("none".into()));
+        let assembly = crate::asm::assemble(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err(crate::i18n::tr("none").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems);
         let summary = summarise(&profile, None, Some(&assembly));
         assert_eq!((summary.program, summary.elsewhere), (56, 14984));
@@ -1351,7 +1351,7 @@ mod tests {
     const WRITES_A_FILE: &str = "start:\tclr.w\t-(sp)\n\tpea\tname\n\tmove.w\t#$3c,-(sp)\n\ttrap\t#1\n\taddq.l\t#8,sp\n\tmove.w\td0,d7\nbusy:\tmove.w\t#5000,d1\nspin:\tdbra\td1,spin\n\tpea\ttext\n\tmove.l\t#16,-(sp)\n\tmove.w\td7,-(sp)\n\tmove.w\t#$40,-(sp)\n\ttrap\t#1\n\tlea\t12(sp),sp\n\tmove.w\td7,-(sp)\n\tmove.w\t#$3e,-(sp)\n\ttrap\t#1\n\taddq.l\t#4,sp\n\tclr.w\t-(sp)\n\ttrap\t#1\nname:\tdc.b\t\"RESULT.TXT\",0\ntext:\tdc.b\t\"Limoniter ran it\"\n\teven\n";
 
     fn st_program(source: &str) -> (crate::asm::Assembly, Vec<u8>) {
-        let none = |_: &Path| Err("none".to_string());
+        let none = |_: &Path| Err(crate::i18n::tr("none").to_string());
         let assembly = crate::asm::assemble_at(&crate::asm::m68k::M68k, Path::new("t.s"), source, &none, 0);
         assert!(assembly.ok(), "{:?}", assembly.problems);
         let moved = crate::asm::assemble_at(&crate::asm::m68k::M68k, Path::new("t.s"), source, &none, 0x10000);

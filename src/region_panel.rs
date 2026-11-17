@@ -305,11 +305,11 @@ impl Limoniter {
     /// Takes back one change to the part, and nothing done anywhere else since.
     pub(super) fn take_back_part_change(&mut self, chosen: usize) -> Result<(), String> {
         self.refresh_part();
-        let state = self.region.as_ref().ok_or("No part is being followed.")?;
-        let shown = state.found.get(chosen).ok_or("That change is no longer listed.")?;
+        let state = self.region.as_ref().ok_or(crate::i18n::tr("No part is being followed."))?;
+        let shown = state.found.get(chosen).ok_or(crate::i18n::tr("That change is no longer listed."))?;
         let touch = shown.touch.clone();
         let line = state.line.clone();
-        let before = self.part_state_lines(touch.step).ok_or("That state is no longer kept.")?;
+        let before = self.part_state_lines(touch.step).ok_or(crate::i18n::tr("That state is no longer kept."))?;
         let edits = region_history::undo_one(&line, &touch, &before)?;
         let index = self.part_editable().ok_or(String::new())?;
         self.active = index;
@@ -326,13 +326,13 @@ impl Limoniter {
     /// Puts the whole part back as it was before one change, which takes back that change and every later one to it.
     pub(super) fn put_part_back(&mut self, chosen: usize) -> Result<(), String> {
         self.refresh_part();
-        let state = self.region.as_ref().ok_or("No part is being followed.")?;
-        let shown = state.found.get(chosen).ok_or("That change is no longer listed.")?;
+        let state = self.region.as_ref().ok_or(crate::i18n::tr("No part is being followed."))?;
+        let shown = state.found.get(chosen).ok_or(crate::i18n::tr("That change is no longer listed."))?;
         let Some(before) = shown.touch.before.clone() else {
-            return Err("The part wasn't in the file before this.".into());
+            return Err(crate::i18n::tr("The part wasn't in the file before this.").into());
         };
         let (step, range) = (shown.touch.step, state.range.clone());
-        let lines = self.part_state_lines(step).and_then(|lines| lines.get(before).map(<[Arc<str>]>::to_vec)).ok_or("That state is no longer kept.")?;
+        let lines = self.part_state_lines(step).and_then(|lines| lines.get(before).map(<[Arc<str>]>::to_vec)).ok_or(crate::i18n::tr("That state is no longer kept."))?;
         let index = self.part_editable().ok_or(String::new())?;
         self.active = index;
         self.docs[index].text.splice_lines(range.start, range.end, lines);
@@ -354,9 +354,9 @@ impl Limoniter {
         let mut action = None;
         Panel::right("part-history").default_size(340.0).size_range(220.0..=900.0).resizable(true).frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("History of this part").color(theme::text()).size(13.5));
+                ui.label(RichText::new(crate::i18n::tr("History of this part")).color(theme::text()).size(13.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
                         action = Some(PartAction::Close);
                     }
                 });
@@ -364,7 +364,7 @@ impl Limoniter {
             let where_now = if state.range.is_empty() { "No longer in the file".to_string() } else { format!("Lines {} to {}", state.range.start + 1, state.range.end) };
             ui.label(RichText::new(where_now).color(theme::accent()).size(12.5));
             ui.label(RichText::new(if this_file { state.name.clone() } else { format!("{}, in {file_name}", state.name) }).color(theme::text_dim()).monospace().size(12.0));
-            if ui.button("Follow the selection or the cursor instead").on_hover_text("The selected lines, or the function the cursor is in").clicked() {
+            if ui.button(crate::i18n::tr("Follow the selection or the cursor instead")).on_hover_text(crate::i18n::tr("The selected lines, or the function the cursor is in")).clicked() {
                 action = Some(PartAction::ChooseAgain);
             }
             ui.add_space(4.0);
@@ -373,7 +373,7 @@ impl Limoniter {
                 ui.label(RichText::new(state.note.as_str()).color(theme::rainbow_mistake()).size(12.5));
             }
             if state.found.is_empty() {
-                ui.label(RichText::new("No change that's kept has touched these lines. Changes are listed here as they're made, wherever the lines move to.").color(theme::text_faint()).size(12.5));
+                ui.label(RichText::new(crate::i18n::tr("No change that's kept has touched these lines. Changes are listed here as they're made, wherever the lines move to.")).color(theme::text_faint()).size(12.5));
                 return;
             }
             // The chosen change, with what it did and what can be done about it, stays at the bottom.
@@ -384,10 +384,10 @@ impl Limoniter {
                     egui::ScrollArea::both().id_salt("part-change").max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
                         let shown_lines = |ui: &mut Ui, lines: &[String], mark: &str, colour: egui::Color32| {
                             for line in lines.iter().take(MOST_SHOWN_LINES) {
-                                ui.label(RichText::new(format!("{mark} {line}")).monospace().size(12.0).color(colour));
+                                ui.label(RichText::new(crate::i18n::tf!("{mark} {line}")).monospace().size(12.0).color(colour));
                             }
                             if lines.len() > MOST_SHOWN_LINES {
-                                ui.label(RichText::new(format!("  and {} more", lines.len() - MOST_SHOWN_LINES)).color(theme::text_faint()).size(11.5));
+                                ui.label(RichText::new(crate::i18n::tf!("  and {} more", lines.len() - MOST_SHOWN_LINES)).color(theme::text_faint()).size(11.5));
                             }
                         };
                         shown_lines(ui, &shown.removed, "\u{2212}", theme::rainbow_mistake());
@@ -395,13 +395,13 @@ impl Limoniter {
                     });
                     ui.add_space(6.0);
                     let can_take_back = shown.touch.kind != Kind::CutFromHere;
-                    if ui.add_enabled(can_take_back, Button::new("Take back just this change")).on_hover_text("Changes made since, here or anywhere else, stay as they are").clicked() {
+                    if ui.add_enabled(can_take_back, Button::new(crate::i18n::tr("Take back just this change"))).on_hover_text(crate::i18n::tr("Changes made since, here or anywhere else, stay as they are")).clicked() {
                         action = Some(PartAction::TakeBack(at));
                     }
-                    if ui.add_enabled(shown.touch.before.is_some() && !state.range.is_empty(), Button::new("Put this part back as it was before it")).on_hover_text("Takes back this change and every later one to this part, and nothing outside it").clicked() {
+                    if ui.add_enabled(shown.touch.before.is_some() && !state.range.is_empty(), Button::new(crate::i18n::tr("Put this part back as it was before it"))).on_hover_text(crate::i18n::tr("Takes back this change and every later one to this part, and nothing outside it")).clicked() {
                         action = Some(PartAction::PutBack(at));
                     }
-                    ui.label(RichText::new("Either comes off again with Undo.").color(theme::text_faint()).size(11.5));
+                    ui.label(RichText::new(crate::i18n::tr("Either comes off again with Undo.")).color(theme::text_faint()).size(11.5));
                     ui.add_space(2.0);
                 });
             }

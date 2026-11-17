@@ -36,7 +36,7 @@ impl Tape {
         let tape = Self { bytes, tzx };
         let (_, problem) = basic::tape_blocks(&tape.bytes);
         if let Some(problem) = problem {
-            return Err(format!("The tape can't be changed safely: {problem}"));
+            return Err(crate::i18n::tf!("The tape can't be changed safely: {problem}"));
         }
         Ok(tape)
     }
@@ -154,7 +154,7 @@ impl ImageWriter for Tape {
         if file.kind == TAPE {
             let (blocks, problem) = basic::tape_blocks(&file.bytes);
             if let Some(problem) = problem {
-                return Err(format!("{} isn't a whole tape: {problem}", file.name));
+                return Err(crate::i18n::tf!("{} isn't a whole tape: {problem}", file.name));
             }
             for block in blocks.iter().filter(|b| !b.is_empty()) {
                 let written = self.written(block[0], &block[1..block.len().saturating_sub(1)]);
@@ -185,14 +185,14 @@ impl ImageWriter for Tape {
             }
             SCREEN => {
                 if body.len() != 6912 {
-                    return Err(format!("A screen is 6912 bytes; {} is {}.", file.name, body.len()));
+                    return Err(crate::i18n::tf!("A screen is 6912 bytes; {} is {}.", file.name, body.len()));
                 }
                 (3, body.to_vec(), 16384, 0x8000)
             }
             _ => (3, body.to_vec(), file.address.unwrap_or(32768), 0x8000),
         };
         if data.len() > 0xFFFF - 2 {
-            return Err(format!("{} is too big for a tape block.", file.name));
+            return Err(crate::i18n::tf!("{} is too big for a tape block.", file.name));
         }
         let mut head = vec![kind];
         head.extend(tape_name(&file.name));
@@ -216,7 +216,7 @@ impl ImageWriter for Tape {
     fn rename(&mut self, _folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
         let file = self.file(entry)?;
         if file.len() < 2 {
-            return Err("A headerless block has no name to change.".into());
+            return Err(crate::i18n::tr("A headerless block has no name to change.").into());
         }
         let header = file[0];
         self.bytes[header.data + 2..header.data + 12].copy_from_slice(&tape_name(name));

@@ -85,7 +85,7 @@ impl Rule {
         if text.is_empty() {
             return Ok(None);
         }
-        regex::Regex::new(text).map(Some).map_err(|e| format!("\u{201C}{text}\u{201D} isn't a pattern that can be used: {e}"))
+        regex::Regex::new(text).map(Some).map_err(|e| crate::i18n::tf!("\u{201C}{text}\u{201D} isn't a pattern that can be used: {e}"))
     }
 
     /// What it does, in a few words, for a list.

@@ -2,7 +2,7 @@ use super::*;
 use std::path::Path;
 
 fn no_files(path: &Path) -> Result<Vec<u8>, String> {
-    Err(format!("{} isn't there", path.display()))
+    Err(crate::i18n::tf!("{} isn't there", path.display()))
 }
 
 fn z80(text: &str) -> Assembly {
@@ -97,7 +97,7 @@ fn includes_are_read_beside_the_file() {
         match path.file_name().and_then(|n| n.to_str()) {
             Some("defs.asm") => Ok(b"colour equ 4\n".to_vec()),
             Some("pic.bin") => Ok(vec![9, 8, 7, 6]),
-            _ => Err("no".into()),
+            _ => Err(crate::i18n::tr("no").into()),
         }
     };
     let assembly = assemble(&z80::Z80, Path::new("/src/main.asm"), "  include \"defs.asm\"\n  ld a,colour\n  incbin \"pic.bin\",1,2\n", &read);
@@ -310,7 +310,7 @@ fn a_ca65_program_assembles_as_ca65_does() {
 #[test]
 fn labels_are_known_where_defined_and_used() {
     let source = "  org 32768\nmain: ld b,8\n.loop: djnz .loop\n  jp main\ncount equ 3\n  ld a,count+count\n  macro border c\n  ld a,c\n  endm\n";
-    let a = assemble(&crate::asm::z80::Z80, Path::new("t.asm"), source, &|_| Err("no".into()));
+    let a = assemble(&crate::asm::z80::Z80, Path::new("t.asm"), source, &|_| Err(crate::i18n::tr("no").into()));
     assert!(a.ok(), "{:?}", a.problems);
     let def = |name: &str| a.definitions.iter().find(|d| d.name == name).map(|d| (d.line, d.written.as_str()));
     assert_eq!(def("main"), Some((1, "main")));

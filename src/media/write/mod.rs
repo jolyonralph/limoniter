@@ -84,14 +84,14 @@ pub trait ImageWriter: Send {
     fn rename(&mut self, folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String>;
     /// Makes a new, empty folder, on images that have folders.
     fn make_folder(&mut self, _folder: Option<&Entry>, _name: &str) -> Result<(), String> {
-        Err("This kind of image has no folders.".into())
+        Err(crate::i18n::tr("This kind of image has no folders.").into())
     }
     fn has_folders(&self) -> bool {
         false
     }
     /// Moves a file earlier (negative) or later in the image's own order, where order matters, as on a tape.
     fn reorder(&mut self, _entry: &Entry, _by: i32) -> Result<(), String> {
-        Err("Files on this kind of image have no order to change.".into())
+        Err(crate::i18n::tr("Files on this kind of image have no order to change.").into())
     }
     fn has_order(&self) -> bool {
         false
@@ -107,7 +107,7 @@ pub trait ImageWriter: Send {
 /// A writer for an image, or why it can't be changed here.
 pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String> {
     if bytes.len() as u64 > MOST_WRITABLE_BYTES {
-        return Err("The image is larger than the 512 MB that can be changed here.".into());
+        return Err(crate::i18n::tr("The image is larger than the 512 MB that can be changed here.").into());
     }
     let ending = Path::new(name).extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
     let head = &bytes[..bytes.len().min(0x8800)];
@@ -131,8 +131,8 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::TrDos) => Ok(Box::new(trdos::Trd::open(bytes)?)),
         Some(Format::Scl) => Ok(Box::new(trdos::Scl::open(bytes)?)),
         Some(Format::MacDisk | Format::MacDiskCopy) => Ok(Box::new(hfs::Hfs::open(bytes)?)),
-        Some(_) => Err("Limoniter can read this kind of image, but can't change it yet.".into()),
-        None => Err("This isn't an image Limoniter can change.".into()),
+        Some(_) => Err(crate::i18n::tr("Limoniter can read this kind of image, but can't change it yet.").into()),
+        None => Err(crate::i18n::tr("This isn't an image Limoniter can change.").into()),
     }
 }
 

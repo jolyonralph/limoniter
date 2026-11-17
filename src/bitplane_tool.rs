@@ -132,7 +132,7 @@ fn hex(c: [u8; 3]) -> String {
 }
 
 fn combo<T: Copy + PartialEq>(ui: &mut Ui, id: &str, label: &str, value: &mut T, all: &[T], name: impl Fn(T) -> String) {
-    ui.label(label);
+    ui.label(crate::i18n::tr(label));
     egui::ComboBox::from_id_salt(id).selected_text(name(*value)).show_ui(ui, |ui| {
         for &item in all {
             ui.selectable_value(value, item, name(item));
@@ -148,7 +148,7 @@ fn swatches(ui: &mut Ui, palette: &[[u8; 3]], first: usize) {
         for (i, &c) in palette.iter().enumerate() {
             let (rect, response) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
             ui.painter().rect_filled(rect, 1.0, Color32::from_rgb(c[0], c[1], c[2]));
-            response.on_hover_text(format!("Colour {}: {} (${:03X})", first + i, hex(c), planar::word12(c)));
+            response.on_hover_text(crate::i18n::tf!("Colour {}: {} (${:03X})", first + i, hex(c), planar::word12(c)));
         }
     });
 }
@@ -282,19 +282,19 @@ impl Converter {
         let mut asked = None;
         self.keep_up(ui.ctx());
         ui.horizontal(|ui| {
-            if ui.button("Open a picture\u{2026}").on_hover_text("PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads").clicked() {
+            if ui.button(crate::i18n::tr("Open a picture\u{2026}")).on_hover_text(crate::i18n::tr("PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads")).clicked() {
                 asked = Some(Asked::OpenPicture);
             }
             match &self.picture {
-                Some((name, image)) => ui.label(RichText::new(format!("{name}, {}\u{D7}{}", image.width, image.height)).color(crate::theme::text_dim())),
-                None => ui.label(RichText::new("No picture yet").color(crate::theme::text_dim())),
+                Some((name, image)) => ui.label(RichText::new(crate::i18n::tf!("{name}, {}\u{D7}{}", image.width, image.height)).color(crate::theme::text_dim())),
+                None => ui.label(RichText::new(crate::i18n::tr("No picture yet")).color(crate::theme::text_dim())),
             };
         });
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, Tab::Picture, "Screen picture");
-            ui.selectable_value(&mut self.tab, Tab::Sprites, "Sprites");
-            ui.selectable_value(&mut self.tab, Tab::Bob, "Bob");
-            ui.selectable_value(&mut self.tab, Tab::Raw, "Raw planes to picture");
+            ui.selectable_value(&mut self.tab, Tab::Picture, crate::i18n::tr("Screen picture"));
+            ui.selectable_value(&mut self.tab, Tab::Sprites, crate::i18n::tr("Sprites"));
+            ui.selectable_value(&mut self.tab, Tab::Bob, crate::i18n::tr("Bob"));
+            ui.selectable_value(&mut self.tab, Tab::Raw, crate::i18n::tr("Raw planes to picture"));
         });
         ui.separator();
         match self.tab {
@@ -322,15 +322,15 @@ impl Converter {
                         seen.iter().filter(|&&s| s).count()
                     };
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("{w}\u{D7}{h}, {} values used, average difference {:.3} (Oklab){}", used, error, if busy { " \u{2014} working\u{2026}" } else { "" })).color(crate::theme::text_dim()));
-                        ui.checkbox(&mut self.true_shape, "Pixels their true shape");
+                        ui.label(RichText::new(crate::i18n::tf!("{w}\u{D7}{h}, {} values used, average difference {:.3} (Oklab){}", used, error, if busy { " \u{2014} working\u{2026}" } else { "" })).color(crate::theme::text_dim()));
+                        ui.checkbox(&mut self.true_shape, crate::i18n::tr("Pixels their true shape"));
                     });
                     self.preview(ui, w, h, &rgba, aspect, 0);
                     swatches(ui, &palette, 0);
                 } else if busy {
                     ui.spinner();
                 } else {
-                    ui.label("Open a picture to convert it.");
+                    ui.label(crate::i18n::tr("Open a picture to convert it."));
                 }
             });
         });
@@ -339,15 +339,15 @@ impl Converter {
     fn picture_settings(&mut self, ui: &mut Ui, asked: &mut Option<Asked>) {
         let s = &mut self.settings;
         egui::Grid::new("planar-settings").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-            ui.label("Size");
+            ui.label(crate::i18n::tr("Size"));
             ui.horizontal(|ui| {
-                ui.add(egui::DragValue::new(&mut s.width).range(16..=1280)).on_hover_text("Pixels across");
-                ui.label("\u{D7}");
-                ui.add(egui::DragValue::new(&mut s.height).range(1..=1024)).on_hover_text("Pixels down");
-                ui.menu_button("\u{25BE}", |ui| {
+                ui.add(egui::DragValue::new(&mut s.width).range(16..=1280)).on_hover_text(crate::i18n::tr("Pixels across"));
+                ui.label(crate::i18n::tr("\u{D7}"));
+                ui.add(egui::DragValue::new(&mut s.height).range(1..=1024)).on_hover_text(crate::i18n::tr("Pixels down"));
+                ui.menu_button(crate::i18n::tr("\u{25BE}"), |ui| {
                     for (w, h, resolution, laced) in [(320, 256, Resolution::Lores, false), (320, 200, Resolution::Lores, false), (640, 256, Resolution::Hires, false), (640, 512, Resolution::Hires, true), (320, 512, Resolution::Lores, true), (1280, 512, Resolution::SuperHires, true)] {
                         let label = format!("{w}\u{D7}{h} {}{}", resolution.name(), if laced { ", interlaced" } else { "" });
-                        if ui.button(label).clicked() {
+                        if ui.button(crate::i18n::tr(&label)).clicked() {
                             (s.width, s.height, s.resolution, s.interlaced) = (w, h, resolution, laced);
                             ui.close();
                         }
@@ -356,34 +356,34 @@ impl Converter {
             });
             ui.end_row();
             combo(ui, "planar-res", "Pixels", &mut s.resolution, &Resolution::ALL, |r| r.name().to_string());
-            ui.label("");
-            ui.checkbox(&mut s.interlaced, "Interlaced");
+            ui.label(crate::i18n::tr(""));
+            ui.checkbox(&mut s.interlaced, crate::i18n::tr("Interlaced"));
             ui.end_row();
             combo(ui, "planar-fit", "Fitting", &mut s.fit, &Fit::ALL, |f| f.name().to_string());
             combo(ui, "planar-filter", "Scaling", &mut s.filter, &Filter::ALL, |f| f.name().to_string());
             combo(ui, "planar-mode", "Colours", &mut s.mode, &Mode::ALL, |m| m.name().to_string());
-            ui.label("Bit planes");
-            ui.add_enabled(s.mode == Mode::Plain, egui::Slider::new(&mut s.planes, 1..=8)).on_hover_text("OCS shows up to 5 (6 for extra half-brite and HAM), AGA 8");
+            ui.label(crate::i18n::tr("Bit planes"));
+            ui.add_enabled(s.mode == Mode::Plain, egui::Slider::new(&mut s.planes, 1..=8)).on_hover_text(crate::i18n::tr("OCS shows up to 5 (6 for extra half-brite and HAM), AGA 8"));
             ui.end_row();
-            ui.label("Palette");
+            ui.label(crate::i18n::tr("Palette"));
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut s.chipset, Chipset::Ocs, "12-bit (OCS/ECS)");
-                ui.selectable_value(&mut s.chipset, Chipset::Aga, "24-bit (AGA)");
+                ui.selectable_value(&mut s.chipset, Chipset::Ocs, crate::i18n::tr("12-bit (OCS/ECS)"));
+                ui.selectable_value(&mut s.chipset, Chipset::Aga, crate::i18n::tr("24-bit (AGA)"));
             });
             ui.end_row();
             combo(ui, "planar-dither", "Dithering", &mut s.dither, &Dither::ALL, |d| d.name().to_string());
-            ui.label("Strength");
+            ui.label(crate::i18n::tr("Strength"));
             ui.add_enabled(s.dither != Dither::None, egui::Slider::new(&mut s.strength, 0.0..=1.0));
             ui.end_row();
-            ui.label("");
-            ui.checkbox(&mut s.black_background, "Colour 0 black").on_hover_text("Keep the background and border black");
+            ui.label(crate::i18n::tr(""));
+            ui.checkbox(&mut s.black_background, crate::i18n::tr("Colour 0 black")).on_hover_text(crate::i18n::tr("Keep the background and border black"));
             ui.end_row();
-            ui.label("Colours given");
+            ui.label(crate::i18n::tr("Colours given"));
             ui.horizontal(|ui| {
-                if ui.button("Palette file\u{2026}").on_hover_text("An IFF, JASC or GIMP palette, assembler or C numbers, or raw words or bytes").clicked() {
+                if ui.button(crate::i18n::tr("Palette file\u{2026}")).on_hover_text(crate::i18n::tr("An IFF, JASC or GIMP palette, assembler or C numbers, or raw words or bytes")).clicked() {
                     *asked = Some(Asked::OpenPalette);
                 }
-                if !s.given.is_empty() && ui.small_button("\u{D7}").on_hover_text("Forget it").clicked() {
+                if !s.given.is_empty() && ui.small_button(crate::i18n::tr("\u{D7}")).on_hover_text(crate::i18n::tr("Forget it")).clicked() {
                     s.given.clear();
                     s.keep_given = 0;
                     self.palette_name = None;
@@ -391,9 +391,9 @@ impl Converter {
             });
             ui.end_row();
             if !s.given.is_empty() {
-                ui.label("Keep");
+                ui.label(crate::i18n::tr("Keep"));
                 let most = s.given.len().min(256);
-                ui.add(egui::Slider::new(&mut s.keep_given, 0..=most).text(format!("of {}", s.given.len()))).on_hover_text("These many of its first colours are kept as they are; the rest are found from the picture");
+                ui.add(egui::Slider::new(&mut s.keep_given, 0..=most).text(crate::i18n::tf!("of {}", s.given.len()))).on_hover_text(crate::i18n::tr("These many of its first colours are kept as they are; the rest are found from the picture"));
                 ui.end_row();
             }
         });
@@ -402,51 +402,51 @@ impl Converter {
             s.planes = settled.planes;
         }
         if settled.chipset != s.chipset {
-            ui.label(RichText::new(if settled.chipset == Chipset::Aga { "Only AGA shows this: its 24-bit palette is used." } else { "HAM6 changes 4 bits a level: the 12-bit palette is used." }).color(crate::theme::text_dim()).size(12.0));
+            ui.label(RichText::new(if settled.chipset == Chipset::Aga { crate::i18n::tr("Only AGA shows this: its 24-bit palette is used.") } else { crate::i18n::tr("HAM6 changes 4 bits a level: the 12-bit palette is used.") }).color(crate::theme::text_dim()).size(12.0));
         }
         ui.add_space(6.0);
         egui::Grid::new("planar-out").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-            ui.label("Name");
+            ui.label(crate::i18n::tr("Name"));
             ui.text_edit_singleline(&mut self.name);
             ui.end_row();
-            ui.label("Planes");
+            ui.label(crate::i18n::tr("Planes"));
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.interleaved, false, "One after another");
-                ui.selectable_value(&mut self.interleaved, true, "Interleaved");
+                ui.selectable_value(&mut self.interleaved, false, crate::i18n::tr("One after another"));
+                ui.selectable_value(&mut self.interleaved, true, crate::i18n::tr("Interleaved"));
             });
             ui.end_row();
             combo(ui, "planar-fetch", "Rows rounded to", &mut self.fetch, &Fetch::ALL, |f| f.name().to_string());
         });
         if let Some((_, c)) = &self.result {
             let l = planar::layout(c, self.interleaved, self.fetch);
-            ui.label(RichText::new(format!("{} bytes a row, {} a plane, {} in all; modulo {}", l.row, l.plane, l.total, l.modulo)).color(crate::theme::text_dim()).size(12.0));
+            ui.label(RichText::new(crate::i18n::tf!("{} bytes a row, {} a plane, {} in all; modulo {}", l.row, l.plane, l.total, l.modulo)).color(crate::theme::text_dim()).size(12.0));
         }
         ui.add_space(4.0);
         let ready = self.result.is_some();
         ui.add_enabled_ui(ready, |ui| {
             ui.horizontal_wrapped(|ui| {
-                if ui.button("Save everything\u{2026}").on_hover_text("Into a folder: the planes, the palette as words, copper moves and C, an IFF ILBM and the source").clicked() {
+                if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the planes, the palette as words, copper moves and C, an IFF ILBM and the source")).clicked() {
                     *asked = Some(Asked::SaveAll);
                 }
-                if ui.button("Planes\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Planes\u{2026}")).clicked() {
                     *asked = Some(Asked::SavePlanes);
                 }
-                ui.menu_button("Palette", |ui| {
+                ui.menu_button(crate::i18n::tr("Palette"), |ui| {
                     for (label, kind) in [("Raw words\u{2026}", PaletteKind::Words), ("Red, green, blue bytes\u{2026}", PaletteKind::Rgb), ("Copper moves (dc.w)\u{2026}", PaletteKind::Copper), ("C array\u{2026}", PaletteKind::C)] {
-                        if ui.button(label).clicked() {
+                        if ui.button(crate::i18n::tr(label)).clicked() {
                             *asked = Some(Asked::SavePalette(kind));
                             ui.close();
                         }
                     }
                 });
-                if ui.button("IFF ILBM\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("IFF ILBM\u{2026}")).clicked() {
                     *asked = Some(Asked::SaveIlbm);
                 }
-                ui.checkbox(&mut self.packed, "Packed");
-                if ui.button("Source\u{2026}").on_hover_text("Assembler: the sizes, a copper list and INCBIN of the planes").clicked() {
+                ui.checkbox(&mut self.packed, crate::i18n::tr("Packed"));
+                if ui.button(crate::i18n::tr("Source\u{2026}")).on_hover_text(crate::i18n::tr("Assembler: the sizes, a copper list and INCBIN of the planes")).clicked() {
                     *asked = Some(Asked::SaveSource);
                 }
-                if ui.button("Copy the copper moves").clicked()
+                if ui.button(crate::i18n::tr("Copy the copper moves")).clicked()
                     && let Some((_, c)) = &self.result
                 {
                     ui.ctx().copy_text(planar::palette_copper(&c.palette, c.chipset));
@@ -461,7 +461,7 @@ impl Converter {
             ui.vertical(|ui| {
                 ui.set_width(330.0);
                 egui::Grid::new("small-settings").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-                    ui.label("See-through");
+                    ui.label(crate::i18n::tr("See-through"));
                     egui::ComboBox::from_id_salt("small-clear")
                         .selected_text(match self.transparent {
                             Transparent::Alpha => "Where the picture is",
@@ -469,77 +469,77 @@ impl Converter {
                             Transparent::Opaque => "Nowhere",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.transparent, Transparent::Alpha, "Where the picture is");
-                            ui.selectable_value(&mut self.transparent, Transparent::TopLeft, "The top left pixel's colour");
-                            ui.selectable_value(&mut self.transparent, Transparent::Opaque, "Nowhere");
+                            ui.selectable_value(&mut self.transparent, Transparent::Alpha, crate::i18n::tr("Where the picture is"));
+                            ui.selectable_value(&mut self.transparent, Transparent::TopLeft, crate::i18n::tr("The top left pixel's colour"));
+                            ui.selectable_value(&mut self.transparent, Transparent::Opaque, crate::i18n::tr("Nowhere"));
                         });
                     ui.end_row();
                     if self.tab == Tab::Sprites {
-                        ui.label("Size");
+                        ui.label(crate::i18n::tr("Size"));
                         ui.horizontal(|ui| {
                             ui.add(egui::DragValue::new(&mut self.sprite_size.0).range(1..=512));
-                            ui.label("\u{D7}");
+                            ui.label(crate::i18n::tr("\u{D7}"));
                             ui.add(egui::DragValue::new(&mut self.sprite_size.1).range(1..=511));
                         });
                         ui.end_row();
                         combo(ui, "sprite-width", "Sprite width", &mut self.sprite.width, &SpriteWidth::ALL, |w| w.name().to_string());
-                        ui.label("Colours");
+                        ui.label(crate::i18n::tr("Colours"));
                         ui.horizontal(|ui| {
-                            ui.selectable_value(&mut self.sprite.attached, false, "3 a pair");
-                            ui.selectable_value(&mut self.sprite.attached, true, "15, attached");
+                            ui.selectable_value(&mut self.sprite.attached, false, crate::i18n::tr("3 a pair"));
+                            ui.selectable_value(&mut self.sprite.attached, true, crate::i18n::tr("15, attached"));
                         });
                         ui.end_row();
-                        ui.label("VSTART");
-                        ui.add(egui::DragValue::new(&mut self.sprite.vstart).range(0..=511).hexadecimal(2, false, true)).on_hover_text("The screen line of its top: $2C is the top of the usual PAL display");
+                        ui.label(crate::i18n::tr("VSTART"));
+                        ui.add(egui::DragValue::new(&mut self.sprite.vstart).range(0..=511).hexadecimal(2, false, true)).on_hover_text(crate::i18n::tr("The screen line of its top: $2C is the top of the usual PAL display"));
                         ui.end_row();
-                        ui.label("HSTART");
-                        ui.add(egui::DragValue::new(&mut self.sprite.hstart).range(0..=511).hexadecimal(2, false, true)).on_hover_text("The lo-res pixel of its left: $81 is the left of the usual display");
+                        ui.label(crate::i18n::tr("HSTART"));
+                        ui.add(egui::DragValue::new(&mut self.sprite.hstart).range(0..=511).hexadecimal(2, false, true)).on_hover_text(crate::i18n::tr("The lo-res pixel of its left: $81 is the left of the usual display"));
                         ui.end_row();
                     } else {
-                        ui.label("Size");
+                        ui.label(crate::i18n::tr("Size"));
                         ui.horizontal(|ui| {
                             ui.add(egui::DragValue::new(&mut self.bob_size.0).range(1..=1008));
-                            ui.label("\u{D7}");
+                            ui.label(crate::i18n::tr("\u{D7}"));
                             ui.add(egui::DragValue::new(&mut self.bob_size.1).range(1..=1024));
                         });
                         ui.end_row();
-                        ui.label("");
-                        ui.checkbox(&mut self.bob_screen_palette, "The screen picture's palette").on_hover_text("Colours and planes from the screen picture, for a bob drawn on it");
+                        ui.label(crate::i18n::tr(""));
+                        ui.checkbox(&mut self.bob_screen_palette, crate::i18n::tr("The screen picture's palette")).on_hover_text(crate::i18n::tr("Colours and planes from the screen picture, for a bob drawn on it"));
                         ui.end_row();
-                        ui.label("Bit planes");
+                        ui.label(crate::i18n::tr("Bit planes"));
                         ui.add_enabled(!self.bob_screen_palette, egui::Slider::new(&mut self.bob_settings.planes, 1..=8));
                         ui.end_row();
-                        ui.label("Planes");
+                        ui.label(crate::i18n::tr("Planes"));
                         ui.horizontal(|ui| {
-                            ui.selectable_value(&mut self.bob_settings.interleaved, false, "One after another");
-                            ui.selectable_value(&mut self.bob_settings.interleaved, true, "Interleaved");
+                            ui.selectable_value(&mut self.bob_settings.interleaved, false, crate::i18n::tr("One after another"));
+                            ui.selectable_value(&mut self.bob_settings.interleaved, true, crate::i18n::tr("Interleaved"));
                         });
                         ui.end_row();
-                        ui.label("");
-                        ui.checkbox(&mut self.bob_settings.extra_word, "A spare word a row, for shifting");
+                        ui.label(crate::i18n::tr(""));
+                        ui.checkbox(&mut self.bob_settings.extra_word, crate::i18n::tr("A spare word a row, for shifting"));
                         ui.end_row();
                     }
-                    ui.label("Name");
+                    ui.label(crate::i18n::tr("Name"));
                     ui.text_edit_singleline(&mut self.name);
                     ui.end_row();
-                    ui.label("Source");
+                    ui.label(crate::i18n::tr("Source"));
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut self.inline, true, "dc.w");
-                        ui.selectable_value(&mut self.inline, false, "INCBIN");
+                        ui.selectable_value(&mut self.inline, true, crate::i18n::tr("dc.w"));
+                        ui.selectable_value(&mut self.inline, false, crate::i18n::tr("INCBIN"));
                     });
                     ui.end_row();
                 });
-                ui.label(RichText::new("Scaling and dithering are the screen picture's.").color(crate::theme::text_dim()).size(12.0));
+                ui.label(RichText::new(crate::i18n::tr("Scaling and dithering are the screen picture's.")).color(crate::theme::text_dim()).size(12.0));
                 ui.add_space(4.0);
                 if self.tab == Tab::Sprites {
                     if let Some(s) = &self.sprites {
                         let note = format!("{} sprite{} {}{}", s.needed(), if s.needed() == 1 { "" } else { "s" }, sprites::sprites_raw(s).len(), " bytes");
                         ui.label(RichText::new(note).color(crate::theme::text_dim()).size(12.0));
                         if s.needed() > 8 {
-                            ui.label(RichText::new("More than the eight sprites there are: narrow it, or reuse sprites further down.").color(crate::theme::rainbow_mistake()).size(12.0));
+                            ui.label(RichText::new(crate::i18n::tr("More than the eight sprites there are: narrow it, or reuse sprites further down.")).color(crate::theme::rainbow_mistake()).size(12.0));
                         }
                     }
-                    if ui.add_enabled(self.sprites.is_some(), egui::Button::new("Save the sprites\u{2026}")).on_hover_text("The raw sprites and their source").clicked() {
+                    if ui.add_enabled(self.sprites.is_some(), egui::Button::new(crate::i18n::tr("Save the sprites\u{2026}"))).on_hover_text(crate::i18n::tr("The raw sprites and their source")).clicked() {
                         *asked = Some(Asked::SaveSprites);
                     }
                 } else {
@@ -550,7 +550,7 @@ impl Converter {
                         };
                         ui.label(RichText::new(note).color(crate::theme::text_dim()).size(12.0));
                     }
-                    if ui.add_enabled(self.bob.is_some(), egui::Button::new("Save the bob\u{2026}")).on_hover_text("Its planes, its mask and their source").clicked() {
+                    if ui.add_enabled(self.bob.is_some(), egui::Button::new(crate::i18n::tr("Save the bob\u{2026}"))).on_hover_text(crate::i18n::tr("Its planes, its mask and their source")).clicked() {
                         *asked = Some(Asked::SaveBob);
                     }
                 }
@@ -565,7 +565,7 @@ impl Converter {
                         swatches(ui, &palette, first);
                     }
                     None => {
-                        ui.label("Open a picture to make them from it.");
+                        ui.label(crate::i18n::tr("Open a picture to make them from it."));
                     }
                 }
             });
@@ -578,40 +578,40 @@ impl Converter {
             ui.vertical(|ui| {
                 ui.set_width(330.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Open raw planes\u{2026}").clicked() {
+                    if ui.button(crate::i18n::tr("Open raw planes\u{2026}")).clicked() {
                         *asked = Some(Asked::OpenRaw);
                     }
                     if let Some((name, bytes)) = &self.raw_file {
-                        ui.label(RichText::new(format!("{name}, {} bytes", bytes.len())).color(crate::theme::text_dim()));
+                        ui.label(RichText::new(crate::i18n::tf!("{name}, {} bytes", bytes.len())).color(crate::theme::text_dim()));
                     }
                 });
                 let r = &mut self.raw;
                 egui::Grid::new("raw-settings").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-                    ui.label("Starting at");
+                    ui.label(crate::i18n::tr("Starting at"));
                     ui.add(egui::DragValue::new(&mut r.offset).range(0..=usize::MAX).hexadecimal(1, false, true));
                     ui.end_row();
-                    ui.label("Size");
+                    ui.label(crate::i18n::tr("Size"));
                     ui.horizontal(|ui| {
                         ui.add(egui::DragValue::new(&mut r.width).range(16..=2048).speed(16.0));
-                        ui.label("\u{D7}");
+                        ui.label(crate::i18n::tr("\u{D7}"));
                         ui.add(egui::DragValue::new(&mut r.height).range(1..=2048));
                     });
                     ui.end_row();
                     combo(ui, "raw-mode", "Colours", &mut r.mode, &Mode::ALL, |m| m.name().to_string());
-                    ui.label("Bit planes");
+                    ui.label(crate::i18n::tr("Bit planes"));
                     ui.add_enabled(r.mode == Mode::Plain, egui::Slider::new(&mut r.planes, 1..=8));
                     ui.end_row();
                     if let Some(planes) = r.mode.planes() {
                         r.planes = planes;
                     }
-                    ui.label("Planes");
+                    ui.label(crate::i18n::tr("Planes"));
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut r.interleaved, false, "One after another");
-                        ui.selectable_value(&mut r.interleaved, true, "Interleaved");
+                        ui.selectable_value(&mut r.interleaved, false, crate::i18n::tr("One after another"));
+                        ui.selectable_value(&mut r.interleaved, true, crate::i18n::tr("Interleaved"));
                     });
                     ui.end_row();
                     combo(ui, "raw-fetch", "Rows rounded to", &mut r.fetch, &Fetch::ALL, |f| f.name().to_string());
-                    ui.label("Palette");
+                    ui.label(crate::i18n::tr("Palette"));
                     egui::ComboBox::from_id_salt("raw-colours")
                         .selected_text(match self.raw_colours {
                             RawColours::Greys => "Shades of grey",
@@ -619,31 +619,31 @@ impl Converter {
                             RawColours::Given => "The palette file's",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.raw_colours, RawColours::Greys, "Shades of grey");
-                            ui.selectable_value(&mut self.raw_colours, RawColours::Converted, "The screen picture's");
-                            ui.selectable_value(&mut self.raw_colours, RawColours::Given, "The palette file's");
+                            ui.selectable_value(&mut self.raw_colours, RawColours::Greys, crate::i18n::tr("Shades of grey"));
+                            ui.selectable_value(&mut self.raw_colours, RawColours::Converted, crate::i18n::tr("The screen picture's"));
+                            ui.selectable_value(&mut self.raw_colours, RawColours::Given, crate::i18n::tr("The palette file's"));
                         });
                     ui.end_row();
-                    ui.label("Half-brite as");
+                    ui.label(crate::i18n::tr("Half-brite as"));
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut self.raw_chipset, Chipset::Ocs, "OCS");
-                        ui.selectable_value(&mut self.raw_chipset, Chipset::Aga, "AGA");
+                        ui.selectable_value(&mut self.raw_chipset, Chipset::Ocs, crate::i18n::tr("OCS"));
+                        ui.selectable_value(&mut self.raw_chipset, Chipset::Aga, crate::i18n::tr("AGA"));
                     });
                     ui.end_row();
                 });
                 if let Some((_, bytes)) = &self.raw_file {
                     let rows = self.raw.rows_in(bytes.len());
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("{rows} rows fit")).color(crate::theme::text_dim()).size(12.0));
-                        if ui.small_button("Use them").clicked() && rows > 0 {
+                        ui.label(RichText::new(crate::i18n::tf!("{rows} rows fit")).color(crate::theme::text_dim()).size(12.0));
+                        if ui.small_button(crate::i18n::tr("Use them")).clicked() && rows > 0 {
                             self.raw.height = rows;
                         }
                     });
                 }
-                if ui.button("Palette file\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Palette file\u{2026}")).clicked() {
                     *asked = Some(Asked::OpenPalette);
                 }
-                if ui.add_enabled(self.raw_shown.is_some(), egui::Button::new("Save as PNG\u{2026}")).clicked() {
+                if ui.add_enabled(self.raw_shown.is_some(), egui::Button::new(crate::i18n::tr("Save as PNG\u{2026}"))).clicked() {
                     *asked = Some(Asked::SavePng);
                 }
             });
@@ -656,7 +656,7 @@ impl Converter {
                     let (w, h) = (self.raw.width.clamp(1, 4096), self.raw.height.clamp(1, 4096));
                     self.preview(ui, w, h, &rgba, 1.0, 1);
                 } else {
-                    ui.label("Open a file of raw planes, ripped from a program or saved here, to see them as a picture.");
+                    ui.label(crate::i18n::tr("Open a file of raw planes, ripped from a program or saved here, to see them as a picture."));
                 }
             });
         });

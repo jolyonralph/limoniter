@@ -81,7 +81,7 @@ pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
     let mut mode = mode_of(ending).unwrap_or(if bytes.len() < SCREEN { Mode::Gr7 } else { Mode::Gr15 });
     let needed = if mode == Mode::Gr7 { SCREEN / 2 } else { SCREEN };
     if bytes.len() < needed {
-        return Err(format!("An Atari {} screen is {needed} bytes; this file has {}.", name(mode), bytes.len()));
+        return Err(crate::i18n::tf!("An Atari {} screen is {needed} bytes; this file has {}.", name(mode), bytes.len()));
     }
     // MicroPainter's colours after the screen: background, then registers 0 to 2.
     let saved = bytes.get(needed..needed + 4).filter(|_| matches!(mode, Mode::Gr15 | Mode::Gr7));
@@ -194,17 +194,17 @@ impl Runs<'_> {
 }
 
 fn decode_koala(bytes: &[u8]) -> Result<Picture, String> {
-    let header = bytes.get(..22).ok_or("This Koala picture stops in its header.")?;
+    let header = bytes.get(..22).ok_or(crate::i18n::tr("This Koala picture stops in its header."))?;
     let length = usize::from(u16::from_le_bytes([header[4], header[5]]));
     if header[6] != 1 || header[9..12] != [0, 40, 0] || header[21] != 0 || length < 26 {
-        return Err("This file starts as a Koala picture does, but its header isn't one.".into());
+        return Err(crate::i18n::tr("This file starts as a Koala picture does, but its header isn't one.").into());
     }
     let rows = usize::from(header[12]);
     let mode = match (header[20], header[8], rows) {
         (0, 0x0E, 192) => Mode::Gr15,
         (1, 0x0F, 192) => Mode::Gr9,
-        (0, 0x02, _) => return Err("This Koala file is a text screen, which isn't shown as a picture.".into()),
-        _ => return Err(format!("This Koala picture is in a mode (ANTIC {}, GTIA {}, {rows} rows) that isn't read.", header[8], header[20])),
+        (0, 0x02, _) => return Err(crate::i18n::tr("This Koala file is a text screen, which isn't shown as a picture.").into()),
+        _ => return Err(crate::i18n::tf!("This Koala picture is in a mode (ANTIC {}, GTIA {}, {rows} rows) that isn't read.", header[8], header[20])),
     };
     let mut screen = vec![0u8; SCREEN];
     let packed = bytes.get(length + 1..).unwrap_or_default();
@@ -219,7 +219,7 @@ fn decode_koala(bytes: &[u8]) -> Result<Picture, String> {
                 screen[at] = runs.next().ok_or_else(short)?;
             }
         }
-        other => return Err(format!("This Koala picture is packed in a way ({other}) that isn't known.")),
+        other => return Err(crate::i18n::tf!("This Koala picture is packed in a way ({other}) that isn't known.")),
     }
     let colours = [header[13], header[14], header[15], header[17]];
     let [pf0, pf1, pf2, bak] = colours;
@@ -268,7 +268,7 @@ fn hip_frames(bytes: &[u8]) -> Option<(&[u8], &[u8], usize, [u8; 9])> {
 }
 
 fn decode_hip(bytes: &[u8]) -> Result<Picture, String> {
-    let (gr9, gr10, rows, colours) = hip_frames(bytes).ok_or("This isn't a HIP picture: it isn't two screens of 40-byte rows, with or without load headers.")?;
+    let (gr9, gr10, rows, colours) = hip_frames(bytes).ok_or(crate::i18n::tr("This isn't a HIP picture: it isn't two screens of 40-byte rows, with or without load headers."))?;
     // A dot's value, from 320 hires columns; Graphics 9's and 10's dots are four columns wide.
     let dot = |screen: &[u8], y: usize, column: usize| screen[y * 40 + column / 8] >> (if column & 4 == 0 { 4 } else { 0 }) & 15;
     // Graphics 10's sixteen values: the four players' colours, the four playfields', the background, then the

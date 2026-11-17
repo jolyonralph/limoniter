@@ -135,10 +135,10 @@ impl Limoniter {
             if matches!(ending.as_str(), "nex" | "sna" | "z80") {
                 let name = doc.name();
                 let bytes = doc.path.as_deref().map(std::fs::read).transpose().map_err(|e| e.to_string())?.unwrap_or_default();
-                return Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| format!("{name} isn't a program Limoniter knows how to run."));
+                return Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| crate::i18n::tf!("{name} isn't a program Limoniter knows how to run."));
             }
             return match browser.selected_file() {
-                Some(Ok((name, bytes))) => Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| format!("{name} isn't a program or disk Limoniter knows how to run.")),
+                Some(Ok((name, bytes))) => Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| crate::i18n::tf!("{name} isn't a program or disk Limoniter knows how to run.")),
                 Some(Err(problem)) => Err(problem),
                 None => {
                     // The whole image, if it's one a machine mounts.
@@ -149,10 +149,10 @@ impl Limoniter {
             };
         }
         if let Some((machine, stem)) = doc.listing_of.clone().filter(|_| !doc.hex_mode) {
-            return Runnable::from_listing(&doc.text.all_lines(), machine, &stem).map(Some).map_err(|problem| format!("This listing couldn't be tokenised, so it can't be run.\n\n{problem}"));
+            return Runnable::from_listing(&doc.text.all_lines(), machine, &stem).map(Some).map_err(|problem| crate::i18n::tf!("This listing couldn't be tokenised, so it can't be run.\n\n{problem}"));
         }
         if !doc.hex_mode && doc.text.is_disk_backed() {
-            return Err("This file is too large to run.".into());
+            return Err(crate::i18n::tr("This file is too large to run.").into());
         }
         let name = doc.name();
         let bytes = self.document_bytes();
@@ -161,7 +161,7 @@ impl Limoniter {
         }
         let doc = &self.docs[self.active];
         if doc.hex_mode || doc.picture.is_some() {
-            return Err(format!("{name} isn't a program or disk Limoniter knows how to run."));
+            return Err(crate::i18n::tf!("{name} isn't a program or disk Limoniter knows how to run."));
         }
         Ok(None)
     }
@@ -184,24 +184,24 @@ impl Limoniter {
     /// Whether a target can take this; if not, why not.
     pub(super) fn suits(&self, target: Target, run: &Runnable) -> Result<(), String> {
         match target {
-            Target::BuiltIn => crate::zx_machine::BuiltIn::takes(run).map_err(|why| format!("The built-in Spectrum {why}")),
+            Target::BuiltIn => crate::zx_machine::BuiltIn::takes(run).map_err(|why| crate::i18n::tf!("The built-in Spectrum {why}")),
             Target::Device(n) => {
                 let Some(device) = self.sends.devices.get(n) else {
-                    return Err("It's no longer set up.".into());
+                    return Err(crate::i18n::tr("It's no longer set up.").into());
                 };
                 match &device.place {
                     Place::Emulator { emulator, .. } => match emulators::by_id(emulator) {
                         Some(known) if known.runs(run.machine, run.format) => Ok(()),
-                        Some(known) if known.machines.contains(&run.machine) => Err(format!("{} doesn't take .{} files.", known.name, run.format.ending())),
-                        Some(known) => Err(format!("{} doesn't run {} programs.", known.name, run.machine.name())),
-                        None => Err("It isn't an emulator Limoniter knows.".into()),
+                        Some(known) if known.machines.contains(&run.machine) => Err(crate::i18n::tf!("{} doesn't take .{} files.", known.name, run.format.ending())),
+                        Some(known) => Err(crate::i18n::tf!("{} doesn't run {} programs.", known.name, run.machine.name())),
+                        None => Err(crate::i18n::tr("It isn't an emulator Limoniter knows.").into()),
                     },
                     Place::NextSync { .. } if run.machine == Machine::Next || run.machine.is_classic_spectrum() => Ok(()),
-                    Place::NextSync { .. } => Err(format!("A Spectrum Next doesn't run {} programs.", run.machine.name())),
+                    Place::NextSync { .. } => Err(crate::i18n::tf!("A Spectrum Next doesn't run {} programs.", run.machine.name())),
                     Place::Ultimate { .. } if run.machine == Machine::C64 && crate::deploy::ultimate_route(&run.name).is_some() => Ok(()),
-                    Place::Ultimate { .. } => Err(format!("An Ultimate doesn't run {}.", run.name)),
-                    Place::NextCable { .. } if !(run.machine == Machine::Next || run.machine.is_classic_spectrum()) => Err(format!("A Spectrum Next doesn't run {} programs.", run.machine.name())),
-                    Place::NextCable { .. } if !self.running.assembled.as_ref().is_some_and(|c| c.doc_id == self.docs[self.active].id) => Err("The debug cable runs Z80 source assembled here; a file is sent with NextSync.".into()),
+                    Place::Ultimate { .. } => Err(crate::i18n::tf!("An Ultimate doesn't run {}.", run.name)),
+                    Place::NextCable { .. } if !(run.machine == Machine::Next || run.machine.is_classic_spectrum()) => Err(crate::i18n::tf!("A Spectrum Next doesn't run {} programs.", run.machine.name())),
+                    Place::NextCable { .. } if !self.running.assembled.as_ref().is_some_and(|c| c.doc_id == self.docs[self.active].id) => Err(crate::i18n::tr("The debug cable runs Z80 source assembled here; a file is sent with NextSync.").into()),
                     _ => Ok(()),
                 }
             }
@@ -329,9 +329,9 @@ impl Limoniter {
     /// Starts an emulator with the file, or, if one it can reach is already running it, loads it there.
     fn run_in_emulator(&mut self, device: &Device, run: &Runnable) -> Result<(), String> {
         let Place::Emulator { emulator, program, options } = &device.place else {
-            return Err("It isn't an emulator.".into());
+            return Err(crate::i18n::tr("It isn't an emulator.").into());
         };
-        let emulator = emulators::by_id(emulator).ok_or("It isn't an emulator Limoniter knows.")?;
+        let emulator = emulators::by_id(emulator).ok_or(crate::i18n::tr("It isn't an emulator Limoniter knows."))?;
         // Assembler source run on ZEsarUX is debugged there: its breakpoints set at their lines' addresses.
         let doc_id = self.docs[self.active].id;
         let kind = match emulator.link {
@@ -356,9 +356,9 @@ impl Limoniter {
         let run = &run;
         self.running.number += 1;
         let folder = std::env::temp_dir().join(format!("limoniter-run-{}", std::process::id())).join(self.running.number.to_string());
-        std::fs::create_dir_all(&folder).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
+        std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("Couldn't make the copy to run.\n\n{e}"))?;
         let file = folder.join(&run.name);
-        std::fs::write(&file, run.bytes.as_slice()).map_err(|e| format!("Couldn't make the copy to run.\n\n{e}"))?;
+        std::fs::write(&file, run.bytes.as_slice()).map_err(|e| crate::i18n::tf!("Couldn't make the copy to run.\n\n{e}"))?;
         // An Amiga boots from a folder made its hard drive, started from a configuration made for the run.
         let file = if run.machine == Machine::Amiga { crate::amiga_run::prepare(emulator.id, &folder, run, &crate::amiga_run::settings())? } else { file };
         // An Atari is the machine chosen for Hatari, run from the folder or from a floppy made for the run.
@@ -424,7 +424,7 @@ impl Limoniter {
         if let Some(home) = program.parent() {
             command.current_dir(home);
         }
-        let mut child = command.spawn().map_err(|e| format!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
+        let mut child = command.spawn().map_err(|e| crate::i18n::tf!("Couldn't start {} ({}).\n\n{e}", emulator.name, program.display()))?;
         if debugging && hatari && let (Some(input), Some(output), Some(errors)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) {
             let breakpoints = self.breakpoint_addresses(doc_id);
             let wake = self.waker.clone();
@@ -463,12 +463,12 @@ impl Limoniter {
     /// Loads assembled Z80 source onto a real Next through dezogif, and runs it there, its breakpoints set.
     fn run_on_cable(&mut self, device: &Device, port: &str, run: &Runnable) -> Result<(), String> {
         let doc_id = self.docs[self.active].id;
-        let assembly = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).map(|c| c.assembly.clone()).ok_or("Assemble the source first: press F9 in it.")?;
+        let assembly = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).map(|c| c.assembly.clone()).ok_or(crate::i18n::tr("Assemble the source first: press F9 in it."))?;
         let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-            return Err("Nothing was assembled.".into());
+            return Err(crate::i18n::tr("Nothing was assembled.").into());
         };
         if low < 0x4000 {
-            return Err(format!("The code starts at ${low:04X}, in the ROM. Put it at $4000 or above."));
+            return Err(crate::i18n::tf!("The code starts at ${low:04X}, in the ROM. Put it at $4000 or above."));
         }
         let image = assembly.image(0, 0x10000);
         let used = [false, low < 0x8000, low < 0xC000 && high > 0x8000, high > 0xC000];
@@ -622,13 +622,13 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    stop = crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Switch it off").on_hover_text("Switch it off").clicked();
-                    if ui.selectable_label(keyboard, "Keyboard").on_hover_text("Shows the Spectrum's keyboard under its screen, to click").clicked() {
+                    stop = crate::access::called(ui.add(Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Switch it off").on_hover_text(crate::i18n::tr("Switch it off")).clicked();
+                    if ui.selectable_label(keyboard, crate::i18n::tr("Keyboard")).on_hover_text(crate::i18n::tr("Shows the Spectrum's keyboard under its screen, to click")).clicked() {
                         keyboard = !keyboard;
                     }
-                    restart = ui.small_button("Restart").on_hover_text("Runs the program again from the start").clicked();
+                    restart = ui.small_button(crate::i18n::tr("Restart")).on_hover_text(crate::i18n::tr("Runs the program again from the start")).clicked();
                     let profiling = machine.profiling();
-                    if ui.selectable_label(profiling, "Profile").on_hover_text("Counts the T-states spent in each routine and line, from now; click again to stop counting, and what was counted stays to read").clicked() {
+                    if ui.selectable_label(profiling, crate::i18n::tr("Profile")).on_hover_text(crate::i18n::tr("Counts the T-states spent in each routine and line, from now; click again to stop counting, and what was counted stays to read")).clicked() {
                         machine.set_profiling(!profiling);
                     }
                     let pause = if machine.paused { "Carry on" } else { "Pause" };
@@ -679,10 +679,10 @@ impl Limoniter {
                 basic_action = basic_debugger(ui, line, statement, &crate::zx_basic_debug::variables(&|a| machine.peek(a)));
             } else if basic_listing && !machine.paused && error.is_none() {
                 ui.horizontal(|ui| {
-                    if ui.small_button("Stop at the next statement").on_hover_text("Pauses the BASIC program before its next statement, to step through it").clicked() {
+                    if ui.small_button(crate::i18n::tr("Stop at the next statement")).on_hover_text(crate::i18n::tr("Pauses the BASIC program before its next statement, to step through it")).clicked() {
                         machine.pause_basic();
                     }
-                    ui.label(RichText::new("or click beside a line's number for a breakpoint").color(theme::text_faint()).size(11.5));
+                    ui.label(RichText::new(crate::i18n::tr("or click beside a line's number for a breakpoint")).color(theme::text_faint()).size(11.5));
                 });
             }
             match basic_action {
@@ -726,18 +726,18 @@ impl Limoniter {
                                 go_to_line = routine.line;
                             }
                             ui.label(RichText::new(routine.t_states.to_string()).monospace().size(12.0));
-                            ui.label(RichText::new(format!("{share:.1}%")).monospace().size(12.0));
+                            ui.label(RichText::new(crate::i18n::tf!("{share:.1}%")).monospace().size(12.0));
                             ui.label(RichText::new(if routine.entered > 0 { routine.entered.to_string() } else { String::new() }).monospace().size(12.0));
                             ui.end_row();
                         }
                     });
                     if !lines.is_empty() {
                         ui.add_space(4.0);
-                        ui.label(RichText::new("Busiest lines").size(12.0).color(theme::text_dim()));
+                        ui.label(RichText::new(crate::i18n::tr("Busiest lines")).size(12.0).color(theme::text_dim()));
                         for hot in lines.iter().take(8) {
                             let share = if total == 0 { 0.0 } else { hot.t_states as f64 * 100.0 / total as f64 };
                             let text = line_texts_all.get(&hot.line).map(|t| t.trim().to_string()).unwrap_or_default();
-                            if crate::access::clickable(ui.add(egui::Label::new(RichText::new(format!("{:>5}  {share:>5.1}%  {}", hot.line + 1, text)).monospace().size(12.0)).sense(egui::Sense::click()))).clicked() {
+                            if crate::access::clickable(ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("{:>5}  {share:>5.1}%  {}", hot.line + 1, text)).monospace().size(12.0)).sense(egui::Sense::click()))).clicked() {
                                 go_to_line = Some(hot.line);
                             }
                         }
@@ -942,7 +942,7 @@ impl Limoniter {
         let mut action = None;
         let mut pause = false;
         Panel::right("remote-debug").default_size(380.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
-            ui.label(RichText::new(format!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
+            ui.label(RichText::new(crate::i18n::tf!("Debugging in {target}")).color(theme::text_dim()).size(12.5));
             ui.separator();
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 match (&problem, &stopped) {
@@ -956,10 +956,10 @@ impl Limoniter {
                     }
                     (None, None) => {
                         ui.horizontal(|ui| {
-                            ui.label("Running");
-                            pause = ui.small_button("Pause").on_hover_text("Stops it where it is").clicked();
+                            ui.label(crate::i18n::tr("Running"));
+                            pause = ui.small_button(crate::i18n::tr("Pause")).on_hover_text(crate::i18n::tr("Stops it where it is")).clicked();
                         });
-                        ui.add(egui::Label::new(RichText::new("Click beside a line's number for a breakpoint; it stops there.").color(theme::text_faint()).size(11.5)).wrap());
+                        ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Click beside a line's number for a breakpoint; it stops there.")).color(theme::text_faint()).size(11.5)).wrap());
                     }
                 }
                 if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
@@ -1018,9 +1018,9 @@ impl Limoniter {
         let mut as_listing: Option<basic::Machine> = None;
         let mut manage = false;
         let mut keep = shown.as_ref().is_some_and(|(.., remember)| *remember);
-        egui::Window::new("Run on machine").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &shown {
+        egui::Window::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &shown {
             Some((file, machine, targets, _)) => {
-                ui.label(format!("Where should {file} run? It's a {} program.", machine.name()));
+                ui.label(crate::i18n::tf!("Where should {file} run? It's a {} program.", machine.name()));
                 ui.add_space(6.0);
                 let mut any = false;
                 for (target, name, suits) in targets {
@@ -1039,42 +1039,42 @@ impl Limoniter {
                 if !any {
                     let suggestions: Vec<String> = emulators::KNOWN.iter().filter(|e| e.machines.contains(machine)).map(|e| format!("{} ({})", e.name, e.website)).collect();
                     let words = if suggestions.is_empty() { String::new() } else { format!(" Emulators that run them: {}.", suggestions.join(", ")) };
-                    ui.add(egui::Label::new(RichText::new(format!("Nothing set up runs {} programs yet. Find emulators, under Devices and emulators, adds any that are installed, and Get an emulator there installs one.{words}", machine.name())).color(theme::text_dim())).wrap());
+                    ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("Nothing set up runs {} programs yet. Find emulators, under Devices and emulators, adds any that are installed, and Get an emulator there installs one.{words}", machine.name())).color(theme::text_dim())).wrap());
                 }
                 ui.add_space(6.0);
-                ui.checkbox(&mut keep, format!("Always run {} programs there (F9)", machine.name()));
+                ui.checkbox(&mut keep, crate::i18n::tf!("Always run {} programs there (F9)", machine.name()));
                 ui.horizontal(|ui| {
-                    manage = ui.button("Devices and emulators\u{2026}").clicked();
-                    close |= ui.button("Cancel").clicked();
+                    manage = ui.button(crate::i18n::tr("Devices and emulators\u{2026}")).clicked();
+                    close |= ui.button(crate::i18n::tr("Cancel")).clicked();
                 });
             }
             None if which_6502 => {
-                ui.label("Is this 6502 program for a Commodore 64, a BBC Micro or an Atari 2600? Its code doesn't say.");
+                ui.label(crate::i18n::tr("Is this 6502 program for a Commodore 64, a BBC Micro or an Atari 2600? Its code doesn't say."));
                 ui.add_space(6.0);
-                if ui.button("Commodore 64").clicked() {
+                if ui.button(crate::i18n::tr("Commodore 64")).clicked() {
                     as_6502 = Some(Micro6502::C64);
                 }
-                if ui.button("BBC Micro").clicked() {
+                if ui.button(crate::i18n::tr("BBC Micro")).clicked() {
                     as_6502 = Some(Micro6502::Bbc);
                 }
-                if ui.button("Atari 2600").clicked() {
+                if ui.button(crate::i18n::tr("Atari 2600")).clicked() {
                     as_6502 = Some(Micro6502::Atari2600);
                 }
                 ui.add_space(6.0);
-                ui.add(egui::Label::new(RichText::new("It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top.").color(theme::text_dim())).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top.")).color(theme::text_dim())).wrap());
                 ui.add_space(6.0);
-                close |= ui.button("Cancel").clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             }
             None => {
-                ui.label("This isn't a program Limoniter knows how to run. Run it as a BASIC listing for:");
+                ui.label(crate::i18n::tr("This isn't a program Limoniter knows how to run. Run it as a BASIC listing for:"));
                 ui.add_space(6.0);
                 for (machine, name) in LISTING_MACHINES {
-                    if ui.button(name).clicked() {
+                    if ui.button(crate::i18n::tr(name)).clicked() {
                         as_listing = Some(machine);
                     }
                 }
                 ui.add_space(6.0);
-                close |= ui.button("Cancel").clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             }
         });
         let Dialog::Run(state) = std::mem::replace(&mut self.dialog, Dialog::None) else {
@@ -1145,19 +1145,19 @@ fn basic_debugger(ui: &mut Ui, line: u16, statement: u8, variables: &[crate::zx_
     ui.add_space(4.0);
     egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("Stopped at line {line}, statement {statement}")).strong());
+            ui.label(RichText::new(crate::i18n::tf!("Stopped at line {line}, statement {statement}")).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Next statement").on_hover_text("Runs this statement and stops before the next").clicked() {
+                if ui.small_button(crate::i18n::tr("Next statement")).on_hover_text(crate::i18n::tr("Runs this statement and stops before the next")).clicked() {
                     action = Some(Debug::Step);
                 }
-                if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
+                if ui.small_button(crate::i18n::tr("Carry on")).on_hover_text(crate::i18n::tr("Runs on until the next breakpoint")).clicked() {
                     action = Some(Debug::CarryOn);
                 }
             });
         });
         egui::CollapsingHeader::new(format!("Variables ({})", variables.len())).id_salt("basic-variables").default_open(true).show(ui, |ui| {
             if variables.is_empty() {
-                ui.label(RichText::new("None yet.").color(theme::text_faint()).size(11.5));
+                ui.label(RichText::new(crate::i18n::tr("None yet.")).color(theme::text_faint()).size(11.5));
             }
             egui::Grid::new("basic-variables-grid").num_columns(2).spacing([14.0, 2.0]).show(ui, |ui| {
                 for variable in variables {

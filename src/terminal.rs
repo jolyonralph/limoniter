@@ -43,10 +43,10 @@ impl Terminal {
 
     pub fn start_with(mut command: CommandBuilder, folder: &Path, rows: u16, cols: u16) -> Result<Terminal, String> {
         let pty = native_pty_system();
-        let pair = pty.openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }).map_err(|e| format!("A terminal couldn't be made: {e}"))?;
+        let pair = pty.openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }).map_err(|e| crate::i18n::tf!("A terminal couldn't be made: {e}"))?;
         command.cwd(folder);
         command.env("TERM", "xterm-256color");
-        let child = pair.slave.spawn_command(command).map_err(|e| format!("The shell couldn't be started: {e}"))?;
+        let child = pair.slave.spawn_command(command).map_err(|e| crate::i18n::tf!("The shell couldn't be started: {e}"))?;
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
         let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(pair.master.take_writer().map_err(|e| e.to_string())?));

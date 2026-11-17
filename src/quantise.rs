@@ -519,7 +519,7 @@ pub fn read_picture(name: &str, bytes: &[u8]) -> Result<Image, String> {
     if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
         return read_jpeg(bytes);
     }
-    let format = crate::pictures::detect(name, bytes).ok_or("It isn't a picture Limoniter knows: PNG, JPEG, IFF and older machines' pictures can be brought in.")?;
+    let format = crate::pictures::detect(name, bytes).ok_or(crate::i18n::tr("It isn't a picture Limoniter knows: PNG, JPEG, IFF and older machines' pictures can be brought in."))?;
     let picture = crate::pictures::decode_named(format, name, bytes)?;
     Ok(Image { width: picture.width, height: picture.height, rgba: picture.rgba })
 }
@@ -528,10 +528,10 @@ pub(crate) fn read_jpeg(bytes: &[u8]) -> Result<Image, String> {
     use zune_jpeg::zune_core::{bytestream::ZCursor, colorspace::ColorSpace, options::DecoderOptions};
     let options = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGBA);
     let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(bytes), options);
-    let rgba = decoder.decode().map_err(|e| format!("The JPEG couldn't be read: {e:?}"))?;
-    let (width, height) = decoder.dimensions().ok_or("The JPEG has no size.")?;
+    let rgba = decoder.decode().map_err(|e| crate::i18n::tf!("The JPEG couldn't be read: {e:?}"))?;
+    let (width, height) = decoder.dimensions().ok_or(crate::i18n::tr("The JPEG has no size."))?;
     if rgba.len() < width * height * 4 {
-        return Err("The JPEG ended early.".into());
+        return Err(crate::i18n::tr("The JPEG ended early.").into());
     }
     Ok(Image { width, height, rgba })
 }

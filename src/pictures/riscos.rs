@@ -80,7 +80,7 @@ fn sprite(data: &[u8], at: usize) -> Result<Sprite, String> {
     let name: String = data.get(at + 4..at + 16).unwrap_or(&[]).iter().take_while(|&&b| b != 0).map(|&b| char::from(b)).collect();
     let (words, rows, first_bit, last_bit, image, mask, mode) = (word(16)? + 1, word(20)? + 1, word(24)?, word(28)?, word(32)?, word(36)?, word(40)?);
     let (bits, x_eig, y_eig, new_style) = if mode < 256 {
-        let (bits, x, y) = old_mode(mode).ok_or_else(|| format!("sprite \"{name}\" is in screen mode {mode}, which Limoniter doesn't know"))?;
+        let (bits, x, y) = old_mode(mode).ok_or_else(|| crate::i18n::tf!("sprite \"{name}\" is in screen mode {mode}, which Limoniter doesn't know"))?;
         (bits, x, y, false)
     } else if mode & 1 == 1 {
         let bits = match mode >> 27 {
@@ -90,7 +90,7 @@ fn sprite(data: &[u8], at: usize) -> Result<Sprite, String> {
             4 => 8,
             5 => 16,
             6 => 32,
-            other => return Err(format!("sprite \"{name}\" is of a type ({other}) Limoniter doesn't know")),
+            other => return Err(crate::i18n::tf!("sprite \"{name}\" is of a type ({other}) Limoniter doesn't know")),
         };
         // 90 dots an inch is an eigen factor of 1, 45 of 2, 180 of 0.
         let eig = |dpi: usize| match dpi {
@@ -100,15 +100,15 @@ fn sprite(data: &[u8], at: usize) -> Result<Sprite, String> {
         };
         (bits, eig(mode >> 1 & 0x1FFF), eig(mode >> 14 & 0x1FFF), true)
     } else {
-        return Err(format!("sprite \"{name}\" names its mode by a mode selector, which isn't saved with it"));
+        return Err(crate::i18n::tf!("sprite \"{name}\" names its mode by a mode selector, which isn't saved with it"));
     };
     if words > 4096 || rows > 8192 || first_bit >= 32 || last_bit >= 32 {
-        return Err(format!("sprite \"{name}\" has a header that can't be right"));
+        return Err(crate::i18n::tf!("sprite \"{name}\" has a header that can't be right"));
     }
     let row_bits = words * 32 - first_bit - (31 - last_bit);
     let width = row_bits / bits;
     let stride = words * 4;
-    let pixels = data.get(at + image..at + image + stride * rows).ok_or_else(|| format!("sprite \"{name}\" runs past the end of the file"))?;
+    let pixels = data.get(at + image..at + image + stride * rows).ok_or_else(|| crate::i18n::tf!("sprite \"{name}\" runs past the end of the file"))?;
     // A palette between the header and the image (or the mask, if that comes first).
     let palette_end = image.min(if mask != image { mask } else { image });
     let palette: Vec<[u8; 3]> = if palette_end > 44 && bits <= 8 {
@@ -175,7 +175,7 @@ pub fn looks_like(ending: &str, bytes: &[u8]) -> bool {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
-    let (count, first, _) = header(bytes).ok_or("This isn't a RISC OS sprite file.")?;
+    let (count, first, _) = header(bytes).ok_or(crate::i18n::tr("This isn't a RISC OS sprite file."))?;
     let mut sprites = Vec::new();
     let mut problems = Vec::new();
     // Offsets in the area count from its first word, which the file leaves out.

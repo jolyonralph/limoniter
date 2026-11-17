@@ -81,10 +81,10 @@ fn scratch_copy(name: &str, bytes: &[u8]) -> Result<(PathBuf, PathBuf), String> 
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let folder = std::env::temp_dir().join(format!("limoniter-c64-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
     let _ = std::fs::remove_dir_all(&folder);
-    std::fs::create_dir_all(&folder).map_err(|e| format!("A folder to work in couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("A folder to work in couldn't be made: {e}"))?;
     let safe = name.rsplit(['/', '\\', ':', '\u{203A}']).next().unwrap_or(name).trim();
     let path = folder.join(if safe.is_empty() { "file" } else { safe });
-    std::fs::write(&path, bytes).map_err(|e| format!("{} couldn't be written: {e}", path.display()))?;
+    std::fs::write(&path, bytes).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", path.display()))?;
     Ok((folder, path))
 }
 
@@ -184,11 +184,11 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut action: Option<Act> = None;
         let busy = state.job.is_some();
-        egui::Window::new("Commodore 64: SID music and packers").collapsible(false).resizable(true).default_width(600.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Commodore 64: SID music and packers")).collapsible(false).resizable(true).default_width(600.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(640.0);
             ui.horizontal(|ui| {
                 for (page, label) in [(Page::Music, "SID music"), (Page::Pack, "Pack a program"), (Page::Cartridge, "Cartridge"), (Page::Tools, "Tools")] {
-                    if ui.selectable_label(state.page == page, label).clicked() {
+                    if ui.selectable_label(state.page == page, crate::i18n::tr(label)).clicked() {
                         state.page = page;
                     }
                 }
@@ -204,8 +204,8 @@ impl Limoniter {
             if let Some(job) = &state.job {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(format!("{}\u{2026}", job.what));
-                    if ui.button("Stop").clicked() {
+                    ui.label(crate::i18n::tf!("{}\u{2026}", job.what));
+                    if ui.button(crate::i18n::tr("Stop")).clicked() {
                         job.stop.store(true, Ordering::Relaxed);
                     }
                 });
@@ -218,7 +218,7 @@ impl Limoniter {
                         ui.colored_label(theme::change_saved(), words);
                     }
                     Ok(_) => {
-                        ui.colored_label(theme::rainbow_mistake(), "It didn't succeed: what it printed is in the Output panel.");
+                        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("It didn't succeed: what it printed is in the Output panel."));
                     }
                     Err(problem) => {
                         ui.colored_label(theme::rainbow_mistake(), problem);
@@ -229,7 +229,7 @@ impl Limoniter {
                 ui.label(RichText::new(&state.status).color(theme::text_dim()));
             }
             ui.horizontal(|ui| {
-                close |= ui.add_enabled(!busy, Button::new("Close")).clicked();
+                close |= ui.add_enabled(!busy, Button::new(crate::i18n::tr("Close"))).clicked();
             });
         });
         if let Some(act) = action {
@@ -281,7 +281,7 @@ impl Limoniter {
                 self.docs.push(doc);
                 self.active = self.docs.len() - 1;
                 self.dialog = Dialog::None;
-                self.message("The tune's code", format!("{stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, Disassemble\u{2026} turns it into 6502 source, starting from its init and play routines; File, Save as keeps it."));
+                self.message("The tune's code", crate::i18n::tf!("{stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, Disassemble\u{2026} turns it into 6502 source, starting from its init and play routines; File, Save as keeps it."));
             }
             Act::Vsid => {
                 let Dialog::C64Tools(state) = &self.dialog else {
@@ -314,15 +314,15 @@ impl Limoniter {
                 };
                 let stem = own_name(&source.name).rsplit_once('.').map_or(own_name(&source.name), |(s, _)| s).to_string();
                 let made = crate::media::crt::cartridge_binary(&source.bytes).and_then(|binary| crate::media::crt::normal_cartridge(&binary, &stem)).and_then(|crt| {
-                    let folder = source.folder.clone().ok_or("Choose a folder for the cartridge first.")?;
+                    let folder = source.folder.clone().ok_or(crate::i18n::tr("Choose a folder for the cartridge first."))?;
                     let path = folder.join(format!("{stem}.crt"));
-                    std::fs::write(&path, &crt).map_err(|e| format!("{} couldn't be written: {e}", path.display()))?;
+                    std::fs::write(&path, &crt).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", path.display()))?;
                     Ok(Outcome { ok: true, made: vec![(path, crt.len() as u64)], ..Outcome::default() })
                 });
                 state.result = Some(made);
             }
             Act::Choose(tool) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(format!("Where is {}?", tool.name())).pick_file()
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
                     && let Dialog::C64Tools(state) = &mut self.dialog
                 {
                     state.prefs.set_path(tool, Some(path));
@@ -336,7 +336,7 @@ impl Limoniter {
                 }
             }
             Act::Folder => {
-                if let Some(folder) = rfd::FileDialog::new().set_title("Where to put what's made").pick_folder()
+                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
                     && let Dialog::C64Tools(state) = &mut self.dialog
                     && let Some(source) = &mut state.source
                 {
@@ -355,16 +355,16 @@ impl Limoniter {
         };
         let tool = state.prefs.packer;
         let Some(program) = found(&state.found, tool) else {
-            state.result = Some(Err(format!("{} wasn't found. {}", tool.name(), tool.how_to_get())));
+            state.result = Some(Err(crate::i18n::tf!("{} wasn't found. {}", tool.name(), tool.how_to_get())));
             return;
         };
         let Some(folder) = source.folder.clone() else {
-            state.result = Some(Err("Choose a folder for the packed file first.".into()));
+            state.result = Some(Err(crate::i18n::tr("Choose a folder for the packed file first.").into()));
             return;
         };
         let output = folder.join(state.output_name.trim());
         if state.output_name.trim().is_empty() || source.path.as_deref() == Some(output.as_path()) {
-            state.result = Some(Err("Give the packed file a name of its own.".into()));
+            state.result = Some(Err(crate::i18n::tr("Give the packed file a name of its own.").into()));
             return;
         }
         let options = state.prefs.options.clone();
@@ -402,7 +402,7 @@ impl Limoniter {
             return;
         };
         let Some(program) = prefs.find(tool) else {
-            self.script_print(format!("Packing after building is on, but {} wasn't found, so the program wasn't packed (Tools, Commodore 64, SID music and packers).", tool.name()), false);
+            self.script_print(crate::i18n::tf!("Packing after building is on, but {} wasn't found, so the program wasn't packed (Tools, Commodore 64, SID music and packers).", tool.name()), false);
             return;
         };
         // A program packed after building always runs: it's the one F9 would run.
@@ -416,7 +416,7 @@ impl Limoniter {
             let _ = std::fs::remove_dir_all(scratch);
             result
         });
-        self.script_print(format!("{what}, in the background\u{2026}"), false);
+        self.script_print(crate::i18n::tf!("{what}, in the background\u{2026}"), false);
         self.c64_jobs.push(job);
     }
 
@@ -463,14 +463,14 @@ fn note(ui: &mut egui::Ui, text: impl Into<String>) {
 fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
     ui.horizontal_wrapped(|ui| {
         ui.strong(own_name(&source.name));
-        ui.label(format!("{} bytes", group(source.bytes.len() as u64)));
+        ui.label(crate::i18n::tf!("{} bytes", group(source.bytes.len() as u64)));
     });
     ui.horizontal_wrapped(|ui| {
         match &source.folder {
             Some(folder) => note(ui, format!("What's made goes in {}", folder.display())),
             None => note(ui, "Choose where what's made goes:"),
         }
-        if ui.small_button("Choose a folder\u{2026}").clicked() {
+        if ui.small_button(crate::i18n::tr("Choose a folder\u{2026}")).clicked() {
             *action = Some(Act::Folder);
         }
     });
@@ -483,7 +483,7 @@ fn tool_status(ui: &mut egui::Ui, found: &[(Tool, Option<PathBuf>)], tool: Tool)
             true
         }
         None => {
-            ui.colored_label(theme::rainbow_mistake(), format!("{} wasn't found.", tool.name()));
+            ui.colored_label(theme::rainbow_mistake(), crate::i18n::tf!("{} wasn't found.", tool.name()));
             note(ui, tool.how_to_get());
             note(ui, "Point Limoniter at it on the Tools page.");
             false
@@ -493,33 +493,33 @@ fn tool_status(ui: &mut egui::Ui, found: &[(Tool, Option<PathBuf>)], tool: Tool)
 
 fn music_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, target: Option<&str>, ultimates: &[(usize, String)], action: &mut Option<Act>) {
     let Some(source) = &state.source else {
-        ui.label("Open a SID tune (.sid), or choose one in a disk image's browser, then come back here.");
+        ui.label(crate::i18n::tr("Open a SID tune (.sid), or choose one in a disk image's browser, then come back here."));
         return;
     };
     file_line(ui, source, action);
     let Some(tune) = &source.tune else {
-        ui.colored_label(theme::rainbow_mistake(), "This isn't a SID tune: it doesn't start with PSID or RSID.");
+        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("This isn't a SID tune: it doesn't start with PSID or RSID."));
         return;
     };
     let by = if tune.author.is_empty() { String::new() } else { format!(" by {}", tune.author) };
     note(ui, format!("{}{by}{}. Loads at ${:04X}, init ${:04X}, play {}. {} song{}.", if tune.name.is_empty() { "Untitled" } else { &tune.name }, if tune.released.is_empty() { String::new() } else { format!(" ({})", tune.released) }, tune.load, tune.init_address(), if tune.play == 0 { "its own".to_string() } else { format!("${:04X}", tune.play) }, tune.songs, if tune.songs == 1 { "" } else { "s" }));
     note(ui, "File properties shows all its header says.");
     ui.horizontal(|ui| {
-        ui.label("Song:");
+        ui.label(crate::i18n::tr("Song:"));
         ui.add(egui::DragValue::new(&mut state.song).range(1..=tune.songs.max(1)));
         note(ui, format!("(it starts with {})", tune.start()));
     });
     ui.horizontal_wrapped(|ui| {
-        if ui.button("Open its code as a program").on_hover_text("The tune's bytes at its load address, as a .prg, to disassemble").clicked() {
+        if ui.button(crate::i18n::tr("Open its code as a program")).on_hover_text(crate::i18n::tr("The tune's bytes at its load address, as a .prg, to disassemble")).clicked() {
             *action = Some(Act::OpenProgram);
         }
         let vsid = found(&state.found, Tool::Vsid);
-        if ui.add_enabled(vsid.is_some(), Button::new("Play in VICE (vsid)")).on_disabled_hover_text(Tool::Vsid.how_to_get()).clicked() {
+        if ui.add_enabled(vsid.is_some(), Button::new(crate::i18n::tr("Play in VICE (vsid)"))).on_disabled_hover_text(Tool::Vsid.how_to_get()).clicked() {
             *action = Some(Act::Vsid);
         }
         if source.in_front {
             for (index, name) in ultimates {
-                if ui.button(format!("Send to {name}")).on_hover_text("The Ultimate plays it as soon as it arrives").clicked() {
+                if ui.button(crate::i18n::tf!("Send to {name}")).on_hover_text(crate::i18n::tr("The Ultimate plays it as soon as it arrives")).clicked() {
                     *action = Some(Act::Send(*index));
                 }
             }
@@ -537,13 +537,13 @@ fn music_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, target: Option<&str>, 
     ui.horizontal(|ui| {
         match target {
             Some(name) => {
-                if ui.button(format!("Insert into {name}")).on_hover_text("At the cursor, as one change to undo").clicked() {
+                if ui.button(crate::i18n::tf!("Insert into {name}")).on_hover_text(crate::i18n::tr("At the cursor, as one change to undo")).clicked() {
                     *action = Some(Act::Insert(snippet.clone()));
                 }
             }
             None => note(ui, "Open 6502 source to insert them into it."),
         }
-        if ui.button("Copy").clicked() {
+        if ui.button(crate::i18n::tr("Copy")).clicked() {
             *action = Some(Act::Copy(snippet.clone()));
         }
     });
@@ -551,7 +551,7 @@ fn music_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, target: Option<&str>, 
 
 fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act>) {
     let Some(source) = &state.source else {
-        ui.label("Open a C64 program (.prg, it can be in hex) or data, or choose one in a disk image's browser, then come back here.");
+        ui.label(crate::i18n::tr("Open a C64 program (.prg, it can be in hex) or data, or choose one in a disk image's browser, then come back here."));
         return;
     };
     file_line(ui, source, action);
@@ -568,7 +568,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
     let before = (state.prefs.packer, state.prefs.options.clone());
     ui.horizontal_wrapped(|ui| {
         for tool in Tool::PACKERS {
-            ui.radio_value(&mut state.prefs.packer, tool, tool.name());
+            ui.radio_value(&mut state.prefs.packer, tool, crate::i18n::tr(tool.name()));
         }
     });
     let tool = state.prefs.packer;
@@ -576,7 +576,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
     ui.add_space(4.0);
     let o = &mut state.prefs.options;
     if tool.makes_runnable() && program {
-        ui.radio_value(&mut o.runnable, true, "A program that unpacks and starts itself");
+        ui.radio_value(&mut o.runnable, true, crate::i18n::tr("A program that unpacks and starts itself"));
         ui.add_enabled_ui(o.runnable, |ui| {
             ui.horizontal(|ui| {
                 ui.add_space(20.0);
@@ -585,14 +585,14 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
                     Tool::Pucrunch => "pucrunch reads the SYS line itself",
                     _ => "Limoniter reads the SYS line and gives TSCrunch its address",
                 };
-                ui.radio_value(&mut o.start, Start::Sys, "At its SYS").on_hover_text(sys_hint);
+                ui.radio_value(&mut o.start, Start::Sys, crate::i18n::tr("At its SYS")).on_hover_text(sys_hint);
                 if tool != Tool::TsCrunch {
-                    ui.radio_value(&mut o.start, Start::Basic, "As BASIC (RUN)").on_hover_text(if tool == Tool::Exomizer { "exomizer sfx basic" } else { "pucrunch -fbasic" });
+                    ui.radio_value(&mut o.start, Start::Basic, crate::i18n::tr("As BASIC (RUN)")).on_hover_text(if tool == Tool::Exomizer { crate::i18n::tr("exomizer sfx basic") } else { crate::i18n::tr("pucrunch -fbasic") });
                 } else if o.start == Start::Basic {
                     o.start = Start::Sys;
                 }
-                ui.radio_value(&mut o.start, Start::Address, "At");
-                ui.add(egui::TextEdit::singleline(&mut o.address).desired_width(60.0).hint_text("$0810"));
+                ui.radio_value(&mut o.start, Start::Address, crate::i18n::tr("At"));
+                ui.add(egui::TextEdit::singleline(&mut o.address).desired_width(60.0).hint_text(crate::i18n::tr("$0810")));
             });
         });
         match tool {
@@ -600,7 +600,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
             Tool::Pucrunch => note(ui, "pucrunch may fail to start a very small BASIC program (a few dozen bytes) once unpacked."),
             _ => {}
         }
-        ui.radio_value(&mut o.runnable, false, "Data, for your own code to unpack");
+        ui.radio_value(&mut o.runnable, false, crate::i18n::tr("Data, for your own code to unpack"));
     } else {
         note(ui, if tool.makes_runnable() { "It isn't a program, so it's packed as data for your own code to unpack." } else { "ZX0 packs data, for your own code to unpack." });
     }
@@ -608,15 +608,15 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
     if data {
         ui.horizontal_wrapped(|ui| match tool {
             Tool::Exomizer => {
-                ui.add_enabled(program, egui::Checkbox::new(&mut o.exo_mem, "As a program to unpack in place (mem), not raw")).on_hover_text("exomizer mem keeps the load address; raw packs the bytes alone");
-                ui.checkbox(&mut o.backwards, "Unpacked backwards");
+                ui.add_enabled(program, egui::Checkbox::new(&mut o.exo_mem, "As a program to unpack in place (mem), not raw")).on_hover_text(crate::i18n::tr("exomizer mem keeps the load address; raw packs the bytes alone"));
+                ui.checkbox(&mut o.backwards, crate::i18n::tr("Unpacked backwards"));
             }
             Tool::TsCrunch => {
-                ui.checkbox(&mut o.inplace, "In place (-i)");
+                ui.checkbox(&mut o.inplace, crate::i18n::tr("In place (-i)"));
             }
             Tool::Salvador | Tool::Zx0 => {
-                ui.checkbox(&mut o.zx0_classic, "ZX0 version 1 (classic)").on_hover_text("For depackers older than ZX0 version 2");
-                ui.checkbox(&mut o.backwards, "Backwards (-b)");
+                ui.checkbox(&mut o.zx0_classic, crate::i18n::tr("ZX0 version 1 (classic)")).on_hover_text(crate::i18n::tr("For depackers older than ZX0 version 2"));
+                ui.checkbox(&mut o.backwards, crate::i18n::tr("Backwards (-b)"));
             }
             _ => {}
         });
@@ -627,11 +627,11 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
     }
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.label("Save as:");
+        ui.label(crate::i18n::tr("Save as:"));
         ui.text_edit_singleline(&mut state.output_name);
     });
     let busy = state.job.is_some();
-    if ui.add_enabled(ready && !busy, Button::new(format!("Pack with {}", tool.name()))).clicked() {
+    if ui.add_enabled(ready && !busy, Button::new(crate::i18n::tf!("Pack with {}", tool.name()))).clicked() {
         *action = Some(Act::Pack);
     }
     note(ui, "A packed program can be tried at once: open it, then F9 runs it in VICE or on an Ultimate.");
@@ -640,7 +640,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
 fn cartridge_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act>) {
     note(ui, "A normal C64 cartridge (type 0) from an 8K or 16K binary, or from a program that loads at $8000: 8K is ROML at $8000 with EXROM active; 16K adds ROMH at $A000, with GAME active too. The binary starts with the cartridge's cold and warm start addresses and CBM80.");
     let Some(source) = &state.source else {
-        ui.label("Open the binary, then come back here.");
+        ui.label(crate::i18n::tr("Open the binary, then come back here."));
         return;
     };
     file_line(ui, source, action);
@@ -648,7 +648,7 @@ fn cartridge_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Optio
         Ok(binary) => {
             let signature = binary.get(4..9) == Some(&[0xC3, 0xC2, 0xCD, 0x38, 0x30]);
             note(ui, format!("{}K cartridge{}", binary.len() / 1024, if signature { ", with its CBM80 signature." } else { ". It has no CBM80 signature at $8004, so the C64 won't start it by itself." }));
-            if ui.button("Make the .crt").clicked() {
+            if ui.button(crate::i18n::tr("Make the .crt")).clicked() {
                 *action = Some(Act::Cartridge);
             }
         }
@@ -672,10 +672,10 @@ fn tools_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Ac
             None => note(ui, format!("Not found. {}", tool.how_to_get())),
         }
         ui.horizontal(|ui| {
-            if ui.small_button("Choose\u{2026}").on_hover_text("Point Limoniter at the program").clicked() {
+            if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Point Limoniter at the program")).clicked() {
                 *action = Some(Act::Choose(tool));
             }
-            if state.prefs.path(tool).is_some() && ui.small_button("Forget").on_hover_text("Go back to looking where it's usually installed").clicked() {
+            if state.prefs.path(tool).is_some() && ui.small_button(crate::i18n::tr("Forget")).on_hover_text(crate::i18n::tr("Go back to looking where it's usually installed")).clicked() {
                 *action = Some(Act::Forget(tool));
             }
         });
@@ -683,9 +683,9 @@ fn tools_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Ac
     }
     ui.separator();
     ui.horizontal(|ui| {
-        ui.label("After F9 builds a C64 program, pack a copy with:");
+        ui.label(crate::i18n::tr("After F9 builds a C64 program, pack a copy with:"));
         egui::ComboBox::from_id_salt("c64-after-build").selected_text(state.prefs.after_build.map_or("Nothing", Tool::name)).show_ui(ui, |ui| {
-            ui.selectable_value(&mut state.prefs.after_build, None, "Nothing");
+            ui.selectable_value(&mut state.prefs.after_build, None, crate::i18n::tr("Nothing"));
             for tool in Tool::PACKERS.into_iter().filter(|t| t.makes_runnable()) {
                 ui.selectable_value(&mut state.prefs.after_build, Some(tool), tool.name());
             }

@@ -646,3 +646,26 @@ fn every_step_of_a_random_session_leaves_the_whole_file_consistent() {
     give(&mut app, &ctx, Command::Widen);
     assert_eq!(lines(&app), lines(&plain));
 }
+
+#[test]
+fn column_mode_asked_for_with_word_wrap_on_offers_to_turn_word_wrap_off() {
+    let (mut app, ctx) = app_with_text(&["one", "two"]);
+    app.view.word_wrap = true;
+    give(&mut app, &ctx, Command::ToggleColumn);
+    assert!(matches!(app.dialog, Dialog::ColumnNeedsNoWrap), "it says why, and offers");
+    assert!(!app.docs[app.active].text.column_mode());
+    // Enter takes the offer: Word wrap off, Column mode on.
+    frame(&mut app, &ctx, vec![pressed(Key::Enter, Modifiers::NONE)]);
+    assert!(matches!(app.dialog, Dialog::None));
+    assert!(!app.view.word_wrap);
+    assert!(app.docs[app.active].text.column_mode());
+    assert_eq!(lines(&app), ["one", "two"], "the Enter goes to the offer, not the text");
+    // Cancelled, nothing changes.
+    app.doc().text.set_column_mode(false);
+    app.view.word_wrap = true;
+    give(&mut app, &ctx, Command::ToggleColumn);
+    frame(&mut app, &ctx, vec![pressed(Key::Escape, Modifiers::NONE)]);
+    assert!(matches!(app.dialog, Dialog::None));
+    assert!(app.view.word_wrap);
+    assert!(!app.docs[app.active].text.column_mode());
+}

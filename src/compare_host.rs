@@ -198,11 +198,11 @@ impl DiffView {
 
     /// Copies a difference's lines over the other side's, as one step that Undo takes back.
     fn copy_change(&mut self, docs: [&mut Document; 2], at: usize, direction: Direction) -> Result<(), String> {
-        let chunk = self.chunks.get(at).cloned().ok_or("There's no difference there.")?;
+        let chunk = self.chunks.get(at).cloned().ok_or(crate::i18n::tr("There's no difference there."))?;
         let [left, right] = docs;
         let (from, to, from_range, to_range) = if direction.goes_right() { (left, right, chunk.left, chunk.right) } else { (right, left, chunk.right, chunk.left) };
         if to.text.read_only {
-            return Err(format!("{} is read-only here, so nothing can be copied to it.", to.name()));
+            return Err(crate::i18n::tf!("{} is read-only here, so nothing can be copied to it.", to.name()));
         }
         let lines: Vec<Arc<str>> = from_range.map(|line| from.text.line(line)).collect();
         to.text.splice_lines(to_range.start, to_range.end, lines);
@@ -253,7 +253,7 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
     let full_names = fc.names.clone();
     let dv = &mut fc.diff;
     let Some(mut pair) = two_docs(docs, &mut fc.sources) else {
-        ui.label("One of the files has been closed.");
+        ui.label(crate::i18n::tr("One of the files has been closed."));
         return acts;
     };
     for doc in pair.iter_mut() {
@@ -270,30 +270,30 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(dv.summary()).strong());
             let any = dv.difference_count() > 0;
-            if ui.add_enabled(any, Button::new("\u{25B2} Previous")).on_hover_text("Go to the difference before this one").clicked() {
+            if ui.add_enabled(any, Button::new(crate::i18n::tr("\u{25B2} Previous"))).on_hover_text(crate::i18n::tr("Go to the difference before this one")).clicked() {
                 step = Some(false);
             }
-            if ui.add_enabled(any, Button::new("\u{25BC} Next")).on_hover_text("Go to the next difference").clicked() {
+            if ui.add_enabled(any, Button::new(crate::i18n::tr("\u{25BC} Next"))).on_hover_text(crate::i18n::tr("Go to the next difference")).clicked() {
                 step = Some(true);
             }
             ui.separator();
-            if ui.add_enabled(any && !locked[1], Button::new("Copy to the right \u{25B6}")).on_hover_text("Copy the difference the cursor is in, or the one gone to last, over the right side's").clicked() {
+            if ui.add_enabled(any && !locked[1], Button::new(crate::i18n::tr("Copy to the right \u{25B6}"))).on_hover_text(crate::i18n::tr("Copy the difference the cursor is in, or the one gone to last, over the right side's")).clicked() {
                 copy = Some(Direction::LeftToRight);
             }
-            if ui.add_enabled(any && !locked[0], Button::new("\u{25C0} Copy to the left")).on_hover_text("Copy the difference the cursor is in, or the one gone to last, over the left side's").clicked() {
+            if ui.add_enabled(any && !locked[0], Button::new(crate::i18n::tr("\u{25C0} Copy to the left"))).on_hover_text(crate::i18n::tr("Copy the difference the cursor is in, or the one gone to last, over the left side's")).clicked() {
                 copy = Some(Direction::RightToLeft);
             }
             ui.separator();
-            ui.checkbox(&mut dv.options.ignore_whitespace, "Ignore spaces");
-            ui.checkbox(&mut dv.options.ignore_case, "Ignore case");
-            ui.checkbox(&mut dv.options.ignore_line_endings, "Ignore line endings");
+            ui.checkbox(&mut dv.options.ignore_whitespace, crate::i18n::tr("Ignore spaces"));
+            ui.checkbox(&mut dv.options.ignore_case, crate::i18n::tr("Ignore case"));
+            ui.checkbox(&mut dv.options.ignore_line_endings, crate::i18n::tr("Ignore line endings"));
             let by_chars = &mut dv.by_chars;
             egui::ComboBox::from_id_salt("compare-within").selected_text(if *by_chars { "Within lines: characters" } else { "Within lines: words" }).show_ui(ui, |ui| {
-                ui.selectable_value(by_chars, false, "Words");
-                ui.selectable_value(by_chars, true, "Characters");
+                ui.selectable_value(by_chars, false, crate::i18n::tr("Words"));
+                ui.selectable_value(by_chars, true, crate::i18n::tr("Characters"));
             });
-            ui.checkbox(&mut dv.in_step, "Scroll together");
-            if ui.button("Save as a patch\u{2026}").on_hover_text("Save the differences as a unified diff, as patch and git apply read").clicked() {
+            ui.checkbox(&mut dv.in_step, crate::i18n::tr("Scroll together"));
+            if ui.button(crate::i18n::tr("Save as a patch\u{2026}")).on_hover_text(crate::i18n::tr("Save the differences as a unified diff, as patch and git apply read")).clicked() {
                 acts.push(FileAct::ExportPatch);
             }
         });
@@ -301,7 +301,7 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
             ui.label(RichText::new(&dv.note).color(theme::text_dim()).size(12.5));
         }
         if let Some(re) = &dv.ignore_lines {
-            ui.label(RichText::new(format!("Lines matching {} count as the same, by a rule for comparing files.", re.as_str())).color(theme::text_dim()).size(12.5));
+            ui.label(RichText::new(crate::i18n::tf!("Lines matching {} count as the same, by a rule for comparing files.", re.as_str())).color(theme::text_dim()).size(12.5));
         }
         ui.add_space(2.0);
     });
@@ -312,18 +312,18 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
         let x = if n == 0 { row.min.x } else { row.min.x + half + STRIP };
         let area = egui::Rect::from_min_max(egui::pos2(x + 8.0, row.min.y), egui::pos2(if n == 0 { row.min.x + half } else { row.max.x }, row.max.y));
         ui.scope_builder(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
-            let mut name = RichText::new(format!("{}{}", names[n], if modified[n] { " *" } else { "" })).color(theme::text());
+            let mut name = RichText::new(crate::i18n::tf!("{}{}", names[n], if modified[n] { " *" } else { "" })).color(theme::text());
             if n == dv.active {
                 name = name.strong();
             }
             ui.label(name).on_hover_text(&full_names[n]);
             if locked[n] {
-                ui.label(RichText::new("read-only").color(theme::text_faint()).size(12.0));
+                ui.label(RichText::new(crate::i18n::tr("read-only")).color(theme::text_faint()).size(12.0));
             }
-            if ui.add_enabled(savable[n] && modified[n], Button::new("Save").small()).clicked() {
+            if ui.add_enabled(savable[n] && modified[n], Button::new(crate::i18n::tr("Save")).small()).clicked() {
                 acts.push(FileAct::Save(n));
             }
-            if own[n] && ui.small_button("Open in a tab").on_hover_text("Open this side in a tab of its own too").clicked() {
+            if own[n] && ui.small_button(crate::i18n::tr("Open in a tab")).on_hover_text(crate::i18n::tr("Open this side in a tab of its own too")).clicked() {
                 acts.push(FileAct::OpenInTab(n));
             }
         });
@@ -396,7 +396,7 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
         painter.add(egui::Shape::convex_polygon(points, colour, egui::Stroke::new(1.0, colour.lerp_to_gamma(theme::editor_text(), 0.3))));
         let middle_left = ((l0 + l1.max(l0 + cell.y)) / 2.0).clamp(strip.min.y + 8.0, strip.max.y - 8.0);
         let middle_right = ((r0 + r1.max(r0 + cell.y)) / 2.0).clamp(strip.min.y + 8.0, strip.max.y - 8.0);
-        let button = |ui: &mut Ui, centre: egui::Pos2, text: &str, tip: &str| ui.put(egui::Rect::from_center_size(centre, egui::vec2(16.0, 16.0)), Button::new(RichText::new(text).size(10.0)).small()).on_hover_text(tip).clicked();
+        let button = |ui: &mut Ui, centre: egui::Pos2, text: &str, tip: &str| ui.put(egui::Rect::from_center_size(centre, egui::vec2(16.0, 16.0)), Button::new(RichText::new(text).size(10.0)).small()).on_hover_text(crate::i18n::tr(tip)).clicked();
         if input_on && !locked[1] && button(ui, egui::pos2(strip.min.x + 9.0, middle_left), "\u{25B6}", "Copy this difference to the right") {
             copy_at = Some((at, Direction::LeftToRight));
         }
@@ -466,15 +466,15 @@ fn draw_byte_compare(ui: &mut Ui, bc: &mut ByteCompare) {
         ui.horizontal(|ui| {
             ui.label(RichText::new(bc.summary()).strong());
             let any = !bc.differences.is_empty();
-            if ui.add_enabled(any, Button::new("\u{25B2} Previous")).clicked() {
+            if ui.add_enabled(any, Button::new(crate::i18n::tr("\u{25B2} Previous"))).clicked() {
                 bc.step(false);
             }
-            if ui.add_enabled(any, Button::new("\u{25BC} Next")).clicked() {
+            if ui.add_enabled(any, Button::new(crate::i18n::tr("\u{25BC} Next"))).clicked() {
                 bc.step(true);
             }
-            ui.label(RichText::new("These aren't text, so they're compared byte by byte, offset for offset. Differences are marked \u{2260}.").color(theme::text_faint()).size(12.5));
+            ui.label(RichText::new(crate::i18n::tr("These aren't text, so they're compared byte by byte, offset for offset. Differences are marked \u{2260}.")).color(theme::text_faint()).size(12.5));
         });
-        ui.label(RichText::new(format!("Left: {}    Right: {}", bc.names[0], bc.names[1])).color(theme::text_dim()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tf!("Left: {}    Right: {}", bc.names[0], bc.names[1])).color(theme::text_dim()).size(12.5));
         let font = egui::FontId::monospace(13.0);
         let cell = views::cell_size(ui, &font);
         let rows = bc.bytes[0].len().max(bc.bytes[1].len()).div_ceil(BYTES_PER_ROW);
@@ -563,7 +563,7 @@ fn draw_picture_compare(ui: &mut Ui, pc: &mut PictureCompare) {
     egui::Frame::new().inner_margin(egui::Margin::symmetric(10, 6)).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.label(RichText::new(pc.summary()).strong());
-            ui.checkbox(&mut pc.show_difference, "Show where they differ").on_hover_text("A third picture: the left one in grey, with every pixel that differs in magenta");
+            ui.checkbox(&mut pc.show_difference, crate::i18n::tr("Show where they differ")).on_hover_text(crate::i18n::tr("A third picture: the left one in grey, with every pixel that differs in magenta"));
         });
         let count = if pc.show_difference { 3 } else { 2 };
         let room = egui::vec2((ui.available_width() - 12.0 * (count - 1) as f32) / count as f32, ui.available_height() - 24.0);
@@ -636,7 +636,7 @@ impl SidePicker {
     pub fn side(&self) -> Result<Side, String> {
         let path = self.path.trim();
         if path.is_empty() {
-            return Err("Choose what to compare on both sides.".into());
+            return Err(crate::i18n::tr("Choose what to compare on both sides.").into());
         }
         match self.kind {
             SideKind::Folder => Ok(Side::Folder(PathBuf::from(path))),
@@ -806,14 +806,14 @@ impl FolderCompare {
 
     /// Plans a copy of what's chosen, to show before it's done.
     pub fn plan_copy(&mut self, direction: Direction, backups_under: &Path) -> Result<(), String> {
-        let result = self.result.as_ref().ok_or("Compare the folders first.")?;
+        let result = self.result.as_ref().ok_or(crate::i18n::tr("Compare the folders first."))?;
         let selected = self.selected_rows();
         if selected.is_empty() {
-            return Err("Choose what to copy first.".into());
+            return Err(crate::i18n::tr("Choose what to copy first.").into());
         }
         let plan = engine::plan_copy(result, &selected, direction)?;
         if plan.is_empty() && plan.skipped.is_empty() {
-            return Err("Everything chosen is already the same on the other side.".into());
+            return Err(crate::i18n::tr("Everything chosen is already the same on the other side.").into());
         }
         self.copy = Some(CopyPreview { plan, backups: engine::backup_folder(backups_under) });
         Ok(())
@@ -866,10 +866,10 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
         egui::Grid::new("folder-compare-sides").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
             for (n, title) in ["Left", "Right"].into_iter().enumerate() {
                 let picker = &mut fc.pickers[n];
-                ui.label(title);
-                egui::ComboBox::from_id_salt(("compare-kind", n)).width(170.0).selected_text(picker.kind.words()).show_ui(ui, |ui| {
+                ui.label(crate::i18n::tr(title));
+                egui::ComboBox::from_id_salt(("compare-kind", n)).width(170.0).selected_text(crate::i18n::tr(picker.kind.words())).show_ui(ui, |ui| {
                     for kind in [SideKind::Folder, SideKind::Git, SideKind::Image, SideKind::Server] {
-                        ui.selectable_value(&mut picker.kind, kind, kind.words());
+                        ui.selectable_value(&mut picker.kind, kind, crate::i18n::tr(kind.words()));
                     }
                 });
                 ui.horizontal(|ui| {
@@ -884,13 +884,13 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                     if edit.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                         acts.push(FolderAct::Start);
                     }
-                    if picker.kind != SideKind::Server && ui.button("Browse\u{2026}").clicked() {
+                    if picker.kind != SideKind::Server && ui.button(crate::i18n::tr("Browse\u{2026}")).clicked() {
                         acts.push(FolderAct::Browse(n));
                     }
                     if picker.kind == SideKind::Server {
-                        egui::ComboBox::from_id_salt(("compare-site", n)).width(110.0).selected_text("Saved sites").show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt(("compare-site", n)).width(110.0).selected_text(crate::i18n::tr("Saved sites")).show_ui(ui, |ui| {
                             if sites.is_empty() {
-                                ui.label("None yet. Sites are kept when you connect with File, Open a remote file.");
+                                ui.label(crate::i18n::tr("None yet. Sites are kept when you connect with File, Open a remote file."));
                             }
                             for saved in sites {
                                 if ui.selectable_label(false, &saved.name).on_hover_text(saved.site.url("~/")).clicked() {
@@ -901,36 +901,36 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                         });
                     }
                     if picker.kind == SideKind::Git {
-                        ui.label("at");
-                        ui.add(egui::TextEdit::singleline(&mut picker.revision).hint_text("HEAD").desired_width(90.0)).on_hover_text("HEAD for the last commit, or a branch, a tag or a commit");
+                        ui.label(crate::i18n::tr("at"));
+                        ui.add(egui::TextEdit::singleline(&mut picker.revision).hint_text(crate::i18n::tr("HEAD")).desired_width(90.0)).on_hover_text(crate::i18n::tr("HEAD for the last commit, or a branch, a tag or a commit"));
                     }
                 });
                 if n == 0 {
-                    if ui.button("\u{21C5} Swap").on_hover_text("Swap the two sides").clicked() {
+                    if ui.button(crate::i18n::tr("\u{21C5} Swap")).on_hover_text(crate::i18n::tr("Swap the two sides")).clicked() {
                         fc.pickers.swap(0, 1);
                     }
                 } else {
-                    ui.label("");
+                    ui.label(crate::i18n::tr(""));
                 }
                 ui.end_row();
             }
         });
         ui.horizontal_wrapped(|ui| {
-            ui.label("Compare by");
-            ui.radio_value(&mut fc.mode, Mode::Quick, "size and time").on_hover_text("Quick. Where a side keeps no times, as a Git revision doesn't, files of the same size are compared by contents");
-            ui.radio_value(&mut fc.mode, Mode::Thorough, "contents").on_hover_text("Every file on both sides is read");
+            ui.label(crate::i18n::tr("Compare by"));
+            ui.radio_value(&mut fc.mode, Mode::Quick, crate::i18n::tr("size and time")).on_hover_text(crate::i18n::tr("Quick. Where a side keeps no times, as a Git revision doesn't, files of the same size are compared by contents"));
+            ui.radio_value(&mut fc.mode, Mode::Thorough, crate::i18n::tr("contents")).on_hover_text(crate::i18n::tr("Every file on both sides is read"));
             ui.separator();
-            ui.label("Only");
-            ui.add(egui::TextEdit::singleline(&mut fc.filters.include).hint_text("*.rs; *.toml").desired_width(110.0)).on_hover_text("Only files matching these, separated by ; (* is any characters, ** any folders)");
-            ui.label("Leave out");
-            ui.add(egui::TextEdit::singleline(&mut fc.filters.exclude).hint_text("target; *.log").desired_width(110.0)).on_hover_text("Files and folders matching these are left out");
-            ui.checkbox(&mut fc.filters.gitignore, "Leave out what .gitignore does");
+            ui.label(crate::i18n::tr("Only"));
+            ui.add(egui::TextEdit::singleline(&mut fc.filters.include).hint_text(crate::i18n::tr("*.rs; *.toml")).desired_width(110.0)).on_hover_text(crate::i18n::tr("Only files matching these, separated by ; (* is any characters, ** any folders)"));
+            ui.label(crate::i18n::tr("Leave out"));
+            ui.add(egui::TextEdit::singleline(&mut fc.filters.exclude).hint_text(crate::i18n::tr("target; *.log")).desired_width(110.0)).on_hover_text(crate::i18n::tr("Files and folders matching these are left out"));
+            ui.checkbox(&mut fc.filters.gitignore, crate::i18n::tr("Leave out what .gitignore does"));
             ui.separator();
-            if ui.add_enabled(!busy, Button::new(if fc.result.is_some() { "\u{27F3} Compare again" } else { "Compare" })).clicked() {
+            if ui.add_enabled(!busy, Button::new(if fc.result.is_some() { crate::i18n::tr("\u{27F3} Compare again") } else { crate::i18n::tr("Compare") })).clicked() {
                 acts.push(FolderAct::Start);
             }
             if let Some(job) = &fc.job
-                && ui.button("Stop").clicked()
+                && ui.button(crate::i18n::tr("Stop")).clicked()
             {
                 job.cancel();
             }
@@ -938,49 +938,49 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
         let has_result = fc.result.is_some();
         let chosen = !fc.selected.is_empty();
         ui.horizontal_wrapped(|ui| {
-            ui.checkbox(&mut fc.hide_same, "Hide what's the same");
-            if ui.add_enabled(has_result, Button::new("Open all")).clicked()
+            ui.checkbox(&mut fc.hide_same, crate::i18n::tr("Hide what's the same"));
+            if ui.add_enabled(has_result, Button::new(crate::i18n::tr("Open all"))).clicked()
                 && let Some(result) = &fc.result
             {
                 fc.expanded = result.rows.iter().filter(|row| row.is_dir()).map(|row| row.path.clone()).collect();
             }
-            if ui.add_enabled(has_result, Button::new("Close all")).clicked() {
+            if ui.add_enabled(has_result, Button::new(crate::i18n::tr("Close all"))).clicked() {
                 fc.expanded.clear();
             }
             ui.separator();
-            if ui.add_enabled(has_result && chosen && !busy, Button::new("Copy to the right \u{25B6}\u{2026}")).on_hover_text("Copy what's chosen from the left over to the right. You'll see what will happen first").clicked() {
+            if ui.add_enabled(has_result && chosen && !busy, Button::new(crate::i18n::tr("Copy to the right \u{25B6}\u{2026}"))).on_hover_text(crate::i18n::tr("Copy what's chosen from the left over to the right. You'll see what will happen first")).clicked() {
                 acts.push(FolderAct::OpenOne(usize::MAX, true));
             }
-            if ui.add_enabled(has_result && chosen && !busy, Button::new("\u{25C0} Copy to the left\u{2026}")).on_hover_text("Copy what's chosen from the right over to the left. You'll see what will happen first").clicked() {
+            if ui.add_enabled(has_result && chosen && !busy, Button::new(crate::i18n::tr("\u{25C0} Copy to the left\u{2026}"))).on_hover_text(crate::i18n::tr("Copy what's chosen from the right over to the left. You'll see what will happen first")).clicked() {
                 acts.push(FolderAct::OpenOne(usize::MAX, false));
             }
             ui.separator();
             ui.add_enabled_ui(has_result, |ui| {
-                ui.menu_button("Save a report \u{25BE}", |ui| {
-                    if ui.button("Every entry\u{2026}").on_hover_text("An HTML page or plain text, by the ending you give the name").clicked() {
+                ui.menu_button(crate::i18n::tr("Save a report \u{25BE}"), |ui| {
+                    if ui.button(crate::i18n::tr("Every entry\u{2026}")).on_hover_text(crate::i18n::tr("An HTML page or plain text, by the ending you give the name")).clicked() {
                         acts.push(FolderAct::ExportReport(ReportKind::Full));
                         ui.close();
                     }
-                    if ui.button("The counts only\u{2026}").on_hover_text("How many are the same and how many differ, for the whole and each folder at the top").clicked() {
+                    if ui.button(crate::i18n::tr("The counts only\u{2026}")).on_hover_text(crate::i18n::tr("How many are the same and how many differ, for the whole and each folder at the top")).clicked() {
                         acts.push(FolderAct::ExportReport(ReportKind::Summary));
                         ui.close();
                     }
-                    if ui.button("As a CSV file\u{2026}").on_hover_text("A row for each entry, for a spreadsheet").clicked() {
+                    if ui.button(crate::i18n::tr("As a CSV file\u{2026}")).on_hover_text(crate::i18n::tr("A row for each entry, for a spreadsheet")).clicked() {
                         acts.push(FolderAct::ExportReport(ReportKind::Csv));
                         ui.close();
                     }
                 });
             });
-            if ui.add_enabled(has_result && fc.patch_job.is_none(), Button::new("Save as a patch\u{2026}")).on_hover_text("Save every difference in the text files as one unified diff").clicked() {
+            if ui.add_enabled(has_result && fc.patch_job.is_none(), Button::new(crate::i18n::tr("Save as a patch\u{2026}"))).on_hover_text(crate::i18n::tr("Save every difference in the text files as one unified diff")).clicked() {
                 acts.push(FolderAct::ExportPatch);
             }
             ui.add_enabled_ui(!busy, |ui| {
-                ui.menu_button("Apply a patch \u{25BE}", |ui| {
-                    if ui.button("To the left\u{2026}").clicked() {
+                ui.menu_button(crate::i18n::tr("Apply a patch \u{25BE}"), |ui| {
+                    if ui.button(crate::i18n::tr("To the left\u{2026}")).clicked() {
                         acts.push(FolderAct::ApplyPatch(true));
                         ui.close();
                     }
-                    if ui.button("To the right\u{2026}").clicked() {
+                    if ui.button(crate::i18n::tr("To the right\u{2026}")).clicked() {
                         acts.push(FolderAct::ApplyPatch(false));
                         ui.close();
                     }
@@ -988,10 +988,10 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
             });
         });
         ui.horizontal_wrapped(|ui| {
-            ui.label("Sync");
+            ui.label(crate::i18n::tr("Sync"));
             egui::ComboBox::from_id_salt("sync-kind").width(90.0).selected_text(sync_host::kind_words(fc.sync_kind)).show_ui(ui, |ui| {
-                ui.selectable_value(&mut fc.sync_kind, SyncKind::Update, "Update").on_hover_text("Copy newer files and files that are missing. Nothing is deleted");
-                ui.selectable_value(&mut fc.sync_kind, SyncKind::Mirror, "Mirror").on_hover_text("Make one side exactly like the other, which deletes what the other hasn't got");
+                ui.selectable_value(&mut fc.sync_kind, SyncKind::Update, crate::i18n::tr("Update")).on_hover_text(crate::i18n::tr("Copy newer files and files that are missing. Nothing is deleted"));
+                ui.selectable_value(&mut fc.sync_kind, SyncKind::Mirror, crate::i18n::tr("Mirror")).on_hover_text(crate::i18n::tr("Make one side exactly like the other, which deletes what the other hasn't got"));
             });
             if fc.sync_kind == SyncKind::Mirror && fc.sync_way == SyncWay::Both {
                 fc.sync_way = SyncWay::LeftToRight;
@@ -1004,11 +1004,11 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                     ui.selectable_value(&mut fc.sync_way, way, sync_host::way_words(fc.sync_kind, way));
                 }
             });
-            if ui.add_enabled(has_result && !busy, Button::new("Sync\u{2026}")).on_hover_text("See everything it would do first, and untick what you don't want").clicked() {
+            if ui.add_enabled(has_result && !busy, Button::new(crate::i18n::tr("Sync\u{2026}"))).on_hover_text(crate::i18n::tr("See everything it would do first, and untick what you don't want")).clicked() {
                 acts.push(FolderAct::Sync);
             }
             ui.separator();
-            if ui.button("Rules\u{2026}").on_hover_text("How files are compared by name: as text leaving things out, as bytes, as pictures, by size and time only, or left out").clicked() {
+            if ui.button(crate::i18n::tr("Rules\u{2026}")).on_hover_text(crate::i18n::tr("How files are compared by name: as text leaving things out, as bytes, as pictures, by size and time only, or left out")).clicked() {
                 acts.push(FolderAct::Rules);
             }
             ui.separator();
@@ -1016,11 +1016,11 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                 Some((name, _)) => format!("Save \u{201C}{name}\u{201D}"),
                 None => "Save this comparison\u{2026}".to_string(),
             };
-            if ui.button(save).on_hover_text("Keep both sides, how they're compared, the filters, rules and sync, to open again by name").clicked() {
+            if ui.button(save).on_hover_text(crate::i18n::tr("Keep both sides, how they're compared, the filters, rules and sync, to open again by name")).clicked() {
                 acts.push(FolderAct::SaveSession);
             }
             if fc.snapshot.is_some() {
-                ui.label(RichText::new("Knows the last sync").color(theme::text_dim()).size(12.0)).on_hover_text("Files changed on both sides since then are shown as conflicts, and left alone unless you tick them");
+                ui.label(RichText::new(crate::i18n::tr("Knows the last sync")).color(theme::text_dim()).size(12.0)).on_hover_text(crate::i18n::tr("Files changed on both sides since then are shown as conflicts, and left alone unless you tick them"));
             }
         });
         if let Some(problem) = &fc.problem {
@@ -1042,8 +1042,8 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
         {
             let phase = progress.phase();
             let bar = match progress.share() {
-                Some(share) => egui::ProgressBar::new(share).text(format!("{phase} \u{B7} {} of {}", progress.done.load(std::sync::atomic::Ordering::Relaxed), progress.total.load(std::sync::atomic::Ordering::Relaxed))),
-                None => egui::ProgressBar::new(0.0).animate(true).text(format!("{phase} \u{B7} {} found", progress.done.load(std::sync::atomic::Ordering::Relaxed))),
+                Some(share) => egui::ProgressBar::new(share).text(crate::i18n::tf!("{phase} \u{B7} {} of {}", progress.done.load(std::sync::atomic::Ordering::Relaxed), progress.total.load(std::sync::atomic::Ordering::Relaxed))),
+                None => egui::ProgressBar::new(0.0).animate(true).text(crate::i18n::tf!("{phase} \u{B7} {} found", progress.done.load(std::sync::atomic::Ordering::Relaxed))),
             };
             ui.add(bar.desired_width(ui.available_width().min(520.0)));
         }
@@ -1154,24 +1154,24 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                     fc.selected = HashSet::from([row.path.clone()]);
                     fc.anchor = Some(row.path.clone());
                 }
-                if row.is_file_pair() && ui.button("Compare these files").clicked() {
+                if row.is_file_pair() && ui.button(crate::i18n::tr("Compare these files")).clicked() {
                     acts.push(FolderAct::OpenPair(i));
                     ui.close();
                 }
-                if row.left.is_some_and(|m| !m.is_dir) && ui.button("Open the left one").clicked() {
+                if row.left.is_some_and(|m| !m.is_dir) && ui.button(crate::i18n::tr("Open the left one")).clicked() {
                     acts.push(FolderAct::OpenOne(i, true));
                     ui.close();
                 }
-                if row.right.is_some_and(|m| !m.is_dir) && ui.button("Open the right one").clicked() {
+                if row.right.is_some_and(|m| !m.is_dir) && ui.button(crate::i18n::tr("Open the right one")).clicked() {
                     acts.push(FolderAct::OpenOne(i, false));
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Copy to the right\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Copy to the right\u{2026}")).clicked() {
                     acts.push(FolderAct::OpenOne(usize::MAX, true));
                     ui.close();
                 }
-                if ui.button("Copy to the left\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Copy to the left\u{2026}")).clicked() {
                     acts.push(FolderAct::OpenOne(usize::MAX, false));
                     ui.close();
                 }
@@ -1221,32 +1221,32 @@ fn copy_preview_window(ctx: &Context, preview: &CopyPreview) -> Option<bool> {
     let mut answer = ctx.input(|i| i.key_pressed(Key::Escape)).then_some(false);
     let title = if plan.direction.goes_right() { "Copy to the right" } else { "Copy to the left" };
     egui::Window::new(title).collapsible(false).resizable(true).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.label(format!("Into {}:", plan.target));
+        ui.label(crate::i18n::tf!("Into {}:", plan.target));
         ui.add_space(4.0);
         egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
             for folder in &plan.folders {
-                ui.label(format!("New folder    {folder}/"));
+                ui.label(crate::i18n::tf!("New folder    {folder}/"));
             }
             for item in &plan.files {
-                ui.label(format!("{}    {}  ({})", if item.replaces { "Replace" } else { "New      " }, item.path, short_size(item.size)));
+                ui.label(crate::i18n::tf!("{}    {}  ({})", if item.replaces { "Replace" } else { "New      " }, item.path, short_size(item.size)));
             }
             for (path, why) in &plan.skipped {
-                ui.label(RichText::new(format!("Left alone    {path}: {why}")).color(theme::text_dim()));
+                ui.label(RichText::new(crate::i18n::tf!("Left alone    {path}: {why}")).color(theme::text_dim()));
             }
         });
         ui.add_space(6.0);
         let replaced = plan.replaced();
         if replaced > 0 {
-            ui.label(format!("The {replaced} file{} replaced will be kept first, in {}.", if replaced == 1 { "" } else { "s" }, preview.backups.display()));
+            ui.label(if replaced == 1 { crate::i18n::tf!("The {replaced} file replaced will be kept first, in {}.", preview.backups.display()) } else { crate::i18n::tf!("The {replaced} files replaced will be kept first, in {}.", preview.backups.display()) });
         }
-        ui.label(RichText::new("Nothing is deleted.").color(theme::text_dim()));
+        ui.label(RichText::new(crate::i18n::tr("Nothing is deleted.")).color(theme::text_dim()));
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             let count = plan.files.len();
-            if ui.add_enabled(!plan.is_empty(), Button::new(format!("Copy {count} file{}", if count == 1 { "" } else { "s" }))).clicked() {
+            if ui.add_enabled(!plan.is_empty(), Button::new(if count == 1 { crate::i18n::tf!("Copy {count} file") } else { crate::i18n::tf!("Copy {count} files") })).clicked() {
                 answer = Some(true);
             }
-            if ui.button("Cancel").clicked() {
+            if ui.button(crate::i18n::tr("Cancel")).clicked() {
                 answer = Some(false);
             }
         });
@@ -1362,20 +1362,20 @@ impl Limoniter {
             _ => false,
         };
         if same {
-            return Err("That's the same file on both sides.".into());
+            return Err(crate::i18n::tr("That's the same file on both sides.").into());
         }
         for side in [&left, &right] {
             match side {
                 FileSide::Open(id) => {
-                    let doc = self.docs.iter().find(|doc| doc.id == *id).ok_or("That file isn't open any more.")?;
+                    let doc = self.docs.iter().find(|doc| doc.id == *id).ok_or(crate::i18n::tr("That file isn't open any more."))?;
                     if doc.is_busy() {
-                        return Err(format!("{} is still being read or written. Please try again when it's finished.", doc.name()));
+                        return Err(crate::i18n::tf!("{} is still being read or written. Please try again when it's finished.", doc.name()));
                     }
                     if doc.compare.is_some() || doc.browser.is_some() {
-                        return Err(format!("{} isn't a file that can be compared.", doc.name()));
+                        return Err(crate::i18n::tf!("{} isn't a file that can be compared.", doc.name()));
                     }
                 }
-                FileSide::Path(path) if !path.is_file() => return Err(format!("{} isn't a file.", path.display())),
+                FileSide::Path(path) if !path.is_file() => return Err(crate::i18n::tf!("{} isn't a file.", path.display())),
                 _ => {}
             }
         }
@@ -1449,7 +1449,7 @@ impl Limoniter {
     /// Compares files too large to hold, in the background; the result opens in a tab of its own, read-only.
     fn start_streamed_compare(&mut self, names: &[String; 2], left: &FileSide, right: &FileSide) -> Result<(), String> {
         if self.big_job.is_some() {
-            return Err("Please wait for the file being worked through to finish.".into());
+            return Err(crate::i18n::tr("Please wait for the file being worked through to finish.").into());
         }
         let side = |app: &Self, side: &FileSide| -> Result<crate::big_jobs::Side, String> {
             Ok(match side {
@@ -1462,9 +1462,9 @@ impl Limoniter {
                     }
                 }
                 FileSide::Open(id) => {
-                    let doc = app.docs.iter().find(|doc| doc.id == *id).ok_or("That file isn't open any more.")?;
+                    let doc = app.docs.iter().find(|doc| doc.id == *id).ok_or(crate::i18n::tr("That file isn't open any more."))?;
                     if doc.hex_mode {
-                        return Err(format!("{} is open in hex mode, and too large to compare byte by byte here.", doc.name()));
+                        return Err(crate::i18n::tf!("{} is open in hex mode, and too large to compare byte by byte here.", doc.name()));
                     }
                     crate::big_jobs::Side::Lines(doc.text.store().clone())
                 }
@@ -1615,10 +1615,10 @@ impl Limoniter {
                 if patch.is_empty() {
                     return self.message("Save as a patch", "The two are the same, so there's nothing to put in a patch.".into());
                 }
-                if let Some(path) = rfd::FileDialog::new().set_title("Save as a patch").set_file_name("changes.patch").save_file()
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file()
                     && let Err(e) = codec::write_file(&path, patch.as_bytes())
                 {
-                    self.message("Save as a patch", format!("Couldn't save {}.\n\n{e}", path.display()));
+                    self.message("Save as a patch", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
                 }
             }
         }
@@ -1684,8 +1684,8 @@ impl Limoniter {
             FolderAct::Browse(n) => {
                 let kind = self.with_compare_tab(doc_id, |_, tab| if let CompareTab::Folders(folders) = tab { Some(folders.pickers[n].kind) } else { None }).flatten();
                 let picked = match kind {
-                    Some(SideKind::Image) => rfd::FileDialog::new().set_title("A disk image or archive to compare").pick_file(),
-                    Some(SideKind::Folder | SideKind::Git) => rfd::FileDialog::new().set_title("A folder to compare").pick_folder(),
+                    Some(SideKind::Image) => rfd::FileDialog::new().set_title(crate::i18n::tr("A disk image or archive to compare")).pick_file(),
+                    Some(SideKind::Folder | SideKind::Git) => rfd::FileDialog::new().set_title(crate::i18n::tr("A folder to compare")).pick_folder(),
                     _ => None,
                 };
                 if let Some(path) = picked {
@@ -1743,11 +1743,11 @@ impl Limoniter {
                 }
             }
             FolderAct::ExportReport(kind) => {
-                let dialog = rfd::FileDialog::new().set_title("Save a report");
+                let dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a report"));
                 let dialog = match kind {
-                    ReportKind::Csv => dialog.add_filter("CSV file", &["csv"]).set_file_name("comparison.csv"),
-                    ReportKind::Summary => dialog.add_filter("Plain text", &["txt"]).add_filter("HTML page", &["html"]).set_file_name("comparison summary.txt"),
-                    ReportKind::Full => dialog.add_filter("HTML page", &["html"]).add_filter("Plain text", &["txt"]).set_file_name("comparison.html"),
+                    ReportKind::Csv => dialog.add_filter(crate::i18n::tr("CSV file"), &["csv"]).set_file_name("comparison.csv"),
+                    ReportKind::Summary => dialog.add_filter(crate::i18n::tr("Plain text"), &["txt"]).add_filter(crate::i18n::tr("HTML page"), &["html"]).set_file_name("comparison summary.txt"),
+                    ReportKind::Full => dialog.add_filter(crate::i18n::tr("HTML page"), &["html"]).add_filter(crate::i18n::tr("Plain text"), &["txt"]).set_file_name("comparison.html"),
                 };
                 let Some(path) = dialog.save_file() else {
                     return;
@@ -1770,7 +1770,7 @@ impl Limoniter {
                 let folder = self.with_compare_tab(doc_id, |_, tab| match tab {
                     CompareTab::Folders(folders) => match folders.pickers[if left { 0 } else { 1 }].side() {
                         Ok(Side::Folder(path)) => Ok(path),
-                        Ok(other) => Err(format!("A patch can only be applied to a folder on this computer, and {} isn't one.", other.describe())),
+                        Ok(other) => Err(crate::i18n::tf!("A patch can only be applied to a folder on this computer, and {} isn't one.", other.describe())),
                         Err(problem) => Err(problem),
                     },
                     _ => Err(String::new()),
@@ -1782,7 +1782,7 @@ impl Limoniter {
                 }
             }
             FolderAct::ExportPatch => {
-                let Some(path) = rfd::FileDialog::new().set_title("Save as a patch").set_file_name("changes.patch").save_file() else {
+                let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file() else {
                     return;
                 };
                 self.start_folder_patch(doc_id, path);
@@ -1800,8 +1800,8 @@ impl Limoniter {
     /// .htm, plain text otherwise), or a CSV file.
     pub(super) fn save_folder_report_as(&mut self, doc_id: u64, path: &Path, kind: ReportKind) -> Option<Result<(), String>> {
         self.with_compare_tab(doc_id, |_, tab| {
-            let CompareTab::Folders(folders) = tab else { return Err("This isn't a folder comparison.".to_string()) };
-            let result = folders.result.as_ref().ok_or("Compare the folders first.")?;
+            let CompareTab::Folders(folders) = tab else { return Err(crate::i18n::tr("This isn't a folder comparison.").to_string()) };
+            let result = folders.result.as_ref().ok_or(crate::i18n::tr("Compare the folders first."))?;
             let html = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"));
             let report = match kind {
                 ReportKind::Csv => engine::report_csv(result, folders.hide_same),
@@ -1840,10 +1840,10 @@ impl Limoniter {
 
     /// Asks which two files to compare, and compares them.
     pub(super) fn compare_two_files(&mut self) {
-        let Some(left) = rfd::FileDialog::new().set_title("Compare files: the first, on the left").pick_file() else {
+        let Some(left) = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare files: the first, on the left")).pick_file() else {
             return;
         };
-        let mut second = rfd::FileDialog::new().set_title("Compare files: the second, on the right");
+        let mut second = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare files: the second, on the right"));
         if let Some(folder) = left.parent() {
             second = second.set_directory(folder);
         }
@@ -1856,7 +1856,7 @@ impl Limoniter {
     pub(super) fn project_compare(&mut self, action: crate::project::PanelAction) {
         match action {
             crate::project::PanelAction::CompareWith(path) => {
-                let mut picker = rfd::FileDialog::new().set_title("Compare with");
+                let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare with"));
                 if let Some(folder) = path.parent() {
                     picker = picker.set_directory(folder);
                 }
@@ -1887,7 +1887,7 @@ impl Limoniter {
                 let name = format!("{} at the last commit", short_name(path));
                 self.open_file_compare_sides(FileSide::Bytes { name, bytes }, FileSide::Path(path.to_path_buf()));
             }
-            None => self.message("Compare with the last commit", format!("{} wasn't in the last commit.", short_name(path))),
+            None => self.message("Compare with the last commit", crate::i18n::tf!("{} wasn't in the last commit.", short_name(path))),
         }
     }
 
@@ -1999,20 +1999,20 @@ fn save_own(doc: &mut Document, backup: bool) -> Result<bool, String> {
         return Ok(false);
     };
     if doc.text.read_only {
-        return Err(format!("{} is read-only here.", doc.name()));
+        return Err(crate::i18n::tf!("{} is read-only here.", doc.name()));
     }
     if doc.text.format.ensure_final_newline {
         doc.text.ensure_final_newline();
     }
     let format = doc.text.format.clone();
-    let bytes = doc.text.encode(&format, Lossy::Refuse).map_err(|_| format!("Some characters in {} can't be saved in {}. Open this side in a tab of its own to choose what to do with them.", doc.name(), format.encoding_name()))?;
+    let bytes = doc.text.encode(&format, Lossy::Refuse).map_err(|_| crate::i18n::tf!("Some characters in {} can't be saved in {}. Open this side in a tab of its own to choose what to do with them.", doc.name(), format.encoding_name()))?;
     if backup && doc.backed_up.as_deref().is_none_or(|done| !same_path(done, &path)) && path.is_file() {
         let mut kept = path.as_os_str().to_owned();
         kept.push(".bak");
-        std::fs::copy(&path, &kept).map_err(|e| format!("Couldn't keep a backup of {} before saving, so it hasn't been saved.\n\n{e}", path.display()))?;
+        std::fs::copy(&path, &kept).map_err(|e| crate::i18n::tf!("Couldn't keep a backup of {} before saving, so it hasn't been saved.\n\n{e}", path.display()))?;
         doc.backed_up = Some(path.clone());
     }
-    codec::write_file(&path, &bytes).map_err(|e| format!("Couldn't save {}.\n\n{e}", path.display()))?;
+    codec::write_file(&path, &bytes).map_err(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()))?;
     note_saved_to(doc, &path);
     doc.disk_stamp = file_stamp(&path);
     doc.text.mark_saved();

@@ -93,9 +93,9 @@ impl Limoniter {
     fn reach_live<R>(&mut self, reach: Reach, act: impl FnOnce(&mut dyn Live) -> Result<R, String>) -> Result<R, String> {
         match reach {
             Reach::BuiltIn(doc_id) => {
-                let session = self.running.sessions.iter_mut().find(|s| matches!(s.kind, SessionKind::BuiltIn { doc_id: d, .. } if d == doc_id)).ok_or("The built-in Spectrum has been switched off.")?;
+                let session = self.running.sessions.iter_mut().find(|s| matches!(s.kind, SessionKind::BuiltIn { doc_id: d, .. } if d == doc_id)).ok_or(crate::i18n::tr("The built-in Spectrum has been switched off."))?;
                 let SessionKind::BuiltIn { machine, .. } = &mut session.kind else {
-                    return Err("The built-in Spectrum has been switched off.".into());
+                    return Err(crate::i18n::tr("The built-in Spectrum has been switched off.").into());
                 };
                 act(machine.as_mut())
             }
@@ -203,7 +203,7 @@ impl Limoniter {
             Err(problem) => return self.message("Take its BASIC program", problem),
         };
         if file.is_empty() {
-            return self.message("Take its BASIC program", format!("There's no BASIC program in {target}'s memory."));
+            return self.message("Take its BASIC program", crate::i18n::tf!("There's no BASIC program in {target}'s memory."));
         }
         let listing = basic::list(&file, ending, charset::utf8());
         if listing.lines.is_empty() {
@@ -244,11 +244,11 @@ impl Limoniter {
             basic::Machine::Spectrum if spectrum_family(machine) => basic::tokenise_spectrum(&lines, basic::ZxDialect::Spectrum),
             basic::Machine::Next if spectrum_family(machine) => basic::tokenise_spectrum(&lines, basic::ZxDialect::Next),
             basic::Machine::Commodore(cbm) if !spectrum_family(machine) => basic::tokenise_commodore(&lines, cbm),
-            _ => return self.message("Put this listing into it", format!("This listing is for another kind of machine than {target}.")),
+            _ => return self.message("Put this listing into it", crate::i18n::tf!("This listing is for another kind of machine than {target}.")),
         };
         let program = match tokenised {
             Ok(program) => program,
-            Err(problem) => return self.message("Put this listing into it", format!("The listing couldn't be tokenised, so nothing was changed.\n\n{problem}")),
+            Err(problem) => return self.message("Put this listing into it", crate::i18n::tf!("The listing couldn't be tokenised, so nothing was changed.\n\n{problem}")),
         };
         // A running program is stopped first, so the new one goes in while BASIC is waiting: a Commodore as
         // RUN/STOP would stop it (BASIC checks the key through $91), a Spectrum by pressing BREAK.
@@ -259,7 +259,7 @@ impl Limoniter {
             if spectrum_family(machine) {
                 let prog = word(&live.read(sysvars::PROG, 2)?);
                 let ramtop = word(&live.read(sysvars::RAMTOP, 2)?);
-                let vars = prog.checked_add(program.len() as u16).filter(|end| u32::from(*end) + 512 < u32::from(ramtop)).ok_or("The program is too large for the room the machine has.")?;
+                let vars = prog.checked_add(program.len() as u16).filter(|end| u32::from(*end) + 512 < u32::from(ramtop)).ok_or(crate::i18n::tr("The program is too large for the room the machine has."))?;
                 let e_line = vars + 1;
                 let worksp = e_line + 2;
                 live.write(prog, &program)?;
@@ -271,7 +271,7 @@ impl Limoniter {
             } else {
                 let load = word(&program);
                 let body = &program[2..];
-                let end = load.checked_add(body.len() as u16).ok_or("The program is too large for the room the machine has.")?;
+                let end = load.checked_add(body.len() as u16).ok_or(crate::i18n::tr("The program is too large for the room the machine has."))?;
                 live.write(load, body)?;
                 for at in [0x2D, 0x2F, 0x31] {
                     live.write(at, &end.to_le_bytes())?;
@@ -305,7 +305,7 @@ impl Limoniter {
                 std::thread::sleep(Duration::from_millis(500));
             }
             Reach::BuiltIn(doc_id) => {
-                let machine = self.built_in(doc_id).ok_or("The built-in Spectrum has been switched off.")?;
+                let machine = self.built_in(doc_id).ok_or(crate::i18n::tr("The built-in Spectrum has been switched off."))?;
                 machine.compound(CompoundKey::Break, true);
                 for _ in 0..10 {
                     machine.frame()?;
@@ -341,7 +341,7 @@ impl Limoniter {
                 Ok(())
             }
             Reach::BuiltIn(doc_id) => {
-                let machine = self.built_in(doc_id).ok_or("The built-in Spectrum has been switched off.")?;
+                let machine = self.built_in(doc_id).ok_or(crate::i18n::tr("The built-in Spectrum has been switched off."))?;
                 for c in if keyword { "r\n" } else { "run\n" }.chars() {
                     machine.type_char(c);
                 }

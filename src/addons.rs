@@ -255,13 +255,13 @@ impl AddOns {
     /// Writes a new add-on from the example, under a name, in the person's own folder.
     pub fn create(&mut self, name: &str) -> Result<PathBuf, String> {
         let name = crate::scripting::checked_name(name)?;
-        let folder = self.own.clone().ok_or("There's nowhere to keep it, because the settings folder couldn't be found.")?;
-        std::fs::create_dir_all(&folder).map_err(|e| format!("The folder couldn't be made: {e}"))?;
+        let folder = self.own.clone().ok_or(crate::i18n::tr("There's nowhere to keep it, because the settings folder couldn't be found."))?;
+        std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("The folder couldn't be made: {e}"))?;
         let path = folder.join(format!("{name}.{}", crate::scripting::EXTENSION));
         if path.exists() {
-            return Err(format!("There's already an add-on called {name}."));
+            return Err(crate::i18n::tf!("There's already an add-on called {name}."));
         }
-        std::fs::write(&path, NEW_ADDON.replace("NAME", &name)).map_err(|e| format!("It couldn't be saved: {e}"))?;
+        std::fs::write(&path, NEW_ADDON.replace("NAME", &name)).map_err(|e| crate::i18n::tf!("It couldn't be saved: {e}"))?;
         self.refresh();
         Ok(path)
     }

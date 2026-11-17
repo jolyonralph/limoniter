@@ -164,7 +164,7 @@ impl Crt {
         let len = source.len();
         let head = source.read_vec(0, 64.min(len) as usize)?;
         if head.len() < 64 || !looks_like(&head) {
-            return Err("This isn't a CRT cartridge image: it doesn't start with a signature such as C64 CARTRIDGE.".into());
+            return Err(crate::i18n::tr("This isn't a CRT cartridge image: it doesn't start with a signature such as C64 CARTRIDGE.").into());
         }
         let machine = SIGNATURES.iter().find(|(s, _)| head[..16] == s[..]).map_or("C64", |(_, m)| *m);
         let header_length = u64::from(u32::from_be_bytes([head[16], head[17], head[18], head[19]]));
@@ -261,9 +261,9 @@ impl Volume for Crt {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let chip = self.chips.get(entry.location as usize).ok_or("That chip isn't in the cartridge.")?;
+        let chip = self.chips.get(entry.location as usize).ok_or(crate::i18n::tr("That chip isn't in the cartridge."))?;
         if chip.kind == 1 {
-            return Err("This chip is RAM: the image keeps no bytes for it.".into());
+            return Err(crate::i18n::tr("This chip is RAM: the image keeps no bytes for it.").into());
         }
         let available = self.source.len().saturating_sub(chip.offset + 16);
         self.source.read_vec(chip.offset + 16, u64::from(chip.size).min(available) as usize)
@@ -303,7 +303,7 @@ pub fn normal_cartridge(binary: &[u8], name: &str) -> Result<Vec<u8>, String> {
     let (exrom, game) = match binary.len() {
         8192 => (0u8, 1u8),
         16384 => (0, 0),
-        n => return Err(format!("A normal cartridge is 8,192 or 16,384 bytes; this is {n}.")),
+        n => return Err(crate::i18n::tf!("A normal cartridge is 8,192 or 16,384 bytes; this is {n}.")),
     };
     let mut out = Vec::with_capacity(64 + 16 + binary.len());
     out.extend_from_slice(b"C64 CARTRIDGE   ");
@@ -329,11 +329,11 @@ pub fn cartridge_binary(bytes: &[u8]) -> Result<Vec<u8>, String> {
     }
     if bytes.len() > 2 && bytes[..2] == [0x00, 0x80] {
         let mut body = bytes[2..].to_vec();
-        let size = if body.len() <= 8192 { 8192 } else if body.len() <= 16384 { 16384 } else { return Err(format!("The program is {} bytes, over the 16K a normal cartridge holds.", body.len())) };
+        let size = if body.len() <= 8192 { 8192 } else if body.len() <= 16384 { 16384 } else { return Err(crate::i18n::tf!("The program is {} bytes, over the 16K a normal cartridge holds.", body.len())) };
         body.resize(size, 0xFF);
         return Ok(body);
     }
-    Err("A cartridge is made from an 8K or 16K binary, or from a program that loads at $8000 (with the CBM80 signature at its start).".into())
+    Err(crate::i18n::tr("A cartridge is made from an 8K or 16K binary, or from a program that loads at $8000 (with the CBM80 signature at its start).").into())
 }
 
 #[cfg(test)]

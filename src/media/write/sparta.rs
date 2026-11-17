@@ -55,7 +55,7 @@ fn sparta_name(name: &str) -> Result<[u8; 11], String> {
     let part = |text: &str, most: usize| -> String { text.chars().map(|c| c.to_ascii_uppercase()).filter(|c| c.is_ascii_alphanumeric() || *c == '_').take(most).collect() };
     let (stem, ending) = (part(stem, 8), part(ending, 3));
     if !stem.starts_with(|c: char| c.is_ascii_uppercase() || c == '_') {
-        return Err(format!("\"{name}\" can't be a SpartaDOS name: it needs to start with a letter."));
+        return Err(crate::i18n::tf!("\"{name}\" can't be a SpartaDOS name: it needs to start with a letter."));
     }
     let mut out = [b' '; 11];
     out[..stem.len()].copy_from_slice(stem.as_bytes());
@@ -136,7 +136,7 @@ impl Disk {
         let mut disk = Self { bytes, sector_size, sectors: image_sectors };
         let boot = disk.boot().to_vec();
         if !matches!(boot[32], 0x20 | 0x21) {
-            return Err("This is a SpartaDOS 1 disk, whose older layout is only read.".into());
+            return Err(crate::i18n::tr("This is a SpartaDOS 1 disk, whose older layout is only read.").into());
         }
         let said_size = match boot[31] {
             0x80 => 128,
@@ -144,16 +144,16 @@ impl Disk {
             _ => 0,
         };
         if said_size != sector_size {
-            return Err("This SpartaDOS disk's sector size isn't the image's, so it's only read.".into());
+            return Err(crate::i18n::tr("This SpartaDOS disk's sector size isn't the image's, so it's only read.").into());
         }
         let total = le16(&boot, 11);
         if total > image_sectors {
-            return Err("This SpartaDOS disk says it's larger than its image, so it's only read.".into());
+            return Err(crate::i18n::tr("This SpartaDOS disk says it's larger than its image, so it's only read.").into());
         }
         disk.sectors = total;
         let (bitmap, bitmaps, root) = (le16(&boot, 16), usize::from(boot[15]), le16(&boot, 9));
         if bitmap < 2 || bitmaps == 0 || bitmap + bitmaps - 1 > total || bitmaps * sector_size * 8 <= total || !(2..=total).contains(&root) {
-            return Err("This SpartaDOS disk's boot sector doesn't make sense, so it's only read.".into());
+            return Err(crate::i18n::tr("This SpartaDOS disk's boot sector doesn't make sense, so it's only read.").into());
         }
         // Every directory must be readable before anything is changed.
         disk.walk()?;
@@ -201,7 +201,7 @@ impl Disk {
 
     /// A free sector, taken; the lowest, as SpartaDOS takes them.
     fn allocate(&mut self) -> Result<usize, String> {
-        let sector = (4..=self.sectors).find(|s| self.is_free(*s)).ok_or("The disk is full.")?;
+        let sector = (4..=self.sectors).find(|s| self.is_free(*s)).ok_or(crate::i18n::tr("The disk is full."))?;
         self.set_free(sector, false);
         let at = self.at(sector);
         self.bytes[at..at + self.sector_size].fill(0);
@@ -209,7 +209,7 @@ impl Disk {
     }
 
     fn valid(&self, sector: usize) -> Result<usize, String> {
-        if (4..=self.sectors).contains(&sector) { Ok(sector) } else { Err(format!("A sector map points to sector {sector}, which isn't on the disk, so the disk is damaged.")) }
+        if (4..=self.sectors).contains(&sector) { Ok(sector) } else { Err(crate::i18n::tf!("A sector map points to sector {sector}, which isn't on the disk, so the disk is damaged.")) }
     }
 
     /// A file's chain of sector maps.
@@ -218,7 +218,7 @@ impl Disk {
         let mut map = first;
         while map != 0 {
             if out.contains(&map) || out.len() > self.sectors {
-                return Err("A file's sector maps loop, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("A file's sector maps loop, so the disk is damaged.").into());
             }
             out.push(self.valid(map)?);
             map = le16(&self.bytes, self.at(map));
@@ -250,7 +250,7 @@ impl Disk {
             }
         }
         if out.len() < length {
-            return Err("A file's sector maps end before it does, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A file's sector maps end before it does, so the disk is damaged.").into());
         }
         out.truncate(length);
         Ok(out)
@@ -288,7 +288,7 @@ impl Disk {
         let sectors = bytes.len().div_ceil(self.sector_size);
         let maps = sectors.div_ceil((self.sector_size - 4) / 2).max(1);
         if sectors + maps > self.free_sectors() {
-            return Err(format!("This needs {} sectors; the disk has {} free.", sectors + maps, self.free_sectors()));
+            return Err(crate::i18n::tf!("This needs {} sectors; the disk has {} free.", sectors + maps, self.free_sectors()));
         }
         let first = self.allocate()?;
         self.store(first, bytes)?;
@@ -310,7 +310,7 @@ impl Disk {
         let head = self.read(map, ENTRY)?;
         let length = le24(&head, 3);
         if !(ENTRY..=0x10000).contains(&length) {
-            return Err("A directory's length doesn't make sense, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A directory's length doesn't make sense, so the disk is damaged.").into());
         }
         self.read(map, length)
     }
@@ -356,7 +356,7 @@ impl Disk {
         };
         match self.walk()?.get(folder.location as usize) {
             Some((_, entry)) if entry[0] & FOLDER != 0 && tidy_name(&name_of(entry)) == folder.name => Ok(le16(entry, 1)),
-            _ => Err(format!("The folder {} isn't on the disk.", folder.name)),
+            _ => Err(crate::i18n::tf!("The folder {} isn't on the disk.", folder.name)),
         }
     }
 
@@ -372,7 +372,7 @@ impl Disk {
         let index = index.or_else(|| (1..count).find(|i| data[i * ENTRY] & DELETED != 0 || data[i * ENTRY] & IN_USE == 0)).unwrap_or(count);
         if index == count {
             if data.len() + ENTRY > MOST_DIRECTORY {
-                return Err("The directory is full.".into());
+                return Err(crate::i18n::tr("The directory is full.").into());
             }
             data.truncate(count * ENTRY);
             data.extend_from_slice(new);
@@ -382,7 +382,7 @@ impl Disk {
             let parent = le16(&data, 1);
             if parent != 0 {
                 let mut above = self.directory_bytes(parent)?;
-                let at = (1..above.len() / ENTRY).find(|i| above[i * ENTRY] & FOLDER != 0 && le16(&above, i * ENTRY + 1) == directory).ok_or("A folder isn't in its parent directory, so the disk is damaged.")?;
+                let at = (1..above.len() / ENTRY).find(|i| above[i * ENTRY] & FOLDER != 0 && le16(&above, i * ENTRY + 1) == directory).ok_or(crate::i18n::tr("A folder isn't in its parent directory, so the disk is damaged."))?;
                 above[at * ENTRY + 3..at * ENTRY + 6].copy_from_slice(&(length as u32).to_le_bytes()[..3]);
                 self.store(parent, &above)?;
             }
@@ -422,23 +422,23 @@ impl Disk {
         let name = sparta_name(&file.name)?;
         let shown = super::atari::shown(&name);
         if file.bytes.len() > 0xFF_FFFF {
-            return Err(format!("{} is larger than the 16 MB a SpartaDOS file can be.", file.name));
+            return Err(crate::i18n::tf!("{} is larger than the 16 MB a SpartaDOS file can be.", file.name));
         }
         let mut index = None;
         if let Some((place, old)) = self.find(directory, &shown)? {
             if old[0] & FOLDER != 0 {
-                return Err(format!("{shown} is a folder here, so a file can't replace it."));
+                return Err(crate::i18n::tf!("{shown} is a folder here, so a file can't replace it."));
             }
             if !file.replace {
                 return Err(already(&shown));
             }
             if old[0] & LOCKED != 0 {
-                return Err(format!("{shown} is protected; unprotect it on the Atari first."));
+                return Err(crate::i18n::tf!("{shown} is protected; unprotect it on the Atari first."));
             }
             self.release(le16(&old, 1))?;
             index = Some(place.index);
         }
-        let first = self.create(&file.bytes).map_err(|e| format!("{}: {e}", file.name))?;
+        let first = self.create(&file.bytes).map_err(|e| crate::i18n::tf!("{}: {e}", file.name))?;
         self.put(directory, index, &entry(IN_USE, first, file.bytes.len(), &name))?;
         self.recount();
         Ok(())
@@ -446,12 +446,12 @@ impl Disk {
 
     fn delete_entry(&mut self, folder: Option<&Entry>, entry: &Entry) -> Result<(), String> {
         let directory = self.directory(folder)?;
-        let (place, old) = self.find(directory, &entry.name)?.ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let (place, old) = self.find(directory, &entry.name)?.ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         if old[0] & LOCKED != 0 {
-            return Err(format!("{} is protected; unprotect it on the Atari first.", entry.name));
+            return Err(crate::i18n::tf!("{} is protected; unprotect it on the Atari first.", entry.name));
         }
         if old[0] & FOLDER != 0 && !self.entries(le16(&old, 1))?.is_empty() {
-            return Err("The folder has files in it; take them off first.".into());
+            return Err(crate::i18n::tr("The folder has files in it; take them off first.").into());
         }
         self.release(le16(&old, 1))?;
         self.set_status(place, DELETED)?;
@@ -461,7 +461,7 @@ impl Disk {
 
     fn rename_entry(&mut self, folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
         let directory = self.directory(folder)?;
-        let (place, old) = self.find(directory, &entry.name)?.ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let (place, old) = self.find(directory, &entry.name)?.ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         let new = sparta_name(name)?;
         if self.find(directory, &super::atari::shown(&new))?.is_some_and(|(other, _)| other != place) {
             return Err(already(&super::atari::shown(&new)));

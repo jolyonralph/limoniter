@@ -84,17 +84,17 @@ pub fn open(bytes: Vec<u8>, ending: &str) -> Result<Box<dyn ImageWriter>, String
     let (offset, length, order) = if bytes.starts_with(b"2IMG") && bytes.len() >= 64 {
         let le32 = |at: usize| u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]) as usize;
         if le32(16) & 0x8000_0000 != 0 {
-            return Err("This 2IMG is marked locked, so it's only read.".into());
+            return Err(crate::i18n::tr("This 2IMG is marked locked, so it's only read.").into());
         }
         (le32(24), le32(28), Some(le32(12)))
     } else {
         (0, bytes.len(), None)
     };
     if order == Some(2) {
-        return Err("This 2IMG holds a nibble image, which is only read.".into());
+        return Err(crate::i18n::tr("This 2IMG holds a nibble image, which is only read.").into());
     }
     if offset.checked_add(length).is_none_or(|end| end > bytes.len()) || length < DISK_140K || !length.is_multiple_of(512) {
-        return Err("This Apple II image is cut short or isn't a whole number of blocks.".into());
+        return Err(crate::i18n::tr("This Apple II image is cut short or isn't a whole number of blocks.").into());
     }
     // The reader decides what's on the disk, and in which order.
     let volume = super::super::apple2::Apple2::open(std::sync::Arc::new(bytes.clone()), ending)?;
@@ -106,7 +106,7 @@ pub fn open(bytes: Vec<u8>, ending: &str) -> Result<Box<dyn ImageWriter>, String
     } else if what.contains("DOS 3.3") {
         Ok(Box::new(Dos33::open(image)?))
     } else {
-        Err("Only DOS 3.3 and ProDOS disks are changed here; DOS 3.2's 13-sector disks are only read.".into())
+        Err(crate::i18n::tr("Only DOS 3.3 and ProDOS disks are changed here; DOS 3.2's 13-sector disks are only read.").into())
     }
 }
 
@@ -125,7 +125,7 @@ fn applesoft(file: &Addition) -> Result<Vec<u8>, String> {
     if basic_more::looks_like_applesoft(&file.bytes) {
         return Ok(file.bytes.clone());
     }
-    Err(format!("{} is neither an Applesoft listing nor a tokenised Applesoft program.", file.name))
+    Err(crate::i18n::tf!("{} is neither an Applesoft listing nor a tokenised Applesoft program.", file.name))
 }
 
 /// Lines ending as the Apple II's do, in a carriage return.
@@ -220,7 +220,7 @@ fn dos_name(name: &str) -> Result<[u8; 30], String> {
     let cleaned: String = name.trim().chars().map(|c| c.to_ascii_uppercase()).filter(|c| (' '..='~').contains(c) && *c != ',').take(30).collect();
     let cleaned = cleaned.trim_end();
     if !cleaned.starts_with(|c: char| c.is_ascii_alphabetic()) {
-        return Err(format!("\"{name}\" can't be a DOS 3.3 name: a name has to start with a letter."));
+        return Err(crate::i18n::tf!("\"{name}\" can't be a DOS 3.3 name: a name has to start with a letter."));
     }
     let mut out = [0xA0; 30];
     for (slot, b) in out.iter_mut().zip(cleaned.bytes()) {
@@ -236,13 +236,13 @@ fn dos_shown(name: &[u8]) -> String {
 impl Dos33 {
     fn open(image: Image) -> Result<Self, String> {
         if image.length != DISK_140K {
-            return Err("Only 140K DOS 3.3 disks are changed here.".into());
+            return Err(crate::i18n::tr("Only 140K DOS 3.3 disks are changed here.").into());
         }
         let disk = Self { image };
         let vtoc = disk.vtoc();
         let v = &disk.image.bytes[vtoc..vtoc + 256];
         if v[0x35] != 16 || v[0x34] != 35 || v[0x27] != 122 || u16::from_le_bytes([v[0x36], v[0x37]]) != 256 {
-            return Err("This disk's VTOC isn't DOS 3.3's 35 tracks of 16 sectors, so it's only read.".into());
+            return Err(crate::i18n::tr("This disk's VTOC isn't DOS 3.3's 35 tracks of 16 sectors, so it's only read.").into());
         }
         disk.catalog()?;
         Ok(disk)
@@ -274,7 +274,7 @@ impl Dos33 {
         let mut out = Vec::new();
         while track != 0 {
             if track >= 35 || sector >= 16 || !seen.insert((track, sector)) {
-                return Err("The disk's catalog chain is broken, so it can't be changed safely.".into());
+                return Err(crate::i18n::tr("The disk's catalog chain is broken, so it can't be changed safely.").into());
             }
             let at = self.image.sector_at(track, sector);
             out.push(at);
@@ -319,7 +319,7 @@ impl Dos33 {
         let mut seen = HashSet::new();
         while track != 0 {
             if track >= 35 || sector >= 16 || !seen.insert((track, sector)) || seen.len() > 600 {
-                return Err(format!("{}'s track/sector lists are broken, so it can't be changed safely.", self.name(slot)));
+                return Err(crate::i18n::tf!("{}'s track/sector lists are broken, so it can't be changed safely.", self.name(slot)));
             }
             out.push((track, sector));
             let at = self.image.sector_at(track, sector);
@@ -329,7 +329,7 @@ impl Dos33 {
                     continue;
                 }
                 if t >= 35 || s >= 16 {
-                    return Err(format!("{}'s track/sector list points off the disk, so it can't be changed safely.", self.name(slot)));
+                    return Err(crate::i18n::tf!("{}'s track/sector list points off the disk, so it can't be changed safely.", self.name(slot)));
                 }
                 out.push((t, s));
             }
@@ -358,7 +358,7 @@ impl Dos33 {
     fn stored(file: &Addition) -> Result<(u8, Vec<u8>), String> {
         let with_length = |data: Vec<u8>, before: &[u8]| -> Result<Vec<u8>, String> {
             if data.len() > 0xFFFF {
-                return Err(format!("{} is longer than the 65,535 bytes DOS 3.3 can say a program or binary is.", file.name));
+                return Err(crate::i18n::tf!("{} is longer than the 65,535 bytes DOS 3.3 can say a program or binary is.", file.name));
             }
             Ok([before, &(data.len() as u16).to_le_bytes(), &data].concat())
         };
@@ -376,14 +376,14 @@ impl Dos33 {
         let lists = data_sectors.div_ceil(122).max(1);
         let free = self.free_order();
         if data_sectors + lists > free.len() {
-            return Err(format!("{} needs {} sectors; the disk has {} free.", file.name, data_sectors + lists, free.len()));
+            return Err(crate::i18n::tf!("{} needs {} sectors; the disk has {} free.", file.name, data_sectors + lists, free.len()));
         }
-        let slot = self.slots().into_iter().find(|s| matches!(self.image.bytes[*s], 0 | 0xFF)).ok_or("The catalog is full: DOS 3.3 holds 105 files.")?;
+        let slot = self.slots().into_iter().find(|s| matches!(self.image.bytes[*s], 0 | 0xFF)).ok_or(crate::i18n::tr("The catalog is full: DOS 3.3 holds 105 files."))?;
         let mut taken = free.into_iter();
         let mut previous_list: Option<usize> = None;
         let (mut first, mut last_track) = ((0, 0), 17);
         for list in 0..lists {
-            let (lt, ls) = taken.next().ok_or("The disk ran out of sectors.")?;
+            let (lt, ls) = taken.next().ok_or(crate::i18n::tr("The disk ran out of sectors."))?;
             last_track = lt;
             self.set_free(lt, ls, false);
             let list_at = self.image.sector_at(lt, ls);
@@ -398,7 +398,7 @@ impl Dos33 {
             }
             previous_list = Some(list_at);
             for n in 0..122.min(data_sectors.saturating_sub(list * 122)) {
-                let (t, s) = taken.next().ok_or("The disk ran out of sectors.")?;
+                let (t, s) = taken.next().ok_or(crate::i18n::tr("The disk ran out of sectors."))?;
                 last_track = t;
                 self.set_free(t, s, false);
                 let at = self.image.sector_at(t, s);
@@ -461,12 +461,12 @@ impl ImageWriter for Dos33 {
     }
 
     fn delete(&mut self, _folder: Option<&Entry>, entry: &Entry) -> Result<(), String> {
-        let slot = self.find(&entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let slot = self.find(&entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         self.remove(slot)
     }
 
     fn rename(&mut self, _folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
-        let slot = self.find(&entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let slot = self.find(&entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         let new = dos_name(name)?;
         if self.find(&dos_shown(&new)).is_some_and(|other| other != slot) {
             return Err(already(&dos_shown(&new)));
@@ -518,7 +518,7 @@ fn prodos_now() -> [u8; 4] {
 fn prodos_name(name: &str) -> Result<Vec<u8>, String> {
     let cleaned: Vec<u8> = name.trim().chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() as u8 } else { b'.' }).take(15).collect();
     if !cleaned.first().is_some_and(u8::is_ascii_alphabetic) {
-        return Err(format!("\"{name}\" can't be a ProDOS name: a name has to start with a letter."));
+        return Err(crate::i18n::tf!("\"{name}\" can't be a ProDOS name: a name has to start with a letter."));
     }
     Ok(cleaned)
 }
@@ -560,7 +560,7 @@ impl Prodos {
         let total = usize::from(u16::from_le_bytes([key[0x29], key[0x2A]]));
         let bitmap = usize::from(u16::from_le_bytes([key[0x27], key[0x28]]));
         if total < 16 || total * 512 > image.length || bitmap < 3 || bitmap + total.div_ceil(4096) > total {
-            return Err("This ProDOS volume's header doesn't fit the image, so it can't be changed safely.".into());
+            return Err(crate::i18n::tr("This ProDOS volume's header doesn't fit the image, so it can't be changed safely.").into());
         }
         let disk = Self { image, total, bitmap };
         disk.chain(2)?;
@@ -596,7 +596,7 @@ impl Prodos {
         let mut block = key;
         while block != 0 {
             if block >= self.total || out.contains(&block) || out.len() > 4096 {
-                return Err("A directory's chain of blocks is broken, so the disk can't be changed safely.".into());
+                return Err(crate::i18n::tr("A directory's chain of blocks is broken, so the disk can't be changed safely.").into());
             }
             out.push(block);
             block = self.word(block, 2);
@@ -611,7 +611,7 @@ impl Prodos {
         };
         let key = folder.extra as usize;
         if key < 3 || key >= self.total || self.image.block(key)[4] >> 4 != 0xE {
-            return Err(format!("{} isn't a folder this disk has.", folder.name));
+            return Err(crate::i18n::tf!("{} isn't a folder this disk has.", folder.name));
         }
         Ok(key)
     }
@@ -686,10 +686,10 @@ impl Prodos {
                 }
             }
             0xD => out = self.chain(key)?,
-            _ => return Err("A file of a kind ProDOS 8 doesn't have is in the way, so it can't be changed safely.".into()),
+            _ => return Err(crate::i18n::tr("A file of a kind ProDOS 8 doesn't have is in the way, so it can't be changed safely.").into()),
         }
         if out.iter().any(|b| *b >= self.total) {
-            return Err("A file's index points off the disk, so it can't be changed safely.".into());
+            return Err(crate::i18n::tr("A file's index points off the disk, so it can't be changed safely.").into());
         }
         Ok(out)
     }
@@ -700,7 +700,7 @@ impl Prodos {
         let storage = entry[0] >> 4;
         let first = usize::from(u16::from_le_bytes([entry[0x11], entry[0x12]]));
         if storage == 0xD && !self.files(first)?.is_empty() {
-            return Err("The folder has files in it; take them off first.".into());
+            return Err(crate::i18n::tr("The folder has files in it; take them off first.").into());
         }
         for block in self.blocks_of(storage, first)? {
             self.set_free(block, true);
@@ -718,14 +718,14 @@ impl Prodos {
             return Ok(slot);
         }
         if key == 2 {
-            return Err("The volume directory is full: it holds 51 files. Put the file in a folder.".into());
+            return Err(crate::i18n::tr("The volume directory is full: it holds 51 files. Put the file in a folder.").into());
         }
         if free.is_empty() {
-            return Err("The disk is full.".into());
+            return Err(crate::i18n::tr("The disk is full.").into());
         }
         let block = free.remove(0);
         self.set_free(block, false);
-        let last = *self.chain(key)?.last().ok_or("The folder has no blocks.")?;
+        let last = *self.chain(key)?.last().ok_or(crate::i18n::tr("The folder has no blocks."))?;
         let mut data = vec![0u8; 512];
         data[0..2].copy_from_slice(&(last as u16).to_le_bytes());
         self.image.put_block(block, &data);
@@ -780,7 +780,7 @@ impl Prodos {
     fn put(&mut self, key: usize, name: &[u8], file: &Addition) -> Result<(), String> {
         let (kind, aux, data) = Self::stored(file)?;
         if data.len() > 0xFF_FFFF {
-            return Err(format!("{} is larger than the 16 MB a ProDOS file can be.", file.name));
+            return Err(crate::i18n::tf!("{} is larger than the 16 MB a ProDOS file can be.", file.name));
         }
         let count = data.len().div_ceil(512).max(1);
         let (storage, needed) = match count {
@@ -791,7 +791,7 @@ impl Prodos {
         let mut free = self.free_blocks();
         let slot = self.room(key, &mut free)?;
         if needed > free.len() {
-            return Err(format!("{} needs {needed} blocks; the disk has {} free.", file.name, free.len()));
+            return Err(crate::i18n::tf!("{} needs {needed} blocks; the disk has {} free.", file.name, free.len()));
         }
         let blocks: Vec<usize> = free[..needed].to_vec();
         for block in &blocks {
@@ -858,7 +858,7 @@ impl ImageWriter for Prodos {
                 return Err(already(&shown));
             }
             if self.entry(slot)[0] >> 4 == 0xD {
-                return Err(format!("{shown} is a folder here, so a file can't replace it."));
+                return Err(crate::i18n::tf!("{shown} is a folder here, so a file can't replace it."));
             }
             self.remove(key, slot)?;
         }
@@ -871,13 +871,13 @@ impl ImageWriter for Prodos {
 
     fn delete(&mut self, folder: Option<&Entry>, entry: &Entry) -> Result<(), String> {
         let key = self.directory(folder)?;
-        let slot = self.find(key, &entry.name)?.ok_or_else(|| format!("{} isn't in this folder.", entry.name))?;
+        let slot = self.find(key, &entry.name)?.ok_or_else(|| crate::i18n::tf!("{} isn't in this folder.", entry.name))?;
         self.remove(key, slot)
     }
 
     fn rename(&mut self, folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
         let key = self.directory(folder)?;
-        let slot = self.find(key, &entry.name)?.ok_or_else(|| format!("{} isn't in this folder.", entry.name))?;
+        let slot = self.find(key, &entry.name)?.ok_or_else(|| crate::i18n::tf!("{} isn't in this folder.", entry.name))?;
         let new = prodos_name(name)?;
         let shown = String::from_utf8_lossy(&new).into_owned();
         if self.find(key, &shown)?.is_some_and(|other| other != slot) {
@@ -923,7 +923,7 @@ impl ImageWriter for Prodos {
         };
         let Some(&block) = free.first() else {
             self.image.bytes = saved;
-            return Err("The disk is full.".into());
+            return Err(crate::i18n::tr("The disk is full.").into());
         };
         self.set_free(block, false);
         let mut data = vec![0u8; 512];

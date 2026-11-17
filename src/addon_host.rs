@@ -99,7 +99,7 @@ impl Limoniter {
             let mut open = true;
             egui::Window::new(&panel.title).id(egui::Id::unique(("addon-panel", &panel.title))).open(&mut open).default_size([460.0, 320.0]).resizable(true).show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.small_button("Copy all").clicked() {
+                    if ui.small_button(crate::i18n::tr("Copy all")).clicked() {
                         ui.ctx().copy_text(panel.text.clone());
                     }
                 });
@@ -129,12 +129,12 @@ impl Limoniter {
         let mut new_one = false;
         let mut use_shared = None;
         let mut open_folder = None;
-        egui::Window::new("Add-ons").collapsible(false).resizable(true).default_size([620.0, 480.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("Add-ons add commands to Tools \u{203A} Add-ons and the command box, and can run when a file is opened or saved. They can do what a script can, and no more: nothing outside the open files, and no network. A new add-on is off until you turn it on here, and one whose file changes is turned off until you look at it again.");
+        egui::Window::new(crate::i18n::tr("Add-ons")).collapsible(false).resizable(true).default_size([620.0, 480.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tr("Add-ons add commands to Tools \u{203A} Add-ons and the command box, and can run when a file is opened or saved. They can do what a script can, and no more: nothing outside the open files, and no network. A new add-on is off until you turn it on here, and one whose file changes is turned off until you look at it again."));
             ui.add_space(6.0);
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                 if self.addons.list.is_empty() {
-                    ui.label(RichText::new("There are no add-ons yet. New add-on makes one to start from.").color(theme::text_faint()));
+                    ui.label(RichText::new(crate::i18n::tr("There are no add-ons yet. New add-on makes one to start from.")).color(theme::text_faint()));
                 }
                 for addon in &self.addons.list {
                     let state = self.addons.state(addon);
@@ -145,10 +145,10 @@ impl Limoniter {
                             switch = Some((addon.path.clone(), on));
                         }
                         if addon.shared {
-                            ui.label(RichText::new("shared").color(theme::text_faint()).size(11.5));
+                            ui.label(RichText::new(crate::i18n::tr("shared")).color(theme::text_faint()).size(11.5));
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("Edit").on_hover_text(addon.path.display().to_string()).clicked() {
+                            if ui.small_button(crate::i18n::tr("Edit")).on_hover_text(addon.path.display().to_string()).clicked() {
                                 edit = Some(addon.path.clone());
                             }
                         });
@@ -175,7 +175,7 @@ impl Limoniter {
                         ui.label(RichText::new(says.join(" ")).color(theme::text_faint()).size(12.0));
                     }
                     if state == State::Changed {
-                        ui.colored_label(theme::rainbow_mistake(), "Its file has changed since it was turned on, so it's off until you turn it on again.");
+                        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("Its file has changed since it was turned on, so it's off until you turn it on again."));
                     }
                     if let Some(problem) = &addon.problem {
                         ui.colored_label(theme::rainbow_mistake(), problem);
@@ -185,29 +185,29 @@ impl Limoniter {
             });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label("Shared add-ons folder:");
-                ui.add(egui::TextEdit::singleline(shared).hint_text("None").desired_width(300.0));
-                if ui.button("Browse\u{2026}").clicked()
-                    && let Some(folder) = rfd::FileDialog::new().set_title("Shared add-ons folder").pick_folder()
+                ui.label(crate::i18n::tr("Shared add-ons folder:"));
+                ui.add(egui::TextEdit::singleline(shared).hint_text(crate::i18n::tr("None")).desired_width(300.0));
+                if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
+                    && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Shared add-ons folder")).pick_folder()
                 {
                     *shared = folder.display().to_string();
                 }
-                if ui.button("Use").clicked() {
+                if ui.button(crate::i18n::tr("Use")).clicked() {
                     use_shared = Some(shared.trim().to_string());
                 }
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.button("New add-on\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("New add-on\u{2026}")).clicked() {
                     new_one = true;
                 }
                 if let Some(folder) = self.addons.own_folder()
-                    && ui.button("Open the add-ons folder").clicked()
+                    && ui.button(crate::i18n::tr("Open the add-ons folder")).clicked()
                 {
                     open_folder = Some(folder.to_path_buf());
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Close").clicked() {
+                    if ui.button(crate::i18n::tr("Close")).clicked() {
                         close = true;
                     }
                 });

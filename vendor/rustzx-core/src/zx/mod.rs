@@ -4,7 +4,7 @@ pub(crate) mod controller;
 pub(crate) mod events;
 pub(crate) mod memory;
 #[cfg(feature = "embedded-roms")]
-pub(crate) mod roms;
+pub mod roms;
 pub(crate) mod tape;
 
 pub mod constants;

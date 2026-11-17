@@ -326,7 +326,7 @@ pub fn pack_arguments(tool: Tool, prefs: &Prefs, input: &Path, output: &Path) ->
 
 /// Packs `input` into `output` with a packer, in the thread it's called from.
 pub fn pack(tool: Tool, program: &Path, prefs: &Prefs, input: &Path, output: &Path, stop: &AtomicBool) -> Result<Outcome, String> {
-    let before = std::fs::metadata(input).map_err(|e| format!("{} couldn't be read: {e}", input.display()))?.len();
+    let before = std::fs::metadata(input).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", input.display()))?.len();
     let _ = std::fs::remove_file(output);
     let started = Instant::now();
     let folder = output.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
@@ -402,25 +402,25 @@ pub fn fetch(tool: Tool) -> Result<PathBuf, String> {
     if tool == Tool::Shrinkler {
         return crate::amiga_tools::download(crate::amiga_tools::Tool::Shrinkler);
     }
-    let folder = tools_folder().ok_or("There's nowhere to keep it: Limoniter's settings folder couldn't be found.")?.join(tool.id());
+    let folder = tools_folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?.join(tool.id());
     if let Some((address, inside)) = tool.release() {
         let bytes = get(address)?;
         let program = match inside {
             Some(inside) => from_zip(bytes, inside)?,
             None => bytes,
         };
-        std::fs::create_dir_all(&folder).map_err(|e| format!("{} couldn't be made: {e}", folder.display()))?;
+        std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("{} couldn't be made: {e}", folder.display()))?;
         let path = folder.join(exe_name(tool));
-        std::fs::write(&path, program).map_err(|e| format!("{} couldn't be saved: {e}", path.display()))?;
+        std::fs::write(&path, program).map_err(|e| crate::i18n::tf!("{} couldn't be saved: {e}", path.display()))?;
         return Ok(path);
     }
     build(tool, &folder)
 }
 
 fn get(address: &str) -> Result<Vec<u8>, String> {
-    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| format!("{address} couldn't be reached: {e}"))?;
+    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("{address} couldn't be reached: {e}"))?;
     let mut bytes = Vec::new();
-    response.into_body().into_reader().take(64 << 20).read_to_end(&mut bytes).map_err(|e| format!("The download stopped: {e}"))?;
+    response.into_body().into_reader().take(64 << 20).read_to_end(&mut bytes).map_err(|e| crate::i18n::tf!("The download stopped: {e}"))?;
     Ok(bytes)
 }
 
@@ -429,18 +429,18 @@ fn from_zip(zip: Vec<u8>, inside: &str) -> Result<Vec<u8>, String> {
     let mut dir: Option<crate::media::Entry> = None;
     let parts: Vec<&str> = inside.split('/').collect();
     for (i, part) in parts.iter().enumerate() {
-        let found = volume.list(dir.as_ref())?.into_iter().find(|e| e.name.eq_ignore_ascii_case(part)).ok_or_else(|| format!("The release has no {inside} in it."))?;
+        let found = volume.list(dir.as_ref())?.into_iter().find(|e| e.name.eq_ignore_ascii_case(part)).ok_or_else(|| crate::i18n::tf!("The release has no {inside} in it."))?;
         if i + 1 == parts.len() {
             return volume.read(&found);
         }
         dir = Some(found);
     }
-    Err(format!("The release has no {inside} in it."))
+    Err(crate::i18n::tf!("The release has no {inside} in it."))
 }
 
 /// Writes every file under a folder of a zip into `target`, keeping the folders.
 fn unzip_folder(volume: &dyn crate::media::Volume, dir: Option<&crate::media::Entry>, target: &Path) -> Result<usize, String> {
-    std::fs::create_dir_all(target).map_err(|e| format!("{} couldn't be made: {e}", target.display()))?;
+    std::fs::create_dir_all(target).map_err(|e| crate::i18n::tf!("{} couldn't be made: {e}", target.display()))?;
     let mut count = 0;
     for entry in volume.list(dir)? {
         if entry.name.contains(['/', '\\']) || entry.name == ".." || entry.name == "." {
@@ -450,7 +450,7 @@ fn unzip_folder(volume: &dyn crate::media::Volume, dir: Option<&crate::media::En
         if entry.is_dir {
             count += unzip_folder(volume, Some(&entry), &path)?;
         } else {
-            std::fs::write(&path, volume.read(&entry)?).map_err(|e| format!("{} couldn't be written: {e}", path.display()))?;
+            std::fs::write(&path, volume.read(&entry)?).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", path.display()))?;
             count += 1;
         }
     }
@@ -491,17 +491,17 @@ fn build_recipe(tool: Tool, top: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {
 
 /// Fetches a tool's source and builds it with the C compiler here.
 fn build(tool: Tool, folder: &Path) -> Result<PathBuf, String> {
-    let (address, top) = tool.source().ok_or_else(|| format!("There's no {} release for this computer to download, and Limoniter doesn't build it. {}", tool.name(), tool.how_to_get()))?;
-    let compiler = c_compiler().ok_or_else(|| format!("Building {} needs a C compiler (cc, gcc or clang), and none was found. {}", tool.name(), tool.how_to_get()))?;
+    let (address, top) = tool.source().ok_or_else(|| crate::i18n::tf!("There's no {} release for this computer to download, and Limoniter doesn't build it. {}", tool.name(), tool.how_to_get()))?;
+    let compiler = c_compiler().ok_or_else(|| crate::i18n::tf!("Building {} needs a C compiler (cc, gcc or clang), and none was found. {}", tool.name(), tool.how_to_get()))?;
     let zip = get(address)?;
     let volume = crate::media::open(std::sync::Arc::new(zip), "source.zip")?;
     let source = folder.join("source");
     let _ = std::fs::remove_dir_all(&source);
-    let top_entry = volume.list(None)?.into_iter().find(|e| e.is_dir && e.name == top).ok_or_else(|| format!("The source has no {top} folder."))?;
+    let top_entry = volume.list(None)?.into_iter().find(|e| e.is_dir && e.name == top).ok_or_else(|| crate::i18n::tf!("The source has no {top} folder."))?;
     unzip_folder(&*volume, Some(&top_entry), &source)?;
     let (files, includes) = build_recipe(tool, &source);
     if files.is_empty() {
-        return Err(format!("{}'s source isn't laid out as Limoniter expects, so it wasn't built.", tool.name()));
+        return Err(crate::i18n::tf!("{}'s source isn't laid out as Limoniter expects, so it wasn't built.", tool.name()));
     }
     let program = folder.join(exe_name(tool));
     let mut args: Vec<String> = vec!["-O2".into(), "-o".into(), program.display().to_string()];
@@ -510,7 +510,7 @@ fn build(tool: Tool, folder: &Path) -> Result<PathBuf, String> {
     let (ok, printed) = run(&compiler, &args, &source, &AtomicBool::new(false))?;
     if !ok || !program.is_file() {
         let tail: Vec<String> = printed.iter().rev().take(8).rev().cloned().collect();
-        return Err(format!("Building {} didn't work:\n{}", tool.name(), tail.join("\n")));
+        return Err(crate::i18n::tf!("Building {} didn't work:\n{}", tool.name(), tail.join("\n")));
     }
     let _ = std::fs::remove_dir_all(&source);
     Ok(program)

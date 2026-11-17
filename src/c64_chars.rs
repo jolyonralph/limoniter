@@ -332,8 +332,8 @@ pub fn convert_char_pixels(pixels: &[[f32; 3]], columns: usize, rows: usize, set
     let mut colour = vec![0u8; columns * rows];
     let mut screen = vec![0u8; columns * rows];
     if mode == CharMode::Petscii {
-        let rom = rom.ok_or("PETSCII needs the shapes of the C64's characters: open a character ROM file (the 4096-byte chargen, as VICE keeps it).")?;
-        let set = rom_set(rom, settings.lower_case).ok_or("The character ROM is too short: it should be 4096 bytes (or 2048 for one set).")?;
+        let rom = rom.ok_or(crate::i18n::tr("PETSCII needs the shapes of the C64's characters: open a character ROM file (the 4096-byte chargen, as VICE keeps it)."))?;
+        let set = rom_set(rom, settings.lower_case).ok_or(crate::i18n::tr("The character ROM is too short: it should be 4096 bytes (or 2048 for one set)."))?;
         let mut total = 0.0;
         for (cell, px) in cells.iter().enumerate() {
             let away: Vec<f32> = px.iter().map(|&p| quantise::distance(p, palette[usize::from(background)])).collect();

@@ -244,11 +244,11 @@ impl Limoniter {
         let themes = &mut self.themes;
         let in_front = themes.document_for(&self.docs[self.active]).name.clone();
         let most = (ctx.content_rect().height() - 80.0).max(300.0);
-        egui::Window::new("Themes").collapsible(false).resizable(true).default_width(860.0).max_height(most).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Themes")).collapsible(false).resizable(true).default_width(860.0).max_height(most).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut state.page, ThemePage::Documents, "Document themes");
-                ui.selectable_value(&mut state.page, ThemePage::Window, "Window themes");
-                ui.selectable_value(&mut state.page, ThemePage::Rules, "Which documents get which theme");
+                ui.selectable_value(&mut state.page, ThemePage::Documents, crate::i18n::tr("Document themes"));
+                ui.selectable_value(&mut state.page, ThemePage::Window, crate::i18n::tr("Window themes"));
+                ui.selectable_value(&mut state.page, ThemePage::Rules, crate::i18n::tr("Which documents get which theme"));
             });
             ui.separator();
             egui::ScrollArea::vertical().id_salt("theme-page").max_height(most - 140.0).auto_shrink([false, true]).show(ui, |ui| match state.page {
@@ -258,7 +258,7 @@ impl Limoniter {
             });
             ui.separator();
             ui.horizontal(|ui| {
-                if ui.button("Close").clicked() {
+                if ui.button(crate::i18n::tr("Close")).clicked() {
                     close = true;
                 }
                 if !state.problem.is_empty() {
@@ -285,7 +285,7 @@ fn theme_list(ui: &mut Ui, names: &[(String, bool)], chosen: &mut String, in_use
                 label = label.strong();
             }
             let response = ui.selectable_label(chosen == name, label);
-            let response = if *built_in { response } else { response.on_hover_text("Your own theme") };
+            let response = if *built_in { response } else { response.on_hover_text(crate::i18n::tr("Your own theme")) };
             if response.clicked() {
                 chosen.clone_from(name);
             }
@@ -316,7 +316,7 @@ fn colour_grid(ui: &mut Ui, colours: &[(&str, &str, &str)], mut get: impl FnMut(
                             changed = true;
                         }
                     });
-                    ui.label(*label);
+                    ui.label(crate::i18n::tr(label));
                     ui.end_row();
                 }
             });
@@ -373,7 +373,7 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
             ui.set_width(200.0);
             let usual = themes.document.clone();
             theme_list(ui, &names, &mut state.document, &[usual.as_str(), in_front]);
-            ui.label(RichText::new("Bold: the usual theme, and the one the file in front is shown in.").color(theme::text_faint()).small());
+            ui.label(RichText::new(crate::i18n::tr("Bold: the usual theme, and the one the file in front is shown in.")).color(theme::text_faint()).small());
         });
         ui.separator();
         ui.vertical(|ui| {
@@ -383,32 +383,32 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
             let built_in = themes.is_built_in_document(&state.document);
             let current = themes.documents[index].clone();
             ui.horizontal(|ui| {
-                if ui.add_enabled(themes.document != current.name, egui::Button::new("Use for documents")).on_hover_text("The theme for documents no rule picks another for").clicked() {
+                if ui.add_enabled(themes.document != current.name, egui::Button::new(crate::i18n::tr("Use for documents"))).on_hover_text(crate::i18n::tr("The theme for documents no rule picks another for")).clicked() {
                     themes.document.clone_from(&current.name);
                     changed = true;
                 }
-                if ui.button("Make a copy to change").clicked() {
+                if ui.button(crate::i18n::tr("Make a copy to change")).clicked() {
                     let mut copy = (*current).clone();
                     copy.name = Themes::free_name(|n| themes.documents.iter().any(|t| t.name == n), &current.name);
                     state.document.clone_from(&copy.name);
                     themes.documents.push(Rc::new(copy));
                     changed = true;
                 }
-                if !built_in && ui.button("Delete").clicked() {
+                if !built_in && ui.button(crate::i18n::tr("Delete")).clicked() {
                     themes.documents.remove(index);
                     if themes.document == current.name {
                         themes.document = "Limoniter Dark".into();
                     }
                     changed = true;
                 }
-                if ui.button("Save to a file\u{2026}").clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title("Save the theme").set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
+                if ui.button(crate::i18n::tr("Save to a file\u{2026}")).clicked()
+                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
                     && let Err(e) = std::fs::write(&path, current.to_text())
                 {
                     state.problem = format!("Couldn't save it: {e}");
                 }
-                if ui.button("Open a theme file\u{2026}").clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title("Open a theme").add_filter("Limoniter theme", &["limoniter-theme"]).pick_file()
+                if ui.button(crate::i18n::tr("Open a theme file\u{2026}")).clicked()
+                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
                 {
                     match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|text| DocumentTheme::from_text(&text)) {
                         Ok(mut theme) => {
@@ -425,7 +425,7 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                 }
             });
             if built_in {
-                ui.label(RichText::new("Themes that come with Limoniter can't be changed. Make a copy to change it.").color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tr("Themes that come with Limoniter can't be changed. Make a copy to change it.")).color(theme::text_faint()));
             }
             let Some(index) = themes.documents.iter().position(|t| t.name == state.document) else {
                 return;
@@ -434,15 +434,15 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
             let old_name = theme.name.clone();
             ui.add_enabled_ui(!built_in, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Name:");
+                    ui.label(crate::i18n::tr("Name:"));
                     let mut name = theme.name.clone();
                     if ui.add(egui::TextEdit::singleline(&mut name).desired_width(200.0)).lost_focus() && !name.trim().is_empty() && name.trim() != old_name {
                         theme.name = name.trim().to_string();
                     }
-                    changed |= ui.checkbox(&mut theme.light, "Light").on_hover_text("Whether it's a light theme or a dark one").changed();
-                    ui.label("Syntax colours:");
+                    changed |= ui.checkbox(&mut theme.light, crate::i18n::tr("Light")).on_hover_text(crate::i18n::tr("Whether it's a light theme or a dark one")).changed();
+                    ui.label(crate::i18n::tr("Syntax colours:"));
                     egui::ComboBox::from_id_salt("theme-syntax").selected_text(theme.syntax.as_str()).width(180.0).show_ui(ui, |ui| {
-                        if ui.selectable_label(theme.syntax == crate::highlight::NO_SYNTAX_COLOURS, "None: the text colour for everything").clicked() {
+                        if ui.selectable_label(theme.syntax == crate::highlight::NO_SYNTAX_COLOURS, crate::i18n::tr("None: the text colour for everything")).clicked() {
                             theme.syntax = crate::highlight::NO_SYNTAX_COLOURS.to_string();
                             changed = true;
                         }
@@ -456,12 +456,12 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                 });
                 ui.horizontal(|ui| {
                     let (mut back, mut text, mut accent) = state.seeds.unwrap_or((theme.editor_back, theme.editor_text, theme.caret));
-                    ui.label("Start again from three colours:");
-                    egui::color_picker::color_edit_button_srgba(ui, &mut back, egui::color_picker::Alpha::Opaque).on_hover_text("Background");
-                    egui::color_picker::color_edit_button_srgba(ui, &mut text, egui::color_picker::Alpha::Opaque).on_hover_text("Text");
-                    egui::color_picker::color_edit_button_srgba(ui, &mut accent, egui::color_picker::Alpha::Opaque).on_hover_text("Accent, for the cursor and selection");
+                    ui.label(crate::i18n::tr("Start again from three colours:"));
+                    egui::color_picker::color_edit_button_srgba(ui, &mut back, egui::color_picker::Alpha::Opaque).on_hover_text(crate::i18n::tr("Background"));
+                    egui::color_picker::color_edit_button_srgba(ui, &mut text, egui::color_picker::Alpha::Opaque).on_hover_text(crate::i18n::tr("Text"));
+                    egui::color_picker::color_edit_button_srgba(ui, &mut accent, egui::color_picker::Alpha::Opaque).on_hover_text(crate::i18n::tr("Accent, for the cursor and selection"));
                     state.seeds = Some((back, text, accent));
-                    if ui.button("Make the rest from these").clicked() {
+                    if ui.button(crate::i18n::tr("Make the rest from these")).clicked() {
                         let made = theme::document_from(&theme.name, theme.light, back, text, accent, &theme.syntax);
                         *theme = made;
                         changed = true;
@@ -524,7 +524,7 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
             ui.set_width(200.0);
             let using = themes.window.clone();
             theme_list(ui, &names, &mut state.window, &[using.as_str()]);
-            ui.label(RichText::new("Bold: the theme in use.").color(theme::text_faint()).small());
+            ui.label(RichText::new(crate::i18n::tr("Bold: the theme in use.")).color(theme::text_faint()).small());
         });
         ui.separator();
         ui.vertical(|ui| {
@@ -534,32 +534,32 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
             let built_in = themes.is_built_in_window(&state.window);
             let current = themes.windows[index].clone();
             ui.horizontal(|ui| {
-                if ui.add_enabled(themes.window != current.name, egui::Button::new("Use for the window")).clicked() {
+                if ui.add_enabled(themes.window != current.name, egui::Button::new(crate::i18n::tr("Use for the window"))).clicked() {
                     themes.window.clone_from(&current.name);
                     changed = true;
                 }
-                if ui.button("Make a copy to change").clicked() {
+                if ui.button(crate::i18n::tr("Make a copy to change")).clicked() {
                     let mut copy = (*current).clone();
                     copy.name = Themes::free_name(|n| themes.windows.iter().any(|t| t.name == n), &current.name);
                     state.window.clone_from(&copy.name);
                     themes.windows.push(Rc::new(copy));
                     changed = true;
                 }
-                if !built_in && ui.button("Delete").clicked() {
+                if !built_in && ui.button(crate::i18n::tr("Delete")).clicked() {
                     themes.windows.remove(index);
                     if themes.window == current.name {
                         themes.window = "Limoniter Dark".into();
                     }
                     changed = true;
                 }
-                if ui.button("Save to a file\u{2026}").clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title("Save the theme").set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
+                if ui.button(crate::i18n::tr("Save to a file\u{2026}")).clicked()
+                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
                     && let Err(e) = std::fs::write(&path, current.to_text())
                 {
                     state.problem = format!("Couldn't save it: {e}");
                 }
-                if ui.button("Open a theme file\u{2026}").clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title("Open a theme").add_filter("Limoniter theme", &["limoniter-theme"]).pick_file()
+                if ui.button(crate::i18n::tr("Open a theme file\u{2026}")).clicked()
+                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
                 {
                     match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|text| WindowTheme::from_text(&text)) {
                         Ok(mut theme) => {
@@ -576,9 +576,9 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
                 }
             });
             if built_in {
-                ui.label(RichText::new("Themes that come with Limoniter can't be changed. Make a copy to change it.").color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tr("Themes that come with Limoniter can't be changed. Make a copy to change it.")).color(theme::text_faint()));
             } else {
-                ui.label(RichText::new("Changes to the theme in use show at once.").color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tr("Changes to the theme in use show at once.")).color(theme::text_faint()));
             }
             let Some(index) = themes.windows.iter().position(|t| t.name == state.window) else {
                 return;
@@ -587,21 +587,21 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
             let old_name = theme.name.clone();
             ui.add_enabled_ui(!built_in, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Name:");
+                    ui.label(crate::i18n::tr("Name:"));
                     let mut name = theme.name.clone();
                     if ui.add(egui::TextEdit::singleline(&mut name).desired_width(200.0)).lost_focus() && !name.trim().is_empty() && name.trim() != old_name {
                         theme.name = name.trim().to_string();
                     }
-                    changed |= ui.checkbox(&mut theme.light, "Light").changed();
+                    changed |= ui.checkbox(&mut theme.light, crate::i18n::tr("Light")).changed();
                 });
                 ui.horizontal(|ui| {
                     let (mut back, mut text, mut accent) = state.seeds.unwrap_or((theme.window, theme.text, theme.accent));
-                    ui.label("Start again from three colours:");
-                    egui::color_picker::color_edit_button_srgba(ui, &mut back, egui::color_picker::Alpha::Opaque).on_hover_text("Window");
-                    egui::color_picker::color_edit_button_srgba(ui, &mut text, egui::color_picker::Alpha::Opaque).on_hover_text("Text");
-                    egui::color_picker::color_edit_button_srgba(ui, &mut accent, egui::color_picker::Alpha::Opaque).on_hover_text("Accent");
+                    ui.label(crate::i18n::tr("Start again from three colours:"));
+                    egui::color_picker::color_edit_button_srgba(ui, &mut back, egui::color_picker::Alpha::Opaque).on_hover_text(crate::i18n::tr("Window"));
+                    egui::color_picker::color_edit_button_srgba(ui, &mut text, egui::color_picker::Alpha::Opaque).on_hover_text(crate::i18n::tr("Text"));
+                    egui::color_picker::color_edit_button_srgba(ui, &mut accent, egui::color_picker::Alpha::Opaque).on_hover_text(crate::i18n::tr("Accent"));
                     state.seeds = Some((back, text, accent));
-                    if ui.button("Make the rest from these").clicked() {
+                    if ui.button(crate::i18n::tr("Make the rest from these")).clicked() {
                         *theme = theme::window_from(&theme.name, theme.light, back, text, accent);
                         changed = true;
                     }
@@ -647,7 +647,7 @@ fn rules_page(ui: &mut Ui, themes: &mut Themes) -> bool {
     let mut changed = false;
     let names: Vec<String> = themes.documents.iter().map(|t| t.name.clone()).collect();
     ui.horizontal(|ui| {
-        ui.label("Documents no rule fits use:");
+        ui.label(crate::i18n::tr("Documents no rule fits use:"));
         let mut usual = themes.document.clone();
         egui::ComboBox::from_id_salt("usual-document-theme").selected_text(usual.as_str()).width(220.0).show_ui(ui, |ui| {
             for name in &names {
@@ -659,7 +659,7 @@ fn rules_page(ui: &mut Ui, themes: &mut Themes) -> bool {
             changed = true;
         }
     });
-    ui.label(RichText::new("The first rule that fits a document chooses its theme. Endings, languages and character sets can be listed with commas; a character set matches by the start of its name, so \u{201C}teletext\u{201D} matches every teletext set.").color(theme::text_faint()));
+    ui.label(RichText::new(crate::i18n::tr("The first rule that fits a document chooses its theme. Endings, languages and character sets can be listed with commas; a character set matches by the start of its name, so \u{201C}teletext\u{201D} matches every teletext set.")).color(theme::text_faint()));
     ui.add_space(4.0);
     let mut remove = None;
     let mut swap = None;
@@ -667,9 +667,9 @@ fn rules_page(ui: &mut Ui, themes: &mut Themes) -> bool {
     {
         egui::Grid::new("theme-rules-grid").num_columns(4).spacing([8.0, 6.0]).show(ui, |ui| {
             for (n, rule) in themes.rules.iter_mut().enumerate() {
-                egui::ComboBox::from_id_salt(("rule-when", n)).selected_text(rule.when.label()).width(150.0).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt(("rule-when", n)).selected_text(crate::i18n::tr(rule.when.label())).width(150.0).show_ui(ui, |ui| {
                     for when in When::ALL {
-                        if ui.selectable_label(rule.when == when, when.label()).clicked() {
+                        if ui.selectable_label(rule.when == when, crate::i18n::tr(when.label())).clicked() {
                             rule.when = when;
                             changed = true;
                         }
@@ -683,7 +683,7 @@ fn rules_page(ui: &mut Ui, themes: &mut Themes) -> bool {
                     };
                     changed |= ui.add_sized([240.0, 22.0], egui::TextEdit::singleline(&mut rule.value).hint_text(hint)).changed();
                 } else {
-                    ui.label("");
+                    ui.label(crate::i18n::tr(""));
                 }
                 egui::ComboBox::from_id_salt(("rule-theme", n)).selected_text(rule.theme.as_str()).width(200.0).show_ui(ui, |ui| {
                     for name in &names {
@@ -694,13 +694,13 @@ fn rules_page(ui: &mut Ui, themes: &mut Themes) -> bool {
                     }
                 });
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(n > 0, egui::Button::new("\u{2191}").small()).on_hover_text("Ask this rule first").clicked() {
+                    if ui.add_enabled(n > 0, egui::Button::new(crate::i18n::tr("\u{2191}")).small()).on_hover_text(crate::i18n::tr("Ask this rule first")).clicked() {
                         swap = Some(n - 1);
                     }
-                    if ui.add_enabled(n + 1 < count, egui::Button::new("\u{2193}").small()).on_hover_text("Ask this rule later").clicked() {
+                    if ui.add_enabled(n + 1 < count, egui::Button::new(crate::i18n::tr("\u{2193}")).small()).on_hover_text(crate::i18n::tr("Ask this rule later")).clicked() {
                         swap = Some(n);
                     }
-                    if ui.small_button("Remove").clicked() {
+                    if ui.small_button(crate::i18n::tr("Remove")).clicked() {
                         remove = Some(n);
                     }
                 });
@@ -717,11 +717,11 @@ fn rules_page(ui: &mut Ui, themes: &mut Themes) -> bool {
         changed = true;
     }
     ui.horizontal(|ui| {
-        if ui.button("Add a rule").clicked() {
+        if ui.button(crate::i18n::tr("Add a rule")).clicked() {
             themes.rules.push(Rule::new(When::Ending, "", &themes.document.clone()));
             changed = true;
         }
-        if ui.button("Put back the suggested rules").on_hover_text("Commodore, Atari, Spectrum, BBC and Amiga text each in its machine's colours").clicked() {
+        if ui.button(crate::i18n::tr("Put back the suggested rules")).on_hover_text(crate::i18n::tr("Commodore, Atari, Spectrum, BBC and Amiga text each in its machine's colours")).clicked() {
             for rule in suggested_rules() {
                 if !themes.rules.contains(&rule) {
                     themes.rules.push(rule);

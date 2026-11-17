@@ -188,7 +188,7 @@ fn decode(flux: &Flux, family: Family, pull: pll::Loop, nudge: f64) -> TrackRead
 }
 
 /// Runs `work` on each item on all the computer's cores, keeping the results in order.
-fn in_parallel<T: Sync, R: Send + Default>(items: &[T], work: impl Fn(&T) -> R + Sync) -> Vec<R> {
+pub(crate) fn in_parallel<T: Sync, R: Send + Default>(items: &[T], work: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let next = AtomicUsize::new(0);
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).clamp(1, 16).min(items.len().max(1));
     let mut results: Vec<R> = (0..items.len()).map(|_| R::default()).collect();
@@ -704,7 +704,7 @@ impl Volume for FluxDisk {
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
         if let Some(dir) = dir {
-            return self.inner.as_ref().ok_or("This disk has no folders Limoniter can read.")?.list(Some(dir));
+            return self.inner.as_ref().ok_or(crate::i18n::tr("This disk has no folders Limoniter can read."))?.list(Some(dir));
         }
         let mut entries = match &self.inner {
             Some(inner) => inner.list(None)?,
@@ -724,7 +724,7 @@ impl Volume for FluxDisk {
         if entry.extra == WHOLE_DISK {
             return Ok(self.plain.as_ref().clone());
         }
-        self.inner.as_ref().ok_or("That isn't on this disk.")?.read(entry)
+        self.inner.as_ref().ok_or(crate::i18n::tr("That isn't on this disk."))?.read(entry)
     }
 
     fn notes(&self) -> Vec<String> {

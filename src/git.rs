@@ -66,7 +66,7 @@ pub fn run(root: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn run_bytes(root: &Path, args: &[&str]) -> Result<Output, String> {
-    let output = command(Some(root)).args(args).output().map_err(|e| format!("Git couldn't be started: {e}"))?;
+    let output = command(Some(root)).args(args).output().map_err(|e| crate::i18n::tf!("Git couldn't be started: {e}"))?;
     if output.status.success() {
         Ok(output)
     } else {
@@ -79,7 +79,7 @@ fn run_bytes(root: &Path, args: &[&str]) -> Result<Output, String> {
 /// Runs git with something on its standard input, such as a patch.
 fn run_with_input(root: &Path, args: &[&str], input: &[u8]) -> Result<String, String> {
     use std::io::Write;
-    let mut child = command(Some(root)).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("Git couldn't be started: {e}"))?;
+    let mut child = command(Some(root)).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| crate::i18n::tf!("Git couldn't be started: {e}"))?;
     child.stdin.take().map(|mut stdin| stdin.write_all(input)).transpose().map_err(|e| e.to_string())?;
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     if output.status.success() { Ok(String::from_utf8_lossy(&output.stdout).into_owned()) } else { Err(String::from_utf8_lossy(&output.stderr).trim().to_string()) }
@@ -349,7 +349,7 @@ pub fn push(root: &Path, status: &Status) -> Result<String, String> {
     let output = match (&status.upstream, &status.branch) {
         (Some(_), _) => run_bytes(root, &["push"])?,
         (None, Some(branch)) => run_bytes(root, &["push", "--set-upstream", "origin", branch])?,
-        (None, None) => return Err("There's no branch to push: switch to one first.".into()),
+        (None, None) => return Err(crate::i18n::tr("There's no branch to push: switch to one first.").into()),
     };
     Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
 }
@@ -365,9 +365,9 @@ pub fn fetch(root: &Path) -> Result<String, String> {
 
 /// Clones a repository into a new folder.
 pub fn clone(url: &str, into: &Path) -> Result<(), String> {
-    let parent = into.parent().ok_or("Choose a folder to put it in.")?;
+    let parent = into.parent().ok_or(crate::i18n::tr("Choose a folder to put it in."))?;
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    let output = command(Some(parent)).args(["clone", "--", url]).arg(into).output().map_err(|e| format!("Git couldn't be started: {e}"))?;
+    let output = command(Some(parent)).args(["clone", "--", url]).arg(into).output().map_err(|e| crate::i18n::tf!("Git couldn't be started: {e}"))?;
     if output.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&output.stderr).trim().to_string()) }
 }
 

@@ -7,6 +7,7 @@
 mod apple2;
 mod atari8;
 mod atari_st;
+pub mod bmp;
 mod c64;
 mod gem;
 mod ilbm;
@@ -50,10 +51,12 @@ pub enum Format {
     NextScreen,
     /// An Atari 8-bit screen: Graphics 8, 15 (MicroPainter), 9 or 7.
     Atari8,
+    /// A Windows bitmap, as the Spectrum Next's `.bmpload` takes.
+    Bmp,
 }
 
 impl Format {
-    pub const ALL: [Self; 14] = [Self::Png, Self::Jpeg, Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
+    pub const ALL: [Self; 15] = [Self::Png, Self::Jpeg, Self::Bmp, Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -71,6 +74,7 @@ impl Format {
             Self::AppleHires => "Apple II hi-res screen",
             Self::NextScreen => "ZX Spectrum Next screen",
             Self::Atari8 => "Atari 8-bit screen",
+            Self::Bmp => "BMP picture",
         }
     }
 }
@@ -112,6 +116,9 @@ pub fn detect(name: &str, bytes: &[u8]) -> Option<Format> {
     }
     if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
         return Some(Format::Jpeg);
+    }
+    if bmp::looks_like(bytes) {
+        return Some(Format::Bmp);
     }
     if ilbm::looks_like(bytes) {
         return Some(Format::Ilbm);
@@ -171,7 +178,7 @@ pub fn decode_named(format: Format, name: &str, bytes: &[u8]) -> Result<Picture,
     match format {
         Format::AtariSt => {
             if bytes.len() > MOST_PICTURE_BYTES {
-                return Err("This file is too large to be a picture of this kind.".into());
+                return Err(crate::i18n::tr("This file is too large to be a picture of this kind.").into());
             }
             atari_st::decode(&ending(name), bytes)
         }
@@ -183,7 +190,7 @@ pub fn decode_named(format: Format, name: &str, bytes: &[u8]) -> Result<Picture,
 
 pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
     if bytes.len() > MOST_PICTURE_BYTES {
-        return Err("This file is too large to be a picture of this kind.".into());
+        return Err(crate::i18n::tr("This file is too large to be a picture of this kind.").into());
     }
     match format {
         Format::Png => {
@@ -195,6 +202,7 @@ pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
             today(image.width, image.height, image.rgba)
         }
         Format::Ilbm => ilbm::decode(bytes),
+        Format::Bmp => bmp::decode(bytes),
         Format::SpectrumScreen => spectrum::decode(bytes),
         Format::PhotoCd => photo_cd::decode(bytes),
         Format::C64 => c64::decode(bytes),
@@ -218,7 +226,7 @@ const MOST_SIDE: usize = 16384;
 /// A picture in one of today's formats, with square pixels.
 fn today(width: usize, height: usize, rgba: Vec<u8>) -> Result<Picture, String> {
     if width > MOST_SIDE || height > MOST_SIDE {
-        return Err(format!("At {width} by {height} pixels, it's too large to show."));
+        return Err(crate::i18n::tf!("At {width} by {height} pixels, it's too large to show."));
     }
     let mut picture = Picture { width, height, rgba, aspect: 1.0, info: Vec::new(), cycling: None };
     picture.note("Size", format!("{width} \u{D7} {height} pixels"));
@@ -247,7 +255,7 @@ pub fn to_png(picture: &Picture) -> Result<Vec<u8>, String> {
 /// A name to save a picture as PNG under: the file's own, with ".png" in place of its ending.
 pub fn png_name(name: &str) -> String {
     let path = std::path::Path::new(name);
-    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "spu" | "spc" | "sps" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic" | "hip"));
+    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "spu" | "spc" | "sps" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic" | "hip" | "bmp"));
     let stem = if known { path.file_stem() } else { path.file_name() };
     format!("{}.png", stem.map_or_else(|| "picture".into(), |s| s.to_string_lossy()))
 }
@@ -383,6 +391,7 @@ mod tests {
                             Format::AppleHires => "hgr",
                             Format::NextScreen => "sl2",
                             Format::Atari8 => name.rsplit('.').next().unwrap_or("gr8"),
+                            Format::Bmp => "bmp",
                         };
                         std::fs::write(out.join(format!("{number:04}.{ending}")), bytes).unwrap();
                         std::fs::write(out.join(format!("{number:04}.png")), to_png(&picture).unwrap()).unwrap();

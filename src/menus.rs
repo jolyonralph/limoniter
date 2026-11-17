@@ -457,6 +457,8 @@ const FORMAT: &[Entry] = &[
             Item("Save as a Commodore program (.prg)\u{2026}", Command::SaveCommodoreProgram),
             Item("Save as a BBC BASIC program\u{2026}", Command::SaveBbcProgram),
             Item("Save as a BBC BASIC (Z80) program, for the Z88 or NC100\u{2026}", Command::SaveBbcZ80Program),
+            Item("Save as an AMOS program (.AMOS)\u{2026}", Command::SaveAmosProgram),
+            Item("Save as a STOS program (.BAS)\u{2026}", Command::SaveStosProgram),
             Line,
             Keyed("Spectrum GRAPH mode", Command::GraphMode, "Ctrl+Shift+9"),
             Item("Spectrum UDG pictures from\u{2026}", Command::UdgPictures),
@@ -562,6 +564,11 @@ const TOOLS: &[Entry] = &[
     Item("Disassemble\u{2026}", Command::Disassemble),
     Item("Character and sprite editor", Command::PixelEditor),
     Item("Spectrum screen designer", Command::ScreenDesigner),
+    Item("Picture converter: Spectrum, Next, CPC, MSX, BBC", Command::RetroPictures),
+    Item("Spectrum Next Layer 2 painter", Command::NextPainter),
+    Item("Atari 2600 sprites and playfield", Command::Atari2600Graphics),
+    Item("Sound effects: AY, SID, 2600, beeper", Command::SoundEffects),
+    Item("Ripper: music and graphics in any file", Command::Ripper),
     Sub(
         "Amiga",
         &[
@@ -799,7 +806,10 @@ pub(super) fn hidden_commands(query: &str) -> Vec<Found> {
 pub(super) fn every_command() -> Vec<Found> {
     fn walk(entries: &[Entry], path: &str, out: &mut Vec<Found>) {
         for entry in entries {
-            let named = |label: &str| if path.is_empty() { label.to_string() } else { format!("{path} \u{203A} {label}") };
+            let named = |label: &str| {
+                let label = crate::i18n::tr(label);
+                if path.is_empty() { label.to_string() } else { format!("{path} \u{203A} {label}") }
+            };
             match entry {
                 Item(label, command) => out.push(Found { path: named(label), shortcut: "", command: *command }),
                 Keyed(label, command, key) => out.push(Found { path: named(label), shortcut: key, command: *command }),
@@ -811,7 +821,7 @@ pub(super) fn every_command() -> Vec<Found> {
     }
     let mut out = Vec::new();
     for (title, entries) in MENUS {
-        walk(entries, title, &mut out);
+        walk(entries, crate::i18n::tr(title), &mut out);
     }
     out
 }
@@ -1011,7 +1021,7 @@ impl Limoniter {
             Command::SaveDocumentAs(_) => doc.legacy.is_some(),
             Command::GraphMode | Command::UdgPictures => !no_file && self.is_spectrum_basic(self.active),
             Command::OpenBasicListing => !t.is_disk_backed() && preview::kind_for_file(doc.path.as_deref(), "", &t.format) == Some(preview::Kind::Basic),
-            Command::SaveSpectrumTape | Command::SaveNextProgram | Command::SaveCommodoreProgram | Command::SaveBbcProgram | Command::SaveBbcZ80Program => text && !t.is_disk_backed(),
+            Command::SaveSpectrumTape | Command::SaveNextProgram | Command::SaveCommodoreProgram | Command::SaveBbcProgram | Command::SaveBbcZ80Program | Command::SaveAmosProgram | Command::SaveStosProgram => text && !t.is_disk_backed(),
             Command::UsedFileBack | Command::UsedFileForward => self.docs.iter().filter(|doc| !doc.placeholder).count() > 1,
             Command::StopTool => self.tool_running(),
             Command::SplitFile => text && doc.path.is_some(),
@@ -1114,7 +1124,7 @@ impl Limoniter {
     }
 
     fn menu_item(&self, ui: &mut Ui, label: &str, shortcut: &str, command: Command, chosen: &mut Option<Command>) {
-        let button = Button::new(label).shortcut_text(RichText::new(shown_shortcut(shortcut)).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0));
+        let button = Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(shown_shortcut(shortcut)).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0));
         if ui.add_enabled(self.can(command), button).clicked() {
             *chosen = Some(command);
             ui.close();
@@ -1129,30 +1139,30 @@ impl Limoniter {
                 Keyed(label, command, key) => self.menu_item(ui, label, key, *command, chosen),
                 Check(label, flag) => {
                     let mut on = self.flag_on(*flag);
-                    if ui.add_enabled(self.can(Command::Toggle(*flag)), egui::Checkbox::new(&mut on, *label)).clicked() {
+                    if ui.add_enabled(self.can(Command::Toggle(*flag)), egui::Checkbox::new(&mut on, crate::i18n::tr(label))).clicked() {
                         *chosen = Some(Command::Toggle(*flag));
                     }
                 }
                 Sub(label, inner) if opened_out => {
-                    ui.label(RichText::new(*label).color(theme::text_dim()));
+                    ui.label(RichText::new(crate::i18n::tr(label)).color(theme::text_dim()));
                     ui.indent(*label, |ui| self.draw_entries(ui, inner, true, chosen, picks));
                 }
                 // Laid open for a picture, a sub-menu shows as it does in a menu that's been clicked: a name and an arrow.
                 Sub(label, _) if self.drawing_open => {
-                    ui.add(Button::new(*label).shortcut_text(RichText::new("\u{203A}").color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
+                    ui.add(Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(crate::i18n::tr("\u{203A}")).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
                 }
                 Sub(label, inner) => {
-                    ui.menu_button(*label, |ui| {
+                    ui.menu_button(crate::i18n::tr(label), |ui| {
                         ui.set_min_width(MENU_WIDTH);
                         self.draw_entries(ui, inner, false, chosen, picks);
                     });
                 }
                 Entry::Live(label, live) if opened_out || *live == Live::TabSize => self.live_entries(ui, *live, label, chosen, picks),
                 Entry::Live(label, _) if self.drawing_open => {
-                    ui.add(Button::new(*label).shortcut_text(RichText::new("\u{203A}").color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
+                    ui.add(Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(crate::i18n::tr("\u{203A}")).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
                 }
                 Entry::Live(label, live) => {
-                    ui.menu_button(*label, |ui| {
+                    ui.menu_button(crate::i18n::tr(label), |ui| {
                         ui.set_min_width(MENU_WIDTH);
                         self.live_entries(ui, *live, label, chosen, picks);
                     });
@@ -1172,7 +1182,7 @@ impl Limoniter {
         match live {
             Live::RecentFiles => {
                 if self.panels.recent.is_empty() {
-                    empty(ui, "Files you open will be listed here.");
+                    empty(ui, crate::i18n::tr("Files you open will be listed here."));
                 }
                 for path in self.panels.recent.iter().take(15) {
                     if ui.button(name_of(path)).on_hover_text(path.display().to_string()).clicked() {
@@ -1183,12 +1193,12 @@ impl Limoniter {
                 if !self.panels.recent.is_empty() {
                     ui.separator();
                     ui.horizontal(|ui| {
-                        if ui.button("Clean up").on_hover_text("Take files that are no longer there off the list").clicked() {
+                        if ui.button(crate::i18n::tr("Clean up")).on_hover_text(crate::i18n::tr("Take files that are no longer there off the list")).clicked() {
                             picks.push(Pick::Command(Command::CleanRecent));
                             ui.close();
                         }
-                        ui.label(RichText::new("|").color(theme::text_faint()));
-                        if ui.button("Clear list").on_hover_text("Empty the list").clicked() {
+                        ui.label(RichText::new(crate::i18n::tr("|")).color(theme::text_faint()));
+                        if ui.button(crate::i18n::tr("Clear list")).on_hover_text(crate::i18n::tr("Empty the list")).clicked() {
                             picks.push(Pick::Command(Command::ClearRecent));
                             ui.close();
                         }
@@ -1198,7 +1208,7 @@ impl Limoniter {
             Live::Tasks => {
                 let tasks = self.tasks_here();
                 if tasks.is_empty() {
-                    empty(ui, "No tasks here: none of Cargo.toml, a Makefile, package.json, go.mod or CMakeLists.txt above the file, and no project tasks.");
+                    empty(ui, crate::i18n::tr("No tasks here: none of Cargo.toml, a Makefile, package.json, go.mod or CMakeLists.txt above the file, and no project tasks."));
                 }
                 for (index, task) in tasks.iter().enumerate() {
                     if ui.add(Button::new(task.name.as_str()).shortcut_text(RichText::new(task.kind.label()).color(theme::text_faint()))).on_hover_text(&task.command).clicked() {
@@ -1216,14 +1226,14 @@ impl Limoniter {
                     }
                 }
                 ui.separator();
-                if ui.button("Change this list\u{2026}").clicked() {
+                if ui.button(crate::i18n::tr("Change this list\u{2026}")).clicked() {
                     picks.push(Pick::Command(Command::EditNewKinds));
                     ui.close();
                 }
             }
             Live::RecentProjects => {
                 if self.recent_projects.is_empty() {
-                    empty(ui, "Projects you open will be listed here.");
+                    empty(ui, crate::i18n::tr("Projects you open will be listed here."));
                 }
                 for path in &self.recent_projects {
                     if ui.button(name_of(path)).on_hover_text(path.display().to_string()).clicked() {
@@ -1257,7 +1267,7 @@ impl Limoniter {
             Live::DocumentThemes => {
                 let names: Vec<String> = self.themes.documents.iter().map(|t| t.name.clone()).collect();
                 if !self.themes.rules.is_empty() {
-                    empty(ui, "For documents no rule picks a theme for. Themes and rules sets the rules.");
+                    empty(ui, crate::i18n::tr("For documents no rule picks a theme for. Themes and rules sets the rules."));
                 }
                 for name in names {
                     if ui.radio(self.themes.document == name, name.as_str()).clicked() {
@@ -1283,7 +1293,7 @@ impl Limoniter {
             }
             Live::Devices => {
                 if self.sends.devices.is_empty() {
-                    empty(ui, "Devices you set up are listed here. Manage devices adds one: a card, a folder, a server, a Spectrum Next or an Ultimate 64.");
+                    empty(ui, crate::i18n::tr("Devices you set up are listed here. Manage devices adds one: a card, a folder, a server, a Spectrum Next or an Ultimate 64."));
                 }
                 let usable = !self.no_file() && self.docs[self.active].browser.is_none();
                 for number in 0..self.sends.devices.len() {
@@ -1318,10 +1328,10 @@ impl Limoniter {
                 self.addons.refresh_if_stale();
                 let commands = self.addons.commands();
                 if commands.is_empty() {
-                    empty(ui, "Add-ons that are on list their commands here. Manage add-ons turns them on.");
+                    empty(ui, crate::i18n::tr("Add-ons that are on list their commands here. Manage add-ons turns them on."));
                 }
                 for (number, listed) in commands.iter().enumerate() {
-                    if ui.button(listed.title.as_str()).on_hover_text(format!("From {}", listed.addon)).clicked() {
+                    if ui.button(listed.title.as_str()).on_hover_text(crate::i18n::tf!("From {}", listed.addon)).clicked() {
                         picks.push(Pick::AddOn(number));
                         ui.close();
                     }
@@ -1332,10 +1342,10 @@ impl Limoniter {
                 let usable = !doc.hex_mode && !self.no_file() && highlight::engine().is_some();
                 ui.add_enabled_ui(usable, |ui| {
                     egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
-                        if ui.radio(doc.language == Language::Auto, "Work it out").clicked() {
+                        if ui.radio(doc.language == Language::Auto, crate::i18n::tr("Work it out")).clicked() {
                             picks.push(Pick::Language(Language::Auto));
                         }
-                        if ui.radio(doc.language == Language::Off, "Plain text").clicked() {
+                        if ui.radio(doc.language == Language::Off, crate::i18n::tr("Plain text")).clicked() {
                             picks.push(Pick::Language(Language::Off));
                         }
                         ui.separator();
@@ -1351,7 +1361,7 @@ impl Limoniter {
             }
             Live::Snippets => {
                 if self.snippets.is_empty() {
-                    empty(ui, "Snippets you make will be listed here.");
+                    empty(ui, crate::i18n::tr("Snippets you make will be listed here."));
                 }
                 let usable = !self.no_file() && !self.docs[self.active].hex_mode;
                 for (index, snippet) in self.snippets.iter().enumerate() {
@@ -1364,7 +1374,7 @@ impl Limoniter {
             }
             Live::Layouts | Live::DeleteLayouts => {
                 if self.layouts.is_empty() {
-                    empty(ui, "Layouts you save will be listed here.");
+                    empty(ui, crate::i18n::tr("Layouts you save will be listed here."));
                 }
                 for (index, layout) in self.layouts.iter().enumerate() {
                     if ui.button(layout.name.as_str()).clicked() {
@@ -1386,23 +1396,23 @@ impl Limoniter {
                     }
                 }
                 if !any {
-                    empty(ui, "Snippets with $SELECTION in them will be listed here.");
+                    empty(ui, crate::i18n::tr("Snippets with $SELECTION in them will be listed here."));
                 }
             }
             Live::Tags => {
                 let text = &self.docs[self.active].text;
                 let tags = if self.docs[self.active].hex_mode || self.no_file() { Vec::new() } else { text.tags() };
                 if tags.is_empty() {
-                    empty(ui, "Sections you tag with a colour will be listed here.");
+                    empty(ui, crate::i18n::tr("Sections you tag with a colour will be listed here."));
                 }
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
                     for (first, last, colour) in tags {
                         let words: String = text.format.readable_text(&text.line(first)).trim().chars().take(48).collect();
                         let mut job = egui::text::LayoutJob::default();
-                        RichText::new("\u{25A0}  ").color(theme::tag_colour(colour)).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
-                        RichText::new(format!("{}  ", first + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(crate::i18n::tr("\u{25A0}  ")).color(theme::tag_colour(colour)).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(crate::i18n::tf!("{}  ", first + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         RichText::new(if words.is_empty() { "(blank line)".to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
-                        if ui.button(job).on_hover_text(format!("Lines {} to {}", first + 1, last + 1)).clicked() {
+                        if ui.button(job).on_hover_text(crate::i18n::tf!("Lines {} to {}", first + 1, last + 1)).clicked() {
                             picks.push(Pick::Line(first));
                             ui.close();
                         }
@@ -1413,13 +1423,13 @@ impl Limoniter {
                 let text = &self.docs[self.active].text;
                 let marks = if self.docs[self.active].hex_mode || self.no_file() { Vec::new() } else { text.bookmarks() };
                 if marks.is_empty() {
-                    empty(ui, "Lines you bookmark (Ctrl+F2) will be listed here.");
+                    empty(ui, crate::i18n::tr("Lines you bookmark (Ctrl+F2) will be listed here."));
                 }
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
                     for line in marks.into_iter().take(500) {
                         let words: String = text.format.readable_text(&text.line(line)).trim().chars().take(48).collect();
                         let mut job = egui::text::LayoutJob::default();
-                        RichText::new(format!("{}  ", line + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(crate::i18n::tf!("{}  ", line + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         RichText::new(if words.is_empty() { "(blank line)".to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         if ui.button(job).clicked() {
                             picks.push(Pick::Line(line));
@@ -1430,8 +1440,8 @@ impl Limoniter {
             }
             Live::TabSize => {
                 ui.horizontal(|ui| {
-                    ui.label(label);
-                    ui.add(egui::DragValue::new(&mut self.view.tab_size).range(text_buffer::MIN_TAB_SIZE..=text_buffer::MAX_TAB_SIZE)).on_hover_text("Columns from one tab stop to the next, for all open files");
+                    ui.label(crate::i18n::tr(&*label));
+                    ui.add(egui::DragValue::new(&mut self.view.tab_size).range(text_buffer::MIN_TAB_SIZE..=text_buffer::MAX_TAB_SIZE)).on_hover_text(crate::i18n::tr("Columns from one tab stop to the next, for all open files"));
                 });
             }
         }
@@ -1491,7 +1501,7 @@ impl Limoniter {
             ui.spacing_mut().button_padding = egui::vec2(9.0, 4.0);
             first_menu_left = ui.cursor().min.x;
             for (number, (title, entries)) in MENUS.iter().enumerate() {
-                let menu = ui.menu_button(*title, |ui| {
+                let menu = ui.menu_button(crate::i18n::tr(title), |ui| {
                     ui.set_min_width(MENU_WIDTH);
                     self.draw_entries(ui, entries, false, &mut chosen, &mut picks);
                 });
@@ -1554,8 +1564,8 @@ impl Limoniter {
         }
         state.selected = state.selected.min(found.len().saturating_sub(1));
         let mut run = None;
-        egui::Window::new("Find a command").title_bar(false).collapsible(false).resizable(false).fixed_size(egui::vec2(560.0, 0.0)).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
-            let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text("Type what you want to do, such as \u{201C}sort\u{201D} or \u{201C}wrap\u{201D}").desired_width(f32::INFINITY).margin(egui::vec2(10.0, 8.0)).font(egui::FontId::proportional(16.0)));
+        egui::Window::new(crate::i18n::tr("Find a command")).title_bar(false).collapsible(false).resizable(false).fixed_size(egui::vec2(560.0, 0.0)).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
+            let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("Type what you want to do, such as \u{201C}sort\u{201D} or \u{201C}wrap\u{201D}")).desired_width(f32::INFINITY).margin(egui::vec2(10.0, 8.0)).font(egui::FontId::proportional(16.0)));
             if state.focus {
                 field.request_focus();
                 state.focus = false;
@@ -1566,7 +1576,7 @@ impl Limoniter {
             let field_id = field.id;
             ui.add_space(6.0);
             if found.is_empty() {
-                ui.label(RichText::new("Nothing matches that. Try another word.").color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tr("Nothing matches that. Try another word.")).color(theme::text_faint()));
             }
             egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
                 for (index, each) in found.iter().enumerate() {
@@ -1613,7 +1623,7 @@ impl Limoniter {
                 }
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("\u{2191} \u{2193} to choose, Enter to do it, Esc to close").color(theme::text_faint()).size(11.5));
+            ui.label(RichText::new(crate::i18n::tr("\u{2191} \u{2193} to choose, Enter to do it, Esc to close")).color(theme::text_faint()).size(11.5));
         });
         if enter && let Some(index) = found.get(state.selected).map(|_| state.selected) && usable[index] {
             run = Some(found[index].command);
@@ -1641,10 +1651,10 @@ fn command_box(ui: &mut Ui) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(250.0, 24.0), egui::Sense::click());
     let back = if response.hovered() { theme::hover() } else { theme::field() };
     ui.painter().rect(rect, 7.0, back, egui::Stroke::new(1.0, theme::border()), egui::StrokeKind::Inside);
-    ui.painter().text(egui::pos2(rect.min.x + 10.0, rect.center().y), egui::Align2::LEFT_CENTER, "Find a command\u{2026}", egui::FontId::proportional(13.0), theme::text_faint());
+    ui.painter().text(egui::pos2(rect.min.x + 10.0, rect.center().y), egui::Align2::LEFT_CENTER, crate::i18n::tr("Find a command\u{2026}"), egui::FontId::proportional(13.0), theme::text_faint());
     ui.painter().text(egui::pos2(rect.max.x - 10.0, rect.center().y), egui::Align2::RIGHT_CENTER, "F1", egui::FontId::proportional(12.0), theme::text_faint());
     crate::access::button(&response, "Find a command (F1)");
-    response.on_hover_text("Find any command by what it does")
+    response.on_hover_text(crate::i18n::tr("Find any command by what it does"))
 }
 
 #[cfg(test)]

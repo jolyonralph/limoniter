@@ -79,16 +79,16 @@ fn valid_sid_byte(byte: u8) -> bool {
 
 pub fn read(bytes: &[u8]) -> Result<Tune, String> {
     if bytes.len() < 4 || !matches!(&bytes[..4], b"PSID" | b"RSID") {
-        return Err("This isn't a SID tune: it doesn't start with PSID or RSID.".into());
+        return Err(crate::i18n::tr("This isn't a SID tune: it doesn't start with PSID or RSID.").into());
     }
     if bytes.len() < 0x76 {
-        return Err("The SID header is cut short.".into());
+        return Err(crate::i18n::tr("The SID header is cut short.").into());
     }
     let word = |at: usize| u16::from_be_bytes([bytes[at], bytes[at + 1]]);
     let magic = if &bytes[..4] == b"RSID" { Magic::Rsid } else { Magic::Psid };
     let version = word(4);
     if !(1..=4).contains(&version) {
-        return Err(format!("The SID header says it's version {version}; only 1 to 4 exist."));
+        return Err(crate::i18n::tf!("The SID header says it's version {version}; only 1 to 4 exist."));
     }
     let mut tune = Tune {
         magic: Some(magic),
@@ -131,10 +131,10 @@ pub fn read(bytes: &[u8]) -> Result<Tune, String> {
     if usize::from(tune.data_offset) != expected {
         tune.notes.push(format!("The data starts at ${:02X}, where a version {version} header ends at ${expected:02X}.", tune.data_offset));
     }
-    let mut data = bytes.get(usize::from(tune.data_offset)..).ok_or("The SID file ends before its data starts.")?;
+    let mut data = bytes.get(usize::from(tune.data_offset)..).ok_or(crate::i18n::tr("The SID file ends before its data starts."))?;
     if tune.load == 0 {
         if data.len() < 2 {
-            return Err("The SID file's data is too short to hold the load address it should start with.".into());
+            return Err(crate::i18n::tr("The SID file's data is too short to hold the load address it should start with.").into());
         }
         tune.load = u16::from_le_bytes([data[0], data[1]]);
         tune.load_in_data = true;

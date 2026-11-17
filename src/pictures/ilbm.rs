@@ -185,7 +185,7 @@ fn widen4(level: u8) -> u8 {
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     if !looks_like(bytes) {
-        return Err("This isn't an IFF ILBM picture.".into());
+        return Err(crate::i18n::tr("This isn't an IFF ILBM picture.").into());
     }
     let chunky = &bytes[8..12] == b"PBM ";
     let end = (8 + be32(bytes, 4) as usize).min(bytes.len());
@@ -255,23 +255,23 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         }
         at += 8 + len + (len & 1);
     }
-    let header = header.ok_or("This IFF picture has no BMHD chunk, so its size isn't known.")?;
-    let body = body.ok_or("This IFF picture has no pixels (no BODY chunk); it may hold a palette or settings alone.")?;
+    let header = header.ok_or(crate::i18n::tr("This IFF picture has no BMHD chunk, so its size isn't known."))?;
+    let body = body.ok_or(crate::i18n::tr("This IFF picture has no pixels (no BODY chunk); it may hold a palette or settings alone."))?;
     if header.width == 0 || header.height == 0 {
-        return Err("This picture is 0 pixels across or down.".into());
+        return Err(crate::i18n::tr("This picture is 0 pixels across or down.").into());
     }
     if header.width * header.height > 64 * 1024 * 1024 {
-        return Err(format!("This picture says it's {}\u{D7}{}, larger than any real one.", header.width, header.height));
+        return Err(crate::i18n::tf!("This picture says it's {}\u{D7}{}, larger than any real one.", header.width, header.height));
     }
     let camg = camg.unwrap_or(0);
     let planes = header.planes;
     let ham = camg & CAMG_HAM != 0 && !chunky && matches!(planes, 5..=8);
     let ehb = camg & CAMG_EHB != 0 && !chunky && planes == 6 && !ham;
     if !chunky && !matches!(planes, 1..=8 | 24 | 32) {
-        return Err(format!("This picture has {planes} bit planes, which isn't a kind Limoniter can show."));
+        return Err(crate::i18n::tf!("This picture has {planes} bit planes, which isn't a kind Limoniter can show."));
     }
     if chunky && planes != 8 {
-        return Err(format!("This PBM picture has {planes} bits a pixel; PBM pictures have 8."));
+        return Err(crate::i18n::tf!("This PBM picture has {planes} bits a pixel; PBM pictures have 8."));
     }
 
     // Each row of each plane is a whole number of 16-bit words; a PBM's rows are a whole number of bytes, made even.
@@ -286,8 +286,8 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
             (raw, short)
         }
         1 => unpack_byterun1(body, size),
-        2 => return Err("This picture is packed with the Atari ST's vertical RLE (VDAT), which Limoniter doesn't unpack yet.".into()),
-        other => return Err(format!("This picture is packed in a way (compression {other}) Limoniter doesn't know.")),
+        2 => return Err(crate::i18n::tr("This picture is packed with the Atari ST's vertical RLE (VDAT), which Limoniter doesn't unpack yet.").into()),
+        other => return Err(crate::i18n::tf!("This picture is packed in a way (compression {other}) Limoniter doesn't know.")),
     };
 
     // Old programs saved the palette's 4-bit levels in the high nibble alone; they're shown as the Amiga showed them.

@@ -64,11 +64,11 @@ impl Cas {
         // a TRS-80's, whose leader is followed by its sync byte.
         let leader = data.iter().take_while(|&&b| b == 0x55).count();
         if leader >= 16 && trs80_header(&data, 0).is_none_or(|(bit, _)| bit / 8 > leader + 64) {
-            return Err("This tape starts with a Color Computer or Dragon leader, but no file in their standard format follows it: it may load with a loader of its own.".into());
+            return Err(crate::i18n::tr("This tape starts with a Color Computer or Dragon leader, but no file in their standard format follows it: it may load with a loader of its own.").into());
         }
         let (files, notes, speeds) = trs80_files(&data);
         if files.is_empty() {
-            return Err("No TRS-80 or MSX files were found on this tape.".into());
+            return Err(crate::i18n::tr("No TRS-80 or MSX files were found on this tape.").into());
         }
         Ok(Self { what: format!("TRS-80 cassette (CAS, {speeds}) \u{B7} {} file(s)", files.len()), msx: false, files, notes })
     }

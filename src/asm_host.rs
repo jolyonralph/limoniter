@@ -186,24 +186,24 @@ impl Limoniter {
                 assemblers::assemble_own_to_run(cpu, &path, &text)
             }
             Choice::Program { id, path: program } if report => {
-                let found = assemblers::external(id).ok_or("That assembler isn't known.")?;
+                let found = assemblers::external(id).ok_or(crate::i18n::tr("That assembler isn't known."))?;
                 if doc.path.is_none() {
-                    return Err(format!("Save the file first, so {} can read it.", found.name));
+                    return Err(crate::i18n::tf!("Save the file first, so {} can read it.", found.name));
                 }
                 if doc.is_modified() {
                     let index = self.active;
                     if !self.save(index) {
-                        return Err("The file couldn't be saved, so it wasn't assembled.".into());
+                        return Err(crate::i18n::tr("The file couldn't be saved, so it wasn't assembled.").into());
                     }
                     if self.docs[index].saving.is_some() {
-                        return Err("The file is being saved. Run it again once that's finished.".into());
+                        return Err(crate::i18n::tr("The file is being saved. Run it again once that's finished.").into());
                     }
                 }
                 let version = self.docs[self.active].text.version();
                 let assembled = assemblers::assemble_external(found, program, &path)?;
                 return self.keep_assembled(doc_id, version, &choice, assembled, &stem, report, save);
             }
-            Choice::Program { .. } => return Err("Not assembled yet.".into()),
+            Choice::Program { .. } => return Err(crate::i18n::tr("Not assembled yet.").into()),
         };
         self.keep_assembled(doc_id, version, &choice, assembled, &stem, report, save)
     }
@@ -298,6 +298,7 @@ impl Limoniter {
         };
         let name = self.docs[index].name();
         let mut lines = vec![format!("Assembling {name} with {}", choice.name())];
+        self.memory_map = None;
         if !assembly.ok() {
             // What the other assembler printed, as it printed it, besides the problems read from it.
             lines.extend(assembled.printed.iter().filter(|l| assemblers::problem_line(l).is_none() && !l.trim().is_empty()).cloned());
@@ -316,6 +317,12 @@ impl Limoniter {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
                 let size = if assembled.tape.is_some() { format!("A {} was made", run.format.medium().unwrap_or("tape")) } else { format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
+                let chunks: Vec<(i64, usize)> = assembly.chunks.iter().map(|c| (c.address, c.bytes.len())).collect();
+                if let Some(map) = crate::memory_map::map(run.machine, &chunks) {
+                    lines.push(map.summary());
+                    lines.extend(map.warnings.iter().map(|w| format!("Memory: {w}")));
+                    self.memory_map = Some(map);
+                }
             }
             Err(problem) if problem == ASK_6502 => lines.push("It doesn't say whether it's for a Commodore 64, a BBC Micro or an Atari 2600. Put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top to say.".into()),
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
@@ -367,7 +374,7 @@ impl Limoniter {
         };
         let doc = &self.docs[self.active];
         let stem = doc.path_or_name().file_stem().map_or_else(|| "program".to_string(), |s| s.to_string_lossy().into_owned());
-        let mut picker = rfd::FileDialog::new().set_title("Save the assembled bytes as").set_file_name(format!("{stem}.bin")).add_filter("Binary", &["bin"]).add_filter("Any file", &["*"]);
+        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the assembled bytes as")).set_file_name(format!("{stem}.bin")).add_filter(crate::i18n::tr("Binary"), &["bin"]).add_filter(crate::i18n::tr("Any file"), &["*"]);
         if let Some(folder) = doc.path.as_deref().and_then(Path::parent) {
             picker = picker.set_directory(folder);
         }
@@ -463,38 +470,38 @@ impl Limoniter {
         let mut keep = false;
         let mut browse = false;
         let mut fetch_kickass = false;
-        egui::Window::new("Assemblers").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it.");
+        egui::Window::new(crate::i18n::tr("Assemblers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tr("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it."));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 for (index, row) in state.rows.iter().enumerate() {
                     let own = if row.chosen == Choice::Own { "Limoniter's own".to_string() } else { assemblers::external(match &row.chosen { Choice::Program { id, .. } => id, Choice::Own => "" }).map_or_else(String::new, |e| e.name.to_string()) };
-                    if ui.selectable_label(state.showing == index, row.cpu.name()).on_hover_text(own).clicked() {
+                    if ui.selectable_label(state.showing == index, crate::i18n::tr(row.cpu.name())).on_hover_text(own).clicked() {
                         state.showing = index;
                     }
                 }
             });
             ui.separator();
             let row = &mut state.rows[state.showing];
-            ui.label(format!("{} source is assembled with:", row.cpu.name()));
+            ui.label(crate::i18n::tf!("{} source is assembled with:", row.cpu.name()));
             ui.add_space(4.0);
-            ui.radio_value(&mut row.chosen, Choice::Own, "Limoniter's own assembler (nothing to install)");
+            ui.radio_value(&mut row.chosen, Choice::Own, crate::i18n::tr("Limoniter's own assembler (nothing to install)"));
             for (found, path) in &row.found {
                 let choice = Choice::Program { id: found.id, path: path.clone() };
-                ui.radio_value(&mut row.chosen, choice, format!("{}  ({})", found.name, path.display()));
+                ui.radio_value(&mut row.chosen, choice, crate::i18n::tf!("{}  ({})", found.name, path.display()));
             }
             if let Choice::Program { id, path } = row.chosen.clone()
                 && !row.found.iter().any(|(f, p)| f.id == id && *p == path)
             {
                 let label = format!("{}  ({})", assemblers::external(id).map_or(id, |e| e.name), path.display());
                 let choice = row.chosen.clone();
-                ui.radio_value(&mut row.chosen, choice, label);
+                ui.radio_value(&mut row.chosen, choice, crate::i18n::tr(&label));
             }
             ui.add_space(4.0);
             let others: Vec<&assemblers::External> = assemblers::KNOWN.iter().filter(|e| e.cpu == row.cpu && !row.found.iter().any(|(f, _)| f.id == e.id)).collect();
             if !others.is_empty() {
                 let words: Vec<String> = others.iter().map(|e| format!("{} ({})", e.name, e.website)).collect();
-                ui.add(egui::Label::new(RichText::new(format!("Not found on this computer: {}. Once installed, they appear here; or point to one.", words.join(", "))).color(theme::text_dim()).size(12.0)).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("Not found on this computer: {}. Once installed, they appear here; or point to one.", words.join(", "))).color(theme::text_dim()).size(12.0)).wrap());
             }
             // KickAssembler can be fetched from its author's website, on request, with a plain word about its terms.
             if row.cpu == Cpu::M6502 && others.iter().any(|e| e.id == "kickass") {
@@ -503,13 +510,13 @@ impl Limoniter {
                 ui.horizontal(|ui| {
                     if state.kickass.is_some() {
                         ui.spinner();
-                        ui.label("Downloading\u{2026}");
+                        ui.label(crate::i18n::tr("Downloading\u{2026}"));
                     } else {
-                        fetch_kickass = ui.button("Download KickAssembler from theweb.dk").on_hover_text(crate::c64_assemblers::KICKASS_DOWNLOAD).clicked();
+                        fetch_kickass = ui.button(crate::i18n::tr("Download KickAssembler from theweb.dk")).on_hover_text(crate::c64_assemblers::KICKASS_DOWNLOAD).clicked();
                     }
                 });
                 if crate::c64_assemblers::find_java().is_none() {
-                    ui.colored_label(theme::change_unsaved(), "Java wasn't found on this computer; KickAssembler needs it to run.");
+                    ui.colored_label(theme::change_unsaved(), crate::i18n::tr("Java wasn't found on this computer; KickAssembler needs it to run."));
                 }
             }
             if !state.kickass_said.is_empty() {
@@ -517,9 +524,9 @@ impl Limoniter {
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                browse = ui.button("Point to an assembler\u{2026}").clicked();
-                keep = ui.button("OK").clicked();
-                close |= ui.button("Cancel").clicked();
+                browse = ui.button(crate::i18n::tr("Point to an assembler\u{2026}")).clicked();
+                keep = ui.button(crate::i18n::tr("OK")).clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             });
         });
         if fetch_kickass
@@ -533,7 +540,7 @@ impl Limoniter {
             state.kickass = Some(rx);
         }
         if browse
-            && let Some(path) = rfd::FileDialog::new().set_title("The assembler program").pick_file()
+            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("The assembler program")).pick_file()
             && let Dialog::Assembler(state) = &mut self.dialog
         {
             let row = &mut state.rows[state.showing];
@@ -542,7 +549,7 @@ impl Limoniter {
                 None => {
                     let known: Vec<&str> = assemblers::KNOWN.iter().filter(|e| e.cpu == row.cpu).map(|e| e.name).collect();
                     let cpu = row.cpu.name();
-                    self.message("Assemblers", format!("Limoniter doesn't know that program, so it can't read what it prints or the program it makes. For {cpu} source it works with {}.", known.join(" and ")));
+                    self.message("Assemblers", crate::i18n::tf!("Limoniter doesn't know that program, so it can't read what it prints or the program it makes. For {cpu} source it works with {}.", known.join(" and ")));
                     return true;
                 }
             }
@@ -614,7 +621,7 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
         Cpu::M68k if !assembled.assembly.absolute && assembled.tape.is_none() && assembled.assembly.lowest() == Some(0) => {
             let shift = 0x10000;
             let path = assembled.assembly.files.first().cloned().unwrap_or_default();
-            let source = assembled.source.clone().or_else(|| std::fs::read_to_string(&path).ok()).ok_or("The source couldn't be read again to make the program movable.")?;
+            let source = assembled.source.clone().or_else(|| std::fs::read_to_string(&path).ok()).ok_or(crate::i18n::tr("The source couldn't be read again to make the program movable."))?;
             let moved = crate::assemblers::assemble_own_at(Cpu::M68k, &path, &source, shift);
             let bytes = crate::asm::output::atari_program(&assembled.assembly, &moved, shift)?;
             Runnable::from_file(&format!("{stem}.tos"), bytes).map(Made::Run).ok_or_else(|| "The Atari ST program couldn't be made.".into())
@@ -622,7 +629,7 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
         Cpu::M68k => {
             let assembly = &assembled.assembly;
             let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-                return Err("Nothing was assembled.".into());
+                return Err(crate::i18n::tr("Nothing was assembled.").into());
             };
             Ok(Made::Saved { name: format!("{stem}.bin"), bytes: assembly.image(low, high) })
         }
@@ -633,7 +640,7 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
 pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> Result<Runnable, String> {
     if let Some((format, bytes)) = &assembled.tape {
         let name = format!("{stem}.{}", format.ending());
-        return Runnable::from_file(&name, bytes.clone()).ok_or_else(|| format!("{name} isn't a program Limoniter knows how to run."));
+        return Runnable::from_file(&name, bytes.clone()).ok_or_else(|| crate::i18n::tf!("{name} isn't a program Limoniter knows how to run."));
     }
     let assembly = &assembled.assembly;
     // A program the source made itself (SAVENEX, SAVESNA, SAVETAP) is the one run, as it was meant to be.
@@ -650,7 +657,7 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
         && assembly.lowest().is_some_and(|low| (0x2000..0x4000).contains(&low))
     {
         let name = Path::new(&dot.name).file_name().map_or_else(|| dot.name.clone(), |n| n.to_string_lossy().into_owned());
-        return Err(format!("This is a dot command, run by typing .{} on a Next: put {name} in the dot folder of the Next's SD card (open the card's image in Limoniter and add it, or copy it to the card).", name.trim_end_matches('.')));
+        return Err(crate::i18n::tf!("This is a dot command, run by typing .{} on a Next: put {name} in the dot folder of the Next's SD card (open the card's image in Limoniter and add it, or copy it to the card).", name.trim_end_matches('.')));
     }
     if cpu == Cpu::M6502 {
         return match micro.said.or_else(|| crate::asm::output::machine_6502(assembly)).or(micro.asked) {
@@ -668,11 +675,11 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
             // An Atari 2600 cartridge: its ROM, from the lowest address to the highest.
             Some(Micro6502::Atari2600) => {
                 let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-                    return Err("Nothing was assembled.".into());
+                    return Err(crate::i18n::tr("Nothing was assembled.").into());
                 };
                 let bytes = assembly.image(low, high);
                 if crate::atari2600::detect(&bytes).is_none() {
-                    return Err(format!("{} bytes isn't the size of an Atari 2600 cartridge (2K, 4K, 8K, 12K, 16K or 32K, up to the vectors at $FFFC).", bytes.len()));
+                    return Err(crate::i18n::tf!("{} bytes isn't the size of an Atari 2600 cartridge (2K, 4K, 8K, 12K, 16K or 32K, up to the vectors at $FFFC).", bytes.len()));
                 }
                 Ok(Runnable { machine: Machine::Atari2600, format: Format::A26, name: format!("{stem}.a26"), bytes: Arc::new(bytes) })
             }

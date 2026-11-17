@@ -77,7 +77,7 @@ fn swatch(ui: &mut egui::Ui, rgb: [u8; 3], tip: &str) {
     let (rect, response) = ui.allocate_exact_size(vec2(28.0, 14.0), Sense::hover());
     ui.painter().rect_filled(rect, 2.0, Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
     ui.painter().rect_stroke(rect, 2.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    response.on_hover_text(tip);
+    response.on_hover_text(crate::i18n::tr(tip));
 }
 
 /// A call to a function as source: its arguments pushed last first, the function's number, the trap, and the
@@ -100,9 +100,9 @@ impl HwWindow {
     fn registers_tab(&mut self, ui: &mut egui::Ui) -> Option<String> {
         let mut insert = None;
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search: name, address or words").desired_width(240.0));
+            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text(crate::i18n::tr("Search: name, address or words")).desired_width(240.0));
             egui::ComboBox::from_id_salt("st-hw-machine").selected_text(self.machine.map_or("Every machine", |m| m.name())).show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.machine, None, "Every machine");
+                ui.selectable_value(&mut self.machine, None, crate::i18n::tr("Every machine"));
                 for machine in Machine::ALL {
                     ui.selectable_value(&mut self.machine, Some(machine), format!("What the {} has", machine.name()));
                 }
@@ -137,7 +137,7 @@ impl HwWindow {
             ui.vertical(|ui| {
                 ui.set_width(480.0);
                 let Some(register) = st_hw::at(self.selected) else {
-                    ui.label("Choose a register.");
+                    ui.label(crate::i18n::tr("Choose a register."));
                     return;
                 };
                 ui.label(RichText::new(&register.name).strong().size(16.0));
@@ -157,7 +157,7 @@ impl HwWindow {
                     ui.add_space(6.0);
                 }
                 if !st_hw::status_fields(register).is_empty() {
-                    ui.label(RichText::new("Read, it's the status:").strong());
+                    ui.label(RichText::new(crate::i18n::tr("Read, it's the status:")).strong());
                     egui::Grid::new("st-hw-status").striped(true).num_columns(3).show(ui, |ui| {
                         for f in st_hw::status_fields(register) {
                             ui.label(RichText::new(f.bits()).monospace());
@@ -170,54 +170,54 @@ impl HwWindow {
                 }
                 if register.count > 1 {
                     ui.horizontal(|ui| {
-                        ui.label("Which:");
+                        ui.label(crate::i18n::tr("Which:"));
                         let mut index = register.index(self.selected);
                         if ui.add(egui::DragValue::new(&mut index).range(0..=register.count - 1)).changed() {
                             self.selected = register.address + index * register.size.bytes();
                         }
-                        ui.label(RichText::new(format!("${:06X}", self.selected)).monospace());
+                        ui.label(RichText::new(crate::i18n::tf!("${:06X}", self.selected)).monospace());
                     });
                 }
                 if register.address == 0xFF8802 {
                     ui.horizontal(|ui| {
-                        ui.label("YM register:");
-                        egui::ComboBox::from_id_salt("st-hw-ym").selected_text(format!("{}: {}", self.ym_register, st_hw::YM[self.ym_register as usize].name)).show_ui(ui, |ui| {
+                        ui.label(crate::i18n::tr("YM register:"));
+                        egui::ComboBox::from_id_salt("st-hw-ym").selected_text(crate::i18n::tf!("{}: {}", self.ym_register, st_hw::YM[self.ym_register as usize].name)).show_ui(ui, |ui| {
                             for r in &st_hw::YM {
-                                ui.selectable_value(&mut self.ym_register, r.number, format!("{}: {}", r.number, r.name));
+                                ui.selectable_value(&mut self.ym_register, r.number, crate::i18n::tf!("{}: {}", r.number, r.name));
                             }
                         });
                     });
                     ui.label(RichText::new(st_hw::YM[self.ym_register as usize].about).small());
                 }
                 ui.horizontal(|ui| {
-                    ui.label("Value:");
-                    ui.add(egui::TextEdit::singleline(&mut self.value).hint_text("$0777").desired_width(100.0).font(egui::TextStyle::Monospace));
-                    if ui.button("Copy name").clicked() {
+                    ui.label(crate::i18n::tr("Value:"));
+                    ui.add(egui::TextEdit::singleline(&mut self.value).hint_text(crate::i18n::tr("$0777")).desired_width(100.0).font(egui::TextStyle::Monospace));
+                    if ui.button(crate::i18n::tr("Copy name")).clicked() {
                         ui.ctx().copy_text(register.name.clone());
                     }
-                    if ui.button("Copy the chip's EQUs").on_hover_text(format!("Every register of {} as an EQU line", register.chip.name())).clicked() {
+                    if ui.button(crate::i18n::tr("Copy the chip's EQUs")).on_hover_text(crate::i18n::tf!("Every register of {} as an EQU line", register.chip.name())).clicked() {
                         ui.ctx().copy_text(st_hw::equates(Some(register.chip)));
                     }
-                    if ui.button("Put them in").on_hover_text("The EQU lines at the cursor").clicked() {
+                    if ui.button(crate::i18n::tr("Put them in")).on_hover_text(crate::i18n::tr("The EQU lines at the cursor")).clicked() {
                         insert = Some(st_hw::equates(Some(register.chip)));
                     }
                 });
                 if let Some(value) = number(&self.value) {
                     let value = value as u32;
                     if register.address == 0xFF8802 {
-                        ui.label(RichText::new(format!("YM register {} = ${:02X}: {}", self.ym_register, value as u8, st_hw::explain_ym(self.ym_register, value as u8))).strong());
+                        ui.label(RichText::new(crate::i18n::tf!("YM register {} = ${:02X}: {}", self.ym_register, value as u8, st_hw::explain_ym(self.ym_register, value as u8))).strong());
                     } else if let Some(n) = register.st_colour() {
                         let word = value as u16;
-                        ui.label(RichText::new(format!("Colour {n} = ${word:03X}")).strong());
+                        ui.label(RichText::new(crate::i18n::tf!("Colour {n} = ${word:03X}")).strong());
                         ui.horizontal(|ui| {
                             swatch(ui, st_hw::st_rgb(word), "On an ST");
                             let [r, g, b] = [(word >> 8) & 7, (word >> 4) & 7, word & 7];
-                            ui.label(format!("ST: red {r}, green {g}, blue {b} (of 7)"));
+                            ui.label(crate::i18n::tf!("ST: red {r}, green {g}, blue {b} (of 7)"));
                         });
                         ui.horizontal(|ui| {
                             swatch(ui, st_hw::ste_rgb(word), "On an STE");
                             let [r, g, b] = st_hw::ste_levels(word);
-                            ui.label(format!("STE: red {r}, green {g}, blue {b} (of 15)"));
+                            ui.label(crate::i18n::tf!("STE: red {r}, green {g}, blue {b} (of 15)"));
                         });
                     } else {
                         let said = st_hw::describe_value(register, self.selected, value);
@@ -227,7 +227,7 @@ impl HwWindow {
                         }
                     }
                 } else if !self.value.trim().is_empty() {
-                    ui.label("That isn't a number: write $0777, %0111 or 1911.");
+                    ui.label(crate::i18n::tr("That isn't a number: write $0777, %0111 or 1911."));
                 }
             });
         });
@@ -237,8 +237,8 @@ impl HwWindow {
     fn calls_tab(&mut self, ui: &mut egui::Ui) -> Option<String> {
         let mut insert = None;
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.call_search).hint_text("Search: name, number or words").desired_width(240.0));
-            if ui.button("Copy every call as EQUs").on_hover_text("Cconws equ 9 and the rest, to push the numbers by name").clicked() {
+            ui.add(egui::TextEdit::singleline(&mut self.call_search).hint_text(crate::i18n::tr("Search: name, number or words")).desired_width(240.0));
+            if ui.button(crate::i18n::tr("Copy every call as EQUs")).on_hover_text(crate::i18n::tr("Cconws equ 9 and the rest, to push the numbers by name")).clicked() {
                 ui.ctx().copy_text(st_tos::FUNCTIONS.iter().map(|f| f.equate() + "\n").collect::<String>());
             }
         });
@@ -259,15 +259,15 @@ impl HwWindow {
                         header.show(ui, |ui| {
                             for function in shown {
                                 let chosen = self.call == Some((function.trap, function.number));
-                                if ui.selectable_label(chosen, RichText::new(format!("${:02X}  {}", function.number, function.name)).monospace()).on_hover_text(function.about).clicked() {
+                                if ui.selectable_label(chosen, RichText::new(crate::i18n::tf!("${:02X}  {}", function.number, function.name)).monospace()).on_hover_text(function.about).clicked() {
                                     self.call = Some((function.trap, function.number));
                                 }
                             }
                         });
                     }
-                    egui::CollapsingHeader::new("Line-A ($A000-$A00F)").id_salt("st-calls-linea").show(ui, |ui| {
+                    egui::CollapsingHeader::new(crate::i18n::tr("Line-A ($A000-$A00F)")).id_salt("st-calls-linea").show(ui, |ui| {
                         for (n, (name, about)) in st_tos::LINE_A.iter().enumerate() {
-                            ui.label(RichText::new(format!("$A00{n:X}  {name}")).monospace()).on_hover_text(*about);
+                            ui.label(RichText::new(crate::i18n::tf!("$A00{n:X}  {name}")).monospace()).on_hover_text(*about);
                         }
                     });
                 });
@@ -276,16 +276,16 @@ impl HwWindow {
             ui.vertical(|ui| {
                 ui.set_width(480.0);
                 let Some(function) = self.call.and_then(|(trap, n)| st_tos::function(trap, n as i64)) else {
-                    ui.label("Choose a function.");
+                    ui.label(crate::i18n::tr("Choose a function."));
                     return;
                 };
                 ui.label(RichText::new(function.describe()).monospace());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Put a call in at the cursor").on_hover_text("Its arguments pushed, last first, with 0 for each to fill in").clicked() {
+                    if ui.button(crate::i18n::tr("Put a call in at the cursor")).on_hover_text(crate::i18n::tr("Its arguments pushed, last first, with 0 for each to fill in")).clicked() {
                         insert = Some(call_source(function));
                     }
-                    if ui.button("Copy as an EQU").clicked() {
+                    if ui.button(crate::i18n::tr("Copy as an EQU")).clicked() {
                         ui.ctx().copy_text(function.equate());
                     }
                 });
@@ -324,10 +324,10 @@ impl Limoniter {
         if let Some(mut window) = self.st_tools.hardware.take() {
             let mut open = true;
             let mut insert = None;
-            egui::Window::new("Atari ST hardware").open(&mut open).default_pos([150.0, 100.0]).default_width(770.0).show(ctx, |ui| {
+            egui::Window::new(crate::i18n::tr("Atari ST hardware")).open(&mut open).default_pos([150.0, 100.0]).default_width(770.0).show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut window.tab, Tab::Registers, "Registers");
-                    ui.selectable_value(&mut window.tab, Tab::Calls, "TOS calls");
+                    ui.selectable_value(&mut window.tab, Tab::Registers, crate::i18n::tr("Registers"));
+                    ui.selectable_value(&mut window.tab, Tab::Calls, crate::i18n::tr("TOS calls"));
                 });
                 ui.separator();
                 insert = match window.tab {
@@ -345,7 +345,7 @@ impl Limoniter {
         if let Some(mut blitter) = self.st_tools.blitter.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new("STE blitter").open(&mut open).resizable(false).default_pos([230.0, 100.0]).show(ctx, |ui| {
+            egui::Window::new(crate::i18n::tr("STE blitter")).open(&mut open).resizable(false).default_pos([230.0, 100.0]).show(ctx, |ui| {
                 asked = blitter.draw(ui);
             });
             if let Some(crate::st_blitter::Asked::Insert(text)) = asked {
@@ -358,7 +358,7 @@ impl Limoniter {
         if let Some(mut timers) = self.st_tools.timers.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new("MFP timers").open(&mut open).resizable(false).default_pos([270.0, 120.0]).show(ctx, |ui| {
+            egui::Window::new(crate::i18n::tr("MFP timers")).open(&mut open).resizable(false).default_pos([270.0, 120.0]).show(ctx, |ui| {
                 asked = timers.draw(ui);
             });
             if let Some(crate::mfp_timer::Asked::Insert(text)) = asked {

@@ -77,7 +77,7 @@ fn le32(b: &[u8], at: usize) -> usize {
 impl Woz {
     fn parse(file: &[u8]) -> Result<Self, String> {
         if !looks_like(file) || file.len() < 12 {
-            return Err("This isn't a WOZ disk image: it doesn't start with \"WOZ1\" or \"WOZ2\".".into());
+            return Err(crate::i18n::tr("This isn't a WOZ disk image: it doesn't start with \"WOZ1\" or \"WOZ2\".").into());
         }
         let version = if file[3] == b'1' { 1 } else { 2 };
         let mut woz = Woz { version, disk_type: 1, sides: 1, creator: String::new(), bit_timing: 32, tmap: Vec::new(), flux_map: Vec::new(), tracks: Vec::new(), meta: Vec::new() };
@@ -127,10 +127,10 @@ impl Woz {
             at = start + size;
         }
         if !info || woz.tmap.is_empty() || woz.tracks.is_empty() {
-            return Err("This WOZ image is missing its INFO, TMAP or TRKS chunk, so its tracks can't be found.".into());
+            return Err(crate::i18n::tr("This WOZ image is missing its INFO, TMAP or TRKS chunk, so its tracks can't be found.").into());
         }
         if !matches!(woz.disk_type, 1 | 2) {
-            return Err(format!("This WOZ image says it's a disk of type {}, which is neither 5.25-inch nor 3.5-inch.", woz.disk_type));
+            return Err(crate::i18n::tf!("This WOZ image says it's a disk of type {}, which is neither 5.25-inch nor 3.5-inch.", woz.disk_type));
         }
         Ok(woz)
     }
@@ -424,11 +424,11 @@ impl Source for Sectors {
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
         let start = usize::try_from(offset).map_err(|_| "past the end of the disk".to_string())?;
-        let bytes = start.checked_add(buf.len()).and_then(|end| self.bytes.get(start..end)).ok_or("past the end of the disk")?;
+        let bytes = start.checked_add(buf.len()).and_then(|end| self.bytes.get(start..end)).ok_or(crate::i18n::tr("past the end of the disk"))?;
         if !buf.is_empty()
             && let Some(unit) = (start / self.unit..=(start + buf.len() - 1) / self.unit).find(|&u| !self.found[u])
         {
-            return Err(format!("{} couldn't be read off the disk (it may be copy-protected or damaged), so this can't be read.", self.places[unit]));
+            return Err(crate::i18n::tf!("{} couldn't be read off the disk (it may be copy-protected or damaged), so this can't be read.", self.places[unit]));
         }
         buf.copy_from_slice(bytes);
         Ok(())
@@ -519,7 +519,7 @@ fn decode(file: &[u8]) -> Result<Decoded, String> {
             unwritten.push((format!("track {t}"), blank, per_track));
         }
         if !found.iter().any(|f| *f) {
-            return Err("No sectors could be read from this WOZ image: its tracks don't hold the address and data fields DOS 3.3, ProDOS or DOS 3.2 write, as a copy-protected disk's often don't.".into());
+            return Err(crate::i18n::tr("No sectors could be read from this WOZ image: its tracks don't hold the address and data fields DOS 3.3, ProDOS or DOS 3.2 write, as a copy-protected disk's often don't.").into());
         }
         notes.extend(missing_summary(&missing, "Sectors that couldn't be read, so files using them can't be opened", "Copy-protected disks often have tracks no DOS can read."));
         notes.extend(missing_summary(&unwritten, "Sectors never written (an address field with no data after it, as a freshly formatted DOS 3.2 disk has)", "Like any other unread sector, nothing can be read from them."));
@@ -557,7 +557,7 @@ fn decode(file: &[u8]) -> Result<Decoded, String> {
             }
         }
         if !found.iter().any(|f| *f) {
-            return Err("No sectors could be read from this 3.5-inch WOZ image: its tracks don't hold the Sony format's address and data fields.".into());
+            return Err(crate::i18n::tr("No sectors could be read from this 3.5-inch WOZ image: its tracks don't hold the Sony format's address and data fields.").into());
         }
         notes.extend(missing_summary(&missing, "Sectors that couldn't be read, so files using them can't be opened", "Copy-protected disks often have tracks no DOS can read."));
         (Sectors { on_disk: found.len(), bytes, unit: 512, found, places }, format!("3.5-inch, {}K", if sides == 2 { 800 } else { 400 }))
@@ -623,7 +623,7 @@ impl Volume for WozDisk {
         match (&self.inner, &self.image) {
             (Some(inner), _) => inner.read(entry),
             (None, Some((_, bytes))) => Ok(bytes.clone()),
-            _ => Err("That file isn't on the disk.".into()),
+            _ => Err(crate::i18n::tr("That file isn't on the disk.").into()),
         }
     }
 

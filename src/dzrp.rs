@@ -56,17 +56,17 @@ impl<T: Read + Write> Dzrp<T> {
         let mut buffer = vec![0u8; count];
         while got.len() < count {
             match self.link.read(&mut buffer[..count - got.len()]) {
-                Ok(0) => return Err("The Next closed the connection.".into()),
+                Ok(0) => return Err(crate::i18n::tr("The Next closed the connection.").into()),
                 Ok(n) => got.extend_from_slice(&buffer[..n]),
                 Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted) => {
                     if got.is_empty() && began.elapsed() > wait {
                         return Ok(None);
                     }
                     if began.elapsed() > wait + Duration::from_secs(5) {
-                        return Err("The Next stopped partway through a message.".into());
+                        return Err(crate::i18n::tr("The Next stopped partway through a message.").into());
                     }
                 }
-                Err(e) => return Err(format!("The Next couldn't be read: {e}")),
+                Err(e) => return Err(crate::i18n::tf!("The Next couldn't be read: {e}")),
             }
         }
         Ok(Some(got))
@@ -79,9 +79,9 @@ impl<T: Read + Write> Dzrp<T> {
         };
         let length = u32::from_le_bytes([length[0], length[1], length[2], length[3]]) as usize;
         if length == 0 || length > 0x20000 {
-            return Err(format!("The Next sent a message of {length} bytes, which isn't right."));
+            return Err(crate::i18n::tf!("The Next sent a message of {length} bytes, which isn't right."));
         }
-        let body = self.read_exact(length, Duration::from_secs(5))?.ok_or("The Next stopped partway through a message.")?;
+        let body = self.read_exact(length, Duration::from_secs(5))?.ok_or(crate::i18n::tr("The Next stopped partway through a message."))?;
         Ok(Some(if body[0] == 0 {
             Message::Notification { id: body.get(1).copied().unwrap_or(0), payload: body.get(2..).unwrap_or(&[]).to_vec() }
         } else {
@@ -96,7 +96,7 @@ impl<T: Read + Write> Dzrp<T> {
         message.push(self.seq);
         message.push(command);
         message.extend_from_slice(payload);
-        self.link.write_all(&message).map_err(|e| format!("The Next couldn't be told: {e}"))?;
+        self.link.write_all(&message).map_err(|e| crate::i18n::tf!("The Next couldn't be told: {e}"))?;
         self.link.flush().map_err(|e| e.to_string())?;
         let began = Instant::now();
         while began.elapsed() < Duration::from_secs(10) {
@@ -106,7 +106,7 @@ impl<T: Read + Write> Dzrp<T> {
                 _ => {}
             }
         }
-        Err("The Next stopped answering. Is dezogif running (press its NMI button), and the cable at 921600 baud?".into())
+        Err(crate::i18n::tr("The Next stopped answering. Is dezogif running (press its NMI button), and the cable at 921600 baud?").into())
     }
 
     /// Says hello: the Next must be a Next.
@@ -115,11 +115,11 @@ impl<T: Read + Write> Dzrp<T> {
         payload.extend_from_slice(b"Limoniter\0");
         let said = self.command(CMD_INIT, &payload)?;
         if said.first() != Some(&0) {
-            return Err("dezogif refused to start.".into());
+            return Err(crate::i18n::tr("dezogif refused to start.").into());
         }
         let version = said.get(1..4).map(|v| format!("{}.{}.{}", v[0], v[1], v[2])).unwrap_or_default();
         if said.get(1) != Some(&VERSION[0]) {
-            return Err(format!("dezogif speaks DZRP {version}, and Limoniter {}.{}.{}.", VERSION[0], VERSION[1], VERSION[2]));
+            return Err(crate::i18n::tf!("dezogif speaks DZRP {version}, and Limoniter {}.{}.{}.", VERSION[0], VERSION[1], VERSION[2]));
         }
         let name: String = said.get(5..).unwrap_or(&[]).iter().take_while(|b| **b != 0).map(|b| char::from(*b)).collect();
         Ok(format!("{name} (DZRP {version})"))
@@ -166,7 +166,7 @@ impl<T: Read + Write> Dzrp<T> {
     pub fn set_slot(&mut self, slot: u8, bank: u8) -> Result<(), String> {
         let said = self.command(CMD_SET_SLOT, &[slot, bank])?;
         if said.first().is_some_and(|e| *e != 0) {
-            return Err(format!("The Next couldn't put bank {bank} in slot {slot}."));
+            return Err(crate::i18n::tf!("The Next couldn't put bank {bank} in slot {slot}."));
         }
         Ok(())
     }
@@ -528,7 +528,7 @@ pub mod tests {
     #[test]
     fn every_z80_and_next_instruction_is_measured_right() {
         for (name, text) in [("z80_all.asm", include_str!("asm/testdata/z80_all.asm")), ("z80n_all.asm", include_str!("asm/testdata/z80n_all.asm"))] {
-            let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new(name), text, &|_| Err("no".into()));
+            let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new(name), text, &|_| Err(crate::i18n::tr("no").into()));
             let mut checked = 0;
             for placed in assembly.lines.iter().filter(|p| !p.bytes.is_empty() && p.bytes.len() <= 4) {
                 let bytes = &placed.bytes;

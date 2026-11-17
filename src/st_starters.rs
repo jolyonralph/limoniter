@@ -16,7 +16,7 @@ mod tests {
     use std::path::Path;
 
     fn no_files(path: &Path) -> Result<Vec<u8>, String> {
-        Err(format!("{} isn't there", path.display()))
+        Err(crate::i18n::tf!("{} isn't there", path.display()))
     }
 
     /// A starter made into a TOS program here, against what vasm 2.0f made of it (vasmm68k_mot -Ftos -nosym).

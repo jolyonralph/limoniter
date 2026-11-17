@@ -194,10 +194,10 @@ pub fn endmasks(x: u32, width: u32) -> [u16; 3] {
 /// low resolution), and the strides the bytes from one line to the next.
 pub fn plan(src_x: u32, dst_x: u32, width: u32, height: u32, step: u32, src_stride: u32, dst_stride: u32) -> Result<Plan, String> {
     if width == 0 || height == 0 {
-        return Err("The width and height must be at least 1.".into());
+        return Err(crate::i18n::tr("The width and height must be at least 1.").into());
     }
     if height > 65536 || step == 0 || step % 2 == 1 {
-        return Err("The step between words must be even and not 0, and the height at most 65536.".into());
+        return Err(crate::i18n::tr("The step between words must be even and not 0, and the height at most 65536.").into());
     }
     let (ss, ds) = (src_x & 15, dst_x & 15);
     let x_count = (dst_x + width - 1) / 16 - dst_x / 16 + 1;
@@ -213,7 +213,7 @@ pub fn plan(src_x: u32, dst_x: u32, width: u32, height: u32, step: u32, src_stri
         notes.push("Each line is one word, where NFSR misbehaves: the blitter reads one source word more than the pixels need, past their right.".into());
     }
     let reads = x_count + u32::from(fxsr) - u32::from(nfsr);
-    let as_i16 = |v: i64, what: &str| -> Result<i16, String> { i16::try_from(v).map_err(|_| format!("The {what} ({v}) doesn't fit in the blitter's 16 bits.")) };
+    let as_i16 = |v: i64, what: &str| -> Result<i16, String> { i16::try_from(v).map_err(|_| crate::i18n::tf!("The {what} ({v}) doesn't fit in the blitter's 16 bits.")) };
     let x_inc = as_i16(step as i64, "step")?;
     let plan = Plan {
         src_x_inc: x_inc,
@@ -298,61 +298,61 @@ pub enum Asked {
 impl Calculator {
     pub fn draw(&mut self, ui: &mut Ui) -> Option<Asked> {
         let mut asked = None;
-        ui.label(RichText::new("HOP: what the source is").strong());
+        ui.label(RichText::new(crate::i18n::tr("HOP: what the source is")).strong());
         ui.horizontal(|ui| {
             for (n, name) in HOPS.iter().enumerate() {
-                ui.selectable_value(&mut self.hop, n as u8, format!("{n}: {name}"));
+                ui.selectable_value(&mut self.hop, n as u8, crate::i18n::tf!("{n}: {name}"));
             }
         });
         ui.add_space(4.0);
-        ui.label(RichText::new("OP: what the destination becomes").strong());
+        ui.label(RichText::new(crate::i18n::tr("OP: what the destination becomes")).strong());
         egui::Grid::new("st-blitter-ops").num_columns(4).spacing([6.0, 3.0]).show(ui, |ui| {
             for row in 0..4 {
                 for column in 0..4 {
                     let n = (row * 4 + column) as u8;
-                    ui.selectable_value(&mut self.op, n, RichText::new(format!("{n:>2}: {}", OPS[n as usize])).monospace().small());
+                    ui.selectable_value(&mut self.op, n, RichText::new(crate::i18n::tf!("{n:>2}: {}", OPS[n as usize])).monospace().small());
                 }
                 ui.end_row();
             }
         });
         let (reads_s, reads_d) = op_reads(self.op);
         ui.horizontal(|ui| {
-            ui.label(RichText::new("S D | result").monospace());
+            ui.label(RichText::new(crate::i18n::tr("S D | result")).monospace());
             for (s, d) in [(0u16, 0u16), (0, 1), (1, 0), (1, 1)] {
-                ui.label(RichText::new(format!("  {s} {d} | {}", op(self.op, s, d) & 1)).monospace());
+                ui.label(RichText::new(crate::i18n::tf!("  {s} {d} | {}", op(self.op, s, d) & 1)).monospace());
             }
         });
-        ui.label(format!("It reads {}.", match (reads_s, reads_d) {
+        ui.label(crate::i18n::tf!("It reads {}.", match (reads_s, reads_d) {
             (true, true) => "the source and the destination",
             (true, false) => "the source only",
             (false, true) => "the destination only",
             (false, false) => "neither: it only writes",
         }));
         ui.separator();
-        ui.label(RichText::new("The blit").strong());
+        ui.label(RichText::new(crate::i18n::tr("The blit")).strong());
         egui::Grid::new("st-blitter-sizes").num_columns(4).show(ui, |ui| {
-            ui.label("Source x");
+            ui.label(crate::i18n::tr("Source x"));
             ui.add(egui::DragValue::new(&mut self.src_x).range(0..=4095));
-            ui.label("Destination x");
+            ui.label(crate::i18n::tr("Destination x"));
             ui.add(egui::DragValue::new(&mut self.dst_x).range(0..=4095));
             ui.end_row();
-            ui.label("Width (pixels)");
+            ui.label(crate::i18n::tr("Width (pixels)"));
             ui.add(egui::DragValue::new(&mut self.width).range(1..=4096));
-            ui.label("Height (lines)");
+            ui.label(crate::i18n::tr("Height (lines)"));
             ui.add(egui::DragValue::new(&mut self.height).range(1..=65536));
             ui.end_row();
-            ui.label("Bytes between words");
-            egui::ComboBox::from_id_salt("st-blitter-step").selected_text(format!("{}", self.step)).show_ui(ui, |ui| {
+            ui.label(crate::i18n::tr("Bytes between words"));
+            egui::ComboBox::from_id_salt("st-blitter-step").selected_text(crate::i18n::tf!("{}", self.step)).show_ui(ui, |ui| {
                 for (step, what) in [(2u32, "2: words side by side (one bitplane)"), (4, "4: medium resolution, one plane of two"), (8, "8: low resolution, one plane of four")] {
                     ui.selectable_value(&mut self.step, step, what);
                 }
             });
-            ui.label("");
-            ui.label("");
+            ui.label(crate::i18n::tr(""));
+            ui.label(crate::i18n::tr(""));
             ui.end_row();
-            ui.label("Source line bytes");
+            ui.label(crate::i18n::tr("Source line bytes"));
             ui.add(egui::DragValue::new(&mut self.src_stride).range(2..=32766));
-            ui.label("Destination line bytes");
+            ui.label(crate::i18n::tr("Destination line bytes"));
             ui.add(egui::DragValue::new(&mut self.dst_stride).range(2..=32766));
             ui.end_row();
         });
@@ -379,18 +379,18 @@ impl Calculator {
                     ui.label(RichText::new(note).small());
                 }
                 if !reads_s || self.hop & 2 == 0 {
-                    ui.label(RichText::new("This operation doesn't read the source, so the skew and FXSR and NFSR don't matter.").small());
+                    ui.label(RichText::new(crate::i18n::tr("This operation doesn't read the source, so the skew and FXSR and NFSR don't matter.")).small());
                 }
                 ui.horizontal(|ui| {
-                    ui.label("Source");
+                    ui.label(crate::i18n::tr("Source"));
                     ui.add(egui::TextEdit::singleline(&mut self.source_label).desired_width(80.0).font(egui::TextStyle::Monospace));
-                    ui.label("destination");
+                    ui.label(crate::i18n::tr("destination"));
                     ui.add(egui::TextEdit::singleline(&mut self.dest_label).desired_width(80.0).font(egui::TextStyle::Monospace));
-                    ui.label("base in");
+                    ui.label(crate::i18n::tr("base in"));
                     ui.add(egui::TextEdit::singleline(&mut self.register).desired_width(30.0).font(egui::TextStyle::Monospace));
-                    ui.checkbox(&mut self.hog, "Hog mode");
+                    ui.checkbox(&mut self.hog, crate::i18n::tr("Hog mode"));
                 });
-                if ui.button("Put the register writes in at the cursor").clicked() {
+                if ui.button(crate::i18n::tr("Put the register writes in at the cursor")).clicked() {
                     asked = Some(Asked::Insert(source(&plan, self.hop, self.op, &self.source_label, &self.dest_label, &self.register, self.hog)));
                 }
             }

@@ -152,7 +152,7 @@ impl DirEntry {
 fn adfs_name(name: &str) -> Result<[u8; 10], String> {
     let kept: Vec<u8> = name.trim().chars().map(|c| if c == '.' { '/' } else { c }).filter(|c| ('!'..='~').contains(c) && !"$&%@\\^:#*\"".contains(*c)).take(10).map(|c| c as u8).collect();
     if kept.is_empty() {
-        return Err(format!("\"{name}\" has no characters an ADFS name can hold."));
+        return Err(crate::i18n::tf!("\"{name}\" has no characters an ADFS name can hold."));
     }
     let mut out = [0x0Du8; 10];
     out[..kept.len()].copy_from_slice(&kept);
@@ -178,7 +178,7 @@ impl Adfs {
     pub fn open(bytes: Vec<u8>, ending: &str) -> Result<Self, String> {
         let adl = ending == "adl";
         if bytes.len() < 0x700 || !bytes.len().is_multiple_of(256) {
-            return Err("The image is too short, or not whole sectors, for an ADFS disc.".into());
+            return Err(crate::i18n::tr("The image is too short, or not whole sectors, for an ADFS disc.").into());
         }
         let disc = if adl { reorder(&bytes, false) } else { bytes.clone() };
         if &disc[0x201..0x205] != b"Hugo" {
@@ -189,21 +189,21 @@ impl Adfs {
             });
         }
         if checksum(&disc[..256]) != disc[255] || checksum(&disc[256..512]) != disc[511] {
-            return Err("The free space map's checksums are wrong, so the disc is damaged.".into());
+            return Err(crate::i18n::tr("The free space map's checksums are wrong, so the disc is damaged.").into());
         }
         let sectors = le24(&disc[0xFC..0xFF]);
         if sectors < 7 || sectors as usize * 256 > disc.len() {
-            return Err(format!("The map says the disc has {sectors} sectors, and the image holds {}.", disc.len() / 256));
+            return Err(crate::i18n::tf!("The map says the disc has {sectors} sectors, and the image holds {}.", disc.len() / 256));
         }
         let end = usize::from(disc[256 + 0xFE]);
         if !end.is_multiple_of(3) || end / 3 > MOST_FREE_RUNS {
-            return Err("The free space map's length isn't whole entries, so the disc is damaged.".into());
+            return Err(crate::i18n::tr("The free space map's length isn't whole entries, so the disc is damaged.").into());
         }
         let free: Vec<(u32, u32)> = (0..end / 3).map(|i| (le24(&disc[i * 3..]), le24(&disc[256 + i * 3..]))).collect();
         let mut next = 7;
         for (start, length) in &free {
             if *start < next || *length == 0 || start + length > sectors {
-                return Err("The free space map is out of order or past the disc's end, so the disc is damaged.".into());
+                return Err(crate::i18n::tr("The free space map is out of order or past the disc's end, so the disc is damaged.").into());
             }
             next = start + length;
         }
@@ -267,7 +267,7 @@ impl Adfs {
             self.free.remove(index);
         }
         if self.free.len() > MOST_FREE_RUNS {
-            return Err("The free space map is full: there are too many gaps, and the disc needs compacting.".into());
+            return Err(crate::i18n::tr("The free space map is full: there are too many gaps, and the disc needs compacting.").into());
         }
         Ok(())
     }
@@ -275,7 +275,7 @@ impl Adfs {
     fn sector_range(&self, address: u32, length: usize) -> Result<std::ops::Range<usize>, String> {
         let at = address as usize * 256;
         if address < 2 || at + length > self.sectors as usize * 256 {
-            return Err("A directory lies past the disc's end, so the disc is damaged.".into());
+            return Err(crate::i18n::tr("A directory lies past the disc's end, so the disc is damaged.").into());
         }
         Ok(at..at + length)
     }
@@ -284,7 +284,7 @@ impl Adfs {
     fn directory(&self, address: u32) -> Result<Vec<DirEntry>, String> {
         let dir = &self.disc[self.sector_range(address, DIRECTORY)?];
         if &dir[1..5] != b"Hugo" || &dir[0x4FB..0x4FF] != b"Hugo" || dir[0] != dir[0x4FA] {
-            return Err("A directory is broken: its start and end don't match, as ADFS would say.".into());
+            return Err(crate::i18n::tr("A directory is broken: its start and end don't match, as ADFS would say.").into());
         }
         let mut entries = Vec::new();
         for raw in dir[5..5 + MOST_ENTRIES * 26].chunks(26) {
@@ -293,7 +293,7 @@ impl Adfs {
             }
             let entry = DirEntry::read(raw);
             if entry.address + entry.sectors() > self.sectors {
-                return Err(format!("{} lies past the disc's end, so the disc is damaged.", entry.shown()));
+                return Err(crate::i18n::tf!("{} lies past the disc's end, so the disc is damaged.", entry.shown()));
             }
             entries.push(entry);
         }
@@ -303,7 +303,7 @@ impl Adfs {
     /// Writes a directory's entries back in ADFS's order of names, its sequence number one on.
     fn write_directory(&mut self, address: u32, mut entries: Vec<DirEntry>) -> Result<u8, String> {
         if entries.len() > MOST_ENTRIES {
-            return Err("The directory is full: an ADFS directory holds 47 entries.".into());
+            return Err(crate::i18n::tr("The directory is full: an ADFS directory holds 47 entries.").into());
         }
         entries.sort_by_key(|e| e.bare().to_ascii_uppercase());
         let range = self.sector_range(address, DIRECTORY)?;
@@ -322,12 +322,12 @@ impl Adfs {
         match folder {
             None => Ok(ROOT),
             Some(f) if f.is_dir => Ok(f.location as u32),
-            Some(f) => Err(format!("{} isn't a directory.", f.name)),
+            Some(f) => Err(crate::i18n::tf!("{} isn't a directory.", f.name)),
         }
     }
 
     fn find(entries: &[DirEntry], entry: &Entry) -> Result<usize, String> {
-        entries.iter().position(|e| e.shown() == entry.name && e.is_folder() == entry.is_dir).ok_or_else(|| format!("{} isn't in this directory.", entry.name))
+        entries.iter().position(|e| e.shown() == entry.name && e.is_folder() == entry.is_dir).ok_or_else(|| crate::i18n::tf!("{} isn't in this directory.", entry.name))
     }
 
     /// Puts an entry in a directory, with the directory's new sequence number, and the map and image after it.
@@ -359,7 +359,7 @@ impl ImageWriter for Adfs {
         if let Some(index) = entries.iter().position(|e| same(e.bare(), &name[..name.iter().position(|b| *b == 0x0D).unwrap_or(10)])) {
             let old = &entries[index];
             if old.is_folder() {
-                return Err(format!("{} is a directory here, so a file can't replace it.", old.shown()));
+                return Err(crate::i18n::tf!("{} is a directory here, so a file can't replace it.", old.shown()));
             }
             if !file.replace {
                 return Err(already(&old.shown()));
@@ -368,10 +368,10 @@ impl ImageWriter for Adfs {
             self.release(old.address, old.sectors())?;
         }
         if entries.len() >= MOST_ENTRIES {
-            return Err("The directory is full: an ADFS directory holds 47 entries.".into());
+            return Err(crate::i18n::tr("The directory is full: an ADFS directory holds 47 entries.").into());
         }
         if bytes.len() > 0xFF_FFFF {
-            return Err(format!("{} is larger than the disc can hold.", file.name));
+            return Err(crate::i18n::tf!("{} is larger than the disc can hold.", file.name));
         }
         let length = bytes.len() as u32;
         let start = self.allocate(length.div_ceil(256))?;
@@ -386,7 +386,7 @@ impl ImageWriter for Adfs {
         let mut entries = self.directory(address)?;
         let old = entries.remove(Self::find(&entries, entry)?);
         if old.is_folder() && !self.directory(old.address)?.is_empty() {
-            return Err(format!("{} has things in it; take them out first.", old.shown()));
+            return Err(crate::i18n::tf!("{} has things in it; take them out first.", old.shown()));
         }
         self.release(old.address, old.sectors())?;
         self.write_directory(address, entries)?;
@@ -420,7 +420,7 @@ impl ImageWriter for Adfs {
             return Err(already(&other.shown()));
         }
         if entries.len() >= MOST_ENTRIES {
-            return Err("The directory is full: an ADFS directory holds 47 entries.".into());
+            return Err(crate::i18n::tr("The directory is full: an ADFS directory holds 47 entries.").into());
         }
         let start = self.allocate(5)?;
         let at = start as usize * 256;

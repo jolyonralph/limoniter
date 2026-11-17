@@ -76,7 +76,7 @@ impl Lif {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         let header = source.read_vec(0, RECORD as usize).map_err(|_| "The image is too short for a LIF volume.".to_string())?;
         if !looks_like_lif(&header, source.len()) {
-            return Err("This isn't a LIF volume: record 0 has no LIF mark and directory.".into());
+            return Err(crate::i18n::tr("This isn't a LIF volume: record 0 has no LIF mark and directory.").into());
         }
         let (start, length) = (be(&header[8..12]), be(&header[16..20]));
         let label = lif_name(&header[2..8]);
@@ -109,11 +109,11 @@ impl Lif {
     fn bytes(&self, file: &LifFile) -> Result<Vec<u8>, String> {
         let length = file.records * RECORD;
         if length > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let at = file.start * RECORD;
         if at + length > self.source.len() {
-            return Err(format!("{} runs past the end of the image, which has been cut short.", file.name));
+            return Err(crate::i18n::tf!("{} runs past the end of the image, which has been cut short.", file.name));
         }
         self.source.read_vec(at, length as usize)
     }
@@ -126,7 +126,7 @@ pub fn lif_ascii(bytes: &[u8]) -> Result<String, String> {
     let mut at = 0;
     loop {
         let Some(length) = bytes.get(at..at + 2).map(be) else {
-            return Err("The text runs to the end of the file without LIF's end mark.".into());
+            return Err(crate::i18n::tr("The text runs to the end of the file without LIF's end mark.").into());
         };
         at += 2;
         match length {
@@ -134,7 +134,7 @@ pub fn lif_ascii(bytes: &[u8]) -> Result<String, String> {
             0xFFFE => at = at.div_ceil(RECORD as usize) * RECORD as usize,
             n => {
                 let n = n as usize;
-                let line = bytes.get(at..at + n).ok_or("A line runs past the end of the file.")?;
+                let line = bytes.get(at..at + n).ok_or(crate::i18n::tr("A line runs past the end of the file."))?;
                 lines.push(line.iter().map(|b| char::from(*b)).collect::<String>());
                 at += (n + 1) & !1;
             }
@@ -173,7 +173,7 @@ impl Volume for Lif {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the volume.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the volume."))?;
         let bytes = self.bytes(file)?;
         if entry.extra == AS_TEXT {
             return lif_ascii(&bytes).map(String::into_bytes);

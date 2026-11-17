@@ -80,7 +80,7 @@ impl Disk {
     }
 
     fn sector(&self, track: u8, sector: u8) -> Result<Vec<u8>, String> {
-        let at = self.offset(track, sector).ok_or_else(|| format!("track {track} sector {sector} isn't on the disk"))?;
+        let at = self.offset(track, sector).ok_or_else(|| crate::i18n::tf!("track {track} sector {sector} isn't on the disk"))?;
         self.source.read_vec(at, 256)
     }
 
@@ -91,7 +91,7 @@ impl Disk {
         let mut seen = std::collections::HashSet::new();
         while t != 0 {
             if !seen.insert((t, s)) || out.len() > limit {
-                return Err("The file's chain of sectors loops back on itself.".into());
+                return Err(crate::i18n::tr("The file's chain of sectors loops back on itself.").into());
             }
             let data = self.sector(t, s)?;
             if data[0] == 0 {
@@ -151,7 +151,7 @@ impl Volume for Disk {
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         // A DEL entry is a scratched file or, on many disks, a line of directory art: it has no file to read.
         if entry.kind.starts_with("DEL") {
-            return Err("A DEL entry holds no file: on this disk it's part of the directory's own layout.".into());
+            return Err(crate::i18n::tr("A DEL entry holds no file: on this disk it's part of the directory's own layout.").into());
         }
         self.chain((entry.location >> 8) as u8, entry.location as u8, 16 * 1024 * 1024)
     }
@@ -172,7 +172,7 @@ impl Tape {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         let head = source.read_vec(0, 64.min(source.len() as usize))?;
         if head.len() < 64 {
-            return Err("The T64 header is cut short.".into());
+            return Err(crate::i18n::tr("The T64 header is cut short.").into());
         }
         let count = usize::from(u16::from_le_bytes([head[34], head[35]])).clamp(1, 1000);
         let name = String::from_utf8_lossy(&head[40..64]).trim_end_matches(['\0', ' ']).to_string();

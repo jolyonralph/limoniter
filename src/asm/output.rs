@@ -10,13 +10,13 @@ pub const LOWEST_FOR_TAPE: i64 = 24000;
 /// A .tap: a BASIC loader (CLEAR, LOAD "" CODE, RANDOMIZE USR), then the code as one block.
 pub fn spectrum_tape(assembly: &Assembly, stem: &str) -> Result<Vec<u8>, String> {
     let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-        return Err("Nothing was assembled.".into());
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
     };
     if low < LOWEST_FOR_TAPE {
-        return Err(format!("The code starts at {low} (${low:04X}), below {LOWEST_FOR_TAPE}, where the BASIC loader and the system need the memory. Put ORG 32768 (or anywhere from {LOWEST_FOR_TAPE}) before it."));
+        return Err(crate::i18n::tf!("The code starts at {low} (${low:04X}), below {LOWEST_FOR_TAPE}, where the BASIC loader and the system need the memory. Put ORG 32768 (or anywhere from {LOWEST_FOR_TAPE}) before it."));
     }
     if high > 0x10000 {
-        return Err("The code goes past the top of the Spectrum's 64K.".into());
+        return Err(crate::i18n::tr("The code goes past the top of the Spectrum's 64K.").into());
     }
     let start = assembly.start().unwrap_or(low);
     let name: String = stem.chars().take(10).collect();
@@ -40,10 +40,10 @@ pub fn spectrum_tape(assembly: &Assembly, stem: &str) -> Result<Vec<u8>, String>
 /// programs go, has a BASIC line put there to start it, as 10 SYS 49152, so that RUN starts it.
 pub fn commodore_program(assembly: &Assembly) -> Result<Vec<u8>, String> {
     let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-        return Err("Nothing was assembled.".into());
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
     };
     if high > 0x10000 {
-        return Err("The code goes past the top of the 64K.".into());
+        return Err(crate::i18n::tr("The code goes past the top of the 64K.").into());
     }
     const BASIC: i64 = 0x0801;
     let start = assembly.start().unwrap_or(low);
@@ -56,7 +56,7 @@ pub fn commodore_program(assembly: &Assembly) -> Result<Vec<u8>, String> {
     let digits = start.to_string();
     let line_end = BASIC + 2 + 2 + 1 + 1 + digits.len() as i64 + 1;
     if low < line_end + 2 {
-        return Err(format!("The code starts at ${low:04X}, too close after BASIC's start at $0801 for a line to start it. Start it at $0801 with a BASIC line of its own, or at $0810 or above."));
+        return Err(crate::i18n::tf!("The code starts at ${low:04X}, too close after BASIC's start at $0801 for a line to start it. Start it at $0801 with a BASIC line of its own, or at $0810 or above."));
     }
     let mut prg = (BASIC as u16).to_le_bytes().to_vec();
     prg.extend((line_end as u16).to_le_bytes());
@@ -143,13 +143,13 @@ pub const LOWEST_FOR_BBC_DISC: i64 = 0x1900;
 /// A BBC Micro program: where it loads, where it starts, and its bytes, for *RUN.
 pub fn bbc_program(assembly: &Assembly) -> Result<(u16, u16, Vec<u8>), String> {
     let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-        return Err("Nothing was assembled.".into());
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
     };
     if low < LOWEST_FOR_BBC_DISC {
-        return Err(format!("The code starts at &{low:04X}, below &1900, where the disc system needs the memory to load it. Put it at &1900 or above (such as *=$1900 or ORG &2000)."));
+        return Err(crate::i18n::tf!("The code starts at &{low:04X}, below &1900, where the disc system needs the memory to load it. Put it at &1900 or above (such as *=$1900 or ORG &2000)."));
     }
     if high > 0x8000 {
-        return Err(format!("The code goes up to &{:04X}, past &7FFF, the top of the BBC Micro's memory.", high - 1));
+        return Err(crate::i18n::tf!("The code goes up to &{:04X}, past &7FFF, the top of the BBC Micro's memory.", high - 1));
     }
     let start = assembly.start().unwrap_or(low);
     Ok((low as u16, start as u16, assembly.image(low, high)))
@@ -159,7 +159,7 @@ pub fn bbc_program(assembly: &Assembly) -> Result<(u16, u16, Vec<u8>), String> {
 /// where it goes, then where to start. Dragons load it too, with a DECB loader.
 pub fn coco_binary(assembly: &Assembly) -> Result<Vec<u8>, String> {
     if assembly.lowest().is_none() {
-        return Err("Nothing was assembled.".into());
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
     }
     let mut file = Vec::new();
     for chunk in assembly.chunks.iter().filter(|c| !c.bytes.is_empty()) {
@@ -179,7 +179,7 @@ pub fn coco_binary(assembly: &Assembly) -> Result<Vec<u8>, String> {
 /// it that TOS moves to where it loads it. `moved` is the same program assembled `shift` further on, to find them.
 pub fn atari_program(assembly: &Assembly, moved: &Assembly, shift: i64) -> Result<Vec<u8>, String> {
     let Some(high) = assembly.highest() else {
-        return Err("Nothing was assembled.".into());
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
     };
     let mut text = assembly.image(0, high);
     if text.len() % 2 == 1 {
@@ -229,13 +229,13 @@ pub fn atari_program(assembly: &Assembly, moved: &Assembly, shift: i64) -> Resul
 /// $4000, $8000 and $C000, started at its entry with the stack below $FFFE.
 pub fn next_file(assembly: &Assembly, stack: Option<i64>) -> Result<Vec<u8>, String> {
     let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-        return Err("Nothing was assembled.".into());
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
     };
     if low < 0x4000 {
-        return Err(format!("The code starts at ${low:04X}, in the ROM. Put it at $4000 or above (ORG $8000 is usual)."));
+        return Err(crate::i18n::tf!("The code starts at ${low:04X}, in the ROM. Put it at $4000 or above (ORG $8000 is usual)."));
     }
     if high > 0x10000 {
-        return Err("The code goes past the top of the 64K the Next starts with.".into());
+        return Err(crate::i18n::tr("The code goes past the top of the 64K the Next starts with.").into());
     }
     let start = assembly.start().unwrap_or(low);
     let mut header = vec![0u8; 512];

@@ -109,10 +109,10 @@ impl Udif {
                 out
             }
             Method::Lzfse => super::hfsplus::unlzfse(&stored, size).map_err(|_| "The disk image's LZFSE data is damaged.".to_string())?,
-            Method::Lzma | Method::Unknown(_) => return Err(format!("This disk image is compressed with {}, which Limoniter can't read yet.", run.method.name())),
+            Method::Lzma | Method::Unknown(_) => return Err(crate::i18n::tf!("This disk image is compressed with {}, which Limoniter can't read yet.", run.method.name())),
         };
         if bytes.len() < size {
-            return Err("A run of the disk image's sectors comes out shorter than it says, so the image is damaged.".into());
+            return Err(crate::i18n::tr("A run of the disk image's sectors comes out shorter than it says, so the image is damaged.").into());
         }
         let bytes = Arc::new(bytes);
         if let Ok(mut recent) = self.recent.lock() {
@@ -132,7 +132,7 @@ impl Source for Udif {
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
         if offset + buf.len() as u64 > self.len {
-            return Err("past the end of the image".into());
+            return Err(crate::i18n::tr("past the end of the image").into());
         }
         let mut done = 0;
         while done < buf.len() {
@@ -188,12 +188,12 @@ pub fn looks_like(source: &dyn Source) -> bool {
 pub fn open(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     let len = image.len();
     if image.read_vec(0, 8).is_ok_and(|b| b == b"encrcdsa") || image.read_vec(len.saturating_sub(8), 8).is_ok_and(|b| b == b"cdsaencr") {
-        return Err("This disk image is encrypted, and Limoniter can't read encrypted disk images.".into());
+        return Err(crate::i18n::tr("This disk image is encrypted, and Limoniter can't read encrypted disk images.").into());
     }
     if udif_within(&*image).is_none() && ndif_forks(&*image).is_some() {
         return open_ndif(image);
     }
-    let (start, length) = udif_within(&*image).ok_or("This isn't a UDIF disk image: it has no trailer.")?;
+    let (start, length) = udif_within(&*image).ok_or(crate::i18n::tr("This isn't a UDIF disk image: it has no trailer."))?;
     let image: Arc<dyn Source> = if start == 0 { image } else { Arc::new(Slice { inner: image, start, len: length }) };
     let (disk, parts, methods) = unpack(image)?;
     let what = format!("Apple disk image, {}", methods);
@@ -228,7 +228,7 @@ pub fn open(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
         out.push(entry);
     }
     if out.is_empty() {
-        return Err("This disk image lists no partitions, so there's nothing in it to read.".into());
+        return Err(crate::i18n::tr("This disk image lists no partitions, so there's nothing in it to read.").into());
     }
     // One Mac volume opens at once, as the Finder would mount it, though the disk may also have an EFI partition.
     if let [only] = macs[..] {
@@ -240,24 +240,24 @@ pub fn open(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
 /// The trailer's table of contents, read into the disk's runs and partitions, with the methods its runs use.
 fn unpack(image: Arc<dyn Source>) -> Result<(Udif, Vec<Part>, String), String> {
     let len = image.len();
-    let trailer = image.read_vec(len.checked_sub(512).ok_or("The disk image is too short for its trailer.")?, 512)?;
+    let trailer = image.read_vec(len.checked_sub(512).ok_or(crate::i18n::tr("The disk image is too short for its trailer."))?, 512)?;
     if &trailer[..4] != b"koly" {
-        return Err("This isn't a UDIF disk image: it has no trailer.".into());
+        return Err(crate::i18n::tr("This isn't a UDIF disk image: it has no trailer.").into());
     }
     let (data_at, xml_at, xml_length) = (be(&trailer[24..32]), be(&trailer[216..224]), be(&trailer[224..232]));
     let (fork_at, fork_length) = (be(&trailer[40..48]), be(&trailer[48..56]));
     let blocks: Vec<(String, Vec<u8>)> = if xml_length > 0 {
         if xml_at.saturating_add(xml_length) > len || xml_length > 64 * 1024 * 1024 {
-            return Err("The disk image's table of contents is past its end, so it's damaged.".into());
+            return Err(crate::i18n::tr("The disk image's table of contents is past its end, so it's damaged.").into());
         }
         plist_blocks(&image.read_vec(xml_at, xml_length as usize)?)?
     } else if fork_length > 0 {
         if fork_at.saturating_add(fork_length) > len || fork_length > 64 * 1024 * 1024 {
-            return Err("The disk image's table of contents is past its end, so it's damaged.".into());
+            return Err(crate::i18n::tr("The disk image's table of contents is past its end, so it's damaged.").into());
         }
         fork_resources(&image.read_vec(fork_at, fork_length as usize)?, b"blkx")?
     } else {
-        return Err("The disk image has no table of contents, so its disk can't be put together.".into());
+        return Err(crate::i18n::tr("The disk image has no table of contents, so its disk can't be put together.").into());
     };
     let mut runs = Vec::new();
     let mut parts = Vec::new();
@@ -266,12 +266,12 @@ fn unpack(image: Arc<dyn Source>) -> Result<(Udif, Vec<Part>, String), String> {
         // The mish block: its mark, version, first sector and count, where its data starts, and (past checksums)
         // the count of its runs, each forty bytes.
         if block.len() < 204 || &block[..4] != b"mish" {
-            return Err("A partition's table of runs isn't one a disk image has, so the image is damaged.".into());
+            return Err(crate::i18n::tr("A partition's table of runs isn't one a disk image has, so the image is damaged.").into());
         }
         let (first, count, base) = (be(&block[8..16]), be(&block[16..24]), be(&block[24..32]));
         let entries = be(&block[200..204]) as usize;
         if 204 + entries * 40 > block.len() || first.checked_add(count).is_none_or(|end| end > u64::MAX / 512) {
-            return Err("A partition's table of runs is cut short, so the image is damaged.".into());
+            return Err(crate::i18n::tr("A partition's table of runs is cut short, so the image is damaged.").into());
         }
         for i in 0..entries {
             let entry = &block[204 + i * 40..244 + i * 40];
@@ -284,15 +284,15 @@ fn unpack(image: Arc<dyn Source>) -> Result<(Udif, Vec<Part>, String), String> {
                 continue;
             }
             // A run stored as it is, is read a part at a time; only one to be expanded need fit in memory.
-            let length = sectors.checked_mul(512).filter(|l| *l <= MOST_RUN_BYTES || method == Method::Raw).ok_or("A run of the disk image's sectors is larger than any it could hold, so the image is damaged.")?;
+            let length = sectors.checked_mul(512).filter(|l| *l <= MOST_RUN_BYTES || method == Method::Raw).ok_or(crate::i18n::tr("A run of the disk image's sectors is larger than any it could hold, so the image is damaged."))?;
             let at = data_at.saturating_add(base).saturating_add(at);
             if at.saturating_add(stored) > len || stored > MOST_RUN_BYTES * 2 {
-                return Err("A run of the disk image's sectors is past its end, so the image is damaged.".into());
+                return Err(crate::i18n::tr("A run of the disk image's sectors is past its end, so the image is damaged.").into());
             }
             if method == Method::Raw && stored < length {
-                return Err("A run of the disk image's sectors is stored shorter than it is, so the image is damaged.".into());
+                return Err(crate::i18n::tr("A run of the disk image's sectors is stored shorter than it is, so the image is damaged.").into());
             }
-            let start = first.checked_add(sector).and_then(|s| s.checked_mul(512)).filter(|s| s.checked_add(length).is_some()).ok_or("A run of the disk image's sectors is past any disk's end, so the image is damaged.")?;
+            let start = first.checked_add(sector).and_then(|s| s.checked_mul(512)).filter(|s| s.checked_add(length).is_some()).ok_or(crate::i18n::tr("A run of the disk image's sectors is past any disk's end, so the image is damaged."))?;
             methods.insert(method.name());
             runs.push(Run { start, length, method, at, stored });
         }
@@ -300,7 +300,7 @@ fn unpack(image: Arc<dyn Source>) -> Result<(Udif, Vec<Part>, String), String> {
     }
     runs.sort_by_key(|r| r.start);
     if runs.windows(2).any(|w| w[0].start + w[0].length > w[1].start) {
-        return Err("The disk image's runs of sectors overlap, so the image is damaged.".into());
+        return Err(crate::i18n::tr("The disk image's runs of sectors overlap, so the image is damaged.").into());
     }
     let sectors = be(&trailer[492..500]);
     let len = sectors.saturating_mul(512).max(runs.last().map_or(0, |r| r.start + r.length)).max(parts.iter().map(|p| p.start + p.length).max().unwrap_or(0));
@@ -449,20 +449,20 @@ fn ndif_forks(source: &dyn Source) -> Option<((u64, u64), (u64, u64))> {
 
 /// Opens an NDIF disk image from its MacBinary file.
 fn open_ndif(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
-    let ((data_at, data_length), (fork_at, fork_length)) = ndif_forks(&*image).ok_or("This isn't an NDIF disk image in a MacBinary file.")?;
+    let ((data_at, data_length), (fork_at, fork_length)) = ndif_forks(&*image).ok_or(crate::i18n::tr("This isn't an NDIF disk image in a MacBinary file."))?;
     let fork = image.read_vec(fork_at, fork_length.min(16 * 1024 * 1024) as usize)?;
     let tables = fork_resources(&fork, b"bcem")?;
     let damaged = || "The disk image's table of its chunks (its bcem resource) is damaged.".to_string();
-    let (_, table) = tables.first().ok_or("This disk image has no table of its chunks (a bcem resource), so it can't be read.")?;
+    let (_, table) = tables.first().ok_or(crate::i18n::tr("This disk image has no table of its chunks (a bcem resource), so it can't be read."))?;
     let header = table.get(..128).ok_or_else(damaged)?;
     let word = |at: usize| be(&header[at..at + 4]);
     let name = mac::mac_roman(&header[5..5 + usize::from(header[4]).min(63)]);
     let (sectors, offset, segmented, encrypted, count) = (word(68), word(76), word(84), word(116), word(124) as usize);
     if encrypted != 0 {
-        return Err("This disk image is encrypted, and Limoniter can't read encrypted disk images.".into());
+        return Err(crate::i18n::tr("This disk image is encrypted, and Limoniter can't read encrypted disk images.").into());
     }
     if segmented != 0 {
-        return Err("This disk image is one segment of several, which Limoniter can't put together yet.".into());
+        return Err(crate::i18n::tr("This disk image is one segment of several, which Limoniter can't put together yet.").into());
     }
     let chunk = |i: usize| -> Option<(u64, u8, u64, u64)> {
         let entry = table.get(128 + i * 12..140 + i * 12)?;
@@ -491,7 +491,7 @@ fn open_ndif(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
         };
         let at = at + offset;
         if method != Method::Zeros && at + stored > data_length {
-            return Err("The disk image's chunks run past the end of its data fork, so it's damaged or cut short.".into());
+            return Err(crate::i18n::tr("The disk image's chunks run past the end of its data fork, so it's damaged or cut short.").into());
         }
         // Stored chunks are read straight from the image, however long; compressed ones are expanded whole.
         if !matches!(method, Method::Zeros | Method::Raw) && (end - sector) * 512 > MOST_RUN_BYTES {
@@ -510,7 +510,7 @@ fn open_ndif(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     if mac::kind_of(&head).is_some() {
         mac::open_disk(disk, &what)
     } else {
-        super::open_plain_disk(disk).map_err(|_| format!("The disk inside this {what} has no file system Limoniter knows."))
+        super::open_plain_disk(disk).map_err(|_| crate::i18n::tf!("The disk inside this {what} has no file system Limoniter knows."))
     }
 }
 

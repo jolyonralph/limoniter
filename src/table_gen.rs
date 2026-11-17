@@ -570,19 +570,19 @@ impl Generator {
         let mut asked = None;
         let s = &mut self.settings;
         egui::Grid::new("table-settings").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
-            ui.label("Table");
-            egui::ComboBox::from_id_salt("table-kind").selected_text(s.kind.name()).show_ui(ui, |ui| {
+            ui.label(crate::i18n::tr("Table"));
+            egui::ComboBox::from_id_salt("table-kind").selected_text(crate::i18n::tr(s.kind.name())).show_ui(ui, |ui| {
                 for kind in Kind::ALL {
-                    ui.selectable_value(&mut s.kind, kind, kind.name());
+                    ui.selectable_value(&mut s.kind, kind, crate::i18n::tr(kind.name()));
                 }
             });
             ui.end_row();
-            ui.label("Entries");
+            ui.label(crate::i18n::tr("Entries"));
             ui.add(egui::DragValue::new(&mut s.length).range(1..=MOST));
             ui.end_row();
             let number = |ui: &mut Ui, value: &mut f64, label: &str, hint: &str| {
-                ui.label(label);
-                ui.add(egui::DragValue::new(value).speed(0.1).max_decimals(6)).on_hover_text(hint);
+                ui.label(crate::i18n::tr(label));
+                ui.add(egui::DragValue::new(value).speed(0.1).max_decimals(6)).on_hover_text(crate::i18n::tr(hint));
                 ui.end_row();
             };
             match s.kind {
@@ -594,10 +594,10 @@ impl Generator {
                 }
                 Kind::Ramp | Kind::Easing => {
                     if s.kind == Kind::Easing {
-                        ui.label("Curve");
-                        egui::ComboBox::from_id_salt("table-curve").selected_text(s.curve.name()).show_ui(ui, |ui| {
+                        ui.label(crate::i18n::tr("Curve"));
+                        egui::ComboBox::from_id_salt("table-curve").selected_text(crate::i18n::tr(s.curve.name())).show_ui(ui, |ui| {
                             for curve in Curve::ALL {
-                                ui.selectable_value(&mut s.curve, curve, curve.name());
+                                ui.selectable_value(&mut s.curve, curve, crate::i18n::tr(curve.name()));
                             }
                         });
                         ui.end_row();
@@ -606,7 +606,7 @@ impl Generator {
                     number(ui, &mut s.end, "To", "The last entry");
                 }
                 Kind::Multiply | Kind::Divide => {
-                    ui.label("n starts at");
+                    ui.label(crate::i18n::tr("n starts at"));
                     ui.add(egui::DragValue::new(&mut s.first));
                     ui.end_row();
                     if s.kind == Kind::Multiply {
@@ -621,28 +621,28 @@ impl Generator {
                     number(ui, &mut s.step, "z step", "How much further each entry is");
                 }
                 Kind::Random => {
-                    ui.label("Seed");
-                    ui.add(egui::DragValue::new(&mut s.seed)).on_hover_text("The same seed always gives the same table");
+                    ui.label(crate::i18n::tr("Seed"));
+                    ui.add(egui::DragValue::new(&mut s.seed)).on_hover_text(crate::i18n::tr("The same seed always gives the same table"));
                     ui.end_row();
-                    ui.label("From");
+                    ui.label(crate::i18n::tr("From"));
                     ui.add(egui::DragValue::new(&mut s.low));
                     ui.end_row();
-                    ui.label("To");
+                    ui.label(crate::i18n::tr("To"));
                     ui.add(egui::DragValue::new(&mut s.high));
                     ui.end_row();
                 }
             }
-            ui.label("Size");
+            ui.label(crate::i18n::tr("Size"));
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut s.size, Size::Byte, "Byte");
-                ui.selectable_value(&mut s.size, Size::Word, "Word");
-                ui.selectable_value(&mut s.size, Size::Long, "Long");
-                ui.checkbox(&mut s.signed, "Signed");
+                ui.selectable_value(&mut s.size, Size::Byte, crate::i18n::tr("Byte"));
+                ui.selectable_value(&mut s.size, Size::Word, crate::i18n::tr("Word"));
+                ui.selectable_value(&mut s.size, Size::Long, crate::i18n::tr("Long"));
+                ui.checkbox(&mut s.signed, crate::i18n::tr("Signed"));
             });
             ui.end_row();
             if s.kind != Kind::Random {
-                ui.label("Fraction bits");
-                ui.add(egui::DragValue::new(&mut s.fraction_bits).range(0..=30)).on_hover_text("Fixed point: every value is multiplied by 2 to this power before rounding (14 makes 1.0 into 16384)");
+                ui.label(crate::i18n::tr("Fraction bits"));
+                ui.add(egui::DragValue::new(&mut s.fraction_bits).range(0..=30)).on_hover_text(crate::i18n::tr("Fixed point: every value is multiplied by 2 to this power before rounding (14 makes 1.0 into 16384)"));
                 ui.end_row();
             }
         });
@@ -650,43 +650,43 @@ impl Generator {
         let table = self.table().clone();
         self.preview(ui, &table.values, low, high);
         if table.held > 0 {
-            ui.colored_label(crate::theme::rainbow_mistake(), format!("{} of the values didn't fit {}\u{2013}{} and were held at the nearer end.", table.held, low, high));
+            ui.colored_label(crate::theme::rainbow_mistake(), crate::i18n::tf!("{} of the values didn't fit {}\u{2013}{} and were held at the nearer end.", table.held, low, high));
         }
-        ui.label(RichText::new("Rounded to the nearest whole number, halves away from zero.").small().color(crate::theme::text_dim()));
+        ui.label(RichText::new(crate::i18n::tr("Rounded to the nearest whole number, halves away from zero.")).small().color(crate::theme::text_dim()));
         ui.separator();
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("table-form").selected_text(self.form.name()).width(230.0).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("table-form").selected_text(crate::i18n::tr(self.form.name())).width(230.0).show_ui(ui, |ui| {
                 for form in Form::ALL {
-                    ui.selectable_value(&mut self.form, form, form.name());
+                    ui.selectable_value(&mut self.form, form, crate::i18n::tr(form.name()));
                 }
             });
             ui.separator();
-            ui.selectable_value(&mut self.base, Base::Hex, "Hex");
-            ui.selectable_value(&mut self.base, Base::Decimal, "Decimal");
+            ui.selectable_value(&mut self.base, Base::Hex, crate::i18n::tr("Hex"));
+            ui.selectable_value(&mut self.base, Base::Decimal, crate::i18n::tr("Decimal"));
             ui.separator();
-            ui.label("Per line");
+            ui.label(crate::i18n::tr("Per line"));
             ui.add(egui::DragValue::new(&mut self.per_line).range(1..=64));
         });
         ui.horizontal(|ui| {
-            ui.label("Label");
+            ui.label(crate::i18n::tr("Label"));
             ui.add(egui::TextEdit::singleline(&mut self.label).hint_text(self.settings.kind.label()).desired_width(120.0));
         });
         let text = self.text();
         let first: String = text.lines().take(3).collect::<Vec<_>>().join("\n");
         ui.label(RichText::new(first).monospace().color(crate::theme::text_dim()));
         ui.horizontal(|ui| {
-            if ui.button("Insert at the cursor").clicked() {
+            if ui.button(crate::i18n::tr("Insert at the cursor")).clicked() {
                 asked = Some(Asked::Insert(text.clone()));
             }
-            if ui.button("Copy").clicked() {
+            if ui.button(crate::i18n::tr("Copy")).clicked() {
                 ui.ctx().copy_text(text.clone());
             }
             ui.separator();
-            if ui.button("Save as binary\u{2026}").clicked() {
+            if ui.button(crate::i18n::tr("Save as binary\u{2026}")).clicked() {
                 let bytes = as_binary(&table.values, self.settings.size, self.big_endian);
                 asked = Some(Asked::Save(bytes, format!("{}.bin", self.label())));
             }
-            ui.checkbox(&mut self.big_endian, "Big-endian").on_hover_text("The 68000's order, highest byte first; off for the Z80, 6502 and PC");
+            ui.checkbox(&mut self.big_endian, crate::i18n::tr("Big-endian")).on_hover_text(crate::i18n::tr("The 68000's order, highest byte first; off for the Z80, 6502 and PC"));
         });
         asked
     }
@@ -716,7 +716,7 @@ impl Generator {
         if let Some(at) = response.hover_pos() {
             let i = (((at.x - rect.min.x - 4.0) / (rect.width() - 8.0) * (values.len() - 1) as f32).round().max(0.0) as usize).min(values.len() - 1);
             painter.circle_filled(pos2(x(i), y(values[i])), 3.0, Color32::from_rgb(255, 200, 0));
-            response.on_hover_text(format!("Entry {i}: {}", values[i]));
+            response.on_hover_text(crate::i18n::tf!("Entry {i}: {}", values[i]));
         }
     }
 }

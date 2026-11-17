@@ -56,15 +56,15 @@ impl DocView<'_> {
     /// The document's text, unless it's in hex mode or too large to hold in memory.
     fn whole_text(&self) -> Result<String, String> {
         if self.hex_mode {
-            return Err("Switch to text mode to read this file here.".into());
+            return Err(crate::i18n::tr("Switch to text mode to read this file here.").into());
         }
         if self.text.is_disk_backed() {
-            return Err("This file is too large to read here. It is being kept on disk.".into());
+            return Err(crate::i18n::tr("This file is too large to read here. It is being kept on disk.").into());
         }
         let lines = self.text.all_lines();
         let size: usize = lines.iter().map(|l| l.len() + 1).sum();
         if size > MAX_PARSE_BYTES {
-            return Err("This file is too large to read here.".into());
+            return Err(crate::i18n::tr("This file is too large to read here.").into());
         }
         Ok(lines.iter().map(|l| &**l).collect::<Vec<_>>().join("\n"))
     }
@@ -101,18 +101,18 @@ const HISTORY_MOST_LANES: usize = 12;
 /// Draws the tree of states, newest at the top, each branch going down its own column.
 fn history_panel(ui: &mut Ui, rows: &[crate::undo_tree::Row], hex: bool, actions: &mut Vec<HistoryAction>) {
     if hex {
-        ui.label(RichText::new("The history is for text. In hex mode, Undo and Redo work as a list.").color(theme::text_faint()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("The history is for text. In hex mode, Undo and Redo work as a list.")).color(theme::text_faint()).size(12.5));
         return;
     }
     if rows.is_empty() {
-        ui.label(RichText::new("Nothing has been changed yet. Each change will be listed here, and undoing one and typing something else starts a new branch, with nothing lost.").color(theme::text_faint()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("Nothing has been changed yet. Each change will be listed here, and undoing one and typing something else starts a new branch, with nothing lost.")).color(theme::text_faint()).size(12.5));
         return;
     }
     egui::Panel::bottom("history-buttons").frame(egui::Frame::new()).show(ui, |ui| {
         ui.add_space(4.0);
-        ui.label(RichText::new("Click a state to go to it. Right-click to compare it. Where you are now stays in the list.").color(theme::text_faint()).size(12.0));
+        ui.label(RichText::new(crate::i18n::tr("Click a state to go to it. Right-click to compare it. Where you are now stays in the list.")).color(theme::text_faint()).size(12.0));
         ui.add_space(2.0);
-        if ui.button("Forget this history...").on_hover_text("Lets go of every earlier state of this file. The text stays as it is").clicked() {
+        if ui.button(crate::i18n::tr("Forget this history...")).on_hover_text(crate::i18n::tr("Lets go of every earlier state of this file. The text stays as it is")).clicked() {
             actions.push(HistoryAction::Forget);
         }
     });
@@ -156,11 +156,11 @@ fn history_panel(ui: &mut Ui, rows: &[crate::undo_tree::Row], hex: bool, actions
                 actions.push(HistoryAction::Jump(id));
             }
             response.context_menu(|ui| {
-                if ui.button("Go to this state").clicked() {
+                if ui.button(crate::i18n::tr("Go to this state")).clicked() {
                     actions.push(HistoryAction::Jump(id));
                     ui.close();
                 }
-                if ui.button("Compare with the text now").clicked() {
+                if ui.button(crate::i18n::tr("Compare with the text now")).clicked() {
                     actions.push(HistoryAction::Compare(id));
                     ui.close();
                 }
@@ -595,7 +595,7 @@ fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, ope
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if crate::access::called(ui.add(egui::Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(egui::Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
                         *open = false;
                     }
                 });
@@ -756,7 +756,7 @@ fn bom_text(format: &TextFormat) -> String {
 
 fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions: &mut Vec<Action>) {
     if doc.no_file {
-        ui.label(RichText::new("No file open").color(theme::text_dim()));
+        ui.label(RichText::new(crate::i18n::tr("No file open")).color(theme::text_dim()));
         return;
     }
     let key = (doc.id, doc.version());
@@ -845,7 +845,7 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
             section(ui, "Statistics", "properties-stats", |ui| {
                 if doc.text.is_disk_backed() {
                     property_row(ui, "Lines:", &grouped(stats.counts.lines), &mut rows_for_copy);
-                    ui.label(RichText::new("The other counts would need the whole file to be read.").color(theme::text_faint()).size(12.0));
+                    ui.label(RichText::new(crate::i18n::tr("The other counts would need the whole file to be read.")).color(theme::text_faint()).size(12.0));
                     return;
                 }
                 let counts = &stats.counts;
@@ -859,10 +859,10 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
                 property_cells(ui, "Longest line:", |ui| {
                     ui.horizontal_wrapped(|ui| {
                         let number = counts.longest_line;
-                        if ui.link(RichText::new(grouped(number)).size(12.5)).on_hover_text("Go to this line").clicked() {
+                        if ui.link(RichText::new(grouped(number)).size(12.5)).on_hover_text(crate::i18n::tr("Go to this line")).clicked() {
                             actions.push(Action::GoToLine(number.saturating_sub(1) as usize));
                         }
-                        ui.label(RichText::new(format!("({} chars)", grouped(counts.longest_chars))).size(12.5));
+                        ui.label(RichText::new(crate::i18n::tf!("({} chars)", grouped(counts.longest_chars))).size(12.5));
                     });
                 });
                 rows_for_copy.push(("Longest line:".into(), format!("{} ({} chars)", counts.longest_line, counts.longest_chars)));
@@ -871,7 +871,7 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
         }
     });
     ui.add_space(2.0);
-    if ui.link(RichText::new("Copy all").size(12.5)).clicked() {
+    if ui.link(RichText::new(crate::i18n::tr("Copy all")).size(12.5)).clicked() {
         let text: Vec<String> = rows_for_copy.iter().map(|(label, value)| format!("{label} {value}")).collect();
         actions.push(Action::CopyText(text.join("\r\n")));
     }
@@ -974,12 +974,12 @@ fn property_row(ui: &mut Ui, label: &str, value: &str, rows: &mut Vec<(String, S
 /// The bytes at the hex cursor, read every way the inspector knows.
 fn inspector_panel(ui: &mut Ui, doc: &DocView<'_>, actions: &mut Vec<Action>) {
     if doc.no_file || !doc.hex_mode {
-        ui.label(RichText::new("Switch to hex (Ctrl+H) to see the bytes at the cursor read as numbers.").color(theme::text_dim()));
+        ui.label(RichText::new(crate::i18n::tr("Switch to hex (Ctrl+H) to see the bytes at the cursor read as numbers.")).color(theme::text_dim()));
         return;
     }
     let at = doc.hex.caret;
     let bytes = doc.hex.read(at, crate::inspect::MOST_BYTES);
-    ui.label(RichText::new(format!("At offset {at} (0x{at:X})")).color(theme::text_dim()).size(12.0));
+    ui.label(RichText::new(crate::i18n::tf!("At offset {at} (0x{at:X})")).color(theme::text_dim()).size(12.0));
     ui.add_space(4.0);
     let mut copy = Vec::new();
     egui::ScrollArea::vertical().id_salt("inspector-scroll").auto_shrink([false, false]).show(ui, |ui| {
@@ -987,7 +987,7 @@ fn inspector_panel(ui: &mut Ui, doc: &DocView<'_>, actions: &mut Vec<Action>) {
             property_row(ui, &format!("{}:", reading.label), &reading.value, &mut copy);
         }
     });
-    if !copy.is_empty() && ui.link(RichText::new("Copy all").size(12.5)).clicked() {
+    if !copy.is_empty() && ui.link(RichText::new(crate::i18n::tr("Copy all")).size(12.5)).clicked() {
         let text: Vec<String> = copy.iter().map(|(label, value)| format!("{label} {value}")).collect();
         actions.push(Action::CopyText(text.join("\r\n")));
     }
@@ -1023,7 +1023,7 @@ fn checksum_row(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, rows: &mut V
     property_cells(ui, "SHA-256:", |ui| {
         match &p.checksum {
             None => {
-                if ui.link(RichText::new("Calculate...").size(12.5)).on_hover_text("Reads the saved file, however large").clicked() {
+                if ui.link(RichText::new(crate::i18n::tr("Calculate...")).size(12.5)).on_hover_text(crate::i18n::tr("Reads the saved file, however large")).clicked() {
                     let slot = Arc::new(Mutex::new(None));
                     let (worker, target) = (slot.clone(), path.to_path_buf());
                     let ctx = ui.ctx().clone();
@@ -1158,7 +1158,7 @@ fn add_xml(nodes: &mut Vec<Node>, node: roxmltree::Node<'_, '_>, depth: usize) {
 
 fn parse_xml(text: &str) -> Result<Vec<Node>, String> {
     let options = roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() };
-    let document = roxmltree::Document::parse_with_options(text, options).map_err(|e| format!("This isn't valid XML: {e}"))?;
+    let document = roxmltree::Document::parse_with_options(text, options).map_err(|e| crate::i18n::tf!("This isn't valid XML: {e}"))?;
     let mut nodes = Vec::new();
     add_xml(&mut nodes, document.root_element(), 0);
     Ok(nodes)
@@ -1211,7 +1211,7 @@ fn tree_panel(
                 }
             }
         });
-        if ui.button("...").on_hover_text("Open a file").clicked() {
+        if ui.button(crate::i18n::tr("...")).on_hover_text(crate::i18n::tr("Open a file")).clicked() {
             actions.push(Action::OpenDialog);
         }
     });
@@ -1295,18 +1295,18 @@ fn key_value_table(ui: &mut Ui, first_column: &str, rows: &[(String, String)], h
 
 fn clipboard_panel(ui: &mut Ui, items: &mut Vec<String>, actions: &mut Vec<Action>) {
     if items.is_empty() {
-        ui.label(RichText::new("Clipboard history is empty").size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("Clipboard history is empty")).size(12.5));
         return;
     }
     let mut clear = false;
-    ui.horizontal(|ui| clear = ui.small_button("Clear").clicked());
+    ui.horizontal(|ui| clear = ui.small_button(crate::i18n::tr("Clear")).clicked());
     egui::ScrollArea::vertical().id_salt("clipboard-scroll").auto_shrink([false, false]).show(ui, |ui| {
         for item in items.iter() {
             let first = item.lines().next().unwrap_or("");
             let more = item.lines().count().saturating_sub(1);
             let label = if more > 0 { format!("{} (+{more} lines)", short_text(first)) } else { short_text(first) };
             let button = egui::Button::new(RichText::new(label).size(12.5)).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
-            if ui.add(button).on_hover_text("Paste this").clicked() {
+            if ui.add(button).on_hover_text(crate::i18n::tr("Paste this")).clicked() {
                 actions.push(Action::Paste(item.clone()));
             }
         }
@@ -1363,7 +1363,7 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
     }
     // Assembler source: its outline, from what the assembler knows.
     if let Some(items) = doc.text.intel.as_deref().and_then(assembler_outline) {
-        ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text("Filter").desired_width(f32::INFINITY));
+        ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text(crate::i18n::tr("Filter")).desired_width(f32::INFINITY));
         ui.add_space(2.0);
         if items.is_empty() {
             return say(ui, "No labels yet.");
@@ -1375,7 +1375,7 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
             for (line, name, value) in &shown[range] {
                 let words = if value.is_empty() { name.clone() } else { format!("{name}   {value}") };
                 let button = egui::Button::new(RichText::new(words).size(12.5).monospace()).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
-                if ui.add(button).on_hover_text(format!("Line {}", line + 1)).clicked() {
+                if ui.add(button).on_hover_text(crate::i18n::tf!("Line {}", line + 1)).clicked() {
                     actions.push(Action::GoToLine(*line));
                 }
             }
@@ -1412,7 +1412,7 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
         }
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
     }
-    ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text("Filter").desired_width(f32::INFINITY));
+    ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text(crate::i18n::tr("Filter")).desired_width(f32::INFINITY));
     ui.add_space(2.0);
     if panel.items.is_empty() {
         return say(ui, if panel.key == Some(key) { "No functions found." } else { "Looking..." });
@@ -1423,7 +1423,7 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
     egui::ScrollArea::vertical().id_salt("functions-scroll").auto_shrink([false, false]).show_rows(ui, row, shown.len(), |ui, range| {
         for (line, name) in &shown[range] {
             let button = egui::Button::new(RichText::new(name).size(12.5)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
-            if ui.add(button).on_hover_text(format!("Line {}", line + 1)).clicked() {
+            if ui.add(button).on_hover_text(crate::i18n::tf!("Line {}", line + 1)).clicked() {
                 actions.push(Action::GoToLine(*line));
             }
         }
@@ -1446,26 +1446,26 @@ fn tags_panel(ui: &mut Ui, panel: &mut TagsPanel, custom: &mut Vec<Tag>, actions
     egui::ScrollArea::vertical().id_salt("tags-scroll").auto_shrink([false, false]).show(ui, |ui| {
         let tag_button = |ui: &mut Ui, name: &str, before: &str, after: &str, actions: &mut Vec<Action>| {
             let button = egui::Button::new(RichText::new(name).size(12.5)).frame_when_inactive(false).min_size(vec2(ui.available_width(), 0.0));
-            if ui.add(button).on_hover_text(format!("{before}...{after}")).clicked() {
+            if ui.add(button).on_hover_text(crate::i18n::tf!("{before}...{after}")).clicked() {
                 actions.push(Action::WrapTag(before.to_string(), after.to_string()));
             }
         };
         if panel.group == MY_TAGS {
             for (place, tag) in custom.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    if crate::access::called(ui.small_button("\u{D7}"), "Take off the list").on_hover_text("Take off the list").clicked() {
+                    if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Take off the list").on_hover_text(crate::i18n::tr("Take off the list")).clicked() {
                         gone = Some(place);
                     }
                     tag_button(ui, &tag.name, &tag.before, &tag.after, actions);
                 });
             }
             ui.add_space(6.0);
-            ui.label(RichText::new("Add a tag").color(theme::text_dim()).size(12.5));
-            ui.add(egui::TextEdit::singleline(&mut panel.name).hint_text("Name").desired_width(f32::INFINITY));
-            ui.add(egui::TextEdit::singleline(&mut panel.before).hint_text("Text before").desired_width(f32::INFINITY));
-            ui.add(egui::TextEdit::singleline(&mut panel.after).hint_text("Text after").desired_width(f32::INFINITY));
+            ui.label(RichText::new(crate::i18n::tr("Add a tag")).color(theme::text_dim()).size(12.5));
+            ui.add(egui::TextEdit::singleline(&mut panel.name).hint_text(crate::i18n::tr("Name")).desired_width(f32::INFINITY));
+            ui.add(egui::TextEdit::singleline(&mut panel.before).hint_text(crate::i18n::tr("Text before")).desired_width(f32::INFINITY));
+            ui.add(egui::TextEdit::singleline(&mut panel.after).hint_text(crate::i18n::tr("Text after")).desired_width(f32::INFINITY));
             let ready = !panel.name.trim().is_empty() && !(panel.before.is_empty() && panel.after.is_empty());
-            if ui.add_enabled(ready, egui::Button::new("Add")).clicked() {
+            if ui.add_enabled(ready, egui::Button::new(crate::i18n::tr("Add"))).clicked() {
                 custom.push(Tag { name: panel.name.trim().to_string(), before: std::mem::take(&mut panel.before), after: std::mem::take(&mut panel.after) });
                 panel.name.clear();
             }
@@ -1488,14 +1488,14 @@ fn hex_text(bytes: impl IntoIterator<Item = u8>) -> String {
 
 fn encoding_panel(ui: &mut Ui, doc: &DocView<'_>) {
     if doc.hex_mode {
-        ui.label("Switch to text mode to preview encodings.");
+        ui.label(crate::i18n::tr("Switch to text mode to preview encodings."));
         return;
     }
     let selection = doc.text.selection_for_preview();
-    ui.label(RichText::new(if selection.is_empty() { "The character at the cursor" } else { "The selected text" }).color(theme::text_dim()).size(12.0));
+    ui.label(RichText::new(if selection.is_empty() { crate::i18n::tr("The character at the cursor") } else { crate::i18n::tr("The selected text") }).color(theme::text_dim()).size(12.0));
     let text: String = if selection.is_empty() { doc.text.char_at_caret().map(String::from).unwrap_or_default() } else { selection };
     if text.is_empty() {
-        ui.label(RichText::new("There's nothing here to preview.").color(theme::text_faint()));
+        ui.label(RichText::new(crate::i18n::tr("There's nothing here to preview.")).color(theme::text_faint()));
         return;
     }
     let latin1 = if text.chars().all(|c| (c as u32) < 256) { hex_text(text.chars().map(|c| c as u32 as u8)) } else { "Can't be stored".to_string() };
@@ -1561,12 +1561,12 @@ fn explorer_panel(ui: &mut Ui, e: &mut Explorer, doc: &DocView<'_>, actions: &mu
     }
     ui.horizontal(|ui| {
         let up = folder.parent().map(Path::to_path_buf);
-        if ui.add_enabled(up.is_some(), egui::Button::new("Up")).clicked()
+        if ui.add_enabled(up.is_some(), egui::Button::new(crate::i18n::tr("Up"))).clicked()
             && let Some(up) = up
         {
             e.folder = Some(up);
         }
-        if ui.button("Refresh").clicked() {
+        if ui.button(crate::i18n::tr("Refresh")).clicked() {
             e.loaded_for = None;
         }
     });
@@ -1626,9 +1626,9 @@ pub fn note_recent(list: &mut Vec<PathBuf>, path: &Path) {
 }
 
 fn file_lists_panel(ui: &mut Ui, recent: &mut Vec<PathBuf>, actions: &mut Vec<Action>) {
-    ui.label(RichText::new("Recently opened").color(theme::text_dim()).size(12.0));
+    ui.label(RichText::new(crate::i18n::tr("Recently opened")).color(theme::text_dim()).size(12.0));
     if recent.is_empty() {
-        ui.label(RichText::new("Files you open will be listed here.").color(theme::text_faint()).size(12.0));
+        ui.label(RichText::new(crate::i18n::tr("Files you open will be listed here.")).color(theme::text_faint()).size(12.0));
         return;
     }
     let mut clear = false;
@@ -1640,17 +1640,17 @@ fn file_lists_panel(ui: &mut Ui, recent: &mut Vec<PathBuf>, actions: &mut Vec<Ac
             let color = if exists { theme::text() } else { theme::text_faint() };
             let button = egui::Button::new(RichText::new(name).size(12.5).color(color)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
             let tip = if exists { path.display().to_string() } else { format!("{} (no longer there)", path.display()) };
-            if ui.add(button).on_hover_text(tip).clicked() {
+            if ui.add(button).on_hover_text(crate::i18n::tr(&tip)).clicked() {
                 actions.push(Action::OpenPath(path.clone()));
             }
         }
     });
     ui.add_space(3.0);
     ui.horizontal(|ui| {
-        if ui.button("Clean up").on_hover_text("Take files that are no longer there off the list").clicked() {
+        if ui.button(crate::i18n::tr("Clean up")).on_hover_text(crate::i18n::tr("Take files that are no longer there off the list")).clicked() {
             clean_recent(recent);
         }
-        clear = ui.button("Clear list").clicked() || clear;
+        clear = ui.button(crate::i18n::tr("Clear list")).clicked() || clear;
     });
     if clear {
         recent.clear();
@@ -1659,13 +1659,13 @@ fn file_lists_panel(ui: &mut Ui, recent: &mut Vec<PathBuf>, actions: &mut Vec<Ac
 
 fn bookmarks_panel(ui: &mut Ui, doc: &DocView<'_>, actions: &mut Vec<Action>) {
     if doc.hex_mode {
-        ui.label("Bookmarks are for text mode.");
+        ui.label(crate::i18n::tr("Bookmarks are for text mode."));
         return;
     }
     let marks = doc.text.bookmarks();
     if marks.is_empty() {
-        ui.label("No bookmarks yet.");
-        ui.label(RichText::new("Press Ctrl+F2 on a line, or click beside its number.").color(theme::text_faint()).size(12.0));
+        ui.label(crate::i18n::tr("No bookmarks yet."));
+        ui.label(RichText::new(crate::i18n::tr("Press Ctrl+F2 on a line, or click beside its number.")).color(theme::text_faint()).size(12.0));
         return;
     }
     egui::ScrollArea::both().id_salt("bookmarks-scroll").auto_shrink([false, false]).show(ui, |ui| {

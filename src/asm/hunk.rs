@@ -89,14 +89,14 @@ pub fn parse_section(directive: &str, operands: &str) -> Result<(String, Kind, M
             Some((kind, "c" | "chip")) => (kind.to_string(), Memory::Chip),
             Some((kind, "f" | "fast")) => (kind.to_string(), Memory::Fast),
             Some((kind, "p" | "a" | "public")) => (kind.to_string(), Memory::Any),
-            Some(_) => return Err(format!("{word} isn't a kind of section: CODE, DATA or BSS, with _C for chip memory or _F for fast")),
+            Some(_) => return Err(crate::i18n::tf!("{word} isn't a kind of section: CODE, DATA or BSS, with _C for chip memory or _F for fast")),
             None => (word, Memory::Any),
         };
         let kind = match kind.as_str() {
             "code" | "text" => Kind::Code,
             "data" => Kind::Data,
             "bss" => Kind::Bss,
-            _ => return Err(format!("{kind} isn't a kind of section: CODE, DATA or BSS, with _C for chip memory or _F for fast")),
+            _ => return Err(crate::i18n::tf!("{kind} isn't a kind of section: CODE, DATA or BSS, with _C for chip memory or _F for fast")),
         };
         Ok((kind, memory))
     };
@@ -105,7 +105,7 @@ pub fn parse_section(directive: &str, operands: &str) -> Result<(String, Kind, M
         return Ok((directive.to_string(), kind, memory));
     }
     let items = super::split_operands(operands);
-    let name = items.first().map(|n| n.trim().trim_matches('"').to_string()).filter(|n| !n.is_empty()).ok_or("SECTION needs a name")?;
+    let name = items.first().map(|n| n.trim().trim_matches('"').to_string()).filter(|n| !n.is_empty()).ok_or(crate::i18n::tr("SECTION needs a name"))?;
     let (kind, mut memory) = match items.get(1) {
         Some(kind) => kind_of(kind)?,
         // A section with no kind: Devpac takes the name for it if it is one, else it's code.
@@ -115,7 +115,7 @@ pub fn parse_section(directive: &str, operands: &str) -> Result<(String, Kind, M
         memory = match third.trim().to_ascii_lowercase().as_str() {
             "chip" => Memory::Chip,
             "fast" => Memory::Fast,
-            other => return Err(format!("{other} isn't a kind of memory: CHIP or FAST")),
+            other => return Err(crate::i18n::tf!("{other} isn't a kind of memory: CHIP or FAST")),
         };
     }
     Ok((name, kind, memory))
@@ -143,7 +143,7 @@ impl Layout {
         let found = self.sections.iter().position(|s| s.name.eq_ignore_ascii_case(name) && !s.name.is_empty());
         let index = match found {
             Some(index) if self.sections[index].kind != kind || self.sections[index].memory != memory => {
-                return Err(format!("the section {name} was a different kind before"));
+                return Err(crate::i18n::tf!("the section {name} was a different kind before"));
             }
             Some(index) => index,
             None => {
@@ -324,17 +324,17 @@ pub struct LoadedHunk {
 pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
     let mut at = 0;
     let long_at = |at: &mut usize| -> Result<u32, String> {
-        let value = file.get(*at..*at + 4).ok_or("The file ends too soon.")?;
+        let value = file.get(*at..*at + 4).ok_or(crate::i18n::tr("The file ends too soon."))?;
         *at += 4;
         Ok(u32::from_be_bytes(value.try_into().expect("four")))
     };
     let word_at = |at: &mut usize| -> Result<u32, String> {
-        let value = file.get(*at..*at + 2).ok_or("The file ends too soon.")?;
+        let value = file.get(*at..*at + 2).ok_or(crate::i18n::tr("The file ends too soon."))?;
         *at += 2;
         Ok(u32::from(u16::from_be_bytes(value.try_into().expect("two"))))
     };
     if long_at(&mut at)? != HUNK_HEADER {
-        return Err("It isn't an Amiga executable: it doesn't start with HUNK_HEADER.".into());
+        return Err(crate::i18n::tr("It isn't an Amiga executable: it doesn't start with HUNK_HEADER.").into());
     }
     // Resident library names, which executables don't have, each a count of longs and then the name.
     loop {
@@ -347,7 +347,7 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
     let count = long_at(&mut at)?;
     let (first, last) = (long_at(&mut at)?, long_at(&mut at)?);
     if count > 0xFFFF || last < first || last - first + 1 != count {
-        return Err("Its header doesn't add up.".into());
+        return Err(crate::i18n::tr("Its header doesn't add up.").into());
     }
     let mut sizes = Vec::new();
     for _ in 0..count {
@@ -369,7 +369,7 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
         match id & 0x3FFF_FFFF {
             HUNK_CODE | HUNK_DATA | HUNK_BSS => {
                 let index = hunks.len();
-                let (size, memory) = *sizes.get(index).ok_or("It has more hunks than its header says.")?;
+                let (size, memory) = *sizes.get(index).ok_or(crate::i18n::tr("It has more hunks than its header says."))?;
                 let length = long_at(&mut at)? as usize * 4;
                 let kind = match id & 0x3FFF_FFFF {
                     HUNK_CODE => Kind::Code,
@@ -379,7 +379,7 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
                 let mut bytes = if kind == Kind::Bss {
                     Vec::new()
                 } else {
-                    let taken = file.get(at..at + length).ok_or("The file ends too soon.")?.to_vec();
+                    let taken = file.get(at..at + length).ok_or(crate::i18n::tr("The file ends too soon."))?.to_vec();
                     at += length;
                     taken
                 };
@@ -394,7 +394,7 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
                 let target = long_at(&mut at)?;
                 for _ in 0..n {
                     let place = long_at(&mut at)?;
-                    current.as_mut().ok_or("A relocation comes before its hunk.")?.relocations.push((place, target));
+                    current.as_mut().ok_or(crate::i18n::tr("A relocation comes before its hunk."))?.relocations.push((place, target));
                 }
             },
             HUNK_RELOC32SHORT | HUNK_RELOC32SHORT_V39 => {
@@ -407,7 +407,7 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
                     let target = word_at(&mut at)?;
                     for _ in 0..n {
                         let place = word_at(&mut at)?;
-                        current.as_mut().ok_or("A relocation comes before its hunk.")?.relocations.push((place, target));
+                        current.as_mut().ok_or(crate::i18n::tr("A relocation comes before its hunk."))?.relocations.push((place, target));
                     }
                 }
                 // The table is padded to a whole number of longs.
@@ -421,25 +421,25 @@ pub fn read_executable(file: &[u8]) -> Result<Vec<LoadedHunk>, String> {
                     break;
                 }
                 let length = (n & 0x00FF_FFFF) as usize * 4;
-                let mut name = file.get(at..at + length).ok_or("The file ends too soon.")?.to_vec();
+                let mut name = file.get(at..at + length).ok_or(crate::i18n::tr("The file ends too soon."))?.to_vec();
                 at += length;
                 while name.last() == Some(&0) {
                     name.pop();
                 }
                 let value = long_at(&mut at)?;
-                current.as_mut().ok_or("A symbol comes before its hunk.")?.symbols.push((String::from_utf8_lossy(&name).into_owned(), value));
+                current.as_mut().ok_or(crate::i18n::tr("A symbol comes before its hunk."))?.symbols.push((String::from_utf8_lossy(&name).into_owned(), value));
             },
             HUNK_DEBUG | HUNK_NAME => {
                 let n = long_at(&mut at)? as usize;
                 at += n * 4;
             }
             HUNK_END => hunks.extend(current.take()),
-            other => return Err(format!("It has a hunk of a kind not read here (${other:X}).")),
+            other => return Err(crate::i18n::tf!("It has a hunk of a kind not read here (${other:X}).")),
         }
     }
     hunks.extend(current.take());
     if hunks.len() != count as usize {
-        return Err(format!("Its header says {count} hunks, but it has {}.", hunks.len()));
+        return Err(crate::i18n::tf!("Its header says {count} hunks, but it has {}.", hunks.len()));
     }
     Ok(hunks)
 }
@@ -497,7 +497,7 @@ mod tests {
     use std::path::Path;
 
     fn no_files(path: &Path) -> Result<Vec<u8>, String> {
-        Err(format!("{} isn't there", path.display()))
+        Err(crate::i18n::tf!("{} isn't there", path.display()))
     }
 
     fn made(source: &str, symbols: bool) -> Result<Vec<u8>, String> {

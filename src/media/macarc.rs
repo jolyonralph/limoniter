@@ -141,7 +141,7 @@ impl Wrapped {
         let data_at = 128 + secondary;
         let resource_at = data_at + padded(data);
         if data_at + data > source.len() || (resource > 0 && resource_at + resource > source.len()) {
-            return Err("This MacBinary file is shorter than its header says, so part of it is missing.".into());
+            return Err(crate::i18n::tr("This MacBinary file is shorter than its header says, so part of it is missing.").into());
         }
         // II keeps the low byte of the Finder's flags at 101, which I left as zero.
         let flags = (u16::from(h[73]) << 8) | if version > 1 { u16::from(h[101]) } else { 0 };
@@ -158,16 +158,16 @@ impl Wrapped {
 
     fn binhex(source: &dyn Source) -> Result<Self, String> {
         if source.len() > 4 * MOST_FILE_BYTES / 3 {
-            return Err("This BinHex file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This BinHex file is larger than the 1 GB that can be opened.").into());
         }
         let text = source.read_vec(0, source.len() as usize)?;
-        let start = binhex_start(&text).ok_or("This isn't BinHex 4.0: its \"(This file must be converted with BinHex\" line or the ':' after it is missing.")?;
+        let start = binhex_start(&text).ok_or(crate::i18n::tr("This isn't BinHex 4.0: its \"(This file must be converted with BinHex\" line or the ':' after it is missing."))?;
         let bytes = unrle90(&binhex_bits(&text[start..])?, None)?;
-        let name_len = usize::from(*bytes.first().ok_or("This BinHex file holds nothing.")?);
+        let name_len = usize::from(*bytes.first().ok_or(crate::i18n::tr("This BinHex file holds nothing."))?);
         let header_end = 1 + name_len + 19;
-        let h = bytes.get(..header_end + 2).ok_or("This BinHex file ends inside its header.")?;
+        let h = bytes.get(..header_end + 2).ok_or(crate::i18n::tr("This BinHex file ends inside its header."))?;
         if crc16_ccitt(&h[..header_end]) != be(&h[header_end..]) as u16 {
-            return Err("This BinHex file's header is damaged: its CRC doesn't match.".into());
+            return Err(crate::i18n::tr("This BinHex file's header is damaged: its CRC doesn't match.").into());
         }
         let at = 1 + name_len + 1;
         let (data, resource) = (be(&h[at + 10..at + 14]), be(&h[at + 14..at + 18]));
@@ -175,7 +175,7 @@ impl Wrapped {
         let data_at = header_end as u64 + 2;
         let resource_at = data_at + data + 2;
         if resource_at + resource + 2 > bytes.len() as u64 {
-            return Err("This BinHex file ends before its forks do, so part of it is missing.".into());
+            return Err(crate::i18n::tr("This BinHex file ends before its forks do, so part of it is missing.").into());
         }
         let mut damaged = Vec::new();
         for (is_resource, at, length) in [(false, data_at, data), (true, resource_at, resource)] {
@@ -211,7 +211,7 @@ impl Volume for Wrapped {
         }
         let fork = if resource { &self.resource } else { &self.data };
         if fork.len() > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         fork.read_vec(0, fork.len() as usize)
     }
@@ -271,7 +271,7 @@ fn binhex_bits(text: &[u8]) -> Result<Vec<u8>, String> {
             out.push((bits >> count) as u8);
         }
     }
-    Err("This BinHex file ends without its closing ':', so part of it is missing.".into())
+    Err(crate::i18n::tr("This BinHex file ends without its closing ':', so part of it is missing.").into())
 }
 
 /// Whether text starting where BinHex's data does has a whole header, with a name of 1 to 63 characters and the
@@ -303,14 +303,14 @@ pub(super) fn unrle90(packed: &[u8], most: Option<usize>) -> Result<Vec<u8>, Str
             last = byte;
             continue;
         }
-        let count = *packed.get(at).ok_or("The packed data ends in the middle of a run.")?;
+        let count = *packed.get(at).ok_or(crate::i18n::tr("The packed data ends in the middle of a run."))?;
         at += 1;
         match count {
             0 => {
                 out.push(0x90);
                 last = 0x90;
             }
-            1 => return Err("The packed data has a run of one, which no packer writes, so it's damaged.".into()),
+            1 => return Err(crate::i18n::tr("The packed data has a run of one, which no packer writes, so it's damaged.").into()),
             _ => {
                 let more = (usize::from(count) - 1).min(most - out.len());
                 out.extend(std::iter::repeat_n(last, more));

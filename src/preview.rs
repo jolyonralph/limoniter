@@ -983,7 +983,7 @@ pub fn draw(ui: &mut Ui, blocks: &[Block]) {
     egui::ScrollArea::vertical().id_salt("preview-scroll").auto_shrink([false, false]).show(&mut contained, |ui| {
         ui.set_min_width(ui.available_width());
         if blocks.is_empty() {
-            ui.label(RichText::new("There's nothing to preview yet.").color(theme::text_faint()));
+            ui.label(RichText::new(crate::i18n::tr("There's nothing to preview yet.")).color(theme::text_faint()));
         }
         for block in blocks {
             let shift = block.indent as f32 * 18.0 + block.quote as f32 * 12.0;

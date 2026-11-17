@@ -219,11 +219,11 @@ fn blocks(kinds: &[Pulse]) -> Vec<Block> {
 impl C64Tape {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         if source.len() > MOST_TAPE_BYTES {
-            return Err("The tape image is too long to be a real tape.".into());
+            return Err(crate::i18n::tr("The tape image is too long to be a real tape.").into());
         }
         let bytes = source.read_vec(0, source.len() as usize)?;
         if bytes.len() < 0x14 || !looks_like(&bytes) {
-            return Err("This isn't a Commodore tape image: it doesn't start with C64-TAPE-RAW.".into());
+            return Err(crate::i18n::tr("This isn't a Commodore tape image: it doesn't start with C64-TAPE-RAW.").into());
         }
         let version = bytes[12];
         let machine = match bytes[13] {
@@ -403,9 +403,9 @@ impl Volume for C64Tape {
 
     /// A program is given back as a PRG, its load address first, as the machine would save it to disk.
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the tape.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the tape."))?;
         if !file.has_data {
-            return Err(format!("Only {}'s header is in the KERNAL's format: its data is in a turbo loader's, which isn't decoded.", file.name));
+            return Err(crate::i18n::tf!("Only {}'s header is in the KERNAL's format: its data is in a turbo loader's, which isn't decoded.", file.name));
         }
         if file.kind == 4 {
             return Ok(file.data.clone());

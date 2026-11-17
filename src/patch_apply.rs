@@ -84,10 +84,10 @@ pub fn parse(text: &str) -> Result<Vec<FilePatch>, String> {
             continue;
         }
         if line.starts_with("@@ ") {
-            let file = files.last_mut().ok_or("The patch has a change before any file's name (a --- and +++ line).")?;
+            let file = files.last_mut().ok_or(crate::i18n::tr("The patch has a change before any file's name (a --- and +++ line)."))?;
             let mut parts = line.split_whitespace().skip(1);
             let (Some((old_start, mut old_left)), Some((_, mut new_left))) = (parts.next().and_then(range), parts.next().and_then(range)) else {
-                return Err(format!("Line {} of the patch isn't a change's heading that can be read: {line}", i + 1));
+                return Err(crate::i18n::tf!("Line {} of the patch isn't a change's heading that can be read: {line}", i + 1));
             };
             let mut hunk = Hunk { old_start, ..Hunk::default() };
             i += 1;
@@ -106,13 +106,13 @@ pub fn parse(text: &str) -> Result<Vec<FilePatch>, String> {
                         i += 1;
                         continue;
                     }
-                    _ => return Err(format!("Line {} of the patch doesn't fit the change it's in: {body}", i + 1)),
+                    _ => return Err(crate::i18n::tf!("Line {} of the patch doesn't fit the change it's in: {body}", i + 1)),
                 }
                 hunk.lines.push((mark, rest.to_string()));
                 i += 1;
             }
             if old_left > 0 || new_left > 0 {
-                return Err(format!("The patch ends part way through a change to {}.", file.name()));
+                return Err(crate::i18n::tf!("The patch ends part way through a change to {}.", file.name()));
             }
             // "\ No newline at end of file" after the last line put in, or kept.
             while let Some(marker) = lines.get(i).filter(|line| line.starts_with('\\')) {
@@ -128,7 +128,7 @@ pub fn parse(text: &str) -> Result<Vec<FilePatch>, String> {
         i += 1;
     }
     if files.is_empty() {
-        return Err("That isn't a unified diff: it names no files to change.".into());
+        return Err(crate::i18n::tr("That isn't a unified diff: it names no files to change.").into());
     }
     Ok(files)
 }
@@ -264,7 +264,7 @@ fn place_in(folder: &Path, name: &str) -> Result<(PathBuf, String), String> {
     let stripped = name.strip_prefix("a/").or_else(|| name.strip_prefix("b/")).map(str::to_string);
     let candidates: Vec<String> = stripped.into_iter().chain(std::iter::once(name.clone())).collect();
     for candidate in &candidates {
-        crate::diff_engine::safe_path(candidate).map_err(|_| format!("{name} would be outside the folder, so it's left alone."))?;
+        crate::diff_engine::safe_path(candidate).map_err(|_| crate::i18n::tf!("{name} would be outside the folder, so it's left alone."))?;
     }
     let at = |relative: &str| relative.split('/').fold(folder.to_path_buf(), |at, part| at.join(part));
     let chosen = candidates.iter().find(|candidate| at(candidate).exists()).unwrap_or(&candidates[0]);
@@ -276,7 +276,7 @@ fn place_in(folder: &Path, name: &str) -> Result<(PathBuf, String), String> {
 pub fn check(patch: &[FilePatch], target: &Path) -> Result<Vec<FileCheck>, String> {
     let to_file = !target.is_dir();
     if to_file && patch.len() != 1 {
-        return Err(format!("The patch changes {} files, so choose the folder it's to be applied to, rather than one file.", patch.len()));
+        return Err(crate::i18n::tf!("The patch changes {} files, so choose the folder it's to be applied to, rather than one file.", patch.len()));
     }
     let mut checks = Vec::new();
     for file in patch {

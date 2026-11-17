@@ -548,7 +548,7 @@ pub fn run(program: &Path, args: &[String], folder: &Path, stop: &AtomicBool) ->
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x0800_0000);
     }
-    let mut child = command.spawn().map_err(|e| format!("{} couldn't be started: {e}", program.display()))?;
+    let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", program.display()))?;
     // Read as it goes, so a tool that prints a lot never stops waiting for room to print.
     let reader = |pipe: Option<Box<dyn Read + Send>>| {
         std::thread::spawn(move || {
@@ -583,7 +583,7 @@ pub fn run(program: &Path, args: &[String], folder: &Path, stop: &AtomicBool) ->
 
 /// Crunches `input` into `output` with a cruncher.
 pub fn crunch(tool: Tool, program: &Path, prefs: &Prefs, input: &Path, output: &Path, stop: &AtomicBool) -> Result<Outcome, String> {
-    let before = std::fs::metadata(input).map_err(|e| format!("{} couldn't be read: {e}", input.display()))?.len();
+    let before = std::fs::metadata(input).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", input.display()))?.len();
     let _ = std::fs::remove_file(output);
     let started = Instant::now();
     let folder = output.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
@@ -594,7 +594,7 @@ pub fn crunch(tool: Tool, program: &Path, prefs: &Prefs, input: &Path, output: &
 
 /// Converts a module with LSPConvert, which writes its files beside it.
 pub fn convert_lsp(program: &Path, options: &LspOptions, module: &Path, stop: &AtomicBool) -> Result<Outcome, String> {
-    let before = std::fs::metadata(module).map_err(|e| format!("{} couldn't be read: {e}", module.display()))?.len();
+    let before = std::fs::metadata(module).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", module.display()))?.len();
     let started = Instant::now();
     let since = SystemTime::now() - Duration::from_secs(2);
     let folder = module.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
@@ -608,19 +608,19 @@ pub fn convert_lsp(program: &Path, options: &LspOptions, module: &Path, stop: &A
 
 /// Fetches a tool's release and keeps its program in Limoniter's folder for tools. Only ever when asked.
 pub fn download(tool: Tool) -> Result<PathBuf, String> {
-    let folder = tools_folder().ok_or("There's nowhere to keep it: Limoniter's settings folder couldn't be found.")?.join(tool.id());
+    let folder = tools_folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?.join(tool.id());
     download_into(tool, &folder)
 }
 
 fn download_into(tool: Tool, folder: &Path) -> Result<PathBuf, String> {
-    let (address, inside) = tool.release().ok_or_else(|| format!("There's no {} release for this computer to download.", tool.name()))?;
-    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| format!("{address} couldn't be reached: {e}"))?;
+    let (address, inside) = tool.release().ok_or_else(|| crate::i18n::tf!("There's no {} release for this computer to download.", tool.name()))?;
+    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("{address} couldn't be reached: {e}"))?;
     let mut zip = Vec::new();
-    response.into_body().into_reader().take(64 << 20).read_to_end(&mut zip).map_err(|e| format!("The download stopped: {e}"))?;
+    response.into_body().into_reader().take(64 << 20).read_to_end(&mut zip).map_err(|e| crate::i18n::tf!("The download stopped: {e}"))?;
     let program = from_zip(zip, inside)?;
-    std::fs::create_dir_all(folder).map_err(|e| format!("{} couldn't be made: {e}", folder.display()))?;
+    std::fs::create_dir_all(folder).map_err(|e| crate::i18n::tf!("{} couldn't be made: {e}", folder.display()))?;
     let path = folder.join(exe_name(tool));
-    std::fs::write(&path, program).map_err(|e| format!("{} couldn't be saved: {e}", path.display()))?;
+    std::fs::write(&path, program).map_err(|e| crate::i18n::tf!("{} couldn't be saved: {e}", path.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -631,7 +631,7 @@ fn download_into(tool: Tool, folder: &Path) -> Result<PathBuf, String> {
         && printed.iter().any(|l| l.contains("GLIBC_"))
     {
         let _ = std::fs::remove_file(&path);
-        return Err(format!("{}'s release needs a newer C library (glibc) than this computer has, so it can't run here. {}", tool.name(), tool.how_to_get().replace("Download its release from GitHub (Limoniter can do that, below), or b", "B")));
+        return Err(crate::i18n::tf!("{}'s release needs a newer C library (glibc) than this computer has, so it can't run here. {}", tool.name(), tool.how_to_get().replace("Download its release from GitHub (Limoniter can do that, below), or b", "B")));
     }
     // The licence travels with the program, as Shrinkler's asks.
     if tool == Tool::Shrinkler {
@@ -647,13 +647,13 @@ fn from_zip(zip: Vec<u8>, inside: &str) -> Result<Vec<u8>, String> {
     let parts: Vec<&str> = inside.split('/').collect();
     for (i, part) in parts.iter().enumerate() {
         let entries = volume.list(dir.as_ref())?;
-        let found = entries.into_iter().find(|e| e.name.eq_ignore_ascii_case(part)).ok_or_else(|| format!("The release has no {inside} in it."))?;
+        let found = entries.into_iter().find(|e| e.name.eq_ignore_ascii_case(part)).ok_or_else(|| crate::i18n::tf!("The release has no {inside} in it."))?;
         if i + 1 == parts.len() {
             return volume.read(&found);
         }
         dir = Some(found);
     }
-    Err(format!("The release has no {inside} in it."))
+    Err(crate::i18n::tf!("The release has no {inside} in it."))
 }
 
 /// The replay calls for a module converted for a player, as commented 68000 source to adapt. They call the
@@ -1080,7 +1080,7 @@ mod tests {
         let stop = AtomicBool::new(true);
         let shell = if cfg!(windows) { ("cmd", vec!["/C".to_string(), "ping -n 30 127.0.0.1".into()]) } else { ("sh", vec!["-c".to_string(), "sleep 30".into()]) };
         let started = Instant::now();
-        assert_eq!(run(Path::new(shell.0), &shell.1, Path::new("."), &stop), Err("Stopped.".into()));
+        assert_eq!(run(Path::new(shell.0), &shell.1, Path::new("."), &stop), Err(crate::i18n::tr("Stopped.").into()));
         assert!(started.elapsed() < Duration::from_secs(5));
     }
 }

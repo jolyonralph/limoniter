@@ -280,7 +280,7 @@ fn side_word(right: bool) -> &'static str {
 /// Works out what a sync would do. `snapshot` is how both sides were after the last one, if it's known.
 pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: Option<&Snapshot>, cancel: &AtomicBool) -> Result<SyncPlan, String> {
     if kind == SyncKind::Mirror && way == SyncWay::Both {
-        return Err("A mirror goes one way: choose which side is to be made like the other.".into());
+        return Err(crate::i18n::tr("A mirror goes one way: choose which side is to be made like the other.").into());
     }
     match way {
         SyncWay::LeftToRight => check_writable(result, false)?,
@@ -294,7 +294,7 @@ pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: 
     let mut removals = Vec::new();
     for row in &result.rows {
         if cancel.load(Ordering::Relaxed) {
-            return Err("It was stopped.".into());
+            return Err(crate::i18n::tr("It was stopped.").into());
         }
         if row.status == Status::Same {
             continue;
@@ -465,7 +465,7 @@ pub fn run_sync(plan: &SyncPlan, left: &dyn Tree, right: &dyn Tree, backup_root:
             Act::Create => still_as_compared(target, &item.path, None).and_then(|()| put_file(source, target, &item.path, item.modified)).map(|()| report.created += 1),
             Act::Replace | Act::Delete => {
                 still_as_compared(target, &item.path, item.expected)?;
-                keep_backup(target, &item.path, &backups).map_err(|e| format!("It couldn't be backed up first ({e}), so it was left as it was."))?;
+                keep_backup(target, &item.path, &backups).map_err(|e| crate::i18n::tf!("It couldn't be backed up first ({e}), so it was left as it was."))?;
                 report.backed_up += 1;
                 report.backup_folder = Some(backup_root.to_path_buf());
                 if item.act == Act::Replace {

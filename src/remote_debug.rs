@@ -230,30 +230,30 @@ impl Link {
                 return Ok(None);
             }
             match self.stream.read(&mut buffer) {
-                Ok(0) => return Err("ZEsarUX closed the connection.".into()),
+                Ok(0) => return Err(crate::i18n::tr("ZEsarUX closed the connection.").into()),
                 Ok(got) => said.extend_from_slice(&buffer[..got]),
                 Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
-                Err(e) => return Err(format!("ZEsarUX stopped answering: {e}")),
+                Err(e) => return Err(crate::i18n::tf!("ZEsarUX stopped answering: {e}")),
             }
         }
     }
 
     fn send(&mut self, command: &str) -> Result<(), String> {
-        self.stream.write_all(format!("{command}\n").as_bytes()).map_err(|e| format!("ZEsarUX couldn't be told: {e}"))
+        self.stream.write_all(format!("{command}\n").as_bytes()).map_err(|e| crate::i18n::tf!("ZEsarUX couldn't be told: {e}"))
     }
 
     fn command(&mut self, command: &str) -> Result<String, String> {
         self.send(command)?;
-        let said = self.until_prompt(Duration::from_secs(5))?.ok_or("ZEsarUX stopped answering.")?;
+        let said = self.until_prompt(Duration::from_secs(5))?.ok_or(crate::i18n::tr("ZEsarUX stopped answering."))?;
         if said.starts_with("Error") {
-            return Err(format!("ZEsarUX said: {said}"));
+            return Err(crate::i18n::tf!("ZEsarUX said: {said}"));
         }
         Ok(said)
     }
 
     fn registers(&mut self) -> Result<Registers, String> {
         let said = self.command("get-registers")?;
-        parse_registers(&said).ok_or_else(|| format!("ZEsarUX's registers weren't understood: {said}"))
+        parse_registers(&said).ok_or_else(|| crate::i18n::tf!("ZEsarUX's registers weren't understood: {said}"))
     }
 
     /// Where it stopped, with its registers and all 64K.
@@ -296,7 +296,7 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
         match TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), Duration::from_secs(2)) {
             Ok(stream) => break stream,
             Err(_) if began.elapsed() < Duration::from_secs(20) => std::thread::sleep(Duration::from_millis(200)),
-            Err(e) => return Err(format!("ZEsarUX couldn't be reached to debug on port {port}: {e}")),
+            Err(e) => return Err(crate::i18n::tf!("ZEsarUX couldn't be reached to debug on port {port}: {e}")),
         }
     };
     stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
@@ -395,7 +395,7 @@ impl Monitor {
         message.extend_from_slice(&self.request.to_le_bytes());
         message.push(command);
         message.extend_from_slice(body);
-        self.stream.write_all(&message).map_err(|e| format!("VICE couldn't be told: {e}"))?;
+        self.stream.write_all(&message).map_err(|e| crate::i18n::tf!("VICE couldn't be told: {e}"))?;
         Ok(self.request)
     }
 
@@ -403,10 +403,10 @@ impl Monitor {
     fn next(&mut self) -> Result<Option<Message>, String> {
         let mut head = [0u8; 12];
         match self.stream.read(&mut head[..1]) {
-            Ok(0) => return Err("VICE closed the connection.".into()),
+            Ok(0) => return Err(crate::i18n::tr("VICE closed the connection.").into()),
             Ok(_) => {}
             Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return Ok(None),
-            Err(e) => return Err(format!("VICE stopped answering: {e}")),
+            Err(e) => return Err(crate::i18n::tf!("VICE stopped answering: {e}")),
         }
         // The rest of a message comes at once.
         self.stream.set_read_timeout(Some(Duration::from_secs(5))).map_err(|e| e.to_string())?;
@@ -418,7 +418,7 @@ impl Monitor {
             Ok((head[6], head[7], u32::from_le_bytes([head[8], head[9], head[10], head[11]]), body))
         })();
         self.stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
-        let message = rest.map_err(|e| format!("VICE stopped answering: {e}"))?;
+        let message = rest.map_err(|e| crate::i18n::tf!("VICE stopped answering: {e}"))?;
         // Registers come before a stop; keep them for it.
         if message.0 == 0x31 {
             let body = &message.3;
@@ -445,12 +445,12 @@ impl Monitor {
                 && answered == id
             {
                 if error != 0 {
-                    return Err(format!("VICE refused it (error {error:#04X})."));
+                    return Err(crate::i18n::tf!("VICE refused it (error {error:#04X})."));
                 }
                 return Ok(body);
             }
         }
-        Err("VICE stopped answering.".into())
+        Err(crate::i18n::tr("VICE stopped answering.").into())
     }
 
     /// Where it stopped, with the 6502's registers in words.
@@ -521,7 +521,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
         match TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), Duration::from_secs(2)) {
             Ok(stream) => break stream,
             Err(_) if began.elapsed() < Duration::from_secs(30) => std::thread::sleep(Duration::from_millis(200)),
-            Err(e) => return Err(format!("VICE couldn't be reached to debug on port {port}: {e}")),
+            Err(e) => return Err(crate::i18n::tf!("VICE couldn't be reached to debug on port {port}: {e}")),
         }
     };
     stream.set_read_timeout(Some(Duration::from_millis(100))).map_err(|e| e.to_string())?;
@@ -616,7 +616,7 @@ mod tests {
     #[ignore]
     fn a_program_is_debugged_in_zesarux() {
         let Ok(program) = std::env::var("LIMONITER_ZESARUX") else { return };
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org 32768\nstart: ld a,7\n  ld bc,$1234\n  call sub\n  ld de,$5678\nloop: jr loop\nsub: ld hl,$abcd\n  ret\n", &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org 32768\nstart: ld a,7\n  ld bc,$1234\n  call sub\n  ld de,$5678\nloop: jr loop\nsub: ld hl,$abcd\n  ret\n", &|_| Err(crate::i18n::tr("no").into()));
         let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
         // As Limoniter hands it over: loaded from its tape, and a snapshot taken as it starts.
         let run = crate::running::Runnable { machine: crate::running::Machine::Spectrum48, format: crate::running::Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };

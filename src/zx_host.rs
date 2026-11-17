@@ -44,9 +44,9 @@ impl Limoniter {
             return self.message("UDG pictures", "UDG pictures are for Spectrum BASIC listings.".into());
         }
         let mut picker = rfd::FileDialog::new()
-            .set_title("Take the UDGs' pictures from")
-            .add_filter("Tapes, snapshots and UDG data", &["tap", "tzx", "sna", "z80", "udg", "bin", "chr"])
-            .add_filter("Any file", &["*"]);
+            .set_title(crate::i18n::tr("Take the UDGs' pictures from"))
+            .add_filter(crate::i18n::tr("Tapes, snapshots and UDG data"), &["tap", "tzx", "sna", "z80", "udg", "bin", "chr"])
+            .add_filter(crate::i18n::tr("Any file"), &["*"]);
         if let Some(folder) = self.docs[self.active].path.as_deref().and_then(Path::parent) {
             picker = picker.set_directory(folder);
         }
@@ -55,7 +55,7 @@ impl Limoniter {
         };
         let bytes = match std::fs::read(&path) {
             Ok(bytes) => bytes,
-            Err(e) => return self.message("UDG pictures", format!("Couldn't read {}.\n\n{e}", path.display())),
+            Err(e) => return self.message("UDG pictures", crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display())),
         };
         let ending = path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
         let name = path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
@@ -63,7 +63,7 @@ impl Limoniter {
             Some(udgs) => self.give_udg_pictures(self.active, udgs, name),
             None => self.message(
                 "UDG pictures",
-                format!("{name} has no UDGs this can find. A tape needs a CODE block loaded where the UDGs go (LOAD \"\" CODE USR \"a\"), a snapshot has them where its UDG system variable says, and any other file is taken as up to 168 bytes of pictures, eight to a UDG, from A."),
+                crate::i18n::tf!("{name} has no UDGs this can find. A tape needs a CODE block loaded where the UDGs go (LOAD \"\" CODE USR \"a\"), a snapshot has them where its UDG system variable says, and any other file is taken as up to 168 bytes of pictures, eight to a UDG, from A."),
             ),
         }
     }

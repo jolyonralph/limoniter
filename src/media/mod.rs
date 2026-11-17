@@ -9,6 +9,7 @@ mod apple2;
 mod cards;
 mod atari8;
 mod amiga;
+pub(crate) use amiga::undms;
 mod c64tap;
 mod cas;
 mod cbm;
@@ -18,7 +19,7 @@ mod cpm_formats;
 pub(crate) mod crt;
 mod dmg;
 mod fat;
-mod flux;
+pub(crate) mod flux;
 mod iso;
 mod lha;
 mod lif;
@@ -66,7 +67,7 @@ impl Source for Vec<u8> {
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
         let start = usize::try_from(offset).map_err(|_| "past the end of the image".to_string())?;
-        let bytes = self.get(start..start + buf.len()).ok_or("past the end of the image")?;
+        let bytes = self.get(start..start + buf.len()).ok_or(crate::i18n::tr("past the end of the image"))?;
         buf.copy_from_slice(bytes);
         Ok(())
     }
@@ -93,7 +94,7 @@ impl Source for FileSource {
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
         if offset + buf.len() as u64 > self.len {
-            return Err("past the end of the image".into());
+            return Err(crate::i18n::tr("past the end of the image").into());
         }
         let mut file = self.file.lock().map_err(|_| "the image couldn't be read".to_string())?;
         file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
@@ -115,7 +116,7 @@ impl Source for Slice {
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
         if offset + buf.len() as u64 > self.len {
-            return Err("past the end of the partition".into());
+            return Err(crate::i18n::tr("past the end of the partition").into());
         }
         self.inner.read_at(self.start + offset, buf)
     }
@@ -448,7 +449,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
     let ending = Path::new(name).extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
     let head = source.read_vec(0, source.len().min(0x8800) as usize)?;
     if ending == "cue" {
-        return Err("A .cue sheet only says how to read a .bin image beside it: open the .bin itself.".into());
+        return Err(crate::i18n::tr("A .cue sheet only says how to read a .bin image beside it: open the .bin itself.").into());
     }
     // A UDIF disk image is known by the trailer at its end, not by anything at its start.
     if dmg::looks_like(&*source) {
@@ -530,7 +531,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::OricDisk) => Ok(Box::new(oric::OricDisk::open(source)?)),
         Some(Format::Crt) => Ok(Box::new(crt::Crt::open(source)?)),
         Some(Format::C64Tap) => Ok(Box::new(c64tap::C64Tape::open(source)?)),
-        None => Err("This isn't an image or archive Limoniter can read yet.".into()),
+        None => Err(crate::i18n::tr("This isn't an image or archive Limoniter can read yet.").into()),
     }
 }
 
@@ -546,7 +547,7 @@ pub fn open_plain_disk(source: Arc<dyn Source>) -> Result<Box<dyn Volume>, Strin
             return Ok(volume);
         }
     }
-    Err("No file system Limoniter knows is on this disk.".into())
+    Err(crate::i18n::tr("No file system Limoniter knows is on this disk.").into())
 }
 
 /// Opens an image file from disk.

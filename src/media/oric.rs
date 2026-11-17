@@ -92,7 +92,7 @@ impl OricTape {
             notes.push(format!("{} bytes after the last file aren't part of one.", trailing.len()));
         }
         if files.is_empty() {
-            return Err("No Oric files were found on this tape.".into());
+            return Err(crate::i18n::tr("No Oric files were found on this tape.").into());
         }
         Ok(Self { files, notes })
     }
@@ -222,7 +222,7 @@ fn track_sectors(track: &[u8]) -> Vec<FoundSector> {
         }
         let (bytes, verdict) = match circle.get(data_mark..data_mark + 4 + size + 2) {
             Some(field) => (Ok(field[4..4 + size].to_vec()), check(&field[..4 + size], &field[4 + size..])),
-            None => (Err(format!("sector {number} runs off its track")), Check::Wrong),
+            None => (Err(crate::i18n::tf!("sector {number} runs off its track")), Check::Wrong),
         };
         found.retain(|(n, _, _)| *n != number);
         found.push((number, bytes, verdict));
@@ -246,12 +246,12 @@ struct MfmDisk {
 impl MfmDisk {
     fn read(data: &[u8]) -> Result<Self, String> {
         if !looks_like_disk(data) || data.len() < MFM_HEADER_BYTES {
-            return Err("This isn't an Oric disk image: it hasn't the MFM_DISK header.".into());
+            return Err(crate::i18n::tr("This isn't an Oric disk image: it hasn't the MFM_DISK header.").into());
         }
         let field = |at: usize| u32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]) as usize;
         let (sides, tracks_per_side, layout) = (field(8), field(12), field(16));
         if !(1..=2).contains(&sides) || !(1..=100).contains(&tracks_per_side) {
-            return Err(format!("The disk image's header gives {sides} side(s) of {tracks_per_side} tracks, which no Oric drive has."));
+            return Err(crate::i18n::tf!("The disk image's header gives {sides} side(s) of {tracks_per_side} tracks, which no Oric drive has."));
         }
         let mut tracks = Vec::new();
         let mut missing = 0;
@@ -285,14 +285,14 @@ impl MfmDisk {
         let (side, cylinder) = (usize::from(track >> 7), usize::from(track & 0x7F));
         let place = format!("track {cylinder}{}, sector {sector}", if side == 1 { " on side 1" } else { "" });
         if side >= self.sides || cylinder >= self.tracks_per_side {
-            return Err(format!("{place} isn't on the disk"));
+            return Err(crate::i18n::tf!("{place} isn't on the disk"));
         }
         match self.tracks[side * self.tracks_per_side + cylinder].iter().find(|(n, _, _)| *n == sector) {
-            Some((_, Ok(_), Check::Wrong)) if !self.trust_wrong => Err(format!("{place} fails its checksum, so it's damaged")),
+            Some((_, Ok(_), Check::Wrong)) if !self.trust_wrong => Err(crate::i18n::tf!("{place} fails its checksum, so it's damaged")),
             Some((_, Ok(bytes), _)) if bytes.len() == SEDORIC_SECTOR => Ok(bytes),
-            Some((_, Ok(bytes), _)) => Err(format!("{place} is {} bytes, not Sedoric's 256", bytes.len())),
-            Some((_, Err(problem), _)) => Err(format!("{place}: {problem}")),
-            None => Err(format!("{place} isn't on the disk")),
+            Some((_, Ok(bytes), _)) => Err(crate::i18n::tf!("{place} is {} bytes, not Sedoric's 256", bytes.len())),
+            Some((_, Err(problem), _)) => Err(crate::i18n::tf!("{place}: {problem}")),
+            None => Err(crate::i18n::tf!("{place} isn't on the disk")),
         }
     }
 }
@@ -314,7 +314,7 @@ pub struct OricDisk {
 impl OricDisk {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
         if source.len() > 4 * 1024 * 1024 {
-            return Err("This file is too big to be an Oric disk image.".into());
+            return Err(crate::i18n::tr("This file is too big to be an Oric disk image.").into());
         }
         let disk = MfmDisk::read(&source.read_vec(0, source.len() as usize)?)?;
         let not_sedoric = |why: String| {
@@ -383,18 +383,18 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
         let descriptor = match disk.sector(next.0, next.1) {
             Ok(bytes) if seen.insert(next) => bytes,
             Ok(_) => {
-                file.data = Err("its list of sectors leads back on itself.".into());
+                file.data = Err(crate::i18n::tr("its list of sectors leads back on itself.").into());
                 return file;
             }
             Err(problem) => {
-                file.data = Err(format!("its list of sectors can't be read: {problem}."));
+                file.data = Err(crate::i18n::tf!("its list of sectors can't be read: {problem}."));
                 return file;
             }
         };
         let first = header.is_none();
         if first {
             if descriptor[2] != 0xFF {
-                file.data = Err("its first descriptor isn't marked as one.".into());
+                file.data = Err(crate::i18n::tr("its first descriptor isn't marked as one.").into());
                 return file;
             }
             let word = |at: usize| u16::from_le_bytes([descriptor[at], descriptor[at + 1]]);
@@ -412,7 +412,7 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
         }
     }
     let Some((kind, start, end, run, count)) = header else {
-        file.data = Err("it has no descriptor.".into());
+        file.data = Err(crate::i18n::tr("it has no descriptor.").into());
         return file;
     };
     let autorun = if kind & 0x01 != 0 { ", runs when loaded" } else { "" };
@@ -433,17 +433,17 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
         let run = if run != 0 && !basic { format!(", run at &{run:04X}") } else { String::new() };
         file.detail = format!("&{start:04X} to &{end:04X}{run}{autorun}{locked}");
         if end < start {
-            file.data = Err(format!("it ends at &{end:04X}, before it starts at &{start:04X}."));
+            file.data = Err(crate::i18n::tf!("it ends at &{end:04X}, before it starts at &{start:04X}."));
             return file;
         }
         usize::from(end - start) + 1
     };
     if sectors.len() < count {
-        file.data = Err(format!("its descriptors list {} of its {count} sectors.", sectors.len()));
+        file.data = Err(crate::i18n::tf!("its descriptors list {} of its {count} sectors.", sectors.len()));
         return file;
     }
     if length > count * SEDORIC_SECTOR {
-        file.data = Err(format!("it should be {length} bytes, but has only {count} sectors."));
+        file.data = Err(crate::i18n::tf!("it should be {length} bytes, but has only {count} sectors."));
         return file;
     }
     let mut data = Vec::with_capacity(count * SEDORIC_SECTOR);
@@ -451,7 +451,7 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
         match disk.sector(track, sector) {
             Ok(bytes) => data.extend_from_slice(bytes),
             Err(problem) => {
-                file.data = Err(format!("part of it can't be read: {problem}."));
+                file.data = Err(crate::i18n::tf!("part of it can't be read: {problem}."));
                 return file;
             }
         }
@@ -487,7 +487,7 @@ impl Volume for OricDisk {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         let file = self.files.get(entry.location as usize).ok_or_else(|| "That file isn't on the disk.".to_string())?;
-        file.data.clone().map_err(|problem| format!("{} can't be read: {problem}", file.name))
+        file.data.clone().map_err(|problem| crate::i18n::tf!("{} can't be read: {problem}", file.name))
     }
 
     fn notes(&self) -> Vec<String> {

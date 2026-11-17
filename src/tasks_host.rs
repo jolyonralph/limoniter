@@ -111,7 +111,7 @@ impl Limoniter {
             }
         }
         if marked > 0 {
-            self.script_print(format!("{marked} problem{} marked in the files open.", if marked == 1 { "" } else { "s" }), false);
+            self.script_print(if marked == 1 { crate::i18n::tf!("{marked} problem marked in the files open.") } else { crate::i18n::tf!("{marked} problems marked in the files open.") }, false);
         }
         if run.task.kind == Kind::Test {
             let mut results = crate::tasks::test_results(&lines);
@@ -134,13 +134,13 @@ impl Limoniter {
                 let summary = format!("{passed} passed, {failed} failed");
                 ui.label(RichText::new(summary).strong().color(if failed > 0 { theme::problem_mark() } else { theme::accent() }));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = crate::access::called(ui.small_button("\u{D7}"), "Close").clicked();
-                    again = ui.small_button("Run again").clicked();
+                    close = crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Close").clicked();
+                    again = ui.small_button(crate::i18n::tr("Run again")).clicked();
                 });
             });
-            ui.label(RichText::new(format!("{} in {}", panel.task.command, panel.folder.display())).size(11.5).color(theme::text_faint()));
+            ui.label(RichText::new(crate::i18n::tf!("{} in {}", panel.task.command, panel.folder.display())).size(11.5).color(theme::text_faint()));
             if panel.results.is_empty() {
-                ui.label(RichText::new("No test results were found in what it printed: see the Output panel.").color(theme::text_dim()));
+                ui.label(RichText::new(crate::i18n::tr("No test results were found in what it printed: see the Output panel.")).color(theme::text_dim()));
             }
             ui.separator();
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -150,12 +150,12 @@ impl Limoniter {
                         ui.label(RichText::new(mark).color(colour));
                         let name = crate::access::clickable(ui.add(egui::Label::new(RichText::new(&result.name).monospace().size(12.0).color(if result.passed { theme::text_dim() } else { theme::problem_mark() })).sense(egui::Sense::click())));
                         if let Some(place) = &result.place {
-                            name.clone().on_hover_text(format!("{}, line {}", place.0, place.1));
+                            name.clone().on_hover_text(crate::i18n::tf!("{}, line {}", place.0, place.1));
                             if name.clicked() {
                                 go = Some(place.clone());
                             }
                         }
-                        if !result.passed && ui.small_button("Run only this").clicked() {
+                        if !result.passed && ui.small_button(crate::i18n::tr("Run only this")).clicked() {
                             only = Some(result.name.clone());
                         }
                     });
@@ -185,20 +185,20 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
-        egui::Window::new("The project's tasks").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("Commands run in the project's folder, from Tools, Tasks. Ctrl+Shift+B runs the first build task; a test task's results are listed test by test.");
+        egui::Window::new(crate::i18n::tr("The project's tasks")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tr("Commands run in the project's folder, from Tools, Tasks. Ctrl+Shift+B runs the first build task; a test task's results are listed test by test."));
             ui.add_space(6.0);
             let mut gone = None;
             egui::Grid::new("project-tasks").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
                 for (index, task) in list.iter_mut().enumerate() {
-                    ui.add(egui::TextEdit::singleline(&mut task.name).hint_text("Name").desired_width(140.0));
-                    ui.add(egui::TextEdit::singleline(&mut task.command).hint_text("Command").desired_width(300.0));
-                    egui::ComboBox::from_id_salt(("task-kind", index)).selected_text(task.kind.label()).show_ui(ui, |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut task.name).hint_text(crate::i18n::tr("Name")).desired_width(140.0));
+                    ui.add(egui::TextEdit::singleline(&mut task.command).hint_text(crate::i18n::tr("Command")).desired_width(300.0));
+                    egui::ComboBox::from_id_salt(("task-kind", index)).selected_text(crate::i18n::tr(task.kind.label())).show_ui(ui, |ui| {
                         for kind in Kind::ALL {
-                            ui.selectable_value(&mut task.kind, kind, kind.label());
+                            ui.selectable_value(&mut task.kind, kind, crate::i18n::tr(kind.label()));
                         }
                     });
-                    if crate::access::called(ui.small_button("\u{D7}"), "Remove this task").clicked() {
+                    if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Remove this task").clicked() {
                         gone = Some(index);
                     }
                     ui.end_row();
@@ -207,13 +207,13 @@ impl Limoniter {
             if let Some(index) = gone {
                 list.remove(index);
             }
-            if ui.button("Add").clicked() {
+            if ui.button(crate::i18n::tr("Add")).clicked() {
                 list.push(Task { name: String::new(), command: String::new(), kind: Kind::Build });
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                keep = ui.button("OK").clicked();
-                close |= ui.button("Cancel").clicked();
+                keep = ui.button(crate::i18n::tr("OK")).clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             });
         });
         if keep {
@@ -227,7 +227,7 @@ impl Limoniter {
                     t
                 }).collect();
                 if let Err(e) = project.save() {
-                    self.message("Tasks", format!("Couldn't save the project.\n\n{e}"));
+                    self.message("Tasks", crate::i18n::tf!("Couldn't save the project.\n\n{e}"));
                 }
             }
         } else if close {

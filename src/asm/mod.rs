@@ -1166,7 +1166,7 @@ impl<'a> Pass<'a> {
                 self.unknown = true;
                 if self.last {
                     let name = expr::first_unknown(text, self).unwrap_or_else(|| text.to_string());
-                    Err(format!("{name} isn't defined"))
+                    Err(crate::i18n::tf!("{name} isn't defined"))
                 } else {
                     Ok(0)
                 }
@@ -1188,7 +1188,7 @@ impl<'a> Pass<'a> {
                 self.unknown = true;
                 Ok(0)
             }
-            None => Err(format!("there's no {name} label {}", if name.starts_with('-') { "before this" } else { "after this" })),
+            None => Err(crate::i18n::tf!("there's no {name} label {}", if name.starts_with('-') { "before this" } else { "after this" })),
         }
     }
 
@@ -1208,7 +1208,7 @@ impl<'a> Pass<'a> {
                 self.unknown = true;
                 Ok(0)
             }
-            None => Err(format!("there's no anonymous label for :{way}")),
+            None => Err(crate::i18n::tf!("there's no anonymous label for :{way}")),
         }
     }
 
@@ -2163,7 +2163,7 @@ impl<'a> Pass<'a> {
         let result: Result<(), String> = match command.as_str() {
             "open" => {
                 if self.nex.is_some() {
-                    Err("a NEX file is already open".to_string())
+                    Err(crate::i18n::tr("a NEX file is already open").to_string())
                 } else {
                     let name = self.file_name(items.first().map(String::as_str).unwrap_or(""));
                     let v = values(self, 1);
@@ -2205,8 +2205,8 @@ impl<'a> Pass<'a> {
                     "none" => nex.palette_none(),
                     "default" => nex.palette_default(),
                     "mem" => nex.palette_mem(device, v.first().copied().flatten().unwrap_or(0), v.get(1).copied().flatten().unwrap_or(0)),
-                    "bmp" => Err("SAVENEX PALETTE BMP isn't read by Limoniter's assembler yet; use PALETTE MEM".to_string()),
-                    other => Err(format!("{other} isn't a SAVENEX PALETTE kind (NONE, DEFAULT, MEM, BMP)")),
+                    "bmp" => Err(crate::i18n::tr("SAVENEX PALETTE BMP isn't read by Limoniter's assembler yet; use PALETTE MEM").to_string()),
+                    other => Err(crate::i18n::tf!("{other} isn't a SAVENEX PALETTE kind (NONE, DEFAULT, MEM, BMP)")),
                 }
             }
             "screen" => {
@@ -2221,8 +2221,8 @@ impl<'a> Pass<'a> {
                     "l2" | "lr" | "l2_320" | "l2_640" => nex.screen_bitmap(device, &kind, get(0).filter(|p| *p >= 0), get(1).unwrap_or(0), get(2).filter(|p| *p >= 0).map(|p| (p, get(3).unwrap_or(0)))),
                     "scr" | "shc" | "shr" => nex.screen_ula(device, &kind, get(0)),
                     "tile" => nex.screen_tile(device, [get(0).unwrap_or(0), get(1).unwrap_or(0), get(2).unwrap_or(0), get(3).unwrap_or(0)], get(4).unwrap_or(1) != 0),
-                    "bmp" => Err("SAVENEX SCREEN BMP isn't read by Limoniter's assembler yet; put the picture in memory and use SCREEN L2".to_string()),
-                    other => Err(format!("{other} isn't a SAVENEX SCREEN kind (L2, L2_320, L2_640, LR, SCR, SHC, SHR, TILE, BMP)")),
+                    "bmp" => Err(crate::i18n::tr("SAVENEX SCREEN BMP isn't read by Limoniter's assembler yet; put the picture in memory and use SCREEN L2").to_string()),
+                    other => Err(crate::i18n::tf!("{other} isn't a SAVENEX SCREEN kind (L2, L2_320, L2_640, LR, SCR, SHC, SHR, TILE, BMP)")),
                 }
             }
             "copper" => {
@@ -2257,7 +2257,7 @@ impl<'a> Pass<'a> {
                 self.close_nex(nex, &appended);
                 Ok(())
             }
-            other => Err(format!("{other} isn't a SAVENEX command (OPEN, CORE, CFG, CFG3, BAR, PALETTE, SCREEN, COPPER, BANK, AUTO, CLOSE)")),
+            other => Err(crate::i18n::tf!("{other} isn't a SAVENEX command (OPEN, CORE, CFG, CFG3, BAR, PALETTE, SCREEN, COPPER, BANK, AUTO, CLOSE)")),
         };
         if let Err(problem) = result {
             self.problem(format!("SAVENEX: {problem}"));

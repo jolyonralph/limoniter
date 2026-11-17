@@ -60,17 +60,17 @@ fn atr(sectors: usize, sector_size: usize) -> Vec<u8> {
 /// An ATR's sector size and count, or why it isn't one changed here: one of at least `least` sectors.
 pub(super) fn geometry(bytes: &[u8], least: usize) -> Result<(usize, usize), String> {
     if bytes.len() < 16 || bytes[..2] != [0x96, 0x02] {
-        return Err("Only ATR images of Atari disks are changed here.".into());
+        return Err(crate::i18n::tr("Only ATR images of Atari disks are changed here.").into());
     }
     let sector_size = usize::from(u16::from_le_bytes([bytes[4], bytes[5]]));
     let data = bytes.len() - 16;
     let sectors = match sector_size {
         128 => data / 128,
         256 if data >= 384 && (data - 384).is_multiple_of(256) => 3 + (data - 384) / 256,
-        _ => return Err("Only Atari disks of 128 or 256-byte sectors, with short boot sectors, are changed here.".into()),
+        _ => return Err(crate::i18n::tr("Only Atari disks of 128 or 256-byte sectors, with short boot sectors, are changed here.").into()),
     };
     if !(least..=65535).contains(&sectors) {
-        return Err("This Atari disk's size isn't one a DOS makes.".into());
+        return Err(crate::i18n::tr("This Atari disk's size isn't one a DOS makes.").into());
     }
     Ok((sector_size, sectors))
 }
@@ -140,11 +140,11 @@ impl Disk {
                 disk.vtoc_sectors = if mydos == 2 { 1 } else { (code - 2) * 256 / sector_size };
                 System::MyDos
             }
-            0 | 1 | 2 | 3.. => return Err("This disk isn't Atari DOS 2 or MyDOS (it may be another DOS, or a disk that boots itself), so it's only read.".into()),
+            0 | 1 | 2 | 3.. => return Err(crate::i18n::tr("This disk isn't Atari DOS 2 or MyDOS (it may be another DOS, or a disk that boots itself), so it's only read.").into()),
         };
         // DOS keeps sector 0 and the boot sectors marked in use; a VTOC that doesn't is something else's.
         if (0..4).any(|s| disk.is_free(s)) || disk.vtoc().any(|s| disk.is_free(s)) {
-            return Err("This disk's VTOC marks its boot sectors or itself free, so it isn't one DOS wrote; it's only read.".into());
+            return Err(crate::i18n::tr("This disk's VTOC marks its boot sectors or itself free, so it isn't one DOS wrote; it's only read.").into());
         }
         Ok(disk)
     }
@@ -302,7 +302,7 @@ impl Disk {
         self.walk(DIRECTORY, 0, &mut all);
         match all.get(folder.location as usize) {
             Some(place) if self.is_folder(*place) && tidy_name(&self.name(place.slot)) == folder.name => Ok(self.start(*place)),
-            _ => Err(format!("The folder {} isn't on the disk.", folder.name)),
+            _ => Err(crate::i18n::tf!("The folder {} isn't on the disk.", folder.name)),
         }
     }
 
@@ -356,7 +356,7 @@ fn dos_name(name: &str) -> Result<[u8; 11], String> {
     let part = |text: &str, most: usize| -> String { text.chars().map(|c| c.to_ascii_uppercase()).filter(|c| c.is_ascii_alphanumeric()).take(most).collect() };
     let (stem, ending) = (part(stem, 8), part(ending, 3));
     if !stem.starts_with(|c: char| c.is_ascii_uppercase()) {
-        return Err(format!("\"{name}\" can't be an Atari DOS name: it needs to start with a letter."));
+        return Err(crate::i18n::tf!("\"{name}\" can't be an Atari DOS name: it needs to start with a letter."));
     }
     let mut out = [b' '; 11];
     out[..stem.len()].copy_from_slice(stem.as_bytes());
@@ -408,23 +408,23 @@ impl Disk {
         let name = dos_name(&file.name)?;
         if let Some(place) = self.find(directory, &shown(&name)) {
             if self.is_folder(place) {
-                return Err(format!("{} is a folder here, so a file can't replace it.", shown(&name)));
+                return Err(crate::i18n::tf!("{} is a folder here, so a file can't replace it.", shown(&name)));
             }
             if !file.replace {
                 return Err(already(&shown(&name)));
             }
             if self.flag(place) & 0x20 != 0 {
-                return Err(format!("{} is locked; unlock it on the Atari first.", shown(&name)));
+                return Err(crate::i18n::tf!("{} is locked; unlock it on the Atari first.", shown(&name)));
             }
             self.remove(place);
         }
         let per_sector = self.sector_size - 3;
         let count = file.bytes.len().div_ceil(per_sector).max(1);
         if count > self.free_sectors() {
-            return Err(format!("{} needs {count} sectors; the disk has {} free.", file.name, self.free_sectors()));
+            return Err(crate::i18n::tf!("{} needs {count} sectors; the disk has {} free.", file.name, self.free_sectors()));
         }
         if count > 0xFFFF {
-            return Err(format!("{} is too large for an Atari DOS file.", file.name));
+            return Err(crate::i18n::tf!("{} is too large for an Atari DOS file.", file.name));
         }
         // The first free slot, deleted or never used; its index is the file's number.
         let place = self.free_slot(directory)?;
@@ -462,12 +462,12 @@ impl Disk {
 
     fn delete_entry(&mut self, folder: Option<&Entry>, entry: &Entry) -> Result<(), String> {
         let directory = self.directory(folder)?;
-        let place = self.find(directory, &entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let place = self.find(directory, &entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         if self.flag(place) & 0x20 != 0 {
-            return Err(format!("{} is locked; unlock it on the Atari first.", entry.name));
+            return Err(crate::i18n::tf!("{} is locked; unlock it on the Atari first.", entry.name));
         }
         if self.is_folder(place) && !self.files(self.start(place)).is_empty() {
-            return Err("The folder has files in it; take them off first.".into());
+            return Err(crate::i18n::tr("The folder has files in it; take them off first.").into());
         }
         self.remove(place);
         Ok(())
@@ -475,7 +475,7 @@ impl Disk {
 
     fn rename_entry(&mut self, folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
         let directory = self.directory(folder)?;
-        let place = self.find(directory, &entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let place = self.find(directory, &entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         let new = dos_name(name)?;
         if self.find(directory, &shown(&new)).is_some_and(|other| other.slot != place.slot) {
             return Err(already(&shown(&new)));
@@ -486,7 +486,7 @@ impl Disk {
 
     fn new_folder(&mut self, folder: Option<&Entry>, name: &str) -> Result<(), String> {
         if self.system != System::MyDos {
-            return Err("Atari DOS 2 has no folders; MyDOS and SpartaDOS disks do.".into());
+            return Err(crate::i18n::tr("Atari DOS 2 has no folders; MyDOS and SpartaDOS disks do.").into());
         }
         let directory = self.directory(folder)?;
         let new = dos_name(name)?;
@@ -500,7 +500,7 @@ impl Disk {
             .windows(FOLDER_SECTORS)
             .find(|run| run[FOLDER_SECTORS - 1] == run[0] + FOLDER_SECTORS - 1 && run.iter().all(|s| self.is_free(*s)))
             .map(|run| run[0])
-            .ok_or("The disk has no eight free sectors in a row for the folder's directory.")?;
+            .ok_or(crate::i18n::tr("The disk has no eight free sectors in a row for the folder's directory."))?;
         for sector in start..start + FOLDER_SECTORS {
             let at = self.at(sector);
             self.bytes[at..at + self.sector_size].fill(0);

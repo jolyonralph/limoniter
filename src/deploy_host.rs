@@ -342,7 +342,7 @@ impl Limoniter {
         let address = deploy::local_address().unwrap_or_else(|| "this computer's address".into());
         if !self.sends.told_next && self.screenshot.is_none() && !cfg!(test) {
             self.sends.told_next = true;
-            self.message("Waiting for the Next", format!("{path} is ready for the Next to fetch.\n\nOn the Next, type\n\n    .sync {address}\n\nthe first time, and after that just .sync. Limoniter keeps the file ready until it's fetched, and anything else sent meanwhile goes too.\n\nThe Next needs NextSync's .sync command, and its Wi-Fi set up."));
+            self.message("Waiting for the Next", crate::i18n::tf!("{path} is ready for the Next to fetch.\n\nOn the Next, type\n\n    .sync {address}\n\nthe first time, and after that just .sync. Limoniter keeps the file ready until it's fetched, and anything else sent meanwhile goes too.\n\nThe Next needs NextSync's .sync command, and its Wi-Fi set up."));
         }
     }
 
@@ -490,19 +490,19 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut send = false;
         let name_problem = deploy::name_problem(&state.name);
-        egui::Window::new(format!("Send to {}", device.name)).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tf!("Send to {}", device.name)).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(RichText::new(device.place.describe()).color(theme::text_faint()));
             if let Some(kind) = listing_kind {
-                ui.label(RichText::new(format!("Sent as a {kind}, tokenised from this listing")).color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tf!("Sent as a {kind}, tokenised from this listing")).color(theme::text_faint()));
             } else if let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) {
-                ui.label(RichText::new(format!("Written as {}", preset.name)).color(theme::text_faint()));
+                ui.label(RichText::new(crate::i18n::tf!("Written as {}", preset.name)).color(theme::text_faint()));
             }
             if card_missing {
-                ui.colored_label(theme::rainbow_mistake(), "That card isn't plugged in.");
+                ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("That card isn't plugged in."));
             }
             ui.add_space(4.0);
             egui::Grid::new("send-box").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                ui.label("File name:");
+                ui.label(crate::i18n::tr("File name:"));
                 let field = ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(300.0));
                 if std::mem::take(&mut state.focus) {
                     field.request_focus();
@@ -511,12 +511,12 @@ impl Limoniter {
                 ui.end_row();
                 let sftp_key = matches!(&device.place, Place::Sftp { key_file, .. } if !key_file.trim().is_empty());
                 if state.ask_password {
-                    ui.label(if sftp_key { "Passphrase:" } else { "Password:" });
+                    ui.label(if sftp_key { crate::i18n::tr("Passphrase:") } else { crate::i18n::tr("Password:") });
                     ui.horizontal(|ui| {
                         let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).desired_width(200.0));
                         send |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                         if !sftp_key {
-                            ui.checkbox(&mut state.remember, "Remember it").on_hover_text(format!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
+                            ui.checkbox(&mut state.remember, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
                         }
                     });
                     ui.end_row();
@@ -530,10 +530,10 @@ impl Limoniter {
             }
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                if ui.add_enabled(name_problem.is_none() && !card_missing, egui::Button::new("Send")).clicked() {
+                if ui.add_enabled(name_problem.is_none() && !card_missing, egui::Button::new(crate::i18n::tr("Send"))).clicked() {
                     send = true;
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(crate::i18n::tr("Cancel")).clicked() {
                     close = true;
                 }
             });
@@ -615,8 +615,8 @@ impl Limoniter {
         }
         let names_clash = state.devices.iter().enumerate().any(|(i, a)| state.devices.iter().skip(i + 1).any(|b| b.name.trim().eq_ignore_ascii_case(a.name.trim())));
         let first_problem = state.devices.iter().find_map(|device| device.problem().map(|p| format!("{}: {p}", if device.name.trim().is_empty() { "A device" } else { device.name.as_str() })));
-        egui::Window::new("Devices").collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does.");
+        egui::Window::new(crate::i18n::tr("Devices")).collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tr("Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does."));
             ui.separator();
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
@@ -624,14 +624,14 @@ impl Limoniter {
                     egui::ScrollArea::vertical().id_salt("device-list").max_height(330.0).auto_shrink([false, true]).show(ui, |ui| {
                         for (n, device) in state.devices.iter().enumerate() {
                             let label = if device.name.trim().is_empty() { "(no name)".to_string() } else { device.name.clone() };
-                            if ui.selectable_label(n == state.selected, label).on_hover_text(device.place.describe()).clicked() && n != state.selected {
+                            if ui.selectable_label(n == state.selected, crate::i18n::tr(&label)).on_hover_text(device.place.describe()).clicked() && n != state.selected {
                                 state.selected = n;
                                 state.password.clear();
                                 state.told.clear();
                             }
                         }
                     });
-                    if ui.button("Find emulators").on_hover_text("Adds the emulators installed on this computer that aren't listed yet").clicked() {
+                    if ui.button(crate::i18n::tr("Find emulators")).on_hover_text(crate::i18n::tr("Adds the emulators installed on this computer that aren't listed yet")).clicked() {
                         let mut added = 0;
                         for (emulator, program) in crate::emulators::find_installed() {
                             let listed = state.devices.iter().any(|d| matches!(&d.place, Place::Emulator { emulator: id, .. } if id == emulator.id));
@@ -649,7 +649,7 @@ impl Limoniter {
                             state.selected = state.devices.len() - 1;
                         }
                     }
-                    if ui.button("Get an emulator\u{2026}").on_hover_text("Installs one that isn't here: downloaded, or with this computer's own installer, or from its page").clicked() {
+                    if ui.button(crate::i18n::tr("Get an emulator\u{2026}")).on_hover_text(crate::i18n::tr("Installs one that isn't here: downloaded, or with this computer's own installer, or from its page")).clicked() {
                         state.getting = if state.getting.is_some() {
                             None
                         } else {
@@ -665,13 +665,13 @@ impl Limoniter {
                         }).color(theme::text_faint()));
                     }
                     ui.horizontal(|ui| {
-                        if ui.button("Add").clicked() {
+                        if ui.button(crate::i18n::tr("Add")).clicked() {
                             let n = state.devices.len() + 1;
                             state.devices.push(Device { name: format!("Device {n}"), place: Place::blank(0), preset: None, eject: false });
                             state.selected = state.devices.len() - 1;
                             state.password.clear();
                         }
-                        if ui.add_enabled(!state.devices.is_empty(), egui::Button::new("Remove")).clicked() {
+                        if ui.add_enabled(!state.devices.is_empty(), egui::Button::new(crate::i18n::tr("Remove"))).clicked() {
                             state.devices.remove(state.selected);
                             state.selected = state.selected.min(state.devices.len().saturating_sub(1));
                             state.password.clear();
@@ -681,7 +681,7 @@ impl Limoniter {
                 ui.add_space(16.0);
                 ui.vertical(|ui| {
                     let Some(device) = state.devices.get_mut(state.selected) else {
-                        ui.label("Add a device to send to: a card, a folder, a server, a Spectrum Next or an Ultimate 64.");
+                        ui.label(crate::i18n::tr("Add a device to send to: a card, a folder, a server, a Spectrum Next or an Ultimate 64."));
                         return;
                     };
                     device_editor(ui, device, &drives, &mut state.password, &mut state.keep, &mut forget, &mut state.told);
@@ -689,19 +689,19 @@ impl Limoniter {
             });
             if let Some(list) = &state.getting {
                 ui.separator();
-                ui.label(RichText::new("Each one is got the simplest way there is on this computer. Anything run in the Terminal panel can be seen there first.").color(theme::text_faint()).size(12.0));
+                ui.label(RichText::new(crate::i18n::tr("Each one is got the simplest way there is on this computer. Anything run in the Terminal panel can be seen there first.")).color(theme::text_faint()).size(12.0));
                 egui::Grid::new("get-emulators").num_columns(3).spacing([12.0, 4.0]).show(ui, |ui| {
                     for (emulator, installed) in list {
                         let machines: Vec<&str> = emulator.machines.iter().map(|m| m.name()).collect();
                         ui.label(emulator.name).on_hover_text(machines.join(", "));
                         match installed {
                             Some(path) => {
-                                ui.label(RichText::new("Installed").color(theme::text_dim())).on_hover_text(path.display().to_string());
-                                ui.label("");
+                                ui.label(RichText::new(crate::i18n::tr("Installed")).color(theme::text_dim())).on_hover_text(path.display().to_string());
+                                ui.label(crate::i18n::tr(""));
                             }
                             None => {
                                 let way = crate::emulator_get::way(emulator);
-                                ui.label(RichText::new("Not installed").color(theme::text_faint()));
+                                ui.label(RichText::new(crate::i18n::tr("Not installed")).color(theme::text_faint()));
                                 let busy = state.download.is_some();
                                 if ui.add_enabled(!busy || way != crate::emulator_get::Way::Download, egui::Button::new(crate::emulator_get::button(&way))).on_hover_text(match &way {
                                     crate::emulator_get::Way::Download => format!("Its latest release, from {}, unpacked beside Limoniter's settings", emulator.website),
@@ -718,7 +718,7 @@ impl Limoniter {
                 if let Some((emulator, _)) = &state.download {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(format!("Downloading {}\u{2026}", emulator.name));
+                        ui.label(crate::i18n::tf!("Downloading {}\u{2026}", emulator.name));
                     });
                 }
                 if !state.get_note.is_empty() {
@@ -727,15 +727,15 @@ impl Limoniter {
             }
             ui.separator();
             if names_clash {
-                ui.colored_label(theme::rainbow_mistake(), "Two devices have the same name.");
+                ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("Two devices have the same name."));
             } else if let Some(problem) = &first_problem {
                 ui.colored_label(theme::rainbow_mistake(), problem);
             }
             ui.horizontal(|ui| {
-                if ui.add_enabled(!names_clash && first_problem.is_none(), egui::Button::new("Done")).clicked() {
+                if ui.add_enabled(!names_clash && first_problem.is_none(), egui::Button::new(crate::i18n::tr("Done"))).clicked() {
                     done = true;
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(crate::i18n::tr("Cancel")).clicked() {
                     close = true;
                 }
             });
@@ -811,14 +811,14 @@ impl Limoniter {
 #[allow(clippy::too_many_arguments, reason = "each is a different part of the box's state")]
 fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], password: &mut String, keep: &mut bool, forget: &mut Option<String>, told: &mut String) {
     egui::Grid::new("device-fields").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-        ui.label("Name:");
+        ui.label(crate::i18n::tr("Name:"));
         ui.add(egui::TextEdit::singleline(&mut device.name).desired_width(320.0));
         ui.end_row();
-        ui.label("Kind:");
+        ui.label(crate::i18n::tr("Kind:"));
         let mut kind = device.place.kind();
         egui::ComboBox::from_id_salt("device-kind").width(320.0).selected_text(Place::KINDS[kind]).show_ui(ui, |ui| {
             for (n, title) in Place::KINDS.iter().enumerate() {
-                ui.selectable_value(&mut kind, n, *title);
+                ui.selectable_value(&mut kind, n, crate::i18n::tr(title));
             }
         });
         if kind != device.place.kind() {
@@ -829,12 +829,12 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
         let hint = |text: &str| RichText::new(text.to_string()).color(theme::text_faint());
         match &mut device.place {
             Place::Card { label, folder } => {
-                ui.label("Volume label:");
+                ui.label(crate::i18n::tr("Volume label:"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(label).hint_text("GOTEK").desired_width(160.0));
-                    egui::ComboBox::from_id_salt("device-drives").selected_text("Plugged in now").width(150.0).show_ui(ui, |ui| {
+                    ui.add(egui::TextEdit::singleline(label).hint_text(crate::i18n::tr("GOTEK")).desired_width(160.0));
+                    egui::ComboBox::from_id_salt("device-drives").selected_text(crate::i18n::tr("Plugged in now")).width(150.0).show_ui(ui, |ui| {
                         if drives.is_empty() {
-                            ui.label("Nothing found");
+                            ui.label(crate::i18n::tr("Nothing found"));
                         }
                         for drive in drives {
                             let shown = if drive.label.is_empty() { format!("{} (no label)", drive.root.display()) } else { format!("{}  {}", drive.label, drive.root.display()) };
@@ -845,76 +845,76 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                     });
                 });
                 ui.end_row();
-                ui.label("Folder on it:");
-                ui.add(egui::TextEdit::singleline(folder).hint_text("Blank for the top, or GAMES/NEW").desired_width(320.0));
+                ui.label(crate::i18n::tr("Folder on it:"));
+                ui.add(egui::TextEdit::singleline(folder).hint_text(crate::i18n::tr("Blank for the top, or GAMES/NEW")).desired_width(320.0));
                 ui.end_row();
-                ui.label("");
-                ui.checkbox(&mut device.eject, "Eject the card once the file is on it");
+                ui.label(crate::i18n::tr(""));
+                ui.checkbox(&mut device.eject, crate::i18n::tr("Eject the card once the file is on it"));
                 ui.end_row();
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint("Found by its label, whichever drive letter or mount point it has today."));
                 ui.end_row();
             }
             Place::Folder { path } => {
-                ui.label("Folder:");
+                ui.label(crate::i18n::tr("Folder:"));
                 ui.horizontal(|ui| {
                     let mut text = path.display().to_string();
                     if ui.add(egui::TextEdit::singleline(&mut text).desired_width(250.0)).changed() {
                         *path = PathBuf::from(text);
                     }
-                    if ui.button("Browse\u{2026}").clicked()
-                        && let Some(folder) = rfd::FileDialog::new().set_title("Send to this folder").pick_folder()
+                    if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
+                        && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Send to this folder")).pick_folder()
                     {
                         *path = folder;
                     }
                 });
                 ui.end_row();
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint("A shared network folder, an emulator's folder, or a TNFS server's folder for FujiNet."));
                 ui.end_row();
             }
             Place::Sftp { address, key_file } => {
-                ui.label("Address:");
-                ui.add(egui::TextEdit::singleline(address).hint_text("sftp://root@mister/media/fat/games").desired_width(320.0));
+                ui.label(crate::i18n::tr("Address:"));
+                ui.add(egui::TextEdit::singleline(address).hint_text(crate::i18n::tr("sftp://root@mister/media/fat/games")).desired_width(320.0));
                 ui.end_row();
-                ui.label("Key file:");
+                ui.label(crate::i18n::tr("Key file:"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(key_file).hint_text("None: sign in with a password").desired_width(250.0));
-                    if ui.button("Browse\u{2026}").clicked()
-                        && let Some(file) = rfd::FileDialog::new().set_title("Private key").pick_file()
+                    ui.add(egui::TextEdit::singleline(key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(250.0));
+                    if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
+                        && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
                     {
                         *key_file = file.display().to_string();
                     }
                 });
                 ui.end_row();
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint("A password is asked for when sending, the first time. The server's key is checked as for remote files."));
                 ui.end_row();
             }
             Place::Ftp { host, port, user, folder } => {
-                ui.label("Address:");
+                ui.label(crate::i18n::tr("Address:"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(host).hint_text("192.168.1.64").desired_width(200.0));
-                    ui.label("Port:");
+                    ui.add(egui::TextEdit::singleline(host).hint_text(crate::i18n::tr("192.168.1.64")).desired_width(200.0));
+                    ui.label(crate::i18n::tr("Port:"));
                     ui.add(egui::DragValue::new(port).range(1..=65535));
                 });
                 ui.end_row();
-                ui.label("User:");
-                ui.add(egui::TextEdit::singleline(user).hint_text("Blank for anonymous").desired_width(200.0));
+                ui.label(crate::i18n::tr("User:"));
+                ui.add(egui::TextEdit::singleline(user).hint_text(crate::i18n::tr("Blank for anonymous")).desired_width(200.0));
                 ui.end_row();
-                ui.label("Folder:");
-                ui.add(egui::TextEdit::singleline(folder).hint_text("/Usb0/games").desired_width(320.0));
+                ui.label(crate::i18n::tr("Folder:"));
+                ui.add(egui::TextEdit::singleline(folder).hint_text(crate::i18n::tr("/Usb0/games")).desired_width(320.0));
                 ui.end_row();
                 password_row(ui, &device.place, password, keep, forget);
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint("Plain FTP sends the password unprotected, so use it only on your own network."));
                 ui.end_row();
             }
             Place::NextSync { folder } => {
-                ui.label("Folder on the Next:");
-                ui.add(egui::TextEdit::singleline(folder).hint_text("/dot, or /games/mine").desired_width(320.0));
+                ui.label(crate::i18n::tr("Folder on the Next:"));
+                ui.add(egui::TextEdit::singleline(folder).hint_text(crate::i18n::tr("/dot, or /games/mine")).desired_width(320.0));
                 ui.end_row();
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint(&format!(
                     "Sending makes the file ready, and the Next fetches it over Wi-Fi when .sync is run on it: .sync {} the first time, and then just .sync. The Next needs NextSync's .sync dot command. Port {} on this computer has to be reachable.",
                     deploy::local_address().unwrap_or_else(|| "this computer's address".into()),
@@ -923,24 +923,24 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.end_row();
             }
             Place::Ultimate { host } => {
-                ui.label("Address:");
-                ui.add(egui::TextEdit::singleline(host).hint_text("192.168.1.64").desired_width(200.0));
+                ui.label(crate::i18n::tr("Address:"));
+                ui.add(egui::TextEdit::singleline(host).hint_text(crate::i18n::tr("192.168.1.64")).desired_width(200.0));
                 ui.end_row();
                 password_row(ui, &device.place, password, keep, forget);
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint("Runs .prg and .crt files, plays .sid and .mod tunes, and puts .d64, .g64, .d71, .g71 and .d81 disks in drive A, straight away. Needs firmware 3.11 or later, with the web remote control service on. A password is only needed if the Ultimate has a network password."));
                 ui.end_row();
             }
             Place::NextCable { port } => {
-                ui.label("Serial port:");
+                ui.label(crate::i18n::tr("Serial port:"));
                 ui.add(egui::TextEdit::singleline(port).hint_text(if cfg!(windows) { "COM8" } else { "/dev/ttyUSB0" }).desired_width(200.0));
                 ui.end_row();
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint("Runs and debugs Z80 source on a real Next, as DeZog does: the Next needs dezogif as its NMI ROM (machines/next/enNextMf.rom, from DeZog's dezogif releases) and a USB serial cable that can do 921600 baud, on the Joy 2 port (GND 8, the cable's RX to 7, its TX to 9) or the UART pins. Press the Next's NMI button once before running. Or host:port for dezogif over Wi-Fi."));
                 ui.end_row();
             }
             Place::Emulator { emulator, program, options } => {
-                ui.label("Emulator:");
+                ui.label(crate::i18n::tr("Emulator:"));
                 let known = crate::emulators::by_id(emulator);
                 egui::ComboBox::from_id_salt("device-emulator").width(320.0).selected_text(known.map_or("Choose one", |e| e.name)).show_ui(ui, |ui| {
                     for each in crate::emulators::KNOWN {
@@ -951,19 +951,19 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                     }
                 });
                 ui.end_row();
-                ui.label("Program:");
+                ui.label(crate::i18n::tr("Program:"));
                 ui.horizontal(|ui| {
                     let mut text = program.display().to_string();
                     if ui.add(egui::TextEdit::singleline(&mut text).desired_width(200.0)).changed() {
                         *program = PathBuf::from(text);
                     }
-                    if ui.button("Choose\u{2026}").clicked()
-                        && let Some(chosen) = rfd::FileDialog::new().set_title("The emulator's program").pick_file()
+                    if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked()
+                        && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tr("The emulator's program")).pick_file()
                     {
                         *program = chosen;
                     }
                     if let Some(known) = known
-                        && ui.button("Find").on_hover_text("Looks where it's usually installed").clicked()
+                        && ui.button(crate::i18n::tr("Find")).on_hover_text(crate::i18n::tr("Looks where it's usually installed")).clicked()
                     {
                         match crate::emulators::find_installed().into_iter().find(|(e, _)| e.id == known.id) {
                             Some((_, found)) => *program = found,
@@ -972,8 +972,8 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                     }
                 });
                 ui.end_row();
-                ui.label("Extra options:");
-                ui.add(egui::TextEdit::singleline(options).hint_text("Added to its command line").desired_width(320.0));
+                ui.label(crate::i18n::tr("Extra options:"));
+                ui.add(egui::TextEdit::singleline(options).hint_text(crate::i18n::tr("Added to its command line")).desired_width(320.0));
                 ui.end_row();
                 if let Some(known) = known.filter(|k| k.machines.contains(&crate::running::Machine::Amiga)) {
                     crate::amiga_run::settings_rows(ui, &hint, known.id);
@@ -982,7 +982,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                     crate::st_run::settings_rows(ui, &hint, program);
                 }
                 if let Some(known) = known {
-                    ui.label("");
+                    ui.label(crate::i18n::tr(""));
                     let machines: Vec<&str> = known.machines.iter().map(|m| m.name()).collect();
                     let formats: Vec<&str> = known.formats.iter().map(|f| f.ending()).collect();
                     let reached = match known.link {
@@ -992,7 +992,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                     note(ui, hint(&format!("Runs programs for the {}, from .{} files.{reached}", machines.join(", "), formats.join(", ."))));
                     ui.end_row();
                     if !told.is_empty() {
-                        ui.label("");
+                        ui.label(crate::i18n::tr(""));
                         note(ui, RichText::new(told.clone()).color(theme::rainbow_mistake()));
                         ui.end_row();
                     }
@@ -1000,24 +1000,24 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 return;
             }
             Place::Command { line } => {
-                ui.label("Command line:");
-                ui.add(egui::TextEdit::multiline(line).hint_text("x64sc -autostart {file}").desired_rows(2).desired_width(320.0));
+                ui.label(crate::i18n::tr("Command line:"));
+                ui.add(egui::TextEdit::multiline(line).hint_text(crate::i18n::tr("x64sc -autostart {file}")).desired_rows(2).desired_width(320.0));
                 ui.end_row();
-                ui.label("");
+                ui.label(crate::i18n::tr(""));
                 note(ui, hint(&format!("Run by {} with a copy of the file. {{file}} is the copy's full path, {{name}} its name and {{folder}} its folder. A program still running after five seconds, such as an emulator, is left to run.", crate::platform::SHELL_NAME)));
                 ui.end_row();
             }
         }
-        ui.label("Write text as:");
+        ui.label(crate::i18n::tr("Write text as:"));
         let chosen = device.preset.as_deref().and_then(codec::preset_by_id).map_or("The file as it's saved", |preset| preset.name);
         egui::ComboBox::from_id_salt("device-preset").width(320.0).selected_text(chosen).show_ui(ui, |ui| {
-            ui.selectable_value(&mut device.preset, None, "The file as it's saved");
+            ui.selectable_value(&mut device.preset, None, crate::i18n::tr("The file as it's saved"));
             for preset in &codec::PRESETS {
                 ui.selectable_value(&mut device.preset, Some(preset.id.to_string()), preset.name);
             }
         });
         ui.end_row();
-        ui.label("");
+        ui.label(crate::i18n::tr(""));
         note(ui, hint("Changes the character set and line endings of the copy sent, never the file itself."));
         ui.end_row();
     });
@@ -1035,12 +1035,12 @@ fn password_row(ui: &mut Ui, place: &Place, password: &mut String, keep: &mut bo
     let Some(key) = place.secret_key() else {
         return;
     };
-    ui.label("Password:");
+    ui.label(crate::i18n::tr("Password:"));
     ui.horizontal(|ui| {
         let kept = deploy::stored_password(&key).is_some();
         ui.add(egui::TextEdit::singleline(password).password(true).hint_text(if kept { "Kept; type to change it" } else { "If one is needed" }).desired_width(160.0));
-        ui.checkbox(keep, "Remember it").on_hover_text(format!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
-        if kept && ui.small_button("Forget it").clicked() {
+        ui.checkbox(keep, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
+        if kept && ui.small_button(crate::i18n::tr("Forget it")).clicked() {
             *forget = Some(key);
         }
     });

@@ -63,11 +63,11 @@ impl Trsdos {
 
     pub fn open(source: Arc<dyn Source>, shape: super::cpm::Shape) -> Result<Self, String> {
         if shape.sector_size != 256 || !(10..=20).contains(&shape.per_track) {
-            return Err("not a TRS-80 disk's tracks".into());
+            return Err(crate::i18n::tr("not a TRS-80 disk's tracks").into());
         }
         let probe = Self { source: source.clone(), per_track: shape.per_track, heads: shape.heads, granules_per_track: 2, files: Vec::new(), what: String::new() };
         let cylinders = source.len() / (256 * shape.per_track * shape.heads);
-        let boot = probe.sector(0, 0).ok_or("no boot sector")?;
+        let boot = probe.sector(0, 0).ok_or(crate::i18n::tr("no boot sector"))?;
         let mut tried = Vec::new();
         // The Model III's boot sector starts &FE, then the directory's cylinder; the Model I's and LDOS's &00 &FE.
         let variants: &[Variant] = if boot[0] == 0xFE { &[Variant::Model3] } else { &[Variant::Ldos, Variant::Model1] };
@@ -97,7 +97,7 @@ impl Trsdos {
                 }
             }
         }
-        Err("No TRS-80 directory was found on this disk.".into())
+        Err(crate::i18n::tr("No TRS-80 directory was found on this disk.").into())
     }
 
     fn read_directory(source: &Arc<dyn Source>, shape: super::cpm::Shape, directory: u64, variant: Variant, gat: &[u8], hit: &[u8]) -> Option<Self> {
@@ -202,7 +202,7 @@ impl Trsdos {
                     if out.len() as u64 >= file.size {
                         break;
                     }
-                    let sector = self.sector(cylinder, side * self.per_track + on_track * per_granule + n).ok_or_else(|| format!("cylinder {cylinder} isn't on the disk"))?;
+                    let sector = self.sector(cylinder, side * self.per_track + on_track * per_granule + n).ok_or_else(|| crate::i18n::tf!("cylinder {cylinder} isn't on the disk"))?;
                     out.extend(sector);
                 }
             }
@@ -240,7 +240,7 @@ impl Volume for Trsdos {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         self.read_file(file)
     }
 }

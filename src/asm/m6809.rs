@@ -178,7 +178,7 @@ impl Isa for M6809 {
             let offset = target - (line.here() + length);
             if !long {
                 if line.checking() && !(-128..=127).contains(&offset) {
-                    return Err(format!("{operands} is {offset} bytes away, out of a short branch's reach; use L{upper}"));
+                    return Err(crate::i18n::tf!("{operands} is {offset} bytes away, out of a short branch's reach; use L{upper}"));
                 }
                 return Ok(vec![op, offset as u8]);
             }
@@ -187,7 +187,7 @@ impl Isa for M6809 {
         }
         match mnemonic {
             "orcc" | "andcc" | "cwai" => {
-                let value = operands.strip_prefix('#').ok_or_else(|| format!("{upper} takes # and a value"))?;
+                let value = operands.strip_prefix('#').ok_or_else(|| crate::i18n::tf!("{upper} takes # and a value"))?;
                 let op = match mnemonic {
                     "orcc" => 0x1A,
                     "andcc" => 0x1C,
@@ -198,10 +198,10 @@ impl Isa for M6809 {
             "tfr" | "exg" => {
                 let items = split_operands(operands);
                 let [from, to] = items.as_slice() else {
-                    return Err(format!("{upper} takes two registers"));
+                    return Err(crate::i18n::tf!("{upper} takes two registers"));
                 };
                 let (Some(a), Some(b)) = (register_code(from), register_code(to)) else {
-                    return Err(format!("{upper} takes two registers, as {upper} A,B"));
+                    return Err(crate::i18n::tf!("{upper} takes two registers, as {upper} A,B"));
                 };
                 return Ok(vec![if mnemonic == "tfr" { 0x1F } else { 0x1E }, a << 4 | b]);
             }
@@ -209,7 +209,7 @@ impl Isa for M6809 {
                 let user = mnemonic.ends_with('u');
                 let mut mask = 0u8;
                 for name in split_operands(operands) {
-                    mask |= stack_bit(&name, user).ok_or_else(|| format!("{name} can't go on {} stack", if user { "the U" } else { "the S" }))?;
+                    mask |= stack_bit(&name, user).ok_or_else(|| crate::i18n::tf!("{name} can't go on {} stack", if user { "the U" } else { "the S" }))?;
                 }
                 let op = match mnemonic {
                     "pshs" => 0x34,
@@ -222,7 +222,7 @@ impl Isa for M6809 {
             "leax" | "leay" | "leas" | "leau" => {
                 let op = 0x30 + ["leax", "leay", "leas", "leau"].iter().position(|n| *n == mnemonic).unwrap_or(0) as u8;
                 let mut bytes = vec![op];
-                bytes.extend(indexed(line, operands, 1)?.ok_or_else(|| format!("{upper} takes an indexed address, as {upper} 2,X"))?);
+                bytes.extend(indexed(line, operands, 1)?.ok_or_else(|| crate::i18n::tf!("{upper} takes an indexed address, as {upper} 2,X"))?);
                 return Ok(bytes);
             }
             _ => {}
@@ -236,12 +236,12 @@ impl Isa for M6809 {
         if mnemonic == "jmp" {
             return address(line, operands, None, [0x0E, 0x6E, 0x7E], 1);
         }
-        let found = memory(mnemonic).ok_or_else(|| format!("{mnemonic} isn't a 6809 instruction"))?;
+        let found = memory(mnemonic).ok_or_else(|| crate::i18n::tf!("{mnemonic} isn't a 6809 instruction"))?;
         let mut head = Vec::new();
         head.extend(found.prefix);
         if let Some(value) = operands.strip_prefix('#') {
             if !found.immediate {
-                return Err(format!("{upper} can't take an immediate value"));
+                return Err(crate::i18n::tf!("{upper} can't take an immediate value"));
             }
             head.push(found.opcode);
             if found.wide {
@@ -258,7 +258,7 @@ impl Isa for M6809 {
 fn byte(line: &mut Line, text: &str) -> Result<u8, String> {
     let value = line.eval(text)?;
     if line.checking() && !(-128..=255).contains(&value) {
-        return Err(format!("{} is {value}, which doesn't fit in a byte", text.trim()));
+        return Err(crate::i18n::tf!("{} is {value}, which doesn't fit in a byte", text.trim()));
     }
     Ok(value as u8)
 }
@@ -337,15 +337,15 @@ fn indexed(line: &mut Line, operands: &str, before: usize) -> Result<Option<Vec<
         return Ok(Some(bytes));
     }
     let Some(r) = index_register(&name) else {
-        return Err(format!("{register} can't be indexed from; X, Y, U, S or PC can"));
+        return Err(crate::i18n::tf!("{register} can't be indexed from; X, Y, U, S or PC can"));
     };
     let rr = r << 5;
     if let Some(post) = post {
         if !offset.is_empty() {
-            return Err("an offset can't go with auto increment or decrement".into());
+            return Err(crate::i18n::tr("an offset can't go with auto increment or decrement").into());
         }
         if indirect && (post == 0x80 || post == 0x82) {
-            return Err("only ,R++ and ,--R can be indirect".into());
+            return Err(crate::i18n::tr("only ,R++ and ,--R can be indirect").into());
         }
         return Ok(Some(vec![0x80 | rr | post | ind]));
     }

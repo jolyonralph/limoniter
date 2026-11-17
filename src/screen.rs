@@ -238,7 +238,7 @@ fn cell_width(available: f32, cols: usize, border: bool) -> f32 {
 pub fn draw(ui: &mut Ui, screen: &Screen) {
     for (key, value) in &screen.info {
         ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(format!("{key}:")).color(theme::text_dim()).size(12.0));
+            ui.label(RichText::new(crate::i18n::tf!("{key}:")).color(theme::text_dim()).size(12.0));
             ui.label(RichText::new(value).size(12.0));
         });
     }

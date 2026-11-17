@@ -209,7 +209,7 @@ pub fn assemble_own_at(cpu: Cpu, path: &Path, text: &str, base: i64) -> Assembly
 pub fn assemble_external(found: &External, program: &Path, source: &Path) -> Result<Assembled, String> {
     let work = std::env::temp_dir().join(format!("limoniter-asm-{}-{}", std::process::id(), found.id));
     let _ = std::fs::remove_dir_all(&work);
-    std::fs::create_dir_all(&work).map_err(|e| format!("A folder to assemble in couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&work).map_err(|e| crate::i18n::tf!("A folder to assemble in couldn't be made: {e}"))?;
     let result = match found.style {
         Style::Sjasmplus => sjasmplus(program, source, &work),
         Style::Pasmo => pasmo(program, source, &work),
@@ -232,7 +232,7 @@ pub(crate) fn run(program: &Path, args: &[String], folder: &Path) -> Result<(boo
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x0800_0000);
     }
-    let mut child = command.spawn().map_err(|e| format!("{} couldn't be started: {e}", program.display()))?;
+    let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", program.display()))?;
     let started = std::time::Instant::now();
     loop {
         if child.try_wait().map_err(|e| e.to_string())?.is_some() {
@@ -240,7 +240,7 @@ pub(crate) fn run(program: &Path, args: &[String], folder: &Path) -> Result<(boo
         }
         if started.elapsed() > Duration::from_secs(60) {
             let _ = child.kill();
-            return Err(format!("{} took over a minute, so it was stopped.", program.display()));
+            return Err(crate::i18n::tf!("{} took over a minute, so it was stopped.", program.display()));
         }
         std::thread::sleep(Duration::from_millis(10));
     }

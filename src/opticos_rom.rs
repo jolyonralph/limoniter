@@ -76,11 +76,11 @@ fn keyword_table() -> Vec<u8> {
 /// Whether a ROM can be used in place of the one carried, and why not.
 pub fn usable(rom: &[u8]) -> Result<(), String> {
     if rom.len() != 16384 {
-        return Err(format!("It's {} bytes, not the 16384 of a Spectrum ROM.", rom.len()));
+        return Err(crate::i18n::tf!("It's {} bytes, not the 16384 of a Spectrum ROM.", rom.len()));
     }
     let table = keyword_table();
     if !rom.windows(table.len()).any(|w| w == table) {
-        return Err("Its OpticBASIC keywords aren't the ones this Limoniter knows, so it waits for a Limoniter that does.".into());
+        return Err(crate::i18n::tr("Its OpticBASIC keywords aren't the ones this Limoniter knows, so it waits for a Limoniter that does.").into());
     }
     Ok(())
 }
@@ -129,43 +129,43 @@ fn latest() -> Result<(String, String), String> {
         .header("User-Agent", "Limoniter")
         .header("Accept", "application/vnd.github+json")
         .call()
-        .map_err(|e| format!("GitHub couldn't be asked: {e}"))?;
-    let text = response.into_body().with_config().limit(1 << 20).read_to_string().map_err(|e| format!("GitHub's answer couldn't be read: {e}"))?;
+        .map_err(|e| crate::i18n::tf!("GitHub couldn't be asked: {e}"))?;
+    let text = response.into_body().with_config().limit(1 << 20).read_to_string().map_err(|e| crate::i18n::tf!("GitHub's answer couldn't be read: {e}"))?;
     release_from(&text)
 }
 
 /// The version and ROM address in GitHub's description of a release.
 fn release_from(text: &str) -> Result<(String, String), String> {
     let json: serde_json::Value = serde_json::from_str(text).map_err(|_| "GitHub's answer wasn't what was expected.".to_string())?;
-    let tag = json["tag_name"].as_str().ok_or("The release has no version.")?.to_string();
+    let tag = json["tag_name"].as_str().ok_or(crate::i18n::tr("The release has no version."))?.to_string();
     let address = json["assets"]
         .as_array()
         .and_then(|assets| assets.iter().find(|a| a["name"] == "opticos.rom"))
         .and_then(|a| a["browser_download_url"].as_str())
-        .ok_or_else(|| format!("OpticOS {tag} has no opticos.rom."))?;
+        .ok_or_else(|| crate::i18n::tf!("OpticOS {tag} has no opticos.rom."))?;
     if !address.starts_with(DOWNLOADS) {
-        return Err("The release's ROM isn't among OpticOS's own downloads.".into());
+        return Err(crate::i18n::tr("The release's ROM isn't among OpticOS's own downloads.").into());
     }
     Ok((tag.trim_start_matches(['v', 'V']).to_string(), address.to_string()))
 }
 
 /// Asks GitHub for a newer OpticOS and installs its ROM. Unless `now_anyway`, it doesn't ask again within a day.
 pub fn check(now_anyway: bool) -> Result<Outcome, String> {
-    let folder = folder().ok_or("There's nowhere to keep a downloaded ROM.")?;
+    let folder = folder().ok_or(crate::i18n::tr("There's nowhere to keep a downloaded ROM."))?;
     let stamp = folder.join("checked.txt");
     let last = std::fs::read_to_string(&stamp).ok().and_then(|t| t.trim().parse::<u64>().ok()).unwrap_or(0);
     if !now_anyway && now().saturating_sub(last) < EVERY.as_secs() {
         return Ok(Outcome::NotDue);
     }
     let (version, address) = latest()?;
-    std::fs::create_dir_all(&folder).map_err(|e| format!("The folder for OpticOS couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("The folder for OpticOS couldn't be made: {e}"))?;
     let _ = std::fs::write(&stamp, now().to_string());
     let running = current().version;
     if !newer(&version, &running) {
         return Ok(Outcome::UpToDate(running));
     }
-    let response = ureq::get(&address).header("User-Agent", "Limoniter").call().map_err(|e| format!("The ROM couldn't be downloaded: {e}"))?;
-    let bytes = response.into_body().with_config().limit(65536).read_to_vec().map_err(|e| format!("The ROM couldn't be downloaded: {e}"))?;
+    let response = ureq::get(&address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("The ROM couldn't be downloaded: {e}"))?;
+    let bytes = response.into_body().with_config().limit(65536).read_to_vec().map_err(|e| crate::i18n::tf!("The ROM couldn't be downloaded: {e}"))?;
     let outcome = install(&folder, &version, bytes)?;
     if let (Outcome::Installed(_), Some(rom)) = (&outcome, installed())
         && let Ok(mut current) = CURRENT.write()
@@ -182,9 +182,9 @@ fn install(folder: &std::path::Path, version: &str, bytes: Vec<u8>) -> Result<Ou
     }
     // The ROM first, under another name, so a half-written one is never used.
     let part = folder.join("opticos.rom.part");
-    std::fs::write(&part, &bytes).map_err(|e| format!("The ROM couldn't be saved: {e}"))?;
-    std::fs::rename(&part, folder.join("opticos.rom")).map_err(|e| format!("The ROM couldn't be saved: {e}"))?;
-    std::fs::write(folder.join("version.txt"), version).map_err(|e| format!("The ROM's version couldn't be saved: {e}"))?;
+    std::fs::write(&part, &bytes).map_err(|e| crate::i18n::tf!("The ROM couldn't be saved: {e}"))?;
+    std::fs::rename(&part, folder.join("opticos.rom")).map_err(|e| crate::i18n::tf!("The ROM couldn't be saved: {e}"))?;
+    std::fs::write(folder.join("version.txt"), version).map_err(|e| crate::i18n::tf!("The ROM's version couldn't be saved: {e}"))?;
     Ok(Outcome::Installed(version.into()))
 }
 

@@ -149,9 +149,9 @@ type Slot = usize;
 impl Fat {
     pub fn open(bytes: Vec<u8>) -> Result<Self, String> {
         let base = super::super::fat::partition_of(&bytes[..512.min(bytes.len())]).map_or(0, |(start, _)| start as usize);
-        let head = bytes.get(base..base + 512).ok_or("The disk has no boot sector.")?;
+        let head = bytes.get(base..base + 512).ok_or(crate::i18n::tr("The disk has no boot sector."))?;
         if !super::super::fat::looks_like_fat(head) {
-            return Err("This doesn't start with a FAT boot sector.".into());
+            return Err(crate::i18n::tr("This doesn't start with a FAT boot sector.").into());
         }
         let word = |at: usize| usize::from(u16::from_le_bytes([head[at], head[at + 1]]));
         let long = |at: usize| u32::from_le_bytes([head[at], head[at + 1], head[at + 2], head[at + 3]]) as usize;
@@ -165,7 +165,7 @@ impl Fat {
         let root_sectors = (root_entries * 32).div_ceil(sector);
         let data_sector = reserved + fats * fat_sectors + root_sectors;
         if fat_sectors == 0 || total <= data_sector || per_cluster == 0 {
-            return Err("The FAT boot sector's sizes don't add up.".into());
+            return Err(crate::i18n::tr("The FAT boot sector's sizes don't add up.").into());
         }
         let clusters = (total - data_sector) / per_cluster;
         let width = if clusters < 4085 {
@@ -176,7 +176,7 @@ impl Fat {
             Width::Fat32
         };
         if base + total * sector > bytes.len() {
-            return Err("The disk image is shorter than its boot sector says, so it isn't changed here.".into());
+            return Err(crate::i18n::tr("The disk image is shorter than its boot sector says, so it isn't changed here.").into());
         }
         let fsinfo = (width == Width::Fat32 && word(48) != 0).then(|| base + word(48) * sector).filter(|at| bytes.get(*at..*at + 4) == Some(b"RRaA"));
         Ok(Self {
@@ -259,7 +259,7 @@ impl Fat {
         let mut cluster = first;
         while (2..self.clusters + 2).contains(&cluster) {
             if out.len() > self.clusters {
-                return Err("A chain of clusters loops back on itself.".into());
+                return Err(crate::i18n::tr("A chain of clusters loops back on itself.").into());
             }
             out.push(cluster);
             cluster = self.get(cluster);
@@ -271,7 +271,7 @@ impl Fat {
     fn allocate(&mut self, count: usize) -> Result<Vec<usize>, String> {
         let free: Vec<usize> = (2..self.clusters + 2).filter(|c| self.get(*c) == 0).take(count).collect();
         if free.len() < count {
-            return Err(format!("The disk is full: this needs {} KB, and {} KB are free.", (count * self.cluster_bytes()).div_ceil(1024), (self.free_clusters() * self.cluster_bytes()) / 1024));
+            return Err(crate::i18n::tf!("The disk is full: this needs {} KB, and {} KB are free.", (count * self.cluster_bytes()).div_ceil(1024), (self.free_clusters() * self.cluster_bytes()) / 1024));
         }
         for (i, cluster) in free.iter().enumerate() {
             let next = free.get(i + 1).copied().unwrap_or(self.end_mark());
@@ -353,7 +353,7 @@ impl Fat {
                 crate::media::tidy_name(shown) == entry.name || shown.eq_ignore_ascii_case(&entry.name)
             })
             .map(|(slots, _, _)| slots)
-            .ok_or_else(|| format!("{} isn't in this folder.", entry.name))
+            .ok_or_else(|| crate::i18n::tf!("{} isn't in this folder.", entry.name))
     }
 
     /// The entry a name would clash with in a folder, ignoring case as FAT does.
@@ -366,7 +366,7 @@ impl Fat {
     fn names(&self, folder: Option<&Entry>, name: &str) -> Result<Names, String> {
         let name = name.trim().trim_end_matches('.');
         if name.is_empty() || name.chars().any(|c| c.is_control() || "\\/:*?\"<>|".contains(c)) {
-            return Err(format!("\"{name}\" can't be a file name on a FAT disk."));
+            return Err(crate::i18n::tf!("\"{name}\" can't be a file name on a FAT disk."));
         }
         let (stem, ending) = match name.rfind('.') {
             Some(dot) if dot > 0 => (&name[..dot], &name[dot + 1..]),
@@ -402,7 +402,7 @@ impl Fat {
                 break;
             }
         }
-        let (stem8, ext3) = chosen.ok_or("No short name is free for this file.")?;
+        let (stem8, ext3) = chosen.ok_or(crate::i18n::tr("No short name is free for this file."))?;
         for (slot, c) in short.iter_mut().zip(stem8.bytes()) {
             *slot = c;
         }
@@ -427,9 +427,9 @@ impl Fat {
             }
         }
         let Some(first) = self.folder_cluster(folder) else {
-            return Err("The disk's root folder is full; put the file in a folder.".into());
+            return Err(crate::i18n::tr("The disk's root folder is full; put the file in a folder.").into());
         };
-        let last = *self.chain(first)?.last().ok_or("The folder has no clusters.")?;
+        let last = *self.chain(first)?.last().ok_or(crate::i18n::tr("The folder has no clusters."))?;
         let added = self.allocate(count.div_ceil(self.cluster_bytes() / 32))?;
         self.set(last, added[0]);
         for cluster in &added {
@@ -515,7 +515,7 @@ impl Fat {
         if self.bytes[own + 11] & 0x10 != 0 {
             let inside = Entry::dir(String::new(), cluster as u64, 0);
             if !self.entries(Some(&inside))?.is_empty() {
-                return Err("The folder has files in it; take them off first.".into());
+                return Err(crate::i18n::tr("The folder has files in it; take them off first.").into());
             }
         }
         let _ = folder;
@@ -554,14 +554,14 @@ fn long_name(bytes: &[u8], slots: &[Slot]) -> String {
 impl ImageWriter for Fat {
     fn add(&mut self, folder: Option<&Entry>, file: &Addition) -> Result<(), String> {
         if file.bytes.len() as u64 > u64::from(u32::MAX) {
-            return Err("A FAT file can't be 4 GB or more.".into());
+            return Err(crate::i18n::tr("A FAT file can't be 4 GB or more.").into());
         }
         if let Some(slots) = self.taken(folder, &file.name)? {
             if !file.replace {
                 return Err(already(&file.name));
             }
             if self.bytes[*slots.last().unwrap() + 11] & 0x10 != 0 {
-                return Err(format!("{} is a folder here, so a file can't replace it.", file.name));
+                return Err(crate::i18n::tf!("{} is a folder here, so a file can't replace it.", file.name));
             }
             self.remove(folder, &slots)?;
         }

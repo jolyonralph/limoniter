@@ -111,7 +111,7 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn take(&mut self, count: usize) -> Result<&[u8], String> {
-        let end = self.at.checked_add(count).filter(|end| *end <= self.data.len()).ok_or("It ends too soon.")?;
+        let end = self.at.checked_add(count).filter(|end| *end <= self.data.len()).ok_or(crate::i18n::tr("It ends too soon."))?;
         let part = &self.data[self.at..end];
         self.at = end;
         Ok(part)
@@ -127,7 +127,7 @@ impl Reader<'_> {
         let count = self.number()?;
         let left = (self.data.len() - self.at) as u64;
         if count.saturating_mul(each as u64) > left {
-            return Err("A count is more than there's room for.".into());
+            return Err(crate::i18n::tr("A count is more than there's room for.").into());
         }
         Ok(count as usize)
     }
@@ -145,11 +145,11 @@ impl Reader<'_> {
 
 pub fn decode(data: &[u8]) -> Result<Image, String> {
     if data.len() < MAGIC.len() + CHECKSUM_BYTES || !data.starts_with(MAGIC) {
-        return Err("It isn't one of these files.".into());
+        return Err(crate::i18n::tr("It isn't one of these files.").into());
     }
     let (body, checksum) = data.split_at(data.len() - CHECKSUM_BYTES);
     if hash_of(body) != checksum {
-        return Err("It's been damaged.".into());
+        return Err(crate::i18n::tr("It's been damaged.").into());
     }
     let mut reader = Reader { data: body, at: MAGIC.len() };
     let file_hash: [u8; 32] = reader.take(32)?.try_into().map_err(|_| "A hash is the wrong size.")?;
@@ -160,7 +160,7 @@ pub fn decode(data: &[u8]) -> Result<Image, String> {
         let parent = match reader.number()? {
             u64::MAX => None,
             number if (number as usize) < index => Some(number as usize),
-            _ => return Err("A state comes before the one it came from.".into()),
+            _ => return Err(crate::i18n::tr("A state comes before the one it came from.").into()),
         };
         let when = reader.number()?;
         let label = reader.text()?;
@@ -180,7 +180,7 @@ pub fn decode(data: &[u8]) -> Result<Image, String> {
         let start = reader.number()? as usize;
         let end = reader.number()? as usize;
         if start.checked_add(end).is_none_or(|kept| kept > from.len()) {
-            return Err("A state keeps more lines than it came from.".into());
+            return Err(crate::i18n::tr("A state keeps more lines than it came from.").into());
         }
         let changed = reader.count(8)?;
         let mut lines: Vec<Arc<str>> = Vec::with_capacity(start + changed + end);
@@ -190,12 +190,12 @@ pub fn decode(data: &[u8]) -> Result<Image, String> {
         }
         lines.extend_from_slice(&from[from.len() - end..]);
         if lines.is_empty() {
-            return Err("A state has no lines.".into());
+            return Err(crate::i18n::tr("A state has no lines.").into());
         }
         nodes.push(NodeImage { parent, when, label, caret: (places[0], places[1]), anchor: (places[2], places[3]), lines, base, insert, eols });
     }
     if current >= nodes.len() {
-        return Err("It doesn't say where the text is.".into());
+        return Err(crate::i18n::tr("It doesn't say where the text is.").into());
     }
     Ok(Image { file_hash, current, nodes })
 }

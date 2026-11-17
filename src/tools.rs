@@ -37,11 +37,11 @@ pub fn text_of_file(path: &std::path::Path) -> Result<String, String> {
     const MOST: u64 = 64 * 1024 * 1024;
     let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
     if size > MOST {
-        return Err("That file is too large to insert. It can be up to 64 MB.".to_string());
+        return Err(crate::i18n::tr("That file is too large to insert. It can be up to 64 MB.").to_string());
     }
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     if crate::codec::looks_binary(&bytes) {
-        return Err("That looks like a binary file rather than text, so it hasn't been inserted.".to_string());
+        return Err(crate::i18n::tr("That looks like a binary file rather than text, so it hasn't been inserted.").to_string());
     }
     let found = crate::codec::detect(&bytes);
     let mut format = crate::codec::TextFormat { charset: found.charset, ..crate::codec::TextFormat::default() };

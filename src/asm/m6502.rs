@@ -187,7 +187,7 @@ impl Isa for M6502 {
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
         // A size forced with +1 or +2 (ACME), .b or .w (DASM), or a: for absolute (ca65).
         let (mnemonic, forced) = strip_size(mnemonic);
-        let modes = opcodes(mnemonic).ok_or_else(|| format!("{mnemonic} isn't a 6502 instruction"))?;
+        let modes = opcodes(mnemonic).ok_or_else(|| crate::i18n::tf!("{mnemonic} isn't a 6502 instruction"))?;
         let upper = mnemonic.to_ascii_uppercase();
         let text = operands.trim();
         let wrong = |what: &str| format!("{upper} can't take {what}");
@@ -196,13 +196,13 @@ impl Isa for M6502 {
             if let Some(op) = opcode(modes, Accumulator).or_else(|| opcode(modes, Implied)) {
                 return Ok(vec![op]);
             }
-            return Err(format!("{upper} needs an operand"));
+            return Err(crate::i18n::tf!("{upper} needs an operand"));
         }
         if let Some(op) = opcode(modes, Relative) {
             let target = line.eval(text)?;
             let offset = target - (line.here() + 2);
             if line.checking() && !(-128..=127).contains(&offset) {
-                return Err(format!("{text} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP"));
+                return Err(crate::i18n::tf!("{text} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP"));
             }
             return Ok(vec![op, offset as u8]);
         }
@@ -210,7 +210,7 @@ impl Isa for M6502 {
             let op = opcode(modes, Immediate).ok_or_else(|| wrong("an immediate value"))?;
             let v = line.eval(value)?;
             if line.checking() && !(-128..=255).contains(&v) {
-                return Err(format!("#{} is {v}, which doesn't fit in a byte", value.trim()));
+                return Err(crate::i18n::tf!("#{} is {v}, which doesn't fit in a byte", value.trim()));
             }
             return Ok(vec![op, v as u8]);
         }
@@ -262,13 +262,13 @@ impl Isa for M6502 {
             (Some(op), _, _) if small => Ok(vec![op, v as u8]),
             (_, Some(op), _) => {
                 if line.checking() && !(-32768..=65535).contains(&v) {
-                    return Err(format!("{address} is {v}, which doesn't fit in 16 bits"));
+                    return Err(crate::i18n::tf!("{address} is {v}, which doesn't fit in 16 bits"));
                 }
                 Ok(vec![op, v as u8, (v >> 8) as u8])
             }
             (Some(op), None, _) => {
                 if line.checking() && !(0..256).contains(&v) {
-                    return Err(format!("{upper} {text} needs an address in zero page ($00 to $FF)"));
+                    return Err(crate::i18n::tf!("{upper} {text} needs an address in zero page ($00 to $FF)"));
                 }
                 Ok(vec![op, v as u8])
             }
@@ -280,7 +280,7 @@ impl Isa for M6502 {
 fn zero_page(line: &mut Line, text: &str, upper: &str) -> Result<u8, String> {
     let v = line.eval(text)?;
     if line.checking() && !(0..256).contains(&v) {
-        return Err(format!("{upper}'s indirect address has to be in zero page ($00 to $FF), and {} is ${v:X}", text.trim()));
+        return Err(crate::i18n::tf!("{upper}'s indirect address has to be in zero page ($00 to $FF), and {} is ${v:X}", text.trim()));
     }
     Ok(v as u8)
 }

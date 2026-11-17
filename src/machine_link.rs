@@ -24,7 +24,7 @@ pub struct Zrcp {
 
 impl Zrcp {
     pub fn connect(port: u16) -> Result<Zrcp, String> {
-        let stream = TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), WAIT).map_err(|e| format!("ZEsarUX couldn't be reached on port {port}: {e}"))?;
+        let stream = TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), WAIT).map_err(|e| crate::i18n::tf!("ZEsarUX couldn't be reached on port {port}: {e}"))?;
         stream.set_read_timeout(Some(WAIT)).map_err(|e| e.to_string())?;
         let mut link = Zrcp { stream };
         // It greets, then waits at its prompt.
@@ -43,11 +43,11 @@ impl Zrcp {
                 return Ok(String::from_utf8_lossy(&said).trim_end().to_string());
             }
             if began.elapsed() > WAIT {
-                return Err("ZEsarUX stopped answering.".into());
+                return Err(crate::i18n::tr("ZEsarUX stopped answering.").into());
             }
-            let got = self.stream.read(&mut buffer).map_err(|e| format!("ZEsarUX stopped answering: {e}"))?;
+            let got = self.stream.read(&mut buffer).map_err(|e| crate::i18n::tf!("ZEsarUX stopped answering: {e}"))?;
             if got == 0 {
-                return Err("ZEsarUX closed the connection.".into());
+                return Err(crate::i18n::tr("ZEsarUX closed the connection.").into());
             }
             said.extend_from_slice(&buffer[..got]);
         }
@@ -58,7 +58,7 @@ impl Zrcp {
         self.stream.write_all(format!("{command}\n").as_bytes()).map_err(|e| e.to_string())?;
         let said = self.until_prompt()?;
         if said.starts_with("Error") {
-            return Err(format!("ZEsarUX said: {said}"));
+            return Err(crate::i18n::tf!("ZEsarUX said: {said}"));
         }
         Ok(said)
     }
@@ -108,7 +108,7 @@ const KEYBOARD_FEED: u8 = 0x72;
 
 impl ViceMonitor {
     pub fn connect(port: u16) -> Result<ViceMonitor, String> {
-        let stream = TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), WAIT).map_err(|e| format!("VICE couldn't be reached on port {port}: {e}"))?;
+        let stream = TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), WAIT).map_err(|e| crate::i18n::tf!("VICE couldn't be reached on port {port}: {e}"))?;
         stream.set_read_timeout(Some(WAIT)).map_err(|e| e.to_string())?;
         Ok(ViceMonitor { stream, request: 1 })
     }
@@ -125,20 +125,20 @@ impl ViceMonitor {
         self.stream.write_all(&message).map_err(|e| e.to_string())?;
         loop {
             let mut head = [0u8; 12];
-            self.stream.read_exact(&mut head).map_err(|e| format!("VICE stopped answering: {e}"))?;
+            self.stream.read_exact(&mut head).map_err(|e| crate::i18n::tf!("VICE stopped answering: {e}"))?;
             if head[0] != 0x02 {
-                return Err("VICE answered in a way Limoniter doesn't understand.".into());
+                return Err(crate::i18n::tr("VICE answered in a way Limoniter doesn't understand.").into());
             }
             let length = u32::from_le_bytes([head[2], head[3], head[4], head[5]]) as usize;
             let error = head[7];
             let answered = u32::from_le_bytes([head[8], head[9], head[10], head[11]]);
             let mut response = vec![0u8; length];
-            self.stream.read_exact(&mut response).map_err(|e| format!("VICE stopped answering: {e}"))?;
+            self.stream.read_exact(&mut response).map_err(|e| crate::i18n::tf!("VICE stopped answering: {e}"))?;
             if answered != id {
                 continue;
             }
             if error != 0 {
-                return Err(format!("VICE refused it (error {error:#04X})."));
+                return Err(crate::i18n::tf!("VICE refused it (error {error:#04X})."));
             }
             return Ok(response);
         }

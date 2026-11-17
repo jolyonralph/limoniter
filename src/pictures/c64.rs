@@ -53,7 +53,7 @@ fn colour(index: u8) -> [u8; 3] {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
-    let kind = kind(bytes).ok_or("This isn't a Commodore 64 picture Limoniter knows.")?;
+    let kind = kind(bytes).ok_or(crate::i18n::tr("This isn't a Commodore 64 picture Limoniter knows."))?;
     if matches!(kind, Kind::Fli | Kind::Afli) {
         return Ok(decode_fli(bytes, kind == Kind::Fli));
     }

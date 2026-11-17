@@ -202,10 +202,10 @@ impl Limoniter {
         let mut widen = false;
         Panel::top("narrow-bar").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("Narrowed to lines {first} to {last} of {total}.")).strong());
-                ui.label(RichText::new("Only these can be seen or changed. The rest of the file is safe, and saving saves all of it.").color(theme::text_dim()));
+                ui.label(RichText::new(crate::i18n::tf!("Narrowed to lines {first} to {last} of {total}.")).strong());
+                ui.label(RichText::new(crate::i18n::tr("Only these can be seen or changed. The rest of the file is safe, and saving saves all of it.")).color(theme::text_dim()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    widen = ui.button("Show the whole file").on_hover_text("Ctrl+Shift+N").clicked();
+                    widen = ui.button(crate::i18n::tr("Show the whole file")).on_hover_text(crate::i18n::tr("Ctrl+Shift+N")).clicked();
                 });
             });
         });

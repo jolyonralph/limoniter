@@ -242,7 +242,7 @@ mod windows {
             (GetDeviceCaps(dc, HORZRES), GetDeviceCaps(dc, VERTRES), GetDeviceCaps(dc, LOGPIXELSX), GetDeviceCaps(dc, LOGPIXELSY), GetDeviceCaps(dc, PHYSICALOFFSETX), GetDeviceCaps(dc, PHYSICALOFFSETY))
         };
         if width <= 0 || height <= 0 || dpi_y <= 0 {
-            return Err("That printer didn't say how big its page is.".to_string());
+            return Err(crate::i18n::tr("That printer didn't say how big its page is.").to_string());
         }
         const FF_MODERN: u32 = 0x30;
         const FIXED_PITCH: u32 = 1;
@@ -252,7 +252,7 @@ mod windows {
         // SAFETY: the face name is terminated and outlives the call.
         let font = unsafe { CreateFontW(font_height, 0, 0, 0, 400, 0, 0, 0, DEFAULT_CHARSET, 0, 0, 0, FF_MODERN | FIXED_PITCH, face.as_ptr()) };
         if font == 0 {
-            return Err("Windows couldn't make a font for printing.".to_string());
+            return Err(crate::i18n::tr("Windows couldn't make a font for printing.").to_string());
         }
         let letter = wide("M");
         let mut cell = Size::default();
@@ -267,7 +267,7 @@ mod windows {
             unsafe {
                 DeleteObject(font);
             }
-            return Err("That printer couldn't measure the text.".to_string());
+            return Err(crate::i18n::tr("That printer couldn't measure the text.").to_string());
         }
         let left = (dpi_x * 3 / 4 - offset_x).max(0);
         let top = (dpi_y * 3 / 4 - offset_y).max(0);
@@ -307,7 +307,7 @@ mod windows {
             unsafe {
                 DeleteObject(font);
             }
-            return Err(format!("It has only {total} page{}, so those pages don't exist.", if total == 1 { "" } else { "s" }));
+            return Err(if total == 1 { crate::i18n::tf!("It has only {total} page, so those pages don't exist.") } else { crate::i18n::tf!("It has only {total} pages, so those pages don't exist.") });
         }
         let name = wide(&job.title);
         let info = DocInfo { size: std::mem::size_of::<DocInfo>() as i32, name: name.as_ptr(), output: std::ptr::null(), datatype: std::ptr::null(), kind: 0 };
@@ -317,7 +317,7 @@ mod windows {
             unsafe {
                 DeleteObject(font);
             }
-            return Err("The printer wouldn't start the document.".to_string());
+            return Err(crate::i18n::tr("The printer wouldn't start the document.").to_string());
         }
         let (mut sent, mut number) = (0, 0);
         let mut problem = None;
@@ -403,7 +403,7 @@ mod windows {
         if accepted == 0 {
             // SAFETY: this takes nothing, and reports on the call just made.
             let code = unsafe { CommDlgExtendedError() };
-            return if code == 0 { Ok(None) } else { Err(format!("Windows couldn't show the print window (error {code:#x}). Is a printer installed?")) };
+            return if code == 0 { Ok(None) } else { Err(crate::i18n::tf!("Windows couldn't show the print window (error {code:#x}). Is a printer installed?")) };
         }
         let dc = dialog.dc;
         let selection_only = dialog.flags & PD_SELECTION != 0;
@@ -419,7 +419,7 @@ mod windows {
             unsafe {
                 DeleteDC(dc);
             }
-            *report.lock().unwrap() = Some(attempt.unwrap_or_else(|_| Err("Printing failed unexpectedly.".to_string())));
+            *report.lock().unwrap() = Some(attempt.unwrap_or_else(|_| Err(crate::i18n::tr("Printing failed unexpectedly.").to_string())));
         });
         Ok(Some(outcome))
     }
@@ -538,17 +538,17 @@ pub fn ask_and_print(job: Job) -> Result<Option<Outcome>, String> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Printing uses the system's lp command, which couldn't be started.\n\n{e}"))?;
+        .map_err(|e| crate::i18n::tf!("Printing uses the system's lp command, which couldn't be started.\n\n{e}"))?;
     let outcome: Outcome = std::sync::Arc::new(std::sync::Mutex::new(None));
     let report = outcome.clone();
     std::thread::spawn(move || {
         let result = (|| -> Result<usize, String> {
-            let mut input = std::io::BufWriter::new(child.stdin.take().ok_or("The printer system wouldn't take the pages.")?);
+            let mut input = std::io::BufWriter::new(child.stdin.take().ok_or(crate::i18n::tr("The printer system wouldn't take the pages."))?);
             let pages = write_text_pages(&job, 80, 62, &mut input).map_err(|e| e.to_string())?;
             drop(input.into_inner().map_err(|e| e.to_string())?);
             let output = child.wait_with_output().map_err(|e| e.to_string())?;
             if !output.status.success() {
-                return Err(format!("The printer system said: {}", String::from_utf8_lossy(&output.stderr).trim()));
+                return Err(crate::i18n::tf!("The printer system said: {}", String::from_utf8_lossy(&output.stderr).trim()));
             }
             Ok(pages)
         })();

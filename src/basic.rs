@@ -355,8 +355,8 @@ pub fn tokenise_commodore<S: AsRef<str>>(lines: &[S], machine: CbmMachine) -> Re
             continue;
         };
         previous = Some(number);
-        let body = cbm_crunch(rest.trim_start(), set, &extra).map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
-        address = address.checked_add(u16::try_from(body.len() + 5).map_err(|_| format!("Line {} is too long.", index + 1))?).ok_or("The program is too big for the machine's memory.")?;
+        let body = cbm_crunch(rest.trim_start(), set, &extra).map_err(|problem| crate::i18n::tf!("Line {} (BASIC line {number}): {problem}", index + 1))?;
+        address = address.checked_add(u16::try_from(body.len() + 5).map_err(|_| crate::i18n::tf!("Line {} is too long.", index + 1))?).ok_or(crate::i18n::tr("The program is too big for the machine's memory."))?;
         out.extend_from_slice(&address.to_le_bytes());
         out.extend_from_slice(&(number as u16).to_le_bytes());
         out.extend_from_slice(&body);
@@ -386,7 +386,7 @@ fn cbm_crunch(text: &str, set: &Charset, extra: &[(&'static str, Vec<u8>)]) -> R
             && let Some(close) = chars[i..].iter().position(|ch| *ch == '}')
         {
             let name: String = chars[i + 1..i + close].iter().collect();
-            out.push(cbm_code_byte(&name).ok_or_else(|| format!("{{{name}}} isn't a code this knows"))?);
+            out.push(cbm_code_byte(&name).ok_or_else(|| crate::i18n::tf!("{{{name}}} isn't a code this knows"))?);
             i += close + 1;
             continue;
         }
@@ -422,7 +422,7 @@ fn cbm_crunch(text: &str, set: &Charset, extra: &[(&'static str, Vec<u8>)]) -> R
         }
         // Typing a small letter on a Commodore in its capitals mode gives the capital.
         let typed = if c.is_ascii_lowercase() { c.to_ascii_uppercase() } else { c };
-        let byte = set.table(0).and_then(|t| t.byte_of(typed)).filter(|b| *b >= 0x20).ok_or_else(|| format!("'{c}' has no PETSCII code"))?;
+        let byte = set.table(0).and_then(|t| t.byte_of(typed)).filter(|b| *b >= 0x20).ok_or_else(|| crate::i18n::tf!("'{c}' has no PETSCII code"))?;
         out.push(byte);
         i += 1;
     }
@@ -436,12 +436,12 @@ fn split_number(line: &str, index: usize, previous: Option<u32>, most: u32) -> R
         return Ok(None);
     }
     let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
-    let number: u32 = trimmed[..digits].parse().map_err(|_| format!("Line {} doesn't start with a line number.", index + 1))?;
+    let number: u32 = trimmed[..digits].parse().map_err(|_| crate::i18n::tf!("Line {} doesn't start with a line number.", index + 1))?;
     if number > most {
-        return Err(format!("Line {}: {number} is past the last line number there can be, {most}.", index + 1));
+        return Err(crate::i18n::tf!("Line {}: {number} is past the last line number there can be, {most}.", index + 1));
     }
     if previous.is_some_and(|p| number <= p) {
-        return Err(format!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
+        return Err(crate::i18n::tf!("Line {}: line numbers have to go up, and {number} comes after {}.", index + 1, previous.unwrap_or(0)));
     }
     Ok(Some((number, &trimmed[digits..])))
 }
@@ -920,7 +920,7 @@ pub fn zx_number(value: f64) -> Result<[u8; 5], String> {
     }
     let byte = exponent + 128;
     if !(1..=255).contains(&byte) {
-        return Err(format!("{value} is too big or too small for the Spectrum"));
+        return Err(crate::i18n::tf!("{value} is too big or too small for the Spectrum"));
     }
     let bits = bits as u32;
     let first = ((bits >> 24) as u8 & 0x7F) | if negative { 0x80 } else { 0 };
@@ -1337,7 +1337,7 @@ fn zx_byte(set: &Charset, c: char) -> Result<u8, String> {
         '^' => return Ok(0x5E),
         _ => {}
     }
-    set.table(0).and_then(|t| t.byte_of(c)).filter(|b| *b >= 0x20 && *b < 0xA5).ok_or_else(|| format!("'{c}' isn't in the Spectrum's character set"))
+    set.table(0).and_then(|t| t.byte_of(c)).filter(|b| *b >= 0x20 && *b < 0xA5).ok_or_else(|| crate::i18n::tf!("'{c}' isn't in the Spectrum's character set"))
 }
 
 /// `{INK 2}`, `{AT 3,4}`, `{UDG-A}` and `{$xx}`, as a listing writes them, and bas2tap's `{A}`, `{-1}`, `{+8}`,
@@ -1347,7 +1347,7 @@ pub(crate) fn zx_escape(inside: &str) -> Result<Vec<u8>, String> {
         return Ok(vec![code]);
     }
     if let Some(hex) = inside.strip_prefix('$') {
-        return u8::from_str_radix(hex, 16).map(|b| vec![b]).map_err(|_| format!("{{{inside}}} isn't a byte"));
+        return u8::from_str_radix(hex, 16).map(|b| vec![b]).map_err(|_| crate::i18n::tf!("{{{inside}}} isn't a byte"));
     }
     if let Some(letter) = inside.strip_prefix("UDG-").and_then(|l| l.chars().next()).filter(|l| ('A'..='U').contains(l)) {
         return Ok(vec![0x90 + (letter as u8 - b'A')]);
@@ -1355,12 +1355,12 @@ pub(crate) fn zx_escape(inside: &str) -> Result<Vec<u8>, String> {
     let (name, values) = inside.split_once(' ').unwrap_or((inside, ""));
     let control = (0x10..=0x17).find(|b| zx_control(*b).is_some_and(|(n, _)| n.eq_ignore_ascii_case(name)));
     let Some(byte) = control else {
-        return Err(format!("{{{inside}}} isn't a code this knows"));
+        return Err(crate::i18n::tf!("{{{inside}}} isn't a code this knows"));
     };
     let count = zx_control(byte).map_or(0, |(_, n)| n);
-    let values: Vec<u8> = values.split(',').filter(|v| !v.trim().is_empty()).map(|v| v.trim().parse::<u8>()).collect::<Result<_, _>>().map_err(|_| format!("{{{inside}}} needs numbers from 0 to 255"))?;
+    let values: Vec<u8> = values.split(',').filter(|v| !v.trim().is_empty()).map(|v| v.trim().parse::<u8>()).collect::<Result<_, _>>().map_err(|_| crate::i18n::tf!("{{{inside}}} needs numbers from 0 to 255"))?;
     if values.len() != count {
-        return Err(format!("{{{inside}}} needs {count} value(s)"));
+        return Err(crate::i18n::tf!("{{{inside}}} needs {count} value(s)"));
     }
     Ok(std::iter::once(byte).chain(values).collect())
 }
@@ -1383,14 +1383,14 @@ pub fn tokenise_spectrum<S: AsRef<str>>(lines: &[S], dialect: ZxDialect) -> Resu
         let rest = rest.strip_prefix(' ').unwrap_or(rest);
         let rest = if dialect == ZxDialect::Spectrum { rest.trim_start() } else { rest };
         let mut body = zx_crunch(rest, dialect)
-            .map_err(|problem| format!("Line {} (BASIC line {number}): {problem}", index + 1))?;
+            .map_err(|problem| crate::i18n::tf!("Line {} (BASIC line {number}): {problem}", index + 1))?;
         body.push(0x0D);
         out.extend_from_slice(&(number as u16).to_be_bytes());
-        out.extend_from_slice(&u16::try_from(body.len()).map_err(|_| format!("Line {} is too long.", index + 1))?.to_le_bytes());
+        out.extend_from_slice(&u16::try_from(body.len()).map_err(|_| crate::i18n::tf!("Line {} is too long.", index + 1))?.to_le_bytes());
         out.extend(body);
     }
     if dialect == ZxDialect::Spectrum && out.len() > 41_000 {
-        return Err("The program is bigger than a 48K Spectrum has room for.".into());
+        return Err(crate::i18n::tr("The program is bigger than a 48K Spectrum has room for.").into());
     }
     Ok(out)
 }
@@ -1444,6 +1444,13 @@ pub fn plus3dos_basic(program_and_variables: &[u8], program_length: usize, run_f
 /// Lists whatever tokenised BASIC a file holds, telling the kind from its first bytes or else its name.
 pub fn list(data: &[u8], extension: &str, set: &Charset) -> Listing {
     use crate::basic_more;
+    // AMOS and STOS programs say what they are in their first bytes.
+    if crate::amos::looks_like(data) {
+        return crate::amos::list(data);
+    }
+    if crate::stos::looks_like(data) {
+        return crate::stos::list(data);
+    }
     if crate::opticbasic::is_program(data) {
         let mut listing = Listing::default();
         optic_lines(data, &mut listing);
@@ -1486,6 +1493,14 @@ pub fn list(data: &[u8], extension: &str, set: &Charset) -> Listing {
 /// as text. With no bytes to go by, it's taken to be one, and the preview says if it isn't.
 pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
     use crate::basic_more;
+    if let Some(data) = data
+        && (crate::amos::looks_like(data) || crate::stos::looks_like(data))
+    {
+        return true;
+    }
+    if extension == "amos" && data.is_none() {
+        return true;
+    }
     if crate::basic_extra::is_program_file(extension, data) {
         return true;
     }
@@ -1518,6 +1533,12 @@ pub fn machine_of(dialect: &str, extension: &str, bytes: &[u8]) -> Option<Machin
     if dialect == OPTICBASIC {
         return Some(Machine::OpticOs);
     }
+    if dialect.starts_with("AMOS") {
+        return Some(Machine::Amos);
+    }
+    if dialect == "STOS BASIC" {
+        return Some(Machine::Stos);
+    }
     // A .p00 file has its own header before the load address.
     let load = if extension == "p00" { bytes.get(26..28) } else { bytes.get(0..2) }.map(|b| u16::from_le_bytes([b[0], b[1]]))?;
     CbmMachine::ALL.into_iter().find(|machine| machine.dialect() == dialect && machine.load_address() == load).map(Machine::Commodore)
@@ -1537,6 +1558,10 @@ pub enum Machine {
     BbcZ80,
     /// A Spectrum with the OpticOS ROM: OpticBASIC, saved on a tape.
     OpticOs,
+    /// AMOS on the Amiga, saved as an .AMOS file.
+    Amos,
+    /// STOS on the Atari ST, saved as its .BAS file.
+    Stos,
 }
 
 impl Machine {
@@ -1549,6 +1574,8 @@ impl Machine {
             Machine::Bbc => "bbc",
             Machine::BbcZ80 => "bas",
             Machine::OpticOs => "tap",
+            Machine::Amos => "AMOS",
+            Machine::Stos => "BAS",
         }
     }
 
@@ -1561,6 +1588,8 @@ impl Machine {
             Machine::Bbc => "BBC BASIC program",
             Machine::BbcZ80 => "BBC BASIC (Z80) program",
             Machine::OpticOs => "OpticOS tape",
+            Machine::Amos => "AMOS program",
+            Machine::Stos => "STOS program",
         }
     }
 }

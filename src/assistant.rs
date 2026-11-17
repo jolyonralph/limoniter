@@ -230,7 +230,7 @@ fn start(line: &str, folder: Option<&Path>, input: String, wake: impl Fn() + Sen
     if let Some(folder) = folder.filter(|folder| folder.is_dir()) {
         command.current_dir(folder);
     }
-    let mut child = command.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().map_err(|e| format!("Couldn't start it.\n\n{e}"))?;
+    let mut child = command.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().map_err(|e| crate::i18n::tf!("Couldn't start it.\n\n{e}"))?;
     let process = child.id();
     let mut stdin = child.stdin.take();
     std::thread::spawn(move || {
@@ -262,9 +262,9 @@ fn start(line: &str, folder: Option<&Path>, input: String, wake: impl Fn() + Sen
             Ok(status) => {
                 let said = if errors.trim().is_empty() { reply.trim().to_string() } else { errors.trim().to_string() };
                 let tail: String = said.chars().rev().take(1500).collect::<Vec<_>>().into_iter().rev().collect();
-                Err(format!("It stopped without an answer{}.{}", status.code().map_or_else(String::new, |code| format!(", with exit code {code}")), if tail.is_empty() { String::new() } else { format!("\n\nIt said:\n{tail}") }))
+                Err(crate::i18n::tf!("It stopped without an answer{}.{}", status.code().map_or_else(String::new, |code| format!(", with exit code {code}")), if tail.is_empty() { String::new() } else { format!("\n\nIt said:\n{tail}") }))
             }
-            Err(e) => Err(format!("Couldn't wait for it: {e}")),
+            Err(e) => Err(crate::i18n::tf!("Couldn't wait for it: {e}")),
         };
         *out.lock().unwrap() = Some(answer);
         wake();
@@ -346,12 +346,12 @@ impl Limoniter {
     /// The tool chosen, and its command line, if it can be run.
     fn tool_line(&self) -> Result<(Tool, String), String> {
         if self.assist_job.is_some() {
-            return Err("The assistant is still working on the last request.".into());
+            return Err(crate::i18n::tr("The assistant is still working on the last request.").into());
         }
         let tool = self.assistant.tool;
         let line = self.assistant.command().trim().to_string();
         if line.is_empty() {
-            return Err("There's no command to run. Put the usual one back under Commands.".into());
+            return Err(crate::i18n::tr("There's no command to run. Put the usual one back under Commands.").into());
         }
         if line.split_whitespace().next() == Some(tool.program()) && !installed(tool.program()) {
             return Err(tool.how_to_get().into());
@@ -379,10 +379,10 @@ impl Limoniter {
         let (tool, line) = self.tool_line()?;
         let doc = &self.docs[self.active];
         if doc.hex_mode || doc.text.is_disk_backed() {
-            return Err("The assistant works on text, and on files small enough to be held in memory.".into());
+            return Err(crate::i18n::tr("The assistant works on text, and on files small enough to be held in memory.").into());
         }
         if range.len() > MOST_PART_LINES {
-            return Err(format!("That's {} lines. Select a part of at most {MOST_PART_LINES} lines.", range.len()));
+            return Err(crate::i18n::tf!("That's {} lines. Select a part of at most {MOST_PART_LINES} lines.", range.len()));
         }
         let text = &doc.text;
         let all = text.all_lines();
@@ -430,7 +430,7 @@ impl Limoniter {
             changes = crate::git::run(root, &["diff", "--no-ext-diff", "--stat", "--patch"])?;
         }
         if changes.trim().is_empty() {
-            return Err("There are no changes to Git's files to write a message about.".into());
+            return Err(crate::i18n::tr("There are no changes to Git's files to write a message about.").into());
         }
         const MOST_CHANGES: usize = 60_000;
         if changes.len() > MOST_CHANGES {
@@ -537,7 +537,7 @@ impl Limoniter {
             Err(_) => {}
             Ok(reply) if !job.task.changes_text() => {
                 let place = if job.old.is_empty() { format!("line {}", job.range.start + 1) } else { format!("lines {} to {}", job.range.start + 1, job.range.end) };
-                self.script_print(format!("{}, on {place}:", job.tool.name()), true);
+                self.script_print(crate::i18n::tf!("{}, on {place}:", job.tool.name()), true);
                 self.script_print(String::new(), false);
                 for line in reply.trim_end().lines() {
                     self.script_print(line.to_string(), false);
@@ -553,13 +553,13 @@ impl Limoniter {
 
     /// Puts what came back in place of the part, wherever the part is now.
     pub(super) fn accept_review(&mut self, review: &Review) -> Result<(), String> {
-        let index = self.docs.iter().position(|doc| doc.id == review.doc).ok_or("That file has been closed.")?;
+        let index = self.docs.iter().position(|doc| doc.id == review.doc).ok_or(crate::i18n::tr("That file has been closed."))?;
         let doc = &self.docs[index];
         if doc.text.read_only {
-            return Err("The file is read-only now.".into());
+            return Err(crate::i18n::tr("The file is read-only now.").into());
         }
         if doc.hex_mode || doc.is_busy() {
-            return Err("The file is in hex mode, or busy. Try again in a moment.".into());
+            return Err(crate::i18n::tr("The file is in hex mode, or busy. Try again in a moment.").into());
         }
         let now = doc.text.all_lines();
         let range = if now == review.text { review.range.clone() } else { region_history::diff(&review.text, &now).map_range(review.range.clone()).range };
@@ -582,8 +582,8 @@ impl Limoniter {
             egui::Frame::popup(ui.style()).inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add(egui::Spinner::new().size(14.0));
-                    ui.label(words);
-                    stop = ui.button("Stop").clicked();
+                    ui.label(crate::i18n::tr(&words));
+                    stop = ui.button(crate::i18n::tr("Stop")).clicked();
                 });
             });
         });
@@ -609,7 +609,7 @@ impl Limoniter {
         let (mut accept, mut copy, mut close) = (false, false, escape);
         let rows = diff_rows(&review.old, &review.new);
         let changed = rows.iter().any(|(mark, _)| *mark != ' ');
-        egui::Window::new(format!("{} suggests", review.tool.name())).collapsible(false).resizable(true).default_size(egui::vec2(760.0, 480.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tf!("{} suggests", review.tool.name())).collapsible(false).resizable(true).default_size(egui::vec2(760.0, 480.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             let place = if review.old.is_empty() { format!("New code after line {}", review.range.start) } else { format!("Lines {} to {}", review.range.start + 1, review.range.end) };
             ui.label(RichText::new(if changed { place } else { format!("{place}: it suggests no change") }).color(theme::text_dim()));
             ui.add_space(4.0);
@@ -620,19 +620,19 @@ impl Limoniter {
                         '+' => ("+", theme::change_saved(), theme::compare_added()),
                         _ => (" ", theme::text_dim(), egui::Color32::TRANSPARENT),
                     };
-                    let text = RichText::new(format!("{mark} {line}")).monospace().size(12.5).color(colour).background_color(back);
+                    let text = RichText::new(crate::i18n::tf!("{mark} {line}")).monospace().size(12.5).color(colour).background_color(back);
                     ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend));
                 }
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if review.done {
-                    ui.label(RichText::new("This was put in.").color(theme::text_dim()));
+                    ui.label(RichText::new(crate::i18n::tr("This was put in.")).color(theme::text_dim()));
                 } else {
-                    accept = ui.add_enabled(changed, Button::new(RichText::new("Put it in").strong())).on_hover_text("One Undo takes it out again").clicked();
+                    accept = ui.add_enabled(changed, Button::new(RichText::new(crate::i18n::tr("Put it in")).strong())).on_hover_text(crate::i18n::tr("One Undo takes it out again")).clicked();
                 }
-                copy = ui.button("Copy it").clicked();
-                close |= ui.button(if review.done { "Close" } else { "Leave it" }).clicked();
+                copy = ui.button(crate::i18n::tr("Copy it")).clicked();
+                close |= ui.button(if review.done { crate::i18n::tr("Close") } else { crate::i18n::tr("Leave it") }).clicked();
             });
         });
         if copy {
@@ -721,12 +721,12 @@ impl Limoniter {
         let working = self.assist_job.as_ref().map(|job| (job.exchange, job.started.elapsed().as_secs()));
         Panel::right("assistant-panel").default_size(380.0).size_range(260.0..=900.0).resizable(true).frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(6, 4))).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Assistant").color(theme::text()).size(12.5));
+                ui.label(RichText::new(crate::i18n::tr("Assistant")).color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
                         open = false;
                     }
-                    if !self.assist_log.entries.is_empty() && ui.add(Button::new(RichText::new("Clear").color(theme::text_dim()).size(11.5)).frame(false)).on_hover_text("Forget the history").clicked() {
+                    if !self.assist_log.entries.is_empty() && ui.add(Button::new(RichText::new(crate::i18n::tr("Clear")).color(theme::text_dim()).size(11.5)).frame(false)).on_hover_text(crate::i18n::tr("Forget the history")).clicked() {
                         acts.push(PanelAct::Clear);
                     }
                 });
@@ -747,7 +747,7 @@ impl Limoniter {
                 });
                 if let Some(range) = &range {
                     let place = if range.is_empty() { format!("the place after line {}", range.start) } else { format!("lines {} to {}", range.start + 1, range.end) };
-                    ui.label(RichText::new(format!("Works on {place} of {name}: select some to choose.")).color(theme::text_dim()).size(11.5));
+                    ui.label(RichText::new(crate::i18n::tf!("Works on {place} of {name}: select some to choose.")).color(theme::text_dim()).size(11.5));
                 }
                 let hint = match panel.task {
                     Task::Fix => "Anything it should know, such as what goes wrong (optional)",
@@ -764,31 +764,31 @@ impl Limoniter {
                 ui.horizontal_wrapped(|ui| {
                     for (index, each) in [Tool::Claude, Tool::Codex].into_iter().enumerate() {
                         let label = if found[index] { each.name().to_string() } else { format!("{} (not installed)", each.name()) };
-                        ui.radio_value(&mut setup.tool, each, label);
+                        ui.radio_value(&mut setup.tool, each, crate::i18n::tr(&label));
                     }
-                    ui.checkbox(&mut panel.show_commands, "Commands");
+                    ui.checkbox(&mut panel.show_commands, crate::i18n::tr("Commands"));
                 });
                 if panel.show_commands {
                     egui::Grid::new("assistant-commands").num_columns(2).show(ui, |ui| {
-                        ui.label("Claude Code");
+                        ui.label(crate::i18n::tr("Claude Code"));
                         ui.add(egui::TextEdit::singleline(&mut setup.claude).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
                         ui.end_row();
-                        ui.label("Codex");
+                        ui.label(crate::i18n::tr("Codex"));
                         ui.add(egui::TextEdit::singleline(&mut setup.codex).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
                         ui.end_row();
                     });
-                    if ui.small_button("Put the usual commands back").clicked() {
+                    if ui.small_button(crate::i18n::tr("Put the usual commands back")).clicked() {
                         setup.claude = CLAUDE_COMMAND.into();
                         setup.codex = CODEX_COMMAND.into();
                     }
                 }
-                ui.label(RichText::new(format!("The part, and up to {CONTEXT_LINES} lines either side, go to {} (and so to {}), which can read this folder's files but not change them. Code that comes back is shown before anything changes.", setup.tool.name(), setup.tool.company())).color(theme::text_faint()).size(11.0));
+                ui.label(RichText::new(crate::i18n::tf!("The part, and up to {CONTEXT_LINES} lines either side, go to {} (and so to {}), which can read this folder's files but not change them. Code that comes back is shown before anything changes.", setup.tool.name(), setup.tool.company())).color(theme::text_faint()).size(11.0));
                 if !panel.error.is_empty() {
                     ui.label(RichText::new(panel.error.as_str()).color(theme::rainbow_mistake()));
                 }
                 ui.horizontal(|ui| {
                     let ready = usable && working.is_none();
-                    let send = ui.add_enabled(ready, Button::new(RichText::new(format!("Send to {}", setup.tool.name())).strong())).on_hover_text("Or press Enter (Shift+Enter for a new line)").clicked();
+                    let send = ui.add_enabled(ready, Button::new(RichText::new(crate::i18n::tf!("Send to {}", setup.tool.name())).strong())).on_hover_text(crate::i18n::tr("Or press Enter (Shift+Enter for a new line)")).clicked();
                     if send || (enter && ready) {
                         acts.push(PanelAct::Send);
                     }
@@ -797,26 +797,26 @@ impl Limoniter {
             // The history, newest at the bottom.
             egui::ScrollArea::vertical().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
                 if self.assist_log.entries.is_empty() {
-                    ui.add(egui::Label::new(RichText::new("Everything asked of Claude Code or Codex is kept here: what was asked, what came back, and what was done with it.").color(theme::text_dim())).wrap());
+                    ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Everything asked of Claude Code or Codex is kept here: what was asked, what came back, and what was done with it.")).color(theme::text_dim())).wrap());
                 }
                 use crate::app::assistant_log::State;
                 for entry in &self.assist_log.entries {
                     egui::Frame::group(ui.style()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
                         ui.set_width(ui.available_width());
-                        ui.label(RichText::new(format!("{}  {} \u{B7} {}", entry.when, entry.tool.name(), entry.task.label())).color(theme::text_faint()).size(11.5));
-                        if crate::access::clickable(ui.add(egui::Label::new(RichText::new(entry.place()).color(theme::accent())).sense(egui::Sense::click()))).on_hover_text("Go there").clicked() {
+                        ui.label(RichText::new(crate::i18n::tf!("{}  {} \u{B7} {}", entry.when, entry.tool.name(), entry.task.label())).color(theme::text_faint()).size(11.5));
+                        if crate::access::clickable(ui.add(egui::Label::new(RichText::new(entry.place()).color(theme::accent())).sense(egui::Sense::click()))).on_hover_text(crate::i18n::tr("Go there")).clicked() {
                             acts.push(PanelAct::GoTo(entry.id));
                         }
                         if !entry.words.is_empty() {
-                            ui.add(egui::Label::new(RichText::new(format!("\u{201C}{}\u{201D}", entry.words)).italics()).wrap());
+                            ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("\u{201C}{}\u{201D}", entry.words)).italics()).wrap());
                         }
                         match entry.state {
                             State::Working => {
                                 ui.horizontal(|ui| {
                                     ui.spinner();
                                     let seconds = working.filter(|(id, _)| *id == entry.id).map_or(0, |(_, s)| s);
-                                    ui.label(format!("Working\u{2026} {seconds}s"));
-                                    if ui.small_button("Stop").clicked() {
+                                    ui.label(crate::i18n::tf!("Working\u{2026} {seconds}s"));
+                                    if ui.small_button(crate::i18n::tr("Stop")).clicked() {
                                         acts.push(PanelAct::Stop);
                                     }
                                 });
@@ -832,8 +832,8 @@ impl Limoniter {
                                         State::Suggested => theme::accent(),
                                         _ => theme::text_dim(),
                                     };
-                                    ui.label(RichText::new(format!("+{added} \u{2212}{removed} lines \u{B7} {}", entry.state.word())).color(colour));
-                                    if ui.small_button("Show").on_hover_text("What it suggested, against what was there").clicked() {
+                                    ui.label(RichText::new(crate::i18n::tf!("+{added} \u{2212}{removed} lines \u{B7} {}", entry.state.word())).color(colour));
+                                    if ui.small_button(crate::i18n::tr("Show")).on_hover_text(crate::i18n::tr("What it suggested, against what was there")).clicked() {
                                         acts.push(PanelAct::Show(entry.id));
                                     }
                                 });
@@ -844,7 +844,7 @@ impl Limoniter {
                             }
                         }
                         if entry.seconds > 0 && entry.state != State::Working {
-                            ui.label(RichText::new(format!("{}s", entry.seconds)).color(theme::text_faint()).size(10.5));
+                            ui.label(RichText::new(crate::i18n::tf!("{}s", entry.seconds)).color(theme::text_faint()).size(10.5));
                         }
                     });
                 }

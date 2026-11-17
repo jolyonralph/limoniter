@@ -126,7 +126,7 @@ pub fn save_converted(store: LineStore, from: TextFormat, to: TextFormat, lossy:
             let mut at = 0;
             while at < store.len() {
                 if cancel.load(Ordering::Relaxed) {
-                    return Err("It was stopped.".to_string());
+                    return Err(crate::i18n::tr("It was stopped.").to_string());
                 }
                 let end = (at + LINES_AT_A_TIME).min(store.len());
                 let mut lines = store.range_vec(at, end);
@@ -203,7 +203,7 @@ pub fn rewrite(title: &'static str, store: LineStore, from: TextFormat, to: Text
             let mut at = 0;
             while at < store.len() {
                 if cancel.load(Ordering::Relaxed) {
-                    return Err("It was stopped.".to_string());
+                    return Err(crate::i18n::tr("It was stopped.").to_string());
                 }
                 let end = (at + LINES_AT_A_TIME).min(store.len());
                 let mut lines: Vec<String> = store.range_vec(at, end).iter().enumerate().map(|(i, line)| change(at + i, line)).collect();
@@ -342,7 +342,7 @@ pub fn rewrite_records(title: &'static str, store: LineStore, format: TextFormat
     BigJob::start(title, doc_id, total, move |done, cancel| {
         let mut runs: Vec<PathBuf> = Vec::new();
         let written = (|| -> Result<Option<Problems>, String> {
-            let stopped = || Err("It was stopped.".to_string());
+            let stopped = || Err(crate::i18n::tr("It was stopped.").to_string());
             let key_of = |text: &str, column: usize| SortKey::new(fields(text, delimiter).into_iter().nth(column).map(|f| f.value).unwrap_or_default());
             let mut out = Writer::create(&path, format.clone(), store.insert_eol())?;
             let tail = records.last().map_or(0, |last| last.last + 1);

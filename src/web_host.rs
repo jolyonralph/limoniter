@@ -16,7 +16,7 @@ pub(super) struct WebBox {
 
 /// A file's bytes and the name it goes by, from a web address.
 fn fetch(address: &str) -> Result<(String, Vec<u8>), String> {
-    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| format!("It couldn't be fetched: {e}"))?;
+    let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("It couldn't be fetched: {e}"))?;
     // The name the server gives it, or the last part of the address.
     let given = response
         .headers()
@@ -25,7 +25,7 @@ fn fetch(address: &str) -> Result<(String, Vec<u8>), String> {
         .and_then(|v| v.split(';').find_map(|part| part.trim().strip_prefix("filename=")))
         .map(|n| n.trim_matches('"').to_string());
     let name = given.unwrap_or_else(|| name_from_address(address));
-    let bytes = response.into_body().with_config().limit(MOST_BYTES).read_to_vec().map_err(|e| format!("It couldn't be read: {e}"))?;
+    let bytes = response.into_body().with_config().limit(MOST_BYTES).read_to_vec().map_err(|e| crate::i18n::tf!("It couldn't be read: {e}"))?;
     Ok((name, bytes))
 }
 
@@ -83,9 +83,9 @@ impl Limoniter {
         }
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go = false;
-        egui::Window::new("Open a file from the web").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label("The file's web address (http or https):");
-            let field = ui.add(egui::TextEdit::singleline(&mut state.address).desired_width(460.0).hint_text("https://example.com/file.txt"));
+        egui::Window::new(crate::i18n::tr("Open a file from the web")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::tr("The file's web address (http or https):"));
+            let field = ui.add(egui::TextEdit::singleline(&mut state.address).desired_width(460.0).hint_text(crate::i18n::tr("https://example.com/file.txt")));
             if state.status.is_empty() && state.fetching.is_none() {
                 field.request_focus();
             }
@@ -93,14 +93,14 @@ impl Limoniter {
             if state.fetching.is_some() {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Fetching\u{2026}");
+                    ui.label(crate::i18n::tr("Fetching\u{2026}"));
                 });
             } else if !state.status.is_empty() {
                 ui.colored_label(theme::change_unsaved(), &state.status);
             }
             ui.horizontal(|ui| {
-                go |= ui.add_enabled(state.fetching.is_none(), Button::new("Open")).clicked();
-                close |= ui.button("Cancel").clicked();
+                go |= ui.add_enabled(state.fetching.is_none(), Button::new(crate::i18n::tr("Open"))).clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             });
         });
         if go && state.fetching.is_none() {
@@ -129,7 +129,7 @@ impl Limoniter {
         let folder = std::env::temp_dir().join("limoniter-web").join(format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())));
         let path = folder.join(name);
         if let Err(e) = std::fs::create_dir_all(&folder).and_then(|()| std::fs::write(&path, bytes)) {
-            return self.message("Open a file from the web", format!("It couldn't be kept to open: {e}"));
+            return self.message("Open a file from the web", crate::i18n::tf!("It couldn't be kept to open: {e}"));
         }
         let before = self.docs.len();
         if !self.open_path(&path) || self.docs.len() == before && self.docs[self.active].path.as_deref() != Some(path.as_path()) {

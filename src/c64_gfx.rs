@@ -776,9 +776,9 @@ pub fn data(s: &mut String, label: &str, bytes: &[u8]) {
 
 /// Source assembled by Limoniter's own 6502 assembler into a .prg.
 pub fn assemble_prg(source: &str) -> Result<Vec<u8>, String> {
-    let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("viewer.asm"), source, &|_| Err("no files".into()));
+    let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("viewer.asm"), source, &|_| Err(crate::i18n::tr("no files").into()));
     if let Some(problem) = assembly.problems.first() {
-        return Err(format!("The viewer didn't assemble: line {}: {}", problem.line + 1, problem.message));
+        return Err(crate::i18n::tf!("The viewer didn't assemble: line {}: {}", problem.line + 1, problem.message));
     }
     crate::asm::output::commodore_program(&assembly)
 }
@@ -964,7 +964,7 @@ mod tests {
                 }
                 // The timed code's branches stay in one page, or they'd take a cycle more: the waits, the stable
                 // raster's steps and its delay loops.
-                let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("v.asm"), &bitmap.viewer_source("pic"), &|_| Err("no".into()));
+                let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("v.asm"), &bitmap.viewer_source("pic"), &|_| Err(crate::i18n::tr("no").into()));
                 let frame = assembly.symbols["frame"];
                 assert_eq!(frame, 0x1000);
                 assert!(assembly.symbols.iter().filter(|(k, _)| k.starts_with("delay") || k.starts_with("step") || ["bottom", "top", "wait"].contains(&k.as_str())).all(|(_, &v)| v >> 8 == frame >> 8), "{:?}", assembly.symbols);

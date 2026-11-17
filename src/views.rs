@@ -1394,24 +1394,24 @@ fn handle_text_key(b: &mut TextBuffer, key: Key, m: Modifiers, rows: isize, wrap
 
 fn context_menu(ui: &mut Ui, text: bool) -> Option<ContextCommand> {
     let mut command = None;
-    if ui.button("Cut").clicked() {
+    if ui.button(crate::i18n::tr("Cut")).clicked() {
         command = Some(ContextCommand::Cut);
     }
-    if ui.button("Copy").clicked() {
+    if ui.button(crate::i18n::tr("Copy")).clicked() {
         command = Some(ContextCommand::Copy);
     }
-    if ui.button("Paste").clicked() {
+    if ui.button(crate::i18n::tr("Paste")).clicked() {
         command = Some(ContextCommand::Paste);
     }
     ui.separator();
-    if ui.button("Select All").clicked() {
+    if ui.button(crate::i18n::tr("Select All")).clicked() {
         command = Some(ContextCommand::SelectAll);
     }
     if text {
         ui.separator();
-        ui.menu_button("Colour tag", |ui| {
+        ui.menu_button(crate::i18n::tr("Colour tag"), |ui| {
             for (index, name) in theme::TAG_NAMES.iter().enumerate() {
-                let swatch = egui::RichText::new("\u{25A0} ").color(theme::tag_colour(index as u8));
+                let swatch = egui::RichText::new(crate::i18n::tr("\u{25A0} ")).color(theme::tag_colour(index as u8));
                 let mut job = egui::text::LayoutJob::default();
                 swatch.append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                 egui::RichText::new(*name).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
@@ -1421,12 +1421,12 @@ fn context_menu(ui: &mut Ui, text: bool) -> Option<ContextCommand> {
                 }
             }
             ui.separator();
-            if ui.button("Remove the tag").clicked() {
+            if ui.button(crate::i18n::tr("Remove the tag")).clicked() {
                 command = Some(ContextCommand::Untag);
                 ui.close();
             }
         });
-        if ui.button("Ask the assistant\u{2026}").clicked() {
+        if ui.button(crate::i18n::tr("Ask the assistant\u{2026}")).clicked() {
             command = Some(ContextCommand::Assist);
         }
     }

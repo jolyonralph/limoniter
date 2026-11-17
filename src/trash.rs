@@ -15,9 +15,9 @@ pub const MOVE_TO_BIN: &str = if cfg!(windows) { "Move to the Recycle Bin\u{2026
 /// Moves a file to the bin.
 pub fn move_to_bin(file: &Path) -> Result<(), String> {
     if !file.exists() {
-        return Err(format!("{} isn't there any more.", file.display()));
+        return Err(crate::i18n::tf!("{} isn't there any more.", file.display()));
     }
-    let file = std::fs::canonicalize(file).map_err(|e| format!("Couldn't find {}: {e}", file.display()))?;
+    let file = std::fs::canonicalize(file).map_err(|e| crate::i18n::tf!("Couldn't find {}: {e}", file.display()))?;
     platform_move(&file)
 }
 
@@ -40,10 +40,10 @@ fn platform_move(file: &Path) -> Result<(), String> {
     // SAFETY: the operation names one file in a list that ends as the shell expects, and lives until it's done.
     let result = unsafe { SHFileOperationW(&mut operation) };
     if result != 0 {
-        return Err(format!("Windows couldn't move it to the Recycle Bin (error {result})."));
+        return Err(crate::i18n::tf!("Windows couldn't move it to the Recycle Bin (error {result})."));
     }
     if operation.fAnyOperationsAborted.as_bool() {
-        return Err("Moving it to the Recycle Bin was stopped.".into());
+        return Err(crate::i18n::tr("Moving it to the Recycle Bin was stopped.").into());
     }
     Ok(())
 }
@@ -55,7 +55,7 @@ fn platform_move(file: &Path) -> Result<(), String> {
     use objc2::msg_send;
     let path = std::ffi::CString::new(file.to_string_lossy().as_bytes()).map_err(|_| "The file's name can't be handed to macOS.".to_string())?;
     let (Some(strings), Some(urls), Some(managers)) = (AnyClass::get(c"NSString"), AnyClass::get(c"NSURL"), AnyClass::get(c"NSFileManager")) else {
-        return Err("macOS's file manager couldn't be reached.".into());
+        return Err(crate::i18n::tr("macOS's file manager couldn't be reached.").into());
     };
     // SAFETY: each message is one these Foundation classes answer, with the arguments they take; the error pointer
     // is left out, as the documentation allows.
@@ -65,7 +65,7 @@ fn platform_move(file: &Path) -> Result<(), String> {
         let manager: Retained<AnyObject> = msg_send![managers, defaultManager];
         msg_send![&*manager, trashItemAtURL: &*url, resultingItemURL: std::ptr::null_mut::<*mut AnyObject>(), error: std::ptr::null_mut::<*mut AnyObject>()]
     };
-    if moved { Ok(()) } else { Err("macOS couldn't move it to the Trash.".into()) }
+    if moved { Ok(()) } else { Err(crate::i18n::tr("macOS couldn't move it to the Trash.").into()) }
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
@@ -80,11 +80,11 @@ fn platform_move(file: &Path) -> Result<(), String> {
             Ok(()) => return Ok(()),
             // On another drive, the file can't simply be moved into the home folder's trash.
             Err(e) if e.kind() == std::io::ErrorKind::CrossesDevices => {}
-            Err(e) => return Err(format!("Couldn't move it to the Trash: {e}")),
+            Err(e) => return Err(crate::i18n::tf!("Couldn't move it to the Trash: {e}")),
         }
     }
-    let output = std::process::Command::new("gio").arg("trash").arg(file).output().map_err(|e| format!("Couldn't move it to the Trash: {e}"))?;
-    if output.status.success() { Ok(()) } else { Err(format!("Couldn't move it to the Trash: {}", String::from_utf8_lossy(&output.stderr).trim())) }
+    let output = std::process::Command::new("gio").arg("trash").arg(file).output().map_err(|e| crate::i18n::tf!("Couldn't move it to the Trash: {e}"))?;
+    if output.status.success() { Ok(()) } else { Err(crate::i18n::tf!("Couldn't move it to the Trash: {}", String::from_utf8_lossy(&output.stderr).trim())) }
 }
 
 /// The freedesktop.org trash: the file into `files`, under a name not already used there, and a `.trashinfo` of

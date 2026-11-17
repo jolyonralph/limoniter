@@ -513,13 +513,13 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
     let format;
     if let Some((start, minor, locked)) = wp5_header(bytes) {
         if locked {
-            return Err("This WordPerfect document is locked with a password.".into());
+            return Err(crate::i18n::tr("This WordPerfect document is locked with a password.").into());
         }
         format = if minor == 0 { "WordPerfect 5.0" } else { "WordPerfect 5.1" };
         wp5_body(&bytes[start..], &mut b, &mut r, 0);
     } else {
         if bytes.starts_with(&[0xFE, 0xFF, 0x61, 0x61]) {
-            return Err("This WordPerfect document is locked with a password.".into());
+            return Err(crate::i18n::tr("This WordPerfect document is locked with a password.").into());
         }
         format = "WordPerfect 4";
         wp4_body(bytes, &mut b, &mut r, 0);

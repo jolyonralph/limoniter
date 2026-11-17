@@ -68,15 +68,15 @@ impl AmigaFs {
     pub fn open(source: Arc<dyn Source>, block_size: usize, what: &str) -> Result<Self, String> {
         let boot = source.read_vec(0, 12.min(source.len() as usize))?;
         if boot.len() < 4 {
-            return Err("This Amiga image is too short to hold a disk.".into());
+            return Err(crate::i18n::tr("This Amiga image is too short to hold a disk.").into());
         }
         match &boot[..3] {
             b"DOS" if boot[3] <= 7 => {}
-            b"NDO" => return Err("This Amiga disk isn't in AmigaDOS's format (\"NDOS\"): it's probably a game or demo that reads the disk its own way. It can still be shown in hex.".into()),
-            b"KIC" => return Err("This is a Kickstart disk, holding the A1000's ROM, not files. It can still be shown in hex.".into()),
-            b"PFS" | b"PDS" | b"SFS" | b"FFS" => return Err(format!("This volume uses {} rather than AmigaDOS's own file system, which Limoniter doesn't read yet.", String::from_utf8_lossy(&boot[..3]))),
-            _ if boot.starts_with(b"DOS") => return Err(format!("This AmigaDOS volume is of a kind (DOS\\{}) Limoniter doesn't know.", boot[3])),
-            _ => return Err("This Amiga image has no AmigaDOS boot block: it's probably a game or demo that reads the disk its own way. It can still be shown in hex.".into()),
+            b"NDO" => return Err(crate::i18n::tr("This Amiga disk isn't in AmigaDOS's format (\"NDOS\"): it's probably a game or demo that reads the disk its own way. It can still be shown in hex.").into()),
+            b"KIC" => return Err(crate::i18n::tr("This is a Kickstart disk, holding the A1000's ROM, not files. It can still be shown in hex.").into()),
+            b"PFS" | b"PDS" | b"SFS" | b"FFS" => return Err(crate::i18n::tf!("This volume uses {} rather than AmigaDOS's own file system, which Limoniter doesn't read yet.", String::from_utf8_lossy(&boot[..3]))),
+            _ if boot.starts_with(b"DOS") => return Err(crate::i18n::tf!("This AmigaDOS volume is of a kind (DOS\\{}) Limoniter doesn't know.", boot[3])),
+            _ => return Err(crate::i18n::tr("This Amiga image has no AmigaDOS boot block: it's probably a game or demo that reads the disk its own way. It can still be shown in hex.").into()),
         }
         let blocks = source.len() / block_size as u64;
         let mut volume = Self { source, block_size, blocks, root: 0, dos_type: boot[3], name: String::new(), what: what.to_string() };
@@ -92,12 +92,12 @@ impl AmigaFs {
                 return Ok(volume);
             }
         }
-        Err("This disk has an AmigaDOS boot block but no root block where AmigaDOS keeps one, so it has no files to list: it's probably a game or demo that loads itself its own way. It can still be shown in hex.".into())
+        Err(crate::i18n::tr("This disk has an AmigaDOS boot block but no root block where AmigaDOS keeps one, so it has no files to list: it's probably a game or demo that loads itself its own way. It can still be shown in hex.").into())
     }
 
     fn block(&self, number: u32) -> Result<Vec<u8>, String> {
         if u64::from(number) >= self.blocks || number == 0 {
-            return Err(format!("block {number} is outside the volume"));
+            return Err(crate::i18n::tf!("block {number} is outside the volume"));
         }
         self.source.read_vec(u64::from(number) * self.block_size as u64, self.block_size)
     }
@@ -128,11 +128,11 @@ impl AmigaFs {
             let mut next = self.long(&header, 6 + slot);
             while next != 0 {
                 if !seen.insert(next) || seen.len() > MOST_BLOCKS_FOLLOWED {
-                    return Err("A folder's hash chains loop, so the disk is damaged.".into());
+                    return Err(crate::i18n::tr("A folder's hash chains loop, so the disk is damaged.").into());
                 }
                 let block = self.block(next)?;
                 if self.long(&block, 0) != T_HEADER {
-                    return Err(format!("Block {next} should be a file or folder's header, and isn't."));
+                    return Err(crate::i18n::tf!("Block {next} should be a file or folder's header, and isn't."));
                 }
                 out.push(self.entry(next, &block)?);
                 next = self.tail(&block, 4);
@@ -201,7 +201,7 @@ impl AmigaFs {
         }
         let size = u64::from(self.tail(&header, 47));
         if size > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let ofs = self.dos_type & 1 == 0;
         let mut out = Vec::with_capacity(size as usize);
@@ -217,7 +217,7 @@ impl AmigaFs {
                 let data = self.block(self.long(&list, 6 + self.table_size() - 1 - i))?;
                 if ofs {
                     if self.long(&data, 0) != T_DATA {
-                        return Err("One of the file's data blocks isn't a data block, so the disk is damaged.".into());
+                        return Err(crate::i18n::tr("One of the file's data blocks isn't a data block, so the disk is damaged.").into());
                     }
                     let length = (self.long(&data, 3) as usize).min(self.block_size - 24);
                     out.extend_from_slice(&data[24..24 + length]);
@@ -230,15 +230,15 @@ impl AmigaFs {
                 break;
             }
             if !seen.insert(next) || seen.len() > MOST_BLOCKS_FOLLOWED {
-                return Err("The file's list of blocks loops, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("The file's list of blocks loops, so the disk is damaged.").into());
             }
             list = self.block(next)?;
             if self.long(&list, 0) != T_LIST {
-                return Err("The file's list of blocks continues into a block that isn't one.".into());
+                return Err(crate::i18n::tr("The file's list of blocks continues into a block that isn't one.").into());
             }
         }
         if (out.len() as u64) < size {
-            return Err(format!("The file should be {size} bytes, and its blocks hold only {}.", out.len()));
+            return Err(crate::i18n::tf!("The file should be {size} bytes, and its blocks hold only {}.", out.len()));
         }
         out.truncate(size as usize);
         Ok(out)
@@ -292,7 +292,7 @@ pub fn open_adf(source: Arc<dyn Source>) -> Result<AmigaFs, String> {
 pub fn gunzip(source: &dyn Source) -> Result<Vec<u8>, String> {
     let data = source.read_vec(0, source.len().min(256 * 1024 * 1024) as usize)?;
     if data.len() < 18 || data[..3] != [0x1F, 0x8B, 8] {
-        return Err("This isn't a gzip file.".into());
+        return Err(crate::i18n::tr("This isn't a gzip file.").into());
     }
     let flags = data[3];
     let mut at = 10;
@@ -301,14 +301,14 @@ pub fn gunzip(source: &dyn Source) -> Result<Vec<u8>, String> {
     }
     for bit in [8u8, 16] {
         if flags & bit != 0 {
-            at += data.get(at..).and_then(|rest| rest.iter().position(|b| *b == 0)).ok_or("The gzip header is cut short.")? + 1;
+            at += data.get(at..).and_then(|rest| rest.iter().position(|b| *b == 0)).ok_or(crate::i18n::tr("The gzip header is cut short."))? + 1;
         }
     }
     if flags & 2 != 0 {
         at += 2;
     }
     let size = u32::from_le_bytes(data[data.len() - 4..].try_into().unwrap_or([0; 4])) as usize;
-    miniz_oxide::inflate::decompress_to_vec_with_limit(data.get(at..).unwrap_or(&[]), size.clamp(1, 256 * 1024 * 1024)).map_err(|e| format!("The gzip file couldn't be unpacked: {e:?}"))
+    miniz_oxide::inflate::decompress_to_vec_with_limit(data.get(at..).unwrap_or(&[]), size.clamp(1, 256 * 1024 * 1024)).map_err(|e| crate::i18n::tf!("The gzip file couldn't be unpacked: {e:?}"))
 }
 
 /// A DMS (DiskMasher) archive of a floppy, unpacked by the `xdms` crate (a port of xDMS) into the disk image it
@@ -328,9 +328,9 @@ pub fn undms(source: &dyn Source) -> Result<Vec<u8>, String> {
         }
     }
     let data = source.read_vec(0, source.len().min(16 * 1024 * 1024) as usize)?;
-    let mut archive = xdms::DmsArchive::read(std::io::Cursor::new(data)).map_err(|e| format!("This DMS archive can't be read: {e}"))?;
+    let mut archive = xdms::DmsArchive::read(std::io::Cursor::new(data)).map_err(|e| crate::i18n::tf!("This DMS archive can't be read: {e}"))?;
     let mut out = Capped(Vec::new());
-    archive.unpack_to(&mut out).map_err(|e| format!("This DMS archive couldn't be unpacked: {e}"))?;
+    archive.unpack_to(&mut out).map_err(|e| crate::i18n::tf!("This DMS archive couldn't be unpacked: {e}"))?;
     Ok(out.0)
 }
 
@@ -366,7 +366,7 @@ impl HardDisk {
             let start = low * surfaces * blocks_per_track * sector;
             let length = (high + 1).saturating_sub(low) * surfaces * blocks_per_track * sector;
             let opened = if sector == 0 || start + length > source.len() {
-                Err("This partition's geometry runs past the end of the image.".to_string())
+                Err(crate::i18n::tr("This partition's geometry runs past the end of the image.").to_string())
             } else {
                 let slice: Arc<dyn Source> = Arc::new(Slice { inner: source.clone(), start, len: length });
                 AmigaFs::open(slice, (sector * sectors_per_block) as usize, &format!("Amiga hard disk (HDF) \u{203A} {name}"))
@@ -375,7 +375,7 @@ impl HardDisk {
             next = long(&part, 4);
         }
         if partitions.is_empty() {
-            return Err("This Amiga hard disk image has a Rigid Disk Block but no partitions in it.".into());
+            return Err(crate::i18n::tr("This Amiga hard disk image has a Rigid Disk Block but no partitions in it.").into());
         }
         Ok(Self::Disk { partitions })
     }
@@ -411,7 +411,7 @@ impl Volume for HardDisk {
                 .collect());
         };
         let (index, inner) = if dir.extra == u64::MAX { (dir.location as usize, None) } else { (dir.extra as usize, Some(dir)) };
-        let fs = partitions.get(index).ok_or("That partition isn't on the disk.")?.1.as_ref().map_err(Clone::clone)?;
+        let fs = partitions.get(index).ok_or(crate::i18n::tr("That partition isn't on the disk."))?.1.as_ref().map_err(Clone::clone)?;
         let mut entries = fs.list(inner)?;
         for entry in &mut entries {
             entry.extra = index as u64;
@@ -422,7 +422,7 @@ impl Volume for HardDisk {
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         match self {
             Self::Partition(fs) => fs.read(entry),
-            Self::Disk { partitions } => partitions.get(entry.extra as usize).ok_or("That partition isn't on the disk.")?.1.as_ref().map_err(Clone::clone)?.read(entry),
+            Self::Disk { partitions } => partitions.get(entry.extra as usize).ok_or(crate::i18n::tr("That partition isn't on the disk."))?.1.as_ref().map_err(Clone::clone)?.read(entry),
         }
     }
 

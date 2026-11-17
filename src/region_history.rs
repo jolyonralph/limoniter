@@ -338,16 +338,16 @@ pub fn follow_exactly(steps: &[Arc<Step>], mut r: Range<usize>) -> Option<Range<
 /// the same lines again, so that this one can't be taken back alone.
 pub fn undo_one(steps: &[Arc<Step>], touch: &Touch, before_lines: &[Arc<str>]) -> Result<Vec<(Range<usize>, Vec<Arc<str>>)>, String> {
     let Some(after) = &touch.after else {
-        return Err("This is where the part was cut from. Taking back where it was put in does the same.".into());
+        return Err(crate::i18n::tr("This is where the part was cut from. Taking back where it was put in does the same.").into());
     };
     let mut edits = Vec::new();
     for (old, new) in steps[touch.step].changes_in(after) {
         let now = follow_exactly(&steps[touch.step + 1..], new).ok_or_else(|| "Some of the lines this changed have been changed again since. Take back the later change first, or put the part back as it was before this.".to_string())?;
-        let lines = before_lines.get(old).ok_or("That state is no longer kept.")?.to_vec();
+        let lines = before_lines.get(old).ok_or(crate::i18n::tr("That state is no longer kept."))?.to_vec();
         edits.push((now, lines));
     }
     if edits.is_empty() {
-        return Err("This change left nothing to take back here.".into());
+        return Err(crate::i18n::tr("This change left nothing to take back here.").into());
     }
     edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
     Ok(edits)

@@ -27,7 +27,7 @@ impl Zip {
         let len = source.len();
         let tail_len = len.min(65_536 + 22);
         let tail = source.read_vec(len - tail_len, tail_len as usize)?;
-        let end = (0..tail.len().saturating_sub(21)).rev().find(|&i| tail[i..i + 4] == *b"PK\x05\x06").ok_or("This ZIP archive has no central directory at its end.")?;
+        let end = (0..tail.len().saturating_sub(21)).rev().find(|&i| tail[i..i + 4] == *b"PK\x05\x06").ok_or(crate::i18n::tr("This ZIP archive has no central directory at its end."))?;
         let record = &tail[end..];
         let word = |b: &[u8], at: usize| u64::from(u16::from_le_bytes([b[at], b[at + 1]]));
         let long = |b: &[u8], at: usize| u64::from(u32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]]));
@@ -46,7 +46,7 @@ impl Zip {
             }
         }
         if start + size > len || size > 256 * 1024 * 1024 {
-            return Err("This ZIP archive's directory isn't where it says it is.".into());
+            return Err(crate::i18n::tr("This ZIP archive's directory isn't where it says it is.").into());
         }
         let directory = source.read_vec(start, size as usize)?;
         let dos = charset::known("cp437");
@@ -137,29 +137,29 @@ impl Volume for Zip {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let member = self.members.get(entry.location as usize).ok_or("That file isn't in the archive.")?;
+        let member = self.members.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't in the archive."))?;
         if member.encrypted {
-            return Err("This file is encrypted, and Limoniter doesn't take passwords.".into());
+            return Err(crate::i18n::tr("This file is encrypted, and Limoniter doesn't take passwords.").into());
         }
         if member.size > super::MOST_FILE_BYTES || member.compressed > super::MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let local = self.source.read_vec(member.header, 30)?;
         if local[..4] != *b"PK\x03\x04" {
-            return Err("The archive's directory points somewhere that isn't a file.".into());
+            return Err(crate::i18n::tr("The archive's directory points somewhere that isn't a file.").into());
         }
         let skip = 30 + u64::from(u16::from_le_bytes([local[26], local[27]])) + u64::from(u16::from_le_bytes([local[28], local[29]]));
         let data = self.source.read_vec(member.header + skip, member.compressed as usize)?;
         match member.method {
             0 => Ok(data),
             8 => {
-                let out = miniz_oxide::inflate::decompress_to_vec_with_limit(&data, member.size as usize).map_err(|e| format!("The file couldn't be unpacked: {e:?}"))?;
+                let out = miniz_oxide::inflate::decompress_to_vec_with_limit(&data, member.size as usize).map_err(|e| crate::i18n::tf!("The file couldn't be unpacked: {e:?}"))?;
                 if out.len() as u64 != member.size {
-                    return Err("The file unpacked to a different size than the archive says.".into());
+                    return Err(crate::i18n::tr("The file unpacked to a different size than the archive says.").into());
                 }
                 Ok(out)
             }
-            other => Err(format!("This file is packed with method {other}; Limoniter reads stored and deflated files.")),
+            other => Err(crate::i18n::tf!("This file is packed with method {other}; Limoniter reads stored and deflated files.")),
         }
     }
 }

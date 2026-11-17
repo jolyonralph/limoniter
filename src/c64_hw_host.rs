@@ -76,7 +76,7 @@ fn swatch(ui: &mut egui::Ui, colour: u32, tip: &str) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(22.0, 14.0), Sense::click());
     ui.painter().rect_filled(rect, 2.0, Color32::from_rgb(r, g, b));
     ui.painter().rect_stroke(rect, 2.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    response.on_hover_text(tip)
+    response.on_hover_text(crate::i18n::tr(tip))
 }
 
 /// The lines setting the VIC up as the calculator says: the bank in $DD00 (keeping its other bits) and $D018.
@@ -92,8 +92,8 @@ impl HwWindow {
     fn registers_tab(&mut self, ui: &mut egui::Ui) -> Option<String> {
         let mut insert = None;
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search: name, address or words").desired_width(240.0));
-            ui.checkbox(&mut self.pal, "PAL").on_hover_text("Work out the SID's notes and the CIA timers for a PAL machine (985248 Hz) rather than NTSC (1022727 Hz)");
+            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text(crate::i18n::tr("Search: name, address or words")).desired_width(240.0));
+            ui.checkbox(&mut self.pal, crate::i18n::tr("PAL")).on_hover_text(crate::i18n::tr("Work out the SID's notes and the CIA timers for a PAL machine (985248 Hz) rather than NTSC (1022727 Hz)"));
         });
         ui.separator();
         let searching = !self.search.trim().is_empty();
@@ -124,10 +124,10 @@ impl HwWindow {
             ui.vertical(|ui| {
                 ui.set_width(480.0);
                 let Some(register) = c64_hw::at(self.selected) else {
-                    ui.label("Choose a register.");
+                    ui.label(crate::i18n::tr("Choose a register."));
                     return;
                 };
-                ui.label(RichText::new(format!("{}: {}", register.name, register.title)).strong().size(16.0));
+                ui.label(RichText::new(crate::i18n::tf!("{}: {}", register.name, register.title)).strong().size(16.0));
                 ui.label(RichText::new(register.heading()).monospace().small());
                 ui.add_space(4.0);
                 ui.add(egui::Label::new(&register.about).wrap());
@@ -144,10 +144,10 @@ impl HwWindow {
                     ui.add_space(6.0);
                 }
                 if register.is_colour() {
-                    ui.label("The colours (Pepto's, then Colodore's): click one to use it.");
+                    ui.label(crate::i18n::tr("The colours (Pepto's, then Colodore's): click one to use it."));
                     for (palette, colours) in [("Pepto", &c64_hw::PEPTO), ("Colodore", &c64_hw::COLODORE)] {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(format!("{palette:<9}")).monospace().small());
+                            ui.label(RichText::new(crate::i18n::tf!("{palette:<9}")).monospace().small());
                             for (n, colour) in colours.iter().enumerate() {
                                 if swatch(ui, *colour, &format!("{n}: {} (#{colour:06X})", c64_hw::COLOUR_NAMES[n])).clicked() {
                                     self.value = n.to_string();
@@ -159,15 +159,15 @@ impl HwWindow {
                 }
                 if register.access != Access::Call && register.access != Access::Vector {
                     ui.horizontal(|ui| {
-                        ui.label("Value:");
-                        ui.add(egui::TextEdit::singleline(&mut self.value).hint_text("$1b").desired_width(100.0).font(egui::TextStyle::Monospace));
-                        if ui.button("Copy name").clicked() {
+                        ui.label(crate::i18n::tr("Value:"));
+                        ui.add(egui::TextEdit::singleline(&mut self.value).hint_text(crate::i18n::tr("$1b")).desired_width(100.0).font(egui::TextStyle::Monospace));
+                        if ui.button(crate::i18n::tr("Copy name")).clicked() {
                             ui.ctx().copy_text(register.name.clone());
                         }
-                        if ui.button("Copy the chip's names").on_hover_text(format!("Every register of {} as NAME = $D020 lines", register.chip.name())).clicked() {
+                        if ui.button(crate::i18n::tr("Copy the chip's names")).on_hover_text(crate::i18n::tf!("Every register of {} as NAME = $D020 lines", register.chip.name())).clicked() {
                             ui.ctx().copy_text(c64_hw::equates(Some(register.chip)));
                         }
-                        if ui.button("Put them in").on_hover_text("The NAME = $D020 lines at the cursor").clicked() {
+                        if ui.button(crate::i18n::tr("Put them in")).on_hover_text(crate::i18n::tr("The NAME = $D020 lines at the cursor")).clicked() {
                             insert = Some(c64_hw::equates(Some(register.chip)));
                         }
                     });
@@ -187,7 +187,7 @@ impl HwWindow {
                         }
                         if let Some(voice) = register.voice().filter(|_| (register.address - 0xD400) % 7 <= 1) {
                             let hz = c64_hw::sid_hz(if (register.address - 0xD400) % 7 == 1 { (value as u16) << 8 } else { value as u16 }, self.pal);
-                            ui.label(RichText::new(format!("Voice {voice}: this byte alone is {hz:.2} Hz on {}", if self.pal { "PAL" } else { "NTSC" })).small());
+                            ui.label(RichText::new(crate::i18n::tf!("Voice {voice}: this byte alone is {hz:.2} Hz on {}", if self.pal { "PAL" } else { "NTSC" })).small());
                         }
                         if register.address == 0x0001 {
                             let [basic, io, kernal] = c64_hw::memory_setup(value);
@@ -200,21 +200,21 @@ impl HwWindow {
                             });
                         }
                     } else if !self.value.trim().is_empty() {
-                        ui.label("That isn't a number: write $1b, %00011011 or 27.");
+                        ui.label(crate::i18n::tr("That isn't a number: write $1b, %00011011 or 27."));
                     }
                     if register.voice().is_some() && (register.address - 0xD400) % 7 <= 1 {
                         ui.separator();
                         ui.horizontal(|ui| {
-                            ui.label("A note's value: Hz");
+                            ui.label(crate::i18n::tr("A note's value: Hz"));
                             ui.add(egui::TextEdit::singleline(&mut self.hz).desired_width(70.0));
                             if let Ok(hz) = self.hz.trim().parse::<f64>() {
                                 let v = c64_hw::sid_value(hz, self.pal);
                                 let note = c64_hw::note(hz).map(|(n, c)| format!(" ({n} {c:+.0} cents)")).unwrap_or_default();
-                                ui.label(RichText::new(format!("${v:04X}: low ${:02X}, high ${:02X}{note}", v & 0xFF, v >> 8)).monospace());
+                                ui.label(RichText::new(crate::i18n::tf!("${v:04X}: low ${:02X}, high ${:02X}{note}", v & 0xFF, v >> 8)).monospace());
                             }
                         });
                     }
-                } else if ui.button("Copy name").clicked() {
+                } else if ui.button(crate::i18n::tr("Copy name")).clicked() {
                     ui.ctx().copy_text(register.name.clone());
                 }
             });
@@ -224,12 +224,12 @@ impl HwWindow {
 
     fn memory_tab(&mut self, ui: &mut egui::Ui) -> Option<String> {
         let mut insert = None;
-        ui.label("Where the VIC-II finds the screen, the characters, a bitmap and the sprites: the 16K bank CIA 2 chooses in $DD00, and the places in it $D018 chooses.");
+        ui.label(crate::i18n::tr("Where the VIC-II finds the screen, the characters, a bitmap and the sprites: the 16K bank CIA 2 chooses in $DD00, and the places in it $D018 chooses."));
         ui.add_space(6.0);
         // Typed values set the choices.
         ui.horizontal(|ui| {
-            ui.label("$D018:");
-            if ui.add(egui::TextEdit::singleline(&mut self.d018_text).hint_text("$15").desired_width(60.0).font(egui::TextStyle::Monospace)).changed()
+            ui.label(crate::i18n::tr("$D018:"));
+            if ui.add(egui::TextEdit::singleline(&mut self.d018_text).hint_text(crate::i18n::tr("$15")).desired_width(60.0).font(egui::TextStyle::Monospace)).changed()
                 && let Some(v) = number(&self.d018_text)
             {
                 let v = v as u8;
@@ -237,30 +237,30 @@ impl HwWindow {
                 self.charset = (v >> 1) & 7;
                 self.bitmap = (v >> 3) & 1;
             }
-            ui.label("$DD00:");
-            if ui.add(egui::TextEdit::singleline(&mut self.dd00_text).hint_text("$97").desired_width(60.0).font(egui::TextStyle::Monospace)).changed()
+            ui.label(crate::i18n::tr("$DD00:"));
+            if ui.add(egui::TextEdit::singleline(&mut self.dd00_text).hint_text(crate::i18n::tr("$97")).desired_width(60.0).font(egui::TextStyle::Monospace)).changed()
                 && let Some(v) = number(&self.dd00_text)
             {
                 self.bank = 3 - (v as u8 & 3);
             }
         });
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("c64-bank").selected_text(format!("Bank {} (${:04X})", self.bank, self.bank as u16 * 0x4000)).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("c64-bank").selected_text(crate::i18n::tf!("Bank {} (${:04X})", self.bank, self.bank as u16 * 0x4000)).show_ui(ui, |ui| {
                 for b in 0..4u8 {
-                    ui.selectable_value(&mut self.bank, b, format!("Bank {b}: ${:04X}-${:04X}", b as u16 * 0x4000, b as u16 * 0x4000 + 0x3FFF));
+                    ui.selectable_value(&mut self.bank, b, crate::i18n::tf!("Bank {b}: ${:04X}-${:04X}", b as u16 * 0x4000, b as u16 * 0x4000 + 0x3FFF));
                 }
             });
             let base = self.bank as u16 * 0x4000;
-            egui::ComboBox::from_id_salt("c64-screen").selected_text(format!("Screen ${:04X}", base + self.screen as u16 * 0x400)).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("c64-screen").selected_text(crate::i18n::tf!("Screen ${:04X}", base + self.screen as u16 * 0x400)).show_ui(ui, |ui| {
                 for s in 0..16u8 {
-                    ui.selectable_value(&mut self.screen, s, format!("${:04X}", base + s as u16 * 0x400));
+                    ui.selectable_value(&mut self.screen, s, crate::i18n::tf!("${:04X}", base + s as u16 * 0x400));
                 }
             });
-            egui::ComboBox::from_id_salt("c64-charset").selected_text(format!("Characters ${:04X}", base + self.charset as u16 * 0x800)).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("c64-charset").selected_text(crate::i18n::tf!("Characters ${:04X}", base + self.charset as u16 * 0x800)).show_ui(ui, |ui| {
                 for c in 0..8u8 {
                     let at = base + c as u16 * 0x800;
                     let rom = c64_hw::sees_rom(at).map(|r| format!(" ({r})")).unwrap_or_default();
-                    ui.selectable_value(&mut self.charset, c, format!("${at:04X}{rom}"));
+                    ui.selectable_value(&mut self.charset, c, crate::i18n::tf!("${at:04X}{rom}"));
                 }
             });
         });
@@ -284,18 +284,18 @@ impl HwWindow {
             }
         });
         ui.horizontal(|ui| {
-            ui.label("A sprite pointer:");
+            ui.label(crate::i18n::tr("A sprite pointer:"));
             ui.add(egui::DragValue::new(&mut self.pointer).range(0..=255));
             let at = memory.sprite(self.pointer);
             let rom = c64_hw::sees_rom(at).map(|r| format!(", in {r}")).unwrap_or_default();
-            ui.label(RichText::new(format!("the sprite's 63 bytes at ${at:04X}-${:04X}{rom}", at + 62)).monospace());
+            ui.label(RichText::new(crate::i18n::tf!("the sprite's 63 bytes at ${at:04X}-${:04X}{rom}", at + 62)).monospace());
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if ui.button("Put the setup in at the cursor").on_hover_text("LDA/STA lines setting $DD00's bank and $D018").clicked() {
+            if ui.button(crate::i18n::tr("Put the setup in at the cursor")).on_hover_text(crate::i18n::tr("LDA/STA lines setting $DD00's bank and $D018")).clicked() {
                 insert = Some(memory_source(dd00, d018, &memory.words(false)));
             }
-            if ui.button("Copy it").clicked() {
+            if ui.button(crate::i18n::tr("Copy it")).clicked() {
                 ui.ctx().copy_text(memory_source(dd00, d018, &memory.words(false)));
             }
         });
@@ -324,10 +324,10 @@ impl Limoniter {
         if let Some(mut window) = self.c64_hw.hardware.take() {
             let mut open = true;
             let mut insert = None;
-            egui::Window::new("Commodore 64 hardware").open(&mut open).default_pos([160.0, 110.0]).default_width(770.0).show(ctx, |ui| {
+            egui::Window::new(crate::i18n::tr("Commodore 64 hardware")).open(&mut open).default_pos([160.0, 110.0]).default_width(770.0).show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut window.tab, Tab::Registers, "Registers and KERNAL");
-                    ui.selectable_value(&mut window.tab, Tab::Memory, "VIC memory");
+                    ui.selectable_value(&mut window.tab, Tab::Registers, crate::i18n::tr("Registers and KERNAL"));
+                    ui.selectable_value(&mut window.tab, Tab::Memory, crate::i18n::tr("VIC memory"));
                 });
                 ui.separator();
                 insert = match window.tab {

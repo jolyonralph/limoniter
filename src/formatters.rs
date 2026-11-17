@@ -210,10 +210,10 @@ fn format_xml(text: &str, unit: &str, compact: bool) -> Result<String, String> {
         // A selection can be part of a document, with several elements side by side.
         let body = text.trim_start().strip_prefix("<?xml").and_then(|rest| rest.split_once("?>")).map_or(text, |(_, rest)| rest);
         if roxmltree::Document::parse_with_options(&format!("<a>{body}</a>"), options()).is_err() {
-            return Err(format!("That isn't well-formed XML, so it hasn't been changed.\n\n{problem}"));
+            return Err(crate::i18n::tf!("That isn't well-formed XML, so it hasn't been changed.\n\n{problem}"));
         }
     }
-    let nodes = parse_xml(text).ok_or("That isn't well-formed XML, so it hasn't been changed.")?;
+    let nodes = parse_xml(text).ok_or(crate::i18n::tr("That isn't well-formed XML, so it hasn't been changed."))?;
     let mut out = String::with_capacity(text.len() * 2);
     render_xml(&nodes, 0, unit, compact, &mut out);
     Ok(out)
@@ -777,7 +777,7 @@ fn edi_marks(text: &str) -> Result<(char, Option<char>), String> {
 fn edi_segments(text: &str) -> Result<(Vec<String>, char), String> {
     let (terminator, release) = edi_marks(text)?;
     if terminator == '\n' || terminator == '\r' {
-        return Err("Here the segments end with a line break, so there's nothing to put on separate lines or join up.".to_string());
+        return Err(crate::i18n::tr("Here the segments end with a line break, so there's nothing to put on separate lines or join up.").to_string());
     }
     let mut segments = Vec::new();
     let mut cur = String::new();

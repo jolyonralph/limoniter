@@ -80,28 +80,28 @@ impl Chain {
     pub fn source(&self) -> Result<String, String> {
         let p = self.prefix.trim();
         if p.is_empty() || !p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') || p.starts_with(|c: char| c.is_ascii_digit()) {
-            return Err("The labels' prefix has to be a word of letters, digits and _.".into());
+            return Err(crate::i18n::tr("The labels' prefix has to be a word of letters, digits and _.").into());
         }
         if self.entries.is_empty() {
-            return Err("Add a line to interrupt at.".into());
+            return Err(crate::i18n::tr("Add a line to interrupt at.").into());
         }
         let lines = self.vic.lines();
         let mut entries = self.entries.clone();
         entries.sort_by_key(|e| e.line);
         for (i, e) in entries.iter().enumerate() {
             if e.routine.trim().is_empty() {
-                return Err(format!("Line {} needs a routine to call.", e.line));
+                return Err(crate::i18n::tf!("Line {} needs a routine to call.", e.line));
             }
             if e.line >= lines {
-                return Err(format!("Line {} isn't there: a {} frame has lines 0 to {}.", e.line, self.vic.short(), lines - 1));
+                return Err(crate::i18n::tf!("Line {} isn't there: a {} frame has lines 0 to {}.", e.line, self.vic.short(), lines - 1));
             }
             if i > 0 && entries[i - 1].line == e.line {
-                return Err(format!("Line {} is in the list twice.", e.line));
+                return Err(crate::i18n::tf!("Line {} is in the list twice.", e.line));
             }
             if e.stable {
                 let first = e.line as i64 - lead(self.kernal) as i64;
                 if first < 1 || (first as u32 >> 8) != (e.line >> 8) {
-                    return Err(format!("A stable interrupt's first half comes {} lines before line {}, which is too near line 0 or 256 for it; pick another line.", lead(self.kernal), e.line));
+                    return Err(crate::i18n::tf!("A stable interrupt's first half comes {} lines before line {}, which is too near line 0 or 256 for it; pick another line.", lead(self.kernal), e.line));
                 }
             }
         }
@@ -280,35 +280,35 @@ impl Helper {
         let mut asked = None;
         let c = &mut self.chain;
         ui.horizontal(|ui| {
-            ui.label("Machine");
+            ui.label(crate::i18n::tr("Machine"));
             for vic in Vic::ALL {
-                ui.selectable_value(&mut c.vic, vic, vic.name());
+                ui.selectable_value(&mut c.vic, vic, crate::i18n::tr(vic.name()));
             }
         });
         ui.horizontal(|ui| {
-            ui.radio_value(&mut c.kernal, false, "KERNAL out ($FFFE)");
-            ui.radio_value(&mut c.kernal, true, "KERNAL in ($0314)");
+            ui.radio_value(&mut c.kernal, false, crate::i18n::tr("KERNAL out ($FFFE)"));
+            ui.radio_value(&mut c.kernal, true, crate::i18n::tr("KERNAL in ($0314)"));
             ui.separator();
-            ui.label("Labels start");
+            ui.label(crate::i18n::tr("Labels start"));
             ui.add(egui::TextEdit::singleline(&mut c.prefix).desired_width(80.0));
         });
-        ui.label(RichText::new("Each line calls its routine (ending with RTS). A stable one starts in cycle 4 of its line, the same every frame: for raster bars, splits and opening the borders.").small());
+        ui.label(RichText::new(crate::i18n::tr("Each line calls its routine (ending with RTS). A stable one starts in cycle 4 of its line, the same every frame: for raster bars, splits and opening the borders.")).small());
         let mut remove = None;
         let last = c.vic.lines() - 1;
         egui::Grid::new("irq chain").num_columns(4).show(ui, |ui| {
-            ui.label("Line");
-            ui.label("Routine");
-            ui.label("Stable");
-            ui.label("");
+            ui.label(crate::i18n::tr("Line"));
+            ui.label(crate::i18n::tr("Routine"));
+            ui.label(crate::i18n::tr("Stable"));
+            ui.label(crate::i18n::tr(""));
             ui.end_row();
             for (i, e) in c.entries.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut e.line).range(0..=last));
-                    ui.label(RichText::new(format!("${:03X}", e.line)).small());
+                    ui.label(RichText::new(crate::i18n::tf!("${:03X}", e.line)).small());
                 });
                 ui.add_sized([130.0, 20.0], egui::TextEdit::singleline(&mut e.routine));
-                ui.checkbox(&mut e.stable, "");
-                if ui.small_button("Remove").clicked() {
+                ui.checkbox(&mut e.stable, crate::i18n::tr(""));
+                if ui.small_button(crate::i18n::tr("Remove")).clicked() {
                     remove = Some(i);
                 }
                 ui.end_row();
@@ -317,7 +317,7 @@ impl Helper {
         if let Some(i) = remove {
             c.entries.remove(i);
         }
-        if ui.button("Add a line").clicked() {
+        if ui.button(crate::i18n::tr("Add a line")).clicked() {
             let line = c.entries.iter().map(|e| e.line).max().map_or(0x10, |l| (l + 16).min(last));
             c.entries.push(Entry { line, routine: format!("routine{}", c.entries.len() + 1), stable: false });
         }
@@ -325,13 +325,13 @@ impl Helper {
         for e in c.entries.iter().filter(|e| e.stable) {
             let lead = lead(c.kernal);
             if (e.line.saturating_sub(lead)..=e.line).any(|l| crate::c64_raster::is_bad_line(l, 3, true)) {
-                ui.label(RichText::new(format!("Line {} or the {lead} before it is a bad line with the usual scroll (3): the timing won't hold there.", e.line)).color(ui.visuals().warn_fg_color));
+                ui.label(RichText::new(crate::i18n::tf!("Line {} or the {lead} before it is a bad line with the usual scroll (3): the timing won't hold there.", e.line)).color(ui.visuals().warn_fg_color));
             }
         }
         ui.add_space(4.0);
         match c.source() {
             Ok(text) => {
-                if ui.button("Put the code at the cursor").clicked() {
+                if ui.button(crate::i18n::tr("Put the code at the cursor")).clicked() {
                     asked = Some(Asked::Insert(text));
                 }
             }

@@ -104,7 +104,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Module, String> {
             return Ok(module);
         }
     }
-    Err("This isn't a ProTracker module: there's no tag such as M.K. at byte 1080, and it isn't laid out as an older 15-sample Soundtracker module either.".into())
+    Err(crate::i18n::tr("This isn't a ProTracker module: there's no tag such as M.K. at byte 1080, and it isn't laid out as an older 15-sample Soundtracker module either.").into())
 }
 
 /// Whether bytes read as a 15-sample module make sense: printable names, volumes up to 64, a song of 1 to 128
@@ -122,7 +122,7 @@ fn plausible_15(bytes: &[u8], module: &Module) -> bool {
 fn read_with(bytes: &[u8], slots: usize) -> Result<Module, String> {
     let header = if slots == 31 { HEADER_31 } else { HEADER_15 };
     if bytes.len() < header {
-        return Err("The file is too short to be a module.".into());
+        return Err(crate::i18n::tr("The file is too short to be a module.").into());
     }
     let mut module = Module { title: text(&bytes[..20]), size: bytes.len() as u64, ..Module::default() };
     let at = 20 + slots * 30;
@@ -134,7 +134,7 @@ fn read_with(bytes: &[u8], slots: usize) -> Result<Module, String> {
     let highest = all_orders.iter().copied().max().unwrap_or(0);
     if slots == 31 {
         let tag = &bytes[1080..1084];
-        let (channels, format) = tag_channels(tag).ok_or("The tag at byte 1080 isn't one a tracker writes.")?;
+        let (channels, format) = tag_channels(tag).ok_or(crate::i18n::tr("The tag at byte 1080 isn't one a tracker writes."))?;
         module.tag = String::from_utf8_lossy(tag).into_owned();
         module.channels = channels;
         module.format = format.to_string();

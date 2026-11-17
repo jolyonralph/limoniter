@@ -189,16 +189,16 @@ pub fn view(ui: &mut egui::Ui, state: &mut Comparison) {
         ui.horizontal(|ui| {
             ui.label(state.summary());
             let any = !state.differences.is_empty();
-            if ui.add_enabled(any, egui::Button::new("Previous difference")).clicked() {
+            if ui.add_enabled(any, egui::Button::new(crate::i18n::tr("Previous difference"))).clicked() {
                 state.step(false);
             }
-            if ui.add_enabled(any, egui::Button::new("Next difference")).clicked() {
+            if ui.add_enabled(any, egui::Button::new(crate::i18n::tr("Next difference"))).clicked() {
                 state.step(true);
             }
-            ui.label(egui::RichText::new("These files are too large to edit here, so they're only read. Line endings aren't compared.").color(theme::text_faint()));
+            ui.label(egui::RichText::new(crate::i18n::tr("These files are too large to edit here, so they're only read. Line endings aren't compared.")).color(theme::text_faint()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if state.longest > 40 {
-                    ui.add(egui::Slider::new(&mut state.across, 0..=state.longest).show_value(false).text("Across"));
+                    ui.add(egui::Slider::new(&mut state.across, 0..=state.longest).show_value(false).text(crate::i18n::tr("Across")));
                 }
             });
         });

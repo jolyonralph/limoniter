@@ -34,11 +34,11 @@ pub fn parse_colour(text: &str) -> Option<u16> {
 pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor) -> bool {
     let mut changed = false;
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("Amiga palette").color(theme::text_dim()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("Amiga palette")).color(theme::text_dim()).size(12.5));
         let current = AMIGA_PRESETS.iter().find(|(_, pens)| *pens == palette.pens).map_or("Your own", |(name, _)| name);
         egui::ComboBox::from_id_salt("amiga-preset").selected_text(current).show_ui(ui, |ui| {
             for (name, pens) in AMIGA_PRESETS {
-                if ui.selectable_label(palette.pens == pens, name).clicked() && palette.pens != pens {
+                if ui.selectable_label(palette.pens == pens, crate::i18n::tr(name)).clicked() && palette.pens != pens {
                     palette.pens = pens;
                     changed = true;
                     if let Some(pen) = editor.pen {
@@ -47,7 +47,7 @@ pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor)
                 }
             }
         });
-        changed |= ui.checkbox(&mut palette.bold_high, "Bold picks pens 8\u{2013}15").on_hover_text("As terminal programs on a 16-colour screen drew bold text. Without it, bold text keeps its pen, as the Amiga's console has it.").changed();
+        changed |= ui.checkbox(&mut palette.bold_high, crate::i18n::tr("Bold picks pens 8\u{2013}15")).on_hover_text(crate::i18n::tr("As terminal programs on a 16-colour screen drew bold text. Without it, bold text keeps its pen, as the Amiga's console has it.")).changed();
     });
     // Two rows of eight pens.
     for row in 0..2 {
@@ -62,7 +62,7 @@ pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor)
                 ui.painter().rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
                 let ink = if colour.r() as u16 + colour.g() as u16 + colour.b() as u16 > 380 { Color32::BLACK } else { Color32::WHITE };
                 ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, pen.to_string(), egui::FontId::proportional(11.0), ink);
-                if response.on_hover_text(format!("Pen {pen}: {value:03X}. Click to change it.")).clicked() {
+                if response.on_hover_text(crate::i18n::tf!("Pen {pen}: {value:03X}. Click to change it.")).clicked() {
                     if chosen {
                         editor.pen = None;
                     } else {
@@ -80,8 +80,8 @@ pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor)
     let mut chosen: Option<u16> = None;
     let mut typed = false;
     ui.horizontal(|ui| {
-        ui.label(format!("Pen {pen}:"));
-        let field = ui.add(egui::TextEdit::singleline(&mut editor.hex).desired_width(60.0).hint_text("f8f"));
+        ui.label(crate::i18n::tf!("Pen {pen}:"));
+        let field = ui.add(egui::TextEdit::singleline(&mut editor.hex).desired_width(60.0).hint_text(crate::i18n::tr("f8f")));
         if field.changed()
             && let Some(colour) = parse_colour(&editor.hex)
         {
@@ -89,9 +89,9 @@ pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor)
             typed = true;
         }
         if parse_colour(&editor.hex).is_none() && !editor.hex.trim().is_empty() {
-            ui.label(RichText::new("Three hex digits, such as f8f").color(theme::rainbow_mistake()).size(12.0));
+            ui.label(RichText::new(crate::i18n::tr("Three hex digits, such as f8f")).color(theme::rainbow_mistake()).size(12.0));
         }
-        if ui.small_button("Done").clicked() {
+        if ui.small_button(crate::i18n::tr("Done")).clicked() {
             editor.pen = None;
         }
     });
@@ -133,7 +133,7 @@ pub fn draw(ui: &mut Ui, palette: &mut AmigaPalette, editor: &mut PaletteEditor)
             chosen = Some(red << 8 | ((inner_y / cell) as u16).min(15) << 4 | ((inner_x / cell) as u16).min(15));
         }
     }
-    response.on_hover_text("The Amiga's 4096 colours: a block for each level of red, green down and blue across");
+    response.on_hover_text(crate::i18n::tr("The Amiga's 4096 colours: a block for each level of red, green down and blue across"));
     if let Some(colour) = chosen.filter(|colour| *colour != palette.pens[pen]) {
         palette.pens[pen] = colour;
         // What's typed stays as it's typed; a colour picked or slid to is shown in hex.

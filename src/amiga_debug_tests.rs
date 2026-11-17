@@ -30,7 +30,7 @@ value:\tdc.l\t$12345678
 pub const BASES: [u32; 2] = [0x00C0_1000, 0x00C2_0040];
 
 pub fn assembled() -> crate::asm::Assembly {
-    let (assembly, file) = crate::asm::hunk::assemble_executable(std::path::Path::new("t.s"), SOURCE, &|_| Err("no".into()), false, &crate::asm::Options::default());
+    let (assembly, file) = crate::asm::hunk::assemble_executable(std::path::Path::new("t.s"), SOURCE, &|_| Err(crate::i18n::tr("no").into()), false, &crate::asm::Options::default());
     assert!(assembly.ok() && file.is_some(), "{:?}", assembly.problems);
     assembly
 }
@@ -467,7 +467,7 @@ fn a_program_is_debugged_in_a_real_emulator() {
     let winuae = emulator.file_name().is_some_and(|n| n.to_string_lossy().to_lowercase().contains("winuae"));
     assert!(has_gdb_server(&emulator), "{} has no GDB server", emulator.display());
     let source = include_str!("asm/testdata/amiga_hello.s");
-    let (assembly, file) = crate::asm::hunk::assemble_executable(std::path::Path::new("hello.s"), source, &|_| Err("no".into()), true, &crate::asm::Options::default());
+    let (assembly, file) = crate::asm::hunk::assemble_executable(std::path::Path::new("hello.s"), source, &|_| Err(crate::i18n::tr("no").into()), true, &crate::asm::Options::default());
     let file = file.expect("it assembles");
     let folder = match std::env::var_os("LIMONITER_AMIGA_GDB_FOLDER") {
         Some(folder) => std::path::PathBuf::from(folder).join(format!("run-{}", std::process::id())),

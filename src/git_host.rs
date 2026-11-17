@@ -226,12 +226,12 @@ impl Limoniter {
         let mut act: Vec<PanelAct> = Vec::new();
         Panel::right("git-panel").default_size(320.0).size_range(220.0..=700.0).resizable(true).frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(6, 4))).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Source control").color(theme::text()).size(12.5));
+                ui.label(RichText::new(crate::i18n::tr("Source control")).color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if crate::access::called(ui.add(Button::new(RichText::new("\u{D7}").color(theme::text_dim())).frame(false)), "Close").on_hover_text("Close").clicked() {
+                    if crate::access::called(ui.add(Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
                         open = false;
                     }
-                    if ui.add(Button::new(RichText::new("?").color(theme::text_dim())).frame(false)).on_hover_text("The Git wizard: setting up, and what it all means").clicked() {
+                    if ui.add(Button::new(RichText::new(crate::i18n::tr("?")).color(theme::text_dim())).frame(false)).on_hover_text(crate::i18n::tr("The Git wizard: setting up, and what it all means")).clicked() {
                         act.push(PanelAct::Wizard);
                     }
                 });
@@ -248,8 +248,8 @@ impl Limoniter {
     fn git_panel_body(&mut self, ui: &mut Ui, act: &mut Vec<PanelAct>) {
         let faint = |text: &str| RichText::new(text.to_string()).color(theme::text_dim());
         if self.git.installed == Some(false) {
-            ui.label("Git isn't installed on this computer yet. It's free, and the wizard shows how to get it.");
-            if ui.button("Set up Git\u{2026}").clicked() {
+            ui.label(crate::i18n::tr("Git isn't installed on this computer yet. It's free, and the wizard shows how to get it."));
+            if ui.button(crate::i18n::tr("Set up Git\u{2026}")).clicked() {
                 act.push(PanelAct::Wizard);
             }
             return;
@@ -257,7 +257,7 @@ impl Limoniter {
         let Some(root) = self.git.repo.clone() else {
             ui.add(egui::Label::new(faint("This file's folder isn't keeping its history with Git. With Git, every version you choose to keep is saved, and you can always go back, compare, or put the whole project online.")).wrap());
             ui.add_space(4.0);
-            if ui.button("Start keeping history\u{2026}").clicked() {
+            if ui.button(crate::i18n::tr("Start keeping history\u{2026}")).clicked() {
                 act.push(PanelAct::Wizard);
             }
             return;
@@ -270,11 +270,11 @@ impl Limoniter {
         ui.label(RichText::new(root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()).strong()).on_hover_text(root.display().to_string());
         ui.horizontal_wrapped(|ui| {
             let branch = status.branch.clone().unwrap_or_else(|| "(no branch)".into());
-            egui::ComboBox::from_id_salt("git-branch").selected_text(format!("\u{2387} {branch}")).width(150.0).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("git-branch").selected_text(crate::i18n::tf!("\u{2387} {branch}")).width(150.0).show_ui(ui, |ui| {
                 if let Some(root) = &self.git.repo {
                     for each in git::branches(root).unwrap_or_default() {
                         let label = if each.remote { format!("{} (online)", each.name) } else { each.name.clone() };
-                        if ui.selectable_label(each.current, label).clicked() && !each.current {
+                        if ui.selectable_label(each.current, crate::i18n::tr(&label)).clicked() && !each.current {
                             let name = if each.remote { each.name.split_once('/').map_or(each.name.clone(), |(_, rest)| rest.to_string()) } else { each.name.clone() };
                             act.push(PanelAct::Switch(name));
                         }
@@ -282,8 +282,8 @@ impl Limoniter {
                 }
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.git.new_branch).hint_text("new-branch").desired_width(110.0));
-                    if ui.add_enabled(!self.git.new_branch.trim().is_empty(), Button::new("New branch")).clicked() {
+                    ui.add(egui::TextEdit::singleline(&mut self.git.new_branch).hint_text(crate::i18n::tr("new-branch")).desired_width(110.0));
+                    if ui.add_enabled(!self.git.new_branch.trim().is_empty(), Button::new(crate::i18n::tr("New branch"))).clicked() {
                         act.push(PanelAct::NewBranch(self.git.new_branch.trim().replace(' ', "-")));
                     }
                 });
@@ -292,16 +292,16 @@ impl Limoniter {
             if status.upstream.is_some() || !git::remotes(&root).is_empty() {
                 let pull = if status.behind > 0 { format!("Pull \u{2193}{}", status.behind) } else { "Pull".into() };
                 let push = if status.ahead > 0 { format!("Push \u{2191}{}", status.ahead) } else { "Push".into() };
-                if ui.add_enabled(!busy, Button::new(pull).small()).on_hover_text("Brings in what's been pushed from elsewhere").clicked() {
+                if ui.add_enabled(!busy, Button::new(pull).small()).on_hover_text(crate::i18n::tr("Brings in what's been pushed from elsewhere")).clicked() {
                     act.push(PanelAct::Pull);
                 }
-                if ui.add_enabled(!busy && status.born, Button::new(push).small()).on_hover_text("Sends your commits online").clicked() {
+                if ui.add_enabled(!busy && status.born, Button::new(push).small()).on_hover_text(crate::i18n::tr("Sends your commits online")).clicked() {
                     act.push(PanelAct::Push);
                 }
-                if ui.add_enabled(!busy, Button::new("Fetch").small()).on_hover_text("Looks for what's new online, changing nothing here").clicked() {
+                if ui.add_enabled(!busy, Button::new(crate::i18n::tr("Fetch")).small()).on_hover_text(crate::i18n::tr("Looks for what's new online, changing nothing here")).clicked() {
                     act.push(PanelAct::Fetch);
                 }
-            } else if ui.small_button("Put it online\u{2026}").on_hover_text("Connects this to a repository on GitHub or elsewhere").clicked() {
+            } else if ui.small_button(crate::i18n::tr("Put it online\u{2026}")).on_hover_text(crate::i18n::tr("Connects this to a repository on GitHub or elsewhere")).clicked() {
                 act.push(PanelAct::Wizard);
             }
         });
@@ -309,12 +309,12 @@ impl Limoniter {
         match status.underway {
             Some(git::Underway::Rebase) => {
                 egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
-                    ui.add(egui::Label::new(RichText::new("A pull is partway through: some of your commits clash with ones from online. Settle each conflict below, press + beside it, then Carry on.").strong()).wrap());
+                    ui.add(egui::Label::new(RichText::new(crate::i18n::tr("A pull is partway through: some of your commits clash with ones from online. Settle each conflict below, press + beside it, then Carry on.")).strong()).wrap());
                     ui.horizontal(|ui| {
-                        if ui.button("Carry on").on_hover_text("Each of your commits keeps its own message").clicked() {
+                        if ui.button(crate::i18n::tr("Carry on")).on_hover_text(crate::i18n::tr("Each of your commits keeps its own message")).clicked() {
                             act.push(PanelAct::Continue);
                         }
-                        if ui.button("Abort, back to how it was").clicked() {
+                        if ui.button(crate::i18n::tr("Abort, back to how it was")).clicked() {
                             act.push(PanelAct::Abort(git::Underway::Rebase));
                         }
                     });
@@ -322,8 +322,8 @@ impl Limoniter {
             }
             Some(git::Underway::Merge) => {
                 egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
-                    ui.add(egui::Label::new(RichText::new("A merge is partway through. Settle each conflict below, press + beside it, then Commit.").strong()).wrap());
-                    if ui.button("Abort the merge").clicked() {
+                    ui.add(egui::Label::new(RichText::new(crate::i18n::tr("A merge is partway through. Settle each conflict below, press + beside it, then Commit.")).strong()).wrap());
+                    if ui.button(crate::i18n::tr("Abort the merge")).clicked() {
                         act.push(PanelAct::Abort(git::Underway::Merge));
                     }
                 });
@@ -332,8 +332,8 @@ impl Limoniter {
                 }
             }
             None if status.ahead > 0 && status.behind > 0 => {
-                ui.add(egui::Label::new(RichText::new(format!("Your {} commit(s) and {} from online have both moved on from the same place.", status.ahead, status.behind)).color(theme::text_dim())).wrap());
-                if ui.add_enabled(self.git.job.is_none(), Button::new("Pull, putting mine after theirs")).on_hover_text("A rebase: your commits are made again on top of the ones from online, so there's no merge. If they clash, it stops for you to settle").clicked() {
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("Your {} commit(s) and {} from online have both moved on from the same place.", status.ahead, status.behind)).color(theme::text_dim())).wrap());
+                if ui.add_enabled(self.git.job.is_none(), Button::new(crate::i18n::tr("Pull, putting mine after theirs"))).on_hover_text(crate::i18n::tr("A rebase: your commits are made again on top of the ones from online, so there's no merge. If they clash, it stops for you to settle")).clicked() {
                     act.push(PanelAct::PullRebase);
                 }
             }
@@ -342,7 +342,7 @@ impl Limoniter {
         if let Some(job) = &self.git.job {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label(format!("{}\u{2026}", job.title));
+                ui.label(crate::i18n::tf!("{}\u{2026}", job.title));
             });
         } else if let Some((said, problem, when)) = &self.git.said
             && when.elapsed() < Duration::from_secs(20)
@@ -354,16 +354,16 @@ impl Limoniter {
         // Committing.
         let staged = status.staged().count();
         let changed = status.unstaged().count();
-        ui.add(egui::TextEdit::multiline(&mut self.git.message).hint_text("What this commit does, in a line; more below if needed").desired_rows(2).desired_width(f32::INFINITY));
+        ui.add(egui::TextEdit::multiline(&mut self.git.message).hint_text(crate::i18n::tr("What this commit does, in a line; more below if needed")).desired_rows(2).desired_width(f32::INFINITY));
         ui.horizontal_wrapped(|ui| {
             let message = !self.git.message.trim().is_empty();
             let label = if staged > 0 { format!("Commit {staged} file(s)") } else if changed > 0 { "Commit all changes".to_string() } else { "Commit".to_string() };
             let ready = message && (staged > 0 || changed > 0 || self.git.amend) && self.git.job.is_none();
-            if ui.add_enabled(ready, Button::new(label)).on_hover_text(if message { "Keeps this version, with your message" } else { "Write what it does first" }).clicked() {
+            if ui.add_enabled(ready, Button::new(label)).on_hover_text(if message { crate::i18n::tr("Keeps this version, with your message") } else { crate::i18n::tr("Write what it does first") }).clicked() {
                 act.push(PanelAct::Commit);
             }
-            ui.checkbox(&mut self.git.amend, "Add to the last commit").on_hover_text("Puts these changes, and the message, into the last commit instead of a new one. Best only before pushing it");
-            if (staged > 0 || changed > 0) && ui.add_enabled(self.assist_job.is_none(), Button::new("Write it for me").small()).on_hover_text(format!("{} writes a message from the changes, for you to read over. It's in the Assistant's history", self.assistant.tool.name())).clicked() {
+            ui.checkbox(&mut self.git.amend, crate::i18n::tr("Add to the last commit")).on_hover_text(crate::i18n::tr("Puts these changes, and the message, into the last commit instead of a new one. Best only before pushing it"));
+            if (staged > 0 || changed > 0) && ui.add_enabled(self.assist_job.is_none(), Button::new(crate::i18n::tr("Write it for me")).small()).on_hover_text(crate::i18n::tf!("{} writes a message from the changes, for you to read over. It's in the Assistant's history", self.assistant.tool.name())).clicked() {
                 act.push(PanelAct::WriteMessage);
             }
         });
@@ -388,17 +388,17 @@ impl Limoniter {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if staged_list {
-                        if ui.small_button("\u{2212}").on_hover_text("Leave it out of the next commit").clicked() {
+                        if ui.small_button(crate::i18n::tr("\u{2212}")).on_hover_text(crate::i18n::tr("Leave it out of the next commit")).clicked() {
                             act.push(PanelAct::Unstage(entry.path.clone()));
                         }
                     } else {
-                        if change == Some(Change::Conflicted) && ui.small_button("Resolve in merge\u{2026}").on_hover_text("Each side, from Git's own copies, and the result to settle").clicked() {
+                        if change == Some(Change::Conflicted) && ui.small_button(crate::i18n::tr("Resolve in merge\u{2026}")).on_hover_text(crate::i18n::tr("Each side, from Git's own copies, and the result to settle")).clicked() {
                             act.push(PanelAct::Merge(entry.path.clone()));
                         }
-                        if ui.small_button("+").on_hover_text("Put it in the next commit").clicked() {
+                        if ui.small_button(crate::i18n::tr("+")).on_hover_text(crate::i18n::tr("Put it in the next commit")).clicked() {
                             act.push(PanelAct::Stage(entry.path.clone()));
                         }
-                        if change != Some(Change::Untracked) && ui.small_button("\u{21B6}").on_hover_text("Throw away its changes, back to the last commit").clicked() {
+                        if change != Some(Change::Untracked) && ui.small_button(crate::i18n::tr("\u{21B6}")).on_hover_text(crate::i18n::tr("Throw away its changes, back to the last commit")).clicked() {
                             act.push(PanelAct::Discard(entry.path.clone()));
                         }
                     }
@@ -407,7 +407,7 @@ impl Limoniter {
         };
         let conflicted: Vec<git::Entry> = status.conflicted().cloned().collect();
         if !conflicted.is_empty() {
-            ui.label(RichText::new(format!("Conflicts ({})", conflicted.len())).color(theme::rainbow_mistake()).strong());
+            ui.label(RichText::new(crate::i18n::tf!("Conflicts ({})", conflicted.len())).color(theme::rainbow_mistake()).strong());
             ui.label(faint("Open each one and choose what to keep, then press + to mark it settled."));
             for entry in &conflicted {
                 row(ui, entry, false, act);
@@ -417,8 +417,8 @@ impl Limoniter {
         let staged_entries: Vec<git::Entry> = status.staged().cloned().collect();
         if !staged_entries.is_empty() {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("Ready to commit ({})", staged_entries.len())).strong());
-                if ui.small_button("Leave all out").clicked() {
+                ui.label(RichText::new(crate::i18n::tf!("Ready to commit ({})", staged_entries.len())).strong());
+                if ui.small_button(crate::i18n::tr("Leave all out")).clicked() {
                     act.push(PanelAct::UnstageAll);
                 }
             });
@@ -429,8 +429,8 @@ impl Limoniter {
         }
         let changed_entries: Vec<git::Entry> = status.unstaged().cloned().collect();
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("Changes ({})", changed_entries.len())).strong());
-            if !changed_entries.is_empty() && ui.small_button("Put all in").clicked() {
+            ui.label(RichText::new(crate::i18n::tf!("Changes ({})", changed_entries.len())).strong());
+            if !changed_entries.is_empty() && ui.small_button(crate::i18n::tr("Put all in")).clicked() {
                 act.push(PanelAct::StageAll);
             }
         });
@@ -446,8 +446,8 @@ impl Limoniter {
         egui::CollapsingHeader::new(format!("Put aside ({})", stashes.len())).id_salt("git-stashes").show(ui, |ui| {
             ui.add(egui::Label::new(faint("Puts every change aside, leaving the files as at the last commit, to bring back later: to switch branch, or pull, in the middle of something.")).wrap());
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.git.stash_message).hint_text("What they are (optional)").desired_width(170.0));
-                if ui.add_enabled(!status.entries.is_empty(), Button::new("Put aside")).clicked() {
+                ui.add(egui::TextEdit::singleline(&mut self.git.stash_message).hint_text(crate::i18n::tr("What they are (optional)")).desired_width(170.0));
+                if ui.add_enabled(!status.entries.is_empty(), Button::new(crate::i18n::tr("Put aside"))).clicked() {
                     act.push(PanelAct::Stash);
                 }
             });
@@ -455,10 +455,10 @@ impl Limoniter {
                 ui.horizontal(|ui| {
                     ui.add(egui::Label::new(&stash.message).truncate()).on_hover_text(&stash.name);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Throw away").clicked() {
+                        if ui.small_button(crate::i18n::tr("Throw away")).clicked() {
                             act.push(PanelAct::DropStash(stash.name.clone()));
                         }
-                        if ui.small_button("Bring back").clicked() {
+                        if ui.small_button(crate::i18n::tr("Bring back")).clicked() {
                             act.push(PanelAct::Unstash(stash.name.clone()));
                         }
                     });
@@ -466,16 +466,16 @@ impl Limoniter {
             }
         });
         // Tags, as releases are named.
-        egui::CollapsingHeader::new("Tags").id_salt("git-tags").show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::tr("Tags")).id_salt("git-tags").show(ui, |ui| {
             ui.add(egui::Label::new(faint("A tag names this commit for good, as a release is: v1.2.0, say. Pushed, it's online too.")).wrap());
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.git.tag_name).hint_text("v1.0.0").desired_width(80.0));
-                ui.add(egui::TextEdit::singleline(&mut self.git.tag_message).hint_text("What it is (optional)").desired_width(140.0));
+                ui.add(egui::TextEdit::singleline(&mut self.git.tag_name).hint_text(crate::i18n::tr("v1.0.0")).desired_width(80.0));
+                ui.add(egui::TextEdit::singleline(&mut self.git.tag_message).hint_text(crate::i18n::tr("What it is (optional)")).desired_width(140.0));
             });
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.git.push_tag, "And push it");
+                ui.checkbox(&mut self.git.push_tag, crate::i18n::tr("And push it"));
                 let name = self.git.tag_name.trim().to_string();
-                if ui.add_enabled(!name.is_empty() && !name.contains(' ') && status.born && self.git.job.is_none(), Button::new("Tag this commit")).clicked() {
+                if ui.add_enabled(!name.is_empty() && !name.contains(' ') && status.born && self.git.job.is_none(), Button::new(crate::i18n::tr("Tag this commit"))).clicked() {
                     act.push(PanelAct::Tag(name));
                 }
             });
@@ -484,7 +484,7 @@ impl Limoniter {
                     ui.label(RichText::new(&tag.name).strong());
                     ui.label(faint(&format!("{} {}", tag.when, tag.subject)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Push").on_hover_text("Sends this tag online").clicked() {
+                        if ui.small_button(crate::i18n::tr("Push")).on_hover_text(crate::i18n::tr("Sends this tag online")).clicked() {
                             act.push(PanelAct::PushTag(tag.name.clone()));
                         }
                     });
@@ -493,20 +493,20 @@ impl Limoniter {
         });
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            if ui.small_button("History\u{2026}").on_hover_text("The commits that changed the file in front").clicked() {
+            if ui.small_button(crate::i18n::tr("History\u{2026}")).on_hover_text(crate::i18n::tr("The commits that changed the file in front")).clicked() {
                 act.push(PanelAct::History);
             }
-            if ui.small_button("Compare with last commit").clicked() {
+            if ui.small_button(crate::i18n::tr("Compare with last commit")).clicked() {
                 act.push(PanelAct::CompareHead);
             }
         });
-        egui::CollapsingHeader::new("Diff and merge tool").id_salt("git-tools").show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::tr("Diff and merge tool")).id_salt("git-tools").show(ui, |ui| {
             ui.add(egui::Label::new(faint("git difftool and git mergetool can open Limoniter, in every repository. Whatever Git used before is kept, to put back.")).wrap());
             ui.horizontal_wrapped(|ui| {
-                if ui.small_button("Use Limoniter for Git diff and merge").clicked() {
+                if ui.small_button(crate::i18n::tr("Use Limoniter for Git diff and merge")).clicked() {
                     act.push(PanelAct::UseForGit);
                 }
-                if ui.small_button("Stop using Limoniter for Git").clicked() {
+                if ui.small_button(crate::i18n::tr("Stop using Limoniter for Git")).clicked() {
                     act.push(PanelAct::StopUsingForGit);
                 }
             });
@@ -705,11 +705,11 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let (mut compare, mut open) = (false, false);
-        egui::Window::new(format!("History of {}", state.relative)).collapsible(false).resizable(true).default_size([560.0, 420.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tf!("History of {}", state.relative)).collapsible(false).resizable(true).default_size([560.0, 420.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
                 for (n, commit) in state.commits.iter().enumerate() {
                     let label = format!("{}  {}  {}", commit.when, commit.author, commit.subject);
-                    let response = ui.selectable_label(n == state.selected, label).on_hover_text(&commit.hash);
+                    let response = ui.selectable_label(n == state.selected, crate::i18n::tr(&label)).on_hover_text(&commit.hash);
                     if response.clicked() {
                         state.selected = n;
                     }
@@ -720,9 +720,9 @@ impl Limoniter {
             });
             ui.separator();
             ui.horizontal(|ui| {
-                compare |= ui.button("Compare with now").clicked();
-                open |= ui.button("Open as it was").on_hover_text("A read-only copy, to look at or copy from").clicked();
-                close |= ui.button("Close").clicked();
+                compare |= ui.button(crate::i18n::tr("Compare with now")).clicked();
+                open |= ui.button(crate::i18n::tr("Open as it was")).on_hover_text(crate::i18n::tr("A read-only copy, to look at or copy from")).clicked();
+                close |= ui.button(crate::i18n::tr("Close")).clicked();
             });
         });
         if compare || open {
@@ -849,23 +849,23 @@ impl Limoniter {
         Panel::top("conflict-bar").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if found.is_empty() {
-                    ui.label(RichText::new("All the conflicts here are settled.").strong());
-                    settled = ui.button("Save, and mark it settled").clicked();
+                    ui.label(RichText::new(crate::i18n::tr("All the conflicts here are settled.")).strong());
+                    settled = ui.button(crate::i18n::tr("Save, and mark it settled")).clicked();
                     return;
                 }
-                ui.label(RichText::new(format!("{} conflict(s): both sides changed the same lines.", found.len())).strong());
+                ui.label(RichText::new(crate::i18n::tf!("{} conflict(s): both sides changed the same lines.", found.len())).strong());
                 if here.is_some() {
                     for (keep, label, tip) in [(Keep::Mine, "Keep mine", "The lines above the ======="), (Keep::Theirs, "Keep theirs", "The lines coming in, below it"), (Keep::Both, "Keep both", "Mine, then theirs")] {
-                        if ui.button(label).on_hover_text(tip).clicked() {
+                        if ui.button(crate::i18n::tr(label)).on_hover_text(crate::i18n::tr(tip)).clicked() {
                             chosen = Some(keep);
                         }
                     }
-                    ask = ui.button("Ask the assistant").on_hover_text("Claude Code or Codex works out what each side meant, and suggests lines that do both, for you to look at first").clicked();
+                    ask = ui.button(crate::i18n::tr("Ask the assistant")).on_hover_text(crate::i18n::tr("Claude Code or Codex works out what each side meant, and suggests lines that do both, for you to look at first")).clicked();
                 } else {
-                    ui.label(RichText::new("Put the cursor in one to choose what to keep.").color(theme::text_dim()));
+                    ui.label(RichText::new(crate::i18n::tr("Put the cursor in one to choose what to keep.")).color(theme::text_dim()));
                 }
-                next = ui.button("Next conflict").clicked();
-                merge = ui.button("Resolve in merge\u{2026}").on_hover_text("Each side, from Git's own copies, and the result to settle").clicked();
+                next = ui.button(crate::i18n::tr("Next conflict")).clicked();
+                merge = ui.button(crate::i18n::tr("Resolve in merge\u{2026}")).on_hover_text(crate::i18n::tr("Each side, from Git's own copies, and the result to settle")).clicked();
             });
         });
         if merge {
@@ -934,10 +934,10 @@ impl Limoniter {
         Panel::top("git-offer").frame(egui::Frame::new().fill(theme::selected()).inner_margin(egui::Margin::symmetric(8, 4))).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 let name = folder.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                ui.label(RichText::new(format!("Keep the history of \u{201C}{name}\u{201D} with Git?")).strong()).on_hover_text("Git keeps every version you choose to, so you can always go back or compare. It's free, it stays on your computer unless you put it online, and the wizard explains each step.");
-                yes = ui.button("Show me how\u{2026}").clicked();
-                later = ui.button("Not now").clicked();
-                never = ui.button("Never for this folder").clicked();
+                ui.label(RichText::new(crate::i18n::tf!("Keep the history of \u{201C}{name}\u{201D} with Git?")).strong()).on_hover_text(crate::i18n::tr("Git keeps every version you choose to, so you can always go back or compare. It's free, it stays on your computer unless you put it online, and the wizard explains each step."));
+                yes = ui.button(crate::i18n::tr("Show me how\u{2026}")).clicked();
+                later = ui.button(crate::i18n::tr("Not now")).clicked();
+                never = ui.button(crate::i18n::tr("Never for this folder")).clicked();
             });
         });
         if yes || later || never {

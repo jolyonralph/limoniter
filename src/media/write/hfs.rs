@@ -100,16 +100,16 @@ fn mac_name(name: &str, most: usize) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     for c in name.chars() {
         if c == ':' {
-            return Err(format!("\"{name}\" can't be a Mac name: the Mac keeps colons for between the folders of a path."));
+            return Err(crate::i18n::tf!("\"{name}\" can't be a Mac name: the Mac keeps colons for between the folders of a path."));
         }
-        let byte = (0x20..256).find(|b| roman.chars[*b] == c && *b != 0x7F).ok_or_else(|| format!("\"{name}\" has a character, {c}, that a Mac name can't hold."))?;
+        let byte = (0x20..256).find(|b| roman.chars[*b] == c && *b != 0x7F).ok_or_else(|| crate::i18n::tf!("\"{name}\" has a character, {c}, that a Mac name can't hold."))?;
         out.push(byte as u8);
     }
     if out.is_empty() {
-        return Err("A Mac name needs at least one character.".into());
+        return Err(crate::i18n::tr("A Mac name needs at least one character.").into());
     }
     if out.len() > most {
-        return Err(format!("\"{name}\" is longer than the {most} characters a Mac name can be."));
+        return Err(crate::i18n::tf!("\"{name}\" is longer than the {most} characters a Mac name can be."));
     }
     Ok(out)
 }
@@ -293,7 +293,7 @@ fn locate(bytes: &[u8]) -> Result<(usize, usize, bool), String> {
     let head = &bytes[..bytes.len().min(0x8800)];
     if mac::looks_like_disk_copy(head, bytes.len() as u64) {
         if head[81] == 0x24 {
-            return Err("This Disk Copy image holds an Apple II disk, which isn't changed here.".into());
+            return Err(crate::i18n::tr("This Disk Copy image holds an Apple II disk, which isn't changed here.").into());
         }
         let length = be32(head, 64) as usize;
         let (start, inner) = (84, &bytes[84..84 + length]);
@@ -324,9 +324,9 @@ fn locate(bytes: &[u8]) -> Result<(usize, usize, bool), String> {
                     Some(mac::Kind::Hfs) => Ok((start, length, false)),
                     other => Err(not_hfs(other)),
                 },
-                [] => Err("This disk's partition map has no Mac volume in it.".into()),
-                [_] => Err("This disk's Mac partition runs past the end of the image, so it can't be changed.".into()),
-                _ => Err("This disk has several Mac partitions; only a disk with one is changed here.".into()),
+                [] => Err(crate::i18n::tr("This disk's partition map has no Mac volume in it.").into()),
+                [_] => Err(crate::i18n::tr("This disk's Mac partition runs past the end of the image, so it can't be changed.").into()),
+                _ => Err(crate::i18n::tr("This disk has several Mac partitions; only a disk with one is changed here.").into()),
             }
         }
         other => Err(not_hfs(other)),
@@ -401,15 +401,15 @@ impl Hfs {
     pub fn open(bytes: Vec<u8>) -> Result<Self, String> {
         let (start, length, disk_copy) = locate(&bytes)?;
         if length < 4096 || start + length > bytes.len() {
-            return Err("This HFS volume is too small to be a whole one, so it isn't changed.".into());
+            return Err(crate::i18n::tr("This HFS volume is too small to be a whole one, so it isn't changed.").into());
         }
         let mdb = &bytes[start + 1024..start + 1536];
         if mdb[124..126] == *b"H+" {
-            return Err("This is an HFS+ volume inside an HFS wrapper, which is only read.".into());
+            return Err(crate::i18n::tr("This is an HFS+ volume inside an HFS wrapper, which is only read.").into());
         }
         let attributes = be16(mdb, 10);
         if attributes & 0x8080 != 0 {
-            return Err("This volume is locked, so it's left as it is.".into());
+            return Err(crate::i18n::tr("This volume is locked, so it's left as it is.").into());
         }
         // The bit saying the volume was put away properly isn't asked for: Apple's own master floppies don't have
         // it. The trees and the bitmap are checked instead, and nothing is changed if they don't agree.
@@ -418,7 +418,7 @@ impl Hfs {
         let blocks_at = be16(mdb, 28) * 512;
         let bitmap = be16(mdb, 14) * 512;
         if block_size == 0 || !block_size.is_multiple_of(512) || blocks == 0 || blocks_at + blocks * block_size > length || bitmap + blocks.div_ceil(8) > blocks_at.max(bitmap + 1) || bitmap < 1536 {
-            return Err("This HFS volume's master directory block doesn't make sense, so it isn't changed.".into());
+            return Err(crate::i18n::tr("This HFS volume's master directory block doesn't make sense, so it isn't changed.").into());
         }
         let mut hfs = Self { bytes, start, length, disk_copy, block_size, blocks_at, blocks, catalog: Vec::new(), extents: Vec::new(), touched: Vec::new() };
         hfs.extents = hfs.read_tree(Tree::Extents)?;
@@ -493,7 +493,7 @@ impl Hfs {
             return Ok(Vec::new());
         }
         if count > self.usable_free() {
-            return Err(format!("The disk is full: this needs {} K, and {} K is free.", (count * self.block_size).div_ceil(1024), self.usable_free() * self.block_size / 1024));
+            return Err(crate::i18n::tf!("The disk is full: this needs {} K, and {} K is free.", (count * self.block_size).div_ceil(1024), self.usable_free() * self.block_size / 1024));
         }
         let mut free_runs: Vec<Run> = Vec::new();
         let mut block = 0;
@@ -644,25 +644,25 @@ impl Hfs {
     /// over it.
     fn check(&self) -> Result<(), String> {
         if !self.catalog.iter().any(|(k, d)| key_parent(k) == 1 && d.len() >= 70 && d[0] == FOLDER && be32(d, 6) == ROOT) {
-            return Err("This HFS volume's catalog has no top folder, so it's damaged.".into());
+            return Err(crate::i18n::tr("This HFS volume's catalog has no top folder, so it's damaged.").into());
         }
         let mut runs = self.tree_runs(Tree::Extents);
         runs.extend(self.tree_runs(Tree::Catalog));
         for (_, data) in &self.catalog {
             if data[0] == FILE {
                 if data.len() < 102 {
-                    return Err("A file's catalog record is too short, so the volume is damaged.".into());
+                    return Err(crate::i18n::tr("A file's catalog record is too short, so the volume is damaged.").into());
                 }
                 for resource in [false, true] {
                     runs.extend(self.fork_runs(be32(data, 20), resource, runs_of(&data[fork_at(resource).extents..])));
                 }
             } else if data[0] == FOLDER && data.len() < 70 {
-                return Err("A folder's catalog record is too short, so the volume is damaged.".into());
+                return Err(crate::i18n::tr("A folder's catalog record is too short, so the volume is damaged.").into());
             }
         }
         for (first, count) in runs {
             if first + count > self.blocks || (first..first + count).any(|b| !self.is_used(b)) {
-                return Err("This volume's bitmap doesn't mark all of its files' blocks in use; let the Mac check it with Disk First Aid first.".into());
+                return Err(crate::i18n::tr("This volume's bitmap doesn't mark all of its files' blocks in use; let the Mac check it with Disk First Aid first.").into());
             }
         }
         Ok(())
@@ -920,7 +920,7 @@ impl Hfs {
         if folder.is_dir && self.catalog.iter().any(|(_, d)| d[0] == FOLDER && be32(d, 6) == id) {
             Ok(id)
         } else {
-            Err(format!("The folder {} isn't on the disk.", folder.name))
+            Err(crate::i18n::tf!("The folder {} isn't on the disk.", folder.name))
         }
     }
 
@@ -944,7 +944,7 @@ impl Hfs {
     fn new_id(&mut self) -> Result<u32, String> {
         let id = self.mdb32(30).max(FIRST_FREE_ID);
         if id == u32::MAX {
-            return Err("This volume has run out of file numbers.".into());
+            return Err(crate::i18n::tr("This volume has run out of file numbers.").into());
         }
         self.set_mdb32(30, id + 1);
         Ok(id)
@@ -969,7 +969,7 @@ impl Hfs {
     fn write_fork(&mut self, index: usize, resource: bool, bytes: &[u8]) -> Result<(), String> {
         let count = bytes.len().div_ceil(self.block_size);
         if count > 0xFFFF {
-            return Err("The file is larger than an HFS volume can hold.".into());
+            return Err(crate::i18n::tr("The file is larger than an HFS volume can hold.").into());
         }
         let runs = self.allocate(count)?;
         let mut written = 0;
@@ -1067,13 +1067,13 @@ impl Hfs {
             Ok(index) => {
                 let data = &self.catalog[index].1;
                 if data[0] != FILE {
-                    return Err(format!("{} is a folder here, so a file can't replace it.", shown(&mac)));
+                    return Err(crate::i18n::tf!("{} is a folder here, so a file can't replace it.", shown(&mac)));
                 }
                 if be32(data, fork_at(resource).length) > 0 && !file.replace {
                     return Err(already(&fork_name));
                 }
                 if data[2] & 1 != 0 {
-                    return Err(format!("{} is locked; unlock it in the Finder first.", shown(&mac)));
+                    return Err(crate::i18n::tf!("{} is locked; unlock it in the Finder first.", shown(&mac)));
                 }
                 self.clear_fork(index, resource);
                 index
@@ -1097,7 +1097,7 @@ impl Hfs {
         if data[0] == FOLDER {
             let id = be32(&data, 6);
             if self.catalog.iter().any(|(k, d)| key_parent(k) == id && matches!(d[0], FILE | FOLDER)) {
-                return Err("The folder has files in it; take them off first.".into());
+                return Err(crate::i18n::tr("The folder has files in it; take them off first.").into());
             }
             self.catalog.remove(index);
             if let Ok(thread) = self.position(&catalog_key(id, &[])) {
@@ -1105,7 +1105,7 @@ impl Hfs {
             }
         } else {
             if data[2] & 1 != 0 {
-                return Err(format!("{} is locked; unlock it in the Finder first.", entry.name));
+                return Err(crate::i18n::tf!("{} is locked; unlock it in the Finder first.", entry.name));
             }
             let resource_only = entry.extra & 0xFF == RESOURCE_FORK;
             self.clear_fork(index, true);
@@ -1126,7 +1126,7 @@ impl Hfs {
 
     fn rename_entry(&mut self, folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
         if entry.extra & 0xFF == RESOURCE_FORK {
-            return Err("A resource fork is named after its file: rename the file, and its resource fork goes with it.".into());
+            return Err(crate::i18n::tr("A resource fork is named after its file: rename the file, and its resource fork goes with it.").into());
         }
         let parent = self.folder_id(folder)?;
         let index = self.record_of(parent, entry)?;

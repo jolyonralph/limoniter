@@ -320,7 +320,7 @@ pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Setting
     if let Some(rom) = &kickstart
         && !rom.is_file()
     {
-        return Err(format!("The Kickstart chosen for the {} isn't there: {}.\n\nChoose another in File, Devices, under the emulator.", model.short_name(), rom.display()));
+        return Err(crate::i18n::tf!("The Kickstart chosen for the {} isn't there: {}.\n\nChoose another in File, Devices, under the emulator.", model.short_name(), rom.display()));
     }
     let (drive, disk) = match run.format {
         Format::Adf => {
@@ -375,27 +375,27 @@ pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Setting
 pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &str) {
     let mut settings = settings();
     let before = settings.clone();
-    ui.label("Amiga:");
-    egui::ComboBox::from_id_salt("amiga-model").width(320.0).selected_text(settings.model.name()).show_ui(ui, |ui| {
+    ui.label(crate::i18n::tr("Amiga:"));
+    egui::ComboBox::from_id_salt("amiga-model").width(320.0).selected_text(crate::i18n::tr(settings.model.name())).show_ui(ui, |ui| {
         for model in Model::ALL {
-            ui.selectable_value(&mut settings.model, model, model.name());
+            ui.selectable_value(&mut settings.model, model, crate::i18n::tr(model.name()));
         }
     });
     ui.end_row();
     let model = settings.model;
-    ui.label("Kickstart:");
+    ui.label(crate::i18n::tr("Kickstart:"));
     let mut found_note = None;
     ui.horizontal(|ui| {
         let mut text = settings.kickstart(model).map(|p| p.display().to_string()).unwrap_or_default();
-        if ui.add(egui::TextEdit::singleline(&mut text).hint_text("None: the emulator's own").desired_width(170.0)).changed() {
+        if ui.add(egui::TextEdit::singleline(&mut text).hint_text(crate::i18n::tr("None: the emulator's own")).desired_width(170.0)).changed() {
             settings.set_kickstart(model, (!text.trim().is_empty()).then(|| PathBuf::from(text.trim())));
         }
-        if ui.button("Choose\u{2026}").on_hover_text(format!("The Kickstart ROM for the {}", model.short_name())).clicked()
-            && let Some(chosen) = rfd::FileDialog::new().set_title(format!("Kickstart ROM for the {}", model.short_name())).add_filter("Kickstart ROM", &["rom", "bin", "a500", "a1200"]).pick_file()
+        if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tf!("The Kickstart ROM for the {}", model.short_name())).clicked()
+            && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Kickstart ROM for the {}", model.short_name())).add_filter(crate::i18n::tr("Kickstart ROM"), &["rom", "bin", "a500", "a1200"]).pick_file()
         {
             settings.set_kickstart(model, Some(chosen));
         }
-        if ui.button("Find").on_hover_text("Looks for Kickstarts where Amiga Forever, FS-UAE and WinUAE keep them, and chooses the best for each model").clicked() {
+        if ui.button(crate::i18n::tr("Find")).on_hover_text(crate::i18n::tr("Looks for Kickstarts where Amiga Forever, FS-UAE and WinUAE keep them, and chooses the best for each model")).clicked() {
             let found = find_kickstarts_in(&kickstart_folders());
             let mut chosen = 0;
             for each in Model::ALL {
@@ -412,7 +412,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
         }
     });
     ui.end_row();
-    ui.label("");
+    ui.label(crate::i18n::tr(""));
     let rom = settings.kickstart(model);
     let said = match rom {
         Some(path) => match identify_file(path) {

@@ -46,7 +46,7 @@ impl Dsk {
         let header = source.read_vec(0, 256)?;
         let extended = header.starts_with(b"EXTENDED CPC DSK");
         if !extended && !header.starts_with(b"MV - CPC") {
-            return Err("This isn't a CPC or +3 DSK image.".into());
+            return Err(crate::i18n::tr("This isn't a CPC or +3 DSK image.").into());
         }
         let (cylinders, heads) = (header[0x30], header[0x31].max(1));
         let standard_size = u64::from(u16::from_le_bytes([header[0x32], header[0x33]]));
@@ -60,7 +60,7 @@ impl Dsk {
             }
             let track = source.read_vec(at, 256)?;
             if !track.starts_with(b"Track-Info") {
-                return Err(format!("Track {index} of the DSK image has no track header."));
+                return Err(crate::i18n::tf!("Track {index} of the DSK image has no track header."));
             }
             let count = usize::from(track[0x15]).min(29);
             let mut data = at + 256;
@@ -79,7 +79,7 @@ impl Dsk {
     }
 
     fn sector(&self, cylinder: u8, head: u8, id: u8) -> Result<Vec<u8>, String> {
-        let (at, length) = self.sectors.get(&(cylinder, head, id)).ok_or_else(|| format!("track {cylinder} side {head} sector {id} isn't in the image"))?;
+        let (at, length) = self.sectors.get(&(cylinder, head, id)).ok_or_else(|| crate::i18n::tf!("track {cylinder} side {head} sector {id} isn't in the image"))?;
         self.source.read_vec(*at, *length)
     }
 }
@@ -157,7 +157,7 @@ impl TrDos {
         if scl {
             let head = source.read_vec(0, 9)?;
             if &head[..8] != b"SINCLAIR" {
-                return Err("This SCL file doesn't start with SINCLAIR.".into());
+                return Err(crate::i18n::tr("This SCL file doesn't start with SINCLAIR.").into());
             }
             let count = usize::from(head[8]);
             let table = source.read_vec(9, count * 14)?;
@@ -170,7 +170,7 @@ impl TrDos {
         } else {
             let catalogue = source.read_vec(0, 2304)?;
             if catalogue[0x8E7] != 0x10 {
-                return Err("This doesn't have TR-DOS's disk information sector.".into());
+                return Err(crate::i18n::tr("This doesn't have TR-DOS's disk information sector.").into());
             }
             label = zx_name(&catalogue[0x8F5..0x8FD]);
             for entry in catalogue[..2048].as_chunks::<16>().0.iter() {
@@ -220,7 +220,7 @@ impl Volume for TrDos {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let (_, kind, first, second, at, sectors) = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let (_, kind, first, second, at, sectors) = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         let data = self.source.read_vec(*at, (*sectors).min(self.source.len().saturating_sub(*at)) as usize)?;
         match kind {
             // A BASIC file is its program and variables, then 0x80 0xAA and the line it runs from.
@@ -307,7 +307,7 @@ impl Volume for Microdrive {
 
     /// The first record's 9-byte header: type, length, start, program length and the line it runs from.
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let (_, data) = self.files.get(entry.location as usize).ok_or("That file isn't on the cartridge.")?;
+        let (_, data) = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the cartridge."))?;
         if data.len() < 9 {
             return Ok(data.clone());
         }
@@ -482,12 +482,27 @@ fn z80_unpack(data: &[u8], limit: usize) -> Vec<u8> {
     out
 }
 
+/// A snapshot's memory as the Spectrum saw it: 64K with each byte at its address (the ROM's 16K left as zeros),
+/// then, for a 128K snapshot, the banks that weren't paged in, one after another.
+pub fn snapshot_memory(bytes: &[u8], sna: bool) -> Option<Vec<u8>> {
+    let snapshot = Snapshot::open(Arc::new(bytes.to_vec()), sna).ok()?;
+    let mut out = vec![0u8; 0x4000];
+    out.extend(&snapshot.memory);
+    out.resize(0x10000, 0);
+    for (bank, data) in &snapshot.banks {
+        if ![5u8, 2].contains(bank) && !snapshot.memory.ends_with(data) {
+            out.extend(data);
+        }
+    }
+    Some(out)
+}
+
 impl Snapshot {
     pub fn open(source: Arc<dyn Source>, sna: bool) -> Result<Self, String> {
         let data = source.read_vec(0, source.len().min(512 * 1024) as usize)?;
         if sna {
             if data.len() < 27 + 49152 {
-                return Err("This SNA snapshot is too short.".into());
+                return Err(crate::i18n::tr("This SNA snapshot is too short.").into());
             }
             let memory = data[27..27 + 49152].to_vec();
             let mut banks = Vec::new();
@@ -511,7 +526,7 @@ impl Snapshot {
             return Ok(Self { kind, memory, banks });
         }
         if data.len() < 30 {
-            return Err("This Z80 snapshot is too short.".into());
+            return Err(crate::i18n::tr("This Z80 snapshot is too short.").into());
         }
         let pc = u16::from_le_bytes([data[6], data[7]]);
         if pc != 0 {

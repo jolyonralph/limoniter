@@ -481,29 +481,29 @@ pub struct PanelState {
 
 pub fn panel(ui: &mut Ui, state: &mut PanelState, doc: &DocView<'_>, actions: &mut Vec<Action>) {
     if doc.no_file {
-        ui.label(RichText::new("No file open").color(theme::text_faint()));
+        ui.label(RichText::new(crate::i18n::tr("No file open")).color(theme::text_faint()));
         return;
     }
     if !doc.hex_mode {
-        ui.label(RichText::new("The string explorer looks through the file's bytes, so it works in hex mode.").color(theme::text_faint()).size(12.5));
-        if ui.button("Show as hex").clicked() {
+        ui.label(RichText::new(crate::i18n::tr("The string explorer looks through the file's bytes, so it works in hex mode.")).color(theme::text_faint()).size(12.5));
+        if ui.button(crate::i18n::tr("Show as hex")).clicked() {
             actions.push(Action::ViewHex);
         }
         return;
     }
     ui.horizontal(|ui| {
-        ui.label("At least");
-        ui.add(egui::DragValue::new(&mut state.options.min_len).range(3..=64)).on_hover_text("The fewest characters in a row that count as a string");
-        ui.label("characters");
+        ui.label(crate::i18n::tr("At least"));
+        ui.add(egui::DragValue::new(&mut state.options.min_len).range(3..=64)).on_hover_text(crate::i18n::tr("The fewest characters in a row that count as a string"));
+        ui.label(crate::i18n::tr("characters"));
     });
-    ui.checkbox(&mut state.options.wide, "Wide strings (UTF-16)").on_hover_text("Also look for text with a zero byte after each character, as Windows keeps it");
+    ui.checkbox(&mut state.options.wide, crate::i18n::tr("Wide strings (UTF-16)")).on_hover_text(crate::i18n::tr("Also look for text with a zero byte after each character, as Windows keeps it"));
     let key = (doc.id, doc.hex.version(), state.options);
     // A large file is looked through again after an edit only when asked, so typing in it stays quick.
     let edited_large = state.found_for.is_some_and(|(id, _, options)| id == doc.id && options == state.options) && doc.hex.len() > 16 * 1024 * 1024;
     if state.found_for != Some(key) && edited_large {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("The file has changed since it was looked through.").color(theme::text_faint()).size(12.0));
-            if ui.button("Look again").clicked() {
+            ui.label(RichText::new(crate::i18n::tr("The file has changed since it was looked through.")).color(theme::text_faint()).size(12.0));
+            if ui.button(crate::i18n::tr("Look again")).clicked() {
                 state.found_for = None;
             }
         });
@@ -515,15 +515,15 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, doc: &DocView<'_>, actions: &m
     }
     ui.horizontal(|ui| {
         egui::ComboBox::from_id_salt("strings-kind").selected_text(state.group.unwrap_or("Every kind")).width(130.0).show_ui(ui, |ui| {
-            ui.selectable_value(&mut state.group, None, "Every kind");
+            ui.selectable_value(&mut state.group, None, crate::i18n::tr("Every kind"));
             for group in GROUPS {
                 ui.selectable_value(&mut state.group, Some(group), group);
             }
         });
-        ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text("Containing\u{2026}").desired_width(f32::INFINITY));
+        ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Containing\u{2026}")).desired_width(f32::INFINITY));
     });
     ui.label(RichText::new(summary(&state.found)).color(theme::text_faint()).size(12.0));
-    ui.label(RichText::new("Click one to select it in the hex, with its length, end or padding.").color(theme::text_faint()).size(12.0));
+    ui.label(RichText::new(crate::i18n::tr("Click one to select it in the hex, with its length, end or padding.")).color(theme::text_faint()).size(12.0));
     let filter = state.filter.to_lowercase();
     let shown: Vec<usize> = state.found.iter().enumerate().filter(|(_, f)| state.group.is_none_or(|g| f.kind.group() == g) && (filter.is_empty() || f.text.to_lowercase().contains(&filter))).map(|(i, _)| i).collect();
     let row_height = ui.text_style_height(&egui::TextStyle::Monospace) + 4.0;
@@ -537,11 +537,11 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, doc: &DocView<'_>, actions: &m
                 actions.push(Action::SelectBytes { start: f.start, end: f.end });
             }
             response.context_menu(|ui| {
-                if ui.button("Copy the text").clicked() {
+                if ui.button(crate::i18n::tr("Copy the text")).clicked() {
                     actions.push(Action::CopyText(f.text.clone()));
                     ui.close();
                 }
-                if ui.button("Copy the offset").clicked() {
+                if ui.button(crate::i18n::tr("Copy the offset")).clicked() {
                     actions.push(Action::CopyText(format!("{:X}", f.start)));
                     ui.close();
                 }

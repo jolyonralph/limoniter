@@ -145,7 +145,7 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
         .map(|(_, data)| data.chunks(10).map(|name| name.iter().take_while(|b| **b != 0).map(|b| crate::ansi_art::glyph(crate::charset::known("atari-st"), *b)).collect::<String>()).collect())
         .unwrap_or_default();
     let Some((_, tebu)) = chunks.iter().find(|(name, _)| name == b"tebu") else {
-        return Err("This Signum! document has no text in it.".into());
+        return Err(crate::i18n::tr("This Signum! document has no text in it.").into());
     };
     // The lines: a vertical skip, a length, then the line: its flags, and for a page's start or end its number,
     // else perhaps one more word and then the characters.

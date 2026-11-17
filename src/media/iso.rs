@@ -18,7 +18,7 @@ impl RawCd {
         let skip = match mode {
             1 => 16,
             2 => 24,
-            _ => return Err(format!("This raw CD image's first sector is mode {mode}, which isn't a data sector.")),
+            _ => return Err(crate::i18n::tf!("This raw CD image's first sector is mode {mode}, which isn't a data sector.")),
         };
         Ok(Self { inner, skip })
     }
@@ -82,7 +82,7 @@ impl Iso {
             }
         }
         let Some((root, label)) = primary else {
-            return Err("This CD image has no primary volume descriptor.".into());
+            return Err(crate::i18n::tr("This CD image has no primary volume descriptor.").into());
         };
         let mut iso = Self { source, kind, label, root, joliet: false, rock_ridge: false };
         // Rock Ridge names are as good as Joliet's and keep case; it's found from the root's first record.
@@ -217,7 +217,7 @@ impl Volume for Iso {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         if entry.size > super::MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         self.source.read_vec(entry.location * SECTOR, entry.size as usize)
     }

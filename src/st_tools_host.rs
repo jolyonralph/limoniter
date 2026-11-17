@@ -70,10 +70,10 @@ fn scratch_copy(name: &str, bytes: &[u8]) -> Result<(PathBuf, PathBuf), String> 
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let folder = std::env::temp_dir().join(format!("limoniter-st-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
     let _ = std::fs::remove_dir_all(&folder);
-    std::fs::create_dir_all(&folder).map_err(|e| format!("A folder to work in couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&folder).map_err(|e| crate::i18n::tf!("A folder to work in couldn't be made: {e}"))?;
     let safe = name.rsplit(['/', '\\', ':', '\u{203A}']).next().unwrap_or(name).trim();
     let path = folder.join(if safe.is_empty() { "file" } else { safe });
-    std::fs::write(&path, bytes).map_err(|e| format!("{} couldn't be written: {e}", path.display()))?;
+    std::fs::write(&path, bytes).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", path.display()))?;
     Ok((folder, path))
 }
 
@@ -204,11 +204,11 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut action: Option<Act> = None;
         let busy = state.job.is_some();
-        egui::Window::new("Atari ST music and packers").collapsible(false).resizable(true).default_width(620.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Atari ST music and packers")).collapsible(false).resizable(true).default_width(620.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(660.0);
             ui.horizontal(|ui| {
                 for (page, label) in [(Page::Music, "SNDH and YM music"), (Page::Pack, "Pack"), (Page::Chip, "YM2149 notes and envelopes"), (Page::Tools, "Tools")] {
-                    if ui.selectable_label(state.page == page, label).clicked() {
+                    if ui.selectable_label(state.page == page, crate::i18n::tr(label)).clicked() {
                         state.page = page;
                     }
                 }
@@ -224,18 +224,18 @@ impl Limoniter {
             if let Some((what, stop, _)) = &state.job {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(format!("{what}\u{2026}"));
-                    if ui.button("Stop").clicked() {
+                    ui.label(crate::i18n::tf!("{what}\u{2026}"));
+                    if ui.button(crate::i18n::tr("Stop")).clicked() {
                         stop.store(true, Ordering::Relaxed);
                     }
                 });
             } else if let Some(result) = &state.result {
                 match result {
                     Ok(outcome) if outcome.ok => {
-                        ui.colored_label(theme::change_saved(), format!("Done: {}.", outcome.sizes()));
+                        ui.colored_label(theme::change_saved(), crate::i18n::tf!("Done: {}.", outcome.sizes()));
                     }
                     Ok(_) => {
-                        ui.colored_label(theme::rainbow_mistake(), "It didn't succeed: what it printed is in the Output panel.");
+                        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("It didn't succeed: what it printed is in the Output panel."));
                     }
                     Err(problem) => {
                         ui.colored_label(theme::rainbow_mistake(), problem);
@@ -245,7 +245,7 @@ impl Limoniter {
             if !state.status.is_empty() {
                 ui.label(RichText::new(&state.status).color(theme::text_dim()));
             }
-            close |= ui.add_enabled(!busy, Button::new("Close")).clicked();
+            close |= ui.add_enabled(!busy, Button::new(crate::i18n::tr("Close"))).clicked();
         });
         if let Some(act) = action {
             self.st_tools_act(ctx, act);
@@ -288,7 +288,7 @@ impl Limoniter {
                 let Some((name, bytes)) = state.source.as_ref().and_then(|s| s.unpacked.as_ref().map(|u| (own_name(&s.name), u.bytes.clone()))) else {
                     return;
                 };
-                if let Some(path) = rfd::FileDialog::new().set_title("Save what it holds, unpacked").set_file_name(name).save_file() {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save what it holds, unpacked")).set_file_name(name).save_file() {
                     state.status = match std::fs::write(&path, &bytes) {
                         Ok(()) => format!("Saved {} ({} bytes).", path.display(), group(bytes.len() as u64)),
                         Err(e) => format!("{} couldn't be saved: {e}", path.display()),
@@ -308,7 +308,7 @@ impl Limoniter {
                 }
             }
             Act::Choose(tool) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(format!("Where is {}?", tool.name())).pick_file()
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
                     && let Dialog::StTools(state) = &mut self.dialog
                 {
                     state.prefs.set_path(tool, Some(path));
@@ -322,7 +322,7 @@ impl Limoniter {
                 }
             }
             Act::Folder => {
-                if let Some(folder) = rfd::FileDialog::new().set_title("Where to put what's made").pick_folder()
+                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
                     && let Dialog::StTools(state) = &mut self.dialog
                     && let Some(source) = &mut state.source
                 {
@@ -341,20 +341,20 @@ impl Limoniter {
         };
         let tool = state.packer;
         let Some(program) = found(&state.found, tool) else {
-            state.result = Some(Err(format!("{} wasn't found. {}", tool.name(), tool.how_to_get())));
+            state.result = Some(Err(crate::i18n::tf!("{} wasn't found. {}", tool.name(), tool.how_to_get())));
             return;
         };
         let Some(folder) = source.folder.clone() else {
-            state.result = Some(Err("Choose a folder for the packed file first.".into()));
+            state.result = Some(Err(crate::i18n::tr("Choose a folder for the packed file first.").into()));
             return;
         };
         let output = folder.join(state.output_name.trim());
         if state.output_name.trim().is_empty() || source.path.as_deref() == Some(output.as_path()) {
-            state.result = Some(Err("Give the packed file a name of its own.".into()));
+            state.result = Some(Err(crate::i18n::tr("Give the packed file a name of its own.").into()));
             return;
         }
         if tool == Tool::Upx && !tools::is_tos_program(&source.bytes) {
-            state.result = Some(Err("UPX packs TOS programs (.prg, .tos, .ttp), and this isn't one.".into()));
+            state.result = Some(Err(crate::i18n::tr("UPX packs TOS programs (.prg, .tos, .ttp), and this isn't one.").into()));
             return;
         }
         let prefs = state.prefs.clone();
@@ -404,12 +404,12 @@ fn note(ui: &mut egui::Ui, text: impl Into<String>) {
 fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
     ui.horizontal_wrapped(|ui| {
         ui.strong(&source.name);
-        ui.label(format!("{} bytes", group(source.bytes.len() as u64)));
+        ui.label(crate::i18n::tf!("{} bytes", group(source.bytes.len() as u64)));
     });
     if let Some(unpacked) = &source.unpacked {
         ui.horizontal_wrapped(|ui| {
             note(ui, format!("Packed with {}: it holds {} bytes.", unpacked.packer.name(), group(unpacked.bytes.len() as u64)));
-            if ui.small_button("Save what it holds\u{2026}").clicked() {
+            if ui.small_button(crate::i18n::tr("Save what it holds\u{2026}")).clicked() {
                 *action = Some(Act::SaveUnpacked);
             }
         });
@@ -422,7 +422,7 @@ fn folder_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
             Some(folder) => note(ui, format!("What's made goes in {}", folder.display())),
             None => note(ui, "Choose where what's made goes:"),
         }
-        if ui.small_button("Choose a folder\u{2026}").clicked() {
+        if ui.small_button(crate::i18n::tr("Choose a folder\u{2026}")).clicked() {
             *action = Some(Act::Folder);
         }
     });
@@ -435,13 +435,13 @@ fn snippet_box(ui: &mut egui::Ui, snippet: &str, target: Option<&str>, action: &
     ui.horizontal(|ui| {
         match target {
             Some(name) => {
-                if ui.button(format!("Insert into {name}")).on_hover_text("At the cursor, as one change to undo").clicked() {
+                if ui.button(crate::i18n::tf!("Insert into {name}")).on_hover_text(crate::i18n::tr("At the cursor, as one change to undo")).clicked() {
                     *action = Some(Act::Insert(snippet.to_string()));
                 }
             }
             None => note(ui, "Open 68000 source to insert it there."),
         }
-        if ui.button("Copy").clicked() {
+        if ui.button(crate::i18n::tr("Copy")).clicked() {
             *action = Some(Act::Copy(snippet.to_string()));
         }
     });
@@ -449,12 +449,12 @@ fn snippet_box(ui: &mut egui::Ui, snippet: &str, target: Option<&str>, action: &
 
 fn music_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, action: &mut Option<Act>) {
     let Some(source) = &state.source else {
-        ui.label("Open SNDH or YM music (packed or not), or choose it in a disk image's browser, then come back here.");
+        ui.label(crate::i18n::tr("Open SNDH or YM music (packed or not), or choose it in a disk image's browser, then come back here."));
         return;
     };
     file_line(ui, source, action);
     let Some(music) = &source.music else {
-        ui.colored_label(theme::rainbow_mistake(), "This isn't SNDH or YM music.");
+        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("This isn't SNDH or YM music."));
         return;
     };
     for section in music.sections() {
@@ -477,22 +477,22 @@ fn music_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, a
     ui.strong("Replay calls");
     note(ui, "Written by Limoniter for you to adapt: they call the file's own init, play and exit, and include it.");
     ui.horizontal(|ui| {
-        ui.label("Tune:");
+        ui.label(crate::i18n::tr("Tune:"));
         ui.add(egui::DragValue::new(&mut state.tune).range(1..=sndh.tunes.len().max(1)));
         if let Some(name) = sndh.tunes.get(state.tune.saturating_sub(1)).and_then(|t| t.name.as_ref()) {
             note(ui, name.clone());
         }
     });
     ui.horizontal(|ui| {
-        ui.label("Played from:");
-        egui::ComboBox::from_id_salt("st-timer").selected_text(state.timer.0.name()).show_ui(ui, |ui| {
+        ui.label(crate::i18n::tr("Played from:"));
+        egui::ComboBox::from_id_salt("st-timer").selected_text(crate::i18n::tr(state.timer.0.name())).show_ui(ui, |ui| {
             for timer in [Timer::A, Timer::B, Timer::C, Timer::D, Timer::Vbl] {
-                ui.selectable_value(&mut state.timer.0, timer, timer.name());
+                ui.selectable_value(&mut state.timer.0, timer, crate::i18n::tr(timer.name()));
             }
         });
         ui.add(egui::DragValue::new(&mut state.timer.1).range(1..=20_000).suffix(" Hz"));
         let asked = sndh.timer_or_default();
-        if state.timer != asked && ui.small_button(format!("As the file asks ({} at {} Hz)", asked.0.name(), asked.1)).clicked() {
+        if state.timer != asked && ui.small_button(crate::i18n::tf!("As the file asks ({} at {} Hz)", asked.0.name(), asked.1)).clicked() {
             state.timer = asked;
         }
     });
@@ -503,7 +503,7 @@ fn music_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, a
 
 fn pack_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, action: &mut Option<Act>) {
     let Some(source) = &state.source else {
-        ui.label("Open the program or data to pack (it can be in hex), or choose it in a disk image's browser, then come back here.");
+        ui.label(crate::i18n::tr("Open the program or data to pack (it can be in hex), or choose it in a disk image's browser, then come back here."));
         return;
     };
     file_line(ui, source, action);
@@ -514,7 +514,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, ac
     let before = state.packer;
     ui.horizontal_wrapped(|ui| {
         for tool in Tool::ALL {
-            ui.radio_value(&mut state.packer, tool, tool.name());
+            ui.radio_value(&mut state.packer, tool, crate::i18n::tr(tool.name()));
         }
     });
     if state.packer != before {
@@ -526,7 +526,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, ac
             true
         }
         None => {
-            ui.colored_label(theme::rainbow_mistake(), format!("{} wasn't found.", state.packer.name()));
+            ui.colored_label(theme::rainbow_mistake(), crate::i18n::tf!("{} wasn't found.", state.packer.name()));
             note(ui, state.packer.how_to_get());
             false
         }
@@ -534,41 +534,41 @@ fn pack_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, ac
     let prefs = &mut state.prefs;
     match state.packer {
         Tool::Zx0 => {
-            ui.checkbox(&mut prefs.zx0_quick, "Quick, packing less well (-q)");
+            ui.checkbox(&mut prefs.zx0_quick, crate::i18n::tr("Quick, packing less well (-q)"));
         }
         Tool::Lzsa => {
             ui.horizontal(|ui| {
-                ui.label("Format:");
-                ui.radio_value(&mut prefs.lzsa_format, 1, "LZSA1 (unpacks faster)");
-                ui.radio_value(&mut prefs.lzsa_format, 2, "LZSA2 (packs smaller)");
+                ui.label(crate::i18n::tr("Format:"));
+                ui.radio_value(&mut prefs.lzsa_format, 1, crate::i18n::tr("LZSA1 (unpacks faster)"));
+                ui.radio_value(&mut prefs.lzsa_format, 2, crate::i18n::tr("LZSA2 (packs smaller)"));
             });
         }
         Tool::Lz4 => {
             ui.horizontal(|ui| {
-                ui.label("Level:");
+                ui.label(crate::i18n::tr("Level:"));
                 ui.add(egui::Slider::new(&mut prefs.lz4_level, 1..=12));
             });
         }
         Tool::Shrinkler => {
             ui.horizontal(|ui| {
-                ui.label("Effort:");
+                ui.label(crate::i18n::tr("Effort:"));
                 ui.add(egui::Slider::new(&mut prefs.shrinkler_preset, 1..=9));
             });
             note(ui, "Shrinkler packs smallest of all, but unpacks slowly: best for an intro's data, unpacked once.");
         }
         Tool::Upx => {
-            ui.checkbox(&mut prefs.upx_best, "Best (--best: slower, smaller)");
+            ui.checkbox(&mut prefs.upx_best, crate::i18n::tr("Best (--best: slower, smaller)"));
             if !program {
-                ui.colored_label(theme::rainbow_mistake(), "UPX packs TOS programs only.");
+                ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("UPX packs TOS programs only."));
             }
         }
         Tool::Salvador => note(ui, "salvador packs ZX0 a little smaller than zx0 itself, and checks it unpacks (-c)."),
     }
     ui.horizontal(|ui| {
-        ui.label("Save as:");
+        ui.label(crate::i18n::tr("Save as:"));
         ui.text_edit_singleline(&mut state.output_name);
     });
-    if ui.add_enabled(ready && state.job.is_none(), Button::new(format!("Pack with {}", state.packer.name()))).clicked() {
+    if ui.add_enabled(ready && state.job.is_none(), Button::new(crate::i18n::tf!("Pack with {}", state.packer.name()))).clicked() {
         *action = Some(Act::Pack);
     }
     ui.add_space(6.0);
@@ -602,39 +602,39 @@ fn draw_shape(ui: &mut egui::Ui, shape: u8, selected: bool) -> egui::Response {
         last = Some(b);
     }
     painter.text(rect.left_top() + egui::vec2(3.0, 1.0), egui::Align2::LEFT_TOP, shape.to_string(), egui::FontId::proportional(10.0), theme::text_dim());
-    response.on_hover_text(format!("Shape {shape} (register 13 = {shape}): {}", tools::envelope_words(shape)))
+    response.on_hover_text(crate::i18n::tf!("Shape {shape} (register 13 = {shape}): {}", tools::envelope_words(shape)))
 }
 
 fn chip_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, action: &mut Option<Act>) {
     ui.strong("Note table");
     ui.horizontal(|ui| {
-        ui.radio_value(&mut state.table, TableKind::Tone, "YM2149 tone periods");
-        ui.radio_value(&mut state.table, TableKind::Buzzer, "Envelope periods (buzzer)");
-        ui.radio_value(&mut state.table, TableKind::Amiga, "Amiga (ProTracker's)");
+        ui.radio_value(&mut state.table, TableKind::Tone, crate::i18n::tr("YM2149 tone periods"));
+        ui.radio_value(&mut state.table, TableKind::Buzzer, crate::i18n::tr("Envelope periods (buzzer)"));
+        ui.radio_value(&mut state.table, TableKind::Amiga, crate::i18n::tr("Amiga (ProTracker's)"));
     });
     if state.table != TableKind::Amiga {
         ui.horizontal(|ui| {
-            ui.label("Clock:");
+            ui.label(crate::i18n::tr("Clock:"));
             let shown = tools::CLOCKS.iter().find(|(_, c)| *c == state.clock).map_or_else(|| format!("{} Hz", group(u64::from(state.clock))), |(n, _)| n.to_string());
             egui::ComboBox::from_id_salt("ym-clock").selected_text(shown).show_ui(ui, |ui| {
                 for (name, clock) in tools::CLOCKS {
-                    ui.selectable_value(&mut state.clock, clock, name);
+                    ui.selectable_value(&mut state.clock, clock, crate::i18n::tr(name));
                 }
             });
-            ui.label("A-4 =");
+            ui.label(crate::i18n::tr("A-4 ="));
             ui.add(egui::DragValue::new(&mut state.a4).range(400.0..=480.0).speed(0.1).suffix(" Hz"));
         });
         ui.horizontal(|ui| {
-            ui.label("Octaves");
+            ui.label(crate::i18n::tr("Octaves"));
             ui.add(egui::DragValue::new(&mut state.first_octave).range(0..=8));
-            ui.label("to");
+            ui.label(crate::i18n::tr("to"));
             let mut last = state.first_octave + state.octaves - 1;
             ui.add(egui::DragValue::new(&mut last).range(state.first_octave..=9));
             state.octaves = last - state.first_octave + 1;
         });
     }
     ui.horizontal(|ui| {
-        ui.label("Label:");
+        ui.label(crate::i18n::tr("Label:"));
         ui.add(egui::TextEdit::singleline(&mut state.label).desired_width(160.0));
     });
     let table = tools::period_table(state.table, state.clock, state.a4, state.first_octave, state.octaves, &state.label);
@@ -654,8 +654,8 @@ fn chip_page(ui: &mut egui::Ui, state: &mut StToolsBox, target: Option<&str>, ac
         }
     });
     ui.horizontal(|ui| {
-        ui.label(format!("Shape {}: {}.", state.shape, tools::envelope_words(state.shape)));
-        ui.label("Period:");
+        ui.label(crate::i18n::tf!("Shape {}: {}.", state.shape, tools::envelope_words(state.shape)));
+        ui.label(crate::i18n::tr("Period:"));
         ui.add(egui::DragValue::new(&mut state.envelope_period).range(1..=65535));
     });
     let snippet = tools::envelope_snippet(state.shape, state.envelope_period, if state.table == TableKind::Amiga { 2_000_000 } else { state.clock });
@@ -678,10 +678,10 @@ fn tools_page(ui: &mut egui::Ui, state: &mut StToolsBox, action: &mut Option<Act
             None => note(ui, format!("Not found. {}", tool.how_to_get())),
         }
         ui.horizontal(|ui| {
-            if ui.small_button("Choose\u{2026}").on_hover_text("Point Limoniter at the program").clicked() {
+            if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Point Limoniter at the program")).clicked() {
                 *action = Some(Act::Choose(tool));
             }
-            if state.prefs.path(tool).is_some() && ui.small_button("Forget").on_hover_text("Go back to looking where it's usually installed").clicked() {
+            if state.prefs.path(tool).is_some() && ui.small_button(crate::i18n::tr("Forget")).on_hover_text(crate::i18n::tr("Go back to looking where it's usually installed")).clicked() {
                 *action = Some(Act::Forget(tool));
             }
             let fetch = if tool.release().is_some() {

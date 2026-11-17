@@ -31,7 +31,7 @@ pub fn looks_like(ending: &str, bytes: &[u8]) -> bool {
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     let data = body(bytes);
     if data.len() != SCREEN && data.len() != BITMAP {
-        return Err(format!("A Spectrum screen is {SCREEN} bytes, and this is {}.", data.len()));
+        return Err(crate::i18n::tf!("A Spectrum screen is {SCREEN} bytes, and this is {}.", data.len()));
     }
     let attributes = data.get(BITMAP..SCREEN);
     let mut picture = Picture::new(256, 192);

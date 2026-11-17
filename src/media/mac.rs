@@ -125,7 +125,7 @@ pub fn unwrap_disk_copy(source: Arc<dyn Source>) -> Result<Unwrapped, String> {
     let name = pascal(&head, 63);
     let note = (disk_copy_sum(&*source, 84, data)? != be(&head[72..76]) as u32).then(|| "The image's checksum doesn't match its data, so some of it may be damaged.".to_string());
     if head[81] == 0x24 {
-        return Err("This Disk Copy image holds an Apple II disk (ProDOS), which Limoniter can't read yet.".into());
+        return Err(crate::i18n::tr("This Disk Copy image holds an Apple II disk (ProDOS), which Limoniter can't read yet.").into());
     }
     let disk: Arc<dyn Source> = Arc::new(Slice { inner: source, start: 84, len: data });
     Ok(Unwrapped { disk, name, note })
@@ -203,12 +203,12 @@ impl Mfs {
     pub fn open(source: Arc<dyn Source>, what: &str) -> Result<Self, String> {
         let mdb = source.read_vec(1024, 1024).map_err(|_| "The image is too short for an MFS disk.".to_string())?;
         if mdb[..2] != [0xD2, 0xD7] {
-            return Err("This isn't an MFS disk.".into());
+            return Err(crate::i18n::tr("This isn't an MFS disk.").into());
         }
         let (directory, directory_blocks, blocks) = (be(&mdb[14..16]), be(&mdb[16..18]), be(&mdb[18..20]) as usize);
         let (block_size, blocks_at) = (be(&mdb[20..24]), be(&mdb[28..30]) * 512);
         if block_size == 0 || !block_size.is_multiple_of(512) || blocks > 4094 {
-            return Err("This MFS disk's volume information doesn't make sense, so it can't be read.".into());
+            return Err(crate::i18n::tr("This MFS disk's volume information doesn't make sense, so it can't be read.").into());
         }
         // The allocation block map follows the volume information: twelve bits for each block from block 2, each
         // the next block of its file, 1 for a file's last, 0 for free.
@@ -256,23 +256,23 @@ impl Mfs {
 
     fn fork_bytes(&self, fork: &Fork) -> Result<Vec<u8>, String> {
         if fork.length > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let mut out = Vec::with_capacity(fork.length as usize);
         let mut block = fork.start;
         let mut seen = HashSet::new();
         while (out.len() as u64) < fork.length {
             if block < 2 || !seen.insert(block) {
-                return Err("The file's chain of blocks breaks off or loops, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("The file's chain of blocks breaks off or loops, so the disk is damaged.").into());
             }
             out.extend(self.source.read_vec(self.blocks_at + u64::from(block - 2) * self.block_size, self.block_size as usize).map_err(|_| "The file runs past the end of the image.".to_string())?);
-            block = *self.map.get(usize::from(block - 2)).ok_or("The file's chain of blocks leaves the disk.")?;
+            block = *self.map.get(usize::from(block - 2)).ok_or(crate::i18n::tr("The file's chain of blocks leaves the disk."))?;
             if block == 1 {
                 break;
             }
         }
         if (out.len() as u64) < fork.length {
-            return Err("The file's chain of blocks ends before the file does, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("The file's chain of blocks ends before the file does, so the disk is damaged.").into());
         }
         out.truncate(fork.length as usize);
         Ok(out)
@@ -323,7 +323,7 @@ impl Volume for Mfs {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         self.fork_bytes(if entry.extra == RESOURCE_FORK { &file.resource } else { &file.data })
     }
 
@@ -374,39 +374,39 @@ fn extents(bytes: &[u8]) -> Extents {
 
 /// Every record in a B-tree's leaves, as (key, data), following the leaves' chain from the header's first.
 fn leaf_records(tree: &[u8]) -> Result<Vec<Record>, String> {
-    let header = tree.get(..512).ok_or("A B-tree is too short for its header node.")?;
+    let header = tree.get(..512).ok_or(crate::i18n::tr("A B-tree is too short for its header node."))?;
     if header[8] != 1 {
-        return Err("A B-tree's first node isn't its header, so the disk is damaged.".into());
+        return Err(crate::i18n::tr("A B-tree's first node isn't its header, so the disk is damaged.").into());
     }
     let node_size = be(&header[32..34]) as usize;
     if node_size < 512 || !node_size.is_power_of_two() {
-        return Err("A B-tree's node size doesn't make sense, so the disk is damaged.".into());
+        return Err(crate::i18n::tr("A B-tree's node size doesn't make sense, so the disk is damaged.").into());
     }
     let mut node = be(&header[24..28]) as usize;
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     while node != 0 {
         if !seen.insert(node) {
-            return Err("A B-tree's leaves loop back on themselves, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree's leaves loop back on themselves, so the disk is damaged.").into());
         }
-        let bytes = tree.get(node * node_size..(node + 1) * node_size).ok_or("A B-tree's leaf is past its end, so the disk is damaged.")?;
+        let bytes = tree.get(node * node_size..(node + 1) * node_size).ok_or(crate::i18n::tr("A B-tree's leaf is past its end, so the disk is damaged."))?;
         if bytes[8] != 0xFF {
-            return Err("A B-tree's chain of leaves leads to a node that isn't one, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree's chain of leaves leads to a node that isn't one, so the disk is damaged.").into());
         }
         let count = be(&bytes[10..12]) as usize;
         if 14 + 2 * (count + 1) > node_size {
-            return Err("A B-tree node says it holds more records than fit in it, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree node says it holds more records than fit in it, so the disk is damaged.").into());
         }
         for i in 0..count {
             let start = be(&bytes[node_size - 2 * (i + 1)..node_size - 2 * i]) as usize;
             let end = be(&bytes[node_size - 2 * (i + 2)..node_size - 2 * (i + 1)]) as usize;
             if start < 14 || end > node_size - 2 * (count + 1) || start >= end {
-                return Err("A B-tree record lies outside its node, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("A B-tree record lies outside its node, so the disk is damaged.").into());
             }
             let key_length = usize::from(bytes[start]);
             let data_at = (start + 1 + key_length + 1) & !1;
             if data_at > end {
-                return Err("A B-tree record's key is longer than the record, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("A B-tree record's key is longer than the record, so the disk is damaged.").into());
             }
             out.push((bytes[start + 1..start + 1 + key_length].to_vec(), bytes[data_at..end].to_vec()));
         }
@@ -419,14 +419,14 @@ impl Hfs {
     pub fn open(source: Arc<dyn Source>, what: &str) -> Result<Self, String> {
         let mdb = source.read_vec(1024, 512).map_err(|_| "The image is too short for an HFS disk.".to_string())?;
         if &mdb[..2] != b"BD" {
-            return Err("This isn't an HFS disk.".into());
+            return Err(crate::i18n::tr("This isn't an HFS disk.").into());
         }
         if &mdb[124..126] == b"H+" {
-            return Err("This is an HFS+ (Mac OS Extended) disk inside an HFS wrapper, to be opened as HFS+.".into());
+            return Err(crate::i18n::tr("This is an HFS+ (Mac OS Extended) disk inside an HFS wrapper, to be opened as HFS+.").into());
         }
         let block_size = be(&mdb[20..24]);
         if block_size == 0 || !block_size.is_multiple_of(512) {
-            return Err("This HFS disk's allocation block size doesn't make sense, so it can't be read.".into());
+            return Err(crate::i18n::tr("This HFS disk's allocation block size doesn't make sense, so it can't be read.").into());
         }
         let mut volume = Self {
             source,
@@ -476,7 +476,7 @@ impl Hfs {
             }
         }
         if !volume.folders.iter().any(|f| f.id == 2) {
-            return Err("This HFS disk's catalog has no root folder, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("This HFS disk's catalog has no root folder, so the disk is damaged.").into());
         }
         Ok(volume)
     }
@@ -484,7 +484,7 @@ impl Hfs {
     /// A fork's bytes: its first three extents, then those in the extents tree, block by block until its length.
     fn fork_bytes(&self, id: u32, resource: bool, fork: &Fork) -> Result<Vec<u8>, String> {
         if fork.length > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let mut runs: Vec<(u16, u16)> = fork.extents.to_vec();
         let mut covered: u64 = runs.iter().map(|(_, count)| u64::from(*count)).sum();
@@ -502,12 +502,12 @@ impl Hfs {
             let at = self.blocks_at + u64::from(first) * self.block_size;
             let want = (u64::from(count) * self.block_size).min(fork.length - out.len() as u64);
             if at + want > self.source.len() {
-                return Err("The file runs past the end of the image.".into());
+                return Err(crate::i18n::tr("The file runs past the end of the image.").into());
             }
             out.extend(self.source.read_vec(at, want as usize)?);
         }
         if (out.len() as u64) < fork.length {
-            return Err("The disk's extents give this file less space than its length, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("The disk's extents give this file less space than its length, so the disk is damaged.").into());
         }
         Ok(out)
     }
@@ -539,7 +539,7 @@ impl Volume for Hfs {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         let resource = entry.extra == RESOURCE_FORK;
         self.fork_bytes(file.id, resource, if resource { &file.resource } else { &file.data })
     }
@@ -582,7 +582,7 @@ pub fn open_disk(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>,
         Some(Kind::HfsPlus) => super::hfsplus::open(source, what),
         Some(Kind::Gpt) => super::hfsplus::open_gpt(source, what),
         Some(Kind::Partitioned) => Ok(Partitioned::open(source, what)?.into_volume()),
-        None => Err("This disk has no Macintosh file system that Limoniter can find: no MFS, HFS, HFS+ or partition map.".into()),
+        None => Err(crate::i18n::tr("This disk has no Macintosh file system that Limoniter can find: no MFS, HFS, HFS+ or partition map.").into()),
     }
 }
 
@@ -591,7 +591,7 @@ pub fn open_disk(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>,
 pub(super) fn open_partition(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, String> {
     let head = source.read_vec(0, source.len().min(0x8800) as usize)?;
     if matches!(kind_of(&head), Some(Kind::Partitioned | Kind::Gpt)) {
-        return Err("This partition holds another partition map, so the disk is damaged.".into());
+        return Err(crate::i18n::tr("This partition holds another partition map, so the disk is damaged.").into());
     }
     open_disk(source, what)
 }
@@ -620,7 +620,7 @@ impl Partitioned {
         };
         let first = source.read_vec(block, 512)?;
         if &first[..2] != b"PM" {
-            return Err("The partition map's first entry isn't where the disk says, so it can't be read.".into());
+            return Err(crate::i18n::tr("The partition map's first entry isn't where the disk says, so it can't be read.").into());
         }
         let count = be(&first[4..8]).min(256);
         let mut parts = Vec::new();
@@ -673,7 +673,7 @@ impl Volume for Partitioned {
                 .collect());
         };
         let index = (dir.extra >> 8) as usize;
-        let volume = self.parts.get(index.wrapping_sub(1)).and_then(|p| p.volume.as_ref()).ok_or("That isn't a partition Limoniter can read.")?;
+        let volume = self.parts.get(index.wrapping_sub(1)).and_then(|p| p.volume.as_ref()).ok_or(crate::i18n::tr("That isn't a partition Limoniter can read."))?;
         let inner = (dir.location != 0 || dir.extra & 0xFF != 0).then(|| Entry { extra: dir.extra & 0xFF, ..dir.clone() });
         let mut entries = volume.list(inner.as_ref())?;
         for entry in &mut entries {
@@ -684,13 +684,13 @@ impl Volume for Partitioned {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         let index = (entry.extra >> 8) as usize;
-        let part = self.parts.get(index.wrapping_sub(1)).ok_or("That partition isn't one Limoniter reads.")?;
+        let part = self.parts.get(index.wrapping_sub(1)).ok_or(crate::i18n::tr("That partition isn't one Limoniter reads."))?;
         match (&part.volume, &part.raw) {
             (Some(volume), _) => volume.read(&Entry { extra: entry.extra & 0xFF, ..entry.clone() }),
             // A partition with no file system to read is opened as its bytes.
-            (None, Some(raw)) if raw.len() > MOST_FILE_BYTES => Err("This partition is larger than the 1 GB that can be opened.".into()),
+            (None, Some(raw)) if raw.len() > MOST_FILE_BYTES => Err(crate::i18n::tr("This partition is larger than the 1 GB that can be opened.").into()),
             (None, Some(raw)) => raw.read_vec(0, raw.len() as usize),
-            (None, None) => Err("That partition isn't one Limoniter reads.".into()),
+            (None, None) => Err(crate::i18n::tr("That partition isn't one Limoniter reads.").into()),
         }
     }
 

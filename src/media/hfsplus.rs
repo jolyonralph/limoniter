@@ -181,12 +181,12 @@ pub fn open_wrapped(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volum
     let (block_size, blocks_at) = (be(&mdb[20..24]), be(&mdb[28..30]) * 512);
     let (first, count) = (be(&mdb[126..128]), be(&mdb[128..130]));
     if block_size == 0 || !block_size.is_multiple_of(512) || count == 0 {
-        return Err("The HFS wrapper doesn't say sensibly where its HFS+ volume is, so the disk is damaged.".into());
+        return Err(crate::i18n::tr("The HFS wrapper doesn't say sensibly where its HFS+ volume is, so the disk is damaged.").into());
     }
     let start = blocks_at + first * block_size;
     let len = count * block_size;
     if start + len > source.len() + block_size {
-        return Err("The HFS+ volume inside the HFS wrapper runs past the end of the image.".into());
+        return Err(crate::i18n::tr("The HFS+ volume inside the HFS wrapper runs past the end of the image.").into());
     }
     let inner: Arc<dyn Source> = Arc::new(Slice { inner: source.clone(), start, len: len.min(source.len().saturating_sub(start)) });
     Ok(Box::new(HfsPlus::open(inner, what, true)?))
@@ -199,11 +199,11 @@ impl HfsPlus {
             b"H+" if wrapped => "HFS+ in an HFS wrapper",
             b"H+" => "HFS+",
             b"HX" => "HFSX",
-            _ => return Err("This isn't an HFS+ volume.".into()),
+            _ => return Err(crate::i18n::tr("This isn't an HFS+ volume.").into()),
         };
         let block_size = be(&header[40..44]);
         if block_size < 512 || !block_size.is_power_of_two() || block_size > 1 << 24 {
-            return Err("This HFS+ volume's allocation block size doesn't make sense, so it can't be read.".into());
+            return Err(crate::i18n::tr("This HFS+ volume's allocation block size doesn't make sense, so it can't be read.").into());
         }
         let last_mounted = match &header[8..12] {
             b"10.0" => "Mac OS X".to_string(),
@@ -260,7 +260,7 @@ impl HfsPlus {
             }
             catalog_parent(key).is_some_and(|p| p <= ROOT)
         })?;
-        volume.name = name.ok_or("This HFS+ volume's catalog has no root folder, so the disk is damaged.")?;
+        volume.name = name.ok_or(crate::i18n::tr("This HFS+ volume's catalog has no root folder, so the disk is damaged."))?;
         for item in volume.children(ROOT)? {
             if item.is_dir && item.name == PRIVATE_FILES {
                 volume.private_files = Some(item.id);
@@ -304,7 +304,7 @@ impl HfsPlus {
     /// The bytes of part of a fork: its extents, in order, mapped onto the volume's allocation blocks.
     fn fork_part(&self, fork: &Fork, offset: u64, length: usize) -> Result<Vec<u8>, String> {
         if offset + length as u64 > fork.length {
-            return Err("A read runs past the end of its fork, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A read runs past the end of its fork, so the disk is damaged.").into());
         }
         let mut out = Vec::with_capacity(length);
         let mut skip = offset;
@@ -320,13 +320,13 @@ impl HfsPlus {
             let want = (span - skip).min((length - out.len()) as u64);
             let at = first * self.block_size + skip;
             if at + want > self.source.len() {
-                return Err("A fork runs past the end of the volume, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("A fork runs past the end of the volume, so the disk is damaged.").into());
             }
             out.extend(self.source.read_vec(at, want as usize)?);
             skip = 0;
         }
         if out.len() < length {
-            return Err("A fork's extents give it less space than its length, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A fork's extents give it less space than its length, so the disk is damaged.").into());
         }
         Ok(out)
     }
@@ -340,7 +340,7 @@ impl HfsPlus {
             return Ok(fork);
         }
         let Some(tree) = &self.extents else {
-            return Err("A fragmented file's extents should be in the extents overflow file, which the volume hasn't got.".into());
+            return Err(crate::i18n::tr("A fragmented file's extents should be in the extents overflow file, which the volume hasn't got.").into());
         };
         // The key: its length, the fork (0 data, &FF resource), a pad byte, the file's number and the fork's block.
         let fork_type = if resource { 0xFF } else { 0 };
@@ -376,7 +376,7 @@ impl HfsPlus {
             return Err(problem.into());
         }
         if covered < needed {
-            return Err("The extents overflow file gives a fragmented file less space than its length, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("The extents overflow file gives a fragmented file less space than its length, so the disk is damaged.").into());
         }
         Ok(fork)
     }
@@ -385,11 +385,11 @@ impl HfsPlus {
     fn tree(&self, fork: Fork) -> Result<Tree, String> {
         let head = self.fork_part(&fork, 0, 512.min(fork.length as usize)).map_err(|_| "A B-tree's header node can't be read, so the disk is damaged.".to_string())?;
         if head.len() < 106 || head[8] != 1 {
-            return Err("A B-tree's first node isn't its header, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree's first node isn't its header, so the disk is damaged.").into());
         }
         let node_size = be(&head[32..34]) as usize;
         if !(512..=32_768).contains(&node_size) || !node_size.is_power_of_two() {
-            return Err("A B-tree's node size doesn't make sense, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree's node size doesn't make sense, so the disk is damaged.").into());
         }
         let nodes = (fork.length / node_size as u64).min(u64::from(u32::MAX)) as u32;
         Ok(Tree { root: be(&head[16..20]) as u32, max_key: be(&head[34..36]) as usize, variable_index_keys: be(&head[52..56]) & 4 != 0, node_size, nodes, fork })
@@ -398,7 +398,7 @@ impl HfsPlus {
     /// A node of a B-tree, kept for a while, as listing a folder goes back to the same few.
     fn node(&self, which: TreeId, tree: &Tree, number: u32) -> Result<Arc<Vec<u8>>, String> {
         if number >= tree.nodes {
-            return Err("A B-tree points past its end, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree points past its end, so the disk is damaged.").into());
         }
         if let Some(node) = self.cache.lock().ok().and_then(|cache| cache.get(&(which, number)).cloned()) {
             return Ok(node);
@@ -422,13 +422,13 @@ impl HfsPlus {
             match node[8] {
                 LEAF => return Ok(number),
                 INDEX => {}
-                _ => return Err("A B-tree's index leads to a node that isn't one, so the disk is damaged.".into()),
+                _ => return Err(crate::i18n::tr("A B-tree's index leads to a node that isn't one, so the disk is damaged.").into()),
             }
             let records = records(&node, tree, false)?;
-            let chosen = records.iter().take_while(|r| compare(r.key) != Ordering::Greater).last().or(records.first()).ok_or("A B-tree index node is empty, so the disk is damaged.")?;
-            number = chosen.data.get(..4).map(be).ok_or("A B-tree index record is cut short, so the disk is damaged.")? as u32;
+            let chosen = records.iter().take_while(|r| compare(r.key) != Ordering::Greater).last().or(records.first()).ok_or(crate::i18n::tr("A B-tree index node is empty, so the disk is damaged."))?;
+            number = chosen.data.get(..4).map(be).ok_or(crate::i18n::tr("A B-tree index record is cut short, so the disk is damaged."))? as u32;
         }
-        Err("A B-tree is deeper than any could be, so the disk is damaged.".into())
+        Err(crate::i18n::tr("A B-tree is deeper than any could be, so the disk is damaged.").into())
     }
 
     /// Visits the records of a B-tree's leaves from one leaf on, following the chain of leaves, until `visit` says to
@@ -438,11 +438,11 @@ impl HfsPlus {
         let mut seen = HashSet::new();
         while number != 0 {
             if !seen.insert(number) || seen.len() > MOST_NODES {
-                return Err("A B-tree's leaves loop back on themselves, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("A B-tree's leaves loop back on themselves, so the disk is damaged.").into());
             }
             let node = self.node(which, tree, number)?;
             if node[8] != LEAF {
-                return Err("A B-tree's chain of leaves leads to a node that isn't one, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("A B-tree's chain of leaves leads to a node that isn't one, so the disk is damaged.").into());
             }
             for record in records(&node, tree, true)? {
                 if !visit(record.key, record.data) {
@@ -473,11 +473,11 @@ impl HfsPlus {
         let mut seen = HashSet::new();
         'leaves: while number != 0 {
             if !seen.insert(number) || seen.len() > MOST_NODES {
-                return Err("The catalog's leaves loop back on themselves, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("The catalog's leaves loop back on themselves, so the disk is damaged.").into());
             }
             let node = self.node(TreeId::Catalog, &self.catalog, number)?;
             if node[8] != LEAF {
-                return Err("The catalog's chain of leaves leads to a node that isn't one, so the disk is damaged.".into());
+                return Err(crate::i18n::tr("The catalog's chain of leaves leads to a node that isn't one, so the disk is damaged.").into());
             }
             for (index, record) in records(&node, &self.catalog, true)?.into_iter().enumerate() {
                 match catalog_parent(record.key).map(|p| p.cmp(&parent)) {
@@ -498,7 +498,7 @@ impl HfsPlus {
     fn item_at(&self, place: u64) -> Result<Item, String> {
         let node = self.node(TreeId::Catalog, &self.catalog, (place >> 16) as u32)?;
         let records = records(&node, &self.catalog, true)?;
-        let record = records.get((place & 0xFFFF) as usize).ok_or("That file isn't on the disk.")?;
+        let record = records.get((place & 0xFFFF) as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         catalog_item(record.key, record.data).ok_or_else(|| "That file isn't on the disk.".into())
     }
 
@@ -562,7 +562,7 @@ impl HfsPlus {
         })?;
         if let Some(fork) = fork {
             if fork.length > MOST_FILE_BYTES {
-                return Err("A file's attribute is larger than the 1 GB that can be opened.".into());
+                return Err(crate::i18n::tr("A file's attribute is larger than the 1 GB that can be opened.").into());
             }
             return self.fork_part(&fork, 0, fork.length as usize).map(Some);
         }
@@ -575,11 +575,11 @@ impl HfsPlus {
             return Ok(None);
         }
         let Some(attribute) = self.attribute(item.id, "com.apple.decmpfs")? else {
-            return Err("This file is marked as compressed but has no compression attribute, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("This file is marked as compressed but has no compression attribute, so the disk is damaged.").into());
         };
         // The header, little-endian: the magic 'fpmc', the method, and the file's length uncompressed.
         if attribute.len() < 16 || &attribute[0..4] != b"fpmc" {
-            return Err("This file's compression attribute isn't one HFS+ compression writes, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("This file's compression attribute isn't one HFS+ compression writes, so the disk is damaged.").into());
         }
         let method = le32(&attribute[4..8]) as u32;
         let size = u64::from_le_bytes(attribute[8..16].try_into().unwrap());
@@ -589,7 +589,7 @@ impl HfsPlus {
     /// A fork's bytes, whole.
     fn fork_bytes(&self, id: u32, resource: bool, fork: &Fork) -> Result<Vec<u8>, String> {
         if fork.length > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let fork = self.whole_fork(id, resource, fork.clone())?;
         self.fork_part(&fork, 0, fork.length as usize)
@@ -599,7 +599,7 @@ impl HfsPlus {
     /// resource fork, in 64K blocks, for the larger.
     fn uncompress(&self, item: &Item, compressed: &Compressed) -> Result<Vec<u8>, String> {
         if compressed.size > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         let size = compressed.size as usize;
         let inline = &compressed.inline;
@@ -619,7 +619,7 @@ impl HfsPlus {
                 let blocks = if compressed.method == 4 { zlib_blocks(&fork)? } else { offset_blocks(&fork)? };
                 let mut out = Vec::with_capacity(size);
                 for (start, end) in blocks {
-                    let block = fork.get(start..end).ok_or("A compressed file's block lies outside its resource fork, so the disk is damaged.")?;
+                    let block = fork.get(start..end).ok_or(crate::i18n::tr("A compressed file's block lies outside its resource fork, so the disk is damaged."))?;
                     let want = (size - out.len().min(size)).min(0x10000);
                     let raw = match compressed.method {
                         4 if block.first().is_some_and(|b| b & 0x0F == 0x0F) => block[1..].to_vec(),
@@ -636,10 +636,10 @@ impl HfsPlus {
                 }
                 out
             }
-            other => return Err(format!("This file is compressed by HFS+ compression using {} (method {other}), which Limoniter can't read yet.", method_name(other))),
+            other => return Err(crate::i18n::tf!("This file is compressed by HFS+ compression using {} (method {other}), which Limoniter can't read yet.", method_name(other))),
         };
         if out.len() != size {
-            return Err("This compressed file doesn't come out at the length it says, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("This compressed file doesn't come out at the length it says, so the disk is damaged.").into());
         }
         Ok(out)
     }
@@ -768,20 +768,20 @@ fn records<'a>(node: &'a [u8], tree: &Tree, leaf: bool) -> Result<Vec<NodeRecord
     let size = node.len();
     let count = be(&node[10..12]) as usize;
     if 14 + 2 * (count + 1) > size {
-        return Err("A B-tree node says it holds more records than fit in it, so the disk is damaged.".into());
+        return Err(crate::i18n::tr("A B-tree node says it holds more records than fit in it, so the disk is damaged.").into());
     }
     let offset = |i: usize| be(&node[size - 2 * (i + 1)..size - 2 * i]) as usize;
     let mut out = Vec::with_capacity(count);
     for i in 0..count {
         let (start, end) = (offset(i), offset(i + 1));
         if start < 14 || end > size - 2 * (count + 1) || start + 2 > end {
-            return Err("A B-tree record lies outside its node, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree record lies outside its node, so the disk is damaged.").into());
         }
         let key_length = be(&node[start..start + 2]) as usize;
         let stored = if leaf || tree.variable_index_keys { key_length } else { tree.max_key };
         let data_at = start + 2 + stored;
         if start + 2 + key_length > end || data_at > end {
-            return Err("A B-tree record's key is longer than the record, so the disk is damaged.".into());
+            return Err(crate::i18n::tr("A B-tree record's key is longer than the record, so the disk is damaged.").into());
         }
         out.push(NodeRecord { key: &node[start + 2..start + 2 + key_length], data: &node[data_at..end] });
     }
@@ -885,11 +885,11 @@ impl Volume for HfsPlus {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         if entry.is_dir {
-            return Err("That's a folder.".into());
+            return Err(crate::i18n::tr("That's a folder.").into());
         }
         let mut item = self.item_at(entry.location)?;
         if item.is_dir {
-            return Err("That file isn't on the disk.".into());
+            return Err(crate::i18n::tr("That file isn't on the disk.").into());
         }
         if item.is_file_link() {
             item = self.link_target(&item)?;
@@ -970,7 +970,7 @@ pub fn looks_like_gpt(head: &[u8]) -> bool {
 /// A disk with a GUID partition table, its HFS+ partitions opened.
 pub fn open_gpt(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, String> {
     let head = source.read_vec(0, source.len().min(0x8800) as usize)?;
-    let parts = gpt_partitions(&head).ok_or("The disk's GUID partition table can't be read.")?;
+    let parts = gpt_partitions(&head).ok_or(crate::i18n::tr("The disk's GUID partition table can't be read."))?;
     let mut out = Vec::new();
     for (i, (name, kind, start, length)) in parts.into_iter().enumerate() {
         let mut part = mac::Partition { name, kind: gpt_kind(&kind), volume: None, problem: None, blocks: length, raw: None };

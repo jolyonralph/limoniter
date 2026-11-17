@@ -115,20 +115,20 @@ macro_rules! theme_file {
                     if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
                         continue;
                     }
-                    let (key, value) = line.split_once('=').ok_or_else(|| format!("\u{201C}{line}\u{201D} isn't written key = value."))?;
+                    let (key, value) = line.split_once('=').ok_or_else(|| crate::i18n::tf!("\u{201C}{line}\u{201D} isn't written key = value."))?;
                     values.insert(key.trim().to_string(), value.trim().to_string());
                 }
                 if values.get("kind").is_some_and(|k| k != Self::KIND) {
-                    return Err(format!("That's a {} theme, not a {} theme.", values["kind"], Self::KIND));
+                    return Err(crate::i18n::tf!("That's a {} theme, not a {} theme.", values["kind"], Self::KIND));
                 }
                 let light = values.get("light").is_some_and(|v| matches!(v.as_str(), "yes" | "true" | "light"));
                 let mut theme = $base(light);
-                theme.name = values.get("name").cloned().filter(|n| !n.is_empty()).ok_or("The theme has no name.")?;
+                theme.name = values.get("name").cloned().filter(|n| !n.is_empty()).ok_or(crate::i18n::tr("The theme has no name."))?;
                 theme.light = light;
                 theme.read_extra(&values);
                 for (key, value) in &values {
                     if let Some(slot) = theme.colour_mut(key) {
-                        *slot = from_hex(value).ok_or_else(|| format!("{key}: \u{201C}{value}\u{201D} isn't a colour written #rrggbb."))?;
+                        *slot = from_hex(value).ok_or_else(|| crate::i18n::tf!("{key}: \u{201C}{value}\u{201D} isn't a colour written #rrggbb."))?;
                     }
                 }
                 Ok(theme)

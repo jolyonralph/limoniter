@@ -427,10 +427,10 @@ impl Editor {
         let blank = kind.blank();
         ui.horizontal(|ui| {
             let mut chosen = kind;
-            ui.label("Drawing");
-            egui::ComboBox::from_id_salt("pixel-kind").selected_text(kind.name()).show_ui(ui, |ui| {
+            ui.label(crate::i18n::tr("Drawing"));
+            egui::ComboBox::from_id_salt("pixel-kind").selected_text(crate::i18n::tr(kind.name())).show_ui(ui, |ui| {
                 for k in Kind::ALL {
-                    ui.selectable_value(&mut chosen, k, k.name());
+                    ui.selectable_value(&mut chosen, k, crate::i18n::tr(k.name()));
                 }
             });
             if chosen != kind {
@@ -464,18 +464,18 @@ impl Editor {
                     });
                 });
                 ui.horizontal(|ui| {
-                    if ui.small_button("Add").clicked() {
+                    if ui.small_button(crate::i18n::tr("Add")).clicked() {
                         self.remember();
                         let ink = self.sheet.ink(self.current);
                         self.sheet.insert(self.current + 1, vec![blank; width * height], ink);
                         self.current += 1;
                     }
-                    if ui.add_enabled(self.sheet.items.len() > 1, egui::Button::new("Remove").small()).clicked() {
+                    if ui.add_enabled(self.sheet.items.len() > 1, egui::Button::new(crate::i18n::tr("Remove")).small()).clicked() {
                         self.remember();
                         self.sheet.remove(self.current);
                         self.current = self.current.min(self.sheet.items.len() - 1);
                     }
-                    if ui.small_button("Copy").on_hover_text("Adds a copy of this one after it").clicked() {
+                    if ui.small_button(crate::i18n::tr("Copy")).on_hover_text(crate::i18n::tr("Adds a copy of this one after it")).clicked() {
                         self.remember();
                         let copy = self.sheet.items[self.current].clone();
                         let ink = self.sheet.ink(self.current);
@@ -539,17 +539,17 @@ impl Editor {
                         if how == Transform::Rotate && width != height {
                             continue;
                         }
-                        if ui.button(label).on_hover_text(tip).clicked() {
+                        if ui.button(crate::i18n::tr(label)).on_hover_text(crate::i18n::tr(tip)).clicked() {
                             self.remember();
                             let item = &mut self.sheet.items[self.current];
                             *item = if kind == Kind::Sprites && how == Transform::Invert { item.iter().map(|v| v ^ 0xFF).collect() } else { transform(item, width, height, how, blank, values.max(2)) };
                         }
                     }
-                    if ui.button("Clear").clicked() {
+                    if ui.button(crate::i18n::tr("Clear")).clicked() {
                         self.remember();
                         self.sheet.items[self.current] = vec![blank; width * height];
                     }
-                    if ui.add_enabled(!self.undo.is_empty(), egui::Button::new("Undo")).clicked()
+                    if ui.add_enabled(!self.undo.is_empty(), egui::Button::new(crate::i18n::tr("Undo"))).clicked()
                         && let Some(before) = self.undo.pop()
                     {
                         self.sheet = before;
@@ -573,17 +573,17 @@ impl Editor {
                         let (x, y) = (((p.x - palette.min.x) / swatch) as u8, ((p.y - palette.min.y) / swatch) as u8);
                         self.colour = y.min(7) * 32 + x.min(31);
                     }
-                    ui.label(egui::RichText::new(format!("Drawing with colour {} (${:02X}){}; the right button rubs out to ${TRANSPARENT:02X}, transparent.", self.colour, self.colour, if self.colour == TRANSPARENT { ", transparent" } else { "" })).size(11.5).color(theme::text_dim()));
+                    ui.label(egui::RichText::new(crate::i18n::tf!("Drawing with colour {} (${:02X}){}; the right button rubs out to ${TRANSPARENT:02X}, transparent.", self.colour, self.colour, if self.colour == TRANSPARENT { ", transparent" } else { "" })).size(11.5).color(theme::text_dim()));
                 } else if kind.c64() {
                     self.c64_colours(ui);
                 } else {
-                    ui.label(egui::RichText::new("The left button draws, the right rubs out.").size(11.5).color(theme::text_dim()));
+                    ui.label(egui::RichText::new(crate::i18n::tr("The left button draws, the right rubs out.")).size(11.5).color(theme::text_dim()));
                 }
             });
         });
         ui.separator();
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("pixel-output").selected_text(self.output.name()).width(230.0).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("pixel-output").selected_text(crate::i18n::tr(self.output.name())).width(230.0).show_ui(ui, |ui| {
                 if kind == Kind::Characters {
                     ui.selectable_value(&mut self.output, Output::ZxBasicUdgs, Output::ZxBasicUdgs.name());
                 }
@@ -591,31 +591,31 @@ impl Editor {
                     ui.selectable_value(&mut self.output, Output::Table(form), form.name());
                 }
             });
-            ui.label("Label");
+            ui.label(crate::i18n::tr("Label"));
             ui.add(egui::TextEdit::singleline(&mut self.label).desired_width(100.0));
-            if ui.button("Put in the source").on_hover_text("In the form chosen, at the cursor").clicked() {
+            if ui.button(crate::i18n::tr("Put in the source")).on_hover_text(crate::i18n::tr("In the form chosen, at the cursor")).clicked() {
                 asked = Some(Asked::Insert);
             }
-            if ui.button("From the selection").on_hover_text("Reads the numbers in the DB lines selected").clicked() {
+            if ui.button(crate::i18n::tr("From the selection")).on_hover_text(crate::i18n::tr("Reads the numbers in the DB lines selected")).clicked() {
                 asked = Some(Asked::FromSelection);
             }
         });
         ui.horizontal(|ui| {
             let hint = if kind.c64() { ".bin, .prg (its load address first), .spd for sprites, or any file of bytes" } else { ".udg, .chr, a font, .spr, or any file of bytes" };
-            if ui.button("Open a file\u{2026}").on_hover_text(hint).clicked() {
+            if ui.button(crate::i18n::tr("Open a file\u{2026}")).on_hover_text(crate::i18n::tr(hint)).clicked() {
                 asked = Some(Asked::Load);
             }
-            if ui.button("Save as\u{2026}").on_hover_text(if kind.c64() { ".bin raw, .prg with the load address, or .spd for sprites" } else { "" }).clicked() {
+            if ui.button(crate::i18n::tr("Save as\u{2026}")).on_hover_text(if kind.c64() { crate::i18n::tr(".bin raw, .prg with the load address, or .spd for sprites") } else { crate::i18n::tr("") }).clicked() {
                 asked = Some(Asked::Save);
             }
             if kind.c64() {
-                ui.label("Loads at");
-                ui.add(egui::DragValue::new(&mut self.load_address).hexadecimal(4, false, true)).on_hover_text("The load address a .prg is saved with");
+                ui.label(crate::i18n::tr("Loads at"));
+                ui.add(egui::DragValue::new(&mut self.load_address).hexadecimal(4, false, true)).on_hover_text(crate::i18n::tr("The load address a .prg is saved with"));
             }
-            if kind == Kind::Characters && spectrum_basic && ui.button("Use as this listing's UDGs").on_hover_text("Draws the listing's UDGs with these, A from the first").clicked() {
+            if kind == Kind::Characters && spectrum_basic && ui.button(crate::i18n::tr("Use as this listing's UDGs")).on_hover_text(crate::i18n::tr("Draws the listing's UDGs with these, A from the first")).clicked() {
                 asked = Some(Asked::UseAsUdgs);
             }
-            if ui.button("Close").clicked() {
+            if ui.button(crate::i18n::tr("Close")).clicked() {
                 asked = Some(Asked::Close);
             }
         });
@@ -634,12 +634,12 @@ impl Editor {
         ui.add_space(4.0);
         egui::Grid::new("c64-roles").num_columns(2).spacing([8.0, 3.0]).show(ui, |ui| {
             for &(value, label, slot) in roles {
-                ui.radio_value(&mut self.colour, value, label);
+                ui.radio_value(&mut self.colour, value, crate::i18n::tr(label));
                 let current = if slot == 4 { self.sheet.ink(self.current) } else { self.sheet.colours[slot] };
                 let mut chosen = current;
-                egui::ComboBox::from_id_salt(("c64-role", slot)).selected_text(egui::RichText::new(format!("\u{25A0} {current}: {}", NAMES[usize::from(current & 15)])).color(c64_colour32(current))).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt(("c64-role", slot)).selected_text(egui::RichText::new(crate::i18n::tf!("\u{25A0} {current}: {}", NAMES[usize::from(current & 15)])).color(c64_colour32(current))).show_ui(ui, |ui| {
                     for c in 0..16u8 {
-                        ui.selectable_value(&mut chosen, c, egui::RichText::new(format!("\u{25A0} {c}: {}", NAMES[usize::from(c)])).color(c64_colour32(c)));
+                        ui.selectable_value(&mut chosen, c, egui::RichText::new(crate::i18n::tf!("\u{25A0} {c}: {}", NAMES[usize::from(c)])).color(c64_colour32(c)));
                     }
                 });
                 if chosen != current {
@@ -654,7 +654,7 @@ impl Editor {
                 ui.end_row();
             }
         });
-        ui.label(egui::RichText::new("The left button draws with the one chosen, the right rubs out.").size(11.5).color(theme::text_dim()));
+        ui.label(egui::RichText::new(crate::i18n::tr("The left button draws with the one chosen, the right rubs out.")).size(11.5).color(theme::text_dim()));
     }
 }
 
@@ -727,7 +727,7 @@ mod tests {
         assert_eq!(Sheet::from_text(Kind::Characters, &db), Some(sheet.clone()), "DB lines read back");
         assert_eq!(Sheet::from_text(Kind::Characters, "  defb %00011000, 60, #7E ; a comment\n"), Some(Sheet::from_bytes(Kind::Characters, &[0x18, 60, 0x7E])));
         // The assembler makes the same bytes from the DB lines.
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), &format!("  org $8000\n{db}"), &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), &format!("  org $8000\n{db}"), &|_| Err(crate::i18n::tr("no").into()));
         assert_eq!(assembly.image(0x8000, 0x8010), bytes);
     }
 

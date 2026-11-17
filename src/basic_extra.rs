@@ -366,14 +366,14 @@ fn zx81_file(data: &[u8]) -> Result<(usize, Zx81File), String> {
         let file = data.get(skip..).unwrap_or_default();
         let word = |address: usize| file.get(address - ZX81_FILE_START..address - ZX81_FILE_START + 2).map(|b| usize::from(u16::from_le_bytes([b[0], b[1]])));
         let (Some(d_file), Some(vars), Some(e_line)) = (word(0x400C), word(0x4010), word(0x4014)) else {
-            return Err("The file is too short to hold the ZX81's system variables.".into());
+            return Err(crate::i18n::tr("The file is too short to hold the ZX81's system variables.").into());
         };
         if !(ZX81_PROGRAM <= d_file && d_file < vars && vars < e_line) {
-            return Err("The system variables at the start don't say where a ZX81 program and its screen are.".into());
+            return Err(crate::i18n::tr("The system variables at the start don't say where a ZX81 program and its screen are.").into());
         }
         let end = (vars - ZX81_FILE_START).min(file.len());
         if d_file - ZX81_FILE_START >= end {
-            return Err("The file stops before the program's screen.".into());
+            return Err(crate::i18n::tr("The file stops before the program's screen.").into());
         }
         Ok(Zx81File { program: skip + ZX81_PROGRAM - ZX81_FILE_START..skip + d_file - ZX81_FILE_START, display: skip + d_file - ZX81_FILE_START..skip + end })
     };

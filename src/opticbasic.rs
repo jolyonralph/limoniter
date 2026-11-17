@@ -137,7 +137,7 @@ pub fn list(program: &[u8]) -> Result<Vec<String>, String> {
     while at < body.len() && body[at] != 0 {
         let length = usize::from(body[at]);
         if length < 3 || at + length > body.len() || body[at + length - 1] != body[at] || body[at + length - 2] != 0x0D {
-            return Err(format!("Line {} of the program is damaged, so the listing stops there.", lines.len() + 1));
+            return Err(crate::i18n::tf!("Line {} of the program is damaged, so the listing stops there.", lines.len() + 1));
         }
         let tokens = &body[at + 1..at + length - 2];
         let first = tokens.first().copied().unwrap_or(0);
@@ -265,10 +265,10 @@ pub fn tokenise<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
         if text.trim().is_empty() {
             continue;
         }
-        let tokens = tokenise_line(text).map_err(|why| format!("Line {}: {why}", index + 1))?;
+        let tokens = tokenise_line(text).map_err(|why| crate::i18n::tf!("Line {}: {why}", index + 1))?;
         let length = tokens.len() + 3;
         if length > 255 {
-            return Err(format!("Line {} is too long for OpticBASIC: a line can be 252 bytes once tokenised.", index + 1));
+            return Err(crate::i18n::tf!("Line {} is too long for OpticBASIC: a line can be 252 bytes once tokenised.", index + 1));
         }
         out.push(length as u8);
         out.extend(tokens);
@@ -277,7 +277,7 @@ pub fn tokenise<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
     }
     out.push(0);
     if out.len() > 40_000 {
-        return Err("The program is bigger than a 48K Spectrum has room for.".into());
+        return Err(crate::i18n::tr("The program is bigger than a 48K Spectrum has room for.").into());
     }
     Ok(out)
 }
@@ -285,7 +285,7 @@ pub fn tokenise<S: AsRef<str>>(lines: &[S]) -> Result<Vec<u8>, String> {
 /// One line's tokens, without its length bytes and $0D.
 pub fn tokenise_line(text: &str) -> Result<Vec<u8>, String> {
     let chars: Vec<char> = text.chars().collect();
-    let byte = |c: char| -> Result<u8, String> { u8::try_from(u32::from(c)).ok().filter(|b| *b >= 0x20 && *b < 0x80).ok_or_else(|| format!("{c} isn't a character OpticBASIC has")) };
+    let byte = |c: char| -> Result<u8, String> { u8::try_from(u32::from(c)).ok().filter(|b| *b >= 0x20 && *b < 0x80).ok_or_else(|| crate::i18n::tf!("{c} isn't a character OpticBASIC has")) };
     let mut out = Vec::new();
     let mut at = 0;
     let mut statement_start = true;
@@ -312,7 +312,7 @@ pub fn tokenise_line(text: &str) -> Result<Vec<u8>, String> {
                 let mut text = Vec::new();
                 loop {
                     let Some(c) = chars.get(at).copied() else {
-                        return Err("a string isn't closed with \"".into());
+                        return Err(crate::i18n::tr("a string isn't closed with \"").into());
                     };
                     at += 1;
                     if c == '"' {
@@ -325,7 +325,7 @@ pub fn tokenise_line(text: &str) -> Result<Vec<u8>, String> {
                     text.push(byte(c)?);
                 }
                 if text.len() > 255 {
-                    return Err("a string can be 255 characters".into());
+                    return Err(crate::i18n::tr("a string can be 255 characters").into());
                 }
                 out.push(6);
                 out.push(text.len() as u8);
@@ -350,10 +350,10 @@ pub fn tokenise_line(text: &str) -> Result<Vec<u8>, String> {
                     at += 1;
                 }
                 if at == start {
-                    return Err(format!("{c} needs {} digits after it", if radix == 2 { "binary" } else { "hex" }));
+                    return Err(crate::i18n::tf!("{c} needs {} digits after it", if radix == 2 { "binary" } else { "hex" }));
                 }
                 let digits: String = chars[start..at].iter().collect();
-                let value = u32::from_str_radix(&digits, radix).map_err(|_| format!("{c}{digits} isn't a number"))? & 0xFFFF;
+                let value = u32::from_str_radix(&digits, radix).map_err(|_| crate::i18n::tf!("{c}{digits} isn't a number"))? & 0xFFFF;
                 out.push(kind);
                 out.extend((value as u16).to_le_bytes());
             }
@@ -369,7 +369,7 @@ pub fn tokenise_line(text: &str) -> Result<Vec<u8>, String> {
                     }
                 }
                 let text: String = chars[start..at].iter().collect();
-                let value: f64 = text.parse().map_err(|_| format!("{text} isn't a number"))?;
+                let value: f64 = text.parse().map_err(|_| crate::i18n::tf!("{text} isn't a number"))?;
                 let bytes = float_bytes(value);
                 // A whole number from 0 to 65535 is kept as two bytes.
                 if value.fract() == 0.0 && (0.0..=65535.0).contains(&value) {
@@ -391,7 +391,7 @@ pub fn tokenise_line(text: &str) -> Result<Vec<u8>, String> {
                     at += 1;
                 }
                 if word.chars().count() > 31 {
-                    return Err(format!("{word} is longer than the 31 characters a name can have"));
+                    return Err(crate::i18n::tf!("{word} is longer than the 31 characters a name can have"));
                 }
                 let upper = word.to_ascii_uppercase();
                 if let Some(index) = KEYWORDS.iter().position(|k| *k == upper) {

@@ -30,20 +30,20 @@ pub fn blank() -> Vec<u8> {
 impl Disk {
     pub fn open(bytes: Vec<u8>, ending: &str) -> Result<Self, String> {
         if ending == "vdk" || bytes.starts_with(b"dk") {
-            return Err("Only JVC images of RS-DOS disks are changed here, not VDK.".into());
+            return Err(crate::i18n::tr("Only JVC images of RS-DOS disks are changed here, not VDK.").into());
         }
         let header = bytes.len() % 256;
         if header >= 1 && bytes[0] != 18 || header >= 2 && bytes[1] != 1 {
-            return Err("Only single-sided RS-DOS disks of 18 sectors a track are changed here.".into());
+            return Err(crate::i18n::tr("Only single-sided RS-DOS disks of 18 sectors a track are changed here.").into());
         }
         let tracks = (bytes.len() - header) / (18 * 256);
         if !(35..=80).contains(&tracks) || !(bytes.len() - header).is_multiple_of(18 * 256) {
-            return Err("This disk image isn't a whole number of 18-sector tracks.".into());
+            return Err(crate::i18n::tr("This disk image isn't a whole number of 18-sector tracks.").into());
         }
         // The reader decides what's on the disk: only RS-DOS is written.
         let volume = super::super::coco::Coco::open(std::sync::Arc::new(bytes.clone()), ending)?;
         if !super::super::Volume::describe(&volume).contains("RS-DOS") {
-            return Err("This disk isn't RS-DOS (it's Dragon DOS or OS-9), so it's only read.".into());
+            return Err(crate::i18n::tr("This disk isn't RS-DOS (it's Dragon DOS or OS-9), so it's only read.").into());
         }
         Ok(Self { bytes, header, granules: ((tracks - 1) * 2).min(256 - 64) })
     }
@@ -133,7 +133,7 @@ fn dos_name(name: &str) -> Result<[u8; 11], String> {
     let part = |text: &str, most: usize| -> String { text.chars().map(|c| c.to_ascii_uppercase()).filter(|c| c.is_ascii_graphic() && !"./:\"".contains(*c)).take(most).collect() };
     let (stem, ending) = (part(stem, 8), part(ending, 3));
     if stem.is_empty() {
-        return Err(format!("\"{name}\" has no characters an RS-DOS name can hold."));
+        return Err(crate::i18n::tf!("\"{name}\" has no characters an RS-DOS name can hold."));
     }
     let mut out = [b' '; 11];
     out[..stem.len()].copy_from_slice(stem.as_bytes());
@@ -207,7 +207,7 @@ impl ImageWriter for Disk {
         if kind == 2 && !is_loadm(&bytes) {
             let address = file.address.unwrap_or(0x0E00);
             if bytes.len() > 0xFFFF {
-                return Err("A machine-code block can't be 64K or more.".into());
+                return Err(crate::i18n::tr("A machine-code block can't be 64K or more.").into());
             }
             let mut wrapped = vec![0x00];
             wrapped.extend((bytes.len() as u16).to_be_bytes());
@@ -226,9 +226,9 @@ impl ImageWriter for Disk {
         let needed = sectors.div_ceil(9).max(1);
         let free = self.free_order();
         if needed > free.len() {
-            return Err(format!("{} needs {needed} granules; the disk has {} free.", file.name, free.len()));
+            return Err(crate::i18n::tf!("{} needs {needed} granules; the disk has {} free.", file.name, free.len()));
         }
-        let slot = self.slots().into_iter().find(|s| matches!(self.bytes[*s], 0 | 0xFF)).ok_or("The directory is full: RS-DOS holds 72 files.")?;
+        let slot = self.slots().into_iter().find(|s| matches!(self.bytes[*s], 0 | 0xFF)).ok_or(crate::i18n::tr("The directory is full: RS-DOS holds 72 files."))?;
         let chain = &free[..needed];
         for (i, granule) in chain.iter().enumerate() {
             let at = self.granule_at(*granule);
@@ -253,13 +253,13 @@ impl ImageWriter for Disk {
     }
 
     fn delete(&mut self, _folder: Option<&Entry>, entry: &Entry) -> Result<(), String> {
-        let slot = self.find(&entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let slot = self.find(&entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         self.remove(slot);
         Ok(())
     }
 
     fn rename(&mut self, _folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
-        let slot = self.find(&entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))?;
+        let slot = self.find(&entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))?;
         let new = dos_name(name)?;
         if self.find(&shown(&new)).is_some_and(|other| other != slot) {
             return Err(already(&shown(&new)));

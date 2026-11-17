@@ -427,7 +427,7 @@ fn lha_method(bytes: &[u8]) -> Option<String> {
 /// The first file in an LHA archive.
 fn from_lha(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let volume = crate::media::open(std::sync::Arc::new(bytes.to_vec()), "music.lha")?;
-    let first = volume.list(None)?.into_iter().find(|e| !e.is_dir).ok_or("The LHA archive is empty.")?;
+    let first = volume.list(None)?.into_iter().find(|e| !e.is_dir).ok_or(crate::i18n::tr("The LHA archive is empty."))?;
     volume.read(&first)
 }
 
@@ -447,7 +447,7 @@ pub fn read_ym(bytes: &[u8]) -> Result<Ym, String> {
         bytes
     };
     if !is_ym(bytes) {
-        return Err("This isn't a YM file: it doesn't start with YM2!, YM3!, YM3b, YM5! or YM6!.".into());
+        return Err(crate::i18n::tr("This isn't a YM file: it doesn't start with YM2!, YM3!, YM3b, YM5! or YM6!.").into());
     }
     let format = String::from_utf8_lossy(&bytes[..4]).into_owned();
     let mut ym = Ym { format: format.clone(), packed, size: bytes.len() as u64, rate: 50, clock: 2_000_000, ..Ym::default() };
@@ -455,7 +455,7 @@ pub fn read_ym(bytes: &[u8]) -> Result<Ym, String> {
         "YM2!" | "YM3!" | "YM3b" => {
             let tail = if format == "YM3b" { 4 } else { 0 };
             if bytes.len() < 4 + tail {
-                return Err("The YM file is too short.".into());
+                return Err(crate::i18n::tr("The YM file is too short.").into());
             }
             let body = (bytes.len() - 4 - tail) as u64;
             ym.registers = 14;
@@ -487,7 +487,7 @@ pub fn read_ym(bytes: &[u8]) -> Result<Ym, String> {
 fn read_other(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
     let short = || "The YM file stops in the middle of its header.".to_string();
     if bytes.len() < 32 || &bytes[4..12] != b"LeOnArD!" {
-        return Err("The YM file's header is damaged: there's no LeOnArD! after its mark.".into());
+        return Err(crate::i18n::tr("The YM file's header is damaged: there's no LeOnArD! after its mark.").into());
     }
     let long = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]])).ok_or_else(short);
     let word = |at: usize| bytes.get(at..at + 2).map(|b| u32::from(u16::from_be_bytes([b[0], b[1]]))).ok_or_else(short);
@@ -523,7 +523,7 @@ fn read_other(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
 
 fn read_ym5(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
     if bytes.len() < 34 || &bytes[4..12] != b"LeOnArD!" {
-        return Err("The YM file's header is damaged: there's no LeOnArD! after its mark.".into());
+        return Err(crate::i18n::tr("The YM file's header is damaged: there's no LeOnArD! after its mark.").into());
     }
     let long = |at: usize| u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
     let word = |at: usize| u32::from(u16::from_be_bytes([bytes[at], bytes[at + 1]]));

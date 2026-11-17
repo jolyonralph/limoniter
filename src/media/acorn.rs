@@ -155,7 +155,7 @@ fn read_catalogue(sector: &dyn Fn(u32) -> Result<Vec<u8>, String>) -> Result<Dfs
     let sectors = (u32::from(s1[6] & 3) << 8) | u32::from(s1[7]);
     // Even an empty disk counts its sectors; none at all is an unformatted side or something else.
     if sectors < 2 {
-        return Err("This isn't a DFS catalogue: it says the disk has no sectors.".into());
+        return Err(crate::i18n::tr("This isn't a DFS catalogue: it says the disk has no sectors.").into());
     }
     let mut side = DfsSide { title: acorn_text(&[&s0[..8], &s1[..4]].concat(), true), files: Vec::new(), sectors, boot: (s1[6] >> 4) & 3, watford: false };
     let mut catalogues = vec![(s0, s1)];
@@ -169,14 +169,14 @@ fn read_catalogue(sector: &dyn Fn(u32) -> Result<Vec<u8>, String>) -> Result<Dfs
     for (names, info) in &catalogues {
         let count = usize::from(info[5]);
         if !count.is_multiple_of(8) || count > 31 * 8 {
-            return Err("This isn't a DFS catalogue: its file count isn't a whole number of entries.".into());
+            return Err(crate::i18n::tr("This isn't a DFS catalogue: its file count isn't a whole number of entries.").into());
         }
         for at in (8..8 + count).step_by(8) {
             let (name, about) = (&names[at..at + 8], &info[at..at + 8]);
             let shown = acorn_text(&name[..7], true);
             let folder = name[7] & 0x7F;
             if name[..7].iter().any(|b| !(0x20..0x7F).contains(&(b & 0x7F))) || !(0x21..0x7F).contains(&folder) {
-                return Err("This isn't a DFS catalogue: a file name has characters a name can't.".into());
+                return Err(crate::i18n::tr("This isn't a DFS catalogue: a file name has characters a name can't.").into());
             }
             let high = about[6];
             let wide = |bits: u8, low: u64| -> u32 {
@@ -194,7 +194,7 @@ fn read_catalogue(sector: &dyn Fn(u32) -> Result<Vec<u8>, String>) -> Result<Dfs
             };
             let first = if side.watford { 4 } else { 2 };
             if file.start < first || file.start + file.length.div_ceil(256) > sectors.max(2) {
-                return Err(format!("This isn't a DFS catalogue: {} lies outside the disk.", file.name));
+                return Err(crate::i18n::tf!("This isn't a DFS catalogue: {} lies outside the disk.", file.name));
             }
             side.files.push(file);
         }
@@ -230,7 +230,7 @@ impl Dfs {
     }
 
     fn sector(&self, side: u8, sector: u32) -> Result<Vec<u8>, String> {
-        self.source.read_vec(self.offset(side, sector), 256).map_err(|_| format!("Sector {sector} is past the end of the image."))
+        self.source.read_vec(self.offset(side, sector), 256).map_err(|_| crate::i18n::tf!("Sector {sector} is past the end of the image."))
     }
 
     fn side(&self, side: u8) -> Result<&DfsSide, String> {
@@ -244,7 +244,7 @@ impl Dfs {
             let want = (file.length as usize - out.len()).min(256);
             let at = self.offset(side, sector);
             if at + want as u64 > self.source.len() {
-                return Err(format!("{} runs past the end of the image, which has been cut short.", file.name));
+                return Err(crate::i18n::tf!("{} runs past the end of the image, which has been cut short.", file.name));
             }
             out.extend(self.source.read_vec(at, want)?);
             sector += 1;
@@ -305,7 +305,7 @@ impl Volume for Dfs {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         let side = entry.extra as u8;
-        let file = self.side(side)?.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.side(side)?.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         self.file_bytes(side, file)
     }
 
@@ -414,7 +414,7 @@ impl Map {
         let idlen = record.idlen as u64;
         let mut zones = Vec::new();
         for zone in 0..nzones {
-            let bytes = source.read_vec(map_start + zone * secsize, secsize as usize).map_err(|_| format!("Zone {zone} of the map is past the end of the image."))?;
+            let bytes = source.read_vec(map_start + zone * secsize, secsize as usize).map_err(|_| crate::i18n::tf!("Zone {zone} of the map is past the end of the image."))?;
             // Zone 0 holds the disc record after its header, which the map's bits step over.
             let (start_bit, start_block) = if zone == 0 { (32 + RECORD_BITS, 0) } else { (32, zone * zone_bits - RECORD_BITS) };
             let end_bit = (32 + zone_bits).min(start_bit + total_blocks.saturating_sub(start_block)).min(secsize * 8);
@@ -507,7 +507,7 @@ impl Adfs {
                 continue;
             };
             if record.big_directories {
-                return Err("This disc uses RISC OS 4's big directories (E+ or F+), which Limoniter can't read yet.".into());
+                return Err(crate::i18n::tr("This disc uses RISC OS 4's big directories (E+ or F+), which Limoniter can't read yet.").into());
             }
             let size = record.disc_size;
             let what = match (size, record.log2secsize) {
@@ -516,13 +516,13 @@ impl Adfs {
                 _ => format!("ADFS new map, {} sectors of {} bytes", size >> record.log2secsize, 1u32 << record.log2secsize),
             };
             if size > len.max(1) * 2 {
-                return Err(format!("This disc's record says it holds {size} bytes, and the image is {len}."));
+                return Err(crate::i18n::tf!("This disc's record says it holds {size} bytes, and the image is {len}."));
             }
             let root = record.root;
             let map = Map::read(&*source, record)?;
             return Self::finish(source, Space::New(map), DirKind::New, root, what);
         }
-        Err("This isn't an ADFS disc: there's no root directory or disc record where ADFS keeps them.".into())
+        Err(crate::i18n::tr("This isn't an ADFS disc: there's no root directory or disc record where ADFS keeps them.").into())
     }
 
     fn finish(source: Arc<dyn Source>, space: Space, dirs: DirKind, root: u32, what: String) -> Result<Self, String> {
@@ -539,13 +539,13 @@ impl Adfs {
     /// An object's first `length` bytes, from its disc address.
     fn object(&self, address: u32, length: u64) -> Result<Vec<u8>, String> {
         if length > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         match &self.space {
             Space::Old => {
                 let at = u64::from(address) * 256;
                 if at + length > self.source.len() {
-                    return Err("The file runs past the end of the image.".into());
+                    return Err(crate::i18n::tr("The file runs past the end of the image.").into());
                 }
                 self.source.read_vec(at, length as usize)
             }
@@ -560,7 +560,7 @@ impl Adfs {
                 let mut out = Vec::with_capacity(length as usize);
                 let extents = map.extents(address >> 8);
                 if extents.is_empty() {
-                    return Err(format!("Fragment {} isn't in the map, so the disc is damaged.", address >> 8));
+                    return Err(crate::i18n::tf!("Fragment {} isn't in the map, so the disc is damaged.", address >> 8));
                 }
                 for (start, size) in extents {
                     if out.len() as u64 >= length {
@@ -572,13 +572,13 @@ impl Adfs {
                     }
                     let take = (size - skip).min(length - out.len() as u64);
                     if start + skip + take > self.source.len() {
-                        return Err("The file runs past the end of the image.".into());
+                        return Err(crate::i18n::tr("The file runs past the end of the image.").into());
                     }
                     out.extend(self.source.read_vec(start + skip, take as usize)?);
                     skip = 0;
                 }
                 if (out.len() as u64) < length {
-                    return Err("The map gives this file less space than its length, so the disc is damaged.".into());
+                    return Err(crate::i18n::tr("The map gives this file less space than its length, so the disc is damaged.").into());
                 }
                 Ok(out)
             }
@@ -592,7 +592,7 @@ impl Adfs {
         let mark: &[u8] = if kind == DirKind::Old { b"Hugo" } else { b"Nick" };
         let (tail_mark, tail_sequence) = (&bytes[size - 5..size - 1], bytes[size - 6]);
         if &bytes[1..5] != mark || tail_mark != mark || bytes[0] != tail_sequence {
-            return Err("This directory is broken: its start and end don't match, as ADFS would say.".into());
+            return Err(crate::i18n::tr("This directory is broken: its start and end don't match, as ADFS would say.").into());
         }
         let title = match kind {
             DirKind::Old => acorn_text(&bytes[0x4D9..0x4EC], true),
@@ -763,7 +763,7 @@ impl Uef {
             bytes = super::amiga::gunzip(&bytes)?;
         }
         if !bytes.starts_with(b"UEF File!\0") || bytes.len() < 12 {
-            return Err("This isn't a UEF tape image: it doesn't start with \"UEF File!\".".into());
+            return Err(crate::i18n::tr("This isn't a UEF tape image: it doesn't start with \"UEF File!\".").into());
         }
         let version = format!("{}.{}", bytes[11], bytes[10]);
         // The bytes the tape holds, from the chunks that hold them as bytes, run together: a block can be split
@@ -855,7 +855,7 @@ impl Volume for Uef {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the tape.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the tape."))?;
         match &file.problem {
             Some(problem) => Err(problem.clone()),
             None => Ok(file.data.clone()),

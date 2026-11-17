@@ -98,6 +98,8 @@ pub struct Prefs {
     pub opticos_updates: bool,
     /// Once a day, GitHub is asked whether there's a newer Limoniter.
     pub update_checks: bool,
+    /// The language the words are in, by its code (en, de, es, fr, it).
+    pub language: &'static str,
 }
 
 /// How long autosave waits, in seconds.
@@ -105,7 +107,7 @@ pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, opticos_updates: true, update_checks: true }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, opticos_updates: true, update_checks: true, language: "en" }
     }
 }
 
@@ -113,7 +115,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\nupdate_checks={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -144,7 +146,8 @@ impl Prefs {
             self.backup_on_save,
             self.zx_notation.id(),
             self.opticos_updates,
-            self.update_checks
+            self.update_checks,
+            self.language
         )
     }
 
@@ -201,6 +204,12 @@ impl Prefs {
                 "autosave_seconds" => {
                     if let Some(seconds) = value.parse().ok().filter(|seconds| AUTOSAVE_TIMES.contains(seconds)) {
                         prefs.autosave_seconds = seconds;
+                    }
+                    continue;
+                }
+                "language" => {
+                    if let Some(language) = crate::i18n::LANGUAGES.iter().find(|l| l.code == value) {
+                        prefs.language = language.code;
                     }
                     continue;
                 }
@@ -341,6 +350,7 @@ pub struct WindowState {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Special {
+    Language,
     Theme,
     Font,
     TextSize,
@@ -373,7 +383,8 @@ enum Row {
 
 impl Row {
     fn matches(&self, find: &str) -> bool {
-        let lower = |text: &str| text.to_lowercase().contains(find);
+        // Found by its words in English or in the language chosen.
+        let lower = |text: &str| text.to_lowercase().contains(find) || crate::i18n::tr(text).to_lowercase().contains(find);
         match self {
             Row::Heading(_) => false,
             Row::Flag(label, tip, _) => lower(label) || lower(tip),
@@ -386,6 +397,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
     (
         "Appearance",
         &[
+            Row::Special("Language", Special::Language),
             Row::Special("Color theme", Special::Theme),
             Row::Special("Editor font", Special::Font),
             Row::Special("Text size", Special::TextSize),
@@ -475,23 +487,23 @@ const SECTIONS: [(&str, &[Row]); 6] = [
 ];
 
 fn draw_file_types(ui: &mut Ui, label: &str, types: &mut FileTypesState, outcome: &mut Option<Outcome>) {
-    ui.label(label);
+    ui.label(crate::i18n::tr(label));
     // From the Store, the package says which types Limoniter opens; Windows' own page makes it the default.
     if crate::platform::from_store() {
-        ui.label(RichText::new("Limoniter is offered for text, code, data, BASIC, tape, disk and ANSI files. To make it the one they open in, choose it for each type in Windows' Default apps.").color(theme::text_dim()));
-        if ui.button("Open Default apps").clicked() {
+        ui.label(RichText::new(crate::i18n::tr("Limoniter is offered for text, code, data, BASIC, tape, disk and ANSI files. To make it the one they open in, choose it for each type in Windows' Default apps.")).color(theme::text_dim()));
+        if ui.button(crate::i18n::tr("Open Default apps")).clicked() {
             let _ = crate::platform::open_web_page("ms-settings:defaultapps");
         }
         return;
     }
-    ui.label(RichText::new("Windows only lets you change a default yourself. Choose types here, then pick Limoniter for each one on the Windows page that opens.").color(theme::text_dim()));
+    ui.label(RichText::new(crate::i18n::tr("Windows only lets you change a default yourself. Choose types here, then pick Limoniter for each one on the Windows page that opens.")).color(theme::text_dim()));
     ui.add_space(6.0);
     for (group, names) in associations::COMMON_TYPES {
         ui.label(RichText::new(group).color(theme::text_faint()));
         ui.horizontal_wrapped(|ui| {
             for name in names {
                 let mut on = types.ticked.contains(*name);
-                if ui.checkbox(&mut on, *name).changed() {
+                if ui.checkbox(&mut on, crate::i18n::tr(name)).changed() {
                     if on {
                         types.ticked.insert((*name).to_string());
                     } else {
@@ -502,28 +514,28 @@ fn draw_file_types(ui: &mut Ui, label: &str, types: &mut FileTypesState, outcome
         });
     }
     ui.add_space(4.0);
-    ui.label("Other types, separated by commas:");
+    ui.label(crate::i18n::tr("Other types, separated by commas:"));
     ui.add(egui::TextEdit::singleline(&mut types.others).desired_width(300.0));
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        if ui.button("Set as default...").on_hover_text("Registers Limoniter for the ticked types, then opens the Windows page to choose it").clicked() {
+        if ui.button(crate::i18n::tr("Set as default...")).on_hover_text(crate::i18n::tr("Registers Limoniter for the ticked types, then opens the Windows page to choose it")).clicked() {
             *outcome = Some(Outcome::SetFileTypes);
         }
-        if ui.button("Open Windows settings").clicked() {
+        if ui.button(crate::i18n::tr("Open Windows settings")).clicked() {
             *outcome = Some(Outcome::OpenWindowsPage);
         }
-        if ui.add_enabled(!types.registered.is_empty(), Button::new("Remove from Windows")).on_hover_text("Takes away everything Limoniter registered").clicked() {
+        if ui.add_enabled(!types.registered.is_empty(), Button::new(crate::i18n::tr("Remove from Windows"))).on_hover_text(crate::i18n::tr("Takes away everything Limoniter registered")).clicked() {
             *outcome = Some(Outcome::RemoveFileTypes);
         }
     });
     ui.add_space(4.0);
     if types.registered.is_empty() {
-        ui.label(RichText::new("Not registered with Windows yet.").color(theme::text_faint()));
+        ui.label(RichText::new(crate::i18n::tr("Not registered with Windows yet.")).color(theme::text_faint()));
     } else {
-        ui.label(RichText::new(format!("Registered with Windows: {}", types.registered.join(", "))).color(theme::text_faint()));
+        ui.label(RichText::new(crate::i18n::tf!("Registered with Windows: {}", types.registered.join(", "))).color(theme::text_faint()));
     }
     if !types.program.is_empty() {
-        ui.label(RichText::new(format!("This copy of the program: {}. If it moves, press Set as default again.", types.program)).color(theme::text_faint()));
+        ui.label(RichText::new(crate::i18n::tf!("This copy of the program: {}. If it moves, press Set as default again.", types.program)).color(theme::text_faint()));
     }
     if !types.status.is_empty() {
         ui.add_space(4.0);
@@ -533,18 +545,37 @@ fn draw_file_types(ui: &mut Ui, label: &str, types: &mut FileTypesState, outcome
 
 fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>, outcome: &mut Option<Outcome>) {
     ui.horizontal(|ui| {
-        ui.label(label);
+        // The language's row has a globe beside it, found whatever language it's in.
+        if kind == Special::Language {
+            ui.label(format!("\u{1F310} {}", crate::i18n::tr(label)));
+        } else {
+            ui.label(crate::i18n::tr(label));
+        }
         ui.add_space(8.0);
         match kind {
+            Special::Language => {
+                // Each language by its own name, so the way back can always be read.
+                let mut chosen = target.prefs.language;
+                let shown = crate::i18n::LANGUAGES.iter().find(|l| l.code == chosen).map_or("English", |l| l.name);
+                egui::ComboBox::from_id_salt("settings-language").selected_text(shown).show_ui(ui, |ui| {
+                    for language in &crate::i18n::LANGUAGES {
+                        ui.selectable_value(&mut chosen, language.code, language.name);
+                    }
+                });
+                if chosen != target.prefs.language {
+                    target.prefs.language = chosen;
+                    crate::i18n::set(chosen);
+                }
+            }
             Special::Theme => {
-                if ui.button("Themes\u{2026}").on_hover_text("Window and document themes, and which documents get which. Also under View, Theme.").clicked() {
+                if ui.button(crate::i18n::tr("Themes\u{2026}")).on_hover_text(crate::i18n::tr("Window and document themes, and which documents get which. Also under View, Theme.")).clicked() {
                     *outcome = Some(Outcome::Themes);
                 }
             }
             Special::Font => {
                 let name = target.font.and_then(Path::file_stem).map_or_else(|| "Consolas".to_string(), |stem| stem.to_string_lossy().into_owned());
                 ui.label(RichText::new(name).color(theme::text_dim()));
-                if ui.button("Choose...").clicked() {
+                if ui.button(crate::i18n::tr("Choose...")).clicked() {
                     *outcome = Some(Outcome::ChooseFont);
                 }
             }
@@ -562,15 +593,15 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                 let id = egui::Id::unique("settings marker columns");
                 let mut typed = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| target.view.marker_columns.to_string());
                 let valid = crate::views::MarkerColumns::parse(&typed);
-                let edit = egui::TextEdit::singleline(&mut typed).desired_width(140.0).hint_text("72, 80");
-                let response = ui.add_enabled(target.view.column_markers, edit).on_hover_text("Up to eight columns, between commas: 7, 72 and 80 for COBOL, 72 for commit messages");
+                let edit = egui::TextEdit::singleline(&mut typed).desired_width(140.0).hint_text(crate::i18n::tr("72, 80"));
+                let response = ui.add_enabled(target.view.column_markers, edit).on_hover_text(crate::i18n::tr("Up to eight columns, between commas: 7, 72 and 80 for COBOL, 72 for commit messages"));
                 if response.changed()
                     && let Some(columns) = crate::views::MarkerColumns::parse(&typed)
                 {
                     target.view.marker_columns = columns;
                 }
                 if valid.is_none() {
-                    ui.label(RichText::new("Numbers from 1 to 9999, up to eight").color(theme::text_faint()));
+                    ui.label(RichText::new(crate::i18n::tr("Numbers from 1 to 9999, up to eight")).color(theme::text_faint()));
                 }
                 if response.has_focus() {
                     ui.data_mut(|d| d.insert_temp(id, typed));
@@ -582,7 +613,7 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                 ui.add_enabled_ui(target.prefs.autosave, |ui| {
                     for seconds in AUTOSAVE_TIMES {
                         let label = if seconds < 60 { format!("{seconds} seconds") } else if seconds == 60 { "1 minute".to_string() } else { format!("{} minutes", seconds / 60) };
-                        ui.radio_value(&mut target.prefs.autosave_seconds, seconds, label);
+                        ui.radio_value(&mut target.prefs.autosave_seconds, seconds, crate::i18n::tr(&label));
                     }
                 });
             }
@@ -593,13 +624,13 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             }
             Special::Preset => {
                 ui.label(RichText::new(target.new_file_preset).color(theme::text_dim()));
-                if ui.button("Choose...").clicked() {
+                if ui.button(crate::i18n::tr("Choose...")).clicked() {
                     *outcome = Some(Outcome::ChoosePreset);
                 }
             }
             Special::ClearRecent => {
-                ui.label(RichText::new(format!("{} listed", target.recent_files)).color(theme::text_dim()));
-                if ui.add_enabled(target.recent_files > 0, Button::new("Clear the list")).clicked() {
+                ui.label(RichText::new(crate::i18n::tf!("{} listed", target.recent_files)).color(theme::text_dim()));
+                if ui.add_enabled(target.recent_files > 0, Button::new(crate::i18n::tr("Clear the list"))).clicked() {
                     *outcome = Some(Outcome::ClearRecent);
                 }
             }
@@ -611,21 +642,21 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                 });
             }
             Special::LanguageServers => {
-                ui.checkbox(target.language_servers, "Use them").on_hover_text("Completion, hover, go to definition, uses, renaming and problems for C, C++, Rust, Python, JavaScript, Go and others, from the server for the file's language (rust-analyzer, clangd, pylsp...), started in the project's folder. They're programs of their own, installed separately; Limoniter only starts those listed");
-                if ui.button("Which\u{2026}").clicked() {
+                ui.checkbox(target.language_servers, crate::i18n::tr("Use them")).on_hover_text(crate::i18n::tr("Completion, hover, go to definition, uses, renaming and problems for C, C++, Rust, Python, JavaScript, Go and others, from the server for the file's language (rust-analyzer, clangd, pylsp...), started in the project's folder. They're programs of their own, installed separately; Limoniter only starts those listed"));
+                if ui.button(crate::i18n::tr("Which\u{2026}")).clicked() {
                     *outcome = Some(Outcome::LanguageServers);
                 }
             }
             Special::NewKinds => {
-                if ui.button("Change the list\u{2026}").on_hover_text("Each kind is a file ending, an encoding, line endings, colouring, and text to start with").clicked() {
+                if ui.button(crate::i18n::tr("Change the list\u{2026}")).on_hover_text(crate::i18n::tr("Each kind is a file ending, an encoding, line endings, colouring, and text to start with")).clicked() {
                     *outcome = Some(Outcome::NewKinds);
                 }
             }
             Special::OwnGrammars => {
                 ui.vertical(|ui| {
                     let folder = crate::highlight::grammars_folder();
-                    let button = Button::new("Open the folder");
-                    if ui.add_enabled(folder.is_some(), button).on_hover_text("Put Sublime Text grammars (.sublime-syntax files) here, and Limoniter reads them when it next starts. For a file ending both know, yours is used").clicked()
+                    let button = Button::new(crate::i18n::tr("Open the folder"));
+                    if ui.add_enabled(folder.is_some(), button).on_hover_text(crate::i18n::tr("Put Sublime Text grammars (.sublime-syntax files) here, and Limoniter reads them when it next starts. For a file ending both know, yours is used")).clicked()
                         && let Some(folder) = &folder
                     {
                         let _ = std::fs::create_dir_all(folder);
@@ -643,29 +674,29 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                 });
             }
             Special::Assemblers => {
-                if ui.button("Choose\u{2026}").on_hover_text("Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers").clicked() {
+                if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers")).clicked() {
                     *outcome = Some(Outcome::Assemblers);
                 }
             }
             Special::AmigaNdk => {
-                if ui.button("Amiga NDK\u{2026}").on_hover_text("System functions' prototypes, offsets, registers and autodocs for 68000 and C source, from Hyperion's NDK for AmigaOS 3.2, downloaded from Aminet when you ask").clicked() {
+                if ui.button(crate::i18n::tr("Amiga NDK\u{2026}")).on_hover_text(crate::i18n::tr("System functions' prototypes, offsets, registers and autodocs for 68000 and C source, from Hyperion's NDK for AmigaOS 3.2, downloaded from Aminet when you ask")).clicked() {
                     *outcome = Some(Outcome::AmigaNdk);
                 }
             }
             Special::AmigaTools => {
-                if ui.button("Amiga crunchers and music\u{2026}").on_hover_text("Shrinkler and Cranker for programs (and crunching what F9 builds), LSPConvert and P61Con for music modules: where they are, and their options").clicked() {
+                if ui.button(crate::i18n::tr("Amiga crunchers and music\u{2026}")).on_hover_text(crate::i18n::tr("Shrinkler and Cranker for programs (and crunching what F9 builds), LSPConvert and P61Con for music modules: where they are, and their options")).clicked() {
                     *outcome = Some(Outcome::AmigaTools);
                 }
             }
             Special::ZxNotation => {
-                egui::ComboBox::from_id_salt("zx-notation").width(260.0).selected_text(target.prefs.zx_notation.label()).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt("zx-notation").width(260.0).selected_text(crate::i18n::tr(target.prefs.zx_notation.label())).show_ui(ui, |ui| {
                     for notation in crate::zx_graphics::Notation::ALL {
-                        ui.selectable_value(&mut target.prefs.zx_notation, notation, notation.label());
+                        ui.selectable_value(&mut target.prefs.zx_notation, notation, crate::i18n::tr(notation.label()));
                     }
                 });
             }
             Special::CompareRules => {
-                if ui.button("Rules for comparing files\u{2026}").on_hover_text("By name: text leaving out spaces, case, line endings or lines such as timestamps; bytes; pictures; size and time only; or files always left out, such as *.o and target/. Each folder comparison starts with these, and can have its own").clicked() {
+                if ui.button(crate::i18n::tr("Rules for comparing files\u{2026}")).on_hover_text(crate::i18n::tr("By name: text leaving out spaces, case, line endings or lines such as timestamps; bytes; pictures; size and time only; or files always left out, such as *.o and target/. Each folder comparison starts with these, and can have its own")).clicked() {
                     *outcome = Some(Outcome::CompareRules);
                 }
             }
@@ -680,10 +711,10 @@ fn draw_row(ui: &mut Ui, row: Row, target: &mut Target<'_>, types: &mut FileType
         Row::Special(label, Special::FileTypes) => draw_file_types(ui, label, types, outcome),
         Row::Heading(text) => {
             ui.add_space(8.0);
-            ui.label(RichText::new(text).color(theme::text_dim()));
+            ui.label(RichText::new(crate::i18n::tr(text)).color(theme::text_dim()));
         }
         Row::Flag(label, tip, value) => {
-            ui.checkbox(value(target), label).on_hover_text(tip);
+            ui.checkbox(value(target), crate::i18n::tr(label)).on_hover_text(crate::i18n::tr(tip));
         }
         Row::Special(label, kind) => draw_special(ui, label, kind, target, outcome),
     }
@@ -692,11 +723,11 @@ fn draw_row(ui: &mut Ui, row: Row, target: &mut Target<'_>, types: &mut FileType
 /// Draws the window. Changes apply straight away, so there's only Close.
 pub fn window(ctx: &Context, state: &mut WindowState, target: &mut Target<'_>) -> Option<Outcome> {
     let mut outcome = ctx.input(|i| i.key_pressed(egui::Key::Escape)).then_some(Outcome::Close);
-    egui::Window::new("Settings").collapsible(false).resizable(false).fixed_size(vec2(680.0, 470.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+    egui::Window::new(crate::i18n::tr("Settings")).collapsible(false).resizable(false).fixed_size(vec2(680.0, 470.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(150.0);
-                let field = ui.add(egui::TextEdit::singleline(&mut state.find).hint_text("Find a setting").desired_width(150.0));
+                let field = ui.add(egui::TextEdit::singleline(&mut state.find).hint_text(crate::i18n::tr("Find a setting")).desired_width(150.0));
                 if state.focus {
                     field.request_focus();
                     state.focus = false;
@@ -704,7 +735,7 @@ pub fn window(ctx: &Context, state: &mut WindowState, target: &mut Target<'_>) -
                 ui.add_space(6.0);
                 for (place, (name, _)) in SECTIONS.iter().enumerate() {
                     let on = state.find.is_empty() && state.section == place;
-                    if ui.add(Button::selectable(on, *name).frame_when_inactive(false).min_size(vec2(150.0, 0.0))).clicked() {
+                    if ui.add(Button::selectable(on, crate::i18n::tr(name)).frame_when_inactive(false).min_size(vec2(150.0, 0.0))).clicked() {
                         state.section = place;
                         state.find.clear();
                     }
@@ -728,23 +759,23 @@ pub fn window(ctx: &Context, state: &mut WindowState, target: &mut Target<'_>) -
                         if !found.is_empty() {
                             any = true;
                             ui.add_space(4.0);
-                            ui.label(RichText::new(name).color(theme::text_dim()));
+                            ui.label(RichText::new(crate::i18n::tr(name)).color(theme::text_dim()));
                             for row in found {
                                 draw_row(ui, row, target, &mut state.file_types, &mut outcome);
                             }
                         }
                     }
                     if !any {
-                        ui.label(RichText::new("No setting matches that.").color(theme::text_dim()));
+                        ui.label(RichText::new(crate::i18n::tr("No setting matches that.")).color(theme::text_dim()));
                     }
                 });
             });
         });
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Changes apply straight away.").color(theme::text_faint()));
+            ui.label(RichText::new(crate::i18n::tr("Changes apply straight away.")).color(theme::text_faint()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Close").clicked() {
+                if ui.button(crate::i18n::tr("Close")).clicked() {
                     outcome = Some(Outcome::Close);
                 }
             });
@@ -788,6 +819,7 @@ mod tests {
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
             opticos_updates: false,
             update_checks: false,
+            language: "fr",
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);
         assert_eq!(Prefs::from_settings(&Prefs::default().to_settings()), Prefs::default());
@@ -918,12 +950,12 @@ mod tests {
     #[test]
     fn a_refusal_from_windows_is_shown_and_nothing_is_claimed() {
         let mut state = page(&["txt"], "");
-        state.carry_out(Outcome::SetFileTypes, |_| Err("no".to_string()), never, never);
+        state.carry_out(Outcome::SetFileTypes, |_| Err(crate::i18n::tr("no").to_string()), never, never);
         assert_eq!(state.status, "no");
         assert!(state.registered.is_empty());
         let mut state = page(&["txt"], "");
         state.registered = vec!["txt".to_string()];
-        state.carry_out(Outcome::RemoveFileTypes, never_register, || Err("still no".to_string()), never);
+        state.carry_out(Outcome::RemoveFileTypes, never_register, || Err(crate::i18n::tr("still no").to_string()), never);
         assert_eq!(state.status, "still no");
         assert_eq!(state.registered, ["txt"], "it's still registered");
     }

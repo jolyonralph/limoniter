@@ -77,10 +77,10 @@ pub fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
                 continue;
             }
             c if c.is_whitespace() => continue,
-            other => return Err(format!("\u{201C}{other}\u{201D} (character {}) isn't used in Base64.", index + 1)),
+            other => return Err(crate::i18n::tf!("\u{201C}{other}\u{201D} (character {}) isn't used in Base64.", index + 1)),
         };
         if padding > 0 {
-            return Err("There's more after the = at the end.".into());
+            return Err(crate::i18n::tr("There's more after the = at the end.").into());
         }
         bits = bits << 6 | value;
         count += 6;
@@ -91,7 +91,7 @@ pub fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
         }
     }
     if count == 6 {
-        return Err("The Base64 is one letter too long or short: it can't end there.".into());
+        return Err(crate::i18n::tr("The Base64 is one letter too long or short: it can't end there.").into());
     }
     Ok(out)
 }
@@ -104,7 +104,7 @@ pub fn base64_decode_text(text: &str) -> Result<String, String> {
 
 /// JSON as XML, laid out with two spaces of indent.
 pub fn json_to_xml(text: &str) -> Result<String, String> {
-    let value: Value = serde_json::from_str(text).map_err(|e| format!("This isn't JSON: {}", crate::tools::json_error_text(&e)))?;
+    let value: Value = serde_json::from_str(text).map_err(|e| crate::i18n::tf!("This isn't JSON: {}", crate::tools::json_error_text(&e)))?;
     let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     match &value {
         // One member at the top: that's the root element.
@@ -203,7 +203,7 @@ fn write_element(out: &mut String, name: &str, value: &Value, depth: usize) {
 
 /// XML as JSON, laid out as Format, Lay out code, JSON would.
 pub fn xml_to_json(text: &str) -> Result<String, String> {
-    let document = roxmltree::Document::parse_with_options(text, roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() }).map_err(|e| format!("This isn't XML: {e}"))?;
+    let document = roxmltree::Document::parse_with_options(text, roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() }).map_err(|e| crate::i18n::tf!("This isn't XML: {e}"))?;
     let root = document.root_element();
     let mut top = Map::new();
     top.insert(root.tag_name().name().to_string(), element_value(root));

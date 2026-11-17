@@ -127,12 +127,12 @@ impl Disk {
             Kind::D81 => matches!(disk.bytes.len(), 819_200 | 822_400),
         };
         if !fits {
-            return Err("The disk image isn't a size its drive makes, so it isn't changed here.".into());
+            return Err(crate::i18n::tr("The disk image isn't a size its drive makes, so it isn't changed here.").into());
         }
         let (track, mark) = if kind == Kind::D81 { (40, b'D') } else { (18, 0x41) };
-        let header = disk.offset(track, 0).ok_or("The disk has no header.")?;
+        let header = disk.offset(track, 0).ok_or(crate::i18n::tr("The disk has no header."))?;
         if disk.bytes[header + 2] != mark {
-            return Err("The disk's header isn't a DOS this writes for, so it isn't changed here.".into());
+            return Err(crate::i18n::tr("The disk's header isn't a DOS this writes for, so it isn't changed here.").into());
         }
         Ok(disk)
     }
@@ -163,7 +163,7 @@ impl Disk {
     }
 
     fn sector(&self, track: u8, sector: u8) -> Result<usize, String> {
-        self.offset(track, sector).ok_or_else(|| format!("track {track} sector {sector} isn't on the disk"))
+        self.offset(track, sector).ok_or_else(|| crate::i18n::tf!("track {track} sector {sector} isn't on the disk"))
     }
 
     fn directory_track(&self) -> u8 {
@@ -255,7 +255,7 @@ impl Disk {
         let mut out = Vec::new();
         while t != 0 {
             if out.contains(&(t, s)) || out.len() > 40 {
-                return Err("The directory's chain loops back on itself.".into());
+                return Err(crate::i18n::tr("The directory's chain loops back on itself.").into());
             }
             out.push((t, s));
             let at = self.sector(t, s)?;
@@ -291,7 +291,7 @@ impl Disk {
         let (last_t, last_s) = *self.directory()?.last().unwrap();
         let interleave = if self.kind == Kind::D81 { 1 } else { 3 };
         let count = self.sectors(track);
-        let sector = (0..count).map(|n| (last_s + interleave + n) % count).find(|s| self.is_free(track, *s)).ok_or("The directory is full.")?;
+        let sector = (0..count).map(|n| (last_s + interleave + n) % count).find(|s| self.is_free(track, *s)).ok_or(crate::i18n::tr("The directory is full."))?;
         self.set_free(track, sector, false);
         let last = self.sector(last_t, last_s)?;
         self.bytes[last] = track;
@@ -308,7 +308,7 @@ impl Disk {
         let mut out = Vec::new();
         while t != 0 {
             if out.contains(&(t, s)) || out.len() > 4000 {
-                return Err("The file's chain of sectors loops back on itself.".into());
+                return Err(crate::i18n::tr("The file's chain of sectors loops back on itself.").into());
             }
             out.push((t, s));
             let at = self.sector(t, s)?;
@@ -355,7 +355,7 @@ impl ImageWriter for Disk {
     fn add(&mut self, _folder: Option<&Entry>, file: &Addition) -> Result<(), String> {
         let name = petscii(&file.name);
         if name[0] == 0xA0 {
-            return Err("The name has no characters a Commodore disk can hold.".into());
+            return Err(crate::i18n::tr("The name has no characters a Commodore disk can hold.").into());
         }
         if let Some(at) = self.name_taken(&name)? {
             if !file.replace {
@@ -366,13 +366,13 @@ impl ImageWriter for Disk {
         }
         let blocks = file.bytes.len().div_ceil(254).max(1);
         if blocks > self.free_sectors() {
-            return Err(format!("{} needs {blocks} blocks; the disk has {} free.", file.name, self.free_sectors()));
+            return Err(crate::i18n::tf!("{} needs {blocks} blocks; the disk has {} free.", file.name, self.free_sectors()));
         }
         let slot = self.free_slot()?;
         let mut sectors = Vec::with_capacity(blocks);
         let mut last = None;
         for _ in 0..blocks {
-            let next = self.next_free(last).ok_or("The disk is full.")?;
+            let next = self.next_free(last).ok_or(crate::i18n::tr("The disk is full."))?;
             self.set_free(next.0, next.1, false);
             sectors.push(next);
             last = Some(next);
@@ -410,7 +410,7 @@ impl ImageWriter for Disk {
         let slot = self.slot_of(entry)?;
         let kind = self.bytes[slot + 2] & 0x07;
         if kind == 4 {
-            return Err("A relative (REL) file's side sectors aren't followed here, so it isn't scratched.".into());
+            return Err(crate::i18n::tr("A relative (REL) file's side sectors aren't followed here, so it isn't scratched.").into());
         }
         for (t, s) in self.chain(self.bytes[slot + 3], self.bytes[slot + 4])? {
             if !self.reserved(t) {
@@ -425,7 +425,7 @@ impl ImageWriter for Disk {
         let slot = self.slot_of(entry)?;
         let new = petscii(name);
         if new[0] == 0xA0 {
-            return Err("The name has no characters a Commodore disk can hold.".into());
+            return Err(crate::i18n::tr("The name has no characters a Commodore disk can hold.").into());
         }
         if self.name_taken(&new)?.is_some_and(|at| at != slot) {
             return Err(already(name));

@@ -54,7 +54,7 @@ fn parse(text: &str, seen: &Seen, wide: Option<&Wide>) -> Result<i64, String> {
     let value = parser.or()?;
     parser.space();
     if parser.at < parser.chars.len() {
-        return Err(format!("\"{}\" wasn't understood", parser.chars[parser.at..].iter().collect::<String>()));
+        return Err(crate::i18n::tf!("\"{}\" wasn't understood", parser.chars[parser.at..].iter().collect::<String>()));
     }
     Ok(value)
 }
@@ -173,10 +173,10 @@ impl Parser<'_, '_> {
                 value *= self.unary()?;
             } else if self.take("/") {
                 let by = self.unary()?;
-                value = value.checked_div(by).ok_or("division by 0")?;
+                value = value.checked_div(by).ok_or(crate::i18n::tr("division by 0"))?;
             } else if self.take("%") && !self.chars.get(self.at).is_some_and(|c| *c == '0' || *c == '1') {
                 let by = self.unary()?;
-                value = value.checked_rem(by).ok_or("division by 0")?;
+                value = value.checked_rem(by).ok_or(crate::i18n::tr("division by 0"))?;
             } else {
                 return Ok(value);
             }
@@ -201,7 +201,7 @@ impl Parser<'_, '_> {
         if self.take("(") {
             let value = self.or()?;
             if !self.take(")") {
-                return Err("a ( has no )".into());
+                return Err(crate::i18n::tr("a ( has no )").into());
             }
             return Ok(value);
         }
@@ -210,7 +210,7 @@ impl Parser<'_, '_> {
         if long || word || self.take("[") {
             let address = self.or()?;
             if !self.take("]") {
-                return Err("a [ has no ]".into());
+                return Err(crate::i18n::tr("a [ has no ]").into());
             }
             if let Some(wide) = self.wide {
                 let byte = |i: u32| i64::from((wide.peek)((address as u32).wrapping_add(i)));
@@ -223,14 +223,14 @@ impl Parser<'_, '_> {
                 });
             }
             if long {
-                return Err("long[...] is for the 68000".into());
+                return Err(crate::i18n::tr("long[...] is for the 68000").into());
             }
             let peek = self.seen.peek;
             let low = i64::from(peek(address as u16));
             return Ok(if word { low | i64::from(peek((address as u16).wrapping_add(1))) << 8 } else { low });
         }
         let start = self.at;
-        let c = *self.chars.get(self.at).ok_or("something is missing at the end")?;
+        let c = *self.chars.get(self.at).ok_or(crate::i18n::tr("something is missing at the end"))?;
         // Numbers, written as the assemblers write them.
         let radix_from = |s: &mut Self, radix: u32, skip: usize| -> Result<i64, String> {
             s.at += skip;
@@ -277,9 +277,9 @@ impl Parser<'_, '_> {
             if let Some(value) = self.seen.labels.and_then(|labels| labels.get(&name).or_else(|| labels.iter().find(|(k, _)| k.eq_ignore_ascii_case(&name)).map(|(_, v)| v))) {
                 return Ok(*value);
             }
-            return Err(format!("{name} isn't a register or a label"));
+            return Err(crate::i18n::tf!("{name} isn't a register or a label"));
         }
-        Err(format!("\"{c}\" wasn't understood"))
+        Err(crate::i18n::tf!("\"{c}\" wasn't understood"))
     }
 }
 
@@ -406,13 +406,13 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         ui.horizontal(|ui| {
             ui.label(RichText::new(place).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Step over").on_hover_text("Runs this instruction, or the whole of a subroutine it calls, and stops after it").clicked() {
+                if ui.small_button(crate::i18n::tr("Step over")).on_hover_text(crate::i18n::tr("Runs this instruction, or the whole of a subroutine it calls, and stops after it")).clicked() {
                     action = Some(Action::StepOver);
                 }
-                if ui.small_button("Step").on_hover_text("Runs one instruction, into a CALL").clicked() {
+                if ui.small_button(crate::i18n::tr("Step")).on_hover_text(crate::i18n::tr("Runs one instruction, into a CALL")).clicked() {
                     action = Some(Action::Step);
                 }
-                if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
+                if ui.small_button(crate::i18n::tr("Carry on")).on_hover_text(crate::i18n::tr("Runs on until the next breakpoint")).clicked() {
                     action = Some(Action::CarryOn);
                 }
             });
@@ -450,10 +450,10 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         egui::CollapsingHeader::new(format!("Call stack ({})", frames.len())).id_salt("debug-calls").default_open(true).show(ui, |ui| {
             ui.label(mono(format!("now   {}", place_of(pc, assembly))));
             for frame in &frames {
-                ui.label(mono(format!("from  {}", place_of(frame.call, assembly)))).on_hover_text(format!("Returns to ${:04X}; the address is on the stack at ${:04X}", frame.returns_to, frame.at));
+                ui.label(mono(format!("from  {}", place_of(frame.call, assembly)))).on_hover_text(crate::i18n::tf!("Returns to ${:04X}; the address is on the stack at ${:04X}", frame.returns_to, frame.at));
             }
             if frames.is_empty() {
-                ui.label(RichText::new("Not inside a CALL that can be seen.").color(theme::text_faint()).size(11.5));
+                ui.label(RichText::new(crate::i18n::tr("Not inside a CALL that can be seen.")).color(theme::text_faint()).size(11.5));
             }
         });
         let labels = assembly.map(|a| &a.symbols);
@@ -469,11 +469,11 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
 /// The watches: expressions worked out at every stop, with a field for another.
 fn watches_section(ui: &mut Ui, code: &mut CodeMarks, value: &dyn Fn(&str) -> Result<i64, String>, hint: &str) {
     let mono = |text: String| RichText::new(text).monospace().size(12.0);
-    egui::CollapsingHeader::new("Watches").id_salt("debug-watches").default_open(true).show(ui, |ui| {
+    egui::CollapsingHeader::new(crate::i18n::tr("Watches")).id_salt("debug-watches").default_open(true).show(ui, |ui| {
         let mut gone = None;
         for (index, watch) in code.watches.iter().enumerate() {
             ui.horizontal(|ui| {
-                if crate::access::called(ui.small_button("\u{D7}"), "Stop watching this").on_hover_text("Stop watching this").clicked() {
+                if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Stop watching this").on_hover_text(crate::i18n::tr("Stop watching this")).clicked() {
                     gone = Some(index);
                 }
                 let value = match value(watch) {
@@ -488,7 +488,7 @@ fn watches_section(ui: &mut Ui, code: &mut CodeMarks, value: &dyn Fn(&str) -> Re
         }
         ui.horizontal(|ui| {
             let field = ui.add(egui::TextEdit::singleline(&mut code.new_watch).hint_text(hint).desired_width(200.0));
-            if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button("Watch").clicked() {
+            if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button(crate::i18n::tr("Watch")).clicked() {
                 let watch = code.new_watch.trim().to_string();
                 if !watch.is_empty() {
                     code.watches.push(watch);
@@ -506,9 +506,9 @@ fn memory_section(ui: &mut Ui, code: &mut CodeMarks, hint: &str, start: &dyn Fn(
     let mono = |text: String| RichText::new(text).monospace().size(12.0);
     let mask = if digits <= 4 { 0xFFFF } else { 0xFFFF_FFFF };
     let mut shown_at = None;
-    egui::CollapsingHeader::new("Memory").id_salt("debug-memory").default_open(true).show(ui, |ui| {
+    egui::CollapsingHeader::new(crate::i18n::tr("Memory")).id_salt("debug-memory").default_open(true).show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label("At");
+            ui.label(crate::i18n::tr("At"));
             ui.add(egui::TextEdit::singleline(&mut code.memory_at).hint_text(hint).desired_width(160.0));
         });
         match start(&code.memory_at) {
@@ -526,10 +526,10 @@ fn memory_section(ui: &mut Ui, code: &mut CodeMarks, hint: &str, start: &dyn Fn(
                                 Some(byte) => {
                                     let changed = before(at).is_some_and(|b| b != byte);
                                     let text = mono(format!("{byte:02X}"));
-                                    ui.label(if changed { text.color(theme::accent()).strong() } else { text }).on_hover_text(format!("${at:0digits$X} = {byte}"));
+                                    ui.label(if changed { text.color(theme::accent()).strong() } else { text }).on_hover_text(crate::i18n::tf!("${at:0digits$X} = {byte}"));
                                 }
                                 None => {
-                                    ui.label(mono("--".into()).color(theme::text_faint())).on_hover_text(format!("${at:0digits$X} hasn't been read"));
+                                    ui.label(mono("--".into()).color(theme::text_faint())).on_hover_text(crate::i18n::tf!("${at:0digits$X} hasn't been read"));
                                 }
                             }
                         }
@@ -551,12 +551,12 @@ fn memory_section(ui: &mut Ui, code: &mut CodeMarks, hint: &str, start: &dyn Fn(
 pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> String, conditions: bool, writes_supported: bool) {
     egui::CollapsingHeader::new(format!("Breakpoints ({})", code.breakpoints.len())).id_salt("debug-breakpoints").default_open(false).show(ui, |ui| {
         if code.breakpoints.is_empty() {
-            ui.label(RichText::new("Click beside a line's number for a breakpoint.").color(theme::text_faint()).size(11.5));
+            ui.label(RichText::new(crate::i18n::tr("Click beside a line's number for a breakpoint.")).color(theme::text_faint()).size(11.5));
         }
         let lines_with: Vec<usize> = code.breakpoints.iter().copied().collect();
         for line in lines_with {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{:>4}: {}", line + 1, lines(line).trim())).monospace().size(11.5));
+                ui.label(RichText::new(crate::i18n::tf!("{:>4}: {}", line + 1, lines(line).trim())).monospace().size(11.5));
             });
             if !conditions {
                 continue;
@@ -564,8 +564,8 @@ pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> S
             let condition = code.conditions.entry(line).or_default();
             ui.horizontal(|ui| {
                 ui.add_space(24.0);
-                ui.label(RichText::new("only when").size(11.5).color(theme::text_dim()));
-                ui.add(egui::TextEdit::singleline(condition).hint_text("always, or e.g. A=0 && [count]>3").desired_width(220.0));
+                ui.label(RichText::new(crate::i18n::tr("only when")).size(11.5).color(theme::text_dim()));
+                ui.add(egui::TextEdit::singleline(condition).hint_text(crate::i18n::tr("always, or e.g. A=0 && [count]>3")).desired_width(220.0));
             });
         }
         code.conditions.retain(|line, text| code.breakpoints.contains(line) && !text.trim().is_empty());
@@ -573,11 +573,11 @@ pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> S
         if !writes_supported {
             return;
         }
-        ui.label(RichText::new("Stop when written to").size(12.0));
+        ui.label(RichText::new(crate::i18n::tr("Stop when written to")).size(12.0));
         let mut gone = None;
         for (index, watch) in code.write_watches.iter().enumerate() {
             ui.horizontal(|ui| {
-                if crate::access::called(ui.small_button("\u{D7}"), "Stop watching this").clicked() {
+                if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Stop watching this").clicked() {
                     gone = Some(index);
                 }
                 ui.label(RichText::new(watch).monospace().size(11.5));
@@ -587,8 +587,8 @@ pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> S
             code.write_watches.remove(index);
         }
         ui.horizontal(|ui| {
-            let field = ui.add(egui::TextEdit::singleline(&mut code.new_write_watch).hint_text("An address or a label").desired_width(160.0));
-            if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button("Add").clicked() {
+            let field = ui.add(egui::TextEdit::singleline(&mut code.new_write_watch).hint_text(crate::i18n::tr("An address or a label")).desired_width(160.0));
+            if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button(crate::i18n::tr("Add")).clicked() {
                 let watch = code.new_write_watch.trim().to_string();
                 if !watch.is_empty() {
                     code.write_watches.push(watch);
@@ -669,19 +669,19 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
     ui.add_space(4.0);
     egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(egui::Margin::same(6)).corner_radius(4.0).show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("Stopped at {}", place_68k(now.pc(), now.source, assembly))).strong());
+            ui.label(RichText::new(crate::i18n::tf!("Stopped at {}", place_68k(now.pc(), now.source, assembly))).strong());
         });
         ui.horizontal(|ui| {
-            if ui.small_button("Carry on").on_hover_text("Runs on until the next breakpoint").clicked() {
+            if ui.small_button(crate::i18n::tr("Carry on")).on_hover_text(crate::i18n::tr("Runs on until the next breakpoint")).clicked() {
                 asks.push(Ask::CarryOn);
             }
-            if ui.small_button("Step").on_hover_text("Runs to the next line, into a subroutine of the program's (a call into the ROM or a library is run whole)").clicked() {
+            if ui.small_button(crate::i18n::tr("Step")).on_hover_text(crate::i18n::tr("Runs to the next line, into a subroutine of the program's (a call into the ROM or a library is run whole)")).clicked() {
                 asks.push(Ask::Step);
             }
-            if ui.small_button("Step over").on_hover_text("Runs to the next line, running any subroutine it calls whole").clicked() {
+            if ui.small_button(crate::i18n::tr("Step over")).on_hover_text(crate::i18n::tr("Runs to the next line, running any subroutine it calls whole")).clicked() {
                 asks.push(Ask::StepOver);
             }
-            let to_cursor = ui.add_enabled(cursor.is_some(), egui::Button::new("Run to cursor").small()).on_hover_text("Runs on until the line the cursor is on, or a breakpoint before it").on_disabled_hover_text("Put the cursor on a line that makes code");
+            let to_cursor = ui.add_enabled(cursor.is_some(), egui::Button::new(crate::i18n::tr("Run to cursor")).small()).on_hover_text(crate::i18n::tr("Runs on until the line the cursor is on, or a breakpoint before it")).on_disabled_hover_text(crate::i18n::tr("Put the cursor on a line that makes code"));
             if to_cursor.clicked()
                 && let Some(address) = cursor
             {
@@ -722,7 +722,7 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
             let changed = before.as_ref().is_some_and(|b| b.registers[index] != value);
             let text = mono(format!("{name} {value:0width$X}"));
             let label = ui.add(egui::Label::new(if changed { text.color(theme::accent()).strong() } else { text }).sense(egui::Sense::click()));
-            if crate::access::called(label, &format!("{name}: click to change it")).on_hover_text(format!("{name} = {value} (${value:X}). Click to change it.")).clicked() {
+            if crate::access::called(label, &format!("{name}: click to change it")).on_hover_text(crate::i18n::tf!("{name} = {value} (${value:X}). Click to change it.")).clicked() {
                 shown.editing = Some((index, format!("{value:0width$X}")));
             }
         };
@@ -748,7 +748,7 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
                 ui.label(mono(format!("from  {}", place_68k(at, Some(*call), assembly))));
             }
             if calls.is_empty() {
-                ui.label(RichText::new("Not inside a JSR or BSR that can be seen.").color(theme::text_faint()).size(11.5));
+                ui.label(RichText::new(crate::i18n::tr("Not inside a JSR or BSR that can be seen.")).color(theme::text_faint()).size(11.5));
             }
         });
         watches_section(ui, code, &|watch| eval_wide(watch, &wide, labels.as_ref()), "D0, A0.w, [count], long[ptr], COLOR00...");
@@ -759,12 +759,12 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
         }
         // Changing memory: bytes in hex, at an address or anything an expression gives.
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Change").size(12.0));
-            ui.add(egui::TextEdit::singleline(&mut shown.poke_at).hint_text("at").desired_width(90.0));
-            ui.label(RichText::new("to").size(12.0));
-            let field = ui.add(egui::TextEdit::singleline(&mut shown.poke_bytes).hint_text("bytes, as 4E71 or 12 34").desired_width(130.0));
+            ui.label(RichText::new(crate::i18n::tr("Change")).size(12.0));
+            ui.add(egui::TextEdit::singleline(&mut shown.poke_at).hint_text(crate::i18n::tr("at")).desired_width(90.0));
+            ui.label(RichText::new(crate::i18n::tr("to")).size(12.0));
+            let field = ui.add(egui::TextEdit::singleline(&mut shown.poke_bytes).hint_text(crate::i18n::tr("bytes, as 4E71 or 12 34")).desired_width(130.0));
             let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-            if entered || ui.small_button("Write").on_hover_text("Writes these bytes into the Amiga's memory").clicked() {
+            if entered || ui.small_button(crate::i18n::tr("Write")).on_hover_text(crate::i18n::tr("Writes these bytes into the Amiga's memory")).clicked() {
                 let digits: String = shown.poke_bytes.chars().filter(|c| !c.is_whitespace()).collect();
                 let bytes: Option<Vec<u8>> = (digits.len().is_multiple_of(2) && !digits.is_empty()).then(|| digits.as_bytes().chunks(2).map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap_or("x"), 16).ok()).collect()).flatten();
                 if let (Ok(at), Some(bytes)) = (eval_wide(&shown.poke_at, &wide, labels.as_ref()), bytes) {
@@ -773,9 +773,9 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
             }
         });
         // The custom chips' registers, as the emulator keeps them: those not 0.
-        egui::CollapsingHeader::new("Custom chips").id_salt("debug-custom").default_open(false).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::tr("Custom chips")).id_salt("debug-custom").default_open(false).show(ui, |ui| {
             if !now.has(amiga::CUSTOM, 2) {
-                ui.label(RichText::new("The emulator didn't give them.").color(theme::text_faint()).size(11.5));
+                ui.label(RichText::new(crate::i18n::tr("The emulator didn't give them.")).color(theme::text_faint()).size(11.5));
                 return;
             }
             egui::Grid::new("m68k-custom").num_columns(3).spacing([10.0, 1.0]).striped(true).show(ui, |ui| {
@@ -803,7 +803,7 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
             });
         });
         if !now.output.trim().is_empty() {
-            egui::CollapsingHeader::new("Output").id_salt("debug-output").default_open(false).show(ui, |ui| {
+            egui::CollapsingHeader::new(crate::i18n::tr("Output")).id_salt("debug-output").default_open(false).show(ui, |ui| {
                 let lines: Vec<&str> = now.output.lines().collect();
                 let recent = lines[lines.len().saturating_sub(40)..].join("\n");
                 ui.label(RichText::new(recent).monospace().size(11.0));
@@ -874,7 +874,7 @@ mod tests {
 
     #[test]
     fn addresses_are_named_by_the_label_before_them() {
-        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org $8000\nmain: nop\n  nop\n.loop: nop\nnext: ret\n", &|_| Err("no".into()));
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org $8000\nmain: nop\n  nop\n.loop: nop\nnext: ret\n", &|_| Err(crate::i18n::tr("no").into()));
         assert_eq!(label_of(0x8000, &assembly).as_deref(), Some("main"));
         assert_eq!(label_of(0x8002, &assembly).as_deref(), Some("main+2"), "local labels aren't used for this");
         assert_eq!(label_of(0x8003, &assembly).as_deref(), Some("next"));

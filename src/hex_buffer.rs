@@ -130,16 +130,16 @@ pub fn parse_number(text: &str) -> Option<usize> {
 
 /// Checks what was typed into Insert/delete, and gives the number of bytes and the value to fill with.
 pub fn parse_run(count: &str, delete: bool, fill: &str) -> Result<(usize, u8), String> {
-    let count = parse_number(count).filter(|n| *n > 0).ok_or("The number of bytes has to be a whole number above 0. Use 0x for hex.")?;
+    let count = parse_number(count).filter(|n| *n > 0).ok_or(crate::i18n::tr("The number of bytes has to be a whole number above 0. Use 0x for hex."))?;
     if delete {
         return Ok((count, 0));
     }
     if count > MOST_INSERTED {
-        return Err("That's too many to insert. It can be up to 64 MB at a time.".to_string());
+        return Err(crate::i18n::tr("That's too many to insert. It can be up to 64 MB at a time.").to_string());
     }
     match parse_hex(fill).as_deref() {
         Some([value]) => Ok((count, *value)),
-        _ => Err("The fill value has to be one byte in hex, such as 00 or 20.".to_string()),
+        _ => Err(crate::i18n::tr("The fill value has to be one byte in hex, such as 00 or 20.").to_string()),
     }
 }
 

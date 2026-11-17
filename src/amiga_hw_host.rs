@@ -82,9 +82,9 @@ fn matches(register: &Register, search: &str) -> bool {
 impl HwWindow {
     fn registers_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search: name, address or words").desired_width(240.0));
+            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text(crate::i18n::tr("Search: name, address or words")).desired_width(240.0));
             egui::ComboBox::from_id_salt("amiga-hw-chipset").selected_text(self.chipset.map_or("Every chipset", |c| c.name())).show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.chipset, None, "Every chipset");
+                ui.selectable_value(&mut self.chipset, None, crate::i18n::tr("Every chipset"));
                 for chipset in Chipset::ALL {
                     ui.selectable_value(&mut self.chipset, Some(chipset), format!("What {} has", chipset.name()));
                 }
@@ -120,16 +120,16 @@ impl HwWindow {
             ui.vertical(|ui| {
                 ui.set_width(470.0);
                 let Some(register) = self.selected.and_then(amiga_hw::at) else {
-                    ui.label("Choose a register.");
+                    ui.label(crate::i18n::tr("Choose a register."));
                     return;
                 };
                 ui.label(RichText::new(&register.name).strong().size(16.0));
                 let place = if register.is_cia() { format!("${:06X}", register.address) } else { format!("${:06X}, ${:03X} from the custom chips' base", register.address, register.offset()) };
                 ui.label(RichText::new(place).monospace());
                 if register.is_cia() {
-                    ui.label(format!("{}, a byte", register.access.name()));
+                    ui.label(crate::i18n::tf!("{}, a byte", register.access.name()));
                 } else {
-                    ui.label(format!("{}; {}", register.access.name(), register.since.onwards()));
+                    ui.label(crate::i18n::tf!("{}; {}", register.access.name(), register.since.onwards()));
                 }
                 ui.add_space(4.0);
                 ui.label(&register.about);
@@ -140,16 +140,16 @@ impl HwWindow {
                             ui.label(RichText::new(f.bits()).monospace());
                             ui.label(RichText::new(f.name).monospace().strong());
                             let since = if f.since > register.since { format!(" ({})", f.since.name()) } else { String::new() };
-                            ui.add(egui::Label::new(format!("{}{since}", f.about)).wrap());
+                            ui.add(egui::Label::new(crate::i18n::tf!("{}{since}", f.about)).wrap());
                             ui.end_row();
                         }
                     });
                     ui.add_space(6.0);
                 }
                 ui.horizontal(|ui| {
-                    ui.label("Value:");
-                    ui.add(egui::TextEdit::singleline(&mut self.value).hint_text("$5200").desired_width(90.0).font(egui::TextStyle::Monospace));
-                    if ui.button("Copy name").clicked() {
+                    ui.label(crate::i18n::tr("Value:"));
+                    ui.add(egui::TextEdit::singleline(&mut self.value).hint_text(crate::i18n::tr("$5200")).desired_width(90.0).font(egui::TextStyle::Monospace));
+                    if ui.button(crate::i18n::tr("Copy name")).clicked() {
                         ui.ctx().copy_text(register.name.replace("CIAA ", "").replace("CIAB ", ""));
                     }
                 });
@@ -164,7 +164,7 @@ impl HwWindow {
                         ui.label(RichText::new(line).monospace().small());
                     }
                 } else if !self.value.trim().is_empty() {
-                    ui.label("That isn't a number: write $5200, %0101001000000000 or 20992.");
+                    ui.label(crate::i18n::tr("That isn't a number: write $5200, %0101001000000000 or 20992."));
                 }
             });
         });
@@ -175,7 +175,7 @@ fn swatch(ui: &mut egui::Ui, colour: Color32, tip: &str) {
     let (rect, response) = ui.allocate_exact_size(vec2(28.0, 14.0), Sense::hover());
     ui.painter().rect_filled(rect, 2.0, colour);
     ui.painter().rect_stroke(rect, 2.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    response.on_hover_text(tip);
+    response.on_hover_text(crate::i18n::tr(tip));
 }
 
 /// What the copper tab asks of the window.
@@ -224,11 +224,11 @@ impl Limoniter {
         let caret = if self.no_file() { 0 } else { self.docs[self.active].text.caret_line };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new("Amiga hardware").open(&mut open).default_pos([140.0, 90.0]).default_width(760.0).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::tr("Amiga hardware")).open(&mut open).default_pos([140.0, 90.0]).default_width(760.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut window.tab, Tab::Registers, "Registers");
-                ui.selectable_value(&mut window.tab, Tab::Copper, "Copper list");
-                ui.selectable_value(&mut window.tab, Tab::Gradient, "Gradient");
+                ui.selectable_value(&mut window.tab, Tab::Registers, crate::i18n::tr("Registers"));
+                ui.selectable_value(&mut window.tab, Tab::Copper, crate::i18n::tr("Copper list"));
+                ui.selectable_value(&mut window.tab, Tab::Gradient, crate::i18n::tr("Gradient"));
             });
             ui.separator();
             match window.tab {
@@ -256,7 +256,7 @@ fn copper_tab(window: &mut HwWindow, ui: &mut egui::Ui, source: Option<&crate::a
     let mut asked = None;
     let lists = source.map(|s| s.lists.as_slice()).unwrap_or_default();
     if lists.is_empty() {
-        ui.label("No copper list here. Open 68000 source with one: dc.w pairs such as\n    dc.w $0180,$0FFF   ; MOVE to COLOR00\n    dc.w $2C07,$FFFE   ; WAIT for line $2C\n    dc.w $FFFF,$FFFE   ; END\nor CMOVE, CWAIT and CEND lines. It's read a moment after typing stops.");
+        ui.label(crate::i18n::tr("No copper list here. Open 68000 source with one: dc.w pairs such as\n    dc.w $0180,$0FFF   ; MOVE to COLOR00\n    dc.w $2C07,$FFFE   ; WAIT for line $2C\n    dc.w $FFFF,$FFFE   ; END\nor CMOVE, CWAIT and CEND lines. It's read a moment after typing stops."));
     } else {
         if window.follow
             && let Some(list) = lists.iter().find(|l| l.first_line <= caret && caret <= l.last_line)
@@ -273,7 +273,7 @@ fn copper_tab(window: &mut HwWindow, ui: &mut egui::Ui, source: Option<&crate::a
                     }
                 }
             });
-            ui.checkbox(&mut window.follow, "Follow the cursor");
+            ui.checkbox(&mut window.follow, crate::i18n::tr("Follow the cursor"));
         });
         ui.separator();
         let entries: Vec<(u16, Option<u16>)> = chosen.entries.iter().map(|e| (e.first, e.second)).collect();
@@ -299,34 +299,34 @@ fn copper_tab(window: &mut HwWindow, ui: &mut egui::Ui, source: Option<&crate::a
                     let clock = ((p.x - rect.min.x) / sx) as usize;
                     if clock < crate::amiga_copper::CLOCKS {
                         let [r, g, b] = preview.at(line, clock);
-                        response.on_hover_text(format!("Line ${line:03X} ({line}), x ${clock:02X}: COLOR00 #{r:02X}{g:02X}{b:02X}"));
+                        response.on_hover_text(crate::i18n::tf!("Line ${line:03X} ({line}), x ${clock:02X}: COLOR00 #{r:02X}{g:02X}{b:02X}"));
                     } else if clock >= crate::amiga_copper::CLOCKS + 2
                         && let Some(n) = preview.touched.get((clock - crate::amiga_copper::CLOCKS - 2) / 6)
                     {
                         let [r, g, b] = preview.palettes.get(line).and_then(|p| p.get((clock - crate::amiga_copper::CLOCKS - 2) / 6)).copied().unwrap_or_default();
-                        response.on_hover_text(format!("Line ${line:03X} ({line}): colour {n} is #{r:02X}{g:02X}{b:02X}"));
+                        response.on_hover_text(crate::i18n::tf!("Line ${line:03X} ({line}): colour {n} is #{r:02X}{g:02X}{b:02X}"));
                     }
                 }
                 let note = match preview.stopped {
                     Some((line, _)) => format!("The copper stops on line ${line:03X}."),
                     None => "The list doesn't end, so the copper would run on into what follows it.".into(),
                 };
-                ui.label(RichText::new(format!("A PAL frame with no bitplanes: COLOR00 where the beam was, and beside it each other colour set, line by line. {note}")).small());
+                ui.label(RichText::new(crate::i18n::tf!("A PAL frame with no bitplanes: COLOR00 where the beam was, and beside it each other colour set, line by line. {note}")).small());
             });
         }
         egui::ScrollArea::vertical().id_salt("amiga-hw-copper").max_height(380.0).show(ui, |ui| {
             egui::Grid::new("amiga-hw-copper-rows").striped(true).num_columns(4).show(ui, |ui| {
                 for row in chosen.rows() {
                     let here = row.line == caret;
-                    let number = RichText::new(format!("{:>5}", row.line + 1)).monospace();
-                    if ui.selectable_label(here, number).on_hover_text("Go to this line").clicked() {
+                    let number = RichText::new(crate::i18n::tf!("{:>5}", row.line + 1)).monospace();
+                    if ui.selectable_label(here, number).on_hover_text(crate::i18n::tr("Go to this line")).clicked() {
                         asked = Some(Asked::GoTo(row.line));
                     }
                     ui.label(RichText::new(&row.words).monospace());
                     match row.colour {
                         Some((n, [r, g, b])) => swatch(ui, Color32::from_rgb(r, g, b), &format!("colour {n}")),
                         None => {
-                            ui.label("");
+                            ui.label(crate::i18n::tr(""));
                         }
                     }
                     ui.add(egui::Label::new(&row.said).wrap());
@@ -337,42 +337,42 @@ fn copper_tab(window: &mut HwWindow, ui: &mut egui::Ui, source: Option<&crate::a
         });
     }
     ui.separator();
-    ui.label(RichText::new("Put a line in after the cursor's").strong());
+    ui.label(RichText::new(crate::i18n::tr("Put a line in after the cursor's")).strong());
     ui.horizontal(|ui| {
-        ui.label("MOVE");
+        ui.label(crate::i18n::tr("MOVE"));
         ui.add(egui::TextEdit::singleline(&mut window.move_value).desired_width(70.0).font(egui::TextStyle::Monospace));
-        ui.label("to");
-        ui.add(egui::TextEdit::singleline(&mut window.move_register).hint_text("COLOR00").desired_width(110.0).font(egui::TextStyle::Monospace));
+        ui.label(crate::i18n::tr("to"));
+        ui.add(egui::TextEdit::singleline(&mut window.move_register).hint_text(crate::i18n::tr("COLOR00")).desired_width(110.0).font(egui::TextStyle::Monospace));
         let register = amiga_hw::named(&window.move_register).or_else(|| number(&window.move_register).and_then(|n| amiga_hw::custom(n as u32 & 0x1FF))).filter(|r| !r.is_cia());
         let value = number(&window.move_value);
         match (register, value) {
             (Some(register), Some(value)) => {
                 let tip = format!("{}: {}", register.name, amiga_hw::explain(register, value as u16));
-                if ui.button("Put in").on_hover_text(tip).clicked() {
+                if ui.button(crate::i18n::tr("Put in")).on_hover_text(crate::i18n::tr(&tip)).clicked() {
                     asked = Some(Asked::Insert(amiga_hw::copper_line(Copper::Move { register: register.offset() as u16, value: value as u16 })));
                 }
             }
             (None, _) => {
-                ui.label("(no such register)");
+                ui.label(crate::i18n::tr("(no such register)"));
             }
             (_, None) => {
-                ui.label("(the value isn't a number)");
+                ui.label(crate::i18n::tr("(the value isn't a number)"));
             }
         }
     });
     ui.horizontal(|ui| {
-        ui.label("WAIT for line");
+        ui.label(crate::i18n::tr("WAIT for line"));
         ui.add(egui::TextEdit::singleline(&mut window.wait_line).desired_width(50.0).font(egui::TextStyle::Monospace));
-        ui.label("x");
+        ui.label(crate::i18n::tr("x"));
         ui.add(egui::TextEdit::singleline(&mut window.wait_x).desired_width(50.0).font(egui::TextStyle::Monospace));
         if let (Some(line), Some(x)) = (number(&window.wait_line), number(&window.wait_x)) {
             let wait = Copper::Wait { line: line as u8, x: (x as u8) & 0xFE, line_mask: 0xFF, x_mask: 0xFE, blitter: false, skip: false };
-            if ui.button("Put in").on_hover_text("Lines past 255 need a WAIT for $FF,$DE first, then the line less 256").clicked() {
+            if ui.button(crate::i18n::tr("Put in")).on_hover_text(crate::i18n::tr("Lines past 255 need a WAIT for $FF,$DE first, then the line less 256")).clicked() {
                 asked = Some(Asked::Insert(amiga_hw::copper_line(wait)));
             }
         }
         ui.separator();
-        if ui.button("END").on_hover_text("dc.w $FFFF,$FFFE").clicked() {
+        if ui.button(crate::i18n::tr("END")).on_hover_text(crate::i18n::tr("dc.w $FFFF,$FFFE")).clicked() {
             asked = Some(Asked::Insert(amiga_hw::copper_line(Copper::End)));
         }
     });
@@ -429,23 +429,23 @@ fn gradient_tab(gradient: &mut crate::amiga_copper::Gradient, ui: &mut egui::Ui)
                 gradient.stops.push(Stop { line: line as u16, rgb });
                 gradient.stops.sort_by_key(|s| s.line);
             }
-            response.on_hover_text(format!("Line ${line:03X} ({line}): #{r:02X}{g:02X}{b:02X}. Click to add a stop here"));
+            response.on_hover_text(crate::i18n::tf!("Line ${line:03X} ({line}): #{r:02X}{g:02X}{b:02X}. Click to add a stop here"));
         }
         ui.add_space(14.0);
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label("Colour register COLOR");
+                ui.label(crate::i18n::tr("Colour register COLOR"));
                 ui.add(egui::DragValue::new(&mut gradient.register).range(0..=31).custom_formatter(|n, _| format!("{:02}", n as u16)));
-                ui.checkbox(&mut gradient.aga, "AGA 24-bit colour").on_hover_text("Each line sets the high bits, then the low bits with BPLCON3's LOCT");
+                ui.checkbox(&mut gradient.aga, crate::i18n::tr("AGA 24-bit colour")).on_hover_text(crate::i18n::tr("Each line sets the high bits, then the low bits with BPLCON3's LOCT"));
             });
             ui.horizontal(|ui| {
-                ui.label("Wait at x");
+                ui.label(crate::i18n::tr("Wait at x"));
                 ui.add(egui::DragValue::new(&mut gradient.x).range(0..=0xE2).hexadecimal(2, false, true).prefix("$"));
-                ui.label("a change every");
+                ui.label(crate::i18n::tr("a change every"));
                 ui.add(egui::DragValue::new(&mut gradient.every).range(1..=32));
-                ui.label("lines");
+                ui.label(crate::i18n::tr("lines"));
                 if gradient.aga {
-                    ui.label("BPLCON3");
+                    ui.label(crate::i18n::tr("BPLCON3"));
                     ui.add(egui::DragValue::new(&mut gradient.bplcon3).hexadecimal(4, false, true).prefix("$"));
                 }
             });
@@ -453,10 +453,10 @@ fn gradient_tab(gradient: &mut crate::amiga_copper::Gradient, ui: &mut egui::Ui)
             let mut remove = None;
             egui::Grid::new("amiga-gradient-stops").num_columns(4).show(ui, |ui| {
                 for (i, stop) in gradient.stops.iter_mut().enumerate() {
-                    ui.label("Line");
+                    ui.label(crate::i18n::tr("Line"));
                     ui.add(egui::DragValue::new(&mut stop.line).range(0..=LINES as u16 - 1).hexadecimal(3, false, true).prefix("$"));
                     ui.color_edit_button_srgb(&mut stop.rgb);
-                    if ui.small_button("Remove").clicked() {
+                    if ui.small_button(crate::i18n::tr("Remove")).clicked() {
                         remove = Some(i);
                     }
                     ui.end_row();
@@ -465,7 +465,7 @@ fn gradient_tab(gradient: &mut crate::amiga_copper::Gradient, ui: &mut egui::Ui)
             if let Some(i) = remove.filter(|_| gradient.stops.len() > 2) {
                 gradient.stops.remove(i);
             }
-            if ui.button("Add a stop").clicked() {
+            if ui.button(crate::i18n::tr("Add a stop")).clicked() {
                 let last = gradient.stops.iter().map(|s| s.line).max().unwrap_or(0x2C);
                 let line = (last + 16).min(LINES as u16 - 1);
                 gradient.stops.push(Stop { line, rgb: colour_at(&gradient.stops, line) });
@@ -473,11 +473,11 @@ fn gradient_tab(gradient: &mut crate::amiga_copper::Gradient, ui: &mut egui::Ui)
             ui.add_space(6.0);
             let source = gradient.source();
             let changes = ops.iter().filter(|o| matches!(o, Copper::Move { register: r, .. } if *r == register)).count();
-            ui.label(format!("{} copper instructions ({} bytes), {changes} colour writes.", ops.len(), ops.len() * 4));
+            ui.label(crate::i18n::tf!("{} copper instructions ({} bytes), {changes} colour writes.", ops.len(), ops.len() * 4));
             egui::ScrollArea::vertical().id_salt("amiga-gradient-source").max_height(180.0).show(ui, |ui| {
                 ui.label(RichText::new(&source).monospace().small());
             });
-            if ui.button("Put it in after the cursor's line").on_hover_text("As dc.w lines, inside a copper list before its END").clicked() && !source.is_empty() {
+            if ui.button(crate::i18n::tr("Put it in after the cursor's line")).on_hover_text(crate::i18n::tr("As dc.w lines, inside a copper list before its END")).clicked() && !source.is_empty() {
                 asked = Some(Asked::Insert(source));
             }
         });

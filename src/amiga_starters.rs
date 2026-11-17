@@ -70,7 +70,7 @@ mod tests {
     /// each section's bytes, with the program's own addresses in them, must be the same as vasm's hunk once it's
     /// loaded at the same place.
     fn matches_vasm(source: &str, vasm: &[u8], sections: &[&str], chip: &[bool]) {
-        let assembly = assemble(&m68k::M68k, Path::new("demo.s"), source, &|p: &Path| Err(format!("{} isn't there", p.display())));
+        let assembly = assemble(&m68k::M68k, Path::new("demo.s"), source, &|p: &Path| Err(crate::i18n::tf!("{} isn't there", p.display())));
         assert!(assembly.ok(), "{:?}", assembly.problems.iter().take(5).collect::<Vec<_>>());
         let low = assembly.lowest().unwrap();
         let image = assembly.image(low, assembly.highest().unwrap());

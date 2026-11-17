@@ -46,7 +46,7 @@ struct Para {
 }
 
 pub fn read(bytes: &[u8]) -> Result<Doc, String> {
-    let form = super::ftxt::forms(bytes, b"WORD").into_iter().next().ok_or("This IFF file isn't a WORD document.")?;
+    let form = super::ftxt::forms(bytes, b"WORD").into_iter().next().ok_or(crate::i18n::tr("This IFF file isn't a WORD document."))?;
     let mut sizes: HashMap<u8, u16> = HashMap::new();
     let mut fonts: Vec<String> = Vec::new();
     let mut section = Section::Body;

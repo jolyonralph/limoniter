@@ -71,7 +71,7 @@ fn read_own_grammars(folder: &std::path::Path) -> Vec<(String, Result<SyntaxDefi
         .map(|path| {
             let file = path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
             let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned());
-            let grammar = std::fs::read_to_string(&path).map_err(|e| format!("couldn't be read: {e}")).and_then(|text| SyntaxDefinition::load_from_str(&text, true, stem.as_deref()).map_err(|e| e.to_string()));
+            let grammar = std::fs::read_to_string(&path).map_err(|e| crate::i18n::tf!("couldn't be read: {e}")).and_then(|text| SyntaxDefinition::load_from_str(&text, true, stem.as_deref()).map_err(|e| e.to_string()));
             (file, grammar)
         })
         .collect()
@@ -181,9 +181,9 @@ const XBASE: &str = "xBase (dBase, Clipper, FoxPro)";
 const LOGO: &str = "Logo";
 const PLI: &str = "PL/I";
 const RPG: &str = "RPG (IBM i)";
-const BASIC_AMOS: &str = "BASIC (AMOS)";
+pub const BASIC_AMOS: &str = "BASIC (AMOS)";
 const BASIC_BLITZ: &str = "BASIC (Blitz Basic)";
-const BASIC_STOS: &str = "BASIC (STOS)";
+pub const BASIC_STOS: &str = "BASIC (STOS)";
 const AMIGAGUIDE: &str = "AmigaGuide";
 const AMIGA_INSTALLER: &str = "Amiga Installer";
 const CONFIG_SYS: &str = "CONFIG.SYS (DOS)";

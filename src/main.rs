@@ -55,12 +55,14 @@ mod merge3;
 mod byte_store;
 mod hex_buffer;
 mod highlight;
+mod i18n;
 mod history_file;
 mod instance;
 mod large_edits;
 mod legacy_docs;
 mod line_store;
 mod media;
+mod memory_map;
 mod navigation;
 mod panels;
 mod pictures;
@@ -98,6 +100,11 @@ mod quantise;
 mod c64_chars;
 mod c64_converter;
 mod c64_gfx;
+mod next_painter;
+mod next_screen;
+mod next_tiles;
+mod retro_convert;
+mod retro_converter;
 mod st_planar;
 mod st_spectrum;
 mod st_sprites;
@@ -114,6 +121,8 @@ mod st_blitter;
 mod mfp_timer;
 mod st_starters;
 mod m6502_timing;
+#[cfg(test)]
+mod m6502_cpu;
 mod c64_raster;
 mod c64_irq;
 mod c64_starters;
@@ -127,6 +136,8 @@ mod retro_screens;
 mod region_history;
 mod recovery;
 mod rainbow;
+mod ripper;
+mod ripper_ui;
 mod screen;
 mod settings;
 mod settings_file;
@@ -150,6 +161,12 @@ mod tools;
 mod tracker;
 mod m68k_disasm;
 mod atari2600;
+mod atari2600_gfx;
+mod atari2600_painter;
+mod sfx;
+mod sfx_designer;
+mod amos;
+mod stos;
 mod undo_tree;
 mod views;
 mod wrap;
@@ -164,7 +181,7 @@ pub fn crash_log() -> std::path::PathBuf {
 /// Says what happened, and that the edits are safe.
 pub fn tell_about_crash() {
     rfd::MessageDialog::new()
-        .set_title("Limoniter")
+        .set_title(crate::i18n::tr("Limoniter"))
         .set_level(rfd::MessageLevel::Error)
         .set_description(format!(
             "Limoniter ran into a problem and has to close.\n\nYour unsaved changes have been kept, and will be offered back the next time Limoniter starts.\n\nDetails are in {}",

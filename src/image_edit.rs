@@ -86,7 +86,7 @@ impl ImageBrowser {
     }
 
     fn work_out_abilities(&self) -> Result<Abilities, String> {
-        let path = self.path.as_ref().ok_or("The image has no file to change.")?;
+        let path = self.path.as_ref().ok_or(crate::i18n::tr("The image has no file to change."))?;
         let name = self.levels[0].name.clone();
         let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
         let mut head = vec![0u8; len.min(0x8800) as usize];
@@ -101,9 +101,9 @@ impl ImageBrowser {
     /// Makes a change to the image: read from its file, changed, written back whole, and opened again in the same
     /// folder. The image as it was is kept to undo to.
     fn change(&mut self, what: impl FnOnce(&mut dyn ImageWriter, Option<&Entry>) -> Result<(), String>) -> Result<(), String> {
-        let path = self.path.clone().ok_or("The image has no file to change.")?;
+        let path = self.path.clone().ok_or(crate::i18n::tr("The image has no file to change."))?;
         let name = self.levels[0].name.clone();
-        let before = std::fs::read(&path).map_err(|e| format!("The image couldn't be read again: {e}"))?;
+        let before = std::fs::read(&path).map_err(|e| crate::i18n::tf!("The image couldn't be read again: {e}"))?;
         let mut writer = write::writer(&name, before.clone())?;
         let folder = self.levels[0].folders.last().cloned();
         what(&mut *writer, folder.as_ref())?;
@@ -111,7 +111,7 @@ impl ImageBrowser {
         if after == before {
             return Ok(());
         }
-        crate::codec::write_file(&path, &after).map_err(|e| format!("The image couldn't be saved: {e}"))?;
+        crate::codec::write_file(&path, &after).map_err(|e| crate::i18n::tf!("The image couldn't be saved: {e}"))?;
         self.undo.push(before);
         if self.undo.len() > MOST_UNDO {
             self.undo.remove(0);
@@ -144,18 +144,18 @@ impl ImageBrowser {
     }
 
     fn undo_change(&mut self) -> Result<(), String> {
-        let path = self.path.clone().ok_or("The image has no file.")?;
+        let path = self.path.clone().ok_or(crate::i18n::tr("The image has no file."))?;
         let Some(before) = self.undo.pop() else {
             return Ok(());
         };
-        crate::codec::write_file(&path, &before).map_err(|e| format!("The image couldn't be saved: {e}"))?;
+        crate::codec::write_file(&path, &before).map_err(|e| crate::i18n::tf!("The image couldn't be saved: {e}"))?;
         self.free = write::writer(&self.levels[0].name, before.clone()).ok().and_then(|w| w.free());
         self.reopen(before)
     }
 
     /// Files read and readied to add: each with the kind, name and address the image would most likely want.
     fn queue(&mut self, paths: Vec<PathBuf>) -> Result<(), String> {
-        let path = self.path.clone().ok_or("The image has no file.")?;
+        let path = self.path.clone().ok_or(crate::i18n::tr("The image has no file."))?;
         let writer = write::writer(&self.levels[0].name, std::fs::read(&path).map_err(|e| e.to_string())?)?;
         for file in paths {
             let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -224,7 +224,7 @@ impl ImageBrowser {
     pub(super) fn act(&mut self, action: EditAction) {
         let done = match action {
             EditAction::AddFiles => {
-                let picked = rfd::FileDialog::new().set_title("Add files to the image").pick_files().unwrap_or_default();
+                let picked = rfd::FileDialog::new().set_title(crate::i18n::tr("Add files to the image")).pick_files().unwrap_or_default();
                 self.queue(picked)
             }
             EditAction::AddPaths(paths) => self.queue(paths),
@@ -287,29 +287,29 @@ impl ImageBrowser {
             return;
         };
         let (folders, order) = (abilities.folders, abilities.order);
-        if ui.button("\u{2795} Add files\u{2026}").on_hover_text("Put files from this computer on the image (or drop them on it)").clicked() {
+        if ui.button(crate::i18n::tr("\u{2795} Add files\u{2026}")).on_hover_text(crate::i18n::tr("Put files from this computer on the image (or drop them on it)")).clicked() {
             *action = Some(EditAction::AddFiles);
         }
-        if folders && ui.button("New folder").clicked() {
+        if folders && ui.button(crate::i18n::tr("New folder")).clicked() {
             *action = Some(EditAction::StartFolder);
         }
         let is_entry = chosen.is_some();
-        if ui.add_enabled(is_entry, Button::new("Rename")).on_hover_text("Give the file a new name (F2)").clicked() {
+        if ui.add_enabled(is_entry, Button::new(crate::i18n::tr("Rename"))).on_hover_text(crate::i18n::tr("Give the file a new name (F2)")).clicked() {
             *action = chosen.map(EditAction::StartRename);
         }
-        if ui.add_enabled(is_entry, Button::new("Delete")).on_hover_text("Take the file off the image (Delete)").clicked() {
+        if ui.add_enabled(is_entry, Button::new(crate::i18n::tr("Delete"))).on_hover_text(crate::i18n::tr("Take the file off the image (Delete)")).clicked() {
             *action = chosen.map(EditAction::StartDelete);
         }
         if order {
-            if ui.add_enabled(chosen.is_some_and(|i| i > 0), Button::new("\u{25B2}")).on_hover_text("Move the file earlier on the tape").clicked() {
+            if ui.add_enabled(chosen.is_some_and(|i| i > 0), Button::new(crate::i18n::tr("\u{25B2}"))).on_hover_text(crate::i18n::tr("Move the file earlier on the tape")).clicked() {
                 *action = chosen.map(|i| EditAction::Move(i, -1));
             }
             let count = self.level().entries.len();
-            if ui.add_enabled(chosen.is_some_and(|i| i + 1 < count), Button::new("\u{25BC}")).on_hover_text("Move the file later on the tape").clicked() {
+            if ui.add_enabled(chosen.is_some_and(|i| i + 1 < count), Button::new(crate::i18n::tr("\u{25BC}"))).on_hover_text(crate::i18n::tr("Move the file later on the tape")).clicked() {
                 *action = chosen.map(|i| EditAction::Move(i, 1));
             }
         }
-        if ui.add_enabled(!self.undo.is_empty(), Button::new("\u{21B6} Undo")).on_hover_text("Put the image back as it was before the last change").clicked() {
+        if ui.add_enabled(!self.undo.is_empty(), Button::new(crate::i18n::tr("\u{21B6} Undo"))).on_hover_text(crate::i18n::tr("Put the image back as it was before the last change")).clicked() {
             *action = Some(EditAction::Undo);
         }
     }
@@ -325,13 +325,13 @@ impl ImageBrowser {
             Some(Editing::Rename { index, name }) if *index < entries_len => {
                 let old = name_of(self, *index);
                 ui.horizontal(|ui| {
-                    ui.label(format!("Rename {old} to"));
+                    ui.label(crate::i18n::tf!("Rename {old} to"));
                     let field = ui.add_sized([240.0, 22.0], egui::TextEdit::singleline(name));
                     field.request_focus();
-                    if ui.button("Rename").clicked() || (field.lost_focus() && enter) {
+                    if ui.button(crate::i18n::tr("Rename")).clicked() || (field.lost_focus() && enter) {
                         *action = Some(EditAction::Finish);
                     }
-                    if ui.button("Cancel").clicked() || escape {
+                    if ui.button(crate::i18n::tr("Cancel")).clicked() || escape {
                         *action = Some(EditAction::CancelEdit);
                     }
                 });
@@ -339,24 +339,24 @@ impl ImageBrowser {
             Some(Editing::Delete { index }) if *index < entries_len => {
                 let old = name_of(self, *index);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("Take {old} off the image?")).strong());
-                    if ui.button("Delete").clicked() || enter {
+                    ui.label(RichText::new(crate::i18n::tf!("Take {old} off the image?")).strong());
+                    if ui.button(crate::i18n::tr("Delete")).clicked() || enter {
                         *action = Some(EditAction::Finish);
                     }
-                    if ui.button("Cancel").clicked() || escape {
+                    if ui.button(crate::i18n::tr("Cancel")).clicked() || escape {
                         *action = Some(EditAction::CancelEdit);
                     }
                 });
             }
             Some(Editing::NewFolder { name }) => {
                 ui.horizontal(|ui| {
-                    ui.label("New folder called");
+                    ui.label(crate::i18n::tr("New folder called"));
                     let field = ui.add_sized([240.0, 22.0], egui::TextEdit::singleline(name));
                     field.request_focus();
-                    if ui.button("Make it").clicked() || (field.lost_focus() && enter) {
+                    if ui.button(crate::i18n::tr("Make it")).clicked() || (field.lost_focus() && enter) {
                         *action = Some(EditAction::Finish);
                     }
-                    if ui.button("Cancel").clicked() || escape {
+                    if ui.button(crate::i18n::tr("Cancel")).clicked() || escape {
                         *action = Some(EditAction::CancelEdit);
                     }
                 });
@@ -369,13 +369,13 @@ impl ImageBrowser {
         }
         let kinds = self.abilities().map(|a| a.kinds.clone()).unwrap_or_default();
         egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.label(RichText::new(format!("Adding {} file(s) to the image", self.pending.len())).strong());
+            ui.label(RichText::new(crate::i18n::tf!("Adding {} file(s) to the image", self.pending.len())).strong());
             egui::Grid::new("image-add-grid").num_columns(5).spacing([10.0, 4.0]).show(ui, |ui| {
                 for item in &mut self.pending {
                     ui.label(RichText::new(&item.from).color(theme::text_dim()));
-                    ui.add_sized([180.0, 22.0], egui::TextEdit::singleline(&mut item.addition.name)).on_hover_text("The name it has on the image; it's made to fit the image's rules");
+                    ui.add_sized([180.0, 22.0], egui::TextEdit::singleline(&mut item.addition.name)).on_hover_text(crate::i18n::tr("The name it has on the image; it's made to fit the image's rules"));
                     if kinds.is_empty() {
-                        ui.label("");
+                        ui.label(crate::i18n::tr(""));
                     } else {
                         let about = kinds.iter().find(|k| k.name == item.addition.kind).map_or("", |k| k.about);
                         egui::ComboBox::from_id_salt(("image-add-kind", item.from.as_str())).selected_text(item.addition.kind.as_str()).show_ui(ui, |ui| {
@@ -387,17 +387,17 @@ impl ImageBrowser {
                     let kind = kinds.iter().find(|k| k.name == item.addition.kind);
                     ui.horizontal(|ui| {
                         if kind.is_some_and(|k| k.address) {
-                            ui.label("at");
-                            ui.add_sized([70.0, 22.0], egui::TextEdit::singleline(&mut item.address).hint_text("32768"));
+                            ui.label(crate::i18n::tr("at"));
+                            ui.add_sized([70.0, 22.0], egui::TextEdit::singleline(&mut item.address).hint_text(crate::i18n::tr("32768")));
                         }
                         if kind.is_some_and(|k| k.autostart) {
-                            ui.label("runs from line");
-                            ui.add_sized([60.0, 22.0], egui::TextEdit::singleline(&mut item.autostart).hint_text("none"));
+                            ui.label(crate::i18n::tr("runs from line"));
+                            ui.add_sized([60.0, 22.0], egui::TextEdit::singleline(&mut item.autostart).hint_text(crate::i18n::tr("none")));
                         }
                     });
                     ui.horizontal(|ui| {
                         if item.clash {
-                            ui.checkbox(&mut item.addition.replace, "Replace it");
+                            ui.checkbox(&mut item.addition.replace, crate::i18n::tr("Replace it"));
                         }
                         if let Some(problem) = &item.problem {
                             ui.label(RichText::new(problem).color(theme::rainbow_mistake()).size(11.5));
@@ -407,10 +407,10 @@ impl ImageBrowser {
                 }
             });
             ui.horizontal(|ui| {
-                if ui.button("Add").clicked() {
+                if ui.button(crate::i18n::tr("Add")).clicked() {
                     *action = Some(EditAction::ConfirmAdd);
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(crate::i18n::tr("Cancel")).clicked() {
                     *action = Some(EditAction::CancelAdd);
                 }
             });
@@ -435,29 +435,29 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go = false;
-        egui::Window::new("New disk or tape image").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(RichText::new("A blank image, formatted as its machine would format it, to add files to.").color(theme::text_dim()));
+        egui::Window::new(crate::i18n::tr("New disk or tape image")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(RichText::new(crate::i18n::tr("A blank image, formatted as its machine would format it, to add files to.")).color(theme::text_dim()));
             ui.add_space(6.0);
             for blank in Blank::ALL {
-                ui.radio_value(&mut state.kind, blank, blank.name());
+                ui.radio_value(&mut state.kind, blank, crate::i18n::tr(blank.name()));
             }
             ui.add_space(6.0);
             let named = !matches!(state.kind, Blank::SpectrumTap | Blank::SpectrumTzx | Blank::Plus3 | Blank::Atari90 | Blank::Atari130 | Blank::AtariMyDos360 | Blank::CocoSingle);
             ui.add_enabled_ui(named, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Disk name");
+                    ui.label(crate::i18n::tr("Disk name"));
                     ui.add(egui::TextEdit::singleline(&mut state.label).desired_width(200.0));
                 });
             });
             ui.horizontal(|ui| {
-                go = ui.button("Save as\u{2026}").clicked();
-                close |= ui.button("Cancel").clicked();
+                go = ui.button(crate::i18n::tr("Save as\u{2026}")).clicked();
+                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             });
         });
         if go {
             let (kind, label) = (state.kind, state.label.clone());
             let name = format!("{}.{}", if label.trim().is_empty() { "new" } else { label.trim() }, kind.ending());
-            let Some(path) = rfd::FileDialog::new().set_title("Save the new image").set_file_name(&name).add_filter(kind.name(), &[kind.ending()]).save_file() else {
+            let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the new image")).set_file_name(&name).add_filter(kind.name(), &[kind.ending()]).save_file() else {
                 return true;
             };
             self.dialog = Dialog::None;
@@ -467,7 +467,7 @@ impl Limoniter {
                         self.open_path(&path);
                     }
                 }
-                Err(e) => self.message("New disk or tape image", format!("Couldn't save {}.\n\n{e}", path.display())),
+                Err(e) => self.message("New disk or tape image", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display())),
             }
         } else if close {
             self.dialog = Dialog::None;

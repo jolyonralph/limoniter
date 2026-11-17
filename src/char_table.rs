@@ -233,17 +233,17 @@ pub fn panel(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, show_sequen
     let title = set.table(table_index).filter(|_| set.tables.len() > 1).map(|table| table.title.as_str());
     let heading = heading_text(doc.format, state.browse, title);
     let color = if same_set { theme::text() } else { theme::ruler_mark() };
-    ui.add(egui::Label::new(RichText::new(heading).size(12.0).color(color)).wrap()).on_hover_text(format!("{}\n\nScope: {}\nMapping source: {}\nVersion: {}", set.name, set.scope, set.source, set.version));
+    ui.add(egui::Label::new(RichText::new(heading).size(12.0).color(color)).wrap()).on_hover_text(crate::i18n::tf!("{}\n\nScope: {}\nMapping source: {}\nVersion: {}", set.name, set.scope, set.source, set.version));
 
     // Browsing another set never changes the document's encoding.
     let mut browse_choice = None;
     egui::ComboBox::from_id_salt("table-browse")
         .width(ui.available_width() - 8.0)
         .truncate()
-        .selected_text(RichText::new(if same_set { "Follow this document" } else { "Browsing only" }).size(12.0))
+        .selected_text(RichText::new(if same_set { crate::i18n::tr("Follow this document") } else { crate::i18n::tr("Browsing only") }).size(12.0))
         .height(420.0)
         .show_ui(ui, |ui| {
-            if ui.selectable_label(same_set, "Follow this document").clicked() {
+            if ui.selectable_label(same_set, crate::i18n::tr("Follow this document")).clicked() {
                 browse_choice = Some(None);
             }
             for group in charset::groups() {
@@ -269,14 +269,14 @@ pub fn panel(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, show_sequen
     }
     ui.add_space(3.0);
     ui.horizontal(|ui| {
-        let insert = ui.add_enabled(state.selected.is_some() || state.selected_char.is_some(), egui::Button::new("Insert char")).on_hover_text("Or double-click a row");
+        let insert = ui.add_enabled(state.selected.is_some() || state.selected_char.is_some(), egui::Button::new(crate::i18n::tr("Insert char"))).on_hover_text(crate::i18n::tr("Or double-click a row"));
         if insert.clicked() {
             push_insert(state, set, table_index, actions);
         }
-        if ui.button("Insert byte").on_hover_text("Type a byte's value in hexadecimal").clicked() {
+        if ui.button(crate::i18n::tr("Insert byte")).on_hover_text(crate::i18n::tr("Type a byte's value in hexadecimal")).clicked() {
             actions.push(Action::AskInsertByte);
         }
-        ui.toggle_value(show_sequences, "Sequences").on_hover_text("Multi-byte control sequences, in their own panel");
+        ui.toggle_value(show_sequences, crate::i18n::tr("Sequences")).on_hover_text(crate::i18n::tr("Multi-byte control sequences, in their own panel"));
     });
 }
 
@@ -298,7 +298,7 @@ fn variant_selectors(ui: &mut Ui, state: &mut TableState, set: &'static Charset,
         egui::ComboBox::from_id_salt("table-variant")
             .width(ui.available_width() - 8.0)
             .truncate()
-            .selected_text(RichText::new(format!("{label}: {}", set.name)).size(12.0))
+            .selected_text(RichText::new(crate::i18n::tf!("{label}: {}", set.name)).size(12.0))
             .height(360.0)
             .show_ui(ui, |ui| {
                 for other in &siblings {
@@ -330,7 +330,7 @@ fn variant_selectors(ui: &mut Ui, state: &mut TableState, set: &'static Charset,
             state.manual_state = chosen;
         }
         if matches!(set.model, Model::Petscii | Model::Teletext | Model::Mode7) && same_set {
-            ui.checkbox(&mut state.follow_cursor, RichText::new("Follow cursor state").size(12.0));
+            ui.checkbox(&mut state.follow_cursor, RichText::new(crate::i18n::tr("Follow cursor state")).size(12.0));
         }
     }
 }
@@ -486,11 +486,11 @@ fn unicode_browser(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, actio
     let mut chosen = None;
     egui::ComboBox::from_id_salt("table-block").width(ui.available_width() - 8.0).truncate().selected_text(RichText::new(UNICODE_BLOCKS[state.block].0).size(12.0)).height(360.0).show_ui(ui, |ui| {
         for (index, (name, _, _)) in UNICODE_BLOCKS.iter().enumerate() {
-            if ui.selectable_label(index == state.block, *name).clicked() {
+            if ui.selectable_label(index == state.block, crate::i18n::tr(name)).clicked() {
                 chosen = Some(index);
             }
         }
-    }).response.on_hover_text("A Unicode encoding has no table of bytes, so this browses characters. Dec# and Hex# are code points. The details below list each one's bytes.");
+    }).response.on_hover_text(crate::i18n::tr("A Unicode encoding has no table of bytes, so this browses characters. Dec# and Hex# are code points. The details below list each one's bytes."));
     if let Some(index) = chosen {
         state.block = index;
     }
@@ -546,7 +546,7 @@ fn unicode_browser(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, actio
             }
             if response.hovered() {
                 let bytes = codec::char_bytes(c, doc.format.charset, 0).unwrap_or_default().iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
-                response.on_hover_text(format!("{}\nU+{value:04X}\nIn this file: {bytes}", charset::char_name(c)));
+                response.on_hover_text(crate::i18n::tf!("{}\nU+{value:04X}\nIn this file: {bytes}", charset::char_name(c)));
             }
         }
     });
@@ -563,15 +563,15 @@ fn block_of(c: char) -> Option<usize> {
 pub fn sequences_panel(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, actions: &mut Vec<Action>) {
     let amiga = doc.format.display == Display::AmigaConsole || doc.format.charset.id == "amiga-text";
     if !amiga {
-        ui.label(RichText::new("No multi-byte sequences are defined for this profile.").size(12.0));
-        ui.label(RichText::new("Amiga console sequences appear here when the display profile is Amiga console.").size(11.5).color(theme::text_dim()));
+        ui.label(RichText::new(crate::i18n::tr("No multi-byte sequences are defined for this profile.")).size(12.0));
+        ui.label(RichText::new(crate::i18n::tr("Amiga console sequences appear here when the display profile is Amiga console.")).size(11.5).color(theme::text_dim()));
         return;
     }
     let form = state.sequence_form.unwrap_or_else(|| used_form(doc));
-    ui.label(RichText::new("Introduced by:").size(12.0));
+    ui.label(RichText::new(crate::i18n::tr("Introduced by:")).size(12.0));
     let mut chosen = form;
-    ui.radio_value(&mut chosen, Form::SingleCsi, RichText::new("CSI, byte 9B").size(12.0));
-    ui.radio_value(&mut chosen, Form::EscBracket, RichText::new("ESC [, bytes 1B 5B").size(12.0));
+    ui.radio_value(&mut chosen, Form::SingleCsi, RichText::new(crate::i18n::tr("CSI, byte 9B")).size(12.0));
+    ui.radio_value(&mut chosen, Form::EscBracket, RichText::new(crate::i18n::tr("ESC [, bytes 1B 5B")).size(12.0));
     state.sequence_form = Some(chosen);
     egui::ScrollArea::vertical().id_salt("sequence-scroll").auto_shrink([false, false]).show(ui, |ui| {
         let mut group = "";
@@ -582,8 +582,8 @@ pub fn sequences_panel(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, a
             }
             let bytes = template.bytes(chosen);
             let shown = bytes.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
-            let button = egui::Button::new(RichText::new(format!("{}  {shown}", template.name)).size(11.5)).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
-            if ui.add(button).on_hover_text(format!("Inserts the bytes {shown}")).clicked() {
+            let button = egui::Button::new(RichText::new(crate::i18n::tf!("{}  {shown}", template.name)).size(11.5)).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
+            if ui.add(button).on_hover_text(crate::i18n::tf!("Inserts the bytes {shown}")).clicked() {
                 actions.push(Action::InsertBytes(bytes));
             }
         }

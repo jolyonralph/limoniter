@@ -43,6 +43,9 @@ pub fn decode(kind: &str, bytes: &[u8]) -> Result<Picture, String> {
         _ => (default_palette(), bytes),
     };
     let lookup = |index: u8| colour(palette[usize::from(index) * 2], palette[usize::from(index) * 2 + 1]);
+    // 81920 bytes are 320×256 at a byte a pixel or 640×256 at a nibble. With its own palette, a 640 file's has
+    // only 16 colours (the rest left 0) and its bytes go above 15, which a 320 picture of 16 colours can't.
+    let kind = if kind == "nxi" && bytes.len() == L2_BIG + PALETTE && palette[32..].iter().all(|&b| b == 0) && pixels.iter().any(|&p| p > 15) { "nxi640" } else { kind };
     let mut picture;
     match pixels.len() {
         L2 => {
@@ -81,7 +84,7 @@ pub fn decode(kind: &str, bytes: &[u8]) -> Result<Picture, String> {
             }
             picture.note("Mode", "LoRes, 128\u{D7}96, 256 colours");
         }
-        n => return Err(format!("A Next screen is {L2}, {L2_BIG} or {LORES} bytes of pixels, and this is {n}.")),
+        n => return Err(crate::i18n::tf!("A Next screen is {L2}, {L2_BIG} or {LORES} bytes of pixels, and this is {n}.")),
     }
     picture.note("Palette", if bytes.len() > pixels.len() { "The file's own" } else { "The Next's at reset" });
     Ok(picture)

@@ -55,7 +55,7 @@ pub fn looks_like_lha(head: &[u8]) -> bool {
 
 impl Lha {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
-        let mut reader = delharc::LhaDecodeReader::new(Reader { source: source.clone(), at: 0 }).map_err(|e| format!("This LHA archive's first header can't be read: {e}"))?;
+        let mut reader = delharc::LhaDecodeReader::new(Reader { source: source.clone(), at: 0 }).map_err(|e| crate::i18n::tf!("This LHA archive's first header can't be read: {e}"))?;
         let mut members = Vec::new();
         loop {
             let header = reader.header();
@@ -74,10 +74,10 @@ impl Lha {
             match reader.seek_next_file() {
                 Ok(true) => {}
                 Ok(false) => break,
-                Err(e) => return Err(format!("This LHA archive is damaged after its first {} file(s): {e}", members.len())),
+                Err(e) => return Err(crate::i18n::tf!("This LHA archive is damaged after its first {} file(s): {e}", members.len())),
             }
             if members.len() > 1_000_000 {
-                return Err("This LHA archive has more files than Limoniter lists.".into());
+                return Err(crate::i18n::tr("This LHA archive has more files than Limoniter lists.").into());
             }
         }
         Ok(Self { source, members })
@@ -129,22 +129,22 @@ impl Volume for Lha {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         let index = entry.location as usize;
-        let member = self.members.get(index).ok_or("That file isn't in the archive.")?;
+        let member = self.members.get(index).ok_or(crate::i18n::tr("That file isn't in the archive."))?;
         if member.size > MOST_FILE_BYTES {
-            return Err("This file is larger than the 1 GB that can be opened.".into());
+            return Err(crate::i18n::tr("This file is larger than the 1 GB that can be opened.").into());
         }
         if !member.supported {
-            return Err(format!("This file is packed with {}, which Limoniter can't unpack.", member.method));
+            return Err(crate::i18n::tf!("This file is packed with {}, which Limoniter can't unpack.", member.method));
         }
         let mut reader = delharc::LhaDecodeReader::new(Reader { source: self.source.clone(), at: 0 }).map_err(|e| e.to_string())?;
         for _ in 0..index {
             if !reader.seek_next_file().map_err(|e| e.to_string())? {
-                return Err("The archive ended before that file.".into());
+                return Err(crate::i18n::tr("The archive ended before that file.").into());
             }
         }
         let mut out = Vec::with_capacity(member.size as usize);
-        reader.read_to_end(&mut out).map_err(|e| format!("The file couldn't be unpacked: {e}"))?;
-        reader.crc_check().map_err(|e| format!("The file unpacked, but its CRC doesn't match, so it's damaged: {e}"))?;
+        reader.read_to_end(&mut out).map_err(|e| crate::i18n::tf!("The file couldn't be unpacked: {e}"))?;
+        reader.crc_check().map_err(|e| crate::i18n::tf!("The file unpacked, but its CRC doesn't match, so it's damaged: {e}"))?;
         Ok(out)
     }
 

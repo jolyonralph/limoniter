@@ -88,7 +88,7 @@ fn rendition(b: &mut Builder, params: &str, dropped: &mut Dropped) {
 pub fn read(bytes: &[u8]) -> Result<Doc, String> {
     let forms = forms(bytes, b"FTXT");
     if forms.is_empty() {
-        return Err("This IFF file has no formatted text (FTXT) in it.".into());
+        return Err(crate::i18n::tr("This IFF file has no formatted text (FTXT) in it.").into());
     }
     let mut b = Builder::default();
     let mut dropped = Dropped::default();

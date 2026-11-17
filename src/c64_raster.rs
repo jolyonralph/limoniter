@@ -303,25 +303,25 @@ impl Calculator {
         let mut asked = None;
         let s = &mut self.setup;
         ui.horizontal(|ui| {
-            ui.label("Machine");
+            ui.label(crate::i18n::tr("Machine"));
             for vic in Vic::ALL {
-                ui.selectable_value(&mut s.vic, vic, vic.name());
+                ui.selectable_value(&mut s.vic, vic, crate::i18n::tr(vic.name()));
             }
         });
         let last = s.vic.lines() - 1;
         s.line = s.line.min(last);
         ui.horizontal(|ui| {
-            ui.label("Raster line");
+            ui.label(crate::i18n::tr("Raster line"));
             ui.add(egui::DragValue::new(&mut s.line).range(0..=last));
-            ui.label(format!("(${:03X})", s.line));
+            ui.label(crate::i18n::tf!("(${:03X})", s.line));
             ui.separator();
-            ui.label("Vertical scroll");
+            ui.label(crate::i18n::tr("Vertical scroll"));
             ui.add(egui::DragValue::new(&mut s.yscroll).range(0..=7));
-            ui.checkbox(&mut s.screen_on, "Screen on").on_hover_text("$D011 bit 4: with the screen off at line $30, there are no bad lines all frame");
-            ui.checkbox(&mut s.rows25, "25 rows");
+            ui.checkbox(&mut s.screen_on, crate::i18n::tr("Screen on")).on_hover_text(crate::i18n::tr("$D011 bit 4: with the screen off at line $30, there are no bad lines all frame"));
+            ui.checkbox(&mut s.rows25, crate::i18n::tr("25 rows"));
         });
         ui.horizontal(|ui| {
-            ui.label("Sprites on the line");
+            ui.label(crate::i18n::tr("Sprites on the line"));
             for sprite in 0..8u8 {
                 let mut on = s.sprites & (1 << sprite) != 0;
                 if ui.checkbox(&mut on, sprite.to_string()).changed() {
@@ -331,7 +331,7 @@ impl Calculator {
         });
         let r = s.report();
         ui.separator();
-        ui.label(format!(
+        ui.label(crate::i18n::tf!(
             "{} cycles a line, {} lines a frame: {} cycles a frame, {:.2} frames a second.",
             s.vic.cycles(),
             s.vic.lines(),
@@ -340,19 +340,19 @@ impl Calculator {
         ));
         let (top, bottom) = window(s.rows25);
         let (blank_from, blank_to) = s.vic.blank();
-        ui.label(format!(
+        ui.label(crate::i18n::tf!(
             "Display window: lines ${top:02X} to ${bottom:02X} ({top} to {bottom}). Vertical blank: lines {blank_from} to {blank_to}, so {} lines are shown.",
             s.vic.visible()
         ));
         let bad = bad_lines(s.yscroll, s.screen_on);
         if let (Some(first), Some(end)) = (bad.first(), bad.last()) {
-            ui.label(format!("Bad lines: every 8th from ${first:02X} to ${end:02X}, {} of them.", bad.len()));
+            ui.label(crate::i18n::tf!("Bad lines: every 8th from ${first:02X} to ${end:02X}, {} of them.", bad.len()));
         } else {
-            ui.label("No bad lines: the screen is off.");
+            ui.label(crate::i18n::tr("No bad lines: the screen is off."));
         }
         ui.add_space(4.0);
-        ui.label(RichText::new(format!("Line ${:03X} is in {}{}.", s.line, r.area.name(), if r.bad { ", and a bad line" } else { "" })).strong());
-        ui.label(format!(
+        ui.label(RichText::new(crate::i18n::tf!("Line ${:03X} is in {}{}.", s.line, r.area.name(), if r.bad { ", and a bad line" } else { "" })).strong());
+        ui.label(crate::i18n::tf!(
             "The processor has {} cycles of {}, or {} if it's reading when the VIC-II warns it. The VIC-II reads for {} ({} for the row's characters, {} for sprites).",
             r.best,
             s.vic.cycles(),
@@ -380,7 +380,7 @@ impl Calculator {
                 Use::Chars => "the VIC-II reads a character pointer".to_string(),
                 Use::Sprite(n) => format!("the VIC-II reads sprite {n}'s data"),
             };
-            response.on_hover_text(format!("Cycle {}: {what}", i + 1));
+            response.on_hover_text(crate::i18n::tf!("Cycle {}: {what}", i + 1));
         }
         ui.horizontal(|ui| {
             for (u, words) in [(Use::Cpu, "processor"), (Use::Warned, "BA low (writes only)"), (Use::Chars, "character pointers"), (Use::Sprite(0), "sprite data")] {
@@ -390,10 +390,10 @@ impl Calculator {
             }
         });
         let (worst, best) = s.frame();
-        ui.label(RichText::new(format!("A whole frame with no sprites gives the processor {best} cycles ({worst} at worst).")).small());
-        ui.label(RichText::new("Sprites 0 to 2 are read at the end of the line before the one they show on, 3 to 7 at the start of it; the count is for a line among a sprite's rows.").small());
+        ui.label(RichText::new(crate::i18n::tf!("A whole frame with no sprites gives the processor {best} cycles ({worst} at worst).")).small());
+        ui.label(RichText::new(crate::i18n::tr("Sprites 0 to 2 are read at the end of the line before the one they show on, 3 to 7 at the start of it; the count is for a line among a sprite's rows.")).small());
         ui.add_space(4.0);
-        if ui.button("Put a note at the cursor").on_hover_text("A comment saying what this line leaves the processor").clicked() {
+        if ui.button(crate::i18n::tr("Put a note at the cursor")).on_hover_text(crate::i18n::tr("A comment saying what this line leaves the processor")).clicked() {
             asked = Some(Asked::Insert(s.note()));
         }
         asked

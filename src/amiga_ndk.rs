@@ -203,7 +203,7 @@ impl Index {
             }
         }
         if index.functions.is_empty() {
-            return Err("There's no NDK there: no SFD folder with libraries' functions in it.".into());
+            return Err(crate::i18n::tr("There's no NDK there: no SFD folder with libraries' functions in it.").into());
         }
         if let Some(headers) = index.include_folder() {
             index.headers = headers::read(&headers);
@@ -323,7 +323,7 @@ pub fn choose(folder: Option<&Path>) -> Result<Option<usize>, String> {
         match folder {
             Some(folder) => {
                 let _ = std::fs::create_dir_all(file.parent().expect("in a folder"));
-                std::fs::write(&file, folder.display().to_string()).map_err(|e| format!("The choice couldn't be saved: {e}"))?;
+                std::fs::write(&file, folder.display().to_string()).map_err(|e| crate::i18n::tf!("The choice couldn't be saved: {e}"))?;
             }
             None => {
                 let _ = std::fs::remove_file(&file);
@@ -358,8 +358,8 @@ pub fn current() -> Option<Arc<Index>> {
 
 /// Downloads the NDK from Aminet and unpacks it into a folder, replacing what was there. Gives the number of files.
 pub fn download(into: &Path) -> Result<usize, String> {
-    let response = ureq::get(ADDRESS).header("User-Agent", "Limoniter").call().map_err(|e| format!("Aminet couldn't be reached: {e}"))?;
-    let bytes = response.into_body().with_config().limit(MOST_BYTES).read_to_vec().map_err(|e| format!("The NDK couldn't be downloaded: {e}"))?;
+    let response = ureq::get(ADDRESS).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("Aminet couldn't be reached: {e}"))?;
+    let bytes = response.into_body().with_config().limit(MOST_BYTES).read_to_vec().map_err(|e| crate::i18n::tf!("The NDK couldn't be downloaded: {e}"))?;
     unpack(bytes, into)
 }
 
@@ -368,7 +368,7 @@ pub fn unpack(archive: Vec<u8>, into: &Path) -> Result<usize, String> {
     let volume = crate::media::open(Arc::new(archive), "NDK3.2.lha")?;
     let fresh = into.with_extension("new");
     let _ = std::fs::remove_dir_all(&fresh);
-    std::fs::create_dir_all(&fresh).map_err(|e| format!("The folder for the NDK couldn't be made: {e}"))?;
+    std::fs::create_dir_all(&fresh).map_err(|e| crate::i18n::tf!("The folder for the NDK couldn't be made: {e}"))?;
     let mut count = 0;
     let mut todo = vec![(None, fresh.clone())];
     while let Some((dir, at)) = todo.pop() {
@@ -379,18 +379,18 @@ pub fn unpack(archive: Vec<u8>, into: &Path) -> Result<usize, String> {
             }
             let path = at.join(&name);
             if entry.is_dir {
-                std::fs::create_dir_all(&path).map_err(|e| format!("{name} couldn't be made: {e}"))?;
+                std::fs::create_dir_all(&path).map_err(|e| crate::i18n::tf!("{name} couldn't be made: {e}"))?;
                 todo.push((Some(entry), path));
             } else {
                 let bytes = volume.read(&entry)?;
-                std::fs::write(&path, bytes).map_err(|e| format!("{name} couldn't be written: {e}"))?;
+                std::fs::write(&path, bytes).map_err(|e| crate::i18n::tf!("{name} couldn't be written: {e}"))?;
                 count += 1;
             }
         }
     }
     Index::read(&fresh)?;
     let _ = std::fs::remove_dir_all(into);
-    std::fs::rename(&fresh, into).map_err(|e| format!("The NDK couldn't be put in place: {e}"))?;
+    std::fs::rename(&fresh, into).map_err(|e| crate::i18n::tf!("The NDK couldn't be put in place: {e}"))?;
     Ok(count)
 }
 

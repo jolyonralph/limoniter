@@ -59,7 +59,7 @@ const DESKTOP: [[u8; 3]; 16] = [
 ];
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
-    let h = header(bytes).ok_or("This isn't a GEM bit image.")?;
+    let h = header(bytes).ok_or(crate::i18n::tr("This isn't a GEM bit image."))?;
     let line = h.width.div_ceil(8);
     let mut planes_data = vec![0u8; h.height * h.planes * line];
     let mut at = h.words * 2;

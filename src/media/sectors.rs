@@ -39,7 +39,7 @@ pub(super) fn lay_out(tracks: &Tracks) -> Result<Laid, String> {
     for sector in tracks.values().flatten().filter(|s| s.data.is_some()) {
         *sizes.entry(sector.size).or_default() += 1;
     }
-    let size = sizes.iter().max_by_key(|(size, count)| (**count, std::cmp::Reverse(**size))).map(|(size, _)| *size).ok_or("The image holds no sectors with data.")?;
+    let size = sizes.iter().max_by_key(|(size, count)| (**count, std::cmp::Reverse(**size))).map(|(size, _)| *size).ok_or(crate::i18n::tr("The image holds no sectors with data."))?;
     // The run of numbers each track has: from its lowest numbered sector of that size, while the numbers go on.
     let mut runs: HashMap<(u8, usize), usize> = HashMap::new();
     for sectors in tracks.values() {
@@ -51,7 +51,7 @@ pub(super) fn lay_out(tracks: &Tracks) -> Result<Laid, String> {
             *runs.entry((first, length)).or_default() += 1;
         }
     }
-    let (first, per_track) = runs.iter().max_by_key(|(_, count)| **count).map(|(run, _)| *run).ok_or("The image holds no tracks.")?;
+    let (first, per_track) = runs.iter().max_by_key(|(_, count)| **count).map(|(run, _)| *run).ok_or(crate::i18n::tr("The image holds no tracks."))?;
     let heads: Vec<u8> = {
         let mut heads: Vec<u8> = tracks.keys().map(|(_, head)| *head).collect();
         heads.sort_unstable();
@@ -116,13 +116,13 @@ pub fn looks_like_imd(head: &[u8]) -> bool {
 /// head (with flags for the optional maps), sector count and size code, the sectors' numbers, then each sector as a
 /// type byte and its data: none, a whole sector, or one byte filling it.
 fn read_imd(file: &[u8]) -> Result<(String, Tracks), String> {
-    let end = file.iter().position(|b| *b == 0x1A).ok_or("This ImageDisk file's header never ends.")?;
+    let end = file.iter().position(|b| *b == 0x1A).ok_or(crate::i18n::tr("This ImageDisk file's header never ends."))?;
     let text = String::from_utf8_lossy(&file[..end]).replace("\r\n", "\n");
     let comment = text.split_once('\n').map_or("", |(_, rest)| rest).trim().to_string();
     let mut tracks = Tracks::new();
     let mut at = end + 1;
     let take = |at: &mut usize, n: usize| -> Result<&[u8], String> {
-        let bytes = file.get(*at..*at + n).ok_or("The ImageDisk file ends partway through a track.")?;
+        let bytes = file.get(*at..*at + n).ok_or(crate::i18n::tr("The ImageDisk file ends partway through a track."))?;
         *at += n;
         Ok(bytes)
     };
@@ -141,7 +141,7 @@ fn read_imd(file: &[u8]) -> Result<(String, Tracks), String> {
         } else if size_code <= 6 {
             vec![128 << size_code; count]
         } else {
-            return Err(format!("Track {cylinder} has a sector size code ({size_code}) ImageDisk doesn't use."));
+            return Err(crate::i18n::tf!("Track {cylinder} has a sector size code ({size_code}) ImageDisk doesn't use."));
         };
         let mut sectors = Vec::with_capacity(count);
         for (number, size) in numbers.into_iter().zip(sizes) {
@@ -150,7 +150,7 @@ fn read_imd(file: &[u8]) -> Result<(String, Tracks), String> {
                 0 => None,
                 1 | 3 | 5 | 7 => Some(take(&mut at, size)?.to_vec()),
                 2 | 4 | 6 | 8 => Some(vec![take(&mut at, 1)?[0]; size]),
-                _ => return Err(format!("Track {cylinder} has a sector record of a kind ({kind}) ImageDisk doesn't write.")),
+                _ => return Err(crate::i18n::tf!("Track {cylinder} has a sector record of a kind ({kind}) ImageDisk doesn't write.")),
             };
             sectors.push(Sector { id: number, size, data, error: kind >= 5 });
         }
@@ -476,10 +476,10 @@ fn lzhuf(input: &[u8], most: usize) -> Vec<u8> {
 /// an optional comment, then each track's sector count, cylinder and head, then each sector's header and data
 /// block: the bytes as they are, a repeated pair, or runs and literals.
 fn read_td0(file: &[u8]) -> Result<(String, Tracks), String> {
-    let header = file.get(..12).ok_or("This Teledisk file is too short for its header.")?;
+    let header = file.get(..12).ok_or(crate::i18n::tr("This Teledisk file is too short for its header."))?;
     let body = if header.starts_with(b"td") {
         if header[4] < 20 {
-            return Err("This Teledisk file uses the compression of versions before 2.0, which Limoniter can't unpack yet.".into());
+            return Err(crate::i18n::tr("This Teledisk file uses the compression of versions before 2.0, which Limoniter can't unpack yet.").into());
         }
         lzhuf(&file[12..], 16 * 1024 * 1024)
     } else {
@@ -487,7 +487,7 @@ fn read_td0(file: &[u8]) -> Result<(String, Tracks), String> {
     };
     let mut at = 0;
     let take = |at: &mut usize, n: usize| -> Result<&[u8], String> {
-        let bytes = body.get(*at..*at + n).ok_or("The Teledisk file ends partway through a track.")?;
+        let bytes = body.get(*at..*at + n).ok_or(crate::i18n::tr("The Teledisk file ends partway through a track."))?;
         *at += n;
         Ok(bytes)
     };
@@ -518,7 +518,7 @@ fn read_td0(file: &[u8]) -> Result<(String, Tracks), String> {
             }
             let length = usize::from(u16::from_le_bytes(take(&mut at, 2)?.try_into().unwrap()));
             let block = take(&mut at, length)?;
-            let (&method, rest) = block.split_first().ok_or("A Teledisk sector's data block is empty.")?;
+            let (&method, rest) = block.split_first().ok_or(crate::i18n::tr("A Teledisk sector's data block is empty."))?;
             let mut data = Vec::with_capacity(size);
             match method {
                 0 => data.extend_from_slice(rest),
@@ -543,7 +543,7 @@ fn read_td0(file: &[u8]) -> Result<(String, Tracks), String> {
                         } else {
                             // The pattern is 2 to the power of the code (Dunfield's TD02IMD; his notes say twice it).
                             let Some(span) = 1usize.checked_shl(kind as u32).filter(|span| *span <= size) else {
-                                return Err(format!("Track {cylinder} has a sector whose runs don't make sense, so the image is damaged."));
+                                return Err(crate::i18n::tf!("Track {cylinder} has a sector whose runs don't make sense, so the image is damaged."));
                             };
                             let times = usize::from(*rest.get(i + 1).unwrap_or(&0));
                             let pattern = rest.get(i + 2..i + 2 + span).unwrap_or_default();
@@ -554,7 +554,7 @@ fn read_td0(file: &[u8]) -> Result<(String, Tracks), String> {
                         }
                     }
                 }
-                _ => return Err(format!("Track {cylinder} has a sector stored a way ({method}) Teledisk doesn't use.")),
+                _ => return Err(crate::i18n::tf!("Track {cylinder} has a sector stored a way ({method}) Teledisk doesn't use.")),
             }
             data.resize(size, 0);
             sectors.push(Sector { id, size, data: Some(data), error: flags & 0x02 != 0 });
@@ -630,7 +630,7 @@ impl Volume for SectorDisk {
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
         if let Some(dir) = dir {
-            return self.inner.as_ref().ok_or("This disk has no folders Limoniter can read.")?.list(Some(dir));
+            return self.inner.as_ref().ok_or(crate::i18n::tr("This disk has no folders Limoniter can read."))?.list(Some(dir));
         }
         let mut entries = match &self.inner {
             Some(inner) => inner.list(None)?,
@@ -650,7 +650,7 @@ impl Volume for SectorDisk {
         if entry.extra == WHOLE_DISK {
             return Ok(self.plain.as_ref().clone());
         }
-        self.inner.as_ref().ok_or("That isn't on this disk.")?.read(entry)
+        self.inner.as_ref().ok_or(crate::i18n::tr("That isn't on this disk."))?.read(entry)
     }
 
     fn notes(&self) -> Vec<String> {

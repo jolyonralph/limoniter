@@ -61,7 +61,7 @@ impl Disk {
     pub fn open(bytes: Vec<u8>) -> Result<Self, String> {
         let extended = bytes.starts_with(b"EXTENDED CPC DSK");
         if !extended && !bytes.starts_with(b"MV - CPC") {
-            return Err("This isn't a CPC or +3 DSK image.".into());
+            return Err(crate::i18n::tr("This isn't a CPC or +3 DSK image.").into());
         }
         let (cylinders, heads) = (usize::from(bytes[0x30]), usize::from(bytes[0x31]).max(1));
         let standard = usize::from(u16::from_le_bytes([bytes[0x32], bytes[0x33]]));
@@ -74,16 +74,16 @@ impl Disk {
             if size == 0 {
                 continue;
             }
-            let track = bytes.get(at..at + 256).ok_or("The DSK image ends partway through a track.")?;
+            let track = bytes.get(at..at + 256).ok_or(crate::i18n::tr("The DSK image ends partway through a track."))?;
             if !track.starts_with(b"Track-Info") {
-                return Err(format!("Track {index} of the DSK image has no track header."));
+                return Err(crate::i18n::tf!("Track {index} of the DSK image has no track header."));
             }
             let mut data = at + 256;
             for s in 0..usize::from(track[0x15]).min(29) {
                 let info = &track[0x18 + s * 8..0x20 + s * 8];
                 let length = if extended { usize::from(u16::from_le_bytes([info[6], info[7]])) } else { 128usize << info[3].min(6) };
                 if data + length > bytes.len() {
-                    return Err("The DSK image ends partway through a sector.".into());
+                    return Err(crate::i18n::tr("The DSK image ends partway through a sector.").into());
                 }
                 sectors.insert((track[0x10], track[0x11], info[2]), data);
                 sizes.push(length);
@@ -95,19 +95,19 @@ impl Disk {
             at += size;
         }
         if sizes.iter().any(|s| *s != 512) {
-            return Err("Only disks of 512-byte sectors throughout are changed here; this one has copy protection or an odd format.".into());
+            return Err(crate::i18n::tr("Only disks of 512-byte sectors throughout are changed here; this one has copy protection or an odd format.").into());
         }
-        let first = first_id.ok_or("The disk has no sectors.")?;
+        let first = first_id.ok_or(crate::i18n::tr("The disk has no sectors."))?;
         // (sectors a track, reserved tracks, block size, directory blocks, tracks a side, sides, +3)
         let spec = match first {
             0xC1 => (9, 0, 1024, 2, cylinders, heads, false),
             0x41 => (9, 2, 1024, 2, cylinders, heads, false),
             _ => {
-                let boot_at = *sectors.get(&(0, 0, first)).ok_or("The disk has no boot sector.")?;
+                let boot_at = *sectors.get(&(0, 0, first)).ok_or(crate::i18n::tr("The disk has no boot sector."))?;
                 let b = &bytes[boot_at..boot_at + 10];
                 let b = if b[0] <= 3 && b[3] != 0 { [b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]] } else { [0, 0, 40, 9, 2, 1, 3, 2] };
                 if b[4] != 2 {
-                    return Err("The disk's specification gives sectors other than 512 bytes.".into());
+                    return Err(crate::i18n::tr("The disk's specification gives sectors other than 512 bytes.").into());
                 }
                 (usize::from(b[3]), usize::from(b[5]), 128usize << b[6].min(4), usize::from(b[7]).max(1), usize::from(b[2]), if b[1] & 3 == 0 { 1 } else { 2 }, true)
             }
@@ -116,7 +116,7 @@ impl Disk {
         let data_bytes = (tracks * sides).saturating_sub(reserved) * per_track * 512;
         let blocks = data_bytes / block;
         if blocks > 255 {
-            return Err("Disks of more than 255 blocks (16-bit block numbers) aren't changed here yet.".into());
+            return Err(crate::i18n::tr("Disks of more than 255 blocks (16-bit block numbers) aren't changed here yet.").into());
         }
         let disk = Self { bytes, sectors, sector_size: 512, per_track, first_id: first, sides, reserved, block, directory_blocks, blocks, plus3 };
         // Every block the directory and files need has to be in the image.
@@ -137,7 +137,7 @@ impl Disk {
         self.sectors
             .get(&(cylinder as u8, head as u8, self.first_id.wrapping_add(place as u8)))
             .copied()
-            .ok_or_else(|| format!("track {cylinder} side {head} sector {} isn't in the image", self.first_id.wrapping_add(place as u8)))
+            .ok_or_else(|| crate::i18n::tf!("track {cylinder} side {head} sector {} isn't in the image", self.first_id.wrapping_add(place as u8)))
     }
 
     fn write_block(&mut self, block: usize, data: &[u8]) {
@@ -202,7 +202,7 @@ fn cpm_name(name: &str) -> Result<[u8; 11], String> {
     let part = |text: &str, most: usize| -> String { text.chars().map(|c| c.to_ascii_uppercase()).filter(|c| c.is_ascii_graphic() && !"<>.,;:=?*[]|/\\\"".contains(*c)).take(most).collect() };
     let (stem, ending) = (part(stem, 8), part(ending, 3));
     if stem.is_empty() {
-        return Err(format!("\"{name}\" has no characters a CP/M name can hold."));
+        return Err(crate::i18n::tf!("\"{name}\" has no characters a CP/M name can hold."));
     }
     let mut out = [b' '; 11];
     out[..stem.len()].copy_from_slice(stem.as_bytes());
@@ -299,7 +299,7 @@ impl ImageWriter for Disk {
             CODE => plus3_header(3, &file.bytes, file.address.unwrap_or(32768), 0x8000),
             SCREEN => {
                 if file.bytes.len() != 6912 {
-                    return Err(format!("A screen is 6912 bytes; {} is {}.", file.name, file.bytes.len()));
+                    return Err(crate::i18n::tf!("A screen is 6912 bytes; {} is {}.", file.name, file.bytes.len()));
                 }
                 plus3_header(3, &file.bytes, 16384, 0x8000)
             }
@@ -309,14 +309,14 @@ impl ImageWriter for Disk {
         let used = self.used();
         let free: Vec<usize> = (0..self.blocks).filter(|b| !used[*b]).take(count).collect();
         if free.len() < count {
-            return Err(format!("{} needs {count}K; the disk has {}K free.", file.name, self.free_blocks() * self.block / 1024));
+            return Err(crate::i18n::tf!("{} needs {count}K; the disk has {}K free.", file.name, self.free_blocks() * self.block / 1024));
         }
         // An entry for each 16 blocks (16K): its extent number, records in it, and its blocks.
         let per_entry = 16;
         let extents = count.div_ceil(per_entry).max(1);
         let slots: Vec<usize> = self.slots().into_iter().filter(|s| self.bytes[*s] == 0xE5).take(extents).collect();
         if slots.len() < extents {
-            return Err("The disk's directory is full.".into());
+            return Err(crate::i18n::tr("The disk's directory is full.").into());
         }
         let records = bytes.len().div_ceil(128);
         let extent_size = self.block * per_entry;
@@ -348,7 +348,7 @@ impl ImageWriter for Disk {
     fn delete(&mut self, _folder: Option<&Entry>, entry: &Entry) -> Result<(), String> {
         let slots = self.entries_of(&entry.name);
         if slots.is_empty() {
-            return Err(format!("{} isn't on the disk.", entry.name));
+            return Err(crate::i18n::tf!("{} isn't on the disk.", entry.name));
         }
         for slot in slots {
             self.bytes[slot] = 0xE5;
@@ -359,7 +359,7 @@ impl ImageWriter for Disk {
     fn rename(&mut self, _folder: Option<&Entry>, entry: &Entry, name: &str) -> Result<(), String> {
         let slots = self.entries_of(&entry.name);
         if slots.is_empty() {
-            return Err(format!("{} isn't on the disk.", entry.name));
+            return Err(crate::i18n::tf!("{} isn't on the disk.", entry.name));
         }
         let new = cpm_name(name)?;
         if !self.entries_of(&shown(&new)).iter().all(|s| slots.contains(s)) {

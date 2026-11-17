@@ -249,7 +249,7 @@ fn write_replaced(out: &mut impl std::io::Write, re: &Regex, options: &SearchOpt
     let text = codec::decode_line(body, set);
     match crate::text_buffer::replaced_line(re, options, &text) {
         Some((replaced, here)) => {
-            let bytes = codec::encode_with(&[replaced], &|_| codec::Eol::None, format, codec::Lossy::Refuse).map_err(|_| format!("{} can't hold the replacement text", format.encoding_name()))?;
+            let bytes = codec::encode_with(&[replaced], &|_| codec::Eol::None, format, codec::Lossy::Refuse).map_err(|_| crate::i18n::tf!("{} can't hold the replacement text", format.encoding_name()))?;
             out.write_all(&bytes).map_err(|e| e.to_string())?;
             *count += here;
         }
@@ -268,11 +268,11 @@ fn replace_in_big_file(path: &Path, options: &SearchOptions, backup: bool) -> Re
     let got = std::fs::File::open(path).and_then(|mut file| file.read(&mut head)).map_err(|e| e.to_string())?;
     head.truncate(got);
     if codec::looks_binary(&head) {
-        return Err("it looks like a binary file".to_string());
+        return Err(crate::i18n::tr("it looks like a binary file").to_string());
     }
     let found = codec::detect(&head);
     if (found.charset.holds_characters() && found.charset.id != "utf-8") || found.charset.ebcdic {
-        return Err(format!("it's in {}, which can't be changed a line at a time at this size", found.charset.name));
+        return Err(crate::i18n::tf!("it's in {}, which can't be changed a line at a time at this size", found.charset.name));
     }
     let format = TextFormat { charset: found.charset, ..TextFormat::default() };
     let by_bytes = format.charset.keep_bytes;
@@ -323,10 +323,10 @@ fn replace_in_big_file(path: &Path, options: &SearchOptions, backup: bool) -> Re
             return Ok((0, false));
         }
         if stamp(&std::fs::metadata(path).map_err(|e| e.to_string())?) != before {
-            return Err("another program changed it while it was being read".to_string());
+            return Err(crate::i18n::tr("another program changed it while it was being read").to_string());
         }
         if backup {
-            std::fs::copy(path, free_backup_name(path)).map_err(|e| format!("its backup couldn't be written: {e}"))?;
+            std::fs::copy(path, free_backup_name(path)).map_err(|e| crate::i18n::tf!("its backup couldn't be written: {e}"))?;
         }
         std::fs::rename(&temp, path).map_err(|e| e.to_string())?;
         Ok((count, backup))
@@ -341,14 +341,14 @@ fn replace_in_big_file(path: &Path, options: &SearchOptions, backup: bool) -> Re
 pub fn replace_in_file(path: &Path, options: &SearchOptions, backup: bool) -> Result<(usize, bool), String> {
     let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
     if meta.permissions().readonly() {
-        return Err("it's marked read-only".to_string());
+        return Err(crate::i18n::tr("it's marked read-only").to_string());
     }
     if meta.len() > MOST_REPLACED_BYTES {
         return replace_in_big_file(path, options, backup);
     }
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     if codec::looks_binary(&bytes) {
-        return Err("it looks like a binary file".to_string());
+        return Err(crate::i18n::tr("it looks like a binary file").to_string());
     }
     let found = codec::detect(&bytes);
     let mut format = TextFormat { charset: found.charset, has_bom: found.has_bom, certainty: found.certainty, ..TextFormat::default() };
@@ -357,7 +357,7 @@ pub fn replace_in_file(path: &Path, options: &SearchOptions, backup: bool) -> Re
     buffer.format = format.clone();
     buffer.set_decoded(decoded);
     if buffer.encode(&format, codec::Lossy::Refuse).ok().as_deref() != Some(&bytes[..]) {
-        return Err("its encoding couldn't be kept exactly as it is".to_string());
+        return Err(crate::i18n::tr("its encoding couldn't be kept exactly as it is").to_string());
     }
     // Where every byte stays a byte in the text, a search has to look for those bytes.
     let by_bytes = format.charset.keep_bytes;
@@ -373,10 +373,10 @@ pub fn replace_in_file(path: &Path, options: &SearchOptions, backup: bool) -> Re
         return Ok((0, false));
     }
     let Ok(new_bytes) = buffer.encode(&format, codec::Lossy::Refuse) else {
-        return Err(format!("{} can't hold the replacement text", format.encoding_name()));
+        return Err(crate::i18n::tf!("{} can't hold the replacement text", format.encoding_name()));
     };
     if backup {
-        codec::write_file(&free_backup_name(path), &bytes).map_err(|e| format!("its backup couldn't be written: {e}"))?;
+        codec::write_file(&free_backup_name(path), &bytes).map_err(|e| crate::i18n::tf!("its backup couldn't be written: {e}"))?;
     }
     codec::write_file(path, &new_bytes).map_err(|e| e.to_string())?;
     Ok((count, backup))
@@ -391,7 +391,7 @@ pub fn start_replace(files: Vec<PathBuf>, options: SearchOptions, backup: bool, 
             // Trouble with one file doesn't stop the rest.
             let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| replace_in_file(&path, &options, backup)));
             let mut report = worker.report.lock().unwrap();
-            match attempt.unwrap_or_else(|_| Err("something went wrong reading it".to_string())) {
+            match attempt.unwrap_or_else(|_| Err(crate::i18n::tr("something went wrong reading it").to_string())) {
                 Ok((0, _)) => {}
                 Ok((count, kept)) => {
                     report.files_changed += 1;

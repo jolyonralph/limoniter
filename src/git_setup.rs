@@ -36,7 +36,7 @@ impl Global {
     }
 
     fn run(&self, args: &[&str]) -> Result<std::process::Output, String> {
-        self.git().args(args).output().map_err(|e| format!("Git couldn't be started: {e}"))
+        self.git().args(args).output().map_err(|e| crate::i18n::tf!("Git couldn't be started: {e}"))
     }
 
     /// A setting's value, or None if it isn't set.
@@ -130,10 +130,10 @@ pub fn turn_on(global: &Global, program: &Path, backup: &Path) -> Result<(), Str
             before.insert(key.to_string(), global.get(key)?.map_or(serde_json::Value::Null, serde_json::Value::String));
         }
         if let Some(folder) = backup.parent() {
-            std::fs::create_dir_all(folder).map_err(|e| format!("Couldn't keep Git's settings as they were: {e}"))?;
+            std::fs::create_dir_all(folder).map_err(|e| crate::i18n::tf!("Couldn't keep Git's settings as they were: {e}"))?;
         }
         let text = serde_json::to_string_pretty(&serde_json::Value::Object(before)).map_err(|e| e.to_string())?;
-        std::fs::write(backup, text).map_err(|e| format!("Couldn't keep Git's settings as they were: {e}"))?;
+        std::fs::write(backup, text).map_err(|e| crate::i18n::tf!("Couldn't keep Git's settings as they were: {e}"))?;
     }
     for (key, value) in wanted(program, cfg!(windows)) {
         global.set(key, &value)?;
@@ -152,7 +152,7 @@ pub fn turn_off(global: &Global, backup: &Path) -> Result<(), String> {
                     None => global.unset(key)?,
                 }
             }
-            std::fs::remove_file(backup).map_err(|e| format!("Git's settings are back as they were, but the note of them couldn't be removed: {e}"))?;
+            std::fs::remove_file(backup).map_err(|e| crate::i18n::tf!("Git's settings are back as they were, but the note of them couldn't be removed: {e}"))?;
         }
         None => {
             for key in ["diff.tool", "merge.tool"] {

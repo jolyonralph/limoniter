@@ -129,7 +129,7 @@ pub fn raw(bytes: &[u8], origin: u32, starts: &[u32], machine: Machine) -> Progr
 pub fn amiga_program(bytes: &[u8]) -> Result<Program, String> {
     let hunks = hunk::read_executable(bytes)?;
     if hunks.is_empty() {
-        return Err("The program has no hunks.".into());
+        return Err(crate::i18n::tr("The program has no hunks.").into());
     }
     let mut sections = Vec::new();
     let mut names = BTreeMap::new();
@@ -162,7 +162,7 @@ pub fn amiga_program(bytes: &[u8]) -> Result<Program, String> {
 /// moves when it loads it, each counted from the one before.
 pub fn tos_program(bytes: &[u8]) -> Result<Program, String> {
     if !crate::running::is_atari_program(bytes) {
-        return Err("This isn't an Atari ST program: it doesn't start $601A with sizes that fit.".into());
+        return Err(crate::i18n::tr("This isn't an Atari ST program: it doesn't start $601A with sizes that fit.").into());
     }
     let size = |at| be32(bytes, at).unwrap_or(0) as usize;
     let (text, data, bss, symbols) = (size(2), size(6), size(10), size(14));
@@ -1520,8 +1520,8 @@ fn check(program: &Program, mut lines: Vec<Line>) -> Vec<Line> {
     for _ in 0..8 {
         let text = lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n") + "\n";
         let assembly = match program.layout {
-            Layout::Hunks => crate::asm::assemble_sections(isa, path, &text, &|_| Err("no".into()), 0, &crate::asm::Options { folders: Vec::new(), values: None }),
-            _ => crate::asm::assemble(isa, path, &text, &|_| Err("no".into())),
+            Layout::Hunks => crate::asm::assemble_sections(isa, path, &text, &|_| Err(crate::i18n::tr("no").into()), 0, &crate::asm::Options { folders: Vec::new(), values: None }),
+            _ => crate::asm::assemble(isa, path, &text, &|_| Err(crate::i18n::tr("no").into())),
         };
         // Where the assembler put each hunk, for the relocated longs' values.
         let starts: Vec<u32> = match program.layout {

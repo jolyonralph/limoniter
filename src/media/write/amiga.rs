@@ -62,22 +62,22 @@ pub fn blank(label: &str, ffs: bool, high_density: bool) -> Vec<u8> {
 impl Adf {
     pub fn open(bytes: Vec<u8>) -> Result<Self, String> {
         if !bytes.starts_with(b"DOS") || bytes.len() < 4 {
-            return Err("This Amiga disk has no AmigaDOS boot block.".into());
+            return Err(crate::i18n::tr("This Amiga disk has no AmigaDOS boot block.").into());
         }
         let dos = bytes[3];
         if dos > 3 {
-            return Err(format!("This disk is DOS\\{dos}, {}; Limoniter only reads it, so the cache or names aren't left wrong.", if dos <= 5 { "with a directory cache" } else { "with long names" }));
+            return Err(crate::i18n::tf!("This disk is DOS\\{dos}, {}; Limoniter only reads it, so the cache or names aren't left wrong.", if dos <= 5 { "with a directory cache" } else { "with long names" }));
         }
         if !matches!(bytes.len(), 901_120 | 1_802_240) {
-            return Err("Only standard 880K and 1.76MB floppy images are changed here.".into());
+            return Err(crate::i18n::tr("Only standard 880K and 1.76MB floppy images are changed here.").into());
         }
         let blocks = (bytes.len() / BLOCK) as u32;
         let adf = Self { root: blocks / 2, blocks, ffs: dos & 1 == 1, international: dos & 2 == 2, bytes };
         if adf.long(adf.root, 0) != T_HEADER || adf.long(adf.root, 127) != ST_ROOT {
-            return Err("The disk has no root block where AmigaDOS keeps one.".into());
+            return Err(crate::i18n::tr("The disk has no root block where AmigaDOS keeps one.").into());
         }
         if adf.long(adf.root, 78) != 0xFFFF_FFFF {
-            return Err("The disk's bitmap is marked out of date (it wasn't put away properly); let the Amiga validate it first.".into());
+            return Err(crate::i18n::tr("The disk's bitmap is marked out of date (it wasn't put away properly); let the Amiga validate it first.").into());
         }
         Ok(adf)
     }
@@ -162,7 +162,7 @@ impl Adf {
         let order = (self.root + 1..self.blocks).chain(2..self.root);
         let found: Vec<u32> = order.filter(|b| self.is_free(*b)).take(count).collect();
         if found.len() < count {
-            return Err(format!("The disk is full: this needs {} blocks, and {} are free.", count, self.free_blocks()));
+            return Err(crate::i18n::tf!("The disk is full: this needs {} blocks, and {} are free.", count, self.free_blocks()));
         }
         for block in &found {
             self.set_free(*block, false);
@@ -240,11 +240,11 @@ impl Adf {
                 at = self.long(at, 124);
                 steps += 1;
                 if steps > 10_000 {
-                    return Err("The folder's hash chain loops.".into());
+                    return Err(crate::i18n::tr("The folder's hash chain loops.").into());
                 }
             }
             if at == 0 {
-                return Err("The entry isn't in its folder's hash chain.".into());
+                return Err(crate::i18n::tr("The entry isn't in its folder's hash chain.").into());
             }
             self.set_long(at, 124, after);
             self.seal(at);
@@ -272,10 +272,10 @@ impl Adf {
     fn check_name(name: &str) -> Result<String, String> {
         let name = name.trim();
         if name.is_empty() || name.contains(':') || name.contains('/') || name.chars().any(|c| c.is_control() || u32::from(c) > 255) {
-            return Err(format!("\"{name}\" can't be an Amiga file name: no colons, slashes or characters outside Latin-1."));
+            return Err(crate::i18n::tf!("\"{name}\" can't be an Amiga file name: no colons, slashes or characters outside Latin-1."));
         }
         if name.chars().count() > 30 {
-            return Err(format!("\"{name}\" is longer than the 30 characters an Amiga name can have."));
+            return Err(crate::i18n::tf!("\"{name}\" is longer than the 30 characters an Amiga name can have."));
         }
         Ok(name.to_string())
     }
@@ -300,10 +300,10 @@ impl Adf {
     fn remove(&mut self, folder: u32, header: u32) -> Result<(), String> {
         let kind = self.long(header, 127);
         if kind == ST_USERDIR && !self.children(header).is_empty() {
-            return Err("The folder has files in it; take them off first.".into());
+            return Err(crate::i18n::tr("The folder has files in it; take them off first.").into());
         }
         if kind != ST_USERDIR && kind != ST_FILE {
-            return Err("Only files and folders are taken off here, not links.".into());
+            return Err(crate::i18n::tr("Only files and folders are taken off here, not links.").into());
         }
         self.unlink(folder, header)?;
         if kind == ST_FILE {
@@ -327,7 +327,7 @@ impl ImageWriter for Adf {
                 return Err(already(&name));
             }
             if self.long(existing, 127) != ST_FILE {
-                return Err(format!("{name} is a folder here, so a file can't replace it."));
+                return Err(crate::i18n::tf!("{name} is a folder here, so a file can't replace it."));
             }
             self.remove(parent, existing)?;
         }
@@ -388,7 +388,7 @@ impl ImageWriter for Adf {
         let parent = self.folder_block(folder);
         let header = entry.location as u32;
         if !self.children(parent).contains(&header) {
-            return Err(format!("{} isn't in this folder.", entry.name));
+            return Err(crate::i18n::tf!("{} isn't in this folder.", entry.name));
         }
         self.remove(parent, header)
     }
@@ -398,7 +398,7 @@ impl ImageWriter for Adf {
         let parent = self.folder_block(folder);
         let header = entry.location as u32;
         if !self.children(parent).contains(&header) {
-            return Err(format!("{} isn't in this folder.", entry.name));
+            return Err(crate::i18n::tf!("{} isn't in this folder.", entry.name));
         }
         if self.find(parent, &name).is_some_and(|other| other != header) {
             return Err(already(&name));

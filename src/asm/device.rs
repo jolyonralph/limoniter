@@ -168,7 +168,7 @@ impl Device {
     /// Maps a page into the slot PAGE and ORG work on.
     pub fn set_page(&mut self, page: i64) -> Result<(), String> {
         if page < 0 || page as usize >= self.pages {
-            return Err(format!("page {page} isn't one of the device's 0 to {}", self.pages - 1));
+            return Err(crate::i18n::tf!("page {page} isn't one of the device's 0 to {}", self.pages - 1));
         }
         self.slots[self.current] = page as usize;
         self.reset_tracking(None);
@@ -250,12 +250,12 @@ pub struct Output {
 /// SAVEBIN's bytes: from an address in the 64K as mapped now, a length (0 or less: to the end).
 pub fn save_bin(device: &Device, start: i64, length: i64) -> Result<Vec<u8>, String> {
     if !(-0x10000..=0xFFFF).contains(&start) {
-        return Err("SAVEBIN's start must be in $0000 to $FFFF".into());
+        return Err(crate::i18n::tr("SAVEBIN's start must be in $0000 to $FFFF").into());
     }
     let start = if start < 0 { start + 0x10000 } else { start };
     let mut length = if length <= 0 { length + 0x10000 - start } else { length };
     if length <= 0 {
-        return Err("SAVEBIN has nothing to save".into());
+        return Err(crate::i18n::tr("SAVEBIN has nothing to save").into());
     }
     if start + length > 0x10000 {
         length = 0x10000 - start;
@@ -266,14 +266,14 @@ pub fn save_bin(device: &Device, start: i64, length: i64) -> Result<Vec<u8>, Str
 /// A +3DOS file of bytes from the 64K: SAVE3DOS's type (3 for code), and its two header words.
 pub fn save_3dos(device: &Device, address: i64, size: i64, kind: i64, w2: Option<i64>, w3: Option<i64>) -> Result<Vec<u8>, String> {
     if address < 0 || size < 1 || address + size > 0x10000 {
-        return Err("SAVE3DOS's address and size go outside the 64K".into());
+        return Err(crate::i18n::tr("SAVE3DOS's address and size go outside the 64K").into());
     }
     let w3 = w3.unwrap_or(size);
     let w2 = match kind {
         0 => w2.unwrap_or(0x8000),
         1 | 2 => w2.unwrap_or(-1),
         3 => w2.unwrap_or(address),
-        _ => return Err("SAVE3DOS's type is 0 to 3".into()),
+        _ => return Err(crate::i18n::tr("SAVE3DOS's type is 0 to 3").into()),
     };
     let mut header = b"PLUS3DOS\x1A\x01\x00".to_vec();
     header.resize(128, 0);
@@ -292,7 +292,7 @@ pub fn save_3dos(device: &Device, address: i64, size: i64, kind: i64, w2: Option
 /// others. Memory where the default stack was, if it's still as it was, gets the start address pushed on it.
 pub fn save_sna(device: &mut Device, start: i64) -> Result<Vec<u8>, String> {
     if !device.is_spectrum() {
-        return Err("SAVESNA needs DEVICE ZXSPECTRUM48 or ZXSPECTRUM128".into());
+        return Err(crate::i18n::tr("SAVESNA needs DEVICE ZXSPECTRUM48 or ZXSPECTRUM128").into());
     }
     let mut header: [u8; 31] = [
         0x3F, 0x58, 0x27, 0x9B, 0x36, 0x00, 0x00, 0x44, 0x00, 0x2B, 0x2D, 0xDC, 0x5C, 0x00, 0x00, //
@@ -436,10 +436,10 @@ pub struct Nex {
 impl Nex {
     pub fn open(name: String, start: i64, stack: i64, entry_bank: i64, version: i64) -> Result<Nex, String> {
         if !(0..112).contains(&entry_bank) {
-            return Err("SAVENEX's entry bank is 0 to 111".into());
+            return Err(crate::i18n::tr("SAVENEX's entry bank is 0 to 111").into());
         }
         if version != 0 && !(2..=3).contains(&version) {
-            return Err("SAVENEX's file version is 2 (V1.2) or 3 (V1.3)".into());
+            return Err(crate::i18n::tr("SAVENEX's file version is 2 (V1.2) or 3 (V1.3)").into());
         }
         let mut header = vec![0u8; 512];
         header[..8].copy_from_slice(b"NextV1.2");
@@ -453,7 +453,7 @@ impl Nex {
 
     fn needs_v13(&mut self, what: &str) -> Result<(), String> {
         if self.wanted_version == 2 {
-            return Err(format!("{what} is a NEX V1.3 feature, and OPEN asked for V1.2"));
+            return Err(crate::i18n::tf!("{what} is a NEX V1.3 feature, and OPEN asked for V1.2"));
         }
         self.version = 3;
         Ok(())
@@ -511,10 +511,10 @@ impl Nex {
 
     fn palette_check(&self) -> Result<(), String> {
         if self.palette_set || self.screen_flags() != 0 {
-            return Err("a palette or screen was already given (give the palette once, before the screen)".into());
+            return Err(crate::i18n::tr("a palette or screen was already given (give the palette once, before the screen)").into());
         }
         if self.last_bank != -1 {
-            return Err("a bank was already stored (give the palette before them)".into());
+            return Err(crate::i18n::tr("a bank was already stored (give the palette before them)").into());
         }
         Ok(())
     }
@@ -528,7 +528,7 @@ impl Nex {
         if page == -1 {
             return Ok(());
         }
-        let bytes = device.page_bytes(page as usize, offset as usize, 512).ok_or("the palette is outside the Next's memory")?;
+        let bytes = device.page_bytes(page as usize, offset as usize, 512).ok_or(crate::i18n::tr("the palette is outside the Next's memory"))?;
         self.palette = Some(bytes.to_vec());
         Ok(())
     }
@@ -543,10 +543,10 @@ impl Nex {
 
     fn screen_check(&self) -> Result<(), String> {
         if self.screen_flags() != 0 {
-            return Err("the NEX file already has its screen".into());
+            return Err(crate::i18n::tr("the NEX file already has its screen").into());
         }
         if self.last_bank != -1 {
-            return Err("a bank was already stored (store the screen first)".into());
+            return Err(crate::i18n::tr("a bank was already stored (store the screen first)").into());
         }
         Ok(())
     }
@@ -566,7 +566,7 @@ impl Nex {
         if let Some(page) = page
             && device.page_bytes(page as usize, offset as usize, size).is_none()
         {
-            return Err("the screen's pixels are outside the Next's memory".into());
+            return Err(crate::i18n::tr("the screen's pixels are outside the Next's memory").into());
         }
         let (palette_page, palette_offset) = palette.unwrap_or((-1, 0));
         self.palette_from(device, palette_page, palette_offset)?;
@@ -590,7 +590,7 @@ impl Nex {
                 self.data.extend_from_slice(device.page_bytes(10, 0, 0x1800).expect("bank 5"));
                 self.data.extend_from_slice(device.page_bytes(11, 0, 0x1800).expect("bank 5"));
             }
-            None => self.data.extend_from_slice(device.page_bytes(18, 0, size).ok_or("the screen's pages are outside the Next's memory")?),
+            None => self.data.extend_from_slice(device.page_bytes(18, 0, size).ok_or(crate::i18n::tr("the screen's pages are outside the Next's memory"))?),
         }
         Ok(())
     }
@@ -635,13 +635,13 @@ impl Nex {
 
     pub fn copper(&mut self, device: &Device, page: i64, offset: i64) -> Result<(), String> {
         if self.wanted_version == 2 {
-            return Err("COPPER is a NEX V1.3 feature, and OPEN asked for V1.2".into());
+            return Err(crate::i18n::tr("COPPER is a NEX V1.3 feature, and OPEN asked for V1.2").into());
         }
         if self.last_bank != -1 {
-            return Err("a bank was already stored (store the copper code first)".into());
+            return Err(crate::i18n::tr("a bank was already stored (store the copper code first)").into());
         }
         self.version = 3;
-        let bytes = device.page_bytes(page as usize, offset as usize, 0x800).ok_or("the copper code is outside the Next's memory")?;
+        let bytes = device.page_bytes(page as usize, offset as usize, 0x800).ok_or(crate::i18n::tr("the copper code is outside the Next's memory"))?;
         self.header[153] = 1;
         self.copper = Some(bytes.to_vec());
         Ok(())
@@ -660,13 +660,13 @@ impl Nex {
 
     /// Stores a 16K bank, in the order a .nex keeps them; one of only zeros is left out if asked.
     pub fn save_bank(&mut self, device: &Device, bank: i64, only_non_zero: bool) -> Result<(), String> {
-        let index = nex_index(bank).ok_or("SAVENEX's banks are 0 to 111")?;
+        let index = nex_index(bank).ok_or(crate::i18n::tr("SAVENEX's banks are 0 to 111"))?;
         if index <= self.last_bank {
-            return Err(format!("it's too late to store bank {bank}: they go in the order 5, 2, 0, 1, 3, 4, 6, 7, 8..."));
+            return Err(crate::i18n::tf!("it's too late to store bank {bank}: they go in the order 5, 2, 0, 1, 3, 4, 6, 7, 8..."));
         }
         self.before_banks();
         self.last_bank = index;
-        let bytes = device.page_bytes(bank as usize * 2, 0, 0x4000).ok_or("that bank is outside the Next's memory")?;
+        let bytes = device.page_bytes(bank as usize * 2, 0, 0x4000).ok_or(crate::i18n::tr("that bank is outside the Next's memory"))?;
         if only_non_zero && bytes.iter().all(|b| *b == 0) {
             return Ok(());
         }
@@ -679,15 +679,15 @@ impl Nex {
     /// AUTO: every bank with something in it, from the one after the last stored (or as given).
     pub fn auto(&mut self, device: &Device, from: Option<i64>, to: Option<i64>) -> Result<(), String> {
         if self.last_bank == 111 {
-            return Err("every bank is stored already".into());
+            return Err(crate::i18n::tr("every bank is stored already").into());
         }
         let from = from.unwrap_or_else(|| nex_bank(self.last_bank + 1).unwrap_or(111));
         let to = to.unwrap_or(111);
         let (Some(first), Some(last)) = (nex_index(from), nex_index(to)) else {
-            return Err("SAVENEX AUTO's banks are 0 to 111".into());
+            return Err(crate::i18n::tr("SAVENEX AUTO's banks are 0 to 111").into());
         };
         if last < first {
-            return Err("SAVENEX AUTO's last bank comes before its first".into());
+            return Err(crate::i18n::tr("SAVENEX AUTO's last bank comes before its first").into());
         }
         for index in first..=last {
             self.save_bank(device, nex_bank(index).expect("in range"), true)?;
@@ -716,7 +716,7 @@ impl Nex {
             out[508..512].copy_from_slice(&crc.to_le_bytes());
         }
         if self.header[8] == 0 && self.header[18 + 48..18 + 112].iter().any(|b| *b != 0) {
-            return Err("banks 48 to 111 are stored, which need the 2MB Next: say so with SAVENEX CFG's fourth value".into());
+            return Err(crate::i18n::tr("banks 48 to 111 are stored, which need the 2MB Next: say so with SAVENEX CFG's fourth value").into());
         }
         Ok(out)
     }

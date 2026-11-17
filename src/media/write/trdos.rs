@@ -83,7 +83,7 @@ fn new_name(name: &str, kind: u8) -> Result<[u8; 8], String> {
     };
     let bytes = zx_name(stem);
     if bytes.iter().all(|b| *b == b' ') || bytes[0] <= 1 {
-        return Err(format!("\"{name}\" has no characters a TR-DOS name can hold."));
+        return Err(crate::i18n::tf!("\"{name}\" has no characters a TR-DOS name can hold."));
     }
     Ok(bytes)
 }
@@ -107,7 +107,7 @@ fn record(file: &Addition) -> Result<([u8; 14], Vec<u8>), String> {
                 _ => (body.to_vec(), body.len() as u16),
             };
             if program.len() > 0xFFFF {
-                return Err(format!("{} is too big for a BASIC program.", file.name));
+                return Err(crate::i18n::tf!("{} is too big for a BASIC program.", file.name));
             }
             let total = program.len() as u16;
             let mut data = program;
@@ -120,7 +120,7 @@ fn record(file: &Addition) -> Result<([u8; 14], Vec<u8>), String> {
         }
         SCREEN => {
             if body.len() != 6912 {
-                return Err(format!("A screen is 6912 bytes; {} is {}.", file.name, body.len()));
+                return Err(crate::i18n::tf!("A screen is 6912 bytes; {} is {}.", file.name, body.len()));
             }
             (b'C', 16384, 6912, body.to_vec())
         }
@@ -135,7 +135,7 @@ fn record(file: &Addition) -> Result<([u8; 14], Vec<u8>), String> {
         _ => (b'C', file.address.unwrap_or(32768), body.len().min(0xFFFF) as u16, body.to_vec()),
     };
     if data.len() > 0xFFFF || data.len().div_ceil(256) > MOST_SECTORS {
-        return Err(format!("{} is {} bytes; a TR-DOS file can be at most 65,280.", file.name, data.len()));
+        return Err(crate::i18n::tf!("{} is {} bytes; a TR-DOS file can be at most 65,280.", file.name, data.len()));
     }
     let mut entry = [0u8; 14];
     entry[..8].copy_from_slice(&new_name(&file.name, kind)?);
@@ -201,13 +201,13 @@ pub struct Trd {
 impl Trd {
     pub fn open(bytes: Vec<u8>) -> Result<Self, String> {
         if bytes.len() < INFO + 256 || bytes[INFO + 0xE7] != 0x10 {
-            return Err("This doesn't have TR-DOS's disk information sector.".into());
+            return Err(crate::i18n::tr("This doesn't have TR-DOS's disk information sector.").into());
         }
         let tracks = match bytes[INFO + 0xE3] {
             0x16 => 160,
             0x17 | 0x18 => 80,
             0x19 => 40,
-            other => return Err(format!("The disk's type, &{other:02X}, isn't one TR-DOS has, so it isn't changed.")),
+            other => return Err(crate::i18n::tf!("The disk's type, &{other:02X}, isn't one TR-DOS has, so it isn't changed.")),
         };
         let mut disk = Self { bytes, total: tracks * 16, next: FIRST };
         // Each file lies after the one before it, inside the disk, as TR-DOS always puts them.
@@ -216,10 +216,10 @@ impl Trd {
             let entry = disk.entry(slot);
             let (start, sectors) = (Self::start(entry), usize::from(entry[13]));
             if entry[14] >= 16 || start < end || start + sectors > disk.total {
-                return Err(format!("{} lies where TR-DOS wouldn't put it, so the disk isn't changed.", shown(entry)));
+                return Err(crate::i18n::tf!("{} lies where TR-DOS wouldn't put it, so the disk isn't changed.", shown(entry)));
             }
             if entry[0] != 1 && (start + sectors) * 256 > disk.bytes.len() {
-                return Err(format!("{} runs past the end of the image, which has been cut short.", shown(entry)));
+                return Err(crate::i18n::tf!("{} runs past the end of the image, which has been cut short.", shown(entry)));
             }
             end = start + sectors;
         }
@@ -251,7 +251,7 @@ impl Trd {
     }
 
     fn find(&self, entry: &Entry) -> Result<usize, String> {
-        self.files().get(entry.location as usize).copied().filter(|slot| shown(self.entry(*slot)) == entry.name).ok_or_else(|| format!("{} isn't on the disk.", entry.name))
+        self.files().get(entry.location as usize).copied().filter(|slot| shown(self.entry(*slot)) == entry.name).ok_or_else(|| crate::i18n::tf!("{} isn't on the disk.", entry.name))
     }
 
     /// Sets the disk information sector from the catalogue.
@@ -314,10 +314,10 @@ impl Trd {
             self.compact();
         }
         if self.used() >= 128 {
-            return Err("The catalogue is full: a TR-DOS disk holds 128 files.".into());
+            return Err(crate::i18n::tr("The catalogue is full: a TR-DOS disk holds 128 files.").into());
         }
         if self.next + sectors > self.total {
-            return Err(format!("{} needs {sectors} sectors; the disk has {} free.", file.name, self.total - self.next));
+            return Err(crate::i18n::tf!("{} needs {sectors} sectors; the disk has {} free.", file.name, self.total - self.next));
         }
         let at = self.next * 256;
         if self.bytes.len() < at + sectors * 256 {
@@ -407,18 +407,18 @@ fn scl_bytes(files: &[([u8; 14], Vec<u8>)]) -> Vec<u8> {
 impl Scl {
     pub fn open(bytes: Vec<u8>) -> Result<Self, String> {
         if bytes.len() < 9 || !bytes.starts_with(b"SINCLAIR") {
-            return Err("This SCL file doesn't start with SINCLAIR.".into());
+            return Err(crate::i18n::tr("This SCL file doesn't start with SINCLAIR.").into());
         }
         let count = usize::from(bytes[8]);
         let mut at = 9 + count * 14;
         if bytes.len() < at {
-            return Err("This SCL archive has been cut short in its list of files.".into());
+            return Err(crate::i18n::tr("This SCL archive has been cut short in its list of files.").into());
         }
         let mut files = Vec::new();
         for n in 0..count {
             let entry: [u8; 14] = bytes[9 + n * 14..9 + n * 14 + 14].try_into().unwrap_or([0; 14]);
             let length = usize::from(entry[13]) * 256;
-            let data = bytes.get(at..at + length).ok_or_else(|| format!("{} runs past the end of the archive, which has been cut short.", shown(&entry)))?;
+            let data = bytes.get(at..at + length).ok_or_else(|| crate::i18n::tf!("{} runs past the end of the archive, which has been cut short.", shown(&entry)))?;
             files.push((entry, data.to_vec()));
             at += length;
         }
@@ -426,7 +426,7 @@ impl Scl {
     }
 
     fn find(&self, entry: &Entry) -> Result<usize, String> {
-        Some(entry.location as usize).filter(|i| self.files.get(*i).is_some_and(|(e, _)| shown(e) == entry.name)).ok_or_else(|| format!("{} isn't in the archive.", entry.name))
+        Some(entry.location as usize).filter(|i| self.files.get(*i).is_some_and(|(e, _)| shown(e) == entry.name)).ok_or_else(|| crate::i18n::tf!("{} isn't in the archive.", entry.name))
     }
 
     fn sectors(&self) -> usize {
@@ -454,11 +454,11 @@ impl ImageWriter for Scl {
         }
         // An archive is only any use if its files can go back on a disk.
         if files.len() >= 128 {
-            return Err("The archive is full: a TR-DOS disk holds 128 files.".into());
+            return Err(crate::i18n::tr("The archive is full: a TR-DOS disk holds 128 files.").into());
         }
         let held: usize = files.iter().map(|(e, _)| usize::from(e[13])).sum();
         if held + usize::from(head[13]) > DISK_SECTORS {
-            return Err(format!("{} needs {} sectors; a TR-DOS disk would have {} left for it.", file.name, head[13], DISK_SECTORS - held));
+            return Err(crate::i18n::tf!("{} needs {} sectors; a TR-DOS disk would have {} left for it.", file.name, head[13], DISK_SECTORS - held));
         }
         files.push((head, data));
         self.files = files;

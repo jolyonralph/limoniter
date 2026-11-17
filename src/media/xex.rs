@@ -44,7 +44,7 @@ impl Segment {
 /// A binary load file's segments, and anything odd about how it ends. Err if it isn't one at all.
 pub fn segments(file: &[u8]) -> Result<(Vec<Segment>, Option<String>), String> {
     if !file.starts_with(&[0xFF, 0xFF]) {
-        return Err("This isn't an Atari binary load file: it doesn't start with $FF $FF.".into());
+        return Err(crate::i18n::tr("This isn't an Atari binary load file: it doesn't start with $FF $FF.").into());
     }
     let mut out = Vec::new();
     let mut at = 2;
@@ -63,7 +63,7 @@ pub fn segments(file: &[u8]) -> Result<(Vec<Segment>, Option<String>), String> {
         let (first, last) = (u16::from_le_bytes([header[0], header[1]]), u16::from_le_bytes([header[2], header[3]]));
         if last < first {
             if out.is_empty() {
-                return Err(format!("This isn't an Atari binary load file: its first segment would end (${last:04X}) before it starts (${first:04X})."));
+                return Err(crate::i18n::tf!("This isn't an Atari binary load file: its first segment would end (${last:04X}) before it starts (${first:04X})."));
             }
             break Some(format!("After segment {}, the file has {} bytes that aren't a segment (they'd end at ${last:04X}, before they start at ${first:04X}); they're left out.", out.len(), file.len() - at));
         }
@@ -71,7 +71,7 @@ pub fn segments(file: &[u8]) -> Result<(Vec<Segment>, Option<String>), String> {
         let end = segment.at + segment.length();
         if end > file.len() {
             if out.is_empty() && file.len() - segment.at < 1 {
-                return Err("This isn't an Atari binary load file: it ends before its first segment's bytes.".into());
+                return Err(crate::i18n::tr("This isn't an Atari binary load file: it ends before its first segment's bytes.").into());
             }
             let have = file.len() - segment.at;
             let missing = format!("Segment {} (${first:04X}-${last:04X}) is cut short: the file ends {} bytes into its {}. It's given as far as it goes.", out.len() + 1, have, segment.length());
@@ -169,11 +169,11 @@ pub struct Xex {
 
 impl Xex {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
-        let length = usize::try_from(source.len()).ok().filter(|&l| l <= 16 * 1024 * 1024).ok_or("This file is far too large to be an Atari binary load file.")?;
+        let length = usize::try_from(source.len()).ok().filter(|&l| l <= 16 * 1024 * 1024).ok_or(crate::i18n::tr("This file is far too large to be an Atari binary load file."))?;
         let file = source.read_vec(0, length)?;
         let (segments, note) = segments(&file)?;
         if segments.is_empty() {
-            return Err("This Atari binary load file has no segments in it.".into());
+            return Err(crate::i18n::tr("This Atari binary load file has no segments in it.").into());
         }
         Ok(Self { file, segments, note })
     }
@@ -224,7 +224,7 @@ impl Volume for Xex {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let segment = self.segments.get(entry.location as usize).ok_or("That segment isn't in the file.")?;
+        let segment = self.segments.get(entry.location as usize).ok_or(crate::i18n::tr("That segment isn't in the file."))?;
         self.file.get(segment.at..segment.at + segment.length()).map(<[u8]>::to_vec).ok_or_else(|| "That segment runs past the end of the file.".into())
     }
 

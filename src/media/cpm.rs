@@ -151,7 +151,7 @@ impl Sectors for Flat {
     fn sector(&self, track: u64, place: u64) -> Result<Vec<u8>, String> {
         let at = (track * self.per_track + place) * self.sector_size;
         if at + self.sector_size > self.source.len() {
-            return Err(format!("track {track} isn't in the image"));
+            return Err(crate::i18n::tf!("track {track} isn't in the image"));
         }
         self.source.read_vec(at, self.sector_size as usize)
     }
@@ -443,7 +443,7 @@ impl Volume for Cpm {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or("That file isn't on the disk.")?;
+        let file = self.files.get(entry.location as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
         self.read_file(file)
     }
 
@@ -585,7 +585,7 @@ pub fn looks_like(head: &[u8], len: u64) -> bool {
 pub fn open_guessed(source: Arc<dyn Source>, shape: Option<Shape>, what: &str) -> Result<Cpm, String> {
     let mut found = candidates(&source, source.len(), shape);
     if found.is_empty() {
-        return Err("No CP/M directory was found on this disk in any format Limoniter knows.".into());
+        return Err(crate::i18n::tr("No CP/M directory was found on this disk in any format Limoniter knows.").into());
     }
     let (layout, best, _) = found.remove(0);
     // Others that read it just as well (the same layout under other machines' names, often) are mentioned.
