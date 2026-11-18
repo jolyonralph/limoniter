@@ -32,6 +32,9 @@ CLOSE = {
     "devices": (320, 180),
     "themes-editor": (330, 40),
     "linux": None,
+    "ide-search": (0, 40),
+    "ide-debug": None,
+    "ide-beside": (330, 40),
 }
 THEMES = ["t-c64", "t-solar", "t-nord", "t-amber"]
 

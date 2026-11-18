@@ -97,7 +97,9 @@ impl Running {
 
 /// The box asking where to run something, or which machine's BASIC a text is.
 pub(super) enum RunBox {
-    Where { runnable: Box<Runnable>, remember: bool },
+    /// Where to run it. `ready` is something made elsewhere (a disk built by the boot disk tool), run as it
+    /// is rather than made again from the document in front.
+    Where { runnable: Box<Runnable>, remember: bool, ready: bool },
     Which { doc_id: u64 },
     /// 6502 source whose code doesn't say whether it's for a Commodore 64 or a BBC Micro; and where it was to
     /// run, if it was asked for somewhere (None for F9).
@@ -144,7 +146,7 @@ impl Limoniter {
                     // The whole image, if it's one a machine mounts.
                     let name = doc.name();
                     let bytes = doc.path.as_deref().map(std::fs::read).transpose().map_err(|e| e.to_string())?.unwrap_or_default();
-                    Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| "Select the program to run in the list first.".to_string())
+                    Runnable::from_file(&name, bytes).map(Some).ok_or_else(|| crate::i18n::tr("Select the program to run in the list first.").to_string())
                 }
             };
         }
@@ -230,7 +232,17 @@ impl Limoniter {
         let chosen = self.running.default_for(runnable.machine).and_then(|name| self.target_named(name)).filter(|target| self.suits(*target, &runnable).is_ok());
         match chosen {
             Some(target) => self.begin_run(target),
-            None => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable: Box::new(runnable), remember: true })),
+            None => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable: Box::new(runnable), remember: true, ready: false })),
+        }
+    }
+
+    /// Runs something already made (a disk image built elsewhere) where its machine's programs run, asking the
+    /// first time, as Run on machine does.
+    pub(super) fn run_made(&mut self, runnable: Runnable) {
+        let chosen = self.running.default_for(runnable.machine).and_then(|name| self.target_named(name)).filter(|target| self.suits(*target, &runnable).is_ok());
+        match chosen {
+            Some(target) => self.run_on(target, runnable),
+            None => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable: Box::new(runnable), remember: true, ready: true })),
         }
     }
 
@@ -309,8 +321,8 @@ impl Limoniter {
             }
         };
         match outcome {
-            Ok(()) if runs => self.running.note = Some((format!("Running {} on {name}", run.name), Instant::now())),
-            Ok(()) => self.running.note = Some((format!("Sent {} to {name}: start it there", run.name), Instant::now())),
+            Ok(()) if runs => self.running.note = Some((crate::i18n::tf!("Running {} on {name}", run.name), Instant::now())),
+            Ok(()) => self.running.note = Some((crate::i18n::tf!("Sent {} to {name}: start it there", run.name), Instant::now())),
             Err(problem) => self.message("Run on machine", problem),
         }
     }
@@ -511,7 +523,7 @@ impl Limoniter {
                 let quick = session.started.elapsed() < Duration::from_secs(3);
                 let said = std::fs::read_to_string(log).unwrap_or_default();
                 let said: String = said.trim().chars().rev().take(1500).collect::<Vec<_>>().into_iter().rev().collect();
-                let problem = (quick && !status.success()).then(|| format!("{} stopped as it started ({status}).\n\n{said}", emulator.name));
+                let problem = (quick && !status.success()).then(|| crate::i18n::tf!("{} stopped as it started ({status}).\n\n{said}", emulator.name));
                 ended.push((index, problem));
             }
         }
@@ -670,8 +682,8 @@ impl Limoniter {
             }
             let words = match error {
                 Some(problem) => problem.clone(),
-                None if focused => "Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.".into(),
-                None => "Click the screen to type on the Spectrum.".into(),
+                None if focused => crate::i18n::tr("Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.").into(),
+                None => crate::i18n::tr("Click the screen to type on the Spectrum.").into(),
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
             let mut basic_action = None;
@@ -713,7 +725,7 @@ impl Limoniter {
             }
             if let Some((t_states, runs)) = machine.profile() {
                 let (routines, lines, total) = crate::profiler::summarise(&t_states, &runs, assembly.as_deref());
-                egui::CollapsingHeader::new(format!("Profile: {} T-states, {:.1} frames", total, total as f64 / 69888.0)).id_salt("profile").default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new(crate::i18n::tf!("Profile: {} T-states, {:.1} frames", total, total as f64 / 69888.0)).id_salt("profile").default_open(true).show(ui, |ui| {
                     egui::Grid::new("profile-routines").num_columns(4).spacing([14.0, 2.0]).striped(true).show(ui, |ui| {
                         for heading in ["Routine", "T-states", "Share", "Entered"] {
                             ui.label(RichText::new(heading).strong().size(12.0));
@@ -930,8 +942,8 @@ impl Limoniter {
                 let seen = crate::debug_panel::Seen { registers: Some(&registers), peek: &peek, labels };
                 match crate::debug_panel::eval(&condition, &seen) {
                     Ok(0) => debugging.remote.ask(crate::remote_debug::Ask::CarryOn),
-                    Ok(_) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(format!("Stopped because {condition}"))),
-                    Err(problem) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(format!("The condition {condition} couldn't be worked out: {problem}"))),
+                    Ok(_) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(crate::i18n::tf!("Stopped because {condition}"))),
+                    Err(problem) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(crate::i18n::tf!("The condition {condition} couldn't be worked out: {problem}"))),
                 }
             }
         }
@@ -996,7 +1008,7 @@ impl Limoniter {
     pub(super) fn run_status(&self) -> Option<String> {
         if let Some(session) = self.running.sessions.last() {
             let more = if self.running.sessions.len() > 1 { format!(" (and {} more)", self.running.sessions.len() - 1) } else { String::new() };
-            return Some(format!("Running {} on {}{more}", session.file, session.target));
+            return Some(crate::i18n::tf!("Running {} on {}{more}", session.file, session.target));
         }
         self.running.note.as_ref().filter(|(_, when)| when.elapsed() < Duration::from_secs(8)).map(|(words, _)| words.clone())
     }
@@ -1008,7 +1020,7 @@ impl Limoniter {
         };
         // What's shown, read first, so the box can be drawn and then acted on.
         let shown = match state.as_ref() {
-            RunBox::Where { runnable, remember } => Some((runnable.name.clone(), runnable.machine, self.targets_for(runnable), *remember)),
+            RunBox::Where { runnable, remember, .. } => Some((runnable.name.clone(), runnable.machine, self.targets_for(runnable), *remember)),
             RunBox::Which { .. } | RunBox::Which6502 { .. } => None,
         };
         let which_6502 = matches!(state.as_ref(), RunBox::Which6502 { .. });
@@ -1038,7 +1050,7 @@ impl Limoniter {
                 }
                 if !any {
                     let suggestions: Vec<String> = emulators::KNOWN.iter().filter(|e| e.machines.contains(machine)).map(|e| format!("{} ({})", e.name, e.website)).collect();
-                    let words = if suggestions.is_empty() { String::new() } else { format!(" Emulators that run them: {}.", suggestions.join(", ")) };
+                    let words = if suggestions.is_empty() { String::new() } else { crate::i18n::tf!(" Emulators that run them: {}.", suggestions.join(", ")) };
                     ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("Nothing set up runs {} programs yet. Find emulators, under Devices and emulators, adds any that are installed, and Get an emulator there installs one.{words}", machine.name())).color(theme::text_dim())).wrap());
                 }
                 ui.add_space(6.0);
@@ -1103,18 +1115,22 @@ impl Limoniter {
                     }
                 }
             }
-            RunBox::Where { runnable, .. } if go.is_some() => {
+            RunBox::Where { runnable, ready, .. } if go.is_some() => {
                 let target = go.expect("checked");
                 if keep {
                     let name = self.target_name(target);
                     self.running.set_default(runnable.machine, &name);
                     self.save_settings_if_changed();
                 }
-                self.begin_run(target);
+                if ready {
+                    self.run_on(target, *runnable);
+                } else {
+                    self.begin_run(target);
+                }
                 self.pending_focus = true;
             }
             _ if close => self.pending_focus = true,
-            RunBox::Where { runnable, .. } => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable, remember: keep })),
+            RunBox::Where { runnable, ready, .. } => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable, remember: keep, ready })),
             which => self.dialog = Dialog::Run(Box::new(which)),
         }
         true

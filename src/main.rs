@@ -1,6 +1,10 @@
 // A window with no console behind it, in the version people actually run.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod amiga_bootdisk;
+mod arm_disasm;
+mod arm_modern;
+mod amiga_bootdisk_ui;
 mod amiga_copper;
 mod amiga_debug;
 mod amiga_hw;
@@ -29,6 +33,7 @@ mod opticbasic;
 mod opticos_rom;
 mod char_table;
 mod clambers;
+mod clipboards;
 mod charset;
 mod code_format;
 mod codec;
@@ -42,6 +47,8 @@ mod columns;
 mod conversions;
 mod console;
 mod ebcdic;
+mod explorer;
+mod editorconfig;
 mod emulators;
 mod encoding_prefs;
 mod encoding_ui;
@@ -63,8 +70,10 @@ mod legacy_docs;
 mod line_store;
 mod media;
 mod memory_map;
+mod music_export;
 mod navigation;
 mod panels;
+mod pc_starters;
 mod pictures;
 mod preview;
 mod print;
@@ -92,6 +101,7 @@ mod zx_basic_debug;
 mod dzrp;
 mod disasm;
 mod icl2900;
+mod workspace;
 mod x86;
 mod pixel_editor;
 mod screen_designer;
@@ -128,6 +138,9 @@ mod c64_irq;
 mod c64_starters;
 mod profiler;
 mod lsp;
+mod dap;
+mod dragon_dos;
+mod vectrex;
 mod terminal;
 mod tasks;
 mod zx_machine;
@@ -183,8 +196,7 @@ pub fn tell_about_crash() {
     rfd::MessageDialog::new()
         .set_title(crate::i18n::tr("Limoniter"))
         .set_level(rfd::MessageLevel::Error)
-        .set_description(format!(
-            "Limoniter ran into a problem and has to close.\n\nYour unsaved changes have been kept, and will be offered back the next time Limoniter starts.\n\nDetails are in {}",
+        .set_description(crate::i18n::tf!("Limoniter ran into a problem and has to close.\n\nYour unsaved changes have been kept, and will be offered back the next time Limoniter starts.\n\nDetails are in {}",
             crash_log().display()
         ))
         .show();

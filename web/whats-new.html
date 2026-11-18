@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What's new in Limoniter</title>
+  <meta name="description" content="What each Limoniter release has added, newest first: the latest five in full, and every one since 0.5.0 in short.">
+  <link rel="canonical" href="https://limoniter.com/whats-new.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/whats-new.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="What's new in Limoniter">
+  <meta property="og:description" content="What each Limoniter release has added, newest first.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from WHATS-NEW.md by tools/make-pages.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="index.html">
+        <img src="images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="index.html#ide">IDE</a>
+        <a href="index.html#features">Everyday work</a>
+        <a href="index.html#retro">Older computers</a>
+        <a href="index.html#machines">Machines</a>
+        <a href="index.html#send">Send to device</a>
+        <a href="index.html#screens">Screenshots</a>
+        <a href="index.html#get">Download</a>
+        <a href="whats-new.html">What's new</a>
+        <a href="guide/index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article">
+    <div class="wrap">
+      <p class="back"><a href="index.html">‹ Limoniter</a></p>
+      <h1>What&#x27;s new in Limoniter</h1>
+      <div class="article-lead">
+<p>Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.</p>
+      </div>
+      <nav class="contents" aria-label="Releases">
+        <ul>
+<li><a href="#v0-13-0">0.13.0</a></li>
+<li><a href="#v0-12-0">0.12.0</a></li>
+<li><a href="#v0-11-0">0.11.0</a></li>
+<li><a href="#v0-10-0">0.10.0</a></li>
+<li><a href="#v0-9-1">0.9.1</a></li>
+<li><a href="#v0-9-0">0.9.0</a></li>
+<li><a href="#v0-8-0">0.8.0</a></li>
+<li><a href="#v0-7-0">0.7.0</a></li>
+<li><a href="#v0-6-0">0.6.0</a></li>
+<li><a href="#v0-5-1">0.5.1</a></li>
+<li><a href="#v0-5-0">0.5.0</a></li>
+        </ul>
+      </nav>
+<h2 id="v0-13-0">0.13.0</h2>
+<p class="released">Released 18 November 2026.</p>
+<p>Limoniter is now a full IDE for a folder of code: open the folder and work across all of it, with the Explorer, Go to file and symbol, a Search panel, split editors, terminals in tabs, more from language servers, and debugging for Python, C, C++ and Rust. For retro work there are x86 and ARM assemblers, the Hitachi 6309, Vectrex cartridges, Dragon DOS disks and Amiga boot disks.</p>
+<h3>Working on a folder of code</h3>
+<ul><li><strong>Open folder</strong> (File, Open folder): any folder becomes a project, with an <strong>Explorer</strong> like VS Code's. Files are created, renamed, moved by dragging and deleted in place, and Git's status shows beside each one. Every file is indexed in the background, keeping to <code>.gitignore</code>.</li><li><strong>Go to file</strong> (Ctrl+E) finds any file from a few letters of its name. <strong>Go to symbol</strong> finds a function or label in the folder (Ctrl+T), or in this file (Ctrl+Shift+O).</li><li><strong>Search panel</strong> (Ctrl+Shift+F): results as you type, as a tree of files and lines. With text to put in its place, each match shows the change before it's made. Replace in one file or all, after a question.</li><li><strong>Split editor:</strong> another file beside the one in front (Ctrl+\, or Ctrl+Enter in Go to file). Clicking either pane brings it to the front.</li><li><strong>Breadcrumbs</strong> above the text show the folders and the function you're in, each a menu. <strong>Sticky scroll</strong> keeps the function you've scrolled into at the top.</li><li><strong>Peek definition</strong> (Alt+F12) shows a definition without leaving your place. F12 now finds definitions by name across the folder too.</li><li><strong>Terminals in tabs:</strong> as many as you like, kept running when the panel's hidden.</li><li><strong>.editorconfig</strong> files are followed: indentation, line endings, trailing spaces and the final newline.</li></ul>
+<h3>Language servers</h3>
+<ul><li><strong>Quick fixes</strong> (Ctrl+.), <strong>Format document</strong> (Shift+Alt+F) and format on save, <strong>parameter hints</strong> as you type a call, and <strong>inline type hints</strong>.</li><li><strong>Offered when you need them:</strong> a language server that's installed is offered for its files. One that isn't installed is installed in a terminal, then started.</li></ul>
+<h3>Debugging (Tools, Run, Debug, Ctrl+F5)</h3>
+<ul><li><strong>Python</strong> with debugpy, and <strong>C, C++ and Rust</strong> with gdb or lldb-dap, through the Debug Adapter Protocol.</li><li><strong>Breakpoints</strong> beside the line numbers, and the stopped line marked. The Debug panel has the call stack, variables to open level by level, and a console that works out expressions. F5, F10, F11 and Shift+F11 step as in VS Code.</li></ul>
+<h3>Retro machines</h3>
+<ul><li><strong>x86 assembler</strong> in NASM's syntax, for the 8086 to the Pentium and later. <code>.COM</code> programs and boot sectors run in DOSBox or QEMU.</li><li><strong>ARM:</strong> an assembler and disassembler for the Archimedes's ARM2 and ARM3, with RISC OS's SWI names. Later ARM code (ARMv7, Thumb and AArch64, Raspberry Pi kernels included) is disassembled too.</li><li><strong>Hitachi 6309:</strong> its registers and instructions in the 6809 assembler, as lwasm takes them (PRAGMA 6809 turns them off), and in the disassembler.</li><li><strong>Vectrex cartridges:</strong> a starter with the cartridge header and the BIOS's routine names. F9 runs it in MAME or ParaJVE. Disassembled cartridges name the BIOS calls.</li><li><strong>Dragon 32 and 64:</strong> <code>; machine: dragon32</code> makes F9 build a Dragon DOS binary and run it in XRoar. The Dragon DOS disk window (Tools, Dragon and Vectrex) makes, reads and changes disks.</li><li><strong>Amiga boot disks with no file system</strong> (Tools, Amiga): code assembled to chosen sectors, a map of the disk, and a boot block that loads them, checked for size.</li></ul>
+<h3>Also</h3>
+<ul><li><strong>Several clipboards</strong> (Ctrl+0 to Ctrl+9 choose one).</li><li><strong>Music saved as WAV</strong>, and a module's samples as 8SVX.</li><li>The <strong>DEC Technical</strong> character set.</li><li>The ripper finds <strong>15-sample Soundtracker modules</strong> by their instruments' st-NN: names.</li><li><strong>Translations completed:</strong> about 1,800 more pieces of text in each language.</li><li>A <strong>What's new</strong> page on limoniter.com.</li></ul>
+<h2 id="v0-12-0">0.12.0</h2>
+<p class="released">Released 17 November 2026.</p>
+<p>Limoniter now speaks French, German, Italian and Spanish. It also makes sound effects for four sound chips, finds the music and graphics inside old games and disks, and shows where a program sits in memory after every build. There are new graphics editors for the Spectrum, the Next and the Atari 2600.</p>
+<h3>Languages</h3>
+<ul><li><strong>The whole window in French, German, Italian or Spanish</strong> (Settings, Appearance, Language): the menus, settings, buttons, messages, and the comments in the source Limoniter writes for you.</li><li><strong>Each language is listed under its own name</strong> (Deutsch, Español, Français, Italiano), with a globe beside the setting, so you can always find your way back.</li></ul>
+<h3>Sound effects (Tools, Sound effects)</h3>
+<ul><li><strong>Effects for four sound chips:</strong> the <strong>AY</strong> (ZX Spectrum 128, Amstrad CPC, MSX), the C64's <strong>SID</strong>, the Atari 2600's <strong>TIA</strong> and the Spectrum's <strong>beeper</strong>.</li><li><strong>Draw the notes and the volume</strong> on a graph, type each frame's values, or start from a preset (pickup, laser, explosion, power-up, hit, jump, blip, siren) and change its shape. Random and Vary make new ones.</li><li><strong>Each change plays straight away.</strong> The AY uses the built-in Spectrum's own emulation, and the beeper runs its player on a Z80, so what you hear is what the player does.</li><li><strong>AYFX banks</strong> from AYFX Editor open, and are saved the way it saves them.</li><li><strong>Out come the effects with a player to call</strong> once a frame. <strong>Program to run</strong> opens a program that plays each one in turn, for F9 on the built-in Spectrum, VICE, Stella or MAME.</li></ul>
+<h3>Ripper (Tools, Ripper)</h3>
+<ul><li><strong>Music found in any file:</strong> a game, a demo, a snapshot, or a disk, tape or archive image, including every file inside it and a DMS disk's raw tracks.<ul><li>Tracker modules (ProTracker and its kin, S3M, XM, IT), SID, SNDH (Pack-Ice packed too), YM, PT3 and AY files.</li><li>Each is measured from its own header. Open it in a tab to hear it, or save one or all of them.</li></ul></li><li><strong>Graphics found in any bytes:</strong> see them as characters, C64 multicolour and sprites, NES and Game Boy tiles, Amiga and Atari ST bitplanes, a Spectrum screen, or the Next's 8-bit colours, at any offset and width. Save as a PNG, copy as source, or open in the right editor.</li></ul>
+<h3>Building programs</h3>
+<ul><li><strong>A memory map after every build</strong> for the Spectrum, C64, BBC Micro, Color Computer and Atari 2600. A bar over the Output panel shows the program among the machine's ROM, screen, system areas and I/O, and how much memory is still free. It warns when code lands somewhere it can't go or shouldn't, such as ROM, the C64's I/O, the screen or contended memory.</li></ul>
+<h3>Graphics editors</h3>
+<ul><li><strong>Spectrum screen designer:</strong> lines, boxes, ellipses, fill, text in the ROM's font, selections, scrolling, an attribute lock, redo and zoom.</li><li><strong>Picture converter</strong> for the Spectrum, Timex hi-res, Next, CPC, MSX and BBC Micro.</li><li><strong>Spectrum Next Layer 2 painter:</strong> every Layer 2 mode and LoRes, with palette editing. The Next's tilemap can be made from a picture, and sprites cut from a sheet, each with a <code>.nex</code> that shows them.</li><li><strong>Atari 2600 sprites and playfield:</strong> sprite frames with a colour on each line, playfields made from pictures, out as DASM tables and programs that show them.</li></ul>
+<h3>Also</h3>
+<ul><li><strong>AMOS and STOS programs</strong> are listed, and tokenised back from a listing.</li><li><strong>Column mode with Word wrap on</strong> now offers to turn Word wrap off for you.</li></ul>
+<h2 id="v0-11-0">0.11.0</h2>
+<p class="released">Released 16 November 2026.</p>
+<p>Music and sound play in the preview, there's a 68000 disassembler, and the Atari 2600 is supported from end to end: disassemble a cartridge, write your own, and run it in Stella or MAME.</p>
+<h3>Music and sound</h3>
+<ul><li><strong>Tracker modules play</strong>, with Limoniter's own player:<ul><li>ProTracker <code>.mod</code> files from the Amiga</li><li>the PC's Scream Tracker 3 (<code>.s3m</code>), FastTracker 2 (<code>.xm</code>) and Impulse Tracker (<code>.it</code>) modules</li><li>each with its own tracker's effects</li></ul></li><li><strong>The player</strong> has Play, Pause, Stop, Loop and a slider to move through the song. The pattern scrolls past as it plays, and clicking a channel's number switches it off or on. The music keeps playing while you work on other files.</li><li><strong>Sound files play</strong> too: MP3, WAV, FLAC, Ogg Vorbis and AIFF, and the Amiga's 8SVX samples, Creative VOC files and Sun and NeXT <code>.au</code> files. Their tags (title, artist, album) are shown beside them.</li></ul>
+<h3>The 68000</h3>
+<ul><li><strong>A 68000 disassembler</strong> (Tools, Disassemble) works out what a file is:<ul><li>Amiga programs come back as sections, with their relocations as labels, so they can be changed and rebuilt</li><li>Atari ST programs, with their symbols</li><li>Amiga boot blocks and Atari ST boot sectors</li><li>Mega Drive cartridges, followed from their vectors</li><li>Kickstart ROMs</li></ul></li><li><strong>What the code does is named beside it:</strong> the Amiga's library calls (<code>jsr -552(a6) ; exec OpenLibrary</code>) and custom chip registers, and the ST's hardware and GEMDOS, BIOS and XBIOS calls.</li><li><strong>The source always assembles back</strong> to exactly the same bytes, with Limoniter's own assembler or vasm.</li></ul>
+<h3>The Atari 2600</h3>
+<ul><li><strong>Cartridges</strong> (<code>.a26</code>) are recognised with their bank switching worked out: F8, F6, F4 and the Superchip's, FA, E0, E7, FE, 3F and DPC.</li><li><strong>Disassembled into DASM source</strong> that rebuilds the cartridge:<ul><li>code followed from bank to bank</li><li>the TIA's and RIOT's registers named</li><li>each instruction's cycles beside it</li><li>code that runs past a scanline's 76 cycles pointed out</li><li>graphics drawn as pixels</li></ul></li><li><strong>DASM source</strong> is made into a cartridge, and <strong>F9</strong> runs it in <strong>Stella</strong> or <strong>MAME</strong>.</li><li><strong>File, New as, Atari 2600</strong> starts a whole frame that runs straight away.</li><li><strong>Get an emulator</strong> now installs Stella and MAME.</li></ul>
+<h3>Also</h3>
+<ul><li><strong>The assembler</strong> reads DASM's <code>processor</code>, <code>seg.u</code>, <code>rorg</code> and <code>.w</code>, and the 68000's MOVEP.</li><li><strong>Amiga programs</strong> with debug hunks or Kickstart 2.0's short relocation tables are read.</li><li><strong>The website's home page</strong> shows what Limoniter does for writing new software for older machines, and its figures are up to date.</li></ul>
+<h2 id="v0-10-0">0.10.0</h2>
+<p class="released">Released 16 November 2026.</p>
+<p>Lots of everyday editing improvements, previews of web pages, pictures and old documents, a value inspector for hex, two new disassemblers, and support for the Cambridge Z88 and the Amstrad NC100, NC150 and NC200.</p>
+<h3>Editing</h3>
+<ul><li><strong>Surround with</strong> (Edit): puts the selection in brackets, quotes, a tag or a snippet, and leaves it selected.</li><li><strong>Bookmarks</strong> (Search): go to any bookmark from a list; copy, cut or delete the bookmarked lines, or delete every other line; swap bookmarked and not; clear them all.</li><li><strong>Tabs and spaces</strong> (Format): whether Tab types spaces, the tab size, and converting tabs and spaces, including in the indent only.</li><li><strong>Convert</strong> (Format): Base64 encode and decode, and JSON to XML and back.</li><li><strong>Column markers</strong> at chosen columns (such as 72 or 80), and <strong>line spacing</strong>.</li><li><strong>Your own highlighting grammars:</strong> put Sublime Text <code>.sublime-syntax</code> files in the grammars folder (Settings, Editing).</li></ul>
+<h3>Files and windows</h3>
+<ul><li><strong>Window, Layouts</strong> saves which panels are open under a name, so you can switch between them. <strong>Window, Gather windows</strong> brings every box back onto the screen.</li><li><strong>Move to the Recycle Bin</strong> (File, This file), or to the Trash on Mac and Linux.</li><li><strong>Changes made by other programs</strong> can be checked for every two seconds. Files with no unsaved changes can be reloaded without asking, staying at the end to follow a growing log.</li><li><strong>File properties</strong> shows the file's owner, the program it opens with, and its lines of code.</li><li><strong>Save and restore settings</strong> (Tools) puts all of Limoniter's settings in one file, to keep or to move to another computer.</li><li><strong>Check for a newer Limoniter</strong> (Help) asks GitHub. It also runs once a day by itself, which can be turned off.</li></ul>
+<h3>Previews and conversions</h3>
+<ul><li><strong>Web pages</strong> (<code>.html</code>) are laid out in the preview, without their scripts or styles.</li><li><strong>PNG and JPEG</strong> open as pictures.</li><li><strong>Old word processors' documents</strong> opened by themselves are shown converted: WordStar, WordPerfect, Protext, 1st Word, Signum!, Final Writer, Wordworth, ProWrite and others. <strong>Format, Save the document as</strong> saves them as text, Markdown, RTF or CSV.</li></ul>
+<h3>Hex and character sets</h3>
+<ul><li><strong>The value inspector</strong> (View, Hex) reads the bytes at the cursor as numbers:<ul><li>integers and IEEE floats, in either byte order</li><li>IBM hexadecimal floats</li><li>VAX F, D, G and H floats</li><li>packed decimal</li><li>RADIX-50</li></ul></li><li><strong>New character sets:</strong><ul><li>the national versions of ASCII (ISO 646)</li><li>DEC Special Graphics</li><li>ASCII with the top bit set, as Prime computers kept text</li><li>the Amstrad PCW's text and screen sets, the Cambridge Z88's, and the Amstrad NC's</li></ul></li></ul>
+<h3>Machine code</h3>
+<ul><li><strong>An x86 disassembler</strong> covers everything from the 8086 to AVX-512. It reads DOS <code>.COM</code> and <code>.EXE</code> files, Windows programs and DLLs, and Linux programs, and follows their code from where it starts.</li><li><strong>An ICL 2900 disassembler</strong> lists the code in SFL, from ICL's *2900 Order Code*.</li><li><strong>6502 source</strong> runs on a BBC Micro when it calls the MOS, and on a C64 when it uses the KERNAL. When the code doesn't say, F9 asks, or a <code>; machine:</code> line in the source can say.</li></ul>
+<h3>Cambridge Z88 and Amstrad NC100, NC150 and NC200</h3>
+<ul><li><strong>BBC BASIC (Z80)</strong> programs are listed, and tokenised from a listing.</li><li><strong>Z88 card images</strong> (<code>.epr</code>) open in the browser, and <strong>PipeDream</strong> documents and spreadsheets are converted.</li><li><strong>The Z80 disassembler</strong> names the Z88's operating system calls when asked.</li><li><strong>NC memory card images</strong> (<code>.card</code>) in ZCN's format open in the browser, and program cards are recognised.</li></ul>
+<h3>Also</h3>
+<ul><li><strong>Get an emulator</strong> (File, Send to device, Manage devices) installs any emulator Limoniter runs programs in:<ul><li>on Windows, it downloads and installs ZEsarUX, b2, openMSX, FS-UAE and VICE itself</li><li>on Linux and Mac, it runs apt or Homebrew in the Terminal panel</li><li>otherwise, it opens the emulator's download page</li></ul></li><li><strong>The table generator and the character and sprite editor</strong> write their data in the form you choose:<ul><li>assemblers: 68000 <code>dc</code> lines, Z80 <code>db</code>, ACME or 64tass for the 6502, 6809 <code>fcb</code>, NASM</li><li>BASIC DATA lines</li><li>arrays for C, PHP, Python, JavaScript or Rust</li><li>Spectrum BASIC that sets the UDGs, for characters</li></ul></li><li><strong>Apple II Integer BASIC</strong> programs are listed.</li><li><strong>A file formats page</strong> on the website lists every format Limoniter reads or writes.</li></ul>
+<h3>Fixed</h3>
+<ul><li>The Amiga, Atari ST and C64 hardware guides' lists of registers ran across the window on top of each other.</li><li>Assembling for a machine that runs from a disk said a tape was made.</li></ul>
+<h2 id="v0-9-1">0.9.1</h2>
+<p class="released">Released 15 November 2026.</p>
+<p>The Mac app now runs on Intel Macs as well as Apple Silicon ones: one app for both, in the same download.</p>
+<h2 id="v0-9-0">0.9.0</h2>
+<p class="released">Released 15 November 2026.</p>
+<p>Limoniter now compares files and whole folders, keeps folders in sync, and merges three versions of a file, and Git can use it for diffs and conflicts. There are also new tools for writing demos and intros on the Amiga, Atari ST and Commodore 64.</p>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.9.0">All that was new in 0.9.0</a></p>
+<h2 id="v0-8-0">0.8.0</h2>
+<p class="released">Released 14 November 2026.</p>
+<p>Limoniter now runs on Linux, writes to many more machines' disks, and converts Amiga and Atari ST word processor documents.</p>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.8.0">All that was new in 0.8.0</a></p>
+<h2 id="v0-7-0">0.7.0</h2>
+<p class="released">Released 14 November 2026.</p>
+<p>Limoniter now writes to the disks and tapes it reads, builds sjasmplus projects as sjasmplus does, runs OpticOS's BASIC, and reads many more machines' media, floppy flux images among them.</p>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.7.0">All that was new in 0.7.0</a></p>
+<h2 id="v0-6-0">0.6.0</h2>
+<p class="released">Released 13 November 2026.</p>
+<p>Limoniter becomes an IDE, for the old machines and the new: completion, hover, go to definition, renaming and problems as you type in Z80, 6502, 6809 and 68000 source, language servers for everything else, a fuller debugger with watches, a memory window and a profiler, a disassembler, a character and sprite editor, a Spectrum screen designer, a terminal and tasks.</p>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.6.0">All that was new in 0.6.0</a></p>
+<h2 id="v0-5-1">0.5.1</h2>
+<p class="released">Released 13 November 2026.</p>
+<p>New files of any kind from File › New as, assembling to a plain binary, and one box to choose the assembler for each processor.</p>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.5.1">All that was new in 0.5.1</a></p>
+<h2 id="v0-5-0">0.5.0</h2>
+<p class="released">Released 13 November 2026.</p>
+<p>Limoniter now writes machine code, runs it and debugs it: assemblers for the Z80, 6502, 6809 and 68000 built in, F9 to assemble and run on the built-in Spectrum or in an emulator, and a debugger with breakpoints and stepping. Spectrum BASIC gets GRAPH mode, UDGs drawn as their pictures, and a Spectrum keyboard on the screen.</p>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.5.0">All that was new in 0.5.0</a></p>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="formats.html">File formats</a> · <a href="whats-new.html">What's new</a> · <a href="compare.html">How it compares</a></p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -142,10 +142,10 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
         }
     }
     if numbers > 0 {
-        doc.notes.push(format!("{numbers} number slot{} kept as written: PipeDream works out an expression's value when it loads the file, and doesn't save it.", if numbers == 1 { " is" } else { "s are" }));
+        doc.notes.push(if numbers == 1 { crate::i18n::tr("1 number slot is kept as written: PipeDream works out an expression's value when it loads the file, and doesn't save it.").to_string() } else { crate::i18n::tf!("{numbers} number slots are kept as written: PipeDream works out an expression's value when it loads the file, and doesn't save it.") });
     }
     if other_options {
-        doc.notes.push("Page settings (margins, page length, line spacing) aren't carried over.".into());
+        doc.notes.push(crate::i18n::tr("Page settings (margins, page length, line spacing) aren't carried over.").into());
     }
     Ok(doc)
 }

@@ -112,9 +112,9 @@ impl Outcome {
     pub fn message(&self) -> Option<String> {
         match self {
             Outcome::NotDue => None,
-            Outcome::UpToDate(version) => Some(format!("OpticOS {version} is the latest, and it's the one the built-in Spectrum runs.")),
-            Outcome::Installed(version) => Some(format!("OpticOS {version} is installed. The built-in Spectrum runs it from now on.")),
-            Outcome::Unusable(version, why) => Some(format!("OpticOS {version} is out, but its ROM isn't used: {why}")),
+            Outcome::UpToDate(version) => Some(crate::i18n::tf!("OpticOS {version} is the latest, and it's the one the built-in Spectrum runs.")),
+            Outcome::Installed(version) => Some(crate::i18n::tf!("OpticOS {version} is installed. The built-in Spectrum runs it from now on.")),
+            Outcome::Unusable(version, why) => Some(crate::i18n::tf!("OpticOS {version} is out, but its ROM isn't used: {why}")),
         }
     }
 }
@@ -136,7 +136,7 @@ fn latest() -> Result<(String, String), String> {
 
 /// The version and ROM address in GitHub's description of a release.
 fn release_from(text: &str) -> Result<(String, String), String> {
-    let json: serde_json::Value = serde_json::from_str(text).map_err(|_| "GitHub's answer wasn't what was expected.".to_string())?;
+    let json: serde_json::Value = serde_json::from_str(text).map_err(|_| crate::i18n::tr("GitHub's answer wasn't what was expected.").to_string())?;
     let tag = json["tag_name"].as_str().ok_or(crate::i18n::tr("The release has no version."))?.to_string();
     let address = json["assets"]
         .as_array()

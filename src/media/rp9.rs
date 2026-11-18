@@ -43,13 +43,13 @@ impl Rp9 {
                     info = sections(&String::from_utf8_lossy(&bytes)).unwrap_or_default();
                     summary
                 }
-                Err(problem) => ("Amiga Forever package (RP9)".to_string(), vec![format!("Its manifest can't be read: {problem}")]),
+                Err(problem) => (crate::i18n::tr("Amiga Forever package (RP9)").to_string(), vec![crate::i18n::tf!("Its manifest can't be read: {problem}")]),
             },
-            Some(Err(problem)) => ("Amiga Forever package (RP9)".to_string(), vec![format!("Its manifest can't be unpacked: {problem}")]),
-            None => ("Amiga Forever package (RP9)".to_string(), vec![format!("It has no {MANIFEST}, so what it holds isn't described.")]),
+            Some(Err(problem)) => (crate::i18n::tr("Amiga Forever package (RP9)").to_string(), vec![crate::i18n::tf!("Its manifest can't be unpacked: {problem}")]),
+            None => (crate::i18n::tr("Amiga Forever package (RP9)").to_string(), vec![crate::i18n::tf!("It has no {MANIFEST}, so what it holds isn't described.")]),
         };
         if let Some(help) = help {
-            info.insert(info.len().min(1), InfoSection { title: "About it".into(), rows: vec![(String::new(), help)] });
+            info.insert(info.len().min(1), InfoSection { title: crate::i18n::tr("About it").into(), rows: vec![(String::new(), help)] });
         }
         Ok(Self { zip, heading, notes, info, picture })
     }
@@ -116,19 +116,19 @@ fn sections(xml: &str) -> Result<Vec<InfoSection>, String> {
                     }
                     "floppy" => {
                         let unit = node.attribute("unit").unwrap_or("0");
-                        machine.push((format!("Drive DF{unit}:"), node.attribute("type").map_or("floppy".to_string(), |t| t.to_uppercase())));
+                        machine.push((crate::i18n::tf!("Drive DF{unit}:"), node.attribute("type").map_or("floppy".to_string(), |t| t.to_uppercase())));
                     }
-                    "a-501" => machine.push(("Expansion".into(), "A501 (512 KB more)".into())),
+                    "a-501" => machine.push(("Expansion".into(), crate::i18n::tr("A501 (512 KB more)").into())),
                     other => settings.push(("Peripheral".into(), other.to_string())),
                 },
                 "boot" => {
                     let readonly = if node.attribute("readonly") == Some("true") { ", read only" } else { "" };
-                    machine.push(("Starts from".into(), format!("Amiga Forever's system {} {value}{readonly}", node.attribute("type").unwrap_or("disk").to_uppercase())));
+                    machine.push((crate::i18n::tr("Starts from").into(), crate::i18n::tf!("Amiga Forever's system {} {value}{readonly}", node.attribute("type").unwrap_or("disk").to_uppercase())));
                 }
                 "compatibility" => settings.push(("Compatibility".into(), value)),
                 "clip" => {
                     let at = |name| node.attribute(name).unwrap_or("?");
-                    settings.push(("Display clip".into(), format!("{}\u{D7}{} at {}, {}", at("width"), at("height"), at("left"), at("top"))));
+                    settings.push((crate::i18n::tr("Display clip").into(), format!("{}\u{D7}{} at {}, {}", at("width"), at("height"), at("left"), at("top"))));
                 }
                 other if !value.is_empty() => settings.push((other.to_string(), value)),
                 _ => {}
@@ -147,7 +147,7 @@ fn sections(xml: &str) -> Result<Vec<InfoSection>, String> {
                     floppy += 1;
                     media.push((format!("Floppy {floppy}"), name));
                 }
-                "harddrive" => media.push(("Hard drive".into(), name)),
+                "harddrive" => media.push((crate::i18n::tr("Hard drive").into(), name)),
                 other => media.push((other.to_string(), name)),
             }
         }
@@ -163,10 +163,10 @@ fn sections(xml: &str) -> Result<Vec<InfoSection>, String> {
     }
     if let Some(application) = find("application") {
         if let Some(version) = application.attribute("libraryversion") {
-            made_for.push(("Library version".into(), version.to_string()));
+            made_for.push((crate::i18n::tr("Library version").into(), version.to_string()));
         }
         if let Some(oid) = application.attribute("oid") {
-            made_for.push(("Catalogue ID".into(), oid.to_string()));
+            made_for.push((crate::i18n::tr("Catalogue ID").into(), oid.to_string()));
         }
     }
     add("Made for", made_for);
@@ -180,7 +180,7 @@ fn summary(xml: &str) -> Result<(String, Vec<String>), String> {
     let find = |name: &str| root.descendants().find(|n| n.has_tag_name(name));
     let text = |name: &str| find(name).and_then(|n| n.text()).map(str::trim).filter(|t| !t.is_empty());
 
-    let mut heading = "Amiga Forever package (RP9)".to_string();
+    let mut heading = crate::i18n::tr("Amiga Forever package (RP9)").to_string();
     if let Some(title) = text("title") {
         heading += &format!(": {title}");
         let by: Vec<&str> = [text("entity"), text("year")].into_iter().flatten().collect();
@@ -212,12 +212,12 @@ fn summary(xml: &str) -> Result<(String, Vec<String>), String> {
         }
     }
     if !setup.is_empty() {
-        notes.push(format!("Set up for: {}.", setup.join(", ")));
+        notes.push(crate::i18n::tf!("Set up for: {}.", setup.join(", ")));
     }
     if let Some(boot) = find("boot") {
         let disk = boot.attribute("type").unwrap_or("disk").to_uppercase();
         let version = boot.text().map(str::trim).unwrap_or_default();
-        notes.push(format!("It starts from Amiga Forever's own system {disk} ({version}), which isn't in the package."));
+        notes.push(crate::i18n::tf!("It starts from Amiga Forever's own system {disk} ({version}), which isn't in the package."));
     }
     if let Some(media) = find("media") {
         let named = |tag: &str| media.children().filter(|n| n.has_tag_name(tag)).filter_map(|n| n.text()).map(str::trim).collect::<Vec<_>>();
@@ -225,11 +225,11 @@ fn summary(xml: &str) -> Result<(String, Vec<String>), String> {
         match floppies.len() {
             0 => {}
             1 => notes.push(format!("Floppy: {}.", floppies[0])),
-            _ => notes.push(format!("Floppies, in the order they go in: {}.", floppies.join(", "))),
+            _ => notes.push(crate::i18n::tf!("Floppies, in the order they go in: {}.", floppies.join(", "))),
         }
         let drives = named("harddrive");
         if !drives.is_empty() {
-            notes.push(format!("Hard drive{}: {}.", if drives.len() == 1 { "" } else { "s" }, drives.join(", ")));
+            notes.push(if drives.len() == 1 { crate::i18n::tf!("Hard drive: {}.", drives.join(", ")) } else { crate::i18n::tf!("Hard drives: {}.", drives.join(", ")) });
         }
     }
     Ok((heading, notes))

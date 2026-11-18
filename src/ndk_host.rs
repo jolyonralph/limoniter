@@ -14,9 +14,9 @@ pub(super) struct NdkBox {
 /// What's in use, in a sentence.
 fn in_use() -> String {
     match (amiga_ndk::current(), amiga_ndk::chosen_folder()) {
-        (Some(index), _) => format!("In use: {} functions and {} autodoc pages, from {}.", index.functions.len(), index.docs.len(), index.folder.display()),
-        (None, Some(folder)) => format!("There's an NDK in {}, but it couldn't be read.", folder.display()),
-        (None, None) => "No NDK yet, so Amiga code has no hints.".into(),
+        (Some(index), _) => crate::i18n::tf!("In use: {} functions and {} autodoc pages, from {}.", index.functions.len(), index.docs.len(), index.folder.display()),
+        (None, Some(folder)) => crate::i18n::tf!("There's an NDK in {}, but it couldn't be read.", folder.display()),
+        (None, None) => crate::i18n::tr("No NDK yet, so Amiga code has no hints.").into(),
     }
 }
 
@@ -33,7 +33,7 @@ impl Limoniter {
             match rx.try_recv() {
                 Ok(Ok(files)) => {
                     let count = amiga_ndk::set_folder(amiga_ndk::chosen_folder().as_deref()).ok().flatten().unwrap_or(0);
-                    state.status = format!("Downloaded and unpacked: {files} files, {count} functions.");
+                    state.status = crate::i18n::tf!("Downloaded and unpacked: {files} files, {count} functions.");
                     state.working = None;
                 }
                 Ok(Err(problem)) => {
@@ -81,7 +81,7 @@ impl Limoniter {
                     state.status.clear();
                     state.working = Some(rx);
                 }
-                None => state.status = "There's nowhere to keep it: Limoniter's settings folder couldn't be found.".into(),
+                None => state.status = crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found.").into(),
             }
         } else if choose {
             if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("The NDK's folder")).pick_folder() {

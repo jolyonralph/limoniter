@@ -96,11 +96,11 @@ pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
     };
     let [pf0, pf1, pf2, bak] = colours;
     let described = match (mode, saved) {
-        (Mode::Gr8, _) => "Two: the operating system's starting colours, light blue dots on blue".to_string(),
-        (Mode::Gr9, _) if bak & 0xF0 == 0 => "16 shades of grey".to_string(),
-        (Mode::Gr9, _) => format!("16 shades of hue {}", bak >> 4),
-        (_, Some(_)) => format!("Four, as saved with it: background ${bak:02X}, ${pf0:02X}, ${pf1:02X}, ${pf2:02X}"),
-        (_, None) => "Four: the operating system's starting colours, as the file doesn't say".to_string(),
+        (Mode::Gr8, _) => crate::i18n::tr("Two: the operating system's starting colours, light blue dots on blue").to_string(),
+        (Mode::Gr9, _) if bak & 0xF0 == 0 => crate::i18n::tr("16 shades of grey").to_string(),
+        (Mode::Gr9, _) => crate::i18n::tf!("16 shades of hue {}", bak >> 4),
+        (_, Some(_)) => crate::i18n::tf!("Four, as saved with it: background ${bak:02X}, ${pf0:02X}, ${pf1:02X}, ${pf2:02X}"),
+        (_, None) => crate::i18n::tr("Four: the operating system's starting colours, as the file doesn't say").to_string(),
     };
     Ok(paint(mode, bytes, colours, described))
 }
@@ -208,7 +208,7 @@ fn decode_koala(bytes: &[u8]) -> Result<Picture, String> {
     };
     let mut screen = vec![0u8; SCREEN];
     let packed = bytes.get(length + 1..).unwrap_or_default();
-    let short = || "This Koala picture's packed screen stops before its end, so the file is cut short or damaged.".to_string();
+    let short = || crate::i18n::tr("This Koala picture's packed screen stops before its end, so the file is cut short or damaged.").to_string();
     match header[7] {
         0 if packed.len() == SCREEN => screen.copy_from_slice(packed),
         0 => return Err(short()),
@@ -224,12 +224,12 @@ fn decode_koala(bytes: &[u8]) -> Result<Picture, String> {
     let colours = [header[13], header[14], header[15], header[17]];
     let [pf0, pf1, pf2, bak] = colours;
     let described = match mode {
-        Mode::Gr9 if bak & 0xF0 == 0 => "16 shades of grey".to_string(),
-        Mode::Gr9 => format!("16 shades of hue {}", bak >> 4),
-        _ => format!("Four, as saved with it: background ${bak:02X}, ${pf0:02X}, ${pf1:02X}, ${pf2:02X}"),
+        Mode::Gr9 if bak & 0xF0 == 0 => crate::i18n::tr("16 shades of grey").to_string(),
+        Mode::Gr9 => crate::i18n::tf!("16 shades of hue {}", bak >> 4),
+        _ => crate::i18n::tf!("Four, as saved with it: background ${bak:02X}, ${pf0:02X}, ${pf1:02X}, ${pf2:02X}"),
     };
     let mut picture = paint(mode, &screen, colours, described);
-    picture.info.insert(0, ("Format".into(), "Koala MicroIllustrator (packed)".into()));
+    picture.info.insert(0, ("Format".into(), crate::i18n::tr("Koala MicroIllustrator (packed)").into()));
     Ok(picture)
 }
 

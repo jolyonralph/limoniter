@@ -216,8 +216,8 @@ pub fn disassemble(bytes: &[u8], origin: u32) -> String {
     let labels: BTreeSet<u32> = decoded.iter().filter_map(|(.., i)| i.as_ref()?.target).filter(|t| inside(*t)).collect();
     let name = |a: u32| if inside(a) && labels.contains(&a) { format!("L{a:08X}") } else { format!("X'{a:08X}'") };
     let mut lines = vec![
-        "; ICL 2900 code, disassembled by Limoniter into SFL: byte address, halfwords, instruction.".to_string(),
-        "; Jumps' literal operands are shown as the address they reach.".to_string(),
+        crate::i18n::tr("; ICL 2900 code, disassembled by Limoniter into SFL: byte address, halfwords, instruction.").to_string(),
+        crate::i18n::tr("; Jumps' literal operands are shown as the address they reach.").to_string(),
         String::new(),
     ];
     for (at, offset, length, found) in decoded {

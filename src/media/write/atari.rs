@@ -329,7 +329,7 @@ impl Disk {
             .enumerate()
             .find(|(_, slot)| self.bytes[*slot] == 0 || self.bytes[*slot] & 0x80 != 0)
             .map(|(number, slot)| Place { number, slot })
-            .ok_or_else(|| "The directory is full: Atari DOS holds 64 files in each.".into())
+            .ok_or_else(|| crate::i18n::tr("The directory is full: Atari DOS holds 64 files in each.").into())
     }
 
     /// Deletes as DOS does: the entry marked deleted, its sectors freed.

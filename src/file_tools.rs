@@ -23,9 +23,9 @@ pub(super) struct Snippet {
 /// What's offered before any have been made, to show how they work.
 fn starter_snippets() -> Vec<Snippet> {
     vec![
-        Snippet { name: "Dated heading".into(), body: "## $DATE\n\n$CURSOR".into() },
-        Snippet { name: "In quotes".into(), body: "\u{201C}$SELECTION$CURSOR\u{201D}".into() },
-        Snippet { name: "Note with time".into(), body: "Note ($DATE $TIME): $CURSOR".into() },
+        Snippet { name: crate::i18n::tr("Dated heading").into(), body: "## $DATE\n\n$CURSOR".into() },
+        Snippet { name: crate::i18n::tr("In quotes").into(), body: "\u{201C}$SELECTION$CURSOR\u{201D}".into() },
+        Snippet { name: crate::i18n::tr("Note with time").into(), body: crate::i18n::tr("Note ($DATE $TIME): $CURSOR").into() },
     ]
 }
 
@@ -252,13 +252,13 @@ pub(super) fn start_run(line: &str, folder: Option<&Path>, wake: impl Fn() + Sen
             _ if was_stopped.load(Ordering::Relaxed) => "Stopped.".to_string(),
             Ok(status) => match status.code() {
                 Some(0) => "Finished.".to_string(),
-                Some(code) => format!("Finished, with exit code {code}."),
+                Some(code) => crate::i18n::tf!("Finished, with exit code {code}."),
                 None => "Finished.".to_string(),
             },
-            Err(e) => format!("Couldn't wait for it to finish: {e}"),
+            Err(e) => crate::i18n::tf!("Couldn't wait for it to finish: {e}"),
         };
         if extra > 0 {
-            summary += &format!(" {extra} more lines weren't kept.");
+            summary += &crate::i18n::tf!(" {extra} more lines weren't kept.");
         }
         *done.lock().unwrap() = Some(summary);
         wake();
@@ -429,10 +429,13 @@ impl Limoniter {
     // ---------- Swap with clipboard ----------
 
     pub(super) fn swap_with_clipboard(&mut self, ui: &Ui) {
+        if crate::clipboards::active() != 0 {
+            return self.swap_in(&crate::clipboards::pasted(""), ui);
+        }
         let text = match arboard::Clipboard::new().and_then(|mut c| c.get_text()) {
             Ok(text) => text,
             Err(arboard::Error::ContentNotAvailable) => String::new(),
-            Err(e) => return warn(&format!("Couldn't read the clipboard.\n\n{e}")),
+            Err(e) => return warn(&crate::i18n::tf!("Couldn't read the clipboard.\n\n{e}")),
         };
         self.swap_in(&text, ui);
     }
@@ -440,7 +443,7 @@ impl Limoniter {
     /// The selection goes on the clipboard, and what was there takes its place.
     pub(super) fn swap_in(&mut self, text: &str, ui: &Ui) {
         if text.is_empty() {
-            self.message("Swap with clipboard", "There's no text on the clipboard to swap in.".into());
+            self.message("Swap with clipboard", crate::i18n::tr("There's no text on the clipboard to swap in.").into());
             return;
         }
         let doc = &mut self.docs[self.active];
@@ -514,7 +517,7 @@ impl Limoniter {
         let name = whole.rsplit('\u{203A}').next().unwrap_or(&whole).trim().to_string();
         let folder = doc.path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
         let bytes = self.document_bytes();
-        let converted = crate::legacy_docs::detect(&name, &bytes).ok_or_else(|| "This isn't a document Limoniter can convert.".to_string()).and_then(|kind| crate::legacy_docs::convert(kind, &bytes));
+        let converted = crate::legacy_docs::detect(&name, &bytes).ok_or_else(|| crate::i18n::tr("This isn't a document Limoniter can convert.").to_string()).and_then(|kind| crate::legacy_docs::convert(kind, &bytes));
         let converted = match converted {
             Ok(converted) => converted,
             Err(problem) => return self.message("Save the document as", problem),
@@ -548,7 +551,7 @@ impl Limoniter {
         let folder = doc.path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
         let bytes = self.document_bytes();
         let png = crate::pictures::detect(&name, &bytes)
-            .ok_or_else(|| "This isn't a picture Limoniter can read. Amiga IFF, Atari ST (Degas, NEOchrome), Commodore 64 (Koala, Art Studio, Doodle!), MacPaint, RISC OS sprite, PCX, GEM IMG, Kodak Photo CD and ZX Spectrum screen pictures can be saved as PNG.".to_string())
+            .ok_or_else(|| crate::i18n::tr("This isn't a picture Limoniter can read. Amiga IFF, Atari ST (Degas, NEOchrome), Commodore 64 (Koala, Art Studio, Doodle!), MacPaint, RISC OS sprite, PCX, GEM IMG, Kodak Photo CD and ZX Spectrum screen pictures can be saved as PNG.").to_string())
             .and_then(|format| crate::pictures::decode_named(format, &name, &bytes))
             .and_then(|picture| crate::pictures::to_png(&picture));
         let png = match png {
@@ -572,13 +575,13 @@ impl Limoniter {
         let extension = doc.path_or_name().extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
         let bytes = self.document_bytes();
         if !basic::is_program_file(&extension, Some(&bytes)) {
-            return self.message("BASIC listing", "This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.".into());
+            return self.message("BASIC listing", crate::i18n::tr("This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.").into());
         }
         let listing = basic::list(&bytes, &extension, doc.text.format.charset);
         // Colouring is ready for the listing when it opens.
         highlight::load_now();
         if listing.lines.is_empty() {
-            let why = if listing.notes.is_empty() { "There's no BASIC program in this file.".to_string() } else { listing.notes.join("\n") };
+            let why = if listing.notes.is_empty() { crate::i18n::tr("There's no BASIC program in this file.").to_string() } else { listing.notes.join("\n") };
             return self.message("BASIC listing", why);
         }
         let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| doc.name(), |s| s.to_string_lossy().into_owned());
@@ -648,11 +651,11 @@ impl Limoniter {
 
     pub(super) fn begin_split(&mut self) {
         if self.docs[self.active].path.is_none() {
-            self.message("Split into parts", "Save this file first. The parts are written beside it.".into());
+            self.message("Split into parts", crate::i18n::tr("Save this file first. The parts are written beside it.").into());
             return;
         }
         if self.split_job.is_some() {
-            self.message("Split into parts", "A split is already being written.".into());
+            self.message("Split into parts", crate::i18n::tr("A split is already being written.").into());
             return;
         }
         self.dialog = Dialog::SplitFile { every: "1000".into(), by_text: false, text: String::new(), error: String::new() };
@@ -686,7 +689,7 @@ impl Limoniter {
         let body = match result {
             Ok(names) => {
                 let name = |path: &PathBuf| path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-                format!("Written as {} files beside it, from {} to {}, as the file is now, with any unsaved changes.", names.len(), name(&names[0]), name(&names[names.len() - 1]))
+                crate::i18n::tf!("Written as {} files beside it, from {} to {}, as the file is now, with any unsaved changes.", names.len(), name(&names[0]), name(&names[names.len() - 1]))
             }
             Err(problem) => problem,
         };
@@ -708,7 +711,7 @@ impl Limoniter {
             return;
         };
         if doc.text.is_disk_backed() && !doc.hex_mode {
-            self.message("Rename", "This file is so large that it's read from the disk as it's shown, so it can't be renamed while it's open.".into());
+            self.message("Rename", crate::i18n::tr("This file is so large that it's read from the disk as it's shown, so it can't be renamed while it's open.").into());
             return;
         }
         let name = path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
@@ -761,14 +764,14 @@ impl Limoniter {
         let Some(path) = doc.path.clone() else {
             return;
         };
-        let title = format!("Move to {}", crate::trash::BIN);
+        let title = crate::i18n::tf!("Move to {}", crate::trash::BIN);
         if doc.text.is_disk_backed() && !doc.hex_mode {
-            self.message(&title, "This file is so large that it's read from the disk as it's shown, so it can't be moved while it's open. Close it first, then move it from the file manager.".into());
+            self.message(&title, crate::i18n::tr("This file is so large that it's read from the disk as it's shown, so it can't be moved while it's open. Close it first, then move it from the file manager.").into());
             return;
         }
         let name = path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
         let unsaved = if doc.is_modified() { "\n\nIts changes that haven't been saved will be lost." } else { "" };
-        if !super::ask_yes_no(&title, &format!("Move {name} to {}, and close it?{unsaved}", crate::trash::BIN)) {
+        if !super::ask_yes_no(&title, &crate::i18n::tf!("Move {name} to {}, and close it?{unsaved}", crate::trash::BIN)) {
             return;
         }
         match crate::trash::move_to_bin(&path) {
@@ -796,7 +799,7 @@ impl Limoniter {
         }
         let doc = &self.docs[self.active];
         if doc.hex_mode || doc.text.is_block() {
-            self.message("Surround with", "Surrounding works on text selected in the ordinary way, not in hex or Column Mode.".into());
+            self.message("Surround with", crate::i18n::tr("Surrounding works on text selected in the ordinary way, not in hex or Column Mode.").into());
             return;
         }
         if doc.text.read_only {
@@ -839,7 +842,7 @@ impl Limoniter {
         }
         let doc = &self.docs[self.active];
         if doc.hex_mode {
-            self.message("Snippets", "Snippets go into text. Press Ctrl+H to go back to it first.".into());
+            self.message("Snippets", crate::i18n::tr("Snippets go into text. Press Ctrl+H to go back to it first.").into());
             return;
         }
         if doc.text.read_only {
@@ -847,7 +850,7 @@ impl Limoniter {
             return;
         }
         if doc.is_busy() || self.pending.is_some() {
-            self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+            self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
             return;
         }
         if !self.one_selection("Snippets") {
@@ -1112,7 +1115,7 @@ impl Limoniter {
                     self.doc().text.select_chars((found.line, found.start), (found.line, found.end));
                     self.dialog = Dialog::Spelling { found, chosen: 0 };
                 }
-                None => self.message("Spelling", "No spelling mistakes were found.".into()),
+                None => self.message("Spelling", crate::i18n::tr("No spelling mistakes were found.").into()),
             }
         }
     }

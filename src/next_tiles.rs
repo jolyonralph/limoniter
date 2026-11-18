@@ -356,8 +356,7 @@ impl Tilemap {
 
     pub fn source(&self, name: &str) -> String {
         let columns = self.columns();
-        let mut s = format!(
-            "; {name}: a tilemap for the ZX Spectrum Next, {columns}\u{D7}32 places of {} tiles, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.til, {name}.map and {name}.nxp beside it:\n; it writes {name}.nex, which shows it until the Next is reset.\n\n",
+        let mut s = crate::i18n::tf!("; {name}: a tilemap for the ZX Spectrum Next, {columns}\u{D7}32 places of {} tiles, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.til, {name}.map and {name}.nxp beside it:\n; it writes {name}.nex, which shows it until the Next is reset.\n\n",
             self.tiles.len()
         );
         s += "        DEVICE ZXSPECTRUMNEXT\n        org $8000\nstart:\n        di\n        nextreg $07,3                   ; 28 MHz\n";
@@ -577,8 +576,7 @@ impl Sprites {
         let colours = if self.four_bit { 16 } else { 256 };
         let patterns = self.pattern_bytes();
         let attributes = self.attributes();
-        let mut s = format!(
-            "; {name}: {count} sprites for the ZX Spectrum Next, 16\u{D7}16 at {bits} bits a pixel, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.spr and {name}.nxp beside it:\n; it writes {name}.nex, which shows them in rows of 16 until the Next is reset.\n\n"
+        let mut s = crate::i18n::tf!("; {name}: {count} sprites for the ZX Spectrum Next, 16\u{D7}16 at {bits} bits a pixel, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.spr and {name}.nxp beside it:\n; it writes {name}.nex, which shows them in rows of 16 until the Next is reset.\n\n"
         );
         s += "        DEVICE ZXSPECTRUMNEXT\n        org $8000\nstart:\n        di\n        nextreg $07,3                   ; 28 MHz\n";
         s += "        ld hl,$4000                     ; the ULA's screen black\n        ld de,$4001\n        ld bc,6911\n        ld (hl),0\n        ldir\n";

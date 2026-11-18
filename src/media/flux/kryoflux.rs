@@ -73,9 +73,9 @@ pub fn decode(stream: &[u8]) -> Result<(Flux, Option<String>), String> {
                     // The stream's end, and whether the board kept up: 1 is a buffer overrun, 2 no index found.
                     0x03 if size >= 8 => match u32::from_le_bytes(body[4..8].try_into().unwrap_or_default()) {
                         0 => {}
-                        1 => trouble = Some("the board's buffer overflowed while reading".to_string()),
-                        2 => trouble = Some("no index pulse was seen".to_string()),
-                        other => trouble = Some(format!("the board reported problem {other}")),
+                        1 => trouble = Some(crate::i18n::tr("the board's buffer overflowed while reading").to_string()),
+                        2 => trouble = Some(crate::i18n::tr("no index pulse was seen").to_string()),
+                        other => trouble = Some(crate::i18n::tf!("the board reported problem {other}")),
                     },
                     0x04 => {
                         let text = String::from_utf8_lossy(body);

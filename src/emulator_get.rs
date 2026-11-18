@@ -35,6 +35,7 @@ fn github(id: &str) -> Option<(&'static str, fn(&str) -> bool)> {
         "fs-uae" => ("FrodeSolheim/fs-uae", |n| n.ends_with("_Windows_x86-64.zip")),
         "vice" => ("VICE-Team/svn-mirror", |n| n.starts_with("GTK3VICE-") && n.ends_with("-win64.zip")),
         "stella" => ("stella-emu/stella", |n| n.starts_with("Stella-") && n.ends_with("-windows.zip")),
+        "dosbox" => ("dosbox-staging/dosbox-staging", |n| n.starts_with("dosbox-staging-windows-x64-") && n.ends_with(".zip")),
         _ => return None,
     })
 }
@@ -49,6 +50,8 @@ fn apt_package(id: &str) -> Option<&'static str> {
         "fs-uae" => "fs-uae",
         "stella" => "stella",
         "mame" => "mame",
+        "dosbox" => "dosbox",
+        "qemu" => "qemu-system-x86",
         _ => return None,
     })
 }
@@ -64,6 +67,8 @@ fn brew_package(id: &str) -> Option<(&'static str, bool)> {
         "zesarux" => ("zesarux", true),
         "stella" => ("stella", true),
         "mame" => ("mame", false),
+        "dosbox" => ("dosbox-staging", false),
+        "qemu" => ("qemu", false),
         _ => return None,
     })
 }
@@ -124,7 +129,7 @@ fn get(address: &str) -> Result<Vec<u8>, String> {
 
 /// The release file to download, from GitHub's description of the latest release.
 fn pick_asset(release: &str, wanted: fn(&str) -> bool) -> Result<(String, String), String> {
-    let json: serde_json::Value = serde_json::from_str(release).map_err(|_| "GitHub's answer wasn't what was expected.".to_string())?;
+    let json: serde_json::Value = serde_json::from_str(release).map_err(|_| crate::i18n::tr("GitHub's answer wasn't what was expected.").to_string())?;
     let tag = json["tag_name"].as_str().unwrap_or("").to_string();
     json["assets"]
         .as_array()
@@ -139,7 +144,7 @@ fn pick_asset(release: &str, wanted: fn(&str) -> bool) -> Result<(String, String
 pub fn download(emulator: &Emulator) -> Result<PathBuf, String> {
     let (repo, wanted) = github(emulator.id).ok_or_else(|| crate::i18n::tf!("{} isn't downloaded by Limoniter: get it from {}.", emulator.name, emulator.website))?;
     let home = folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?;
-    let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest"))?).map_err(|_| "GitHub's answer wasn't text.".to_string())?;
+    let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest"))?).map_err(|_| crate::i18n::tr("GitHub's answer wasn't text.").to_string())?;
     let (_, address) = pick_asset(&release, wanted)?;
     let zip = get(&address)?;
     let target = home.join(emulator.id);

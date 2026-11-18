@@ -29,6 +29,13 @@ pub enum Machine {
     Amiga,
     /// The Atari 2600 (VCS), whose programs are its cartridges.
     Atari2600,
+    /// An IBM PC or compatible: DOS .COM programs, and floppies that boot.
+    Pc,
+    /// The Dragon 32 and 64, whose Dragon DOS binaries XRoar runs.
+    Dragon32,
+    Dragon64,
+    /// The Vectrex, whose programs are its cartridges.
+    Vectrex,
 }
 
 impl Machine {
@@ -52,6 +59,10 @@ impl Machine {
             Machine::OpticOs => "ZX Spectrum 48K with OpticOS",
             Machine::Amiga => "Amiga",
             Machine::Atari2600 => "Atari 2600",
+            Machine::Pc => "IBM PC (DOS)",
+            Machine::Dragon32 => "Dragon 32",
+            Machine::Dragon64 => "Dragon 64",
+            Machine::Vectrex => "Vectrex",
         }
     }
 
@@ -76,6 +87,10 @@ impl Machine {
             Machine::OpticOs => "opticos",
             Machine::Amiga => "amiga",
             Machine::Atari2600 => "atari2600",
+            Machine::Pc => "pc",
+            Machine::Dragon32 => "dragon32",
+            Machine::Dragon64 => "dragon64",
+            Machine::Vectrex => "vectrex",
         }
     }
 
@@ -123,6 +138,12 @@ pub enum Format {
     Msa,
     /// An Atari 2600 cartridge, its ROM as it is.
     A26,
+    /// A DOS .COM program: its bytes, loaded at 100h.
+    Com,
+    /// A PC floppy disk, sector by sector, that boots.
+    Img,
+    /// A Vectrex cartridge, its ROM as it is.
+    VecCart,
 }
 
 impl Format {
@@ -130,13 +151,13 @@ impl Format {
     pub fn medium(self) -> Option<&'static str> {
         match self {
             Format::Tap | Format::Tzx | Format::Cas | Format::T64 => Some("tape"),
-            Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa => Some("disk"),
-            Format::Crt | Format::Rom | Format::A26 => Some("cartridge"),
+            Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa | Format::Img => Some("disk"),
+            Format::Crt | Format::Rom | Format::A26 | Format::VecCart => Some("cartridge"),
             _ => None,
         }
     }
 
-    pub const ALL: [Format; 27] = [
+    pub const ALL: [Format; 30] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -164,6 +185,9 @@ impl Format {
         Format::St,
         Format::Msa,
         Format::A26,
+        Format::Com,
+        Format::Img,
+        Format::VecCart,
     ];
 
     /// The file ending it's written with.
@@ -196,6 +220,9 @@ impl Format {
             Format::St => "st",
             Format::Msa => "msa",
             Format::A26 => "a26",
+            Format::Com => "com",
+            Format::Img => "img",
+            Format::VecCart => "vec",
         }
     }
 
@@ -293,6 +320,8 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
             if listed.dialect == basic::ZxDialect::Next.name() { Machine::Next } else { Machine::SpectrumPlus3 }
         }
         Format::Nex => Machine::Next,
+        // A Dragon DOS binary: 55, its type (2), where it loads, how long it is and where it starts, then AA.
+        Format::CocoBin if bytes.first() == Some(&0x55) && bytes.get(1) == Some(&0x02) && bytes.get(8) == Some(&0xAA) => Machine::Dragon32,
         // Blocks of 0, a length, an address and the bytes, ended by FF 00 00 and where it starts.
         Format::CocoBin => {
             let mut at = 0;
@@ -304,6 +333,9 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
                 }
             }
         }
+        // A Vectrex cartridge starts with its copyright line, "g GCE" and a year, as its BIOS checks.
+        Format::VecCart if bytes.starts_with(b"g GCE") => Machine::Vectrex,
+        Format::VecCart => return None,
         Format::Dsk => dsk_machine(bytes),
         Format::Trd | Format::Scl => Machine::Pentagon,
         Format::Prg => commodore_by_load(bytes.get(0..2)?),
@@ -337,7 +369,23 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         Format::Msa => return None,
         Format::A26 if crate::atari2600::detect(bytes).is_some() => Machine::Atari2600,
         Format::A26 => return None,
+        // A .COM fits in a segment, less the 256 bytes before it.
+        Format::Com if !bytes.is_empty() && bytes.len() <= 0xFF00 => Machine::Pc,
+        Format::Com => return None,
+        // A PC floppy that boots: 55 AA at the end of its first sector.
+        Format::Img if PC_FLOPPIES.contains(&bytes.len()) && bytes.get(510..512) == Some(&[0x55, 0xAA][..]) => Machine::Pc,
+        Format::Img => return None,
     })
+}
+
+/// The sizes of the PC's floppies: 160K to 1.44M, and 2.88M.
+pub const PC_FLOPPIES: [usize; 8] = [163_840, 184_320, 327_680, 368_640, 737_280, 1_228_800, 1_474_560, 2_949_120];
+
+/// A 1.44M floppy that boots a sector of the PC's code.
+pub fn pc_boot_floppy(sector: &[u8]) -> Vec<u8> {
+    let mut disk = vec![0u8; 1_474_560];
+    disk[..sector.len().min(512)].copy_from_slice(&sector[..sector.len().min(512)]);
+    disk
 }
 
 /// Whether a file is an Atari ST program: $601A, then sizes of its parts that fit in the file.

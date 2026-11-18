@@ -40,7 +40,7 @@ fn lif_date(bytes: &[u8]) -> String {
 /// What a type number is called. Only type 1 is LIF's own; the rest are each machine's, shown by number.
 fn type_name(kind: u16) -> String {
     match kind {
-        1 => "LIF ASCII".into(),
+        1 => crate::i18n::tr("LIF ASCII").into(),
         _ => format!("Type &{kind:04X}"),
     }
 }
@@ -74,7 +74,7 @@ pub struct Lif {
 
 impl Lif {
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
-        let header = source.read_vec(0, RECORD as usize).map_err(|_| "The image is too short for a LIF volume.".to_string())?;
+        let header = source.read_vec(0, RECORD as usize).map_err(|_| crate::i18n::tr("The image is too short for a LIF volume.").to_string())?;
         if !looks_like_lif(&header, source.len()) {
             return Err(crate::i18n::tr("This isn't a LIF volume: record 0 has no LIF mark and directory.").into());
         }
@@ -98,10 +98,10 @@ impl Lif {
             files.push(LifFile { name: lif_name(&entry[..10]), kind, start: be(&entry[12..16]), records: be(&entry[16..20]), date: lif_date(&entry[20..26]), volume: be(&entry[26..28]) as u16 });
         }
         if purged > 0 {
-            notes.push(format!("{purged} purged file(s) are in the directory but not listed; their records may since have been reused."));
+            notes.push(crate::i18n::tf!("{purged} purged file(s) are in the directory but not listed; their records may since have been reused."));
         }
         if files.iter().any(|f| f.volume & 0x7FFF > 1) {
-            notes.push("Some files continue from other volumes of a set; only this volume's part of them is here.".into());
+            notes.push(crate::i18n::tr("Some files continue from other volumes of a set; only this volume's part of them is here.").into());
         }
         Ok(Self { source, label, created: lif_date(&header[36..42]), files, notes })
     }
@@ -147,7 +147,7 @@ impl Volume for Lif {
     fn describe(&self) -> String {
         let label = if self.label.is_empty() { "no label" } else { &self.label };
         let made = if self.created.is_empty() { String::new() } else { format!(" \u{B7} made {}", &self.created[..10]) };
-        format!("HP LIF volume \u{B7} {label}{made}")
+        crate::i18n::tf!("HP LIF volume \u{B7} {label}{made}")
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -159,13 +159,13 @@ impl Volume for Lif {
             let name = tidy_name(&file.name);
             let mut entry = Entry::file(name.clone(), file.records * RECORD, index as u64);
             entry.kind = type_name(file.kind);
-            entry.detail = [format!("{} record(s) from record {}", file.records, file.start), file.date.clone()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" \u{B7} ");
+            entry.detail = [crate::i18n::tf!("{} record(s) from record {}", file.records, file.start), file.date.clone()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" \u{B7} ");
             out.push(entry);
             if file.kind == 1 {
                 let mut text = Entry::file(format!("{name}.txt"), file.records * RECORD, index as u64);
                 text.extra = AS_TEXT;
-                text.kind = "LIF ASCII, as text".into();
-                text.detail = "the lines without their lengths".into();
+                text.kind = crate::i18n::tr("LIF ASCII, as text").into();
+                text.detail = crate::i18n::tr("the lines without their lengths").into();
                 out.push(text);
             }
         }

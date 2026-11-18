@@ -308,14 +308,14 @@ impl FileTypesState {
         match outcome {
             Outcome::SetFileTypes => match associations::parse_types(&self.ticked, &self.others) {
                 Err(problem) => self.status = problem,
-                Ok(types) if types.is_empty() => self.status = "Tick at least one type first.".to_string(),
+                Ok(types) if types.is_empty() => self.status = crate::i18n::tr("Tick at least one type first.").to_string(),
                 Ok(types) => match register(&types) {
                     Err(problem) => self.status = problem,
                     Ok(()) => {
                         let count = types.len();
                         self.registered = types;
                         self.status = match open_page() {
-                            Ok(()) => format!("Limoniter can now open {count} type{}. To finish, choose Limoniter for each one on the Windows page that just opened.", if count == 1 { "" } else { "s" }),
+                            Ok(()) => if count == 1 { crate::i18n::tr("Limoniter can now open 1 type. To finish, choose Limoniter for it on the Windows page that just opened.").to_string() } else { crate::i18n::tf!("Limoniter can now open {count} types. To finish, choose Limoniter for each one on the Windows page that just opened.") },
                             Err(problem) => problem,
                         };
                     }
@@ -327,7 +327,7 @@ impl FileTypesState {
                     self.registered.clear();
                     self.ticked.clear();
                     self.others.clear();
-                    self.status = "Limoniter is no longer registered with Windows. A type it was the default for will have Windows ask what to use.".to_string();
+                    self.status = crate::i18n::tr("Limoniter is no longer registered with Windows. A type it was the default for will have Windows ask what to use.").to_string();
                 }
             },
             Outcome::OpenWindowsPage => {
@@ -409,6 +409,8 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Line numbers", "Numbers down the left of the text", |t| &mut t.view.line_numbers),
             Row::Flag("Bookmark gutter", "The strip beside the line numbers that shows bookmarks", |t| &mut t.view.bookmark_gutter),
             Row::Flag("Document map", "The small picture of the whole file on the right", |t| &mut t.view.document_map),
+            Row::Flag("Breadcrumbs", "Above the text: the file's folders, and the function or label the cursor is in, each a menu to go to another", |t| &mut t.view.breadcrumbs),
+            Row::Flag("Sticky scroll", "The function or label scrolled past stays at the top of the text", |t| &mut t.view.sticky_scroll),
             Row::Flag("Highlight the active line", "Marks the row the cursor is on", |t| &mut t.view.active_line),
             Row::Flag("Highlight the active column", "Marks the column the cursor is in", |t| &mut t.view.active_col),
             Row::Flag("Fold markers", "Shows a box beside lines that have something indented under them, to fold it", |t| &mut t.view.fold_lines),
@@ -612,8 +614,9 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             Special::AutosaveTime => {
                 ui.add_enabled_ui(target.prefs.autosave, |ui| {
                     for seconds in AUTOSAVE_TIMES {
-                        let label = if seconds < 60 { format!("{seconds} seconds") } else if seconds == 60 { "1 minute".to_string() } else { format!("{} minutes", seconds / 60) };
-                        ui.radio_value(&mut target.prefs.autosave_seconds, seconds, crate::i18n::tr(&label));
+                        let minutes = seconds / 60;
+                        let label = if seconds < 60 { crate::i18n::tf!("{seconds} seconds") } else if seconds == 60 { crate::i18n::tr("1 minute").to_string() } else { crate::i18n::tf!("{minutes} minutes") };
+                        ui.radio_value(&mut target.prefs.autosave_seconds, seconds, label);
                     }
                 });
             }

@@ -78,7 +78,7 @@ fn now() -> u64 {
 
 /// The version and notes in GitHub's description of a release. Drafts and prereleases aren't offered.
 pub fn release_from(text: &str) -> Result<(String, String), String> {
-    let json: serde_json::Value = serde_json::from_str(text).map_err(|_| "GitHub's answer wasn't what was expected.".to_string())?;
+    let json: serde_json::Value = serde_json::from_str(text).map_err(|_| crate::i18n::tr("GitHub's answer wasn't what was expected.").to_string())?;
     if json["draft"].as_bool() == Some(true) || json["prerelease"].as_bool() == Some(true) {
         return Ok((String::new(), String::new()));
     }

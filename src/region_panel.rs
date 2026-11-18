@@ -146,16 +146,16 @@ fn describe(touch: &Touch, before: &[Arc<str>], after: &[Arc<str>]) -> (String, 
     let at = |range: &Option<Range<usize>>| range.as_ref().map_or(0, |r| r.start + 1);
     let summary = match touch.kind {
         Kind::Written => format!("Written, {}", lines(after.len())),
-        Kind::MovedHere => "Put in here, after being cut".to_string(),
-        Kind::CutFromHere => format!("Cut from line {}", at(&touch.before)),
-        Kind::Moved if removed.is_empty() && added.is_empty() => format!("Moved from line {}", at(&touch.before)),
+        Kind::MovedHere => crate::i18n::tr("Put in here, after being cut").to_string(),
+        Kind::CutFromHere => crate::i18n::tf!("Cut from line {}", at(&touch.before)),
+        Kind::Moved if removed.is_empty() && added.is_empty() => crate::i18n::tf!("Moved from line {}", at(&touch.before)),
         _ => match (removed.len(), added.len()) {
             (0, 0) => "Changed".to_string(),
             (0, n) => format!("Added {}", lines(n)),
-            (n, 0) => format!("Took away {}", lines(n)),
-            (1, 1) => format!("Changed its line {}", same_start + 1),
-            (a, b) if a == b => format!("Changed its lines {} to {}", same_start + 1, same_start + a),
-            (a, b) => format!("Changed {}, now {}", lines(a), b),
+            (n, 0) => crate::i18n::tf!("Took away {}", lines(n)),
+            (1, 1) => crate::i18n::tf!("Changed its line {}", same_start + 1),
+            (a, b) if a == b => crate::i18n::tf!("Changed its lines {} to {}", same_start + 1, same_start + a),
+            (a, b) => crate::i18n::tf!("Changed {}, now {}", lines(a), b),
         },
     };
     (summary, removed, added)
@@ -175,11 +175,11 @@ impl Limoniter {
     pub(super) fn choose_part(&mut self) {
         let doc = &self.docs[self.active];
         if doc.narrow.is_some() {
-            self.message("History of this part", "Press Show the whole file first. A part's history is traced through the whole file.".into());
+            self.message("History of this part", crate::i18n::tr("Press Show the whole file first. A part's history is traced through the whole file.").into());
             return;
         }
         if doc.text.is_disk_backed() || doc.text.line_count() > MOST_LINES {
-            self.message("History of this part", "This file is too large to trace its history by part. Edit, Edit history still shows every state.".into());
+            self.message("History of this part", crate::i18n::tr("This file is too large to trace its history by part. Edit, Edit history still shows every state.").into());
             return;
         }
         let text = &doc.text;
@@ -287,7 +287,7 @@ impl Limoniter {
         let index = self.docs.iter().position(|doc| doc.id == id)?;
         let doc = &self.docs[index];
         if doc.is_busy() || self.pending.is_some() || self.script.is_some() {
-            self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+            self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
             return None;
         }
         if doc.text.read_only {
@@ -296,7 +296,7 @@ impl Limoniter {
             return None;
         }
         if doc.hex_mode || doc.narrow.is_some() {
-            self.message("History of this part", "This works on the whole text. Go back to the text, and show the whole file, first.".into());
+            self.message("History of this part", crate::i18n::tr("This works on the whole text. Go back to the text, and show the whole file, first.").into());
             return None;
         }
         Some(index)
@@ -361,7 +361,7 @@ impl Limoniter {
                     }
                 });
             });
-            let where_now = if state.range.is_empty() { "No longer in the file".to_string() } else { format!("Lines {} to {}", state.range.start + 1, state.range.end) };
+            let where_now = if state.range.is_empty() { crate::i18n::tr("No longer in the file").to_string() } else { crate::i18n::tf!("Lines {} to {}", state.range.start + 1, state.range.end) };
             ui.label(RichText::new(where_now).color(theme::accent()).size(12.5));
             ui.label(RichText::new(if this_file { state.name.clone() } else { format!("{}, in {file_name}", state.name) }).color(theme::text_dim()).monospace().size(12.0));
             if ui.button(crate::i18n::tr("Follow the selection or the cursor instead")).on_hover_text(crate::i18n::tr("The selected lines, or the function the cursor is in")).clicked() {

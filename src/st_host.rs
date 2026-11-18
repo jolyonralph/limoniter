@@ -40,7 +40,7 @@ impl Limoniter {
                 None
             }
             Ok(None) => {
-                self.message(title, "This isn't an Atari ST program. Assemble 68000 source with no ORG, or open a .PRG or .TOS.".into());
+                self.message(title, crate::i18n::tr("This isn't an Atari ST program. Assemble 68000 source with no ORG, or open a .PRG or .TOS.").into());
                 None
             }
             Err(problem) if problem.is_empty() => None,
@@ -55,7 +55,7 @@ impl Limoniter {
     /// or the time set in Devices is up, and then shows where its cycles went.
     pub(super) fn profile_in_hatari(&mut self) {
         let Some(device) = self.hatari_device() else {
-            return self.message("Profile in Hatari", "Hatari isn't set up. Add it in File, Devices (it's at https://www.hatari-emu.org).".into());
+            return self.message("Profile in Hatari", crate::i18n::tr("Hatari isn't set up. Add it in File, Devices (it's at https://www.hatari-emu.org).").into());
         };
         if self.st_program("Profile in Hatari").is_none() {
             return;

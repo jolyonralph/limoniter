@@ -92,13 +92,13 @@ impl Exchange {
     /// Where it was, in words: "lines 10 to 24 of main.rs".
     pub fn place(&self) -> String {
         if self.task == Task::CommitMessage {
-            format!("the changes in {}", self.file)
+            crate::i18n::tf!("the changes in {}", self.file)
         } else if self.lines.is_empty() {
-            format!("after line {} of {}", self.lines.start, self.file)
+            crate::i18n::tf!("after line {} of {}", self.lines.start, self.file)
         } else if self.lines.len() == 1 {
             format!("line {} of {}", self.lines.start + 1, self.file)
         } else {
-            format!("lines {} to {} of {}", self.lines.start + 1, self.lines.end, self.file)
+            crate::i18n::tf!("lines {} to {} of {}", self.lines.start + 1, self.lines.end, self.file)
         }
     }
 

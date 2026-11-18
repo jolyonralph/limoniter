@@ -123,22 +123,22 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
     }
     let mut notes = Vec::new();
     if !dropped.fonts.is_empty() {
-        notes.push(format!("The fonts it names ({}) aren't carried over.", dropped.fonts.join(", ")));
+        notes.push(crate::i18n::tf!("The fonts it names ({}) aren't carried over.", dropped.fonts.join(", ")));
     }
     if dropped.colours > 0 {
-        notes.push(format!("{} colour change(s) aren't carried over.", dropped.colours));
+        notes.push(crate::i18n::tf!("{} colour change(s) aren't carried over.", dropped.colours));
     }
     if dropped.other_sequences > 0 {
-        notes.push(format!("{} other control sequence(s) aren't carried over.", dropped.other_sequences));
+        notes.push(crate::i18n::tf!("{} other control sequence(s) aren't carried over.", dropped.other_sequences));
     }
     if !own.is_empty() {
         let names: Vec<String> = own.iter().map(|id| String::from_utf8_lossy(id).trim().to_string()).collect();
-        notes.push(format!("Chunks of the program that wrote it ({}) aren't carried over.", names.join(", ")));
+        notes.push(crate::i18n::tf!("Chunks of the program that wrote it ({}) aren't carried over.", names.join(", ")));
     }
     if dropped.controls > 0 {
-        notes.push(format!("{} control character(s) with no meaning in FTXT were left out.", dropped.controls));
+        notes.push(crate::i18n::tf!("{} control character(s) with no meaning in FTXT were left out.", dropped.controls));
     }
-    Ok(Doc { format: "IFF FTXT".into(), blocks, notes })
+    Ok(Doc { format: crate::i18n::tr("IFF FTXT").into(), blocks, notes })
 }
 
 /// One CHRS chunk's text and control sequences.

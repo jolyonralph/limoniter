@@ -60,7 +60,7 @@ pub fn delay(cycles: u32) -> Vec<(String, String)> {
         while n > 1 && (left - (5 * n + 1) == 1) {
             n -= 1;
         }
-        out.push((format!("ldx #{n}"), format!("{} cycles of waiting", 5 * n + 1)));
+        out.push((format!("ldx #{n}"), crate::i18n::tf!("{} cycles of waiting", 5 * n + 1)));
         out.push(("dex".into(), String::new()));
         out.push(("bne *-1".into(), String::new()));
         left -= 5 * n + 1;
@@ -147,7 +147,7 @@ impl Chain {
         line(&mut out, "", &format!("lda #>{}", first_label(0)), "");
         line(&mut out, "", &format!("sta {}", if self.kernal { "$0315" } else { "$ffff" }), "");
         let first = first_line(&entries[0]);
-        line(&mut out, "", &format!("lda #{}", first & 0xFF), &format!("the first at line {first}"));
+        line(&mut out, "", &format!("lda #{}", first & 0xFF), &crate::i18n::tf!("the first at line {first}"));
         line(&mut out, "", "sta $d012", "");
         line(&mut out, "", "lda $d011", "");
         line(&mut out, "", "and #$7f", "");

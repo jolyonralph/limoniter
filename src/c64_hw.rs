@@ -307,8 +307,8 @@ fn build() -> Vec<Register> {
     let mut b = Builder(Vec::new());
     // The VIC-II.
     for n in 0..8u16 {
-        b.add(0xD000 + n * 2, &format!("SP{n}X"), &format!("Sprite {n} X"), Vic, ReadWrite, &format!("Where sprite {n} is across: the low 8 bits, with the ninth in $D010. 24 is the screen's left edge."), SPRITE_X);
-        b.add(0xD001 + n * 2, &format!("SP{n}Y"), &format!("Sprite {n} Y"), Vic, ReadWrite, &format!("Where sprite {n} is down, by raster line. 50 is the screen's top row."), SPRITE_Y);
+        b.add(0xD000 + n * 2, &format!("SP{n}X"), &format!("Sprite {n} X"), Vic, ReadWrite, &crate::i18n::tf!("Where sprite {n} is across: the low 8 bits, with the ninth in $D010. 24 is the screen's left edge."), SPRITE_X);
+        b.add(0xD001 + n * 2, &format!("SP{n}Y"), &format!("Sprite {n} Y"), Vic, ReadWrite, &crate::i18n::tf!("Where sprite {n} is down, by raster line. 50 is the screen's top row."), SPRITE_Y);
     }
     b.add(0xD010, "MSIGX", "Sprites' X bit 8", Vic, ReadWrite, "The ninth bit of each sprite's X position, for the right of the screen (X 256-343).", EIGHT_SPRITES);
     b.add(0xD011, "SCROLY", "Control register 1", Vic, ReadWrite, "Vertical scroll, 24 or 25 rows, the display on or off, bitmap and extended colour modes, and bit 8 of the raster line.", CONTROL1);
@@ -334,19 +334,19 @@ fn build() -> Vec<Register> {
     b.add(0xD025, "SPMC0", "Sprite multicolour 0", Vic, ReadWrite, "The colour multicolour sprites show for bit pair %01.", COLOUR);
     b.add(0xD026, "SPMC1", "Sprite multicolour 1", Vic, ReadWrite, "The colour multicolour sprites show for bit pair %11.", COLOUR);
     for n in 0..8u16 {
-        b.add(0xD027 + n, &format!("SP{n}COL"), &format!("Sprite {n} colour"), Vic, ReadWrite, &format!("Sprite {n}'s own colour (bit pair %10 in multicolour)."), COLOUR);
+        b.add(0xD027 + n, &format!("SP{n}COL"), &crate::i18n::tf!("Sprite {n} colour"), Vic, ReadWrite, &crate::i18n::tf!("Sprite {n}'s own colour (bit pair %10 in multicolour)."), COLOUR);
     }
     // The SID.
     for voice in 0..3u16 {
         let base = 0xD400 + voice * 7;
         let v = voice + 1;
-        b.add(base, &format!("FRELO{v}"), &format!("Voice {v} frequency, low"), Sid, Write, &format!("The low byte of voice {v}'s pitch."), FREQ_LO);
-        b.add(base + 1, &format!("FREHI{v}"), &format!("Voice {v} frequency, high"), Sid, Write, &format!("The high byte of voice {v}'s pitch."), FREQ_HI);
-        b.add(base + 2, &format!("PWLO{v}"), &format!("Voice {v} pulse width, low"), Sid, Write, &format!("The low byte of voice {v}'s pulse width, for the pulse wave."), PW_LO);
-        b.add(base + 3, &format!("PWHI{v}"), &format!("Voice {v} pulse width, high"), Sid, Write, &format!("The top four bits of voice {v}'s pulse width."), PW_HI);
-        b.add(base + 4, &format!("VCREG{v}"), &format!("Voice {v} control"), Sid, Write, &format!("Voice {v}'s waveform, its gate and how it's tied to the voice before."), VOICE_CONTROL);
-        b.add(base + 5, &format!("ATDCY{v}"), &format!("Voice {v} attack and decay"), Sid, Write, &format!("How quickly voice {v} rises when gated, and falls to its sustain level."), ATTACK_DECAY);
-        b.add(base + 6, &format!("SUREL{v}"), &format!("Voice {v} sustain and release"), Sid, Write, &format!("The level voice {v} holds, and how quickly it fades once the gate is off."), SUSTAIN_RELEASE);
+        b.add(base, &format!("FRELO{v}"), &crate::i18n::tf!("Voice {v} frequency, low"), Sid, Write, &crate::i18n::tf!("The low byte of voice {v}'s pitch."), FREQ_LO);
+        b.add(base + 1, &format!("FREHI{v}"), &crate::i18n::tf!("Voice {v} frequency, high"), Sid, Write, &crate::i18n::tf!("The high byte of voice {v}'s pitch."), FREQ_HI);
+        b.add(base + 2, &format!("PWLO{v}"), &crate::i18n::tf!("Voice {v} pulse width, low"), Sid, Write, &crate::i18n::tf!("The low byte of voice {v}'s pulse width, for the pulse wave."), PW_LO);
+        b.add(base + 3, &format!("PWHI{v}"), &crate::i18n::tf!("Voice {v} pulse width, high"), Sid, Write, &crate::i18n::tf!("The top four bits of voice {v}'s pulse width."), PW_HI);
+        b.add(base + 4, &format!("VCREG{v}"), &crate::i18n::tf!("Voice {v} control"), Sid, Write, &crate::i18n::tf!("Voice {v}'s waveform, its gate and how it's tied to the voice before."), VOICE_CONTROL);
+        b.add(base + 5, &format!("ATDCY{v}"), &crate::i18n::tf!("Voice {v} attack and decay"), Sid, Write, &crate::i18n::tf!("How quickly voice {v} rises when gated, and falls to its sustain level."), ATTACK_DECAY);
+        b.add(base + 6, &format!("SUREL{v}"), &crate::i18n::tf!("Voice {v} sustain and release"), Sid, Write, &crate::i18n::tf!("The level voice {v} holds, and how quickly it fades once the gate is off."), SUSTAIN_RELEASE);
     }
     b.add(0xD415, "CUTLO", "Filter cutoff, low", Sid, Write, "The low 3 bits of the filter's cutoff frequency.", CUTOFF_LO);
     b.add(0xD416, "CUTHI", "Filter cutoff, high", Sid, Write, "The top 8 bits of the filter's cutoff frequency.", CUTOFF_HI);
@@ -378,7 +378,7 @@ fn build() -> Vec<Register> {
         b.add(base + 10, &format!("{prefix}TODMIN"), "Time of day, minutes", chip, ReadWrite, "The time-of-day clock's minutes, in BCD.", TOD_BCD);
         b.add(base + 11, &format!("{prefix}TODHR"), "Time of day, hours", chip, ReadWrite, "The time-of-day clock's hours, in BCD, with AM or PM.", TOD_HOURS);
         b.add(base + 12, &format!("{prefix}SDR"), "Serial data", chip, ReadWrite, "The serial port's shift register.", SERIAL);
-        b.add(base + 13, &format!("{prefix}ICR"), "Interrupt control", chip, ReadWrite, &format!("Which of this CIA's interrupts reach the processor's {irq} (written), and which have happened (read; reading clears them, so an interrupt routine reads it to say it's been seen)."), ICR);
+        b.add(base + 13, &format!("{prefix}ICR"), "Interrupt control", chip, ReadWrite, &crate::i18n::tf!("Which of this CIA's interrupts reach the processor's {irq} (written), and which have happened (read; reading clears them, so an interrupt routine reads it to say it's been seen)."), ICR);
         b.add(base + 14, &format!("{prefix}CRA"), "Timer A control", chip, ReadWrite, "Starts and stops timer A, and how it counts.", CRA);
         b.add(base + 15, &format!("{prefix}CRB"), "Timer B control", chip, ReadWrite, "Starts and stops timer B, and how it counts.", CRB);
     }
@@ -593,7 +593,7 @@ pub fn memory_words(port: u8) -> String {
         4 | 0 => " (all RAM)",
         _ => "",
     };
-    format!("$A000-$BFFF {basic}, $D000-$DFFF {io}, $E000-$FFFF {kernal}{usual}")
+    crate::i18n::tf!("$A000-$BFFF {basic}, $D000-$DFFF {io}, $E000-$FFFF {kernal}{usual}")
 }
 
 /// The keyboard's matrix: for each column (CIA 1's port A bit, chosen by writing it 0), the key on each row
@@ -613,8 +613,8 @@ pub const KEYBOARD: [[&str; 8]; 8] = [
 pub fn keyboard_columns(value: u8) -> String {
     let chosen: Vec<usize> = (0..8).filter(|c| value & (1 << c) == 0).collect();
     match chosen.len() {
-        0 => "no keyboard column chosen".into(),
-        8 => "every keyboard column: $DC01 then shows whether any key is down".into(),
+        0 => crate::i18n::tr("no keyboard column chosen").into(),
+        8 => crate::i18n::tr("every keyboard column: $DC01 then shows whether any key is down").into(),
         _ => chosen.iter().map(|c| format!("column {c} ({})", KEYBOARD[*c].join(" "))).collect::<Vec<_>>().join("; "),
     }
 }
@@ -657,28 +657,28 @@ fn pitch_words(value: u16) -> String {
         let note = note(hz).map(|(n, c)| format!(", {n} {c:+.0} cents")).unwrap_or_default();
         format!("{hz:.1} Hz{note}")
     };
-    format!("PAL {}; NTSC {}", words(true), words(false))
+    crate::i18n::tf!("PAL {}; NTSC {}", words(true), words(false))
 }
 
 /// What a value written to a register means, in words; empty when it says nothing more than its bits.
 pub fn explain(register: &Register, value: u8) -> String {
     let a = register.address;
     match a {
-        0xD000..=0xD00F if a.is_multiple_of(2) => format!("sprite {} at X {value} (+256 if its bit in $D010 is set)", (a - 0xD000) / 2),
-        0xD000..=0xD00F => format!("sprite {} at line {value}", (a - 0xD001) / 2),
+        0xD000..=0xD00F if a.is_multiple_of(2) => crate::i18n::tf!("sprite {} at X {value} (+256 if its bit in $D010 is set)", (a - 0xD000) / 2),
+        0xD000..=0xD00F => crate::i18n::tf!("sprite {} at line {value}", (a - 0xD001) / 2),
         0xD011 => {
             let rows = if value & 8 != 0 { 25 } else { 24 };
             let on = if value & 0x10 != 0 { "display on" } else { "display off (blank)" };
-            format!("{}, {on}, {rows} rows, scrolled down {}, raster bit 8 = {}", screen_mode(value, 0), value & 7, value >> 7)
+            crate::i18n::tf!("{}, {on}, {rows} rows, scrolled down {}, raster bit 8 = {}", screen_mode(value, 0), value & 7, value >> 7)
         }
-        0xD012 => format!("raster line {value} (or {} with $D011 bit 7)", value as u16 + 256),
+        0xD012 => crate::i18n::tf!("raster line {value} (or {} with $D011 bit 7)", value as u16 + 256),
         0xD016 => {
             let columns = if value & 8 != 0 { 40 } else { 38 };
-            format!("{}, {columns} columns, scrolled right {}", if value & 0x10 != 0 { "multicolour" } else { "not multicolour" }, value & 7)
+            crate::i18n::tf!("{}, {columns} columns, scrolled right {}", if value & 0x10 != 0 { "multicolour" } else { "not multicolour" }, value & 7)
         }
         0xD018 => {
             let memory = vic_memory(value, 3);
-            format!("in bank 0 ($0000, as at switching on): {}; or a bitmap at ${:04X}. Screen offset ${:04X}, characters offset ${:04X}", memory.words(false), memory.bitmap, (value >> 4) as u16 * 0x400, ((value >> 1) & 7) as u16 * 0x800)
+            crate::i18n::tf!("in bank 0 ($0000, as at switching on): {}; or a bitmap at ${:04X}. Screen offset ${:04X}, characters offset ${:04X}", memory.words(false), memory.bitmap, (value >> 4) as u16 * 0x400, ((value >> 1) & 7) as u16 * 0x800)
         }
         0xD019 => {
             let names: Vec<&str> = INTERRUPTS.iter().rev().filter(|f| f.low < 4 && value & (1 << f.low) != 0).map(|f| f.name).collect();
@@ -686,7 +686,7 @@ pub fn explain(register: &Register, value: u8) -> String {
         }
         0xD01A => {
             let names: Vec<&str> = INTERRUPT_ENABLE.iter().rev().filter(|f| value & (1 << f.low) != 0).map(|f| f.name).collect();
-            if names.is_empty() { "no VIC interrupts".into() } else { format!("interrupts on: {}", names.join(", ")) }
+            if names.is_empty() { crate::i18n::tr("no VIC interrupts").into() } else { format!("interrupts on: {}", names.join(", ")) }
         }
         0xD010 | 0xD015 | 0xD017 | 0xD01B..=0xD01F => {
             let on: Vec<String> = (0..8).filter(|s| value & (1 << s) != 0).map(|s| s.to_string()).collect();
@@ -697,13 +697,13 @@ pub fn explain(register: &Register, value: u8) -> String {
         0xDC00 => keyboard_columns(value),
         0xDD00 => {
             let bank = bank_of(value);
-            format!("VIC bank {} (${bank:04X}-${:04X})", bank / 0x4000, bank + 0x3FFF)
+            crate::i18n::tf!("VIC bank {} (${bank:04X}-${:04X})", bank / 0x4000, bank + 0x3FFF)
         }
         0xDC0D | 0xDD0D => {
             let names: Vec<&str> = ICR.iter().rev().filter(|f| f.low < 5 && value & (1 << f.low) != 0).map(|f| f.name).collect();
             let what = if names.is_empty() { "none".to_string() } else { names.join(", ") };
             let line = if a == 0xDC0D { "IRQ" } else { "NMI" };
-            if value & 0x80 != 0 { format!("turns on the {line} for {what}") } else { format!("turns off the {line} for {what}") }
+            if value & 0x80 != 0 { crate::i18n::tf!("turns on the {line} for {what}") } else { crate::i18n::tf!("turns off the {line} for {what}") }
         }
         0xDC0E | 0xDD0E | 0xDC0F | 0xDD0F => {
             let timer = if a & 1 == 0 { "A" } else { "B" };
@@ -731,8 +731,8 @@ fn explain_sid(register: &Register, value: u8) -> String {
     let a = register.address;
     match a {
         0xD400..=0xD414 => match (a - 0xD400) % 7 {
-            1 => format!("frequency ${value:02X}xx: about {}", pitch_words((value as u16) << 8)),
-            3 => format!("pulse width ${:X}xx of $FFF: about {:.0}%", value & 15, ((value & 15) as f64 * 256.0) / 40.95),
+            1 => crate::i18n::tf!("frequency ${value:02X}xx: about {}", pitch_words((value as u16) << 8)),
+            3 => crate::i18n::tf!("pulse width ${:X}xx of $FFF: about {:.0}%", value & 15, ((value & 15) as f64 * 256.0) / 40.95),
             4 => {
                 let waves: Vec<&str> = VOICE_CONTROL[..4].iter().filter(|f| value & (1 << f.low) != 0).map(|f| f.name).collect();
                 let extras: Vec<&str> = VOICE_CONTROL[4..7].iter().filter(|f| value & (1 << f.low) != 0).map(|f| f.name).collect();
@@ -741,10 +741,10 @@ fn explain_sid(register: &Register, value: u8) -> String {
                 format!("{wave}{extras}, gate {}", if value & 1 != 0 { "on (attack)" } else { "off (release)" })
             }
             5 => format!("attack {}, decay {}", time(ATTACK_MS[(value >> 4) as usize]), time(DECAY_MS[(value & 15) as usize])),
-            6 => format!("sustain at {}/15, release {}", value >> 4, time(DECAY_MS[(value & 15) as usize])),
+            6 => crate::i18n::tf!("sustain at {}/15, release {}", value >> 4, time(DECAY_MS[(value & 15) as usize])),
             _ => String::new(),
         },
-        0xD416 => format!("cutoff ${:03X} (with the low bits 0): about {:.0} Hz on an 8580; a 6581's varies from chip to chip", (value as u16) << 3, cutoff_8580((value as u16) << 3)),
+        0xD416 => crate::i18n::tf!("cutoff ${:03X} (with the low bits 0): about {:.0} Hz on an 8580; a 6581's varies from chip to chip", (value as u16) << 3, cutoff_8580((value as u16) << 3)),
         0xD417 => {
             let routed: Vec<&str> = RESONANCE[1..].iter().filter(|f| value & (1 << f.low) != 0).map(|f| f.name).collect();
             format!("resonance {}, filtering {}", value >> 4, if routed.is_empty() { "nothing".to_string() } else { routed.join(", ") })
@@ -773,7 +773,7 @@ pub fn explain_timer(count: u16) -> String {
     let cycles = count as f64 + 1.0;
     let pal = PAL_CLOCK / cycles;
     let ntsc = NTSC_CLOCK / cycles;
-    format!("${count:04X} ({count}): runs out {pal:.2} times a second on PAL, {ntsc:.2} on NTSC")
+    crate::i18n::tf!("${count:04X} ({count}): runs out {pal:.2} times a second on PAL, {ntsc:.2} on NTSC")
 }
 
 /// Each bit of a value, by the register's fields: "4 DEN = 1".

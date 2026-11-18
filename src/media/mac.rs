@@ -123,7 +123,7 @@ pub fn unwrap_disk_copy(source: Arc<dyn Source>) -> Result<Unwrapped, String> {
     let head = source.read_vec(0, 84)?;
     let data = be(&head[64..68]);
     let name = pascal(&head, 63);
-    let note = (disk_copy_sum(&*source, 84, data)? != be(&head[72..76]) as u32).then(|| "The image's checksum doesn't match its data, so some of it may be damaged.".to_string());
+    let note = (disk_copy_sum(&*source, 84, data)? != be(&head[72..76]) as u32).then(|| crate::i18n::tr("The image's checksum doesn't match its data, so some of it may be damaged.").to_string());
     if head[81] == 0x24 {
         return Err(crate::i18n::tr("This Disk Copy image holds an Apple II disk (ProDOS), which Limoniter can't read yet.").into());
     }
@@ -201,7 +201,7 @@ pub struct Mfs {
 
 impl Mfs {
     pub fn open(source: Arc<dyn Source>, what: &str) -> Result<Self, String> {
-        let mdb = source.read_vec(1024, 1024).map_err(|_| "The image is too short for an MFS disk.".to_string())?;
+        let mdb = source.read_vec(1024, 1024).map_err(|_| crate::i18n::tr("The image is too short for an MFS disk.").to_string())?;
         if mdb[..2] != [0xD2, 0xD7] {
             return Err(crate::i18n::tr("This isn't an MFS disk.").into());
         }
@@ -222,7 +222,7 @@ impl Mfs {
         let mut volume = Self { source, name: pascal(&mdb[36..], 27), what: what.to_string(), files: Vec::new(), map, block_size, blocks_at, notes: Vec::new() };
         // The directory: entries that don't cross a 512-byte block, each padded to an even length; a block's
         // entries end at one whose flags byte is zero.
-        let bytes = volume.source.read_vec(directory * 512, (directory_blocks * 512) as usize).map_err(|_| "The directory is past the end of the image.".to_string())?;
+        let bytes = volume.source.read_vec(directory * 512, (directory_blocks * 512) as usize).map_err(|_| crate::i18n::tr("The directory is past the end of the image.").to_string())?;
         for block in bytes.chunks(512) {
             let mut at = 0;
             while at + 51 <= block.len() && block[at] & 0x80 != 0 {
@@ -248,7 +248,7 @@ impl Mfs {
             }
         }
         if volume.files.iter().any(|f| f.parent != 0) {
-            volume.notes.push("MFS keeps the Finder's folders only in its Desktop file, so every file is listed together here.".into());
+            volume.notes.push(crate::i18n::tr("MFS keeps the Finder's folders only in its Desktop file, so every file is listed together here.").into());
         }
         volume.files.sort_by_key(|f| f.name.to_lowercase());
         Ok(volume)
@@ -265,7 +265,7 @@ impl Mfs {
             if block < 2 || !seen.insert(block) {
                 return Err(crate::i18n::tr("The file's chain of blocks breaks off or loops, so the disk is damaged.").into());
             }
-            out.extend(self.source.read_vec(self.blocks_at + u64::from(block - 2) * self.block_size, self.block_size as usize).map_err(|_| "The file runs past the end of the image.".to_string())?);
+            out.extend(self.source.read_vec(self.blocks_at + u64::from(block - 2) * self.block_size, self.block_size as usize).map_err(|_| crate::i18n::tr("The file runs past the end of the image.").to_string())?);
             block = *self.map.get(usize::from(block - 2)).ok_or(crate::i18n::tr("The file's chain of blocks leaves the disk."))?;
             if block == 1 {
                 break;
@@ -303,7 +303,7 @@ pub(super) fn file_entries(index: usize, file: &MacFile) -> Vec<Entry> {
     if file.resource.length > 0 {
         let mut resource = Entry::file(format!("{name}.rsrc"), file.resource.length, index as u64);
         resource.extra = RESOURCE_FORK;
-        resource.kind = "Resource fork".into();
+        resource.kind = crate::i18n::tr("Resource fork").into();
         resource.detail = format!("of {name}");
         out.push(resource);
     }
@@ -417,7 +417,7 @@ fn leaf_records(tree: &[u8]) -> Result<Vec<Record>, String> {
 
 impl Hfs {
     pub fn open(source: Arc<dyn Source>, what: &str) -> Result<Self, String> {
-        let mdb = source.read_vec(1024, 512).map_err(|_| "The image is too short for an HFS disk.".to_string())?;
+        let mdb = source.read_vec(1024, 512).map_err(|_| crate::i18n::tr("The image is too short for an HFS disk.").to_string())?;
         if &mdb[..2] != b"BD" {
             return Err(crate::i18n::tr("This isn't an HFS disk.").into());
         }
@@ -667,7 +667,7 @@ impl Volume for Partitioned {
                         (None, None) => Entry::file(label, part.blocks, 0),
                     };
                     entry.kind = part.kind.clone();
-                    entry.detail = part.problem.clone().unwrap_or_else(|| part.volume.as_ref().map_or_else(|| "not a file system Limoniter reads".into(), |v| v.describe()));
+                    entry.detail = part.problem.clone().unwrap_or_else(|| part.volume.as_ref().map_or_else(|| crate::i18n::tr("not a file system Limoniter reads").into(), |v| v.describe()));
                     entry
                 })
                 .collect());
@@ -712,7 +712,7 @@ pub struct DiskCopy {
 
 pub fn open_disk_copy(source: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     let Unwrapped { disk, name, note } = unwrap_disk_copy(source)?;
-    let what = format!("Disk Copy 4.2 image \u{201C}{name}\u{201D}, {}K", disk.len() / 1024);
+    let what = crate::i18n::tf!("Disk Copy 4.2 image \u{201C}{name}\u{201D}, {}K", disk.len() / 1024);
     let inner = open_disk(disk, &what)?;
     Ok(Box::new(DiskCopy { inner, note }))
 }
@@ -1014,7 +1014,7 @@ pub mod tests {
                 continue;
             }
             let Ok(bytes) = volume.read(&entry) else {
-                wrong.push(format!("{} can't be read", entry.name));
+                wrong.push(crate::i18n::tf!("{} can't be read", entry.name));
                 continue;
             };
             if entry.extra & 0xFF == RESOURCE_FORK {
@@ -1023,7 +1023,7 @@ pub mod tests {
                     wrong.push(entry.name.clone());
                 }
             } else if entry.kind == "Text" && bytes.contains(&0) {
-                wrong.push(format!("{} (text with zero bytes)", entry.name));
+                wrong.push(crate::i18n::tf!("{} (text with zero bytes)", entry.name));
             } else if is_nested_image(&entry.open_name, &bytes)
                 && let Ok(inner) = open(Arc::new(bytes), &entry.open_name)
             {

@@ -156,7 +156,7 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         picture.aspect = if (0.2..=5.0).contains(&aspect) { aspect } else { 1.0 };
     }
     picture.note("Size", format!("{}\u{D7}{}", h.width, h.height));
-    picture.note("Colours", if h.planes == 1 { "Black and white".to_string() } else { format!("{colours} colours, {} planes", h.planes) });
+    picture.note("Colours", if h.planes == 1 { crate::i18n::tr("Black and white").to_string() } else { format!("{colours} colours, {} planes", h.planes) });
     if h.planes > 1 {
         picture.note("Palette", if ximg { "Its own (XIMG)" } else { "None saved; the Atari ST desktop's colours are used" });
     }

@@ -90,6 +90,10 @@ enum Command {
     SplitHorizontal,
     SplitVertical,
     DuplicateWindow,
+    /// Shows another tab beside the one in front, or stops.
+    OpenBeside,
+    /// The Search panel: find (and replace) in the folder's files, the results as a tree.
+    SearchPanel,
     FilterSelection,
     CollapseAll,
     ExpandAll,
@@ -128,6 +132,20 @@ enum Command {
     RestoreSettingsFile,
     ProjectOpen,
     ProjectNew,
+    /// Opens a folder as a project, as VS Code does.
+    OpenFolder,
+    /// Finds a file by a few letters of its name.
+    GoToFile,
+    /// Finds a function or label: in the file in front, or (true) in the folder.
+    GoToSymbol(bool),
+    /// Has the language server lay out the whole file.
+    FormatDocument,
+    /// Offers the language server's fixes for the cursor's line.
+    QuickFix,
+    /// Shows where the word at the cursor is defined, in a window, without going there.
+    PeekDefinition,
+    /// Debugs the file in front with its language's debugger (or carries on, while one's paused).
+    StartDebugging,
     ProjectClose,
     ProjectSettings,
     ProjectAddActive,
@@ -251,6 +269,9 @@ enum Command {
     Atari2600Graphics,
     SoundEffects,
     Ripper,
+    AmigaBootDisk,
+    /// The Dragon DOS disk window: files put on a disk for the Dragon 32 and 64.
+    DragonDisk,
     BlitterMinterms,
     TableGenerator,
     AtariHardware,
@@ -336,6 +357,8 @@ enum Command {
     /// Colour-tags the selected lines, or the function or paragraph the cursor is in.
     Tag(u8),
     Untag,
+    /// Which clipboard Copy, Cut and Paste use: 0 the computer's, 1 to 9 Limoniter's own.
+    UseClipboard(u8),
     NextTag,
     PreviousTag,
     /// Asks Claude Code or Codex to work on the selection, or the function the cursor is in.
@@ -640,6 +663,18 @@ struct Split {
     second: ViewState,
     /// Which pane has the keyboard.
     active: usize,
+}
+
+/// Another tab shown beside the one in front, as VS Code's editor groups are. Each stays on its side: clicking
+/// in the other one brings it to the front, there.
+struct Beside {
+    /// The tab shown beside, and the one last in front.
+    other: u64,
+    front: u64,
+    /// Whether the other one is on the right.
+    right: bool,
+    /// How much of the width the left one has.
+    share: f32,
 }
 
 /// Only showing lines that contain some text. Editing is off for as long as it lasts,
@@ -976,7 +1011,7 @@ impl Document {
                     doc.disk_stamp = None;
                     doc.untitled = format!("{} (added bytes)", meta.name);
                     doc.hex.load(kept);
-                    doc.hex.notice = Some(format!("{} has changed since these edits were made, so only the bytes that were typed or pasted in could be kept.", meta.name));
+                    doc.hex.notice = Some(crate::i18n::tf!("{} has changed since these edits were made, so only the bytes that were typed or pasted in could be kept.", meta.name));
                 }
                 doc.hex.move_caret(meta.caret.0, false);
                 doc.hex_mode = true;
@@ -998,7 +1033,7 @@ impl Document {
     /// A very large file's copy only holds what was edited. If the file itself has since changed, the
     /// untouched lines are gone, so what's left is each edited stretch, labelled with where it was.
     fn edited_lines_only(meta: &recovery::Meta, image: crate::line_store::StoreImage, mut doc: Self) -> Self {
-        let mut lines = vec![format!("The file {} has changed since these edits were made, so only the edited lines could be kept.", meta.name)];
+        let mut lines = vec![crate::i18n::tf!("The file {} has changed since these edits were made, so only the edited lines could be kept.", meta.name)];
         let mut position = 0;
         for piece in image.pieces {
             match piece {
@@ -1060,7 +1095,7 @@ impl Document {
                 doc.format_chosen = true;
             }
             if !binary {
-                doc.hex.notice = Some(format!("{} is too large to read as text in its encoding, so it's shown in hex. Text files in UTF-8 or a byte set can be any size.", doc.name()));
+                doc.hex.notice = Some(crate::i18n::tf!("{} is too large to read as text in its encoding, so it's shown in hex. Text files in UTF-8 or a byte set can be any size.", doc.name()));
             }
             return Ok(doc);
         }
@@ -1134,7 +1169,7 @@ impl Document {
     /// The wording for the status bar.
     fn status_file_parts(&self) -> (Option<String>, String, bool) {
         let meta = self.path.as_ref().and_then(|p| std::fs::metadata(p).ok());
-        let modified = meta.as_ref().map(|m| format!("Last saved {}", panels::format_time(m.modified())));
+        let modified = meta.as_ref().map(|m| crate::i18n::tf!("Last saved {}", panels::format_time(m.modified())));
         let bytes = meta.as_ref().map_or(0, std::fs::Metadata::len);
         let read_only = meta.as_ref().is_some_and(|m| m.permissions().readonly());
         let size = if self.hex_mode {
@@ -1165,6 +1200,12 @@ impl Document {
             }
         });
         self.text_state.colours.set_syntax(syntax);
+    }
+
+    /// The grammar the document is coloured with, working it out if it hasn't been yet.
+    fn syntax_index(&mut self) -> Option<usize> {
+        self.update_syntax();
+        self.resolved_syntax.flatten()
     }
 
     /// Where the file is, or for one not saved yet, its name, which is all there is to go by.
@@ -1304,9 +1345,9 @@ fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
     });
     ui.hyperlink_to(RichText::new(crate::i18n::tr("github.com/jolyonralph/limoniter")).size(13.0), "https://github.com/jolyonralph/limoniter");
     ui.add_space(10.0);
-    let mut licence = "Limoniter is free software under the Apache License 2.0.".to_string();
+    let mut licence = crate::i18n::tr("Limoniter is free software under the Apache License 2.0.").to_string();
     if let Some(path) = notices {
-        licence += &format!(" The work it's built on, and their licences, are listed in {}", path.display());
+        licence += &crate::i18n::tf!(" The work it's built on, and their licences, are listed in {}", path.display());
     }
     ui.add(egui::Label::new(RichText::new(licence).size(11.5).color(theme::text_faint())).wrap());
     ui.add_space(10.0);
@@ -1455,6 +1496,13 @@ pub struct Limoniter {
     /// Where the last program built sits in its machine's memory, for the bar over the Output panel.
     memory_map: Option<crate::memory_map::Map>,
     ripper: Option<Box<crate::ripper_ui::Ripper>>,
+    boot_disk: Option<Box<crate::amiga_bootdisk_ui::BootDisk>>,
+    /// A folder project's index of files, being made in the background.
+    indexing: workspace_host::Indexing,
+    go_to_file: Option<workspace_host::GoToFile>,
+    symbols: workspace_host::Symbols,
+    /// What .editorconfig files say of the file in front, and the file they were read for.
+    editor_config: Option<(PathBuf, crate::editorconfig::Settings)>,
     /// The blitter minterm calculator and the table generator, while they're open.
     demo_tools: demo_tools_host::DemoTools,
     /// The Atari ST hardware guide and the blitter and timer calculators, while they're open.
@@ -1465,6 +1513,12 @@ pub struct Limoniter {
     lsp: lsp_host::LspState,
     /// The terminal panel's shell, while it's open.
     terminal: Option<Box<crate::terminal::Terminal>>,
+    /// The other terminals, behind the one in front, each with its number; and the front one's.
+    terminals_behind: Vec<(u32, Box<crate::terminal::Terminal>)>,
+    terminal_number: u32,
+    terminals_made: u32,
+    /// The Terminal panel put away, its shells still running.
+    terminal_hidden: bool,
     /// A task running, and the last test task's results.
     task_run: Option<tasks_host::TaskRun>,
     test_panel: Option<tasks_host::TestPanel>,
@@ -1538,6 +1592,10 @@ pub struct Limoniter {
     /// A module or sound file playing, and why the last one couldn't be.
     music: Option<music_host::Music>,
     music_note: Option<String>,
+    /// Music being saved as a WAV, in the background: what's said when it's done.
+    music_saving: Option<std::sync::mpsc::Receiver<String>>,
+    /// Whether a document (by id and version) is a module rather than a sound file, worked out once.
+    music_is_module: Option<(u64, u64, bool)>,
     project: Option<Project>,
     recent_projects: Vec<PathBuf>,
     /// Backing up or restoring on another thread, and whether it's a restore.
@@ -1586,6 +1644,15 @@ pub struct Limoniter {
     handed_over: Vec<PathBuf>,
     /// Documents by when they were last in front, latest first, and a Ctrl+Tab switch that's still going.
     used_order: Vec<u64>,
+    beside: Option<Beside>,
+    search: search_panel::SearchPanel,
+    outline: outline::Outline,
+    peek: Option<intel_host::Peek>,
+    /// A program being debugged; how each file's is debugged; and the box asking that.
+    debugging: Option<Box<dap_host::Debugging>>,
+    debug_configs: std::collections::HashMap<PathBuf, crate::dap::Config>,
+    debug_setup: Option<(PathBuf, crate::dap::Config)>,
+    dragon_disk: Option<Box<dragon_disk_host::DragonDisk>>,
     cycle: Option<(Vec<u64>, usize)>,
     /// Keeps the list of files showing, for a picture of it, as if Ctrl were held.
     hold_cycle: bool,
@@ -1734,6 +1801,14 @@ impl Limoniter {
             listening: None,
             handed_over: Vec::new(),
             used_order: Vec::new(),
+            beside: None,
+            search: Default::default(),
+            outline: Default::default(),
+            peek: None,
+            debugging: None,
+            debug_configs: Default::default(),
+            debug_setup: None,
+            dragon_disk: None,
             cycle: None,
             hold_cycle: false,
             snippets: file_tools::snippets_from_settings(&settings),
@@ -1778,12 +1853,21 @@ impl Limoniter {
             sound_effects: None,
             memory_map: None,
             ripper: None,
+            boot_disk: None,
+            indexing: Default::default(),
+            go_to_file: None,
+            symbols: Default::default(),
+            editor_config: None,
             demo_tools: Default::default(),
             st_tools: Default::default(),
             c64_tools: Default::default(),
             c64_hw: Default::default(),
             lsp: lsp_host::LspState::from_settings(&settings),
             terminal: None,
+            terminals_behind: Vec::new(),
+            terminal_number: 0,
+            terminals_made: 0,
+            terminal_hidden: false,
             task_run: None,
             test_panel: None,
             clip: ClipState::default(),
@@ -1833,6 +1917,8 @@ impl Limoniter {
             preview_note: None,
             music: None,
             music_note: None,
+            music_saving: None,
+            music_is_module: None,
             project: None,
             recent_projects,
             project_job: None,
@@ -1845,7 +1931,7 @@ impl Limoniter {
     /// Starts keeping copies of edits, and offers back anything an earlier run left behind.
     fn start_recovery(&mut self) {
         let Some(root) = recovery_root() else {
-            self.recovery_failed = Some("There's nowhere to keep them".to_string());
+            self.recovery_failed = Some(crate::i18n::tr("There's nowhere to keep them").to_string());
             return;
         };
         match recovery::Session::start(&root) {
@@ -1865,7 +1951,7 @@ impl Limoniter {
         if found.is_empty() {
             recovery::tidy(orphans);
             if asked {
-                self.message("Recover edits", "There are no unsaved edits waiting to be recovered.".into());
+                self.message("Recover edits", crate::i18n::tr("There are no unsaved edits waiting to be recovered.").into());
             }
             return;
         }
@@ -1927,7 +2013,7 @@ impl Limoniter {
             self.finish_offer();
         } else if discard {
             let count = offer.items.iter().filter(|item| item.selected || item.content.is_none()).count();
-            if ask_yes_no("Recover unsaved edits", &format!("Permanently discard {count} recovery cop{}?", if count == 1 { "y" } else { "ies" })) {
+            if ask_yes_no("Recover unsaved edits", &if count == 1 { crate::i18n::tr("Permanently discard 1 recovery copy?").to_string() } else { crate::i18n::tf!("Permanently discard {count} recovery copies?") }) {
                 let chosen: Vec<PathBuf> = offer.items.iter().filter(|item| item.selected || item.content.is_none()).map(|item| item.file.clone()).collect();
                 self.finish_offer();
                 for file in chosen {
@@ -1987,7 +2073,7 @@ impl Limoniter {
                         let _ = recovery::delete_copy(&file);
                     }
                 }
-                Err(problem) => warn(&format!("Couldn't recover {title}.\n\n{problem}\n\nThe copy has been kept at {}.", file.display())),
+                Err(problem) => warn(&crate::i18n::tf!("Couldn't recover {title}.\n\n{problem}\n\nThe copy has been kept at {}.", file.display())),
             }
         }
         recovery::tidy(offer.orphans);
@@ -2112,7 +2198,7 @@ impl Limoniter {
                 true
             }
             Err(e) => {
-                warn(&format!("Couldn't open {}.\n\n{e}", full.display()));
+                warn(&crate::i18n::tf!("Couldn't open {}.\n\n{e}", full.display()));
                 false
             }
         }
@@ -2130,7 +2216,7 @@ impl Limoniter {
             return false;
         };
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        self.print_status = format!("{name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.", unpacked.packer.name(), unpacked.packed_size, unpacked.bytes.len());
+        self.print_status = crate::i18n::tf!("{name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.", unpacked.packer.name(), unpacked.packed_size, unpacked.bytes.len());
         let mut doc = Document::from_image_file(format!("{} \u{203A} {name}", unpacked.packer.name()), unpacked.bytes, None);
         doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound | preview::Kind::Document)) || Self::amos_or_stos(&doc));
         panels::note_recent(&mut self.panels.recent, path);
@@ -2150,7 +2236,12 @@ impl Limoniter {
         if doc.hex_mode {
             return Some(doc.hex.bytes().to_vec());
         }
-        if doc.text.format.ensure_final_newline {
+        // What .editorconfig says of saving it: trailing spaces off, and a line ending at the end, or not.
+        let config = doc.path.as_deref().map(crate::editorconfig::for_file).unwrap_or_default();
+        if config.trim_trailing_whitespace == Some(true) && !doc.text.is_disk_backed() {
+            doc.text.trim_trailing();
+        }
+        if config.insert_final_newline.unwrap_or(doc.text.format.ensure_final_newline) {
             doc.text.ensure_final_newline();
         }
         let format = doc.text.format.clone();
@@ -2173,14 +2264,19 @@ impl Limoniter {
             return self.save_compare_tab(index);
         }
         if self.docs[index].browser.is_some() {
-            self.message("Save", "An image or archive is only read here, so nothing is saved over it. Save a copy takes a file out of it.".into());
+            self.message("Save", crate::i18n::tr("An image or archive is only read here, so nothing is saved over it. Save a copy takes a file out of it.").into());
             return false;
         }
         if self.docs[index].merge.is_some() {
             return self.save_merge(index);
         }
         match self.docs[index].path.clone() {
-            Some(path) => self.write_to(index, &path),
+            Some(path) => {
+                if self.lsp.format_on_save {
+                    self.lsp_format(index, true);
+                }
+                self.write_to(index, &path)
+            }
             None => self.save_as(index),
         }
     }
@@ -2190,7 +2286,7 @@ impl Limoniter {
             return false;
         }
         if self.docs[index].browser.is_some() {
-            self.message("Save as", "An image or archive is only read here. Save a copy, in the browser, takes a file out of it.".into());
+            self.message("Save as", crate::i18n::tr("An image or archive is only read here. Save a copy, in the browser, takes a file out of it.").into());
             return false;
         }
         let name = self.docs[index].name();
@@ -2216,7 +2312,7 @@ impl Limoniter {
         if !self.docs[index].hex_mode {
             let uneven = self.docs[index].text.uneven_rows();
             if let Some(first) = uneven.first() {
-                let question = format!("Row {} and {} other row(s) aren't the width this format needs, which would shift everything after them.\n\nSave anyway?", first + 1, uneven.len() - 1);
+                let question = crate::i18n::tf!("Row {} and {} other row(s) aren't the width this format needs, which would shift everything after them.\n\nSave anyway?", first + 1, uneven.len() - 1);
                 if !ask_yes_no("Row widths", &question) {
                     return false;
                 }
@@ -2227,7 +2323,7 @@ impl Limoniter {
         };
         self.keep_backup(index, path);
         if let Err(e) = codec::write_file(path, &bytes) {
-            warn(&format!("Couldn't save {}.\n\n{e}", path.display()));
+            warn(&crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
             return false;
         }
         panels::note_recent(&mut self.panels.recent, path);
@@ -2256,7 +2352,7 @@ impl Limoniter {
         backup.push(".bak");
         match std::fs::copy(path, &backup) {
             Ok(_) => doc.backed_up = Some(path.to_path_buf()),
-            Err(e) => warn(&format!("Couldn't keep a backup of {} before saving.\n\n{e}\n\nIt will still be saved.", path.display())),
+            Err(e) => warn(&crate::i18n::tf!("Couldn't keep a backup of {} before saving.\n\n{e}\n\nIt will still be saved.", path.display())),
         }
     }
 
@@ -2302,7 +2398,7 @@ impl Limoniter {
             }
             let path = doc.path.clone().expect("checked above");
             if self.write_to(index, &path) {
-                self.print_status = format!("Saved {} by itself", self.docs[index].name());
+                self.print_status = crate::i18n::tf!("Saved {} by itself", self.docs[index].name());
             }
         }
     }
@@ -2324,7 +2420,7 @@ impl Limoniter {
             && doc.path.as_deref().is_some_and(|p| same_path(p, source.path()))
             && !doc.saved_over_source
         {
-            let question = format!("{} has been changed by another program since it was opened.\n\nOverwrite it?", path.display());
+            let question = crate::i18n::tf!("{} has been changed by another program since it was opened.\n\nOverwrite it?", path.display());
             if !ask_yes_no("File changed", &question) {
                 return false;
             }
@@ -2350,7 +2446,7 @@ impl Limoniter {
         let doc = &mut self.docs[index];
         let over_itself = doc.path.as_deref().is_some_and(|p| same_path(p, path));
         if over_itself && doc.disk_stamp.is_some() && file_stamp(path) != doc.disk_stamp {
-            let question = format!("{} has been changed by another program since it was opened.\n\nOverwrite it?", path.display());
+            let question = crate::i18n::tf!("{} has been changed by another program since it was opened.\n\nOverwrite it?", path.display());
             if !ask_yes_no("File changed", &question) {
                 return false;
             }
@@ -2376,7 +2472,7 @@ impl Limoniter {
     /// These commands act on whole lines, so several selections have to be ended first. Says so if they aren't.
     fn one_selection(&mut self, title: &str) -> bool {
         if self.docs[self.active].text.has_multi() {
-            self.message(title, "Press Esc to go back to one selection first.".into());
+            self.message(title, crate::i18n::tr("Press Esc to go back to one selection first.").into());
             return false;
         }
         true
@@ -2405,7 +2501,7 @@ impl Limoniter {
             let rows = text.rows_text(top, bottom);
             text.replace_lines(top, bottom, change(&rows));
         } else if text.notice.is_none() {
-            self.message("Paragraph", "Put the cursor in a paragraph, or select some lines.".into());
+            self.message("Paragraph", crate::i18n::tr("Put the cursor in a paragraph, or select some lines.").into());
         }
     }
 
@@ -2446,12 +2542,12 @@ impl Limoniter {
         }
         let doc = &self.docs[self.active];
         if doc.text.is_block() {
-            self.message(title, "Turn off Column Mode first, then try again.".into());
+            self.message(title, crate::i18n::tr("Turn off Column Mode first, then try again.").into());
             return;
         }
         let whole = !doc.text.has_selection();
         let Some(text) = doc.text.selection_or_all() else {
-            self.message(title, "This file is too large to convert as a whole. Select the part you want instead.".into());
+            self.message(title, crate::i18n::tr("This file is too large to convert as a whole. Select the part you want instead.").into());
             return;
         };
         match conversion.apply(&text) {
@@ -2472,12 +2568,12 @@ impl Limoniter {
         }
         let doc = &self.docs[self.active];
         if doc.text.is_block() {
-            self.message(kind.title(), "Turn off Column Mode first, then try again.".into());
+            self.message(kind.title(), crate::i18n::tr("Turn off Column Mode first, then try again.").into());
             return;
         }
         let whole = !doc.text.has_selection();
         let Some(text) = doc.text.selection_or_all() else {
-            self.message(kind.title(), "This file is too large to reformat as a whole. Select the part you want instead.".into());
+            self.message(kind.title(), crate::i18n::tr("This file is too large to reformat as a whole. Select the part you want instead.").into());
             return;
         };
         match formatters::apply(kind, &text, &self.indent_unit()) {
@@ -2504,7 +2600,7 @@ impl Limoniter {
 
     /// Keeps the project's file up to date. Not being able to is worth saying.
     fn save_project(&mut self) {
-        if let Some(problem) = self.project.as_ref().and_then(|project| project.save().err().map(|e| format!("Couldn't save {}.\n\n{e}", project.path.display()))) {
+        if let Some(problem) = self.project.as_ref().and_then(|project| project.save().err().map(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", project.path.display()))) {
             self.message("Project", problem);
         }
     }
@@ -2531,6 +2627,7 @@ impl Limoniter {
                 for file in files {
                     self.open_path(&file);
                 }
+                self.index_project();
             }
             Err(problem) => {
                 self.recent_projects.retain(|known| !same_path(known, path));
@@ -2558,7 +2655,7 @@ impl Limoniter {
 
     fn backup_project(&mut self) {
         if self.project_job.is_some() {
-            self.message("Backup project", "A backup or restore is still running.".into());
+            self.message("Backup project", crate::i18n::tr("A backup or restore is still running.").into());
             return;
         }
         let Some(project) = self.project.clone() else {
@@ -2571,7 +2668,7 @@ impl Limoniter {
     /// Takes a backup of how things are now, then puts the chosen one back.
     fn restore_project(&mut self, chosen: project::Backup) {
         if self.project_job.is_some() {
-            self.message("Restore project", "A backup or restore is still running.".into());
+            self.message("Restore project", crate::i18n::tr("A backup or restore is still running.").into());
             return;
         }
         let Some(current) = self.project.clone() else {
@@ -2612,11 +2709,11 @@ impl Limoniter {
     fn begin_compare(&mut self) {
         let doc = &self.docs[self.active];
         if doc.is_busy() {
-            self.message("Compare", "Please wait for this file to finish being read or written first.".into());
+            self.message("Compare", crate::i18n::tr("Please wait for this file to finish being read or written first.").into());
             return;
         }
         if doc.compare.is_some() || doc.browser.is_some() {
-            self.message("Compare", "This tab isn't a file that can be compared. Compare folders and Compare files are in the Tools menu.".into());
+            self.message("Compare", crate::i18n::tr("This tab isn't a file that can be compared. Compare folders and Compare files are in the Tools menu.").into());
             return;
         }
         let others = self.docs.iter().enumerate().filter(|(index, other)| *index != self.active && !other.placeholder && other.compare.is_none() && other.browser.is_none()).map(|(index, other)| (index, other.name())).collect();
@@ -2632,7 +2729,7 @@ impl Limoniter {
             let (start, end) = (doc.hex.caret.min(doc.hex.anchor), doc.hex.caret.max(doc.hex.anchor));
             let selection = (start != end && end - start <= MOST_HEX_PRINTED).then(|| doc.hex.view_rows(start, end, shown));
             if doc.hex.len() > MOST_HEX_PRINTED {
-                self.message("Print", "This file is too large to print in hex. It can be up to 16 MB.".into());
+                self.message("Print", crate::i18n::tr("This file is too large to print in hex. It can be up to 16 MB.").into());
                 return;
             }
             (print::Rows::Ready(doc.hex.view_rows(0, doc.hex.len(), shown)), selection.map(print::Rows::Ready))
@@ -2703,7 +2800,7 @@ impl Limoniter {
             match finished {
                 Some(Ok(pages)) => {
                     self.print_job = None;
-                    self.print_status = format!("Sent {pages} page{} to the printer", if pages == 1 { "" } else { "s" });
+                    self.print_status = if pages == 1 { crate::i18n::tr("Sent 1 page to the printer").to_string() } else { crate::i18n::tf!("Sent {pages} pages to the printer") };
                 }
                 Some(Err(problem)) => {
                     self.print_job = None;
@@ -2723,7 +2820,7 @@ impl Limoniter {
                 self.show_results = false;
                 self.message("Replace in Files", summary);
             } else {
-                self.find.status = format!("Replacing: {} of {} files...", job.done.load(Ordering::Relaxed), job.total.load(Ordering::Relaxed));
+                self.find.status = crate::i18n::tf!("Replacing: {} of {} files...", job.done.load(Ordering::Relaxed), job.total.load(Ordering::Relaxed));
                 busy = true;
             }
         }
@@ -2732,7 +2829,7 @@ impl Limoniter {
                 doc.text.refresh_from_source();
                 if source.is_finished() {
                     if let Some(problem) = source.failure() {
-                        warn(&format!("Couldn't finish reading {}.\n\n{problem}\n\nOnly the part read so far is shown. Saving is not safe until the file is reopened.", source.path().display()));
+                        warn(&crate::i18n::tf!("Couldn't finish reading {}.\n\n{problem}\n\nOnly the part read so far is shown. Saving is not safe until the file is reopened.", source.path().display()));
                     }
                     if !doc.format_chosen {
                         doc.text.format = source.format();
@@ -2772,7 +2869,7 @@ impl Limoniter {
                 }
                 Some(Err(problem)) => {
                     let job = doc.saving.take().unwrap();
-                    warn(&format!("Couldn't save {}.\n\n{problem}\n\nThe original file has not been changed.", job.path.display()));
+                    warn(&crate::i18n::tf!("Couldn't save {}.\n\n{problem}\n\nThe original file has not been changed.", job.path.display()));
                 }
                 None => busy |= doc.saving.is_some(),
             }
@@ -2787,7 +2884,7 @@ impl Limoniter {
     /// to a file of its own that the document then carries on from, as one step for Undo.
     fn start_rewrite(&mut self, index: usize, title: &'static str, to: TextFormat, eol: Option<codec::Eol>, lossy: Lossy, change: crate::big_jobs::LineChange) -> bool {
         if self.big_job.is_some() {
-            self.message(title, "Please wait for the file being worked through to finish.".into());
+            self.message(title, crate::i18n::tr("Please wait for the file being worked through to finish.").into());
             return false;
         }
         let doc = &mut self.docs[index];
@@ -2828,7 +2925,7 @@ impl Limoniter {
     /// background; the file carries on from the result as one step that Undo takes back.
     pub(super) fn start_record_rewrite(&mut self, title: &'static str, records: Arc<Vec<crate::table::Record>>, delimiter: char, arrange: crate::big_jobs::Arrange, change: crate::big_jobs::RecordChange) {
         if self.big_job.is_some() {
-            return self.message(title, "Please wait for the file being worked through to finish.".into());
+            return self.message(title, crate::i18n::tr("Please wait for the file being worked through to finish.").into());
         }
         let index = self.active;
         if self.docs[index].text.read_only {
@@ -2883,7 +2980,7 @@ impl Limoniter {
                         doc.scanning = Some(source);
                         doc.resolved_syntax = None;
                     }
-                    Err(e) => warn(&format!("{title} couldn't read back what it wrote.\n\n{e}")),
+                    Err(e) => warn(&crate::i18n::tf!("{title} couldn't read back what it wrote.\n\n{e}")),
                 }
                 return true;
             }
@@ -2923,7 +3020,7 @@ impl Limoniter {
                 }
                 Some(Err(problem)) => {
                     let job = self.docs[index].saving.take().unwrap();
-                    warn(&format!("Couldn't save {}.\n\n{problem}\n\nThe original file has not been changed.", job.path.display()));
+                    warn(&crate::i18n::tf!("Couldn't save {}.\n\n{problem}\n\nThe original file has not been changed.", job.path.display()));
                     return false;
                 }
                 None => {}
@@ -2941,7 +3038,7 @@ impl Limoniter {
         let answer = MessageDialog::new()
             .set_title(crate::i18n::tr("Limoniter"))
             .set_level(MessageLevel::Warning)
-            .set_description(format!("Save changes to {}?", self.docs[index].name()))
+            .set_description(crate::i18n::tf!("Save changes to {}?", self.docs[index].name()))
             .set_buttons(MessageButtons::YesNoCancel)
             .show();
         match answer {
@@ -3034,7 +3131,7 @@ impl Limoniter {
             return;
         }
         if doc.is_busy() {
-            self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+            self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
             return;
         }
         let doc = &mut self.docs[index];
@@ -3056,7 +3153,7 @@ impl Limoniter {
                     doc.hex = HexBuffer::default();
                     doc.hex_mode = false;
                 }
-                Err(e) => warn(&format!("Couldn't read {}.\n\n{e}", path.display())),
+                Err(e) => warn(&crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display())),
             }
         } else {
             let (line, _) = doc.text.caret_char_position();
@@ -3072,7 +3169,7 @@ impl Limoniter {
                     }
                     doc.text.set_content(vec![String::new()]);
                 }
-                Err(e) => warn(&format!("Couldn't read {}.\n\n{e}", path.display())),
+                Err(e) => warn(&crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display())),
             }
         }
         self.pending_focus = true;
@@ -3116,7 +3213,7 @@ impl Limoniter {
             return;
         }
         if !doc.text.has_selection() || doc.text.caret_line != doc.text.anchor_line || doc.text.is_block() {
-            self.message("Filter on selection", "Select some text on one line first. Only the lines containing it will show.".into());
+            self.message("Filter on selection", crate::i18n::tr("Select some text on one line first. Only the lines containing it will show.").into());
             return;
         }
         let needle = doc.text.selection_text();
@@ -3124,7 +3221,7 @@ impl Limoniter {
             // Too large to hold: the lines are looked through in the background, and the filter shows when that's done.
             let (store, id) = (doc.text.store().clone(), doc.id);
             if self.big_job.is_some() {
-                self.message("Filter on selection", "Please wait for the file being worked through to finish.".into());
+                self.message("Filter on selection", crate::i18n::tr("Please wait for the file being worked through to finish.").into());
                 return;
             }
             self.big_job = Some(crate::big_jobs::find_lines(store, needle, id));
@@ -3159,7 +3256,7 @@ impl Limoniter {
             return;
         }
         if doc.hex.caret.abs_diff(doc.hex.anchor) > hex_buffer::MOST_VIEW_COPIED {
-            self.message("Copy selected", "That's too much to lay out as text. It can be up to 16 MB at a time.".into());
+            self.message("Copy selected", crate::i18n::tr("That's too much to lay out as text. It can be up to 16 MB at a time.").into());
             return;
         }
         ui.ctx().copy_text(doc.hex.view_text(|value| views::hex_pane_char(&doc.hex, &doc.text.format, value)));
@@ -3186,14 +3283,14 @@ impl Limoniter {
 
     fn run_find(&mut self, backward: bool) {
         if self.no_file() {
-            self.find.status = "No file is open.".into();
+            self.find.status = crate::i18n::tr("No file is open.").into();
             return;
         }
         self.record_find(backward);
         note_search(&mut self.find.history, &self.find.find.clone());
         let options = self.search_options(backward);
         if self.docs[self.active].is_busy() {
-            self.find.status = "Please wait until the file has finished loading or saving.".into();
+            self.find.status = crate::i18n::tr("Please wait until the file has finished loading or saving.").into();
             return;
         }
         if self.docs[self.active].hex_mode && self.docs[self.active].hex.is_on_disk() {
@@ -3232,7 +3329,7 @@ impl Limoniter {
 
     fn run_replace(&mut self) {
         if self.no_file() {
-            self.find.status = "No file is open.".into();
+            self.find.status = crate::i18n::tr("No file is open.").into();
             return;
         }
         if self.docs[self.active].text.read_only {
@@ -3313,7 +3410,7 @@ impl Limoniter {
                 None if cursor.too_large => {
                     self.pending_count = 0;
                     self.find.status.clear();
-                    self.message("Replace All", "That would change more than 1 GB of text, which is too much to hold in memory until it's saved, so nothing has been changed.\n\nReplace in Files on the Find panel can do it, because it writes straight to disk. Save this file first, then close it, and choose it there.".into());
+                    self.message("Replace All", crate::i18n::tr("That would change more than 1 GB of text, which is too much to hold in memory until it's saved, so nothing has been changed.\n\nReplace in Files on the Find panel can do it, because it writes straight to disk. Save this file first, then close it, and choose it there.").into());
                     return;
                 }
                 None => {
@@ -3333,7 +3430,7 @@ impl Limoniter {
 
     fn run_replace_all(&mut self) {
         if self.no_file() {
-            self.find.status = "No file is open.".into();
+            self.find.status = crate::i18n::tr("No file is open.").into();
             return;
         }
         if self.docs[self.active].text.read_only {
@@ -3344,7 +3441,7 @@ impl Limoniter {
         note_search(&mut self.find.history, &self.find.find.clone());
         let options = self.search_options(false);
         if self.docs[self.active].is_busy() {
-            self.find.status = "Please wait until the file has finished loading or saving.".into();
+            self.find.status = crate::i18n::tr("Please wait until the file has finished loading or saving.").into();
             return;
         }
         if self.docs[self.active].hex_mode && self.docs[self.active].hex.is_on_disk() {
@@ -3395,13 +3492,13 @@ impl Limoniter {
             ..SearchOptions::default()
         };
         if options.pattern.is_empty() {
-            self.find.status = "Type something to find first.".into();
+            self.find.status = crate::i18n::tr("Type something to find first.").into();
             return;
         }
         let result = match self.find.scope {
             FileScope::Folder => {
                 if self.find.folder.trim().is_empty() || !Path::new(self.find.folder.trim()).is_dir() {
-                    self.find.status = "Choose a folder to search first.".into();
+                    self.find.status = crate::i18n::tr("Choose a folder to search first.").into();
                     return;
                 }
                 find_files::start(PathBuf::from(self.find.folder.trim()), self.find.file_types.clone(), self.find.recursive, &options)
@@ -3410,17 +3507,17 @@ impl Limoniter {
             FileScope::Project => match &self.project {
                 Some(project) if !project.files.is_empty() => find_files::start_list(project.files.clone(), &options),
                 Some(_) => {
-                    self.find.status = "This project has no files yet.".into();
+                    self.find.status = crate::i18n::tr("This project has no files yet.").into();
                     return;
                 }
                 None => {
-                    self.find.status = "Open a project first.".into();
+                    self.find.status = crate::i18n::tr("Open a project first.").into();
                     return;
                 }
             },
             FileScope::Favorites => {
                 if self.find.favorite_files.is_empty() {
-                    self.find.status = "Add a favorite file first.".into();
+                    self.find.status = crate::i18n::tr("Add a favorite file first.").into();
                     return;
                 }
                 find_files::start_list(self.find.favorite_files.clone(), &options)
@@ -3447,7 +3544,7 @@ impl Limoniter {
         }
         note_search(&mut self.find.history, &self.find.find.clone());
         if self.find.find.is_empty() {
-            self.find.status = "Type something to find first.".into();
+            self.find.status = crate::i18n::tr("Type something to find first.").into();
             return;
         }
         if let Some(job) = &self.job {
@@ -3606,11 +3703,18 @@ impl Limoniter {
     }
 
     fn paste_from_clipboard(&mut self, ui: &Ui) {
+        if crate::clipboards::active() != 0 {
+            let text = crate::clipboards::pasted("");
+            if !text.is_empty() {
+                self.paste_here(&text, ui);
+            }
+            return;
+        }
         let text = arboard::Clipboard::new().and_then(|mut c| c.get_text());
         match text {
             Ok(text) => self.paste_here(&text, ui),
             Err(arboard::Error::ContentNotAvailable) => {}
-            Err(e) => warn(&format!("Couldn't read the clipboard.\n\n{e}")),
+            Err(e) => warn(&crate::i18n::tf!("Couldn't read the clipboard.\n\n{e}")),
         }
     }
 
@@ -3797,7 +3901,7 @@ impl Limoniter {
             return;
         }
         if changes_document && (self.docs[self.active].is_busy() || self.pending.is_some()) {
-            self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+            self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
             return;
         }
         if command.edits() && self.docs[self.active].text.read_only {
@@ -3805,7 +3909,7 @@ impl Limoniter {
             return;
         }
         if command.needs_whole_file() && self.docs[self.active].narrow.is_some() {
-            self.message("Narrowed", "This needs the whole file. Press Show the whole file first.".into());
+            self.message("Narrowed", crate::i18n::tr("This needs the whole file. Press Show the whole file first.").into());
             return;
         }
         self.record_command(command);
@@ -3932,6 +4036,8 @@ impl Limoniter {
             Command::Atari2600Graphics => self.open_atari2600_graphics(),
             Command::SoundEffects => self.open_sound_effects(),
             Command::Ripper => self.open_ripper(),
+            Command::AmigaBootDisk => self.open_boot_disk(),
+            Command::DragonDisk => self.open_dragon_disk(),
             Command::PixelEditor => {
                 if self.pixel_editor.is_none() {
                     let mut editor = crate::pixel_editor::Editor::new(crate::pixel_editor::Kind::Characters);
@@ -3975,6 +4081,13 @@ impl Limoniter {
             }
             Command::SendAgain => self.send_again(),
             Command::ManageDevices => self.open_devices_box(),
+            Command::OpenFolder => self.choose_folder_to_open(),
+            Command::GoToFile => self.open_go_to_file(),
+            Command::GoToSymbol(in_project) => self.open_go_to_symbol(in_project),
+            Command::FormatDocument => self.lsp_format(self.active, false),
+            Command::QuickFix => self.lsp_quick_fix(),
+            Command::PeekDefinition => self.peek_definition(),
+            Command::StartDebugging => self.start_debugging(),
             Command::ProjectOpen => {
                 if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open project")).add_filter(crate::i18n::tr("Limoniter project"), &[project::EXTENSION]).pick_file() {
                     self.open_project(&path);
@@ -3995,7 +4108,7 @@ impl Limoniter {
                 if let Some(path) = self.docs[self.active].path.clone() {
                     self.add_to_project([path]);
                 } else {
-                    self.message("Add to project", "Save this file first, so it has somewhere to be found.".into());
+                    self.message("Add to project", crate::i18n::tr("Save this file first, so it has somewhere to be found.").into());
                 }
             }
             Command::ProjectAddFiles => {
@@ -4012,7 +4125,7 @@ impl Limoniter {
                     let (paths, cut_short) = project::files_in_folder(&folder);
                     self.add_to_project(paths);
                     if cut_short {
-                        self.message("Add to project", "That folder has a great many files, so only the first 20,000 were added.".into());
+                        self.message("Add to project", crate::i18n::tr("That folder has a great many files, so only the first 20,000 were added.").into());
                     }
                 }
             }
@@ -4021,7 +4134,7 @@ impl Limoniter {
                 if let Some(project) = &self.project {
                     let backups = project::list_backups(project);
                     if backups.is_empty() {
-                        self.message("Restore project", "This project has no backups yet.".into());
+                        self.message("Restore project", crate::i18n::tr("This project has no backups yet.").into());
                     } else {
                         self.dialog = Dialog::RestorePick { backups, chosen: 0 };
                     }
@@ -4067,6 +4180,8 @@ impl Limoniter {
             Command::SplitHorizontal | Command::SplitVertical | Command::DuplicateWindow if hex => {}
             Command::SplitHorizontal => self.toggle_split(false),
             Command::SplitVertical => self.toggle_split(true),
+            Command::OpenBeside => self.toggle_beside(None),
+            Command::SearchPanel => self.open_search_panel(),
             Command::DuplicateWindow => {
                 self.doc().duplicate_window();
                 self.pending_focus = true;
@@ -4106,7 +4221,7 @@ impl Limoniter {
                 let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok);
                 let started = exe.and_then(|exe| std::process::Command::new(exe).spawn());
                 if let Err(e) = started {
-                    warn(&format!("Couldn't open a new window.\n\n{e}"));
+                    warn(&crate::i18n::tf!("Couldn't open a new window.\n\n{e}"));
                 }
             }
             Command::Help => self.open_help(),
@@ -4199,6 +4314,7 @@ impl Limoniter {
             Command::SplitFile => self.begin_split(),
             Command::PartHistory => self.choose_part(),
             Command::Tag(colour) => self.tag_here(colour),
+            Command::UseClipboard(number) => crate::clipboards::choose(number),
             Command::Untag => self.untag_here(),
             Command::NextTag | Command::PreviousTag => self.go_to_tag(command == Command::NextTag),
             Command::Assist(task) => self.begin_assist(task),
@@ -4218,7 +4334,7 @@ impl Limoniter {
             Command::ExpandAll => self.doc().text.expand_all(),
             Command::HideLines => {
                 if !self.doc().text.hide_selected_lines() {
-                    self.message("Hide lines", "Select two or more lines first. The first of them stays showing, and stands for the rest.".into());
+                    self.message("Hide lines", crate::i18n::tr("Select two or more lines first. The first of them stays showing, and stands for the rest.").into());
                 }
             }
             Command::ShowLines => self.doc().text.show_selected_lines(),
@@ -4287,7 +4403,7 @@ impl Limoniter {
             Command::SortDescending => self.doc().text.sort_lines(true),
             Command::WordCount if self.docs[self.active].text.is_disk_backed() && !self.docs[self.active].text.has_selection() => {
                 if self.big_job.is_some() {
-                    self.message("Word Count", "Please wait for the file being worked through to finish.".into());
+                    self.message("Word Count", crate::i18n::tr("Please wait for the file being worked through to finish.").into());
                 } else {
                     // Counted in the background, a stretch of lines at a time; the result is shown when it's done.
                     let doc = &self.docs[self.active];
@@ -4295,7 +4411,7 @@ impl Limoniter {
                 }
             }
             Command::WordCount if self.docs[self.active].text.selection_too_large_to_copy() => {
-                self.message("Word Count", "That selection is too large to count. Select fewer lines.".into());
+                self.message("Word Count", crate::i18n::tr("That selection is too large to count. Select fewer lines.").into());
             }
             Command::WordCount => {
                 let doc = &self.docs[self.active];
@@ -4337,18 +4453,18 @@ impl Limoniter {
                         ui.ctx().copy_text(hash.clone());
                         self.message("Compute Hash", crate::i18n::tf!("{scope}, as text:\n\nSHA-256: {hash}\n\nThe hash has been copied."));
                     }
-                    None => self.message("Compute Hash", "This file is too large to hash as text. File properties can hash the saved file, whatever its size.".into()),
+                    None => self.message("Compute Hash", crate::i18n::tr("This file is too large to hash as text. File properties can hash the saved file, whatever its size.").into()),
                 }
             }
             Command::GenerateGuid => self.doc().text.type_text(&tools::new_guid()),
             Command::ConvertNumber => {
                 let text = self.docs[self.active].text.selection_for_preview();
-                let body = tools::convert_number(&text).unwrap_or_else(|| "Select a whole number first, such as 255, 0xFF or 0b1010.".to_string());
+                let body = tools::convert_number(&text).unwrap_or_else(|| crate::i18n::tr("Select a whole number first, such as 255, 0xFF or 0b1010.").to_string());
                 self.message("Convert Number", body);
             }
             Command::GoToBrace | Command::SelectToBrace => {
                 if !self.doc().text.go_to_brace(command == Command::SelectToBrace) {
-                    self.message("Braces", "Put the cursor next to a bracket that has a match: ( ) [ ] { }".into());
+                    self.message("Braces", crate::i18n::tr("Put the cursor next to a bracket that has a match: ( ) [ ] { }").into());
                 }
             }
         }
@@ -4361,10 +4477,10 @@ impl Limoniter {
 
     fn tell_read_only(&mut self) {
         if self.docs[self.active].filter.is_some() {
-            self.message("Filter on selection", "Editing is off while filtering, because a selection would reach into lines that can't be seen. Press Filter on selection again to end it.".into());
+            self.message("Filter on selection", crate::i18n::tr("Editing is off while filtering, because a selection would reach into lines that can't be seen. Press Filter on selection again to end it.").into());
             return;
         }
-        self.message("Read-only", "This file is set to read-only. Turn off Read-only on the Edit menu, or click Read-only in the status bar, to change it.".into());
+        self.message("Read-only", crate::i18n::tr("This file is set to read-only. Turn off Read-only on the Edit menu, or click Read-only in the status bar, to change it.").into());
     }
 
     /// Puts text at the cursor as one undoable action, in the document's own encoding.
@@ -4414,11 +4530,11 @@ impl Limoniter {
     fn format_json(&mut self, pretty: bool) {
         let doc = &self.docs[self.active];
         if doc.text.is_block() {
-            self.message("JSON", "Turn off Column Mode first, then try again.".into());
+            self.message("JSON", crate::i18n::tr("Turn off Column Mode first, then try again.").into());
             return;
         }
         let Some(text) = doc.text.selection_or_all() else {
-            self.message("JSON", "This file is too large to reformat as a whole. Select the part you want instead.".into());
+            self.message("JSON", crate::i18n::tr("This file is too large to reformat as a whole. Select the part you want instead.").into());
             return;
         };
         match tools::format_json(&text, pretty) {
@@ -4430,16 +4546,17 @@ impl Limoniter {
     fn show_column_sum(&mut self) {
         let text = &self.docs[self.active].text;
         if !text.has_selection() || !text.is_block() {
-            self.message("Sum Selection", "Select a column first: turn on Column Mode (Alt+C), or hold Alt and drag.".into());
+            self.message("Sum Selection", crate::i18n::tr("Select a column first: turn on Column Mode (Alt+C), or hold Alt and drag.").into());
             return;
         }
         let s = text.sum_column();
-        let mut body = format!("Sum: {:.*}\nNumbers added: {}", s.decimals, s.sum, s.numbers);
+        let sum = format!("{:.*}", s.decimals, s.sum);
+        let mut body = crate::i18n::tf!("Sum: {sum}\nNumbers added: {}", s.numbers);
         if s.numbers > 0 {
             body += &format!("\nAverage: {}", s.sum / s.numbers as f64);
         }
         if s.skipped > 0 {
-            body += &format!("\nSkipped (not numbers): {}", s.skipped);
+            body += &crate::i18n::tf!("\nSkipped (not numbers): {}", s.skipped);
         }
         self.message("Sum Selection", body);
     }
@@ -4484,6 +4601,17 @@ impl Limoniter {
                 self.run(command, ui);
             }
         }
+        // Ctrl+0 to Ctrl+9 choose the clipboard.
+        for (number, key) in [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9].into_iter().enumerate() {
+            // Not with Alt (macros' keys, and AltGr typing) or Shift (the colour tags').
+            let pressed = ctx.input_mut(|i| {
+                let at = i.events.iter().position(|e| matches!(e, egui::Event::Key { key: k, pressed: true, modifiers, .. } if *k == key && modifiers.command && !modifiers.alt && !modifiers.shift));
+                at.map(|at| i.events.remove(at)).is_some()
+            });
+            if pressed {
+                self.run(Command::UseClipboard(number as u8), ui);
+            }
+        }
         // Before Ctrl+H, which would take it otherwise.
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl | Modifiers::ALT, Key::H))) && in_editor {
             self.run(Command::PartHistory, ui);
@@ -4503,18 +4631,26 @@ impl Limoniter {
             (ctrl_shift, Key::B, Command::BuildTask),
             (ctrl_shift, Key::T, Command::TestTask),
             (Modifiers::NONE, Key::F12, Command::GoToDefinition),
+            (Modifiers::ALT, Key::F12, Command::PeekDefinition),
+            (Modifiers::CTRL, Key::F5, Command::StartDebugging),
             (Modifiers::SHIFT, Key::F12, Command::FindUses),
             (ctrl, Key::F12, Command::RenameLabel),
+            (ctrl, Key::Period, Command::QuickFix),
+            (ctrl, Key::Backslash, Command::OpenBeside),
+            (Modifiers::SHIFT | Modifiers::ALT, Key::F, Command::FormatDocument),
             (Modifiers::NONE, Key::F6, Command::ToggleTable),
             (Modifiers::NONE, Key::F7, Command::NextMistake),
             (ctrl_shift, Key::R, Command::RecordMacro),
             (ctrl_shift, Key::P, Command::PlayMacro),
             (ctrl_shift, Key::S, Command::SaveAs),
-            (ctrl_shift, Key::F, Command::FindInFiles),
+            (ctrl_shift, Key::F, Command::SearchPanel),
             (ctrl_shift, Key::G, Command::SourceControl),
+            (ctrl_shift, Key::O, Command::GoToSymbol(false)),
             (ctrl, Key::N, Command::New),
             (ctrl, Key::O, Command::Open),
             (ctrl, Key::P, Command::Print),
+            (ctrl, Key::E, Command::GoToFile),
+            (ctrl, Key::T, Command::GoToSymbol(true)),
             (ctrl, Key::S, Command::Save),
             (ctrl, Key::W, Command::CloseTab),
             (ctrl, Key::F, Command::Find),
@@ -4580,12 +4716,38 @@ impl Limoniter {
     }
 
     /// Applies a new tab size to every open file, keeping cursors on the same characters.
+    /// What the .editorconfig files say of the file in front, read when another comes to the front.
+    fn read_editor_config(&mut self) {
+        let path = self.docs.get(self.active).and_then(|d| d.path.clone());
+        match path {
+            Some(path) if self.editor_config.as_ref().map(|(p, _)| p) != Some(&path) => {
+                let settings = crate::editorconfig::for_file(&path);
+                // A file with nothing in it yet takes its line endings from them.
+                if let Some(eol) = settings.end_of_line {
+                    let doc = &mut self.docs[self.active];
+                    if doc.text.line_count() <= 1 && doc.text.line(0).is_empty() {
+                        doc.text.format.preset_eol = eol;
+                    }
+                }
+                self.editor_config = Some((path, settings));
+            }
+            Some(_) => {}
+            None => self.editor_config = None,
+        }
+    }
+
+    /// The tab's width: what .editorconfig says for the file in front, else the setting.
+    fn tab_size_now(&self) -> usize {
+        self.editor_config.as_ref().and_then(|(_, c)| c.tab_size()).unwrap_or(self.view.tab_size)
+    }
+
     fn apply_tab_size(&mut self) {
-        if self.view.tab_size == text_buffer::tab_size() {
+        let size = self.tab_size_now();
+        if size == text_buffer::tab_size() {
             return;
         }
         let places: Vec<_> = self.docs.iter().map(|d| (d.text.caret_char_position(), d.text.anchor_char_position())).collect();
-        text_buffer::set_tab_size(self.view.tab_size);
+        text_buffer::set_tab_size(size);
         for (doc, (caret, anchor)) in self.docs.iter_mut().zip(places) {
             doc.text.after_tab_size_change(caret, anchor);
         }
@@ -4672,7 +4834,7 @@ impl Limoniter {
     /// Tools, Save settings to a file.
     fn save_settings_to_file(&mut self) {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save settings to a file")).set_file_name(format!("Limoniter settings {today}.txt")).add_filter(crate::i18n::tr("Text"), &["txt"]).save_file() else {
+        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save settings to a file")).set_file_name(crate::i18n::tf!("Limoniter settings {today}.txt")).add_filter(crate::i18n::tr("Text"), &["txt"]).save_file() else {
             return;
         };
         let text = crate::settings_file::bundle(&self.current_settings(), &self.encodings_text(), env!("CARGO_PKG_VERSION"), &today);
@@ -4703,7 +4865,7 @@ impl Limoniter {
             self.encoding_prefs = EncodingPrefs::load(Some(prefs_path));
         }
         self.save_settings_if_changed();
-        let note = kept.map_or_else(String::new, |kept| format!("\n\nThe settings it had before are in {}.", kept.display()));
+        let note = kept.map_or_else(String::new, |kept| crate::i18n::tf!("\n\nThe settings it had before are in {}.", kept.display()));
         self.message("Restore settings", crate::i18n::tf!("The settings from {} are in use.{note}", path.display()));
     }
 
@@ -4774,18 +4936,24 @@ impl Limoniter {
             .map(|doc| TabInfo { title: if doc.is_modified() { format!("{} *", doc.name()) } else { doc.name() }, path: doc.path.clone() })
             .collect();
         let active = self.active;
-        let doc = &self.docs[active];
-        let view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: doc.browser.as_ref().map(|b| b.view()) };
         let mut actions = Vec::new();
         let mut project_changed = false;
         let mut compare_wanted = Vec::new();
+        self.search_panel(ui);
+        let doc = &self.docs[active];
+        let view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: doc.browser.as_ref().map(|b| b.view()) };
         self.panels.show(ui, &view, &tabs, active, &mut actions);
         let library_actions = self.panels.show_library(ui, &mut self.library);
         let history_rows = if self.panels.history && !doc.placeholder { doc.text.history_rows() } else { Vec::new() };
         let history_actions = self.panels.show_history(ui, &history_rows, doc.hex_mode);
+        let entries = self.git.status.as_ref().map(|s| s.entries.as_slice()).unwrap_or_default();
+        self.panels.project_panel.explorer.set_git(self.git.repo.as_deref(), entries);
+        let doc = &self.docs[active];
         let project_actions = self.panels.show_project(ui, self.project.as_ref(), doc.path.as_deref());
+        let mut explorer_acts = Vec::new();
         for action in project_actions {
             match action {
+                project::PanelAction::Explorer(act) => explorer_acts.push(act),
                 project::PanelAction::Open(path) => actions.push(Action::OpenPath(path)),
                 project::PanelAction::Remove(path) => {
                     if let Some(project) = &mut self.project {
@@ -4801,6 +4969,9 @@ impl Limoniter {
         }
         for action in compare_wanted {
             self.project_compare(action);
+        }
+        for act in explorer_acts {
+            self.explorer_act(act, ui);
         }
         for action in actions {
             self.run_panel_action(action, ui);
@@ -4822,8 +4993,8 @@ impl Limoniter {
         let kind = Self::preview_kind(doc);
         let mut note = None;
         match kind {
-            _ if doc.placeholder => note = Some("No file open".to_string()),
-            None => note = Some("There's no preview for this kind of file yet. There are previews for Markdown, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, tracker music modules (MOD, S3M, XM and IT), sound files (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC and AU), and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.".to_string()),
+            _ if doc.placeholder => note = Some(crate::i18n::tr("No file open").to_string()),
+            None => note = Some(crate::i18n::tr("There's no preview for this kind of file yet. There are previews for Markdown, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, tracker music modules (MOD, S3M, XM and IT), sound files (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC and AU), and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.").to_string()),
             Some(kind) if kind.reads_bytes() && !doc.text.is_disk_backed() => {
                 // These are made from the exact bytes, so they work from hex mode as well as text.
                 let version = if doc.hex_mode { doc.hex.version() | 1 << 63 } else { doc.text.version() };
@@ -4845,7 +5016,7 @@ impl Limoniter {
                         _ => preview::MOST_PREVIEW_BYTES,
                     };
                     if bytes.len() > most {
-                        note = Some(format!("This file is too large to preview. It can be up to {} MB.", most >> 20));
+                        note = Some(crate::i18n::tf!("This file is too large to preview. It can be up to {} MB.", most >> 20));
                     } else {
                         match preview::render_bytes(kind, &bytes, &doc.text.format, Some(&doc.path_or_name())) {
                             preview::FromBytes::Screen(screen) => self.preview_screen = Some(screen),
@@ -4864,8 +5035,8 @@ impl Limoniter {
                     note.clone_from(&self.preview_note);
                 }
             }
-            Some(_) if doc.hex_mode => note = Some("Switch to text mode to preview this file.".to_string()),
-            Some(_) if doc.text.is_disk_backed() => note = Some("This file is too large to preview. It is being kept on disk.".to_string()),
+            Some(_) if doc.hex_mode => note = Some(crate::i18n::tr("Switch to text mode to preview this file.").to_string()),
+            Some(_) if doc.text.is_disk_backed() => note = Some(crate::i18n::tr("This file is too large to preview. It is being kept on disk.").to_string()),
             Some(kind) => {
                 let key = (doc.id, doc.text.version(), kind);
                 if self.preview_of != Some(key) {
@@ -4873,7 +5044,7 @@ impl Limoniter {
                     let size: usize = lines.iter().map(|line| line.len() + 1).sum();
                     if size > preview::MOST_PREVIEW_BYTES {
                         self.preview_blocks.clear();
-                        note = Some("This file is too large to preview. It can be up to 4 MB.".to_string());
+                        note = Some(crate::i18n::tr("This file is too large to preview. It can be up to 4 MB.").to_string());
                     } else {
                         let readable = lines.iter().map(|line| doc.text.format.readable_text(line)).collect::<Vec<_>>().join("\n");
                         self.preview_blocks = preview::render(kind, &readable);
@@ -4951,6 +5122,152 @@ impl Limoniter {
     }
 
     /// The preview with the whole text area to itself, and the way back to the text.
+    /// Shows a tab (or the one used before this) beside the one in front; or, shown already, stops. With one tab,
+    /// it's split in two instead.
+    pub(super) fn toggle_beside(&mut self, other: Option<u64>) {
+        if self.beside.is_some() && other.is_none() {
+            self.beside = None;
+            return;
+        }
+        let front = self.docs[self.active].id;
+        let other = other.filter(|id| *id != front).or_else(|| self.used_order.iter().copied().find(|id| *id != front && self.docs.iter().any(|d| d.id == *id)));
+        match other {
+            Some(other) => self.beside = Some(Beside { other, front, right: true, share: 0.5 }),
+            None => self.toggle_split(true),
+        }
+    }
+
+    /// Shows a tab beside the one in front: on the right, or the left.
+    pub(super) fn show_beside(&mut self, other: u64, right: bool) {
+        let front = self.docs[self.active].id;
+        // Not the one in front beside itself.
+        if other == front {
+            return;
+        }
+        self.beside = Some(Beside { other, front, right, share: self.beside.as_ref().map_or(0.5, |b| b.share) });
+    }
+
+    /// Where the tab in front and the one beside it go, and which that is; None with nothing beside. A press in
+    /// the one beside brings it to the front, where it is.
+    fn beside_layout(&mut self, ui: &mut Ui, input_on: bool) -> Option<(egui::Rect, egui::Rect, usize)> {
+        const GAP: f32 = 5.0;
+        let front = self.docs[self.active].id;
+        let beside = self.beside.as_mut()?;
+        // A tab chosen above: the one beside, swapped over; any other, in front's place.
+        if front != beside.front {
+            if front == beside.other {
+                beside.other = beside.front;
+                beside.right = !beside.right;
+            }
+            beside.front = front;
+        }
+        let Some(other) = self.docs.iter().position(|d| d.id == beside.other) else {
+            self.beside = None;
+            return None;
+        };
+        let whole = ui.available_rect_before_wrap();
+        let x = whole.min.x + ((whole.width() - GAP) * beside.share).round();
+        let left = egui::Rect::from_min_max(whole.min, egui::pos2(x, whole.max.y));
+        let gap = egui::Rect::from_min_max(egui::pos2(x, whole.min.y), egui::pos2(x + GAP, whole.max.y));
+        let right = egui::Rect::from_min_max(egui::pos2(x + GAP, whole.min.y), whole.max);
+        let handle = ui.interact(gap, egui::Id::unique("beside-divider"), egui::Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+        if handle.dragged()
+            && let Some(pointer) = handle.interact_pointer_pos()
+        {
+            beside.share = ((pointer.x - whole.min.x) / whole.width().max(1.0)).clamp(0.15, 0.85);
+        }
+        ui.painter().rect_filled(gap, 0.0, theme::border());
+        let (mine, theirs) = if beside.right { (left, right) } else { (right, left) };
+        if input_on && ui.input(|i| i.pointer.primary_pressed() && i.pointer.interact_pos().is_some_and(|p| theirs.contains(p))) {
+            // Swapped before either's drawn, so the press lands in the one now in front.
+            let was = self.active;
+            self.active = other;
+            beside.other = self.docs[was].id;
+            beside.front = self.docs[other].id;
+            beside.right = !beside.right;
+            ui.memory_mut(|m| m.request_focus(views::pane_id(0)));
+            return Some((theirs, mine, was));
+        }
+        Some((mine, theirs, other))
+    }
+
+    /// The tab beside the one in front: its text, as it is, to read and scroll; anything else, by its name.
+    fn draw_beside(&mut self, ui: &mut Ui, index: usize, view: ViewOptions) {
+        let doc = &mut self.docs[index];
+        let plain = !doc.hex_mode && !doc.placeholder && doc.browser.is_none() && doc.game.is_none() && doc.compare.is_none() && doc.merge.is_none() && doc.table.is_none();
+        if plain {
+            doc.update_syntax();
+            views::text_pane(ui, &mut doc.text, &mut doc.text_state, &mut self.clip, view, false, Pane { number: 2, active: false, ..Pane::default() });
+        } else {
+            let name = doc.name();
+            ui.centered_and_justified(|ui| ui.label(RichText::new(crate::i18n::tf!("{name}: click to bring it to the front")).color(theme::text_faint())));
+        }
+    }
+
+    /// The document in front, in the middle of the window; and, beside it, another tab's if one's shown there.
+    fn central(&mut self, ui: &mut Ui, full_preview: bool, view: ViewOptions, input_on: bool) -> Option<ContextCommand> {
+        let Some((mine, theirs, other)) = self.beside_layout(ui, input_on) else {
+            return self.draw_front(ui, full_preview, view, input_on);
+        };
+        ui.scope_builder(egui::UiBuilder::new().max_rect(theirs), |ui| self.draw_beside(ui, other, view));
+        let command = ui.scope_builder(egui::UiBuilder::new().max_rect(mine), |ui| self.draw_front(ui, full_preview, view, input_on)).inner;
+        // A line along the top says which is in front.
+        ui.painter().rect_filled(egui::Rect::from_min_size(mine.min, egui::vec2(mine.width(), 2.0)), 0.0, theme::accent());
+        command
+    }
+
+    /// The document in front, as it's shown: text, hex, a table, a comparison and the rest.
+    fn draw_front(&mut self, ui: &mut Ui, full_preview: bool, view: ViewOptions, input_on: bool) -> Option<ContextCommand> {
+        let index = self.active;
+        // A command from this frame may have changed what's in front since the preview was prepared.
+        if full_preview && !self.docs[index].placeholder && self.docs[index].preview_view == settings::PreviewView::Full {
+            self.full_preview(ui);
+            return None;
+        }
+        if self.docs[index].browser.is_some() {
+            self.browser_view(ui);
+            return None;
+        }
+        if self.docs[index].game.is_some() {
+            self.clambers_view(ui);
+            return None;
+        }
+        if self.docs[index].compare.is_some() {
+            self.compare_view(ui, input_on);
+            return None;
+        }
+        if self.docs[index].merge.is_some() && !self.docs[index].hex_mode {
+            return self.merge_view(ui, view, input_on);
+        }
+        // Where the file is and what the cursor's in, above the text; and what's kept at the top as it scrolls.
+        let plain_text = !self.docs[index].placeholder && !self.docs[index].hex_mode && self.docs[index].table.is_none();
+        if plain_text && self.view.breadcrumbs {
+            self.breadcrumbs(ui, index);
+        }
+        let sticky = if plain_text { self.sticky_line(index) } else { None };
+        self.docs[index].text_state.sticky = sticky;
+        let doc = &mut self.docs[index];
+        if doc.placeholder {
+            return None;
+        }
+        doc.update_syntax();
+        doc.refresh_fold_view();
+        let folded = doc.filter.is_none() && doc.fold_view_of.is_some();
+        let total = doc.text.line_count();
+        let filter = doc.filter.as_ref().map(|filter| views::Shown::Lines(filter.lines.as_slice())).or(folded.then_some(views::Shown::AllBut { hidden: doc.fold_view.as_slice(), total }));
+        if doc.table.is_some() && !doc.hex_mode {
+            self.table_view(ui, input_on);
+            return None;
+        }
+        if doc.hex_mode {
+            views::hex_view(ui, &mut doc.hex, &mut doc.hex_state, &doc.text.format, view, input_on)
+        } else if let Some(split) = &mut doc.split {
+            draw_split(ui, &mut doc.text, &mut doc.text_state, split, &mut self.clip, filter, folded, view, input_on)
+        } else {
+            views::text_pane(ui, &mut doc.text, &mut doc.text_state, &mut self.clip, view, input_on, Pane { filter, folded, ..Pane::default() })
+        }
+    }
+
     fn full_preview(&mut self, ui: &mut Ui) {
         self.doc().update_syntax();
         let mut chosen = None;
@@ -5019,7 +5336,7 @@ impl Limoniter {
             }
             Action::InsertEntry { .. } | Action::InsertCharacter(_) | Action::InsertBytes(_) | Action::AskInsertByte | Action::Paste(_) | Action::WrapTag(..) if self.docs[self.active].text.read_only => self.tell_read_only(),
             Action::InsertEntry { .. } | Action::InsertCharacter(_) | Action::InsertBytes(_) | Action::AskInsertByte | Action::Paste(_) | Action::WrapTag(..) if self.docs[self.active].is_busy() || self.pending.is_some() => {
-                self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+                self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
             }
             Action::InsertEntry { set, table, byte } => {
                 let doc = self.doc();
@@ -5086,7 +5403,7 @@ impl Limoniter {
         let index = self.active;
         let doc = &self.docs[index];
         if doc.is_busy() {
-            self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+            self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
             return;
         }
         let sample = if purpose == Purpose::Reopen { self.sample_of(index) } else { Vec::new() };
@@ -5104,7 +5421,7 @@ impl Limoniter {
             let answer = MessageDialog::new()
                 .set_title(Purpose::Reopen.title())
                 .set_level(MessageLevel::Warning)
-                .set_description(format!("{} has unsaved changes.\n\nSave them first? Choosing No discards them.", self.docs[index].name()))
+                .set_description(crate::i18n::tf!("{} has unsaved changes.\n\nSave them first? Choosing No discards them.", self.docs[index].name()))
                 .set_buttons(MessageButtons::YesNoCancel)
                 .show();
             match answer {
@@ -5125,7 +5442,7 @@ impl Limoniter {
                 self.docs[index].text.set_content(vec![String::new()]);
                 self.docs[index].text.set_insert_eol(eol);
             } else {
-                self.message(Purpose::Reopen.title(), "This document hasn't been saved, so there are no bytes to read again. Convert to encoding keeps the text and changes how it's stored.".into());
+                self.message(Purpose::Reopen.title(), crate::i18n::tr("This document hasn't been saved, so there are no bytes to read again. Convert to encoding keeps the text and changes how it's stored.").into());
             }
             return;
         };
@@ -5142,7 +5459,7 @@ impl Limoniter {
                 self.docs[index] = fresh;
                 self.pending_focus = true;
             }
-            Err(problem) => warn(&format!("Couldn't open {}.\n\n{problem}", path.display())),
+            Err(problem) => warn(&crate::i18n::tf!("Couldn't open {}.\n\n{problem}", path.display())),
         }
     }
 
@@ -5179,7 +5496,7 @@ impl Limoniter {
     fn save_copy(&mut self, index: usize, target: TextFormat, lossy: Lossy) {
         if self.docs[index].text.is_disk_backed() && !self.docs[index].hex_mode {
             if self.big_job.is_some() {
-                self.message("Save a copy", "Please wait for the file being worked through to finish.".into());
+                self.message("Save a copy", crate::i18n::tr("Please wait for the file being worked through to finish.").into());
                 return;
             }
             let doc = &self.docs[index];
@@ -5189,7 +5506,7 @@ impl Limoniter {
             return;
         }
         if self.docs[index].hex.is_on_disk() {
-            self.message("Save a copy", "This file is too large to copy into another encoding, because that would have to read it all into memory. Save As can copy it in the encoding it has.".into());
+            self.message("Save a copy", crate::i18n::tr("This file is too large to copy into another encoding, because that would have to read it all into memory. Save As can copy it in the encoding it has.").into());
             return;
         }
         let doc = &self.docs[index];
@@ -5216,14 +5533,14 @@ impl Limoniter {
         if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a copy")).set_file_name(name).save_file()
             && let Err(problem) = codec::write_file(&path, &bytes)
         {
-            warn(&format!("Couldn't save {}.\n\n{problem}", path.display()));
+            warn(&crate::i18n::tf!("Couldn't save {}.\n\n{problem}", path.display()));
         }
     }
 
     fn run_menu_action(&mut self, action: MenuAction) {
         let index = self.active;
         if self.docs[index].narrow.is_some() && !matches!(action, MenuAction::Forget | MenuAction::ToggleSourceView | MenuAction::AskInsertByte | MenuAction::ChoosePreset) {
-            self.message("Narrowed", "This changes how the whole file is read or saved. Press Show the whole file first.".into());
+            self.message("Narrowed", crate::i18n::tr("This changes how the whole file is read or saved. Press Show the whole file first.").into());
             return;
         }
         match action {
@@ -5351,7 +5668,7 @@ impl Limoniter {
                         }
                         None => {
                             if let Dialog::InsertByte { error, .. } = &mut self.dialog {
-                                *error = "That isn't a whole number of bytes in hexadecimal.".to_string();
+                                *error = crate::i18n::tr("That isn't a whole number of bytes in hexadecimal.").to_string();
                             }
                         }
                     }
@@ -5601,7 +5918,7 @@ impl Limoniter {
                     let number = if count.trim().is_empty() { Some(0) } else { hex_buffer::parse_number(count) };
                     let doc = &mut self.docs[index];
                     let problem = match number {
-                        None => Some("That isn't a whole number of columns.".to_string()),
+                        None => Some(crate::i18n::tr("That isn't a whole number of columns.").to_string()),
                         Some(number) => match doc.text.select_columns(number) {
                             Err(problem) => Some(problem),
                             Ok(()) => {
@@ -5720,7 +6037,7 @@ impl Limoniter {
                                 bytes.insert_run(count, value);
                                 None
                             } else if bytes.delete_run(count) == 0 {
-                                Some("There are no bytes after the cursor to delete.".to_string())
+                                Some(crate::i18n::tr("There are no bytes after the cursor to delete.").to_string())
                             } else {
                                 None
                             }
@@ -5748,7 +6065,7 @@ impl Limoniter {
                 egui::Window::new(crate::i18n::tr("Insert from another encoding")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tf!("Byte {byte:02X} in {} goes into a document in {}.", set.name, current.charset.name));
                     ui.add_space(4.0);
-                    let label = meant.map_or_else(|| "It has no character to convert".to_string(), |c| format!("Insert the character \"{c}\" ({})", charset::char_name(c)));
+                    let label = meant.map_or_else(|| crate::i18n::tr("It has no character to convert").to_string(), |c| crate::i18n::tf!("Insert the character \"{c}\" ({})", charset::char_name(c)));
                     if ui.add_enabled(fits.is_some(), Button::new(label)).clicked() {
                         text = fits.map(String::from);
                     }
@@ -5800,7 +6117,7 @@ impl Limoniter {
                         }
                         Ok(_) => {
                             if let Dialog::Fonts { error } = &mut self.dialog {
-                                *error = "That font can't be used: its characters aren't all the same width, or it can't be read.".to_string();
+                                *error = crate::i18n::tr("That font can't be used: its characters aren't all the same width, or it can't be read.").to_string();
                             }
                         }
                         Err(problem) => {
@@ -5918,7 +6235,7 @@ impl Limoniter {
             if let Some(view) = &doc.live {
                 let words = match &view.problem {
                     Some(problem) => problem.clone(),
-                    None => format!("Following the {} as it runs", view.machine.name()),
+                    None => crate::i18n::tf!("Following the {} as it runs", view.machine.name()),
                 };
                 ui.colored_label(theme::accent(), words);
             }
@@ -5974,7 +6291,7 @@ impl Limoniter {
                 ui.label(faint(self.print_status.clone()));
             }
             if let Some(why) = doc.autosave_skipped.filter(|_| self.prefs.autosave) {
-                ui.label(faint("Not saved by itself".to_string())).on_hover_text(crate::i18n::tf!("Autosave is leaving this file for you to save: {why}."));
+                ui.label(faint(crate::i18n::tr("Not saved by itself").to_string())).on_hover_text(crate::i18n::tf!("Autosave is leaving this file for you to save: {why}."));
             }
             if let Some(filter) = &doc.filter {
                 ui.colored_label(theme::accent(), crate::i18n::tf!("Showing lines with \"{}\": {} of {}", filter.needle, filter.lines.len(), doc.text.line_count()));
@@ -5994,13 +6311,13 @@ impl Limoniter {
                         ui.label(RichText::new(crate::i18n::tr("GRAPH")).strong().color(theme::accent())).on_hover_text(crate::i18n::tr("GRAPH mode, as on the Spectrum: 1 to 8 type block graphics, with Shift the inverted ones, and A to U type UDGs. 9, Escape or Ctrl+Shift+9 leaves it"));
                     }
                     if let Some(from) = zx.udgs_from.as_ref().filter(|_| zx.has_pictures()) {
-                        ui.label(faint("UDG pictures".into())).on_hover_text(crate::i18n::tf!("UDGs are drawn as they look, with the pictures from {from}. Put the cursor in one to edit it as text"));
+                        ui.label(faint(crate::i18n::tr("UDG pictures").into())).on_hover_text(crate::i18n::tf!("UDGs are drawn as they look, with the pictures from {from}. Put the cursor in one to edit it as text"));
                     }
                 }
                 let locked = read_only || doc.text.read_only;
                 if doc.browser.as_ref().is_some_and(|b| b.writable()) {
                     // An image whose files can be changed: each change is saved as it's made, so there's no lock.
-                    ui.label(faint("Changes save at once".into())).on_hover_text(crate::i18n::tr("Files added, deleted or renamed on this image are saved to it straight away; Undo puts it back"));
+                    ui.label(faint(crate::i18n::tr("Changes save at once").into())).on_hover_text(crate::i18n::tr("Files added, deleted or renamed on this image are saved to it straight away; Undo puts it back"));
                 } else {
                     let lock = RichText::new(if locked { crate::i18n::tr("Read-only") } else { crate::i18n::tr("Editable") }).color(if locked { theme::change_unsaved() } else { theme::text_faint() });
                     let lock = ui.add(egui::Label::new(lock).sense(egui::Sense::click()));
@@ -6030,11 +6347,14 @@ impl Limoniter {
                 }
                 let encoding = encoding_ui::status_menu(ui, format.encoding_name(), format.certainty.describe(), |ui| encoding_ui::encoding_menu(ui, format, remembered, can_edit));
                 action = action.or(encoding);
+                if crate::clipboards::active() != 0 {
+                    ui.label(faint(crate::clipboards::name(crate::clipboards::active()))).on_hover_text(crate::i18n::tr("Copy, Cut and Paste use this clipboard, one of Limoniter's own. Ctrl+0 goes back to the computer's"));
+                }
                 if doc.hex_mode {
                     ui.label(if doc.hex.ebcdic { crate::i18n::tr("Hex, EBCDIC") } else { crate::i18n::tr("Hex") });
                 } else {
                     if doc.text.is_disk_backed() {
-                        ui.label(faint("Read from disk as needed".into())).on_hover_text(crate::i18n::tr("This file is too big to hold in memory, so it's read a part at a time"));
+                        ui.label(faint(crate::i18n::tr("Read from disk as needed").into())).on_hover_text(crate::i18n::tr("This file is too big to hold in memory, so it's read a part at a time"));
                     }
                     ui.label(crate::i18n::tr(&doc.language_name()));
                 }
@@ -6253,20 +6573,16 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 let searched = job.files_searched.load(Ordering::Relaxed);
                 let unreadable = job.files_unreadable.load(Ordering::Relaxed);
-                let mut summary = format!(
-                    "{} {}: {} match{} in {} file{}",
-                    title,
-                    if finished { "finished" } else { "searching" },
-                    hits.len(),
-                    if hits.len() == 1 { "" } else { "es" },
-                    searched,
-                    if searched == 1 { "" } else { "s" }
-                );
+                let mut summary = {
+                    let matches = if hits.len() == 1 { crate::i18n::tr("1 match").to_string() } else { crate::i18n::tf!("{} matches", hits.len()) };
+                    let files = if searched == 1 { crate::i18n::tr("1 file").to_string() } else { crate::i18n::tf!("{searched} files") };
+                    if finished { crate::i18n::tf!("{title} finished: {matches} in {files}") } else { crate::i18n::tf!("{title} searching: {matches} in {files}") }
+                };
                 if job.truncated.load(Ordering::Relaxed) {
                     summary += &format!(" (stopped at {})", find_files::MAX_HITS);
                 }
                 if unreadable > 0 {
-                    summary += &format!(", {unreadable} couldn't be read");
+                    summary += &crate::i18n::tf!(", {unreadable} couldn't be read");
                 }
                 ui.label(summary);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -6326,16 +6642,16 @@ impl Limoniter {
         let mut column_without_wrap = false;
         let title = match &self.dialog {
             Dialog::None => return,
-            Dialog::GoTo { .. } => "Go To".to_string(),
-            Dialog::Fill { .. } => "Insert or fill columns".to_string(),
-            Dialog::SaveBasic { .. } => "Save as a BASIC program".to_string(),
-            Dialog::Number { .. } => "Insert Number".to_string(),
+            Dialog::GoTo { .. } => crate::i18n::tr("Go To").to_string(),
+            Dialog::Fill { .. } => crate::i18n::tr("Insert or fill columns").to_string(),
+            Dialog::SaveBasic { .. } => crate::i18n::tr("Save as a BASIC program").to_string(),
+            Dialog::Number { .. } => crate::i18n::tr("Insert Number").to_string(),
             Dialog::Message { title, .. } => title.clone(),
-            Dialog::ColumnNeedsNoWrap => "Column mode".to_string(),
-            Dialog::SaveLayout { .. } => "Save this layout".to_string(),
-            Dialog::SurroundTag { .. } => "Surround with a tag".to_string(),
-            Dialog::Update { .. } => "A newer Limoniter".to_string(),
-            Dialog::About { .. } => "About Limoniter".to_string(),
+            Dialog::ColumnNeedsNoWrap => crate::i18n::tr("Column mode").to_string(),
+            Dialog::SaveLayout { .. } => crate::i18n::tr("Save this layout").to_string(),
+            Dialog::SurroundTag { .. } => crate::i18n::tr("Surround with a tag").to_string(),
+            Dialog::Update { .. } => crate::i18n::tr("A newer Limoniter").to_string(),
+            Dialog::About { .. } => crate::i18n::tr("About Limoniter").to_string(),
             _ => return,
         };
         let hex = self.docs[self.active].hex_mode;
@@ -6483,7 +6799,7 @@ impl Limoniter {
         if let Some(name) = save_layout {
             let name = name.trim().to_string();
             if name.is_empty() {
-                self.dialog = Dialog::SaveLayout { name, error: "Type a name for it.".into() };
+                self.dialog = Dialog::SaveLayout { name, error: crate::i18n::tr("Type a name for it.").into() };
             } else {
                 let open = self.layout_now();
                 crate::layouts::keep(&mut self.layouts, crate::layouts::Layout { name, open });
@@ -6518,7 +6834,7 @@ impl Limoniter {
                 }
                 _ => {
                     if let Dialog::SaveBasic { error, .. } = &mut self.dialog {
-                        *error = "A line to run from is a number from 0 to 9999.".to_string();
+                        *error = crate::i18n::tr("A line to run from is a number from 0 to 9999.").to_string();
                     }
                 }
             }
@@ -6537,10 +6853,10 @@ impl Limoniter {
                         close = true;
                         String::new()
                     } else {
-                        "Those numbers get too large to count.".to_string()
+                        crate::i18n::tr("Those numbers get too large to count.").to_string()
                     }
                 }
-                _ => "Please enter whole numbers.".to_string(),
+                _ => crate::i18n::tr("Please enter whole numbers.").to_string(),
             };
             if let Dialog::Number { error, .. } = &mut self.dialog {
                 *error = message;
@@ -6666,6 +6982,78 @@ impl Limoniter {
                     editor.play_changes = false;
                     self.sound_effects = Some(Box::new(editor));
                 }
+                "open-folder" => {
+                    // A folder opened as a project, with Go to file open on some letters ("path;letters").
+                    let (folder, letters) = value.split_once(';').unwrap_or((value, ""));
+                    self.open_folder(Path::new(folder));
+                    // Its index made now, rather than in the background, for the picture.
+                    if let Some(project) = &mut self.project
+                        && let Some(root) = project.root.clone()
+                    {
+                        project.files = crate::workspace::index(&root).0;
+                    }
+                    if !letters.is_empty() {
+                        self.open_go_to_file();
+                        if let Some(state) = &mut self.go_to_file {
+                            state.query = letters.to_string();
+                        }
+                    }
+                }
+                "search" => {
+                    // The Search panel on some words ("find;replace"), searched now for the picture.
+                    let (find, replace) = value.split_once(';').unwrap_or((value, ""));
+                    self.open_search_panel();
+                    self.search.query = find.to_string();
+                    self.search.replace = replace.to_string();
+                    self.search.show_replace = !replace.is_empty();
+                    self.search_panel_now();
+                }
+                "line" => {
+                    // To a line, shown a few rows down so what's above it has scrolled past.
+                    let line = value.parse::<usize>().unwrap_or(1).saturating_sub(1);
+                    let doc = self.doc();
+                    doc.text.move_caret(line, 0, false);
+                    doc.text_state.top = line.saturating_sub(4);
+                    self.outline_tick();
+                    let began = std::time::Instant::now();
+                    while self.outline.symbols.is_empty() && began.elapsed() < Duration::from_secs(5) {
+                        std::thread::sleep(Duration::from_millis(20));
+                        self.outline_tick();
+                    }
+                }
+                "debug" => {
+                    // The file in front debugged with a Python ("python;line" of a breakpoint), until it stops.
+                    let (python, line) = value.split_once(';').unwrap_or((value, "1"));
+                    let line = line.parse::<usize>().unwrap_or(1).saturating_sub(1);
+                    let path = self.docs[self.active].path.clone().unwrap_or_default();
+                    self.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(line);
+                    let folder = path.parent().map(|p| p.display().to_string()).unwrap_or_default();
+                    self.launch_debugger(crate::dap::Config { kind: crate::dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: path.display().to_string(), arguments: String::new(), folder });
+                    let began = std::time::Instant::now();
+                    while began.elapsed() < Duration::from_secs(20) && self.debugging.as_ref().is_some_and(|d| d.parts.is_empty()) {
+                        self.debug_poll();
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                }
+                "beside" => {
+                    // Another file opened beside the one in front.
+                    let front = self.docs[self.active].id;
+                    if self.open_path(Path::new(value)) {
+                        self.show_beside(front, false);
+                    }
+                }
+                "boot-disk" => {
+                    // The Amiga boot disk tool with a plan.
+                    let mut bd = crate::amiga_bootdisk_ui::BootDisk::default();
+                    if let Ok(text) = std::fs::read_to_string(value)
+                        && let Ok(plan) = crate::amiga_bootdisk::Plan::from_text(&text, Path::new(value).parent())
+                    {
+                        bd.plan = plan;
+                        bd.path = Some(PathBuf::from(value));
+                        bd.selected = Some(0);
+                    }
+                    self.boot_disk = Some(Box::new(bd));
+                }
                 "ripper" => {
                     // The ripper looking through a file (";graphics" after it for its graphics, at an offset).
                     let mut parts = value.split(';');
@@ -6746,6 +7134,7 @@ impl Limoniter {
                     if self.terminal.is_none() {
                         self.toggle_terminal();
                     }
+                    self.terminal_hidden = false;
                     if let Some(terminal) = self.terminal.as_mut() {
                         std::thread::sleep(Duration::from_millis(1500));
                         terminal.send(format!("{value}\r").as_bytes());
@@ -6992,7 +7381,7 @@ impl Limoniter {
                     }
                     other.remove(6.min(other.len() - 1));
                     let this = doc.id;
-                    self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Lines { name: "the other file".to_string(), lines: other });
+                    self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Lines { name: crate::i18n::tr("the other file").to_string(), lines: other });
                 }
                 "folds" => {
                     let text = &mut self.doc().text;
@@ -7085,7 +7474,7 @@ impl Limoniter {
             doc.disk_stamp = now;
             let modified = doc.is_modified();
             if !(self.prefs.reload_quietly && !modified) {
-                let question = format!("{} has been changed by another application.\n\nDo you want to reload it?\n", path.display());
+                let question = crate::i18n::tf!("{} has been changed by another application.\n\nDo you want to reload it?\n", path.display());
                 if !ask_yes_no("File Changed", &question) {
                     continue;
                 }
@@ -7111,7 +7500,7 @@ impl Limoniter {
                     self.docs[index] = fresh;
                     self.pending_focus = true;
                 }
-                Err(e) => warn(&format!("Couldn't open {}.\n\n{e}", path.display())),
+                Err(e) => warn(&crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display())),
             }
         }
     }
@@ -7222,7 +7611,12 @@ impl Limoniter {
         self.poll_opticos_check();
         self.poll_update_check();
         self.music_housekeeping();
-        text_buffer::set_edit_prefs(self.prefs.edit);
+        self.read_editor_config();
+        let mut edit = self.prefs.edit;
+        if let Some(spaces) = self.editor_config.as_ref().and_then(|(_, c)| c.spaces) {
+            edit.spaces_for_tab = spaces;
+        }
+        text_buffer::set_edit_prefs(edit);
         hex_buffer::set_bytes_per_row(self.prefs.hex_row);
         self.apply_tab_size();
         self.apply_source_view();
@@ -7246,6 +7640,7 @@ impl Limoniter {
         if zoom != 1.0 && ctx.input(|i| i.modifiers.command) {
             self.view.font_size = (self.view.font_size * zoom).clamp(8.0, 40.0);
         }
+        self.debug_keys(&ctx);
         self.keyboard_routes(&ctx);
         self.shortcuts(ui);
 
@@ -7291,10 +7686,14 @@ impl Limoniter {
             self.check_for_table();
             self.table_offer_bar(ui);
             self.git_offer_bar(ui);
+            self.lsp_offer_bar(ui);
             self.conflict_bar(ui);
         }
-        if self.terminal.is_some() {
+        if self.terminal.is_some() && !self.terminal_hidden {
             self.terminal_panel(ui);
+        }
+        if self.debugging.is_some() {
+            self.debug_panel(ui);
         }
         if self.test_panel.is_some() {
             self.tests_panel(ui);
@@ -7321,48 +7720,7 @@ impl Limoniter {
         let view = self.view;
         let input_on = self.script.is_none() && matches!(self.dialog, Dialog::None) && self.pending.is_none() && !self.docs[self.active].is_busy();
         egui::CentralPanel::default().frame(egui::Frame::new().fill(theme::editor_back())).show(ui, |ui| {
-            let index = self.active;
-            // A command from this frame may have changed what's in front since the preview was prepared.
-            if full_preview && !self.docs[index].placeholder && self.docs[index].preview_view == settings::PreviewView::Full {
-                self.full_preview(ui);
-                return;
-            }
-            if self.docs[index].browser.is_some() {
-                self.browser_view(ui);
-                return;
-            }
-            if self.docs[index].game.is_some() {
-                self.clambers_view(ui);
-                return;
-            }
-            if self.docs[index].compare.is_some() {
-                self.compare_view(ui, input_on);
-                return;
-            }
-            if self.docs[index].merge.is_some() && !self.docs[index].hex_mode {
-                context_command = self.merge_view(ui, view, input_on);
-                return;
-            }
-            let doc = &mut self.docs[index];
-            if doc.placeholder {
-                return;
-            }
-            doc.update_syntax();
-            doc.refresh_fold_view();
-            let folded = doc.filter.is_none() && doc.fold_view_of.is_some();
-            let total = doc.text.line_count();
-            let filter = doc.filter.as_ref().map(|filter| views::Shown::Lines(filter.lines.as_slice())).or(folded.then_some(views::Shown::AllBut { hidden: doc.fold_view.as_slice(), total }));
-            if doc.table.is_some() && !doc.hex_mode {
-                self.table_view(ui, input_on);
-                return;
-            }
-            context_command = if doc.hex_mode {
-                views::hex_view(ui, &mut doc.hex, &mut doc.hex_state, &doc.text.format, view, input_on)
-            } else if let Some(split) = &mut doc.split {
-                draw_split(ui, &mut doc.text, &mut doc.text_state, split, &mut self.clip, filter, folded, view, input_on)
-            } else {
-                views::text_pane(ui, &mut doc.text, &mut doc.text_state, &mut self.clip, view, input_on, Pane { filter, folded, ..Pane::default() })
-            };
+            context_command = self.central(ui, full_preview, view, input_on);
         });
         if let Some(command) = context_command {
             self.run(
@@ -7400,6 +7758,15 @@ impl Limoniter {
         self.atari2600_graphics_window(&ctx);
         self.sound_effects_window(&ctx);
         self.ripper_window(&ctx);
+        self.boot_disk_window(&ctx);
+        self.project_index_tick(&ctx);
+        self.outline_tick();
+        self.debug_tick(&ctx);
+        self.debug_setup_window(&ctx);
+        self.go_to_file_window(&ctx);
+        self.quick_fix_window(&ctx);
+        self.peek_window(&ctx);
+        self.dragon_disk_window(&ctx);
         self.demo_tools_windows(&ctx);
         self.st_tools_windows(&ctx);
         self.c64_tools_windows(&ctx);
@@ -7567,7 +7934,7 @@ fn finish_hex_save(doc: &mut Document, path: PathBuf) {
     note_saved_to(doc, &path);
     match crate::byte_store::FileBytes::open(&path) {
         Ok(file) => doc.hex.rebase(file),
-        Err(e) => doc.hex.notice = Some(format!("The file was saved, but couldn't be opened again: {e}")),
+        Err(e) => doc.hex.notice = Some(crate::i18n::tf!("The file was saved, but couldn't be opened again: {e}")),
     }
     doc.hex.mark_saved();
     doc.disk_stamp = file_stamp(&path);
@@ -7632,7 +7999,7 @@ fn offer_item(found: recovery::Found) -> OfferItem {
     match found.outcome {
         Err(problem) => {
             let name = file.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-            OfferItem { selected: false, title: format!("A damaged copy ({name})"), detail: file.display().to_string(), note: format!("It can't be recovered. {problem} It stays in place until you discard it."), content: None, file }
+            OfferItem { selected: false, title: crate::i18n::tf!("A damaged copy ({name})"), detail: file.display().to_string(), note: crate::i18n::tf!("It can't be recovered. {problem} It stays in place until you discard it."), content: None, file }
         }
         Ok((meta, body)) => {
             let when = panels::format_time(Ok(std::time::UNIX_EPOCH + Duration::from_secs(meta.taken)));
@@ -7641,7 +8008,7 @@ fn offer_item(found: recovery::Found) -> OfferItem {
                 recovery::Body::HexOnDisk { pieces, .. } => format!("{} bytes", pieces.iter().map(|p| p.len).sum::<usize>()),
                 recovery::Body::Text(image) => format!("{} edited line(s)", image.pieces.iter().map(|piece| if let crate::line_store::ImagePiece::Memory(lines) = piece { lines.len() } else { 0 }).sum::<usize>()),
             };
-            let place = meta.path.as_ref().map_or_else(|| "Not saved yet".to_string(), |path| path.display().to_string());
+            let place = meta.path.as_ref().map_or_else(|| crate::i18n::tr("Not saved yet").to_string(), |path| path.display().to_string());
             let (note, selected) = compare_with_file(&meta, &body);
             OfferItem { selected, title: meta.name.clone(), detail: format!("{place}\nKept {when}, {size}"), note, content: Some((meta, body)), file }
         }
@@ -7655,7 +8022,7 @@ fn compare_with_file(meta: &recovery::Meta, body: &recovery::Body) -> (String, b
     };
     let now = file_stamp(path);
     if now.is_none() {
-        return ("The file is no longer there. Saving will create it again.".to_string(), true);
+        return (crate::i18n::tr("The file is no longer there. Saving will create it again.").to_string(), true);
     }
     let on_disk = std::fs::metadata(path).ok().filter(|m| m.len() <= DISK_THRESHOLD).and_then(|_| std::fs::read(path).ok());
     let kept = match body {
@@ -7670,10 +8037,10 @@ fn compare_with_file(meta: &recovery::Meta, body: &recovery::Body) -> (String, b
         recovery::Body::Text(_) => None,
     };
     if on_disk.is_some() && on_disk == kept {
-        return ("The file on disk already holds exactly this.".to_string(), false);
+        return (crate::i18n::tr("The file on disk already holds exactly this.").to_string(), false);
     }
     if meta.file_stamp.is_some() && now != meta.file_stamp {
-        return ("The file on disk has changed since these edits. Saving them would replace that version.".to_string(), true);
+        return (crate::i18n::tr("The file on disk has changed since these edits. Saving them would replace that version.").to_string(), true);
     }
     (String::new(), true)
 }
@@ -7772,7 +8139,7 @@ fn profile_status_name(format: &TextFormat) -> String {
 
 /// What to say when a search finds nothing.
 fn search_not_found(pattern: &str) -> String {
-    format!("Search string '{pattern}' not found.")
+    crate::i18n::tf!("Search string '{pattern}' not found.")
 }
 
 /// How a language's comments are marked, for Reindent, which only suits languages that go by brackets.
@@ -7794,12 +8161,12 @@ fn project_summary(result: &Result<project::Report, String>, restoring: bool) ->
     const MOST_LISTED: usize = 12;
     let report = match result {
         Ok(report) => report,
-        Err(problem) => return if restoring { format!("Nothing was restored, because a backup of how things are now couldn't be made first.\n\n{problem}") } else { problem.clone() },
+        Err(problem) => return if restoring { crate::i18n::tf!("Nothing was restored, because a backup of how things are now couldn't be made first.\n\n{problem}") } else { problem.clone() },
     };
     let files = |count: usize| if count == 1 { "1 file".to_string() } else { format!("{count} files") };
-    let mut lines = vec![if restoring { format!("Put back {}.", files(report.done)) } else { format!("Copied {} to {}.", files(report.done), report.folder.display()) }];
+    let mut lines = vec![if restoring { crate::i18n::tf!("Put back {}.", files(report.done)) } else { crate::i18n::tf!("Copied {} to {}.", files(report.done), report.folder.display()) }];
     if restoring {
-        lines.push("How they were before is kept in a backup ending in before-restore.".to_string());
+        lines.push(crate::i18n::tr("How they were before is kept in a backup ending in before-restore.").to_string());
     }
     if !report.skipped.is_empty() {
         lines.push(String::new());
@@ -7870,18 +8237,18 @@ fn replace_summary(report: &ReplaceReport) -> String {
         plural(report.replaced, "1 replacement", "replacements")
     )];
     if report.files_changed > 0 {
-        lines.push(format!("{} changed on disk.", plural(report.files_changed, "1 file", "files")));
+        lines.push(crate::i18n::tf!("{} changed on disk.", plural(report.files_changed, "1 file", "files")));
     }
     if report.backups > 0 {
-        lines.push(format!("{} kept beside them, ending in .bak.", plural(report.backups, "1 copy of how it was", "copies of how they were")));
+        lines.push(crate::i18n::tf!("{} kept beside them, ending in .bak.", plural(report.backups, "1 copy of how it was", "copies of how they were")));
     }
     if report.open_files_changed > 0 {
-        lines.push(format!("{} changed in {} window, not saved yet.", plural(report.open_files_changed, "1 open file", "open files"), if report.open_files_changed == 1 { "its" } else { "their" }));
+        lines.push(crate::i18n::tf!("{} changed in {} window, not saved yet.", plural(report.open_files_changed, "1 open file", "open files"), if report.open_files_changed == 1 { "its" } else { "their" }));
     }
     const MOST_LISTED: usize = 12;
     if !report.skipped.is_empty() {
         lines.push(String::new());
-        lines.push(format!("{} left as it was:", plural(report.skipped.len(), "1 file", "files")));
+        lines.push(crate::i18n::tf!("{} left as it was:", plural(report.skipped.len(), "1 file", "files")));
         for (path, reason) in report.skipped.iter().take(MOST_LISTED) {
             lines.push(format!("{}: {reason}", path.display()));
         }
@@ -8153,6 +8520,18 @@ mod atari2600_painter_host;
 mod sfx_designer_host;
 #[path = "ripper_host.rs"]
 mod ripper_host;
+#[path = "amiga_bootdisk_host.rs"]
+mod amiga_bootdisk_host;
+#[path = "workspace_host.rs"]
+mod workspace_host;
+#[path = "search_panel.rs"]
+mod search_panel;
+#[path = "outline.rs"]
+mod outline;
+#[path = "dap_host.rs"]
+mod dap_host;
+#[path = "dragon_disk_host.rs"]
+mod dragon_disk_host;
 #[path = "demo_tools_host.rs"]
 mod demo_tools_host;
 #[path = "st_hw_host.rs"]

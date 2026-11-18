@@ -277,7 +277,7 @@ pub fn draw(ui: &mut Ui, screen: &Screen) {
         }
     });
     if screen.rows.len() >= MOST_ROWS {
-        ui.painter().text(ui.min_rect().left_bottom(), Align2::LEFT_BOTTOM, format!("Only the first {MOST_ROWS} rows are shown."), FontId::proportional(11.0), theme::text_faint());
+        ui.painter().text(ui.min_rect().left_bottom(), Align2::LEFT_BOTTOM, crate::i18n::tf!("Only the first {MOST_ROWS} rows are shown."), FontId::proportional(11.0), theme::text_faint());
     }
 }
 

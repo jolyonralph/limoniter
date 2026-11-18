@@ -220,7 +220,7 @@ impl Cartridge {
         let slices = self.slices();
         let code = slices.iter().filter(|s| !s.data_only).count();
         let what = if code == 1 { String::new() } else { format!(", {code} banks of {}K", slices[0].length / 1024) };
-        format!("An Atari 2600 cartridge: {}K, {}{what}", self.bytes.len() / 1024, self.scheme.name())
+        crate::i18n::tf!("An Atari 2600 cartridge: {}K, {}{what}", self.bytes.len() / 1024, self.scheme.name())
     }
 }
 
@@ -512,15 +512,15 @@ pub fn disassemble(cart: &Cartridge) -> String {
     }
     let mut lines = vec![
         format!("; {}.", cart.describe()),
-        "; Disassembled by Limoniter: it assembles with DASM or Limoniter's own assembler to the same bytes.".to_string(),
-        "; Each instruction's cycles are beside it; a scanline has 76.".to_string(),
+        crate::i18n::tr("; Disassembled by Limoniter: it assembles with DASM or Limoniter's own assembler to the same bytes.").to_string(),
+        crate::i18n::tr("; Each instruction's cycles are beside it; a scanline has 76.").to_string(),
         String::new(),
         "        processor 6502".to_string(),
         String::new(),
     ];
     let mut written: BTreeSet<&str> = BTreeSet::new();
     if !registers.is_empty() {
-        lines.push("; The TIA and the RIOT, as vcs.h names them".into());
+        lines.push(crate::i18n::tr("; The TIA and the RIOT, as vcs.h names them").into());
         for (key, r) in &registers {
             if written.insert(r) {
                 let a = key & 0x7FFF;

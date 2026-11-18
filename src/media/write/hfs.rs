@@ -335,9 +335,9 @@ fn locate(bytes: &[u8]) -> Result<(usize, usize, bool), String> {
 
 fn not_hfs(kind: Option<mac::Kind>) -> String {
     match kind {
-        Some(mac::Kind::Mfs) => "This is an MFS disk, the 400K floppies' older file system, which is only read.".into(),
-        Some(mac::Kind::HfsPlus | mac::Kind::Gpt) => "This is an HFS+ (Mac OS Extended) disk, which is only read; plain HFS disks can be changed.".into(),
-        _ => "This isn't a Mac HFS disk Limoniter can change.".into(),
+        Some(mac::Kind::Mfs) => crate::i18n::tr("This is an MFS disk, the 400K floppies' older file system, which is only read.").into(),
+        Some(mac::Kind::HfsPlus | mac::Kind::Gpt) => crate::i18n::tr("This is an HFS+ (Mac OS Extended) disk, which is only read; plain HFS disks can be changed.").into(),
+        _ => crate::i18n::tr("This isn't a Mac HFS disk Limoniter can change.").into(),
     }
 }
 
@@ -582,7 +582,7 @@ impl Hfs {
     }
 
     fn read_tree(&self, tree: Tree) -> Result<Vec<Record>, String> {
-        let damaged = |what: &str| format!("The {} tree {what}, so the volume is damaged; let the Mac check it first.", if tree == Tree::Catalog { "catalog" } else { "extents" });
+        let damaged = |what: &str| crate::i18n::tf!("The {} tree {what}, so the volume is damaged; let the Mac check it first.", if tree == Tree::Catalog { "catalog" } else { "extents" });
         let places = self.node_places(tree);
         if places.is_empty() || places.iter().any(|p| p + NODE > self.start + self.length) {
             return Err(damaged("lies outside the volume"));
@@ -793,7 +793,7 @@ impl Hfs {
         let size = self.mdb32(tree.size_at()) as usize;
         let clump = (self.mdb32(tree.clump_at()) as usize).max(self.block_size);
         let more = (want.saturating_sub(size)).max(clump).div_ceil(self.block_size);
-        let full = || format!("The {} has no room to grow on this disk.", if tree == Tree::Catalog { "catalog (the list of files)" } else { "extents tree" });
+        let full = || crate::i18n::tf!("The {} has no room to grow on this disk.", if tree == Tree::Catalog { "catalog (the list of files)" } else { "extents tree" });
         let mdb = self.mdb();
         let mut slots = runs_of(&self.bytes[mdb + tree.runs_at()..]);
         let all = self.tree_runs(tree);
@@ -927,7 +927,7 @@ impl Hfs {
     /// The index of an entry's catalog record: a folder's by its number; a file's as the reader counts them, the
     /// nth file record, which must also have the entry's name.
     fn record_of(&self, parent: u32, entry: &Entry) -> Result<usize, String> {
-        let missing = || format!("{} isn't on the disk.", entry.name);
+        let missing = || crate::i18n::tf!("{} isn't on the disk.", entry.name);
         if entry.is_dir {
             let id = entry.location as u32;
             return self.catalog.iter().position(|(k, d)| d[0] == FOLDER && be32(d, 6) == id && key_parent(k) == parent).ok_or_else(missing);

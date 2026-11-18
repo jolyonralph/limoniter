@@ -23,7 +23,7 @@ impl Limoniter {
     /// Text from one of the windows, at the cursor in the file in front, as one undoable change.
     fn insert_c64_text(&mut self, title: &str, text: &str) {
         if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
-            self.message(title, "Open the source to put it in, with the cursor where it goes.".into());
+            self.message(title, crate::i18n::tr("Open the source to put it in, with the cursor where it goes.").into());
             return;
         }
         let doc = &mut self.docs[self.active];
@@ -101,7 +101,7 @@ impl Limoniter {
             last = last.saturating_sub(1);
         }
         let (sum, count) = crate::m6502_timing::block(assembly, intel.file, first, last);
-        (count > 0).then(|| format!("Selected: {count} instruction{}, {} cycles", if count == 1 { "" } else { "s" }, sum.range()))
+        (count > 0).then(|| if count == 1 { crate::i18n::tf!("Selected: 1 instruction, {} cycles", sum.range()) } else { crate::i18n::tf!("Selected: {count} instructions, {} cycles", sum.range()) })
     }
 }
 

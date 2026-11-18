@@ -375,18 +375,18 @@ impl Song {
     fn summary(&self) -> Vec<(String, String)> {
         let mut rows = vec![("Title".to_string(), if self.title.is_empty() { "(none)".into() } else { self.title.clone() }), ("Format".into(), self.format.name().to_string())];
         if !self.tracker.is_empty() {
-            rows.push(("Made with".into(), self.tracker.clone()));
+            rows.push((crate::i18n::tr("Made with").into(), self.tracker.clone()));
         }
         rows.push(("Channels".into(), self.channels.to_string()));
-        rows.push(("Song length".into(), format!("{} positions", self.orders.iter().filter(|&&p| p < 254).count())));
+        rows.push((crate::i18n::tr("Song length").into(), format!("{} positions", self.orders.iter().filter(|&&p| p < 254).count())));
         rows.push(("Patterns".into(), self.patterns.len().to_string()));
         if !self.instruments.is_empty() {
             rows.push(("Instruments".into(), self.instruments.len().to_string()));
         }
         let bytes: usize = self.samples.iter().map(|s| s.data.len() * usize::from(s.bits.max(8) / 8)).sum();
         rows.push(("Samples".into(), format!("{} used, {} bytes", self.used_samples().count(), group(bytes as u64))));
-        rows.push(("Speed".into(), format!("{} ticks a row at {} BPM", self.speed, self.tempo)));
-        rows.push(("Pitch".into(), if self.linear { "Linear".into() } else { "Amiga periods".into() }));
+        rows.push(("Speed".into(), crate::i18n::tf!("{} ticks a row at {} BPM", self.speed, self.tempo)));
+        rows.push(("Pitch".into(), if self.linear { "Linear".into() } else { crate::i18n::tr("Amiga periods").into() }));
         rows
     }
 
@@ -396,19 +396,19 @@ impl Song {
             Loop::Forward => format!("loops {} to {}", sample.loop_start, sample.loop_end),
             Loop::PingPong => format!("loops back and forth {} to {}", sample.loop_start, sample.loop_end),
         };
-        format!("{} samples ({}-bit), {looped}, volume {}, {} Hz", group(sample.data.len() as u64), sample.bits, sample.volume, sample.base_rate.round())
+        crate::i18n::tf!("{} samples ({}-bit), {looped}, volume {}, {} Hz", group(sample.data.len() as u64), sample.bits, sample.volume, sample.base_rate.round())
     }
 
     /// What File properties shows: the song, its instruments or samples, and its order.
     pub fn sections(&self) -> Vec<InfoSection> {
-        let mut sections = vec![InfoSection { title: "Music module".into(), rows: self.summary() }];
+        let mut sections = vec![InfoSection { title: crate::i18n::tr("Music module").into(), rows: self.summary() }];
         if !self.instruments.is_empty() {
             let rows = self.instruments.iter().enumerate().filter(|(_, i)| !i.name.trim().is_empty() || i.keymap.iter().any(|k| k.1 > 0)).map(|(n, i)| (format!("{:02}", n + 1), i.name.clone())).collect();
             sections.push(InfoSection { title: "Instruments".into(), rows });
         }
         let samples = self.used_samples().map(|(n, s)| (format!("{n:02} {}", s.name), Self::sample_line(s))).collect();
         sections.push(InfoSection { title: "Samples".into(), rows: samples });
-        sections.push(InfoSection { title: "Song order".into(), rows: vec![(String::new(), self.order_text())] });
+        sections.push(InfoSection { title: crate::i18n::tr("Song order").into(), rows: vec![(String::new(), self.order_text())] });
         if !self.message.trim().is_empty() {
             sections.push(InfoSection { title: "Message".into(), rows: vec![(String::new(), self.message.clone())] });
         }
@@ -424,7 +424,7 @@ impl Song {
         let plain = |text: String| Span { text, ..Span::default() };
         let strong = |text: String| Span { text, strong: true, ..Span::default() };
         let block = |kind: BlockKind, spans: Vec<Span>| Block { kind, spans, indent: 0, quote: 0, marker: None };
-        let mut blocks = vec![block(BlockKind::Heading(2), vec![plain(if self.title.is_empty() { "Untitled module".into() } else { self.title.clone() })])];
+        let mut blocks = vec![block(BlockKind::Heading(2), vec![plain(if self.title.is_empty() { crate::i18n::tr("Untitled module").into() } else { self.title.clone() })])];
         for (label, value) in self.summary().into_iter().skip(1) {
             blocks.push(block(BlockKind::Paragraph, vec![strong(format!("{label}: ")), plain(value)]));
         }
@@ -456,7 +456,7 @@ impl Song {
             rows.push(cells.map(|c| vec![plain(c)]).to_vec());
         }
         blocks.push(block(BlockKind::Table(rows), Vec::new()));
-        blocks.push(block(BlockKind::Heading(3), vec![plain("Song order".into())]));
+        blocks.push(block(BlockKind::Heading(3), vec![plain(crate::i18n::tr("Song order").into())]));
         blocks.push(block(BlockKind::Code, vec![Span { text: self.order_text(), code: true, ..Span::default() }]));
         blocks
     }

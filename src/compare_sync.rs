@@ -300,11 +300,11 @@ pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: 
             continue;
         }
         if row.status == Status::TypeDiffers {
-            plan.skipped.push((row.path.clone(), "It's a file on one side and a folder on the other, so it's left for you to sort out.".into()));
+            plan.skipped.push((row.path.clone(), crate::i18n::tr("It's a file on one side and a folder on the other, so it's left for you to sort out.").into()));
             continue;
         }
         if row.status == Status::Unreadable {
-            plan.skipped.push((row.path.clone(), row.problem.clone().unwrap_or_else(|| "It couldn't be read.".into())));
+            plan.skipped.push((row.path.clone(), row.problem.clone().unwrap_or_else(|| crate::i18n::tr("It couldn't be read.").into())));
             continue;
         }
         let known = snapshot.and_then(|snapshot| snapshot.files.get(&row.path));
@@ -344,10 +344,18 @@ pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: 
                     if known.is_some() {
                         // Both sides had it at the last sync: it's been deleted from this one since.
                         new.ticked = false;
-                        new.note = Some(format!("Deleted from the {} since the last sync", side_word(to_right)));
+                        new.note = Some(if to_right { crate::i18n::tr("Deleted from the right since the last sync") } else { crate::i18n::tr("Deleted from the left since the last sync") }.to_string());
                         if changed(on_left) {
                             new.conflict = true;
-                            new.note = Some(format!("Changed on the {} and deleted from the {} since the last sync", side_word(on_left), side_word(to_right)));
+                            new.note = Some(
+                                match (side_word(on_left), side_word(to_right)) {
+                                    ("left", "left") => crate::i18n::tr("Changed on the left and deleted from the left since the last sync"),
+                                    ("left", _) => crate::i18n::tr("Changed on the left and deleted from the right since the last sync"),
+                                    (_, "left") => crate::i18n::tr("Changed on the right and deleted from the left since the last sync"),
+                                    _ => crate::i18n::tr("Changed on the right and deleted from the right since the last sync"),
+                                }
+                                .to_string(),
+                            );
                         }
                     }
                     plan.items.push(new);
@@ -357,7 +365,7 @@ pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: 
                     if known.is_some() && changed(on_left) {
                         gone.ticked = false;
                         gone.conflict = true;
-                        gone.note = Some(format!("Changed on the {} since the last sync, and deleted from the {}", side_word(on_left), side_word(!on_left)));
+                        gone.note = Some(if side_word(on_left) == "left" { crate::i18n::tr("Changed on the left since the last sync, and deleted from the right") } else { crate::i18n::tr("Changed on the right since the last sync, and deleted from the left") }.to_string());
                     }
                     plan.items.push(gone);
                 }
@@ -384,7 +392,7 @@ pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: 
                 if both_changed {
                     replace.ticked = false;
                     replace.conflict = true;
-                    replace.note = Some("Changed on both sides since the last sync".into());
+                    replace.note = Some(crate::i18n::tr("Changed on both sides since the last sync").into());
                 } else if kind == SyncKind::Update {
                     match newer_left {
                         // The one there is newer: an update leaves it.
@@ -392,11 +400,11 @@ pub fn plan_sync(result: &FolderResult, kind: SyncKind, way: SyncWay, snapshot: 
                         Some(_) => {}
                         None => {
                             replace.ticked = false;
-                            replace.note = Some("Different, with no telling which is newer".into());
+                            replace.note = Some(crate::i18n::tr("Different, with no telling which is newer").into());
                         }
                     }
                 } else if newer_left == Some(!to_right) {
-                    replace.note = Some(format!("The {} one is newer", side_word(to_right)));
+                    replace.note = Some(if to_right { crate::i18n::tr("The right one is newer") } else { crate::i18n::tr("The left one is newer") }.to_string());
                 }
                 plan.items.push(replace);
             }
@@ -431,10 +439,10 @@ impl SyncReport {
         let counts = PlanCounts { create: self.created, replace: self.replaced, delete: self.deleted, folders_made: self.folders_made, folders_removed: self.folders_removed, conflicts: 0 };
         let mut said = format!("Synced: {}.", counts.describe());
         if let Some(folder) = &self.backup_folder {
-            said.push_str(&format!("\n\nThe {} file{} replaced or deleted {} kept in {}.", self.backed_up, if self.backed_up == 1 { "" } else { "s" }, if self.backed_up == 1 { "is" } else { "are" }, folder.display()));
+            said.push_str(&if self.backed_up == 1 { crate::i18n::tf!("\n\nThe 1 file replaced or deleted is kept in {}.", folder.display()) } else { crate::i18n::tf!("\n\nThe {} files replaced or deleted are kept in {}.", self.backed_up, folder.display()) });
         }
         if !self.failed.is_empty() {
-            said.push_str(&format!("\n\n{} left as {} were:", self.failed.len(), if self.failed.len() == 1 { "it" } else { "they" }));
+            said.push_str(&if self.failed.len() == 1 { crate::i18n::tr("\n\n1 left as it was:").to_string() } else { crate::i18n::tf!("\n\n{} left as they were:", self.failed.len()) });
             for (path, why) in self.failed.iter().take(12) {
                 said.push_str(&format!("\n{path}: {why}"));
             }
@@ -454,7 +462,7 @@ pub fn run_sync(plan: &SyncPlan, left: &dyn Tree, right: &dyn Tree, backup_root:
     for item in ticked {
         progress.done.fetch_add(1, Ordering::Relaxed);
         if cancel.load(Ordering::Relaxed) {
-            report.failed.push((item.path.clone(), "It was stopped before this.".into()));
+            report.failed.push((item.path.clone(), crate::i18n::tr("It was stopped before this.").into()));
             continue;
         }
         let (target, source) = if item.to_right { (right, left) } else { (left, right) };

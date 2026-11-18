@@ -210,7 +210,7 @@ impl NextScreen {
             }
             n => return Err(crate::i18n::tf!("A Next screen is 49152, 81920 or 12288 bytes of pixels (with 512 of palette in front, for an .nxi), and this is {n}.")),
         };
-        NextScreen::from_memory(mode, memory, palette).ok_or_else(|| "The screen couldn't be read.".into())
+        NextScreen::from_memory(mode, memory, palette).ok_or_else(|| crate::i18n::tr("The screen couldn't be read.").into())
     }
 
     /// The same pixels in another mode: cut or filled out with colour 0, and to 16 colours for 640×256.
@@ -239,8 +239,7 @@ impl NextScreen {
         let mode = self.mode;
         let count = mode.colours();
         let pixels = format!("{name}.{}", mode.ending());
-        let mut s = format!(
-            "; {name}: a picture for the ZX Spectrum Next, {}, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.nxp and {pixels} beside it:\n; it writes {name}.nex, which shows the picture until the Next is reset.\n\n",
+        let mut s = crate::i18n::tf!("; {name}: a picture for the ZX Spectrum Next, {}, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.nxp and {pixels} beside it:\n; it writes {name}.nex, which shows the picture until the Next is reset.\n\n",
             mode.name()
         );
         s += "        DEVICE ZXSPECTRUMNEXT\n        org $8000\nstart:\n        di\n        nextreg $07,3                   ; 28 MHz\n";
@@ -318,7 +317,7 @@ pub fn assemble_nex(name: &str, source: &str, files: &[(String, Vec<u8>)]) -> Re
     if let Some(problem) = assembly.problems.first() {
         return Err(crate::i18n::tf!("The viewer didn't assemble: {}", problem.message));
     }
-    assembly.outputs.into_iter().find(|o| o.name.ends_with(".nex")).map(|o| o.bytes).ok_or_else(|| "The viewer made no .nex.".into())
+    assembly.outputs.into_iter().find(|o| o.name.ends_with(".nex")).map(|o| o.bytes).ok_or_else(|| crate::i18n::tr("The viewer made no .nex.").into())
 }
 
 #[cfg(test)]

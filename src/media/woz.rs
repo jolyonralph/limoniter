@@ -423,7 +423,7 @@ impl Source for Sectors {
     }
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
-        let start = usize::try_from(offset).map_err(|_| "past the end of the disk".to_string())?;
+        let start = usize::try_from(offset).map_err(|_| crate::i18n::tr("past the end of the disk").to_string())?;
         let bytes = start.checked_add(buf.len()).and_then(|end| self.bytes.get(start..end)).ok_or(crate::i18n::tr("past the end of the disk"))?;
         if !buf.is_empty()
             && let Some(unit) = (start / self.unit..=(start + buf.len() - 1) / self.unit).find(|&u| !self.found[u])
@@ -442,7 +442,7 @@ fn missing_summary(per_track: &[(String, Vec<usize>, usize)], heading: &str, aft
         .filter(|(_, missing, _)| !missing.is_empty())
         .map(|(track, missing, all)| {
             if missing.len() == *all {
-                format!("{track} (all of it)")
+                crate::i18n::tf!("{track} (all of it)")
             } else {
                 format!("{track} sector{} {}", if missing.len() == 1 { "" } else { "s" }, missing.iter().map(usize::to_string).collect::<Vec<_>>().join(", "))
             }
@@ -452,7 +452,7 @@ fn missing_summary(per_track: &[(String, Vec<usize>, usize)], heading: &str, aft
         return None;
     }
     let shown = phrases.len().min(24);
-    let more = if phrases.len() > shown { format!(", and {} more tracks", phrases.len() - shown) } else { String::new() };
+    let more = if phrases.len() > shown { crate::i18n::tf!(", and {} more tracks", phrases.len() - shown) } else { String::new() };
     Some(format!("{heading}: {}{more}. {after}", phrases[..shown].join("; ")))
 }
 
@@ -506,7 +506,7 @@ fn decode(file: &[u8]) -> Result<Decoded, String> {
             for logical in 0..16 {
                 // A 13-sector disk's sectors are numbered as DOS 3.2 numbers them; they keep their own places.
                 let physical = if use_13 { logical } else { DOS_TO_PHYSICAL[logical] };
-                places.push(format!("Track {t} sector {physical}"));
+                places.push(crate::i18n::tf!("Track {t} sector {physical}"));
                 if let Some(Some(data)) = track.sectors.get(physical).filter(|_| physical < per_track) {
                     let at = (t * 16 + logical) * 256;
                     bytes[at..at + 256].copy_from_slice(data);
@@ -540,7 +540,7 @@ fn decode(file: &[u8]) -> Result<Decoded, String> {
                 let read = woz.bits(file, map_index).map_or_else(|| vec![None; wanted], |bits| read_sony_track(&nibbles(&bits), wanted, &six));
                 let mut lost = Vec::new();
                 for (sector, data) in read.into_iter().enumerate() {
-                    places.push(format!("Block {} (track {track} side {side} sector {sector})", found.len()));
+                    places.push(crate::i18n::tf!("Block {} (track {track} side {side} sector {sector})", found.len()));
                     match data {
                         Some(data) => {
                             bytes.extend(&data[12..]);
@@ -569,16 +569,16 @@ fn decode(file: &[u8]) -> Result<Decoded, String> {
 pub fn open(source: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     let file = source.read_vec(0, usize::try_from(source.len()).map_err(|_| "This WOZ image is too large.")?.min(64 * 1024 * 1024))?;
     let Decoded { woz, sectors, label, mut notes } = decode(&file)?;
-    let mut info_rows = vec![("WOZ version".to_string(), woz.version.to_string()), ("Made by".to_string(), woz.creator.clone())];
+    let mut info_rows = vec![(crate::i18n::tr("WOZ version").to_string(), woz.version.to_string()), (crate::i18n::tr("Made by").to_string(), woz.creator.clone())];
     info_rows.extend(woz.meta.iter().cloned());
     let readable = sectors.found.iter().filter(|f| **f).count();
     info_rows.push(("Disk".into(), label.clone()));
-    info_rows.push(("Sectors read".into(), format!("{readable} of {}", sectors.on_disk)));
+    info_rows.push((crate::i18n::tr("Sectors read").into(), format!("{readable} of {}", sectors.on_disk)));
     let five_inch = woz.disk_type == 1;
     // A copy with the unread sectors as zeros, to tell the file system by and to give as an image if there's none.
     let plain = sectors.bytes.clone();
     let source: Arc<dyn Source> = Arc::new(sectors);
-    let what = |inner: &str| format!("WOZ {} image ({label}): {inner}", woz.version);
+    let what = |inner: &str| crate::i18n::tf!("WOZ {} image ({label}): {inner}", woz.version);
     let inner: Result<Box<dyn Volume>, String> = if five_inch {
         match super::apple2::Apple2::open(source.clone(), "do") {
             Ok(apple) => Ok(Box::new(apple)),
@@ -589,12 +589,12 @@ pub fn open(source: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     } else {
         super::apple2::Apple2::open(source.clone(), "po").map(|apple| Box::new(apple) as Box<dyn Volume>)
     };
-    let info = vec![InfoSection { title: "WOZ image".into(), rows: info_rows }];
+    let info = vec![InfoSection { title: crate::i18n::tr("WOZ image").into(), rows: info_rows }];
     let disk = match inner {
         Ok(inner) => WozDisk { what: what(&inner.describe()), inner: Some(inner), image: None, notes, info },
         Err(problem) => {
             let (name, kind) = if five_inch { ("sectors.do", "DOS-order") } else { ("blocks.po", "ProDOS-order") };
-            notes.insert(0, format!("No file system could be read: {problem} The sectors that could be read are given as a {kind} disk image, to look at in hex; those that couldn't are zeros in it."));
+            notes.insert(0, crate::i18n::tf!("No file system could be read: {problem} The sectors that could be read are given as a {kind} disk image, to look at in hex; those that couldn't are zeros in it."));
             WozDisk { what: what("no file system found"), inner: None, image: Some((name.into(), plain)), notes, info }
         }
     };
@@ -611,8 +611,8 @@ impl Volume for WozDisk {
             (Some(inner), _) => inner.list(dir),
             (None, Some((name, bytes))) if dir.is_none() => {
                 let mut entry = Entry::file(name.clone(), bytes.len() as u64, 0);
-                entry.kind = "Disk image".into();
-                entry.detail = "The sectors that could be read".into();
+                entry.kind = crate::i18n::tr("Disk image").into();
+                entry.detail = crate::i18n::tr("The sectors that could be read").into();
                 Ok(vec![entry])
             }
             _ => Ok(Vec::new()),

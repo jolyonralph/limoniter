@@ -210,7 +210,7 @@ pub fn plan(src_x: u32, dst_x: u32, width: u32, height: u32, step: u32, src_stri
     if x_count == 1 && nfsr {
         // A one-word line with NFSR does something odd on the blitter; read a word more instead.
         nfsr = false;
-        notes.push("Each line is one word, where NFSR misbehaves: the blitter reads one source word more than the pixels need, past their right.".into());
+        notes.push(crate::i18n::tr("Each line is one word, where NFSR misbehaves: the blitter reads one source word more than the pixels need, past their right.").into());
     }
     let reads = x_count + u32::from(fxsr) - u32::from(nfsr);
     let as_i16 = |v: i64, what: &str| -> Result<i16, String> { i16::try_from(v).map_err(|_| crate::i18n::tf!("The {what} ({v}) doesn't fit in the blitter's 16 bits.")) };
@@ -221,7 +221,7 @@ pub fn plan(src_x: u32, dst_x: u32, width: u32, height: u32, step: u32, src_stri
         dst_x_inc: x_inc,
         dst_y_inc: as_i16(dst_stride as i64 - (x_count as i64 - 1) * step as i64, "destination Y increment")?,
         endmask: endmasks(dst_x, width),
-        x_count: u16::try_from(x_count).map_err(|_| "The line is too wide.".to_string())?,
+        x_count: u16::try_from(x_count).map_err(|_| crate::i18n::tr("The line is too wide.").to_string())?,
         y_count: (height % 65536) as u16,
         skew,
         fxsr,
@@ -372,8 +372,8 @@ impl Calculator {
                     row("XCOUNT, YCOUNT", format!("{}, {}", plan.x_count, plan.y_count));
                     row("SRCXINC, SRCYINC", format!("{}, {}", plan.src_x_inc, plan.src_y_inc));
                     row("DSTXINC, DSTYINC", format!("{}, {}", plan.dst_x_inc, plan.dst_y_inc));
-                    row("Source starts", format!("{} bytes into its line ({} words read a line)", plan.src_offset, plan.reads));
-                    row("Destination starts", format!("{} bytes into its line", plan.dst_offset));
+                    row("Source starts", crate::i18n::tf!("{} bytes into its line ({} words read a line)", plan.src_offset, plan.reads));
+                    row("Destination starts", crate::i18n::tf!("{} bytes into its line", plan.dst_offset));
                 });
                 for note in &plan.notes {
                     ui.label(RichText::new(note).small());

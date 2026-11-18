@@ -66,7 +66,7 @@ impl Source for Vec<u8> {
     }
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), String> {
-        let start = usize::try_from(offset).map_err(|_| "past the end of the image".to_string())?;
+        let start = usize::try_from(offset).map_err(|_| crate::i18n::tr("past the end of the image").to_string())?;
         let bytes = self.get(start..start + buf.len()).ok_or(crate::i18n::tr("past the end of the image"))?;
         buf.copy_from_slice(bytes);
         Ok(())
@@ -96,7 +96,7 @@ impl Source for FileSource {
         if offset + buf.len() as u64 > self.len {
             return Err(crate::i18n::tr("past the end of the image").into());
         }
-        let mut file = self.file.lock().map_err(|_| "the image couldn't be read".to_string())?;
+        let mut file = self.file.lock().map_err(|_| crate::i18n::tr("the image couldn't be read").to_string())?;
         file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
         file.read_exact(buf).map_err(|e| e.to_string())
     }
@@ -494,10 +494,10 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::Lif) => Ok(Box::new(lif::Lif::open(source)?)),
         Some(Format::MacDisk) => {
             let what = match source.len() {
-                409_600 => "Macintosh 400K floppy".to_string(),
-                819_200 => "Macintosh 800K floppy".to_string(),
-                1_474_560 => "Macintosh 1.4MB floppy".to_string(),
-                size => format!("Macintosh disk image, {} MB", size.div_ceil(1024 * 1024)),
+                409_600 => crate::i18n::tr("Macintosh 400K floppy").to_string(),
+                819_200 => crate::i18n::tr("Macintosh 800K floppy").to_string(),
+                1_474_560 => crate::i18n::tr("Macintosh 1.4MB floppy").to_string(),
+                size => crate::i18n::tf!("Macintosh disk image, {} MB", size.div_ceil(1024 * 1024)),
             };
             mac::open_disk(source, &what)
         }

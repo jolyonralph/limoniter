@@ -288,7 +288,7 @@ impl Reader<'_> {
         let bytes = self.take(8)?;
         let mut value = [0u8; 8];
         value.copy_from_slice(bytes);
-        usize::try_from(u64::from_le_bytes(value)).map_err(|_| "It holds a number too large.".to_string())
+        usize::try_from(u64::from_le_bytes(value)).map_err(|_| crate::i18n::tr("It holds a number too large.").to_string())
     }
 
     fn byte(&mut self) -> Result<u8, String> {
@@ -498,7 +498,7 @@ fn writer_thread(dir: PathBuf, shared: Arc<Shared>) {
         let problem = match outcome {
             Ok(Ok(())) => None,
             Ok(Err(e)) => Some(e.to_string()),
-            Err(_) => Some("The recovery writer failed.".to_string()),
+            Err(_) => Some(crate::i18n::tr("The recovery writer failed.").to_string()),
         };
         {
             let mut state = shared.lock();

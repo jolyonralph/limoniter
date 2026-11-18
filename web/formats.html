@@ -28,12 +28,14 @@
       </a>
       <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
       <nav id="nav" class="nav">
+        <a href="index.html#ide">IDE</a>
         <a href="index.html#features">Everyday work</a>
         <a href="index.html#retro">Older computers</a>
         <a href="index.html#machines">Machines</a>
         <a href="index.html#send">Send to device</a>
         <a href="index.html#screens">Screenshots</a>
         <a href="index.html#get">Download</a>
+        <a href="whats-new.html">What's new</a>
         <a href="guide/index.html">Guide</a>
         <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
       </nav>
@@ -291,6 +293,14 @@
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td>text</td>
 <td>The VT100's line drawing.</td>
+</tr>
+<tr>
+<th scope="row">DEC Technical</th>
+<td>—</td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>text</td>
+<td>The VT220's maths symbols, bracket pieces and Greek.</td>
 </tr>
 <tr>
 <th scope="row">ASCII with the top bit set (Prime)</th>
@@ -705,6 +715,14 @@
 <td>Disassembled as 6809; made by the 6809 assembler.</td>
 </tr>
 <tr>
+<th scope="row">Dragon DOS binary</th>
+<td><code>.bin</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Its header's load and start addresses followed when disassembled; made by the 6809 assembler for <code>; machine: dragon32</code> and run in XRoar.</td>
+</tr>
+<tr>
 <th scope="row">Atari ST program</th>
 <td><code>.tos</code>, <code>.prg</code>, <code>.ttp</code></td>
 <td class="part"><span class="mark" aria-label="In part">◐</span></td>
@@ -813,12 +831,12 @@
 <td>Everyday 64tass syntax assembles to a C64 <code>.prg</code>; sections are left to 64tass.</td>
 </tr>
 <tr>
-<th scope="row">6809 assembler source</th>
+<th scope="row">6809 and 6309 assembler source</th>
 <td><code>.asm</code>, <code>.s</code></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
 <td>text</td>
-<td>Assembles as lwasm does, to a Color Computer LOADM binary.</td>
+<td>Assembles as lwasm does, the 6309's instructions too, to a Color Computer LOADM binary, a Dragon DOS binary or a Vectrex cartridge.</td>
 </tr>
 <tr>
 <th scope="row">68000 assembler source</th>
@@ -1516,9 +1534,9 @@
 <th scope="row">Color Computer and Dragon disk (VDK)</th>
 <td><code>.vdk</code></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
-<td class="no"><span class="mark" aria-label="No">✗</span></td>
+<td class="part"><span class="mark" aria-label="In part">◐</span></td>
 <td>directory</td>
-<td>RS-DOS, Dragon DOS and OS-9.</td>
+<td>RS-DOS, Dragon DOS and OS-9. Dragon DOS disks are made and changed in the Dragon DOS disk window (Tools, Dragon and Vectrex): new ones of 40 or 80 tracks on one or two sides, files added, taken off and saved out.</td>
 </tr>
 <tr>
 <th scope="row">OS-9 disk image</th>
@@ -1873,6 +1891,14 @@
 <td>Every hardware type read; only normal 8K and 16K cartridges are made, as cartconv makes them.</td>
 </tr>
 <tr>
+<th scope="row">Vectrex cartridge</th>
+<td><code>.vec</code></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
+<td>hex</td>
+<td>Its header read (copyright line, tune, title) and its code disassembled from after it, the BIOS's calls named; made by the 6809 assembler and run in MAME or ParaJVE.</td>
+</tr>
+<tr>
 <th scope="row">Atari 2600 cartridge</th>
 <td><code>.a26</code>, <code>.bin</code></td>
 <td class="yes"><span class="mark" aria-label="Yes">✓</span></td>
@@ -1907,7 +1933,7 @@
   <footer class="bottom">
     <div class="wrap bottom-inner">
       <p><img src="images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
-      <p><a href="index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="formats.html">File formats</a> · <a href="compare.html">How it compares</a></p>
+      <p><a href="index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="formats.html">File formats</a> · <a href="whats-new.html">What's new</a> · <a href="compare.html">How it compares</a></p>
     </div>
   </footer>
 </body>

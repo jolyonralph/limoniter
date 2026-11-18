@@ -519,7 +519,7 @@ impl Outcome {
             Some((_, after)) if self.before > 0 => {
                 let percent = *after as f64 * 100.0 / self.before as f64;
                 let saved = self.before as i64 - *after as i64;
-                format!("{} bytes to {} ({percent:.1}% of it, {} saved)", group(self.before), group(*after), if saved >= 0 { group(saved as u64) } else { format!("{} more", group(saved.unsigned_abs())) })
+                crate::i18n::tf!("{} bytes to {} ({percent:.1}% of it, {} saved)", group(self.before), group(*after), if saved >= 0 { group(saved as u64) } else { format!("{} more", group(saved.unsigned_abs())) })
             }
             _ => String::new(),
         }
@@ -569,7 +569,7 @@ pub fn run(program: &Path, args: &[String], folder: &Path, stop: &AtomicBool) ->
         if stop.load(Ordering::Relaxed) || started.elapsed() > LONGEST {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(if stop.load(Ordering::Relaxed) { "Stopped.".into() } else { format!("{} took over an hour, so it was stopped.", program.display()) });
+            return Err(if stop.load(Ordering::Relaxed) { "Stopped.".into() } else { crate::i18n::tf!("{} took over an hour, so it was stopped.", program.display()) });
         }
         std::thread::sleep(Duration::from_millis(20));
     };
@@ -635,7 +635,7 @@ fn download_into(tool: Tool, folder: &Path) -> Result<PathBuf, String> {
     }
     // The licence travels with the program, as Shrinkler's asks.
     if tool == Tool::Shrinkler {
-        let _ = std::fs::write(folder.join("README.txt"), format!("Shrinkler by Aske Simon Christensen (Blueberry), from {address}\n{}\n", tool.website()));
+        let _ = std::fs::write(folder.join("README.txt"), crate::i18n::tf!("Shrinkler by Aske Simon Christensen (Blueberry), from {address}\n{}\n", tool.website()));
     }
     Ok(path)
 }
@@ -668,9 +668,9 @@ pub fn replay_snippet(replay: Replay, module: &Path) -> String {
     };
     match replay {
         Replay::LspCia => {
-            line(&format!("; --- LightSpeedPlayer: {stem}, played by LSP's CIA toolkit ---"));
+            line(&crate::i18n::tf!("; --- LightSpeedPlayer: {stem}, played by LSP's CIA toolkit ---"));
             line("; Needs LightSpeedPlayer.asm and LightSpeedPlayer_cia.asm from github.com/arnaud-carre/LSPlayer,");
-            line(&format!("; and {stem}.lsmusic and {stem}.lsbank from LSPConvert. The toolkit takes the CIA-B timer and its"));
+            line(&crate::i18n::tf!("; and {stem}.lsmusic and {stem}.lsbank from LSPConvert. The toolkit takes the CIA-B timer and its"));
             line("; level 6 interrupt, and sets DMACON itself; it doesn't hand anything back to the system.");
             line("");
             line("music_start:");
@@ -691,13 +691,13 @@ pub fn replay_snippet(replay: Replay, module: &Path) -> String {
         }
         Replay::LspCopper | Replay::LspInsane | Replay::LspMicro => {
             let (init, tick, files) = match replay {
-                Replay::LspInsane => ("LSP_MusicInitInsane", "LSP_MusicPlayTickInsane", format!("{stem}_insane.asm (written by LSPConvert -insane, for this module only)")),
-                Replay::LspMicro => ("LSP_MusicInitMicro", "LSP_MusicPlayTickMicro", "LightSpeedPlayer_Micro.asm (and convert with LSPConvert -micro)".to_string()),
+                Replay::LspInsane => ("LSP_MusicInitInsane", "LSP_MusicPlayTickInsane", crate::i18n::tf!("{stem}_insane.asm (written by LSPConvert -insane, for this module only)")),
+                Replay::LspMicro => ("LSP_MusicInitMicro", "LSP_MusicPlayTickMicro", crate::i18n::tr("LightSpeedPlayer_Micro.asm (and convert with LSPConvert -micro)").to_string()),
                 _ => ("LSP_MusicInit", "LSP_MusicPlayTick", "LightSpeedPlayer.asm".to_string()),
             };
-            line(&format!("; --- LightSpeedPlayer: {stem}, played from your own interrupt once a frame ---"));
-            line(&format!("; Needs {files}, from github.com/arnaud-carre/LSPlayer,"));
-            line(&format!("; and {stem}.lsmusic and {stem}.lsbank from LSPConvert."));
+            line(&crate::i18n::tf!("; --- LightSpeedPlayer: {stem}, played from your own interrupt once a frame ---"));
+            line(&crate::i18n::tf!("; Needs {files}, from github.com/arnaud-carre/LSPlayer,"));
+            line(&crate::i18n::tf!("; and {stem}.lsmusic and {stem}.lsbank from LSPConvert."));
             line("; LSP doesn't write DMACON itself: it pokes the channels to start into the low byte of a copper");
             line("; move to DMACON, which must come about 11 raster lines after the line the tick runs on, so");
             line("; Paula has stopped the old samples by then. Keep that copper move in every copper list you use.");
@@ -739,7 +739,7 @@ pub fn replay_snippet(replay: Replay, module: &Path) -> String {
             lsp_data(&mut line, &stem);
         }
         Replay::P61 => {
-            line(&format!("; --- The Player 6.1A: {p61}, made from {stem} by P61Con ---"));
+            line(&crate::i18n::tf!("; --- The Player 6.1A: {p61}, made from {stem} by P61Con ---"));
             line("; Needs P6108-Play.S and P6108-StandardOptions.S from Aminet (mus/misc/P6108), and the P61 file,");
             line("; which P61Con (an Amiga program) saves. P61Con shows a USE code for the module, and keeps it in");
             line("; the P61 file's comment: set use to it and the player leaves out what the module doesn't need.");

@@ -121,7 +121,7 @@ pub fn type_name(machine: &str, kind: u16) -> String {
     };
     match list.get(usize::from(kind)) {
         Some(name) => (*name).to_string(),
-        None => format!("Type {kind}, which Limoniter doesn't know"),
+        None => crate::i18n::tf!("Type {kind}, which Limoniter doesn't know"),
     }
 }
 
@@ -171,7 +171,7 @@ impl Crt {
         let mut notes = Vec::new();
         // Some early CRTs say $20 here, though their headers are $40 long, as VICE allows for.
         let header_length = if header_length < 0x40 {
-            notes.push(format!("The header says it's {header_length} bytes long, under the 64 it is: read as 64."));
+            notes.push(crate::i18n::tf!("The header says it's {header_length} bytes long, under the 64 it is: read as 64."));
             0x40
         } else {
             header_length
@@ -192,27 +192,27 @@ impl Crt {
         while at + 16 <= len {
             let packet = source.read_vec(at, 16)?;
             if &packet[..4] != b"CHIP" {
-                crt.notes.push(format!("{} bytes at offset {at} aren't a CHIP packet, so the rest wasn't read.", len - at));
+                crt.notes.push(crate::i18n::tf!("{} bytes at offset {at} aren't a CHIP packet, so the rest wasn't read.", len - at));
                 break;
             }
             let packet_length = u32::from_be_bytes([packet[4], packet[5], packet[6], packet[7]]);
             let chip = Chip { offset: at, packet_length, kind: u16::from_be_bytes([packet[8], packet[9]]), bank: u16::from_be_bytes([packet[10], packet[11]]), address: u16::from_be_bytes([packet[12], packet[13]]), size: u16::from_be_bytes([packet[14], packet[15]]) };
             if at + 16 + u64::from(chip.size) > len {
-                crt.notes.push(format!("The chip for bank {} at ${:04X} is cut short.", chip.bank, chip.address));
+                crt.notes.push(crate::i18n::tf!("The chip for bank {} at ${:04X} is cut short.", chip.bank, chip.address));
             }
             if u64::from(packet_length) != 16 + u64::from(chip.size) {
-                crt.notes.push(format!("The packet for bank {} at ${:04X} says it's {packet_length} bytes, where its {}-byte chip makes it {}.", chip.bank, chip.address, chip.size, 16 + u32::from(chip.size)));
+                crt.notes.push(crate::i18n::tf!("The packet for bank {} at ${:04X} says it's {packet_length} bytes, where its {}-byte chip makes it {}.", chip.bank, chip.address, chip.size, 16 + u32::from(chip.size)));
             }
             // A packet's own length says where the next starts; one that says too little would go nowhere.
             at += u64::from(packet_length).max(16 + u64::from(chip.size));
             crt.chips.push(chip);
             if crt.chips.len() > 4096 {
-                crt.notes.push("It has over 4,096 chips, so the rest weren't read.".into());
+                crt.notes.push(crate::i18n::tr("It has over 4,096 chips, so the rest weren't read.").into());
                 break;
             }
         }
         if crt.chips.is_empty() {
-            crt.notes.push("It has no chips: a cartridge with nothing in it.".into());
+            crt.notes.push(crate::i18n::tr("It has no chips: a cartridge with nothing in it.").into());
         }
         Ok(crt)
     }
@@ -279,20 +279,20 @@ impl Volume for Crt {
             ("Name".to_string(), if self.name.is_empty() { "(none)".into() } else { self.name.clone() }),
             ("Machine".into(), self.machine.to_string()),
             ("Hardware".into(), format!("{} (type {})", self.hardware_name(), self.hardware)),
-            ("CRT version".into(), format!("{}.{:02}", self.version.0, self.version.1)),
+            (crate::i18n::tr("CRT version").into(), format!("{}.{:02}", self.version.0, self.version.1)),
             ("EXROM".into(), line(self.exrom).into()),
             ("GAME".into(), line(self.game).into()),
         ];
         if self.machine == "C64" || self.machine == "C128" {
-            rows.push(("Mapped at the start".into(), self.mode().into()));
+            rows.push((crate::i18n::tr("Mapped at the start").into(), self.mode().into()));
         }
         if self.subtype != 0 {
-            rows.push(("Hardware revision".into(), self.subtype.to_string()));
+            rows.push((crate::i18n::tr("Hardware revision").into(), self.subtype.to_string()));
         }
         let total: u64 = self.chips.iter().map(|c| u64::from(c.size)).sum();
         let banks: std::collections::BTreeSet<u16> = self.chips.iter().map(|c| c.bank).collect();
-        rows.push(("Chips".into(), format!("{}, in {} banks, {} bytes", self.chips.len(), banks.len(), total)));
-        let chips = self.chips.iter().map(|c| (Crt::chip_name(c), format!("{}, {} bytes, ${:04X}-${:04X}, at offset {}", chip_type(c.kind), c.size, c.address, (u32::from(c.address) + u32::from(c.size).max(1) - 1).min(0xFFFF), c.offset))).collect();
+        rows.push(("Chips".into(), crate::i18n::tf!("{}, in {} banks, {} bytes", self.chips.len(), banks.len(), total)));
+        let chips = self.chips.iter().map(|c| (Crt::chip_name(c), crate::i18n::tf!("{}, {} bytes, ${:04X}-${:04X}, at offset {}", chip_type(c.kind), c.size, c.address, (u32::from(c.address) + u32::from(c.size).max(1) - 1).min(0xFFFF), c.offset))).collect();
         vec![InfoSection { title: "Cartridge".into(), rows }, InfoSection { title: "Chips".into(), rows: chips }]
     }
 }

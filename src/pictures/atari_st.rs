@@ -225,7 +225,7 @@ pub fn decode(ending: &str, bytes: &[u8]) -> Result<Picture, String> {
         }
     }
     if let Some(cycling) = &picture.cycling {
-        picture.note("Colour cycling", format!("{} range(s) on; play it to see them cycle", cycling.ranges()));
+        picture.note("Colour cycling", crate::i18n::tf!("{} range(s) on; play it to see them cycle", cycling.ranges()));
     }
     if short {
         picture.note("Damaged", "The packed screen ends early; the rest is shown in colour 0");

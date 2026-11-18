@@ -676,7 +676,7 @@ pub struct Prepared {
 /// the floppy, when it boots from one, and the debugger's commands for a profile. `symbols`, Hatari's symbols
 /// for the program, are given to its debugger when the program starts.
 pub fn prepare(folder: &Path, program: &Path, run: &Runnable, settings: &Settings, hatari: Option<&Path>, profile: bool, symbols: Option<&str>) -> Result<Prepared, String> {
-    let failed = |e: std::io::Error| format!("The run couldn't be made ready.\n\n{e}");
+    let failed = |e: std::io::Error| crate::i18n::tf!("The run couldn't be made ready.\n\n{e}");
     let model = settings.model;
     let tos = tos_for_run(settings, model, hatari);
     if let Some(rom) = &tos
@@ -950,7 +950,7 @@ pub fn summarise(profile: &Profile, text: Option<u32>, assembly: Option<&crate::
         let Some(assembly) = assembly else { continue };
         let (name, line, first) = match labels.iter().rev().find(|(at, ..)| *at <= offset) {
             Some((at, name, line)) => (name.clone(), Some(*line), *at == offset),
-            None => ("(before the first label)".to_string(), None, false),
+            None => (crate::i18n::tr("(before the first label)").to_string(), None, false),
         };
         let routine = routines.entry(name.clone()).or_insert(Routine { name, cycles: 0, entered: 0, line });
         routine.cycles += counted.cycles;
@@ -1064,8 +1064,8 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
             }
             let real = found.iter().filter(|(_, t)| !t.emutos).count();
             found_note = Some(match (real, chosen) {
-                (0, _) => "No TOS ROMs were found.".to_string(),
-                (n, 0) => format!("{n} found, but none for these machines."),
+                (0, _) => crate::i18n::tr("No TOS ROMs were found.").to_string(),
+                (n, 0) => crate::i18n::tf!("{n} found, but none for these machines."),
                 (n, _) => format!("{n} found."),
             });
         }
@@ -1075,13 +1075,13 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
     let said = match &choices.tos {
         Some(path) => match identify_file(path) {
             Some(t) if t.suits.contains(&model) => format!("{}.", t.name),
-            Some(t) => format!("{}: not made for the {}, so Hatari may change machine or not start.", t.name, model.short_name()),
-            None if path.is_file() => "That isn't a TOS Limoniter knows; Hatari may still take it.".to_string(),
-            None => "That file isn't there.".to_string(),
+            Some(t) => crate::i18n::tf!("{}: not made for the {}, so Hatari may change machine or not start.", t.name, model.short_name()),
+            None if path.is_file() => crate::i18n::tr("That isn't a TOS Limoniter knows; Hatari may still take it.").to_string(),
+            None => crate::i18n::tr("That file isn't there.").to_string(),
         },
         None => match tos_from(&settings, model, &found_for_box(hatari, false)) {
-            Some(path) => format!("None chosen: {} is used.", identify_file(&path).map_or_else(|| path.display().to_string(), |t| t.name)),
-            None => "None chosen and none found: Hatari uses the TOS its own settings name. EmuTOS, below, is a free one.".to_string(),
+            Some(path) => crate::i18n::tf!("None chosen: {} is used.", identify_file(&path).map_or_else(|| path.display().to_string(), |t| t.name)),
+            None => crate::i18n::tr("None chosen and none found: Hatari uses the TOS its own settings name. EmuTOS, below, is a free one.").to_string(),
         },
     };
     note(ui, found_note.map_or(said.clone(), |n| format!("{n} {said}")));
@@ -1123,7 +1123,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
     {
         if let Ok(mut said) = DOWNLOAD_SAID.lock() {
             *said = match result {
-                Ok(n) => format!("Downloaded: {n} images."),
+                Ok(n) => crate::i18n::tf!("Downloaded: {n} images."),
                 Err(problem) => problem,
             };
         }
@@ -1133,10 +1133,10 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
     let have = emutos_folder().and_then(|f| emutos_in(&f, model, &settings.emutos_language));
     let said = DOWNLOAD_SAID.lock().map(|s| s.clone()).unwrap_or_default();
     let state = match have {
-        Some(image) => format!("In use when there's no TOS: {}.", image.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()),
-        None => "Not downloaded.".to_string(),
+        Some(image) => crate::i18n::tf!("In use when there's no TOS: {}.", image.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()),
+        None => crate::i18n::tr("Not downloaded.").to_string(),
     };
-    note(ui, format!("{said} EmuTOS is a free TOS (GPL) from the EmuTOS team, used when there's no TOS of Atari's. Limoniter only fetches it from SourceForge when you ask (version {EMUTOS_VERSION}, about 9 MB, kept beside the settings), with the right image for each machine. {state}").trim().to_string());
+    note(ui, crate::i18n::tf!("{said} EmuTOS is a free TOS (GPL) from the EmuTOS team, used when there's no TOS of Atari's. Limoniter only fetches it from SourceForge when you ask (version {EMUTOS_VERSION}, about 9 MB, kept beside the settings), with the right image for each machine. {state}").trim().to_string());
     ui.end_row();
     ui.label(crate::i18n::tr("Start from:"));
     ui.horizontal(|ui| {
@@ -1161,8 +1161,8 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
     }
     ui.label(crate::i18n::tr(""));
     note(ui, match settings.start {
-        Start::Folder => "The program is put in a folder that's drive C: (Hatari's GEMDOS hard drive), which it can write files to, and started straight away.".to_string(),
-        Start::Floppy => "The program is put in the AUTO folder of a 720K floppy made for the run, which the Atari boots from, as a demo on a disk does. Boot sector code, if chosen, goes on it with its checksum made $1234, so TOS runs it first.".to_string(),
+        Start::Folder => crate::i18n::tr("The program is put in a folder that's drive C: (Hatari's GEMDOS hard drive), which it can write files to, and started straight away.").to_string(),
+        Start::Floppy => crate::i18n::tr("The program is put in the AUTO folder of a 720K floppy made for the run, which the Atari boots from, as a demo on a disk does. Boot sector code, if chosen, goes on it with its checksum made $1234, so TOS runs it first.").to_string(),
     });
     ui.end_row();
     ui.label(crate::i18n::tr("Profile for:"));

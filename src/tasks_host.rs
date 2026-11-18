@@ -45,7 +45,7 @@ impl Limoniter {
 
     pub(super) fn run_task(&mut self, task: Task) {
         let Some(folder) = self.task_folder() else {
-            return self.message("Tasks", "Open a file in the project first: tasks run in its folder.".into());
+            return self.message("Tasks", crate::i18n::tr("Open a file in the project first: tasks run in its folder.").into());
         };
         // What was marked from the last build goes.
         for doc in &mut self.docs {
@@ -76,14 +76,14 @@ impl Limoniter {
     pub(super) fn run_build_task(&mut self) {
         match self.tasks_here().into_iter().find(|t| t.kind == Kind::Build) {
             Some(task) => self.run_task(task),
-            None => self.message("Build", "There's no build task here: no Cargo.toml, Makefile, package.json, go.mod or CMakeLists.txt above the file, and the project has none of its own (Tools, Tasks, Edit the project's tasks).".into()),
+            None => self.message("Build", crate::i18n::tr("There's no build task here: no Cargo.toml, Makefile, package.json, go.mod or CMakeLists.txt above the file, and the project has none of its own (Tools, Tasks, Edit the project's tasks).").into()),
         }
     }
 
     pub(super) fn run_test_task(&mut self) {
         match self.tasks_here().into_iter().find(|t| t.kind == Kind::Test) {
             Some(task) => self.run_task(task),
-            None => self.message("Tests", "There's no test task here.".into()),
+            None => self.message("Tests", crate::i18n::tr("There's no test task here.").into()),
         }
     }
 
@@ -105,7 +105,7 @@ impl Limoniter {
             if let Some(doc) = self.docs.iter_mut().find(|d| d.path.as_deref().is_some_and(|p| same_path(p, &path))) {
                 let intel = doc.text.intel.get_or_insert_with(Box::default);
                 if !intel.build_problems.iter().any(|(l, _)| *l + 1 == number) {
-                    intel.build_problems.push((number.saturating_sub(1), if words.is_empty() { "A problem here".into() } else { words }));
+                    intel.build_problems.push((number.saturating_sub(1), if words.is_empty() { crate::i18n::tr("A problem here").into() } else { words }));
                     marked += 1;
                 }
             }
@@ -239,7 +239,7 @@ impl Limoniter {
     pub(super) fn edit_project_tasks(&mut self) {
         match &self.project {
             Some(project) => self.dialog = Dialog::Tasks(project.tasks.clone()),
-            None => self.message("Tasks", "A project keeps tasks of its own: open or make one (File, Project). Without one, the tasks a folder's own files say (Cargo, Make, npm, Go, pytest, CMake) are still listed.".into()),
+            None => self.message("Tasks", crate::i18n::tr("A project keeps tasks of its own: open or make one (File, Project). Without one, the tasks a folder's own files say (Cargo, Make, npm, Go, pytest, CMake) are still listed.").into()),
         }
     }
 }

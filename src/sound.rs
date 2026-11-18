@@ -56,7 +56,7 @@ impl Info {
         if !self.codec.is_empty() && self.codec != self.format {
             rows.push(("Encoding".into(), self.codec.clone()));
         }
-        rows.push(("Sample rate".into(), format!("{} Hz", self.rate)));
+        rows.push((crate::i18n::tr("Sample rate").into(), format!("{} Hz", self.rate)));
         rows.push(("Channels".into(), match self.channels {
             1 => "1 (mono)".to_string(),
             2 => "2 (stereo)".to_string(),
@@ -172,7 +172,7 @@ pub fn read_8svx(bytes: &[u8]) -> Result<Pcm, String> {
     };
     let seconds = samples.len() as f64 / channels as f64 / f64::from(rate);
     let codec = if packed { "Fibonacci-delta packed 8-bit" } else { "8-bit signed" };
-    Ok(Pcm { rate, channels, info: Info { format: "Amiga IFF 8SVX sample".into(), codec: codec.into(), rate, channels, bits: Some(8), seconds: Some(seconds), tags }, samples })
+    Ok(Pcm { rate, channels, info: Info { format: crate::i18n::tr("Amiga IFF 8SVX sample").into(), codec: codec.into(), rate, channels, bits: Some(8), seconds: Some(seconds), tags }, samples })
 }
 
 /// A Creative Voice File: blocks of sound data, 8-bit unsigned (and, from version 1.20, 16-bit) at the rate
@@ -245,7 +245,7 @@ pub fn read_voc(bytes: &[u8]) -> Result<Pcm, String> {
         return Err(crate::i18n::tr("The VOC file has no sound in a form Limoniter plays.").into());
     }
     let seconds = samples.len() as f64 / channels as f64 / f64::from(rate);
-    Ok(Pcm { rate, channels, info: Info { format: "Creative Voice File (VOC)".into(), codec: codec.into(), rate, channels, bits: Some(bits), seconds: Some(seconds), tags }, samples })
+    Ok(Pcm { rate, channels, info: Info { format: crate::i18n::tr("Creative Voice File (VOC)").into(), codec: codec.into(), rate, channels, bits: Some(bits), seconds: Some(seconds), tags }, samples })
 }
 
 /// A Sun/NeXT .au file: a big-endian header, then samples in μ-law, A-law, linear 8, 16, 24 or 32-bit, or float.
@@ -278,7 +278,7 @@ pub fn read_au(bytes: &[u8]) -> Result<Pcm, String> {
         }
     }
     let seconds = samples.len() as f64 / channels as f64 / f64::from(rate);
-    Ok(Pcm { rate, channels, info: Info { format: "Sun/NeXT audio (.au)".into(), codec: codec.into(), rate, channels, bits: Some(bits), seconds: Some(seconds), tags }, samples })
+    Ok(Pcm { rate, channels, info: Info { format: crate::i18n::tr("Sun/NeXT audio (.au)").into(), codec: codec.into(), rate, channels, bits: Some(bits), seconds: Some(seconds), tags }, samples })
 }
 
 fn ulaw(b: u8) -> f32 {

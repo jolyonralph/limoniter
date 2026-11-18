@@ -141,7 +141,7 @@ impl Default for Painter {
             brush: 1,
             grid: 0,
             zoom: 2.0,
-            text: "HELLO NEXT".into(),
+            text: crate::i18n::tr("HELLO NEXT").into(),
             big_text: false,
             paste_over: true,
             scroll_eight: false,

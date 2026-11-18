@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Working on a folder of code · Limoniter user guide</title>
+  <meta name="description" content="Use Limoniter as an IDE: open a folder, find files and symbols, search and replace across it, use language servers, debug Python, C, C++ and Rust, and work with files side by side and terminals in tabs.">
+  <link rel="canonical" href="https://limoniter.com/guide/working-on-a-folder.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/guide/working-on-a-folder.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="Working on a folder of code · Limoniter user guide">
+  <meta property="og:description" content="Use Limoniter as an IDE: open a folder, find files and symbols, search and replace across it, use language servers, debug Python, C, C++ and Rust, and work with files side by side and terminals in tabs.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from guide/src/working-on-a-folder.md by tools/make-guide.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">In this guide</p>
+        <ol>
+<li><a href="index.html">User guide</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="working-on-a-folder.html" aria-current="page">Working on a folder of code</a></li>
+<li><a href="editing.html">Editing text and hex</a></li>
+<li><a href="character-sets.html">Character sets and old machines&#x27; text</a></li>
+<li><a href="disks-and-tapes.html">The disk and tape browser</a></li>
+<li><a href="basic.html">BASIC listings</a></li>
+<li><a href="assembling-and-running.html">Assembling and running</a></li>
+<li><a href="debugging.html">Debugging</a></li>
+<li><a href="git.html">Git</a></li>
+<li><a href="remote-files.html">Remote files</a></li>
+<li><a href="settings.html">Settings</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>Working on a folder of code</h1>
+        <div class="article-lead">
+<p>Open a folder and Limoniter works across all of it, the way VS Code does. You get an Explorer, Go to file and Go to symbol, a Search panel, language servers, a debugger, files side by side and terminals in tabs. This page shows you how to use them.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#opening-a-folder">Opening a folder</a></li>
+<li><a href="#finding-files-and-symbols">Finding files and symbols</a></li>
+<li><a href="#searching-and-replacing">Searching and replacing</a></li>
+<li><a href="#language-servers">Language servers</a></li>
+<li><a href="#debugging">Debugging</a></li>
+<li><a href="#laying-out-your-work">Laying out your work</a></li>
+<li><a href="#building-and-testing">Building and testing</a></li>
+</ul>
+</nav>
+<h2 id="opening-a-folder">Opening a folder</h2>
+<ol class="steps"><li>Choose <strong>File › Open folder…</strong> and pick the folder your code is in.</li><li>The Project panel shows it as an <strong>Explorer</strong>: folders first, the file you're editing picked out, and Git's status beside each changed file (M changed, A added, U not tracked yet). A dot marks a folder with changes inside.</li><li>Click a file to open it. Right-click for New file, Rename, Find in this folder, Open a terminal here, Copy path and the rest.</li></ol>
+<p>Drag a file or folder onto another folder to move it there. Files you have open follow it.</p>
+<p>Every file is indexed in the background, leaving out what <code>.gitignore</code> leaves out, so even a folder of thousands of files is quick to search. Nothing is written into the folder: Limoniter keeps the project's tabs, tasks and notes beside its own settings.</p>
+<div class="note"><p>If the folder has an <code>.editorconfig</code>, Limoniter follows it: its indentation, line endings, trailing spaces and final newline.</p></div>
+<h2 id="finding-files-and-symbols">Finding files and symbols</h2>
+<ul><li><kbd>Ctrl+E</kbd> (<strong>File › Go to file…</strong>) finds a file from a few letters of its name. Type <code>wsh</code> for <code>workspace_host.rs</code>; letters together and at the start of words count most.</li><li><kbd>Ctrl+T</kbd> finds a function or label anywhere in the folder. It's the same box with <code>#</code> in front.</li><li><kbd>Ctrl+Shift+O</kbd> lists the functions and labels in the file you're in, with <code>@</code> in front.</li><li><kbd>Enter</kbd> opens what's chosen; <kbd>Ctrl+Enter</kbd> opens it beside the file you're in.</li></ul>
+<h2 id="searching-and-replacing">Searching and replacing</h2>
+<figure class="guide-shot"><button class="shot" data-full="../images/ide-search.webp" aria-label="Enlarge: The Search panel"><img src="../images/ide-search-close.webp" alt="The Search panel" loading="lazy" width="1280" height="720"></button><figcaption>The Search panel shows each replacement before it's made.</figcaption></figure>
+<ol class="steps"><li>Press <kbd>Ctrl+Shift+F</kbd> to open the <strong>Search panel</strong>. Whatever's selected becomes what to find.</li><li>Type. Results come as you type, as a tree: each file with how many matches, and under it each line with the match marked. Click a line to go there.</li><li><strong>Aa</strong>, <strong>ab</strong> and <code>.*</code> turn on match case, whole words and regular expressions. <strong>…</strong> shows boxes for the files to search and to leave out, such as <code>*.rs;*.s</code>.</li><li>To replace, click <strong>▸</strong> to open the Replace box and type what goes in its place. Each match now shows struck through, with the new text after it, so you can see the change before you make it.</li><li>Click <strong>Replace all</strong>, or <strong>⇄</strong> on one file. Limoniter asks first. Files you have open change in their tabs, where Undo takes it back; the rest change on disk.</li></ol>
+<p>Click <strong>×</strong> on a file to leave it out of the results, and out of Replace all.</p>
+<h2 id="language-servers">Language servers</h2>
+<p>A language server knows a language well: it marks mistakes as you type, finishes words, says what things are, and finds where they're defined. Limoniter uses rust-analyzer, clangd, pylsp, typescript-language-server, gopls and others.</p>
+<p>When you open a file whose language has one, Limoniter offers it: <strong>Use it</strong> if it's installed, or <strong>Install it in a terminal</strong> if it isn't. It runs the install in a terminal tab and starts the server when it's done.</p>
+<p>With a server running:</p>
+<ul><li><kbd>Ctrl+Space</kbd> offers words to finish the one you're typing, and hovering over a name says what it is.</li><li><kbd>F12</kbd> goes to where it's defined, <kbd>Alt+F12</kbd> shows the definition in a small window without leaving your place, and <kbd>Shift+F12</kbd> lists every use.</li><li><kbd>Ctrl+.</kbd> offers the server's <strong>quick fixes</strong> for the line you're on.</li><li><kbd>Shift+Alt+F</kbd> formats the whole file. Tick <strong>Format files as they're saved</strong> in <strong>Settings › Editing › Language servers</strong> to do it every time you save.</li><li>As you type a call, its parameters show above the line, with the one you're typing marked. Types and parameter names show faintly at the ends of lines.</li></ul>
+<h2 id="debugging">Debugging</h2>
+<figure class="guide-shot"><button class="shot" data-full="../images/ide-debug.webp" aria-label="Enlarge: Debugging a Python program"><img src="../images/ide-debug-close.webp" alt="Debugging a Python program" loading="lazy" width="1280" height="720"></button><figcaption>A Python program paused at a breakpoint.</figcaption></figure>
+<p>Limoniter debugs <strong>Python</strong> with debugpy, and <strong>C, C++ and Rust</strong> with gdb (version 14 or later) or lldb-dap.</p>
+<ol class="steps"><li>Click beside a line's number to set a breakpoint. A red dot shows.</li><li>Press <kbd>Ctrl+F5</kbd> (<strong>Tools › Run › Debug</strong>). A Python file runs straight away. For C, C++ or Rust, say which program to run the first time: Limoniter guesses the debug build Cargo makes.</li><li>When it stops, the line is marked and the <strong>Debug panel</strong> shows the call stack and the variables. Click <strong>▸</strong> beside a variable to see inside it.</li><li><kbd>F10</kbd> steps over a line, <kbd>F11</kbd> steps into a call, <kbd>Shift+F11</kbd> steps out, <kbd>F5</kbd> carries on and <kbd>Shift+F5</kbd> stops.</li><li>Type an expression in the console box to work it out where the program has stopped.</li></ol>
+<div class="note"><p>If debugpy isn't installed, Limoniter says how to install it: <code>python3 -m pip install --user debugpy</code>.</p></div>
+<h2 id="laying-out-your-work">Laying out your work</h2>
+<figure class="guide-shot"><button class="shot" data-full="../images/ide-beside.webp" aria-label="Enlarge: Two files side by side"><img src="../images/ide-beside-close.webp" alt="Two files side by side" loading="lazy" width="1280" height="720"></button><figcaption>Two files side by side, with breadcrumbs, sticky scroll and a terminal.</figcaption></figure>
+<ul><li><kbd>Ctrl+\</kbd> shows the file you used before beside the one you're in. Click in either to bring it to the front; it stays on its side. Press <kbd>Ctrl+\</kbd> again to go back to one.</li><li><strong>Breadcrumbs</strong> above the text show the file's folders and the function you're in. Click any of them for a menu: a folder's files to open, or the file's functions to go to.</li><li><strong>Sticky scroll</strong> keeps the function you've scrolled into at the top of the text. Click it to go there.</li><li><kbd>Ctrl+<code></kbd> opens a terminal in the folder. Click <strong>+</strong> for another; each has its own tab. <kbd>Ctrl+</code></kbd> hides the panel and brings it back, and the terminals keep running.</li></ul>
+<p>Both breadcrumbs and sticky scroll can be turned off under <strong>View › Show</strong>.</p>
+<h2 id="building-and-testing">Building and testing</h2>
+<ul><li><strong>Tools › Tasks</strong> finds build, run and test commands from Cargo, a Makefile, package.json, Go and CMake. <kbd>Ctrl+Shift+B</kbd> builds and <kbd>Ctrl+Shift+T</kbd> tests.</li><li>Where the compiler says there's a problem is a click away in the Output panel, and marked beside its line.</li><li>A test task's results are listed test by test, with <strong>Run again</strong> and <strong>Run only this</strong> for one that fails.</li></ul>
+<p>For Git, see <a href="git.html">Git</a>.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="getting-started.html"><span>Back</span>Getting started</a>
+<a class="pager-next" href="editing.html"><span>Next</span>Editing text and hex</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

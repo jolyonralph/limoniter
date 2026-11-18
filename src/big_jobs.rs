@@ -41,7 +41,7 @@ impl BigJob {
         let (done, cancel, result) = (Arc::new(AtomicU64::new(0)), Arc::new(AtomicBool::new(false)), Arc::new(Mutex::new(None)));
         let (worker_done, worker_cancel, worker_result) = (done.clone(), cancel.clone(), result.clone());
         std::thread::spawn(move || {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(&worker_done, &worker_cancel))).unwrap_or_else(|_| Outcome::Failed("It failed unexpectedly.".to_string()));
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(&worker_done, &worker_cancel))).unwrap_or_else(|_| Outcome::Failed(crate::i18n::tr("It failed unexpectedly.").to_string()));
             *worker_result.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(outcome);
         });
         Self { title, doc_id, done, total, cancel, result }
@@ -90,7 +90,7 @@ pub fn count(store: LineStore, eol_chars: u64, doc_id: u64) -> BigJob {
         let mut at = 0;
         while at < store.len() {
             if cancel.load(Ordering::Relaxed) {
-                return Outcome::Failed("It was stopped.".to_string());
+                return Outcome::Failed(crate::i18n::tr("It was stopped.").to_string());
             }
             let end = (at + LINES_AT_A_TIME).min(store.len());
             let mut lines = store.range_vec(at, end);
@@ -109,7 +109,7 @@ pub fn count(store: LineStore, eol_chars: u64, doc_id: u64) -> BigJob {
             done.store(at as u64, Ordering::Relaxed);
         }
         sum.average = without_endings / sum.lines.max(1);
-        Outcome::Done(format!("Number of Words: {}\nNumber of Unwrapped Lines: {}\nNumber of characters (non-space): {}", sum.words, sum.lines, sum.non_space))
+        Outcome::Done(crate::i18n::tf!("Number of Words: {}\nNumber of Unwrapped Lines: {}\nNumber of characters (non-space): {}", sum.words, sum.lines, sum.non_space))
     })
 }
 
@@ -153,14 +153,14 @@ pub fn save_converted(store: LineStore, from: TextFormat, to: TextFormat, lossy:
             Ok(None)
         })();
         match written {
-            Ok(None) => Outcome::Done(format!("Saved a copy as {} in {}.", path.display(), to.encoding_name())),
+            Ok(None) => Outcome::Done(crate::i18n::tf!("Saved a copy as {} in {}.", path.display(), to.encoding_name())),
             Ok(Some(problems)) => {
                 let _ = std::fs::remove_file(&temp);
                 Outcome::Problems(problems, to)
             }
             Err(problem) => {
                 let _ = std::fs::remove_file(&temp);
-                Outcome::Failed(format!("Couldn't save {}.\n\n{problem}", path.display()))
+                Outcome::Failed(crate::i18n::tf!("Couldn't save {}.\n\n{problem}", path.display()))
             }
         }
     })
@@ -174,7 +174,7 @@ pub fn find_lines(store: LineStore, needle: String, doc_id: u64) -> BigJob {
         let mut at = 0;
         while at < store.len() {
             if cancel.load(Ordering::Relaxed) {
-                return Outcome::Failed("It was stopped.".to_string());
+                return Outcome::Failed(crate::i18n::tr("It was stopped.").to_string());
             }
             let end = (at + LINES_AT_A_TIME).min(store.len());
             found.extend(store.range_vec(at, end).iter().enumerate().filter(|(_, line)| line.contains(needle.as_str())).map(|(i, _)| at + i));
@@ -477,7 +477,7 @@ pub enum Side {
 pub fn compare(left_name: String, right_name: String, left: Side, right: Side, doc_id: u64) -> BigJob {
     // Progress in thousandths: half for each side, scanning it first if need be.
     BigJob::start("Compare", doc_id, 1000, move |done, cancel| {
-        let stopped = || Outcome::Failed("It was stopped.".to_string());
+        let stopped = || Outcome::Failed(crate::i18n::tr("It was stopped.").to_string());
         // A side still being read is waited for, then its lines are hashed.
         let lines_of = |side: Side, from: u64| -> Result<LineStore, Outcome> {
             match side {

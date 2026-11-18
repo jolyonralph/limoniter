@@ -98,6 +98,10 @@ impl NewKind {
             Self::new("C64 demo (6502)", "a65", "utf-8", line, "Assembly 6502", Program::None, crate::c64_starters::DEMO),
             Self::new("C64 intro with music (6502)", "a65", "utf-8", line, "Assembly 6502", Program::None, crate::c64_starters::INTRO),
             Self::new("Atari 2600 (6502)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::atari2600::STARTER),
+            Self::new("DOS program (x86, .COM)", "asm", "utf-8", line, "Assembly 80x86", Program::None, crate::pc_starters::COM),
+            Self::new("PC boot sector (x86)", "asm", "utf-8", line, "Assembly 80x86", Program::None, crate::pc_starters::BOOT),
+            Self::new("Vectrex cartridge (6809)", "asm", "utf-8", line, "Assembly 6809", Program::None, crate::vectrex::STARTER),
+            Self::new("Dragon 32 program (6809)", "asm", "utf-8", line, "Assembly 6809", Program::None, crate::vectrex::DRAGON_STARTER),
             Self::new("Markdown", "md", "utf-8", line, "Markdown", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),
@@ -217,7 +221,7 @@ impl Limoniter {
                         if ui.button(crate::i18n::tr("Add")).clicked() {
                             let at = (state.selected + 1).min(state.kinds.len());
                             let mut kind = state.kinds.get(state.selected).cloned().unwrap_or_else(|| NewKind::new("", "txt", "utf-8", Eol::CrLf, "", Program::None, ""));
-                            kind.name = "New kind".into();
+                            kind.name = crate::i18n::tr("New kind").into();
                             state.kinds.insert(at, kind);
                             state.selected = at;
                         }
@@ -269,7 +273,7 @@ impl Limoniter {
                         });
                         ui.end_row();
                         ui.label(crate::i18n::tr("Colouring"));
-                        let shown = if kind.language.is_empty() { "From the file ending".to_string() } else { kind.language.clone() };
+                        let shown = if kind.language.is_empty() { crate::i18n::tr("From the file ending").to_string() } else { kind.language.clone() };
                         egui::ComboBox::from_id_salt("new-kind-language").width(260.0).selected_text(shown).show_ui(ui, |ui| {
                             ui.selectable_value(&mut kind.language, String::new(), "From the file ending");
                             for name in &languages {

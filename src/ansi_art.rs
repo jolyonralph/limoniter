@@ -709,14 +709,14 @@ fn render_with(data: &[u8], set: &Charset, amiga: Option<AmigaPalette>) -> Scree
         add_sauce_info(&mut screen, &record);
     }
     if term.unknown > 0 {
-        screen.note(format!("{} sequence(s) aren't drawn, because this preview doesn't know them.", term.unknown));
+        screen.note(crate::i18n::tf!("{} sequence(s) aren't drawn, because this preview doesn't know them.", term.unknown));
     }
     if screen.rows.iter().flatten().any(|cell| cell.flash) {
         screen.note("Blinking text is shown steadily.");
     }
     for (used, name) in [(codes.pcboard, "PCBoard"), (codes.wildcat, "Wildcat!"), (codes.wwiv, "WWIV"), (codes.pipes, "Renegade pipe"), (codes.avatar, "Avatar")] {
         if used {
-            screen.info.push(("Colour codes".to_string(), name.to_string()));
+            screen.info.push((crate::i18n::tr("Colour codes").to_string(), name.to_string()));
         }
     }
     screen
@@ -794,7 +794,7 @@ pub fn xbin(data: &[u8], set: &Charset) -> Screen {
     // A picture wider than any screen is drawn to 1,000 columns, as ANSI art is.
     let shown = width.min(1000);
     if shown < width {
-        screen.note(format!("Only the first {shown} of its {width} columns are drawn."));
+        screen.note(crate::i18n::tf!("Only the first {shown} of its {width} columns are drawn."));
     }
     screen = Screen { notes: screen.notes, ..Screen::new(shown, 0.5, Cell::blank(palette[7], palette[0])) };
     for (index, (byte, attribute)) in cells.into_iter().enumerate().take(width * height.max(1)) {

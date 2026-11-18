@@ -54,11 +54,11 @@ impl Cas {
         let data = source.read_vec(0, source.len().min(16 * 1024 * 1024) as usize)?;
         if data.starts_with(&MSX_BLOCK) {
             let (files, notes) = msx_files(&data);
-            return Ok(Self { what: format!("MSX cassette (CAS) \u{B7} {} file(s)", files.len()), msx: true, files, notes });
+            return Ok(Self { what: crate::i18n::tf!("MSX cassette (CAS) \u{B7} {} file(s)", files.len()), msx: true, files, notes });
         }
         if looks_like_coco(&data) {
             let (files, notes) = coco_files(&data);
-            return Ok(Self { what: format!("Color Computer or Dragon cassette (CAS) \u{B7} {} file(s)", files.len()), msx: false, files, notes });
+            return Ok(Self { what: crate::i18n::tf!("Color Computer or Dragon cassette (CAS) \u{B7} {} file(s)", files.len()), msx: false, files, notes });
         }
         // A CoCo or Dragon leader with no file in the standard format after it is a tape with its own loader, not
         // a TRS-80's, whose leader is followed by its sync byte.
@@ -70,7 +70,7 @@ impl Cas {
         if files.is_empty() {
             return Err(crate::i18n::tr("No TRS-80 or MSX files were found on this tape.").into());
         }
-        Ok(Self { what: format!("TRS-80 cassette (CAS, {speeds}) \u{B7} {} file(s)", files.len()), msx: false, files, notes })
+        Ok(Self { what: crate::i18n::tf!("TRS-80 cassette (CAS, {speeds}) \u{B7} {} file(s)", files.len()), msx: false, files, notes })
     }
 }
 
@@ -98,7 +98,7 @@ impl Volume for Cas {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        self.files.get(entry.location as usize).map(|file| file.data.clone()).ok_or_else(|| "That file isn't on the tape.".into())
+        self.files.get(entry.location as usize).map(|file| file.data.clone()).ok_or_else(|| crate::i18n::tr("That file isn't on the tape.").into())
     }
 
     fn notes(&self) -> Vec<String> {
@@ -134,7 +134,7 @@ fn msx_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
     let blocks = msx_blocks(data);
     let (mut files, mut notes) = (Vec::new(), Vec::new());
     let mut index = 0;
-    let headerless = |index: usize, block: &[u8]| TapeFile { name: format!("Block {}", index + 1), open_name: format!("Block {}.bin", index + 1), kind: "Block with no header".into(), detail: format!("{} bytes", block.len()), data: block.to_vec() };
+    let headerless = |index: usize, block: &[u8]| TapeFile { name: format!("Block {}", index + 1), open_name: format!("Block {}.bin", index + 1), kind: crate::i18n::tr("Block with no header").into(), detail: format!("{} bytes", block.len()), data: block.to_vec() };
     while index < blocks.len() {
         let block = blocks[index];
         let kind = block.first().copied().filter(|&k| block.len() >= 16 && matches!(k, 0xD3 | 0xEA | 0xD0) && block[..10].iter().all(|&b| b == k));
@@ -146,7 +146,7 @@ fn msx_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
         let name: String = block[10..16].iter().map(|&b| if b.is_ascii_graphic() || b == b' ' { char::from(b) } else { '_' }).collect::<String>().trim_end().to_string();
         let name = tidy_name(&name);
         let Some(&body) = blocks.get(index + 1) else {
-            notes.push(format!("The tape ends after {name}'s header, before its contents."));
+            notes.push(crate::i18n::tf!("The tape ends after {name}'s header, before its contents."));
             break;
         };
         index += 2;
@@ -154,27 +154,27 @@ fn msx_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
             0xD3 => {
                 let end = msx_program_end(body);
                 if end.is_none() {
-                    notes.push(format!("{name}'s lines don't link up to an end, so all its block is kept."));
+                    notes.push(crate::i18n::tf!("{name}'s lines don't link up to an end, so all its block is kept."));
                 }
                 let mut program = vec![0xFF];
                 program.extend_from_slice(&body[..end.unwrap_or(body.len())]);
-                files.push(TapeFile { open_name: format!("{name}.bas"), kind: "BASIC program (CSAVE)".into(), detail: String::new(), data: program, name });
+                files.push(TapeFile { open_name: format!("{name}.bas"), kind: crate::i18n::tr("BASIC program (CSAVE)").into(), detail: String::new(), data: program, name });
             }
             0xD0 => {
                 if body.len() < 6 {
-                    notes.push(format!("{name}'s block is too short to say where it loads."));
+                    notes.push(crate::i18n::tf!("{name}'s block is too short to say where it loads."));
                     continue;
                 }
                 let word = |at: usize| u16::from_le_bytes([body[at], body[at + 1]]);
                 let (start, end, run) = (word(0), word(2), word(4));
                 let length = usize::from(end.wrapping_sub(start)) + 1;
                 if 6 + length > body.len() || end < start {
-                    notes.push(format!("{name} should run from &H{start:04X} to &H{end:04X}, but its block is shorter, so it's cut short."));
+                    notes.push(crate::i18n::tf!("{name} should run from &H{start:04X} to &H{end:04X}, but its block is shorter, so it's cut short."));
                 }
                 // Given as BSAVE puts a binary on disk: &FE, then the three addresses and the bytes.
                 let mut file = vec![0xFE];
                 file.extend_from_slice(&body[..(6 + length).min(body.len())]);
-                files.push(TapeFile { open_name: format!("{name}.bin"), kind: "Binary (BSAVE)".into(), detail: format!("&H{start:04X} to &H{end:04X}, runs at &H{run:04X}"), data: file, name });
+                files.push(TapeFile { open_name: format!("{name}.bin"), kind: crate::i18n::tr("Binary (BSAVE)").into(), detail: crate::i18n::tf!("&H{start:04X} to &H{end:04X}, runs at &H{run:04X}"), data: file, name });
             }
             _ => {
                 // ASCII: blocks of 256 bytes up to the one with the end-of-file mark.
@@ -193,12 +193,12 @@ fn msx_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
                             index += 1;
                         }
                         _ => {
-                            notes.push(format!("{name} has no end-of-file mark, so it may be cut short."));
+                            notes.push(crate::i18n::tf!("{name} has no end-of-file mark, so it may be cut short."));
                             break;
                         }
                     }
                 }
-                files.push(TapeFile { open_name: format!("{name}.bas"), kind: "ASCII file".into(), detail: String::new(), data: text, name });
+                files.push(TapeFile { open_name: format!("{name}.bas"), kind: crate::i18n::tr("ASCII file").into(), detail: String::new(), data: text, name });
             }
         }
     }
@@ -272,19 +272,19 @@ fn trs80_system(file: &[u8]) -> (Vec<u8>, usize, Option<u16>, Vec<String>) {
         match mark {
             0x3C => {
                 let (Some(&length), Some(&low), Some(&high)) = (file.get(at + 1), file.get(at + 2), file.get(at + 3)) else {
-                    notes.push("The tape ends partway through a block of the SYSTEM file.".into());
+                    notes.push(crate::i18n::tr("The tape ends partway through a block of the SYSTEM file.").into());
                     at = file.len();
                     break;
                 };
                 let length = if length == 0 { 256 } else { usize::from(length) };
                 let Some(bytes) = file.get(at + 4..at + 4 + length) else {
-                    notes.push("The tape ends partway through a block of the SYSTEM file.".into());
+                    notes.push(crate::i18n::tr("The tape ends partway through a block of the SYSTEM file.").into());
                     at = file.len();
                     break;
                 };
                 let sum = bytes.iter().fold(low.wrapping_add(high), |sum, b| sum.wrapping_add(*b));
                 if file.get(at + 4 + length) != Some(&sum) {
-                    notes.push(format!("The block loading at &H{:04X} doesn't match its checksum.", u16::from_le_bytes([low, high])));
+                    notes.push(crate::i18n::tf!("The block loading at &H{:04X} doesn't match its checksum.", u16::from_le_bytes([low, high])));
                 }
                 // A /CMD load record: its length counts the address, and 256 + 2 is written as 2.
                 cmd.extend([0x01, (length + 2) as u8, low, high]);
@@ -299,13 +299,13 @@ fn trs80_system(file: &[u8]) -> (Vec<u8>, usize, Option<u16>, Vec<String>) {
                 break;
             }
             _ => {
-                notes.push(format!("The SYSTEM file breaks off at byte {at} with &{mark:02X}, where a block should start."));
+                notes.push(crate::i18n::tf!("The SYSTEM file breaks off at byte {at} with &{mark:02X}, where a block should start."));
                 break;
             }
         }
     }
     if entry.is_none() && notes.is_empty() {
-        notes.push("The SYSTEM file has no address to run from: the tape ends before it.".into());
+        notes.push(crate::i18n::tr("The SYSTEM file has no address to run from: the tape ends before it.").into());
     }
     (cmd, at, entry, notes)
 }
@@ -327,7 +327,7 @@ fn trs80_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>, String) {
             let name = if letter.is_ascii_graphic() { letter.to_string() } else { format!("Program {number}") };
             let length = trs80_basic_length(&file);
             if length.is_none() {
-                notes.push(format!("The BASIC program {name} breaks off before its end."));
+                notes.push(crate::i18n::tf!("The BASIC program {name} breaks off before its end."));
             }
             let length = length.unwrap_or(file.len());
             let mut program = vec![0xFF];
@@ -340,7 +340,7 @@ fn trs80_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>, String) {
             let (cmd, length, run, problems) = trs80_system(&file);
             notes.extend(problems.into_iter().map(|p| format!("{name}: {p}")));
             let detail = run.map_or_else(|| label.to_string(), |run| format!("runs at &H{run:04X}, {label}"));
-            files.push(TapeFile { open_name: format!("{name}.cmd"), kind: "SYSTEM (machine code)".into(), detail, data: cmd, name });
+            files.push(TapeFile { open_name: format!("{name}.cmd"), kind: crate::i18n::tr("SYSTEM (machine code)").into(), detail, data: cmd, name });
             length
         } else {
             // Anything else runs to the next file's leader, or the end of the tape.
@@ -502,8 +502,8 @@ fn coco_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
             }
         }
         let Some(name_block) = name_block else {
-            notes.push(format!("{} bytes of data on the tape have no name block before them.", bytes.len()));
-            files.push(TapeFile { name: format!("Block {number}"), open_name: format!("Block {number}.bin"), kind: "Data with no name".into(), detail: format!("{} bytes", bytes.len()), data: bytes });
+            notes.push(crate::i18n::tf!("{} bytes of data on the tape have no name block before them.", bytes.len()));
+            files.push(TapeFile { name: format!("Block {number}"), open_name: format!("Block {number}.bin"), kind: crate::i18n::tr("Data with no name").into(), detail: format!("{} bytes", bytes.len()), data: bytes });
             continue;
         };
         let head = &name_block.bytes;
@@ -512,16 +512,16 @@ fn coco_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
         let (kind, ascii) = (head[8], head[9] == 0xFF);
         let (run, load) = (u16::from_be_bytes([head[11], head[12]]), u16::from_be_bytes([head[13], head[14]]));
         if !name_block.good {
-            notes.push(format!("{name}'s name block fails its checksum, so what it says of the file may be wrong."));
+            notes.push(crate::i18n::tf!("{name}'s name block fails its checksum, so what it says of the file may be wrong."));
         }
         if bad > 0 {
-            notes.push(format!("{bad} of {name}'s blocks fail their checksums, so some of its bytes are wrong."));
+            notes.push(crate::i18n::tf!("{bad} of {name}'s blocks fail their checksums, so some of its bytes are wrong."));
         }
         if !ended {
-            notes.push(format!("{name} has no end block, so it may be cut short."));
+            notes.push(crate::i18n::tf!("{name} has no end block, so it may be cut short."));
         }
         let file = match (kind, ascii) {
-            (0, true) => TapeFile { open_name: format!("{name}.bas"), kind: "BASIC program (ASCII)".into(), detail: String::new(), data: bytes, name },
+            (0, true) => TapeFile { open_name: format!("{name}.bas"), kind: crate::i18n::tr("BASIC program (ASCII)").into(), detail: String::new(), data: bytes, name },
             (0, false) => {
                 // Where the program was in memory, from its first line's link: it ends where the second line starts.
                 let first_end = bytes.get(4..).and_then(|rest| rest.iter().position(|&b| b == 0)).map(|end| end + 5);
@@ -529,8 +529,8 @@ fn coco_files(data: &[u8]) -> (Vec<TapeFile>, Vec<String>) {
                 basic.push((files.len(), start, dragon_evidence(&bytes)));
                 TapeFile { open_name: format!("{name}.bas"), kind: String::new(), detail: String::new(), data: bytes, name }
             }
-            (2, _) => TapeFile { open_name: format!("{name}.bin"), kind: "Machine code".into(), detail: format!("loads at &{load:04X}, runs at &{run:04X}"), data: bytes, name },
-            (1, true) => TapeFile { open_name: format!("{name}.txt"), kind: "Data (ASCII)".into(), detail: String::new(), data: bytes, name },
+            (2, _) => TapeFile { open_name: format!("{name}.bin"), kind: crate::i18n::tr("Machine code").into(), detail: crate::i18n::tf!("loads at &{load:04X}, runs at &{run:04X}"), data: bytes, name },
+            (1, true) => TapeFile { open_name: format!("{name}.txt"), kind: crate::i18n::tr("Data (ASCII)").into(), detail: String::new(), data: bytes, name },
             _ => TapeFile { open_name: format!("{name}.dat"), kind: "Data".into(), detail: String::new(), data: bytes, name },
         };
         files.push(file);

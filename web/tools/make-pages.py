@@ -1,5 +1,10 @@
 """Makes the site's pages from the Markdown kept with the source, so they're pages of the site in its own style:
-web/compare.html from COMPARISON.md, web/features.html from FEATURES.md, and web/formats.html from FORMATS.md.
+web/compare.html from COMPARISON.md, web/features.html from FEATURES.md, web/formats.html from FORMATS.md, and
+web/whats-new.html from WHATS-NEW.md.
+
+What's new shows the latest five releases in full, and each older one by its first paragraph, which is written to
+stand alone, with a link to its full notes on GitHub. It stops with an error if the version in Cargo.toml has no
+section there, so a release can't be published without one.
 
     python web/tools/make-pages.py
 
@@ -11,7 +16,11 @@ import re
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[2]
-PAGES = [("COMPARISON.md", "compare-template.html", "compare.html"), ("FEATURES.md", "features-template.html", "features.html"), ("FORMATS.md", "formats-template.html", "formats.html")]
+PAGES = [("COMPARISON.md", "compare-template.html", "compare.html"), ("FEATURES.md", "features-template.html", "features.html"), ("FORMATS.md", "formats-template.html", "formats.html"), ("WHATS-NEW.md", "whats-new-template.html", "whats-new.html")]
+
+# How many releases What's new describes in full.
+IN_FULL = 5
+RELEASES = "https://github.com/jolyonralph/limoniter/releases/tag/v"
 
 MARKS = {"✓": "yes", "◐": "part", "✗": "no", "?": "unknown"}
 
@@ -117,9 +126,33 @@ def convert(markdown):
     return title, "\n".join(lead), "\n".join(out), toc
 
 
+def whats_new(markdown):
+    """The newest releases in full, with their groups' bold lines as headings; older ones condensed."""
+    head, *releases = re.split(r"^(?=## )", markdown, flags=re.M)
+    version = re.search(r'^version = "([^"]+)"', (APP / "Cargo.toml").read_text(encoding="utf-8"), re.M).group(1)
+    if not any(r.startswith(f"## {version}\n") for r in releases):
+        raise SystemExit(f"WHATS-NEW.md has no section for {version}, the version in Cargo.toml: add its release notes there.")
+    out = [head]
+    for n, release in enumerate(releases):
+        name = release.splitlines()[0][3:].strip()
+        paragraphs = release.split("\n\n")
+        if n < IN_FULL:
+            out.append(re.sub(r"^\*\*([^*]+)\*\*(.*)$", r"### \1\2", release, flags=re.M))
+        else:
+            # The heading, the date and the summary.
+            out.append("\n\n".join(paragraphs[:3]) + f"\n\n[All that was new in {name}]({RELEASES}{name})\n\n")
+    return "".join(out)
+
+
 def main():
     for source, template, page in PAGES:
-        title, lead, body, toc = convert((APP / source).read_text(encoding="utf-8"))
+        markdown = (APP / source).read_text(encoding="utf-8")
+        if source == "WHATS-NEW.md":
+            markdown = whats_new(markdown)
+        title, lead, body, toc = convert(markdown)
+        body = body.replace("<p>Released ", '<p class="released">Released ')
+        # A release's place is named v0-12-0, as an id may not start with a figure for every browser's scripts.
+        body, toc = (re.sub(r'(id="|href="#)(\d)', r"\1v\2", t) for t in (body, toc))
         text = (APP / "web" / "tools" / template).read_text(encoding="utf-8")
         text = text.replace("{{title}}", html.escape(title)).replace("{{lead}}", lead).replace("{{body}}", body).replace("{{toc}}", toc)
         (APP / "web" / page).write_text(text, encoding="utf-8", newline="\n")

@@ -4,6 +4,8 @@
 //! must have them all.
 
 use super::super::*;
+
+mod through;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -210,6 +212,7 @@ pub fn catalogue() -> BTreeSet<String> {
     let mut files = Vec::new();
     rust_files(&root.join("src"), &mut files);
     let mut out = BTreeSet::new();
+    let mut texts: Vec<(String, String)> = Vec::new();
     for path in &files {
         // With forward slashes on Windows too.
         let name = path.to_string_lossy().replace('\\', "/");
@@ -221,6 +224,7 @@ pub fn catalogue() -> BTreeSet<String> {
         let text = std::fs::read_to_string(path).unwrap().replace("\r\n", "\n");
         // Up to the tests at the end of a file.
         let text = text.split("\n#[cfg(test)]\nmod tests {").next().unwrap_or(&text);
+        texts.push((name.clone(), text.to_string()));
         after(text, "i18n::tr(\"", &mut out);
         after(text, "i18n::tf!(\"", &mut out);
         // The words given to tf! as values, which it translates too.
@@ -359,6 +363,7 @@ pub fn catalogue() -> BTreeSet<String> {
             }
         }
     }
+    through::through_variables(&texts, &mut out);
     // The starters File, New opens.
     for entry in std::fs::read_dir(root.join("src/starters")).unwrap().flatten() {
         if let Ok(text) = std::fs::read_to_string(entry.path()) {

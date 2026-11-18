@@ -92,7 +92,7 @@ pub fn json_error_text(error: &serde_json::Error) -> String {
     } else {
         "unknown error"
     };
-    format!("JSON error ({}, {}): {reason}", error.line(), error.column())
+    crate::i18n::tf!("JSON error ({}, {}): {reason}", error.line(), error.column())
 }
 
 pub fn sha256_text(text: &str) -> String {
@@ -125,7 +125,7 @@ pub fn convert_number(text: &str) -> Option<String> {
     } else {
         lower.parse::<u128>().ok()?
     };
-    Some(format!("Decimal: {value}\nHex: 0x{value:X}\nOctal: 0o{value:o}\nBinary: 0b{value:b}"))
+    Some(crate::i18n::tf!("Decimal: {value}\nHex: 0x{value:X}\nOctal: 0o{value:o}\nBinary: 0b{value:b}"))
 }
 
 #[cfg(test)]

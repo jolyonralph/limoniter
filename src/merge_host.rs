@@ -295,7 +295,7 @@ impl Limoniter {
         let Some(chunks) = merge3::parse_markers(&lines) else {
             return;
         };
-        let names = ["Original (from the markers)".to_string(), "Mine".to_string(), "Theirs".to_string()];
+        let names = [crate::i18n::tr("Original (from the markers)").to_string(), "Mine".to_string(), "Theirs".to_string()];
         let git = doc.path.as_deref().and_then(|path| Some((crate::git::repository_of(path)?, path)))
             .and_then(|(root, path)| crate::git::relative(&root, path).map(|relative| (root, relative)));
         let mut tab = MergeTab::new(names, chunks);
@@ -319,7 +319,7 @@ impl Limoniter {
                 if merge3::count_marked(&self.docs[index].text.all_lines()) > 0 {
                     self.resolve_marked(index);
                 } else {
-                    self.message("Resolve in merge", "Save this file first: the merge starts again from Git's copies of each side.".into());
+                    self.message("Resolve in merge", crate::i18n::tr("Save this file first: the merge starts again from Git's copies of each side.").into());
                 }
                 return;
             }
@@ -329,7 +329,7 @@ impl Limoniter {
         if merge3::count_marked(&self.docs[index].text.all_lines()) > 0 {
             self.resolve_marked(index);
         } else {
-            self.message("Resolve in merge", "There are no conflict markers in this file.".into());
+            self.message("Resolve in merge", crate::i18n::tr("There are no conflict markers in this file.").into());
         }
     }
 
@@ -406,7 +406,7 @@ impl Limoniter {
     pub(super) fn save_merge(&mut self, index: usize) -> bool {
         let left = self.unresolved(index);
         if left > 0 {
-            let question = format!("{} still has {left} conflict(s) not settled, with their markers in it. Save it anyway?", self.docs[index].name());
+            let question = crate::i18n::tf!("{} still has {left} conflict(s) not settled, with their markers in it. Save it anyway?", self.docs[index].name());
             if !ask("Save the merge", &question) {
                 return false;
             }
@@ -429,7 +429,7 @@ impl Limoniter {
         }
         if clean
             && let Some((root, relative)) = git
-            && ask("Merge", &format!("{relative} is saved with every conflict settled. Mark it as resolved in Git (git add)?"))
+            && ask("Merge", &crate::i18n::tf!("{relative} is saved with every conflict settled. Mark it as resolved in Git (git add)?"))
         {
             if let Err(problem) = crate::git::stage(&root, &[relative]) {
                 self.message("Merge", super::git_host::explain(&problem));
@@ -516,8 +516,8 @@ impl Limoniter {
             ui.horizontal_wrapped(|ui| {
                 let left = found.len();
                 let said = match (left, at_first) {
-                    (0, 0) => "No conflicts: everything merged by itself.".to_string(),
-                    (0, _) => "Every conflict is settled.".to_string(),
+                    (0, 0) => crate::i18n::tr("No conflicts: everything merged by itself.").to_string(),
+                    (0, _) => crate::i18n::tr("Every conflict is settled.").to_string(),
                     (1, _) => "1 conflict left".to_string(),
                     (n, _) => format!("{n} conflicts left"),
                 };
@@ -558,7 +558,7 @@ impl Limoniter {
         });
         ui.painter().rect_filled(label, 0.0, theme::ribbon());
         let path = self.docs[index].path.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-        ui.painter().text(pos2(label.min.x + 10.0, label.center().y), Align2::LEFT_CENTER, format!("Result, to edit: {path}"), FontId::proportional(12.5), theme::text_dim());
+        ui.painter().text(pos2(label.min.x + 10.0, label.center().y), Align2::LEFT_CENTER, crate::i18n::tf!("Result, to edit: {path}"), FontId::proportional(12.5), theme::text_dim());
         let doc = &mut self.docs[index];
         doc.update_syntax();
         let command = ui.scope_builder(egui::UiBuilder::new().max_rect(bottom), |ui| views::text_pane(ui, &mut doc.text, &mut doc.text_state, &mut self.clip, view, input_on, Pane::default())).inner;
@@ -587,12 +587,12 @@ impl Limoniter {
             Err(problem) => return self.message("Git", crate::i18n::tf!("Couldn't tell where Limoniter is: {problem}")),
         };
         let Some(backup) = settings::data_folder().map(|folder| folder.join(git_setup::BACKUP_FILE)) else {
-            return self.message("Git", "There's no settings folder to keep Git's settings in as they were.".into());
+            return self.message("Git", crate::i18n::tr("There's no settings folder to keep Git's settings in as they were.").into());
         };
         match git_setup::others(&global) {
             Ok(others) if !others.is_empty() => {
                 let listed: Vec<String> = others.iter().map(|(key, value)| format!("{key} = {value}")).collect();
-                let question = format!("Git is set to use another tool:\n\n{}\n\nUse Limoniter instead? What's set now is kept, and Stop using Limoniter for Git puts it back.", listed.join("\n"));
+                let question = crate::i18n::tf!("Git is set to use another tool:\n\n{}\n\nUse Limoniter instead? What's set now is kept, and Stop using Limoniter for Git puts it back.", listed.join("\n"));
                 if !ask("Use Limoniter for Git", &question) {
                     return;
                 }
@@ -601,7 +601,7 @@ impl Limoniter {
             Err(problem) => return self.message("Git", problem),
         }
         match git_setup::turn_on(&global, &program, &backup) {
-            Ok(()) => self.message("Git", "Git now uses Limoniter for git difftool and git mergetool, for every repository on this computer.".into()),
+            Ok(()) => self.message("Git", crate::i18n::tr("Git now uses Limoniter for git difftool and git mergetool, for every repository on this computer.").into()),
             Err(problem) => self.message("Git", problem),
         }
     }
@@ -613,10 +613,10 @@ impl Limoniter {
         };
         let global = git_setup::Global::default();
         if !backup.exists() && !git_setup::is_on(&global) {
-            return self.message("Git", "Git isn't set to use Limoniter, so there's nothing to put back.".into());
+            return self.message("Git", crate::i18n::tr("Git isn't set to use Limoniter, so there's nothing to put back.").into());
         }
         match git_setup::turn_off(&global, &backup) {
-            Ok(()) => self.message("Git", "Git's diff and merge tool settings are back as they were before.".into()),
+            Ok(()) => self.message("Git", crate::i18n::tr("Git's diff and merge tool settings are back as they were before.").into()),
             Err(problem) => self.message("Git", problem),
         }
     }

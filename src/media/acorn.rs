@@ -110,7 +110,7 @@ fn addresses(load: u32, exec: u32, typed: bool) -> (Option<u32>, String) {
         let stamp = (u64::from(load & 0xFF) << 32) | u64::from(exec);
         return (Some((load >> 8) & 0xFFF), riscos_date(stamp));
     }
-    (None, format!("Load {} \u{B7} Exec {}", hex32(load), hex32(exec)))
+    (None, crate::i18n::tf!("Load {} \u{B7} Exec {}", hex32(load), hex32(exec)))
 }
 
 // ---------- DFS ----------
@@ -212,13 +212,13 @@ impl Dfs {
                 Ok(catalogue) => dfs.sides.push((side, catalogue)),
                 Err(problem) => {
                     let blank = dfs.sector(side, 0).and_then(|s0| Ok([s0, dfs.sector(side, 1)?].concat())).is_ok_and(|both| both.iter().all(|b| *b == both[0]));
-                    dfs.notes.push(if blank { format!("Side {} is blank.", side + 1) } else { format!("Side {} has no DFS catalogue that can be read.", side + 1) });
+                    dfs.notes.push(if blank { crate::i18n::tf!("Side {} is blank.", side + 1) } else { crate::i18n::tf!("Side {} has no DFS catalogue that can be read.", side + 1) });
                     first_problem.get_or_insert(problem);
                 }
             }
         }
         if dfs.sides.is_empty() {
-            return Err(first_problem.unwrap_or_else(|| "This disk has no DFS catalogue.".into()));
+            return Err(first_problem.unwrap_or_else(|| crate::i18n::tr("This disk has no DFS catalogue.").into()));
         }
         Ok(dfs)
     }
@@ -234,7 +234,7 @@ impl Dfs {
     }
 
     fn side(&self, side: u8) -> Result<&DfsSide, String> {
-        self.sides.iter().find(|(s, _)| *s == side).map(|(_, c)| c).ok_or_else(|| "That side has no catalogue.".to_string())
+        self.sides.iter().find(|(s, _)| *s == side).map(|(_, c)| c).ok_or_else(|| crate::i18n::tr("That side has no catalogue.").to_string())
     }
 
     fn file_bytes(&self, side: u8, file: &DfsFile) -> Result<Vec<u8>, String> {
@@ -262,7 +262,7 @@ impl Dfs {
                 let mut entry = Entry::file(tidy_name(&file.name), u64::from(file.length), index as u64);
                 entry.extra = u64::from(side);
                 entry.kind = "File".into();
-                entry.detail = format!("Load {:06X} \u{B7} Exec {:06X}{}", file.load & 0xFF_FFFF, file.exec & 0xFF_FFFF, if file.locked { " \u{B7} locked" } else { "" });
+                entry.detail = crate::i18n::tf!("Load {:06X} \u{B7} Exec {:06X}{}", file.load & 0xFF_FFFF, file.exec & 0xFF_FFFF, if file.locked { " \u{B7} locked" } else { "" });
                 if u64::from(file.length) <= MOST_SNIFFED
                     && let Ok(bytes) = self.file_bytes(side, file)
                     && let Some((kind, ending)) = sniff(&bytes)
@@ -282,7 +282,7 @@ impl Volume for Dfs {
         let kind = if first.watford { "Watford DFS" } else { "Acorn DFS" };
         let shape = if self.double { "double-sided (DSD)" } else { "single-sided (SSD)" };
         let title = if first.title.is_empty() { "no title".to_string() } else { first.title.clone() };
-        format!("{kind} disk, {shape}, {} tracks \u{B7} {title} \u{B7} boot {}", first.sectors / 10, BOOT_OPTIONS[usize::from(first.boot)])
+        crate::i18n::tf!("{kind} disk, {shape}, {} tracks \u{B7} {title} \u{B7} boot {}", first.sectors / 10, BOOT_OPTIONS[usize::from(first.boot)])
     }
 
     /// A single-sided disk's files are at the top; a double-sided one's two sides are folders, as drives 0 and 2.
@@ -512,8 +512,8 @@ impl Adfs {
             let size = record.disc_size;
             let what = match (size, record.log2secsize) {
                 (819_200, 10) => "ADFS E (800K)".to_string(),
-                (1_638_400, 10) => "ADFS F (1.6MB)".to_string(),
-                _ => format!("ADFS new map, {} sectors of {} bytes", size >> record.log2secsize, 1u32 << record.log2secsize),
+                (1_638_400, 10) => crate::i18n::tr("ADFS F (1.6MB)").to_string(),
+                _ => crate::i18n::tf!("ADFS new map, {} sectors of {} bytes", size >> record.log2secsize, 1u32 << record.log2secsize),
             };
             if size > len.max(1) * 2 {
                 return Err(crate::i18n::tf!("This disc's record says it holds {size} bytes, and the image is {len}."));
@@ -801,12 +801,12 @@ impl Uef {
             if !continues {
                 files.push(TapeFile { name: block.name.clone(), load: block.load, exec: block.exec, data: Vec::new(), blocks: block.number, locked: false, problem: None });
                 if block.number != 0 {
-                    files.last_mut().unwrap().problem = Some(format!("The tape starts this file at block {}: the blocks before it are missing.", block.number));
+                    files.last_mut().unwrap().problem = Some(crate::i18n::tf!("The tape starts this file at block {}: the blocks before it are missing.", block.number));
                 }
             }
             let file = files.last_mut().unwrap();
             if !block.data_ok && file.problem.is_none() {
-                file.problem = Some(format!("Block {}'s data doesn't match its CRC, so it was read wrongly from the tape.", block.number));
+                file.problem = Some(crate::i18n::tf!("Block {}'s data doesn't match its CRC, so it was read wrongly from the tape.", block.number));
             }
             file.data.extend(block.data);
             file.blocks = block.number + 1;
@@ -814,11 +814,11 @@ impl Uef {
             open = block.flag & 0x80 == 0;
         }
         if open && let Some(file) = files.last_mut() {
-            file.problem.get_or_insert_with(|| "The tape ends before this file's last block.".into());
+            file.problem.get_or_insert_with(|| crate::i18n::tr("The tape ends before this file's last block.").into());
         }
         let mut notes = Vec::new();
         if unread > 0 {
-            notes.push(format!("{unread} part(s) of the tape are recorded as bits or in an unusual format, and aren't read here."));
+            notes.push(crate::i18n::tf!("{unread} part(s) of the tape are recorded as bits or in an unusual format, and aren't read here."));
         }
         Ok(Self { files, version, notes })
     }
@@ -826,7 +826,7 @@ impl Uef {
 
 impl Volume for Uef {
     fn describe(&self) -> String {
-        format!("Acorn tape (UEF {}) \u{B7} {} file(s)", self.version, self.files.len())
+        crate::i18n::tf!("Acorn tape (UEF {}) \u{B7} {} file(s)", self.version, self.files.len())
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -838,10 +838,10 @@ impl Volume for Uef {
             .iter()
             .enumerate()
             .map(|(index, file)| {
-                let name = if file.name.is_empty() { "(no name)".to_string() } else { tidy_name(&file.name) };
+                let name = if file.name.is_empty() { crate::i18n::tr("(no name)").to_string() } else { tidy_name(&file.name) };
                 let mut entry = Entry::file(name, file.data.len() as u64, index as u64);
                 entry.kind = "File".into();
-                entry.detail = format!("Load {} \u{B7} Exec {} \u{B7} {} block(s){}", hex32(file.load), hex32(file.exec), file.blocks, if file.locked { " \u{B7} locked" } else { "" });
+                entry.detail = crate::i18n::tf!("Load {} \u{B7} Exec {} \u{B7} {} block(s){}", hex32(file.load), hex32(file.exec), file.blocks, if file.locked { " \u{B7} locked" } else { "" });
                 if let Some(problem) = &file.problem {
                     entry.kind = "Damaged".into();
                     entry.detail = format!("{} \u{B7} {problem}", entry.detail);

@@ -133,18 +133,18 @@ fn warning(machine: Machine, a: &Area, from: u32, to: u32) -> Option<String> {
     let spectrum = matches!(machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::SpectrumPlus3 | Machine::Pentagon | Machine::OpticOs);
     Some(match (a.kind, machine) {
         (Kind::Free | Kind::Cartridge, _) => return None,
-        (Kind::Rom, Machine::C64) => format!("{at} is under {}: it loads into the RAM beneath, but only runs there with the ROM switched out ($01).", a.name),
-        (Kind::Rom, _) => format!("{at} is in {}, where nothing can be written: it won't be there.", a.name),
-        (Kind::Io, Machine::C64) => format!("{at} is under {}: it can't be loaded or run there as it is.", a.name),
-        (Kind::Io, _) => format!("{at} is in {}, where there's no memory for it.", a.name),
-        (Kind::Screen, _) => format!("{at} is over {}: it shows there, and anything printed overwrites it.", a.name),
+        (Kind::Rom, Machine::C64) => crate::i18n::tf!("{at} is under {}: it loads into the RAM beneath, but only runs there with the ROM switched out ($01).", a.name),
+        (Kind::Rom, _) => crate::i18n::tf!("{at} is in {}, where nothing can be written: it won't be there.", a.name),
+        (Kind::Io, Machine::C64) => crate::i18n::tf!("{at} is under {}: it can't be loaded or run there as it is.", a.name),
+        (Kind::Io, _) => crate::i18n::tf!("{at} is in {}, where there's no memory for it.", a.name),
+        (Kind::Screen, _) => crate::i18n::tf!("{at} is over {}: it shows there, and anything printed overwrites it.", a.name),
         (Kind::System, Machine::Atari2600) if a.name == "the vectors" => return None,
-        (Kind::System, _) if spectrum && a.name == "the UDGs" => format!("{at} is over the UDGs: fine unless the program uses them."),
-        (Kind::System, _) => format!("{at} is over {}, which the system uses.", a.name),
-        (Kind::Slow, _) if spectrum => format!("{at} is in contended memory, shared with the screen: code there runs slower while the screen's drawn."),
-        (Kind::Slow, Machine::Bbc) => format!("{at} is screen memory in MODEs 0 to 6: only MODE 7 leaves it free."),
+        (Kind::System, _) if spectrum && a.name == "the UDGs" => crate::i18n::tf!("{at} is over the UDGs: fine unless the program uses them."),
+        (Kind::System, _) => crate::i18n::tf!("{at} is over {}, which the system uses.", a.name),
+        (Kind::Slow, _) if spectrum => crate::i18n::tf!("{at} is in contended memory, shared with the screen: code there runs slower while the screen's drawn."),
+        (Kind::Slow, Machine::Bbc) => crate::i18n::tf!("{at} is screen memory in MODEs 0 to 6: only MODE 7 leaves it free."),
         (Kind::Slow, _) => format!("{at} is over {}.", a.name),
-        (Kind::Paged, _) => format!("{at} is in the 128's paged top 16K: bank 0 is there when the program starts, and paging another in hides it."),
+        (Kind::Paged, _) => crate::i18n::tf!("{at} is in the 128's paged top 16K: bank 0 is there when the program starts, and paging another in hides it."),
     })
 }
 
@@ -209,8 +209,8 @@ impl Map {
 
     /// A line for the Output panel.
     pub fn summary(&self) -> String {
-        let gap = self.biggest_gap.map_or(String::new(), |(a, b)| format!("; the biggest stretch is ${a:04X}-${:04X}, {} bytes", b - 1, b - a));
-        format!("Memory: {} bytes of the program, {} bytes still free{gap}.", self.bytes_used(), self.free)
+        let gap = self.biggest_gap.map_or(String::new(), |(a, b)| crate::i18n::tf!("; the biggest stretch is ${a:04X}-${:04X}, {} bytes", b - 1, b - a));
+        crate::i18n::tf!("Memory: {} bytes of the program, {} bytes still free{gap}.", self.bytes_used(), self.free)
     }
 
     /// What's at an address: its area, and whether the program's there.

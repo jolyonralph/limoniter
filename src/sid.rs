@@ -123,13 +123,17 @@ pub fn read(bytes: &[u8]) -> Result<Tune, String> {
                     tune.third_sid = address;
                 }
             } else {
-                tune.notes.push(format!("The {which} SID's address byte is ${byte:02X}, which isn't one the format allows (even, $42-$7E or $E0-$FE), so it's taken as no {which} SID."));
+                tune.notes.push(if which == "second" {
+                    crate::i18n::tf!("The second SID's address byte is ${byte:02X}, which isn't one the format allows (even, $42-$7E or $E0-$FE), so it's taken as no second SID.")
+                } else {
+                    crate::i18n::tf!("The third SID's address byte is ${byte:02X}, which isn't one the format allows (even, $42-$7E or $E0-$FE), so it's taken as no third SID.")
+                });
             }
         }
     }
     let expected = if version == 1 { 0x76 } else { 0x7C };
     if usize::from(tune.data_offset) != expected {
-        tune.notes.push(format!("The data starts at ${:02X}, where a version {version} header ends at ${expected:02X}.", tune.data_offset));
+        tune.notes.push(crate::i18n::tf!("The data starts at ${:02X}, where a version {version} header ends at ${expected:02X}.", tune.data_offset));
     }
     let mut data = bytes.get(usize::from(tune.data_offset)..).ok_or(crate::i18n::tr("The SID file ends before its data starts."))?;
     if tune.load == 0 {
@@ -218,41 +222,41 @@ impl Tune {
     fn check(&mut self, magic: Magic) {
         let rsid = magic == Magic::Rsid;
         if rsid && self.version == 1 {
-            self.notes.push("An RSID file should be version 2 or later.".into());
+            self.notes.push(crate::i18n::tr("An RSID file should be version 2 or later.").into());
         }
         if self.songs == 0 || self.songs > 256 {
-            self.notes.push(format!("It says it has {} songs, where the format allows 1 to 256.", self.songs));
+            self.notes.push(crate::i18n::tf!("It says it has {} songs, where the format allows 1 to 256.", self.songs));
         }
         if self.start_song == 0 || self.start_song > self.songs.max(1) {
-            self.notes.push(format!("Its start song is {}, outside its {} songs, so players start with song {}.", self.start_song, self.songs, self.start()));
+            self.notes.push(crate::i18n::tf!("Its start song is {}, outside its {} songs, so players start with song {}.", self.start_song, self.songs, self.start()));
         }
         if self.end() > 0xFFFF {
-            self.notes.push(format!("The data runs past the end of the C64's memory ($FFFF), to ${:X}.", self.end()));
+            self.notes.push(crate::i18n::tf!("The data runs past the end of the C64's memory ($FFFF), to ${:X}.", self.end()));
         }
         if rsid {
             if !self.load_in_data {
-                self.notes.push("An RSID's header load address should be 0, with the load address at the start of its data.".into());
+                self.notes.push(crate::i18n::tr("An RSID's header load address should be 0, with the load address at the start of its data.").into());
             }
             if self.play != 0 {
-                self.notes.push(format!("An RSID's play address should be 0, but it's ${:04X}.", self.play));
+                self.notes.push(crate::i18n::tf!("An RSID's play address should be 0, but it's ${:04X}.", self.play));
             }
             if self.speed != 0 {
-                self.notes.push("An RSID's speed field should be 0: its own interrupts set the speed.".into());
+                self.notes.push(crate::i18n::tr("An RSID's speed field should be 0: its own interrupts set the speed.").into());
             }
             if self.load < 0x07E8 {
-                self.notes.push(format!("An RSID shouldn't load below $07E8, but this one loads at ${:04X}.", self.load));
+                self.notes.push(crate::i18n::tf!("An RSID shouldn't load below $07E8, but this one loads at ${:04X}.", self.load));
             }
             let init = self.init;
             if !self.is_basic() && (init < 0x07E8 || (0xA000..=0xBFFF).contains(&init) || init >= 0xD000) {
-                self.notes.push(format!("Its init address ${init:04X} is somewhere an RSID's mustn't be (below $07E8, in BASIC's ROM, or $D000 and up)."));
+                self.notes.push(crate::i18n::tf!("Its init address ${init:04X} is somewhere an RSID's mustn't be (below $07E8, in BASIC's ROM, or $D000 and up)."));
             }
         } else if self.flags & 1 != 0 {
-            self.notes.push("Its data is Compute!'s Sidplayer MUS data, which needs that player merged with it to play.".into());
+            self.notes.push(crate::i18n::tr("Its data is Compute!'s Sidplayer MUS data, which needs that player merged with it to play.").into());
         }
         if let Some(range) = self.reloc_range()
             && (range.0 <= self.end() as u16 && u32::from(range.1) >= u32::from(self.load))
         {
-            self.notes.push(format!("The memory it says is free for a player (${:04X}-${:04X}) overlaps the tune's own.", range.0, range.1));
+            self.notes.push(crate::i18n::tf!("The memory it says is free for a player (${:04X}-${:04X}) overlaps the tune's own.", range.0, range.1));
         }
     }
 
@@ -264,10 +268,10 @@ impl Tune {
 
     fn reloc_text(&self) -> String {
         match (self.version, self.reloc_start_page, self.reloc_range()) {
-            (1, ..) => "Not said (version 1)".into(),
-            (_, 0xFF, _) => "None: no memory is free for a player".into(),
+            (1, ..) => crate::i18n::tr("Not said (version 1)").into(),
+            (_, 0xFF, _) => crate::i18n::tr("None: no memory is free for a player").into(),
             (_, _, Some((from, to))) => format!("${from:04X}-${to:04X} ({} pages)", self.reloc_pages),
-            _ => "Not said: a player works out what's free".into(),
+            _ => crate::i18n::tr("Not said: a player works out what's free").into(),
         }
     }
 
@@ -284,8 +288,8 @@ impl Tune {
 
     fn summary(&self) -> Vec<(String, String)> {
         let format = match self.magic {
-            Some(Magic::Rsid) => format!("RSID version {} (needs a real C64's environment)", self.version),
-            _ => format!("PSID version {}", self.version),
+            Some(Magic::Rsid) => crate::i18n::tf!("RSID version {} (needs a real C64's environment)", self.version),
+            _ => crate::i18n::tf!("PSID version {}", self.version),
         };
         let or_none = |s: &str| if s.is_empty() { "(none)".to_string() } else { s.to_string() };
         let mut rows = vec![
@@ -293,41 +297,41 @@ impl Tune {
             ("Author".into(), or_none(&self.author)),
             ("Released".into(), or_none(&self.released)),
             ("Format".into(), format),
-            ("Loads at".into(), format!("${:04X}-${:04X} ({} bytes{})", self.load, self.end().min(0xFFFF), group(self.data.len() as u64), if self.load_in_data { ", address from the data" } else { "" })),
-            ("Init".into(), if self.is_basic() { "BASIC program: RUN".to_string() } else { format!("${:04X}", self.init_address()) }),
-            ("Play".into(), if self.play == 0 { "0: the tune sets up its own interrupt".into() } else { format!("${:04X}", self.play) }),
-            ("Songs".into(), format!("{}, starting with song {}", self.songs, self.start())),
+            (crate::i18n::tr("Loads at").into(), format!("${:04X}-${:04X} ({} bytes{})", self.load, self.end().min(0xFFFF), group(self.data.len() as u64), if self.load_in_data { ", address from the data" } else { "" })),
+            ("Init".into(), if self.is_basic() { crate::i18n::tr("BASIC program: RUN").to_string() } else { format!("${:04X}", self.init_address()) }),
+            ("Play".into(), if self.play == 0 { crate::i18n::tr("0: the tune sets up its own interrupt").into() } else { format!("${:04X}", self.play) }),
+            ("Songs".into(), crate::i18n::tf!("{}, starting with song {}", self.songs, self.start())),
         ];
         if !self.is_rsid() {
             let cia = (1..=self.songs.clamp(1, 256)).filter(|&s| self.speed_of(s) == Speed::Cia).count();
             let speed = match cia {
-                0 => "Every frame (vertical blank) for every song".to_string(),
-                n if n == usize::from(self.songs.max(1)) => "CIA 1 timer for every song".to_string(),
-                n => format!("CIA 1 timer for {n} songs, every frame for the rest (see Songs)"),
+                0 => crate::i18n::tr("Every frame (vertical blank) for every song").to_string(),
+                n if n == usize::from(self.songs.max(1)) => crate::i18n::tr("CIA 1 timer for every song").to_string(),
+                n => crate::i18n::tf!("CIA 1 timer for {n} songs, every frame for the rest (see Songs)"),
             };
             rows.push(("Speed".into(), speed));
         }
         if self.version >= 2 {
             rows.push(("Clock".into(), self.clock().to_string()));
-            rows.push(("SID model".into(), self.model(0).to_string()));
+            rows.push((crate::i18n::tr("SID model").into(), self.model(0).to_string()));
             if self.sid_count() > 1 {
                 rows.push(("SIDs".into(), self.sid_count().to_string()));
             }
             if let Some(second) = self.second_sid {
-                rows.push(("Second SID".into(), format!("${second:04X}, {}", self.model(1))));
+                rows.push((crate::i18n::tr("Second SID").into(), format!("${second:04X}, {}", self.model(1))));
             }
             if let Some(third) = self.third_sid {
-                rows.push(("Third SID".into(), format!("${third:04X}, {}", self.model(2))));
+                rows.push((crate::i18n::tr("Third SID").into(), format!("${third:04X}, {}", self.model(2))));
             }
             if self.is_rsid() {
-                rows.push(("BASIC".into(), if self.is_basic() { "Yes: a BASIC program, RUN to start it".into() } else { "No".into() }));
+                rows.push(("BASIC".into(), if self.is_basic() { crate::i18n::tr("Yes: a BASIC program, RUN to start it").into() } else { "No".into() }));
             } else if self.is_playsid_specific() {
-                rows.push(("PlaySID specific".into(), "Yes: it uses PlaySID's own extras, such as its samples".into()));
+                rows.push((crate::i18n::tr("PlaySID specific").into(), crate::i18n::tr("Yes: it uses PlaySID's own extras, such as its samples").into()));
             }
             if self.is_mus() {
-                rows.push(("Data".into(), "Compute!'s Sidplayer MUS data".into()));
+                rows.push(("Data".into(), crate::i18n::tr("Compute!'s Sidplayer MUS data").into()));
             }
-            rows.push(("Free for a player".into(), self.reloc_text()));
+            rows.push((crate::i18n::tr("Free for a player").into(), self.reloc_text()));
         }
         rows
     }
@@ -341,7 +345,7 @@ impl Tune {
     pub fn sections(&self) -> Vec<InfoSection> {
         let mut first = self.summary();
         first.extend(self.notes.iter().map(|n| (String::new(), n.clone())));
-        vec![InfoSection { title: "SID tune".into(), rows: first }, InfoSection { title: "Songs".into(), rows: self.song_rows() }]
+        vec![InfoSection { title: crate::i18n::tr("SID tune").into(), rows: first }, InfoSection { title: "Songs".into(), rows: self.song_rows() }]
     }
 
     /// The preview: the summary, then a table of the songs and their speeds.
@@ -349,7 +353,7 @@ impl Tune {
         let plain = |text: String| Span { text, ..Span::default() };
         let strong = |text: String| Span { text, strong: true, ..Span::default() };
         let block = |kind: BlockKind, spans: Vec<Span>| Block { kind, spans, indent: 0, quote: 0, marker: None };
-        let mut blocks = vec![block(BlockKind::Heading(2), vec![plain(if self.name.is_empty() { "Untitled tune".into() } else { self.name.clone() })])];
+        let mut blocks = vec![block(BlockKind::Heading(2), vec![plain(if self.name.is_empty() { crate::i18n::tr("Untitled tune").into() } else { self.name.clone() })])];
         for (label, value) in self.summary().into_iter().skip(1) {
             blocks.push(block(BlockKind::Paragraph, vec![strong(format!("{label}: ")), plain(value)]));
         }
@@ -360,7 +364,7 @@ impl Tune {
         let mut rows = vec![["Song", "Played by"].map(|h| vec![strong(h.into())]).to_vec()];
         rows.extend(self.song_rows().into_iter().map(|(song, speed)| vec![vec![plain(song)], vec![plain(speed)]]));
         blocks.push(block(BlockKind::Table(rows), Vec::new()));
-        blocks.push(block(BlockKind::Paragraph, vec![Span { text: "Tools, Commodore 64, SID music and packers opens its code as a C64 program to disassemble, and writes the calls that play it into 6502 source.".into(), italic: true, ..Span::default() }]));
+        blocks.push(block(BlockKind::Paragraph, vec![Span { text: crate::i18n::tr("Tools, Commodore 64, SID music and packers opens its code as a C64 program to disassemble, and writes the calls that play it into 6502 source.").into(), italic: true, ..Span::default() }]));
         blocks
     }
 }
@@ -379,26 +383,26 @@ pub fn replay_snippet(tune: &Tune, file_name: &str, song: u16) -> String {
     let released = if tune.released.is_empty() { String::new() } else { format!(" ({})", tune.released) };
     let title = if tune.name.is_empty() { file_name.to_string() } else { format!("\"{}\"", tune.name) };
     line(&format!("; --- SID tune: {title}{by}{released} ---"));
-    line(&format!("; Song {song} of {}. Written by Limoniter from {file_name}'s header: the tune's code and data load at", tune.songs.max(1)));
-    line(&format!("; ${:04X}-${:04X}, so keep your own code and data out of there.", tune.load, tune.end().min(0xFFFF)));
+    line(&crate::i18n::tf!("; Song {song} of {}. Written by Limoniter from {file_name}'s header: the tune's code and data load at", tune.songs.max(1)));
+    line(&crate::i18n::tf!("; ${:04X}-${:04X}, so keep your own code and data out of there.", tune.load, tune.end().min(0xFFFF)));
     let mut warn = |text: String| line(&format!("; {text}"));
     if tune.version >= 2 {
         let model = tune.model(0);
-        warn(format!("It was made for a {} C64 and a {} SID.", match tune.clock() { "Unknown" => "PAL or NTSC", c => c }, match model { "Unknown" => "6581 or 8580", m => m }));
+        warn(crate::i18n::tf!("It was made for a {} C64 and a {} SID.", match tune.clock() { "Unknown" => "PAL or NTSC", c => c }, match model { "Unknown" => "6581 or 8580", m => m }));
     }
     if let Some(second) = tune.second_sid {
-        warn(format!("It also plays a second SID at ${second:04X}{}: a stock C64 has only the one at $D400.", tune.third_sid.map_or(String::new(), |t| format!(" and a third at ${t:04X}"))));
+        warn(crate::i18n::tf!("It also plays a second SID at ${second:04X}{}: a stock C64 has only the one at $D400.", tune.third_sid.map_or(String::new(), |t| crate::i18n::tf!(" and a third at ${t:04X}"))));
     }
     if tune.is_mus() {
-        warn("Its data is Compute!'s Sidplayer MUS data, not a player: these calls can't play it without that player.".into());
+        warn(crate::i18n::tr("Its data is Compute!'s Sidplayer MUS data, not a player: these calls can't play it without that player.").into());
     }
     if tune.is_playsid_specific() {
-        warn("It uses PlaySID's own extras, so it may not sound right on a real C64.".into());
+        warn(crate::i18n::tr("It uses PlaySID's own extras, so it may not sound right on a real C64.").into());
     }
     line("");
     if tune.is_basic() {
         line("; It's a BASIC program (an RSID with the BASIC flag): load it and RUN it; it has no routine to call.");
-        line(&format!("; To keep it in your own program, load it at ${:04X} as BASIC would, put the song (from 0) in $030C, and RUN it.", tune.load));
+        line(&crate::i18n::tf!("; To keep it in your own program, load it at ${:04X} as BASIC would, put the song (from 0) in $030C, and RUN it.", tune.load));
         return s;
     }
     if tune.load <= 0xDFFF && tune.end() >= 0xD000 {
@@ -494,7 +498,7 @@ pub fn replay_snippet(tune: &Tune, file_name: &str, song: u16) -> String {
         line("\t\tjmp $ea81\t\t\t; the KERNAL's end of interrupt: registers back, then rti");
     }
     line("");
-    line(&format!("; The tune, at its load address, without the file's {}-byte header{}:", tune.skip(), if tune.load_in_data { " and load address" } else { "" }));
+    line(&crate::i18n::tf!("; The tune, at its load address, without the file's {}-byte header{}:", tune.skip(), if tune.load_in_data { " and load address" } else { "" }));
     line("\t\t* = sid_load");
     line(&format!("\t\tincbin \"{file_name}\",{}", tune.skip()));
     line(&format!("; (ca65: .incbin \"{file_name}\",{0}; ACME: !binary \"{file_name}\",,{0}; 64tass: .binary \"{file_name}\",{0})", tune.skip()));
@@ -582,7 +586,7 @@ pub mod tests {
         assert_eq!(row("Loads at"), "$1000-$1007 (8 bytes, address from the data)");
         assert_eq!(row("Speed"), "CIA 1 timer for 1 songs, every frame for the rest (see Songs)");
         assert_eq!(row("Free for a player"), "$C000-$CFFF (16 pages)");
-        assert_eq!(sections[1].rows[1], ("Song 2 (start)".to_string(), "CIA 1 timer (60 Hz unless the tune sets it)".to_string()));
+        assert_eq!(sections[1].rows[1], (crate::i18n::tr("Song 2 (start)").to_string(), crate::i18n::tr("CIA 1 timer (60 Hz unless the tune sets it)").to_string()));
     }
 
     #[test]

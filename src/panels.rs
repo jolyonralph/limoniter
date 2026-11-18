@@ -289,7 +289,7 @@ pub struct Panels {
     strings_panel: crate::strings_explorer::PanelState,
     macros_panel: crate::scripting::PanelState,
     scripts_panel: crate::scripting::PanelState,
-    project_panel: crate::project::PanelState,
+    pub project_panel: crate::project::PanelState,
     /// Tags added by the person. Kept in the settings file.
     pub custom_tags: Vec<Tag>,
     functions_panel: FunctionsPanel,
@@ -708,7 +708,7 @@ fn compute_stats(doc: &DocView<'_>) -> Stats {
 pub fn format_time(time: std::io::Result<std::time::SystemTime>) -> String {
     match time {
         Ok(time) => chrono::DateTime::<chrono::Local>::from(time).format("%d/%m/%Y %H:%M:%S").to_string(),
-        Err(_) => "Not available".into(),
+        Err(_) => crate::i18n::tr("Not available").into(),
     }
 }
 
@@ -738,11 +738,11 @@ fn line_terminator_name(doc: &DocView<'_>) -> String {
         return format!("Mixed: {}", counts.describe());
     }
     match doc.text.insert_eol() {
-        Eol::CrLf => "DOS (CR/LF)".to_string(),
-        Eol::Lf => "Unix (LF)".to_string(),
-        Eol::Cr => "Mac (CR)".to_string(),
-        Eol::Atascii => "ATASCII EOL (0x9B)".to_string(),
-        Eol::Nl => "EBCDIC (NL, 0x15)".to_string(),
+        Eol::CrLf => crate::i18n::tr("DOS (CR/LF)").to_string(),
+        Eol::Lf => crate::i18n::tr("Unix (LF)").to_string(),
+        Eol::Cr => crate::i18n::tr("Mac (CR)").to_string(),
+        Eol::Atascii => crate::i18n::tr("ATASCII EOL (0x9B)").to_string(),
+        Eol::Nl => crate::i18n::tr("EBCDIC (NL, 0x15)").to_string(),
         Eol::None => doc.format.newline.name(),
     }
 }
@@ -778,10 +778,10 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
     egui::ScrollArea::both().id_salt("properties-scroll").auto_shrink([false, false]).max_height(height.max(40.0)).show(ui, |ui| {
         section(ui, "Information", "properties-info", |ui| {
             let mut row = |ui: &mut Ui, label: &str, value: String| property_row(ui, label, &value, &mut rows_for_copy);
-            row(ui, "Path:", doc.path.map_or_else(|| "Not saved yet".to_string(), |path| path.display().to_string()));
-            row(ui, "Size (saved):", meta.as_ref().map_or_else(|| "Not saved yet".to_string(), |m| readable_size(m.len())));
+            row(ui, "Path:", doc.path.map_or_else(|| crate::i18n::tr("Not saved yet").to_string(), |path| path.display().to_string()));
+            row(ui, "Size (saved):", meta.as_ref().map_or_else(|| crate::i18n::tr("Not saved yet").to_string(), |m| readable_size(m.len())));
             if doc.image.is_none() {
-                row(ui, "Size (current):", stats.current_size.map_or_else(|| "Not counted in a file this large".to_string(), readable_size));
+                row(ui, "Size (current):", stats.current_size.map_or_else(|| crate::i18n::tr("Not counted in a file this large").to_string(), readable_size));
             }
             if let Some(m) = &meta {
                 row(ui, "Date created:", format_time(m.created()));
@@ -865,7 +865,7 @@ fn properties_panel(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, actions:
                         ui.label(RichText::new(crate::i18n::tf!("({} chars)", grouped(counts.longest_chars))).size(12.5));
                     });
                 });
-                rows_for_copy.push(("Longest line:".into(), format!("{} ({} chars)", counts.longest_line, counts.longest_chars)));
+                rows_for_copy.push((crate::i18n::tr("Longest line:").into(), format!("{} ({} chars)", counts.longest_line, counts.longest_chars)));
                 property_row(ui, "Changed lines:", &grouped(doc.text.changed_line_count() as u64), &mut rows_for_copy);
             });
         }
@@ -1031,8 +1031,8 @@ fn checksum_row(ui: &mut Ui, p: &mut Properties, doc: &DocView<'_>, rows: &mut V
                         let attempt = std::panic::catch_unwind(|| sha256_of_file(&target));
                         let result = match attempt {
                             Ok(Ok(value)) => value,
-                            Ok(Err(e)) => format!("Couldn't read the file: {e}"),
-                            Err(_) => "Couldn't work it out.".to_string(),
+                            Ok(Err(e)) => crate::i18n::tf!("Couldn't read the file: {e}"),
+                            Err(_) => crate::i18n::tr("Couldn't work it out.").to_string(),
                         };
                         *worker.lock().unwrap() = Some(result);
                         ctx.request_repaint();
@@ -1294,6 +1294,42 @@ fn key_value_table(ui: &mut Ui, first_column: &str, rows: &[(String, String)], h
 // ---------- Clipboard history ----------
 
 fn clipboard_panel(ui: &mut Ui, items: &mut Vec<String>, actions: &mut Vec<Action>) {
+    // Which clipboard Copy, Cut and Paste use, and what Limoniter's own hold.
+    let active = crate::clipboards::active();
+    ui.horizontal_wrapped(|ui| {
+        for number in 0..crate::clipboards::COUNT {
+            let held = number == 0 || crate::clipboards::holding(number).is_some();
+            let text = if number == 0 { crate::i18n::tr("Computer").to_string() } else { number.to_string() };
+            let label = RichText::new(text).size(12.5).color(if held { theme::text() } else { theme::text_faint() });
+            let hint = match crate::clipboards::holding(number) {
+                Some(text) => crate::i18n::tf!("{}: {}", crate::clipboards::name(number), short_text(text.lines().next().unwrap_or(""))),
+                None if number == 0 => crate::clipboards::name(0),
+                None => crate::i18n::tf!("{}: empty", crate::clipboards::name(number)),
+            };
+            if ui.selectable_label(number == active, label).on_hover_text(hint).clicked() {
+                crate::clipboards::choose(number);
+            }
+        }
+    });
+    if active != 0 {
+        match crate::clipboards::holding(active) {
+            Some(text) => {
+                ui.horizontal(|ui| {
+                    if ui.small_button(crate::i18n::tr("Paste")).clicked() {
+                        actions.push(Action::Paste(text.clone()));
+                    }
+                    if ui.small_button(crate::i18n::tr("Empty it")).clicked() {
+                        crate::clipboards::clear(active);
+                    }
+                });
+                ui.label(RichText::new(short_text(&text)).size(12.0).color(theme::text_dim()));
+            }
+            None => {
+                ui.label(RichText::new(crate::i18n::tr("Empty: what's copied or cut now goes here.")).size(12.0).color(theme::text_faint()));
+            }
+        }
+    }
+    ui.separator();
     if items.is_empty() {
         ui.label(RichText::new(crate::i18n::tr("Clipboard history is empty")).size(12.5));
         return;
@@ -1498,9 +1534,9 @@ fn encoding_panel(ui: &mut Ui, doc: &DocView<'_>) {
         ui.label(RichText::new(crate::i18n::tr("There's nothing here to preview.")).color(theme::text_faint()));
         return;
     }
-    let latin1 = if text.chars().all(|c| (c as u32) < 256) { hex_text(text.chars().map(|c| c as u32 as u8)) } else { "Can't be stored".to_string() };
+    let latin1 = if text.chars().all(|c| (c as u32) < 256) { hex_text(text.chars().map(|c| c as u32 as u8)) } else { crate::i18n::tr("Can't be stored").to_string() };
     let own: Option<Vec<u8>> = text.chars().map(|c| codec::char_bytes(c, doc.format.charset, doc.format.state)).collect::<Option<Vec<_>>>().map(|parts| parts.concat());
-    let own = own.map_or_else(|| "Can't be stored".to_string(), hex_text);
+    let own = own.map_or_else(|| crate::i18n::tr("Can't be stored").to_string(), hex_text);
     let points = text.chars().map(|c| format!("U+{:04X}", c as u32)).collect::<Vec<_>>().join(" ");
     egui::ScrollArea::vertical().id_salt("encoding-scroll").auto_shrink([false, false]).show(ui, |ui| {
         for (name, value) in [
@@ -1639,7 +1675,7 @@ fn file_lists_panel(ui: &mut Ui, recent: &mut Vec<PathBuf>, actions: &mut Vec<Ac
             let exists = path.exists();
             let color = if exists { theme::text() } else { theme::text_faint() };
             let button = egui::Button::new(RichText::new(name).size(12.5).color(color)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
-            let tip = if exists { path.display().to_string() } else { format!("{} (no longer there)", path.display()) };
+            let tip = if exists { path.display().to_string() } else { crate::i18n::tf!("{} (no longer there)", path.display()) };
             if ui.add(button).on_hover_text(crate::i18n::tr(&tip)).clicked() {
                 actions.push(Action::OpenPath(path.clone()));
             }

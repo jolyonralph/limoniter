@@ -363,7 +363,7 @@ pub fn draw(ui: &mut Ui, machine: &mut BuiltIn) -> bool {
                 );
             }
             let tip = describe(cap, opticos);
-            let label = format!("Spectrum key {}", tip.lines().next().unwrap_or(cap.main));
+            let label = crate::i18n::tf!("Spectrum key {}", tip.lines().next().unwrap_or(cap.main));
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
             response.on_hover_text(crate::i18n::tr(&tip));
         }
@@ -459,24 +459,24 @@ fn describe(cap: &Cap, opticos: bool) -> String {
         return describe_opticos(cap);
     }
     match cap.key {
-        ZXKey::Shift => "Caps Shift: click, then a key, to press them together. With Symbol Shift, Extended mode.".into(),
-        ZXKey::SymShift => "Symbol Shift: click, then a key, for the red symbol or word on it. With Caps Shift, Extended mode.".into(),
-        ZXKey::Space => "Space; with Caps Shift, Break.".into(),
+        ZXKey::Shift => crate::i18n::tr("Caps Shift: click, then a key, to press them together. With Symbol Shift, Extended mode.").into(),
+        ZXKey::SymShift => crate::i18n::tr("Symbol Shift: click, then a key, for the red symbol or word on it. With Caps Shift, Extended mode.").into(),
+        ZXKey::Space => crate::i18n::tr("Space; with Caps Shift, Break.").into(),
         ZXKey::Enter => "Enter".into(),
         _ => {
             let mut lines = vec![format!("{}: {}", cap.main, if cap.keyword.is_empty() { "-" } else { cap.keyword })];
             let caps_shift = matches!(cap.key, ZXKey::N0 | ZXKey::N1 | ZXKey::N2 | ZXKey::N3 | ZXKey::N4 | ZXKey::N5 | ZXKey::N6 | ZXKey::N7 | ZXKey::N8 | ZXKey::N9);
             if caps_shift {
-                lines[0] = format!("{0}; with Caps Shift, {1}", cap.main, cap.keyword);
+                lines[0] = crate::i18n::tf!("{0}; with Caps Shift, {1}", cap.main, cap.keyword);
             } else {
-                lines[0] = format!("{} (the keyword {} at the start of a line)", cap.main, cap.keyword);
+                lines[0] = crate::i18n::tf!("{} (the keyword {} at the start of a line)", cap.main, cap.keyword);
             }
-            lines.push(format!("Symbol Shift: {}", cap.symbol));
+            lines.push(crate::i18n::tf!("Symbol Shift: {}", cap.symbol));
             if !cap.above.is_empty() {
-                lines.push(format!("Extended mode: {}", cap.above));
+                lines.push(crate::i18n::tf!("Extended mode: {}", cap.above));
             }
             if !cap.below.is_empty() {
-                lines.push(format!("Extended mode, then Symbol Shift: {}", cap.below));
+                lines.push(crate::i18n::tf!("Extended mode, then Symbol Shift: {}", cap.below));
             }
             lines.join("\n")
         }
@@ -486,21 +486,21 @@ fn describe(cap: &Cap, opticos: bool) -> String {
 /// What a key gives under OpticOS, for its tooltip.
 fn describe_opticos(cap: &Cap) -> String {
     match cap.key {
-        ZXKey::Shift => "Caps Shift: click, then a key, to press them together: a capital, or the word on a number key. With Symbol Shift, Extended mode.".into(),
-        ZXKey::SymShift => "Symbol Shift: click, then a key, for the red symbol on it. With Caps Shift, Extended mode, for [ ] { } \\ | ~ on Y U F G D S A.".into(),
-        ZXKey::Space => "Space; with Caps Shift, Break.".into(),
+        ZXKey::Shift => crate::i18n::tr("Caps Shift: click, then a key, to press them together: a capital, or the word on a number key. With Symbol Shift, Extended mode.").into(),
+        ZXKey::SymShift => crate::i18n::tr("Symbol Shift: click, then a key, for the red symbol on it. With Caps Shift, Extended mode, for [ ] { } \\ | ~ on Y U F G D S A.").into(),
+        ZXKey::Space => crate::i18n::tr("Space; with Caps Shift, Break.").into(),
         ZXKey::Enter => "Enter".into(),
         _ => {
             let mut lines = vec![if cap.keyword.is_empty() {
                 cap.main.to_string()
             } else {
-                format!("{}; with Caps Shift, {}", cap.main, cap.keyword)
+                crate::i18n::tf!("{}; with Caps Shift, {}", cap.main, cap.keyword)
             }];
             if !cap.symbol.is_empty() {
-                lines.push(format!("Symbol Shift: {}", cap.symbol));
+                lines.push(crate::i18n::tf!("Symbol Shift: {}", cap.symbol));
             }
             if !cap.above.is_empty() {
-                lines.push(format!("Extended mode: {}", cap.above));
+                lines.push(crate::i18n::tf!("Extended mode: {}", cap.above));
             }
             lines.join("\n")
         }

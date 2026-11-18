@@ -532,10 +532,10 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
     blocks.append(&mut r.notes);
     let mut notes = Vec::new();
     if r.fonts > 0 {
-        notes.push(format!("{} font and pitch change(s) aren't carried over.", r.fonts));
+        notes.push(crate::i18n::tf!("{} font and pitch change(s) aren't carried over.", r.fonts));
     }
     if r.other > 0 {
-        notes.push(format!("{} formatting code(s), such as margins, tab settings and spacing, aren't carried over.", r.other));
+        notes.push(crate::i18n::tf!("{} formatting code(s), such as margins, tab settings and spacing, aren't carried over.", r.other));
     }
     Ok(Doc { format: format.into(), blocks, notes })
 }

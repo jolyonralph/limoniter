@@ -82,7 +82,7 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
         }
     }
     if framed > 0 {
-        doc.notes.push(format!("{framed} text frame(s) are put after the text, in the order they were saved."));
+        doc.notes.push(crate::i18n::tf!("{framed} text frame(s) are put after the text, in the order they were saved."));
     }
     Ok(doc)
 }
@@ -175,10 +175,10 @@ fn read_form(bytes: &[u8]) -> Doc {
     blocks.extend(text);
     let mut notes = Vec::new();
     if !fonts.is_empty() {
-        notes.push(format!("Wordworth's fonts ({}) and sizes aren't carried over.", fonts.join(", ")));
+        notes.push(crate::i18n::tf!("Wordworth's fonts ({}) and sizes aren't carried over.", fonts.join(", ")));
     }
     if pictures > 0 {
-        notes.push(format!("{pictures} picture(s) aren't carried over."));
+        notes.push(crate::i18n::tf!("{pictures} picture(s) aren't carried over."));
     }
     Doc { format: "Wordworth".into(), blocks, notes }
 }

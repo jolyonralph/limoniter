@@ -225,7 +225,7 @@ pub(super) struct CurrentMacro {
 /// The boxes macros and scripts need.
 impl ScriptBox {
     pub(super) fn new_addon() -> Self {
-        Self::NewAddOn { name: "My add-on".into(), error: String::new(), focus: true }
+        Self::NewAddOn { name: crate::i18n::tr("My add-on").into(), error: String::new(), focus: true }
     }
 }
 
@@ -292,7 +292,7 @@ impl Limoniter {
             return;
         }
         if scripting::recording() {
-            self.message("Recording", "Stop recording first. A macro can't play while another is being recorded.".into());
+            self.message("Recording", crate::i18n::tr("Stop recording first. A macro can't play while another is being recorded.").into());
             return;
         }
         match scripting::start(name, source, repeat) {
@@ -367,7 +367,7 @@ impl Limoniter {
                 let (name, source) = (name.clone(), source.clone());
                 self.play_source(&name, &source, repeat, ui);
             }
-            None => self.message("Play macro", "There's no macro to play yet. Record one from Tools, Macros, or load one.".into()),
+            None => self.message("Play macro", crate::i18n::tr("There's no macro to play yet. Record one from Tools, Macros, or load one.").into()),
         }
     }
 
@@ -682,7 +682,7 @@ impl Limoniter {
     fn toggle_recording(&mut self) {
         if !scripting::recording() {
             if self.docs[self.active].hex_mode {
-                self.message("Record", "Macros record typing in text mode. Switch to text mode first.".into());
+                self.message("Record", crate::i18n::tr("Macros record typing in text mode. Switch to text mode first.").into());
                 return;
             }
             scripting::start_recording();
@@ -690,7 +690,7 @@ impl Limoniter {
             return;
         }
         let Some(source) = scripting::stop_recording() else {
-            self.message("Record", "Nothing was recorded, so there's no new macro.".into());
+            self.message("Record", crate::i18n::tr("Nothing was recorded, so there's no new macro.").into());
             return;
         };
         self.library.refresh();
@@ -752,7 +752,7 @@ impl Limoniter {
                     self.load_into_library(Kind::Script, &path);
                 }
             }
-            Command::NewScript => self.dialog = Dialog::Script(ScriptBox::NewScript { name: "My script".into(), error: String::new(), focus: true }),
+            Command::NewScript => self.dialog = Dialog::Script(ScriptBox::NewScript { name: crate::i18n::tr("My script").into(), error: String::new(), focus: true }),
             Command::ShowMacros => {
                 self.panels.macros = !self.panels.macros;
                 self.library.refresh();
@@ -805,7 +805,7 @@ impl Limoniter {
             LibraryAction::Delete(path) => self.dialog = Dialog::Script(ScriptBox::Delete { name: name_of_path(&path), path }),
             LibraryAction::SetKey(path, digit) => self.library.set_key(&path, digit),
             LibraryAction::Record => self.toggle_recording(),
-            LibraryAction::New => self.dialog = Dialog::Script(ScriptBox::NewScript { name: "My script".into(), error: String::new(), focus: true }),
+            LibraryAction::New => self.dialog = Dialog::Script(ScriptBox::NewScript { name: crate::i18n::tr("My script").into(), error: String::new(), focus: true }),
             LibraryAction::LoadMacro => self.run(Command::LoadMacro, ui),
             LibraryAction::LoadScript => self.run(Command::LoadScript, ui),
         }
@@ -868,7 +868,7 @@ impl Limoniter {
                     outcome = match times.trim().parse::<u64>() {
                         _ if *until_end => BoxOutcome::Play(0, true, path.clone()),
                         Ok(count) if count >= 1 => BoxOutcome::Play(count, false, path.clone()),
-                        _ => BoxOutcome::TimesError("Type a number of times, from 1 up.".into()),
+                        _ => BoxOutcome::TimesError(crate::i18n::tr("Type a number of times, from 1 up.").into()),
                     };
                 } else if cancel {
                     outcome = BoxOutcome::Close;

@@ -37,6 +37,7 @@ Text in any of these encodings opens and saves byte for byte; bytes with no Unic
 | Teletext national character sets (26) | — | ✓ | ✓ | text | Every national option of the teletext standard. |
 | ISO 646 national sets (18) | — | ✓ | ✓ | text | The 7-bit national versions of ASCII: UK, German, French, Italian, Spanish, Portuguese, Swedish, Norwegian, Danish, Swiss, Hungarian, Irish and Icelandic. |
 | DEC Special Graphics | — | ✓ | ✓ | text | The VT100's line drawing. |
+| DEC Technical | — | ✓ | ✓ | text | The VT220's maths symbols, bracket pieces and Greek. |
 | ASCII with the top bit set (Prime) | — | ✓ | ✓ | text | Every byte has its top bit set; lines end 0x8A or 0x8D 0x8A. |
 | Line endings | — | ✓ | ✓ | text | CRLF, LF, CR, ATASCII (0x9B), EBCDIC NL (0x15) or fixed-width rows; each line keeps its own. |
 
@@ -105,6 +106,7 @@ Tokenised BASIC is listed as the machine's LIST would show it; some dialects can
 | ZX Spectrum Next program (NEX) | `.nex` | ✓ | ✓ | directory | Versions 1.0 to 1.3; made by the Z80 assembler's SAVENEX. |
 | Atari 8-bit binary load file | `.xex`, `.com`, `.exe`, `.obx` | ✓ | ✗ | directory | Segments with load, run and init addresses; disassembled as 6502. |
 | Color Computer machine code (LOADM) | `.bin` | ✓ | ✓ | hex | Disassembled as 6809; made by the 6809 assembler. |
+| Dragon DOS binary | `.bin` | ✓ | ✓ | hex | Its header's load and start addresses followed when disassembled; made by the 6809 assembler for `; machine: dragon32` and run in XRoar. |
 | Atari ST program | `.tos`, `.prg`, `.ttp` | ◐ | ✓ | hex | Run and profiled in Hatari but not disassembled; made by the 68000 assembler. |
 | AmigaDOS executable (hunk) | — | ◐ | ✓ | hex | Run in an emulator and crunched with Shrinkler or Cranker; not disassembled. |
 | Raw machine code | `.bin` | ✓ | ✓ | hex | Disassembled for the Z80, 6502 or 6809; saved by Assemble and save as binary. |
@@ -124,7 +126,7 @@ Assembler source is plain text; Limoniter's own assemblers turn it into programs
 | 6502 assembler source (ACME and ca65) | `.a`, `.asm`, `.s` | ✓ | ✓ | text | Assembles as ACME does, to a C64 `.prg`, or a bootable BBC Micro disc. |
 | 6502 assembler source (KickAssembler) | `.kick`, `.ka`, `.kickass`, `.asm` | ✓ | ✓ | text | Everyday KickAssembler syntax assembles to a C64 `.prg`; scripting is left to KickAssembler. |
 | 6502 assembler source (64tass) | `.tas`, `.64tass`, `.asm` | ✓ | ✓ | text | Everyday 64tass syntax assembles to a C64 `.prg`; sections are left to 64tass. |
-| 6809 assembler source | `.asm`, `.s` | ✓ | ✓ | text | Assembles as lwasm does, to a Color Computer LOADM binary. |
+| 6809 and 6309 assembler source | `.asm`, `.s` | ✓ | ✓ | text | Assembles as lwasm does, the 6309's instructions too, to a Color Computer LOADM binary, a Dragon DOS binary or a Vectrex cartridge. |
 | 68000 assembler source | `.s`, `.asm`, `.i` | ✓ | ✓ | text | Assembles as vasm does, to an Atari ST `.TOS`, an AmigaDOS executable or raw binary. |
 | Other assembler source | `.asm`, `.s`, `.mac`, `.src` | ✓ | ✓ | text | 65816, 8080, 80x86, ARM, AVR, PIC, PDP-11, VAX and IBM HLASM are coloured but not assembled. |
 
@@ -230,7 +232,7 @@ Disk images open as a browser of their files. Those marked writable can have fil
 | SAM Coupé and +D disk | `.mgt`, `.dsk`, `.sad` | ✓ | ✗ | directory | SAMDOS, MasterDOS and BDOS, and Spectrum +D and DISCiPLE disks. |
 | Oric Sedoric disk | `.dsk` | ✓ | ✗ | directory | MFM_DISK images, one or two sides, every sector's CRC checked. |
 | Color Computer and Dragon disk (JVC) | `.dsk`, `.jvc` | ✓ | ◐ | directory | Only single-sided RS-DOS disks are written; Dragon DOS and OS-9 are only read. |
-| Color Computer and Dragon disk (VDK) | `.vdk` | ✓ | ✗ | directory | RS-DOS, Dragon DOS and OS-9. |
+| Color Computer and Dragon disk (VDK) | `.vdk` | ✓ | ◐ | directory | RS-DOS, Dragon DOS and OS-9. Dragon DOS disks are made and changed in the Dragon DOS disk window (Tools, Dragon and Vectrex): new ones of 40 or 80 tracks on one or two sides, files added, taken off and saved out. |
 | OS-9 disk image | `.os9` | ✓ | ✗ | directory | With folders, dates and permissions. |
 | DMK, JV3 and JV1 sector images | `.dmk`, `.jv3`, `.jv1`, `.dsk`, `.dis` | ✓ | ✗ | directory | TRS-80 (TRSDOS, LDOS, NEWDOS) and other disks; copy-protected disks open as sectors. |
 | BBC Micro DFS disk | `.ssd`, `.dsd`, `.img` | ✓ | ✓ | directory | Acorn DFS written; Watford 62-file catalogues only read. |
@@ -297,6 +299,7 @@ Cartridge images open as a browser of their ROM chips, each a file by bank and a
 | Format | Endings | Read | Write | Opens as | Notes |
 |---|---|---|---|---|---|
 | Commodore 64 cartridge (CRT) | `.crt` | ✓ | ◐ | directory | Every hardware type read; only normal 8K and 16K cartridges are made, as cartconv makes them. |
+| Vectrex cartridge | `.vec` | ✓ | ✓ | hex | Its header read (copyright line, tune, title) and its code disassembled from after it, the BIOS's calls named; made by the 6809 assembler and run in MAME or ParaJVE. |
 | Atari 2600 cartridge | `.a26`, `.bin` | ✓ | ✓ | hex | 2K to 32K: 4K, F8, F6, F4 (and Superchip), FA, E0, E7, FE, 3F and DPC told apart; disassembled into DASM source that rebuilds it, and made from DASM source with F9 to run in Stella or MAME. |
 
 ## Other

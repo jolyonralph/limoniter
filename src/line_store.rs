@@ -125,7 +125,7 @@ impl Source {
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| worker.scan())) {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => *worker.failed.lock().unwrap() = Some(e.to_string()),
-                Err(_) => *worker.failed.lock().unwrap() = Some("Reading the file failed unexpectedly.".to_string()),
+                Err(_) => *worker.failed.lock().unwrap() = Some(crate::i18n::tr("Reading the file failed unexpectedly.").to_string()),
             }
             worker.finished.store(true, Ordering::SeqCst);
         });

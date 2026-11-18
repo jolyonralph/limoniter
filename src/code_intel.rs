@@ -28,6 +28,13 @@ pub struct CodeIntel {
     /// Set when new words come, so the list opens with them.
     pub lsp_fresh: bool,
     pub lsp_hover: Option<(usize, usize, String)>,
+    /// The server's problems as it gave them, for asking it how to fix them.
+    pub lsp_problems: Vec<serde_json::Value>,
+    /// The signature of the call being typed: its line, its words, and the parameter being typed in them.
+    pub lsp_signature: Option<(usize, String, Option<(usize, usize)>)>,
+    /// Inline hints (types, parameters' names) by line, and the version they're for.
+    pub lsp_hints: Vec<(usize, String)>,
+    pub lsp_hints_version: u64,
     /// What the last build task said about this file, by line.
     pub build_problems: Vec<(usize, String)>,
     /// For Amiga code: the system's functions, from the NDK.
@@ -198,7 +205,7 @@ impl CodeIntel {
             let value = assembly.symbols.get(&name)?;
             let place = self.definition(&name).map(|d| {
                 let file = assembly.files.get(d.file).filter(|_| d.file != self.file).and_then(|f| f.file_name()).map(|f| format!(" of {}", f.to_string_lossy())).unwrap_or_default();
-                format!("\nDefined on line {}{file}", d.line + 1)
+                crate::i18n::tf!("\nDefined on line {}{file}", d.line + 1)
             });
             let negative = if *value < 0 { format!(" ({value})") } else { String::new() };
             // A KickAssembler multi label or a 64tass anonymous one by the name it was written with.
@@ -316,9 +323,22 @@ fn words_for(cpu: Cpu) -> Vec<String> {
         ],
         Cpu::M6809 => &[
             "abx", "adca", "adcb", "adda", "addb", "addd", "anda", "andb", "andcc", "asl", "asla", "aslb", "asr", "asra", "asrb", "bcc", "bcs", "beq", "bge", "bgt", "bhi", "bhs", "bita", "bitb", "ble", "blo", "bls", "blt", "bmi", "bne", "bpl", "bra", "brn", "bsr", "bvc", "bvs", "clr", "clra", "clrb", "cmpa", "cmpb", "cmpd", "cmps", "cmpu", "cmpx", "cmpy", "com", "coma", "comb", "cwai", "daa", "dec", "deca", "decb", "eora", "eorb", "exg", "inc", "inca", "incb", "jmp", "jsr", "lbcc", "lbcs", "lbeq", "lbge", "lbgt", "lbhi", "lbhs", "lble", "lblo", "lbls", "lblt", "lbmi", "lbne", "lbpl", "lbra", "lbrn", "lbsr", "lbvc", "lbvs", "lda", "ldb", "ldd", "lds", "ldu", "ldx", "ldy", "leas", "leau", "leax", "leay", "lsl", "lsla", "lslb", "lsr", "lsra", "lsrb", "mul", "neg", "nega", "negb", "nop", "ora", "orb", "orcc", "pshs", "pshu", "puls", "pulu", "rol", "rola", "rolb", "ror", "rora", "rorb", "rti", "rts", "sbca", "sbcb", "sex", "sta", "stb", "std", "sts", "stu", "stx", "sty", "suba", "subb", "subd", "swi", "swi2", "swi3", "sync", "tfr", "tst", "tsta", "tstb",
+            // The 6309's.
+            "adcd", "adcr", "adde", "addf", "addr", "addw", "aim", "andd", "andr", "asld", "asrd", "band", "beor", "bieor", "biand", "bior", "bitd", "bitmd", "bor", "clrd", "clre", "clrf", "clrw", "cmpe", "cmpf", "cmpr", "cmpw", "comd", "come", "comf", "comw", "decd", "dece", "decf", "decw", "divd", "divq", "eim", "eord", "eorr", "incd", "ince", "incf", "incw", "ldbt", "lde", "ldf", "ldmd", "ldq", "ldw", "lsld", "lsrd", "lsrw", "muld", "negd", "oim", "ord", "orr", "pshsw", "pshuw", "pulsw", "puluw", "rold", "rolw", "rord", "rorw", "sbcd", "sbcr", "sexw", "stbt", "ste", "stf", "stq", "stw", "sube", "subf", "subr", "subw", "tfm", "tim", "tstd", "tste", "tstf", "tstw", "pragma",
         ],
         Cpu::M68k => &[
             "abcd", "add", "adda", "addi", "addq", "addx", "and", "andi", "asl", "asr", "bcc", "bchg", "bclr", "bcs", "beq", "bge", "bgt", "bhi", "ble", "bls", "blt", "bmi", "bne", "bpl", "bra", "bset", "bsr", "btst", "bvc", "bvs", "chk", "clr", "cmp", "cmpa", "cmpi", "cmpm", "dbf", "dbra", "dbeq", "dbne", "divs", "divu", "eor", "eori", "exg", "ext", "illegal", "jmp", "jsr", "lea", "link", "lsl", "lsr", "move", "movea", "movem", "moveq", "muls", "mulu", "nbcd", "neg", "negx", "nop", "not", "or", "ori", "pea", "reset", "rol", "ror", "roxl", "roxr", "rte", "rtr", "rts", "sbcd", "seq", "sne", "stop", "sub", "suba", "subi", "subq", "subx", "swap", "tas", "trap", "trapv", "tst", "unlk",
+        ],
+        Cpu::X86 => &[
+            "aaa", "aad", "aam", "aas", "adc", "add", "and", "bound", "bsf", "bsr", "bswap", "bt", "btc", "btr", "bts", "call", "cbw", "cdq", "clc", "cld", "cli", "cmc", "cmp", "cmpsb", "cmpsw", "cmpsd", "cmpxchg", "cpuid", "cwd", "cwde", "daa", "das", "dec", "div", "enter", "hlt", "idiv", "imul", "in", "inc", "insb", "insw", "int", "into", "iret", "ja", "jae", "jb", "jbe", "jc", "jcxz", "je", "jecxz", "jg", "jge", "jl", "jle", "jmp", "jna", "jnc", "jne", "jnz", "jo", "jno", "jp", "jpe", "jpo", "js", "jns", "jz", "lahf", "lds", "lea", "leave", "les", "lfs", "lgs", "lodsb", "lodsw", "lodsd", "loop", "loope", "loopne", "lss", "mov", "movsb", "movsw", "movsd", "movsx", "movzx", "mul", "neg", "nop", "not", "or", "out", "outsb", "outsw", "pop", "popa", "popad", "popf", "push", "pusha", "pushad", "pushf", "rcl", "rcr", "rep", "repe", "repne", "ret", "retf", "rol", "ror", "sahf", "sal", "sar", "sbb", "scasb", "scasw", "scasd", "sete", "setne", "shl", "shld", "shr", "shrd", "stc", "std", "sti", "stosb", "stosw", "stosd", "sub", "test", "xchg", "xlatb", "xor",
+            // NASM's own words.
+            "bits", "cpu", "times", "resb", "resw", "resd", "dq",
+            // The x87's commonest.
+            "fld", "fst", "fstp", "fild", "fist", "fistp", "fadd", "faddp", "fsub", "fsubp", "fmul", "fmulp", "fdiv", "fdivp", "fcom", "fcomp", "fxch", "fsqrt", "fabs", "fchs", "fldz", "fld1", "fldpi", "finit", "fninit", "fwait",
+        ],
+        Cpu::Arm => &[
+            "adc", "add", "adr", "and", "b", "beq", "bne", "bcs", "bcc", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bic", "bl", "cdp", "cmn", "cmp", "eor", "ldc", "ldmfd", "ldmia", "ldmib", "ldmda", "ldmdb", "ldr", "ldrb", "mcr", "mla", "mov", "movs", "mrc", "mul", "mvn", "nop", "orr", "rsb", "rsc", "sbc", "stc", "stmfd", "stmia", "stmib", "stmda", "stmdb", "str", "strb", "sub", "subs", "swi", "swp", "swpb", "teq", "teqp", "tst",
+            "dcb", "dcw", "dcd", "equb", "equw", "equd", "equs", "align",
         ],
     };
     let mut words: Vec<String> = instructions.iter().chain(crate::asm::DIRECTIVES).map(|w| w.to_string()).collect();
@@ -344,7 +364,7 @@ mod tests {
         for cpu in Cpu::ALL {
             for word in words_for(cpu) {
                 if !crate::asm::DIRECTIVES.contains(&word.as_str()) {
-                    assert!(cpu.isa().is_instruction(&word), "{cpu:?}: {word}");
+                    assert!(cpu.isa().is_instruction(&word) || cpu.isa().is_directive(&word), "{cpu:?}: {word}");
                 }
             }
         }

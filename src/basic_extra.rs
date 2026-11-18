@@ -37,7 +37,7 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
         Some(list_sam(data))
     } else if extension == "tap" && crate::media::oric::looks_like(data) {
         let program = crate::media::oric::first_program(data);
-        Some(program.map_or_else(|| Listing { dialect: "Oric BASIC", notes: vec!["There's no BASIC program on this Oric tape.".into()], ..Listing::default() }, |program| list_oric(&program, set)))
+        Some(program.map_or_else(|| Listing { dialect: "Oric BASIC", notes: vec![crate::i18n::tr("There's no BASIC program on this Oric tape.").into()], ..Listing::default() }, |program| list_oric(&program, set)))
     } else if looks_like_oric(data) {
         Some(list_oric(data, set))
     } else if looks_like_trs80(data) {
@@ -156,17 +156,17 @@ pub fn list_trs80(data: &[u8], set: &Charset) -> Listing {
     let set = if set.id.starts_with("trs80-m") { set } else { charset::known("trs80-m3") };
     let mut listing = Listing { dialect: "TRS-80 Level II BASIC", ..Listing::default() };
     let program = if data.starts_with(&[0xD3, 0xD3, 0xD3]) && data.len() > 4 {
-        listing.info.push(("Name on the tape".into(), char::from(data[3]).to_string()));
+        listing.info.push((crate::i18n::tr("Name on the tape").into(), char::from(data[3]).to_string()));
         &data[4..]
     } else if data.first() == Some(&0xFF) {
         &data[1..]
     } else {
-        listing.notes.push("A TRS-80 BASIC program starts with the byte &FF, or on tape &D3 three times, and this doesn't.".into());
+        listing.notes.push(crate::i18n::tr("A TRS-80 BASIC program starts with the byte &FF, or on tape &D3 three times, and this doesn't.").into());
         return listing;
     };
     let (lines, whole) = trs80_lines(program);
     if lines.is_empty() {
-        listing.notes.push("The program's lines don't link up as a Level II BASIC program's do, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's lines don't link up as a Level II BASIC program's do, so it can't be listed.").into());
         return listing;
     }
     for (number, body) in &lines {
@@ -174,7 +174,7 @@ pub fn list_trs80(data: &[u8], set: &Charset) -> Listing {
     }
     if !whole {
         let last = lines.last().map_or(0, |(number, _)| *number);
-        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
+        listing.notes.push(crate::i18n::tf!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
     }
     listing
 }
@@ -475,24 +475,24 @@ pub fn list_zx81(data: &[u8]) -> Listing {
     while at < program.len() {
         // As LIST does, a line number from 16384 up is taken to be past the program's end.
         if program[at] >= 0x40 {
-            listing.notes.push(format!("{} bytes after the last line, before the screen, aren't BASIC lines (usually machine code).", program.len() - at));
+            listing.notes.push(crate::i18n::tf!("{} bytes after the last line, before the screen, aren't BASIC lines (usually machine code).", program.len() - at));
             break;
         }
         let Some(head) = program.get(at..at + 4) else {
-            listing.notes.push("The program ends partway through a line's number and length.".into());
+            listing.notes.push(crate::i18n::tr("The program ends partway through a line's number and length.").into());
             break;
         };
         let number = u16::from_be_bytes([head[0], head[1]]);
         let length = usize::from(u16::from_le_bytes([head[2], head[3]]));
         let Some(body) = program.get(at + 4..at + 4 + length) else {
-            listing.notes.push(format!("Line {number} says it's longer than what's left of the program, so the listing stops there."));
+            listing.notes.push(crate::i18n::tf!("Line {number} says it's longer than what's left of the program, so the listing stops there."));
             break;
         };
         listing.lines.push(format!("{number} {}", zx81_line(body, &mut hidden).trim_end()));
         at += 4 + length;
     }
     if hidden {
-        listing.notes.push("Some lines hold more after a NEWLINE byte, usually machine code in a REM, which LIST doesn't show.".into());
+        listing.notes.push(crate::i18n::tr("Some lines hold more after a NEWLINE byte, usually machine code in a REM, which LIST doesn't show.").into());
     }
     // The display file: a NEWLINE, then 24 rows, each ending with NEWLINE (shorter when the ZX81 had little memory).
     let display = &data[file.display];
@@ -515,10 +515,10 @@ pub fn list_zx81(data: &[u8]) -> Listing {
     }
     // The ZX81 has no % of its own, so one in the listing is always an inverse character's mark.
     if listing.lines.iter().any(|line| line.contains('%')) {
-        listing.notes.push("Inverse characters are written with % before them.".into());
+        listing.notes.push(crate::i18n::tr("Inverse characters are written with % before them.").into());
     }
     if !listing.screen.is_empty() && display.iter().any(|&b| (0x8B..0xC0).contains(&b)) {
-        listing.notes.push("Inverse letters and signs on the screen are shown plain.".into());
+        listing.notes.push(crate::i18n::tr("Inverse letters and signs on the screen are shown plain.").into());
     }
     listing
 }
@@ -693,7 +693,7 @@ fn sam_line(body: &[u8]) -> String {
 pub fn list_sam(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "SAM BASIC", ..Listing::default() };
     let Some((lines, whole)) = data.get(9..).and_then(sam_lines) else {
-        listing.notes.push("The file doesn't hold SAM BASIC lines after its header.".into());
+        listing.notes.push(crate::i18n::tr("The file doesn't hold SAM BASIC lines after its header.").into());
         return listing;
     };
     for (number, body) in &lines {
@@ -701,7 +701,7 @@ pub fn list_sam(data: &[u8]) -> Listing {
     }
     if !whole {
         let last = lines.last().map_or(0, |(number, _)| *number);
-        listing.notes.push(format!("The program breaks off after line {last}, before the byte that ends it."));
+        listing.notes.push(crate::i18n::tf!("The program breaks off after line {last}, before the byte that ends it."));
     }
     listing
 }
@@ -760,7 +760,7 @@ pub fn list_oric(data: &[u8], set: &Charset) -> Listing {
     let mut listing = Listing { dialect: "Oric BASIC", ..Listing::default() };
     let (lines, whole) = oric_lines(data);
     if lines.is_empty() {
-        listing.notes.push("The program's lines don't link up as an Oric program's do, from &0501, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's lines don't link up as an Oric program's do, from &0501, so it can't be listed.").into());
         return listing;
     }
     let char_of = |byte: u8, text: &mut String| match set.entry(0, byte).and_then(|e| e.unicode).filter(|c| !c.is_control() && *c != '{' && *c != '}') {
@@ -786,7 +786,7 @@ pub fn list_oric(data: &[u8], set: &Charset) -> Listing {
     }
     if !whole {
         let last = lines.last().map_or(0, |(number, _)| *number);
-        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
+        listing.notes.push(crate::i18n::tf!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
     }
     listing
 }

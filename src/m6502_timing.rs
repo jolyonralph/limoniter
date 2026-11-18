@@ -171,7 +171,7 @@ pub fn cycles(bytes: &[u8], address: Option<i64>) -> Option<Cycles> {
 pub fn explain(bytes: &[u8], address: Option<i64>) -> Option<String> {
     let op = OPS[*bytes.first()? as usize];
     let Some(c) = cycles(bytes, address) else {
-        return Some("JAM: stops the processor".into());
+        return Some(crate::i18n::tr("JAM: stops the processor").into());
     };
     let why = match op.extra {
         Extra::Page if c.most > c.least => " (one more if the index crosses a page)",

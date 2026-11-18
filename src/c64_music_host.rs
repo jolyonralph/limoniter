@@ -97,11 +97,11 @@ fn report(what: &str, result: &Result<Outcome, String>) -> Vec<String> {
             if outcome.ok {
                 let sizes = outcome.sizes();
                 if !sizes.is_empty() {
-                    lines.push(format!("Packed in {:.1} s: {sizes}.", outcome.seconds));
+                    lines.push(crate::i18n::tf!("Packed in {:.1} s: {sizes}.", outcome.seconds));
                 }
-                lines.extend(outcome.made.iter().map(|(path, size)| format!("Wrote {} ({} bytes).", path.display(), group(*size))));
+                lines.extend(outcome.made.iter().map(|(path, size)| crate::i18n::tf!("Wrote {} ({} bytes).", path.display(), group(*size))));
             } else {
-                lines.push("It didn't finish: see what it printed above.".into());
+                lines.push(crate::i18n::tr("It didn't finish: see what it printed above.").into());
             }
         }
         Err(problem) => lines.push(problem.clone()),
@@ -264,7 +264,7 @@ impl Limoniter {
                 Some((index, name)) => {
                     self.docs[index].text.paste_text(&text, false);
                     self.active = index;
-                    say(self, format!("The replay calls were put into {name}, at the cursor."));
+                    say(self, crate::i18n::tf!("The replay calls were put into {name}, at the cursor."));
                 }
                 None => ctx.copy_text(text),
             },
@@ -298,7 +298,7 @@ impl Limoniter {
                     Some(path) => Ok(path.clone()),
                     None => scratch_copy(own_name(&source.name), &source.bytes).map(|(_, path)| path),
                 };
-                let said = path.and_then(|path| tools::play_in_vsid(&vsid, &path, song)).map_or_else(|problem| problem, |()| format!("vsid is playing song {song}, in its own window."));
+                let said = path.and_then(|path| tools::play_in_vsid(&vsid, &path, song)).map_or_else(|problem| problem, |()| crate::i18n::tf!("vsid is playing song {song}, in its own window."));
                 say(self, said);
             }
             Act::Send(device) => {
@@ -369,7 +369,7 @@ impl Limoniter {
         }
         let options = state.prefs.options.clone();
         let (path, bytes, name) = (source.path.clone(), source.bytes.clone(), own_name(&source.name).to_string());
-        let what = format!("Packing {name} with {}", tool.name());
+        let what = crate::i18n::tf!("Packing {name} with {}", tool.name());
         state.result = None;
         state.job = Some(start(Some(ctx), what, move |stop| {
             let (scratch, input) = match path {
@@ -409,7 +409,7 @@ impl Limoniter {
         let options = PackOptions { runnable: true, ..prefs.options.clone() };
         let output = folder.join(tools::packed_name(name, tool, &options));
         let (name, bytes) = (name.to_string(), bytes.to_vec());
-        let what = format!("Packing {name} with {}", tool.name());
+        let what = crate::i18n::tf!("Packing {name} with {}", tool.name());
         let job = start(None, what.clone(), move |stop| {
             let (scratch, input) = scratch_copy(&name, &bytes)?;
             let result = tools::pack(tool, &program, &options, &input, &output, stop);
@@ -467,7 +467,7 @@ fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
     });
     ui.horizontal_wrapped(|ui| {
         match &source.folder {
-            Some(folder) => note(ui, format!("What's made goes in {}", folder.display())),
+            Some(folder) => note(ui, crate::i18n::tf!("What's made goes in {}", folder.display())),
             None => note(ui, "Choose where what's made goes:"),
         }
         if ui.small_button(crate::i18n::tr("Choose a folder\u{2026}")).clicked() {
@@ -501,13 +501,18 @@ fn music_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, target: Option<&str>, 
         ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("This isn't a SID tune: it doesn't start with PSID or RSID."));
         return;
     };
-    let by = if tune.author.is_empty() { String::new() } else { format!(" by {}", tune.author) };
-    note(ui, format!("{}{by}{}. Loads at ${:04X}, init ${:04X}, play {}. {} song{}.", if tune.name.is_empty() { "Untitled" } else { &tune.name }, if tune.released.is_empty() { String::new() } else { format!(" ({})", tune.released) }, tune.load, tune.init_address(), if tune.play == 0 { "its own".to_string() } else { format!("${:04X}", tune.play) }, tune.songs, if tune.songs == 1 { "" } else { "s" }));
+    let by = if tune.author.is_empty() { String::new() } else { crate::i18n::tf!(" by {}", tune.author) };
+    let name = if tune.name.is_empty() { crate::i18n::tr("Untitled").to_string() } else { tune.name.clone() };
+    let released = if tune.released.is_empty() { String::new() } else { format!(" ({})", tune.released) };
+    let (load, init) = (tune.load, tune.init_address());
+    let play = if tune.play == 0 { crate::i18n::tr("its own").to_string() } else { format!("${:04X}", tune.play) };
+    let songs = tune.songs;
+    note(ui, if songs == 1 { crate::i18n::tf!("{name}{by}{released}. Loads at ${load:04X}, init ${init:04X}, play {play}. 1 song.") } else { crate::i18n::tf!("{name}{by}{released}. Loads at ${load:04X}, init ${init:04X}, play {play}. {songs} songs.") });
     note(ui, "File properties shows all its header says.");
     ui.horizontal(|ui| {
         ui.label(crate::i18n::tr("Song:"));
         ui.add(egui::DragValue::new(&mut state.song).range(1..=tune.songs.max(1)));
-        note(ui, format!("(it starts with {})", tune.start()));
+        note(ui, crate::i18n::tf!("(it starts with {})", tune.start()));
     });
     ui.horizontal_wrapped(|ui| {
         if ui.button(crate::i18n::tr("Open its code as a program")).on_hover_text(crate::i18n::tr("The tune's bytes at its load address, as a .prg, to disassemble")).clicked() {
@@ -559,8 +564,8 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
     let program = tools::is_program(&name, &source.bytes);
     if program {
         let load = u16::from_le_bytes([source.bytes[0], source.bytes[1]]);
-        let sys = tools::sys_address(&source.bytes).map_or(String::new(), |s| format!(", its BASIC line calls SYS {s} (${s:04X})"));
-        note(ui, format!("A C64 program loading at ${load:04X}{sys}."));
+        let sys = tools::sys_address(&source.bytes).map_or(String::new(), |s| crate::i18n::tf!(", its BASIC line calls SYS {s} (${s:04X})"));
+        note(ui, crate::i18n::tf!("A C64 program loading at ${load:04X}{sys}."));
     } else {
         note(ui, "Not a .prg, so it's packed as data.");
     }
@@ -620,7 +625,7 @@ fn pack_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Act
             }
             _ => {}
         });
-        note(ui, format!("To unpack it: {}", tools::decruncher(tool, o)));
+        note(ui, crate::i18n::tf!("To unpack it: {}", tools::decruncher(tool, o)));
     }
     if (state.prefs.packer, state.prefs.options.clone()) != before {
         state.output_name = tools::packed_name(&name, state.prefs.packer, &state.prefs.options);
@@ -669,7 +674,7 @@ fn tools_page(ui: &mut egui::Ui, state: &mut C64ToolsBox, action: &mut Option<Ac
         note(ui, tool.licence());
         match found(&state.found, tool) {
             Some(path) => note(ui, format!("Found: {}", path.display())),
-            None => note(ui, format!("Not found. {}", tool.how_to_get())),
+            None => note(ui, crate::i18n::tf!("Not found. {}", tool.how_to_get())),
         }
         ui.horizontal(|ui| {
             if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Point Limoniter at the program")).clicked() {

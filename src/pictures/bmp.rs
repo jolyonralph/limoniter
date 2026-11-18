@@ -158,7 +158,7 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         for (i, &index) in image.pixels.iter().enumerate() {
             picture.set(i % h.width, i / h.width, image.palette.get(usize::from(index)).copied().unwrap_or([0, 0, 0]));
         }
-        picture.note("Colours", format!("{} bits a pixel, {} in its palette", h.bits, image.palette.len()));
+        picture.note("Colours", crate::i18n::tf!("{} bits a pixel, {} in its palette", h.bits, image.palette.len()));
     } else {
         let data = bytes.get(h.pixels_at..).ok_or(crate::i18n::tr("The BMP's pixels are missing."))?;
         let step = h.bits / 8;

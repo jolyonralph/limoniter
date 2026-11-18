@@ -325,7 +325,7 @@ impl Converter {
                                 l.len()
                             }).collect();
                             each.sort_unstable();
-                            format!("up to {} colours a line", each.last().copied().unwrap_or(0))
+                            crate::i18n::tf!("up to {} colours a line", each.last().copied().unwrap_or(0))
                         }
                         _ => {
                             let mut seen = [false; 256];
@@ -425,7 +425,7 @@ impl Converter {
             return;
         };
         let bytes = st::screen_bytes(c).len();
-        ui.label(dim(format!("The screen is {bytes} bytes{}", if c.screen == Screen::FalconTrue { ", a word a pixel" } else { ", its planes interleaved a word at a time" })));
+        ui.label(dim(crate::i18n::tf!("The screen is {bytes} bytes{}", if c.screen == Screen::FalconTrue { ", a word a pixel" } else { ", its planes interleaved a word at a time" })));
         ui.add_space(4.0);
         let (st_screen, spectrum, indexed) = (c.is_st_screen(), c.screen == Screen::Spectrum, !matches!(c.screen, Screen::Spectrum | Screen::FalconTrue));
         ui.horizontal_wrapped(|ui| {
@@ -542,7 +542,7 @@ impl Converter {
                 if self.tab == Tab::Sprite {
                     ui.label(dim("Scaling and dithering are the screen picture's."));
                     if let Some(s) = &self.sprite {
-                        ui.label(dim(format!("{} words a row, {} bytes a copy, {} in all", s.words(), s.copy_bytes(), s.copy_bytes() * s.copies())));
+                        ui.label(dim(crate::i18n::tf!("{} words a row, {} bytes a copy, {} in all", s.words(), s.copy_bytes(), s.copy_bytes() * s.copies())));
                     }
                     if ui.add_enabled(self.sprite.is_some(), egui::Button::new(crate::i18n::tr("Save the sprite\u{2026}"))).on_hover_text(crate::i18n::tr("Its raw data and source")).clicked() {
                         *asked = Some(Asked::SaveSprite);

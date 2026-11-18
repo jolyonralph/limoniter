@@ -113,7 +113,7 @@ impl Limoniter {
                 }
                 Step::Install => match git::version() {
                     Some(version) => {
-                        para(ui, &format!("Git {version} is installed. \u{2714}"));
+                        para(ui, &crate::i18n::tf!("Git {version} is installed. \u{2714}"));
                         if ui.button(crate::i18n::tr("Next")).clicked() {
                             go = Some(Do::To(Step::Identity));
                         }
@@ -156,7 +156,7 @@ impl Limoniter {
                 Step::Project => {
                     let in_repo = wizard.folder.as_deref().and_then(git::repository_of);
                     if let Some(root) = in_repo.filter(|_| wizard.start == Start::ThisFolder) {
-                        para(ui, &format!("{} is already keeping its history with Git. \u{2714}", root.display()));
+                        para(ui, &crate::i18n::tf!("{} is already keeping its history with Git. \u{2714}", root.display()));
                         if ui.button(crate::i18n::tr("Next")).clicked() {
                             go = Some(Do::To(Step::Online));
                         }
@@ -167,7 +167,7 @@ impl Limoniter {
                         match wizard.start {
                             Start::ThisFolder => {
                                 ui.horizontal(|ui| {
-                                    ui.label(wizard.folder.as_ref().map_or_else(|| "No folder chosen".to_string(), |f| f.display().to_string()));
+                                    ui.label(wizard.folder.as_ref().map_or_else(|| crate::i18n::tr("No folder chosen").to_string(), |f| f.display().to_string()));
                                     if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked() {
                                         go = Some(Do::ChooseFolder);
                                     }
@@ -187,7 +187,7 @@ impl Limoniter {
                                     ui.end_row();
                                     ui.label(crate::i18n::tr("Into:"));
                                     ui.horizontal(|ui| {
-                                        ui.label(wizard.folder.as_ref().map_or_else(|| "No folder chosen".to_string(), |f| f.display().to_string()));
+                                        ui.label(wizard.folder.as_ref().map_or_else(|| crate::i18n::tr("No folder chosen").to_string(), |f| f.display().to_string()));
                                         if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked() {
                                             go = Some(Do::ChooseFolder);
                                         }
@@ -206,7 +206,7 @@ impl Limoniter {
                     let root = wizard.folder.as_deref().and_then(git::repository_of);
                     let connected = root.as_deref().map(git::remotes).unwrap_or_default();
                     if let Some((name, url)) = connected.first() {
-                        para(ui, &format!("It's connected to {url} (as {name}). \u{2714} Push, in the Source control panel, sends your commits there."));
+                        para(ui, &crate::i18n::tf!("It's connected to {url} (as {name}). \u{2714} Push, in the Source control panel, sends your commits there."));
                         if ui.button(crate::i18n::tr("Next")).clicked() {
                             go = Some(Do::To(Step::Done));
                         }

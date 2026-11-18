@@ -160,7 +160,7 @@ pub fn read_sndh(bytes: &[u8]) -> Result<Sndh, String> {
         None => (std::borrow::Cow::Borrowed(bytes), None),
     };
     if !is_sndh(&bytes) {
-        return Err(if packed.is_some() { "It unpacks, but what it holds isn't SNDH music: there's no SNDH at byte 12.".into() } else { "This isn't SNDH music: there's no SNDH at byte 12.".into() });
+        return Err(if packed.is_some() { crate::i18n::tr("It unpacks, but what it holds isn't SNDH music: there's no SNDH at byte 12.").into() } else { crate::i18n::tr("This isn't SNDH music: there's no SNDH at byte 12.").into() });
     }
     let mut sndh = Sndh { packed, size: bytes.len(), ..Sndh::default() };
     sndh.routines = [branch_target(&bytes, 0), branch_target(&bytes, 4), branch_target(&bytes, 8)];
@@ -171,7 +171,7 @@ pub fn read_sndh(bytes: &[u8]) -> Result<Sndh, String> {
         sndh.tunes.push(Tune::default());
     }
     if sndh.routines.iter().any(Option::is_none) {
-        sndh.notes.push("The file doesn't start with three branches to its init, exit and play routines, as SNDH files should.".into());
+        sndh.notes.push(crate::i18n::tr("The file doesn't start with three branches to its init, exit and play routines, as SNDH files should.").into());
     }
     Ok(sndh)
 }
@@ -223,7 +223,7 @@ fn read_tags(bytes: &[u8], bound: usize, sndh: &mut Sndh) {
                     tunes_said = Some(n as usize);
                     sndh.tunes.resize(n as usize, Tune::default());
                 }
-                None => sndh.notes.push(format!("The number of tunes, \"{digits}\", isn't a number.")),
+                None => sndh.notes.push(crate::i18n::tf!("The number of tunes, \"{digits}\", isn't a number.")),
             }
         } else if starts(at, "!#SN") || (starts(at, "FLAG") && !starts(at, "FLAG~")) {
             // A table of offsets, one per tune, from the tag to each tune's own string.
@@ -231,7 +231,7 @@ fn read_tags(bytes: &[u8], bound: usize, sndh: &mut Sndh) {
             let count = tunes_said.unwrap_or(1).max(1);
             let table = at + 4;
             if table + count * 2 > bound {
-                sndh.notes.push(format!("The {} table runs past the header.", if names { "tune names'" } else { "flags'" }));
+                sndh.notes.push(crate::i18n::tf!("The {} table runs past the header.", if names { "tune names'" } else { "flags'" }));
                 break;
             }
             let mut end = table + count * 2;
@@ -262,7 +262,7 @@ fn read_tags(bytes: &[u8], bound: usize, sndh: &mut Sndh) {
             at = next;
             match number(&digits) {
                 Some(rate) => sndh.timer = Some((timer, rate)),
-                None => sndh.notes.push(format!("{}'s rate, \"{digits}\", isn't a number.", timer.name())),
+                None => sndh.notes.push(crate::i18n::tf!("{}'s rate, \"{digits}\", isn't a number.", timer.name())),
             }
         } else if starts(at, "TIME") || starts(at, "FRMS") {
             let frames = starts(at, "FRMS");
@@ -271,7 +271,7 @@ fn read_tags(bytes: &[u8], bound: usize, sndh: &mut Sndh) {
             at += at & 1;
             let size = if frames { 4 } else { 2 };
             if at + count * size > bound {
-                sndh.notes.push("The tunes' lengths run past the header.".into());
+                sndh.notes.push(crate::i18n::tr("The tunes' lengths run past the header.").into());
                 break;
             }
             for i in 0..count {
@@ -290,12 +290,12 @@ fn read_tags(bytes: &[u8], bound: usize, sndh: &mut Sndh) {
             at += 1;
         } else {
             let shown = st_text(&bytes[at..(at + 4).min(bound)]);
-            sndh.notes.push(format!("The header stops at byte {at}, at a tag Limoniter doesn't know (\"{shown}\")."));
+            sndh.notes.push(crate::i18n::tf!("The header stops at byte {at}, at a tag Limoniter doesn't know (\"{shown}\")."));
             break;
         }
     }
     if !ended && sndh.notes.is_empty() {
-        sndh.notes.push("The header has no HDNS to say where it ends.".into());
+        sndh.notes.push(crate::i18n::tr("The header has no HDNS to say where it ends.").into());
     }
     sndh.header_size = at;
 }
@@ -317,7 +317,7 @@ impl Sndh {
         let (_, rate) = self.timer_or_default();
         match (tune.frames, tune.seconds) {
             (Some(0), _) | (None, Some(0)) => Some("loops for ever".into()),
-            (Some(frames), _) if rate > 0 => Some(format!("{} ({} calls at {rate} Hz)", minutes(f64::from(frames) / f64::from(rate)), group(u64::from(frames)))),
+            (Some(frames), _) if rate > 0 => Some(crate::i18n::tf!("{} ({} calls at {rate} Hz)", minutes(f64::from(frames) / f64::from(rate)), group(u64::from(frames)))),
             (Some(frames), _) => Some(format!("{} calls", group(u64::from(frames)))),
             (None, Some(seconds)) => Some(minutes(f64::from(seconds))),
             (None, None) => None,
@@ -337,17 +337,17 @@ impl Sndh {
         put("Converted by", &self.converter);
         put("Year", &self.year);
         rows.push(("Tunes".into(), match self.default_tune {
-            Some(first) if self.tunes.len() > 1 => format!("{} (tune {first} plays first)", self.tunes.len()),
+            Some(first) if self.tunes.len() > 1 => crate::i18n::tf!("{} (tune {first} plays first)", self.tunes.len()),
             _ => self.tunes.len().to_string(),
         }));
         let (timer, rate) = self.timer_or_default();
         let said = if self.timer.is_some() { "" } else { " (the file doesn't say: the SNDH default)" };
-        rows.push(("Played from".into(), format!("{} at {rate} Hz{said}", timer.name())));
+        rows.push((crate::i18n::tr("Played from").into(), format!("{} at {rate} Hz{said}", timer.name())));
         if let Some(flags) = &self.flags {
-            rows.push(("Needs and uses".into(), format!("{} ({flags})", flags_in_words(flags))));
+            rows.push((crate::i18n::tr("Needs and uses").into(), format!("{} ({flags})", flags_in_words(flags))));
         }
         if let Some((packer, packed)) = self.packed {
-            rows.push(("Packed".into(), format!("with {}: {} bytes, {} unpacked", packer.name(), group(packed), group(self.size as u64))));
+            rows.push(("Packed".into(), crate::i18n::tf!("with {}: {} bytes, {} unpacked", packer.name(), group(packed), group(self.size as u64))));
         } else {
             rows.push(("Size".into(), format!("{} bytes", group(self.size as u64))));
         }
@@ -371,12 +371,12 @@ impl Sndh {
         let mut first = self.summary();
         first.extend(self.notes.iter().map(|n| (String::new(), n.clone())));
         let tunes = self.tune_rows().into_iter().map(|[n, name, length, flags]| (format!("{n} {name}").trim().to_string(), [length, flags].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("; "))).collect();
-        vec![InfoSection { title: "SNDH music".into(), rows: first }, InfoSection { title: "Tunes".into(), rows: tunes }]
+        vec![InfoSection { title: crate::i18n::tr("SNDH music").into(), rows: first }, InfoSection { title: "Tunes".into(), rows: tunes }]
     }
 
     /// The preview.
     pub fn blocks(&self) -> Vec<Block> {
-        let mut blocks = vec![heading(self.title.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| "Untitled SNDH music".into()))];
+        let mut blocks = vec![heading(self.title.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| crate::i18n::tr("Untitled SNDH music").into()))];
         for (label, value) in self.summary().into_iter().skip(usize::from(self.title.as_ref().is_some_and(|t| !t.is_empty()))) {
             blocks.push(pair(&label, value));
         }
@@ -468,16 +468,16 @@ pub fn read_ym(bytes: &[u8]) -> Result<Ym, String> {
                 ym.loop_frame = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
             }
             if !body.is_multiple_of(14) {
-                ym.notes.push(format!("The registers take {body} bytes, which isn't a whole number of 14-register frames."));
+                ym.notes.push(crate::i18n::tf!("The registers take {body} bytes, which isn't a whole number of 14-register frames."));
             }
             if format == "YM2!" {
-                ym.notes.push("YM2! is Mad Max's: its digidrums are the ones his replay has built in.".into());
+                ym.notes.push(crate::i18n::tr("YM2! is Mad Max's: its digidrums are the ones his replay has built in.").into());
             }
         }
         "YM5!" | "YM6!" => read_ym5(bytes, &mut ym)?,
         "YMT1" | "YMT2" | "MIX1" => read_other(bytes, &mut ym)?,
         other => {
-            ym.notes.push(format!("{other} files are an early kind ST-Sound no longer plays; Limoniter only names it."));
+            ym.notes.push(crate::i18n::tf!("{other} files are an early kind ST-Sound no longer plays; Limoniter only names it."));
         }
     }
     Ok(ym)
@@ -485,7 +485,7 @@ pub fn read_ym(bytes: &[u8]) -> Result<Ym, String> {
 
 /// YM-Tracker songs (YMT1, YMT2) and remixed digital sound (MIX1): their names and lengths, but no registers.
 fn read_other(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
-    let short = || "The YM file stops in the middle of its header.".to_string();
+    let short = || crate::i18n::tr("The YM file stops in the middle of its header.").to_string();
     if bytes.len() < 32 || &bytes[4..12] != b"LeOnArD!" {
         return Err(crate::i18n::tr("The YM file's header is damaged: there's no LeOnArD! after its mark.").into());
     }
@@ -497,7 +497,7 @@ fn read_other(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
         let samples = long(16)?;
         let blocks = long(20)? as usize;
         at = 24 + blocks.checked_mul(12).ok_or_else(short)?;
-        ym.notes.push(format!("MIX1 is digital sound remixed from samples: {} blocks over {} bytes of samples, with no YM2149 registers.", blocks, group(u64::from(samples))));
+        ym.notes.push(crate::i18n::tf!("MIX1 is digital sound remixed from samples: {} blocks over {} bytes of samples, with no YM2149 registers.", blocks, group(u64::from(samples))));
         ym.rate = 0;
     } else {
         let voices = word(12)?;
@@ -507,7 +507,7 @@ fn read_other(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
         ym.drums = vec![0; word(24)? as usize];
         ym.attributes = long(26)?;
         at = 30;
-        ym.notes.push(format!("{} is a YM-Tracker song for {voices} voices: its patterns are played by ST-Sound's tracker, not kept as registers.", ym.format));
+        ym.notes.push(crate::i18n::tf!("{} is a YM-Tracker song for {voices} voices: its patterns are played by ST-Sound's tracker, not kept as registers.", ym.format));
     }
     let mut text = || -> Result<String, String> {
         let end = bytes.get(at..).and_then(|rest| rest.iter().position(|&b| b == 0)).ok_or_else(short)?;
@@ -535,7 +535,7 @@ fn read_ym5(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
     ym.loop_frame = long(28);
     let extra = word(32) as usize;
     let mut at = 34 + extra;
-    let short = || "The YM file stops in the middle of its header.".to_string();
+    let short = || crate::i18n::tr("The YM file stops in the middle of its header.").to_string();
     for _ in 0..drums {
         let size = bytes.get(at..at + 4).map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]])).ok_or_else(short)?;
         ym.drums.push(size);
@@ -556,10 +556,10 @@ fn read_ym5(bytes: &[u8], ym: &mut Ym) -> Result<(), String> {
     ym.stream_bytes = u64::from(ym.frames) * 16;
     let wanted = ym.stream_bytes + if ends { 4 } else { 0 };
     if !ends {
-        ym.notes.push("There's no End! after the registers.".into());
+        ym.notes.push(crate::i18n::tr("There's no End! after the registers.").into());
     }
     if left != wanted {
-        ym.notes.push(format!("The registers should take {} bytes for {} frames, but {} are there.", group(ym.stream_bytes), group(u64::from(ym.frames)), group(left.saturating_sub(if ends { 4 } else { 0 }))));
+        ym.notes.push(crate::i18n::tf!("The registers should take {} bytes for {} frames, but {} are there.", group(ym.stream_bytes), group(u64::from(ym.frames)), group(left.saturating_sub(if ends { 4 } else { 0 }))));
     }
     Ok(())
 }
@@ -597,24 +597,24 @@ impl Ym {
         rows.push(("Format".into(), if self.registers > 0 { format!("{} ({} registers a frame)", self.format, self.registers) } else { self.format.clone() }));
         if self.rate > 0 {
             rows.push(("Frames".into(), format!("{} at {} Hz, {}", group(u64::from(self.frames)), self.rate, minutes(seconds))));
-            rows.push(("Loops to".into(), if self.loop_frame == 0 { "the start".into() } else { format!("frame {}", group(u64::from(self.loop_frame))) }));
+            rows.push((crate::i18n::tr("Loops to").into(), if self.loop_frame == 0 { "the start".into() } else { format!("frame {}", group(u64::from(self.loop_frame))) }));
         }
         if self.registers == 0 {
             match &self.packed {
-                Some(method) => rows.push(("Packed".into(), format!("with LHA ({method}), {} bytes unpacked", group(self.size)))),
+                Some(method) => rows.push(("Packed".into(), crate::i18n::tf!("with LHA ({method}), {} bytes unpacked", group(self.size)))),
                 None => rows.push(("Size".into(), format!("{} bytes", group(self.size)))),
             }
             return rows;
         }
-        rows.push(("Chip clock".into(), format!("{} Hz{}", group(u64::from(self.clock)), if self.clock == 2_000_000 { " (the Atari ST's)" } else if self.clock == 1_773_400 { " (the ZX Spectrum's)" } else if self.clock == 1_000_000 { " (the Amstrad CPC's)" } else { "" })));
+        rows.push((crate::i18n::tr("Chip clock").into(), format!("{} Hz{}", group(u64::from(self.clock)), if self.clock == 2_000_000 { " (the Atari ST's)" } else if self.clock == 1_773_400 { " (the ZX Spectrum's)" } else if self.clock == 1_000_000 { " (the Amstrad CPC's)" } else { "" })));
         rows.push(("Attributes".into(), self.attributes_in_words()));
         if !self.drums.is_empty() {
             let total: u64 = self.drums.iter().map(|&d| u64::from(d)).sum();
             rows.push(("Digidrums".into(), format!("{}, {} bytes ({})", self.drums.len(), group(total), self.drums.iter().map(|d| group(u64::from(*d))).collect::<Vec<_>>().join(", "))));
         }
-        rows.push(("Register streams".into(), format!("{} bytes", group(self.stream_bytes))));
+        rows.push((crate::i18n::tr("Register streams").into(), format!("{} bytes", group(self.stream_bytes))));
         match &self.packed {
-            Some(method) => rows.push(("Packed".into(), format!("with LHA ({method}), {} bytes unpacked", group(self.size)))),
+            Some(method) => rows.push(("Packed".into(), crate::i18n::tf!("with LHA ({method}), {} bytes unpacked", group(self.size)))),
             None => rows.push(("Size".into(), format!("{} bytes", group(self.size)))),
         }
         rows
@@ -623,11 +623,11 @@ impl Ym {
     pub fn sections(&self) -> Vec<InfoSection> {
         let mut rows = self.summary();
         rows.extend(self.notes.iter().map(|n| (String::new(), n.clone())));
-        vec![InfoSection { title: "YM music".into(), rows }]
+        vec![InfoSection { title: crate::i18n::tr("YM music").into(), rows }]
     }
 
     pub fn blocks(&self) -> Vec<Block> {
-        let mut blocks = vec![heading(if self.name.is_empty() { "Untitled YM music".into() } else { self.name.clone() })];
+        let mut blocks = vec![heading(if self.name.is_empty() { crate::i18n::tr("Untitled YM music").into() } else { self.name.clone() })];
         for (label, value) in self.summary().into_iter().skip(usize::from(!self.name.is_empty())) {
             blocks.push(pair(&label, value));
         }
@@ -722,7 +722,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Music, String> {
     if let Some(Err(why)) = st_packers::unpack(bytes) {
         return Err(why);
     }
-    Err(if named_as_ym(name) { "This isn't a YM file Limoniter can read.".into() } else { "This isn't SNDH or YM music.".into() })
+    Err(if named_as_ym(name) { crate::i18n::tr("This isn't a YM file Limoniter can read.").into() } else { crate::i18n::tr("This isn't SNDH or YM music.").into() })
 }
 
 /// The MFP's prescaler that gives a timer closest to `rate` Hz: its control value, divisor and data register.
@@ -752,15 +752,15 @@ pub fn replay_snippet(sndh: &Sndh, file_name: &str, tune: usize, timer: (Timer, 
     };
     let title = sndh.title.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| file_name.to_string());
     let by = sndh.composer.as_deref().filter(|c| !c.is_empty()).map(|c| format!(" by {c}")).unwrap_or_default();
-    line(&format!("; --- SNDH: {title}{by}, tune {tune}, played from {} at {rate} Hz ---", timer.name()));
+    line(&crate::i18n::tf!("; --- SNDH: {title}{by}, tune {tune}, played from {} at {rate} Hz ---", timer.name()));
     line("; In supervisor mode. The SNDH file starts with three branches: +0 init (the tune in d0), +4 exit,");
     line("; +8 play. Its code is position independent, so it runs where it's included, at an even address.");
     if sndh.packed.is_some() {
-        line(&format!("; {file_name} is packed with {}: save what it holds (Limoniter opens it unpacked) and include", sndh.packed.map_or("", |p| p.0.name())));
+        line(&crate::i18n::tf!("; {file_name} is packed with {}: save what it holds (Limoniter opens it unpacked) and include", sndh.packed.map_or("", |p| p.0.name())));
         line("; that, or depack it at run time with the packer's own depacker first.");
     }
     if let Some(flags) = &sndh.flags {
-        line(&format!("; Its flags say: {}.", flags_in_words(flags)));
+        line(&crate::i18n::tf!("; Its flags say: {}.", flags_in_words(flags)));
     }
     let used: Vec<char> = sndh.flags.iter().chain(sndh.tunes.iter().filter_map(|t| t.flags.as_ref())).flat_map(|f| f.chars()).collect();
     let letter = match timer {
@@ -771,7 +771,7 @@ pub fn replay_snippet(sndh: &Sndh, file_name: &str, tune: usize, timer: (Timer, 
         Timer::Vbl => None,
     };
     if letter.is_some_and(|l| used.contains(&l)) && sndh.timer.is_none_or(|(t, _)| t != timer) {
-        line(&format!("; Careful: the music itself uses {}, so play it from another.", timer.name()));
+        line(&crate::i18n::tf!("; Careful: the music itself uses {}, so play it from another.", timer.name()));
     }
     line("");
     // Each way: the vector, and how the interrupt is turned on and off.

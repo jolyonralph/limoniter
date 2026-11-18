@@ -168,7 +168,7 @@ fn hunks(assembly: &Assembly) -> Vec<&Section> {
 pub fn executable(normal: &Assembly, moved: &Assembly, symbols: bool) -> Result<Vec<u8>, Problem> {
     let hunks = hunks(normal);
     if hunks.is_empty() {
-        return Err(Problem { file: 0, line: 0, message: "nothing was assembled".into() });
+        return Err(Problem { file: 0, line: 0, message: crate::i18n::tr("nothing was assembled").into() });
     }
     // Which hunk an address is in, by the section it was put in, and how far into it.
     let section_of = |value: i64| -> Option<(usize, i64)> {
@@ -206,13 +206,13 @@ pub fn executable(normal: &Assembly, moved: &Assembly, symbols: bool) -> Result<
                 Problem { file, line, message }
             };
             let Some((value, _)) = address.filter(|(a, b)| i64::from(b.wrapping_sub(*a)) == SHIFT) else {
-                return Err(problem(format!("an address here (${at:X} into the {} section) can't be moved with the program: only a long (as DC.L label, or MOVE.L #label) can hold an address in an Amiga program, and only the same section can be reached relative to the PC", name_of(hunk))));
+                return Err(problem(crate::i18n::tf!("an address here (${at:X} into the {} section) can't be moved with the program: only a long (as DC.L label, or MOVE.L #label) can hold an address in an Amiga program, and only the same section can be reached relative to the PC", name_of(hunk))));
             };
             let Some((target, offset)) = section_of(i64::from(value)) else {
-                return Err(problem(format!("the long here (${at:X} into the {} section) isn't an address in any section of the program", name_of(hunk))));
+                return Err(problem(crate::i18n::tf!("the long here (${at:X} into the {} section) isn't an address in any section of the program", name_of(hunk))));
             };
             if hunk.kind == Kind::Bss {
-                return Err(problem(format!("the {} section is BSS, which only leaves room: it can't hold an address", name_of(hunk))));
+                return Err(problem(crate::i18n::tf!("the {} section is BSS, which only leaves room: it can't hold an address", name_of(hunk))));
             }
             bytes[at..at + 4].copy_from_slice(&(offset as u32).to_be_bytes());
             relocations[target].push(at as u32);
@@ -222,7 +222,7 @@ pub fn executable(normal: &Assembly, moved: &Assembly, symbols: bool) -> Result<
             Kind::Bss => {
                 if let Some(at) = bytes.iter().position(|b| *b != 0) {
                     let (file, line) = normal.line_at(hunk.start + at as i64).unwrap_or((0, 0));
-                    return Err(Problem { file, line, message: format!("the {} section is BSS, which only leaves room: use a DATA section for what's put here", name_of(hunk)) });
+                    return Err(Problem { file, line, message: crate::i18n::tf!("the {} section is BSS, which only leaves room: use a DATA section for what's put here", name_of(hunk)) });
                 }
                 long(&mut file, HUNK_BSS);
                 long(&mut file, longs);

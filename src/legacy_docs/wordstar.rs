@@ -163,10 +163,10 @@ pub fn read(bytes: &[u8]) -> Doc {
         }
     }
     if !dots.is_empty() {
-        notes.push(format!("WordStar's dot commands for {} aren't carried over.", dots.join(", ")));
+        notes.push(crate::i18n::tf!("WordStar's dot commands for {} aren't carried over.", dots.join(", ")));
     }
     if printer_codes > 0 {
-        notes.push(format!("{printer_codes} printer code(s), such as pitch changes and pauses, aren't carried over."));
+        notes.push(crate::i18n::tf!("{printer_codes} printer code(s), such as pitch changes and pauses, aren't carried over."));
     }
     Doc { format: version.into(), blocks, notes }
 }

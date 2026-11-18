@@ -78,14 +78,14 @@ impl Function {
     /// when the trap is taken, and what comes back.
     pub fn describe(&self) -> String {
         let mut lines = vec![format!("{} {} (${:02X}, {}), trap #{}", self.trap.name(), self.name, self.number, self.number, self.trap.number()), self.about.to_string()];
-        lines.push("  0(sp)  word  the function's number".to_string());
+        lines.push(crate::i18n::tr("  0(sp)  word  the function's number").to_string());
         let mut at = 2;
         for a in self.args {
             lines.push(format!("{:>3}(sp)  {}  {}: {}", at, if a.long { "long" } else { "word" }, a.name, a.about));
             at += if a.long { 4 } else { 2 };
         }
         lines.push(format!("Returns: {}", self.returns));
-        lines.push(format!("Afterwards take {} bytes off the stack{}", self.stack_bytes(), if self.stack_bytes() <= 8 { format!(" (addq.l #{},sp)", self.stack_bytes()) } else { format!(" (lea {}(sp),sp)", self.stack_bytes()) }));
+        lines.push(crate::i18n::tf!("Afterwards take {} bytes off the stack{}", self.stack_bytes(), if self.stack_bytes() <= 8 { format!(" (addq.l #{},sp)", self.stack_bytes()) } else { format!(" (lea {}(sp),sp)", self.stack_bytes()) }));
         lines.join("\n")
     }
 
@@ -290,17 +290,17 @@ pub fn line_a(opcode: u16) -> Option<String> {
         return None;
     }
     let (name, about) = LINE_A[(opcode & 15) as usize];
-    Some(format!("Line-A ${opcode:04X}: {name}\n{about}\nIt's an instruction the 68000 doesn't have, so it goes to TOS's handler at $28. a0-a2 and d0-d2 aren't kept"))
+    Some(crate::i18n::tf!("Line-A ${opcode:04X}: {name}\n{about}\nIt's an instruction the 68000 doesn't have, so it goes to TOS's handler at $28. a0-a2 and d0-d2 aren't kept"))
 }
 
 /// What trap #2 is, by the value in d0.
 pub fn trap2(d0: Option<i64>) -> String {
     match d0 {
-        Some(200) => "AES call (trap #2 with d0 = 200, $C8): d1 holds the address of the AES parameter block (control, global, int_in, int_out, addr_in, addr_out); the function's number is control[0]".into(),
-        Some(115) => "VDI call (trap #2 with d0 = 115, $73): d1 holds the address of the VDI parameter block (contrl, intin, ptsin, intout, ptsout); the function's number is contrl[0]".into(),
-        Some(-2) => "GDOS check (trap #2 with d0 = -2): d0 comes back -2 if GDOS isn't loaded".into(),
-        Some(0) => "Pterm0 (trap #2 with d0 = 0): ends the program, as GEMDOS's Pterm0 does".into(),
-        _ => "trap #2: the AES (d0 = 200) or the VDI (d0 = 115), with d1 the address of the parameter block".into(),
+        Some(200) => crate::i18n::tr("AES call (trap #2 with d0 = 200, $C8): d1 holds the address of the AES parameter block (control, global, int_in, int_out, addr_in, addr_out); the function's number is control[0]").into(),
+        Some(115) => crate::i18n::tr("VDI call (trap #2 with d0 = 115, $73): d1 holds the address of the VDI parameter block (contrl, intin, ptsin, intout, ptsout); the function's number is contrl[0]").into(),
+        Some(-2) => crate::i18n::tr("GDOS check (trap #2 with d0 = -2): d0 comes back -2 if GDOS isn't loaded").into(),
+        Some(0) => crate::i18n::tr("Pterm0 (trap #2 with d0 = 0): ends the program, as GEMDOS's Pterm0 does").into(),
+        _ => crate::i18n::tr("trap #2: the AES (d0 = 200) or the VDI (d0 = 115), with d1 the address of the parameter block").into(),
     }
 }
 

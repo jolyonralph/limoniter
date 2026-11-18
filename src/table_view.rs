@@ -162,7 +162,7 @@ impl Limoniter {
             return;
         }
         if doc.hex_mode || doc.browser.is_some() {
-            self.message("Table view", "Table view shows text. Switch the file to text first.".into());
+            self.message("Table view", crate::i18n::tr("Table view shows text. Switch the file to text first.").into());
             return;
         }
         let ending = doc.path.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_string);
@@ -648,7 +648,7 @@ impl Limoniter {
                     let number_colour = if uneven { theme::mistake() } else if in_rows { theme::caret() } else { theme::gutter_text() };
                     painter.text(number_rect.right_center() - egui::vec2(8.0, 0.0), egui::Align2::RIGHT_CENTER, format!("{}", shown[row] + 1 - first_data), font.clone(), number_colour);
                     if uneven {
-                        let why = if record.broken { "A quote here is never closed.".to_string() } else { format!("This row has {} fields; the headings have {}.", fields.len(), names.len()) };
+                        let why = if record.broken { crate::i18n::tr("A quote here is never closed.").to_string() } else { crate::i18n::tf!("This row has {} fields; the headings have {}.", fields.len(), names.len()) };
                         ui.interact(number_rect, focus_id.with(("number", row)), Sense::hover()).on_hover_text(why);
                     }
                     // A value too long for its column, or on more than one line, shows in full under the pointer.

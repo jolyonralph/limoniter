@@ -97,13 +97,13 @@ pub fn read(bytes: &[u8]) -> Doc {
     }
     let mut notes = Vec::new();
     if layout {
-        notes.push("Page layout, rulers and fonts aren't carried over.".into());
+        notes.push(crate::i18n::tr("Page layout, rulers and fonts aren't carried over.").into());
     }
     if light > 0 {
-        notes.push(format!("{light} change(s) to light (grey) text are shown plain."));
+        notes.push(crate::i18n::tf!("{light} change(s) to light (grey) text are shown plain."));
     }
     if pictures > 0 {
-        notes.push(format!("{pictures} picture(s) aren't carried over."));
+        notes.push(crate::i18n::tf!("{pictures} picture(s) aren't carried over."));
     }
     let format = if atari { "1st Word (Atari ST)" } else { "1st Word Plus (Archimedes)" };
     Doc { format: format.into(), blocks: b.finish(), notes }

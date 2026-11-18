@@ -450,12 +450,12 @@ impl Volume for Cpm {
     fn notes(&self) -> Vec<String> {
         let mut notes = self.notes.clone();
         notes.push(if self.amstrad {
-            "Sizes are CP/M's, in 128-byte records; a +3DOS or AMSDOS file opened has its exact length, header included.".into()
+            crate::i18n::tr("Sizes are CP/M's, in 128-byte records; a +3DOS or AMSDOS file opened has its exact length, header included.").into()
         } else {
-            "Sizes are CP/M's, in 128-byte records; a text file ends at its first Ctrl+Z when opened.".into()
+            crate::i18n::tr("Sizes are CP/M's, in 128-byte records; a text file ends at its first Ctrl+Z when opened.").into()
         });
         if self.files.iter().any(|f| f.password) {
-            notes.push("Files marked \"password\" are protected on CP/M 3, but their contents aren't hidden, so they read as any other.".into());
+            notes.push(crate::i18n::tr("Files marked \"password\" are protected on CP/M 3, but their contents aren't hidden, so they read as any other.").into());
         }
         notes
     }
@@ -534,12 +534,14 @@ fn worked_out(source: &Arc<dyn Source>, len: u64, shape: Shape) -> Vec<(Layout, 
                     for step in [0, 6, 2, 3, 4, 5, 7] {
                         let layout = Layout {
                             name: String::new(),
-                            described: format!(
-                                "unlisted format worked out as {}-byte sectors, {per_track} a track, {boot} system track{}, {block_size}-byte blocks, {entries} directory entries, skew {}",
-                                shape.sector_size,
-                                if boot == 1 { "" } else { "s" },
-                                step.max(1)
-                            ),
+                            described: {
+                                let (size, skew) = (shape.sector_size, step.max(1));
+                                if boot == 1 {
+                                    crate::i18n::tf!("unlisted format worked out as {size}-byte sectors, {per_track} a track, 1 system track, {block_size}-byte blocks, {entries} directory entries, skew {skew}")
+                                } else {
+                                    crate::i18n::tf!("unlisted format worked out as {size}-byte sectors, {per_track} a track, {boot} system tracks, {block_size}-byte blocks, {entries} directory entries, skew {skew}")
+                                }
+                            },
                             sector_size: shape.sector_size,
                             sectors_per_track: per_track,
                             tracks,
@@ -591,16 +593,16 @@ pub fn open_guessed(source: Arc<dyn Source>, shape: Option<Shape>, what: &str) -
     // Others that read it just as well (the same layout under other machines' names, often) are mentioned.
     let alike: Vec<String> = found.iter().filter(|(_, j, _)| j.score() == best.score()).map(|(l, _, _)| l.described.clone()).filter(|d| *d != layout.described).take(4).collect();
     let flat = Flat { source, sector_size: layout.sector_size, per_track: layout.sectors_per_track };
-    let kind = format!("{what}CP/M disk, {} format", layout.described);
+    let kind = crate::i18n::tf!("{what}CP/M disk, {} format", layout.described);
     let named = !layout.name.is_empty();
     let mut cpm = Cpm::open(Box::new(flat), layout, kind, false)?;
     let mut note = if !named {
-        "This disk's format isn't one Limoniter knows by name, so its layout was worked out from its directory, which it reads completely. Check that its files look right.".to_string()
+        crate::i18n::tr("This disk's format isn't one Limoniter knows by name, so its layout was worked out from its directory, which it reads completely. Check that its files look right.").to_string()
     } else {
-        "CP/M disks don't say what format they're in; this one was worked out from its directory.".to_string()
+        crate::i18n::tr("CP/M disks don't say what format they're in; this one was worked out from its directory.").to_string()
     };
     if !alike.is_empty() {
-        note.push_str(&format!(" These read it the same way: {}.", alike.join(", ")));
+        note.push_str(&crate::i18n::tf!(" These read it the same way: {}.", alike.join(", ")));
     }
     cpm.note(note);
     Ok(cpm)
@@ -745,7 +747,7 @@ pub mod tests {
                 }
             };
             let described = volume.describe();
-            let format = match super::super::cpm_formats::FORMATS.iter().find(|d| described.contains(&format!("CP/M disk, {} format", d.described))) {
+            let format = match super::super::cpm_formats::FORMATS.iter().find(|d| described.contains(&crate::i18n::tf!("CP/M disk, {} format", d.described))) {
                 Some(def) => def.name.to_string(),
                 None => match described.split_once("unlisted format worked out as ") {
                     Some((_, layout)) => format!("worked: {}", layout.trim_end_matches(" format")),

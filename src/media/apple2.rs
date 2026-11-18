@@ -380,7 +380,7 @@ impl Apple2 {
                 let name = String::from_utf8_lossy(&block[5..5 + usize::from(block[4] & 15)]).into_owned();
                 let (mut folders, mut files) = (Vec::new(), Vec::new());
                 prodos_directory(&disk, 2, None, &mut folders, &mut files, 0)?;
-                let what = format!("Apple II ProDOS, /{name} ({size}, {order_name})");
+                let what = crate::i18n::tf!("Apple II ProDOS, /{name} ({size}, {order_name})");
                 return Ok(Self { disk, system: System::Prodos { name, folders, files }, what });
             }
             if length == DISK_140K
@@ -388,7 +388,7 @@ impl Apple2 {
             {
                 // DOS 3.2's disks have 13 sectors to a track, which its VTOC says; the catalog is the same.
                 let dos = if disk.sector(17, 0).is_ok_and(|vtoc| vtoc[0x35] == 13) { "DOS 3.2" } else { "DOS 3.3" };
-                let what = format!("Apple II {dos}, volume {volume} ({size}, {order_name})");
+                let what = crate::i18n::tf!("Apple II {dos}, volume {volume} ({size}, {order_name})");
                 return Ok(Self { disk, system: System::Dos { files }, what });
             }
         }
@@ -539,8 +539,8 @@ impl Volume for Apple2 {
 
     fn notes(&self) -> Vec<String> {
         match &self.system {
-            System::Dos { .. } => vec!["Binary and BASIC files are given without the address and length DOS 3.3 keeps at their start; a binary's address is in Details. Text ends at its first zero byte.".into()],
-            System::Prodos { name, .. } => vec![format!("ProDOS volume /{name}; dates are when each file was last changed.")],
+            System::Dos { .. } => vec![crate::i18n::tr("Binary and BASIC files are given without the address and length DOS 3.3 keeps at their start; a binary's address is in Details. Text ends at its first zero byte.").into()],
+            System::Prodos { name, .. } => vec![crate::i18n::tf!("ProDOS volume /{name}; dates are when each file was last changed.")],
         }
     }
 

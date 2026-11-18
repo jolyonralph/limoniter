@@ -50,7 +50,7 @@ impl FolderCompare {
     /// Works out what a sync would do, on another thread, to show before it's done.
     pub fn plan_sync(&mut self, backups_under: PathBuf, waker: Option<Context>) {
         let Some(result) = self.result.clone() else {
-            self.problem = Some("Compare the folders first.".into());
+            self.problem = Some(crate::i18n::tr("Compare the folders first.").into());
             return;
         };
         let (kind, way, snapshot) = (self.sync_kind, self.sync_way, self.snapshot.clone());
@@ -69,7 +69,7 @@ impl FolderCompare {
         if let Some(outcome) = self.sync_plan_job.as_ref().and_then(Job::take) {
             self.sync_plan_job = None;
             match outcome {
-                Ok((plan, _)) if plan.items.is_empty() && plan.skipped.is_empty() => self.notice = Some("The two sides are already in step, so there's nothing to sync.".into()),
+                Ok((plan, _)) if plan.items.is_empty() && plan.skipped.is_empty() => self.notice = Some(crate::i18n::tr("The two sides are already in step, so there's nothing to sync.").into()),
                 Ok((plan, backups)) => {
                     let describe = |picker: &SidePicker| picker.side().map_or_else(|_| picker.path.clone(), |side| side.describe());
                     self.sync = Some(SyncPreview { plan, backups, confirming: false, left: describe(&self.pickers[0]), right: describe(&self.pickers[1]) });
@@ -166,7 +166,7 @@ pub(super) fn sync_preview_window(ctx: &Context, preview: &mut SyncPreview) -> O
         }
         ui.label(RichText::new(counts.describe()).strong());
         if counts.conflicts > 0 {
-            ui.label(RichText::new(crate::i18n::tf!("{} changed on both sides since the last sync. They're left alone unless you tick them.", if counts.conflicts == 1 { "One file was".to_string() } else { format!("{} files were", counts.conflicts) })).color(theme::mistake()));
+            ui.label(RichText::new(crate::i18n::tf!("{} changed on both sides since the last sync. They're left alone unless you tick them.", if counts.conflicts == 1 { crate::i18n::tr("One file was").to_string() } else { format!("{} files were", counts.conflicts) })).color(theme::mistake()));
         }
         ui.horizontal(|ui| {
             if ui.small_button(crate::i18n::tr("Tick all")).clicked() {
@@ -387,7 +387,7 @@ impl Limoniter {
             self.store_compare_session(doc_id);
             self.with_compare_tab(doc_id, |_, tab| {
                 if let CompareTab::Folders(folders) = tab {
-                    folders.notice = Some(format!("Saved as {name}."));
+                    folders.notice = Some(crate::i18n::tf!("Saved as {name}."));
                 }
             });
             return;
@@ -417,7 +417,7 @@ impl Limoniter {
         self.with_compare_tab(doc_id, |_, tab| {
             if let CompareTab::Folders(folders) = tab {
                 folders.session = Some((name.to_string(), in_project));
-                folders.notice = Some(format!("Saved as {name}{}.", if in_project { ", in the project" } else { "" }));
+                folders.notice = Some(crate::i18n::tf!("Saved as {name}{}.", if in_project { ", in the project" } else { "" }));
             }
         });
         if let Some(doc) = self.docs.iter_mut().find(|doc| doc.id == doc_id) {
@@ -798,8 +798,16 @@ impl Limoniter {
                                 .enumerate()
                                 .map(|(n, fit)| match fit {
                                     Fit::Exact => format!("change {} fits", n + 1),
-                                    Fit::Moved(by) => format!("change {} fits {} line{} {}", n + 1, by.unsigned_abs(), if by.unsigned_abs() == 1 { "" } else { "s" }, if *by > 0 { "further down" } else { "further up" }),
-                                    Fit::Fails => format!("change {} can't be found", n + 1),
+                                    Fit::Moved(by) => {
+                                        let (number, lines) = (n + 1, by.unsigned_abs());
+                                        match (lines == 1, *by > 0) {
+                                            (true, true) => crate::i18n::tf!("change {number} fits 1 line further down"),
+                                            (true, false) => crate::i18n::tf!("change {number} fits 1 line further up"),
+                                            (false, true) => crate::i18n::tf!("change {number} fits {lines} lines further down"),
+                                            (false, false) => crate::i18n::tf!("change {number} fits {lines} lines further up"),
+                                        }
+                                    },
+                                    Fit::Fails => crate::i18n::tf!("change {} can't be found", n + 1),
                                 })
                                 .collect();
                             if !shown.is_empty() {
@@ -847,13 +855,13 @@ impl Limoniter {
     /// alone; one open and saved is read again.
     pub(in crate::app) fn carry_out_patch(&mut self, state: &PatchBox) -> String {
         let Some(Ok(checks)) = &state.checks else {
-            return "Choose where it's to be applied first.".into();
+            return crate::i18n::tr("Choose where it's to be applied first.").into();
         };
         let mut allowed = Vec::new();
         let mut held = Vec::new();
         for check in checks {
             match self.doc_for_path(&check.target) {
-                Some(index) if self.docs[index].is_modified() => held.push((check.name.clone(), "It's open here with changes not saved yet.".to_string())),
+                Some(index) if self.docs[index].is_modified() => held.push((check.name.clone(), crate::i18n::tr("It's open here with changes not saved yet.").to_string())),
                 _ => allowed.push(check.clone()),
             }
         }

@@ -349,7 +349,7 @@ impl Figures {
             let text = text.trim_end_matches('0').trim_end_matches('.');
             if text == "-0" { "0".to_string() } else { text.to_string() }
         };
-        format!("{} filled, {} numbers: total {}, average {}, smallest {}, largest {}", self.values, self.numbers, show(self.sum), show(self.sum / self.numbers as f64), show(self.smallest), show(self.largest))
+        crate::i18n::tf!("{} filled, {} numbers: total {}, average {}, smallest {}, largest {}", self.values, self.numbers, show(self.sum), show(self.sum / self.numbers as f64), show(self.smallest), show(self.largest))
     }
 }
 

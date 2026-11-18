@@ -173,9 +173,9 @@ impl Limoniter {
                         Ok(outcome) => {
                             printed.extend(outcome.printed.iter().cloned());
                             if outcome.ok {
-                                printed.push(format!("Packed in {:.1} s: {}.", outcome.seconds, outcome.sizes()));
+                                printed.push(crate::i18n::tf!("Packed in {:.1} s: {}.", outcome.seconds, outcome.sizes()));
                             } else {
-                                printed.push("It didn't finish: see what it printed above.".into());
+                                printed.push(crate::i18n::tr("It didn't finish: see what it printed above.").into());
                             }
                         }
                         Err(problem) => printed.push(problem.clone()),
@@ -190,7 +190,7 @@ impl Limoniter {
         if let Some((tool, rx)) = &state.fetching {
             match rx.try_recv() {
                 Ok(Ok(path)) => {
-                    state.status = format!("{} is ready at {}.", tool.name(), path.display());
+                    state.status = crate::i18n::tf!("{} is ready at {}.", tool.name(), path.display());
                     state.found = find_all(&state.prefs);
                     state.fetching = None;
                 }
@@ -275,7 +275,7 @@ impl Limoniter {
                     self.docs[index].text.paste_text(&text, false);
                     self.active = index;
                     if let Dialog::StTools(state) = &mut self.dialog {
-                        state.status = format!("Put into {name}, at the cursor.");
+                        state.status = crate::i18n::tf!("Put into {name}, at the cursor.");
                     }
                 }
                 None => ctx.copy_text(text),
@@ -290,8 +290,8 @@ impl Limoniter {
                 };
                 if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save what it holds, unpacked")).set_file_name(name).save_file() {
                     state.status = match std::fs::write(&path, &bytes) {
-                        Ok(()) => format!("Saved {} ({} bytes).", path.display(), group(bytes.len() as u64)),
-                        Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+                        Ok(()) => crate::i18n::tf!("Saved {} ({} bytes).", path.display(), group(bytes.len() as u64)),
+                        Err(e) => crate::i18n::tf!("{} couldn't be saved: {e}", path.display()),
                     };
                 }
             }
@@ -359,7 +359,7 @@ impl Limoniter {
         }
         let prefs = state.prefs.clone();
         let (path, bytes, name) = (source.path.clone(), source.bytes.clone(), own_name(&source.name));
-        let what = format!("Packing {name} with {}", tool.name());
+        let what = crate::i18n::tf!("Packing {name} with {}", tool.name());
         let (tx, rx) = channel();
         let stop = Arc::new(AtomicBool::new(false));
         let (flag, ctx) = (stop.clone(), ctx.clone());
@@ -408,7 +408,7 @@ fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
     });
     if let Some(unpacked) = &source.unpacked {
         ui.horizontal_wrapped(|ui| {
-            note(ui, format!("Packed with {}: it holds {} bytes.", unpacked.packer.name(), group(unpacked.bytes.len() as u64)));
+            note(ui, crate::i18n::tf!("Packed with {}: it holds {} bytes.", unpacked.packer.name(), group(unpacked.bytes.len() as u64)));
             if ui.small_button(crate::i18n::tr("Save what it holds\u{2026}")).clicked() {
                 *action = Some(Act::SaveUnpacked);
             }
@@ -419,7 +419,7 @@ fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
 fn folder_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
     ui.horizontal_wrapped(|ui| {
         match &source.folder {
-            Some(folder) => note(ui, format!("What's made goes in {}", folder.display())),
+            Some(folder) => note(ui, crate::i18n::tf!("What's made goes in {}", folder.display())),
             None => note(ui, "Choose where what's made goes:"),
         }
         if ui.small_button(crate::i18n::tr("Choose a folder\u{2026}")).clicked() {
@@ -672,10 +672,10 @@ fn tools_page(ui: &mut egui::Ui, state: &mut StToolsBox, action: &mut Option<Act
         });
         note(ui, tool.licence());
         let (file, from, terms) = tool.depacker();
-        note(ui, format!("Unpacked on the ST by {file} ({terms}), {from}."));
+        note(ui, crate::i18n::tf!("Unpacked on the ST by {file} ({terms}), {from}."));
         match found(&state.found, tool) {
             Some(path) => note(ui, format!("Found: {}", path.display())),
-            None => note(ui, format!("Not found. {}", tool.how_to_get())),
+            None => note(ui, crate::i18n::tf!("Not found. {}", tool.how_to_get())),
         }
         ui.horizontal(|ui| {
             if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Point Limoniter at the program")).clicked() {

@@ -57,7 +57,7 @@ pub fn raw(bytes: &[u8], bits: u32, origin: u64, starts: &[u64]) -> Program {
         start_segments: vec![0; starts.len()],
         starts,
         names: BTreeMap::new(),
-        what: format!("{bits}-bit x86 code, {} bytes at {origin:#X}", bytes.len()),
+        what: crate::i18n::tf!("{bits}-bit x86 code, {} bytes at {origin:#X}", bytes.len()),
     }
 }
 
@@ -72,7 +72,7 @@ pub fn recognise(name: &str, bytes: &[u8]) -> Option<Program> {
     // A .COM program; an Atari's binary load file (which starts $FF $FF) shares the ending.
     if name.to_ascii_lowercase().ends_with(".com") && !bytes.is_empty() && bytes.len() <= 0xFF00 && !bytes.starts_with(&[0xFF, 0xFF]) {
         let mut program = raw(bytes, 16, 0x100, &[0x100]);
-        program.what = format!("A DOS .COM program, {} bytes at $100", bytes.len());
+        program.what = crate::i18n::tf!("A DOS .COM program, {} bytes at $100", bytes.len());
         return Some(program);
     }
     None
@@ -90,7 +90,7 @@ fn mz(bytes: &[u8]) -> Option<Program> {
     let entry = segment + u64::from(ip);
     Some(Program {
         bits: 16,
-        what: format!("A DOS program (MZ), its {} bytes of code and data from 0, entered at {cs:04X}:{ip:04X}", module.len()),
+        what: crate::i18n::tf!("A DOS program (MZ), its {} bytes of code and data from 0, entered at {cs:04X}:{ip:04X}", module.len()),
         segments: vec![Segment { address: 0, bytes: module, name: "load module".into() }],
         starts: vec![entry],
         start_segments: vec![segment],
@@ -173,7 +173,10 @@ fn pe(bytes: &[u8]) -> Option<Program> {
         }
     }
     let kind = if u16_at(bytes, at + 22).is_some_and(|c| c & 0x2000 != 0) { "library (DLL)" } else { "program" };
-    let what = format!("A {bits}-bit Windows {kind} (PE), {} executable section{} from {base:#X}, entered at {:#X}", segments.len(), if segments.len() == 1 { "" } else { "s" }, base + u64::from(entry_rva));
+    let what = {
+        let (count, entry) = (segments.len(), base + u64::from(entry_rva));
+        if count == 1 { crate::i18n::tf!("A {bits}-bit Windows {kind} (PE), 1 executable section from {base:#X}, entered at {entry:#X}") } else { crate::i18n::tf!("A {bits}-bit Windows {kind} (PE), {count} executable sections from {base:#X}, entered at {entry:#X}") }
+    };
     Some(Program { bits, segments, start_segments: vec![0; starts.len()], starts, names, what })
 }
 
@@ -235,7 +238,10 @@ fn elf(bytes: &[u8]) -> Option<Program> {
             }
         }
     }
-    let what = format!("A {bits}-bit Linux program or library (ELF), {} executable segment{}, entered at {entry:#X}", segments.len(), if segments.len() == 1 { "" } else { "s" });
+    let what = {
+        let count = segments.len();
+        if count == 1 { crate::i18n::tf!("A {bits}-bit Linux program or library (ELF), 1 executable segment, entered at {entry:#X}") } else { crate::i18n::tf!("A {bits}-bit Linux program or library (ELF), {count} executable segments, entered at {entry:#X}") }
+    };
     Some(Program { bits, segments, start_segments: vec![0; starts.len()], starts, names, what })
 }
 
@@ -334,7 +340,7 @@ pub fn disassemble(program: &Program) -> String {
     formatter.options_mut().set_space_after_operand_separator(true);
     formatter.options_mut().set_first_operand_char_index(8);
 
-    let mut lines = vec![format!("; {}", program.what), "; Disassembled by Limoniter: addresses and bytes are in the comments.".to_string(), String::new(), format!("        bits {bits}")];
+    let mut lines = vec![format!("; {}", program.what), crate::i18n::tr("; Disassembled by Limoniter: addresses and bytes are in the comments.").to_string(), String::new(), format!("        bits {bits}")];
     for (s, segment) in program.segments.iter().enumerate() {
         lines.push(String::new());
         let name = if segment.name.is_empty() { String::new() } else { format!(" ({})", segment.name) };

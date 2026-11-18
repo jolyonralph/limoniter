@@ -27,6 +27,9 @@ pub struct Project {
     pub tasks: Vec<crate::tasks::Task>,
     /// Folder comparisons saved in the project, by name, listed under Comparisons in its panel.
     pub comparisons: Vec<crate::compare_session::Session>,
+    /// A folder opened as a project, as VS Code opens one: everything in it is the project, read from the disk as
+    /// it is now, so `files` is its index rather than a list kept in the project's file.
+    pub root: Option<PathBuf>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -71,27 +74,39 @@ fn same_file(a: &Path, b: &Path) -> bool {
 }
 
 impl Project {
+    /// A folder opened as a project: named after the folder, its project file kept where `path` says.
+    pub fn of_folder(path: &Path, root: &Path) -> Self {
+        let mut project = Self::new(path);
+        project.name = root.file_name().map_or_else(|| root.display().to_string(), |n| n.to_string_lossy().into_owned());
+        project.root = Some(root.to_path_buf());
+        project
+    }
+
     pub fn new(path: &Path) -> Self {
         let name = path.file_stem().map_or_else(|| "Project".to_string(), |stem| stem.to_string_lossy().into_owned());
         Self { path: path.to_path_buf(), name, ..Self::default() }
     }
 
     pub fn folder(&self) -> PathBuf {
-        folder_of(&self.path)
+        self.root.clone().unwrap_or_else(|| folder_of(&self.path))
     }
 
     pub fn to_text(&self) -> String {
         let base = self.folder();
         let list = |paths: &[PathBuf]| paths.iter().map(|path| stored(&base, path)).collect::<Vec<_>>();
-        let value = json!({
+        let files = if self.root.is_some() { Vec::new() } else { list(&self.files) };
+        let mut value = json!({
             "limoniter_project": 1,
             "name": self.name,
             "notes": self.notes,
-            "files": list(&self.files),
+            "files": files,
             "open_files": list(&self.open_files),
             "tasks": self.tasks.iter().map(|t| json!({ "name": t.name, "command": t.command, "kind": t.kind.id() })).collect::<Vec<_>>(),
             "comparisons": crate::compare_session::list_to_json(&self.comparisons, Some(&base)),
         });
+        if let Some(root) = &self.root {
+            value["root"] = json!(stored(&folder_of(&self.path), root));
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -100,14 +115,15 @@ impl Project {
         if value.get("limoniter_project").is_none() {
             return Err(crate::i18n::tr("That isn't a project file.").to_string());
         }
-        let base = folder_of(path);
+        let root = value.get("root").and_then(Value::as_str).map(|r| resolved(&folder_of(path), r));
+        let base = root.clone().unwrap_or_else(|| folder_of(path));
         let list = |name: &str| -> Vec<PathBuf> { value.get(name).and_then(Value::as_array).map_or_else(Vec::new, |items| items.iter().filter_map(Value::as_str).map(|item| resolved(&base, item)).collect()) };
         let text_of = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
         let tasks = value.get("tasks").and_then(Value::as_array).map_or_else(Vec::new, |items| {
             items.iter().filter_map(|t| Some(crate::tasks::Task { name: t.get("name")?.as_str()?.to_string(), command: t.get("command")?.as_str()?.to_string(), kind: crate::tasks::Kind::from_id(t.get("kind").and_then(Value::as_str).unwrap_or("")) })).collect()
         });
         let comparisons = crate::compare_session::list_from_json(value.get("comparisons"), Some(&base));
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons };
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -246,12 +262,12 @@ pub fn restore(backup: &Backup, keep: &[PathBuf]) -> Report {
     let mut report = Report { folder: backup.folder.clone(), ..Report::default() };
     for (copy, original) in &backup.files {
         if keep.iter().any(|path| same_file(path, original)) {
-            report.skipped.push((original.clone(), "it's open with unsaved changes".to_string()));
+            report.skipped.push((original.clone(), crate::i18n::tr("it's open with unsaved changes").to_string()));
             continue;
         }
         // The name comes from a file that could have been edited, so it may only reach into this folder.
         if Path::new(copy).components().count() != 1 || matches!(Path::new(copy).components().next(), Some(Component::ParentDir | Component::RootDir | Component::Prefix(_))) {
-            report.skipped.push((original.clone(), "its backup is listed oddly".to_string()));
+            report.skipped.push((original.clone(), crate::i18n::tr("its backup is listed oddly").to_string()));
             continue;
         }
         // Copied rather than read in, because a project can hold files of any size.
@@ -307,11 +323,14 @@ pub enum PanelAction {
     OpenComparison(String),
     /// Rename or delete the saved comparisons, starting with one.
     ManageComparisons(String),
+    /// Something asked of a folder project's Explorer: making, renaming or deleting files, and the rest.
+    Explorer(crate::explorer::Act),
 }
 
 #[derive(Default)]
 pub struct PanelState {
     pub filter: String,
+    pub explorer: crate::explorer::Explorer,
 }
 
 /// A folder in the panel's tree.
@@ -388,12 +407,42 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
 pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, active: Option<&Path>) -> Vec<PanelAction> {
     let mut actions = Vec::new();
     let Some(project) = project else {
-        ui.label(RichText::new(crate::i18n::tr("No project is open. Tools, Project can make one or open one.")).color(theme::text_faint()).size(12.5));
+        ui.label(RichText::new(crate::i18n::tr("No project is open. File, Open folder opens a folder as one; Project can make one or open one.")).color(theme::text_faint()).size(12.5));
         return actions;
     };
+    // A folder opened as a project: the Explorer, or the files a few letters find while some are typed.
+    if let Some(root) = &project.root {
+        ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Find a file by its name (Ctrl+E)")).desired_width(f32::INFINITY));
+        ui.add_space(2.0);
+        comparisons(ui, project, &mut actions);
+        let acts = if state.filter.trim().is_empty() { state.explorer.draw(ui, root, active) } else { crate::explorer::filtered(ui, root, &project.files, &state.filter, active) };
+        for act in acts {
+            actions.push(match act {
+                crate::explorer::Act::Open(path) => PanelAction::Open(path),
+                crate::explorer::Act::CompareWith(path) => PanelAction::CompareWith(path),
+                crate::explorer::Act::CompareFolder(path) => PanelAction::CompareFolder(path),
+                crate::explorer::Act::CompareWithHead(path) => PanelAction::CompareWithHead(path),
+                other => PanelAction::Explorer(other),
+            });
+        }
+        return actions;
+    }
     ui.label(RichText::new(&project.name).color(theme::text()).size(13.0)).on_hover_text(if project.notes.is_empty() { project.path.display().to_string() } else { format!("{}\n\n{}", project.path.display(), project.notes) });
     ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Filter")).desired_width(f32::INFINITY));
     ui.add_space(2.0);
+    comparisons(ui, project, &mut actions);
+    if project.files.is_empty() {
+        ui.label(RichText::new(crate::i18n::tr("No files yet. Add some from Tools, Project.")).color(theme::text_faint()).size(12.5));
+        return actions;
+    }
+    let tree = tree_of(project, &state.filter);
+    let base = project.folder();
+    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", &base, active, &mut actions, !state.filter.trim().is_empty()));
+    actions
+}
+
+/// The comparisons saved in the project.
+fn comparisons(ui: &mut Ui, project: &Project, actions: &mut Vec<PanelAction>) {
     if !project.comparisons.is_empty() {
         egui::CollapsingHeader::new(RichText::new(crate::i18n::tr("Comparisons")).size(12.5)).id_salt("project-comparisons").default_open(true).show(ui, |ui| {
             for session in &project.comparisons {
@@ -415,14 +464,6 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
             }
         });
     }
-    if project.files.is_empty() {
-        ui.label(RichText::new(crate::i18n::tr("No files yet. Add some from Tools, Project.")).color(theme::text_faint()).size(12.5));
-        return actions;
-    }
-    let tree = tree_of(project, &state.filter);
-    let base = project.folder();
-    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", &base, active, &mut actions, !state.filter.trim().is_empty()));
-    actions
 }
 
 #[cfg(test)]

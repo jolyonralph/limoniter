@@ -177,7 +177,7 @@ pub fn open(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, Stri
 /// Opens the HFS+ volume inside an HFS wrapper: the wrapper's master directory block says where it is, as an extent
 /// of the wrapper's own allocation blocks.
 pub fn open_wrapped(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, String> {
-    let mdb = source.read_vec(1024, 162).map_err(|_| "The image is too short for an HFS wrapper.".to_string())?;
+    let mdb = source.read_vec(1024, 162).map_err(|_| crate::i18n::tr("The image is too short for an HFS wrapper.").to_string())?;
     let (block_size, blocks_at) = (be(&mdb[20..24]), be(&mdb[28..30]) * 512);
     let (first, count) = (be(&mdb[126..128]), be(&mdb[128..130]));
     if block_size == 0 || !block_size.is_multiple_of(512) || count == 0 {
@@ -194,7 +194,7 @@ pub fn open_wrapped(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volum
 
 impl HfsPlus {
     fn open(source: Arc<dyn Source>, what: &str, wrapped: bool) -> Result<Self, String> {
-        let header = source.read_vec(1024, 512).map_err(|_| "The image is too short for an HFS+ volume.".to_string())?;
+        let header = source.read_vec(1024, 512).map_err(|_| crate::i18n::tr("The image is too short for an HFS+ volume.").to_string())?;
         let format = match &header[..2] {
             b"H+" if wrapped => "HFS+ in an HFS wrapper",
             b"H+" => "HFS+",
@@ -206,10 +206,10 @@ impl HfsPlus {
             return Err(crate::i18n::tr("This HFS+ volume's allocation block size doesn't make sense, so it can't be read.").into());
         }
         let last_mounted = match &header[8..12] {
-            b"10.0" => "Mac OS X".to_string(),
-            b"HFSJ" => "Mac OS X, journaled".to_string(),
+            b"10.0" => crate::i18n::tr("Mac OS X").to_string(),
+            b"HFSJ" => crate::i18n::tr("Mac OS X, journaled").to_string(),
             b"FSK!" | b"fsck" => "fsck_hfs".to_string(),
-            b"8.10" => "Mac OS 8.1 to 9.2.2".to_string(),
+            b"8.10" => crate::i18n::tr("Mac OS 8.1 to 9.2.2").to_string(),
             other => mac::code(other),
         };
         let empty = || Tree { fork: Fork::default(), node_size: 512, root: 0, nodes: 0, max_key: 0, variable_index_keys: true };
@@ -246,7 +246,7 @@ impl HfsPlus {
             // A damaged attributes file only costs compressed files, so the rest of the volume still opens.
             match volume.tree(attributes_fork) {
                 Ok(tree) => volume.attributes = Some(tree),
-                Err(problem) => volume.notes.push(format!("The attributes file can't be read, so compressed files can't be either: {problem}")),
+                Err(problem) => volume.notes.push(crate::i18n::tf!("The attributes file can't be read, so compressed files can't be either: {problem}")),
             }
         }
         // The volume's name is its root folder's, from the root's thread record.
@@ -297,7 +297,7 @@ impl HfsPlus {
             _ => return,
         };
         if number(&journal[8..16], little) != number(&journal[16..24], little) {
-            self.notes.push("The volume's journal holds changes that were never written back, so the newest of its files may be missing or out of date.".into());
+            self.notes.push(crate::i18n::tr("The volume's journal holds changes that were never written back, so the newest of its files may be missing or out of date.").into());
         }
     }
 
@@ -383,7 +383,7 @@ impl HfsPlus {
 
     /// Reads a B-tree's header node.
     fn tree(&self, fork: Fork) -> Result<Tree, String> {
-        let head = self.fork_part(&fork, 0, 512.min(fork.length as usize)).map_err(|_| "A B-tree's header node can't be read, so the disk is damaged.".to_string())?;
+        let head = self.fork_part(&fork, 0, 512.min(fork.length as usize)).map_err(|_| crate::i18n::tr("A B-tree's header node can't be read, so the disk is damaged.").to_string())?;
         if head.len() < 106 || head[8] != 1 {
             return Err(crate::i18n::tr("A B-tree's first node isn't its header, so the disk is damaged.").into());
         }
@@ -499,12 +499,12 @@ impl HfsPlus {
         let node = self.node(TreeId::Catalog, &self.catalog, (place >> 16) as u32)?;
         let records = records(&node, &self.catalog, true)?;
         let record = records.get((place & 0xFFFF) as usize).ok_or(crate::i18n::tr("That file isn't on the disk."))?;
-        catalog_item(record.key, record.data).ok_or_else(|| "That file isn't on the disk.".into())
+        catalog_item(record.key, record.data).ok_or_else(|| crate::i18n::tr("That file isn't on the disk.").into())
     }
 
     /// The file a hard link stands for: `iNode` and its number, in the hidden folder of hard links' files.
     fn link_target(&self, link: &Item) -> Result<Item, String> {
-        let mut inodes = self.inodes.lock().map_err(|_| "The disk couldn't be read.".to_string())?;
+        let mut inodes = self.inodes.lock().map_err(|_| crate::i18n::tr("The disk couldn't be read.").to_string())?;
         if inodes.is_none() {
             let mut map = HashMap::new();
             if let Some(folder) = self.private_files {
@@ -516,7 +516,7 @@ impl HfsPlus {
             }
             *inodes = Some(map);
         }
-        inodes.as_ref().and_then(|map| map.get(&link.special)).cloned().ok_or_else(|| "This hard link's file isn't in the volume's hidden folder of linked files, so the disk is damaged.".into())
+        inodes.as_ref().and_then(|map| map.get(&link.special)).cloned().ok_or_else(|| crate::i18n::tr("This hard link's file isn't in the volume's hidden folder of linked files, so the disk is damaged.").into())
     }
 
     /// A file's extended attribute, by name: its bytes, whether kept in the attributes file or in a fork of its own.
@@ -543,7 +543,7 @@ impl HfsPlus {
                 // Inline data: the record type, eight reserved bytes, the length, and the data.
                 Some(0x10) => {
                     let length = data.get(12..16).map_or(0, be) as usize;
-                    found = Some(data.get(16..16 + length).map(<[u8]>::to_vec).ok_or_else(|| "A file's attribute is cut short, so the disk is damaged.".to_string()));
+                    found = Some(data.get(16..16 + length).map(<[u8]>::to_vec).ok_or_else(|| crate::i18n::tr("A file's attribute is cut short, so the disk is damaged.").to_string()));
                     false
                 }
                 // Too big to be inline: a fork of the attribute's own, its extents past eight in records of type &30.
@@ -699,7 +699,7 @@ impl HfsPlus {
         if shown.resource.length > 0 && !compressed_fork {
             let mut resource = Entry::file(format!("{name}.rsrc"), shown.resource.length, place);
             resource.extra = RESOURCE_FORK;
-            resource.kind = "Resource fork".into();
+            resource.kind = crate::i18n::tr("Resource fork").into();
             resource.detail = format!("of {name}");
             out.push(resource);
         }
@@ -790,7 +790,7 @@ fn records<'a>(node: &'a [u8], tree: &Tree, leaf: bool) -> Result<Vec<NodeRecord
 
 /// zlib data, inflated to the length expected.
 fn inflate(bytes: &[u8], size: usize) -> Result<Vec<u8>, String> {
-    miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(bytes, size.max(1)).map_err(|_| "This compressed file's zlib data is damaged.".to_string())
+    miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(bytes, size.max(1)).map_err(|_| crate::i18n::tr("This compressed file's zlib data is damaged.").to_string())
 }
 
 /// LZVN, the method of Apple's LZFSE library for small blocks, read by putting it in an LZFSE stream's LZVN block:
@@ -802,7 +802,7 @@ fn unlzvn(bytes: &[u8], size: usize) -> Result<Vec<u8>, String> {
     stream.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
     stream.extend_from_slice(bytes);
     stream.extend_from_slice(b"bvx$");
-    unlzfse(&stream, size).map_err(|_| "This compressed file's LZVN data is damaged.".to_string())
+    unlzfse(&stream, size).map_err(|_| crate::i18n::tr("This compressed file's LZVN data is damaged.").to_string())
 }
 
 /// An LZFSE stream, expanded.
@@ -812,14 +812,14 @@ pub(super) fn unlzfse(bytes: &[u8], size: usize) -> Result<Vec<u8>, String> {
     use std::io::Read;
     let mut out = Vec::with_capacity(size);
     let mut decoder = lzfse_rust::LzfseRingDecoder::default();
-    decoder.reader_bytes(bytes).take(size as u64 + 1).read_to_end(&mut out).map_err(|_| "This compressed file's LZFSE data is damaged.".to_string())?;
+    decoder.reader_bytes(bytes).take(size as u64 + 1).read_to_end(&mut out).map_err(|_| crate::i18n::tr("This compressed file's LZFSE data is damaged.").to_string())?;
     Ok(out)
 }
 
 /// The blocks of a zlib-compressed resource fork: after the usual 256-byte resource fork header, a length, then a
 /// little-endian count and table of (offset, length) pairs, the offsets from the count's own place.
 fn zlib_blocks(fork: &[u8]) -> Result<Vec<(usize, usize)>, String> {
-    let damaged = || "A compressed file's table of blocks is damaged.".to_string();
+    let damaged = || crate::i18n::tr("A compressed file's table of blocks is damaged.").to_string();
     let data_at = fork.get(..4).map(be).ok_or_else(damaged)? as usize;
     let table = data_at + 4;
     let count = fork.get(table..table + 4).map(le32).ok_or_else(damaged)? as usize;
@@ -839,7 +839,7 @@ fn zlib_blocks(fork: &[u8]) -> Result<Vec<(usize, usize)>, String> {
 /// The blocks of an LZVN or LZFSE-compressed resource fork: a little-endian table of offsets from the fork's start,
 /// the first of which is the table's own length, each block running to the next offset.
 fn offset_blocks(fork: &[u8]) -> Result<Vec<(usize, usize)>, String> {
-    let damaged = || "A compressed file's table of blocks is damaged.".to_string();
+    let damaged = || crate::i18n::tr("A compressed file's table of blocks is damaged.").to_string();
     let table = fork.get(..4).map(le32).ok_or_else(damaged)? as usize;
     if table < 8 || !table.is_multiple_of(4) || table > fork.len() {
         return Err(damaged());
@@ -870,7 +870,7 @@ impl Volume for HfsPlus {
             } else if item.is_folder_link() {
                 // A hard link to a folder, as Time Machine makes: the folder itself, kept in the hidden folder.
                 let mut entry = Entry::dir(tidy_name(&item.name), u64::from(item.special), 0);
-                entry.detail = "hard link to a folder".into();
+                entry.detail = crate::i18n::tr("hard link to a folder").into();
                 folders.push(entry);
             } else {
                 files.push((place, item));
@@ -922,8 +922,8 @@ impl Volume for HfsPlus {
             ("Created".to_string(), mac::mac_date(self.created)),
             ("Files".to_string(), self.files.to_string()),
             ("Folders".to_string(), self.folders.to_string()),
-            ("Allocation block".to_string(), format!("{} bytes", self.block_size)),
-            ("Last mounted by".to_string(), self.last_mounted.clone()),
+            (crate::i18n::tr("Allocation block").to_string(), format!("{} bytes", self.block_size)),
+            (crate::i18n::tr("Last mounted by").to_string(), self.last_mounted.clone()),
         ];
         vec![InfoSection { title: "Volume".into(), rows }]
     }
@@ -981,7 +981,7 @@ pub fn open_gpt(source: Arc<dyn Source>, what: &str) -> Result<Box<dyn Volume>, 
                 Err(problem) => part.problem = Some(problem),
             }
         } else if kind == GPT_APFS {
-            part.problem = Some("APFS, which Limoniter can't read yet".into());
+            part.problem = Some(crate::i18n::tr("APFS, which Limoniter can't read yet").into());
         }
         out.push(part);
     }
@@ -993,9 +993,9 @@ fn gpt_kind(kind: &[u8; 16]) -> String {
     match kind {
         k if *k == GPT_HFS_PLUS => "Apple_HFS".into(),
         k if *k == GPT_APFS => "Apple_APFS".into(),
-        [0x28, 0x73, 0x2A, 0xC1, 0x1F, 0xF8, 0xD2, 0x11, ..] => "EFI system partition".into(),
+        [0x28, 0x73, 0x2A, 0xC1, 0x1F, 0xF8, 0xD2, 0x11, ..] => crate::i18n::tr("EFI system partition").into(),
         [0x00, 0x6F, 0x6F, 0x42, 0x00, 0x00, 0xAA, 0x11, ..] => "Apple_Boot".into(),
-        _ => "GPT partition".into(),
+        _ => crate::i18n::tr("GPT partition").into(),
     }
 }
 
@@ -1436,7 +1436,7 @@ pub mod tests {
         let link = find(&top, "Folder link");
         assert!(link.is_dir && link.detail == "hard link to a folder");
         assert_eq!(volume.read(find(&volume.list(Some(link)).unwrap(), "Inside")).unwrap(), b"in a linked folder");
-        assert!(!find(&top, "Folder alias").is_dir && names(&top).contains(&"Folder alias.rsrc".to_string()), "an alias is a file");
+        assert!(!find(&top, "Folder alias").is_dir && names(&top).contains(&crate::i18n::tr("Folder alias.rsrc").to_string()), "an alias is a file");
         let docs = volume.list(Some(find(&top, "Docs"))).unwrap();
         assert_eq!(names(&docs), ["Café.txt", "Read Me", "Read Me.rsrc"], "a decomposed name is shown composed, and the resource fork is beside its file");
         let readme = find(&docs, "Read Me");

@@ -260,9 +260,9 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
         }
     }
     let fonts: Vec<&str> = slots.iter().enumerate().filter(|(n, name)| !name.is_empty() && used.get(*n).copied().unwrap_or(false)).map(|(_, name)| name.as_str()).collect();
-    let mut notes = vec![format!("Signum!'s own bitmap fonts ({}) can't be kept; the text is in plain characters.", if fonts.is_empty() { "none named".to_string() } else { fonts.join(", ") })];
+    let mut notes = vec![crate::i18n::tf!("Signum!'s own bitmap fonts ({}) can't be kept; the text is in plain characters.", if fonts.is_empty() { "none named".to_string() } else { fonts.join(", ") })];
     if items.iter().any(|item| matches!(item, Item::Line { flags, chars, .. } if flags & OUTSIDE != 0 && !chars.is_empty())) {
-        notes.push("Text placed outside the lines, such as formulas, is given line by line.".into());
+        notes.push(crate::i18n::tr("Text placed outside the lines, such as formulas, is given line by line.").into());
     }
     Ok(Doc { format: "Signum!".into(), blocks: b.finish(), notes })
 }

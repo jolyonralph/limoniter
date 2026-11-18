@@ -151,9 +151,9 @@ impl HexBuffer {
 
     fn pattern_bytes(&self, text: &str, hex: bool) -> Result<Vec<u8>, String> {
         if hex {
-            parse_hex(text).ok_or_else(|| "That isn't valid hex: use pairs of digits, like 4A 6F.".to_string())
+            parse_hex(text).ok_or_else(|| crate::i18n::tr("That isn't valid hex: use pairs of digits, like 4A 6F.").to_string())
         } else {
-            self.text_bytes(text).ok_or_else(|| "That text has characters EBCDIC doesn't have.".to_string())
+            self.text_bytes(text).ok_or_else(|| crate::i18n::tr("That text has characters EBCDIC doesn't have.").to_string())
         }
     }
 
@@ -535,7 +535,7 @@ impl HexBuffer {
     pub fn paste_text(&mut self, text: &str) {
         let parsed = if self.ascii_pane { None } else { parse_hex(text) };
         let Some(bytes) = parsed.or_else(|| self.text_bytes(text)) else {
-            self.notice = Some("Nothing was added, because that text has characters EBCDIC doesn't have.".to_string());
+            self.notice = Some(crate::i18n::tr("Nothing was added, because that text has characters EBCDIC doesn't have.").to_string());
             return;
         };
         if bytes.is_empty() {

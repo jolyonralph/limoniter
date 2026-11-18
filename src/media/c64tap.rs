@@ -235,15 +235,15 @@ impl C64Tape {
         let mut notes = Vec::new();
         let said = u32::from_le_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]) as usize;
         if said != bytes.len() - 0x14 {
-            notes.push(format!("The header says the pulses take {said} bytes; there are {}.", bytes.len() - 0x14));
+            notes.push(crate::i18n::tf!("The header says the pulses take {said} bytes; there are {}.", bytes.len() - 0x14));
         }
         if version > 2 {
-            notes.push(format!("It's TAP version {version}; only 0, 1 and 2 are known, so it was read as version 1."));
+            notes.push(crate::i18n::tf!("It's TAP version {version}; only 0, 1 and 2 are known, so it was read as version 1."));
         }
         let (lengths, offsets) = pulses(&bytes, version);
         let mut tape = C64Tape { version, machine, files: Vec::new(), pulses: lengths.len(), short: 0, notes };
         if machine == "C16 or Plus/4" {
-            tape.notes.push("C16 and Plus/4 tapes use their own KERNAL's format, which isn't decoded here.".into());
+            tape.notes.push(crate::i18n::tr("C16 and Plus/4 tapes use their own KERNAL's format, which isn't decoded here.").into());
             return Ok(tape);
         }
         // The short pulse that reads the most of the tape as KERNAL blocks.
@@ -253,7 +253,7 @@ impl C64Tape {
             (short, kinds, found)
         });
         let Some((short, kinds, found)) = tried.max_by_key(|(_, _, found)| found.iter().map(|b| b.bytes.len()).sum::<usize>()) else {
-            tape.notes.push("No leader of the KERNAL's short pulses was found, so no files could be read: it may be all in a turbo loader's format.".into());
+            tape.notes.push(crate::i18n::tr("No leader of the KERNAL's short pulses was found, so no files could be read: it may be all in a turbo loader's format.").into());
             return Ok(tape);
         };
         tape.short = short;
@@ -283,16 +283,16 @@ impl C64Tape {
             last_used = last_used.max(end);
             let header = payload.len() == 192 && matches!(payload[0], 1 | 3 | 4 | 5);
             if !header {
-                tape.notes.push(format!("A block of {} bytes at offset {offset} has no header before it{}.", payload.len(), if ok { "" } else { ", and its checksum is wrong" }));
+                tape.notes.push(crate::i18n::tf!("A block of {} bytes at offset {offset} has no header before it{}.", payload.len(), if ok { "" } else { ", and its checksum is wrong" }));
                 i += 1;
                 continue;
             }
             if !ok {
-                tape.notes.push(format!("The header at offset {offset} was read with a wrong checksum in both copies."));
+                tape.notes.push(crate::i18n::tf!("The header at offset {offset} was read with a wrong checksum in both copies."));
             }
             let kind = payload[0];
             if kind == 5 {
-                tape.notes.push(format!("An end-of-tape marker is at offset {offset}."));
+                tape.notes.push(crate::i18n::tf!("An end-of-tape marker is at offset {offset}."));
                 i += 1;
                 continue;
             }
@@ -329,7 +329,7 @@ impl C64Tape {
                     last_used = last_used.max(end);
                     let expected = usize::from(end_address.wrapping_sub(start));
                     if data.len() != expected {
-                        tape.notes.push(format!("{}'s data is {} bytes, where its header says {expected}.", file.name, data.len()));
+                        tape.notes.push(crate::i18n::tf!("{}'s data is {} bytes, where its header says {expected}.", file.name, data.len()));
                     }
                     file.data = data;
                     file.ok = ok;
@@ -338,9 +338,9 @@ impl C64Tape {
                 }
             }
             if !file.has_data {
-                tape.notes.push(format!("{}'s header was found, but not its data: it's probably loaded by a turbo loader.", if file.name.is_empty() { "A file" } else { &file.name }));
+                tape.notes.push(crate::i18n::tf!("{}'s header was found, but not its data: it's probably loaded by a turbo loader.", if file.name.is_empty() { "A file" } else { &file.name }));
             } else if !file.ok {
-                tape.notes.push(format!("{}'s data was read with a wrong checksum in both copies: some bytes are wrong.", file.name));
+                tape.notes.push(crate::i18n::tf!("{}'s data was read with a wrong checksum in both copies: some bytes are wrong.", file.name));
             }
             tape.files.push(file);
         }
@@ -358,14 +358,13 @@ impl C64Tape {
             let mut common: Vec<(u32, usize)> = widths.into_iter().collect();
             common.sort_by_key(|c| std::cmp::Reverse(c.1));
             let tops: Vec<String> = common.iter().take(3).map(|(w, _)| format!("${w:02X}")).collect();
-            tape.notes.push(format!(
-                "From offset {from} on, {} pulses aren't in the KERNAL's format: most likely a turbo loader's, which isn't decoded (its commonest pulses are {} long, in units of 8 cycles).",
+            tape.notes.push(crate::i18n::tf!("From offset {from} on, {} pulses aren't in the KERNAL's format: most likely a turbo loader's, which isn't decoded (its commonest pulses are {} long, in units of 8 cycles).",
                 rest.len(),
                 tops.join(", ")
             ));
         }
         if tape.files.is_empty() && tape.notes.is_empty() {
-            tape.notes.push("No KERNAL files were found on the tape.".into());
+            tape.notes.push(crate::i18n::tr("No KERNAL files were found on the tape.").into());
         }
         Ok(tape)
     }
@@ -374,7 +373,10 @@ impl C64Tape {
 impl Volume for C64Tape {
     fn describe(&self) -> String {
         let count = self.files.len();
-        format!("{} tape (TAP version {}) \u{B7} {count} file{}", self.machine, self.version, if count == 1 { "" } else { "s" })
+        {
+            let (machine, version) = (&self.machine, self.version);
+            if count == 1 { crate::i18n::tf!("{machine} tape (TAP version {version}) \u{B7} 1 file") } else { crate::i18n::tf!("{machine} tape (TAP version {version}) \u{B7} {count} files") }
+        }
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -386,12 +388,12 @@ impl Volume for C64Tape {
             .iter()
             .enumerate()
             .map(|(i, file)| {
-                let name = if file.name.is_empty() { "(no name)".to_string() } else { tidy_name(&file.name) };
+                let name = if file.name.is_empty() { crate::i18n::tr("(no name)").to_string() } else { tidy_name(&file.name) };
                 let size = if file.kind == 4 { file.data.len() as u64 } else { file.data.len() as u64 + 2 };
                 let mut entry = Entry::file(name.clone(), size, i as u64);
                 entry.kind = file.kind_name().into();
                 entry.detail = match (file.kind, file.has_data, file.ok) {
-                    (_, false, _) => "header only: no data in the KERNAL's format".into(),
+                    (_, false, _) => crate::i18n::tr("header only: no data in the KERNAL's format").into(),
                     (4, _, ok) => format!("data file{}", if ok { "" } else { ", checksum wrong" }),
                     (_, _, ok) => format!("${:04X}-${:04X}{}", file.start, file.end.wrapping_sub(1), if ok { "" } else { ", checksum wrong" }),
                 };
@@ -422,15 +424,15 @@ impl Volume for C64Tape {
     fn info(&self) -> Vec<InfoSection> {
         let rows = vec![
             ("Machine".to_string(), self.machine.to_string()),
-            ("TAP version".into(), format!("{}{}", self.version, match self.version { 0 => " (long pauses not measured)", 1 => " (long pauses measured)", 2 => " (half waves)", _ => "" })),
+            (crate::i18n::tr("TAP version").into(), format!("{}{}", self.version, match self.version { 0 => " (long pauses not measured)", 1 => " (long pauses measured)", 2 => " (half waves)", _ => "" })),
             ("Pulses".into(), self.pulses.to_string()),
-            ("Short pulse".into(), if self.short == 0 { "Not found".into() } else { format!("{} cycles (${:02X} in the file)", self.short, self.short / 8) }),
-            ("KERNAL files".into(), self.files.len().to_string()),
+            (crate::i18n::tr("Short pulse").into(), if self.short == 0 { crate::i18n::tr("Not found").into() } else { crate::i18n::tf!("{} cycles (${:02X} in the file)", self.short, self.short / 8) }),
+            (crate::i18n::tr("KERNAL files").into(), self.files.len().to_string()),
         ];
         let files = self
             .files
             .iter()
-            .map(|f| (if f.name.is_empty() { "(no name)".to_string() } else { f.name.clone() }, format!("{}, ${:04X}-${:04X}, at offset {}{}", f.kind_name(), f.start, f.end.wrapping_sub(1), f.offset, if !f.has_data { ", header only" } else if f.ok { "" } else { ", checksum wrong" })))
+            .map(|f| (if f.name.is_empty() { crate::i18n::tr("(no name)").to_string() } else { f.name.clone() }, format!("{}, ${:04X}-${:04X}, at offset {}{}", f.kind_name(), f.start, f.end.wrapping_sub(1), f.offset, if !f.has_data { ", header only" } else if f.ok { "" } else { ", checksum wrong" })))
             .collect();
         vec![InfoSection { title: "Tape".into(), rows }, InfoSection { title: "Files".into(), rows: files }]
     }

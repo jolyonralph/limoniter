@@ -20,10 +20,10 @@ pub fn load(bytes: &[u8]) -> Result<Song, String> {
     let mut song = Song::new(Format::S3m, channels);
     song.title = text(&bytes[..28]);
     song.tracker = match made_with >> 12 {
-        1 => format!("Scream Tracker {}.{:02X}", (made_with >> 8) & 0xF, made_with & 0xFF),
-        2 => "Imago Orpheus".into(),
-        3 => "Impulse Tracker".into(),
-        4 => "Schism Tracker".into(),
+        1 => crate::i18n::tf!("Scream Tracker {}.{:02X}", (made_with >> 8) & 0xF, made_with & 0xFF),
+        2 => crate::i18n::tr("Imago Orpheus").into(),
+        3 => crate::i18n::tr("Impulse Tracker").into(),
+        4 => crate::i18n::tr("Schism Tracker").into(),
         5 => "OpenMPT".into(),
         _ => String::new(),
     };

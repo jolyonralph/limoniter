@@ -137,16 +137,16 @@ pub fn read(bytes: &[u8]) -> Doc {
     }
     let mut notes = Vec::new();
     if dropped.other_files > 0 {
-        notes.push(format!("{} link(s) to other files or programs are kept as their text.", dropped.other_files));
+        notes.push(crate::i18n::tf!("{} link(s) to other files or programs are kept as their text.", dropped.other_files));
     }
     if dropped.missing > 0 {
-        notes.push(format!("{} link(s) to nodes not in the file are kept as their text.", dropped.missing));
+        notes.push(crate::i18n::tf!("{} link(s) to nodes not in the file are kept as their text.", dropped.missing));
     }
     if dropped.attributes > 0 {
-        notes.push(format!("{} colour, font and layout change(s) aren't carried over.", dropped.attributes));
+        notes.push(crate::i18n::tf!("{} colour, font and layout change(s) aren't carried over.", dropped.attributes));
     }
     if dropped.commands > 0 {
-        notes.push(format!("{} other command line(s) aren't carried over.", dropped.commands));
+        notes.push(crate::i18n::tf!("{} other command line(s) aren't carried over.", dropped.commands));
     }
     let format = if database.is_empty() { "AmigaGuide".to_string() } else { format!("AmigaGuide ({database})") };
     Doc { format, blocks, notes }

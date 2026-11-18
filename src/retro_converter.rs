@@ -203,15 +203,15 @@ impl Converter {
         let Some(screen) = self.job.result() else { return };
         // The colours chosen, by the machine's numbers, for its INK or VDU 19 commands.
         if let Some(t) = &screen.tilemap {
-            let shared = if t.different > t.tiles.len() { format!("; {} different places, the most alike made one", t.different) } else { String::new() };
-            ui.label(dim(format!("{} tiles in {} palettes{shared}", t.tiles.len(), t.palettes)));
+            let shared = if t.different > t.tiles.len() { crate::i18n::tf!("; {} different places, the most alike made one", t.different) } else { String::new() };
+            ui.label(dim(crate::i18n::tf!("{} tiles in {} palettes{shared}", t.tiles.len(), t.palettes)));
         }
         if let Some(sp) = &screen.sprites {
-            ui.label(dim(format!("{} sprites, {} bytes of patterns", sp.patterns.len(), sp.pattern_bytes().len())));
+            ui.label(dim(crate::i18n::tf!("{} sprites, {} bytes of patterns", sp.patterns.len(), sp.pattern_bytes().len())));
         }
         if screen.mode == Mode::TimexHires {
             let (ink, paper) = screen.cells[0];
-            ui.label(dim(format!("INK {} on PAPER {} (BRIGHT): OUT 255,{}", ink & 7, paper & 7, 6 | (ink & 7) << 3)));
+            ui.label(dim(crate::i18n::tf!("INK {} on PAPER {} (BRIGHT): OUT 255,{}", ink & 7, paper & 7, 6 | (ink & 7) << 3)));
         }
         if !screen.palette.is_empty() && screen.palette.len() <= 16 {
             ui.add_space(4.0);
@@ -224,7 +224,7 @@ impl Converter {
                     ui.painter().rect_filled(rect, 1.0, Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
                     let name = match screen.mode.machine() {
                         Machine::Cpc => format!("INK {i},{c}: {}", CPC_NAMES[usize::from(c)]),
-                        Machine::Next => format!("Colour {i}: {:03b} {:03b} {:03b} (red, green, blue)", c >> 6, (c >> 3) & 7, c & 7),
+                        Machine::Next => crate::i18n::tf!("Colour {i}: {:03b} {:03b} {:03b} (red, green, blue)", c >> 6, (c >> 3) & 7, c & 7),
                         _ => format!("VDU 19,{i},{c};0;: {}", BBC_NAMES[usize::from(c) & 7]),
                     };
                     response.on_hover_text(name);

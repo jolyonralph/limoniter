@@ -183,9 +183,9 @@ impl Adfs {
         let disc = if adl { reorder(&bytes, false) } else { bytes.clone() };
         if &disc[0x201..0x205] != b"Hugo" {
             return Err(if disc.get(0x401..0x405) == Some(b"Nick") {
-                "This is a RISC OS ADFS D disc, whose directories are only read here.".into()
+                crate::i18n::tr("This is a RISC OS ADFS D disc, whose directories are only read here.").into()
             } else {
-                "This is a RISC OS ADFS disc with the new map (E or F format), which is only read here.".into()
+                crate::i18n::tr("This is a RISC OS ADFS disc with the new map (E or F format), which is only read here.").into()
             });
         }
         if checksum(&disc[..256]) != disc[255] || checksum(&disc[256..512]) != disc[511] {
@@ -237,9 +237,9 @@ impl Adfs {
         let Some(index) = self.free.iter().position(|(_, length)| *length >= wanted) else {
             let total: u32 = self.free.iter().map(|(_, length)| length).sum();
             return Err(if total >= wanted {
-                format!("There are {total} sectors free, but not {wanted} in one piece: the disc needs compacting, as *COMPACT would.")
+                crate::i18n::tf!("There are {total} sectors free, but not {wanted} in one piece: the disc needs compacting, as *COMPACT would.")
             } else {
-                format!("That needs {wanted} sectors; the disc has {total} free.")
+                crate::i18n::tf!("That needs {wanted} sectors; the disc has {total} free.")
             });
         };
         let (start, length) = self.free[index];

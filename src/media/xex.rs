@@ -58,14 +58,14 @@ pub fn segments(file: &[u8]) -> Result<(Vec<Segment>, Option<String>), String> {
             continue;
         }
         let Some(header) = file.get(at..at + 4) else {
-            break Some(format!("The file has {} byte{} after its last segment, too few to be another; they're left out.", file.len() - at, if file.len() - at == 1 { "" } else { "s" }));
+            break Some(if file.len() - at == 1 { crate::i18n::tr("The file has 1 byte after its last segment, too few to be another; it's left out.").to_string() } else { crate::i18n::tf!("The file has {} bytes after its last segment, too few to be another; they're left out.", file.len() - at) });
         };
         let (first, last) = (u16::from_le_bytes([header[0], header[1]]), u16::from_le_bytes([header[2], header[3]]));
         if last < first {
             if out.is_empty() {
                 return Err(crate::i18n::tf!("This isn't an Atari binary load file: its first segment would end (${last:04X}) before it starts (${first:04X})."));
             }
-            break Some(format!("After segment {}, the file has {} bytes that aren't a segment (they'd end at ${last:04X}, before they start at ${first:04X}); they're left out.", out.len(), file.len() - at));
+            break Some(crate::i18n::tf!("After segment {}, the file has {} bytes that aren't a segment (they'd end at ${last:04X}, before they start at ${first:04X}); they're left out.", out.len(), file.len() - at));
         }
         let mut segment = Segment { first, last, at: at + 4, run: None, init: None };
         let end = segment.at + segment.length();
@@ -74,7 +74,7 @@ pub fn segments(file: &[u8]) -> Result<(Vec<Segment>, Option<String>), String> {
                 return Err(crate::i18n::tr("This isn't an Atari binary load file: it ends before its first segment's bytes.").into());
             }
             let have = file.len() - segment.at;
-            let missing = format!("Segment {} (${first:04X}-${last:04X}) is cut short: the file ends {} bytes into its {}. It's given as far as it goes.", out.len() + 1, have, segment.length());
+            let missing = crate::i18n::tf!("Segment {} (${first:04X}-${last:04X}) is cut short: the file ends {} bytes into its {}. It's given as far as it goes.", out.len() + 1, have, segment.length());
             segment.last = first + (have.max(1) - 1) as u16;
             if have > 0 {
                 segment.run = segment.word_at(file, RUNAD);
@@ -150,8 +150,8 @@ pub fn memory(file: &[u8]) -> Option<(Vec<u8>, u16, Vec<u16>, String)> {
     starts.extend(run);
     starts.retain(|a| (low..=high).contains(a));
     let how = match run {
-        Some(run) => format!("An Atari binary load file, {} segments from ${low:04X} to ${high:04X}, run at ${run:04X}", segments.len()),
-        None => format!("An Atari binary load file, {} segments from ${low:04X} to ${high:04X}, with no run address", segments.len()),
+        Some(run) => crate::i18n::tf!("An Atari binary load file, {} segments from ${low:04X} to ${high:04X}, run at ${run:04X}", segments.len()),
+        None => crate::i18n::tf!("An Atari binary load file, {} segments from ${low:04X} to ${high:04X}, with no run address", segments.len()),
     };
     if starts.is_empty() {
         starts.push(code[0].first);
@@ -186,8 +186,8 @@ impl Xex {
 impl Volume for Xex {
     fn describe(&self) -> String {
         let count = self.segments.len();
-        let run = self.run().map_or_else(|| "no run address".to_string(), |run| format!("runs at ${run:04X}"));
-        format!("Atari 8-bit binary load file, {count} segment{} \u{B7} {run}", if count == 1 { "" } else { "s" })
+        let run = self.run().map_or_else(|| crate::i18n::tr("no run address").to_string(), |run| format!("runs at ${run:04X}"));
+        if count == 1 { crate::i18n::tf!("Atari 8-bit binary load file, 1 segment \u{B7} {run}") } else { crate::i18n::tf!("Atari 8-bit binary load file, {count} segments \u{B7} {run}") }
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -202,7 +202,7 @@ impl Volume for Xex {
             .enumerate()
             .map(|(index, segment)| {
                 let mut entry = Entry::file(format!("{:>3}  ${:04X}-${:04X}", index + 1, segment.first, segment.last), segment.length() as u64, index as u64);
-                let vectors: Vec<String> = segment.run.map(|r| format!("RUNAD: run at ${r:04X} once loaded")).into_iter().chain(segment.init.map(|i| format!("INITAD: call ${i:04X} now"))).collect();
+                let vectors: Vec<String> = segment.run.map(|r| crate::i18n::tf!("RUNAD: run at ${r:04X} once loaded")).into_iter().chain(segment.init.map(|i| crate::i18n::tf!("INITAD: call ${i:04X} now"))).collect();
                 if vectors.is_empty() {
                     entry.kind = "Segment".into();
                     entry.detail = format!("{} bytes at ${:04X}", segment.length(), segment.first);
@@ -225,16 +225,16 @@ impl Volume for Xex {
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
         let segment = self.segments.get(entry.location as usize).ok_or(crate::i18n::tr("That segment isn't in the file."))?;
-        self.file.get(segment.at..segment.at + segment.length()).map(<[u8]>::to_vec).ok_or_else(|| "That segment runs past the end of the file.".into())
+        self.file.get(segment.at..segment.at + segment.length()).map(<[u8]>::to_vec).ok_or_else(|| crate::i18n::tr("That segment runs past the end of the file.").into())
     }
 
     fn notes(&self) -> Vec<String> {
         let mut notes: Vec<String> = self.note.iter().cloned().collect();
         if self.run().is_none() {
             let first = self.segments[0].first;
-            notes.push(format!("It sets no run address (RUNAD), so once it's loaded Atari DOS goes back to its menu unless an init routine has started it; many loaders start such a file at its first segment, ${first:04X}."));
+            notes.push(crate::i18n::tf!("It sets no run address (RUNAD), so once it's loaded Atari DOS goes back to its menu unless an init routine has started it; many loaders start such a file at its first segment, ${first:04X}."));
         }
-        notes.push("Segments that set RUNAD ($02E0) or INITAD ($02E2) say where the program starts, or what's called as soon as that segment has loaded; each segment opens as the bytes it loads.".into());
+        notes.push(crate::i18n::tr("Segments that set RUNAD ($02E0) or INITAD ($02E2) say where the program starts, or what's called as soon as that segment has loaded; each segment opens as the bytes it loads.").into());
         notes
     }
 

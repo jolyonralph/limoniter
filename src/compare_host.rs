@@ -43,15 +43,15 @@ impl CompareTab {
     /// What the status bar says about it.
     pub fn status_words(&self) -> String {
         match self {
-            CompareTab::Files(files) => format!("Comparing two files: {}", files.diff.summary().to_lowercase()),
+            CompareTab::Files(files) => crate::i18n::tf!("Comparing two files: {}", files.diff.summary().to_lowercase()),
             CompareTab::Folders(folders) => match (&folders.job, &folders.result) {
-                (Some(_), _) => "Comparing folders\u{2026}".to_string(),
-                (None, Some(result)) => format!("Comparing folders: {}", result.counts().describe()),
-                (None, None) => "Comparing folders: choose both sides, then Compare".to_string(),
+                (Some(_), _) => crate::i18n::tr("Comparing folders\u{2026}").to_string(),
+                (None, Some(result)) => crate::i18n::tf!("Comparing folders: {}", result.counts().describe()),
+                (None, None) => crate::i18n::tr("Comparing folders: choose both sides, then Compare").to_string(),
             },
             CompareTab::Bytes(bytes) => bytes.summary(),
             CompareTab::Pictures(pictures) => pictures.summary(),
-            CompareTab::Streamed(comparison) => format!("Comparing large files, read-only: {}", comparison.summary().to_lowercase()),
+            CompareTab::Streamed(comparison) => crate::i18n::tf!("Comparing large files, read-only: {}", comparison.summary().to_lowercase()),
         }
     }
 }
@@ -136,7 +136,7 @@ impl DiffView {
         self.states[0].diff = Some(Arc::new(l));
         self.states[1].diff = Some(Arc::new(r));
         let (a, b) = (docs[0].text.insert_eol(), docs[1].text.insert_eol());
-        self.note = if a != b && !self.options.ignore_line_endings { format!("Line endings differ: {} on the left, {} on the right.", a.name(), b.name()) } else { String::new() };
+        self.note = if a != b && !self.options.ignore_line_endings { crate::i18n::tf!("Line endings differ: {} on the left, {} on the right.", a.name(), b.name()) } else { String::new() };
     }
 
     /// How many differences there are.
@@ -146,7 +146,7 @@ impl DiffView {
 
     pub fn summary(&self) -> String {
         match self.difference_count() {
-            0 => "No differences".to_string(),
+            0 => crate::i18n::tr("No differences").to_string(),
             1 => "1 difference".to_string(),
             count => format!("{count} differences"),
         }
@@ -433,10 +433,13 @@ impl ByteCompare {
 
     pub fn summary(&self) -> String {
         let differing: usize = self.differences.iter().map(|range| range.len()).sum();
-        let sizes = if self.bytes[0].len() == self.bytes[1].len() { format!("Both are {} bytes", self.bytes[0].len()) } else { format!("{} bytes on the left, {} on the right", self.bytes[0].len(), self.bytes[1].len()) };
+        let sizes = if self.bytes[0].len() == self.bytes[1].len() { crate::i18n::tf!("Both are {} bytes", self.bytes[0].len()) } else { crate::i18n::tf!("{} bytes on the left, {} on the right", self.bytes[0].len(), self.bytes[1].len()) };
         match self.differences.len() {
-            0 => format!("{sizes}, and they're the same"),
-            places => format!("{sizes}. {differing} byte{} differ{}, in {places} place{}", if differing == 1 { "" } else { "s" }, if differing == 1 { "s" } else { "" }, if places == 1 { "" } else { "s" }),
+            0 => crate::i18n::tf!("{sizes}, and they're the same"),
+            places => {
+                let bytes = if differing == 1 { crate::i18n::tr("1 byte differs").to_string() } else { crate::i18n::tf!("{differing} bytes differ") };
+                if places == 1 { crate::i18n::tf!("{sizes}. {bytes}, in 1 place") } else { crate::i18n::tf!("{sizes}. {bytes}, in {places} places") }
+            },
         }
     }
 
@@ -544,10 +547,10 @@ impl PictureCompare {
 
     pub fn summary(&self) -> String {
         let [a, b] = &self.pictures;
-        let sizes = if (a.width, a.height) == (b.width, b.height) { format!("Both {} \u{D7} {}", a.width, a.height) } else { format!("{} \u{D7} {} on the left, {} \u{D7} {} on the right", a.width, a.height, b.width, b.height) };
+        let sizes = if (a.width, a.height) == (b.width, b.height) { format!("Both {} \u{D7} {}", a.width, a.height) } else { crate::i18n::tf!("{} \u{D7} {} on the left, {} \u{D7} {} on the right", a.width, a.height, b.width, b.height) };
         let total = (self.difference.0 * self.difference.1).max(1);
         match self.difference.3 {
-            0 => format!("{sizes}, and every pixel is the same"),
+            0 => crate::i18n::tf!("{sizes}, and every pixel is the same"),
             n => format!("{sizes}. {n} pixel{} differ{} ({:.1}%)", if n == 1 { "" } else { "s" }, if n == 1 { "s" } else { "" }, n as f64 * 100.0 / total as f64),
         }
     }
@@ -574,7 +577,7 @@ fn draw_picture_compare(ui: &mut Ui, pc: &mut PictureCompare) {
                     let (label, w, h, aspect) = match n {
                         0 => (pc.names[0].clone(), pc.pictures[0].width, pc.pictures[0].height, pc.pictures[0].aspect),
                         1 => (pc.names[1].clone(), pc.pictures[1].width, pc.pictures[1].height, pc.pictures[1].aspect),
-                        _ => ("Where they differ".to_string(), pc.difference.0, pc.difference.1, pc.pictures[0].aspect),
+                        _ => (crate::i18n::tr("Where they differ").to_string(), pc.difference.0, pc.difference.1, pc.pictures[0].aspect),
                     };
                     ui.label(RichText::new(label).color(theme::text_dim()).size(12.5));
                     let shown = egui::vec2(w as f32 * aspect, h as f32).max(egui::vec2(1.0, 1.0));
@@ -1014,7 +1017,7 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
             ui.separator();
             let save = match &fc.session {
                 Some((name, _)) => format!("Save \u{201C}{name}\u{201D}"),
-                None => "Save this comparison\u{2026}".to_string(),
+                None => crate::i18n::tr("Save this comparison\u{2026}").to_string(),
             };
             if ui.button(save).on_hover_text(crate::i18n::tr("Keep both sides, how they're compared, the filters, rules and sync, to open again by name")).clicked() {
                 acts.push(FolderAct::SaveSession);
@@ -1511,8 +1514,8 @@ impl Limoniter {
                 if let Some((path, done)) = folders.patch_job.as_ref().and_then(|(path, job)| job.take().map(|done| (path.clone(), done))) {
                     folders.patch_job = None;
                     folders.notice = Some(match done.and_then(|patch| codec::write_file(&path, patch.as_bytes()).map_err(|e| e.to_string())) {
-                        Ok(()) => format!("The patch is saved in {}.", path.display()),
-                        Err(problem) => format!("The patch couldn't be saved: {problem}"),
+                        Ok(()) => crate::i18n::tf!("The patch is saved in {}.", path.display()),
+                        Err(problem) => crate::i18n::tf!("The patch couldn't be saved: {problem}"),
                     });
                 }
                 if folders.busy() {
@@ -1613,7 +1616,7 @@ impl Limoniter {
                 });
                 let Some(Some(patch)) = patch else { return };
                 if patch.is_empty() {
-                    return self.message("Save as a patch", "The two are the same, so there's nothing to put in a patch.".into());
+                    return self.message("Save as a patch", crate::i18n::tr("The two are the same, so there's nothing to put in a patch.").into());
                 }
                 if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file()
                     && let Err(e) = codec::write_file(&path, patch.as_bytes())
@@ -1810,7 +1813,7 @@ impl Limoniter {
                 ReportKind::Full => engine::report_text(result, folders.hide_same),
             };
             codec::write_file(path, report.as_bytes()).map_err(|e| e.to_string())?;
-            folders.notice = Some(format!("The report is saved in {}.", path.display()));
+            folders.notice = Some(crate::i18n::tf!("The report is saved in {}.", path.display()));
             Ok(())
         })
     }
@@ -1884,7 +1887,7 @@ impl Limoniter {
         let Side::Git { repo, folder, .. } = &side else { return };
         match crate::git::file_at(repo, "HEAD", folder) {
             Some(bytes) => {
-                let name = format!("{} at the last commit", short_name(path));
+                let name = crate::i18n::tf!("{} at the last commit", short_name(path));
                 self.open_file_compare_sides(FileSide::Bytes { name, bytes }, FileSide::Path(path.to_path_buf()));
             }
             None => self.message("Compare with the last commit", crate::i18n::tf!("{} wasn't in the last commit.", short_name(path))),
@@ -1915,7 +1918,7 @@ impl Limoniter {
                 return true;
             }
             Command::SaveAs => {
-                self.message("Save as", "Each side of a comparison saves to its own file. Open a side in a tab of its own to save it somewhere else.".into());
+                self.message("Save as", crate::i18n::tr("Each side of a comparison saves to its own file. Open a side in a tab of its own to save it somewhere else.").into());
                 return true;
             }
             Command::NextChange | Command::LastChange => {

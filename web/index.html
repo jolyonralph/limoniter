@@ -31,6 +31,7 @@
       </a>
       <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
       <nav id="nav" class="nav">
+        <a href="#ide">IDE</a>
         <a href="#features">Everyday work</a>
         <a href="#compare">Compare</a>
         <a href="#retro">Older computers</a>
@@ -38,6 +39,7 @@
         <a href="#send">Sending</a>
         <a href="#screens">Screenshots</a>
         <a href="#get">Download</a>
+        <a href="whats-new.html">What's new</a>
         <a href="guide/index.html">Guide</a>
         <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
       </nav>
@@ -48,10 +50,10 @@
     <section class="hero">
       <div class="wrap hero-inner">
         <div class="hero-text">
-          <p class="eyebrow">Free and open source · Windows, macOS and Linux</p>
+          <p class="eyebrow"><a href="#ide" class="new-badge">New in 0.13: a full IDE</a> · Free and open source · Windows, macOS and Linux</p>
           <h1>A powerful editor for today's files, and one that speaks <span class="speaks-line"><span class="speaks">PETSCII</span><span class="cursor" aria-hidden="true"></span></span></h1>
-          <p class="lead">Limoniter is a full-strength text and hex editor for everyday work. It has column editing, an undo tree, Find in Files, <a href="#compare">folder and file compare with three-way merge</a>, code layout, macros, scripts and add-ons, and files of 10 GB open in milliseconds.</p>
-          <p class="lead">It's also the only editor that knows the files of older computers, and a workshop for making new software for them. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, and lists their BASIC. It <a href="#develop">assembles and disassembles</a> Z80, 6502, 6809 and 68000 code, runs it in an emulator with <kbd>F9</kbd>, debugs it there at your source line, and sends your work back to the machine.</p>
+          <p class="lead">Limoniter is a full-strength text and hex editor, and now <a href="#ide">a full IDE</a>. Open a folder and you get an Explorer with Git's status, Go to file and symbol, a Search panel that shows every replacement before it's made, language servers it installs for you, and debugging for Python, C, C++ and Rust. It has column editing, an undo tree, Find in Files, <a href="#compare">folder and file compare with three-way merge</a>, code layout, macros, scripts and add-ons, and files of 10 GB open in milliseconds.</p>
+          <p class="lead">It's also the only editor that knows the files of older computers, and a workshop for making new software for them. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, and lists their BASIC. It <a href="#develop">assembles and disassembles</a> Z80, 6502, 6809, 6309, 68000, x86 and ARM code, runs it in an emulator with <kbd>F9</kbd>, debugs it there at your source line, and sends your work back to the machine.</p>
           <div class="actions">
             <a class="button primary" href="#get">Download</a>
             <a class="button" href="https://github.com/jolyonralph/limoniter">Source on GitHub</a>
@@ -60,8 +62,17 @@
         </div>
         <figure class="hero-shot slideshow" aria-roledescription="carousel" aria-label="Screenshots">
           <div class="slides">
-            <button class="slide active" data-full="images/teletext.webp" data-caption="A teletext page file beside the page it makes" aria-label="Enlarge: A teletext page file beside the page it makes">
-              <img src="images/teletext-close.webp" alt="A teletext page and the file behind it" width="1280" height="720">
+            <button class="slide active" data-full="images/ide-search.webp" data-caption="A folder open as a project: the Search panel, the Explorer with Git's status, and breadcrumbs" aria-label="Enlarge: A folder open as a project, with the Search panel">
+              <img src="images/ide-search-close.webp" alt="The Search panel showing each replacement before it's made, beside the Explorer" width="1280" height="720">
+            </button>
+            <button class="slide" data-full="images/ide-debug.webp" data-caption="A Python program paused at a breakpoint, with its call stack and variables" aria-label="Enlarge: Debugging a Python program" tabindex="-1" aria-hidden="true">
+              <img src="images/ide-debug-close.webp" alt="The Debug panel beside a Python file stopped at a breakpoint" width="1280" height="720" loading="lazy">
+            </button>
+            <button class="slide" data-full="images/ide-beside.webp" data-caption="Two files side by side, with sticky scroll, breadcrumbs and a terminal" aria-label="Enlarge: Two files side by side" tabindex="-1" aria-hidden="true">
+              <img src="images/ide-beside-close.webp" alt="Two Rust files side by side above a terminal" width="1280" height="720" loading="lazy">
+            </button>
+            <button class="slide" data-full="images/teletext.webp" data-caption="A teletext page file beside the page it makes" aria-label="Enlarge: A teletext page file beside the page it makes" tabindex="-1" aria-hidden="true">
+              <img src="images/teletext-close.webp" alt="A teletext page and the file behind it" width="1280" height="720" loading="lazy">
             </button>
             <button class="slide" data-full="images/compare-folders.webp" data-caption="Two folders compared, file by file" aria-label="Enlarge: Two folders compared, file by file" tabindex="-1" aria-hidden="true">
               <img src="images/compare-folders-close.webp" alt="Two versions of a project compared as a tree" width="1280" height="720" loading="lazy">
@@ -91,7 +102,7 @@
               <img src="images/command-box-close.webp" alt="The command box" width="1280" height="720" loading="lazy">
             </button>
           </div>
-          <figcaption class="slide-caption" aria-live="polite">A teletext page file beside the page it makes</figcaption>
+          <figcaption class="slide-caption" aria-live="polite">A folder open as a project: the Search panel, the Explorer with Git's status, and breadcrumbs</figcaption>
           <div class="slide-dots" role="group" aria-label="Choose a screenshot"></div>
         </figure>
       </div>
@@ -100,9 +111,57 @@
     <section class="numbers" aria-label="Limoniter in numbers">
       <div class="wrap numbers-grid">
         <div><strong>10 GB</strong><span>files opened in milliseconds, edited and searched</span></div>
-        <div><strong>1,800+</strong><span>automated tests, on Windows, macOS and Linux</span></div>
+        <div><strong>2,000+</strong><span>automated tests, on Windows, macOS and Linux</span></div>
         <div><strong>201</strong><span>single-byte character sets, from CP437 to Mode 7</span></div>
         <div><strong>50+</strong><span>disk, tape and archive formats</span></div>
+      </div>
+    </section>
+
+    <section id="ide" class="section alt">
+      <div class="wrap">
+        <p class="eyebrow">New in 0.13</p>
+        <h2>A full IDE for your projects</h2>
+        <p class="section-lead">Open a folder with <strong>File › Open folder</strong> and Limoniter works across all of it, the way VS Code does. Thousands of files are indexed in the background, following <code>.gitignore</code>, and nothing is written into the folder unless you ask. Everything you'd reach for in VS Code is a familiar shortcut away, and the retro tools are still right there.</p>
+        <div class="cards">
+          <article class="card">
+            <h3>The whole folder, live</h3>
+            <p>An Explorer that shows the folder as it is on the disk, with Git's status on every file and a dot on folders with changes. Make, rename and delete files where they are, drag them to move them, and open a terminal or a search in any folder.</p>
+          </article>
+          <article class="card">
+            <h3>Find anything</h3>
+            <p><kbd>Ctrl+E</kbd> finds a file from a few letters. <kbd>Ctrl+T</kbd> finds a function or label anywhere in the folder, and <kbd>Ctrl+Shift+O</kbd> in this file. The <strong>Search panel</strong> (<kbd>Ctrl+Shift+F</kbd>) searches as you type, shows results as a tree, and shows each replacement struck through before it's made.</p>
+          </article>
+          <article class="card">
+            <h3>Language servers, set up for you</h3>
+            <p>Completion, hover, go to definition, rename, problems as you type, <strong>quick fixes</strong> (<kbd>Ctrl+.</kbd>), <strong>Format document</strong> and format on save, parameter hints and inline type hints. Open a Rust, Python, C or TypeScript file and Limoniter offers its server, and installs it for you if it's missing.</p>
+          </article>
+          <article class="card">
+            <h3>A real debugger</h3>
+            <p>Debug <strong>Python, C, C++ and Rust</strong> through the Debug Adapter Protocol, with debugpy, gdb or lldb-dap. Breakpoints beside the line numbers, the call stack, variables to open level by level, and a console to try expressions. <kbd>F5</kbd>, <kbd>F10</kbd> and <kbd>F11</kbd> step as in VS Code.</p>
+          </article>
+          <article class="card">
+            <h3>Laid out your way</h3>
+            <p>Two files side by side (<kbd>Ctrl+\</kbd>), breadcrumbs that are menus, sticky scroll that keeps the function you're in at the top, <strong>peek definition</strong> (<kbd>Alt+F12</kbd>), and as many terminals as you like, in tabs.</p>
+          </article>
+          <article class="card">
+            <h3>Build, test, commit</h3>
+            <p>Tasks found from Cargo, Make, npm, Go and CMake (<kbd>Ctrl+Shift+B</kbd>), test results test by test, Git's Source control panel, folder compare and three-way merge, and <code>.editorconfig</code> followed for every file.</p>
+          </article>
+        </div>
+        <div class="gallery">
+          <figure>
+            <button class="shot" data-full="images/ide-search.webp" aria-label="Enlarge: the Search panel"><img src="images/ide-search-close.webp" alt="The Search panel with each match struck through and its replacement after it, beside the Explorer showing Git's status" loading="lazy" width="1280" height="720"></button>
+            <figcaption>The Search panel: every replacement shown before it's made, beside the Explorer with Git's status.</figcaption>
+          </figure>
+          <figure>
+            <button class="shot" data-full="images/ide-debug.webp" aria-label="Enlarge: debugging a Python program"><img src="images/ide-debug-close.webp" alt="A Python file paused at a breakpoint, with the Debug panel's controls, call stack, variables and console" loading="lazy" width="1280" height="720"></button>
+            <figcaption>A Python program paused at a breakpoint, with its call stack and variables.</figcaption>
+          </figure>
+          <figure>
+            <button class="shot" data-full="images/ide-beside.webp" aria-label="Enlarge: two files side by side"><img src="images/ide-beside-close.webp" alt="Two source files side by side with breadcrumbs and sticky scroll, above a terminal" loading="lazy" width="1280" height="720"></button>
+            <figcaption>Two files side by side, with breadcrumbs, sticky scroll and a terminal below.</figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
@@ -237,11 +296,11 @@
         <div class="cards">
           <article class="card">
             <h3>Assemblers built in</h3>
-            <p>Z80 (with the Spectrum Next's instructions), 6502, 6809 and 68000, in the syntaxes people use: sjasmplus, ACME, KickAssembler, 64tass, DASM, vasm and Devpac. They make tapes, <code>.prg</code> files, disks, C64 and Atari 2600 cartridges, Atari ST programs and Amiga executables, and mistakes are marked as you type. Your own assemblers can be used instead.</p>
+            <p>Z80 (with the Spectrum Next's instructions), 6502, 6809 and the 6309, 68000, x86 (in NASM's syntax) and the Archimedes's ARM, in the syntaxes people use: sjasmplus, ACME, KickAssembler, 64tass, DASM, lwasm, vasm and Devpac. They make tapes, <code>.prg</code> files, disks, C64 and Atari 2600 cartridges, Atari ST programs and Amiga executables, and mistakes are marked as you type. Your own assemblers can be used instead.</p>
           </article>
           <article class="card">
             <h3><kbd>F9</kbd> runs it</h3>
-            <p>On the built-in ZX Spectrum, with nothing to install, or in VICE, ZEsarUX, Hatari, FS-UAE, WinUAE, b2, openMSX, XRoar, Stella or MAME. An Amiga program boots straight into it, and an ST program can go on a bootable floppy. <strong>Get an emulator</strong> installs the ones you don't have.</p>
+            <p>On the built-in ZX Spectrum, with nothing to install, or in VICE, ZEsarUX, Hatari, FS-UAE, WinUAE, b2, openMSX, XRoar (as a CoCo or a Dragon), Stella, MAME (a Vectrex cartridge too), DOSBox or QEMU. An Amiga program boots straight into it, and an ST program can go on a bootable floppy. <strong>Get an emulator</strong> installs the ones you don't have.</p>
           </article>
           <article class="card">
             <h3>Debugging at source level</h3>
@@ -249,7 +308,7 @@
           </article>
           <article class="card">
             <h3>Disassembly that builds again</h3>
-            <p>Z80, 6502, 6809, 68000 and x86 code is followed from where it starts into labelled source that assembles back to exactly the same bytes. An Amiga program comes back as sections with its relocations as labels, so it can be changed and rebuilt. Its hardware, library calls and TOS calls are named.</p>
+            <p>Z80, 6502, 6809 and 6309, 68000, x86 and ARM code is followed from where it starts into labelled source that assembles back to exactly the same bytes. An Amiga program comes back as sections with its relocations as labels, so it can be changed and rebuilt. Its hardware, library calls and TOS calls are named.</p>
           </article>
           <article class="card">
             <h3>It knows the hardware</h3>
@@ -373,6 +432,7 @@
     <section id="get" class="section alt">
       <div class="wrap">
         <h2>Get Limoniter</h2>
+        <p class="section-lead">Free, for Windows, Linux and macOS. See <a href="whats-new.html">what's new</a> in each release.</p>
         <div class="platforms">
           <article class="platform">
             <h3>Windows</h3>
@@ -428,7 +488,7 @@ cargo build --release</code></pre>
   <footer class="bottom">
     <div class="wrap bottom-inner">
       <p><img src="images/icon.png" alt="" width="20" height="20"> Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
-      <p><a href="#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="formats.html">File formats</a> · <a href="compare.html">How it compares</a></p>
+      <p><a href="#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="features.html">Full feature list</a> · <a href="formats.html">File formats</a> · <a href="whats-new.html">What's new</a> · <a href="compare.html">How it compares</a></p>
     </div>
   </footer>
 

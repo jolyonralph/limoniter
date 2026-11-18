@@ -190,16 +190,16 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
     }
     let mut notes = Vec::new();
     if !fonts.is_empty() {
-        notes.push(format!("Fonts ({}) and sizes aren't carried over, beyond larger text taken for headings.", fonts.join(", ")));
+        notes.push(crate::i18n::tf!("Fonts ({}) and sizes aren't carried over, beyond larger text taken for headings.", fonts.join(", ")));
     }
     if right_aligned > 0 {
-        notes.push(format!("{right_aligned} right-aligned paragraph format(s) are left-aligned here."));
+        notes.push(crate::i18n::tf!("{right_aligned} right-aligned paragraph format(s) are left-aligned here."));
     }
     if pictures > 0 {
-        notes.push(format!("{pictures} picture(s) aren't carried over."));
+        notes.push(crate::i18n::tf!("{pictures} picture(s) aren't carried over."));
     }
-    notes.push("Margins, indents, tab stops, line spacing and colours aren't carried over.".into());
-    Ok(Doc { format: "ProWrite (IFF WORD)".into(), blocks, notes })
+    notes.push(crate::i18n::tr("Margins, indents, tab stops, line spacing and colours aren't carried over.").into());
+    Ok(Doc { format: crate::i18n::tr("ProWrite (IFF WORD)").into(), blocks, notes })
 }
 
 fn is_heading(p: &Para, body_size: u16) -> bool {

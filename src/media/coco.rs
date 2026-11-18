@@ -355,13 +355,13 @@ impl Coco {
         let within = if container.is_empty() { String::new() } else { format!(" ({container}, {tracks} tracks{})", if disk.heads == 2 { ", two sides" } else { "" }) };
         if let Some((system, files, name)) = os9(&disk) {
             let named = if name.is_empty() { String::new() } else { format!(" \"{name}\"") };
-            return Ok(Self { disk, system, files, what: format!("OS-9 disk{named}{within}") });
+            return Ok(Self { disk, system, files, what: crate::i18n::tf!("OS-9 disk{named}{within}") });
         }
         if let Some((system, files)) = rsdos(&disk, tracks) {
-            return Ok(Self { disk, system, files, what: format!("Color Computer RS-DOS disk{within}") });
+            return Ok(Self { disk, system, files, what: crate::i18n::tf!("Color Computer RS-DOS disk{within}") });
         }
         if let Some((system, files)) = dragon_dos(&disk) {
-            return Ok(Self { disk, system, files, what: format!("Dragon DOS disk{within}") });
+            return Ok(Self { disk, system, files, what: crate::i18n::tf!("Dragon DOS disk{within}") });
         }
         Err(crate::i18n::tr("This disk has no RS-DOS, Dragon DOS or OS-9 directory: it may boot a program of its own. It can still be shown in hex.").into())
     }

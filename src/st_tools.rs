@@ -348,7 +348,7 @@ pub fn depack_snippet(tool: Tool, packed_name: &str, unpacked_size: u64) -> Stri
     };
     let room = unpacked_size.max(1);
     if tool == Tool::Upx {
-        line(&format!("; --- {packed_name}, packed with UPX ---"));
+        line(&crate::i18n::tf!("; --- {packed_name}, packed with UPX ---"));
         line("; A TOS program packed by UPX unpacks itself in memory when it's run, so there's nothing to call:");
         line("; run it as you would the original. Its unpacking needs a little more memory than the program did.");
         return s;
@@ -552,7 +552,7 @@ pub fn period_table(kind: TableKind, clock: u32, a4: f64, first_octave: i32, oct
     let label = if label.trim().is_empty() { "periods" } else { label.trim() };
     match kind {
         TableKind::Amiga => {
-            line("; ProTracker's Amiga periods (finetune 0), C-1 to B-3: Paula's clock / (sample rate)".into());
+            line(crate::i18n::tr("; ProTracker's Amiga periods (finetune 0), C-1 to B-3: Paula's clock / (sample rate)").into());
             line(format!("{label}:"));
             for (octave, chunk) in PROTRACKER_PERIODS.chunks(12).enumerate() {
                 let values: Vec<String> = chunk.iter().map(u16::to_string).collect();
@@ -562,7 +562,7 @@ pub fn period_table(kind: TableKind, clock: u32, a4: f64, first_octave: i32, oct
         TableKind::Tone | TableKind::Buzzer => {
             let divisor = if kind == TableKind::Tone { 16.0 } else { 256.0 };
             let (most, what) = if kind == TableKind::Tone { (4095.0, "tone periods (registers 0-5)") } else { (65535.0, "envelope periods for shapes 8 and 12 (registers 11-12)") };
-            line(format!("; YM2149 {what}: {} Hz clock, A-4 = {a4} Hz, clock / ({divisor} x frequency)", group(u64::from(clock))));
+            line(crate::i18n::tf!("; YM2149 {what}: {} Hz clock, A-4 = {a4} Hz, clock / ({divisor} x frequency)", group(u64::from(clock))));
             let mut clamped = 0;
             line(format!("{label}:"));
             for octave in first_octave..first_octave + octaves.max(1) {
@@ -578,7 +578,7 @@ pub fn period_table(kind: TableKind, clock: u32, a4: f64, first_octave: i32, oct
                 line(format!("\t\tdc.w\t{}\t; {}{octave} to {}{octave}", values.join(","), NOTE_NAMES[0], NOTE_NAMES[11]));
             }
             if clamped > 0 {
-                line(format!("; {clamped} notes were out of the chip's range and are held at its limit."));
+                line(crate::i18n::tf!("; {clamped} notes were out of the chip's range and are held at its limit."));
             }
         }
     }
@@ -632,8 +632,8 @@ pub fn envelope_words(shape: u8) -> &'static str {
 /// The 68000 that sets an envelope going on the ST: its period, then its shape, which restarts it.
 pub fn envelope_snippet(shape: u8, period: u16, clock: u32) -> String {
     let hz = f64::from(clock) / (256.0 * f64::from(period.max(1)));
-    let cycle = if matches!(shape, 10 | 14) { format!(" (a whole triangle is {:.2} Hz)", hz / 2.0) } else { String::new() };
-    let mut s = format!("; YM2149 envelope: shape {shape}, {}; period {period}: {hz:.2} Hz{cycle}\n", envelope_words(shape));
+    let cycle = if matches!(shape, 10 | 14) { crate::i18n::tf!(" (a whole triangle is {:.2} Hz)", hz / 2.0) } else { String::new() };
+    let mut s = crate::i18n::tf!("; YM2149 envelope: shape {shape}, {}; period {period}: {hz:.2} Hz{cycle}\n", envelope_words(shape));
     for (register, value) in [(11, period & 0xFF), (12, period >> 8), (13, u16::from(shape & 15))] {
         s.push_str(&format!("\t\tmove.b\t#{register},$ffff8800\t; register {register}\n\t\tmove.b\t#{value},$ffff8802\n"));
     }

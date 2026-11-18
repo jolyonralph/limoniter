@@ -64,7 +64,11 @@ impl Global {
 
 fn said(output: &std::process::Output, doing: &str) -> String {
     let text = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    if text.is_empty() { format!("Git couldn't {doing} its settings.") } else { text }
+    match (text.is_empty(), doing) {
+        (false, _) => text,
+        (true, "read") => crate::i18n::tr("Git couldn't read its settings.").to_string(),
+        (true, _) => crate::i18n::tr("Git couldn't change its settings.").to_string(),
+    }
 }
 
 /// A program's path as the shell Git runs tools with reads it, in double quotes. On Windows that shell is Git's

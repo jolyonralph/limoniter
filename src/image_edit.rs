@@ -160,18 +160,18 @@ impl ImageBrowser {
         for file in paths {
             let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             if file.is_dir() {
-                self.problem = Some(format!("{name} is a folder; add the files in it instead."));
+                self.problem = Some(crate::i18n::tf!("{name} is a folder; add the files in it instead."));
                 continue;
             }
             match std::fs::read(&file) {
-                Ok(bytes) if bytes.len() as u64 > write::MOST_WRITABLE_BYTES => self.problem = Some(format!("{name} is too large to add.")),
+                Ok(bytes) if bytes.len() as u64 > write::MOST_WRITABLE_BYTES => self.problem = Some(crate::i18n::tf!("{name} is too large to add.")),
                 Ok(bytes) => {
                     let addition = writer.guess(&name, &bytes);
                     let address = addition.address.map(|a| a.to_string()).unwrap_or_default();
                     let autostart = addition.autostart.map(|a| a.to_string()).unwrap_or_default();
                     self.pending.push(Pending { addition, from: name, address, autostart, problem: None, clash: false });
                 }
-                Err(e) => self.problem = Some(format!("{name} couldn't be read: {e}")),
+                Err(e) => self.problem = Some(crate::i18n::tf!("{name} couldn't be read: {e}")),
             }
         }
         Ok(())
@@ -189,7 +189,7 @@ impl ImageBrowser {
                 match number(&item.address) {
                     Some(a) => addition.address = Some(a),
                     None => {
-                        item.problem = Some("Say where it loads: $8000, or 32768.".into());
+                        item.problem = Some(crate::i18n::tr("Say where it loads: $8000, or 32768.").into());
                         left.push(item);
                         continue;
                     }
@@ -198,7 +198,7 @@ impl ImageBrowser {
             if kind.is_some_and(|k| k.autostart) {
                 addition.autostart = if item.autostart.trim().is_empty() { None } else { item.autostart.trim().parse().ok().filter(|l: &u16| *l < 10000) };
                 if !item.autostart.trim().is_empty() && addition.autostart.is_none() {
-                    item.problem = Some("The line to run from is a number below 10000, or left empty.".into());
+                    item.problem = Some(crate::i18n::tr("The line to run from is a number below 10000, or left empty.").into());
                     left.push(item);
                     continue;
                 }
@@ -426,7 +426,7 @@ pub(crate) struct NewImageBox {
 
 impl Limoniter {
     pub(crate) fn open_new_image_box(&mut self) {
-        self.dialog = Dialog::NewImage(Box::new(NewImageBox { kind: Blank::D64, label: "NEW DISK".into() }));
+        self.dialog = Dialog::NewImage(Box::new(NewImageBox { kind: Blank::D64, label: crate::i18n::tr("NEW DISK").into() }));
     }
 
     pub(crate) fn new_image_dialog(&mut self, ctx: &Context) -> bool {

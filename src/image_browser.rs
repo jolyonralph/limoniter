@@ -558,7 +558,7 @@ impl Limoniter {
                         }
                         Err(e) => self.message("Show the image in hex", e.to_string()),
                     },
-                    _ => self.message("Show the image in hex", "The image is larger than the 1 GB that can be shown in hex.".into()),
+                    _ => self.message("Show the image in hex", crate::i18n::tr("The image is larger than the 1 GB that can be shown in hex.").into()),
                 }
             }
             None => {}

@@ -360,9 +360,9 @@ fn unicode_charset(id: &str, name: &str, form: UnicodeForm) -> Charset {
         id: id.to_string(),
         name: name.to_string(),
         group: "Unicode".to_string(),
-        source: "The Unicode Standard".to_string(),
-        version: "Rust's own Unicode handling".to_string(),
-        scope: "Complete. Invalid bytes are kept exactly and shown as tokens.".to_string(),
+        source: crate::i18n::tr("The Unicode Standard").to_string(),
+        version: crate::i18n::tr("Rust's own Unicode handling").to_string(),
+        scope: crate::i18n::tr("Complete. Invalid bytes are kept exactly and shown as tokens.").to_string(),
         family: Family::Unicode(form),
         model: Model::Plain,
         keep_bytes: false,
@@ -378,8 +378,8 @@ fn unicode_charset(id: &str, name: &str, form: UnicodeForm) -> Charset {
 fn multi_charset(id: &str, name: &str, form: MultiForm, scope: &str) -> Charset {
     let mut set = unicode_charset(id, name, UnicodeForm::Utf8);
     set.family = Family::Multi(form);
-    set.group = "East Asian (multi-byte)".to_string();
-    set.source = "The WHATWG Encoding Standard's tables, through the encoding_rs crate".to_string();
+    set.group = crate::i18n::tr("East Asian (multi-byte)").to_string();
+    set.source = crate::i18n::tr("The WHATWG Encoding Standard's tables, through the encoding_rs crate").to_string();
     set.version = "encoding_rs 0.8".to_string();
     set.scope = scope.to_string();
     set
@@ -441,7 +441,7 @@ pub fn parse_definitions(text: &str, problems: &mut Vec<String>) -> Vec<Charset>
             let byte = parts.first().and_then(|p| hex_u32(p)).filter(|b| *b < 256);
             let kind = parts.get(2).copied().unwrap_or("");
             let Some(byte) = byte else {
-                problems.push(format!("Line {} isn't a table row: {line}", number + 1));
+                problems.push(crate::i18n::tf!("Line {} isn't a table row: {line}", number + 1));
                 continue;
             };
             let unicode = parts.get(1).and_then(|p| hex_u32(p)).and_then(char::from_u32);
@@ -490,7 +490,7 @@ pub fn parse_definitions(text: &str, problems: &mut Vec<String>) -> Vec<Charset>
     sets.retain(|set| {
         let usable = !set.tables.is_empty();
         if !usable {
-            problems.push(format!("{} has no table", set.id));
+            problems.push(crate::i18n::tf!("{} has no table", set.id));
         }
         usable
     });
@@ -536,7 +536,7 @@ fn registry() -> &'static Registry {
         let mut utf7 = multi_charset("utf-7", "UTF-7 (mail and news)", MultiForm::Utf7, "RFC 2152, read a line at a time and written as Python's encoder writes it. A line that wouldn't come back the same is kept as its exact bytes.");
         utf7.group = "Unicode".to_string();
         utf7.source = "RFC 2152".to_string();
-        utf7.version = "Written for Limoniter".to_string();
+        utf7.version = crate::i18n::tr("Written for Limoniter").to_string();
         let mut strict = multi_charset("utf-7-strict", "UTF-7, optional characters encoded (as iconv writes it)", MultiForm::Utf7Strict, "RFC 2152 as glibc's iconv writes it, with ! \" # and the other optional characters in base64. A line that wouldn't come back the same is kept as its exact bytes.");
         strict.group = utf7.group.clone();
         strict.source = utf7.source.clone();
@@ -899,7 +899,7 @@ mod tests {
         let mut problems = Vec::new();
         let sets = parse_definitions(NATIONAL_DATA, &mut problems);
         assert!(problems.is_empty(), "{problems:?}");
-        assert_eq!(sets.len(), 20);
+        assert_eq!(sets.len(), 21);
         let uk = known("iso-646-gb");
         assert_eq!((uk.decoded[0x23], uk.decoded[0x41]), ('\u{A3}', 'A'));
         let de = known("iso-646-de");
@@ -907,6 +907,13 @@ mod tests {
         assert!(de.entry(0, 0x80).is_none_or(|e| e.unicode.is_none()), "7-bit: nothing above 127");
         let graphics = known("dec-special-graphics");
         assert_eq!((graphics.decoded[0x6A], graphics.decoded[0x71], graphics.decoded[0x41]), ('\u{2518}', '\u{2500}', 'A'));
+        let technical = known("dec-technical");
+        // The integral's pieces, the Greek and the arrows; a byte DEC left empty has nothing.
+        assert_eq!((technical.decoded[0x24], technical.decoded[0x25], technical.decoded[0x61], technical.decoded[0x7E], technical.decoded[0x41]), ('\u{2320}', '\u{2321}', '\u{3B1}', '\u{2193}', '\u{221D}'));
+        assert!(technical.entry(0, 0x38).is_none_or(|e| e.unicode.is_none()));
+        let mut format = crate::codec::TextFormat { charset: technical, ..Default::default() };
+        let text = crate::codec::decode(b"\x61\x3C\x62", &mut format);
+        assert_eq!(text.lines, ["\u{3B1}\u{2264}\u{3B2}"]);
         let prime = known("ascii-high-bit");
         assert_eq!(prime.decoded[0xC1], 'A');
         assert_eq!(prime.cr_lf, Some((0x8D, 0x8A)));

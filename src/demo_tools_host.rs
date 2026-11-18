@@ -29,7 +29,7 @@ impl Limoniter {
     /// Text from a tool, at the cursor in the file in front, as one undoable change.
     pub(super) fn insert_from_tool(&mut self, title: &str, text: &str) {
         if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
-            self.message(title, "Open the source to put it in, with the cursor where it goes.".into());
+            self.message(title, crate::i18n::tr("Open the source to put it in, with the cursor where it goes.").into());
             return;
         }
         let doc = &mut self.docs[self.active];

@@ -1,12 +1,13 @@
 # Publishes the website in web/ to GitHub Pages whenever it, or the comparison it's made from, changes.
-# compare.html and features.html are made afresh from COMPARISON.md and FEATURES.md each time, so they can't drift.
+# compare.html, features.html, formats.html and whats-new.html are made afresh from COMPARISON.md, FEATURES.md,
+# FORMATS.md and WHATS-NEW.md each time, so they can't drift.
 
 name: Website
 
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'COMPARISON.md', 'FEATURES.md', '.github/workflows/website.yml']
+    paths: ['web/**', 'COMPARISON.md', 'FEATURES.md', 'FORMATS.md', 'WHATS-NEW.md', 'Cargo.toml', '.github/workflows/website.yml']
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Make the comparison and feature pages from their Markdown
+      - name: Make the comparison, feature, formats and what's new pages from their Markdown
         run: python3 web/tools/make-pages.py
 
       - name: Make the user guide from its Markdown

@@ -101,7 +101,7 @@ fn unpack_kickass(zip: Vec<u8>, folder: &Path) -> Result<PathBuf, String> {
     {
         let _ = std::fs::write(folder.join("KickAssembler.pdf"), bytes);
     }
-    let _ = std::fs::write(folder.join("README.txt"), format!("KickAssembler by Mads Nielsen, downloaded from {KICKASS_DOWNLOAD} when asked.\nNo licence is stated with it; see http://theweb.dk/KickAssembler/ for its terms.\n"));
+    let _ = std::fs::write(folder.join("README.txt"), crate::i18n::tf!("KickAssembler by Mads Nielsen, downloaded from {KICKASS_DOWNLOAD} when asked.\nNo licence is stated with it; see http://theweb.dk/KickAssembler/ for its terms.\n"));
     Ok(path)
 }
 

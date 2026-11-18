@@ -68,7 +68,7 @@ impl Tape {
     }
 
     fn file(&self, entry: &Entry) -> Result<Vec<Block>, String> {
-        self.files().into_iter().nth(entry.location as usize).ok_or_else(|| "That file isn't on the tape.".into())
+        self.files().into_iter().nth(entry.location as usize).ok_or_else(|| crate::i18n::tr("That file isn't on the tape.").into())
     }
 
     /// A block as it's written on this tape: a TAP block, or a TZX standard-speed block with a second's pause.

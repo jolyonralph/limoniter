@@ -138,7 +138,7 @@ impl Limoniter {
     /// changes the machine's memory.
     pub(super) fn open_machine_memory(&mut self) {
         let Some((reach, machine, target)) = self.reachable() else {
-            return self.message("Its memory", "Nothing is running that Limoniter can reach.".into());
+            return self.message("Its memory", crate::i18n::tr("Nothing is running that Limoniter can reach.").into());
         };
         match self.reach_live(reach, |live| live.read(0, 0x10000)) {
             Ok(memory) => {
@@ -156,7 +156,7 @@ impl Limoniter {
     /// Machine, Its screen as text: read-only, looked at again every second.
     pub(super) fn open_machine_screen(&mut self) {
         let Some((reach, machine, target)) = self.reachable() else {
-            return self.message("Its screen", "Nothing is running that Limoniter can reach.".into());
+            return self.message("Its screen", crate::i18n::tr("Nothing is running that Limoniter can reach.").into());
         };
         match self.screen_of(reach, machine) {
             Ok(lines) => {
@@ -176,7 +176,7 @@ impl Limoniter {
     /// put back.
     pub(super) fn take_machine_basic(&mut self) {
         let Some((reach, machine, target)) = self.reachable() else {
-            return self.message("Take its BASIC program", "Nothing is running that Limoniter can reach.".into());
+            return self.message("Take its BASIC program", crate::i18n::tr("Nothing is running that Limoniter can reach.").into());
         };
         let taken = self.reach_live(reach, |live| {
             if spectrum_family(machine) {
@@ -207,7 +207,7 @@ impl Limoniter {
         }
         let listing = basic::list(&file, ending, charset::utf8());
         if listing.lines.is_empty() {
-            return self.message("Take its BASIC program", "The program in memory couldn't be listed.".into());
+            return self.message("Take its BASIC program", crate::i18n::tr("The program in memory couldn't be listed.").into());
         }
         // Put back, it goes into the same kind of machine it came from.
         let back = if spectrum_family(machine) {
@@ -233,11 +233,11 @@ impl Limoniter {
     /// memory, as LOAD would leave it (its variables are cleared). On a Commodore it's then RUN.
     pub(super) fn put_machine_basic(&mut self) {
         let Some((reach, machine, target)) = self.reachable() else {
-            return self.message("Put this listing into it", "Nothing is running that Limoniter can reach.".into());
+            return self.message("Put this listing into it", crate::i18n::tr("Nothing is running that Limoniter can reach.").into());
         };
         let doc = &self.docs[self.active];
         let Some((listing_machine, _)) = doc.listing_of.clone() else {
-            return self.message("Put this listing into it", "This isn't a BASIC listing. Take its BASIC program, or open a program's listing, first.".into());
+            return self.message("Put this listing into it", crate::i18n::tr("This isn't a BASIC listing. Take its BASIC program, or open a program's listing, first.").into());
         };
         let lines = doc.text.all_lines();
         let tokenised = match listing_machine {
@@ -283,7 +283,7 @@ impl Limoniter {
             return self.message("Put this listing into it", problem);
         }
         let ran = self.type_run(reach, machine).is_ok();
-        self.running.note = Some((if ran { format!("Put the listing into {target}, and ran it") } else { format!("Put the listing into {target}: type RUN there to run it") }, Instant::now()));
+        self.running.note = Some((if ran { crate::i18n::tf!("Put the listing into {target}, and ran it") } else { crate::i18n::tf!("Put the listing into {target}: type RUN there to run it") }, Instant::now()));
     }
 
     /// Stops the BASIC program a machine is running, if it's running one, as the person would at its keyboard.
@@ -372,7 +372,7 @@ impl Limoniter {
             }
             if !self.still_running(reach) {
                 if let Some(view) = &mut self.docs[index].live {
-                    view.problem = Some("The machine has stopped, so this is as it was last.".into());
+                    view.problem = Some(crate::i18n::tr("The machine has stopped, so this is as it was last.").into());
                 }
                 continue;
             }

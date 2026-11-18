@@ -503,7 +503,7 @@ pub fn write_text_pages(job: &Job, columns: usize, per_page: usize, out: &mut im
         }
         number += 1;
         if job.header {
-            let place = format!("Page {number} of {count}");
+            let place = crate::i18n::tf!("Page {number} of {count}");
             let title: String = job.title.chars().take(columns.saturating_sub(place.len() + 2)).collect();
             text += &format!("{title}{}{place}\n\n", " ".repeat(columns.saturating_sub(title.chars().count() + place.len())));
         }

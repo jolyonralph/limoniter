@@ -7,6 +7,11 @@ use crate::assemblers::Cpu;
 
 /// The box asking how to disassemble.
 pub(super) struct DisasmBox {
+    /// The Archimedes' ARM code (ARM2 and ARM3), in place of `cpu`.
+    pub arm: bool,
+    /// Later ARM code (32-bit, Thumb or 64-bit), in place of `cpu`; and the program found, if the file is one.
+    pub arm_later: Option<crate::arm_modern::Mode>,
+    pub arm_program: Option<crate::arm_modern::Program>,
     pub cpu: Cpu,
     /// ICL 2900 code, listed rather than traced, in place of `cpu`.
     pub icl2900: bool,
@@ -15,6 +20,7 @@ pub(super) struct DisasmBox {
     pub x86_program: Option<crate::x86::Program>,
     pub x86_bits: u32,
     /// Z80 code for a Cambridge Z88, whose RST &20 calls are named.
+    /// The variant: a Cambridge Z88's Z80, or a Hitachi 6309.
     pub z88: bool,
     /// 68000 code: the program the file was found to be (an Amiga or Atari ST program, a boot block, a cartridge
     /// or a ROM), or plain code for `machine`.
@@ -47,14 +53,14 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
                 starts = vec![sys];
             }
         }
-        return (Cpu::M6502, code, origin, starts, format!("A Commodore program, loading at ${origin:04X}"));
+        return (Cpu::M6502, code, origin, starts, crate::i18n::tf!("A Commodore program, loading at ${origin:04X}"));
     }
     // A SID tune: its C64 bytes at its load address, from its init and play routines.
     if ending == "sid"
         && let Ok(tune) = crate::sid::read(bytes)
     {
         let starts: Vec<u16> = [tune.init_address(), tune.play].into_iter().filter(|a| *a != 0).collect();
-        let found = format!("A SID tune, loading at ${:04X}, init ${:04X}{}", tune.load, tune.init_address(), if tune.play == 0 { String::new() } else { format!(", play ${:04X}", tune.play) });
+        let found = crate::i18n::tf!("A SID tune, loading at ${:04X}, init ${:04X}{}", tune.load, tune.init_address(), if tune.play == 0 { String::new() } else { format!(", play ${:04X}", tune.play) });
         return (Cpu::M6502, tune.data, tune.load, if starts.is_empty() { vec![tune.load] } else { starts }, found);
     }
     // A 48K snapshot: the 48K from $4000, starting where it was saved.
@@ -67,7 +73,7 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
         let memory = sna[27..].to_vec();
         let sp = u16::from_le_bytes([sna[23], sna[24]]);
         let pc = memory.get(usize::from(sp.wrapping_sub(0x4000))..).and_then(|m| m.get(..2)).map_or(0x4000, |b| u16::from_le_bytes([b[0], b[1]]));
-        return (Cpu::Z80, memory, 0x4000, vec![pc], format!("A 48K snapshot, its 48K from $4000, saved at PC ${pc:04X}"));
+        return (Cpu::Z80, memory, 0x4000, vec![pc], crate::i18n::tf!("A 48K snapshot, its 48K from $4000, saved at PC ${pc:04X}"));
     }
     // A tape: its first CODE block.
     if matches!(ending.as_str(), "tap" | "tzx") {
@@ -78,11 +84,24 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
                 (Some(0), _) if block.len() >= 19 && block[1] == 3 => header = Some(u16::from_le_bytes([block[14], block[15]])),
                 (Some(0xFF), Some(start)) => {
                     let code = block[1..block.len() - 1].to_vec();
-                    return (Cpu::Z80, code, start, vec![start], format!("The tape's CODE block, {} bytes at ${start:04X}", block.len() - 2));
+                    return (Cpu::Z80, code, start, vec![start], crate::i18n::tf!("The tape's CODE block, {} bytes at ${start:04X}", block.len() - 2));
                 }
                 _ => header = None,
             }
         }
+    }
+    // A Vectrex cartridge: from address 0, its code starting after the header.
+    if let Some((_, _, title, code)) = crate::vectrex::header(bytes) {
+        let name = title.join(" ");
+        return (Cpu::M6809, bytes.to_vec(), 0, vec![code as u16], crate::i18n::tf!("A Vectrex cartridge, \u{201C}{name}\u{201D}: its code starts at ${code:04X}, after the header"));
+    }
+    // A Dragon DOS binary: where it loads, and where it starts.
+    if let Some((load, length, exec)) = crate::dragon_dos::binary_header(bytes)
+        && bytes.get(1) == Some(&0x02)
+        && usize::from(length) + 9 <= bytes.len()
+    {
+        let code = bytes[9..9 + usize::from(length)].to_vec();
+        return (Cpu::M6809, code, load, vec![exec], crate::i18n::tf!("A Dragon DOS binary, {length} bytes at ${load:04X}, starting at ${exec:04X}"));
     }
     // A Color Computer binary: its first block, and where it says it starts.
     if let Some(crate::running::Machine::CoCo) = crate::running::machine_for(crate::running::Format::CocoBin, bytes)
@@ -92,7 +111,7 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
         let origin = u16::from_be_bytes([bytes[3], bytes[4]]);
         let exec = u16::from_be_bytes([bytes[bytes.len() - 2], bytes[bytes.len() - 1]]);
         let code = bytes.get(5..5 + length).unwrap_or(&[]).to_vec();
-        return (Cpu::M6809, code, origin, vec![exec], format!("A Color Computer binary, {length} bytes at ${origin:04X}, starting at ${exec:04X}"));
+        return (Cpu::M6809, code, origin, vec![exec], crate::i18n::tf!("A Color Computer binary, {length} bytes at ${origin:04X}, starting at ${exec:04X}"));
     }
     // An Atari binary load file: its segments laid out in memory, followed from its init and run addresses; or one
     // segment of one, as its browser names it.
@@ -104,12 +123,12 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
     if ending == "seg"
         && let Some((origin, starts)) = crate::media::xex::starts_from_name(name)
     {
-        return (Cpu::M6502, bytes.to_vec(), origin, starts, format!("A segment of an Atari binary load file, {} bytes at ${origin:04X}", bytes.len()));
+        return (Cpu::M6502, bytes.to_vec(), origin, starts, crate::i18n::tf!("A segment of an Atari binary load file, {} bytes at ${origin:04X}", bytes.len()));
     }
     let origin = load_address.unwrap_or(0x8000);
     let found = match load_address {
-        Some(at) => format!("A code file from a tape, loading at ${at:04X}"),
-        None => format!("{} bytes; say where they load", bytes.len()),
+        Some(at) => crate::i18n::tf!("A code file from a tape, loading at ${at:04X}"),
+        None => crate::i18n::tf!("{} bytes; say where they load", bytes.len()),
     };
     (Cpu::Z80, bytes.to_vec(), origin, vec![origin], found)
 }
@@ -148,18 +167,25 @@ impl Limoniter {
         let load_address = doc.load_address;
         let bytes = self.document_bytes();
         if bytes.is_empty() {
-            return self.message("Disassemble", "There's nothing in this file to disassemble.".into());
+            return self.message("Disassemble", crate::i18n::tr("There's nothing in this file to disassemble.").into());
+        }
+        // A later ARM program (an ELF for ARM or AArch64, a Raspberry Pi kernel) is taken whole.
+        if let Some(program) = crate::arm_modern::recognise(&name, &bytes) {
+            let found = program.what.clone();
+            let origin = format!("${:X}", program.parts[0].0);
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: Some(program.mode), arm_program: Some(program), x86: false, x86_bits: 32, x86_program: None, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin, starts: String::new(), stem, found, error: String::new() }));
+            return;
         }
         // An x86 program (PE, ELF, MZ or .COM) is taken whole.
         if let Some(program) = crate::x86::recognise(&name, &bytes) {
             let found = program.what.clone();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // An Atari 2600 cartridge: its banks, and how it switches them.
         if let Some(cart) = crate::atari2600::recognise(&name, &bytes) {
             let found = cart.describe();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // A 68000 program (Amiga, Atari ST, a boot block, a Mega Drive cartridge, a Kickstart ROM) says the rest.
@@ -168,12 +194,12 @@ impl Limoniter {
             let machine = program.machine;
             let origin = format!("${:X}", program.sections[0].base);
             let starts = program.starts.iter().map(|s| format!("${s:X}")).collect::<Vec<_>>().join(", ");
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: Some(program), machine, vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: Some(program), machine, vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
             return;
         }
         let (cpu, code, origin, starts, found) = guess(&name, &bytes, load_address);
         let starts = starts.iter().map(|s| format!("${s:04X}")).collect::<Vec<_>>().join(", ");
-        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
+        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
     }
 
     pub(super) fn disassemble_dialog(&mut self, ctx: &Context) -> bool {
@@ -189,24 +215,49 @@ impl Limoniter {
                 ui.label(crate::i18n::tr("Processor"));
                 ui.horizontal(|ui| {
                     for (cpu, name) in [(Cpu::Z80, "Z80 (and the Next's)"), (Cpu::M6502, "6502"), (Cpu::M6809, "6809"), (Cpu::M68k, "68000")] {
-                        if ui.radio(!state.icl2900 && !state.x86 && state.cpu == cpu, name).clicked() {
-                            (state.cpu, state.icl2900, state.x86) = (cpu, false, false);
+                        if ui.radio(!state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == cpu, name).clicked() {
+                            (state.cpu, state.icl2900, state.x86, state.arm, state.arm_later) = (cpu, false, false, false, None);
                         }
                     }
                     if ui.radio(state.x86, crate::i18n::tr("x86")).clicked() {
-                        (state.icl2900, state.x86) = (false, true);
+                        (state.icl2900, state.x86, state.arm, state.arm_later) = (false, true, false, None);
+                    }
+                    if ui.radio(state.arm, crate::i18n::tr("ARM (Archimedes)")).clicked() {
+                        (state.icl2900, state.x86, state.arm, state.arm_later) = (false, false, true, None);
+                        if state.origin == "$0" || state.origin.is_empty() {
+                            state.origin = "$8000".into();
+                        }
+                    }
+                    if ui.radio(state.arm_later.is_some(), crate::i18n::tr("ARM, later")).on_hover_text(crate::i18n::tr("32-bit ARM, Thumb or 64-bit ARM, as phones and the Raspberry Pi run: listed to read")).clicked() {
+                        (state.icl2900, state.x86, state.arm) = (false, false, false);
+                        state.arm_later.get_or_insert(crate::arm_modern::Mode::A64);
                     }
                     if ui.radio(state.icl2900, crate::i18n::tr("ICL 2900")).clicked() {
-                        (state.icl2900, state.x86) = (true, false);
+                        (state.icl2900, state.x86, state.arm, state.arm_later) = (true, false, false, None);
                     }
                 });
                 ui.end_row();
-                if !state.icl2900 && !state.x86 && state.cpu == Cpu::Z80 {
+                if let Some(mode) = &mut state.arm_later {
+                    ui.label(crate::i18n::tr("Instructions"));
+                    ui.horizontal(|ui| {
+                        for m in crate::arm_modern::Mode::ALL {
+                            ui.radio_value(mode, m, crate::i18n::tr(m.name()));
+                        }
+                    });
+                    ui.end_row();
+                }
+                if !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::Z80 {
                     ui.label(crate::i18n::tr(""));
                     ui.checkbox(&mut state.z88, crate::i18n::tr("For a Cambridge Z88: name its operating system calls (RST $20 and the code after it)"));
                     ui.end_row();
                 }
-                let vcs = !state.icl2900 && !state.x86 && state.cpu == Cpu::M6502 && state.vcs.is_some();
+                // The same flag, for the 6809: Hitachi's 6309 and its instructions.
+                if !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M6809 {
+                    ui.label(crate::i18n::tr(""));
+                    ui.checkbox(&mut state.z88, crate::i18n::tr("For a Hitachi 6309: its own instructions and registers as well"));
+                    ui.end_row();
+                }
+                let vcs = !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M6502 && state.vcs.is_some();
                 if vcs && let Some(cart) = &mut state.vcs {
                     ui.label(crate::i18n::tr("Bank switching"));
                     let size = cart.bytes.len();
@@ -217,7 +268,7 @@ impl Limoniter {
                     });
                     ui.end_row();
                 }
-                let m68k = !state.icl2900 && !state.x86 && state.cpu == Cpu::M68k;
+                let m68k = !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M68k;
                 if m68k && state.m68k_program.as_ref().is_none_or(|p| p.layout == crate::m68k_disasm::Layout::Raw) {
                     ui.label(crate::i18n::tr("Machine"));
                     ui.horizontal(|ui| {
@@ -249,9 +300,9 @@ impl Limoniter {
                     ui.end_row();
                 }
             });
-            let how = if !state.icl2900 && !state.x86 && state.cpu == Cpu::M6502 && state.vcs.is_some() {
+            let how = if !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M6502 && state.vcs.is_some() {
                 "Each bank is followed from its reset vector, and from bank to bank where the code switches; what's never reached is data, and short runs of it are drawn as the pixels they'd be. The TIA's and RIOT's registers are named, each instruction's cycles are beside it, and code that runs past a scanline's 76 cycles is pointed out. It's written for DASM."
-            } else if !state.icl2900 && !state.x86 && state.cpu == Cpu::M68k {
+            } else if !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M68k {
                 "The code is followed from where it starts through every branch, jump and call; what it never reaches is kept as data. An Amiga program's hunks become sections and its relocated longs labels, so it assembles into a working program again; the Amiga's and ST's hardware, library calls and TOS calls are named."
             } else if state.x86 && state.x86_program.is_some() {
                 "Its code is followed from where it's entered (and from what it exports or names), through every jump and call; what it never reaches is kept as data. Every x86 instruction up to today's (SSE, AVX, AVX-512, AMX) is known."
@@ -278,12 +329,12 @@ impl Limoniter {
                     Some(program) => program.clone(),
                     None => {
                         let Some(origin) = number64(&state.origin) else {
-                            state.error = "Say where it loads: $401000, or 4198400.".into();
+                            state.error = crate::i18n::tr("Say where it loads: $401000, or 4198400.").into();
                             return true;
                         };
                         let starts: Option<Vec<u64>> = state.starts.split(',').filter(|s| !s.trim().is_empty()).map(number64).collect();
                         let Some(starts) = starts else {
-                            state.error = "Say where it starts: addresses, comma between.".into();
+                            state.error = crate::i18n::tr("Say where it starts: addresses, comma between.").into();
                             return true;
                         };
                         crate::x86::raw(&state.bytes, state.x86_bits, origin, &starts)
@@ -328,12 +379,12 @@ impl Limoniter {
                     Some(program) => program,
                     None => {
                         let Some(origin) = number32(&state.origin) else {
-                            state.error = "Say where it loads: $40000, or 262144.".into();
+                            state.error = crate::i18n::tr("Say where it loads: $40000, or 262144.").into();
                             return true;
                         };
                         let starts: Option<Vec<u32>> = state.starts.split(',').filter(|s| !s.trim().is_empty()).map(number32).collect();
                         let Some(starts) = starts.filter(|s| !s.is_empty()) else {
-                            state.error = "Say where it starts: addresses, comma between.".into();
+                            state.error = crate::i18n::tr("Say where it starts: addresses, comma between.").into();
                             return true;
                         };
                         // A boot block, cartridge or ROM keeps what was found (its vectors); only where it is changes.
@@ -360,9 +411,49 @@ impl Limoniter {
                 self.pending_focus = true;
                 return true;
             }
+            if let Some(mode) = state.arm_later {
+                let program = match state.arm_program.clone().filter(|p| p.mode == mode) {
+                    Some(program) => program,
+                    None => {
+                        let Some(origin) = number32(&state.origin) else {
+                            state.error = crate::i18n::tr("Say where it loads: $8000, or 32768.").into();
+                            return true;
+                        };
+                        crate::arm_modern::raw(&state.bytes, u64::from(origin), mode)
+                    }
+                };
+                let stem = state.stem.clone();
+                self.dialog = Dialog::None;
+                let mut doc = Document::untitled(format!("{stem}.s"), &PRESETS[0]);
+                doc.text.set_content(crate::i18n::comments(&crate::arm_modern::disassemble(&program)).lines().map(str::to_string).collect());
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+                self.pending_focus = true;
+                return true;
+            }
+            if state.arm {
+                let Some(origin) = number32(&state.origin) else {
+                    state.error = crate::i18n::tr("Say where it loads: $8000 (where RISC OS runs an application), or 32768.").into();
+                    return true;
+                };
+                let listing = crate::arm_disasm::disassemble(&state.bytes[..state.bytes.len() / 4 * 4], origin);
+                let stem = state.stem.clone();
+                self.dialog = Dialog::None;
+                let mut doc = Document::untitled(format!("{stem}.s"), &PRESETS[0]);
+                doc.text.set_content(crate::i18n::comments(&listing).lines().map(str::to_string).collect());
+                highlight::load_now();
+                if let Some((_, syntax)) = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n.starts_with("Assembly ARM"))) {
+                    doc.set_language(Language::Named(*syntax));
+                }
+                doc.update_syntax();
+                self.docs.push(doc);
+                self.active = self.docs.len() - 1;
+                self.pending_focus = true;
+                return true;
+            }
             if state.icl2900 {
                 let Some(origin) = number32(&state.origin) else {
-                    state.error = "Say where it loads, as a byte address: $8000, or 32768.".into();
+                    state.error = crate::i18n::tr("Say where it loads, as a byte address: $8000, or 32768.").into();
                     return true;
                 };
                 let listing = crate::icl2900::disassemble(&state.bytes, origin);
@@ -376,12 +467,12 @@ impl Limoniter {
                 return true;
             }
             let Some(origin) = number(&state.origin) else {
-                state.error = "Say where it loads: $8000, or 32768.".into();
+                state.error = crate::i18n::tr("Say where it loads: $8000, or 32768.").into();
                 return true;
             };
             let starts: Option<Vec<u16>> = state.starts.split(',').filter(|s| !s.trim().is_empty()).map(number).collect();
             let Some(starts) = starts else {
-                state.error = "Say where it starts: addresses, comma between.".into();
+                state.error = crate::i18n::tr("Say where it starts: addresses, comma between.").into();
                 return true;
             };
             if usize::from(origin) + state.bytes.len() > 0x10000 {
@@ -390,6 +481,8 @@ impl Limoniter {
             }
             let (cpu, stem, z88) = (state.cpu, state.stem.clone(), state.z88);
             let source = crate::disasm::disassemble_checked_for(cpu, &state.bytes, origin, &starts, z88);
+            // A Vectrex cartridge's calls to its BIOS, named.
+            let source = if cpu == Cpu::M6809 && origin == 0 && crate::vectrex::is_cartridge(&state.bytes) { crate::vectrex::name_bios_calls(&source) } else { source };
             self.dialog = Dialog::None;
             let mut doc = Document::untitled(format!("{stem}.asm"), &PRESETS[0]);
             doc.text.set_content(crate::i18n::comments(&source).lines().map(str::to_string).collect());
@@ -459,5 +552,16 @@ mod tests {
         let (cpu, bytes) = (state.cpu, state.bytes.clone());
         let source = crate::disasm::disassemble_checked(cpu, &bytes, 40000, &[40000]);
         assert!(source.contains("L9C42:  djnz L9C42") && source.contains("jp L9C40"), "{source}");
+    }
+
+    #[test]
+    fn a_raspberry_pi_kernel_opens_the_box_as_64_bit_arm() {
+        let (mut app, _ctx) = super::super::tests::app_with("");
+        app.docs.push(Document::from_image_file("kernel8.img".into(), vec![0xC0, 0x03, 0x5F, 0xD6], None));
+        app.active = app.docs.len() - 1;
+        app.open_disassemble_box();
+        let Dialog::Disassemble(state) = &app.dialog else { panic!("the box opens") };
+        assert_eq!((state.arm_later, state.origin.as_str()), (Some(crate::arm_modern::Mode::A64), "$80000"));
+        assert!(state.found.contains("Raspberry Pi"), "{}", state.found);
     }
 }

@@ -405,7 +405,7 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                     && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
                     && let Err(e) = std::fs::write(&path, current.to_text())
                 {
-                    state.problem = format!("Couldn't save it: {e}");
+                    state.problem = crate::i18n::tf!("Couldn't save it: {e}");
                 }
                 if ui.button(crate::i18n::tr("Open a theme file\u{2026}")).clicked()
                     && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
@@ -473,7 +473,7 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                 let new_name = theme.name.clone();
                 if themes.documents.iter().filter(|t| t.name == new_name).count() > 1 {
                     Rc::make_mut(&mut themes.documents[index]).name.clone_from(&old_name);
-                    state.problem = format!("There's already a theme called {new_name}.");
+                    state.problem = crate::i18n::tf!("There's already a theme called {new_name}.");
                 } else {
                     if themes.document == old_name {
                         themes.document.clone_from(&new_name);
@@ -556,7 +556,7 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
                     && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
                     && let Err(e) = std::fs::write(&path, current.to_text())
                 {
-                    state.problem = format!("Couldn't save it: {e}");
+                    state.problem = crate::i18n::tf!("Couldn't save it: {e}");
                 }
                 if ui.button(crate::i18n::tr("Open a theme file\u{2026}")).clicked()
                     && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
@@ -611,7 +611,7 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
                 let new_name = theme.name.clone();
                 if themes.windows.iter().filter(|t| t.name == new_name).count() > 1 {
                     Rc::make_mut(&mut themes.windows[index]).name.clone_from(&old_name);
-                    state.problem = format!("There's already a theme called {new_name}.");
+                    state.problem = crate::i18n::tf!("There's already a theme called {new_name}.");
                 } else {
                     if themes.window == old_name {
                         themes.window.clone_from(&new_name);

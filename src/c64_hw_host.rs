@@ -271,8 +271,8 @@ impl HwWindow {
         egui::Grid::new("c64-memory").striped(true).num_columns(2).show(ui, |ui| {
             let rows = [
                 ("$D018", format!("${d018:02X} (%{d018:08b})")),
-                ("$DD00 bits 0-1", format!("%{:02b}  (ORA into $DD00)", dd00 & 3)),
-                ("Screen", format!("${:04X}-${:04X}{}", memory.screen, memory.screen + 999, c64_hw::sees_rom(memory.screen).map(|r| format!(": the VIC sees {r} there, not RAM")).unwrap_or_default())),
+                ("$DD00 bits 0-1", crate::i18n::tf!("%{:02b}  (ORA into $DD00)", dd00 & 3)),
+                ("Screen", format!("${:04X}-${:04X}{}", memory.screen, memory.screen + 999, c64_hw::sees_rom(memory.screen).map(|r| crate::i18n::tf!(": the VIC sees {r} there, not RAM")).unwrap_or_default())),
                 ("Characters", format!("${:04X}-${:04X}{}", memory.charset, memory.charset + 0x7FF, c64_hw::sees_rom(memory.charset).map(|r| format!(" ({r})")).unwrap_or_default())),
                 ("Bitmap (bit 3 of $D018)", format!("${:04X}-${:04X}", memory.bitmap, memory.bitmap + 0x1F3F)),
                 ("Sprite pointers", format!("${:04X}-${:04X}", memory.sprite_pointers, memory.sprite_pointers + 7)),
@@ -311,7 +311,7 @@ impl Limoniter {
     /// Text from the window, at the cursor in the file in front, as one undoable change.
     fn insert_c64_guide_text(&mut self, title: &str, text: &str) {
         if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
-            self.message(title, "Open the source to put it in, with the cursor where it goes.".into());
+            self.message(title, crate::i18n::tr("Open the source to put it in, with the cursor where it goes.").into());
             return;
         }
         let doc = &mut self.docs[self.active];

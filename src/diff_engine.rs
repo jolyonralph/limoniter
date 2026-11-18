@@ -82,9 +82,8 @@ impl Side {
     pub fn refusal(&self) -> Option<String> {
         match self {
             Side::Folder(_) | Side::Sftp { .. } => None,
-            Side::Git { revision, .. } => Some(format!("{} is history kept by Git, so files can't be copied into it. Compare with the folder itself to change it.", revision_words(revision))),
-            Side::Image { file, .. } => Some(format!(
-                "Files can't be copied into {} from a comparison. Each kind of disk image has its own rules for names and kinds of file, and an archive is only read here; open the image in a tab of its own to add files to it, choosing how each one goes on.",
+            Side::Git { revision, .. } => Some(crate::i18n::tf!("{} is history kept by Git, so files can't be copied into it. Compare with the folder itself to change it.", revision_words(revision))),
+            Side::Image { file, .. } => Some(crate::i18n::tf!("Files can't be copied into {} from a comparison. Each kind of disk image has its own rules for names and kinds of file, and an archive is only read here; open the image in a tab of its own to add files to it, choosing how each one goes on.",
                 file.file_name().map_or_else(|| file.display().to_string(), |name| name.to_string_lossy().into_owned())
             )),
         }
@@ -94,7 +93,7 @@ impl Side {
 /// "the last commit" for HEAD, the first eight characters of a commit's hash, or a branch's name.
 pub fn revision_words(revision: &str) -> String {
     if revision == "HEAD" {
-        "the last commit".to_string()
+        crate::i18n::tr("the last commit").to_string()
     } else if revision.len() >= 20 && revision.chars().all(|c| c.is_ascii_hexdigit()) {
         format!("commit {}", &revision[..8])
     } else {
@@ -298,7 +297,7 @@ impl Tree for LocalTree {
 
     fn remove_folder(&self, path: &str) -> Result<(), String> {
         let place = self.place_to_write(path)?;
-        std::fs::remove_dir(&place).map_err(|e| if std::fs::read_dir(&place).is_ok_and(|mut entries| entries.next().is_some()) { "It still has files in it that weren't compared, so it was kept.".to_string() } else { e.to_string() })
+        std::fs::remove_dir(&place).map_err(|e| if std::fs::read_dir(&place).is_ok_and(|mut entries| entries.next().is_some()) { crate::i18n::tr("It still has files in it that weren't compared, so it was kept.").to_string() } else { e.to_string() })
     }
 }
 
@@ -441,7 +440,7 @@ impl RemoteFs for remote::Connection {
     }
     fn upload(&self, local: &Path, path: &str) -> Result<(), String> {
         remote::Connection::upload(self, local, path, None, true, &AtomicU64::new(0), &AtomicBool::new(false)).map(|_| ()).map_err(|e| match e {
-            remote::UploadError::ChangedOnServer => "It changed on the server.".to_string(),
+            remote::UploadError::ChangedOnServer => crate::i18n::tr("It changed on the server.").to_string(),
             remote::UploadError::Failed(problem) => problem,
         })
     }
@@ -494,7 +493,7 @@ impl SftpTree {
             (None, None) => remote::Secret::KeyPassphrase(None),
         };
         let connection = remote::connect(site, &secret, known).map_err(|refused| match refused {
-            remote::Refused::UnknownHost(_) => format!("Limoniter hasn't connected to {} before. Connect to it once with File, Open a remote file, to check its key and trust it, and keep its password if it needs one.", site.host),
+            remote::Refused::UnknownHost(_) => crate::i18n::tf!("Limoniter hasn't connected to {} before. Connect to it once with File, Open a remote file, to check its key and trust it, and keep its password if it needs one.", site.host),
             other => other.describe(site),
         })?;
         Self::with(Box::new(connection), site, folder)
@@ -1021,12 +1020,12 @@ pub struct Counts {
 
 impl Counts {
     pub fn describe(&self) -> String {
-        let mut parts = vec![format!("{} same", self.same), format!("{} different", self.different), format!("{} only on the left", self.left_only), format!("{} only on the right", self.right_only)];
+        let mut parts = vec![format!("{} same", self.same), format!("{} different", self.different), crate::i18n::tf!("{} only on the left", self.left_only), crate::i18n::tf!("{} only on the right", self.right_only)];
         if self.type_differs > 0 {
-            parts.push(format!("{} file and folder", self.type_differs));
+            parts.push(crate::i18n::tf!("{} file and folder", self.type_differs));
         }
         if self.unreadable > 0 {
-            parts.push(format!("{} couldn't be read", self.unreadable));
+            parts.push(crate::i18n::tf!("{} couldn't be read", self.unreadable));
         }
         parts.join(" \u{B7} ")
     }
@@ -1369,12 +1368,12 @@ pub fn plan_copy(result: &FolderResult, selected: &[usize], direction: Direction
         }
         match (source.is_dir, there) {
             (true, None) => plan.folders.push(row.path.clone()),
-            (true, Some(m)) if !m.is_dir => plan.skipped.push((row.path.clone(), "A file of that name is in the way of the folder.".into())),
+            (true, Some(m)) if !m.is_dir => plan.skipped.push((row.path.clone(), crate::i18n::tr("A file of that name is in the way of the folder.").into())),
             (true, Some(_)) => {}
-            (false, Some(m)) if m.is_dir => plan.skipped.push((row.path.clone(), "A folder of that name is in the way of the file.".into())),
+            (false, Some(m)) if m.is_dir => plan.skipped.push((row.path.clone(), crate::i18n::tr("A folder of that name is in the way of the file.").into())),
             (false, there) => {
                 if row.status == Status::Unreadable {
-                    plan.skipped.push((row.path.clone(), row.problem.clone().unwrap_or_else(|| "It couldn't be read.".into())));
+                    plan.skipped.push((row.path.clone(), row.problem.clone().unwrap_or_else(|| crate::i18n::tr("It couldn't be read.").into())));
                     continue;
                 }
                 plan.files.push(CopyItem { path: row.path.clone(), replaces: there.is_some(), size: source.size, modified: source.modified, expected: there });
@@ -1397,16 +1396,16 @@ pub struct CopyReport {
 
 impl CopyReport {
     pub fn describe(&self) -> String {
-        let mut said = format!("Copied {} file{}", self.copied, if self.copied == 1 { "" } else { "s" });
+        let mut said = if self.copied == 1 { crate::i18n::tr("Copied 1 file").to_string() } else { crate::i18n::tf!("Copied {} files", self.copied) };
         if self.folders_made > 0 {
-            said.push_str(&format!(" and made {} folder{}", self.folders_made, if self.folders_made == 1 { "" } else { "s" }));
+            said.push_str(&if self.folders_made == 1 { crate::i18n::tr(" and made 1 folder").to_string() } else { crate::i18n::tf!(" and made {} folders", self.folders_made) });
         }
         said.push('.');
         if let Some(folder) = &self.backup_folder {
-            said.push_str(&format!("\n\nThe {} file{} replaced {} kept in {}.", self.backed_up, if self.backed_up == 1 { "" } else { "s" }, if self.backed_up == 1 { "is" } else { "are" }, folder.display()));
+            said.push_str(&if self.backed_up == 1 { crate::i18n::tf!("\n\nThe 1 file replaced is kept in {}.", folder.display()) } else { crate::i18n::tf!("\n\nThe {} files replaced are kept in {}.", self.backed_up, folder.display()) });
         }
         if !self.failed.is_empty() {
-            said.push_str(&format!("\n\n{} couldn't be copied:", self.failed.len()));
+            said.push_str(&crate::i18n::tf!("\n\n{} couldn't be copied:", self.failed.len()));
             for (path, why) in self.failed.iter().take(12) {
                 said.push_str(&format!("\n{path}: {why}"));
             }
@@ -1467,7 +1466,7 @@ pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, target: &dyn Tree, backup_ro
     }
     for item in &plan.files {
         if cancel.load(Ordering::Relaxed) {
-            report.failed.push((item.path.clone(), "It was stopped before this file.".into()));
+            report.failed.push((item.path.clone(), crate::i18n::tr("It was stopped before this file.").into()));
             continue;
         }
         progress.set_phase(format!("Copying {}", item.path));
@@ -1479,7 +1478,7 @@ pub fn run_copy(plan: &CopyPlan, source: &dyn Tree, target: &dyn Tree, backup_ro
         }
         if item.replaces {
             if let Err(e) = keep_backup(target, &item.path, backup_root) {
-                report.failed.push((item.path.clone(), format!("It couldn't be backed up first ({e}), so it was left as it was.")));
+                report.failed.push((item.path.clone(), crate::i18n::tf!("It couldn't be backed up first ({e}), so it was left as it was.")));
                 progress.done.fetch_add(1, Ordering::Relaxed);
                 continue;
             }
@@ -1904,13 +1903,13 @@ fn report_rows(result: &FolderResult, hide_same: bool) -> impl Iterator<Item = &
 /// A plain text report of a folder comparison, a line for each entry.
 pub fn report_text(result: &FolderResult, hide_same: bool) -> String {
     let mut out = String::from("Folder comparison\n");
-    out.push_str(&format!("Left:  {}\nRight: {}\n", result.left.describe(), result.right.describe()));
-    out.push_str(&format!("Compared by {}\n", if result.mode == Mode::Thorough { "contents" } else { "size and modified time" }));
+    out.push_str(&crate::i18n::tf!("Left:  {}\nRight: {}\n", result.left.describe(), result.right.describe()));
+    out.push_str(&crate::i18n::tf!("Compared by {}\n", if result.mode == Mode::Thorough { "contents" } else { "size and modified time" }));
     if !result.filters.include.trim().is_empty() {
         out.push_str(&format!("Only: {}\n", result.filters.include.trim()));
     }
     if !result.filters.exclude.trim().is_empty() {
-        out.push_str(&format!("Leaving out: {}\n", result.filters.exclude.trim()));
+        out.push_str(&crate::i18n::tf!("Leaving out: {}\n", result.filters.exclude.trim()));
     }
     if result.filters.gitignore {
         out.push_str("Leaving out what .gitignore files do\n");
@@ -1995,7 +1994,7 @@ pub fn report_summary(result: &FolderResult, html: bool) -> String {
     let mut folders: Vec<(String, Counts)> = Vec::new();
     let top_files = count_rows(result.rows.iter().filter(|row| row.parent.is_none() && !row.is_dir()));
     if top_files != Counts::default() {
-        folders.push(("(files at the top)".to_string(), top_files));
+        folders.push((crate::i18n::tr("(files at the top)").to_string(), top_files));
     }
     for (i, row) in result.rows.iter().enumerate() {
         if row.parent.is_none() && row.is_dir() {
@@ -2013,7 +2012,7 @@ pub fn report_summary(result: &FolderResult, html: bool) -> String {
         return out;
     }
     let mut out = String::from("Folder comparison summary\n");
-    out.push_str(&format!("Left:  {}\nRight: {}\nCompared by {by}\n{}\n\n", result.left.describe(), result.right.describe(), result.counts().describe()));
+    out.push_str(&crate::i18n::tf!("Left:  {}\nRight: {}\nCompared by {by}\n{}\n\n", result.left.describe(), result.right.describe(), result.counts().describe()));
     let width = folders.iter().map(|(name, _)| name.chars().count()).max().unwrap_or(6).max(6);
     out.push_str(&format!("{:<width$}  {:>8}  {:>9}  {:>16}  {:>17}  {:>6}\n", "Folder", "Same", "Different", "Only on the left", "Only on the right", "Other"));
     for (name, c) in &folders {

@@ -202,7 +202,7 @@ impl Limoniter {
             Some((n, _)) => self.open_send_box(n),
             None if self.sends.devices.len() == 1 => self.open_send_box(0),
             None if self.sends.devices.is_empty() => self.open_devices_box(),
-            None => self.message("Send again", "This file hasn't been sent anywhere yet. Choose a device under File, Send to device, and after that Send again (Ctrl+Alt+S) sends it there in one go.".into()),
+            None => self.message("Send again", crate::i18n::tr("This file hasn't been sent anywhere yet. Choose a device under File, Send to device, and after that Send again (Ctrl+Alt+S) sends it there in one go.").into()),
         }
     }
 
@@ -274,29 +274,29 @@ impl Limoniter {
     fn payload_for(&mut self, index: usize, device: &Device) -> Result<Payload, Option<String>> {
         let doc = &self.docs[index];
         if doc.browser.is_some() {
-            return Err(Some("An image or archive is only read here. Take a file out of it with Save a copy, open that, and send it.".into()));
+            return Err(Some(crate::i18n::tr("An image or archive is only read here. Take a file out of it with Save a copy, open that, and send it.").into()));
         }
         let huge = if doc.hex_mode { doc.hex.is_on_disk() } else { doc.text.is_disk_backed() };
         if huge {
             if device.preset.is_some() {
-                return Err(Some(format!("{} writes text in another encoding on the way, and this file is too large to convert in memory. Send it to a device that takes it as it is.", device.name)));
+                return Err(Some(crate::i18n::tf!("{} writes text in another encoding on the way, and this file is too large to convert in memory. Send it to a device that takes it as it is.", device.name)));
             }
             return match &doc.path {
                 Some(path) if !doc.is_modified() => Ok(Payload::File(path.clone())),
-                _ => Err(Some("This file is too large to send from memory. Save it first, and it's sent from disk as it's saved.".into())),
+                _ => Err(Some(crate::i18n::tr("This file is too large to send from memory. Save it first, and it's sent from disk as it's saved.").into())),
             };
         }
         // A BASIC listing goes as the program it lists, tokenised as Save as program would.
         if let Some((machine, stem)) = doc.listing_of.clone().filter(|_| !doc.hex_mode) {
             return super::file_tools::tokenised(&doc.text.all_lines(), machine, &stem, None)
                 .map(|(bytes, ..)| Payload::Bytes(Arc::new(bytes)))
-                .map_err(|problem| Some(format!("This listing couldn't be tokenised, so nothing was sent.\n\n{problem}")));
+                .map_err(|problem| Some(crate::i18n::tf!("This listing couldn't be tokenised, so nothing was sent.\n\n{problem}")));
         }
         let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) else {
             return self.bytes_for(index).map(|bytes| Payload::Bytes(Arc::new(bytes))).ok_or(None);
         };
         if doc.hex_mode {
-            return Err(Some(format!("{} writes text as {}, and hex view holds bytes rather than text. Switch to text to send it.", device.name, preset.name)));
+            return Err(Some(crate::i18n::tf!("{} writes text as {}, and hex view holds bytes rather than text. Switch to text to send it.", device.name, preset.name)));
         }
         let target = preset.format();
         let lines = doc.text.all_lines();
@@ -304,7 +304,7 @@ impl Limoniter {
             Ok(bytes) => Ok(Payload::Bytes(Arc::new(bytes))),
             Err(problems) => {
                 let first: Vec<String> = problems.listed.iter().take(5).map(|problem| format!("Line {}", problem.line + 1)).collect();
-                Err(Some(format!("{} writes text as {}, which has no way to write {} character(s) here.\n\n{}\n\nChange them, or send to a device that takes the file as it is.", device.name, preset.name, problems.total, first.join(", "))))
+                Err(Some(crate::i18n::tf!("{} writes text as {}, which has no way to write {} character(s) here.\n\n{}\n\nChange them, or send to a device that takes the file as it is.", device.name, preset.name, problems.total, first.join(", "))))
             }
         }
     }
@@ -316,13 +316,13 @@ impl Limoniter {
             Payload::File(path) => match std::fs::read(path) {
                 Ok(bytes) => Arc::new(bytes),
                 Err(e) => {
-                    warn(&format!("Couldn't read {}.\n\n{e}", path.display()));
+                    warn(&crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display()));
                     return;
                 }
             },
         };
         if data.len() > u32::MAX as usize / 2 {
-            self.message("Send to device", "That's far too large for a Spectrum Next.".into());
+            self.message("Send to device", crate::i18n::tr("That's far too large for a Spectrum Next.").into());
             return;
         }
         if self.sends.nextsync.is_none() {
@@ -339,7 +339,7 @@ impl Limoniter {
         if let Some(server) = &self.sends.nextsync {
             server.offer(deploy::Waiting { path: path.clone(), data, number: self.sends.number });
         }
-        let address = deploy::local_address().unwrap_or_else(|| "this computer's address".into());
+        let address = deploy::local_address().unwrap_or_else(|| crate::i18n::tr("this computer's address").into());
         if !self.sends.told_next && self.screenshot.is_none() && !cfg!(test) {
             self.sends.told_next = true;
             self.message("Waiting for the Next", crate::i18n::tf!("{path} is ready for the Next to fetch.\n\nOn the Next, type\n\n    .sync {address}\n\nthe first time, and after that just .sync. Limoniter keeps the file ready until it's fetched, and anything else sent meanwhile goes too.\n\nThe Next needs NextSync's .sync command, and its Wi-Fi set up."));
@@ -365,10 +365,10 @@ impl Limoniter {
             let problem = shared.problem.take();
             drop(shared);
             if !fetched.is_empty() {
-                self.sends.note = Some((format!("The Next fetched {}", fetched.join(", ")), String::new(), Instant::now()));
+                self.sends.note = Some((crate::i18n::tf!("The Next fetched {}", fetched.join(", ")), String::new(), Instant::now()));
             }
             if let Some(problem) = problem {
-                self.sends.note = Some(("The Next's fetch stopped part way; run .sync again".into(), problem, Instant::now()));
+                self.sends.note = Some((crate::i18n::tr("The Next's fetch stopped part way; run .sync again").into(), problem, Instant::now()));
             }
         }
         let noting = self.sends.note.as_ref().is_some_and(|(_, _, when)| when.elapsed() < NOTE_FOR);
@@ -383,16 +383,16 @@ impl Limoniter {
                     self.sends.set_stamp(Sends::stamp_key(&device, &name), stamp);
                     self.save_settings_if_changed();
                 }
-                let words = if note.is_empty() || note.contains('\n') { format!("Sent {name} to {}", device.name) } else { format!("Sent {name} to {}. {note}", device.name) };
+                let words = if note.is_empty() || note.contains('\n') { crate::i18n::tf!("Sent {name} to {}", device.name) } else { crate::i18n::tf!("Sent {name} to {}. {note}", device.name) };
                 self.sends.note = Some((words, if note.is_empty() { place } else { format!("{place}\n\n{note}") }, Instant::now()));
             }
             Outcome::Failed(Failure::Changed) => {
-                if ask_yes_no("Send to device", &format!("{name} on {} has been changed since it was last sent from here.\n\nReplace it with this version?", device.name)) {
+                if ask_yes_no("Send to device", &crate::i18n::tf!("{name} on {} has been changed since it was last sent from here.\n\nReplace it with this version?", device.name)) {
                     self.start_send(job.doc_id, device, name, payload, true);
                 }
             }
             Outcome::Failed(Failure::AlreadyThere) => {
-                if ask_yes_no("Send to device", &format!("There's already a {name} on {}, not one sent from here.\n\nReplace it?", device.name)) {
+                if ask_yes_no("Send to device", &crate::i18n::tf!("There's already a {name} on {}, not one sent from here.\n\nReplace it?", device.name)) {
                     self.start_send(job.doc_id, device, name, payload, true);
                 }
             }
@@ -407,7 +407,7 @@ impl Limoniter {
                 let text = refused.describe(&site);
                 match refused {
                     crate::remote::Refused::UnknownHost(print) => {
-                        if ask_yes_no("A server not met before", &format!("{text}\n\nTrust it, and send?")) {
+                        if ask_yes_no("A server not met before", &crate::i18n::tf!("{text}\n\nTrust it, and send?")) {
                             self.known_hosts.trust(&site, &print);
                             self.save_settings_if_changed();
                             self.start_send(job.doc_id, device, name, payload, false);
@@ -433,7 +433,7 @@ impl Limoniter {
                 }
             }
             Outcome::Failed(Failure::Failed(_)) if job.stopped() => {
-                self.sends.note = Some((format!("Stopped sending {name}"), String::new(), Instant::now()));
+                self.sends.note = Some((crate::i18n::tf!("Stopped sending {name}"), String::new(), Instant::now()));
             }
             Outcome::Failed(Failure::Failed(problem)) => {
                 // A wrong FTP password is forgotten, so the next send asks again.
@@ -442,7 +442,7 @@ impl Limoniter {
                 {
                     self.sends.passwords.remove(&key);
                 }
-                warn(&format!("{name} wasn't sent to {}.\n\n{problem}", device.name));
+                warn(&crate::i18n::tf!("{name} wasn't sent to {}.\n\n{problem}", device.name));
             }
         }
     }
@@ -450,7 +450,7 @@ impl Limoniter {
     /// Words for the status bar about sending, and more to show on hover.
     pub(super) fn send_status(&self) -> Option<(String, String)> {
         if let Some(job) = self.sends.jobs.first() {
-            return Some((format!("Sending {} to {}: {:.0}%", job.sending.name, job.sending.device.name, (job.share() * 100.0).min(100.0)), job.sending.device.place.describe()));
+            return Some((crate::i18n::tf!("Sending {} to {}: {:.0}%", job.sending.name, job.sending.device.name, (job.share() * 100.0).min(100.0)), job.sending.device.place.describe()));
         }
         if let Some(server) = &self.sends.nextsync {
             let shared = server.shared.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -460,7 +460,7 @@ impl Limoniter {
             if !shared.waiting.is_empty() {
                 let names: Vec<&str> = shared.waiting.iter().map(|w| w.path.as_str()).collect();
                 let address = deploy::local_address().unwrap_or_default();
-                return Some((format!("{} file(s) waiting for .sync on the Next", names.len()), format!("{}\n\nOn the Next: .sync {address}", names.join("\n"))));
+                return Some((crate::i18n::tf!("{} file(s) waiting for .sync on the Next", names.len()), crate::i18n::tf!("{}\n\nOn the Next: .sync {address}", names.join("\n"))));
             }
         }
         self.sends.note.as_ref().filter(|(_, _, when)| when.elapsed() < NOTE_FOR).map(|(words, more, _)| (words.clone(), more.clone()))
@@ -596,7 +596,7 @@ impl Limoniter {
             state.download = None;
             match result {
                 Ok(program) => {
-                    state.get_note = format!("{} is installed, and added to the list.", emulator.name);
+                    state.get_note = crate::i18n::tf!("{} is installed, and added to the list.", emulator.name);
                     if let Some(list) = &mut state.getting
                         && let Some(row) = list.iter_mut().find(|(e, _)| e.id == emulator.id)
                     {
@@ -623,7 +623,7 @@ impl Limoniter {
                     ui.set_width(190.0);
                     egui::ScrollArea::vertical().id_salt("device-list").max_height(330.0).auto_shrink([false, true]).show(ui, |ui| {
                         for (n, device) in state.devices.iter().enumerate() {
-                            let label = if device.name.trim().is_empty() { "(no name)".to_string() } else { device.name.clone() };
+                            let label = if device.name.trim().is_empty() { crate::i18n::tr("(no name)").to_string() } else { device.name.clone() };
                             if ui.selectable_label(n == state.selected, crate::i18n::tr(&label)).on_hover_text(device.place.describe()).clicked() && n != state.selected {
                                 state.selected = n;
                                 state.password.clear();
@@ -659,7 +659,7 @@ impl Limoniter {
                     }
                     if let Some(added) = state.found {
                         ui.label(RichText::new(match added {
-                            0 => "No more were found.".to_string(),
+                            0 => crate::i18n::tr("No more were found.").to_string(),
                             1 => "1 added.".to_string(),
                             n => format!("{n} added."),
                         }).color(theme::text_faint()));
@@ -704,8 +704,8 @@ impl Limoniter {
                                 ui.label(RichText::new(crate::i18n::tr("Not installed")).color(theme::text_faint()));
                                 let busy = state.download.is_some();
                                 if ui.add_enabled(!busy || way != crate::emulator_get::Way::Download, egui::Button::new(crate::emulator_get::button(&way))).on_hover_text(match &way {
-                                    crate::emulator_get::Way::Download => format!("Its latest release, from {}, unpacked beside Limoniter's settings", emulator.website),
-                                    crate::emulator_get::Way::Command(command) => format!("Runs {command} in the Terminal panel"),
+                                    crate::emulator_get::Way::Download => crate::i18n::tf!("Its latest release, from {}, unpacked beside Limoniter's settings", emulator.website),
+                                    crate::emulator_get::Way::Command(command) => crate::i18n::tf!("Runs {command} in the Terminal panel"),
                                     crate::emulator_get::Way::Page => emulator.website.to_string(),
                                 }).clicked() {
                                     get_wanted = Some((*emulator, way));
@@ -756,11 +756,12 @@ impl Limoniter {
                     if self.terminal.is_none() {
                         self.toggle_terminal();
                     }
+                    self.terminal_hidden = false;
                     if let Some(terminal) = self.terminal.as_mut() {
                         terminal.send(format!("{command}\r").as_bytes());
                     }
                     if let Dialog::Devices(state) = &mut self.dialog {
-                        state.get_note = format!("{command} is running in the Terminal panel. When it's done, Find emulators adds {}.", emulator.name);
+                        state.get_note = crate::i18n::tf!("{command} is running in the Terminal panel. When it's done, Find emulators adds {}.", emulator.name);
                     }
                 }
                 crate::emulator_get::Way::Page => {
@@ -768,7 +769,7 @@ impl Limoniter {
                         warn(&problem);
                     }
                     if let Dialog::Devices(state) = &mut self.dialog {
-                        state.get_note = format!("Once {} is installed, Find emulators adds it.", emulator.name);
+                        state.get_note = crate::i18n::tf!("Once {} is installed, Find emulators adds it.", emulator.name);
                     }
                 }
             }
@@ -915,9 +916,8 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.add(egui::TextEdit::singleline(folder).hint_text(crate::i18n::tr("/dot, or /games/mine")).desired_width(320.0));
                 ui.end_row();
                 ui.label(crate::i18n::tr(""));
-                note(ui, hint(&format!(
-                    "Sending makes the file ready, and the Next fetches it over Wi-Fi when .sync is run on it: .sync {} the first time, and then just .sync. The Next needs NextSync's .sync dot command. Port {} on this computer has to be reachable.",
-                    deploy::local_address().unwrap_or_else(|| "this computer's address".into()),
+                note(ui, hint(&crate::i18n::tf!("Sending makes the file ready, and the Next fetches it over Wi-Fi when .sync is run on it: .sync {} the first time, and then just .sync. The Next needs NextSync's .sync dot command. Port {} on this computer has to be reachable.",
+                    deploy::local_address().unwrap_or_else(|| crate::i18n::tr("this computer's address").into()),
                     deploy::NEXTSYNC_PORT
                 )));
                 ui.end_row();
@@ -967,7 +967,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                     {
                         match crate::emulators::find_installed().into_iter().find(|(e, _)| e.id == known.id) {
                             Some((_, found)) => *program = found,
-                            None => *told = format!("{} wasn't found. It's at {}", known.name, known.website),
+                            None => *told = crate::i18n::tf!("{} wasn't found. It's at {}", known.name, known.website),
                         }
                     }
                 });
@@ -989,7 +989,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                         crate::emulators::Link::None => "",
                         _ => " While it runs, Limoniter can read and change its memory and screen.",
                     };
-                    note(ui, hint(&format!("Runs programs for the {}, from .{} files.{reached}", machines.join(", "), formats.join(", ."))));
+                    note(ui, hint(&crate::i18n::tf!("Runs programs for the {}, from .{} files.{reached}", machines.join(", "), formats.join(", ."))));
                     ui.end_row();
                     if !told.is_empty() {
                         ui.label(crate::i18n::tr(""));
@@ -1004,7 +1004,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.add(egui::TextEdit::multiline(line).hint_text(crate::i18n::tr("x64sc -autostart {file}")).desired_rows(2).desired_width(320.0));
                 ui.end_row();
                 ui.label(crate::i18n::tr(""));
-                note(ui, hint(&format!("Run by {} with a copy of the file. {{file}} is the copy's full path, {{name}} its name and {{folder}} its folder. A program still running after five seconds, such as an emulator, is left to run.", crate::platform::SHELL_NAME)));
+                note(ui, hint(&crate::i18n::tf!("Run by {} with a copy of the file. {{file}} is the copy's full path, {{name}} its name and {{folder}} its folder. A program still running after five seconds, such as an emulator, is left to run.", crate::platform::SHELL_NAME)));
                 ui.end_row();
             }
         }

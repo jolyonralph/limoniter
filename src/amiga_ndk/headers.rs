@@ -301,9 +301,9 @@ impl Name {
         let value = self.value;
         let line = match &self.what {
             What::Field { structure, kind, .. } if kind == "LABEL" => format!("{name}: offset {value} in {structure}"),
-            What::Field { structure, kind, size } => format!("{name}: offset {value} in {structure} ({kind}, {size} byte{})", if *size == 1 { "" } else { "s" }),
-            What::Size { structure } => format!("{name}: the size of {structure}, {value} bytes"),
-            What::Bit { mask } => format!("{name} = {value}: a bit's number; its mask is {mask}"),
+            What::Field { structure, kind, size } => if *size == 1 { crate::i18n::tf!("{name}: offset {value} in {structure} ({kind}, 1 byte)") } else { crate::i18n::tf!("{name}: offset {value} in {structure} ({kind}, {size} bytes)") },
+            What::Size { structure } => crate::i18n::tf!("{name}: the size of {structure}, {value} bytes"),
+            What::Bit { mask } => crate::i18n::tf!("{name} = {value}: a bit's number; its mask is {mask}"),
             What::Mask { bit } => format!("{name} = {value} (${:X}): bit {} ({bit})", value as u32, (value as u64).trailing_zeros()),
             What::Value if value < 0 => format!("{name} = {value}"),
             What::Value => format!("{name} = {value} (${:X})", value as u32),

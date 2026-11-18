@@ -1,7 +1,8 @@
 //! The ripper: music and graphics found in any file, and inside every file of a disk, tape or archive image.
 //!
 //! Music is found by the marks each kind carries (a ProTracker module's M.K. at byte 1080, a SID file's PSID, an
-//! SNDH's tag, YM's header...), and each find's length worked out from its own header where it says enough;
+//! SNDH's tag, YM's header...; an old 15-sample Soundtracker module, which has none, by its instruments' st-01:
+//! sample-disk names), and each find's length worked out from its own header where it says enough;
 //! where it doesn't, the find runs to the next one or the file's end. Graphics are any bytes seen as the machines
 //! kept their pictures: a bit a pixel, characters, the C64's multicolour and sprites, NES and Game Boy tiles,
 //! Amiga and Atari ST bitplanes, a Spectrum screen, or a byte a pixel.
@@ -12,6 +13,8 @@ use std::sync::Arc;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Music {
     ProTracker,
+    /// An older module with 15 samples and no mark.
+    Soundtracker,
     ScreamTracker,
     FastTracker,
     ImpulseTracker,
@@ -30,6 +33,7 @@ impl Music {
     pub fn name(self) -> &'static str {
         match self {
             Music::ProTracker => "ProTracker module",
+            Music::Soundtracker => "Soundtracker module (15 samples)",
             Music::ScreamTracker => "Scream Tracker 3 module",
             Music::FastTracker => "FastTracker 2 module",
             Music::ImpulseTracker => "Impulse Tracker module",
@@ -46,7 +50,7 @@ impl Music {
     /// The file ending it's saved with.
     pub fn extension(self) -> &'static str {
         match self {
-            Music::ProTracker => "mod",
+            Music::ProTracker | Music::Soundtracker => "mod",
             Music::ScreamTracker => "s3m",
             Music::FastTracker => "xm",
             Music::ImpulseTracker => "it",
@@ -154,6 +158,53 @@ fn protracker(bytes: &[u8], tag: usize) -> Option<(usize, usize, String)> {
         return None;
     }
     Some((start, length, text(m, 0, 20)))
+}
+
+/// Whether a name field is text: printable up to its first zero, and only zeros or text after it.
+fn name_field(field: &[u8]) -> bool {
+    let end = field.iter().position(|&b| b == 0).unwrap_or(field.len());
+    field[..end].iter().all(|&b| (0x20..0x7F).contains(&b) || b >= 0xA0) && field[end..].iter().all(|&b| b == 0 || (0x20..0x7F).contains(&b))
+}
+
+/// A 15-sample Soundtracker module laid out from `start`: the length it says it has (which may run past the
+/// bytes there are), and its title. It has no mark, so everything it can be checked by is: text names, volumes up
+/// to 64, a song of 1 to 128 positions, and patterns numbered under 64.
+fn soundtracker(bytes: &[u8], start: usize) -> Option<(usize, String)> {
+    let m = bytes.get(start..)?;
+    if m.len() < 600 + 1024 || protracker(bytes, start + 1080).is_some() {
+        return None;
+    }
+    if !name_field(&m[..20]) {
+        return None;
+    }
+    let mut samples = 0usize;
+    for s in 0..15 {
+        let at = 20 + s * 30;
+        if !name_field(&m[at..at + 22]) || m[at + 24] > 15 || m[at + 25] > 64 {
+            return None;
+        }
+        samples += be16(m, at + 22)? * 2;
+    }
+    if !(1..=128).contains(&m[470]) || m[472..600].iter().any(|&p| p >= 64) {
+        return None;
+    }
+    let patterns = usize::from(*m[472..600].iter().max()?) + 1;
+    let length = 600 + patterns * 1024 + samples;
+    (m.len() >= 600 + patterns * 1024).then(|| (length, text(m, 0, 20)))
+}
+
+/// Where 15-sample modules may start: wherever an instrument is named for a Soundtracker sample disk, as most
+/// were (st-01:strings), the module starts at that name's place among the 15.
+fn soundtracker_starts(bytes: &[u8]) -> Vec<usize> {
+    let mut starts: Vec<usize> = [&b"st-"[..], b"ST-", b"St-"]
+        .iter()
+        .flat_map(|mark| all(bytes, mark))
+        .filter(|&at| bytes.get(at + 3..at + 6).is_some_and(|n| n[0].is_ascii_digit() && n[1].is_ascii_digit() && n[2] == b':'))
+        .flat_map(|at| (0..15).filter_map(move |s| at.checked_sub(20 + s * 30)))
+        .collect();
+    starts.sort_unstable();
+    starts.dedup();
+    starts
 }
 
 /// A Scream Tracker 3 module whose SCRM is at `mark`: its start, length and title.
@@ -339,6 +390,18 @@ pub fn find_music(bytes: &[u8], place: &str) -> Vec<Found> {
         if let Some((start, length, title)) = protracker(bytes, tag) {
             finds.push((start, Some(length), Music::ProTracker, title));
         }
+    }
+    for start in soundtracker_starts(bytes) {
+        if let Some((length, title)) = soundtracker(bytes, start) {
+            finds.push((start, Some(length.min(bytes.len() - start)), Music::Soundtracker, title));
+        }
+    }
+    // A whole file laid out as one, named or not, whose length is the module's own.
+    if let Some((length, title)) = soundtracker(bytes, 0)
+        && bytes.len() >= length
+        && bytes.len() - length < 64
+    {
+        finds.push((0, Some(length), Music::Soundtracker, title));
     }
     for mark in all(bytes, b"SCRM") {
         if let Some((start, length, title)) = scream_tracker(bytes, mark) {
@@ -727,7 +790,7 @@ pub fn picture(bytes: &[u8], view: &View) -> Picture {
 pub fn as_source(bytes: &[u8], view: &View, directive: &str) -> String {
     let used = picture(bytes, view).bytes;
     let part = &bytes[view.offset.min(bytes.len())..(view.offset + used).min(bytes.len())];
-    let mut out = format!("; {} bytes from offset ${:X}, as {}\n", part.len(), view.offset, view.layout.name());
+    let mut out = crate::i18n::tf!("; {} bytes from offset ${:X}, as {}\n", part.len(), view.offset, view.layout.name());
     for chunk in part.chunks(16) {
         out.push_str(&format!("        {directive} {}\n", chunk.iter().map(|b| format!("${b:02X}")).collect::<Vec<_>>().join(",")));
     }

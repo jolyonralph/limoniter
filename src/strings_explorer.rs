@@ -54,16 +54,16 @@ impl Kind {
                     Counts::Bytes => ", counting bytes",
                     Counts::WithZero => ", counting a zero at the end",
                 };
-                format!("Length first ({width} byte{}{order}{counting})", if width == 1 { "" } else { "s" })
+                if width == 1 { crate::i18n::tf!("Length first (1 byte{order}{counting})") } else { crate::i18n::tf!("Length first ({width} bytes{order}{counting})") }
             }
-            Kind::NullTerminated => "Ends with a zero byte".into(),
-            Kind::Padded { width, pad: b' ' } => format!("Fixed width {width}, padded with spaces"),
-            Kind::Padded { width, pad: 0xA0 } => format!("Fixed width {width}, padded with shifted spaces ($A0)"),
-            Kind::Padded { width, .. } => format!("Fixed width {width}, padded with zeros"),
-            Kind::HighBitEnd => "Last character has its top bit set".into(),
-            Kind::DollarEnd => "Ends with $ (CP/M and DOS)".into(),
-            Kind::Line => "A line (ends with CR or LF)".into(),
-            Kind::Plain => "No length or end marker".into(),
+            Kind::NullTerminated => crate::i18n::tr("Ends with a zero byte").into(),
+            Kind::Padded { width, pad: b' ' } => crate::i18n::tf!("Fixed width {width}, padded with spaces"),
+            Kind::Padded { width, pad: 0xA0 } => crate::i18n::tf!("Fixed width {width}, padded with shifted spaces ($A0)"),
+            Kind::Padded { width, .. } => crate::i18n::tf!("Fixed width {width}, padded with zeros"),
+            Kind::HighBitEnd => crate::i18n::tr("Last character has its top bit set").into(),
+            Kind::DollarEnd => crate::i18n::tr("Ends with $ (CP/M and DOS)").into(),
+            Kind::Line => crate::i18n::tr("A line (ends with CR or LF)").into(),
+            Kind::Plain => crate::i18n::tr("No length or end marker").into(),
         }
     }
 
@@ -460,7 +460,7 @@ fn settle(candidates: Vec<Candidate>) -> Vec<Found> {
 /// How many strings of each group there are, for the summary.
 pub fn summary(found: &[Found]) -> String {
     if found.is_empty() {
-        return "No strings found.".into();
+        return crate::i18n::tr("No strings found.").into();
     }
     let mut counts: Vec<(&str, usize)> = GROUPS.iter().map(|g| (*g, found.iter().filter(|f| f.kind.group() == *g).count())).filter(|(_, n)| *n > 0).collect();
     counts.sort_by_key(|(_, n)| std::cmp::Reverse(*n));

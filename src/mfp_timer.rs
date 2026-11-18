@@ -77,23 +77,23 @@ pub fn source(timer: Timer, control: u8, data: u8, handler: &str, said: &str) ->
     let mut out = String::new();
     let line = |out: &mut String, instruction: String, comment: &str| out.push_str(&format!("        {instruction:<32}; {comment}\n"));
     let letter = timer.letter();
-    line(&mut out, format!("move.l  #{handler},${:x}.w", timer.vector()), &format!("Timer {letter}'s vector"));
+    line(&mut out, format!("move.l  #{handler},${:x}.w", timer.vector()), &crate::i18n::tf!("Timer {letter}'s vector"));
     match timer {
         Timer::A | Timer::B => {
             let control_register = if timer == Timer::A { 0xFFFA19 } else { 0xFFFA1B };
-            line(&mut out, format!("clr.b   {}", short(control_register)), &format!("stop Timer {letter} while it's set up"));
+            line(&mut out, format!("clr.b   {}", short(control_register)), &crate::i18n::tf!("stop Timer {letter} while it's set up"));
             line(&mut out, format!("move.b  #{data},{}", short(timer.data())), &format!("count {}", if data == 0 { 256 } else { data as u32 }));
             line(&mut out, format!("move.b  #{control},{}", short(control_register)), said);
         }
         Timer::C | Timer::D => {
             let (keep, shift) = if timer == Timer::C { (0x0F, 4) } else { (0xF0, 0) };
-            line(&mut out, format!("and.b   #${keep:02x},{}", short(0xFFFA1D)), &format!("stop Timer {letter}, keeping the other"));
+            line(&mut out, format!("and.b   #${keep:02x},{}", short(0xFFFA1D)), &crate::i18n::tf!("stop Timer {letter}, keeping the other"));
             line(&mut out, format!("move.b  #{data},{}", short(timer.data())), &format!("count {}", if data == 0 { 256 } else { data as u32 }));
             line(&mut out, format!("or.b    #${:02x},{}", control << shift, short(0xFFFA1D)), said);
         }
     }
     let (enable, mask, bit) = timer.enable();
-    line(&mut out, format!("bset    #{bit},{}", short(enable)), &format!("Timer {letter}'s interrupt on"));
+    line(&mut out, format!("bset    #{bit},{}", short(enable)), &crate::i18n::tf!("Timer {letter}'s interrupt on"));
     line(&mut out, format!("bset    #{bit},{}", short(mask)), "and not masked");
     out
 }
@@ -189,9 +189,9 @@ impl Calculator {
         };
         let (control, data, rate, error) = found.get(self.chosen.min(found.len().saturating_sub(1))).copied()?;
         let said = if control == 8 {
-            format!("event count mode: every {} lines", if data == 0 { 256 } else { data as u32 })
+            crate::i18n::tf!("event count mode: every {} lines", if data == 0 { 256 } else { data as u32 })
         } else {
-            format!("divide by {}: {rate:.3} Hz ({error:+.3}%)", PRESCALERS[control as usize - 1])
+            crate::i18n::tf!("divide by {}: {rate:.3} Hz ({error:+.3}%)", PRESCALERS[control as usize - 1])
         };
         ui.separator();
         ui.horizontal(|ui| {

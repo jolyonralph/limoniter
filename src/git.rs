@@ -705,7 +705,7 @@ pub fn settle<S: AsRef<str>>(lines: &[S], conflict: &Conflict, keep: Keep) -> Ve
 
 /// A .gitignore to start a repository with, for what's in the folder: build output and backups left out.
 pub fn suggested_ignore(folder: &Path) -> String {
-    let mut lines = vec!["# Files Git leaves out. Lines can be added here at any time.".to_string(), "*.bak".into(), "*.tmp".into(), ".DS_Store".into(), "Thumbs.db".into()];
+    let mut lines = vec![crate::i18n::tr("# Files Git leaves out. Lines can be added here at any time.").to_string(), "*.bak".into(), "*.tmp".into(), ".DS_Store".into(), "Thumbs.db".into()];
     let has = |name: &str| folder.join(name).exists();
     if has("Cargo.toml") {
         lines.push("/target/".into());

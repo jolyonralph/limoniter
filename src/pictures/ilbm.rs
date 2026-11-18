@@ -378,15 +378,15 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
 
     picture.note("Size", format!("{}\u{D7}{}", header.width, header.height));
     let kind = if chunky {
-        "PBM, 256 colours, a byte a pixel".to_string()
+        crate::i18n::tr("PBM, 256 colours, a byte a pixel").to_string()
     } else if planes >= 24 {
-        format!("{planes}-bit colour (deep ILBM)")
+        crate::i18n::tf!("{planes}-bit colour (deep ILBM)")
     } else if ham {
-        format!("HAM{planes} (hold and modify)")
+        crate::i18n::tf!("HAM{planes} (hold and modify)")
     } else if ehb {
-        "64 colours, extra half-brite".to_string()
+        crate::i18n::tr("64 colours, extra half-brite").to_string()
     } else {
-        format!("{} colours, {planes} bit plane{}", colours, if planes == 1 { "" } else { "s" })
+        if planes == 1 { crate::i18n::tf!("{colours} colours, 1 bit plane") } else { crate::i18n::tf!("{colours} colours, {planes} bit planes") }
     };
     picture.note("Colours", kind);
     let mut mode = Vec::new();
@@ -412,7 +412,7 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     );
     match header.masking {
         1 => picture.note("Mask", "A mask plane, not used here"),
-        2 => picture.note("Mask", format!("Colour {} is see-through, shown as itself here", header.transparent)),
+        2 => picture.note("Mask", crate::i18n::tf!("Colour {} is see-through, shown as itself here", header.transparent)),
         3 => picture.note("Mask", "Lasso"),
         _ => {}
     }
@@ -420,10 +420,10 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         picture.note("Palette", "4 bits a level (OCS), widened");
     }
     if range_chunks > 0 {
-        picture.note("Colour cycling", if running > 0 { format!("{running} of {range_chunks} range(s) on; play it to see them cycle") } else { format!("{range_chunks} range(s), all off") });
+        picture.note("Colour cycling", if running > 0 { crate::i18n::tf!("{running} of {range_chunks} range(s) on; play it to see them cycle") } else { crate::i18n::tf!("{range_chunks} range(s), all off") });
     }
     if !unread.is_empty() {
-        picture.note("Not shown", format!("{} (palette changes down the screen), so colours may be off", unread.join(", ")));
+        picture.note("Not shown", crate::i18n::tf!("{} (palette changes down the screen), so colours may be off", unread.join(", ")));
     }
     for (label, text) in texts {
         picture.note(label, text);

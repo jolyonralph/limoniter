@@ -383,7 +383,7 @@ pub enum LossyPurpose {
 
 fn describe_character(c: char) -> String {
     match charset::raw_byte(c) {
-        Some(byte) => format!("byte {byte:02X}, which has no character to carry over"),
+        Some(byte) => crate::i18n::tf!("byte {byte:02X}, which has no character to carry over"),
         None => format!("\"{c}\" U+{:04X} {}", c as u32, charset::char_name(c)),
     }
 }
@@ -391,9 +391,9 @@ fn describe_character(c: char) -> String {
 pub fn lossy_window(ctx: &Context, report: &LossyReport) -> LossyChoice {
     let mut choice = LossyChoice::Waiting;
     let heading = match report.purpose {
-        LossyPurpose::Save => format!("Can't save: {} character(s) won't fit in {}", report.problems.total, report.target_name),
-        LossyPurpose::Convert => format!("Can't convert: {} character(s) won't fit in {}", report.problems.total, report.target_name),
-        LossyPurpose::Export => format!("{} character(s) won't fit in {}", report.problems.total, report.target_name),
+        LossyPurpose::Save => crate::i18n::tf!("Can't save: {} character(s) won't fit in {}", report.problems.total, report.target_name),
+        LossyPurpose::Convert => crate::i18n::tf!("Can't convert: {} character(s) won't fit in {}", report.problems.total, report.target_name),
+        LossyPurpose::Export => crate::i18n::tf!("{} character(s) won't fit in {}", report.problems.total, report.target_name),
     };
     egui::Window::new(crate::i18n::tr("Characters that won't fit")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
         ui.set_width(560.0);
@@ -402,7 +402,7 @@ pub fn lossy_window(ctx: &Context, report: &LossyReport) -> LossyChoice {
         ui.add_space(4.0);
         egui::ScrollArea::vertical().id_salt("lossy-list").max_height(280.0).auto_shrink([false, true]).show(ui, |ui| {
             for problem in &report.problems.listed {
-                let label = format!("Line {}, column {}: {}", problem.line + 1, problem.column + 1, describe_character(problem.ch));
+                let label = crate::i18n::tf!("Line {}, column {}: {}", problem.line + 1, problem.column + 1, describe_character(problem.ch));
                 if ui.add(Button::new(RichText::new(label).size(12.5)).frame(false)).on_hover_text(crate::i18n::tr("Go there")).clicked() {
                     choice = LossyChoice::GoTo(problem.line, problem.column);
                 }

@@ -75,7 +75,7 @@ fn unknown_value(op: Copper, said: String) -> String {
     match op {
         Copper::Move { register, .. } => {
             let name = amiga_hw::custom(register as u32).map(|r| r.name.clone()).unwrap_or_else(|| format!("${register:03X}"));
-            format!("MOVE (set when the program runs) to {name}")
+            crate::i18n::tf!("MOVE (set when the program runs) to {name}")
         }
         _ => said,
     }
@@ -642,7 +642,7 @@ impl Source {
                 index += 1;
             }
         }
-        let mut out = format!("Copper list {}\n{}", list.name(), said.join("\n"));
+        let mut out = crate::i18n::tf!("Copper list {}\n{}", list.name(), said.join("\n"));
         if let Some(detail) = detail {
             out.push_str("\n\n");
             out.push_str(&detail);
@@ -699,7 +699,7 @@ impl Source {
                     Some(v) => format!("${:08X}", v as u32),
                     None => operands.iter().find_map(|o| o.strip_prefix('#')).unwrap_or("the long word").to_string(),
                 };
-                return Some(format!("{pair} ({pair}H and {pair}L) = {shown}\n{about}, written as one long word"));
+                return Some(crate::i18n::tf!("{pair} ({pair}H and {pair}L) = {shown}\n{about}, written as one long word"));
             }
             let second = amiga_hw::custom(offset + 2)?;
             return Some(match value {

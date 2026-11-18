@@ -183,13 +183,13 @@ impl FileCheck {
         }
         let failed = self.fits.iter().filter(|fit| **fit == Fit::Fails).count();
         if failed > 0 {
-            return format!("{failed} of {} change{} can't be found, so it will be left as it is", self.fits.len(), if self.fits.len() == 1 { "" } else { "s" });
+            return if self.fits.len() == 1 { crate::i18n::tr("Its 1 change can't be found, so it will be left as it is").to_string() } else { crate::i18n::tf!("{failed} of {} changes can't be found, so it will be left as it is", self.fits.len()) };
         }
         let moved = self.fits.iter().filter(|fit| matches!(fit, Fit::Moved(_))).count();
         let what = if self.makes() { "Made" } else if self.deletes() { "Deleted" } else { "Changed" };
         let mut said = format!("{what}: {} change{}", self.fits.len(), if self.fits.len() == 1 { "" } else { "s" });
         if moved > 0 {
-            said.push_str(&format!(", {moved} found a little way from where the patch says"));
+            said.push_str(&crate::i18n::tf!(", {moved} found a little way from where the patch says"));
         }
         said
     }
@@ -293,18 +293,18 @@ pub fn check(patch: &[FilePatch], target: &Path) -> Result<Vec<FileCheck>, Strin
         };
         let mut check = FileCheck { name: file.name().to_string(), target: place.clone(), backup_name, fits: Vec::new(), problem: None, result: None, original: None };
         if file.binary {
-            check.problem = Some("It's a change to a binary file, which a patch doesn't hold, so it's left as it is".into());
+            check.problem = Some(crate::i18n::tr("It's a change to a binary file, which a patch doesn't hold, so it's left as it is").into());
             checks.push(check);
             continue;
         }
         let bytes = if place.is_file() { std::fs::read(&place).ok() } else { None };
         check.original = bytes.as_ref().map(|bytes| Sha256::digest(bytes).into());
         match (&file.old, bytes) {
-            (None, Some(_)) if !to_file => check.problem = Some("The patch makes it, but there's already a file of that name, so it's left as it is".into()),
-            (_, None) if file.old.is_some() => check.problem = Some("It isn't there to change".into()),
+            (None, Some(_)) if !to_file => check.problem = Some(crate::i18n::tr("The patch makes it, but there's already a file of that name, so it's left as it is").into()),
+            (_, None) if file.old.is_some() => check.problem = Some(crate::i18n::tr("It isn't there to change").into()),
             (_, bytes) => {
                 let Some((lines, crlf, final_newline)) = split_text(bytes.as_deref().unwrap_or_default()) else {
-                    check.problem = Some("It isn't text, so it's left as it is".into());
+                    check.problem = Some(crate::i18n::tr("It isn't text, so it's left as it is").into());
                     checks.push(check);
                     continue;
                 };
@@ -312,7 +312,7 @@ pub fn check(patch: &[FilePatch], target: &Path) -> Result<Vec<FileCheck>, Strin
                 check.fits = fits;
                 if file.new.is_none() {
                     if !out.is_empty() && check.ready() {
-                        check.problem = Some("The patch deletes it, but it has more in it than the patch says, so it's left as it is".into());
+                        check.problem = Some(crate::i18n::tr("The patch deletes it, but it has more in it than the patch says, so it's left as it is").into());
                     }
                 } else {
                     check.result = Some(join_text(&out, crlf, final_newline));
@@ -336,7 +336,7 @@ pub struct ApplyReport {
 
 impl ApplyReport {
     pub fn describe(&self) -> String {
-        let mut said = format!("The patch changed {} file{}", self.changed, if self.changed == 1 { "" } else { "s" });
+        let mut said = if self.changed == 1 { crate::i18n::tr("The patch changed 1 file").to_string() } else { crate::i18n::tf!("The patch changed {} files", self.changed) };
         if self.made > 0 {
             said.push_str(&format!(", made {}", self.made));
         }
@@ -345,10 +345,10 @@ impl ApplyReport {
         }
         said.push('.');
         if let Some(folder) = &self.backup_folder {
-            said.push_str(&format!("\n\nThe files as they were are kept in {}.", folder.display()));
+            said.push_str(&crate::i18n::tf!("\n\nThe files as they were are kept in {}.", folder.display()));
         }
         if !self.left.is_empty() {
-            said.push_str(&format!("\n\n{} left as {} were:", self.left.len(), if self.left.len() == 1 { "it" } else { "they" }));
+            said.push_str(&if self.left.len() == 1 { crate::i18n::tr("\n\n1 left as it was:").to_string() } else { crate::i18n::tf!("\n\n{} left as they were:", self.left.len()) });
             for (name, why) in self.left.iter().take(12) {
                 said.push_str(&format!("\n{name}: {why}"));
             }
@@ -368,14 +368,14 @@ pub fn apply(checks: &[FileCheck], backup_root: &Path) -> ApplyReport {
         }
         let now: Option<[u8; 32]> = std::fs::read(&check.target).ok().map(|bytes| Sha256::digest(bytes).into());
         if now != check.original {
-            report.left.push((check.name.clone(), "It has changed since the patch was checked against it.".into()));
+            report.left.push((check.name.clone(), crate::i18n::tr("It has changed since the patch was checked against it.").into()));
             continue;
         }
         if check.original.is_some() {
             let kept = check.backup_name.split('/').fold(backup_root.to_path_buf(), |at, part| at.join(part));
             let backed = kept.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::copy(&check.target, &kept).map(|_| ()));
             if let Err(e) = backed {
-                report.left.push((check.name.clone(), format!("It couldn't be backed up first ({e}).")));
+                report.left.push((check.name.clone(), crate::i18n::tf!("It couldn't be backed up first ({e}).")));
                 continue;
             }
             report.backup_folder = Some(backup_root.to_path_buf());

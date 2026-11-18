@@ -1061,8 +1061,7 @@ impl TextBuffer {
     /// Refuses a command that would touch too many lines of a file kept on disk.
     fn too_many_rows(&mut self, rows: usize) -> bool {
         if self.lines.is_disk_backed() && rows > MAX_ROWS_ON_DISK {
-            self.notice = Some(format!(
-                "That would change {rows} lines, which is too many in a file this large. Select fewer lines (at most {MAX_ROWS_ON_DISK})."
+            self.notice = Some(crate::i18n::tf!("That would change {rows} lines, which is too many in a file this large. Select fewer lines (at most {MAX_ROWS_ON_DISK})."
             ));
             return true;
         }
@@ -2364,7 +2363,7 @@ impl TextBuffer {
     pub fn justify_columns(&mut self, how: Justify) {
         let (top, bottom, left, right) = self.block_bounds();
         if !self.has_selection() || right == left {
-            self.notice = Some("Highlight the columns to justify first.".to_string());
+            self.notice = Some(crate::i18n::tr("Highlight the columns to justify first.").to_string());
             return;
         }
         if self.too_many_rows(bottom - top + 1) {
@@ -2830,7 +2829,7 @@ impl TextBuffer {
             rows.pop();
         }
         if rows.len() != 1 && rows.len() != self.multi.len() {
-            self.notice = Some(format!("That text has {} lines and there are {} selections, so it hasn't been pasted. It needs one line, or one for each selection.", rows.len(), self.multi.len()));
+            self.notice = Some(crate::i18n::tf!("That text has {} lines and there are {} selections, so it hasn't been pasted. It needs one line, or one for each selection.", rows.len(), self.multi.len()));
             return;
         }
         self.multi_edit(None, |spot, place, _| (spot.start(), spot.end(), if rows.len() == 1 { rows[0].clone() } else { rows[place].clone() }));
@@ -2982,7 +2981,7 @@ impl TextBuffer {
     /// Folds every outermost stretch.
     pub fn collapse_all(&mut self) {
         if self.lines.is_disk_backed() {
-            self.notice = Some("This file is too large to fold all at once. It is being kept on disk so that it opens quickly.".to_string());
+            self.notice = Some(crate::i18n::tr("This file is too large to fold all at once. It is being kept on disk so that it opens quickly.").to_string());
             return;
         }
         let mut line = 0;
@@ -3422,7 +3421,7 @@ impl TextBuffer {
         RegexBuilder::new(&pattern)
             .case_insensitive(!o.match_case)
             .build()
-            .map_err(|_| "That search pattern isn't valid.".to_string())
+            .map_err(|_| crate::i18n::tr("That search pattern isn't valid.").to_string())
     }
 
     /// Selects the next match, wrapping around the file. Returns whether one was found.

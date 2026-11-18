@@ -231,7 +231,7 @@ fn decrypt_procedure(code: &mut [u8], at: usize) {
 pub fn list(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "AMOS", ..Listing::default() };
     if !looks_like(data) {
-        listing.notes.push("This isn't an AMOS program: it starts \u{201C}AMOS Basic\u{201D} or \u{201C}AMOS Pro\u{201D}.".into());
+        listing.notes.push(crate::i18n::tr("This isn't an AMOS program: it starts \u{201C}AMOS Basic\u{201D} or \u{201C}AMOS Pro\u{201D}.").into());
         return listing;
     }
     let header: String = data[..16].iter().take_while(|&&b| b != 0).map(|&b| b as char).collect();
@@ -246,9 +246,9 @@ pub fn list(data: &[u8]) -> Listing {
         h if h.contains("1.23") => "AMOS 1.2",
         _ => "AMOS 1.0 or 1.1",
     };
-    listing.info.push(("Saved by".into(), version.into()));
+    listing.info.push((crate::i18n::tr("Saved by").into(), version.into()));
     let tested = header.as_bytes().get(11) == Some(&b'V');
-    listing.info.push(("Tested".into(), if tested { "Yes".into() } else { "No: AMOS tests it before it runs".into() }));
+    listing.info.push(("Tested".into(), if tested { "Yes".into() } else { crate::i18n::tr("No: AMOS tests it before it runs").into() }));
     let length = (long(data, 16) as usize).min(data.len() - 20);
     let mut code = data[20..20 + length].to_vec();
     let mut lines = Vec::new();
@@ -258,7 +258,7 @@ pub fn list(data: &[u8]) -> Listing {
     while at + 2 <= code.len() {
         let line_length = usize::from(code[at]) * 2;
         if line_length == 0 {
-            listing.notes.push("A line says it's empty, so the rest can't be read.".into());
+            listing.notes.push(crate::i18n::tr("A line says it's empty, so the rest can't be read.").into());
             break;
         }
         let end = (at + line_length).min(code.len());
@@ -269,10 +269,10 @@ pub fn list(data: &[u8]) -> Listing {
     }
     listing.lines = lines;
     if encrypted > 0 {
-        listing.notes.push(format!("{encrypted} locked procedure{} decrypted to be listed.", if encrypted == 1 { " was" } else { "s were" }));
+        listing.notes.push(if encrypted == 1 { crate::i18n::tr("1 locked procedure was decrypted to be listed.").to_string() } else { crate::i18n::tf!("{encrypted} locked procedures were decrypted to be listed.") });
     }
     if unknown > 0 {
-        listing.notes.push(format!("{unknown} instructions come from extensions other than AMOS's own four, and are listed as Extension_slot_offset."));
+        listing.notes.push(crate::i18n::tf!("{unknown} instructions come from extensions other than AMOS's own four, and are listed as Extension_slot_offset."));
     }
     // The memory banks saved with it.
     let banks_at = 20 + length;
@@ -280,8 +280,8 @@ pub fn list(data: &[u8]) -> Listing {
         let count = word(data, banks_at + 4);
         if count > 0 {
             let names = bank_names(&data[banks_at + 6..], count);
-            listing.info.push(("Memory banks".into(), if names.is_empty() { count.to_string() } else { format!("{count}: {}", names.join(", ")) }));
-            listing.notes.push("Its memory banks aren't kept when the listing is tokenised again: load them in AMOS, or keep this file.".into());
+            listing.info.push((crate::i18n::tr("Memory banks").into(), if names.is_empty() { count.to_string() } else { format!("{count}: {}", names.join(", ")) }));
+            listing.notes.push(crate::i18n::tr("Its memory banks aren't kept when the listing is tokenised again: load them in AMOS, or keep this file.").into());
         }
     }
     listing
@@ -582,7 +582,7 @@ fn tokenise_line(line: &str, double: bool) -> Result<Vec<u8>, String> {
         }
         if c == '%' && rest[1..].starts_with(['0', '1']) {
             let digits = rest[1..].chars().take_while(|c| *c == '0' || *c == '1').count();
-            let value = u32::from_str_radix(&rest[1..1 + digits], 2).map_err(|_| "a binary number is too long".to_string())?;
+            let value = u32::from_str_radix(&rest[1..1 + digits], 2).map_err(|_| crate::i18n::tr("a binary number is too long").to_string())?;
             out.extend_from_slice(&TK_BIN.to_be_bytes());
             out.extend_from_slice(&value.to_be_bytes());
             rest = &rest[1 + digits..];

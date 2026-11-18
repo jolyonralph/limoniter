@@ -350,7 +350,7 @@ impl Values<'_, '_, '_> {
         let value = self.line.eval(text)?;
         // As sjasmplus does, a value too big is cut to fit, with a warning.
         if self.line.checking() && !(-256..=255).contains(&value) {
-            self.line.warn(format!("{}; its low byte is used", too_big(text, value, "a byte")));
+            self.line.warn(crate::i18n::tf!("{}; its low byte is used", too_big(text, value, "a byte")));
         }
         Ok(value as u8)
     }
@@ -358,7 +358,7 @@ impl Values<'_, '_, '_> {
     fn word(&mut self, text: &str) -> Result<[u8; 2], String> {
         let value = self.line.eval(text)?;
         if self.line.checking() && !(-65536..=65535).contains(&value) {
-            self.line.warn(format!("{}; its low 16 bits are used", too_big(text, value, "16 bits")));
+            self.line.warn(crate::i18n::tf!("{}; its low 16 bits are used", too_big(text, value, "16 bits")));
         }
         Ok((value as u16).to_le_bytes())
     }
@@ -632,11 +632,11 @@ impl Isa for Z80 {
 }
 
 fn too_big(text: &str, value: i64, size: &str) -> String {
-    if text.trim() == value.to_string() { format!("{value} doesn't fit in {size}") } else { format!("{text} is {value}, which doesn't fit in {size}") }
+    if text.trim() == value.to_string() { crate::i18n::tf!("{value} doesn't fit in {size}") } else { crate::i18n::tf!("{text} is {value}, which doesn't fit in {size}") }
 }
 
 fn not_address() -> String {
-    "that isn't an address".into()
+    crate::i18n::tr("that isn't an address").into()
 }
 
 fn value_text(op: &Op) -> Option<&str> {

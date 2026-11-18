@@ -99,7 +99,7 @@ pub fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
 /// Base64 back to text, if what it holds is UTF-8.
 pub fn base64_decode_text(text: &str) -> Result<String, String> {
     let bytes = base64_decode(text)?;
-    String::from_utf8(bytes).map_err(|_| "It decodes, but to bytes that aren't UTF-8 text, so it can't be put in the document. Save it to a file instead.".into())
+    String::from_utf8(bytes).map_err(|_| crate::i18n::tr("It decodes, but to bytes that aren't UTF-8 text, so it can't be put in the document. Save it to a file instead.").into())
 }
 
 /// JSON as XML, laid out with two spaces of indent.

@@ -599,7 +599,7 @@ impl Builder {
 
     /// A pointer in chip memory, as its high and low words.
     fn pointer(&mut self, offset: u32, name: &str, since: Chipset, area: Area, about: &str) {
-        self.add(offset, &format!("{name}H"), Access::Write, since, area, &format!("{about} (high word; write both with one MOVE.L to {name}H)"), PTH);
+        self.add(offset, &format!("{name}H"), Access::Write, since, area, &crate::i18n::tf!("{about} (high word; write both with one MOVE.L to {name}H)"), PTH);
         self.add(offset + 2, &format!("{name}L"), Access::Write, since, area, &format!("{about} (low word)"), PTL);
     }
 }
@@ -679,15 +679,15 @@ fn build() -> Vec<Register> {
     b.add(0x09E, "ADKCON", Write, Ocs, Audio, "Audio modulation, disk and serial control", ADKCON);
     for n in 0..4u32 {
         let base = 0x0A0 + n * 0x10;
-        b.pointer(base, &format!("AUD{n}LC"), Ocs, Audio, &format!("Audio channel {n}'s sample"));
-        b.add(base + 4, &format!("AUD{n}LEN"), Write, Ocs, Audio, &format!("Audio channel {n}'s sample length in words"), AUDLEN);
-        b.add(base + 6, &format!("AUD{n}PER"), Write, Ocs, Audio, &format!("Audio channel {n}'s period: how fast it plays"), AUDPER);
-        b.add(base + 8, &format!("AUD{n}VOL"), Write, Ocs, Audio, &format!("Audio channel {n}'s volume"), AUDVOL);
-        b.add(base + 10, &format!("AUD{n}DAT"), Write, Ocs, Audio, &format!("Audio channel {n}'s next two samples, written by DMA or by hand"), AUDDAT);
+        b.pointer(base, &format!("AUD{n}LC"), Ocs, Audio, &crate::i18n::tf!("Audio channel {n}'s sample"));
+        b.add(base + 4, &format!("AUD{n}LEN"), Write, Ocs, Audio, &crate::i18n::tf!("Audio channel {n}'s sample length in words"), AUDLEN);
+        b.add(base + 6, &format!("AUD{n}PER"), Write, Ocs, Audio, &crate::i18n::tf!("Audio channel {n}'s period: how fast it plays"), AUDPER);
+        b.add(base + 8, &format!("AUD{n}VOL"), Write, Ocs, Audio, &crate::i18n::tf!("Audio channel {n}'s volume"), AUDVOL);
+        b.add(base + 10, &format!("AUD{n}DAT"), Write, Ocs, Audio, &crate::i18n::tf!("Audio channel {n}'s next two samples, written by DMA or by hand"), AUDDAT);
     }
     for n in 1..=8u32 {
         let since = if n > 6 { Aga } else { Ocs };
-        b.pointer(0x0E0 + (n - 1) * 4, &format!("BPL{n}PT"), since, Bitplanes, &format!("Bitplane {n}'s data"));
+        b.pointer(0x0E0 + (n - 1) * 4, &format!("BPL{n}PT"), since, Bitplanes, &crate::i18n::tf!("Bitplane {n}'s data"));
     }
     b.add(0x100, "BPLCON0", Write, Ocs, Bitplanes, "Bitplane control: resolution, how many planes and the display modes", BPLCON0);
     b.add(0x102, "BPLCON1", Write, Ocs, Bitplanes, "Horizontal scroll of each playfield", BPLCON1);
@@ -699,20 +699,20 @@ fn build() -> Vec<Register> {
     b.add(0x10E, "CLXCON2", Write, Aga, AgaExtras, "Collisions for bitplanes 7 and 8", CLXCON2);
     for n in 1..=8u32 {
         let since = if n > 6 { Aga } else { Ocs };
-        b.add(0x110 + (n - 1) * 2, &format!("BPL{n}DAT"), Write, since, Bitplanes, &format!("Bitplane {n}'s next word, written by DMA (writing plane 1 shows them all)"), &[]);
+        b.add(0x110 + (n - 1) * 2, &format!("BPL{n}DAT"), Write, since, Bitplanes, &crate::i18n::tf!("Bitplane {n}'s next word, written by DMA (writing plane 1 shows them all)"), &[]);
     }
     for n in 0..8u32 {
-        b.pointer(0x120 + n * 4, &format!("SPR{n}PT"), Ocs, Sprites, &format!("Sprite {n}'s data, for sprite DMA"));
+        b.pointer(0x120 + n * 4, &format!("SPR{n}PT"), Ocs, Sprites, &crate::i18n::tf!("Sprite {n}'s data, for sprite DMA"));
     }
     for n in 0..8u32 {
         let base = 0x140 + n * 8;
-        b.add(base, &format!("SPR{n}POS"), Write, Ocs, Sprites, &format!("Sprite {n}'s start line and left edge"), SPRPOS);
-        b.add(base + 2, &format!("SPR{n}CTL"), Write, Ocs, Sprites, &format!("Sprite {n}'s stop line, attachment and position's other bits"), SPRCTL);
-        b.add(base + 4, &format!("SPR{n}DATA"), Write, Ocs, Sprites, &format!("Sprite {n}'s first plane of data (writing it shows the sprite)"), &[]);
-        b.add(base + 6, &format!("SPR{n}DATB"), Write, Ocs, Sprites, &format!("Sprite {n}'s second plane of data"), &[]);
+        b.add(base, &format!("SPR{n}POS"), Write, Ocs, Sprites, &crate::i18n::tf!("Sprite {n}'s start line and left edge"), SPRPOS);
+        b.add(base + 2, &format!("SPR{n}CTL"), Write, Ocs, Sprites, &crate::i18n::tf!("Sprite {n}'s stop line, attachment and position's other bits"), SPRCTL);
+        b.add(base + 4, &format!("SPR{n}DATA"), Write, Ocs, Sprites, &crate::i18n::tf!("Sprite {n}'s first plane of data (writing it shows the sprite)"), &[]);
+        b.add(base + 6, &format!("SPR{n}DATB"), Write, Ocs, Sprites, &crate::i18n::tf!("Sprite {n}'s second plane of data"), &[]);
     }
     for n in 0..32u32 {
-        b.add(0x180 + n * 2, &format!("COLOR{n:02}"), Write, Ocs, Colours, &format!("Colour {n}: $0RGB (AGA: in the bank BPLCON3 picks; with LOCT, the low bits)"), COLOUR);
+        b.add(0x180 + n * 2, &format!("COLOR{n:02}"), Write, Ocs, Colours, &crate::i18n::tf!("Colour {n}: $0RGB (AGA: in the bank BPLCON3 picks; with LOCT, the low bits)"), COLOUR);
     }
     b.add(0x1C0, "HTOTAL", Write, Ecs, Beam, "The last colour clock of a line, with VARBEAMEN", &[]);
     b.add(0x1C2, "HSSTOP", Write, Ecs, Beam, "Where horizontal sync stops", &[]);
@@ -893,7 +893,7 @@ pub fn explain(register: &Register, value: u16) -> String {
     let set = |fields: &[Field]| -> Vec<&'static str> { fields.iter().filter(|f| f.high == f.low && on_off(value, f.low)).map(|f| f.name).collect() };
     if let Some(n) = register.colour() {
         let (r, g, b) = rgb12(value);
-        return format!("colour {n}: red {r}, green {g}, blue {b}");
+        return crate::i18n::tf!("colour {n}: red {r}, green {g}, blue {b}");
     }
     let offset = register.offset();
     if register.is_cia() {
@@ -901,7 +901,7 @@ pub fn explain(register: &Register, value: u16) -> String {
             [] => format!("${value:02X} ({value})"),
             fields => {
                 let on = set(fields);
-                if on.is_empty() { "no bits set".into() } else { on.join(", ") }
+                if on.is_empty() { crate::i18n::tr("no bits set").into() } else { on.join(", ") }
             }
         };
     }
@@ -924,12 +924,12 @@ pub fn explain(register: &Register, value: u16) -> String {
                 parts.push("dual playfield".into());
             }
             if planes == 6 && !on_off(value, 11) && !on_off(value, 10) {
-                parts.push("extra-half-brite (unless BPLCON2 KILLEHB)".into());
+                parts.push(crate::i18n::tr("extra-half-brite (unless BPLCON2 KILLEHB)").into());
             }
             if on_off(value, 2) {
                 parts.push("interlaced".into());
             }
-            parts.push(if on_off(value, 9) { "colour on".into() } else { "colour burst off".into() });
+            parts.push(if on_off(value, 9) { "colour on".into() } else { crate::i18n::tr("colour burst off").into() });
             for (n, what) in [(8, "genlock audio"), (7, "UHRES"), (5, "colour table bypassed"), (3, "light pen"), (1, "external sync"), (0, "ECS features on")] {
                 if on_off(value, n) {
                     parts.push(what.into());
@@ -940,26 +940,26 @@ pub fn explain(register: &Register, value: u16) -> String {
         0x102 => {
             let (pf1, pf2) = (value & 15, (value >> 4) & 15);
             if value & 0xFF00 == 0 {
-                format!("playfield 1 delayed {pf1} pixel{}, playfield 2 {pf2}", if pf1 == 1 { "" } else { "s" })
+                if pf1 == 1 { crate::i18n::tf!("playfield 1 delayed 1 pixel, playfield 2 {pf2}") } else { crate::i18n::tf!("playfield 1 delayed {pf1} pixels, playfield 2 {pf2}") }
             } else {
                 let fine1 = (((value >> 10) & 3) << 6) | (pf1 << 2) | ((value >> 8) & 3);
                 let fine2 = (((value >> 14) & 3) << 6) | (pf2 << 2) | ((value >> 12) & 3);
-                format!("playfield 1 delayed {fine1}, playfield 2 {fine2} (in super-hires steps, 4 to a lowres pixel)")
+                crate::i18n::tf!("playfield 1 delayed {fine1}, playfield 2 {fine2} (in super-hires steps, 4 to a lowres pixel)")
             }
         }
         0x104 => {
-            let mut parts = vec![format!("playfield 1 at priority {}, playfield 2 at {}", value & 7, (value >> 3) & 7)];
+            let mut parts = vec![crate::i18n::tf!("playfield 1 at priority {}, playfield 2 at {}", value & 7, (value >> 3) & 7)];
             if on_off(value, 6) {
-                parts.push("playfield 2 in front".into());
+                parts.push(crate::i18n::tr("playfield 2 in front").into());
             }
             parts.extend(set(&BPLCON2[..6]).iter().map(|s| s.to_string()));
             parts.join(", ")
         }
         0x106 => {
             let offsets = [0, 2, 4, 8, 16, 32, 64, 128];
-            let mut parts = vec![format!("colour bank {} (colours {}-{})", value >> 13, (value >> 13) * 32, (value >> 13) * 32 + 31)];
-            parts.push(if on_off(value, 9) { "colour writes set the low bits".into() } else { "colour writes set the high bits".into() });
-            parts.push(format!("playfield 2 colour offset {}", offsets[((value >> 10) & 7) as usize]));
+            let mut parts = vec![crate::i18n::tf!("colour bank {} (colours {}-{})", value >> 13, (value >> 13) * 32, (value >> 13) * 32 + 31)];
+            parts.push(if on_off(value, 9) { crate::i18n::tr("colour writes set the low bits").into() } else { crate::i18n::tr("colour writes set the high bits").into() });
+            parts.push(crate::i18n::tf!("playfield 2 colour offset {}", offsets[((value >> 10) & 7) as usize]));
             let spres = (value >> 6) & 3;
             if spres != 0 {
                 parts.push(["", "lowres sprites", "hires sprites", "super-hires sprites"][spres as usize].into());
@@ -967,7 +967,7 @@ pub fn explain(register: &Register, value: u16) -> String {
             parts.extend(set(&BPLCON3[4..]).iter().map(|s| s.to_string()));
             parts.join(", ")
         }
-        0x10C => format!("bitplane colours XOR ${:02X}, even sprites use colours from {}, odd from {}", value >> 8, ((value >> 4) & 15) * 16, (value & 15) * 16),
+        0x10C => crate::i18n::tf!("bitplane colours XOR ${:02X}, even sprites use colours from {}, odd from {}", value >> 8, ((value >> 4) & 15) * 16, (value & 15) * 16),
         0x002 | 0x096 => {
             let mut names = set(&DMACON[3..]);
             if offset == 0x002 {
@@ -1010,7 +1010,7 @@ pub fn explain(register: &Register, value: u16) -> String {
             let channels: String = ["A", "B", "C", "D"].iter().enumerate().filter(|(i, _)| on_off(value, 11 - *i as u8)).map(|(_, c)| *c).collect();
             let lf = value & 0xFF;
             let what = minterm_name(lf as u8).map(|w| format!(" ({w})")).unwrap_or_default();
-            format!("A shifted {}, channels {}, minterm ${lf:02X}{what}", value >> 12, if channels.is_empty() { "none".into() } else { channels })
+            crate::i18n::tf!("A shifted {}, channels {}, minterm ${lf:02X}{what}", value >> 12, if channels.is_empty() { "none".into() } else { channels })
         }
         0x05A => {
             let lf = (value & 0xFF) as u8;
@@ -1028,12 +1028,12 @@ pub fn explain(register: &Register, value: u16) -> String {
                     0x04 => 7,
                     _ => 8,
                 };
-                let mut parts = vec![format!("line mode, octant {octant}, texture from bit {}", value >> 12)];
+                let mut parts = vec![crate::i18n::tf!("line mode, octant {octant}, texture from bit {}", value >> 12)];
                 if on_off(value, 6) {
-                    parts.push("starting sign negative".into());
+                    parts.push(crate::i18n::tr("starting sign negative").into());
                 }
                 if on_off(value, 1) {
-                    parts.push("one dot per line".into());
+                    parts.push(crate::i18n::tr("one dot per line").into());
                 }
                 parts.join(", ")
             } else {
@@ -1055,13 +1055,17 @@ pub fn explain(register: &Register, value: u16) -> String {
                 0 => 64,
                 w => w,
             };
-            format!("{w} word{} ({} pixels) by {h} line{}", if w == 1 { "" } else { "s" }, w * 16, if h == 1 { "" } else { "s" })
+            {
+                let pixels = w * 16;
+                let across = if w == 1 { crate::i18n::tf!("1 word ({pixels} pixels)") } else { crate::i18n::tf!("{w} words ({pixels} pixels)") };
+                if h == 1 { crate::i18n::tf!("{across} by 1 line") } else { crate::i18n::tf!("{across} by {h} lines") }
+            }
         }
-        0x08E => format!("starts on line ${:02X} ({}), x ${:02X} ({})", value >> 8, value >> 8, value & 0xFF, value & 0xFF),
+        0x08E => crate::i18n::tf!("starts on line ${:02X} ({}), x ${:02X} ({})", value >> 8, value >> 8, value & 0xFF, value & 0xFF),
         0x090 => {
             let v = (value >> 8) | if value & 0x8000 == 0 { 0x100 } else { 0 };
             let h = (value & 0xFF) | 0x100;
-            format!("stops at line ${v:03X} ({v}), x ${h:03X} ({h})")
+            crate::i18n::tf!("stops at line ${v:03X} ({v}), x ${h:03X} ({h})")
         }
         0x092 | 0x094 => format!("colour clock ${:02X} ({})", value & 0xFE, value & 0xFE),
         0x098 => {
@@ -1069,7 +1073,7 @@ pub fn explain(register: &Register, value: u16) -> String {
             let sprites: Vec<String> = [(12, "1"), (13, "3"), (14, "5"), (15, "7")].iter().filter(|(n, _)| on_off(value, *n)).map(|(_, s)| s.to_string()).collect();
             let mut parts = vec![if planes.is_empty() { "no bitplanes".to_string() } else { format!("bitplanes {} (match ${:02X})", planes.join(","), value & 63) }];
             if !sprites.is_empty() {
-                parts.push(format!("odd sprites {} too", sprites.join(",")));
+                parts.push(crate::i18n::tf!("odd sprites {} too", sprites.join(",")));
             }
             parts.join(", ")
         }
@@ -1081,7 +1085,7 @@ pub fn explain(register: &Register, value: u16) -> String {
         0x1E4 => {
             let vstart = value & 7;
             let vstop = (value >> 8) & 7;
-            format!("start line bits 10-8 = {vstart}, horizontal bit 8 {}; stop line bits 10-8 = {vstop}, horizontal bit 8 {}", (value >> 5) & 1, (value >> 13) & 1)
+            crate::i18n::tf!("start line bits 10-8 = {vstart}, horizontal bit 8 {}; stop line bits 10-8 = {vstop}, horizontal bit 8 {}", (value >> 5) & 1, (value >> 13) & 1)
         }
         0x1FC => {
             let width = |two: u16| match two {
@@ -1089,16 +1093,16 @@ pub fn explain(register: &Register, value: u16) -> String {
                 3 => 64,
                 _ => 32,
             };
-            let mut parts = vec![format!("bitplanes fetched {} bits at a time", width(value & 3)), format!("sprites {} pixels wide", width((value >> 2) & 3))];
+            let mut parts = vec![crate::i18n::tf!("bitplanes fetched {} bits at a time", width(value & 3)), crate::i18n::tf!("sprites {} pixels wide", width((value >> 2) & 3))];
             if on_off(value, 14) {
-                parts.push("bitplane scan doubling".into());
+                parts.push(crate::i18n::tr("bitplane scan doubling").into());
             }
             if on_off(value, 15) {
-                parts.push("sprite scan doubling".into());
+                parts.push(crate::i18n::tr("sprite scan doubling").into());
             }
             parts.join(", ")
         }
-        0x02E => if on_off(value, 1) { "copper may write the blitter's registers".into() } else { "copper kept to $80 and above".into() },
+        0x02E => if on_off(value, 1) { crate::i18n::tr("copper may write the blitter's registers").into() } else { crate::i18n::tr("copper kept to $80 and above").into() },
         0x024 => format!("{} {} words{}", if on_off(value, 14) { "write" } else { "read" }, value & 0x3FFF, if on_off(value, 15) { ", DMA on" } else { ", DMA off" }),
         0x032 => {
             let rate = value & 0x7FFF;
@@ -1106,15 +1110,15 @@ pub fn explain(register: &Register, value: u16) -> String {
         }
         0x034 | 0x016 => {
             let on = set(POTGO);
-            if on.is_empty() { "all bits clear".into() } else { on.join(", ") }
+            if on.is_empty() { crate::i18n::tr("all bits clear").into() } else { on.join(", ") }
         }
         _ if (0x0A6..=0x0D6).contains(&offset) && offset & 0xF == 6 => {
-            if value == 0 { "period 0 (silent)".into() } else { format!("{} Hz a sample (PAL)", PAL_CLOCK / value as u32) }
+            if value == 0 { "period 0 (silent)".into() } else { crate::i18n::tf!("{} Hz a sample (PAL)", PAL_CLOCK / value as u32) }
         }
         _ if (0x0A8..=0x0D8).contains(&offset) && offset & 0xF == 8 => format!("volume {}", (value & 0x7F).min(64)),
         _ if (0x0A4..=0x0D4).contains(&offset) && offset & 0xF == 4 => format!("{} words ({} bytes)", value, value as u32 * 2),
         0x108 | 0x10A | 0x060..=0x066 | 0x1E6 => format!("{} bytes", value as i16),
-        _ if (0x140..0x180).contains(&offset) && offset & 7 == 0 => format!("start line ${:02X}, left edge ${:03X} (lowres, without its lowest bit)", value >> 8, (value & 0xFF) << 1),
+        _ if (0x140..0x180).contains(&offset) && offset & 7 == 0 => crate::i18n::tf!("start line ${:02X}, left edge ${:03X} (lowres, without its lowest bit)", value >> 8, (value & 0xFF) << 1),
         _ if (0x140..0x180).contains(&offset) && offset & 7 == 2 => {
             let attached = if on_off(value, 7) { ", attached" } else { "" };
             format!("stop line ${:03X}{attached}", (value >> 8) | ((value & 2) << 7))
@@ -1196,7 +1200,7 @@ pub fn describe_bit(register: &Register, n: u8) -> String {
     let field = register.fields.iter().find(|f| f.low <= n && n <= f.high);
     let what = match field {
         Some(f) if f.high == f.low => format!("bit {n}: {} - {}", f.name, f.about),
-        Some(f) => format!("bit {n}, part of {} (bits {}): {}", f.name, f.bits(), f.about),
+        Some(f) => crate::i18n::tf!("bit {n}, part of {} (bits {}): {}", f.name, f.bits(), f.about),
         None => format!("bit {n}: unused"),
     };
     format!("{}\n{}", register.heading(), what)
@@ -1267,17 +1271,17 @@ impl CopperState {
 
     fn say(&self, op: Copper) -> String {
         match op {
-            Copper::End => "END (waits for a place the beam never reaches)".into(),
+            Copper::End => crate::i18n::tr("END (waits for a place the beam never reaches)").into(),
             Copper::Move { register, value } => {
                 let Some(found) = custom(register as u32) else {
-                    return format!("MOVE ${value:04X} to ${register:03X} (no register there)");
+                    return crate::i18n::tf!("MOVE ${value:04X} to ${register:03X} (no register there)");
                 };
                 let danger = match register {
                     0..0x40 => " (the copper can only write this on ECS or AGA, with CDANG)",
                     0x40..0x80 => " (needs COPCON's CDANG)",
                     _ => "",
                 };
-                let mut said = format!("MOVE ${value:04X} to {}{danger}", found.name);
+                let mut said = crate::i18n::tf!("MOVE ${value:04X} to {}{danger}", found.name);
                 if !found.access.writable() {
                     said.push_str(" (it can't be written)");
                 }
@@ -1286,9 +1290,9 @@ impl CopperState {
                     let colour = bank * 32 + n;
                     let (r, g, b) = rgb12(value);
                     if self.bplcon3 & 0x200 != 0 {
-                        said.push_str(&format!(": colour {colour}, low bits of red {r}, green {g}, blue {b}"));
+                        said.push_str(&crate::i18n::tf!(": colour {colour}, low bits of red {r}, green {g}, blue {b}"));
                     } else {
-                        said.push_str(&format!(": colour {colour}, red {r}, green {g}, blue {b}"));
+                        said.push_str(&crate::i18n::tf!(": colour {colour}, red {r}, green {g}, blue {b}"));
                     }
                 } else if !found.fields.is_empty() || matches!(register, 0x058 | 0x08E | 0x090 | 0x092 | 0x094 | 0x108 | 0x10A) {
                     said.push_str(&format!(": {}", explain(found, value)));
@@ -1298,17 +1302,17 @@ impl CopperState {
             Copper::Wait { line, x, line_mask, x_mask, blitter, skip } => {
                 let full_line = if self.past_255 { line as u16 + 0x100 } else { line as u16 };
                 let line_text = if self.past_255 { format!("${full_line:03X} ({full_line})") } else { format!("${line:02X} ({line})") };
-                let mut said = if skip { format!("SKIP the next instruction if past line {line_text}, x ${x:02X}") } else { format!("WAIT for line {line_text}, x ${x:02X}") };
+                let mut said = if skip { crate::i18n::tf!("SKIP the next instruction if past line {line_text}, x ${x:02X}") } else { crate::i18n::tf!("WAIT for line {line_text}, x ${x:02X}") };
                 if line == 0xFF && x >= 0xD0 && !skip {
-                    said = format!("WAIT for line $FF, x ${x:02X}: past line 255, so later waits count from 256");
+                    said = crate::i18n::tf!("WAIT for line $FF, x ${x:02X}: past line 255, so later waits count from 256");
                 }
                 if line_mask != 0xFF {
-                    said.push_str(&format!(", comparing only the line bits in ${line_mask:02X}"));
+                    said.push_str(&crate::i18n::tf!(", comparing only the line bits in ${line_mask:02X}"));
                 }
                 if x_mask == 0 {
                     said.push_str(", any x");
                 } else if x_mask != 0xFE {
-                    said.push_str(&format!(", comparing only the x bits in ${x_mask:02X}"));
+                    said.push_str(&crate::i18n::tf!(", comparing only the x bits in ${x_mask:02X}"));
                 }
                 if blitter {
                     said.push_str(", and for the blitter to finish");
@@ -1343,7 +1347,7 @@ pub fn copper_line(op: Copper) -> String {
     let note = match op {
         Copper::Move { register, .. } => custom(register as u32).map(|r| r.name.clone()).unwrap_or_default(),
         Copper::Wait { line, x, skip, .. } => format!("{} line ${line:02X}, x ${x:02X}", if skip { "skip if past" } else { "wait for" }),
-        Copper::End => "end of the list".into(),
+        Copper::End => crate::i18n::tr("end of the list").into(),
     };
     format!("dc.w ${a:04X},${b:04X}\t; {note}")
 }

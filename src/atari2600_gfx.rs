@@ -280,13 +280,10 @@ impl Sprites {
     /// DASM source: the height, each frame's lines (binary, so the pixels show) and the colours, one table for all
     /// frames when they're the same.
     pub fn source(&self, label: &str, order: Order) -> String {
-        let mut out = format!(
-            "; Atari 2600 player graphics: {} frame{} of 8\u{D7}{}, {}. Bit 7 is the left pixel.\n",
-            self.frames.len(),
-            if self.frames.len() == 1 { "" } else { "s" },
-            self.height,
-            order.words()
-        );
+        let mut out = {
+            let (count, height, order) = (self.frames.len(), self.height, order.words());
+            if count == 1 { crate::i18n::tf!("; Atari 2600 player graphics: 1 frame of 8\u{D7}{height}, {order}. Bit 7 is the left pixel.\n") } else { crate::i18n::tf!("; Atari 2600 player graphics: {count} frames of 8\u{D7}{height}, {order}. Bit 7 is the left pixel.\n") }
+        };
         out.push_str(&format!("{}_HEIGHT = {}\n", label.to_uppercase(), self.height));
         for (n, frame) in self.frames.iter().enumerate() {
             out.push_str(&format!("{label}_frame{n}:\n"));
@@ -691,15 +688,10 @@ impl Playfield {
     /// DASM source: a table for each register (and for the right half's, when it's its own), a byte a row in
     /// binary, then each row's colour and background.
     pub fn source(&self, label: &str, order: Order) -> String {
-        let mut out = format!(
-            "; Atari 2600 playfield: {}, {} rows of {} line{} ({} lines), {}.\n",
-            self.halves.words(),
-            self.rows,
-            self.lines,
-            if self.lines == 1 { "" } else { "s" },
-            self.rows * self.lines,
-            order.words()
-        );
+        let mut out = {
+            let (halves, rows, each, all, order) = (self.halves.words(), self.rows, self.lines, self.rows * self.lines, order.words());
+            if each == 1 { crate::i18n::tf!("; Atari 2600 playfield: {halves}, {rows} rows of 1 line ({all} lines), {order}.\n") } else { crate::i18n::tf!("; Atari 2600 playfield: {halves}, {rows} rows of {each} lines ({all} lines), {order}.\n") }
+        };
         out.push_str(match self.halves {
             Halves::Mirrored => "; Set CTRLPF's bit 0 to mirror the right half.\n",
             Halves::Repeated => "; Leave CTRLPF's bit 0 clear to repeat the left half.\n",

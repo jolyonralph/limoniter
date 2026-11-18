@@ -130,7 +130,12 @@ mod registry {
     }
 
     fn problem(what: &str, path: &str, code: i32) -> String {
-        format!("Windows wouldn't let this {what} {path} (error {code}).")
+        match what {
+            "create" => crate::i18n::tf!("Windows wouldn't let this create {path} (error {code})."),
+            "open" => crate::i18n::tf!("Windows wouldn't let this open {path} (error {code})."),
+            "set" => crate::i18n::tf!("Windows wouldn't let this set a value (error {code})."),
+            _ => crate::i18n::tf!("Windows wouldn't let this delete {path} (error {code})."),
+        }
     }
 
     /// A key under this Windows user's part of the registry. Closed when dropped.
@@ -169,10 +174,10 @@ mod registry {
             let name = name.map(wide);
             let data = wide(data);
             // A Windows string's size is in bytes, and includes its terminator.
-            let size = u32::try_from(data.len() * 2).map_err(|_| "That value is too long.".to_string())?;
+            let size = u32::try_from(data.len() * 2).map_err(|_| crate::i18n::tr("That value is too long.").to_string())?;
             // SAFETY: the name is terminated or null, the data is `size` readable bytes, and both outlive the call.
             let code = unsafe { RegSetValueExW(self.0, name.as_ref().map_or(std::ptr::null(), |text| text.as_ptr()), 0, REG_SZ, data.as_ptr().cast(), size) };
-            if code == OK { Ok(()) } else { Err(problem("set", "a value in", code)) }
+            if code == OK { Ok(()) } else { Err(problem("set", "", code)) }
         }
 
         /// It not being there already is fine.

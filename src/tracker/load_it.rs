@@ -127,8 +127,8 @@ pub fn load(bytes: &[u8]) -> Result<Song, String> {
     let mut song = Song::new(Format::It, 64);
     song.title = text(&bytes[4..30]);
     song.tracker = match made_with >> 12 {
-        0 if made_with > 0 => format!("Impulse Tracker {}.{:02X}", (made_with >> 8) & 0xF, made_with & 0xFF),
-        1 => "Schism Tracker".into(),
+        0 if made_with > 0 => crate::i18n::tf!("Impulse Tracker {}.{:02X}", (made_with >> 8) & 0xF, made_with & 0xFF),
+        1 => crate::i18n::tr("Schism Tracker").into(),
         5 => "OpenMPT".into(),
         _ => String::new(),
     };

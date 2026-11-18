@@ -107,7 +107,7 @@ impl Limoniter {
             let address = state.address.trim().to_string();
             let lower = address.to_ascii_lowercase();
             if !(lower.starts_with("http://") || lower.starts_with("https://")) {
-                state.status = "Give a web address starting with http:// or https://.".into();
+                state.status = crate::i18n::tr("Give a web address starting with http:// or https://.").into();
             } else {
                 let (tx, rx) = channel();
                 std::thread::spawn(move || {

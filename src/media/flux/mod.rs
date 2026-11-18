@@ -103,19 +103,19 @@ impl Container {
         match self {
             Container::Scp(scp) => {
                 rows.push(("Version".into(), format!("{}.{}", scp.version >> 4, scp.version & 15)));
-                rows.push(("Disk type".into(), format!("&{:02X}", scp.disk_type)));
-                rows.push(("Revolutions a track".into(), scp.revolutions().to_string()));
-                rows.push(("Timing resolution".into(), format!("{} ns", scp.tick())));
+                rows.push((crate::i18n::tr("Disk type").into(), format!("&{:02X}", scp.disk_type)));
+                rows.push((crate::i18n::tr("Revolutions a track").into(), scp.revolutions().to_string()));
+                rows.push((crate::i18n::tr("Timing resolution").into(), format!("{} ns", scp.tick())));
             }
             Container::Hfe(hfe) => {
                 rows.push(("Version".into(), hfe.version().to_string()));
-                rows.push(("Bit rate".into(), format!("{} kbit/s", hfe.bit_rate)));
-                rows.push(("Encoding it gives".into(), format!("&{:02X}", hfe.encoding)));
-                rows.push(("Interface mode".into(), format!("&{:02X}", hfe.interface)));
+                rows.push((crate::i18n::tr("Bit rate").into(), format!("{} kbit/s", hfe.bit_rate)));
+                rows.push((crate::i18n::tr("Encoding it gives").into(), format!("&{:02X}", hfe.encoding)));
+                rows.push((crate::i18n::tr("Interface mode").into(), format!("&{:02X}", hfe.interface)));
             }
             Container::KryoFlux(_) => {}
         }
-        rows.push(("Tracks in the image".into(), self.places().len().to_string()));
+        rows.push((crate::i18n::tr("Tracks in the image").into(), self.places().len().to_string()));
         rows
     }
 }
@@ -261,14 +261,14 @@ pub fn open_stream_folder(path: &Path) -> Option<Result<Box<dyn Volume>, String>
 /// Opens a ZIP archive holding one disk's KryoFlux stream files as that disk, or None when it doesn't hold one.
 pub fn open_zip_set(source: Arc<dyn Source>) -> Option<Result<Box<dyn Volume>, String>> {
     let files = kryoflux::zip_set(source)?;
-    let note = "The KryoFlux stream files were read from a ZIP archive.".to_string();
+    let note = crate::i18n::tr("The KryoFlux stream files were read from a ZIP archive.").to_string();
     Some(Ok(Box::new(read_disk(Container::KryoFlux(files), vec![note])) as Box<dyn Volume>))
 }
 
 /// Reads every track, works out the encoding, lays out the sectors and opens the disk inside.
 fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     let places = container.places();
-    let mut info = vec![InfoSection { title: "Flux image".into(), rows: container.about() }];
+    let mut info = vec![InfoSection { title: crate::i18n::tr("Flux image").into(), rows: container.about() }];
     // The encoding is chosen on a few tracks spread over the disk, by which gives the most good sector bytes.
     let mut probes: Vec<(u8, u8)> = [0, 1, places.len() / 4, places.len() / 2, places.len() * 3 / 4, places.len().saturating_sub(4)].iter().filter_map(|i| places.get(*i).copied()).collect();
     probes.dedup();
@@ -284,7 +284,7 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     drop(probe_flux);
     let best = (0..families.len()).max_by_key(|&i| (scores[i], std::cmp::Reverse(i))).filter(|&i| scores[i] > 0).map(|i| families[i]);
     let Some(family) = best else {
-        notes.push("No sectors in an encoding Limoniter knows (IBM FM or MFM, Amiga MFM, Commodore GCR, Apple II 6-and-2 or 5-and-3 GCR, Macintosh GCR) could be decoded from the flux.".into());
+        notes.push(crate::i18n::tr("No sectors in an encoding Limoniter knows (IBM FM or MFM, Amiga MFM, Commodore GCR, Apple II 6-and-2 or 5-and-3 GCR, Macintosh GCR) could be decoded from the flux.").into());
         return FluxDisk { what: container.name().to_string(), inner: None, plain: Arc::new(Vec::new()), plain_name: String::new(), notes, info };
     };
     // Every track, with the quick loop; then any track with a bad sector, or fewer good ones than most tracks have,
@@ -312,7 +312,7 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     }
     for (place, read) in places.iter().zip(&reads) {
         if let Some(trouble) = &read.trouble {
-            notes.push(format!("Track {} side {}: {trouble}.", place.0, place.1));
+            notes.push(crate::i18n::tf!("Track {} side {}: {trouble}.", place.0, place.1));
         }
     }
     let mut cells: Vec<f64> = reads.iter().filter(|r| good(r) > 0).filter_map(|r| r.cell).collect();
@@ -341,10 +341,10 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     };
     let mut rows = vec![("Encoding".to_string(), encoding.to_string())];
     if let Some(cell) = cells.get(cells.len() / 2) {
-        rows.push(("Bit cell".into(), format!("{:.2} \u{B5}s", cell / 1000.0)));
+        rows.push((crate::i18n::tr("Bit cell").into(), format!("{:.2} \u{B5}s", cell / 1000.0)));
     }
     if revolutions > 0 {
-        rows.push(("Revolutions read".into(), revolutions.to_string()));
+        rows.push((crate::i18n::tr("Revolutions read").into(), revolutions.to_string()));
     }
     // The disk inside, from the whole layout; failing that, for an IBM disk whose sides were written differently
     // (a single-sided BBC disk whose other side still holds an old PC format), from either side alone.
@@ -358,7 +358,7 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
             if let Ok(alone) = lay_out_ibm(&side)
                 && let Ok(volume) = alone.open(Arc::new(alone.bytes.clone()))
             {
-                notes.push(format!("Only side {head} holds a file system Limoniter knows, so the disk is laid out from that side alone."));
+                notes.push(crate::i18n::tf!("Only side {head} holds a file system Limoniter knows, so the disk is laid out from that side alone."));
                 (laid, opened) = (Ok(alone), Some(Ok(volume)));
                 break;
             }
@@ -367,20 +367,20 @@ fn read_disk(container: Container, mut notes: Vec<String>) -> FluxDisk {
     match laid {
         Ok(laid) => {
             rows.push(("Layout".into(), laid.shape.clone()));
-            rows.push(("Sectors read cleanly".into(), format!("{} of {}", laid.good, laid.expected)));
+            rows.push((crate::i18n::tr("Sectors read cleanly").into(), format!("{} of {}", laid.good, laid.expected)));
             if !laid.bad.is_empty() {
-                rows.push(("Never read cleanly".into(), list(&laid.bad)));
+                rows.push((crate::i18n::tr("Never read cleanly").into(), list(&laid.bad)));
             }
             info.push(InfoSection { title: "Decoded".into(), rows });
             notes.extend(laid.notes.iter().cloned());
             let inner = match opened.unwrap_or_else(|| Err(String::new())) {
                 Ok(volume) => Some(volume),
                 Err(problem) => {
-                    notes.push(format!("{problem} The decoded sectors are offered as a plain image to look at in hex or save."));
+                    notes.push(crate::i18n::tf!("{problem} The decoded sectors are offered as a plain image to look at in hex or save."));
                     None
                 }
             };
-            FluxDisk { what: format!("{} \u{B7} {encoding} \u{B7} {}", container.name(), laid.shape), inner, plain: Arc::new(laid.bytes), plain_name: format!("Decoded disk.{}", laid.ending), notes, info }
+            FluxDisk { what: format!("{} \u{B7} {encoding} \u{B7} {}", container.name(), laid.shape), inner, plain: Arc::new(laid.bytes), plain_name: crate::i18n::tf!("Decoded disk.{}", laid.ending), notes, info }
         }
         Err(problem) => {
             info.push(InfoSection { title: "Decoded".into(), rows });
@@ -418,7 +418,7 @@ impl Laid {
 
 /// The note for sectors that never read cleanly, listed by place.
 fn missing_note(missing: &[String]) -> Option<String> {
-    (!missing.is_empty()).then(|| format!("Sectors that never decoded cleanly from the flux are zeros here: {}.", list(missing)))
+    (!missing.is_empty()).then(|| crate::i18n::tf!("Sectors that never decoded cleanly from the flux are zeros here: {}.", list(missing)))
 }
 
 /// IBM sectors, by the track their ID fields give when the disk's IDs agree with where they were read (or with half
@@ -446,7 +446,7 @@ fn lay_out_ibm(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
         decoys += before - sectors.len();
     }
     tracks.retain(|_, sectors| !sectors.is_empty());
-    let bad: Vec<String> = tracks.iter().flat_map(|((c, h), sectors)| sectors.iter().filter(|(_, d)| d.is_none()).map(move |((id, _), _)| format!("track {c} side {h} sector {id}"))).collect();
+    let bad: Vec<String> = tracks.iter().flat_map(|((c, h), sectors)| sectors.iter().filter(|(_, d)| d.is_none()).map(move |((id, _), _)| crate::i18n::tf!("track {c} side {h} sector {id}"))).collect();
     let sectors: super::sectors::Tracks = tracks
         .into_iter()
         .map(|(key, sectors)| (key, sectors.into_iter().map(|((id, size), data)| super::sectors::Sector { id, size, data, error: false }).collect()))
@@ -455,7 +455,7 @@ fn lay_out_ibm(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
     let expected = laid.bytes.len() / laid.tracks.sector_size.max(1) as usize;
     let mut notes: Vec<String> = laid.notes.iter().map(|n| n.replace("Sectors that couldn't be read when the image was made", "Sectors that never decoded cleanly from the flux")).collect();
     if decoys > 0 {
-        notes.push(format!("{decoys} sector ID(s) whose data never read on any track, as copy protection writes, aren't part of the disk here."));
+        notes.push(crate::i18n::tf!("{decoys} sector ID(s) whose data never read on any track, as copy protection writes, aren't part of the disk here."));
     }
     let good = expected.saturating_sub(count_missing(&sectors, &laid.tracks));
     Ok(Laid { shape: laid.shape, notes, good, expected, bad, ending: "img", tracks: Some(laid.tracks), bytes: laid.bytes })
@@ -521,15 +521,15 @@ fn lay_out_amiga(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
             _ => {}
         }
     }
-    let place = |slot: usize| format!("track {} side {} sector {}", slot / per_track / 2, slot / per_track % 2, slot % per_track);
+    let place = |slot: usize| crate::i18n::tf!("track {} side {} sector {}", slot / per_track / 2, slot / per_track % 2, slot % per_track);
     let missing: Vec<String> = (0..have.len()).filter(|s| !have[*s]).map(place).collect();
     let bad = seen_bad.into_iter().filter(|s| !have[*s]).map(place).collect();
     let mut notes: Vec<String> = missing_note(&missing).into_iter().collect();
     if beyond > 0 {
-        notes.push(format!("{beyond} sector(s) on tracks past the 80th aren't part of an ADF and are left out."));
+        notes.push(crate::i18n::tf!("{beyond} sector(s) on tracks past the 80th aren't part of an ADF and are left out."));
     }
     let good = have.iter().filter(|h| **h).count();
-    let shape = format!("80 tracks, 2 sides, {per_track} \u{D7} 512-byte sectors");
+    let shape = crate::i18n::tf!("80 tracks, 2 sides, {per_track} \u{D7} 512-byte sectors");
     Ok(Laid { bytes, shape, notes, good, expected: have.len(), bad, ending: "adf", tracks: None })
 }
 
@@ -587,7 +587,7 @@ fn lay_out_commodore(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
     let missing: Vec<String> = (0..total).filter(|s| !have[*s]).map(place).collect();
     let bad = seen_bad.into_iter().filter(|s| !have[*s]).map(place).collect();
     let good = have.iter().filter(|h| **h).count();
-    let shape = if double { "1571, 2 sides of 35 tracks, 17 to 21 \u{D7} 256-byte sectors".to_string() } else { format!("{tracks} tracks, 17 to 21 \u{D7} 256-byte sectors") };
+    let shape = if double { crate::i18n::tr("1571, 2 sides of 35 tracks, 17 to 21 \u{D7} 256-byte sectors").to_string() } else { crate::i18n::tf!("{tracks} tracks, 17 to 21 \u{D7} 256-byte sectors") };
     Ok(Laid { bytes, shape, notes: missing_note(&missing).into_iter().collect(), good, expected: total, bad, ending: if double { "d71" } else { "d64" }, tracks: None })
 }
 
@@ -618,7 +618,7 @@ fn lay_out_apple(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
     let missing: Vec<String> = (0..have.len()).filter(|s| !have[*s]).map(place).collect();
     let bad = seen_bad.into_iter().filter(|s| !have[*s]).map(place).collect();
     let good = have.iter().filter(|h| **h).count();
-    Ok(Laid { bytes, shape: "35 tracks, 16 \u{D7} 256-byte sectors".into(), notes: missing_note(&missing).into_iter().collect(), good, expected: have.len(), bad, ending: "do", tracks: None })
+    Ok(Laid { bytes, shape: crate::i18n::tr("35 tracks, 16 \u{D7} 256-byte sectors").into(), notes: missing_note(&missing).into_iter().collect(), good, expected: have.len(), bad, ending: "do", tracks: None })
 }
 
 /// DOS 3.2 sectors into an image of 35 tracks of 16 sectors, as a 13-sector WOZ disk is read: each sector in its
@@ -647,7 +647,7 @@ fn lay_out_apple13(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
     let missing: Vec<String> = (0..have.len()).filter(|p| !have[*p]).map(name).collect();
     let bad = seen_bad.into_iter().filter(|p| !have[*p]).map(name).collect();
     let good = have.iter().filter(|h| **h).count();
-    Ok(Laid { bytes, shape: "35 tracks, 13 \u{D7} 256-byte sectors".into(), notes: missing_note(&missing).into_iter().collect(), good, expected: have.len(), bad, ending: "do", tracks: None })
+    Ok(Laid { bytes, shape: crate::i18n::tr("35 tracks, 13 \u{D7} 256-byte sectors").into(), notes: missing_note(&missing).into_iter().collect(), good, expected: have.len(), bad, ending: "do", tracks: None })
 }
 
 /// Macintosh sectors into a disk of 512-byte blocks: 80 tracks of 12 sectors on the outside down to 8 on the
@@ -683,14 +683,14 @@ fn lay_out_sony(found: &[((u8, u8), Found)]) -> Result<Laid, String> {
             (track, side) = if side + 1 < sides { (track, side + 1) } else { (track + 1, 0) };
         }
         let id = slot - start(track, side);
-        if sides == 2 { format!("track {track} side {side} sector {id}") } else { format!("track {track} sector {id}") }
+        if sides == 2 { crate::i18n::tf!("track {track} side {side} sector {id}") } else { format!("track {track} sector {id}") }
     };
     let missing: Vec<String> = (0..total).filter(|s| !have[*s]).map(place).collect();
     let bad = seen_bad.into_iter().filter(|s| !have[*s]).map(place).collect();
     let good = have.iter().filter(|h| **h).count();
     // A Mac disk opens as its file system by its bytes; a ProDOS one (an Apple IIgs disk) as a ProDOS-order image.
     let ending = if super::mac::kind_of(&bytes[..bytes.len().min(4096)]).is_some() { "img" } else { "po" };
-    Ok(Laid { bytes, shape: format!("{}K, 80 tracks, {sides} side(s), 8 to 12 \u{D7} 512-byte sectors", total / 2), notes: missing_note(&missing).into_iter().collect(), good, expected: total, bad, ending, tracks: None })
+    Ok(Laid { bytes, shape: crate::i18n::tf!("{}K, 80 tracks, {sides} side(s), 8 to 12 \u{D7} 512-byte sectors", total / 2), notes: missing_note(&missing).into_iter().collect(), good, expected: total, bad, ending, tracks: None })
 }
 
 
@@ -713,8 +713,8 @@ impl Volume for FluxDisk {
         if !self.plain.is_empty() {
             let mut whole = Entry::file(self.plain_name.clone(), self.plain.len() as u64, 0);
             whole.extra = WHOLE_DISK;
-            whole.kind = "Disk image".into();
-            whole.detail = "the sectors decoded from the flux, as a plain image".into();
+            whole.kind = crate::i18n::tr("Disk image").into();
+            whole.detail = crate::i18n::tr("the sectors decoded from the flux, as a plain image").into();
             entries.push(whole);
         }
         Ok(entries)

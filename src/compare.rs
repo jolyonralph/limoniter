@@ -155,7 +155,7 @@ impl Comparison {
 
     pub fn summary(&self) -> String {
         match self.differences.len() {
-            0 => "No differences in the text".to_string(),
+            0 => crate::i18n::tr("No differences in the text").to_string(),
             1 => "1 difference".to_string(),
             count => format!("{count} differences"),
         }

@@ -88,7 +88,7 @@ impl Limoniter {
             Asked::Insert => {
                 let text = editor.sheet.to_form(&editor.label, editor.output);
                 if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
-                    self.message("Characters and sprites", "Open the source to put them in, with the cursor where they go.".into());
+                    self.message("Characters and sprites", crate::i18n::tr("Open the source to put them in, with the cursor where they go.").into());
                 } else {
                     let doc = &mut self.docs[self.active];
                     doc.text.begin_undo_group(false);
@@ -104,13 +104,13 @@ impl Limoniter {
                         editor.sheet = sheet;
                         editor.current = 0;
                     }
-                    None => self.message("Characters and sprites", "Select DB lines (DB, DEFB, !byte or FCB) whose numbers are the pictures.".into()),
+                    None => self.message("Characters and sprites", crate::i18n::tr("Select DB lines (DB, DEFB, !byte or FCB) whose numbers are the pictures.").into()),
                 }
             }
             Asked::UseAsUdgs => {
                 let bytes = editor.sheet.to_bytes();
                 let index = self.active;
-                self.give_udg_pictures(index, crate::zx_graphics::udgs_from_bytes(&bytes, 0), "the character editor".into());
+                self.give_udg_pictures(index, crate::zx_graphics::udgs_from_bytes(&bytes, 0), crate::i18n::tr("the character editor").into());
             }
         }
         self.pixel_editor = Some(editor);
@@ -135,7 +135,7 @@ impl Limoniter {
             Some(Asked::Close) => return,
             Some(Asked::Open) => {
                 if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a Spectrum screen")).add_filter(crate::i18n::tr("Spectrum screens"), &["scr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
-                    let read = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| Screen::from_scr(&bytes).ok_or_else(|| "It isn't a Spectrum screen: those are 6912 bytes (or 6144 without colours).".to_string()));
+                    let read = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| Screen::from_scr(&bytes).ok_or_else(|| crate::i18n::tr("It isn't a Spectrum screen: those are 6912 bytes (or 6144 without colours).").to_string()));
                     match read {
                         Ok(screen) => {
                             designer.remember();
@@ -182,16 +182,60 @@ impl Limoniter {
 }
 
 impl Limoniter {
-    /// Opens a terminal in the folder of the file in front (or the home folder), or closes the one open.
+    /// Shows or puts away the Terminal panel, its shells running on; with none yet, starts one.
     pub(super) fn toggle_terminal(&mut self) {
-        if self.terminal.take().is_some() {
-            self.pending_focus = true;
+        if self.terminal.is_some() {
+            self.terminal_hidden = !self.terminal_hidden;
+            if self.terminal_hidden {
+                self.pending_focus = true;
+            }
             return;
         }
-        let folder = self.docs.get(self.active).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf).or_else(|| std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)).unwrap_or_else(|| PathBuf::from("."));
+        self.new_terminal(None);
+    }
+
+    /// Starts another terminal, in front of any others: in a folder, or the open folder's, or the file's.
+    pub(super) fn new_terminal(&mut self, folder: Option<PathBuf>) {
+        let folder = folder
+            .or_else(|| self.project.as_ref().and_then(|p| p.root.clone()))
+            .or_else(|| self.docs.get(self.active).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf))
+            .or_else(|| std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from))
+            .unwrap_or_else(|| PathBuf::from("."));
         match crate::terminal::Terminal::start(&folder, 12, 80) {
-            Ok(terminal) => self.terminal = Some(Box::new(terminal)),
+            Ok(terminal) => {
+                if let Some(front) = self.terminal.take() {
+                    self.terminals_behind.push((self.terminal_number, front));
+                }
+                self.terminals_made += 1;
+                self.terminal_number = self.terminals_made;
+                self.terminal = Some(Box::new(terminal));
+                self.terminal_hidden = false;
+            }
             Err(problem) => self.message("Terminal", problem),
+        }
+    }
+
+    /// Brings a terminal, by its number, to the front.
+    fn switch_terminal(&mut self, number: u32) {
+        if let Some(at) = self.terminals_behind.iter().position(|(n, _)| *n == number)
+            && let Some(front) = self.terminal.take()
+        {
+            let (n, chosen) = self.terminals_behind.remove(at);
+            self.terminals_behind.push((self.terminal_number, front));
+            self.terminal = Some(chosen);
+            self.terminal_number = n;
+        }
+    }
+
+    /// Ends the terminal in front; another, if there is one, comes forward.
+    fn close_terminal(&mut self) {
+        self.terminal = None;
+        if let Some(at) = (0..self.terminals_behind.len()).max_by_key(|&i| self.terminals_behind[i].0) {
+            let (n, next) = self.terminals_behind.remove(at);
+            self.terminal = Some(next);
+            self.terminal_number = n;
+        } else {
+            self.pending_focus = true;
         }
     }
 
@@ -207,9 +251,23 @@ impl Limoniter {
         }
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         let folder = terminal.folder.display().to_string();
+        // Every terminal's tab, in the order they were started: its number and its folder's name.
+        let name_of = |t: &crate::terminal::Terminal| t.folder.file_name().map_or_else(|| t.folder.display().to_string(), |n| n.to_string_lossy().into_owned());
+        let mut tabs: Vec<(u32, String, String)> = self.terminals_behind.iter().map(|(n, t)| (*n, name_of(t), t.folder.display().to_string())).collect();
+        tabs.push((self.terminal_number, name_of(terminal), folder.clone()));
+        tabs.sort_by_key(|(n, ..)| *n);
+        let front = self.terminal_number;
+        let (mut switch, mut new) = (None, false);
         Panel::bottom("terminal-panel").default_size(240.0).resizable(true).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(crate::i18n::tf!("Terminal, in {folder}")).color(theme::text_dim()).size(12.5));
+                for (number, name, place) in &tabs {
+                    if ui.selectable_label(*number == front, RichText::new(crate::i18n::tf!("{number}: {name}")).size(12.5)).on_hover_text(place.as_str()).clicked() && *number != front {
+                        switch = Some(*number);
+                    }
+                }
+                if ui.small_button("+").on_hover_text(crate::i18n::tr("Another terminal")).clicked() {
+                    new = true;
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     close = crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Close").on_hover_text(crate::i18n::tr("Close it, ending the shell")).clicked();
                     restart = ui.small_button(crate::i18n::tr("Restart")).on_hover_text(crate::i18n::tr("A fresh shell")).clicked();
@@ -218,11 +276,18 @@ impl Limoniter {
             crate::terminal::draw(ui, terminal, font_size);
         });
         if close {
-            self.terminal = None;
-            self.pending_focus = true;
+            self.close_terminal();
         } else if restart {
+            let folder = self.terminal.as_ref().map(|t| t.folder.clone());
             self.terminal = None;
-            self.toggle_terminal();
+            self.new_terminal(folder);
+            // A restarted one keeps its number and place.
+            self.terminals_made -= 1;
+            self.terminal_number = front;
+        } else if let Some(number) = switch {
+            self.switch_terminal(number);
+        } else if new {
+            self.new_terminal(None);
         }
     }
 }
@@ -231,6 +296,32 @@ impl Limoniter {
 mod tests {
     use super::super::tests::app_with;
     use super::*;
+
+    #[test]
+    fn terminals_have_tabs_and_hiding_the_panel_keeps_them_running() {
+        let (mut app, ctx) = app_with("");
+        app.toggle_terminal();
+        assert!(app.terminal.is_some() && !app.terminal_hidden);
+        app.new_terminal(Some(std::env::temp_dir()));
+        app.new_terminal(None);
+        assert_eq!((app.terminal_number, app.terminals_behind.len()), (3, 2));
+        // Drawn with its three tabs.
+        let _ = ctx.run_ui(Default::default(), |ui| app.terminal_panel(ui));
+        app.switch_terminal(2);
+        assert_eq!(app.terminal_number, 2);
+        assert_eq!(app.terminal.as_ref().unwrap().folder, std::env::temp_dir());
+        // Put away and back: still the same three.
+        app.toggle_terminal();
+        assert!(app.terminal_hidden && app.terminal.is_some());
+        app.toggle_terminal();
+        assert!(!app.terminal_hidden);
+        // Closing the one in front brings the newest of the rest forward.
+        app.close_terminal();
+        assert_eq!((app.terminal_number, app.terminals_behind.len()), (3, 1));
+        app.close_terminal();
+        app.close_terminal();
+        assert!(app.terminal.is_none());
+    }
 
     #[test]
     fn the_screen_designer_draws() {

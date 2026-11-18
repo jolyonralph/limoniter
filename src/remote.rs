@@ -115,12 +115,11 @@ pub enum Refused {
 impl Refused {
     pub fn describe(&self, site: &Site) -> String {
         match self {
-            Refused::UnknownHost(print) => format!("This is the first time Limoniter has connected to {}. Its key's fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.", site.host),
-            Refused::HostKeyChanged { expected, found } => format!(
-                "The key of {} isn't the one it had before, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new key.\n\nTrusted before: {expected}\nNow: {found}",
+            Refused::UnknownHost(print) => crate::i18n::tf!("This is the first time Limoniter has connected to {}. Its key's fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.", site.host),
+            Refused::HostKeyChanged { expected, found } => crate::i18n::tf!("The key of {} isn't the one it had before, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new key.\n\nTrusted before: {expected}\nNow: {found}",
                 site.host
             ),
-            Refused::SignIn(why) => format!("{} didn't accept the sign-in. {why}", site.host),
+            Refused::SignIn(why) => crate::i18n::tf!("{} didn't accept the sign-in. {why}", site.host),
             Refused::Failed(why) => why.clone(),
         }
     }
@@ -174,13 +173,13 @@ fn fingerprint(raw: &[u8]) -> String {
 
 /// Connects and signs in. The server's key is checked against those trusted before; see `Refused`.
 pub fn connect(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<Connection, Refused> {
-    let address = (site.host.as_str(), site.port).to_socket_addrs().map_err(|e| Refused::Failed(format!("{} couldn't be found: {e}", site.host)))?.next().ok_or_else(|| Refused::Failed(format!("{} couldn't be found.", site.host)))?;
-    let tcp = TcpStream::connect_timeout(&address, CONNECT_TIMEOUT).map_err(|e| Refused::Failed(format!("Couldn't reach {} on port {}: {e}", site.host, site.port)))?;
+    let address = (site.host.as_str(), site.port).to_socket_addrs().map_err(|e| Refused::Failed(crate::i18n::tf!("{} couldn't be found: {e}", site.host)))?.next().ok_or_else(|| Refused::Failed(crate::i18n::tf!("{} couldn't be found.", site.host)))?;
+    let tcp = TcpStream::connect_timeout(&address, CONNECT_TIMEOUT).map_err(|e| Refused::Failed(crate::i18n::tf!("Couldn't reach {} on port {}: {e}", site.host, site.port)))?;
     let mut session = ssh2::Session::new().map_err(failed)?;
     session.set_timeout(CONNECT_TIMEOUT.as_millis() as u32 * 2);
     session.set_tcp_stream(tcp);
-    session.handshake().map_err(|e| Refused::Failed(format!("The SSH greeting with {} failed: {e}", site.host)))?;
-    let (raw, _) = session.host_key().ok_or_else(|| Refused::Failed("The server didn't give its key.".to_string()))?;
+    session.handshake().map_err(|e| Refused::Failed(crate::i18n::tf!("The SSH greeting with {} failed: {e}", site.host)))?;
+    let (raw, _) = session.host_key().ok_or_else(|| Refused::Failed(crate::i18n::tr("The server didn't give its key.").to_string()))?;
     let print = fingerprint(raw);
     match known.known(site) {
         None => return Err(Refused::UnknownHost(print)),
@@ -198,7 +197,7 @@ pub fn connect(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<Conne
     if !session.authenticated() {
         return Err(Refused::SignIn(String::new()));
     }
-    let sftp = session.sftp().map_err(|e| Refused::Failed(format!("{} doesn't offer SFTP: {e}", site.host)))?;
+    let sftp = session.sftp().map_err(|e| Refused::Failed(crate::i18n::tf!("{} doesn't offer SFTP: {e}", site.host)))?;
     Ok(Connection { _session: session, sftp })
 }
 
@@ -427,7 +426,7 @@ impl Job {
         let worker_site = site.clone();
         let (worker_done, worker_total, worker_stop, worker_result) = (done.clone(), total.clone(), stop.clone(), result.clone());
         std::thread::spawn(move || {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| perform(&worker_site, &secret, &known, task, &worker_done, &worker_total, &worker_stop))).unwrap_or_else(|_| Outcome::Failed("It failed unexpectedly.".to_string()));
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| perform(&worker_site, &secret, &known, task, &worker_done, &worker_total, &worker_stop))).unwrap_or_else(|_| Outcome::Failed(crate::i18n::tr("It failed unexpectedly.").to_string()));
             *worker_result.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(outcome);
         });
         Self { site, done, total, stop, result }

@@ -25,6 +25,7 @@ SOURCE = WEB / "guide" / "src"
 # The pages in the order they're read, after the guide's own front page (index.md).
 PAGES = [
     "getting-started",
+    "working-on-a-folder",
     "editing",
     "character-sets",
     "disks-and-tapes",

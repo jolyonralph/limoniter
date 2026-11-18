@@ -268,7 +268,7 @@ pub fn limoniter_dark_window() -> WindowTheme {
 
 pub fn limoniter_light_window() -> WindowTheme {
     WindowTheme {
-        name: "Limoniter Light".into(),
+        name: crate::i18n::tr("Limoniter Light").into(),
         light: true,
         window: rgb(245, 238, 227),
         ribbon: rgb(236, 225, 208),
@@ -325,7 +325,7 @@ pub fn limoniter_dark_document() -> DocumentTheme {
 
 pub fn limoniter_light_document() -> DocumentTheme {
     DocumentTheme {
-        name: "Limoniter Light".into(),
+        name: crate::i18n::tr("Limoniter Light").into(),
         editor_back: rgb(254, 251, 245),
         editor_text: rgb(36, 26, 18),
         active_line: rgb(248, 240, 226),

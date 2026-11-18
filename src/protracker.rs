@@ -140,7 +140,7 @@ fn read_with(bytes: &[u8], slots: usize) -> Result<Module, String> {
         module.format = format.to_string();
     } else {
         module.channels = 4;
-        module.format = "Soundtracker (15 samples)".into();
+        module.format = crate::i18n::tr("Soundtracker (15 samples)").into();
     }
     // StarTrekker's 8 channels are pairs of 4-channel patterns, numbered in steps of two.
     let (patterns, pattern_bytes) = if module.tag == "FLT8" { (usize::from(highest) / 2 + 1, 2048) } else { (usize::from(highest) + 1, 64 * 4 * module.channels) };
@@ -158,28 +158,28 @@ fn read_with(bytes: &[u8], slots: usize) -> Result<Module, String> {
         });
     }
     if song_length == 0 || song_length > 128 {
-        module.notes.push(format!("The song length is {song_length}, which no tracker writes (1 to 128)."));
+        module.notes.push(crate::i18n::tf!("The song length is {song_length}, which no tracker writes (1 to 128)."));
     }
     let sample_bytes: u64 = module.samples.iter().map(|s| u64::from(s.length)).sum();
     module.expected_size = header as u64 + (patterns * pattern_bytes) as u64 + sample_bytes;
     for (i, sample) in module.samples.iter_mut().enumerate() {
         if sample.volume > 64 {
-            module.notes.push(format!("Sample {} has volume {}, above the 64 Paula plays at most.", i + 1, sample.volume));
+            module.notes.push(crate::i18n::tf!("Sample {} has volume {}, above the 64 Paula plays at most.", i + 1, sample.volume));
         }
         if sample.loops() && sample.loop_start + sample.loop_length > sample.length {
             // Soundtracker and some early trackers kept the loop's start in bytes rather than words.
             let in_bytes = sample.loop_start / 2;
             if in_bytes + sample.loop_length <= sample.length {
                 sample.loop_start = in_bytes;
-                module.notes.push(format!("Sample {}'s loop start is in bytes, as older trackers wrote it.", i + 1));
+                module.notes.push(crate::i18n::tf!("Sample {}'s loop start is in bytes, as older trackers wrote it.", i + 1));
             } else {
-                module.notes.push(format!("Sample {}'s loop runs past its end ({} + {} of {} bytes).", i + 1, sample.loop_start, sample.loop_length, sample.length));
+                module.notes.push(crate::i18n::tf!("Sample {}'s loop runs past its end ({} + {} of {} bytes).", i + 1, sample.loop_start, sample.loop_length, sample.length));
             }
         }
     }
     match module.size.cmp(&module.expected_size) {
-        std::cmp::Ordering::Less => module.notes.push(format!("The file is {} bytes shorter than its patterns and samples need: it may have been cut short.", group(module.expected_size - module.size))),
-        std::cmp::Ordering::Greater => module.notes.push(format!("There are {} more bytes after the samples than the module says it has.", group(module.size - module.expected_size))),
+        std::cmp::Ordering::Less => module.notes.push(crate::i18n::tf!("The file is {} bytes shorter than its patterns and samples need: it may have been cut short.", group(module.expected_size - module.size))),
+        std::cmp::Ordering::Greater => module.notes.push(crate::i18n::tf!("There are {} more bytes after the samples than the module says it has.", group(module.size - module.expected_size))),
         std::cmp::Ordering::Equal => {}
     }
     Ok(module)
@@ -226,12 +226,12 @@ impl Module {
             ("Title".to_string(), if self.title.is_empty() { "(none)".into() } else { self.title.clone() }),
             ("Format".into(), format),
             ("Channels".into(), self.channels.to_string()),
-            ("Song length".into(), format!("{} positions", self.order.len())),
+            (crate::i18n::tr("Song length").into(), format!("{} positions", self.order.len())),
             ("Patterns".into(), self.patterns.to_string()),
-            ("Samples".into(), format!("{} of {} slots used, {} bytes", self.used_samples().count(), self.samples.len(), group(self.sample_bytes()))),
+            ("Samples".into(), crate::i18n::tf!("{} of {} slots used, {} bytes", self.used_samples().count(), self.samples.len(), group(self.sample_bytes()))),
         ];
         if self.restart != 127 && self.restart != 0 && !self.tag.is_empty() {
-            rows.push(("Restarts at".into(), format!("position {}", self.restart)));
+            rows.push((crate::i18n::tr("Restarts at").into(), format!("position {}", self.restart)));
         }
         rows
     }
@@ -242,9 +242,9 @@ impl Module {
         first.extend(self.notes.iter().map(|n| (String::new(), n.clone())));
         let samples = self.used_samples().map(|(n, s)| (format!("{n:02} {}", s.name), Self::sample_line(s))).collect();
         vec![
-            InfoSection { title: "Music module".into(), rows: first },
+            InfoSection { title: crate::i18n::tr("Music module").into(), rows: first },
             InfoSection { title: "Samples".into(), rows: samples },
-            InfoSection { title: "Song order".into(), rows: vec![(String::new(), self.order.iter().map(|p| format!("{p:02X}")).collect::<Vec<_>>().join(" "))] },
+            InfoSection { title: crate::i18n::tr("Song order").into(), rows: vec![(String::new(), self.order.iter().map(|p| format!("{p:02X}")).collect::<Vec<_>>().join(" "))] },
         ]
     }
 
@@ -253,7 +253,7 @@ impl Module {
         let plain = |text: String| Span { text, ..Span::default() };
         let strong = |text: String| Span { text, strong: true, ..Span::default() };
         let block = |kind: BlockKind, spans: Vec<Span>| Block { kind, spans, indent: 0, quote: 0, marker: None };
-        let mut blocks = vec![block(BlockKind::Heading(2), vec![plain(if self.title.is_empty() { "Untitled module".into() } else { self.title.clone() })])];
+        let mut blocks = vec![block(BlockKind::Heading(2), vec![plain(if self.title.is_empty() { crate::i18n::tr("Untitled module").into() } else { self.title.clone() })])];
         for (label, value) in self.summary().into_iter().skip(1) {
             blocks.push(block(BlockKind::Paragraph, vec![strong(format!("{label}: ")), plain(value)]));
         }
@@ -272,7 +272,7 @@ impl Module {
             rows.push(cells.map(|c| vec![plain(c)]).to_vec());
         }
         blocks.push(block(BlockKind::Table(rows), Vec::new()));
-        blocks.push(block(BlockKind::Heading(3), vec![plain("Song order".into())]));
+        blocks.push(block(BlockKind::Heading(3), vec![plain(crate::i18n::tr("Song order").into())]));
         blocks.push(block(BlockKind::Code, vec![Span { text: self.order_text(), code: true, ..Span::default() }]));
         blocks
     }

@@ -299,7 +299,7 @@ pub fn petscii(data: &[u8], set: &Charset, start_table: usize) -> Screen {
     }
     screen.ensure_row(row.min(crate::screen::MOST_ROWS - 1));
     if clears > 1 {
-        screen.note(format!("The file clears the screen {clears} times; this is the picture after the last clear."));
+        screen.note(crate::i18n::tf!("The file clears the screen {clears} times; this is the picture after the last clear."));
     }
     screen.note("Lines run on down the page instead of scrolling a 25-row screen.");
     screen
@@ -364,7 +364,7 @@ pub fn teletext(data: &[u8], set: &Charset, parity: bool, mode7: bool) -> Screen
         }
     }
     if ep1 {
-        screen.info.push(("Format".into(), "EP1 teletext page".into()));
+        screen.info.push(("Format".into(), crate::i18n::tr("EP1 teletext page").into()));
     }
     if flashing {
         screen.note("Flashing text is shown steadily.");
@@ -432,7 +432,7 @@ pub fn tti(data: &[u8], set: &Charset) -> Screen {
         screen.info.push(("Description".into(), description));
     }
     if pages > 1 {
-        screen.note(format!("The file has {pages} subpages; the first is shown."));
+        screen.note(crate::i18n::tf!("The file has {pages} subpages; the first is shown."));
     }
     screen
 }

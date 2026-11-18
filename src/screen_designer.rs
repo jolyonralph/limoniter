@@ -669,8 +669,7 @@ impl Designer {
         let status = match hovered {
             Some((x, y)) => {
                 let a = self.screen.attributes[(y / 8) * 32 + x / 8];
-                format!(
-                    "x {x}, y {y} \u{B7} AT {},{} \u{B7} INK {} PAPER {}{}{}\nbitmap byte {} \u{B7} attribute {}",
+                crate::i18n::tf!("x {x}, y {y} \u{B7} AT {},{} \u{B7} INK {} PAPER {}{}{}\nbitmap byte {} \u{B7} attribute {}",
                     y / 8,
                     x / 8,
                     a & 7,

@@ -16,6 +16,8 @@ pub(super) enum Flag {
     ColumnMarkers,
     SpacesForTab,
     DocumentMap,
+    Breadcrumbs,
+    StickyScroll,
     BookmarkGutter,
     FoldLines,
     LineChange,
@@ -125,6 +127,8 @@ const FILE: &[Entry] = &[
     Entry::Live("New as", Live::NewAs),
     Item("New disk or tape image\u{2026}", Command::NewImage),
     Keyed("Open\u{2026}", Command::Open, "Ctrl+O"),
+    Item("Open folder\u{2026}", Command::OpenFolder),
+    Keyed("Go to file\u{2026}", Command::GoToFile, "Ctrl+E"),
     Entry::Live("Open recent", Live::RecentFiles),
     Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
     Item("Open a remote file (SFTP)\u{2026}", Command::OpenRemote),
@@ -188,6 +192,22 @@ const EDIT: &[Entry] = &[
     Keyed("Copy", Command::Copy, "Ctrl+C"),
     Keyed("Paste", Command::Paste, "Ctrl+V"),
     Keyed("Swap with clipboard", Command::SwapClipboard, "Ctrl+Shift+V"),
+    Sub(
+        "Clipboards",
+        &[
+            Keyed("The computer's clipboard", Command::UseClipboard(0), "Ctrl+0"),
+            Line,
+            Keyed("Clipboard 1", Command::UseClipboard(1), "Ctrl+1"),
+            Keyed("Clipboard 2", Command::UseClipboard(2), "Ctrl+2"),
+            Keyed("Clipboard 3", Command::UseClipboard(3), "Ctrl+3"),
+            Keyed("Clipboard 4", Command::UseClipboard(4), "Ctrl+4"),
+            Keyed("Clipboard 5", Command::UseClipboard(5), "Ctrl+5"),
+            Keyed("Clipboard 6", Command::UseClipboard(6), "Ctrl+6"),
+            Keyed("Clipboard 7", Command::UseClipboard(7), "Ctrl+7"),
+            Keyed("Clipboard 8", Command::UseClipboard(8), "Ctrl+8"),
+            Keyed("Clipboard 9", Command::UseClipboard(9), "Ctrl+9"),
+        ],
+    ),
     Line,
     Keyed("Select all", Command::SelectAll, "Ctrl+A"),
     Sub(
@@ -304,13 +324,18 @@ const SEARCH: &[Entry] = &[
     Keyed("Replace\u{2026}", Command::Replace, "Ctrl+R"),
     Keyed("Find next", Command::FindNext, "F3"),
     Keyed("Find previous", Command::FindPrevious, "Shift+F3"),
-    Keyed("Find in files\u{2026}", Command::FindInFiles, "Ctrl+Shift+F"),
+    Keyed("Search panel (in the folder's files)", Command::SearchPanel, "Ctrl+Shift+F"),
+    Item("Find in files\u{2026}", Command::FindInFiles),
     Line,
     Item("Only show lines with the selection", Command::FilterSelection),
     Line,
     Keyed("Go to line\u{2026}", Command::GoTo, "Ctrl+G"),
+    Keyed("Go to symbol in this file\u{2026}", Command::GoToSymbol(false), "Ctrl+Shift+O"),
+    Keyed("Go to symbol in the folder\u{2026}", Command::GoToSymbol(true), "Ctrl+T"),
     Keyed("Go to definition", Command::GoToDefinition, "F12"),
+    Keyed("Peek definition", Command::PeekDefinition, "Alt+F12"),
     Keyed("Find all uses", Command::FindUses, "Shift+F12"),
+    Keyed("Quick fix\u{2026}", Command::QuickFix, "Ctrl+."),
     Keyed("Rename\u{2026}", Command::RenameLabel, "Ctrl+F12"),
     Item("Go to the matching bracket", Command::GoToBrace),
     Keyed("Back", Command::NavBack, "Alt+Left"),
@@ -362,6 +387,8 @@ const VIEW: &[Entry] = &[
             Check("Ruler", Flag::Ruler),
             Check("Column markers", Flag::ColumnMarkers),
             Check("Document map", Flag::DocumentMap),
+            Check("Breadcrumbs", Flag::Breadcrumbs),
+            Check("Sticky scroll", Flag::StickyScroll),
             Check("Bookmark margin", Flag::BookmarkGutter),
             Check("Fold markers", Flag::FoldLines),
             Check("Changed lines", Flag::LineChange),
@@ -400,7 +427,7 @@ const VIEW: &[Entry] = &[
             Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
         ],
     ),
-    Sub("Split", &[Item("One above the other", Command::SplitHorizontal), Item("Side by side", Command::SplitVertical), Item("Another tab on this file", Command::DuplicateWindow)]),
+    Sub("Split", &[Item("One above the other", Command::SplitHorizontal), Item("Side by side", Command::SplitVertical), Item("Another tab on this file", Command::DuplicateWindow), Keyed("Another file beside this one", Command::OpenBeside, "Ctrl+\\")]),
     Line,
     Sub(
         "Panels",
@@ -508,6 +535,7 @@ const FORMAT: &[Entry] = &[
             Item("Join each paragraph into one line", Command::LineEndsToWrap),
         ],
     ),
+    Keyed("Format document (language server)", Command::FormatDocument, "Shift+Alt+F"),
     Sub(
         "Lay out code",
         &[
@@ -577,8 +605,10 @@ const TOOLS: &[Entry] = &[
             Item("Blitter minterms", Command::BlitterMinterms),
             Item("NDK (code hints)\u{2026}", Command::AmigaNdk),
             Item("Crunchers and music\u{2026}", Command::AmigaTools),
+            Item("Boot disk with no file system (trackmo)", Command::AmigaBootDisk),
         ],
     ),
+    Sub("Dragon and Vectrex", &[Item("Dragon DOS disk\u{2026}", Command::DragonDisk)]),
     Sub(
         "Atari ST",
         &[
@@ -646,7 +676,7 @@ const TOOLS: &[Entry] = &[
             Item("Ask about it\u{2026}", Command::Assist(assistant::Task::Ask)),
         ],
     ),
-    Sub("Run", &[Keyed("Run a command\u{2026}", Command::RunTool, "F5"), Item("Stop it", Command::StopTool), Line, Check("Output panel", Flag::OutputWindow)]),
+    Sub("Run", &[Keyed("Run a command\u{2026}", Command::RunTool, "F5"), Item("Stop it", Command::StopTool), Keyed("Debug (Python, C, C++, Rust)", Command::StartDebugging, "Ctrl+F5"), Line, Check("Output panel", Flag::OutputWindow)]),
     Sub(
         "Macros",
         &[
@@ -667,6 +697,7 @@ const TOOLS: &[Entry] = &[
     Sub(
         "Project",
         &[
+            Item("Open a folder as a project\u{2026}", Command::OpenFolder),
             Item("New project\u{2026}", Command::ProjectNew),
             Item("Open project\u{2026}", Command::ProjectOpen),
             Entry::Live("Open recent", Live::RecentProjects),
@@ -896,6 +927,8 @@ impl Limoniter {
             Flag::ColumnMarkers => v.column_markers,
             Flag::SpacesForTab => self.prefs.edit.spaces_for_tab,
             Flag::DocumentMap => v.document_map,
+            Flag::Breadcrumbs => v.breadcrumbs,
+            Flag::StickyScroll => v.sticky_scroll,
             Flag::BookmarkGutter => v.bookmark_gutter,
             Flag::FoldLines => v.fold_lines,
             Flag::LineChange => v.line_change,
@@ -930,6 +963,8 @@ impl Limoniter {
             Flag::ColumnMarkers => &mut v.column_markers,
             Flag::SpacesForTab => &mut self.prefs.edit.spaces_for_tab,
             Flag::DocumentMap => &mut v.document_map,
+            Flag::Breadcrumbs => &mut v.breadcrumbs,
+            Flag::StickyScroll => &mut v.sticky_scroll,
             Flag::BookmarkGutter => &mut v.bookmark_gutter,
             Flag::FoldLines => &mut v.fold_lines,
             Flag::LineChange => &mut v.line_change,
@@ -1007,7 +1042,9 @@ impl Limoniter {
             Command::SendTo(n) if matches!(self.sends.devices.get(n).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => !no_file,
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
             Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOn(_) => !no_file,
-            Command::GoToDefinition | Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
+            Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
+            Command::GoToDefinition | Command::PeekDefinition => !no_file,
+            Command::QuickFix | Command::FormatDocument => self.has_lsp(),
             Command::AssembleAndSave | Command::AssembleBinary => !no_file && self.doc_cpu(self.active).is_some(),
             Command::StopRunning => !self.running.sessions.is_empty(),
             Command::MachineMemory | Command::MachineScreen | Command::MachineBasicOut => self.reachable().is_some(),
@@ -1299,7 +1336,7 @@ impl Limoniter {
                 for number in 0..self.sends.devices.len() {
                     let device = self.sends.devices[number].clone();
                     let absent = matches!(&device.place, crate::deploy::Place::Card { label, .. } if self.sends.card_present(label) == Some(false));
-                    let label = if absent { format!("{}  (not plugged in)", device.name) } else { device.name.clone() };
+                    let label = if absent { crate::i18n::tf!("{}  (not plugged in)", device.name) } else { device.name.clone() };
                     if ui.add_enabled(usable, Button::new(label)).on_hover_text(device.place.describe()).clicked() {
                         picks.push(Pick::Device(number));
                         ui.close();
@@ -1411,7 +1448,7 @@ impl Limoniter {
                         let mut job = egui::text::LayoutJob::default();
                         RichText::new(crate::i18n::tr("\u{25A0}  ")).color(theme::tag_colour(colour)).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         RichText::new(crate::i18n::tf!("{}  ", first + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
-                        RichText::new(if words.is_empty() { "(blank line)".to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(if words.is_empty() { crate::i18n::tr("(blank line)").to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         if ui.button(job).on_hover_text(crate::i18n::tf!("Lines {} to {}", first + 1, last + 1)).clicked() {
                             picks.push(Pick::Line(first));
                             ui.close();
@@ -1430,7 +1467,7 @@ impl Limoniter {
                         let words: String = text.format.readable_text(&text.line(line)).trim().chars().take(48).collect();
                         let mut job = egui::text::LayoutJob::default();
                         RichText::new(crate::i18n::tf!("{}  ", line + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
-                        RichText::new(if words.is_empty() { "(blank line)".to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(if words.is_empty() { crate::i18n::tr("(blank line)").to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         if ui.button(job).clicked() {
                             picks.push(Pick::Line(line));
                             ui.close();
@@ -1545,10 +1582,10 @@ impl Limoniter {
         let query = state.query.clone();
         let mut all = every_command();
         self.addons.refresh_if_stale();
-        all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: format!("File \u{203A} Send to device \u{203A} {}", device.name), shortcut: "", command: Command::SendTo(number) }));
-        all.push(Found { path: format!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_NAME), shortcut: "", command: Command::RunOnBuiltIn });
-        all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: format!("File \u{203A} Run on \u{203A} {}", device.name), shortcut: "", command: Command::RunOn(number) }));
-        all.extend(self.addons.commands().into_iter().enumerate().map(|(number, listed)| Found { path: format!("Tools \u{203A} Add-ons \u{203A} {} \u{203A} {}", listed.addon, listed.title), shortcut: "", command: Command::AddOn(number) }));
+        all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: crate::i18n::tf!("File \u{203A} Send to device \u{203A} {}", device.name), shortcut: "", command: Command::SendTo(number) }));
+        all.push(Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_NAME), shortcut: "", command: Command::RunOnBuiltIn });
+        all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", device.name), shortcut: "", command: Command::RunOn(number) }));
+        all.extend(self.addons.commands().into_iter().enumerate().map(|(number, listed)| Found { path: crate::i18n::tf!("Tools \u{203A} Add-ons \u{203A} {} \u{203A} {}", listed.addon, listed.title), shortcut: "", command: Command::AddOn(number) }));
         let mut found = hidden_commands(&query);
         found.extend(matching(&query, all));
         let usable: Vec<bool> = found.iter().map(|each| self.can(each.command)).collect();

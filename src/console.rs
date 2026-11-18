@@ -85,7 +85,7 @@ fn style_name(code: u32) -> Option<String> {
         27 => "reversed off".to_string(),
         28 => "concealed off".to_string(),
         30..=37 => format!("text colour {}", code - 30),
-        39 => "default text colour".to_string(),
+        39 => crate::i18n::tr("default text colour").to_string(),
         40..=47 => format!("background colour {}", code - 40),
         49 => "default background".to_string(),
         _ => return None,
@@ -100,28 +100,28 @@ pub fn describe(parameters: &str, last: char) -> String {
             let styles: Vec<String> = parameters
                 .split(';')
                 .map(|part| part.parse::<u32>().unwrap_or(0))
-                .map(|code| style_name(code).unwrap_or_else(|| format!("style {code} (not recognised, kept as it is)")))
+                .map(|code| style_name(code).unwrap_or_else(|| crate::i18n::tf!("style {code} (not recognised, kept as it is)")))
                 .collect();
             format!("Style: {}", styles.join(", "))
         }
-        'A' => format!("Cursor up {}", first.unwrap_or(1)),
-        'B' => format!("Cursor down {}", first.unwrap_or(1)),
-        'C' => format!("Cursor right {}", first.unwrap_or(1)),
-        'D' => format!("Cursor left {}", first.unwrap_or(1)),
-        'E' => format!("Cursor to start of line, down {}", first.unwrap_or(1)),
-        'F' => format!("Cursor to start of line, up {}", first.unwrap_or(1)),
-        'H' => "Cursor to a position".to_string(),
-        'J' => "Erase to the end of the display".to_string(),
-        'K' => "Erase to the end of the line".to_string(),
-        'L' => format!("Insert {} line(s)", first.unwrap_or(1)),
-        'M' => format!("Delete {} line(s)", first.unwrap_or(1)),
-        '@' => format!("Insert {} character(s)", first.unwrap_or(1)),
-        'P' => format!("Delete {} character(s)", first.unwrap_or(1)),
-        'S' => format!("Scroll up {}", first.unwrap_or(1)),
-        'T' => format!("Scroll down {}", first.unwrap_or(1)),
-        'p' if parameters == " " => "Show the cursor".to_string(),
-        'p' if parameters == "0 " => "Hide the cursor".to_string(),
-        _ => format!("Not recognised: {parameters}{last} is kept as it is"),
+        'A' => crate::i18n::tf!("Cursor up {}", first.unwrap_or(1)),
+        'B' => crate::i18n::tf!("Cursor down {}", first.unwrap_or(1)),
+        'C' => crate::i18n::tf!("Cursor right {}", first.unwrap_or(1)),
+        'D' => crate::i18n::tf!("Cursor left {}", first.unwrap_or(1)),
+        'E' => crate::i18n::tf!("Cursor to start of line, down {}", first.unwrap_or(1)),
+        'F' => crate::i18n::tf!("Cursor to start of line, up {}", first.unwrap_or(1)),
+        'H' => crate::i18n::tr("Cursor to a position").to_string(),
+        'J' => crate::i18n::tr("Erase to the end of the display").to_string(),
+        'K' => crate::i18n::tr("Erase to the end of the line").to_string(),
+        'L' => crate::i18n::tf!("Insert {} line(s)", first.unwrap_or(1)),
+        'M' => crate::i18n::tf!("Delete {} line(s)", first.unwrap_or(1)),
+        '@' => crate::i18n::tf!("Insert {} character(s)", first.unwrap_or(1)),
+        'P' => crate::i18n::tf!("Delete {} character(s)", first.unwrap_or(1)),
+        'S' => crate::i18n::tf!("Scroll up {}", first.unwrap_or(1)),
+        'T' => crate::i18n::tf!("Scroll down {}", first.unwrap_or(1)),
+        'p' if parameters == " " => crate::i18n::tr("Show the cursor").to_string(),
+        'p' if parameters == "0 " => crate::i18n::tr("Hide the cursor").to_string(),
+        _ => crate::i18n::tf!("Not recognised: {parameters}{last} is kept as it is"),
     }
 }
 

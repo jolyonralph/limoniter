@@ -266,8 +266,7 @@ impl Setup {
         let r = self.report();
         let sprites: Vec<String> = (0..8).filter(|s| self.sprites & (1 << s) != 0).map(|s| s.to_string()).collect();
         let with = if sprites.is_empty() { "no sprites".to_string() } else { format!("sprite{} {}", if sprites.len() == 1 { "" } else { "s" }, sprites.join(", ")) };
-        format!(
-            "; Line ${:03X} ({}) on {}, {}{}, {with}: the processor has {} cycles ({} if it's reading when the VIC-II takes the bus)\n",
+        crate::i18n::tf!("; Line ${:03X} ({}) on {}, {}{}, {with}: the processor has {} cycles ({} if it's reading when the VIC-II takes the bus)\n",
             self.line,
             self.line,
             self.vic.short(),
@@ -376,9 +375,9 @@ impl Calculator {
             let i = (((at.x - rect.min.x) / width) as usize).min(r.cycles.len() - 1);
             let what = match r.cycles[i] {
                 Use::Cpu => "the processor's".to_string(),
-                Use::Warned => "BA low: the processor can only write".to_string(),
-                Use::Chars => "the VIC-II reads a character pointer".to_string(),
-                Use::Sprite(n) => format!("the VIC-II reads sprite {n}'s data"),
+                Use::Warned => crate::i18n::tr("BA low: the processor can only write").to_string(),
+                Use::Chars => crate::i18n::tr("the VIC-II reads a character pointer").to_string(),
+                Use::Sprite(n) => crate::i18n::tf!("the VIC-II reads sprite {n}'s data"),
             };
             response.on_hover_text(crate::i18n::tf!("Cycle {}: {what}", i + 1));
         }

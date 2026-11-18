@@ -161,14 +161,14 @@ pub fn is_amiga_console(format: &crate::codec::TextFormat) -> bool {
 pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat, path: Option<&Path>) -> FromBytes {
     if kind == Kind::Picture {
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        return match crate::pictures::detect(&name, bytes).ok_or_else(|| "This isn't a picture Limoniter can show any more.".to_string()).and_then(|f| crate::pictures::decode_named(f, &name, bytes)) {
+        return match crate::pictures::detect(&name, bytes).ok_or_else(|| crate::i18n::tr("This isn't a picture Limoniter can show any more.").to_string()).and_then(|f| crate::pictures::decode_named(f, &name, bytes)) {
             Ok(picture) => FromBytes::Picture(picture),
             Err(why) => FromBytes::Nothing(why),
         };
     }
     if kind == Kind::Document {
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let converted = crate::legacy_docs::detect(&name, bytes).ok_or_else(|| "This isn't a document Limoniter can convert any more.".to_string()).and_then(|kind| crate::legacy_docs::convert(kind, bytes));
+        let converted = crate::legacy_docs::detect(&name, bytes).ok_or_else(|| crate::i18n::tr("This isn't a document Limoniter can convert any more.").to_string()).and_then(|kind| crate::legacy_docs::convert(kind, bytes));
         return match converted {
             Ok(doc) => {
                 let mut markdown = crate::legacy_docs::to_markdown(&doc);
@@ -221,9 +221,9 @@ pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat,
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
     if !crate::basic::is_program_file(&extension, Some(bytes)) {
         if !matches!(extension.as_str(), "bas" | "bbc") {
-            return FromBytes::Nothing(format!("This .{extension} file isn't a BASIC program."));
+            return FromBytes::Nothing(crate::i18n::tf!("This .{extension} file isn't a BASIC program."));
         }
-        return FromBytes::Nothing("This .bas file is a listing kept as text, not a tokenised program. Format, Tokenised BASIC can save it as one.".to_string());
+        return FromBytes::Nothing(crate::i18n::tr("This .bas file is a listing kept as text, not a tokenised program. Format, Tokenised BASIC can save it as one.").to_string());
     }
     FromBytes::Blocks(listing_blocks(&crate::basic::list(bytes, &extension, format.charset)))
 }
@@ -242,7 +242,7 @@ pub fn listing_blocks(listing: &crate::basic::Listing) -> Vec<Block> {
         blocks.push(Block { kind: BlockKind::Code, spans: vec![Span { text: listing.lines.join("\n"), code: true, ..Span::default() }], indent: 0, quote: 0, marker: None });
     }
     if !listing.screen.is_empty() {
-        blocks.push(paragraph(vec![Span { text: "The screen when it was saved".into(), strong: true, ..Span::default() }]));
+        blocks.push(paragraph(vec![Span { text: crate::i18n::tr("The screen when it was saved").into(), strong: true, ..Span::default() }]));
         blocks.push(Block { kind: BlockKind::Code, spans: vec![Span { text: listing.screen.join("\n"), code: true, ..Span::default() }], indent: 0, quote: 0, marker: None });
     }
     blocks

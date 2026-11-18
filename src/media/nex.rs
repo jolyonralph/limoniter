@@ -76,7 +76,7 @@ impl Nex {
             let detail = match bank {
                 5 => "$4000 to $7FFF".to_string(),
                 2 => "$8000 to $BFFF".to_string(),
-                0 => "$C000 to $FFFF, as it starts".to_string(),
+                0 => crate::i18n::tr("$C000 to $FFFF, as it starts").to_string(),
                 b => format!("8K pages {} and {}", b * 2, b * 2 + 1),
             };
             add(&format!("bank {bank}.bin"), "16K bank", &detail, 16384, false);
@@ -93,14 +93,14 @@ impl Nex {
         }
         let mut notes = Vec::new();
         if at > source.len() {
-            notes.push("The file ends before all the header says it holds; the last parts may be cut short.".into());
+            notes.push(crate::i18n::tr("The file ends before all the header says it holds; the last parts may be cut short.").into());
             parts.retain(|p| p.at < source.len());
             if let Some(last) = parts.last_mut() {
                 last.length = last.length.min(source.len() - last.at);
             }
         } else if source.len() > at {
             let rest = source.len() - at;
-            parts.push(Part { name: "appended.bin".into(), kind: "Appended data".into(), detail: format!("{rest} bytes after the banks, for the program to read"), at, length: rest });
+            parts.push(Part { name: "appended.bin".into(), kind: crate::i18n::tr("Appended data").into(), detail: crate::i18n::tf!("{rest} bytes after the banks, for the program to read"), at, length: rest });
         }
         let _ = version;
         Ok(Self { source, header, parts, screen: screen_part, notes })
@@ -119,7 +119,7 @@ impl Nex {
 impl Volume for Nex {
     fn describe(&self) -> String {
         let start = self.word(14);
-        format!("ZX Spectrum Next program (NEX {}) \u{B7} starts at ${start:04X}", String::from_utf8_lossy(&self.header[4..8]))
+        crate::i18n::tf!("ZX Spectrum Next program (NEX {}) \u{B7} starts at ${start:04X}", String::from_utf8_lossy(&self.header[4..8]))
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -162,30 +162,30 @@ impl Volume for Nex {
         let yes = |b: u8| if b != 0 { "Yes" } else { "No" };
         let mut rows = vec![
             ("Version".to_string(), String::from_utf8_lossy(&h[4..8]).into_owned()),
-            ("Starts at".into(), format!("${:04X}{}", self.word(14), if self.word(14) == 0 { " (doesn't start: a file of data)" } else { "" })),
+            (crate::i18n::tr("Starts at").into(), format!("${:04X}{}", self.word(14), if self.word(14) == 0 { " (doesn't start: a file of data)" } else { "" })),
             ("Stack".into(), format!("${:04X}", self.word(12))),
-            ("Bank at $C000".into(), h[139].to_string()),
-            ("Needs core".into(), format!("{}.{}.{}", h[135], h[136], h[137])),
-            ("Needs 2MB".into(), yes(h[8]).into()),
+            (crate::i18n::tr("Bank at $C000").into(), h[139].to_string()),
+            (crate::i18n::tr("Needs core").into(), format!("{}.{}.{}", h[135], h[136], h[137])),
+            (crate::i18n::tr("Needs 2MB").into(), yes(h[8]).into()),
             ("Banks".into(), h[9].to_string()),
-            ("Border while loading".into(), h[11].to_string()),
-            ("Loading bar".into(), if h[130] != 0 { format!("Yes, colour {}", h[131]) } else { "No".into() }),
-            ("Delays".into(), format!("{} frames before starting, {} after each bank", h[133], h[132])),
-            ("Next registers".into(), if h[134] != 0 { "Kept as they are".into() } else { "Reset".into() }),
-            ("File handle".into(), match self.word(140) {
+            (crate::i18n::tr("Border while loading").into(), h[11].to_string()),
+            (crate::i18n::tr("Loading bar").into(), if h[130] != 0 { crate::i18n::tf!("Yes, colour {}", h[131]) } else { "No".into() }),
+            ("Delays".into(), crate::i18n::tf!("{} frames before starting, {} after each bank", h[133], h[132])),
+            (crate::i18n::tr("Next registers").into(), if h[134] != 0 { crate::i18n::tr("Kept as they are").into() } else { "Reset".into() }),
+            (crate::i18n::tr("File handle").into(), match self.word(140) {
                 0 => "Closed".into(),
-                1 => "Kept open, in BC".into(),
-                at => format!("Kept open, written to ${at:04X}"),
+                1 => crate::i18n::tr("Kept open, in BC").into(),
+                at => crate::i18n::tf!("Kept open, written to ${at:04X}"),
             }),
         ];
         if h[7] == b'3' {
             rows.push(("Checksum".into(), yes(h[143]).into()));
-            rows.push(("Expansion bus".into(), if h[142] != 0 { "Left alone".into() } else { "Turned off".into() }));
+            rows.push((crate::i18n::tr("Expansion bus").into(), if h[142] != 0 { crate::i18n::tr("Left alone").into() } else { crate::i18n::tr("Turned off").into() }));
             if self.word(150) != 0 {
-                rows.push(("Command line".into(), format!("{} bytes at ${:04X}", self.word(150), self.word(148))));
+                rows.push((crate::i18n::tr("Command line").into(), format!("{} bytes at ${:04X}", self.word(150), self.word(148))));
             }
         }
-        vec![InfoSection { title: "Next program".into(), rows }]
+        vec![InfoSection { title: crate::i18n::tr("Next program").into(), rows }]
     }
 
     fn picture(&self) -> Option<Vec<u8>> {

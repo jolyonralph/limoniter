@@ -447,7 +447,7 @@ pub fn pack(tool: Tool, program: &Path, options: &PackOptions, input: &Path, out
     }
     let (ok, mut printed) = result?;
     if raw {
-        printed.push("The program's load address was taken off first: put it back, or load the packed data where you like.".into());
+        printed.push(crate::i18n::tr("The program's load address was taken off first: put it back, or load the packed data where you like.").into());
     }
     let made: Vec<(PathBuf, u64)> = std::fs::metadata(output).ok().map(|m| (output.to_path_buf(), m.len())).into_iter().collect();
     Ok(Outcome { ok: ok && !made.is_empty(), printed, before, made, seconds: started.elapsed().as_secs_f64() })

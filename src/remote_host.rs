@@ -137,7 +137,7 @@ impl Limoniter {
             let secret = if site.key_file.is_some() { Secret::KeyPassphrase(Some(state.password.clone())) } else { Secret::Password(state.password.clone()) };
             self.remote_secrets.insert(site.key(), secret);
         }
-        state.status = format!("Connecting to {}\u{2026}", site.host);
+        state.status = crate::i18n::tf!("Connecting to {}\u{2026}", site.host);
         state.trust = None;
         state.changed_key = false;
         let folder = folder.or_else(|| (path != "/").then_some(path));
@@ -213,7 +213,7 @@ impl Limoniter {
                 } else {
                     // Sending after a save, with no box open: the file is saved here, and says so.
                     self.remote_secrets.remove(&site.key());
-                    warn(&format!("{text}\n\nYour changes are saved on this computer. File, Save to a server can send them once it can connect."));
+                    warn(&crate::i18n::tf!("{text}\n\nYour changes are saved on this computer. File, Save to a server can send them once it can connect."));
                 }
             }
             (Purpose::Browse, Outcome::Listed { folder, entries }) => {
@@ -256,7 +256,7 @@ impl Limoniter {
                 let Some(link) = self.docs.iter().find(|doc| doc.id == id).and_then(|doc| doc.remote.clone()) else {
                     return;
                 };
-                let question = format!("{} has been changed on the server since you opened it.\n\nReplace it with your version?", site.url(&link.path));
+                let question = crate::i18n::tf!("{} has been changed on the server since you opened it.\n\nReplace it with your version?", site.url(&link.path));
                 if ask_yes_no("Changed on the server", &question) {
                     let task = Task::Upload { local: link.local.clone(), remote: link.path.clone(), expected: None, force: true };
                     self.start_remote(Purpose::Send(id), link.site, task);
@@ -268,7 +268,7 @@ impl Limoniter {
                 (Dialog::Remote(state), Purpose::Browse | Purpose::Open) => state.status = problem,
                 (_, Purpose::Send(id)) => {
                     let local = self.docs.iter().find(|doc| doc.id == id).and_then(|doc| doc.remote.as_ref()).map(|link| link.local.display().to_string()).unwrap_or_default();
-                    warn(&format!("Couldn't send the file to {}.\n\n{problem}\n\nYour changes are saved on this computer, at {local}.", site.host));
+                    warn(&crate::i18n::tf!("Couldn't send the file to {}.\n\n{problem}\n\nYour changes are saved on this computer, at {local}.", site.host));
                 }
                 _ => warn(&problem),
             },
@@ -441,7 +441,7 @@ impl Limoniter {
         }
         if save_here && let (Some(site), Some(folder), Some(id)) = (site, folder, saving) {
             let path = remote::join(&folder, &file_name);
-            if !exists || ask_yes_no("Save to a server", &format!("{file_name} is already there. Replace it?")) {
+            if !exists || ask_yes_no("Save to a server", &crate::i18n::tf!("{file_name} is already there. Replace it?")) {
                 if let Some(index) = self.docs.iter().position(|doc| doc.id == id) {
                     self.close_dialog();
                     self.remote_save(index, site, path);
@@ -465,7 +465,7 @@ impl Limoniter {
     /// Words for the status bar while files are being fetched or sent.
     pub(super) fn remote_status(&self) -> Option<String> {
         let sending = self.remote_jobs.iter().find(|(purpose, _)| matches!(purpose, Purpose::Send(_)))?;
-        Some(format!("Sending to {}: {:.0}%", sending.1.site.host, (sending.1.share() * 100.0).min(100.0)))
+        Some(crate::i18n::tf!("Sending to {}: {:.0}%", sending.1.site.host, (sending.1.share() * 100.0).min(100.0)))
     }
 
     /// Settings kept for remote files: sites, trusted server keys and recent files. Never passwords.

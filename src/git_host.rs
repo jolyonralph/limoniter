@@ -147,7 +147,9 @@ impl Limoniter {
                 busy = true;
             }
         } else if let Some(root) = self.git.repo.clone() {
-            let every = if self.git.open { Duration::from_secs(3) } else { Duration::from_secs(15) };
+            // Often while the Source control panel, or a folder's Explorer, shows what's changed.
+            let showing = self.git.open || self.project.as_ref().is_some_and(|p| p.root.is_some());
+            let every = if showing { Duration::from_secs(3) } else { Duration::from_secs(15) };
             if self.git.read_at.is_none_or(|at| at.elapsed() > every) && self.git.job.is_none() {
                 let reading = Arc::new(Mutex::new(None));
                 let to = reading.clone();
@@ -211,7 +213,7 @@ impl Limoniter {
     /// Starts git doing something in the background, unless it's already doing something.
     fn git_job(&mut self, title: &str, work: impl FnOnce() -> Result<String, String> + Send + 'static) {
         if self.git.job.is_some() {
-            self.git.said = Some(("Git is still busy with the last thing asked.".into(), true, Instant::now()));
+            self.git.said = Some((crate::i18n::tr("Git is still busy with the last thing asked.").into(), true, Instant::now()));
             return;
         }
         self.git.job = Some(Job::start(title, work));
@@ -269,7 +271,7 @@ impl Limoniter {
         // Where it is: the folder, the branch, and how it stands with what's online.
         ui.label(RichText::new(root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()).strong()).on_hover_text(root.display().to_string());
         ui.horizontal_wrapped(|ui| {
-            let branch = status.branch.clone().unwrap_or_else(|| "(no branch)".into());
+            let branch = status.branch.clone().unwrap_or_else(|| crate::i18n::tr("(no branch)").into());
             egui::ComboBox::from_id_salt("git-branch").selected_text(crate::i18n::tf!("\u{2387} {branch}")).width(150.0).show_ui(ui, |ui| {
                 if let Some(root) = &self.git.repo {
                     for each in git::branches(root).unwrap_or_default() {
@@ -357,7 +359,7 @@ impl Limoniter {
         ui.add(egui::TextEdit::multiline(&mut self.git.message).hint_text(crate::i18n::tr("What this commit does, in a line; more below if needed")).desired_rows(2).desired_width(f32::INFINITY));
         ui.horizontal_wrapped(|ui| {
             let message = !self.git.message.trim().is_empty();
-            let label = if staged > 0 { format!("Commit {staged} file(s)") } else if changed > 0 { "Commit all changes".to_string() } else { "Commit".to_string() };
+            let label = if staged > 0 { crate::i18n::tf!("Commit {staged} file(s)") } else if changed > 0 { crate::i18n::tr("Commit all changes").to_string() } else { "Commit".to_string() };
             let ready = message && (staged > 0 || changed > 0 || self.git.amend) && self.git.job.is_none();
             if ui.add_enabled(ready, Button::new(label)).on_hover_text(if message { crate::i18n::tr("Keeps this version, with your message") } else { crate::i18n::tr("Write what it does first") }).clicked() {
                 act.push(PanelAct::Commit);
@@ -443,7 +445,7 @@ impl Limoniter {
         ui.add_space(6.0);
         // Changes put aside, to come back to.
         let stashes = git::stashes(&root);
-        egui::CollapsingHeader::new(format!("Put aside ({})", stashes.len())).id_salt("git-stashes").show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::tf!("Put aside ({})", stashes.len())).id_salt("git-stashes").show(ui, |ui| {
             ui.add(egui::Label::new(faint("Puts every change aside, leaving the files as at the last commit, to bring back later: to switch branch, or pull, in the middle of something.")).wrap());
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut self.git.stash_message).hint_text(crate::i18n::tr("What they are (optional)")).desired_width(170.0));
@@ -550,7 +552,7 @@ impl Limoniter {
                 say(&mut self.git, git::unstage(&root, &paths, born));
             }
             PanelAct::Discard(path) => {
-                if ask_yes_no("Throw away changes", &format!("Throw away the changes to {path} since the last commit?\n\nThis can't be undone.")) {
+                if ask_yes_no("Throw away changes", &crate::i18n::tf!("Throw away the changes to {path} since the last commit?\n\nThis can't be undone.")) {
                     say(&mut self.git, git::discard(&root, std::slice::from_ref(&path)));
                     self.after_restore();
                 }
@@ -562,7 +564,7 @@ impl Limoniter {
             }
             PanelAct::Pull => {
                 if self.docs.iter().any(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(&root))) {
-                    self.git.said = Some(("Save your open files first: a pull can change them.".into(), true, Instant::now()));
+                    self.git.said = Some((crate::i18n::tr("Save your open files first: a pull can change them.").into(), true, Instant::now()));
                     return;
                 }
                 self.git_job("Pull", move || git::pull(&root));
@@ -570,10 +572,10 @@ impl Limoniter {
             PanelAct::Fetch => self.git_job("Fetch", move || git::fetch(&root)),
             PanelAct::Switch(branch) => {
                 if self.docs.iter().any(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(&root))) {
-                    self.git.said = Some(("Save your open files first: switching branch changes them.".into(), true, Instant::now()));
+                    self.git.said = Some((crate::i18n::tr("Save your open files first: switching branch changes them.").into(), true, Instant::now()));
                     return;
                 }
-                let title = format!("Switch to {branch}");
+                let title = crate::i18n::tf!("Switch to {branch}");
                 self.git_job(&title, move || git::switch(&root, &branch).map(|()| String::new()));
             }
             PanelAct::NewBranch(name) => {
@@ -584,7 +586,7 @@ impl Limoniter {
             PanelAct::CompareHead => self.compare_with_commit("HEAD"),
             PanelAct::PullRebase => {
                 if self.docs.iter().any(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(&root))) {
-                    self.git.said = Some(("Save your open files first: a pull can change them.".into(), true, Instant::now()));
+                    self.git.said = Some((crate::i18n::tr("Save your open files first: a pull can change them.").into(), true, Instant::now()));
                     return;
                 }
                 self.git_job("Pull, mine after theirs", move || git::pull_rebase(&root));
@@ -599,7 +601,7 @@ impl Limoniter {
             PanelAct::Stash => {
                 let message = std::mem::take(&mut self.git.stash_message);
                 if self.docs.iter().any(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(&root))) {
-                    self.git.said = Some(("Save your open files first: their changes are what's put aside.".into(), true, Instant::now()));
+                    self.git.said = Some((crate::i18n::tr("Save your open files first: their changes are what's put aside.").into(), true, Instant::now()));
                     return;
                 }
                 say(&mut self.git, git::stash(&root, &message));
@@ -619,7 +621,7 @@ impl Limoniter {
                 self.git.tag_name.clear();
                 match git::create_tag(&root, &name, &message) {
                     Ok(()) if self.git.push_tag => self.git_job(&format!("Push {name}"), move || git::push_tag(&root, &name)),
-                    Ok(()) => self.git.said = Some((format!("Tagged this commit {name}"), false, Instant::now())),
+                    Ok(()) => self.git.said = Some((crate::i18n::tf!("Tagged this commit {name}"), false, Instant::now())),
                     Err(problem) => self.git.said = Some((explain(&problem), true, Instant::now())),
                 }
             }
@@ -628,7 +630,7 @@ impl Limoniter {
                 if let Err(problem) = self.assist_commit_message(&root) {
                     self.git.said = Some((problem, true, Instant::now()));
                 } else {
-                    self.git.said = Some((format!("{} is writing the message\u{2026}", self.assistant.tool.name()), false, Instant::now()));
+                    self.git.said = Some((crate::i18n::tf!("{} is writing the message\u{2026}", self.assistant.tool.name()), false, Instant::now()));
                 }
             }
         }
@@ -638,7 +640,7 @@ impl Limoniter {
     pub(super) fn git_commit(&mut self, root: &Path) {
         // Unsaved edits aren't in the files git sees.
         let unsaved: Vec<String> = self.docs.iter().filter(|doc| doc.is_modified() && doc.path.as_deref().is_some_and(|p| p.starts_with(root))).map(|doc| doc.name()).collect();
-        if !unsaved.is_empty() && !ask_yes_no("Commit", &format!("{} have unsaved edits, which won't be in the commit.\n\nCommit anyway?", unsaved.join(", "))) {
+        if !unsaved.is_empty() && !ask_yes_no("Commit", &crate::i18n::tf!("{} have unsaved edits, which won't be in the commit.\n\nCommit anyway?", unsaved.join(", "))) {
             return;
         }
         let Some(status) = self.git.status.clone() else {
@@ -648,7 +650,7 @@ impl Limoniter {
         let amend = self.git.amend;
         let everything: Vec<String> = if status.staged().count() == 0 { status.unstaged().filter(|e| e.unstaged != Some(Change::Untracked)).map(|e| e.path.clone()).collect() } else { Vec::new() };
         if status.staged().count() == 0 && everything.is_empty() && !amend {
-            self.git.said = Some(("Only new files have changed: press + beside each to put it in the commit.".into(), true, Instant::now()));
+            self.git.said = Some((crate::i18n::tr("Only new files have changed: press + beside each to put it in the commit.").into(), true, Instant::now()));
             return;
         }
         let root = root.to_path_buf();
@@ -665,14 +667,14 @@ impl Limoniter {
     /// Compares the file in front, as it is now, with a version of it from a commit.
     pub(super) fn compare_with_commit(&mut self, revision: &str) {
         let Some((root, relative)) = self.git_file() else {
-            return self.message("Compare with a commit", "This file isn't in a Git repository.".into());
+            return self.message("Compare with a commit", crate::i18n::tr("This file isn't in a Git repository.").into());
         };
         let Some(bytes) = git::file_at(&root, revision, &relative) else {
-            return self.message("Compare with a commit", "This file wasn't in that commit.".into());
+            return self.message("Compare with a commit", crate::i18n::tr("This file wasn't in that commit.").into());
         };
         let mut format = self.docs[self.active].text.format.clone();
         let lines: Vec<Arc<str>> = codec::decode(&bytes, &mut format).lines.into_iter().map(Arc::from).collect();
-        let short = if revision == "HEAD" { "the last commit".to_string() } else { format!("commit {}", &revision[..revision.len().min(8)]) };
+        let short = if revision == "HEAD" { crate::i18n::tr("the last commit").to_string() } else { format!("commit {}", &revision[..revision.len().min(8)]) };
         let name = format!("{} at {short}", self.docs[self.active].name());
         let this = self.docs[self.active].id;
         self.open_file_compare_sides(compare_host::FileSide::Lines { name, lines }, compare_host::FileSide::Open(this));
@@ -689,10 +691,10 @@ impl Limoniter {
     /// The history of the file in front.
     pub(super) fn git_history(&mut self) {
         let Some((root, relative)) = self.git_file() else {
-            return self.message("History", "This file isn't in a Git repository.".into());
+            return self.message("History", crate::i18n::tr("This file isn't in a Git repository.").into());
         };
         match git::log(&root, Some(&relative), 500) {
-            Ok(commits) if commits.is_empty() => self.message("History", "This file hasn't been committed yet.".into()),
+            Ok(commits) if commits.is_empty() => self.message("History", crate::i18n::tr("This file hasn't been committed yet.").into()),
             Ok(commits) => self.dialog = Dialog::GitHistory(Box::new(HistoryBox { root, relative, commits, selected: 0 })),
             Err(problem) => self.message("History", explain(&problem)),
         }
@@ -767,12 +769,12 @@ impl Limoniter {
     /// Puts just the change the cursor is in into the next commit.
     pub(super) fn stage_change_at_cursor(&mut self) {
         let Some((root, relative, staged, hunk)) = self.hunk_at_cursor("") else {
-            return self.message("Put this change in the next commit", "The cursor isn't in a change that isn't in the next commit already.".into());
+            return self.message("Put this change in the next commit", crate::i18n::tr("The cursor isn't in a change that isn't in the next commit already.").into());
         };
         let doc = &self.docs[self.active];
         // The staged version is made as text, so only a file in UTF-8 (or plain ASCII) can be staged a part at a time.
         if !matches!(doc.text.format.charset.id.as_str(), "utf-8" | "us-ascii") {
-            return self.message("Put this change in the next commit", "Only a UTF-8 file can be committed a change at a time. Press + beside it in Source control to put the whole file in.".into());
+            return self.message("Put this change in the next commit", crate::i18n::tr("Only a UTF-8 file can be committed a change at a time. Press + beside it in Source control to put the whole file in.").into());
         }
         // The staged version keeps the line endings it has, whatever the editor puts at the end of a new line.
         let staged_bytes = git::file_at(&root, "", &relative).unwrap_or_default();
@@ -788,7 +790,7 @@ impl Limoniter {
         };
         let ends = staged_bytes.is_empty() || staged_bytes.ends_with(b"\n");
         match git::stage_hunk(&root, &relative, &staged, &hunk, ending, ends) {
-            Ok(()) => self.git.said = Some((format!("Put the change at line {} in the next commit", hunk.new_start + 1), false, Instant::now())),
+            Ok(()) => self.git.said = Some((crate::i18n::tf!("Put the change at line {} in the next commit", hunk.new_start + 1), false, Instant::now())),
             Err(problem) => self.message("Put this change in the next commit", explain(&problem)),
         }
         self.git.refresh();
@@ -797,7 +799,7 @@ impl Limoniter {
     /// Puts the lines the cursor is in back as they were at the last commit: an edit, which Undo takes back.
     pub(super) fn undo_change_at_cursor(&mut self) {
         let Some((_, _, _, hunk)) = self.hunk_at_cursor("HEAD") else {
-            return self.message("Undo this change", "The cursor isn't in a change since the last commit.".into());
+            return self.message("Undo this change", crate::i18n::tr("The cursor isn't in a change since the last commit.").into());
         };
         let text = &mut self.doc().text;
         let at = hunk.new_start;
@@ -822,7 +824,7 @@ impl Limoniter {
         }
         let line = self.docs[self.active].text.caret_line;
         if self.docs[self.active].text.git_marks.as_ref().and_then(|m| m.get(line).copied().flatten()).is_some_and(|m| m != git::Mark::DeletedAbove) {
-            return Some("This line: not committed yet".into());
+            return Some(crate::i18n::tr("This line: not committed yet").into());
         }
         let (_, _, lines) = self.git.blame.as_ref()?;
         let blame = lines.get(line)?;

@@ -163,9 +163,9 @@ pub(super) fn prompt(task: Task, words: &str, file: &str, language: &str, before
         format!("{marks}\n{}{}{marks}\n", lines.join("\n"), if lines.is_empty() { "" } else { "\n" })
     };
     let lines = if part.is_empty() { format!("at line {first_line}") } else { format!("lines {} to {}", first_line, first_line + part.len() - 1) };
-    let mut out = format!("You're helping someone in a text editor. They've chosen a part of {file} ({language}), {lines}.\n\n{}\n", task.instruction());
+    let mut out = crate::i18n::tf!("You're helping someone in a text editor. They've chosen a part of {file} ({language}), {lines}.\n\n{}\n", task.instruction());
     if !words.trim().is_empty() {
-        out += &format!("\nWhat they said: {}\n", words.trim());
+        out += &crate::i18n::tf!("\nWhat they said: {}\n", words.trim());
     }
     if task.changes_text() {
         out += "\nReply with the code that goes in place of the part, complete, in one fenced code block, and nothing else. Keep its indentation and style. Change only the part: the lines around it are there so you can see what it's in.\n";
@@ -173,11 +173,11 @@ pub(super) fn prompt(task: Task, words: &str, file: &str, language: &str, before
         out += "\nDon't rewrite the code unless they ask for that.\n";
     }
     if !before.is_empty() {
-        out += &format!("\nThe lines before the part, for context only:\n{}", fence(before));
+        out += &crate::i18n::tf!("\nThe lines before the part, for context only:\n{}", fence(before));
     }
     out += &format!("\nThe part:\n{}", fence(part));
     if !after.is_empty() {
-        out += &format!("\nThe lines after the part, for context only:\n{}", fence(after));
+        out += &crate::i18n::tf!("\nThe lines after the part, for context only:\n{}", fence(after));
     }
     out
 }
@@ -262,7 +262,7 @@ fn start(line: &str, folder: Option<&Path>, input: String, wake: impl Fn() + Sen
             Ok(status) => {
                 let said = if errors.trim().is_empty() { reply.trim().to_string() } else { errors.trim().to_string() };
                 let tail: String = said.chars().rev().take(1500).collect::<Vec<_>>().into_iter().rev().collect();
-                Err(crate::i18n::tf!("It stopped without an answer{}.{}", status.code().map_or_else(String::new, |code| format!(", with exit code {code}")), if tail.is_empty() { String::new() } else { format!("\n\nIt said:\n{tail}") }))
+                Err(crate::i18n::tf!("It stopped without an answer{}.{}", status.code().map_or_else(String::new, |code| crate::i18n::tf!(", with exit code {code}")), if tail.is_empty() { String::new() } else { format!("\n\nIt said:\n{tail}") }))
             }
             Err(e) => Err(crate::i18n::tf!("Couldn't wait for it: {e}")),
         };
@@ -374,7 +374,7 @@ impl Limoniter {
     /// Sends some lines to the tool.
     fn send_part(&mut self, task: Task, words: &str, range: Range<usize>) -> Result<(), String> {
         if task.needs_words() && words.trim().is_empty() {
-            return Err(if task == Task::Write { "Say what code to write.".into() } else { "Type the question.".into() });
+            return Err(if task == Task::Write { crate::i18n::tr("Say what code to write.").into() } else { crate::i18n::tr("Type the question.").into() });
         }
         let (tool, line) = self.tool_line()?;
         let doc = &self.docs[self.active];
@@ -444,9 +444,9 @@ impl Limoniter {
         let recent: Vec<String> = crate::git::log(root, None, 8).unwrap_or_default().into_iter().map(|c| c.subject).collect();
         let mut input = String::from("You're helping someone write a Git commit message. Write one for the changes below: a first line of at most 70 characters saying what the change does, in the imperative (\"Fix\", \"Add\"), then, if it helps, a blank line and a few lines saying why. Reply with the message only: no fences, no preamble.\n");
         if !recent.is_empty() {
-            input += &format!("\nThe project's recent commit messages, for its style:\n{}\n", recent.join("\n"));
+            input += &crate::i18n::tf!("\nThe project's recent commit messages, for its style:\n{}\n", recent.join("\n"));
         }
-        input += &format!("\nThe changes:\n```diff\n{changes}\n```\n");
+        input += &crate::i18n::tf!("\nThe changes:\n```diff\n{changes}\n```\n");
         let wake = self.waker.clone();
         let (result, process) = start(&line, Some(root), input, move || {
             if let Some(ctx) = &wake {
@@ -525,7 +525,7 @@ impl Limoniter {
                     // Fences, if it put any, aren't part of the message.
                     let message = if reply.contains("```") { code_from_reply(&reply).join("\n") } else { reply.trim().to_string() };
                     self.git.message = message.trim().to_string();
-                    self.git.said = Some((format!("{} wrote the message: read it over, then Commit", job.tool.name()), false, std::time::Instant::now()));
+                    self.git.said = Some((crate::i18n::tf!("{} wrote the message: read it over, then Commit", job.tool.name()), false, std::time::Instant::now()));
                 }
                 Err(problem) => self.git.said = Some((format!("{}: {problem}", job.tool.name()), true, std::time::Instant::now())),
             }
@@ -576,7 +576,7 @@ impl Limoniter {
             return;
         };
         let seconds = job.started.elapsed().as_secs();
-        let words = format!("{} is working on {}\u{2026} {seconds}s", job.tool.name(), job.task.label().to_lowercase());
+        let words = crate::i18n::tf!("{} is working on {}\u{2026} {seconds}s", job.tool.name(), job.task.label().to_lowercase());
         let mut stop = false;
         egui::Area::new(egui::Id::unique("assistant-note")).order(egui::Order::Foreground).anchor(egui::Align2::RIGHT_BOTTOM, [-24.0, -44.0]).show(ctx, |ui| {
             egui::Frame::popup(ui.style()).inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
@@ -610,8 +610,8 @@ impl Limoniter {
         let rows = diff_rows(&review.old, &review.new);
         let changed = rows.iter().any(|(mark, _)| *mark != ' ');
         egui::Window::new(crate::i18n::tf!("{} suggests", review.tool.name())).collapsible(false).resizable(true).default_size(egui::vec2(760.0, 480.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            let place = if review.old.is_empty() { format!("New code after line {}", review.range.start) } else { format!("Lines {} to {}", review.range.start + 1, review.range.end) };
-            ui.label(RichText::new(if changed { place } else { format!("{place}: it suggests no change") }).color(theme::text_dim()));
+            let place = if review.old.is_empty() { crate::i18n::tf!("New code after line {}", review.range.start) } else { crate::i18n::tf!("Lines {} to {}", review.range.start + 1, review.range.end) };
+            ui.label(RichText::new(if changed { place } else { crate::i18n::tf!("{place}: it suggests no change") }).color(theme::text_dim()));
             ui.add_space(4.0);
             egui::ScrollArea::both().max_height(520.0).auto_shrink([false, true]).show(ui, |ui| {
                 for (mark, line) in &rows {
@@ -682,12 +682,12 @@ impl Limoniter {
                 self.assist_log.add(exchange);
             }
             self.begin_assist(Task::Write);
-            self.assist_panel.words = "A function that returns the cheapest item".into();
+            self.assist_panel.words = crate::i18n::tr("A function that returns the cheapest item").into();
             return;
         }
         if step == "assistant" {
             self.begin_assist(Task::Fix);
-            self.assist_panel.words = "It gives NaN for some lists".into();
+            self.assist_panel.words = crate::i18n::tr("It gives NaN for some lists").into();
         } else {
             let old: Vec<String> = (0..7).map(|at| self.docs[self.active].text.line(at).to_string()).collect();
             let new = ["function total(items) {", "  let sum = 0;", "  for (let i = 0; i < items.length; i++) {", "    sum += items[i].price;", "  }", "  return sum;", "}"].map(String::from).to_vec();
@@ -746,7 +746,7 @@ impl Limoniter {
                     }
                 });
                 if let Some(range) = &range {
-                    let place = if range.is_empty() { format!("the place after line {}", range.start) } else { format!("lines {} to {}", range.start + 1, range.end) };
+                    let place = if range.is_empty() { crate::i18n::tf!("the place after line {}", range.start) } else { format!("lines {} to {}", range.start + 1, range.end) };
                     ui.label(RichText::new(crate::i18n::tf!("Works on {place} of {name}: select some to choose.")).color(theme::text_dim()).size(11.5));
                 }
                 let hint = match panel.task {
@@ -839,7 +839,7 @@ impl Limoniter {
                                 });
                             }
                             State::Failed | State::Stopped => {
-                                let words = if entry.state == State::Stopped { "Stopped before it answered.".to_string() } else { entry.reply.lines().take(6).collect::<Vec<_>>().join("\n") };
+                                let words = if entry.state == State::Stopped { crate::i18n::tr("Stopped before it answered.").to_string() } else { entry.reply.lines().take(6).collect::<Vec<_>>().join("\n") };
                                 ui.add(egui::Label::new(RichText::new(words).color(theme::rainbow_mistake())).wrap());
                             }
                         }
@@ -894,7 +894,7 @@ impl Limoniter {
     /// Goes to the lines an entry was about.
     fn go_to_exchange(&mut self, id: u64) {
         let Some(index) = self.exchange_doc(id) else {
-            return self.message("Assistant", "That file isn't open, and can't be found where it was.".into());
+            return self.message("Assistant", crate::i18n::tr("That file isn't open, and can't be found where it was.").into());
         };
         let start = self.assist_log.entries.iter().find(|e| e.id == id).map_or(0, |e| e.lines.start);
         self.active = index;

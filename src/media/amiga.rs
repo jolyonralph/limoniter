@@ -162,12 +162,12 @@ impl AmigaFs {
         };
         entry.kind = match kind {
             ST_USERDIR => "Folder".into(),
-            ST_LINKDIR => "Folder (hard link)".into(),
-            ST_LINKFILE => "Hard link".into(),
-            ST_SOFTLINK => "Soft link".into(),
-            ST_FILE if name.to_lowercase().ends_with(".info") => "Workbench icon".into(),
+            ST_LINKDIR => crate::i18n::tr("Folder (hard link)").into(),
+            ST_LINKFILE => crate::i18n::tr("Hard link").into(),
+            ST_SOFTLINK => crate::i18n::tr("Soft link").into(),
+            ST_FILE if name.to_lowercase().ends_with(".info") => crate::i18n::tr("Workbench icon").into(),
             ST_FILE => "File".into(),
-            other => format!("Entry type {}", other as i32),
+            other => crate::i18n::tf!("Entry type {}", other as i32),
         };
         // A hard link's size is its target's.
         if kind == ST_LINKFILE
@@ -369,7 +369,7 @@ impl HardDisk {
                 Err(crate::i18n::tr("This partition's geometry runs past the end of the image.").to_string())
             } else {
                 let slice: Arc<dyn Source> = Arc::new(Slice { inner: source.clone(), start, len: length });
-                AmigaFs::open(slice, (sector * sectors_per_block) as usize, &format!("Amiga hard disk (HDF) \u{203A} {name}"))
+                AmigaFs::open(slice, (sector * sectors_per_block) as usize, &crate::i18n::tf!("Amiga hard disk (HDF) \u{203A} {name}"))
             };
             partitions.push((name, opened));
             next = long(&part, 4);
@@ -385,7 +385,7 @@ impl Volume for HardDisk {
     fn describe(&self) -> String {
         match self {
             Self::Partition(fs) => fs.describe(),
-            Self::Disk { partitions } => format!("Amiga hard disk (HDF) \u{B7} {} partition(s)", partitions.len()),
+            Self::Disk { partitions } => crate::i18n::tf!("Amiga hard disk (HDF) \u{B7} {} partition(s)", partitions.len()),
         }
     }
 

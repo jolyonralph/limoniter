@@ -145,13 +145,13 @@ impl Limoniter {
         let text = &self.docs[self.active].text;
         let range = if text.has_selection() { self.lines_to_tag() } else { text.caret_line..text.caret_line + 1 };
         if range.is_empty() || !self.doc().text.untag_lines(range.start, range.end - 1) {
-            self.message("Colour tags", "There's no tag here to take away. Put the cursor in a tagged section first.".into());
+            self.message("Colour tags", crate::i18n::tr("There's no tag here to take away. Put the cursor in a tagged section first.").into());
         }
     }
 
     pub(super) fn go_to_tag(&mut self, next: bool) {
         if !self.doc().text.go_to_tag(next) {
-            self.message("Colour tags", "This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from Edit, Colour tag, or by right-clicking.".into());
+            self.message("Colour tags", crate::i18n::tr("This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from Edit, Colour tag, or by right-clicking.").into());
         }
     }
 

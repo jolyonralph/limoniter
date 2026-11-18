@@ -181,7 +181,7 @@ impl Wrapped {
         for (is_resource, at, length) in [(false, data_at, data), (true, resource_at, resource)] {
             let (at, length) = (at as usize, length as usize);
             if crc16_ccitt(&bytes[at..at + length]) != be(&bytes[at + length..at + length + 2]) as u16 {
-                damaged.push((is_resource, format!("This file's {} fork is damaged: its BinHex CRC doesn't match.", if is_resource { "resource" } else { "data" })));
+                damaged.push((is_resource, crate::i18n::tf!("This file's {} fork is damaged: its BinHex CRC doesn't match.", if is_resource { "resource" } else { "data" })));
             }
         }
         let bytes: Arc<dyn Source> = Arc::new(bytes);

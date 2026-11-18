@@ -56,7 +56,7 @@ impl Gdb {
 
     fn command(&mut self, data: &str) -> Result<String, String> {
         self.send(data)?;
-        self.packet(Duration::from_secs(5))?.ok_or_else(|| "XRoar stopped answering.".to_string())
+        self.packet(Duration::from_secs(5))?.ok_or_else(|| crate::i18n::tr("XRoar stopped answering.").to_string())
     }
 
     /// The 6809's registers: CC, A, B, DP, X, Y, U, S, PC, as XRoar sends them.
@@ -321,7 +321,7 @@ impl Console {
     /// either order, whatever comes in the quiet moment after.
     fn command(&mut self, command: &str) -> Result<Vec<String>, String> {
         self.type_line(command)?;
-        let mut said = self.until_prompt(Duration::from_secs(10))?.ok_or_else(|| "Hatari stopped answering.".to_string())?;
+        let mut said = self.until_prompt(Duration::from_secs(10))?.ok_or_else(|| crate::i18n::tr("Hatari stopped answering.").to_string())?;
         while let Ok(line) = self.lines.recv_timeout(Duration::from_millis(120)) {
             if line != "> " {
                 said.push(line);

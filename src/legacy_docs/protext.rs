@@ -209,21 +209,21 @@ pub fn read(bytes: &[u8]) -> Doc {
     let blocks = b.finish();
     let mut notes = Vec::new();
     if atari {
-        notes.push("Read in the Atari ST's character set, which its accented letters suggest.".into());
+        notes.push(crate::i18n::tr("Read in the Atari ST's character set, which its accented letters suggest.").into());
     }
     if !commands.is_empty() {
-        notes.push(format!("Protext's stored commands for {} aren't carried over.", commands.join(", ")));
+        notes.push(crate::i18n::tf!("Protext's stored commands for {} aren't carried over.", commands.join(", ")));
     }
     if rulers > 0 {
-        notes.push(format!("{rulers} ruler line(s), setting margins and tabs, aren't carried over."));
+        notes.push(crate::i18n::tf!("{rulers} ruler line(s), setting margins and tabs, aren't carried over."));
     }
     if printer_codes > 0 {
-        notes.push(format!("{printer_codes} printer code(s), such as pitch and font changes, aren't carried over."));
+        notes.push(crate::i18n::tf!("{printer_codes} printer code(s), such as pitch and font changes, aren't carried over."));
     }
     if markers > 0 {
-        notes.push(format!("{markers} place and block marker(s) were left out."));
+        notes.push(crate::i18n::tf!("{markers} place and block marker(s) were left out."));
     }
-    Doc { format: if sixteen { "Protext".into() } else { "Protext (CPC)".into() }, blocks, notes }
+    Doc { format: if sixteen { "Protext".into() } else { crate::i18n::tr("Protext (CPC)").into() }, blocks, notes }
 }
 
 /// A line starting >: a stored command, a comment, or a ruler.

@@ -76,7 +76,7 @@ struct Sprite {
 }
 
 fn sprite(data: &[u8], at: usize) -> Result<Sprite, String> {
-    let word = |offset: usize| le32(data, at + offset).ok_or_else(|| "a sprite runs past the end of the file".to_string());
+    let word = |offset: usize| le32(data, at + offset).ok_or_else(|| crate::i18n::tr("a sprite runs past the end of the file").to_string());
     let name: String = data.get(at + 4..at + 16).unwrap_or(&[]).iter().take_while(|&&b| b != 0).map(|&b| char::from(b)).collect();
     let (words, rows, first_bit, last_bit, image, mask, mode) = (word(16)? + 1, word(20)? + 1, word(24)?, word(28)?, word(32)?, word(36)?, word(40)?);
     let (bits, x_eig, y_eig, new_style) = if mode < 256 {
@@ -191,7 +191,7 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         }
     }
     if sprites.is_empty() {
-        return Err(problems.first().map_or_else(|| "This sprite file has no sprites in it.".to_string(), |p| format!("The sprites can't be shown: {p}.")));
+        return Err(problems.first().map_or_else(|| crate::i18n::tr("This sprite file has no sprites in it.").to_string(), |p| crate::i18n::tf!("The sprites can't be shown: {p}.")));
     }
     let mut picture = if sprites.len() == 1 {
         let s = &sprites[0];
@@ -222,7 +222,7 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
                 picture.rgba[to..to + s.width * 4].copy_from_slice(from);
             }
         }
-        picture.note("Size", format!("{width}\u{D7}{height}, a sheet of {} sprites", sprites.len()));
+        picture.note("Size", crate::i18n::tf!("{width}\u{D7}{height}, a sheet of {} sprites", sprites.len()));
         for s in sprites.iter().take(40) {
             picture.note("Sprite", format!("\"{}\": {}", s.name, s.detail));
         }
@@ -231,7 +231,7 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         }
         picture
     };
-    picture.info.insert(1, ("Colours".into(), "RISC OS sprites".into()));
+    picture.info.insert(1, ("Colours".into(), crate::i18n::tr("RISC OS sprites").into()));
     for problem in problems {
         picture.note("Not shown", problem);
     }

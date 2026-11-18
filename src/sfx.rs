@@ -780,7 +780,7 @@ pub fn ayfx_bank(effects: &[Effect]) -> Result<Vec<u8>, String> {
     let table = 1 + 2 * effects.len();
     for (i, effect) in effects.iter().enumerate() {
         let offset = table + body.len() - (1 + 2 * i + 1);
-        out.extend(u16::try_from(offset).map_err(|_| "The bank is more than 64K.".to_string())?.to_le_bytes());
+        out.extend(u16::try_from(offset).map_err(|_| crate::i18n::tr("The bank is more than 64K.").to_string())?.to_le_bytes());
         body.extend(ayfx(&effect.frames));
         body.extend(effect.name.bytes().filter(|b| (32..127).contains(b)));
         body.push(0);
@@ -1016,7 +1016,10 @@ impl Bank {
     }
 
     fn header(&self, comment: &str, lines: &[&str]) -> String {
-        let mut out = format!("{comment} Limoniter sound effects for the {} on the {}: {} effect{}.\n", self.machine.chip().name(), self.machine.name(), self.effects.len(), if self.effects.len() == 1 { "" } else { "s" });
+        let mut out = {
+            let (chip, machine, count) = (self.machine.chip().name(), self.machine.name(), self.effects.len());
+            if count == 1 { crate::i18n::tf!("{comment} Limoniter sound effects for the {chip} on the {machine}: 1 effect.\n") } else { crate::i18n::tf!("{comment} Limoniter sound effects for the {chip} on the {machine}: {count} effects.\n") }
+        };
         for line in lines {
             out.push_str(comment);
             if !line.is_empty() {
@@ -1857,7 +1860,7 @@ pub fn from_source(text: &str, fallback: Machine) -> Result<Bank, String> {
                 let mut effects = Vec::new();
                 for name in &names {
                     let Some(&at) = assembly.symbols.get(&format!("{label}_{}", label_of(name))) else { break };
-                    let from = usize::try_from(at - start).map_err(|_| "An effect is before the data's label.".to_string())?;
+                    let from = usize::try_from(at - start).map_err(|_| crate::i18n::tr("An effect is before the data's label.").to_string())?;
                     let data = bytes.get(from..).ok_or(crate::i18n::tr("An effect is past the data's end."))?;
                     effects.push(if chip == Chip::Sid { read_sid(name, data)? } else { read_beeper(name, data)? });
                 }

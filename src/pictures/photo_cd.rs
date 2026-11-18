@@ -254,11 +254,11 @@ pub fn decode_ycc(data: &[u8]) -> Result<Ycc, String> {
                             (width, height) = (width * 2, height * 2);
                             resolution = "16Base";
                         }
-                        Err(problem) => stopped = Some(format!("16Base couldn't be read ({problem}), so 4Base is shown")),
+                        Err(problem) => stopped = Some(crate::i18n::tf!("16Base couldn't be read ({problem}), so 4Base is shown")),
                     }
                 }
             }
-            Err(problem) => stopped = Some(format!("4Base couldn't be read ({problem}), so Base is shown")),
+            Err(problem) => stopped = Some(crate::i18n::tf!("4Base couldn't be read ({problem}), so Base is shown")),
         }
     }
     let c1 = upsample(&c1, width / 2, height / 2);
@@ -313,7 +313,7 @@ pub fn decode(data: &[u8]) -> Result<Picture, String> {
     }
     picture.note("Size", format!("{}\u{D7}{}", ycc.width, ycc.height));
     picture.note("Colours", "PhotoYCC, shown as RGB");
-    picture.note("Resolution", format!("{} of Base/16 to 16Base", ycc.resolution));
+    picture.note("Resolution", crate::i18n::tf!("{} of Base/16 to 16Base", ycc.resolution));
     let turned = match data[0xE02] & 3 {
         1 => "a quarter turn anticlockwise",
         2 => "upside down",
@@ -321,7 +321,7 @@ pub fn decode(data: &[u8]) -> Result<Picture, String> {
         _ => "",
     };
     if !turned.is_empty() {
-        picture.note("Turned", format!("Scanned on its side; turned {turned}"));
+        picture.note("Turned", crate::i18n::tf!("Scanned on its side; turned {turned}"));
     }
     if let Some(stopped) = ycc.stopped {
         picture.note("Damaged", stopped);

@@ -85,7 +85,7 @@ pub fn variables(peek: &dyn Fn(u16) -> u8) -> Vec<Variable> {
                 let line = word(at + 16);
                 let statement = peek(at + 18);
                 let by = if step == "1" { String::new() } else { format!(" STEP {step}") };
-                found.push(Variable { name: letter.to_string(), value: format!("{value}   (FOR to {limit}{by}, back to line {line}:{statement})") });
+                found.push(Variable { name: letter.to_string(), value: crate::i18n::tf!("{value}   (FOR to {limit}{by}, back to line {line}:{statement})") });
                 at += 19;
             }
             // A string.

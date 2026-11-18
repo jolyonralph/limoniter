@@ -133,7 +133,7 @@ fn full_name(entry: &charset::Entry) -> String {
         return entry.name.clone();
     }
     match (entry.kind, entry.unicode) {
-        (Kind::Undefined, _) => "Not defined in this set".to_string(),
+        (Kind::Undefined, _) => crate::i18n::tr("Not defined in this set").to_string(),
         (_, Some(c)) => charset::char_name(c),
         _ => String::new(),
     }
@@ -430,7 +430,7 @@ fn byte_table(ui: &mut Ui, state: &mut TableState, doc: &DocView<'_>, set: &'sta
 }
 
 fn entry_details(set: &Charset, byte: u8, entry: &charset::Entry) -> String {
-    format!("{} (decimal {byte}, hex {byte:02X})\nUnicode: {}\nType: {}\nIn {}", full_name(entry), unicode_text(entry), type_text(entry), set.name)
+    crate::i18n::tf!("{} (decimal {byte}, hex {byte:02X})\nUnicode: {}\nType: {}\nIn {}", full_name(entry), unicode_text(entry), type_text(entry), set.name)
 }
 
 fn details_box(ui: &mut Ui, state: &TableState, doc: &DocView<'_>, set: &Charset, table_index: usize, caret: &CaretBytes) {
@@ -440,17 +440,17 @@ fn details_box(ui: &mut Ui, state: &TableState, doc: &DocView<'_>, set: &Charset
         let small = |text: String| RichText::new(text).size(11.5);
         if let (Some(byte), Some(entry)) = (state.selected, state.selected.and_then(|byte| set.entry(table_index, byte))) {
             ui.add(egui::Label::new(small(full_name(entry))).truncate());
-            ui.label(small(format!("Dec {byte}  Hex {byte:02X}  {}", unicode_text(entry))));
+            ui.label(small(crate::i18n::tf!("Dec {byte}  Hex {byte:02X}  {}", unicode_text(entry))));
             ui.label(small(type_text(entry).to_string()).color(theme::text_dim()));
         } else if let Some(c) = state.selected_char {
             ui.add(egui::Label::new(small(charset::char_name(c))).truncate());
             let bytes = codec::char_bytes(c, doc.format.charset, 0).unwrap_or_default().iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
-            ui.label(small(format!("U+{:04X}  In this file: {bytes}", c as u32)));
+            ui.label(small(crate::i18n::tf!("U+{:04X}  In this file: {bytes}", c as u32)));
         }
         let at_cursor = if doc.hex_mode { "Byte at cursor" } else { "At cursor" };
         let bytes = caret.bytes.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
         let summary = match (caret.bytes.len(), caret.character) {
-            (0, _) => format!("{at_cursor}: end of line"),
+            (0, _) => crate::i18n::tf!("{at_cursor}: end of line"),
             (1, _) => format!("{at_cursor}: byte {bytes}"),
             (_, Some(c)) => format!("{at_cursor}: {bytes} = one character, U+{:04X}", c as u32),
             _ => format!("{at_cursor}: {bytes}"),

@@ -251,7 +251,7 @@ impl Source {
         let (_, trap) = self.trap_after(line)?;
         let trap = Trap::from_number(trap)?;
         let function = st_tos::function(trap, number)?;
-        Some(format!("The function number for the trap that follows:\n{}", function.describe()))
+        Some(crate::i18n::tf!("The function number for the trap that follows:\n{}", function.describe()))
     }
 
     fn describe_trap(&self, line: usize, here: &Line) -> Option<String> {
@@ -267,25 +267,25 @@ impl Source {
             return Some(st_tos::trap2(d0.flatten()));
         }
         let Some(trap) = Trap::from_number(n) else {
-            return Some(format!("trap #{n}: not one TOS uses for its calls (1 GEMDOS, 2 AES and VDI, 13 BIOS, 14 XBIOS)"));
+            return Some(crate::i18n::tf!("trap #{n}: not one TOS uses for its calls (1 GEMDOS, 2 AES and VDI, 13 BIOS, 14 XBIOS)"));
         };
         let pushes = self.pushes_before(line);
         let Some((first_line, size, what)) = pushes.first() else {
-            return Some(format!("{}\nNo function number is pushed just before it here.", trap.about()));
+            return Some(crate::i18n::tf!("{}\nNo function number is pushed just before it here.", trap.about()));
         };
         let number = (*size == 2).then(|| self.immediate(what)).flatten();
         let Some(number) = number else {
-            return Some(format!("{}\nThe function's number comes from line {} ({what}), which isn't known until it runs.", trap.about(), first_line + 1));
+            return Some(crate::i18n::tf!("{}\nThe function's number comes from line {} ({what}), which isn't known until it runs.", trap.about(), first_line + 1));
         };
         let Some(function) = st_tos::function(trap, number) else {
-            return Some(format!("{} function {number} (${number:02X}): not one Limoniter knows", trap.name()));
+            return Some(crate::i18n::tf!("{} function {number} (${number:02X}): not one Limoniter knows", trap.name()));
         };
         let mut out = function.describe();
         // What the lines above push for each argument, the nearest first.
         let mut lines = Vec::new();
         for (arg, (n, size, what)) in function.args.iter().zip(pushes.iter().skip(1)) {
             let want = if arg.long { 4 } else { 2 };
-            let warning = if *size != want { format!("  (a {}, but it should be a {})", if *size == 4 { "long" } else { "word" }, if want == 4 { "long" } else { "word" }) } else { String::new() };
+            let warning = if *size != want { crate::i18n::tf!("  (a {}, but it should be a {})", if *size == 4 { "long" } else { "word" }, if want == 4 { "long" } else { "word" }) } else { String::new() };
             lines.push(format!("  {}: {what} (line {}){warning}", arg.name, n + 1));
         }
         if !lines.is_empty() {
@@ -293,7 +293,7 @@ impl Source {
             out.push_str(&lines.join("\n"));
         }
         if pushes.len() - 1 < function.args.len() && !function.args.is_empty() {
-            out.push_str(&format!("\n{} of its {} arguments are pushed in the lines just above.", pushes.len() - 1, function.args.len()));
+            out.push_str(&crate::i18n::tf!("\n{} of its {} arguments are pushed in the lines just above.", pushes.len() - 1, function.args.len()));
         }
         Some(out)
     }
@@ -348,7 +348,7 @@ impl Source {
         let writes = at == operands.len() - 1 && operands.len() > 1 || base == "clr";
         if base == "movem" {
             let register = st_hw::at(address)?;
-            return Some(format!("{}\nMOVEM moves a run of registers from here on: {} bytes", st_hw::describe(register), "a long each (.l) or a word each (.w),"));
+            return Some(crate::i18n::tf!("{}\nMOVEM moves a run of registers from here on: {} bytes", st_hw::describe(register), "a long each (.l) or a word each (.w),"));
         }
         // The bytes written, and each register they reach.
         let mut said = Vec::new();
@@ -384,7 +384,7 @@ impl Source {
                 let chosen = if size == 4 && address == 0xFF8800 { Some((v >> 24) as u8 & 15) } else { self.ym_selected(line) };
                 said.push(match chosen {
                     Some(r) => format!("{}\nYM register {r} ({}) = ${byte:02X}: {}", register.heading(), st_hw::YM[r as usize].name, st_hw::explain_ym(r, byte)),
-                    None => format!("{}\n${byte:02X} to the YM register chosen at $FF8800 (which isn't known here)", register.heading()),
+                    None => crate::i18n::tf!("{}\n${byte:02X} to the YM register chosen at $FF8800 (which isn't known here)", register.heading()),
                 });
                 continue;
             }

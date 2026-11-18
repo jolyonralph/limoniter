@@ -33,20 +33,32 @@ fn word_starts(line: &str, word: &str) -> Vec<usize> {
     found
 }
 
+/// How many lines of a definition the peek window shows.
+const PEEK_LINES: usize = 16;
+
+/// A definition peeked at: its name, where it is, and its lines from the first shown.
+pub(super) struct Peek {
+    name: String,
+    pub file: PathBuf,
+    pub line: usize,
+    first: usize,
+    lines: Vec<String>,
+}
+
 impl Limoniter {
     /// The label at the cursor, in full and as written, with what's known about the code, brought up to date first.
     fn label_at_cursor(&mut self, what: &str) -> Option<(String, String, crate::code_intel::CodeIntel)> {
         self.refresh_intel();
         let doc = &self.docs[self.active];
         let Some(intel) = doc.text.intel.as_deref().filter(|i| i.assembly.is_some()) else {
-            self.message(what, "This works in Z80, 6502, 6809 and 68000 source.".into());
+            self.message(what, crate::i18n::tr("This works in Z80, 6502, 6809 and 68000 source.").into());
             return None;
         };
         let (line, col) = (doc.text.caret_line, doc.text.caret_col);
         let text = doc.text.line(line);
         let found = intel.symbol_at(line, &text, col).zip(crate::code_intel::word_at(&text, col).map(|w| w.2));
         let Some((name, written)) = found else {
-            self.message(what, "Put the cursor on a label first.".into());
+            self.message(what, crate::i18n::tr("Put the cursor on a label first.").into());
             return None;
         };
         Some((name, written.trim_end_matches(':').to_string(), intel.clone()))
@@ -66,15 +78,118 @@ impl Limoniter {
         intel.assembly.as_ref().and_then(|a| a.files.get(place.file)).map(|f| f.display().to_string()).unwrap_or_default()
     }
 
+    /// Where the word at the cursor is defined, going by name alone: a function or label of that name in this file's
+    /// outline, or else among the open folder's symbols. For files with neither Limoniter's assembler nor a language
+    /// server.
+    fn definition_by_name(&self) -> Option<(String, PathBuf, usize)> {
+        let doc = self.docs.get(self.active)?;
+        let word = crate::code_intel::word_at(&doc.text.line(doc.text.caret_line), doc.text.caret_col)?.2;
+        let here = self.outline.symbols.iter().find(|(_, name)| *name == word).filter(|_| self.outline_of_front()).map(|(line, _)| (doc.path.clone().unwrap_or_else(|| PathBuf::from(&doc.untitled)), *line));
+        let found = here.or_else(|| self.symbols.found.iter().find_map(|(path, (_, symbols))| symbols.iter().find(|(_, name)| *name == word).map(|(line, _)| (path.clone(), *line))))?;
+        Some((word, found.0, found.1))
+    }
+
+    /// Whether the file in front has been assembled, so its labels are known.
+    fn assembled_in_front(&mut self) -> bool {
+        self.refresh_intel();
+        self.docs.get(self.active).and_then(|d| d.text.intel.as_ref()).is_some_and(|i| i.assembly.is_some())
+    }
+
+    /// Where the word at the cursor is defined, however that's found: its name, file and line.
+    fn definition_here(&mut self, what: &str) -> Option<(String, PathBuf, usize)> {
+        if self.doc_cpu(self.active).is_none() {
+            if self.has_lsp() {
+                let (result, _) = self.lsp_ask_here("textDocument/definition", what)?;
+                let doc = &self.docs[self.active];
+                let word = crate::code_intel::word_at(&doc.text.line(doc.text.caret_line), doc.text.caret_col).map(|w| w.2).unwrap_or_default();
+                let Some(place) = crate::lsp::locations(&result).into_iter().next() else {
+                    self.message(what, crate::i18n::tr("The language server doesn't know where that's defined.").into());
+                    return None;
+                };
+                return Some((word, place.path, place.line));
+            }
+            if let Some(found) = self.definition_by_name() {
+                return Some(found);
+            }
+        }
+        // Source that isn't assembled (no CPU chosen, or it doesn't assemble) goes by name.
+        if !self.assembled_in_front()
+            && let Some(found) = self.definition_by_name()
+        {
+            return Some(found);
+        }
+        let (name, _, intel) = self.label_at_cursor(what)?;
+        match intel.definition(&name).cloned() {
+            Some(place) => Some((name, PathBuf::from(Self::place_file(&intel, &place)), place.line)),
+            // Not in what's assembled with it: a label of that name elsewhere in the folder.
+            None => self.definition_by_name().or_else(|| {
+                self.message(what, crate::i18n::tf!("{name} isn't defined anywhere Limoniter's assembler can see."));
+                None
+            }),
+        }
+    }
+
+    /// Shows where the word at the cursor is defined, a few lines of it, in a window over the text (Alt+F12).
+    pub(super) fn peek_definition(&mut self) {
+        let Some((name, file, line)) = self.definition_here("Peek definition") else { return };
+        let first = line.saturating_sub(3);
+        let shown = file.display().to_string();
+        let lines: Vec<String> = (first..first + PEEK_LINES).map_while(|n| self.line_of_file(&shown, n)).collect();
+        if lines.is_empty() {
+            return self.message("Peek definition", crate::i18n::tf!("{shown} can't be read."));
+        }
+        self.peek = Some(Peek { name, file, line, first, lines });
+    }
+
+    /// The peek window: the definition's lines, the line itself marked. Open goes there; Escape closes it.
+    pub(super) fn peek_window(&mut self, ctx: &Context) {
+        let Some(peek) = &self.peek else { return };
+        let (mut close, mut open) = (ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)), false);
+        let title = format!("{} \u{2014} {}:{}", peek.name, peek.file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), peek.line + 1);
+        egui::Window::new(title).id(egui::Id::unique("peek-definition")).collapsible(false).resizable(true).default_width(640.0).anchor(egui::Align2::CENTER_TOP, [0.0, 120.0]).show(ctx, |ui| {
+            let font = egui::FontId::monospace(self.view.font_size * 0.9);
+            egui::ScrollArea::both().max_height(320.0).show(ui, |ui| {
+                for (n, text) in peek.lines.iter().enumerate() {
+                    let number = peek.first + n;
+                    let words = RichText::new(format!("{:>5}  {}", number + 1, crate::text_buffer::expand_tabs(text))).font(font.clone());
+                    let words = if number == peek.line { words.background_color(theme::selected()).color(theme::text()) } else { words.color(theme::text_dim()) };
+                    ui.add(egui::Label::new(words).wrap_mode(egui::TextWrapMode::Extend));
+                }
+            });
+            ui.horizontal(|ui| {
+                open = ui.button(crate::i18n::tr("Open it")).clicked();
+                close |= ui.button(crate::i18n::tr("Close")).clicked();
+            });
+        });
+        if open {
+            let peek = self.peek.take().unwrap();
+            self.go_to_place(&peek.file.display().to_string(), peek.line + 1);
+            self.pending_focus = true;
+        } else if close {
+            self.peek = None;
+            self.pending_focus = true;
+        }
+    }
+
     /// Goes to where the label at the cursor is defined, in whichever file that is.
     pub(super) fn go_to_definition(&mut self) {
         if self.doc_cpu(self.active).is_none() && self.has_lsp() {
             return self.lsp_go_to_definition();
         }
+        // By name, for a file Limoniter's assembler doesn't follow.
+        if (self.doc_cpu(self.active).is_none() || !self.assembled_in_front())
+            && let Some((_, file, line)) = self.definition_by_name()
+        {
+            self.go_to_place(&file.display().to_string(), line + 1);
+            return;
+        }
         let Some((name, _, intel)) = self.label_at_cursor("Go to definition") else {
             return;
         };
         let Some(place) = intel.definition(&name).cloned() else {
+            if let Some((_, file, line)) = self.definition_by_name() {
+                return self.go_to_place(&file.display().to_string(), line + 1);
+            }
             return self.message("Go to definition", crate::i18n::tf!("{name} isn't defined anywhere Limoniter's assembler can see."));
         };
         let file = Self::place_file(&intel, &place);
@@ -158,7 +273,7 @@ impl Limoniter {
             let local = state.written.chars().next().filter(|c| matches!(c, '.' | '@' | '_') && state.written.len() > 1);
             let valid = !new.is_empty() && new.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '@' | '?')) && !new.starts_with(|c: char| c.is_ascii_digit());
             if !valid {
-                state.error = "A label is letters, digits and _, and doesn't start with a digit.".into();
+                state.error = crate::i18n::tr("A label is letters, digits and _, and doesn't start with a digit.").into();
                 return true;
             }
             if !state.name.is_empty() && local.is_some() != new.starts_with(['.', '@']) && local != Some('_') {

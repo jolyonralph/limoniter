@@ -265,10 +265,14 @@ pub fn parse_offsets(said: &str) -> Vec<u32> {
 /// Why it stopped, from a stop reply, when it's more than a breakpoint, a step or a pause.
 pub fn stop_reason(reply: &str) -> Option<String> {
     if let Some(rest) = reply.strip_prefix("T05") {
-        for (kind, words) in [("watch", "a write to"), ("rwatch", "a read of"), ("awatch", "an access to")] {
+        for kind in ["watch", "rwatch", "awatch"] {
             if let Some(address) = rest.strip_prefix(kind).and_then(|r| r.strip_prefix(':')) {
                 let address = address.split(';').next().and_then(|a| u32::from_str_radix(a, 16).ok()).unwrap_or(0);
-                return Some(format!("Stopped after {words} ${address:08X}"));
+                return Some(match kind {
+                    "watch" => crate::i18n::tf!("Stopped after a write to ${address:08X}"),
+                    "rwatch" => crate::i18n::tf!("Stopped after a read of ${address:08X}"),
+                    _ => crate::i18n::tf!("Stopped after an access to ${address:08X}"),
+                });
             }
         }
         return None;
@@ -276,12 +280,12 @@ pub fn stop_reason(reply: &str) -> Option<String> {
     let signal = reply.get(1..3).and_then(|s| u8::from_str_radix(s, 16).ok())?;
     match signal {
         2 | 5 => None,
-        4 => Some("Stopped at an illegal instruction".into()),
-        7 => Some("Stopped at TRAP #7".into()),
-        8 => Some("Stopped by an arithmetic exception, such as a division by zero".into()),
-        10 => Some("Stopped by an address error: a word or long at an odd address".into()),
-        11 => Some("Stopped by a read or write of address 0".into()),
-        other => Some(format!("Stopped by an exception (signal {other})")),
+        4 => Some(crate::i18n::tr("Stopped at an illegal instruction").into()),
+        7 => Some(crate::i18n::tr("Stopped at TRAP #7").into()),
+        8 => Some(crate::i18n::tr("Stopped by an arithmetic exception, such as a division by zero").into()),
+        10 => Some(crate::i18n::tr("Stopped by an address error: a word or long at an odd address").into()),
+        11 => Some(crate::i18n::tr("Stopped by a read or write of address 0").into()),
+        other => Some(crate::i18n::tf!("Stopped by an exception (signal {other})")),
     }
 }
 
@@ -686,7 +690,7 @@ impl Session<'_> {
                     if self.program.to_source(&self.bases, now).is_none() {
                         // Into the ROM or a library: back out to the instruction after the call.
                         let Some(length) = call else {
-                            return Ok(Some(self.stop(Some("Stepped out of the program".into()), true)?));
+                            return Ok(Some(self.stop(Some(crate::i18n::tr("Stepped out of the program").into()), true)?));
                         };
                         match self.run_back_to(pc.wrapping_add(length), registers[A7])? {
                             None => return Ok(None),
@@ -707,7 +711,7 @@ impl Session<'_> {
                 return Ok(Some(self.stop(None, true)?));
             }
             if steps >= 2000 || began.elapsed() > Duration::from_secs(8) {
-                return Ok(Some(self.stop(Some(format!("Stepped {steps} instructions without reaching another line")), true)?));
+                return Ok(Some(self.stop(Some(crate::i18n::tf!("Stepped {steps} instructions without reaching another line")), true)?));
             }
         }
     }
@@ -747,7 +751,7 @@ pub fn talk(port: u16, program: Program, breakpoints: Vec<i64>, asked: &Receiver
         }
     }
     if session.bases.len() < session.program.hunks.len() {
-        session.say(Told::Problem(format!("The emulator gave {} hunk addresses for a program of {}: only the first {} can be debugged.", session.bases.len(), session.program.hunks.len(), session.bases.len())));
+        session.say(Told::Problem(crate::i18n::tf!("The emulator gave {} hunk addresses for a program of {}: only the first {} can be debugged.", session.bases.len(), session.program.hunks.len(), session.bases.len())));
     }
     session.apply()?;
     // At its first instruction now: on to the first breakpoint, unless that's it.

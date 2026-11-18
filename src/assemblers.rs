@@ -14,10 +14,14 @@ pub enum Cpu {
     M6502,
     M6809,
     M68k,
+    /// The x86, from the 8086 to the 386 and on, in NASM's syntax.
+    X86,
+    /// The Archimedes' ARM (ARM2 and ARM3), in Acorn's syntax.
+    Arm,
 }
 
 impl Cpu {
-    pub const ALL: [Cpu; 4] = [Cpu::Z80, Cpu::M6502, Cpu::M6809, Cpu::M68k];
+    pub const ALL: [Cpu; 6] = [Cpu::Z80, Cpu::M6502, Cpu::M6809, Cpu::M68k, Cpu::X86, Cpu::Arm];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -25,6 +29,8 @@ impl Cpu {
             Cpu::M6502 => "6502",
             Cpu::M6809 => "6809",
             Cpu::M68k => "68000",
+            Cpu::X86 => "x86",
+            Cpu::Arm => "ARM",
         }
     }
 
@@ -34,6 +40,8 @@ impl Cpu {
             Cpu::M6502 => "6502",
             Cpu::M6809 => "6809",
             Cpu::M68k => "68000",
+            Cpu::X86 => "x86",
+            Cpu::Arm => "arm",
         }
     }
 
@@ -44,6 +52,8 @@ impl Cpu {
             "Assembly 6502" => Some(Cpu::M6502),
             "Assembly 6809" => Some(Cpu::M6809),
             "Assembly 680x0" => Some(Cpu::M68k),
+            "Assembly 80x86" => Some(Cpu::X86),
+            "Assembly ARM (ARM2 and ARM3)" => Some(Cpu::Arm),
             _ => None,
         }
     }
@@ -54,6 +64,8 @@ impl Cpu {
             Cpu::M6502 => &asm::m6502::M6502,
             Cpu::M6809 => &asm::m6809::M6809,
             Cpu::M68k => &asm::m68k::M68k,
+            Cpu::X86 => &asm::x86::X86,
+            Cpu::Arm => &asm::arm::Arm,
         }
     }
 }
@@ -111,7 +123,7 @@ pub enum Choice {
 impl Choice {
     pub fn name(&self) -> String {
         match self {
-            Choice::Own => "Limoniter's own".into(),
+            Choice::Own => crate::i18n::tr("Limoniter's own").into(),
             Choice::Program { id, path } => format!("{} ({})", external(id).map_or(*id, |e| e.name), path.display()),
         }
     }
@@ -302,7 +314,7 @@ fn sjasmplus(program: &Path, source: &Path, work: &Path) -> Result<Assembled, St
             assembly.chunks = vec![asm::Chunk { address: low, bytes: bytes.to_vec() }];
         }
     } else if assembly.problems.is_empty() {
-        assembly.problems.push(Problem { file: 0, line: 0, message: "sjasmplus didn't save the memory it assembled".into() });
+        assembly.problems.push(Problem { file: 0, line: 0, message: crate::i18n::tr("sjasmplus didn't save the memory it assembled").into() });
     }
     assembly.entry = ["start", "main", "begin", "entry"].iter().find_map(|name| assembly.symbols.iter().find(|(label, _)| label.eq_ignore_ascii_case(name)).map(|(_, v)| *v));
     assembly.device = text.lines().find_map(|line| {
@@ -430,7 +442,7 @@ fn pasmo(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String
     let mut lines = printed.iter().peekable();
     while let Some(line) = lines.next() {
         if let Some((file, number, _)) = problem_line(line) {
-            let message = lines.peek().and_then(|next| next.strip_prefix("ERROR:")).map(|m| m.trim().to_string()).unwrap_or_else(|| "pasmo found a problem here".into());
+            let message = lines.peek().and_then(|next| next.strip_prefix("ERROR:")).map(|m| m.trim().to_string()).unwrap_or_else(|| crate::i18n::tr("pasmo found a problem here").into());
             let file = file_index(&mut assembly, &file, source);
             assembly.problems.push(Problem { file, line: number.saturating_sub(1), message });
         }

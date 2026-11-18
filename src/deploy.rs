@@ -89,11 +89,11 @@ impl Place {
             Place::Folder { path } => path.display().to_string(),
             Place::Sftp { address, .. } => address.clone(),
             Place::Ftp { host, port, user, folder } => format!("ftp://{}{host}{}/{}", if user.is_empty() { String::new() } else { format!("{user}@") }, if *port == 21 { String::new() } else { format!(":{port}") }, folder.trim_start_matches('/')),
-            Place::NextSync { folder } => format!("Next, {folder} (by .sync)"),
-            Place::Ultimate { host } => format!("Ultimate at {host}"),
+            Place::NextSync { folder } => crate::i18n::tf!("Next, {folder} (by .sync)"),
+            Place::Ultimate { host } => crate::i18n::tf!("Ultimate at {host}"),
             Place::Command { line } => line.clone(),
             Place::Emulator { emulator, program, .. } => format!("{}, {}", crate::emulators::by_id(emulator).map_or(emulator.as_str(), |e| e.name), program.display()),
-            Place::NextCable { port } => format!("Next on {port} (debug cable)"),
+            Place::NextCable { port } => crate::i18n::tf!("Next on {port} (debug cable)"),
         }
     }
 
@@ -162,17 +162,17 @@ impl Device {
     /// What stands in the way of using it as it's filled in, if anything.
     pub fn problem(&self) -> Option<String> {
         if self.name.trim().is_empty() {
-            return Some("Give it a name.".into());
+            return Some(crate::i18n::tr("Give it a name.").into());
         }
         match &self.place {
-            Place::Card { label, .. } if label.trim().is_empty() => Some("Say which card: its volume label.".into()),
-            Place::Folder { path } if path.as_os_str().is_empty() => Some("Choose the folder.".into()),
+            Place::Card { label, .. } if label.trim().is_empty() => Some(crate::i18n::tr("Say which card: its volume label.").into()),
+            Place::Folder { path } if path.as_os_str().is_empty() => Some(crate::i18n::tr("Choose the folder.").into()),
             Place::Sftp { address, .. } => crate::remote::parse_url(address).err(),
-            Place::Ftp { host, .. } | Place::Ultimate { host } if host.trim().is_empty() => Some("Say which machine: its name or address.".into()),
-            Place::Command { line } if !line.contains("{file}") => Some("The command line needs {file} where the file goes.".into()),
-            Place::Emulator { emulator, .. } if crate::emulators::by_id(emulator).is_none() => Some("Choose which emulator it is.".into()),
-            Place::Emulator { program, .. } if !program.is_file() => Some("Choose the emulator's program: where it's installed.".into()),
-            Place::NextCable { port } if port.trim().is_empty() => Some("Say which serial port the cable is on (COM8, /dev/ttyUSB0), or host:port for dezogif over Wi-Fi.".into()),
+            Place::Ftp { host, .. } | Place::Ultimate { host } if host.trim().is_empty() => Some(crate::i18n::tr("Say which machine: its name or address.").into()),
+            Place::Command { line } if !line.contains("{file}") => Some(crate::i18n::tr("The command line needs {file} where the file goes.").into()),
+            Place::Emulator { emulator, .. } if crate::emulators::by_id(emulator).is_none() => Some(crate::i18n::tr("Choose which emulator it is.").into()),
+            Place::Emulator { program, .. } if !program.is_file() => Some(crate::i18n::tr("Choose the emulator's program: where it's installed.").into()),
+            Place::NextCable { port } if port.trim().is_empty() => Some(crate::i18n::tr("Say which serial port the cable is on (COM8, /dev/ttyUSB0), or host:port for dezogif over Wi-Fi.").into()),
             _ => None,
         }
     }
@@ -182,10 +182,10 @@ impl Device {
 pub fn name_problem(name: &str) -> Option<String> {
     let name = name.trim();
     if name.is_empty() || name == "." || name == ".." {
-        return Some("Give the file a name.".into());
+        return Some(crate::i18n::tr("Give the file a name.").into());
     }
     if let Some(c) = name.chars().find(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()) {
-        return Some(format!("A file name can't have \u{201C}{}\u{201D} in it.", c.escape_default()));
+        return Some(crate::i18n::tf!("A file name can't have \u{201C}{}\u{201D} in it.", c.escape_default()));
     }
     None
 }
@@ -431,7 +431,7 @@ pub fn stamp_of_file(path: &Path) -> Option<Stamp> {
 /// Writes into a folder under a temporary name, flushes it to the card, then renames it into place.
 /// `expected` is the file there when this was last sent, if it was; a different one is left alone unless `force`.
 pub fn write_into(folder: &Path, name: &str, payload: &Payload, expected: Option<Option<Stamp>>, force: bool, done: &AtomicU64, stop: &AtomicBool) -> Result<Stamp, Failure> {
-    std::fs::create_dir_all(folder).map_err(|e| Failure::Failed(format!("Couldn't make the folder {}.\n\n{e}", folder.display())))?;
+    std::fs::create_dir_all(folder).map_err(|e| Failure::Failed(crate::i18n::tf!("Couldn't make the folder {}.\n\n{e}", folder.display())))?;
     let target = folder.join(name);
     if !force {
         let there = stamp_of_file(&target);
@@ -459,9 +459,9 @@ pub fn write_into(folder: &Path, name: &str, payload: &Payload, expected: Option
     })();
     if let Err(problem) = result {
         let _ = std::fs::remove_file(&temp);
-        return Err(Failure::Failed(format!("Couldn't write {}.\n\n{problem}", target.display())));
+        return Err(Failure::Failed(crate::i18n::tf!("Couldn't write {}.\n\n{problem}", target.display())));
     }
-    stamp_of_file(&target).ok_or_else(|| Failure::Failed(format!("{} isn't there after writing it.", target.display())))
+    stamp_of_file(&target).ok_or_else(|| Failure::Failed(crate::i18n::tf!("{} isn't there after writing it.", target.display())))
 }
 
 /// Why a send didn't happen.
@@ -564,7 +564,7 @@ impl Ftp {
         let port = match self.command("EPSV", &[229]) {
             Ok(text) => {
                 let inside = text.split('(').nth(1).and_then(|rest| rest.split(')').next()).ok_or(crate::i18n::tr("The server's passive reply couldn't be read."))?;
-                inside.trim_matches('|').parse::<u16>().map_err(|_| "The server's passive reply couldn't be read.".to_string())?
+                inside.trim_matches('|').parse::<u16>().map_err(|_| crate::i18n::tr("The server's passive reply couldn't be read.").to_string())?
             }
             Err(_) => {
                 let text = self.command("PASV", &[227])?;
@@ -595,7 +595,7 @@ impl Ftp {
 
 fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, String> {
     let addresses: Vec<_> = (host.trim(), port).to_socket_addrs().map_err(|e| crate::i18n::tf!("Couldn't find {host}.\n\n{e}"))?.collect();
-    let mut last = format!("Couldn't find {host}.");
+    let mut last = crate::i18n::tf!("Couldn't find {host}.");
     for address in addresses {
         match TcpStream::connect_timeout(&address, TIMEOUT) {
             Ok(stream) => {
@@ -603,7 +603,7 @@ fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, String> {
                 stream.set_write_timeout(Some(TIMEOUT)).ok();
                 return Ok(stream);
             }
-            Err(e) => last = format!("Couldn't connect to {host}.\n\n{e}"),
+            Err(e) => last = crate::i18n::tf!("Couldn't connect to {host}.\n\n{e}"),
         }
     }
     Err(last)
@@ -679,7 +679,7 @@ pub fn ultimate_send(host: &str, password: &str, name: &str, payload: &Payload, 
     let body = answer.split_once("\r\n\r\n").map_or("", |(_, body)| body);
     let errors: Vec<String> = serde_json::from_str::<serde_json::Value>(body.trim()).ok().and_then(|json| json.get("errors").and_then(|e| e.as_array()).map(|list| list.iter().filter_map(|e| e.as_str().map(str::to_string)).collect())).unwrap_or_default();
     match status {
-        200..=299 if errors.is_empty() => Ok(if as_form { format!("{name} is in drive A.") } else { format!("{name} has started.") }),
+        200..=299 if errors.is_empty() => Ok(if as_form { crate::i18n::tf!("{name} is in drive A.") } else { format!("{name} has started.") }),
         403 => Err(crate::i18n::tf!("{host} wants its network password. Edit the device to give it.")),
         404 => Err(crate::i18n::tf!("{host} doesn't know this request. Its firmware may be older than 3.11, which added it.")),
         _ => Err(crate::i18n::tf!("{host} didn't do it.\n\n{}", if errors.is_empty() { answer.lines().next().unwrap_or_default().to_string() } else { errors.join("\n") })),
@@ -864,7 +864,7 @@ fn serve_next(mut stream: TcpStream, shared: &Mutex<NextShared>, stop: &AtomicBo
     let mut last = Vec::new();
     let mut fetched: Vec<(String, u64)> = Vec::new();
     let mut buffer = [0u8; 1024];
-    lock(shared).status = "The Next is fetching\u{2026}".into();
+    lock(shared).status = crate::i18n::tr("The Next is fetching\u{2026}").into();
     while !stop.load(Ordering::Relaxed) {
         let n = match stream.read(&mut buffer) {
             Ok(0) => break,
@@ -900,7 +900,7 @@ fn serve_next(mut stream: TcpStream, shared: &Mutex<NextShared>, stop: &AtomicBo
                     number = 0;
                     fetched.push((file.path.clone(), file.number));
                     next_file += 1;
-                    lock(shared).status = format!("The Next is fetching {}", file.path);
+                    lock(shared).status = crate::i18n::tf!("The Next is fetching {}", file.path);
                     next_packet(&header, 0)
                 }
             },
@@ -930,7 +930,7 @@ fn serve_next(mut stream: TcpStream, shared: &Mutex<NextShared>, stop: &AtomicBo
         last = packet;
     }
     let mut shared = lock(shared);
-    shared.status = if shared.waiting.is_empty() { String::new() } else { format!("{} file(s) waiting for .sync on the Next", shared.waiting.len()) };
+    shared.status = if shared.waiting.is_empty() { String::new() } else { crate::i18n::tf!("{} file(s) waiting for .sync on the Next", shared.waiting.len()) };
     Ok(())
 }
 
@@ -981,7 +981,7 @@ fn run_command(line: &str, file: &Path) -> Result<String, String> {
             return if status.success() { Ok(said) } else { Err(crate::i18n::tf!("The command line failed ({status}).\n\n{said}")) };
         }
         if began.elapsed() > Duration::from_secs(5) {
-            return Ok("It's still running.".into());
+            return Ok(crate::i18n::tr("It's still running.").into());
         }
         std::thread::sleep(Duration::from_millis(50));
     }
@@ -1044,7 +1044,7 @@ impl Job {
         let (done, stop, result) = (Arc::new(AtomicU64::new(0)), Arc::new(AtomicBool::new(false)), Arc::new(Mutex::new(None)));
         let (worker, worker_done, worker_stop, worker_result) = (sending.clone(), done.clone(), stop.clone(), result.clone());
         std::thread::spawn(move || {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| perform(&worker, &worker_done, &worker_stop))).unwrap_or_else(|_| Outcome::Failed(Failure::Failed("It failed unexpectedly.".into())));
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| perform(&worker, &worker_done, &worker_stop))).unwrap_or_else(|_| Outcome::Failed(Failure::Failed(crate::i18n::tr("It failed unexpectedly.").into())));
             *lock(&worker_result) = Some(outcome);
         });
         Job { doc_id, sending, done, total, stop, result }
@@ -1073,7 +1073,7 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
     match &s.device.place {
         Place::Card { label, folder } => {
             let Some(drive) = find_card(label) else {
-                return failed(format!("The card \u{201C}{label}\u{201D} isn't plugged in."));
+                return failed(crate::i18n::tf!("The card \u{201C}{label}\u{201D} isn't plugged in."));
             };
             let into = drive.root.join(folder.trim_start_matches(['/', '\\']));
             match write_into(&into, &s.name, &s.payload, s.expected, s.force, done, stop) {
@@ -1081,8 +1081,8 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
                     let place = into.join(&s.name).display().to_string();
                     let note = if s.device.eject {
                         match eject(&drive) {
-                            Ok(()) => format!("The card {label} can be taken out."),
-                            Err(problem) => format!("The file is written, but the card couldn't be ejected: {problem}"),
+                            Ok(()) => crate::i18n::tf!("The card {label} can be taken out."),
+                            Err(problem) => crate::i18n::tf!("The file is written, but the card couldn't be ejected: {problem}"),
                         }
                     } else {
                         String::new()
@@ -1113,7 +1113,7 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
                 Payload::Bytes(bytes) => {
                     let local = s.scratch.join(&s.name);
                     if let Err(e) = std::fs::create_dir_all(&s.scratch).and_then(|()| std::fs::write(&local, bytes.as_slice())) {
-                        return failed(format!("Couldn't make the copy to send.\n\n{e}"));
+                        return failed(crate::i18n::tf!("Couldn't make the copy to send.\n\n{e}"));
                     }
                     local
                 }
@@ -1134,15 +1134,15 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
         }
         Place::Ftp { host, port, user, folder } => match ftp_send(host, *port, user, &s.password, folder, &s.name, &s.payload, done, stop) {
             Ok(()) => sent(None, String::new(), format!("{host}, {}", next_path(folder, &s.name))),
-            Err(problem) => failed(format!("Couldn't send it to {host} by FTP.\n\n{problem}")),
+            Err(problem) => failed(crate::i18n::tf!("Couldn't send it to {host} by FTP.\n\n{problem}")),
         },
         Place::Ultimate { host } => match ultimate_send(host, &s.password, &s.name, &s.payload, done) {
             Ok(note) => sent(None, note, host.clone()),
             Err(problem) => failed(problem),
         },
-        Place::NextSync { .. } => failed("The Next fetches files itself; they aren't sent from here.".into()),
-        Place::Emulator { .. } => failed("Programs are run on an emulator rather than sent to it.".into()),
-        Place::NextCable { .. } => failed("A Next on the debug cable runs assembled programs from Run on machine (F9); files aren't sent to it. Use NextSync for that.".into()),
+        Place::NextSync { .. } => failed(crate::i18n::tr("The Next fetches files itself; they aren't sent from here.").into()),
+        Place::Emulator { .. } => failed(crate::i18n::tr("Programs are run on an emulator rather than sent to it.").into()),
+        Place::NextCable { .. } => failed(crate::i18n::tr("A Next on the debug cable runs assembled programs from Run on machine (F9); files aren't sent to it. Use NextSync for that.").into()),
         Place::Command { line } => {
             let file = s.scratch.join(&s.name);
             let written = std::fs::create_dir_all(&s.scratch).and_then(|()| match &s.payload {
@@ -1150,7 +1150,7 @@ fn perform(s: &Sending, done: &AtomicU64, stop: &AtomicBool) -> Outcome {
                 Payload::File(path) => std::fs::copy(path, &file).map(|_| ()),
             });
             if let Err(e) = written {
-                return failed(format!("Couldn't make the copy for the command line.\n\n{e}"));
+                return failed(crate::i18n::tf!("Couldn't make the copy for the command line.\n\n{e}"));
             }
             done.store(s.payload.len(), Ordering::Relaxed);
             match run_command(line, &file) {

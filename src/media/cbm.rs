@@ -157,7 +157,7 @@ impl Volume for Disk {
     }
 
     fn notes(&self) -> Vec<String> {
-        vec!["Sizes are the directory's, in 254-byte blocks; a file opened has its exact length.".into()]
+        vec![crate::i18n::tr("Sizes are the directory's, in 254-byte blocks; a file opened has its exact length.").into()]
     }
 }
 
@@ -210,7 +210,7 @@ impl Tape {
 
 impl Volume for Tape {
     fn describe(&self) -> String {
-        format!("Commodore tape archive (T64) \u{B7} {}", if self.name.is_empty() { "no name" } else { &self.name })
+        crate::i18n::tf!("Commodore tape archive (T64) \u{B7} {}", if self.name.is_empty() { "no name" } else { &self.name })
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {

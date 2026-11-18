@@ -81,10 +81,10 @@ fn z88(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
     let banks = usize::from(top[0x3FFC]).max(1);
     let mut notes = Vec::new();
     if banks * BANK != bytes.len() {
-        notes.push(format!("The card says it's {} banks ({}K), and the image is {}K.", banks, banks * 16, bytes.len() / 1024));
+        notes.push(crate::i18n::tf!("The card says it's {} banks ({}K), and the image is {}K.", banks, banks * 16, bytes.len() / 1024));
     }
     if &top[0x3FFE..] == b"OZ" {
-        notes.push("This is an application card: its applications are found by the Z88's own structures, which aren't read here. Its bytes can be seen in hex.".into());
+        notes.push(crate::i18n::tr("This is an application card: its applications are found by the Z88's own structures, which aren't read here. Its bytes can be seen in hex.").into());
         return Ok((Kind::Z88Applications { banks }, notes));
     }
     if &top[0x3FFE..] != b"oz" {
@@ -98,7 +98,7 @@ fn z88(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
     while at < end && bytes[at] != 0xFF {
         let name_length = usize::from(bytes[at]);
         if name_length < 2 || at + 1 + name_length + 4 > end {
-            notes.push(format!("The files stop making sense at byte &{at:X}, so the list stops there."));
+            notes.push(crate::i18n::tf!("The files stop making sense at byte &{at:X}, so the list stops there."));
             break;
         }
         let name_bytes = &bytes[at + 1..at + 1 + name_length];
@@ -108,7 +108,7 @@ fn z88(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
         let length = u32::from_le_bytes([bytes[length_at], bytes[length_at + 1], bytes[length_at + 2], bytes[length_at + 3]]) as usize;
         let start = length_at + 4;
         if start + length > end {
-            notes.push(format!("{name} says it's {length} bytes, more than the card has left, so the list stops there."));
+            notes.push(crate::i18n::tf!("{name} says it's {length} bytes, more than the card has left, so the list stops there."));
             break;
         }
         files.push(Z88File { name, start, length, latest });
@@ -122,7 +122,7 @@ fn nc(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
     if bytes.get(0x200..0x208) == Some(b"NC100PRG") {
         // After the mark, a jump at &210, then the program's name.
         let name: String = bytes[0x213..0x220.min(bytes.len())].iter().take_while(|b| **b != 0).map(|b| if b.is_ascii_graphic() || *b == b' ' { char::from(*b) } else { '?' }).collect();
-        let notes = vec!["This card holds a program the NC runs from its card, starting at &C210. Its bytes can be seen in hex.".into()];
+        let notes = vec![crate::i18n::tr("This card holds a program the NC runs from its card, starting at &C210. Its bytes can be seen in hex.").into()];
         return Ok((Kind::NcProgram { name: name.trim().to_string() }, notes));
     }
     let mut drives = Vec::new();
@@ -173,7 +173,7 @@ fn nc(bytes: &[u8]) -> Result<(Kind, Vec<String>), String> {
         return Err(crate::i18n::tr("This card has no ZCN drive on it. Cards the NC's own software keeps files on aren't read yet.").into());
     }
     if !bytes.len().is_multiple_of(ZCN_DRIVE) && bytes.len() > ZCN_DRIVE {
-        notes.push("The card isn't a whole number of 256K drives; the last part is read as far as it goes.".into());
+        notes.push(crate::i18n::tr("The card isn't a whole number of 256K drives; the last part is read as far as it goes.").into());
     }
     Ok((Kind::Zcn { drives }, notes))
 }
@@ -188,11 +188,15 @@ fn cpm_name(raw: &[u8]) -> String {
 impl Volume for Card {
     fn describe(&self) -> String {
         match &self.kind {
-            Kind::Z88Files { banks, files, .. } => format!("Cambridge Z88 file card, {}K, {} files", banks * 16, files.iter().filter(|f| f.latest).count()),
-            Kind::Z88Applications { banks } => format!("Cambridge Z88 application card, {}K", banks * 16),
-            Kind::Zcn { drives } => format!("Amstrad NC memory card, ZCN, {}K, drive{} {}", self.bytes.len() / 1024, if drives.len() == 1 { "" } else { "s" }, drives.iter().map(|d| format!("{}:", d.letter)).collect::<Vec<_>>().join(" ")),
-            Kind::NcProgram { name } if name.is_empty() => "Amstrad NC program card".into(),
-            Kind::NcProgram { name } => format!("Amstrad NC program card: {name}"),
+            Kind::Z88Files { banks, files, .. } => crate::i18n::tf!("Cambridge Z88 file card, {}K, {} files", banks * 16, files.iter().filter(|f| f.latest).count()),
+            Kind::Z88Applications { banks } => crate::i18n::tf!("Cambridge Z88 application card, {}K", banks * 16),
+            Kind::Zcn { drives } => {
+                let letters = drives.iter().map(|d| format!("{}:", d.letter)).collect::<Vec<_>>().join(" ");
+                let size = self.bytes.len() / 1024;
+                if drives.len() == 1 { crate::i18n::tf!("Amstrad NC memory card, ZCN, {size}K, drive {letters}") } else { crate::i18n::tf!("Amstrad NC memory card, ZCN, {size}K, drives {letters}") }
+            },
+            Kind::NcProgram { name } if name.is_empty() => crate::i18n::tr("Amstrad NC program card").into(),
+            Kind::NcProgram { name } => crate::i18n::tf!("Amstrad NC program card: {name}"),
         }
     }
 
@@ -203,7 +207,7 @@ impl Volume for Card {
                 .enumerate()
                 .map(|(index, file)| {
                     let mut entry = Entry::file(tidy_name(&file.name), file.length as u64, index as u64);
-                    entry.kind = if file.latest { "File".into() } else { "Older version".into() };
+                    entry.kind = if file.latest { "File".into() } else { crate::i18n::tr("Older version").into() };
                     entry.detail = format!("at &{:05X}", file.start);
                     entry
                 })
@@ -211,7 +215,7 @@ impl Volume for Card {
             Kind::Zcn { drives } => match dir {
                 None if drives.len() > 1 => Ok(drives.iter().enumerate().map(|(index, d)| Entry::dir(format!("{}:", d.letter), index as u64, 0)).collect()),
                 None => Ok(zcn_entries(&drives[0], 0)),
-                Some(folder) => drives.get(folder.location as usize).map(|d| zcn_entries(d, folder.location)).ok_or_else(|| "That drive isn't on the card.".to_string()),
+                Some(folder) => drives.get(folder.location as usize).map(|d| zcn_entries(d, folder.location)).ok_or_else(|| crate::i18n::tr("That drive isn't on the card.").to_string()),
             },
             Kind::Z88Applications { .. } | Kind::NcProgram { .. } => Ok(Vec::new()),
         }
@@ -242,7 +246,7 @@ impl Volume for Card {
     fn notes(&self) -> Vec<String> {
         let mut notes = self.notes.clone();
         if let Kind::Z88Files { id, free, .. } = &self.kind {
-            notes.push(format!("Card ID {:02X} {:02X} {:02X} {:02X}; {}K free.", id[0], id[1], id[2], id[3], free / 1024));
+            notes.push(crate::i18n::tf!("Card ID {:02X} {:02X} {:02X} {:02X}; {}K free.", id[0], id[1], id[2], id[3], free / 1024));
         }
         notes
     }
@@ -260,7 +264,7 @@ fn zcn_entries(drive: &ZcnDrive, number: u64) -> Vec<Entry> {
         .enumerate()
         .map(|(index, file)| {
             let mut entry = Entry::file(tidy_name(&file.name), file.size as u64, (number << 16) | index as u64);
-            entry.kind = "CP/M file".into();
+            entry.kind = crate::i18n::tr("CP/M file").into();
             if file.user != 0 {
                 entry.detail = format!("user {}", file.user);
             }

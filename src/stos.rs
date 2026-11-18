@@ -59,7 +59,7 @@ fn names() -> &'static HashMap<Vec<u8>, &'static str> {
 pub fn list(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "STOS BASIC", ..Listing::default() };
     if !looks_like(data) {
-        listing.notes.push("This isn't a STOS program: it starts \u{201C}Lionpoulos\u{201D}.".into());
+        listing.notes.push(crate::i18n::tr("This isn't a STOS program: it starts \u{201C}Lionpoulos\u{201D}.").into());
         return listing;
     }
     let length = (long(data, 14) as usize).min(data.len() - PROGRAM_AT);
@@ -67,8 +67,8 @@ pub fn list(data: &[u8]) -> Listing {
     let banks: Vec<(usize, u32)> = (1..16).map(|i| (i, long(data, 14 + i * 4))).filter(|(_, v)| *v != 0).collect();
     if !banks.is_empty() {
         let list: Vec<String> = banks.iter().map(|(n, v)| format!("{n} ({} bytes)", group(u64::from(v & 0x00FF_FFFF)))).collect();
-        listing.info.push(("Memory banks".into(), list.join(", ")));
-        listing.notes.push("Its memory banks aren't kept when the listing is tokenised again: load them in STOS, or keep this file.".into());
+        listing.info.push((crate::i18n::tr("Memory banks").into(), list.join(", ")));
+        listing.notes.push(crate::i18n::tr("Its memory banks aren't kept when the listing is tokenised again: load them in STOS, or keep this file.").into());
     }
     let mut at = 0;
     let mut extensions = 0;
@@ -84,7 +84,7 @@ pub fn list(data: &[u8]) -> Listing {
         at += line_length;
     }
     if extensions > 0 {
-        listing.notes.push(format!("{extensions} instructions come from STOS extensions, listed as extension_A_3C (the extension's letter and the instruction's code), as STOS can't name them without the extension either."));
+        listing.notes.push(crate::i18n::tf!("{extensions} instructions come from STOS extensions, listed as extension_A_3C (the extension's letter and the instruction's code), as STOS can't name them without the extension either."));
     }
     listing
 }

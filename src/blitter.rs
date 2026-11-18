@@ -287,28 +287,28 @@ pub fn decode(con0: u16, con1: u16) -> Vec<String> {
     let line = con1 & 1 != 0;
     let mut out = vec![format!("BLTCON0 ${con0:04X}")];
     if line {
-        out.push(format!("  Start pixel (bits 15\u{2013}12): {}", con0 >> 12));
+        out.push(crate::i18n::tf!("  Start pixel (bits 15\u{2013}12): {}", con0 >> 12));
     } else {
         out.push(format!("  A shift (bits 15\u{2013}12): {}", con0 >> 12));
     }
-    out.push(format!("  Channels on (USEA\u{2013}USED, bits 11\u{2013}8): {channels}"));
-    out.push(format!("  LF (bits 7\u{2013}0): ${lf:02X}, D = {}  (C style: {})", classic(lf), c_style(lf)));
-    out.push(format!("  The function reads: {}", sources_read(lf)));
+    out.push(crate::i18n::tf!("  Channels on (USEA\u{2013}USED, bits 11\u{2013}8): {channels}"));
+    out.push(crate::i18n::tf!("  LF (bits 7\u{2013}0): ${lf:02X}, D = {}  (C style: {})", classic(lf), c_style(lf)));
+    out.push(crate::i18n::tf!("  The function reads: {}", sources_read(lf)));
     for (i, letter) in ["A", "B", "C"].iter().enumerate() {
         if uses(lf, i) && !on(0x800 >> i) {
-            out.push(format!("  Note: the function reads {letter} but USE{letter} is off, so {letter} comes from its data register."));
+            out.push(crate::i18n::tf!("  Note: the function reads {letter} but USE{letter} is off, so {letter} comes from its data register."));
         }
     }
     out.push(format!("BLTCON1 ${con1:04X}"));
     if line {
-        out.push("  Line mode (bit 0, LINE): on".into());
-        out.push(format!("  Texture start (bits 15\u{2013}12): {}", con1 >> 12));
+        out.push(crate::i18n::tr("  Line mode (bit 0, LINE): on").into());
+        out.push(crate::i18n::tf!("  Texture start (bits 15\u{2013}12): {}", con1 >> 12));
         let bit = |n: u16| if con1 & 1 << n != 0 { 1 } else { 0 };
         out.push(format!("  SIGN (bit 6): {}", bit(6)));
-        out.push(format!("  SUD, SUL, AUL (bits 4, 3, 2), the octant: {}, {}, {}", bit(4), bit(3), bit(2)));
-        out.push(format!("  SING, one dot a line, for filling (bit 1): {}", bit(1)));
+        out.push(crate::i18n::tf!("  SUD, SUL, AUL (bits 4, 3, 2), the octant: {}, {}, {}", bit(4), bit(3), bit(2)));
+        out.push(crate::i18n::tf!("  SING, one dot a line, for filling (bit 1): {}", bit(1)));
     } else {
-        out.push("  Line mode (bit 0, LINE): off, an area blit".into());
+        out.push(crate::i18n::tr("  Line mode (bit 0, LINE): off, an area blit").into());
         out.push(format!("  B shift (bits 15\u{2013}12): {}", con1 >> 12));
         let fill = match (con1 & 0x10 != 0, con1 & 0x08 != 0) {
             (false, false) => "none",
@@ -317,10 +317,10 @@ pub fn decode(con0: u16, con1: u16) -> Vec<String> {
             (true, true) => "both IFE and EFE set, which the blitter doesn't expect",
         };
         out.push(format!("  Fill: {fill}"));
-        out.push(format!("  Fill carry in (FCI, bit 2): {}", if con1 & 4 != 0 { "1" } else { "0" }));
-        out.push(format!("  Descending (DESC, bit 1): {}", if con1 & 2 != 0 { "yes, addresses go down" } else { "no, addresses go up" }));
+        out.push(crate::i18n::tf!("  Fill carry in (FCI, bit 2): {}", if con1 & 4 != 0 { "1" } else { "0" }));
+        out.push(crate::i18n::tf!("  Descending (DESC, bit 1): {}", if con1 & 2 != 0 { "yes, addresses go down" } else { "no, addresses go up" }));
         if con1 & 0x0FE0 != 0 {
-            out.push(format!("  Bits 11\u{2013}5 should be 0 but are ${:03X}", (con1 >> 5) & 0x7F));
+            out.push(crate::i18n::tf!("  Bits 11\u{2013}5 should be 0 but are ${:03X}", (con1 >> 5) & 0x7F));
         }
     }
     out
@@ -384,7 +384,7 @@ pub struct Blitter {
 impl Default for Blitter {
     fn default() -> Self {
         let mut blitter = Blitter {
-            expression: "AB + aC".into(),
+            expression: crate::i18n::tr("AB + aC").into(),
             lf: 0xCA,
             problem: None,
             a_shift: 0,

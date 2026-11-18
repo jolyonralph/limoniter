@@ -86,7 +86,7 @@ impl HwWindow {
             egui::ComboBox::from_id_salt("amiga-hw-chipset").selected_text(self.chipset.map_or("Every chipset", |c| c.name())).show_ui(ui, |ui| {
                 ui.selectable_value(&mut self.chipset, None, crate::i18n::tr("Every chipset"));
                 for chipset in Chipset::ALL {
-                    ui.selectable_value(&mut self.chipset, Some(chipset), format!("What {} has", chipset.name()));
+                    ui.selectable_value(&mut self.chipset, Some(chipset), crate::i18n::tf!("What {} has", chipset.name()));
                 }
             });
         });
@@ -124,7 +124,7 @@ impl HwWindow {
                     return;
                 };
                 ui.label(RichText::new(&register.name).strong().size(16.0));
-                let place = if register.is_cia() { format!("${:06X}", register.address) } else { format!("${:06X}, ${:03X} from the custom chips' base", register.address, register.offset()) };
+                let place = if register.is_cia() { format!("${:06X}", register.address) } else { crate::i18n::tf!("${:06X}, ${:03X} from the custom chips' base", register.address, register.offset()) };
                 ui.label(RichText::new(place).monospace());
                 if register.is_cia() {
                     ui.label(crate::i18n::tf!("{}, a byte", register.access.name()));
@@ -158,7 +158,7 @@ impl HwWindow {
                     ui.label(RichText::new(amiga_hw::explain(register, value)).strong());
                     if let Some(n) = register.colour() {
                         let (r, g, b) = amiga_hw::rgb12(value);
-                        swatch(ui, Color32::from_rgb(r * 17, g * 17, b * 17), &format!("colour {n}"));
+                        swatch(ui, Color32::from_rgb(r * 17, g * 17, b * 17), &crate::i18n::tf!("colour {n}"));
                     }
                     for line in amiga_hw::field_lines(register, value) {
                         ui.label(RichText::new(line).monospace().small());
@@ -175,7 +175,7 @@ fn swatch(ui: &mut egui::Ui, colour: Color32, tip: &str) {
     let (rect, response) = ui.allocate_exact_size(vec2(28.0, 14.0), Sense::hover());
     ui.painter().rect_filled(rect, 2.0, colour);
     ui.painter().rect_stroke(rect, 2.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    response.on_hover_text(crate::i18n::tr(tip));
+    response.on_hover_text(tip);
 }
 
 /// What the copper tab asks of the window.
@@ -193,7 +193,7 @@ impl Limoniter {
     /// Puts lines of source in after the cursor's line (or on it, if it's empty), indented as it is.
     fn put_in_line(&mut self, text: &str) {
         if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
-            self.message("Amiga hardware", "Open the source to put the line in, with the cursor on the line it goes after.".into());
+            self.message("Amiga hardware", crate::i18n::tr("Open the source to put the line in, with the cursor on the line it goes after.").into());
             return;
         }
         let doc = &mut self.docs[self.active];
@@ -308,8 +308,8 @@ fn copper_tab(window: &mut HwWindow, ui: &mut egui::Ui, source: Option<&crate::a
                     }
                 }
                 let note = match preview.stopped {
-                    Some((line, _)) => format!("The copper stops on line ${line:03X}."),
-                    None => "The list doesn't end, so the copper would run on into what follows it.".into(),
+                    Some((line, _)) => crate::i18n::tf!("The copper stops on line ${line:03X}."),
+                    None => crate::i18n::tr("The list doesn't end, so the copper would run on into what follows it.").into(),
                 };
                 ui.label(RichText::new(crate::i18n::tf!("A PAL frame with no bitplanes: COLOR00 where the beam was, and beside it each other colour set, line by line. {note}")).small());
             });
@@ -324,7 +324,7 @@ fn copper_tab(window: &mut HwWindow, ui: &mut egui::Ui, source: Option<&crate::a
                     }
                     ui.label(RichText::new(&row.words).monospace());
                     match row.colour {
-                        Some((n, [r, g, b])) => swatch(ui, Color32::from_rgb(r, g, b), &format!("colour {n}")),
+                        Some((n, [r, g, b])) => swatch(ui, Color32::from_rgb(r, g, b), &crate::i18n::tf!("colour {n}")),
                         None => {
                             ui.label(crate::i18n::tr(""));
                         }

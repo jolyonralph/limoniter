@@ -104,7 +104,7 @@ impl HwWindow {
             egui::ComboBox::from_id_salt("st-hw-machine").selected_text(self.machine.map_or("Every machine", |m| m.name())).show_ui(ui, |ui| {
                 ui.selectable_value(&mut self.machine, None, crate::i18n::tr("Every machine"));
                 for machine in Machine::ALL {
-                    ui.selectable_value(&mut self.machine, Some(machine), format!("What the {} has", machine.name()));
+                    ui.selectable_value(&mut self.machine, Some(machine), crate::i18n::tf!("What the {} has", machine.name()));
                 }
             });
         });
@@ -311,7 +311,7 @@ impl Limoniter {
     /// Text from one of the windows, at the cursor in the file in front, as one undoable change.
     fn insert_st_text(&mut self, title: &str, text: &str) {
         if self.no_file() || self.docs[self.active].hex_mode || self.docs[self.active].text.read_only {
-            self.message(title, "Open the source to put it in, with the cursor where it goes.".into());
+            self.message(title, crate::i18n::tr("Open the source to put it in, with the cursor where it goes.").into());
             return;
         }
         let doc = &mut self.docs[self.active];

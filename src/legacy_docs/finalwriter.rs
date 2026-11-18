@@ -123,12 +123,12 @@ pub fn read(bytes: &[u8]) -> Result<Doc, String> {
     blocks.extend(b.finish());
     let mut notes = Vec::new();
     if !fonts.is_empty() {
-        notes.push(format!("Final Writer's fonts ({}) and sizes aren't carried over.", fonts.join(", ")));
+        notes.push(crate::i18n::tf!("Final Writer's fonts ({}) and sizes aren't carried over.", fonts.join(", ")));
     }
     if pictures > 0 {
-        notes.push(format!("{pictures} picture(s) and drawn object(s) aren't carried over."));
+        notes.push(crate::i18n::tf!("{pictures} picture(s) and drawn object(s) aren't carried over."));
     }
-    Ok(Doc { format: "Final Writer".into(), blocks, notes })
+    Ok(Doc { format: crate::i18n::tr("Final Writer").into(), blocks, notes })
 }
 
 #[cfg(test)]

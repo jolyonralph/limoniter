@@ -93,16 +93,16 @@ pub(super) fn lay_out(tracks: &Tracks) -> Result<Laid, String> {
     let list = |places: &[String]| if places.len() > 8 { format!("{} and {} more", places[..8].join("; "), places.len() - 8) } else { places.join("; ") };
     let mut notes = Vec::new();
     if !missing.is_empty() {
-        notes.push(format!("Sectors that couldn't be read when the image was made are zeros here: {}.", list(&missing)));
+        notes.push(crate::i18n::tf!("Sectors that couldn't be read when the image was made are zeros here: {}.", list(&missing)));
     }
     if !errors.is_empty() {
-        notes.push(format!("Sectors read with a data error, so they may be wrong: {}.", list(&errors)));
+        notes.push(crate::i18n::tf!("Sectors read with a data error, so they may be wrong: {}.", list(&errors)));
     }
     if extra > 0 {
-        notes.push(format!("{extra} sector(s) outside the tracks' usual numbering or size aren't part of the disk here."));
+        notes.push(crate::i18n::tf!("{extra} sector(s) outside the tracks' usual numbering or size aren't part of the disk here."));
     }
     let sides = if heads.len() == 1 { "1 side".to_string() } else { format!("{} sides", heads.len()) };
-    let shape = format!("{cylinders} tracks, {sides}, {per_track} \u{D7} {size}-byte sectors numbered from {first}");
+    let shape = crate::i18n::tf!("{cylinders} tracks, {sides}, {per_track} \u{D7} {size}-byte sectors numbered from {first}");
     Ok(Laid { bytes, shape, notes, tracks: super::cpm::Shape { sector_size: size as u64, per_track: per_track as u64, heads: heads.len() as u64 } })
 }
 
@@ -597,14 +597,14 @@ pub fn open(source: Arc<dyn Source>, format: Kind) -> Result<Box<dyn Volume>, St
     let plain = Arc::new(laid.bytes);
     let mut notes = Vec::new();
     if !comment.is_empty() {
-        notes.push(format!("The image's comment: {}", comment.replace('\n', " \u{B7} ")));
+        notes.push(crate::i18n::tf!("The image's comment: {}", comment.replace('\n', " \u{B7} ")));
     }
     notes.extend(laid.notes);
     let disk: Arc<dyn Source> = Arc::new(plain.as_ref().clone());
     let inner = match open_inner(disk, laid.tracks) {
         Ok(volume) => Some(volume),
         Err(problem) => {
-            notes.push(format!("{problem} The disk's sectors are offered as a plain image to look at in hex or save."));
+            notes.push(crate::i18n::tf!("{problem} The disk's sectors are offered as a plain image to look at in hex or save."));
             None
         }
     };
@@ -638,8 +638,8 @@ impl Volume for SectorDisk {
         };
         let mut whole = Entry::file("Whole disk (sectors).raw".into(), self.plain.len() as u64, 0);
         whole.extra = WHOLE_DISK;
-        whole.kind = "Disk image".into();
-        whole.detail = "every sector in order, as a plain image".into();
+        whole.kind = crate::i18n::tr("Disk image").into();
+        whole.detail = crate::i18n::tr("every sector in order, as a plain image").into();
         // Opened, it's bytes to look at, not an image to browse again; saved, a plain sector image.
         whole.open_name = "Whole disk (sectors).raw".into();
         entries.push(whole);
@@ -899,9 +899,9 @@ pub mod tests {
         let volume = super::super::open(Arc::new(image), "APPLATM1.IMD").unwrap();
         assert_eq!(volume.describe(), "ImageDisk (IMD) \u{B7} 66 tracks, 1 side, 16 \u{D7} 256-byte sectors numbered from 0 \u{B7} FAT12 \u{B7} MAESTRO_APL");
         assert_eq!(volume.notes(), [
-            "The image's comment: HP 150 test disk".to_string(),
-            "Sectors that couldn't be read when the image was made are zeros here: track 40 sector 5.".into(),
-            "Sectors read with a data error, so they may be wrong: track 41 sector 2.".into(),
+            crate::i18n::tr("The image's comment: HP 150 test disk").to_string(),
+            crate::i18n::tr("Sectors that couldn't be read when the image was made are zeros here: track 40 sector 5.").into(),
+            crate::i18n::tr("Sectors read with a data error, so they may be wrong: track 41 sector 2.").into(),
         ]);
         let files = volume.list(None).unwrap();
         assert_eq!(names(&files), ["HELLO.TXT", "NAMELESS", "Whole disk (sectors).raw"]);

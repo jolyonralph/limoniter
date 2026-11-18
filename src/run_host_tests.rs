@@ -958,3 +958,56 @@ fn ambiguous_6502_source_asks_whether_its_for_a_c64_or_a_bbc_micro() {
     app.run_on_machine();
     assert_eq!(machine(&app), Some(crate::running::Machine::C64));
 }
+
+#[test]
+fn x86_source_becomes_a_dos_program_or_a_floppy_that_boots() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "hello.asm".into();
+    let com = ["        org 100h", "start:  mov dx,message", "        mov ah,9", "        int 21h", "        mov ax,4c00h", "        int 21h", "message db 'Hello from Limoniter$'"];
+    app.doc().text.set_content(com.iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::X86), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Pc, crate::running::Format::Com, "hello.com"));
+    assert_eq!(&run.bytes[..3], &[0xBA, 0x0C, 0x01], "MOV DX,message: 10Ch, after 12 bytes of code from 100h");
+    // DOSBox takes it; QEMU, which only boots, doesn't.
+    app.sends.devices = vec![
+        Device { name: "DOSBox".into(), place: Place::Emulator { emulator: "dosbox".into(), program: "dosbox".into(), options: String::new() }, preset: None, eject: false },
+        Device { name: "QEMU".into(), place: Place::Emulator { emulator: "qemu".into(), program: "qemu-system-i386".into(), options: String::new() }, preset: None, eject: false },
+    ];
+    assert!(app.suits(run_host::Target::Device(0), &run).is_ok());
+    assert!(app.suits(run_host::Target::Device(1), &run).is_err());
+    // A boot sector goes on a 1.44M floppy that boots, which both take.
+    let boot = ["bits 16", "org 7c00h", "start: mov ah,0eh", "        mov al,'L'", "        int 10h", "        jmp $", "times 510-($-$$) db 0", "dw 0aa55h"];
+    app.doc().text.set_content(boot.iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.bytes.len()), (crate::running::Machine::Pc, crate::running::Format::Img, 1_474_560));
+    assert_eq!(&run.bytes[510..512], &[0x55, 0xAA]);
+    assert!(app.suits(run_host::Target::Device(1), &run).is_ok());
+    assert_eq!(crate::running::Runnable::from_file("boot.img", run.bytes.to_vec()).map(|r| r.machine), Some(crate::running::Machine::Pc));
+    // Source with no ORG 100h is told how to be a .COM.
+    app.doc().text.set_content(["mov ax,1", "ret"].iter().map(|l| l.to_string()).collect());
+    let problem = app.runnable().unwrap_err();
+    assert!(problem.contains("ORG 100h"), "{problem}");
+}
+
+#[test]
+fn arm_source_is_known_and_saved_as_a_risc_os_application() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-arm-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("hello.s");
+    std::fs::write(&path, "        org &8000\nstart   adr r0,message\n        swi \"OS_Write0\"\n        swi \"OS_NewLine\"\n        mov r0,#0\n        swi \"OS_Exit\"\nmessage dcb \"Hello from Limoniter\",0\n        align\n").unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::Arm), "{}", app.doc().language_name());
+    app.assemble_and_save();
+    let saved = std::fs::read(folder.join("hello,ff8")).expect("saved beside the source as an Absolute file");
+    assert_eq!(&saved[..4], &0xE28F_000Cu32.to_le_bytes(), "ADR R0,message: 12 bytes on from PC");
+    let _ = std::fs::remove_dir_all(&folder);
+}

@@ -506,7 +506,7 @@ fn build() -> Vec<Register> {
     b.add(0xFF8264, "HSCROLL", Byte, ReadWrite, STE | MEGA_STE | FALCON, Video, "Horizontal scroll without the extra read: moves the picture left 0 to 15 pixels, but doesn't fetch the word the moved pixels need", HSCROLL);
     b.add(0xFF8265, "HSCROLLP", Byte, ReadWrite, STE | MEGA_STE | FALCON, Video, "Horizontal scroll, the usual one: moves the picture left 0 to 15 pixels, reading an extra word a bitplane each line when it isn't 0 (so take 4 words off LINEWID in low resolution)", HSCROLL);
     for n in 0..16 {
-        let about = format!("Colour {n}. ST: three bits of red, green and blue (512 colours). STE: a fourth bit each, the lowest, kept above the other three (4096 colours)");
+        let about = crate::i18n::tf!("Colour {n}. ST: three bits of red, green and blue (512 colours). STE: a fourth bit each, the lowest, kept above the other three (4096 colours)");
         b.add(0xFF8240 + n * 2, &format!("COLOR{n}"), Word, ReadWrite, EVERY, Palette, &about, COLOUR);
     }
     // TT video.
@@ -701,8 +701,8 @@ pub fn swatch(rgb: [u8; 3]) -> String {
 pub fn explain_colour(n: u32, value: u16) -> String {
     let [r, g, b] = [(value >> 8) & 7, (value >> 4) & 7, value & 7];
     let [sr, sg, sb] = ste_levels(value);
-    let mut out = format!("colour {n}\n  ST:  {} red {r}, green {g}, blue {b}", swatch(st_rgb(value)));
-    out.push_str(&format!("\n  STE: {} red {sr}, green {sg}, blue {sb} (of 15)", swatch(ste_rgb(value))));
+    let mut out = crate::i18n::tf!("colour {n}\n  ST:  {} red {r}, green {g}, blue {b}", swatch(st_rgb(value)));
+    out.push_str(&crate::i18n::tf!("\n  STE: {} red {sr}, green {sg}, blue {sb} (of 15)", swatch(ste_rgb(value))));
     if value & 0x888 != 0 {
         out.push_str("\n  The $888 bits are the STE's lowest: an ST ignores them");
     }
@@ -717,12 +717,12 @@ pub fn timer_mode(control: u8) -> (String, Option<u32>) {
         0 => ("stopped".into(), None),
         n @ 1..=7 => {
             let divider = PRESCALERS[n as usize - 1];
-            (format!("delay mode, the 2.4576 MHz clock divided by {divider}"), Some(divider))
+            (crate::i18n::tf!("delay mode, the 2.4576 MHz clock divided by {divider}"), Some(divider))
         }
-        8 => ("event count mode (Timer B: one a display line; Timer A: the parallel port's busy line)".into(), None),
+        8 => (crate::i18n::tr("event count mode (Timer B: one a display line; Timer A: the parallel port's busy line)").into(), None),
         n => {
             let divider = PRESCALERS[n as usize - 9];
-            (format!("pulse width mode, divided by {divider}"), Some(divider))
+            (crate::i18n::tf!("pulse width mode, divided by {divider}"), Some(divider))
         }
     }
 }
@@ -794,19 +794,18 @@ pub fn explain_ym(register: u8, value: u8) -> String {
     let r = register & 15;
     let on = |n: u8| value & (1 << n) != 0;
     match r {
-        0 | 2 | 4 => format!("the low 8 bits of channel {}'s period: ${value:02X} ({value}; with the top bits 0, {:.1} Hz)", (b'A' + r / 2) as char, tone_hz(value as u16)),
-        1 | 3 | 5 => format!("the top 4 bits of channel {}'s period: {} (period ${:X}00 and up)", (b'A' + r / 2) as char, value & 15, value & 15),
+        0 | 2 | 4 => crate::i18n::tf!("the low 8 bits of channel {}'s period: ${value:02X} ({value}; with the top bits 0, {:.1} Hz)", (b'A' + r / 2) as char, tone_hz(value as u16)),
+        1 | 3 | 5 => crate::i18n::tf!("the top 4 bits of channel {}'s period: {} (period ${:X}00 and up)", (b'A' + r / 2) as char, value & 15, value & 15),
         6 => {
             let period = (value & 31).max(1) as u32;
-            format!("noise period {} (about {} Hz)", value & 31, YM_CLOCK / (16 * period))
+            crate::i18n::tf!("noise period {} (about {} Hz)", value & 31, YM_CLOCK / (16 * period))
         }
         7 => {
             let list = |base: u8| -> String {
                 let on: Vec<String> = (0..3).filter(|c| value & (1 << (base + c)) == 0).map(|c| ((b'A' + c) as char).to_string()).collect();
                 if on.is_empty() { "none".into() } else { on.join(", ") }
             };
-            format!(
-                "tone on {}; noise on {}; port A {}, port B {}",
+            crate::i18n::tf!("tone on {}; noise on {}; port A {}, port B {}",
                 list(0),
                 list(3),
                 if on(6) { "output" } else { "input" },
@@ -815,10 +814,10 @@ pub fn explain_ym(register: u8, value: u8) -> String {
         }
         8..=10 => {
             let channel = (b'A' + r - 8) as char;
-            if on(4) { format!("channel {channel} follows the envelope") } else { format!("channel {channel} at volume {} of 15", value & 15) }
+            if on(4) { crate::i18n::tf!("channel {channel} follows the envelope") } else { crate::i18n::tf!("channel {channel} at volume {} of 15", value & 15) }
         }
-        11 => format!("the envelope period's low 8 bits: ${value:02X}"),
-        12 => format!("the envelope period's top 8 bits: ${value:02X} (period ${value:02X}xx)"),
+        11 => crate::i18n::tf!("the envelope period's low 8 bits: ${value:02X}"),
+        12 => crate::i18n::tf!("the envelope period's top 8 bits: ${value:02X} (period ${value:02X}xx)"),
         13 => format!("envelope shape {}: {}", value & 15, envelope_shape(value)),
         14 => {
             let mut parts = vec![if on(0) { "side 0".to_string() } else { "side 1".to_string() }];
@@ -827,7 +826,7 @@ pub fn explain_ym(register: u8, value: u8) -> String {
             parts.push(format!("RTS {}", u8::from(on(3))));
             parts.push(format!("DTR {}", u8::from(on(4))));
             parts.push(format!("printer strobe {}", u8::from(on(5))));
-            parts.push(format!("bits 6 and 7 (general outputs) {}{}", u8::from(on(6)), u8::from(on(7))));
+            parts.push(crate::i18n::tf!("bits 6 and 7 (general outputs) {}{}", u8::from(on(6)), u8::from(on(7))));
             parts.join(", ")
         }
         _ => format!("printer data ${value:02X}"),
@@ -892,14 +891,14 @@ pub fn explain(register: &Register, address: u32, value: u32) -> String {
     }
     match register.address {
         0xFF8260 => match byte & 3 {
-            0 => "low resolution: 320x200, 16 colours".into(),
-            1 => "medium resolution: 640x200, 4 colours".into(),
-            2 => "high resolution: 640x400, black and white".into(),
-            _ => "3, which isn't a resolution".into(),
+            0 => crate::i18n::tr("low resolution: 320x200, 16 colours").into(),
+            1 => crate::i18n::tr("medium resolution: 640x200, 4 colours").into(),
+            2 => crate::i18n::tr("high resolution: 640x400, black and white").into(),
+            _ => crate::i18n::tr("3, which isn't a resolution").into(),
         },
         0xFF820A => format!("{} Hz{}", if byte & 2 != 0 { 50 } else { 60 }, if byte & 1 != 0 { ", external sync" } else { "" }),
-        0xFF8264 | 0xFF8265 => format!("the picture moved {} pixel{} left", byte & 15, if byte & 15 == 1 { "" } else { "s" }),
-        0xFF820E => format!("{} words skipped after each line", word & 0x1FF),
+        0xFF8264 | 0xFF8265 => if byte & 15 == 1 { crate::i18n::tr("the picture moved 1 pixel left").to_string() } else { crate::i18n::tf!("the picture moved {} pixels left", byte & 15) },
+        0xFF820E => crate::i18n::tf!("{} words skipped after each line", word & 0x1FF),
         0xFF8262 => {
             let mode = match (word >> 8) & 7 {
                 0 => "ST low",
@@ -910,41 +909,41 @@ pub fn explain(register: &Register, address: u32, value: u32) -> String {
                 7 => "TT low: 320x480, 256 colours",
                 _ => "not a mode",
             };
-            format!("{mode}; ST colours from bank {}{}{}", word & 15, if word & 0x1000 != 0 { ", hyper mono" } else { "" }, if word & 0x8000 != 0 { ", sample-and-hold" } else { "" })
+            crate::i18n::tf!("{mode}; ST colours from bank {}{}{}", word & 15, if word & 0x1000 != 0 { ", hyper mono" } else { "" }, if word & 0x8000 != 0 { ", sample-and-hold" } else { "" })
         }
         0xFF8400 => {
             let [r, g, b] = [(word >> 8) & 15, (word >> 4) & 15, word & 15];
-            format!("TT colour {}: {} red {r}, green {g}, blue {b}", register.index(address), swatch([r as u8 * 17, g as u8 * 17, b as u8 * 17]))
+            crate::i18n::tf!("TT colour {}: {} red {r}, green {g}, blue {b}", register.index(address), swatch([r as u8 * 17, g as u8 * 17, b as u8 * 17]))
         }
         0xFF9800 => {
             let [r, g, b] = [(value >> 26) & 63, (value >> 18) & 63, (value >> 2) & 63];
             let eight = |v: u32| ((v * 255 + 31) / 63) as u8;
-            format!("Falcon colour {}: {} red {r}, green {g}, blue {b}", register.index(address), swatch([eight(r), eight(g), eight(b)]))
+            crate::i18n::tf!("Falcon colour {}: {} red {r}, green {g}, blue {b}", register.index(address), swatch([eight(r), eight(g), eight(b)]))
         }
         0xFF8266 => {
             if word & 0x400 != 0 {
                 "2 colours".into()
             } else if word & 0x100 != 0 {
-                "true colour, 16 bits a pixel".into()
+                crate::i18n::tr("true colour, 16 bits a pixel").into()
             } else if word & 0x10 != 0 {
                 "256 colours".into()
             } else {
-                "16 colours (or an ST mode)".into()
+                crate::i18n::tr("16 colours (or an ST mode)").into()
             }
         }
         0xFF8E21 => format!("{} MHz, cache {}", if byte & 2 != 0 { 16 } else { 8 }, if byte & 1 != 0 { "on" } else { "off" }),
-        0xFF8007 => format!("processor {} MHz, blitter {} MHz{}{}", if byte & 1 != 0 { 16 } else { 8 }, if byte & 4 != 0 { 16 } else { 8 }, if byte & 8 != 0 { ", blitter off" } else { "" }, if byte & 0x20 == 0 { ", STE bus timing" } else { "" }),
+        0xFF8007 => crate::i18n::tf!("processor {} MHz, blitter {} MHz{}{}", if byte & 1 != 0 { 16 } else { 8 }, if byte & 4 != 0 { 16 } else { 8 }, if byte & 8 != 0 { ", blitter off" } else { "" }, if byte & 0x20 == 0 { ", STE bus timing" } else { "" }),
         // The MFP.
         0xFFFA07 | 0xFFFA0B | 0xFFFA0F | 0xFFFA13 => format!("channels on: {}", set(INTERRUPTS_A)),
         0xFFFA09 | 0xFFFA0D | 0xFFFA11 | 0xFFFA15 => format!("channels on: {}", set(INTERRUPTS_B)),
         0xFFFA01 | 0xFFFA03 | 0xFFFA05 => format!("bits set: {}", set(GPIP)),
-        0xFFFA17 => format!("vectors ${:02X}-${:02X} (at ${:03X}-${:03X}), {} end of interrupt", byte & 0xF0, (byte & 0xF0) + 15, (byte as u32 & 0xF0) * 4, ((byte as u32 & 0xF0) + 15) * 4, if byte & 8 != 0 { "software" } else { "automatic" }),
+        0xFFFA17 => crate::i18n::tf!("vectors ${:02X}-${:02X} (at ${:03X}-${:03X}), {} end of interrupt", byte & 0xF0, (byte & 0xF0) + 15, (byte as u32 & 0xF0) * 4, ((byte as u32 & 0xF0) + 15) * 4, if byte & 8 != 0 { "software" } else { "automatic" }),
         0xFFFA19 | 0xFFFA1B => {
             let timer = if register.address == 0xFFFA19 { "Timer A" } else { "Timer B" };
             let (mode, _) = timer_mode(byte);
             format!("{timer}: {mode}{}", if byte & 0x10 != 0 { ", output reset" } else { "" })
         }
-        0xFFFA1D => format!("Timer C: {}; Timer D: {}", timer_mode((byte >> 4) & 7).0, timer_mode(byte & 7).0),
+        0xFFFA1D => crate::i18n::tf!("Timer C: {}; Timer D: {}", timer_mode((byte >> 4) & 7).0, timer_mode(byte & 7).0),
         0xFFFA1F | 0xFFFA21 | 0xFFFA23 | 0xFFFA25 => format!("counts {}", if byte == 0 { 256 } else { byte as u32 }),
         0xFFFA29 => {
             let bits = [8, 7, 6, 5][((byte >> 5) & 3) as usize];
@@ -965,25 +964,25 @@ pub fn explain(register: &Register, address: u32, value: u32) -> String {
             let divide = [1, 16, 64][(byte & 3) as usize];
             let format = ["7 bits, even parity, 2 stop", "7 bits, odd parity, 2 stop", "7 bits, even parity, 1 stop", "7 bits, odd parity, 1 stop", "8 bits, no parity, 2 stop", "8 bits, no parity, 1 stop", "8 bits, even parity, 1 stop", "8 bits, odd parity, 1 stop"][((byte >> 2) & 7) as usize];
             let tx = ["no transmit interrupt", "transmit interrupt", "RTS high, no transmit interrupt", "sends a break"][((byte >> 5) & 3) as usize];
-            format!("clock divided by {divide}, {format}, {tx}, receive interrupt {}", if byte & 0x80 != 0 { "on" } else { "off" })
+            crate::i18n::tf!("clock divided by {divide}, {format}, {tx}, receive interrupt {}", if byte & 0x80 != 0 { "on" } else { "off" })
         }
         // DMA sound.
         0xFF8900 => match word & 3 {
             0 => "sound off".into(),
-            1 => "plays the sample once".into(),
-            _ => "plays the sample, looping".into(),
+            1 => crate::i18n::tr("plays the sample once").into(),
+            _ => crate::i18n::tr("plays the sample, looping").into(),
         },
         0xFF8921 => format!("{} Hz, {}", ["6258", "12517", "25033", "50066"][(byte & 3) as usize], if byte & 0x80 != 0 { "mono" } else { "stereo" }),
         0xFF8922 => microwire(word),
         // The blitter.
-        0xFF8A3A => format!("HOP {}: the source is {}", byte & 3, HOPS[(byte & 3) as usize]),
+        0xFF8A3A => crate::i18n::tf!("HOP {}: the source is {}", byte & 3, HOPS[(byte & 3) as usize]),
         0xFF8A3B => format!("OP {}: D = {}", byte & 15, OPS[(byte & 15) as usize]),
         0xFF8A3C => {
             let mut parts = Vec::new();
             if byte & 0x80 != 0 {
-                parts.push("starts the blit".to_string());
+                parts.push(crate::i18n::tr("starts the blit").to_string());
             }
-            parts.push(if byte & 0x40 != 0 { "hog mode (the processor waits)".into() } else { "shares the bus with the processor".into() });
+            parts.push(if byte & 0x40 != 0 { crate::i18n::tr("hog mode (the processor waits)").into() } else { crate::i18n::tr("shares the bus with the processor").into() });
             if byte & 0x20 != 0 {
                 parts.push("smudge".into());
             }
@@ -991,12 +990,12 @@ pub fn explain(register: &Register, address: u32, value: u32) -> String {
             parts.join(", ")
         }
         0xFF8A3D => {
-            let mut parts = vec![format!("source moved {} bit{} right", byte & 15, if byte & 15 == 1 { "" } else { "s" })];
+            let mut parts = vec![if byte & 15 == 1 { crate::i18n::tr("source moved 1 bit right").to_string() } else { crate::i18n::tf!("source moved {} bits right", byte & 15) }];
             if byte & 0x80 != 0 {
-                parts.push("FXSR: an extra read before each line".into());
+                parts.push(crate::i18n::tr("FXSR: an extra read before each line").into());
             }
             if byte & 0x40 != 0 {
-                parts.push("NFSR: no read for each line's last word".into());
+                parts.push(crate::i18n::tr("NFSR: no read for each line's last word").into());
             }
             parts.join(", ")
         }
@@ -1015,17 +1014,17 @@ pub fn explain(register: &Register, address: u32, value: u32) -> String {
 /// A Microwire command for the STE's LMC1992 volume and tone chip, read.
 pub fn microwire(word: u16) -> String {
     if (word >> 9) & 3 != 2 {
-        return format!("${word:04X}: not for the volume and tone chip (its address is %10 in bits 10-9)");
+        return crate::i18n::tf!("${word:04X}: not for the volume and tone chip (its address is %10 in bits 10-9)");
     }
     let v = word & 0x3F;
     match (word >> 6) & 7 {
         0 => format!("mixing: {}", ["the YM at -12 dB", "the YM mixed in", "the YM left out", "not used"][(v & 3) as usize]),
         1 => format!("bass {:+} dB", (v.min(12) as i32 - 6) * 2),
         2 => format!("treble {:+} dB", (v.min(12) as i32 - 6) * 2),
-        3 => format!("master volume {} dB", (v.min(40) as i32 - 40) * 2),
-        4 => format!("right volume {} dB", ((v & 31).min(20) as i32 - 20) * 2),
-        5 => format!("left volume {} dB", ((v & 31).min(20) as i32 - 20) * 2),
-        n => format!("command {n}, which the chip doesn't have"),
+        3 => crate::i18n::tf!("master volume {} dB", (v.min(40) as i32 - 40) * 2),
+        4 => crate::i18n::tf!("right volume {} dB", ((v & 31).min(20) as i32 - 20) * 2),
+        5 => crate::i18n::tf!("left volume {} dB", ((v & 31).min(20) as i32 - 20) * 2),
+        n => crate::i18n::tf!("command {n}, which the chip doesn't have"),
     }
 }
 
@@ -1051,7 +1050,7 @@ pub fn describe(register: &Register) -> String {
         lines.push(format!("{:>5}  {:<width$}  {}", f.bits(), f.name, f.about));
     }
     if !status_fields(register).is_empty() {
-        lines.push("Read, it's the status:".into());
+        lines.push(crate::i18n::tr("Read, it's the status:").into());
         for f in status_fields(register) {
             lines.push(format!("{:>5}  {:<width$}  {}", f.bits(), f.name, f.about));
         }
@@ -1081,8 +1080,8 @@ pub fn describe_bit(register: &Register, n: u8) -> String {
     let field = register.fields.iter().find(|f| f.low <= n && n <= f.high);
     let what = match field {
         Some(f) if f.high == f.low => format!("bit {n}: {} - {}", f.name, f.about),
-        Some(f) => format!("bit {n}, part of {} (bits {}): {}", f.name, f.bits(), f.about),
-        None => format!("bit {n}: not used"),
+        Some(f) => crate::i18n::tf!("bit {n}, part of {} (bits {}): {}", f.name, f.bits(), f.about),
+        None => crate::i18n::tf!("bit {n}: not used"),
     };
     format!("{}\n{what}", register.heading())
 }

@@ -28,7 +28,7 @@ It reflects the editors as of November 2026, going by their own documentation an
 
 | | Limoniter | Notepad | Notepad++ | VS Code | Vim / Neovim | Emacs | Kate | Zed | UltraEdit | EmEditor | Sublime | BBEdit | TextPad |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Tabs and split views | ✓ | ◐ tabs | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Tabs and split views | ✓ two files side by side, or one split | ◐ tabs | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Multiple carets | ✓ | ✗ | ✓ | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ? | ? |
 | Column (block) editing | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Regular expressions | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -60,10 +60,10 @@ Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edit
 | | Limoniter | Notepad | Notepad++ | VS Code | Vim / Neovim | Emacs | Kate | Zed | UltraEdit | EmEditor | Sublime | BBEdit | TextPad |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Plug-ins or extensions from others | ◐ add-on scripts | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ◐ | ✗ |
-| Code intelligence (language servers: completion, go to definition) | ✓ language servers, and its own for assembler | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ◐ | ✓ | ✗ |
-| Debugger | ◐ Z80, 6502, 6809 and 68000 programs and Spectrum BASIC: the built-in Spectrum, ZEsarUX, VICE, XRoar, Hatari and a real Next | ✗ | ✗ | ✓ | ◐ | ✓ | ◐ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Code intelligence (language servers: completion, go to definition) | ✓ language servers (with quick fixes, formatting, parameter and inline hints, and offered or installed for you), and its own for assembler | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ◐ | ✓ | ✗ |
+| Debugger | ✓ Python, C, C++ and Rust (debugpy, gdb, lldb-dap), and Z80, 6502, 6809 and 68000 programs and Spectrum BASIC: the built-in Spectrum, ZEsarUX, VICE, XRoar, Hatari and a real Next | ✗ | ✗ | ✓ | ◐ | ✓ | ◐ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Git | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✓ | ✗ |
-| Built-in terminal | ✓ | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✗ | ✗ |
+| Built-in terminal | ✓ several, in tabs | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✗ | ✗ |
 | Run a command on the file | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Remote files (FTP, SFTP, SSH) | ◐ SFTP; FTP only to send | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ◐ | ✓ | ✗ |
 | Editing together in real time | ✗ | ✗ | ✗ | ◐ | ✗ | ◐ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
@@ -85,7 +85,7 @@ This is what Limoniter was made for, and where no other editor here comes close.
 | Files added to, deleted from and renamed on disk and tape images | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ archives | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Legacy pictures shown and saved as PNG | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Old word processor documents converted | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Assembled, run and debugged (Z80, 6502, 6809, 68000) | ✓ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Assembled, run and debugged (Z80, 6502, 6809, 68000) | ✓ and the 6309, x86 and ARM assembled and run | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Sent to the real machine (SD card, Spectrum Next over Wi-Fi, Ultimate 64) | ✓ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 Some of these are possible elsewhere with separate tools (cpmtools, AppleCommander, netpbm, Notepad++ or VS Code extensions for one machine or another), but not together in one editor.
@@ -94,12 +94,12 @@ Some of these are possible elsewhere with separate tools (cpmtools, AppleCommand
 
 - **Other platforms.** Limoniter is made for Windows. It now builds and runs on Linux, where a few things are lighter (no file-type registration; spelling through hunspell or aspell; printing as plain pages through CUPS), and there's a Mac app to download, though it isn't signed yet and has had less use than the Windows one. VS Code, Sublime Text, Vim, Emacs, Kate, Zed and UltraEdit are long established on all three; BBEdit is the Mac's own.
 - **Plug-ins.** Notepad++, VS Code, Sublime Text, Vim, Emacs, Kate, Zed and EmEditor have thousands of add-ons written by others. Limoniter's add-ons are Rhai scripts that add commands, run when files open or save, and show panels, but there is no catalogue of them yet, and they can't add new kinds of window, language support or file formats.
-- **Programming tools.** VS Code, Zed and Kate have years of extensions on top of their language servers, debuggers, terminals and test runners. Limoniter now has language servers (off until switched on), a terminal, tasks and a test panel, and its own debugger and profiler for the machines it knows (Z80, 6502, 6809 and 68000, in its built-in Spectrum and in ZEsarUX, VICE, XRoar and Hatari); but it doesn't debug C, Rust or Python programs, and it has no extension ecosystem for languages.
+- **Programming tools.** VS Code, Zed and Kate have years of extensions on top of their language servers, debuggers, terminals and test runners. Limoniter now opens a folder as VS Code does, with an Explorer, Go to file and symbol, a Search panel, split editors and terminals in tabs; it has language servers (offered, and installed for you), tasks and a test panel, debugs Python, C, C++ and Rust through the Debug Adapter Protocol, and has its own debugger and profiler for the machines it knows (Z80, 6502, 6809 and 68000, in its built-in Spectrum and in ZEsarUX, VICE, XRoar and Hatari). What it hasn't got is an extension ecosystem for languages, or debugging for JavaScript and the many other languages VS Code's extensions debug.
 - **Remote and shared editing.** VS Code, Zed, UltraEdit, BBEdit, Vim and Emacs edit files on other machines over SSH or FTP; Zed and VS Code let several people edit together. Limoniter opens and saves files over SFTP, and can send a copy to an FTP server, but can't open files over FTP, and has no remote terminal, remote search or shared editing.
 - **Huge files.** UltraEdit and EmEditor are tuned for files of many gigabytes and keep every command available. Limoniter opens, edits, searches, compares, prints and saves such files in text, hex or table view, but still sets a few commands aside above 64 MB.
 - **Tables of data.** EmEditor treats CSV files as tables, with many more tools for them. Limoniter's table view edits, sorts and filters delimited data of any size, but has fewer tools.
 - **AI built in.** Notepad, VS Code, Zed, EmEditor and BBEdit have AI features of their own. Limoniter's assistant hands the work to Claude Code or Codex, which have to be installed and signed in separately.
-- **Other languages.** Notepad, Notepad++, VS Code, UltraEdit, EmEditor and others can show their menus in many languages. Limoniter's are in English only.
+- **Other languages.** Notepad, Notepad++, VS Code, UltraEdit, EmEditor and others can show their menus in many languages. Limoniter's are in English, French, German, Italian and Spanish; they have many more.
 - **Maturity.** Notepad++, Vim, Emacs, UltraEdit and the others have been used by many people for many years. Limoniter is new, and will have rough edges the others have long since smoothed.
 
 ## What only Limoniter does

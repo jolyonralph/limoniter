@@ -439,8 +439,8 @@ pub fn z88(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
     let bytes: Vec<String> = (1..=length).map(|i| hex8(at(i))).collect();
     let note = match name {
         Some(name) => name.to_string(),
-        None if length == 2 => format!("OZ call &{code:04X}"),
-        None => format!("OZ call &{code:02X}"),
+        None if length == 2 => crate::i18n::tf!("OZ call &{code:04X}"),
+        None => crate::i18n::tf!("OZ call &{code:02X}"),
     };
     // OS_Bye ends the program, as far as following its code goes.
     let ends = name == Some("os_bye");
@@ -486,11 +486,30 @@ pub fn m6502(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
 // ---------- 6809 ----------
 
 const REG_6809: [&str; 16] = ["d", "x", "y", "u", "s", "pc", "?", "?", "a", "b", "cc", "dp", "?", "?", "?", "?"];
+/// The 6309's: the 6809's, and W, V, the zero register, E and F.
+const REG_6309: [&str; 16] = ["d", "x", "y", "u", "s", "pc", "w", "v", "a", "b", "cc", "dp", "0", "0", "e", "f"];
 
 /// An indexed operand from its postbyte on: how it's written (with {addr} for a PC-relative target or an address
 /// it names), how many bytes, and the address.
-fn indexed_6809(at: &dyn Fn(usize) -> u8, from: usize, end_of: &dyn Fn(usize) -> u16) -> (String, usize, Option<u16>) {
+fn indexed_6809(at: &dyn Fn(usize) -> u8, from: usize, end_of: &dyn Fn(usize) -> u16, h6309: bool) -> (String, usize, Option<u16>) {
     let post = at(from);
+    // The 6309's indexing from W.
+    if h6309 {
+        let w = match post {
+            0x8F => Some((",w".to_string(), 1)),
+            0xAF => Some((format!(">{},w", u16::from_be_bytes([at(from + 1), at(from + 2)]) as i16), 3)),
+            0xCF => Some((",w++".to_string(), 1)),
+            0xEF => Some((",--w".to_string(), 1)),
+            0x90 => Some(("[,w]".to_string(), 1)),
+            0xB0 => Some((format!("[>{},w]", u16::from_be_bytes([at(from + 1), at(from + 2)]) as i16), 3)),
+            0xD0 => Some(("[,w++]".to_string(), 1)),
+            0xF0 => Some(("[,--w]".to_string(), 1)),
+            _ => None,
+        };
+        if let Some((text, length)) = w {
+            return (text, length, None);
+        }
+    }
     let r = ["x", "y", "u", "s"][usize::from((post >> 5) & 3)];
     if post & 0x80 == 0 {
         let n = ((post & 0x1F) as i8) << 3 >> 3;
@@ -508,6 +527,9 @@ fn indexed_6809(at: &dyn Fn(usize) -> u8, from: usize, end_of: &dyn Fn(usize) ->
         0x8 => (format!("<{},{r}", at(from + 1) as i8), 2, None),
         0x9 => (format!(">{},{r}", u16::from_be_bytes([at(from + 1), at(from + 2)]) as i16), 3, None),
         0xB => (format!("d,{r}"), 1, None),
+        0x7 if h6309 => (format!("e,{r}"), 1, None),
+        0xA if h6309 => (format!("f,{r}"), 1, None),
+        0xE if h6309 => (format!("w,{r}"), 1, None),
         0xC => {
             let target = end_of(2).wrapping_add(at(from + 1) as i8 as u16);
             ("{addr},pcr".into(), 2, Some(target))
@@ -522,9 +544,9 @@ fn indexed_6809(at: &dyn Fn(usize) -> u8, from: usize, end_of: &dyn Fn(usize) ->
     (if indirect { format!("[{inner}]") } else { inner }, length, address)
 }
 
-/// A 6809 instruction, from the assembler's own tables.
-pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
-    use crate::asm::m6809::{BRANCHES, INHERENT, MEMORY, SHIFTS};
+/// A 6809 instruction (or with `h6309`, a 6309 one), from the assembler's own tables.
+pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16, h6309: bool) -> Decoded {
+    use crate::asm::m6809::{BIT_OPS, BRANCHES, IMMEDIATE_MEMORY, INHERENT, INHERENT_6309, MEMORY, MEMORY_6309, REGISTER_OPS, SHIFTS};
     let page = match at(0) {
         0x10 | 0x11 => Some(at(0)),
         _ => None,
@@ -533,6 +555,53 @@ pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
     let op = at(skip);
     let unknown = || Decoded { length: 1, text: format!("fcb {}", hex8(at(0))), address: None, falls_through: true, target: None };
     let be = |from: usize| u16::from_be_bytes([at(from), at(from + 1)]);
+    if h6309 {
+        let names = &REG_6309;
+        for (name, bytes) in INHERENT_6309 {
+            if bytes.iter().enumerate().all(|(i, b)| at(i) == *b) {
+                return plain(bytes.len(), name.to_string());
+            }
+        }
+        match (page, op) {
+            (None, 0xCD) => return plain(5, format!("ldq #${:08X}", u32::from_be_bytes([at(1), at(2), at(3), at(4)]))),
+            (Some(0x10), 0x30..=0x37) => {
+                let name = REGISTER_OPS.iter().find(|(_, o)| *o == op).map_or("?", |(n, _)| n);
+                return plain(3, format!("{name} {},{}", names[usize::from(at(2) >> 4)], names[usize::from(at(2) & 15)]));
+            }
+            (Some(0x11), 0x38..=0x3B) if at(2) >> 4 <= 4 && at(2) & 15 <= 4 => {
+                let (a, b) = (names[usize::from(at(2) >> 4)], names[usize::from(at(2) & 15)]);
+                let text = match op {
+                    0x38 => format!("tfm {a}+,{b}+"),
+                    0x39 => format!("tfm {a}-,{b}-"),
+                    0x3A => format!("tfm {a}+,{b}"),
+                    _ => format!("tfm {a},{b}+"),
+                };
+                return plain(3, text);
+            }
+            (Some(0x11), 0x30..=0x37) if at(2) >> 6 != 3 => {
+                let name = BIT_OPS.iter().find(|(_, o)| *o == op).map_or("?", |(n, _)| n);
+                let post = at(2);
+                return plain(4, format!("{name} {},{},{},<{}", ["cc", "a", "b"][usize::from(post >> 6)], (post >> 3) & 7, post & 7, hex8(at(3))));
+            }
+            (Some(0x11), 0x3C | 0x3D) => return plain(3, format!("{} #{}", if op == 0x3D { "ldmd" } else { "bitmd" }, hex8(at(2)))),
+            _ => {}
+        }
+        // AIM, OIM, EIM and TIM: the value, then the address.
+        if page.is_none()
+            && let Some((name, _)) = IMMEDIATE_MEMORY.iter().find(|(_, o)| *o == op & 0x0F && matches!(op >> 4, 0x0 | 0x6 | 0x7))
+        {
+            let value = hex8(at(1));
+            let (text, length, address) = match op >> 4 {
+                0x0 => (format!("<{}", hex8(at(2))), 1, None),
+                0x6 => indexed_6809(at, 2, &|n| pc.wrapping_add(2 + n as u16), true),
+                _ => (">{addr}".to_string(), 2, Some(be(2))),
+            };
+            if length == 0 {
+                return unknown();
+            }
+            return Decoded { length: 2 + length, text: format!("{name} #{value},{text}"), address, falls_through: true, target: None };
+        }
+    }
     // Where the instruction ends, for a PC-relative operand, given how long its operand turned out.
     let ends = |operand_length: usize| move |extra: usize| pc.wrapping_add((skip + 1 + operand_length.max(extra)) as u16);
     let _ = ends;
@@ -560,7 +629,8 @@ pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
     }
     // Instructions on memory or with an immediate value, by their column: immediate, direct, indexed, extended.
     let base = op & 0xCF;
-    if let Some(memory) = MEMORY.iter().find(|m| m.prefix == page && m.opcode == base && op >= 0x80) {
+    let extra: &[crate::asm::m6809::Memory] = if h6309 { MEMORY_6309 } else { &[] };
+    if let Some(memory) = MEMORY.iter().chain(extra).find(|m| m.prefix == page && m.opcode == base && op >= 0x80) {
         let column = (op >> 4) & 3;
         let jsr = memory.name == "jsr";
         let decoded = match column {
@@ -571,7 +641,7 @@ pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
             0 => return unknown(),
             1 => Decoded { length: skip + 2, text: format!("{} <{}", memory.name, hex8(at(skip + 1))), address: None, falls_through: true, target: None },
             2 => {
-                let (text, length, address) = indexed_6809(&|i| at(i), skip + 1, &|n| pc.wrapping_add((skip + 1 + n) as u16));
+                let (text, length, address) = indexed_6809(&|i| at(i), skip + 1, &|n| pc.wrapping_add((skip + 1 + n) as u16), h6309);
                 if length == 0 {
                     return unknown();
                 }
@@ -600,7 +670,7 @@ pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
     if let Some(name) = name.filter(|_| matches!(op >> 4, 0x0 | 0x6 | 0x7)) {
         let (text, length, address) = match op >> 4 {
             0x0 => (format!("<{}", hex8(at(1))), 1, None),
-            0x6 => indexed_6809(at, 1, &|n| pc.wrapping_add(1 + n as u16)),
+            0x6 => indexed_6809(at, 1, &|n| pc.wrapping_add(1 + n as u16), h6309),
             _ => (">{addr}".to_string(), 2, Some(be(1))),
         };
         if length == 0 {
@@ -609,7 +679,8 @@ pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
         let target = if jmp && op >> 4 == 0x7 { address } else { None };
         return Decoded { length: 1 + length, text: format!("{name} {text}"), address, falls_through: !jmp, target };
     }
-    let regs = |post: u8| format!("{},{}", REG_6809[usize::from(post >> 4)], REG_6809[usize::from(post & 15)]);
+    let table = if h6309 { &REG_6309 } else { &REG_6809 };
+    let regs = |post: u8| format!("{},{}", table[usize::from(post >> 4)], table[usize::from(post & 15)]);
     let stack = |post: u8, user: bool| {
         let names = [(0x80, "pc"), (0x40, if user { "s" } else { "u" }), (0x20, "y"), (0x10, "x"), (0x08, "dp"), (0x04, "b"), (0x02, "a"), (0x01, "cc")];
         let list: Vec<&str> = names.iter().rev().filter(|(bit, _)| post & bit != 0).map(|(_, n)| *n).collect();
@@ -617,7 +688,7 @@ pub fn m6809(at: &dyn Fn(usize) -> u8, pc: u16) -> Decoded {
     };
     match op {
         0x30..=0x33 => {
-            let (text, length, address) = indexed_6809(at, 1, &|n| pc.wrapping_add(1 + n as u16));
+            let (text, length, address) = indexed_6809(at, 1, &|n| pc.wrapping_add(1 + n as u16), h6309);
             if length == 0 {
                 return unknown();
             }
@@ -647,7 +718,8 @@ enum Seen {
 
 /// Disassembles `bytes`, which load at `origin`, tracing the code from each of `starts`. The source names every
 /// address jumped to, called or used inside the program with a label; what isn't code is DB.
-/// For a Cambridge Z88 program, with `z88` set, RST &20 is an OZ call, named, with its code after it.
+/// For a Cambridge Z88 program, with `z88` set, RST &20 is an OZ call, named, with its code after it; for the 6809,
+/// it's the 6309, whose own instructions are decoded too.
 pub fn disassemble_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88: bool) -> String {
     let end = usize::from(origin) + bytes.len();
     let inside = |a: u16| usize::from(a) >= usize::from(origin) && usize::from(a) < end;
@@ -656,7 +728,7 @@ pub fn disassemble_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88:
         let at = |i: usize| bytes.get(offset + i).copied().unwrap_or(0);
         match cpu {
             Cpu::M6502 => m6502(&at, a),
-            Cpu::M6809 => m6809(&at, a),
+            Cpu::M6809 => m6809(&at, a, z88),
             _ if z88 => self::z88(&at, a),
             _ => z80(&at, a),
         }
@@ -877,7 +949,7 @@ mod tests {
         let mut at = 0;
         let mut lines = Vec::new();
         while at < binary.len() {
-            let d = m6809(&|i| binary.get(at + i).copied().unwrap_or(0), 0x3000 + at as u16);
+            let d = m6809(&|i| binary.get(at + i).copied().unwrap_or(0), 0x3000 + at as u16, false);
             lines.push(d.text.replace("{addr}", &format!("${:04X}", d.address.unwrap_or(0))));
             at += d.length;
         }

@@ -842,7 +842,7 @@ fn spectrum_source(name: &str, kind: Spectrum) -> String {
         Spectrum::HiColour => "Timex TC2048 or TS2068 (or the Next) in hi-colour",
         Spectrum::HiRes => "Timex TC2048 or TS2068 (or the Next) in hi-res",
     };
-    let mut s = format!("; {name}: a picture for the {machine}, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.scr beside it.\n\n");
+    let mut s = crate::i18n::tf!("; {name}: a picture for the {machine}, made by Limoniter.\n; Assemble with sjasmplus (or F9 in Limoniter), with {name}.scr beside it.\n\n");
     s += "        DEVICE ZXSPECTRUM48\n        org $8000\nstart:\n        ld hl,picture\n        ld de,$4000\n";
     match kind {
         Spectrum::Plain => s += "        ld bc,6912\n        ldir                    ; the bitmap and its colours\n        xor a\n        out ($fe),a             ; a black border\n",

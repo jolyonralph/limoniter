@@ -268,7 +268,7 @@ pub fn list_commodore(data: &[u8], set: &Charset) -> Listing {
     }
     if data.len() < 2 {
         listing.dialect = CbmMachine::C64.dialect();
-        listing.notes.push("The file is too short to be a program.".into());
+        listing.notes.push(crate::i18n::tr("The file is too short to be a program.").into());
         return listing;
     }
     let load = u16::from_le_bytes([data[0], data[1]]);
@@ -276,7 +276,7 @@ pub fn list_commodore(data: &[u8], set: &Charset) -> Listing {
     let machine = cbm_machine_of(load, memory, set);
     listing.dialect = machine.dialect();
     let set = if set.id.starts_with("petscii-") { charset::known(&set.id) } else { machine.petscii() };
-    listing.info.push(("Loads at".into(), format!("${load:04X}, as a {} program", machine.name())));
+    listing.info.push((crate::i18n::tr("Loads at").into(), format!("${load:04X}, as a {} program", machine.name())));
     let two_byte = |first: u8, second: u8| {
         let table: &[(u8, &str)] = if first == 0xCE { &BASIC7_CE } else { &BASIC7_FE };
         table.iter().find(|(b, _)| *b == second).map(|(_, w)| *w)
@@ -285,7 +285,7 @@ pub fn list_commodore(data: &[u8], set: &Charset) -> Listing {
     let mut previous: Option<u16> = None;
     loop {
         if at + 2 > memory.len() {
-            listing.notes.push("The program stops without its end marker.".into());
+            listing.notes.push(crate::i18n::tr("The program stops without its end marker.").into());
             break;
         }
         if memory[at] == 0 && memory[at + 1] == 0 {
@@ -293,12 +293,12 @@ pub fn list_commodore(data: &[u8], set: &Charset) -> Listing {
             break;
         }
         let Some(end) = memory.get(at + 4..).and_then(|rest| rest.iter().position(|b| *b == 0)).map(|n| at + 4 + n) else {
-            listing.notes.push(format!("A line starting at byte {} doesn't end, so the listing stops there.", at + 2));
+            listing.notes.push(crate::i18n::tf!("A line starting at byte {} doesn't end, so the listing stops there.", at + 2));
             break;
         };
         let number = u16::from_le_bytes([memory[at + 2], memory[at + 3]]);
         if number > 63999 || previous.is_some_and(|p| number <= p) {
-            listing.notes.push(format!("What follows byte {} doesn't look like BASIC lines, so it isn't listed.", at + 2));
+            listing.notes.push(crate::i18n::tf!("What follows byte {} doesn't look like BASIC lines, so it isn't listed.", at + 2));
             at = memory.len();
             break;
         }
@@ -334,10 +334,10 @@ pub fn list_commodore(data: &[u8], set: &Charset) -> Listing {
         at = end + 1;
     }
     if at < memory.len() {
-        listing.notes.push(format!("{} byte(s) after the program, usually machine code, aren't listed.", memory.len() - at));
+        listing.notes.push(crate::i18n::tf!("{} byte(s) after the program, usually machine code, aren't listed.", memory.len() - at));
     }
     if listing.lines.is_empty() && listing.notes.is_empty() {
-        listing.notes.push("The program has no lines.".into());
+        listing.notes.push(crate::i18n::tr("The program has no lines.").into());
     }
     listing
 }
@@ -602,7 +602,7 @@ fn zx_lines(program: &[u8], listing: &mut Listing) {
     let stopped = zx_walk(program, |number, body| lines.push(zx_line(number, body, dialect)));
     listing.lines.extend(lines);
     if let Some(at) = stopped {
-        listing.notes.push(format!("What follows byte {at} doesn't look like a BASIC line, so it isn't listed."));
+        listing.notes.push(crate::i18n::tf!("What follows byte {at} doesn't look like a BASIC line, so it isn't listed."));
     }
 }
 
@@ -724,7 +724,7 @@ fn zx_block(block: &[u8], header: &mut Option<ZxHeader>, listing: &mut Listing) 
             _ => "Bytes",
         };
         let detail = match found.kind {
-            0 if found.start < 10000 => format!("{}, runs from line {}", found.name, found.start),
+            0 if found.start < 10000 => crate::i18n::tf!("{}, runs from line {}", found.name, found.start),
             0 => found.name.clone(),
             3 => format!("{}, {} bytes at {}", found.name, found.length, found.start),
             _ => format!("{}, {} bytes", found.name, found.length),
@@ -745,7 +745,7 @@ fn zx_block(block: &[u8], header: &mut Option<ZxHeader>, listing: &mut Listing) 
         let program = &body[..usize::from(found.program).min(body.len())];
         zx_lines(program, listing);
         if body.len() > program.len() {
-            listing.notes.push(format!("{}'s variables, saved after its lines, aren't listed.", found.name));
+            listing.notes.push(crate::i18n::tf!("{}'s variables, saved after its lines, aren't listed.", found.name));
         }
     }
 }
@@ -793,13 +793,13 @@ fn block_places(data: &[u8], generalised: bool) -> (Vec<(usize, usize, usize)>, 
         while at + 2 <= data.len() {
             let length = usize::from(u16::from_le_bytes([data[at], data[at + 1]]));
             if data.len() < at + 2 + length {
-                return (blocks, Some("The tape ends partway through a block.".into()));
+                return (blocks, Some(crate::i18n::tr("The tape ends partway through a block.").into()));
             }
             blocks.push((at, at + 2, length));
             at += 2 + length;
         }
         if at < data.len() {
-            return (blocks, Some("The tape ends partway through a block.".into()));
+            return (blocks, Some(crate::i18n::tr("The tape ends partway through a block.").into()));
         }
         return (blocks, None);
     }
@@ -829,11 +829,11 @@ fn block_places(data: &[u8], generalised: bool) -> (Vec<(usize, usize, usize)>, 
             0x33 => (None, body + 1 + 3 * count(body)),
             0x35 => (None, body + 20 + four(body + 16)),
             0x5A => (None, body + 9),
-            _ => return (blocks, Some(format!("The tape has a kind of block (0x{id:02X}) this doesn't read, so it stops there."))),
+            _ => return (blocks, Some(crate::i18n::tf!("The tape has a kind of block (0x{id:02X}) this doesn't read, so it stops there."))),
         };
         if let Some((start, length)) = block {
             if data.len() < start + length {
-                return (blocks, Some("The tape ends partway through a block.".into()));
+                return (blocks, Some(crate::i18n::tr("The tape ends partway through a block.").into()));
             }
             blocks.push((at, start, length));
         }
@@ -869,17 +869,17 @@ pub fn list_tzx(data: &[u8]) -> Listing {
 pub fn list_plus3(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: ZxDialect::Spectrum.name(), ..Listing::default() };
     if data.len() < 128 {
-        listing.notes.push("The +3DOS header is cut short.".into());
+        listing.notes.push(crate::i18n::tr("The +3DOS header is cut short.").into());
         return listing;
     }
     let (kind, program) = (data[15], usize::from(u16::from_le_bytes([data[20], data[21]])));
     if kind != 0 {
-        listing.notes.push("This +3DOS file holds data, not a BASIC program.".into());
+        listing.notes.push(crate::i18n::tr("This +3DOS file holds data, not a BASIC program.").into());
         return listing;
     }
     let start = u16::from_le_bytes([data[18], data[19]]);
     if start < 10000 {
-        listing.info.push(("Runs from line".into(), start.to_string()));
+        listing.info.push((crate::i18n::tr("Runs from line").into(), start.to_string()));
     }
     let body = &data[128..];
     zx_lines(&body[..program.min(body.len())], &mut listing);
@@ -888,7 +888,7 @@ pub fn list_plus3(data: &[u8]) -> Listing {
 
 fn finish_zx(mut listing: Listing) -> Listing {
     if listing.lines.is_empty() && !listing.notes.iter().any(|n| n.contains("stops") || n.contains("partway")) {
-        listing.notes.push("There's no BASIC program here.".into());
+        listing.notes.push(crate::i18n::tr("There's no BASIC program here.").into());
     }
     listing
 }

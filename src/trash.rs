@@ -53,7 +53,7 @@ fn platform_move(file: &Path) -> Result<(), String> {
     use objc2::rc::Retained;
     use objc2::runtime::{AnyClass, AnyObject};
     use objc2::msg_send;
-    let path = std::ffi::CString::new(file.to_string_lossy().as_bytes()).map_err(|_| "The file's name can't be handed to macOS.".to_string())?;
+    let path = std::ffi::CString::new(file.to_string_lossy().as_bytes()).map_err(|_| crate::i18n::tr("The file's name can't be handed to macOS.").to_string())?;
     let (Some(strings), Some(urls), Some(managers)) = (AnyClass::get(c"NSString"), AnyClass::get(c"NSURL"), AnyClass::get(c"NSFileManager")) else {
         return Err(crate::i18n::tr("macOS's file manager couldn't be reached.").into());
     };

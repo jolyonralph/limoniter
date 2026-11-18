@@ -120,7 +120,7 @@ pub const KNOWN: &[Emulator] = &[
         programs: &["xroar"],
         folder_hints: &["xroar"],
         mac_apps: &[("XRoar.app", "xroar")],
-        machines: &[CoCo],
+        machines: &[CoCo, Dragon32, Dragon64],
         formats: &[CocoBin],
         link: Link::Gdb,
         website: "https://www.6809.org.uk/xroar/",
@@ -149,6 +149,29 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://www.winuae.net",
     },
+    // The PC: DOSBox runs a .COM from its folder, made its C: drive, and boots a floppy; QEMU boots one.
+    Emulator {
+        id: "dosbox",
+        name: "DOSBox",
+        programs: &["dosbox-staging", "dosbox-x", "dosbox", "DOSBox"],
+        folder_hints: &["dosbox"],
+        mac_apps: &[("dosbox-staging.app", "dosbox"), ("DOSBox Staging.app", "dosbox"), ("dosbox-x.app", "dosbox-x"), ("DOSBox.app", "DOSBox")],
+        machines: &[Pc],
+        formats: &[Com, Img],
+        link: Link::None,
+        website: "https://www.dosbox-staging.org",
+    },
+    Emulator {
+        id: "qemu",
+        name: "QEMU",
+        programs: &["qemu-system-i386", "qemu-system-x86_64"],
+        folder_hints: &["qemu"],
+        mac_apps: &[],
+        machines: &[Pc],
+        formats: &[Img],
+        link: Link::None,
+        website: "https://www.qemu.org",
+    },
     Emulator {
         id: "stella",
         name: "Stella",
@@ -160,17 +183,29 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://stella-emu.github.io",
     },
-    // MAME's Atari 2600 needs no ROMs of its own: the cartridge is all there is.
+    // MAME's Atari 2600 needs no ROMs of its own: the cartridge is all there is. Its Vectrex needs the Vectrex's.
     Emulator {
         id: "mame",
         name: "MAME",
         programs: &["mame", "mame64"],
         folder_hints: &["mame"],
         mac_apps: &[],
-        machines: &[Atari2600],
-        formats: &[A26],
+        machines: &[Atari2600, Vectrex],
+        formats: &[A26, VecCart],
         link: Link::None,
         website: "https://www.mamedev.org",
+    },
+    // ParaJVE, the Vectrex in Java, given the cartridge to load.
+    Emulator {
+        id: "parajve",
+        name: "ParaJVE",
+        programs: &["ParaJVE", "parajve"],
+        folder_hints: &["parajve"],
+        mac_apps: &[("ParaJVE.app", "ParaJVE")],
+        machines: &[Vectrex],
+        formats: &[VecCart],
+        link: Link::None,
+        website: "http://www.vectrex.fr/ParaJVE/",
     },
 ];
 
@@ -266,7 +301,12 @@ impl Emulator {
             "b2" => args.extend(["-0".into(), file, "-b".into()]),
             // XRoar needs the machine's BASIC ROMs, found in its ROM folder or named in the options.
             "xroar" => {
-                args.extend(["-machine".into(), "cocous".into()]);
+                let id = match machine {
+                    Dragon32 => "dragon32",
+                    Dragon64 => "dragon64",
+                    _ => "cocous",
+                };
+                args.extend(["-machine".into(), id.into()]);
                 if let Some(port) = port {
                     args.extend(["-gdb".into(), "-gdb-port".into(), port.to_string()]);
                 }
@@ -276,7 +316,12 @@ impl Emulator {
             // The file is the configuration made for the run.
             "fs-uae" => args.push(file),
             "winuae" => args.extend(["-f".into(), file]),
-            "mame" => args.extend(["a2600".into(), "-cart".into(), file, "-skip_gameinfo".into()]),
+            // The Vectrex needs its BIOS ROM (vectrex.zip) in MAME's ROM folder; the 2600 needs none.
+            "mame" => args.extend([if format == VecCart { "vectrex" } else { "a2600" }.into(), "-cart".into(), file, "-skip_gameinfo".into()]),
+            // A .COM given to DOSBox is run, its folder made drive C:; a floppy is booted.
+            "dosbox" if format == Img => args.extend(["-c".into(), format!("boot \"{file}\"")]),
+            "dosbox" => args.push(file),
+            "qemu" => args.extend(["-fda".into(), file, "-boot".into(), "a".into()]),
             _ => args.push(file),
         }
         args

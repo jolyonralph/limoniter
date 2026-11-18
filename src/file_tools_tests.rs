@@ -490,3 +490,92 @@ fn the_new_commands_are_in_the_menus_and_the_command_box() {
         frame(&mut app, &ctx, Vec::new());
     }
 }
+
+// ---------- Several clipboards ----------
+
+#[test]
+fn copy_and_paste_use_the_clipboard_chosen_and_leave_the_computer_s_alone() {
+    crate::clipboards::reset();
+    let (mut app, ctx) = app_with_text(&["one two three"]);
+    frame(&mut app, &ctx, Vec::new());
+    // Ctrl+2 chooses clipboard 2; copying puts "one" there, not on the computer's clipboard.
+    frame(&mut app, &ctx, vec![key(Key::Num2, Modifiers::COMMAND)]);
+    assert_eq!(crate::clipboards::active(), 2);
+    app.doc().text.set_selection((0, 0), (0, 3), false);
+    let output = frame(&mut app, &ctx, vec![egui::Event::Copy]);
+    assert_eq!(copied(&output), None);
+    assert_eq!(crate::clipboards::holding(2).as_deref(), Some("one"));
+    // Clipboard 5 gets "three".
+    give(&mut app, &ctx, Command::UseClipboard(5));
+    app.doc().text.set_selection((0, 8), (0, 13), false);
+    frame(&mut app, &ctx, vec![egui::Event::Copy]);
+    assert_eq!(crate::clipboards::holding(5).as_deref(), Some("three"));
+    // Pasting from 2 at the end, whatever the computer's clipboard says.
+    give(&mut app, &ctx, Command::UseClipboard(2));
+    app.doc().text.move_caret(0, 13, false);
+    frame(&mut app, &ctx, vec![egui::Event::Paste("from elsewhere".into())]);
+    assert_eq!(lines(&app), ["one two threeone"]);
+    // The computer's clipboard again: what it gives is pasted, and a copy goes to it.
+    frame(&mut app, &ctx, vec![key(Key::Num0, Modifiers::COMMAND)]);
+    assert_eq!(crate::clipboards::active(), 0);
+    frame(&mut app, &ctx, vec![egui::Event::Paste("!".into())]);
+    assert_eq!(lines(&app), ["one two threeone!"]);
+    app.doc().text.set_selection((0, 4), (0, 7), false);
+    let output = frame(&mut app, &ctx, vec![egui::Event::Copy]);
+    assert_eq!(copied(&output).as_deref(), Some("two"));
+    crate::clipboards::reset();
+}
+
+// ---------- .editorconfig ----------
+
+#[test]
+fn editorconfig_sets_the_tab_and_tidies_the_file_as_it_s_saved() {
+    let folder = std::env::temp_dir().join(format!("limoniter-editorconfig-app-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join(".editorconfig"), "root = true\n[*.c]\nindent_style = space\nindent_size = 3\ntrim_trailing_whitespace = true\ninsert_final_newline = true\n").unwrap();
+    let path = folder.join("main.c");
+    std::fs::write(&path, "int main() {   \nreturn 0;\n}").unwrap();
+    let (mut app, ctx) = app_with_text(&[""]);
+    assert!(app.open_path(&path));
+    frame(&mut app, &ctx, Vec::new());
+    assert_eq!(crate::text_buffer::tab_size(), 3);
+    assert!(crate::text_buffer::edit_prefs().spaces_for_tab);
+    give(&mut app, &ctx, Command::Save);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "int main() {\nreturn 0;\n}\n");
+    let _ = std::fs::remove_dir_all(&folder);
+}
+
+/// Another tab beside the one in front: a click in it brings it forward on its own side, typing goes to it, and
+/// choosing the other's tab swaps them back. Ctrl+\ again puts it away.
+#[test]
+fn another_file_shows_beside_and_a_click_brings_it_forward() {
+    let (mut app, ctx) = app_with_text(&["left file"]);
+    let first = app.docs[app.active].id;
+    app.new_document();
+    app.doc().text.set_content(vec!["right file".into()]);
+    let second = app.docs[app.active].id;
+    // The one used before goes beside, on the right.
+    app.active = app.docs.iter().position(|d| d.id == first).unwrap();
+    app.used_order = vec![first, second];
+    give(&mut app, &ctx, Command::OpenBeside);
+    for _ in 0..3 {
+        frame(&mut app, &ctx, Vec::new());
+    }
+    let beside = app.beside.as_ref().unwrap();
+    assert_eq!((beside.front, beside.other, beside.right), (first, second, true));
+    // A press on the right half brings the second forward, still on the right.
+    let at = egui::pos2(1300.0, 300.0);
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(at), egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
+    frame(&mut app, &ctx, vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    assert_eq!(app.docs[app.active].id, second);
+    let beside = app.beside.as_ref().unwrap();
+    assert_eq!((beside.front, beside.other, beside.right), (second, first, false), "the first stays on the left");
+    // Chosen from the tabs, the first comes forward on the left again.
+    app.active = app.docs.iter().position(|d| d.id == first).unwrap();
+    frame(&mut app, &ctx, Vec::new());
+    let beside = app.beside.as_ref().unwrap();
+    assert_eq!((beside.front, beside.other, beside.right), (first, second, true));
+    give(&mut app, &ctx, Command::OpenBeside);
+    assert!(app.beside.is_none());
+}

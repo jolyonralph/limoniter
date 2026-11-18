@@ -92,7 +92,7 @@ impl Trsdos {
                     let density = if shape.per_track >= 18 { "double density" } else { "single density" };
                     let sides = if shape.heads == 2 { ", two sides" } else { "" };
                     let named = if entry_size == 32 && !name.is_empty() && name.chars().all(|c| c.is_ascii_graphic() || c == ' ') { format!(" \"{name}\"") } else { String::new() };
-                    trs.what = format!("TRS-80 {dos} disk{named} ({cylinders} cylinders, {density}{sides})");
+                    trs.what = crate::i18n::tf!("TRS-80 {dos} disk{named} ({cylinders} cylinders, {density}{sides})");
                     return Ok(trs);
                 }
             }

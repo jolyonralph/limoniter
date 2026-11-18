@@ -418,7 +418,7 @@ impl Converter {
             }
             Some(Ok(c)) => {
                 if c.mode != CharMode::Petscii {
-                    ui.label(dim(format!("{} characters ({} different cells{})", c.charset.len(), c.unique, if c.unique > c.charset.len() { ", made to fit" } else { "" })));
+                    ui.label(dim(crate::i18n::tf!("{} characters ({} different cells{})", c.charset.len(), c.unique, if c.unique > c.charset.len() { ", made to fit" } else { "" })));
                 }
                 ui.horizontal_wrapped(|ui| {
                     if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the characters, screen and colour maps, the source and the viewer")).clicked() {
@@ -497,7 +497,7 @@ impl Converter {
         ui.label(dim("Cut from the picture at its own pixels, 24\u{D7}21 at a time, left to right and down."));
         egui::Grid::new("c64-sprites-name").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| self.name_row(ui));
         if let Some(sp) = self.sprites.result() {
-            ui.label(dim(format!("{} sprites, {} bytes; the first's pointer ${:02X} in VIC bank {}{}", sp.set.sprites.len(), sp.set.sprites.len() * 64, sp.first_pointer(), sp.bank(), if (self.sprite_settings.address >> 14) != (self.sprite_settings.screen >> 14) { " \u{2014} not the screen RAM's bank" } else { "" })));
+            ui.label(dim(crate::i18n::tf!("{} sprites, {} bytes; the first's pointer ${:02X} in VIC bank {}{}", sp.set.sprites.len(), sp.set.sprites.len() * 64, sp.first_pointer(), sp.bank(), if (self.sprite_settings.address >> 14) != (self.sprite_settings.screen >> 14) { " \u{2014} not the screen RAM's bank" } else { "" })));
             ui.horizontal_wrapped(|ui| {
                 if ui.button(crate::i18n::tr("Save everything\u{2026}")).on_hover_text(crate::i18n::tr("Into a folder: the sprites raw, as SpritePad's .spd, the source and the viewer")).clicked() {
                     *asked = Some(Asked::SaveAll);
@@ -532,7 +532,7 @@ impl Converter {
                 if !b.mode.multicolour() {
                     used.remove(0);
                 }
-                (format!("{}, average difference {:.3} (Oklab)", b.mode.name(), b.error), 320, 200, b.rgba(colours), gfx::PIXEL_ASPECT, used)
+                (crate::i18n::tf!("{}, average difference {:.3} (Oklab)", b.mode.name(), b.error), 320, 200, b.rgba(colours), gfx::PIXEL_ASPECT, used)
             }),
             Tab::Characters => match self.chars.result() {
                 Some(Ok(c)) => {
@@ -547,14 +547,14 @@ impl Converter {
                         _ => &["background"],
                     };
                     let used = names.iter().zip(c.backgrounds).map(|(n, b)| (n.to_string(), b)).collect();
-                    Some((format!("{}\u{D7}{} characters, average difference {:.3} (Oklab)", c.columns, c.rows, c.error), c.columns * 8, c.rows * 8, rgba, gfx::PIXEL_ASPECT, used))
+                    Some((crate::i18n::tf!("{}\u{D7}{} characters, average difference {:.3} (Oklab)", c.columns, c.rows, c.error), c.columns * 8, c.rows * 8, rgba, gfx::PIXEL_ASPECT, used))
                 }
                 _ => None,
             },
             Tab::Sprites => self.sprites.result().map(|sp| {
                 let (w, h, rgba) = sp.sheet_rgba(colours);
                 let used = if sp.set.sprites.first().is_some_and(|b| b[63] & 0x80 != 0) { vec![("$D025".to_string(), sp.set.multicolour1), ("$D026".to_string(), sp.set.multicolour2)] } else { Vec::new() };
-                (format!("{} frames, average difference {:.3} (Oklab)", sp.across * sp.down, sp.error), w, h, rgba, gfx::PIXEL_ASPECT, used)
+                (crate::i18n::tf!("{} frames, average difference {:.3} (Oklab)", sp.across * sp.down, sp.error), w, h, rgba, gfx::PIXEL_ASPECT, used)
             }),
         };
         match shown {

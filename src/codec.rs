@@ -89,11 +89,11 @@ impl NewlinePolicy {
 
     pub fn name(self) -> String {
         match self {
-            NewlinePolicy::Standard => "CR, LF and CRLF (and NL in EBCDIC)".to_string(),
-            NewlinePolicy::CrOnly => "CR only".to_string(),
-            NewlinePolicy::AtasciiEol => "ATASCII EOL (0x9B) only".to_string(),
-            NewlinePolicy::FixedRows { width, parity: false } => format!("Raw rows of {width} cells"),
-            NewlinePolicy::FixedRows { width, parity: true } => format!("Raw rows of {width} cells, odd parity"),
+            NewlinePolicy::Standard => crate::i18n::tr("CR, LF and CRLF (and NL in EBCDIC)").to_string(),
+            NewlinePolicy::CrOnly => crate::i18n::tr("CR only").to_string(),
+            NewlinePolicy::AtasciiEol => crate::i18n::tr("ATASCII EOL (0x9B) only").to_string(),
+            NewlinePolicy::FixedRows { width, parity: false } => crate::i18n::tf!("Raw rows of {width} cells"),
+            NewlinePolicy::FixedRows { width, parity: true } => crate::i18n::tf!("Raw rows of {width} cells, odd parity"),
         }
     }
 
@@ -534,7 +534,7 @@ impl EolCounts {
             .filter(|c| c.1 > 0)
             .map(|c| format!("{} {}", c.1, c.0))
             .collect();
-        if parts.is_empty() { "No line endings".to_string() } else { parts.join(", ") }
+        if parts.is_empty() { crate::i18n::tr("No line endings").to_string() } else { parts.join(", ") }
     }
 }
 

@@ -122,7 +122,7 @@ impl CompactPro {
 
 /// Undoes Compact Pro's run-length coding, to `size` bytes.
 fn unrle81(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
-    let short = || "This file's packed data ends early, so it's damaged or cut short.".to_string();
+    let short = || crate::i18n::tr("This file's packed data ends early, so it's damaged or cut short.").to_string();
     let mut out = Vec::with_capacity(size);
     let (mut at, mut last) = (0, 0u8);
     // An &81 &81 is a literal &81 and then an escape: the second &81 is looked at again.
@@ -238,7 +238,7 @@ fn lzh_unpack(input: &[u8], size: usize) -> Vec<u8> {
 
 impl Volume for CompactPro {
     fn describe(&self) -> String {
-        format!("Compact Pro archive \u{B7} {} file(s)", self.members.iter().filter(|m| !m.folder).count())
+        crate::i18n::tf!("Compact Pro archive \u{B7} {} file(s)", self.members.iter().filter(|m| !m.folder).count())
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {

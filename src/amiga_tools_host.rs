@@ -95,11 +95,11 @@ fn report(what: &str, result: &Result<Outcome, String>) -> Vec<String> {
             if outcome.ok {
                 let sizes = outcome.sizes();
                 if !sizes.is_empty() {
-                    lines.push(format!("Crunched in {:.1} s: {sizes}.", outcome.seconds));
+                    lines.push(crate::i18n::tf!("Crunched in {:.1} s: {sizes}.", outcome.seconds));
                 }
-                lines.extend(outcome.made.iter().map(|(path, size)| format!("Wrote {} ({} bytes).", path.display(), tools::group(*size))));
+                lines.extend(outcome.made.iter().map(|(path, size)| crate::i18n::tf!("Wrote {} ({} bytes).", path.display(), tools::group(*size))));
             } else {
-                lines.push("It didn't finish: see what it printed above.".into());
+                lines.push(crate::i18n::tr("It didn't finish: see what it printed above.").into());
             }
         }
         Err(problem) => lines.push(problem.clone()),
@@ -271,7 +271,7 @@ impl Limoniter {
                     doc.text.paste_text(&text, false);
                     self.active = index;
                     if let Dialog::AmigaTools(state) = &mut self.dialog {
-                        state.status = format!("The replay calls were put into {name}, at the cursor.");
+                        state.status = crate::i18n::tf!("The replay calls were put into {name}, at the cursor.");
                     }
                 }
                 None => ctx.copy_text(text),
@@ -337,7 +337,7 @@ impl Limoniter {
         }
         let prefs = state.prefs.clone();
         let (path, bytes, name) = (source.path.clone(), source.bytes.clone(), source.name.clone());
-        let what = format!("Crunching {name} with {}", tool.name());
+        let what = crate::i18n::tf!("Crunching {name} with {}", tool.name());
         state.result = None;
         state.job = Some(start(Some(ctx), what, move |stop| {
             let (scratch, input) = match (path, bytes) {
@@ -375,7 +375,7 @@ impl Limoniter {
         options.micro = state.replay == Replay::LspMicro;
         options.insane = state.replay == Replay::LspInsane;
         let (path, bytes, name) = (source.path.clone(), source.bytes.clone(), source.name.clone());
-        let what = format!("Converting {name} with LSPConvert");
+        let what = crate::i18n::tf!("Converting {name} with LSPConvert");
         state.result = None;
         state.job = Some(start(Some(ctx), what, move |stop| match (path, bytes) {
             (Some(path), _) => tools::convert_lsp(&program, &options, &path, stop),
@@ -418,7 +418,7 @@ impl Limoniter {
         };
         let output = folder.join(tools::crunched_name(name));
         let (name, bytes) = (name.to_string(), bytes.to_vec());
-        let what = format!("Crunching {name} with {}", tool.name());
+        let what = crate::i18n::tf!("Crunching {name} with {}", tool.name());
         let job = start(None, what.clone(), move |stop| {
             let (scratch, input) = scratch_copy(&name, &bytes)?;
             let result = tools::crunch(tool, &program, &prefs, &input, &output, stop);
@@ -477,7 +477,7 @@ fn file_line(ui: &mut egui::Ui, source: &Source, action: &mut Option<Act>) {
     });
     ui.horizontal_wrapped(|ui| {
         match &source.folder {
-            Some(folder) => note(ui, format!("What's made goes in {}", folder.display())),
+            Some(folder) => note(ui, crate::i18n::tf!("What's made goes in {}", folder.display())),
             None => note(ui, "Choose where what's made goes:"),
         }
         if ui.small_button(crate::i18n::tr("Choose a folder\u{2026}")).clicked() {
@@ -548,7 +548,7 @@ fn crunch_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option
                     for n in 1..=9u8 {
                         let label = match n {
                             1 => "-1 fastest".to_string(),
-                            3 => "-3 Shrinkler's own default".to_string(),
+                            3 => crate::i18n::tr("-3 Shrinkler's own default").to_string(),
                             9 => "-9 smallest (slow)".to_string(),
                             _ => format!("-{n}"),
                         };
@@ -614,7 +614,7 @@ fn music_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, target: Option<&str>
         ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("This isn't a ProTracker module."));
         return;
     };
-    note(ui, format!("{}: {} channels, {} positions, {} patterns, {} samples.", if module.title.is_empty() { "Untitled" } else { &module.title }, module.channels, module.order.len(), module.patterns, module.used_samples().count()));
+    note(ui, crate::i18n::tf!("{}: {} channels, {} positions, {} patterns, {} samples.", if module.title.is_empty() { "Untitled" } else { &module.title }, module.channels, module.order.len(), module.patterns, module.used_samples().count()));
     if module.channels != 4 {
         ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("Both players play 4-channel modules only."));
     }
@@ -632,9 +632,9 @@ fn music_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, target: Option<&str>
         tool_status_p61(ui, &state.found);
         let p61 = tools::p61_file(&module_path);
         if p61.is_file() {
-            note(ui, format!("{} is there, ready.", p61.display()));
+            note(ui, crate::i18n::tf!("{} is there, ready.", p61.display()));
         } else {
-            note(ui, format!("P61Con saves {} for this module.", p61.file_name().unwrap_or_default().to_string_lossy()));
+            note(ui, crate::i18n::tf!("P61Con saves {} for this module.", p61.file_name().unwrap_or_default().to_string_lossy()));
         }
     } else {
         let ready = tool_status(ui, &state.found, Tool::LspConvert);
@@ -681,7 +681,7 @@ fn tool_status_p61(ui: &mut egui::Ui, found: &[(Tool, Option<PathBuf>)]) {
     ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("P61Con runs only on an Amiga."));
     note(ui, Tool::P61Con.how_to_get());
     if let Some(path) = self::found(found, Tool::P61Con) {
-        note(ui, format!("There's a copy at {}, to copy to the Amiga (or the emulator's hard disk folder).", path.display()));
+        note(ui, crate::i18n::tf!("There's a copy at {}, to copy to the Amiga (or the emulator's hard disk folder).", path.display()));
     }
 }
 
@@ -699,7 +699,7 @@ fn tools_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option<
         }
         match found(&state.found, tool) {
             Some(path) => note(ui, format!("Found: {}", path.display())),
-            None => note(ui, format!("Not found. {}", tool.how_to_get())),
+            None => note(ui, crate::i18n::tf!("Not found. {}", tool.how_to_get())),
         }
         ui.horizontal(|ui| {
             if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Point Limoniter at the program")).clicked() {

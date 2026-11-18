@@ -29,7 +29,11 @@ pub fn editor_id() -> Id {
 
 /// The focus id for one pane of a split window.
 pub fn pane_id(number: usize) -> Id {
-    if number == 0 { editor_id() } else { Id::unique("limoniter-editor-second") }
+    match number {
+        0 => editor_id(),
+        1 => Id::unique("limoniter-editor-second"),
+        _ => Id::unique("limoniter-editor-beside"),
+    }
 }
 
 /// The focus id of a table view, which takes commands as the text would.
@@ -175,6 +179,10 @@ pub struct ViewOptions {
     /// Lines down the text at chosen columns, such as 72 or 80.
     pub column_markers: bool,
     pub marker_columns: MarkerColumns,
+    /// The path and the function or label the cursor is in, above the text.
+    pub breadcrumbs: bool,
+    /// The function or label scrolled past, kept at the top of the text.
+    pub sticky_scroll: bool,
     /// How tall each row is, as a multiple of the font's own line height: 1 is as close as the font sets them.
     pub line_spacing: f32,
 }
@@ -226,7 +234,7 @@ impl std::fmt::Display for MarkerColumns {
 
 impl Default for ViewOptions {
     fn default() -> Self {
-        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), line_spacing: 1.0 }
+        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), breadcrumbs: true, sticky_scroll: true, line_spacing: 1.0 }
     }
 }
 
@@ -234,8 +242,8 @@ impl ViewOptions {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\n",
-            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing
+            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\nbreadcrumbs={}\nsticky_scroll={}\n",
+            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing, self.breadcrumbs, self.sticky_scroll
         )
     }
 
@@ -263,6 +271,8 @@ impl ViewOptions {
                 "line_change" => options.line_change = flag.unwrap_or(options.line_change),
                 "fold_lines" => options.fold_lines = flag.unwrap_or(options.fold_lines),
                 "column_markers" => options.column_markers = flag.unwrap_or(options.column_markers),
+                "breadcrumbs" => options.breadcrumbs = flag.unwrap_or(options.breadcrumbs),
+                "sticky_scroll" => options.sticky_scroll = flag.unwrap_or(options.sticky_scroll),
                 "marker_columns" => options.marker_columns = MarkerColumns::parse(value).unwrap_or(options.marker_columns),
                 "tab_size" => {
                     if let Ok(size) = value.trim().parse::<usize>()
@@ -332,7 +342,9 @@ use crate::scripting;
 #[derive(Default)]
 pub struct ViewState {
     /// With a filter, this counts the lines showing rather than the lines of the file.
-    top: usize,
+    pub top: usize,
+    /// The line kept at the top as the text scrolls past it (sticky scroll), set before drawing.
+    pub sticky: Option<usize>,
     left: usize,
     rows: usize,
     wheel: Vec2,
@@ -963,8 +975,49 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     }
     let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, pad, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
+    // Sticky scroll: the function or label scrolled past, kept along the top; a click goes to it.
+    if let Some(line) = state.sticky.filter(|line| pane.filter.is_none() && *line < state.top && *line < buffer.line_count()) {
+        let strip = Rect::from_min_size(pos2(view.min.x, view.min.y + ruler_h), vec2(view.width(), cell.y));
+        let painter = ui.painter_at(view);
+        painter.rect_filled(strip, 0.0, theme::editor_back());
+        painter.hline(strip.x_range(), strip.max.y, Stroke::new(1.0, theme::gutter_text().gamma_multiply(0.5)));
+        if options.line_numbers {
+            painter.text(pos2(view.min.x + gutter - cell.x, strip.min.y + pad), Align2::RIGHT_TOP, (line + 1 + buffer.line_offset).to_string(), font.clone(), theme::gutter_text());
+        }
+        let shown: String = display_text(&buffer.line(line)).chars().skip(state.left).take(cols).collect();
+        painter.text(pos2(view.min.x + gutter, strip.min.y + pad), Align2::LEFT_TOP, shown, font.clone(), theme::editor_text());
+        if ui.interact(strip, id.with("sticky"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+            buffer.move_caret(line, 0, false);
+            buffer.reveal = true;
+        }
+    }
     if !focused {
         state.completion = None;
+    }
+    // The call being typed: what it takes, the parameter being typed in bold, just above the line.
+    if focused
+        && let (Some((line, words, part)), Some(at)) = (buffer.intel.as_ref().and_then(|i| i.lsp_signature.clone()), caret_spot)
+        && line == buffer.caret_line
+    {
+        let small = FontId::monospace((options.font_size * 0.9).round());
+        let mut job = egui::text::LayoutJob::default();
+        let plain = egui::TextFormat { font_id: small.clone(), color: theme::text_dim(), ..Default::default() };
+        let strong = egui::TextFormat { font_id: small, color: theme::text(), underline: Stroke::new(1.0, theme::text()), ..Default::default() };
+        let chars: Vec<char> = words.chars().collect();
+        let (a, b) = part.map_or((chars.len(), chars.len()), |(a, b)| (a.min(chars.len()), b.min(chars.len())));
+        job.append(&chars[..a].iter().collect::<String>(), 0.0, plain.clone());
+        job.append(&chars[a..b].iter().collect::<String>(), 0.0, strong);
+        job.append(&chars[b..].iter().collect::<String>(), 0.0, plain);
+        // Above the line, or below it near the top.
+        let above = at.y - cell.y * 2.2 > view.min.y;
+        let (at, pivot) = if above { (pos2(at.x, at.y - cell.y - 2.0), egui::Align2::LEFT_BOTTOM) } else { (at, egui::Align2::LEFT_TOP) };
+        if state.completion.is_none() || above {
+            egui::Area::new(id.with("signature")).order(egui::Order::Foreground).fixed_pos(at).pivot(pivot).interactable(false).show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.label(job);
+                });
+            });
+        }
     }
     if let (Some(completion), Some(at)) = (state.completion.clone(), caret_spot) {
         let mut chosen = None;
@@ -1193,7 +1246,7 @@ fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             Event::Paste(t) => {
                 if !buffer.read_only {
                     scripting::note_line("command(\"paste\");".into());
-                    paste_into(ui.ctx(), buffer, clip, &t);
+                    paste_into(ui.ctx(), buffer, clip, &crate::clipboards::pasted(&t));
                 }
             }
             Event::Key { key, pressed: true, modifiers, .. } => {
@@ -1242,7 +1295,7 @@ fn copy_multi(ctx: &egui::Context, buffer: &TextBuffer, clip: &mut ClipState) {
         let readable = buffer.format.readable_text(&exact);
         clip.remember(&readable, false);
         clip.remember_exact(&readable, &exact);
-        ctx.copy_text(readable);
+        crate::clipboards::put(ctx, readable);
     }
 }
 
@@ -1306,14 +1359,14 @@ pub fn copy_text_selection(ctx: &egui::Context, buffer: &mut TextBuffer, clip: &
         return true;
     }
     if buffer.selection_too_large_to_copy() {
-        buffer.notice = Some("That selection is too large for the clipboard. Select fewer lines to copy or cut them.".into());
+        buffer.notice = Some(crate::i18n::tr("That selection is too large for the clipboard. Select fewer lines to copy or cut them.").into());
         return false;
     }
     let exact = buffer.selection_text();
     let readable = buffer.format.readable_text(&exact);
     clip.remember(&readable, buffer.is_block());
     clip.remember_exact(&readable, &exact);
-    ctx.copy_text(readable);
+    crate::clipboards::put(ctx, readable);
     true
 }
 
@@ -1954,6 +2007,23 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         }
     }
 
+    // A language server's hints for each line (types, parameters' names), faint, after its text.
+    if let Some(intel) = b.intel.as_deref().filter(|i| !i.lsp_hints.is_empty()) {
+        let small = FontId::monospace((f.size * 0.85).round());
+        for (index, slot) in l.slots.iter().enumerate() {
+            // On the line's last row.
+            if l.slots.get(index + 1).is_some_and(|next| next.line == slot.line) {
+                continue;
+            }
+            let hints: Vec<&str> = intel.lsp_hints.iter().filter(|(line, _)| *line == slot.line).map(|(_, h)| h.as_str()).collect();
+            if hints.is_empty() {
+                continue;
+            }
+            let end = col_at(slot.start, display_text(&b.line(slot.line)).trim_end().chars().count());
+            painter.text(pos2(end + cell.x * 2.0, row_y(index) + 1.0 + l.pad), Align2::LEFT_TOP, hints.join("  "), small.clone(), theme::text_faint());
+        }
+    }
+
     // In 6502 source, each line's cycles at the right, where the line leaves room.
     if let (Some(intel), Some(top), Some(bottom)) = (b.intel.as_deref(), l.slots.first(), l.slots.last()) {
         let notes = crate::m6502_timing::line_notes(intel, b.version(), top.line, bottom.line);
@@ -2021,7 +2091,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             }
         }
         // A language server's problems, marked as the assembler's are.
-        if b.code.is_none()
+        if b.code.as_ref().is_none_or(|c| c.problem_at(slot.line).is_none())
             && let Some(intel) = b.intel.as_ref().filter(|i| i.diagnostics.iter().chain(&i.build_problems).any(|(l, _)| *l == slot.line))
         {
             let _ = intel;
@@ -2151,8 +2221,8 @@ pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, form
     let sense = if input_on { Sense::click_and_drag() } else { Sense::hover() };
     let response = ui.interact(view, editor_id(), sense).on_hover_cursor(CursorIcon::Text);
     if crate::access::wanted(&response) {
-        let pane = if buffer.ascii_pane { "characters" } else { "hex digits" };
-        crate::access::editor(&response, &format!("Hex, typing {pane}"), &buffer.position_text(), "", buffer.read_only);
+        let pane = if buffer.ascii_pane { crate::i18n::tr("Hex, typing characters") } else { crate::i18n::tr("Hex, typing hex digits") };
+        crate::access::editor(&response, pane, &buffer.position_text(), "", buffer.read_only);
     }
     let (pressed, modifiers, pointer) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers, i.pointer.interact_pos()));
     if let Some(p) = pointer {
@@ -2222,7 +2292,7 @@ fn handle_hex_input(ui: &Ui, b: &mut HexBuffer, state: &mut ViewState) {
                     b.delete_selection();
                 }
             }
-            Event::Paste(t) => paste_into_hex(ui, b, &t),
+            Event::Paste(t) => paste_into_hex(ui, b, &crate::clipboards::pasted(&t)),
             Event::Key { key, pressed: true, modifiers, .. } => handle_hex_key(b, key, modifiers, rows),
             _ => continue,
         }
@@ -2240,7 +2310,7 @@ pub fn paste_into_hex(ui: &Ui, b: &mut HexBuffer, text: &str) {
 
 pub fn copy_hex_selection(ui: &Ui, b: &HexBuffer) {
     if b.has_selection() {
-        ui.ctx().copy_text(b.selection_text());
+        crate::clipboards::put(ui.ctx(), b.selection_text());
     }
 }
 

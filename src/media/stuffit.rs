@@ -75,7 +75,7 @@ fn method_name(method: u8) -> String {
         2 => "LZW".into(),
         3 => "Huffman".into(),
         5 => "LZAH".into(),
-        6 => "Fixed Huffman".into(),
+        6 => crate::i18n::tr("Fixed Huffman").into(),
         8 => "MW".into(),
         13 => "LZ+Huffman".into(),
         14 => "Installer".into(),
@@ -121,7 +121,7 @@ struct Cursor<'a> {
 
 impl Cursor<'_> {
     fn bytes(&mut self, count: usize) -> Result<Vec<u8>, String> {
-        let bytes = self.source.read_vec(self.at, count).map_err(|_| "The archive ends in the middle of an entry's header.".to_string())?;
+        let bytes = self.source.read_vec(self.at, count).map_err(|_| crate::i18n::tr("The archive ends in the middle of an entry's header.").to_string())?;
         self.at += count as u64;
         Ok(bytes)
     }
@@ -135,7 +135,7 @@ impl StuffIt {
     /// A classic archive: a 22-byte header giving the archive's length, then each entry's 112-byte header (with
     /// its own CRC) followed by its resource fork's packed bytes and its data fork's.
     pub fn open(source: Arc<dyn Source>) -> Result<Self, String> {
-        let head = source.read_vec(0, 22).map_err(|_| "This StuffIt archive is cut short before its first entry.".to_string())?;
+        let head = source.read_vec(0, 22).map_err(|_| crate::i18n::tr("This StuffIt archive is cut short before its first entry.").to_string())?;
         let end = be(&head[6..10]).min(source.len());
         let mut members: Vec<Member> = Vec::new();
         let mut folders: Vec<usize> = Vec::new();
@@ -144,11 +144,11 @@ impl StuffIt {
         while at + 112 <= end {
             let h = source.read_vec(at, 112)?;
             if crc16_arc(0, &h[..110]) != be(&h[110..112]) as u16 {
-                let problem = format!("This StuffIt archive is damaged: the header of its entry {} has the wrong CRC.", members.len() + 1);
+                let problem = crate::i18n::tf!("This StuffIt archive is damaged: the header of its entry {} has the wrong CRC.", members.len() + 1);
                 if members.is_empty() {
                     return Err(problem);
                 }
-                notes.push(format!("{problem} The entries before it are listed."));
+                notes.push(crate::i18n::tf!("{problem} The entries before it are listed."));
                 break;
             }
             at += 112;
@@ -182,7 +182,7 @@ impl StuffIt {
 
     /// A StuffIt 5 archive: its own header, then entries whose headers say where their folder's header is.
     pub fn open5(source: Arc<dyn Source>) -> Result<Self, String> {
-        let head = source.read_vec(0, 100).map_err(|_| "This StuffIt 5 archive is cut short.".to_string())?;
+        let head = source.read_vec(0, 100).map_err(|_| crate::i18n::tr("This StuffIt 5 archive is cut short.").to_string())?;
         if head[82] != 5 {
             return Err(crate::i18n::tf!("This is a StuffIt 5 archive of version {}, which Limoniter doesn't know.", head[82]));
         }
@@ -192,7 +192,7 @@ impl StuffIt {
             if members.is_empty() {
                 return Err(problem);
             }
-            notes.push(format!("{problem} The entries before it are listed."));
+            notes.push(crate::i18n::tf!("{problem} The entries before it are listed."));
         }
         Ok(Self { source, members, what: "StuffIt 5 archive", notes })
     }
@@ -821,7 +821,7 @@ impl<'a> Arithmetic<'a> {
 /// flipped at set places to stop the sort going slow ("randomised"); a run of four bytes the same is followed by a
 /// count of more. A CRC-32 of the whole file ends it.
 fn arsenic(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
-    let damaged = || "This file's Arsenic data is damaged.".to_string();
+    let damaged = || crate::i18n::tr("This file's Arsenic data is damaged.").to_string();
     let mut coder = Arithmetic::new(input)?;
     let mut initial = Model::new(0, 1, 1, 256);
     let mut selector = Model::new(0, 10, 8, 1024);

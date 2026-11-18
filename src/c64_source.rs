@@ -284,8 +284,8 @@ impl Source {
         let named = if part.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') { format!("{part} = ${address:04X}: ") } else { String::new() };
         let mirror = if c64_hw::mirror(address) != address && c64_hw::is_chip(address) { format!("\n(a copy of ${:04X})", register.address) } else { String::new() };
         if register.access == Access::Vector {
-            let byte = if address == register.address { "low" } else { "high" };
-            let mut out = format!("{named}{}\nThe {byte} byte of the address.{mirror}", c64_hw::describe(register));
+            let described = c64_hw::describe(register);
+            let mut out = if address == register.address { crate::i18n::tf!("{named}{described}\nThe low byte of the address.{mirror}") } else { crate::i18n::tf!("{named}{described}\nThe high byte of the address.{mirror}") };
             if let Some(r) = Self::stored(mnemonic)
                 && let Some((value, from)) = self.held(line, r)
             {
@@ -298,7 +298,7 @@ impl Source {
             return Some(format!("{named}{}{mirror}", c64_hw::describe(register)));
         };
         let Some((value, from)) = self.held(line, r) else {
-            return Some(format!("{named}{}{mirror}\n(The value written isn't known here.)", c64_hw::describe(register)));
+            return Some(crate::i18n::tf!("{named}{}{mirror}\n(The value written isn't known here.)", c64_hw::describe(register)));
         };
         let mut out = format!("{named}{}", c64_hw::describe_value(register, value));
         out.push_str(&format!("\n(from line {}){mirror}", from + 1));
@@ -320,14 +320,14 @@ impl Source {
             0xD400..=0xD414 if (a - 0xD400) % 7 <= 1 => {
                 let (low, high) = if (a - 0xD400).is_multiple_of(7) { (Some(value), pair(a + 1)) } else { (pair(a - 1), Some(value)) };
                 match (low, high) {
-                    (Some(low), Some(high)) => format!("\nWith the other byte: {}", c64_hw::explain_frequency(u16::from_le_bytes([low, high]))),
+                    (Some(low), Some(high)) => crate::i18n::tf!("\nWith the other byte: {}", c64_hw::explain_frequency(u16::from_le_bytes([low, high]))),
                     _ => String::new(),
                 }
             }
             0xDC04..=0xDC07 | 0xDD04..=0xDD07 => {
                 let (low, high) = if a & 1 == 0 { (Some(value), pair(a + 1)) } else { (pair(a - 1), Some(value)) };
                 match (low, high) {
-                    (Some(low), Some(high)) => format!("\nWith the other byte, timer {}: {}", if a & 2 == 0 { "A" } else { "B" }, c64_hw::explain_timer(u16::from_le_bytes([low, high]))),
+                    (Some(low), Some(high)) => crate::i18n::tf!("\nWith the other byte, timer {}: {}", if a & 2 == 0 { "A" } else { "B" }, c64_hw::explain_timer(u16::from_le_bytes([low, high]))),
                     _ => String::new(),
                 }
             }
@@ -335,7 +335,7 @@ impl Source {
                 let dd00 = self.last_stored(0xDD00, self.lines.len());
                 let bitmap = self.last_stored(0xD011, self.lines.len()).is_some_and(|v| v & 0x20 != 0);
                 match dd00 {
-                    Some(bank) => format!("\nWith $DD00 = ${bank:02X} (bank ${:04X}): {}", c64_hw::bank_of(bank), c64_hw::vic_memory(value, bank).words(bitmap)),
+                    Some(bank) => crate::i18n::tf!("\nWith $DD00 = ${bank:02X} (bank ${:04X}): {}", c64_hw::bank_of(bank), c64_hw::vic_memory(value, bank).words(bitmap)),
                     None => String::new(),
                 }
             }
@@ -368,9 +368,9 @@ impl Source {
                 && (c64_hw::is_chip(address) || found.access == Access::Vector || found.chip == Chip::CpuPort && matches!(address_part(&l.operand), Some("$01" | "1")))
             {
                 if found.access == Access::Vector {
-                    return Some(format!("${value:02X}, stored on line {} to {} (${address:04X}), the {} byte of the {}", n + 1, found.name, if address == found.address { "low" } else { "high" }, found.title));
+                    return Some(crate::i18n::tf!("${value:02X}, stored on line {} to {} (${address:04X}), the {} byte of the {}", n + 1, found.name, if address == found.address { "low" } else { "high" }, found.title));
                 }
-                return Some(format!("Stored on line {} to:\n{}{}", n + 1, c64_hw::describe_value(found, value), self.more(n, found, value)));
+                return Some(crate::i18n::tf!("Stored on line {} to:\n{}{}", n + 1, c64_hw::describe_value(found, value), self.more(n, found, value)));
             }
             if changes(&l.mnemonic, &l.operand).contains(&register) || matches!(l.mnemonic.as_str(), "rts" | "rti" | "jmp") {
                 return None;

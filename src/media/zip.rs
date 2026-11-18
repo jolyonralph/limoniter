@@ -92,7 +92,7 @@ impl Zip {
 
 impl Volume for Zip {
     fn describe(&self) -> String {
-        format!("ZIP archive{} \u{B7} {} file(s)", if self.zip64 { " (ZIP64)" } else { "" }, self.members.iter().filter(|m| !m.path.ends_with('/')).count())
+        crate::i18n::tf!("ZIP archive{} \u{B7} {} file(s)", if self.zip64 { " (ZIP64)" } else { "" }, self.members.iter().filter(|m| !m.path.ends_with('/')).count())
     }
 
     /// A folder is the members whose path starts with its own; the folders inside it come from the paths too.

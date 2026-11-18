@@ -204,7 +204,7 @@ impl Device {
         let slot = self.slot_of(address);
         if slot != Some(self.previous) {
             if matches!(self.previous_option, SlotOption::Error | SlotOption::Warning) && !self.reported {
-                problem = Some(format!("code at ${address:04X} runs outside its memory slot"));
+                problem = Some(crate::i18n::tf!("code at ${address:04X} runs outside its memory slot"));
                 self.reported = true;
             }
             if let Some(s) = slot {
@@ -217,7 +217,7 @@ impl Device {
         match self.offset(address) {
             Some(at) => self.memory[at] = value,
             None if !self.reported => {
-                problem.get_or_insert_with(|| format!("${address:X} is outside the device's 64K"));
+                problem.get_or_insert_with(|| crate::i18n::tf!("${address:X} is outside the device's 64K"));
                 self.reported = true;
             }
             None => {}
@@ -231,7 +231,7 @@ impl Device {
                 self.slots[s] += 1;
                 next -= self.slot_size;
             } else {
-                problem.get_or_insert_with(|| "there are no more pages to map into the slot".to_string());
+                problem.get_or_insert_with(|| crate::i18n::tr("there are no more pages to map into the slot").to_string());
                 self.options[s] = SlotOption::None;
             }
         }

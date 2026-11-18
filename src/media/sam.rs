@@ -164,7 +164,7 @@ impl Sam {
                     continue;
                 }
                 let Some(data) = sector(track, number) else {
-                    notes.push(format!("The directory's track {track}, sector {number} isn't on the disk."));
+                    notes.push(crate::i18n::tf!("The directory's track {track}, sector {number} isn't on the disk."));
                     break 'directory;
                 };
                 for entry in data.chunks(256) {
@@ -186,13 +186,13 @@ impl Sam {
             }
         }
         if nonsense > 0 {
-            notes.push(format!("{nonsense} directory entries that can't be files (an unknown type, or a first sector off the disk) are left out."));
+            notes.push(crate::i18n::tf!("{nonsense} directory entries that can't be files (an unknown type, or a first sector off the disk) are left out."));
         }
         let sam = files.iter().any(|f| f.entry[0] & 0x1F >= 16);
         let label: String = if dos == "MasterDOS" && first[210] != b'*' { first[210..220].iter().map(|&b| char::from(b & 0x7F)).collect::<String>().trim_end().to_string() } else { String::new() };
         let label = if label.chars().all(|c| c.is_ascii_graphic() || c == ' ') && !label.is_empty() { format!(" \"{label}\"") } else { String::new() };
         let format = if shape.by_side { "SAD" } else { "MGT" };
-        let what = if sam { format!("SAM Coupé {dos} disk{label} ({format})") } else { format!("+D / DISCiPLE disk ({format})") };
+        let what = if sam { crate::i18n::tf!("SAM Coupé {dos} disk{label} ({format})") } else { format!("+D / DISCiPLE disk ({format})") };
         Ok(Self { source, shape, files, what, notes })
     }
 
@@ -252,11 +252,11 @@ impl Sam {
         }
         let zx_length = u64::from(entry[210]) * 0x10000 + u64::from(word(212));
         let (ending, size, detail) = match kind {
-            1 => ("bas", zx_length, if entry[219] == 0xFF { String::new() } else { format!("runs from line {}", word(218)) }),
+            1 => ("bas", zx_length, if entry[219] == 0xFF { String::new() } else { crate::i18n::tf!("runs from line {}", word(218)) }),
             4 => ("code", zx_length, format!("{zx_length} bytes at {}", word(214))),
             7 => ("scr", zx_length, String::new()),
             2 | 3 => ("dat", zx_length, String::new()),
-            16 => ("bas", 9 + length_of(&entry[239..242]), if entry[242] == 0xFF { String::new() } else { format!("runs from line {}", u16::from_le_bytes([entry[243], entry[244]])) }),
+            16 => ("bas", 9 + length_of(&entry[239..242]), if entry[242] == 0xFF { String::new() } else { crate::i18n::tf!("runs from line {}", u16::from_le_bytes([entry[243], entry[244]])) }),
             19 => {
                 let run = if entry[242] == 0xFF { String::new() } else { format!(", runs at {}", length_of(&entry[242..245])) };
                 ("bin", length_of(&entry[239..242]), format!("loads at {}{run}", address_of(&entry[236..239])))
@@ -344,7 +344,7 @@ impl Volume for Sam {
         // told for what it is; other SAM files without.
         let has_header = matches!(kind, 1 | 2 | 3 | 4 | 7 | 16..=20 | 22 | 23);
         let body = if has_header { data.get(9..).unwrap_or_default() } else { &data[..] };
-        let short = |have: usize| format!("{} should be {wanted} bytes, but its sectors hold only {have}.", file.name);
+        let short = |have: usize| crate::i18n::tf!("{} should be {wanted} bytes, but its sectors hold only {have}.", file.name);
         match kind {
             1 => {
                 // As a +3DOS file, so it lists as the Spectrum's BASIC does; the entry says where the program ends and
@@ -362,7 +362,7 @@ impl Volume for Sam {
     fn notes(&self) -> Vec<String> {
         let mut notes = self.notes.clone();
         if self.files.iter().any(|f| f.entry[0] & 0x1F >= 16 && f.entry[0] & 0x1F <= 20 && matches!((f.entry[220] >> 2) & 3, 1 | 3)) {
-            notes.push("Some files were saved compressed by MasterDOS, and are given as they're stored.".into());
+            notes.push(crate::i18n::tr("Some files were saved compressed by MasterDOS, and are given as they're stored.").into());
         }
         notes
     }

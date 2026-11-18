@@ -96,19 +96,19 @@ impl Udif {
             return Ok(found);
         }
         let run = &self.runs[index];
-        let stored = self.image.read_vec(run.at, run.stored as usize).map_err(|_| "The disk image's data runs past its end, so it's damaged.".to_string())?;
+        let stored = self.image.read_vec(run.at, run.stored as usize).map_err(|_| crate::i18n::tr("The disk image's data runs past its end, so it's damaged.").to_string())?;
         let size = run.length as usize;
         let bytes = match run.method {
             Method::Zeros => vec![0; size],
             Method::Raw => stored,
             Method::Adc => unadc(&stored, size)?,
-            Method::Zlib => miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(&stored, size.max(1)).map_err(|_| "The disk image's zlib data is damaged.".to_string())?,
+            Method::Zlib => miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(&stored, size.max(1)).map_err(|_| crate::i18n::tr("The disk image's zlib data is damaged.").to_string())?,
             Method::Bzip2 => {
                 let mut out = Vec::with_capacity(size);
-                bzip2::read::BzDecoder::new(stored.as_slice()).take(size as u64 + 1).read_to_end(&mut out).map_err(|_| "The disk image's bzip2 data is damaged.".to_string())?;
+                bzip2::read::BzDecoder::new(stored.as_slice()).take(size as u64 + 1).read_to_end(&mut out).map_err(|_| crate::i18n::tr("The disk image's bzip2 data is damaged.").to_string())?;
                 out
             }
-            Method::Lzfse => super::hfsplus::unlzfse(&stored, size).map_err(|_| "The disk image's LZFSE data is damaged.".to_string())?,
+            Method::Lzfse => super::hfsplus::unlzfse(&stored, size).map_err(|_| crate::i18n::tr("The disk image's LZFSE data is damaged.").to_string())?,
             Method::Lzma | Method::Unknown(_) => return Err(crate::i18n::tf!("This disk image is compressed with {}, which Limoniter can't read yet.", run.method.name())),
         };
         if bytes.len() < size {
@@ -145,7 +145,7 @@ impl Source for Udif {
                     let within = (at - run.start) as usize;
                     let take = want.min((run.length - within as u64) as usize);
                     if run.method == Method::Raw {
-                        self.image.read_at(run.at + within as u64, &mut buf[done..done + take]).map_err(|_| "The disk image's data runs past its end, so it's damaged.".to_string())?;
+                        self.image.read_at(run.at + within as u64, &mut buf[done..done + take]).map_err(|_| crate::i18n::tr("The disk image's data runs past its end, so it's damaged.").to_string())?;
                     } else {
                         let bytes = self.run_bytes(index)?;
                         buf[done..done + take].copy_from_slice(&bytes[within..within + take]);
@@ -196,7 +196,7 @@ pub fn open(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     let (start, length) = udif_within(&*image).ok_or(crate::i18n::tr("This isn't a UDIF disk image: it has no trailer."))?;
     let image: Arc<dyn Source> = if start == 0 { image } else { Arc::new(Slice { inner: image, start, len: length }) };
     let (disk, parts, methods) = unpack(image)?;
-    let what = format!("Apple disk image, {}", methods);
+    let what = crate::i18n::tf!("Apple disk image, {}", methods);
     let disk: Arc<dyn Source> = Arc::new(disk);
     let mut out = Vec::new();
     let mut macs = Vec::new();
@@ -215,7 +215,7 @@ pub fn open(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
                 Err(problem) => entry.problem = Some(problem),
             },
             Ok(head) if head.get(32..36) == Some(b"NXSB") || part.name.contains("Apple_APFS") || part.name.contains("7C3457EF") => {
-                entry.problem = Some("APFS, which Limoniter can't read yet".into());
+                entry.problem = Some(crate::i18n::tr("APFS, which Limoniter can't read yet").into());
             }
             // Other file systems, such as the ISO 9660 half of a hybrid CD image, open as themselves.
             Ok(_) if part.length >= 64 * 1024 => {
@@ -321,7 +321,7 @@ fn value<'a, 'input>(dict: roxmltree::Node<'a, 'input>, name: &str) -> Option<ro
 
 /// The `blkx` entries of the property list: each partition's name and its mish block, base64-encoded.
 fn plist_blocks(xml: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
-    let damaged = || "The disk image's table of contents can't be read, so it's damaged.".to_string();
+    let damaged = || crate::i18n::tr("The disk image's table of contents can't be read, so it's damaged.").to_string();
     let text = std::str::from_utf8(xml).map_err(|_| damaged())?;
     let document = roxmltree::Document::parse_with_options(text, roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() }).map_err(|_| damaged())?;
     let top = document.root_element().children().find(|n| n.has_tag_name("dict")).ok_or_else(damaged)?;
@@ -340,7 +340,7 @@ fn plist_blocks(xml: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
 /// their table in, or NDIF's `bcem`. The fork is in the Resource Manager's layout: a header, the data, and a map of
 /// types, references and names.
 fn fork_resources(fork: &[u8], kind: &[u8; 4]) -> Result<Vec<(String, Vec<u8>)>, String> {
-    let damaged = || "The disk image's table of contents can't be read, so it's damaged.".to_string();
+    let damaged = || crate::i18n::tr("The disk image's table of contents can't be read, so it's damaged.").to_string();
     let half = |at: usize| fork.get(at..at + 2).map(be).ok_or_else(damaged);
     let word = |at: usize| fork.get(at..at + 4).map(be).ok_or_else(damaged);
     let (data_at, map_at) = (word(0)? as usize, word(4)? as usize);
@@ -400,7 +400,7 @@ fn base64(text: &str) -> Option<Vec<u8>> {
 /// Apple Data Compression, from the first Disk Copy images: each byte starts either a run of up to 128 bytes as
 /// they are, or a copy of 3 to 18 bytes from up to 1K back (two bytes), or 4 to 67 from up to 64K back (three).
 fn unadc(input: &[u8], size: usize) -> Result<Vec<u8>, String> {
-    let damaged = || "The disk image's ADC data is damaged.".to_string();
+    let damaged = || crate::i18n::tr("The disk image's ADC data is damaged.").to_string();
     let mut out = Vec::with_capacity(size);
     let mut at = 0;
     while at < input.len() && out.len() < size {
@@ -452,7 +452,7 @@ fn open_ndif(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
     let ((data_at, data_length), (fork_at, fork_length)) = ndif_forks(&*image).ok_or(crate::i18n::tr("This isn't an NDIF disk image in a MacBinary file."))?;
     let fork = image.read_vec(fork_at, fork_length.min(16 * 1024 * 1024) as usize)?;
     let tables = fork_resources(&fork, b"bcem")?;
-    let damaged = || "The disk image's table of its chunks (its bcem resource) is damaged.".to_string();
+    let damaged = || crate::i18n::tr("The disk image's table of its chunks (its bcem resource) is damaged.").to_string();
     let (_, table) = tables.first().ok_or(crate::i18n::tr("This disk image has no table of its chunks (a bcem resource), so it can't be read."))?;
     let header = table.get(..128).ok_or_else(damaged)?;
     let word = |at: usize| be(&header[at..at + 4]);
@@ -498,14 +498,14 @@ fn open_ndif(image: Arc<dyn Source>) -> Result<Box<dyn Volume>, String> {
             return Err(damaged());
         }
         methods.insert(match method {
-            Method::Unknown(code) => format!("NDIF compression {code:#X}"),
+            Method::Unknown(code) => crate::i18n::tf!("NDIF compression {code:#X}"),
             method => method.name(),
         });
         runs.push(Run { start: sector * 512, length: (end - sector) * 512, method, at, stored });
     }
     let data: Arc<dyn Source> = Arc::new(Slice { inner: image, start: data_at, len: data_length });
     let disk: Arc<dyn Source> = Arc::new(Udif { image: data, runs, len: sectors * 512, recent: Mutex::new(Vec::new()) });
-    let what = format!("Disk Copy 6 image (NDIF, {}) \u{201C}{name}\u{201D}, {}K", methods.into_iter().collect::<Vec<_>>().join(", "), sectors / 2);
+    let what = crate::i18n::tf!("Disk Copy 6 image (NDIF, {}) \u{201C}{name}\u{201D}, {}K", methods.into_iter().collect::<Vec<_>>().join(", "), sectors / 2);
     let head = disk.read_vec(0, disk.len().min(0x8800) as usize)?;
     if mac::kind_of(&head).is_some() {
         mac::open_disk(disk, &what)

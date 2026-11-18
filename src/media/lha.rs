@@ -120,7 +120,7 @@ impl Lha {
 
 impl Volume for Lha {
     fn describe(&self) -> String {
-        format!("LHA archive \u{B7} {} file(s)", self.members.iter().filter(|m| !m.path.ends_with('/')).count())
+        crate::i18n::tf!("LHA archive \u{B7} {} file(s)", self.members.iter().filter(|m| !m.path.ends_with('/')).count())
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {

@@ -103,7 +103,7 @@ impl Limoniter {
         use text_objects::Action;
         let text = &self.docs[self.active].text;
         if text.column_mode() {
-            self.message("Text objects", "These don't work in column mode. Turn it off with Alt+C first.".into());
+            self.message("Text objects", crate::i18n::tr("These don't work in column mode. Turn it off with Alt+C first.").into());
             return;
         }
         let (start, end) = text.selection_char_bounds();
@@ -159,11 +159,11 @@ impl Limoniter {
             found.map_or((text.caret_line, text.caret_line), |found| (found.inside.0.0, found.inside.1.0))
         };
         if top == 0 && bottom + 1 == text.line_count() {
-            self.message("Narrow", "That's the whole file. Select the part you want to work on, then narrow.".into());
+            self.message("Narrow", crate::i18n::tr("That's the whole file. Select the part you want to work on, then narrow.").into());
             return;
         }
         if bottom - top + 1 > MOST_NARROWED_LINES {
-            self.message("Narrow", "That's too many lines to narrow to, because they'd all have to be held in memory.".into());
+            self.message("Narrow", crate::i18n::tr("That's too many lines to narrow to, because they'd all have to be held in memory.").into());
             return;
         }
         self.doc().narrow_to(top, bottom);
@@ -185,7 +185,7 @@ impl Limoniter {
         if saved && !self.docs[index].is_busy() && matches!(self.dialog, Dialog::None) {
             self.docs[index].step_back_into_narrow(held);
         } else if matches!(self.dialog, Dialog::None) && !self.docs[index].is_busy() {
-            self.docs[index].text.notice = Some("The file wasn't saved, so the whole of it is showing again. Nothing has been lost.".into());
+            self.docs[index].text.notice = Some(crate::i18n::tr("The file wasn't saved, so the whole of it is showing again. Nothing has been lost.").into());
         }
         saved
     }
@@ -222,7 +222,7 @@ impl Limoniter {
         match action {
             HistoryAction::Jump(id) => {
                 if doc.is_busy() || self.pending.is_some() {
-                    self.message("Please wait", "The file is still loading or saving. This will be available when it finishes.".into());
+                    self.message("Please wait", crate::i18n::tr("The file is still loading or saving. This will be available when it finishes.").into());
                 } else if doc.text.read_only {
                     self.tell_read_only();
                 } else {
@@ -232,14 +232,14 @@ impl Limoniter {
             }
             HistoryAction::Compare(id) => {
                 if doc.text.is_disk_backed() {
-                    return self.message("Compare", "This file is kept on disk, so it can't be compared.".to_string());
+                    return self.message("Compare", crate::i18n::tr("This file is kept on disk, so it can't be compared.").to_string());
                 }
                 match doc.text.history_lines(id) {
                     Some(lines) => {
-                        let (this, name) = (doc.id, format!("{} as it was", doc.name()));
+                        let (this, name) = (doc.id, crate::i18n::tf!("{} as it was", doc.name()));
                         self.open_file_compare_sides(compare_host::FileSide::Lines { name, lines }, compare_host::FileSide::Open(this));
                     }
-                    None => self.message("Compare", "That state is no longer kept.".to_string()),
+                    None => self.message("Compare", crate::i18n::tr("That state is no longer kept.").to_string()),
                 }
             }
             HistoryAction::Forget => {

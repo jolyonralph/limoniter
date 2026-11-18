@@ -50,10 +50,10 @@ impl OricTape {
         while let Some(marker) = next_file(&data, at) {
             let skipped = &data[at..marker];
             if skipped.iter().any(|&b| b != 0x16 && b != 0) {
-                notes.push(format!("{} bytes before the file at byte {marker} aren't part of a file.", skipped.iter().filter(|&&b| b != 0x16).count()));
+                notes.push(crate::i18n::tf!("{} bytes before the file at byte {marker} aren't part of a file.", skipped.iter().filter(|&&b| b != 0x16).count()));
             }
             let Some(header) = data.get(marker + 1..marker + 10) else {
-                notes.push(format!("The tape ends in the header of the file at byte {marker}."));
+                notes.push(crate::i18n::tf!("The tape ends in the header of the file at byte {marker}."));
                 break;
             };
             let (kind, autorun) = (header[2], header[3]);
@@ -61,21 +61,21 @@ impl OricTape {
             let start = usize::from(u16::from_be_bytes([header[6], header[7]]));
             let name_at = marker + 10;
             let Some(name_length) = data.get(name_at..).and_then(|rest| rest.iter().take(17).position(|&b| b == 0)) else {
-                notes.push(format!("The file at byte {marker} has no end to its name."));
+                notes.push(crate::i18n::tf!("The file at byte {marker} has no end to its name."));
                 break;
             };
             let name: String = data[name_at..name_at + name_length].iter().map(|&b| if b.is_ascii_graphic() || b == b' ' { char::from(b) } else { '_' }).collect();
             let name = if name.trim().is_empty() { format!("File {}", files.len() + 1) } else { tidy_name(&name) };
             let body_at = name_at + name_length + 1;
             if end < start {
-                notes.push(format!("{name} ends at &{end:04X}, before it starts at &{start:04X}, so it's left out."));
+                notes.push(crate::i18n::tf!("{name} ends at &{end:04X}, before it starts at &{start:04X}, so it's left out."));
                 at = body_at;
                 continue;
             }
             let length = end - start + 1;
             let body = &data[body_at.min(data.len())..(body_at + length).min(data.len())];
             if body.len() < length {
-                notes.push(format!("{name} should be {length} bytes, but the tape ends after {}.", body.len()));
+                notes.push(crate::i18n::tf!("{name} should be {length} bytes, but the tape ends after {}.", body.len()));
             }
             let runs = if autorun != 0 { ", runs when loaded" } else { "" };
             let (what, ending) = match kind {
@@ -89,7 +89,7 @@ impl OricTape {
         }
         let trailing = &data[at.min(data.len())..];
         if trailing.iter().any(|&b| b != 0 && b != 0x16) {
-            notes.push(format!("{} bytes after the last file aren't part of one.", trailing.len()));
+            notes.push(crate::i18n::tf!("{} bytes after the last file aren't part of one.", trailing.len()));
         }
         if files.is_empty() {
             return Err(crate::i18n::tr("No Oric files were found on this tape.").into());
@@ -100,7 +100,7 @@ impl OricTape {
 
 impl Volume for OricTape {
     fn describe(&self) -> String {
-        format!("Oric tape (TAP) \u{B7} {} file(s)", self.files.len())
+        crate::i18n::tf!("Oric tape (TAP) \u{B7} {} file(s)", self.files.len())
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -122,7 +122,7 @@ impl Volume for OricTape {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        self.files.get(entry.location as usize).map(|file| file.data.clone()).ok_or_else(|| "That file isn't on the tape.".into())
+        self.files.get(entry.location as usize).map(|file| file.data.clone()).ok_or_else(|| crate::i18n::tr("That file isn't on the tape.").into())
     }
 
     fn notes(&self) -> Vec<String> {
@@ -268,14 +268,14 @@ impl MfmDisk {
         let (good, unrecorded, wrong) = (count(Check::Good), count(Check::Unrecorded), count(Check::Wrong));
         let mut notes = Vec::new();
         if missing > 0 {
-            notes.push(format!("The image stops {missing} tracks short of the {} its header gives, so it's cut short.", sides * tracks_per_side));
+            notes.push(crate::i18n::tf!("The image stops {missing} tracks short of the {} its header gives, so it's cut short.", sides * tracks_per_side));
         }
         if unrecorded > 0 {
-            notes.push("The tool that made this image didn't record its sectors' checksums, so damage to them can't be found.".into());
+            notes.push(crate::i18n::tr("The tool that made this image didn't record its sectors' checksums, so damage to them can't be found.").into());
         }
         let trust_wrong = wrong > good;
         if trust_wrong {
-            notes.push(format!("{wrong} of the image's {} sectors have checksums that don't match, as some tools that made Oric disk images left them; their bytes are read as they are.", good + unrecorded + wrong));
+            notes.push(crate::i18n::tf!("{wrong} of the image's {} sectors have checksums that don't match, as some tools that made Oric disk images left them; their bytes are read as they are.", good + unrecorded + wrong));
         }
         Ok(Self { tracks, tracks_per_side, sides, trust_wrong, notes })
     }
@@ -318,17 +318,17 @@ impl OricDisk {
         }
         let disk = MfmDisk::read(&source.read_vec(0, source.len() as usize)?)?;
         let not_sedoric = |why: String| {
-            format!("This Oric disk isn't a Sedoric disk ({why}), and other Oric DOSes, such as OricDOS, Jasmin's FT-DOS, RANDOS, XL DOS and the Infocom games' own format, aren't read yet.")
+            crate::i18n::tf!("This Oric disk isn't a Sedoric disk ({why}), and other Oric DOSes, such as OricDOS, Jasmin's FT-DOS, RANDOS, XL DOS and the Infocom games' own format, aren't read yet.")
         };
         let bitmap = disk.sector(20, 2).map_err(not_sedoric)?;
         if bitmap[..2] != [0xFF, 0x00] {
-            return Err(not_sedoric("its bitmap, on track 20, isn't marked as Sedoric marks it".into()));
+            return Err(not_sedoric(crate::i18n::tr("its bitmap, on track 20, isn't marked as Sedoric marks it").into()));
         }
         let mut notes = disk.notes.clone();
         let label = match disk.sector(20, 1) {
             Ok(system) => system[9..30].iter().map(|&b| if b.is_ascii_graphic() || b == b' ' { char::from(b) } else { '_' }).collect::<String>().trim().to_string(),
             Err(problem) => {
-                notes.push(format!("The disk's name can't be read: {problem}."));
+                notes.push(crate::i18n::tf!("The disk's name can't be read: {problem}."));
                 String::new()
             }
         };
@@ -337,13 +337,13 @@ impl OricDisk {
         let mut next = (20u8, 4u8);
         while next != (0, 0) {
             if !seen.insert(next) {
-                notes.push("The directory leads back to a sector it has already used, so it's read only that far.".into());
+                notes.push(crate::i18n::tr("The directory leads back to a sector it has already used, so it's read only that far.").into());
                 break;
             }
             let directory = match disk.sector(next.0, next.1) {
                 Ok(bytes) => bytes,
                 Err(problem) => {
-                    notes.push(format!("Part of the directory can't be read, so files may be missing: {problem}."));
+                    notes.push(crate::i18n::tf!("Part of the directory can't be read, so files may be missing: {problem}."));
                     break;
                 }
             };
@@ -361,7 +361,7 @@ impl OricDisk {
         }
         for file in &files {
             if let Err(problem) = &file.data {
-                notes.push(format!("{} can't be read: {problem}", file.name));
+                notes.push(crate::i18n::tf!("{} can't be read: {problem}", file.name));
             }
         }
         Ok(Self { label, files, notes })
@@ -417,11 +417,11 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
     };
     let autorun = if kind & 0x01 != 0 { ", runs when loaded" } else { "" };
     let length = if kind & 0x08 != 0 {
-        file.kind = "Direct-access file".into();
-        file.detail = format!("{start} records of {end} bytes{locked}");
+        file.kind = crate::i18n::tr("Direct-access file").into();
+        file.detail = crate::i18n::tf!("{start} records of {end} bytes{locked}");
         usize::from(start) * usize::from(end)
     } else if kind & 0x10 != 0 {
-        file.kind = "Sequential file".into();
+        file.kind = crate::i18n::tr("Sequential file").into();
         file.detail = format!("{count} sectors{locked}");
         count * SEDORIC_SECTOR
     } else {
@@ -464,7 +464,7 @@ fn read_file(disk: &MfmDisk, entry: &[u8]) -> DiskFile {
 impl Volume for OricDisk {
     fn describe(&self) -> String {
         let label = if self.label.is_empty() { String::new() } else { format!(" \u{B7} {}", self.label) };
-        format!("Oric disk (Sedoric){label} \u{B7} {} file(s)", self.files.len())
+        crate::i18n::tf!("Oric disk (Sedoric){label} \u{B7} {} file(s)", self.files.len())
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -486,7 +486,7 @@ impl Volume for OricDisk {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        let file = self.files.get(entry.location as usize).ok_or_else(|| "That file isn't on the disk.".to_string())?;
+        let file = self.files.get(entry.location as usize).ok_or_else(|| crate::i18n::tr("That file isn't on the disk.").to_string())?;
         file.data.clone().map_err(|problem| crate::i18n::tf!("{} can't be read: {problem}", file.name))
     }
 

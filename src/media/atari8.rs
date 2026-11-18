@@ -112,22 +112,22 @@ impl Atari8 {
             (256, 720) => "double density",
             _ => "",
         };
-        let size = if density.is_empty() { format!("{sectors} sectors of {sector_size} bytes") } else { format!("{density}, {sectors} sectors") };
+        let size = if density.is_empty() { crate::i18n::tf!("{sectors} sectors of {sector_size} bytes") } else { format!("{density}, {sectors} sectors") };
         let boot = disk.sector(1)?;
         // SpartaDOS's boot sector names its file system in byte 7, and its directory, size and name after it.
         if matches!(boot[7], 0x80 | 0x40) && matches!(boot[32], 0x10 | 0x11 | 0x20 | 0x21) && le16(&boot, 9) > 0 && (1..=sectors).contains(&le16(&boot, 11)) {
             let name: String = boot[22..30].iter().map(|&c| char::from(c & 0x7F)).collect::<String>().trim_end().to_string();
-            let mut atari = Self { disk, system: System::Sparta, files: Vec::new(), what: format!("Atari 8-bit SpartaDOS disk, \"{name}\" ({size})"), notes: Vec::new(), wide_links: false };
+            let mut atari = Self { disk, system: System::Sparta, files: Vec::new(), what: crate::i18n::tf!("Atari 8-bit SpartaDOS disk, \"{name}\" ({size})"), notes: Vec::new(), wide_links: false };
             atari.sparta_directory(le16(&boot, 9), None, 0)?;
             return Ok(atari);
         }
-        let vtoc = disk.sector(360).map_err(|_| "This Atari disk is too small to have Atari DOS's directory.".to_string())?;
+        let vtoc = disk.sector(360).map_err(|_| crate::i18n::tr("This Atari disk is too small to have Atari DOS's directory.").to_string())?;
         // MyDOS's VTOC on a large disk says in its first byte how many 256-byte pieces its bitmap takes, plus 2.
         if !matches!(vtoc[0], 0..=3) && !(sectors > 1040 && u64::from(vtoc[0]) == 2 + (sectors / 8 + 266) / 256) {
             return Err(crate::i18n::tr("This Atari disk has no Atari DOS VTOC: it may boot a program of its own. It can still be shown in hex.").into());
         }
         let mydos = sectors > 1040 || vtoc[0] == 3;
-        let what = format!("Atari 8-bit {} disk ({size})", if mydos { "MyDOS" } else { "Atari DOS 2" });
+        let what = crate::i18n::tf!("Atari 8-bit {} disk ({size})", if mydos { "MyDOS" } else { "Atari DOS 2" });
         let wide_links = sectors > 1040 || (sectors > 1023 && vtoc[0] >= 3);
         let mut atari = Self { disk, system: System::Dos2, files: Vec::new(), what, notes: Vec::new(), wide_links };
         atari.dos2_directory(361, None, 0)?;
@@ -181,7 +181,7 @@ impl Atari8 {
                 if is_dir {
                     let index = self.files.len() - 1;
                     if let Err(problem) = self.dos2_directory(start, Some(index), depth + 1) {
-                        self.notes.push(format!("The folder {} can't be read: {problem}.", self.files[index].name));
+                        self.notes.push(crate::i18n::tf!("The folder {} can't be read: {problem}.", self.files[index].name));
                     }
                 }
             }
@@ -288,7 +288,7 @@ impl Volume for Atari8 {
                 System::Dos2 => file.length * (self.disk.sector_size - 3),
             };
             let mut entry = Entry::file(tidy_name(&file.name), size, index as u64);
-            entry.kind = if file.locked { "File, locked".into() } else { "File".into() };
+            entry.kind = if file.locked { crate::i18n::tr("File, locked").into() } else { "File".into() };
             entry.detail = file.detail.clone();
             out.push(entry);
         }
@@ -306,7 +306,7 @@ impl Volume for Atari8 {
     fn notes(&self) -> Vec<String> {
         let mut notes = self.notes.clone();
         if matches!(self.system, System::Dos2) {
-            notes.push("Atari DOS keeps sizes in sectors, so a file's size here is at most what it holds; opened, it's exact.".into());
+            notes.push(crate::i18n::tr("Atari DOS keeps sizes in sectors, so a file's size here is at most what it holds; opened, it's exact.").into());
         }
         notes
     }

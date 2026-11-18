@@ -61,7 +61,7 @@ fn signed_and_unsigned(value: u64, bits: u32) -> String {
 /// A float as people write it: exact for whole numbers, enough digits to come back the same otherwise.
 fn shown_f64(value: f64) -> String {
     if value.is_nan() {
-        return "Not a number".into();
+        return crate::i18n::tr("Not a number").into();
     }
     if value.is_infinite() {
         return if value > 0.0 { "Infinity".into() } else { "\u{2212}Infinity".into() };
@@ -97,7 +97,7 @@ enum Vax {
 fn shown_vax(value: Vax) -> String {
     match value {
         Vax::Number(n) => shown_f64(n),
-        Vax::Reserved => "Reserved operand".into(),
+        Vax::Reserved => crate::i18n::tr("Reserved operand").into(),
     }
 }
 

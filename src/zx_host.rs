@@ -29,7 +29,7 @@ impl Limoniter {
         if !self.is_spectrum_basic(self.active) {
             return self.message(
                 "GRAPH mode",
-                "GRAPH mode types the Spectrum's block graphics and UDGs, so it's for Spectrum BASIC. Open a program's listing as text, or choose BASIC (Sinclair and Next) as this file's language.".into(),
+                crate::i18n::tr("GRAPH mode types the Spectrum's block graphics and UDGs, so it's for Spectrum BASIC. Open a program's listing as text, or choose BASIC (Sinclair and Next) as this file's language.").into(),
             );
         }
         let notation = self.notation_for(self.active);
@@ -41,7 +41,7 @@ impl Limoniter {
     /// Asks for a file to take the UDGs' pictures from, and draws the document's UDGs with them.
     pub(super) fn choose_udg_pictures(&mut self) {
         if !self.is_spectrum_basic(self.active) {
-            return self.message("UDG pictures", "UDG pictures are for Spectrum BASIC listings.".into());
+            return self.message("UDG pictures", crate::i18n::tr("UDG pictures are for Spectrum BASIC listings.").into());
         }
         let mut picker = rfd::FileDialog::new()
             .set_title(crate::i18n::tr("Take the UDGs' pictures from"))

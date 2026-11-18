@@ -3218,6 +3218,135 @@ keep_bytes: false
 7E	00B7	p	
 7F	007F	c	
 
+@charset dec-technical
+name: DEC Technical (VT220 maths and Greek)
+group: ISO 646 (7-bit national)
+source: DEC VT220 Programmer Reference Manual (EK-VT220-RM), the Technical Character Set, with Unicode as Kermit's dectech.txt and Unicode L2/00-159 map it
+version: VT220 (1983)
+scope: 7-bit. Bracket and integral pieces for building large symbols, maths signs, arrows and the Greek alphabet, as a VT220 shows them after ESC ( >. Bytes DEC left empty have no character.
+model: none
+keep_bytes: false
+@table Text
+00	0000	c	
+01	0001	c	
+02	0002	c	
+03	0003	c	
+04	0004	c	
+05	0005	c	
+06	0006	c	
+07	0007	c	
+08	0008	c	
+09	0009	c	
+0A	000A	c	
+0B	000B	c	
+0C	000C	c	
+0D	000D	c	
+0E	000E	c	
+0F	000F	c	
+10	0010	c	
+11	0011	c	
+12	0012	c	
+13	0013	c	
+14	0014	c	
+15	0015	c	
+16	0016	c	
+17	0017	c	
+18	0018	c	
+19	0019	c	
+1A	001A	c	
+1B	001B	c	
+1C	001C	c	
+1D	001D	c	
+1E	001E	c	
+1F	001F	c	
+20	0020	p	
+21	23B7	p	
+22	250C	p	
+23	2500	p	
+24	2320	p	
+25	2321	p	
+26	2502	p	
+27	23A1	p	
+28	23A3	p	
+29	23A4	p	
+2A	23A6	p	
+2B	239B	p	
+2C	239D	p	
+2D	239E	p	
+2E	23A0	p	
+2F	23A8	p	
+30	23AC	p	
+31	23B2	p	
+32	23B3	p	
+33	2572	p	
+34	2571	p	
+35	231D	p	
+36	231F	p	
+37	27E9	p	
+3C	2264	p	
+3D	2260	p	
+3E	2265	p	
+3F	222B	p	
+40	2234	p	
+41	221D	p	
+42	221E	p	
+43	00F7	p	
+44	0394	p	
+45	2207	p	
+46	03A6	p	
+47	0393	p	
+48	223C	p	
+49	2243	p	
+4A	0398	p	
+4B	00D7	p	
+4C	039B	p	
+4D	21D4	p	
+4E	21D2	p	
+4F	2261	p	
+50	03A0	p	
+51	03A8	p	
+53	03A3	p	
+56	221A	p	
+57	03A9	p	
+58	039E	p	
+59	03A5	p	
+5A	2282	p	
+5B	2283	p	
+5C	2229	p	
+5D	222A	p	
+5E	2227	p	
+5F	2228	p	
+60	00AC	p	
+61	03B1	p	
+62	03B2	p	
+63	03C7	p	
+64	03B4	p	
+65	03B5	p	
+66	03C6	p	
+67	03B3	p	
+68	03B7	p	
+69	03B9	p	
+6A	03B8	p	
+6B	03BA	p	
+6C	03BB	p	
+6E	03BD	p	
+6F	2202	p	
+70	03C0	p	
+71	03C8	p	
+72	03C1	p	
+73	03C3	p	
+74	03C4	p	
+76	0192	p	
+77	03C9	p	
+78	03BE	p	
+79	03C5	p	
+7A	03B6	p	
+7B	2190	p	
+7C	2191	p	
+7D	2192	p	
+7E	2193	p	
+7F	007F	c	
+
 @charset ascii-high-bit
 name: ASCII with the top bit set (Prime)
 group: ISO 646 (7-bit national)

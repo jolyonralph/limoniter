@@ -2,7 +2,8 @@
 //! Impulse Tracker) played by Limoniter's own player, and sound files (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC, AU).
 //! Play and pause, stop, loop, and a slider to move through it; for a module, the pattern as it plays, with each
 //! channel's number to switch it off and on. It goes on playing while other files are worked on, until it's
-//! stopped, another is played, or its file is closed.
+//! stopped, another is played, or its file is closed. Save as WAV saves it as it plays (without the channels
+//! switched off), and a module's samples can be saved as 8SVX sounds.
 
 use super::{Limoniter, theme};
 use crate::sound::{SoundPlayer, clock};
@@ -117,7 +118,7 @@ impl Music {
     fn start(doc: u64, bytes: Vec<u8>, name: &str) -> Result<Music, String> {
         let (device, config) = speakers()?;
         let rate = config.sample_rate();
-        let tracker = crate::tracker::pc_format(&bytes).is_some() || (!crate::sound::recognised(&bytes, name) && (crate::protracker::has_module_tag(&bytes) || crate::protracker::named_as_module(name)));
+        let tracker = crate::music_export::is_module(&bytes, name);
         let (source, length, song) = if tracker {
             let song = Arc::new(crate::tracker::load(&bytes, name)?);
             let length = Player::duration(&song);
@@ -182,6 +183,83 @@ impl Limoniter {
         }
     }
 
+    /// The bytes of the file in front.
+    fn front_bytes(&self) -> Vec<u8> {
+        let doc = &self.docs[self.active];
+        if doc.hex_mode { doc.hex.read(0, doc.hex.len()) } else { doc.text.encode(&doc.text.format, crate::codec::Lossy::Omit).unwrap_or_default() }
+    }
+
+    /// Save as WAV, and for a module Save the samples: what's said when either's done goes where the player's notes go.
+    fn music_save_buttons(&mut self, ui: &mut Ui, silenced: Vec<bool>) {
+        if let Some(saving) = &self.music_saving {
+            match saving.try_recv() {
+                Ok(said) => {
+                    self.music_note = Some(said);
+                    self.music_saving = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    ui.add(egui::Spinner::new());
+                    ui.label(RichText::new(crate::i18n::tr("Saving as a WAV…")).color(theme::text_faint()));
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                    return;
+                }
+                Err(_) => self.music_saving = None,
+            }
+        }
+        let name = self.docs[self.active].name();
+        let stem = std::path::Path::new(&name).file_stem().map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned());
+        let stem = stem.strip_prefix("mod.").map(str::to_string).unwrap_or(stem);
+        let hint = if silenced.iter().any(|&s| s) { crate::i18n::tr("Save it as a WAV file, as it plays, without the channels switched off") } else { crate::i18n::tr("Save it as a WAV file, as it plays") };
+        if ui.button(crate::i18n::tr("Save as WAV…")).on_hover_text(hint).clicked()
+            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as WAV")).set_file_name(format!("{stem}.wav")).add_filter("WAV", &["wav"]).save_file()
+        {
+            let bytes = self.front_bytes();
+            let (send, receive) = std::sync::mpsc::channel();
+            self.music_saving = Some(receive);
+            let ctx = ui.ctx().clone();
+            let name = name.clone();
+            std::thread::spawn(move || {
+                let said = match crate::music_export::render(&bytes, &name, &silenced) {
+                    Ok(frames) => match std::fs::write(&path, crate::music_export::wav(&frames, crate::music_export::RATE)) {
+                        Ok(()) => crate::i18n::tf!("Saved {} ({}).", path.display(), clock(frames.len() as f64 / 2.0 / f64::from(crate::music_export::RATE))),
+                        Err(e) => crate::i18n::tf!("Couldn't save {}: {e}", path.display()),
+                    },
+                    Err(why) => why,
+                };
+                let _ = send.send(said);
+                ctx.request_repaint();
+            });
+        }
+        let doc = &self.docs[self.active];
+        let version = doc.text.version();
+        let module = match self.music_is_module {
+            Some((id, v, module)) if id == doc.id && v == version => module,
+            _ => {
+                let module = crate::music_export::is_module(&self.front_bytes(), &name);
+                self.music_is_module = Some((self.docs[self.active].id, version, module));
+                module
+            }
+        };
+        if module
+            && ui.button(crate::i18n::tr("Save the samples…")).on_hover_text(crate::i18n::tr("Save each of the module's samples as an IFF 8SVX sound, with its loop, in a folder")).clicked()
+            && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put the samples")).pick_folder()
+        {
+            self.music_note = Some(match crate::music_export::samples(&self.front_bytes(), &name) {
+                Ok(files) => {
+                    let mut failed = None;
+                    for (file, bytes) in &files {
+                        if let Err(e) = std::fs::write(folder.join(file), bytes) {
+                            failed = Some(crate::i18n::tf!("Couldn't save {file}: {e}"));
+                            break;
+                        }
+                    }
+                    failed.unwrap_or_else(|| if files.len() == 1 { crate::i18n::tf!("Saved 1 sample in {}.", folder.display()) } else { crate::i18n::tf!("Saved {} samples in {}.", files.len(), folder.display()) })
+                }
+                Err(why) => why,
+            });
+        }
+    }
+
     /// The player above a module's or sound file's preview.
     pub(super) fn music_bar(&mut self, ui: &mut Ui) {
         let doc = &self.docs[self.active];
@@ -190,8 +268,7 @@ impl Limoniter {
         if !ours {
             ui.horizontal(|ui| {
                 if ui.button(crate::i18n::tr("\u{25B6} Play")).on_hover_text(crate::i18n::tr("Play it through the computer's speakers")).clicked() {
-                    let doc = &self.docs[self.active];
-                    let bytes = if doc.hex_mode { doc.hex.read(0, doc.hex.len()) } else { doc.text.encode(&doc.text.format, crate::codec::Lossy::Omit).unwrap_or_default() };
+                    let bytes = self.front_bytes();
                     match Music::start(id, bytes, &name) {
                         Ok(music) => {
                             self.music = Some(music);
@@ -200,6 +277,7 @@ impl Limoniter {
                         Err(why) => self.music_note = Some(why),
                     }
                 }
+                self.music_save_buttons(ui, Vec::new());
                 if let Some(note) = &self.music_note {
                     ui.label(RichText::new(note).color(theme::text_faint()));
                 } else if self.music.is_some() {
@@ -239,6 +317,14 @@ impl Limoniter {
             let total = music.length.map_or_else(|| "?".to_string(), clock);
             ui.label(RichText::new(crate::i18n::tf!("{} / {total}", clock(shown))).monospace());
         });
+        let silenced = music.silenced.clone();
+        ui.horizontal(|ui| {
+            self.music_save_buttons(ui, silenced);
+            if let Some(note) = &self.music_note {
+                ui.label(RichText::new(note).color(theme::text_faint()));
+            }
+        });
+        let Some(music) = &mut self.music else { return };
         if let Some(length) = music.length.filter(|l| *l > 0.0) {
             let mut at = music.dragging.unwrap_or(time).min(length);
             let width = ui.available_width();

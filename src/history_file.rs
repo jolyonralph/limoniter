@@ -135,7 +135,7 @@ impl Reader<'_> {
     fn text(&mut self) -> Result<String, String> {
         let length = self.count(1)?;
         let bytes = self.take(length)?;
-        std::str::from_utf8(bytes).map(str::to_string).map_err(|_| "Some text isn't valid.".to_string())
+        std::str::from_utf8(bytes).map(str::to_string).map_err(|_| crate::i18n::tr("Some text isn't valid.").to_string())
     }
 
     fn eol(&mut self) -> Result<Eol, String> {

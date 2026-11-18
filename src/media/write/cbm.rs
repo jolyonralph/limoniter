@@ -279,7 +279,7 @@ impl Disk {
         self.slots()?
             .into_iter()
             .find(|at| self.bytes[at + 2] & 0x07 != 0 && self.bytes[at + 3] == track && self.bytes[at + 4] == sector)
-            .ok_or_else(|| "That file isn't in the disk's directory.".into())
+            .ok_or_else(|| crate::i18n::tr("That file isn't in the disk's directory.").into())
     }
 
     /// A free directory entry, the directory grown by a sector on its track if it's full.

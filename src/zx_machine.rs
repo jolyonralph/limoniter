@@ -461,15 +461,15 @@ impl BuiltIn {
                 break;
             }
             if let Some((address, value)) = wrote {
-                self.stop_reason = Some(format!("Stopped after writing {value} (${value:02X}) to ${address:04X}"));
+                self.stop_reason = Some(crate::i18n::tf!("Stopped after writing {value} (${value:02X}) to ${address:04X}"));
             } else if let Some(condition) = self.conditions.get(&registers.pc).filter(|_| at_breakpoint) {
                 let emulator = &self.emulator;
                 let peek = |a: u16| emulator.peek(a);
                 let seen = crate::debug_panel::Seen { registers: Some(&registers), peek: &peek, labels: self.labels.as_deref() };
                 match crate::debug_panel::eval(condition, &seen) {
                     Ok(0) => continue,
-                    Ok(_) => self.stop_reason = Some(format!("Stopped because {condition}")),
-                    Err(problem) => self.stop_reason = Some(format!("The condition {condition} couldn't be worked out: {problem}")),
+                    Ok(_) => self.stop_reason = Some(crate::i18n::tf!("Stopped because {condition}")),
+                    Err(problem) => self.stop_reason = Some(crate::i18n::tf!("The condition {condition} couldn't be worked out: {problem}")),
                 }
             } else {
                 self.stop_reason = None;
@@ -962,7 +962,7 @@ pub fn opticos_keys_for(c: char) -> Option<Vec<Vec<ZXKey>>> {
 /// A Z80 snapshot as an SNA snapshot, which rustzx loads. Every version of Z80 is read, compressed or not, for the
 /// 48K and the 128K.
 pub fn z80_to_sna(z80: &[u8]) -> Result<Vec<u8>, String> {
-    let short = || "This Z80 snapshot is cut short.".to_string();
+    let short = || crate::i18n::tr("This Z80 snapshot is cut short.").to_string();
     let header = z80.get(..30).ok_or_else(short)?;
     let word = |at: usize| u16::from_le_bytes([header[at], header[at + 1]]);
     let flags1 = if header[12] == 0xFF { 1 } else { header[12] };
@@ -1089,7 +1089,7 @@ pub fn tzx_to_tap(tzx: &[u8]) -> Result<Vec<u8>, String> {
     if !tzx.starts_with(b"ZXTape!\x1A") {
         return Err(crate::i18n::tr("This isn't a TZX tape.").into());
     }
-    let short = || "This TZX tape is cut short.".to_string();
+    let short = || crate::i18n::tr("This TZX tape is cut short.").to_string();
     let n16 = |at: usize| -> Result<usize, String> { Ok(usize::from(u16::from_le_bytes([*tzx.get(at).ok_or_else(short)?, *tzx.get(at + 1).ok_or_else(short)?]))) };
     let n24 = |at: usize| -> Result<usize, String> { Ok(n16(at)? | usize::from(*tzx.get(at + 2).ok_or_else(short)?) << 16) };
     let n32 = |at: usize| -> Result<usize, String> { Ok(n16(at)? | n16(at + 2)? << 16) };

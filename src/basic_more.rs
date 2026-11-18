@@ -263,7 +263,7 @@ pub fn list_bbc(data: &[u8]) -> Listing {
     let mut at = 0;
     loop {
         if at + 1 >= data.len() || data[at] != 0x0D {
-            listing.notes.push(format!("The program stops making sense at byte {at}, so the listing stops there."));
+            listing.notes.push(crate::i18n::tf!("The program stops making sense at byte {at}, so the listing stops there."));
             break;
         }
         if data[at + 1] == 0xFF {
@@ -271,12 +271,12 @@ pub fn list_bbc(data: &[u8]) -> Listing {
             break;
         }
         let (Some(&high), Some(&low), Some(&length)) = (data.get(at + 1), data.get(at + 2), data.get(at + 3)) else {
-            listing.notes.push("The program ends partway through a line.".into());
+            listing.notes.push(crate::i18n::tr("The program ends partway through a line.").into());
             break;
         };
         let end = at + usize::from(length);
         if length < 4 || end > data.len() {
-            listing.notes.push(format!("A line at byte {at} is cut short, so the listing stops there."));
+            listing.notes.push(crate::i18n::tf!("A line at byte {at} is cut short, so the listing stops there."));
             break;
         }
         let mut text = format!("{:>5}", u16::from_be_bytes([high, low]));
@@ -316,7 +316,7 @@ pub fn list_bbc(data: &[u8]) -> Listing {
         at = end;
     }
     if at < data.len() {
-        listing.notes.push(format!("{} byte(s) after the program aren't listed.", data.len() - at));
+        listing.notes.push(crate::i18n::tf!("{} byte(s) after the program aren't listed.", data.len() - at));
     }
     listing
 }
@@ -536,7 +536,7 @@ pub fn looks_like_bbc_z80(data: &[u8]) -> bool {
 pub fn list_bbc_z80(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "BBC BASIC (Z80)", ..Listing::default() };
     let Some(lines) = bbc_z80_lines(data) else {
-        listing.notes.push("The program's line lengths don't lead from one line to the next, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's line lengths don't lead from one line to the next, so it can't be listed.").into());
         return listing;
     };
     for (number, body) in lines {
@@ -818,11 +818,11 @@ pub fn list_msx(data: &[u8], set: &Charset) -> Listing {
     let set = if set.id.starts_with("msx") { set } else { charset::known("msx") };
     let mut listing = Listing { dialect: "MSX-BASIC", ..Listing::default() };
     if data.first() != Some(&0xFF) {
-        listing.notes.push("An MSX-BASIC program starts with the byte &FF, and this doesn't.".into());
+        listing.notes.push(crate::i18n::tr("An MSX-BASIC program starts with the byte &FF, and this doesn't.").into());
         return listing;
     }
     let Some(found) = microsoft_lines(data) else {
-        listing.notes.push("The program's line links don't lead from one line to the next, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's line links don't lead from one line to the next, so it can't be listed.").into());
         return listing;
     };
     for (number, body) in &found.lines {
@@ -830,14 +830,14 @@ pub fn list_msx(data: &[u8], set: &Charset) -> Listing {
     }
     if !found.whole {
         let last = found.lines.last().map_or(0, |(number, _)| *number);
-        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
+        listing.notes.push(crate::i18n::tf!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
     } else if let Some(end) = found.lines.last().map(|(_, body)| body.end + 3).filter(|&end| end < data.len()) {
         // After the last line's zero come the two zeros of the end link; anything after them isn't the program.
         if data[end..].iter().any(|&b| b != 0) {
-            listing.notes.push(format!("{} byte(s) after the program aren't listed.", data.len() - end));
+            listing.notes.push(crate::i18n::tf!("{} byte(s) after the program aren't listed.", data.len() - end));
         }
     }
-    listing.notes.push("Numbers are written from their stored values, without a ! or # to say their precision.".into());
+    listing.notes.push(crate::i18n::tr("Numbers are written from their stored values, without a ! or # to say their precision.").into());
     listing.notes.dedup();
     listing
 }
@@ -873,7 +873,7 @@ fn msx_line(body: &[u8], set: &Charset, notes: &mut Vec<String>) -> String {
                     0x0C => text.push_str(&format!("&H{value:X}")),
                     0x0D => {
                         text.push_str(&format!("{{line at &H{value:04X}}}"));
-                        notes.push("The program was saved after it had run, so some line numbers are only addresses.".into());
+                        notes.push(crate::i18n::tr("The program was saved after it had run, so some line numbers are only addresses.").into());
                     }
                     _ => text.push_str(&value.to_string()),
                 }
@@ -981,7 +981,7 @@ pub fn looks_like_dragon(data: &[u8]) -> bool {
 fn list_6809(program: &[u8], dialect: &'static str, commands: &[&str], functions: &[&str]) -> Listing {
     let mut listing = Listing { dialect, ..Listing::default() };
     let Some(lines) = basic_6809_lines(program) else {
-        listing.notes.push("The program's lines don't follow on from each other, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's lines don't follow on from each other, so it can't be listed.").into());
         return listing;
     };
     for (number, body) in lines {
@@ -1186,7 +1186,7 @@ pub fn looks_like_applesoft(data: &[u8]) -> bool {
 pub fn list_applesoft(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "Applesoft BASIC (Apple II)", ..Listing::default() };
     let Some(lines) = applesoft_lines(data) else {
-        listing.notes.push("The program's line links don't lead from one line to the next from $0801, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's line links don't lead from one line to the next from $0801, so it can't be listed.").into());
         return listing;
     };
     for (number, body) in lines {
@@ -1271,7 +1271,7 @@ pub fn looks_like_integer(data: &[u8]) -> bool {
 pub fn list_integer(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "Integer BASIC (Apple II)", ..Listing::default() };
     let Some(lines) = integer_lines(data) else {
-        listing.notes.push("The program's line lengths don't lead from one line to the next, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's line lengths don't lead from one line to the next, so it can't be listed.").into());
         return listing;
     };
     let shown = |byte: u8| {
@@ -1482,11 +1482,11 @@ pub(crate) fn microsoft_lines(data: &[u8]) -> Option<MsLines> {
 pub(crate) fn list_microsoft(data: &[u8], set: &Charset, dialect: &MsDialect) -> Listing {
     let mut listing = Listing { dialect: dialect.name, ..Listing::default() };
     if data.first() == Some(&0xFE) {
-        listing.notes.push("This program was saved protected (SAVE \"name\",P), so it's scrambled and can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("This program was saved protected (SAVE \"name\",P), so it's scrambled and can't be listed.").into());
         return listing;
     }
     let Some(found) = microsoft_lines(data) else {
-        listing.notes.push("The program's line links don't lead from one line to the next, so it can't be listed.".into());
+        listing.notes.push(crate::i18n::tr("The program's line links don't lead from one line to the next, so it can't be listed.").into());
         return listing;
     };
     for (number, body) in &found.lines {
@@ -1494,9 +1494,9 @@ pub(crate) fn list_microsoft(data: &[u8], set: &Charset, dialect: &MsDialect) ->
     }
     if !found.whole {
         let last = found.lines.last().map_or(0, |(number, _)| *number);
-        listing.notes.push(format!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
+        listing.notes.push(crate::i18n::tf!("The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there."));
     }
-    listing.notes.push("Numbers are written from their stored values; a double-precision one has a # after it.".into());
+    listing.notes.push(crate::i18n::tr("Numbers are written from their stored values; a double-precision one has a # after it.").into());
     listing.notes.dedup();
     listing
 }
@@ -1533,7 +1533,7 @@ fn microsoft_line(body: &[u8], set: &Charset, dialect: &MsDialect, notes: &mut V
                     0x1C => text.push_str(&(value as i16).to_string()),
                     0x0D => {
                         text.push_str(&format!("{{line at &H{value:04X}}}"));
-                        notes.push("The program was saved after it had run, so some line numbers are only addresses.".into());
+                        notes.push(crate::i18n::tr("The program was saved after it had run, so some line numbers are only addresses.").into());
                     }
                     _ => text.push_str(&value.to_string()),
                 }
@@ -1631,7 +1631,7 @@ pub fn looks_like_atari(data: &[u8]) -> bool {
 pub fn list_atari(data: &[u8]) -> Listing {
     let mut listing = Listing { dialect: "Atari BASIC", ..Listing::default() };
     if !looks_like_atari(data) {
-        listing.notes.push("This doesn't have an Atari BASIC program's header.".into());
+        listing.notes.push(crate::i18n::tr("This doesn't have an Atari BASIC program's header.").into());
         return listing;
     }
     let word = |at: usize| usize::from(u16::from_le_bytes([data[at], data[at + 1]]));
@@ -1692,7 +1692,7 @@ pub fn list_atari(data: &[u8]) -> Listing {
         at += length;
     }
     if names.iter().any(|name| name.chars().all(|c| !c.is_ascii_graphic())) {
-        listing.notes.push("The variable names have been overwritten, as an unlistable program's are.".into());
+        listing.notes.push(crate::i18n::tr("The variable names have been overwritten, as an unlistable program's are.").into());
     }
     listing
 }

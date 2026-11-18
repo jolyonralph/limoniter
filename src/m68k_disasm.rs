@@ -121,7 +121,7 @@ pub fn raw(bytes: &[u8], origin: u32, starts: &[u32], machine: Machine) -> Progr
         names: BTreeMap::new(),
         text_end: None,
         pointers: BTreeSet::new(),
-        what: format!("{} bytes of 68000 code at ${origin:X}", group(bytes.len() as u64)),
+        what: crate::i18n::tf!("{} bytes of 68000 code at ${origin:X}", group(bytes.len() as u64)),
     }
 }
 
@@ -153,7 +153,7 @@ pub fn amiga_program(bytes: &[u8]) -> Result<Program, String> {
             format!("{kind} {} bytes", group(u64::from(s.end() - s.base)))
         })
         .collect();
-    let what = format!("An Amiga program: {} ({})", if sections.len() == 1 { "1 hunk".to_string() } else { format!("{} hunks", sections.len()) }, parts.join(", "));
+    let what = crate::i18n::tf!("An Amiga program: {} ({})", if sections.len() == 1 { "1 hunk".to_string() } else { format!("{} hunks", sections.len()) }, parts.join(", "));
     let starts = vec![sections[0].base];
     Ok(Program { machine: Machine::Amiga, layout: Layout::Hunks, sections, starts, names, text_end: None, pointers: BTreeSet::new(), what })
 }
@@ -197,7 +197,7 @@ pub fn tos_program(bytes: &[u8]) -> Result<Program, String> {
             }
         }
     }
-    let what = format!("An Atari ST program: text {} bytes, data {}, BSS {}{}", group(text as u64), group(data as u64), group(bss as u64), if names.is_empty() { String::new() } else { format!(", {} symbols", names.len()) });
+    let what = crate::i18n::tf!("An Atari ST program: text {} bytes, data {}, BSS {}{}", group(text as u64), group(data as u64), group(bss as u64), if names.is_empty() { String::new() } else { format!(", {} symbols", names.len()) });
     let section = Section { kind: Kind::Code, memory: Memory::Any, base: 0, bytes: image, bss: bss as u32, relocations };
     Ok(Program { machine: Machine::AtariSt, layout: Layout::Tos, sections: vec![section], starts: vec![0], names, text_end: Some(text as u32), pointers: BTreeSet::new(), what })
 }
@@ -215,13 +215,13 @@ pub fn recognise(name: &str, bytes: &[u8]) -> Option<Program> {
     // An Amiga boot block: DOS, its checksum and root block, then code that's called at offset 12.
     if bytes.len() == 1024 && bytes.starts_with(b"DOS") {
         let mut program = raw(bytes, 0, &[12], Machine::Amiga);
-        program.what = "An Amiga boot block: its code from offset 12 (it's loaded wherever there's room)".into();
+        program.what = crate::i18n::tr("An Amiga boot block: its code from offset 12 (it's loaded wherever there's room)").into();
         return Some(program);
     }
     // An Atari ST boot sector: its words add up to $1234, and it starts with a branch over the disk's details.
     if bytes.len() == 512 && bytes.as_chunks::<2>().0.iter().fold(0u16, |sum, w| sum.wrapping_add(u16::from_be_bytes([w[0], w[1]]))) == 0x1234 {
         let mut program = raw(bytes, 0, &[0], Machine::AtariSt);
-        program.what = "An Atari ST boot sector: its code from the branch at the start".into();
+        program.what = crate::i18n::tr("An Atari ST boot sector: its code from the branch at the start").into();
         return Some(program);
     }
     // A Mega Drive cartridge: SEGA at $100, and its vectors at the start.
@@ -244,7 +244,7 @@ pub fn recognise(name: &str, bytes: &[u8]) -> Option<Program> {
         let mut program = raw(bytes, 0, &starts, Machine::MegaDrive);
         program.pointers = pointers;
         let title: String = bytes.get(0x150..0x180).unwrap_or(&[]).iter().map(|&b| b as char).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ");
-        program.what = format!("A Mega Drive cartridge{}, followed from its vectors", if title.is_empty() { String::new() } else { format!(" ({title})") });
+        program.what = crate::i18n::tf!("A Mega Drive cartridge{}, followed from its vectors", if title.is_empty() { String::new() } else { format!(" ({title})") });
         return Some(program);
     }
     // A Kickstart ROM: $1111 (256K, at $FC0000) or $1114 (512K, at $F80000), then a jump to its start.
@@ -252,7 +252,7 @@ pub fn recognise(name: &str, bytes: &[u8]) -> Option<Program> {
         let origin = if bytes.len() == 0x40000 { 0xFC_0000 } else { 0xF8_0000 };
         let start = be32(bytes, 4).filter(|&a| a >= origin && a < origin + bytes.len() as u32).unwrap_or(origin + 8);
         let mut program = raw(bytes, origin, &[start], Machine::Amiga);
-        program.what = format!("A Kickstart ROM of {}K at ${origin:X}, from its start at ${start:X}", bytes.len() / 1024);
+        program.what = crate::i18n::tf!("A Kickstart ROM of {}K at ${origin:X}, from its start at ${start:X}", bytes.len() / 1024);
         return Some(program);
     }
     None
@@ -1194,7 +1194,7 @@ fn comment(work: &Work, insn: &Insn, follow: &mut Follow) -> Option<String> {
     let base = insn.mnemonic.split('.').next().unwrap_or("");
     // LEA and PEA take an address, not what's there: the custom chips' base isn't a register of its own.
     if matches!(base, "lea" | "pea") && matches!(insn.ops.first(), Some(Op::AbsL(0xDF_F000, _))) {
-        said.push("the custom chips".into());
+        said.push(crate::i18n::tr("the custom chips").into());
     }
     let named_ops = if matches!(base, "lea" | "pea") { &insn.ops[..0] } else { &insn.ops[..] };
     for op in named_ops {
@@ -1220,7 +1220,7 @@ fn comment(work: &Work, insn: &Insn, follow: &mut Follow) -> Option<String> {
                 }
                 None => {
                     if let Some(name) = library_function("exec.library", offset) {
-                        said.push(format!("{name}, if a6 is exec"));
+                        said.push(crate::i18n::tf!("{name}, if a6 is exec"));
                     }
                 }
             }
@@ -1381,7 +1381,7 @@ fn write(program: &Program) -> Vec<Line> {
         }
     }
     let namer = Namer { work: &work };
-    let mut lines = vec![Line { text: format!("; {}.", program.what), range: None }, Line { text: "; Disassembled by Limoniter: it assembles with Limoniter's own assembler or vasm (Motorola syntax) to the same bytes.".into(), range: None }, Line { text: String::new(), range: None }];
+    let mut lines = vec![Line { text: format!("; {}.", program.what), range: None }, Line { text: crate::i18n::tr("; Disassembled by Limoniter: it assembles with Limoniter's own assembler or vasm (Motorola syntax) to the same bytes.").into(), range: None }, Line { text: String::new(), range: None }];
     if program.layout == Layout::Raw {
         lines.push(Line { text: format!("        org     ${:X}", program.sections[0].base), range: None });
     }

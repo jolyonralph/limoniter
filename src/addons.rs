@@ -87,7 +87,7 @@ pub fn describe(path: &Path, source: &str, shared: bool) -> AddOn {
         if is_identifier(value) {
             Some(value.to_string())
         } else {
-            problems.push(format!("\u{201C}{value}\u{201D} isn't a function name: use letters, digits and _."));
+            problems.push(crate::i18n::tf!("\u{201C}{value}\u{201D} isn't a function name: use letters, digits and _."));
             None
         }
     };
@@ -113,20 +113,20 @@ pub fn describe(path: &Path, source: &str, shared: bool) -> AddOn {
                         addon.commands.push(AddOnCommand { title: title.trim().to_string(), function });
                     }
                 }
-                _ => problems.push(format!("A command is written as \u{201C}command: Its title = function\u{201D}, not \u{201C}{value}\u{201D}.")),
+                _ => problems.push(crate::i18n::tf!("A command is written as \u{201C}command: Its title = function\u{201D}, not \u{201C}{value}\u{201D}.")),
             },
             "on_open" => addon.on_open = function(value, &mut problems),
             "on_save" => addon.on_save = function(value, &mut problems),
             "on_send" => addon.on_send = function(value, &mut problems),
             "on_run" => addon.on_run = function(value, &mut problems),
-            other => problems.push(format!("\u{201C}{other}\u{201D} isn't something an add-on can say. It can give name, about, command, on_open, on_save, on_send and on_run.")),
+            other => problems.push(crate::i18n::tf!("\u{201C}{other}\u{201D} isn't something an add-on can say. It can give name, about, command, on_open, on_save, on_send and on_run.")),
         }
     }
     if addon.commands.len() > MOST_COMMANDS {
-        problems.push(format!("It has {} commands; an add-on can have up to {MOST_COMMANDS}.", addon.commands.len()));
+        problems.push(crate::i18n::tf!("It has {} commands; an add-on can have up to {MOST_COMMANDS}.", addon.commands.len()));
     }
     if addon.commands.is_empty() && addon.on_open.is_none() && addon.on_save.is_none() && addon.on_send.is_none() && addon.on_run.is_none() && problems.is_empty() {
-        problems.push("It doesn't give any commands or events, so it has nothing to add. See How things work for how to write one.".to_string());
+        problems.push(crate::i18n::tr("It doesn't give any commands or events, so it has nothing to add. See How things work for how to write one.").to_string());
     }
     if !problems.is_empty() {
         addon.problem = Some(problems.join("\n"));

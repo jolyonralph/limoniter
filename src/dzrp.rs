@@ -218,8 +218,8 @@ pub fn pause_reason(payload: &[u8]) -> Option<String> {
     match payload.first()? {
         0 | 2 => None,
         1 => Some("Paused".into()),
-        3 => Some(format!("Stopped reading ${address:04X}")),
-        4 => Some(format!("Stopped after writing to ${address:04X}")),
+        3 => Some(crate::i18n::tf!("Stopped reading ${address:04X}")),
+        4 => Some(crate::i18n::tf!("Stopped after writing to ${address:04X}")),
         _ => Some(if words.is_empty() { "Stopped".into() } else { words }),
     }
 }

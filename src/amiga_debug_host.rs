@@ -129,8 +129,8 @@ impl Limoniter {
                             asks.push(Ask::CarryOn);
                             None
                         }
-                        Ok(_) => Some(format!("Stopped because {condition}")),
-                        Err(problem) => Some(format!("The condition {condition} couldn't be worked out: {problem}")),
+                        Ok(_) => Some(crate::i18n::tf!("Stopped because {condition}")),
+                        Err(problem) => Some(crate::i18n::tf!("The condition {condition} couldn't be worked out: {problem}")),
                     };
                     if let Some(stop) = remote.stopped.as_mut() {
                         stop.reason = reason.or(stop.reason.take());

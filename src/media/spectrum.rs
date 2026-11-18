@@ -189,7 +189,7 @@ impl TrDos {
 
 impl Volume for TrDos {
     fn describe(&self) -> String {
-        if self.scl { "TR-DOS archive (SCL)".to_string() } else { format!("TR-DOS disk (TRD) \u{B7} {}", if self.label.is_empty() { "no label" } else { &self.label }) }
+        if self.scl { crate::i18n::tr("TR-DOS archive (SCL)").to_string() } else { crate::i18n::tf!("TR-DOS disk (TRD) \u{B7} {}", if self.label.is_empty() { "no label" } else { &self.label }) }
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -204,7 +204,7 @@ impl Volume for TrDos {
                 let kind_char = char::from(*kind);
                 let mut entry = Entry::file(tidy_name(&format!("{name}.{kind_char}")), *sectors, index as u64);
                 (entry.kind, entry.detail) = match *kind {
-                    b'B' => ("BASIC (as a +3DOS file)".into(), format!("program {second} bytes, with variables {first}")),
+                    b'B' => (crate::i18n::tr("BASIC (as a +3DOS file)").into(), crate::i18n::tf!("program {second} bytes, with variables {first}")),
                     b'C' => ("Code".into(), format!("{second} bytes at {first}")),
                     b'D' => ("Data".into(), format!("{second} bytes")),
                     _ => (format!("Type {kind_char}"), format!("{second} bytes")),
@@ -282,7 +282,7 @@ impl Microdrive {
 
 impl Volume for Microdrive {
     fn describe(&self) -> String {
-        format!("ZX Microdrive cartridge (MDR) \u{B7} {}", if self.name.is_empty() { "no name" } else { &self.name })
+        crate::i18n::tf!("ZX Microdrive cartridge (MDR) \u{B7} {}", if self.name.is_empty() { "no name" } else { &self.name })
     }
 
     fn list(&self, dir: Option<&Entry>) -> Result<Vec<Entry>, String> {
@@ -296,7 +296,7 @@ impl Volume for Microdrive {
             .map(|(index, (name, data))| {
                 let mut entry = Entry::file(tidy_name(name), data.len().saturating_sub(9) as u64, index as u64);
                 let kind = data.first().copied().unwrap_or(255);
-                entry.kind = ["BASIC (as a +3DOS file)", "Number array", "Character array", "Code"].get(usize::from(kind)).map_or("Print file".to_string(), |k| k.to_string());
+                entry.kind = ["BASIC (as a +3DOS file)", "Number array", "Character array", "Code"].get(usize::from(kind)).map_or(crate::i18n::tr("Print file").to_string(), |k| k.to_string());
                 if kind == 0 {
                     entry.open_name = format!("{}.bas", tidy_name(name));
                 }
@@ -355,19 +355,19 @@ impl Tape {
                     let data = &body[..length.min(body.len())];
                     files.push(match header[0] {
                         // An OpticBASIC program (OpticOS's ROM saves these as Programs too) is kept as it was saved.
-                        0 if crate::opticbasic::is_program(data) => (format!("{}.bas", tidy_name(&name)), "OpticBASIC program (OpticOS)".into(), if first < 0x8000 { "starts a PROC when loaded".to_string() } else { String::new() }, data.to_vec()),
-                        0 => (format!("{}.bas", tidy_name(&name)), "BASIC (as a +3DOS file)".into(), if first < 10000 { format!("runs from line {first}") } else { String::new() }, as_plus3(data, usize::from(second), Some(first))),
+                        0 if crate::opticbasic::is_program(data) => (format!("{}.bas", tidy_name(&name)), crate::i18n::tr("OpticBASIC program (OpticOS)").into(), if first < 0x8000 { crate::i18n::tr("starts a PROC when loaded").to_string() } else { String::new() }, data.to_vec()),
+                        0 => (format!("{}.bas", tidy_name(&name)), crate::i18n::tr("BASIC (as a +3DOS file)").into(), if first < 10000 { crate::i18n::tf!("runs from line {first}") } else { String::new() }, as_plus3(data, usize::from(second), Some(first))),
                         3 if length == 6912 => (format!("{}.scr", tidy_name(&name)), "Screen".into(), format!("6912 bytes at {first}"), data.to_vec()),
                         3 => (format!("{}.code", tidy_name(&name)), "Code".into(), format!("{length} bytes at {first}"), data.to_vec()),
                         k => (format!("{}.dat", tidy_name(&name)), if k == 1 { "Number array" } else { "Character array" }.into(), format!("{length} bytes"), data.to_vec()),
                     });
                 }
-                None => files.push((format!("Block {}.bin", index + 1), format!("Headerless block, flag {flag:02X}"), format!("{} bytes", body.len()), body.to_vec())),
+                None => files.push((format!("Block {}.bin", index + 1), crate::i18n::tf!("Headerless block, flag {flag:02X}"), format!("{} bytes", body.len()), body.to_vec())),
             }
         }
         let spectrum = files.len();
         for (name, program) in zx81_programs(&data) {
-            files.push((format!("{name}.p"), "ZX81 program".into(), format!("{} bytes", program.len()), program));
+            files.push((format!("{name}.p"), crate::i18n::tr("ZX81 program").into(), format!("{} bytes", program.len()), program));
         }
         let zx81 = spectrum == 0 && files.len() > spectrum;
         Ok(Self { tzx, zx81, files, problem })
@@ -447,7 +447,7 @@ impl Volume for Tape {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        self.files.get(entry.location as usize).map(|f| f.3.clone()).ok_or_else(|| "That file isn't on the tape.".into())
+        self.files.get(entry.location as usize).map(|f| f.3.clone()).ok_or_else(|| crate::i18n::tr("That file isn't on the tape.").into())
     }
 
     fn notes(&self) -> Vec<String> {
@@ -506,7 +506,7 @@ impl Snapshot {
             }
             let memory = data[27..27 + 49152].to_vec();
             let mut banks = Vec::new();
-            let mut kind = "ZX Spectrum snapshot (SNA, 48K)".to_string();
+            let mut kind = crate::i18n::tr("ZX Spectrum snapshot (SNA, 48K)").to_string();
             if data.len() >= 27 + 49152 + 4 + 5 * 16384 {
                 // A 128K snapshot: banks 5 and 2 and the paged one, then the paging, then the rest in order.
                 let paged = data[27 + 49152 + 2] & 7;
@@ -521,7 +521,7 @@ impl Snapshot {
                     at += 16384;
                 }
                 banks.sort_by_key(|b| b.0);
-                kind = "ZX Spectrum snapshot (SNA, 128K)".into();
+                kind = crate::i18n::tr("ZX Spectrum snapshot (SNA, 128K)").into();
             }
             return Ok(Self { kind, memory, banks });
         }
@@ -533,7 +533,7 @@ impl Snapshot {
             // Version 1: 48K only, compressed when bit 5 of byte 12 says so.
             let body = &data[30..];
             let memory = if data[12] & 0x20 != 0 { z80_unpack(body, 49152) } else { body[..body.len().min(49152)].to_vec() };
-            return Ok(Self { kind: "ZX Spectrum snapshot (Z80 version 1, 48K)".into(), memory, banks: Vec::new() });
+            return Ok(Self { kind: crate::i18n::tr("ZX Spectrum snapshot (Z80 version 1, 48K)").into(), memory, banks: Vec::new() });
         }
         let extra = usize::from(u16::from_le_bytes([data[30], data[31]]));
         let version = if extra == 23 { 2 } else { 3 };
@@ -563,7 +563,7 @@ impl Snapshot {
             memory.extend(page(5));
             (memory, Vec::new())
         };
-        Ok(Self { kind: format!("ZX Spectrum snapshot (Z80 version {version}, {})", if is128 { "128K" } else { "48K" }), memory, banks })
+        Ok(Self { kind: crate::i18n::tf!("ZX Spectrum snapshot (Z80 version {version}, {})", if is128 { "128K" } else { "48K" }), memory, banks })
     }
 
     fn peek16(&self, address: usize) -> usize {
@@ -594,13 +594,13 @@ impl Snapshot {
     fn files(&self) -> Vec<(String, String, Vec<u8>)> {
         let mut files = Vec::new();
         if let Some(program) = self.program() {
-            files.push(("PROGRAM.bas".into(), "BASIC in memory (as a +3DOS file)".into(), program));
+            files.push(("PROGRAM.bas".into(), crate::i18n::tr("BASIC in memory (as a +3DOS file)").into(), program));
         }
         files.push(("SCREEN.scr".into(), "Screen".into(), self.memory[..6912].to_vec()));
         if self.banks.is_empty() {
-            files.push(("MEMORY.bin".into(), "Memory from 16384".into(), self.memory.clone()));
+            files.push(("MEMORY.bin".into(), crate::i18n::tr("Memory from 16384").into(), self.memory.clone()));
         } else {
-            files.extend(self.banks.iter().map(|(bank, data)| (format!("BANK {bank}.bin"), "Memory bank".into(), data.clone())));
+            files.extend(self.banks.iter().map(|(bank, data)| (format!("BANK {bank}.bin"), crate::i18n::tr("Memory bank").into(), data.clone())));
         }
         files
     }
@@ -628,7 +628,7 @@ impl Volume for Snapshot {
     }
 
     fn read(&self, entry: &Entry) -> Result<Vec<u8>, String> {
-        self.files().into_iter().nth(entry.location as usize).map(|f| f.2).ok_or_else(|| "That isn't in the snapshot.".into())
+        self.files().into_iter().nth(entry.location as usize).map(|f| f.2).ok_or_else(|| crate::i18n::tr("That isn't in the snapshot.").into())
     }
 }
 

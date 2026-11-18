@@ -342,7 +342,7 @@ pub fn undo_one(steps: &[Arc<Step>], touch: &Touch, before_lines: &[Arc<str>]) -
     };
     let mut edits = Vec::new();
     for (old, new) in steps[touch.step].changes_in(after) {
-        let now = follow_exactly(&steps[touch.step + 1..], new).ok_or_else(|| "Some of the lines this changed have been changed again since. Take back the later change first, or put the part back as it was before this.".to_string())?;
+        let now = follow_exactly(&steps[touch.step + 1..], new).ok_or_else(|| crate::i18n::tr("Some of the lines this changed have been changed again since. Take back the later change first, or put the part back as it was before this.").to_string())?;
         let lines = before_lines.get(old).ok_or(crate::i18n::tr("That state is no longer kept."))?.to_vec();
         edits.push((now, lines));
     }

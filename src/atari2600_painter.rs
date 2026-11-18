@@ -417,7 +417,7 @@ impl Editor {
         match self.part {
             Part::Sprites => {
                 let f = &self.sprites.frames[self.frame];
-                format!("pixel {x}, line {y}: %{:08b} (${:02X}) \u{B7} colour ${:02X}", f.rows[y], f.rows[y], f.colours[y])
+                crate::i18n::tf!("pixel {x}, line {y}: %{:08b} (${:02X}) \u{B7} colour ${:02X}", f.rows[y], f.rows[y], f.colours[y])
             }
             Part::Playfield => {
                 let left = self.field.halves.source_of(x);
@@ -428,7 +428,7 @@ impl Editor {
                     b => ("PF2", b - 12),
                 };
                 let first = self.field.top(self.tv) + y * self.field.lines;
-                format!("block {x}, row {y} (lines {first} to {}): {half}{register} bit {bit} \u{B7} colour ${:02X}, background ${:02X}", first + self.field.lines - 1, self.field.colours[y], self.field.backgrounds[y])
+                crate::i18n::tf!("block {x}, row {y} (lines {first} to {}): {half}{register} bit {bit} \u{B7} colour ${:02X}, background ${:02X}", first + self.field.lines - 1, self.field.colours[y], self.field.backgrounds[y])
             }
         }
     }

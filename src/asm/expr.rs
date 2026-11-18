@@ -287,7 +287,7 @@ impl Parser<'_> {
                         }
                     });
                 }
-                self.scope.page_here().map(Value::Known).ok_or_else(|| "$$ is the page being assembled into, which needs a DEVICE".into())
+                self.scope.page_here().map(Value::Known).ok_or_else(|| crate::i18n::tr("$$ is the page being assembled into, which needs a DEVICE").into())
             }
             // sjasmplus: {address} reads a word of the device's memory, {b address} a byte.
             b'{' => {
@@ -329,7 +329,7 @@ impl Parser<'_> {
                     self.at += 1;
                 }
                 let bits: String = self.text[start..self.at].iter().filter(|c| **c != b'_' && **c != b'\'').map(|c| if matches!(c, b'1' | b'#') { '1' } else { '0' }).collect();
-                i64::from_str_radix(&bits, 2).map(Value::Known).map_err(|_| "a binary number is missing its digits".into())
+                i64::from_str_radix(&bits, 2).map(Value::Known).map_err(|_| crate::i18n::tr("a binary number is missing its digits").into())
             }
             b'0'..=b'9' => self.number(),
             c if is_name_start(c) => {
@@ -371,7 +371,7 @@ impl Parser<'_> {
             self.at += 1;
         }
         let text: String = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default().chars().filter(|c| *c != '_' && *c != '\'').collect();
-        i64::from_str_radix(&text, radix).map(Value::Known).map_err(|_| "a number is missing its digits".into())
+        i64::from_str_radix(&text, radix).map(Value::Known).map_err(|_| crate::i18n::tr("a number is missing its digits").into())
     }
 
     /// A number starting with a digit: decimal, 0x hex, 0b binary, or with an H, B, O or Q after it.

@@ -190,8 +190,8 @@ fn perform(code: &str, repeat: Repeat, function: Option<&str>, to_host: Sender<F
     let ast = engine.compile(code).map_err(|e| {
         let place = e.position();
         match place.line() {
-            Some(line) => format!("There's a mistake on line {line}: {}", e.err_type()),
-            None => format!("There's a mistake in it: {}", e.err_type()),
+            Some(line) => crate::i18n::tf!("There's a mistake on line {line}: {}", e.err_type()),
+            None => crate::i18n::tf!("There's a mistake in it: {}", e.err_type()),
         }
     })?;
     if let Some(function) = function {
@@ -225,9 +225,9 @@ fn describe(error: &EvalAltResult) -> String {
     let place = error.position().line().map_or_else(String::new, |line| format!(" (line {line})"));
     match error {
         EvalAltResult::ErrorRuntime(message, _) => format!("{message}{place}"),
-        EvalAltResult::ErrorTerminated(..) => "It was stopped.".to_string(),
-        EvalAltResult::ErrorDataTooLarge(what, _) => format!("It tried to hold too much: {what}{place}"),
-        EvalAltResult::ErrorStackOverflow(_) => format!("Its functions call each other too deeply{place}"),
+        EvalAltResult::ErrorTerminated(..) => crate::i18n::tr("It was stopped.").to_string(),
+        EvalAltResult::ErrorDataTooLarge(what, _) => crate::i18n::tf!("It tried to hold too much: {what}{place}"),
+        EvalAltResult::ErrorStackOverflow(_) => crate::i18n::tf!("Its functions call each other too deeply{place}"),
         EvalAltResult::ErrorInFunctionCall(_, _, inner, _) => describe(inner),
         other => {
             let text = other.to_string();
@@ -273,21 +273,21 @@ impl Bridge {
     fn yes(&self, call: Call) -> Fails<bool> {
         match self.ask(call)? {
             Answer::Yes(yes) => Ok(yes),
-            other => failure(format!("Limoniter gave an answer it shouldn't have: {other:?}")),
+            other => failure(crate::i18n::tf!("Limoniter gave an answer it shouldn't have: {other:?}")),
         }
     }
 
     fn number(&self, call: Call) -> Fails<i64> {
         match self.ask(call)? {
             Answer::Number(number) => Ok(number),
-            other => failure(format!("Limoniter gave an answer it shouldn't have: {other:?}")),
+            other => failure(crate::i18n::tf!("Limoniter gave an answer it shouldn't have: {other:?}")),
         }
     }
 
     fn text(&self, call: Call) -> Fails<String> {
         match self.ask(call)? {
             Answer::Text(text) => Ok(text),
-            other => failure(format!("Limoniter gave an answer it shouldn't have: {other:?}")),
+            other => failure(crate::i18n::tf!("Limoniter gave an answer it shouldn't have: {other:?}")),
         }
     }
 }
@@ -296,20 +296,20 @@ impl Bridge {
 fn search_from(options: &Map) -> Fails<Search> {
     let mut search = Search::default();
     for (name, value) in options {
-        let on = value.as_bool().or_else(|_| failure(format!("{name} needs to be true or false.")))?;
+        let on = value.as_bool().or_else(|_| failure(crate::i18n::tf!("{name} needs to be true or false.")))?;
         match name.as_str() {
             "match_case" => search.match_case = on,
             "whole_word" => search.whole_word = on,
             "regex" => search.regex = on,
             "backward" => search.backward = on,
-            other => return failure(format!("A search has no option called {other}. It can have match_case, whole_word, regex and backward.")),
+            other => return failure(crate::i18n::tf!("A search has no option called {other}. It can have match_case, whole_word, regex and backward.")),
         }
     }
     Ok(search)
 }
 
 fn pattern(text: &str) -> Fails<regex::Regex> {
-    regex::Regex::new(text).or_else(|e| failure(format!("That regular expression isn't right: {e}")))
+    regex::Regex::new(text).or_else(|e| failure(crate::i18n::tf!("That regular expression isn't right: {e}")))
 }
 
 /// Binds one name to a call, keeping a line for each of the many there are.

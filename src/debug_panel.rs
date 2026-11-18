@@ -239,7 +239,7 @@ impl Parser<'_, '_> {
                 s.at += 1;
             }
             let digits: String = s.chars[from..s.at].iter().filter(|c| **c != '_').collect();
-            i64::from_str_radix(&digits, radix).map_err(|_| "a number wasn't understood".to_string())
+            i64::from_str_radix(&digits, radix).map_err(|_| crate::i18n::tr("a number wasn't understood").to_string())
         };
         if c == '$' || c == '#' {
             return radix_from(self, 16, 1);
@@ -377,7 +377,7 @@ pub fn call_stack(sp: u16, peek: &dyn Fn(u16) -> u8) -> Vec<Frame> {
 /// Where an address is in the source, as words: "line 12" or "line 4 of lib.asm", with its label.
 fn place_of(address: u16, assembly: Option<&Assembly>) -> String {
     let Some(assembly) = assembly.filter(|a| a.line_at(i64::from(address)).is_some() || address >= 0x4000) else {
-        return if address < 0x4000 { format!("${address:04X} in the ROM") } else { format!("${address:04X}") };
+        return if address < 0x4000 { crate::i18n::tf!("${address:04X} in the ROM") } else { format!("${address:04X}") };
     };
     let line = assembly.line_at(i64::from(address)).map(|(file, line)| {
         let of = if file == 0 { String::new() } else { assembly.files.get(file).and_then(|f| f.file_name()).map(|n| format!(" of {}", n.to_string_lossy())).unwrap_or_default() };
@@ -398,10 +398,10 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         let place = match assembly.and_then(|a| a.line_at(pc as i64).map(|(file, line)| (a, file, line))) {
             Some((a, file, line)) => {
                 let name = a.files.get(file).and_then(|f| f.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                format!("Stopped at ${pc:04X}, line {} of {name}", line + 1)
+                crate::i18n::tf!("Stopped at ${pc:04X}, line {} of {name}", line + 1)
             }
-            None if stop.z80.is_some() && pc < 0x4000 => format!("Stopped at ${pc:04X}, in the ROM"),
-            None => format!("Stopped at ${pc:04X}"),
+            None if stop.z80.is_some() && pc < 0x4000 => crate::i18n::tf!("Stopped at ${pc:04X}, in the ROM"),
+            None => crate::i18n::tf!("Stopped at ${pc:04X}"),
         };
         ui.horizontal(|ui| {
             ui.label(RichText::new(place).strong());
@@ -447,7 +447,7 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         let peek = |a: u16| memory[a as usize];
         // The calls it's inside.
         let frames = call_stack(r.sp, &peek);
-        egui::CollapsingHeader::new(format!("Call stack ({})", frames.len())).id_salt("debug-calls").default_open(true).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::tf!("Call stack ({})", frames.len())).id_salt("debug-calls").default_open(true).show(ui, |ui| {
             ui.label(mono(format!("now   {}", place_of(pc, assembly))));
             for frame in &frames {
                 ui.label(mono(format!("from  {}", place_of(frame.call, assembly)))).on_hover_text(crate::i18n::tf!("Returns to ${:04X}; the address is on the stack at ${:04X}", frame.returns_to, frame.at));
@@ -630,8 +630,8 @@ pub fn place_68k(address: u32, source: Option<i64>, assembly: Option<&Assembly>)
     });
     match in_program {
         Some(words) => format!("${address:08X}{words}"),
-        None if (0xF8_0000..0x100_0000).contains(&(address & 0xFF_FFFF)) => format!("${address:08X}, in the Kickstart ROM"),
-        None => format!("${address:08X}, outside the program"),
+        None if (0xF8_0000..0x100_0000).contains(&(address & 0xFF_FFFF)) => crate::i18n::tf!("${address:08X}, in the Kickstart ROM"),
+        None => crate::i18n::tf!("${address:08X}, outside the program"),
     }
 }
 
@@ -722,7 +722,7 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
             let changed = before.as_ref().is_some_and(|b| b.registers[index] != value);
             let text = mono(format!("{name} {value:0width$X}"));
             let label = ui.add(egui::Label::new(if changed { text.color(theme::accent()).strong() } else { text }).sense(egui::Sense::click()));
-            if crate::access::called(label, &format!("{name}: click to change it")).on_hover_text(crate::i18n::tf!("{name} = {value} (${value:X}). Click to change it.")).clicked() {
+            if crate::access::called(label, &crate::i18n::tf!("{name}: click to change it")).on_hover_text(crate::i18n::tf!("{name} = {value} (${value:X}). Click to change it.")).clicked() {
                 shown.editing = Some((index, format!("{value:0width$X}")));
             }
         };
@@ -741,7 +741,7 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
         });
         // The calls it's inside.
         let calls = amiga::call_stack(now, &shown.program);
-        egui::CollapsingHeader::new(format!("Call stack ({})", calls.len())).id_salt("debug-calls").default_open(true).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::tf!("Call stack ({})", calls.len())).id_salt("debug-calls").default_open(true).show(ui, |ui| {
             ui.label(mono(format!("now   {}", place_68k(now.pc(), now.source, assembly))));
             for call in &calls {
                 let at = shown.program.to_runtime(&now.bases, *call).unwrap_or(0);

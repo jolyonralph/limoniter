@@ -545,8 +545,8 @@ impl Converter {
                 } else {
                     if let Some(b) = &self.bob {
                         let note = match b.bltsize() {
-                            Some(size) => format!("{} words a row; BLTSIZE ${size:04X}", b.words()),
-                            None => format!("{} words a row; too big for one BLTSIZE", b.words()),
+                            Some(size) => crate::i18n::tf!("{} words a row; BLTSIZE ${size:04X}", b.words()),
+                            None => crate::i18n::tf!("{} words a row; too big for one BLTSIZE", b.words()),
                         };
                         ui.label(RichText::new(note).color(crate::theme::text_dim()).size(12.0));
                     }

@@ -314,7 +314,7 @@ fn amiga_name(name: &str) -> String {
 /// startup-sequence that runs it (or the disk, for a disk), and the emulator's configuration. Gives the file to
 /// start the emulator with.
 pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Settings) -> Result<PathBuf, String> {
-    let failed = |e: std::io::Error| format!("The Amiga's drive couldn't be made.\n\n{e}");
+    let failed = |e: std::io::Error| crate::i18n::tf!("The Amiga's drive couldn't be made.\n\n{e}");
     let model = settings.model;
     let kickstart = settings.kickstart(model).map(Path::to_path_buf).or_else(|| best_for(model, &find_kickstarts_in(&kickstart_folders())).map(|(p, _)| p));
     if let Some(rom) = &kickstart
@@ -405,8 +405,8 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
                 }
             }
             found_note = Some(match (found.len(), chosen) {
-                (0, _) => "No Kickstarts were found. Choose one, or leave it to the emulator.".to_string(),
-                (n, 0) => format!("{n} found, but none for these models."),
+                (0, _) => crate::i18n::tr("No Kickstarts were found. Choose one, or leave it to the emulator.").to_string(),
+                (n, 0) => crate::i18n::tf!("{n} found, but none for these models."),
                 (n, _) => format!("{n} found."),
             });
         }
@@ -417,12 +417,12 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
     let said = match rom {
         Some(path) => match identify_file(path) {
             Some(k) if k.suits.contains(&model) => format!("{}.", k.name),
-            Some(k) => format!("{}: not made for the {}, so it may not start.", k.name, model.short_name()),
-            None if path.is_file() => "That isn't a Kickstart Limoniter knows; the emulator may still take it.".to_string(),
-            None => "That file isn't there.".to_string(),
+            Some(k) => crate::i18n::tf!("{}: not made for the {}, so it may not start.", k.name, model.short_name()),
+            None if path.is_file() => crate::i18n::tr("That isn't a Kickstart Limoniter knows; the emulator may still take it.").to_string(),
+            None => crate::i18n::tr("That file isn't there.").to_string(),
         },
-        None if emulator == "winuae" => "None chosen: WinUAE uses its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.".to_string(),
-        None => "None chosen: FS-UAE uses one from its Kickstarts folder, or its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.".to_string(),
+        None if emulator == "winuae" => crate::i18n::tr("None chosen: WinUAE uses its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.").to_string(),
+        None => crate::i18n::tr("None chosen: FS-UAE uses one from its Kickstarts folder, or its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.").to_string(),
     };
     let said = match found_note {
         Some(note) => format!("{note} {said}"),
@@ -430,7 +430,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
     };
     ui.scope(|ui| {
         ui.set_max_width(330.0);
-        ui.add(egui::Label::new(hint(&format!("{said} The program runs from a folder that's the Amiga's hard drive, DH0:, which it can write files to."))).wrap());
+        ui.add(egui::Label::new(hint(&crate::i18n::tf!("{said} The program runs from a folder that's the Amiga's hard drive, DH0:, which it can write files to."))).wrap());
     });
     ui.end_row();
     if settings != before {

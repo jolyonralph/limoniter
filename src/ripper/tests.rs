@@ -25,8 +25,8 @@ fn every_test_module_is_found_in_junk_whole_and_no_more() {
     for entry in std::fs::read_dir(folder).unwrap().flatten() {
         let module = std::fs::read(entry.path()).unwrap();
         let name = entry.file_name().to_string_lossy().into_owned();
-        // The first Soundtracker modules, with 15 samples, carry no mark to be found by.
-        if name.to_ascii_lowercase().ends_with(".mod") && !module.get(1080..1084).is_some_and(|t| t.iter().all(|c| c.is_ascii_graphic())) {
+        // A 15-sample Soundtracker module carries no mark; it's found by its instruments' sample-disk names.
+        if name.to_ascii_lowercase().ends_with(".mod") && !module.get(1080..1084).is_some_and(|t| t.iter().all(|c| c.is_ascii_graphic())) && soundtracker_starts(&module).is_empty() {
             continue;
         }
         let mut bytes = junk(3001, 7);
@@ -43,6 +43,53 @@ fn every_test_module_is_found_in_junk_whole_and_no_more() {
         looked += 1;
     }
     assert!(looked > 10);
+}
+
+/// A 15-sample Soundtracker module of two patterns, its first instrument named `first`.
+fn soundtracker_module(first: &[u8]) -> Vec<u8> {
+    let mut m = b"old tune".to_vec();
+    m.resize(20, 0);
+    for s in 0..15 {
+        let mut name = if s == 0 { first.to_vec() } else { Vec::new() };
+        name.resize(22, 0);
+        m.extend(name);
+        // 100 words long at volume 64, playing once.
+        m.extend(if s < 3 { [0, 100, 0, 64, 0, 0, 0, 1] } else { [0, 0, 0, 0, 0, 0, 0, 1] });
+    }
+    m.extend([3, 120]);
+    let mut order = vec![0u8, 1, 0];
+    order.resize(128, 0);
+    m.extend(order);
+    m.extend(vec![0u8; 2 * 1024]);
+    m.extend(junk(3 * 200, 3));
+    m
+}
+
+#[test]
+fn a_soundtracker_module_is_found_by_its_sample_disk_names_or_as_a_whole_file() {
+    let module = soundtracker_module(b"st-01:strings");
+    assert_eq!(module.len(), 600 + 2048 + 600);
+    let mut bytes = junk(4000, 5);
+    bytes.extend(&module);
+    bytes.extend(junk(3000, 9));
+    let finds = find_music(&bytes, "disk");
+    assert_eq!(finds.len(), 1, "{:?}", finds.iter().map(|f| (f.offset, f.kind)).collect::<Vec<_>>());
+    let found = &finds[0];
+    assert_eq!((found.offset, found.kind, found.title.as_str(), found.sized), (4000, Music::Soundtracker, "old tune", true));
+    assert_eq!(&found.bytes[..], &module[..]);
+    assert_eq!(found.file_name(), "old tune.mod");
+    assert!(crate::tracker::load(&found.bytes, &found.file_name()).is_ok());
+    // Without such a name, only a file that is exactly one module is taken for one.
+    let unnamed = soundtracker_module(b"strings");
+    let mut inside = junk(4000, 5);
+    inside.extend(&unnamed);
+    assert!(find_music(&inside, "disk").is_empty());
+    let whole = find_music(&unnamed, "old.mod");
+    assert_eq!(whole.iter().map(|f| (f.offset, f.kind, f.bytes.len())).collect::<Vec<_>>(), [(0, Music::Soundtracker, unnamed.len())]);
+    // Junk with a sample-disk name in it isn't a module.
+    let mut fake = junk(5000, 13);
+    fake[2000..2006].copy_from_slice(b"ST-02:");
+    assert!(find_music(&fake, "junk").is_empty());
 }
 
 #[test]

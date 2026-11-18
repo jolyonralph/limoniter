@@ -64,8 +64,14 @@ impl Limoniter {
         let cpu = self.doc_cpu(self.active);
         // Spectrum BASIC has breakpoints too, by its line numbers, on the built-in Spectrum.
         let basic = cpu.is_none() && self.is_spectrum_basic(self.active) && matches!(self.docs[self.active].listing_of, Some((basic::Machine::Spectrum, _)) | None);
+        // Files a debugger can run have breakpoints as well.
+        // Its language worked out first: a file just opened hasn't been coloured yet.
+        let debugged = cpu.is_none() && !basic && {
+            self.docs[self.active].update_syntax();
+            super::dap_host::debuggable(&self.docs[self.active].language_name())
+        };
         let doc = &mut self.docs[self.active];
-        match (cpu.is_some() || basic, doc.text.code.is_some()) {
+        match (cpu.is_some() || basic || debugged, doc.text.code.is_some()) {
             (true, false) => doc.text.code = Some(Box::default()),
             (false, true) => doc.text.code = None,
             _ => {}
@@ -240,11 +246,11 @@ impl Limoniter {
                     Some(folder) => {
                         let path = folder.join(name);
                         match crate::codec::write_file(&path, bytes) {
-                            Ok(()) => format!("Saved {} ({} bytes), to load into an emulator.", path.display(), bytes.len()),
-                            Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+                            Ok(()) => crate::i18n::tf!("Saved {} ({} bytes), to load into an emulator.", path.display(), bytes.len()),
+                            Err(e) => crate::i18n::tf!("{} couldn't be saved: {e}", path.display()),
                         }
                     }
-                    None => format!("Save the source first, so {name} can be saved beside it."),
+                    None => crate::i18n::tf!("Save the source first, so {name} can be saved beside it."),
                 })
             }
             _ => None,
@@ -261,12 +267,12 @@ impl Limoniter {
                         let path = folder.join(&output.name);
                         let result = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| crate::codec::write_file(&path, &output.bytes));
                         match result {
-                            Ok(()) => format!("Wrote {} ({} bytes).", path.display(), output.bytes.len()),
-                            Err(e) => format!("{} couldn't be written: {e}", path.display()),
+                            Ok(()) => crate::i18n::tf!("Wrote {} ({} bytes).", path.display(), output.bytes.len()),
+                            Err(e) => crate::i18n::tf!("{} couldn't be written: {e}", path.display()),
                         }
                     })
                     .collect(),
-                None => vec!["Save the source first, so the files it asks for can be written beside it.".to_string()],
+                None => vec![crate::i18n::tr("Save the source first, so the files it asks for can be written beside it.").to_string()],
             }
         } else {
             Vec::new()
@@ -297,7 +303,7 @@ impl Limoniter {
             return;
         };
         let name = self.docs[index].name();
-        let mut lines = vec![format!("Assembling {name} with {}", choice.name())];
+        let mut lines = vec![crate::i18n::tf!("Assembling {name} with {}", choice.name())];
         self.memory_map = None;
         if !assembly.ok() {
             // What the other assembler printed, as it printed it, besides the problems read from it.
@@ -315,7 +321,7 @@ impl Limoniter {
         match runnable {
             Ok(run) => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
-                let size = if assembled.tape.is_some() { format!("A {} was made", run.format.medium().unwrap_or("tape")) } else { format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
+                let size = if assembled.tape.is_some() { crate::i18n::tf!("A {} was made", run.format.medium().unwrap_or("tape")) } else { crate::i18n::tf!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
                 let chunks: Vec<(i64, usize)> = assembly.chunks.iter().map(|c| (c.address, c.bytes.len())).collect();
                 if let Some(map) = crate::memory_map::map(run.machine, &chunks) {
@@ -324,11 +330,11 @@ impl Limoniter {
                     self.memory_map = Some(map);
                 }
             }
-            Err(problem) if problem == ASK_6502 => lines.push("It doesn't say whether it's for a Commodore 64, a BBC Micro or an Atari 2600. Put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top to say.".into()),
+            Err(problem) if problem == ASK_6502 => lines.push(crate::i18n::tr("It doesn't say whether it's for a Commodore 64, a BBC Micro or an Atari 2600. Put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top to say.").into()),
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
             Err(_) if assembly.ok() => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
-                lines.push(format!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}.", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)));
+                lines.push(crate::i18n::tf!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}.", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)));
             }
             Err(_) => lines.push(format!("{} problem{}.", assembly.problems.len(), if assembly.problems.len() == 1 { "" } else { "s" })),
         }
@@ -348,17 +354,17 @@ impl Limoniter {
     /// it.
     pub(super) fn assemble_and_save(&mut self) {
         let Some(cpu) = self.doc_cpu(self.active) else {
-            return self.message("Assemble and save", "This isn't assembler source Limoniter knows: Z80, 6502, 6809 or 68000.".into());
+            return self.message("Assemble and save", crate::i18n::tr("This isn't assembler source Limoniter knows: Z80, 6502, 6809 or 68000.").into());
         };
         let Some(folder) = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf) else {
-            return self.message("Assemble and save", "Save the source first, so the program can be saved beside it.".into());
+            return self.message("Assemble and save", crate::i18n::tr("Save the source first, so the program can be saved beside it.").into());
         };
         // A 6809 or 68000 program is saved by assembling it; the others are made ready to run, and saved here.
         if let Ok(run) = self.assemble_to_run(cpu, true) {
             let path = folder.join(&run.name);
             let words = match crate::codec::write_file(&path, &run.bytes) {
-                Ok(()) => format!("Saved {} ({} bytes).", path.display(), run.bytes.len()),
-                Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+                Ok(()) => crate::i18n::tf!("Saved {} ({} bytes).", path.display(), run.bytes.len()),
+                Err(e) => crate::i18n::tf!("{} couldn't be saved: {e}", path.display()),
             };
             self.script_print(words, false);
         }
@@ -384,9 +390,9 @@ impl Limoniter {
         let words = match crate::codec::write_file(&path, &bytes) {
             Ok(()) => {
                 let run = if start == low { String::new() } else { format!(", starting at {start} (${start:04X})") };
-                format!("Saved {} bytes to {}: load them at {low} (${low:04X}){run}.", bytes.len(), path.display())
+                crate::i18n::tf!("Saved {} bytes to {}: load them at {low} (${low:04X}){run}.", bytes.len(), path.display())
             }
-            Err(e) => format!("{} couldn't be saved: {e}", path.display()),
+            Err(e) => crate::i18n::tf!("{} couldn't be saved: {e}", path.display()),
         };
         self.script_print(words, false);
     }
@@ -395,7 +401,7 @@ impl Limoniter {
     /// it starts. Problems are in the Output panel, so they give no message here (None).
     pub(super) fn assembled_bytes(&mut self) -> Result<(Vec<u8>, i64, i64), Option<String>> {
         let Some(cpu) = self.doc_cpu(self.active) else {
-            return Err(Some("This isn't assembler source Limoniter knows: Z80, 6502, 6809 or 68000.".into()));
+            return Err(Some(crate::i18n::tr("This isn't assembler source Limoniter knows: Z80, 6502, 6809 or 68000.").into()));
         };
         let doc_id = self.docs[self.active].id;
         // What can't run (a .nex the source doesn't set up, say) can still be saved as bytes.
@@ -405,7 +411,7 @@ impl Limoniter {
             return Err(None);
         }
         let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
-            return Err(Some(format!("{} gave back no bytes to save, only its own file. Choose Limoniter's own assembler, or sjasmplus, in File, Run on, Assemblers, to save them.", self.assembler_for(cpu).name())));
+            return Err(Some(crate::i18n::tf!("{} gave back no bytes to save, only its own file. Choose Limoniter's own assembler, or sjasmplus, in File, Run on, Assemblers, to save them.", self.assembler_for(cpu).name())));
         };
         Ok((assembly.image(low, high), low, assembly.start().unwrap_or(low)))
     }
@@ -453,7 +459,7 @@ impl Limoniter {
             match rx.try_recv() {
                 Ok(Ok(path)) => {
                     state.kickass = None;
-                    state.kickass_said = format!("Downloaded to {}.", path.display());
+                    state.kickass_said = crate::i18n::tf!("Downloaded to {}.", path.display());
                     if let Some(row) = state.rows.iter_mut().find(|r| r.cpu == Cpu::M6502) {
                         row.found = assemblers::installed(Cpu::M6502);
                         row.chosen = Choice::Program { id: "kickass", path };
@@ -475,7 +481,7 @@ impl Limoniter {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 for (index, row) in state.rows.iter().enumerate() {
-                    let own = if row.chosen == Choice::Own { "Limoniter's own".to_string() } else { assemblers::external(match &row.chosen { Choice::Program { id, .. } => id, Choice::Own => "" }).map_or_else(String::new, |e| e.name.to_string()) };
+                    let own = if row.chosen == Choice::Own { crate::i18n::tr("Limoniter's own").to_string() } else { assemblers::external(match &row.chosen { Choice::Program { id, .. } => id, Choice::Own => "" }).map_or_else(String::new, |e| e.name.to_string()) };
                     if ui.selectable_label(state.showing == index, crate::i18n::tr(row.cpu.name())).on_hover_text(own).clicked() {
                         state.showing = index;
                     }
@@ -610,10 +616,32 @@ pub struct Micro {
 
 pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> Result<Made, String> {
     match cpu {
-        // A Color Computer binary, which LOADM loads, and XRoar runs (and debugs).
+        // A Vectrex cartridge; a Dragon DOS binary; or a Color Computer binary, which LOADM loads, and XRoar runs
+        // (and debugs).
         Cpu::M6809 => {
-            let bytes = crate::asm::output::coco_binary(&assembled.assembly)?;
-            Ok(Made::Run(Runnable { machine: Machine::CoCo, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
+            let said = assembled.source.as_deref().and_then(|text| machine_6809(text.lines()));
+            let assembly = &assembled.assembly;
+            let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+                return Err(crate::i18n::tr("Nothing was assembled.").into());
+            };
+            let image = assembly.image(low, high);
+            if said == Some(Machine::Vectrex) || (said.is_none() && low == 0 && image.starts_with(b"g GCE")) {
+                return vectrex_cartridge(low, image, stem).map(Made::Run);
+            }
+            match said {
+                Some(machine @ (Machine::Dragon32 | Machine::Dragon64)) => {
+                    if image.len() > 0xFFFF {
+                        return Err(crate::i18n::tr("A Dragon DOS binary holds at most 65,535 bytes.").into());
+                    }
+                    let start = assembly.start().unwrap_or(low);
+                    let bytes = crate::dragon_dos::binary(low as u16, start as u16, &image);
+                    Ok(Made::Run(Runnable { machine, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
+                }
+                _ => {
+                    let bytes = crate::asm::output::coco_binary(assembly)?;
+                    Ok(Made::Run(Runnable { machine: Machine::CoCo, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
+                }
+            }
         }
         // An Amiga executable, made by the assembler from source for the Amiga.
         Cpu::M68k if assembled.tape.is_some() => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
@@ -624,7 +652,7 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
             let source = assembled.source.clone().or_else(|| std::fs::read_to_string(&path).ok()).ok_or(crate::i18n::tr("The source couldn't be read again to make the program movable."))?;
             let moved = crate::assemblers::assemble_own_at(Cpu::M68k, &path, &source, shift);
             let bytes = crate::asm::output::atari_program(&assembled.assembly, &moved, shift)?;
-            Runnable::from_file(&format!("{stem}.tos"), bytes).map(Made::Run).ok_or_else(|| "The Atari ST program couldn't be made.".into())
+            Runnable::from_file(&format!("{stem}.tos"), bytes).map(Made::Run).ok_or_else(|| crate::i18n::tr("The Atari ST program couldn't be made.").into())
         }
         Cpu::M68k => {
             let assembly = &assembled.assembly;
@@ -633,8 +661,76 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
             };
             Ok(Made::Saved { name: format!("{stem}.bin"), bytes: assembly.image(low, high) })
         }
+        Cpu::X86 => pc_program(&assembled.assembly, stem).map(Made::Run),
+        // A RISC OS application's code, run where RISC OS puts it, at &8000: an Absolute file (type FF8), named
+        // as RISC OS's files are kept on other computers, with ,ff8 after the name.
+        Cpu::Arm => {
+            let assembly = &assembled.assembly;
+            let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+                return Err(crate::i18n::tr("Nothing was assembled.").into());
+            };
+            let name = if low == 0x8000 { format!("{stem},ff8") } else { format!("{stem}.bin") };
+            Ok(Made::Saved { name, bytes: assembly.image(low, high) })
+        }
         _ => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
     }
+}
+
+/// Which machine 6809 source says it's for, near its top: ; machine: dragon32 (or dragon64, coco or vectrex).
+pub fn machine_6809<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Machine> {
+    lines.into_iter().take(50).find_map(|line| {
+        let line = line.trim_start();
+        let comment = line.strip_prefix(';').or_else(|| line.strip_prefix('*')).or_else(|| line.strip_prefix("//"))?;
+        let comment = comment.trim_start_matches([';', '/', '*', ' ', '\t']).to_ascii_lowercase();
+        let value = comment.strip_prefix("machine")?.trim_start().strip_prefix(':')?.trim().replace(' ', "");
+        match value.as_str() {
+            "dragon" | "dragon32" => Some(Machine::Dragon32),
+            "dragon64" => Some(Machine::Dragon64),
+            "coco" | "colorcomputer" | "trs-80colorcomputer" => Some(Machine::CoCo),
+            "vectrex" => Some(Machine::Vectrex),
+            _ => None,
+        }
+    })
+}
+
+/// A Vectrex cartridge: its bytes from address 0, which have to start with the copyright line the BIOS looks for.
+pub fn vectrex_cartridge(low: i64, image: Vec<u8>, stem: &str) -> Result<Runnable, String> {
+    if low != 0 {
+        return Err(crate::i18n::tf!("A Vectrex cartridge starts at address 0, but this starts at ${low:04X}: put ORG 0 at its top."));
+    }
+    if !image.starts_with(b"g GCE") {
+        return Err(crate::i18n::tr("A Vectrex cartridge starts with its copyright line, FCC \"g GCE 1982\" and FCB $80, or the Vectrex won't run it.").into());
+    }
+    if image.len() > 0x8000 {
+        return Err(crate::i18n::tf!("A Vectrex cartridge holds 32K, and this is {} bytes.", image.len()));
+    }
+    Ok(Runnable { machine: Machine::Vectrex, format: Format::VecCart, name: format!("{stem}.vec"), bytes: Arc::new(image) })
+}
+
+/// x86 code as the PC runs it: a boot sector (ORG 7C00h, or 512 bytes ending 55 AA) on a floppy that boots, else
+/// a DOS .COM program, which DOS loads at 100h.
+pub fn pc_program(assembly: &crate::asm::Assembly, stem: &str) -> Result<Runnable, String> {
+    let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+        return Err(crate::i18n::tr("Nothing was assembled.").into());
+    };
+    let bytes = assembly.image(low, high);
+    let boot = low == 0x7C00 || (bytes.len() == 512 && bytes[510..] == [0x55, 0xAA]);
+    if boot {
+        if bytes.len() > 512 {
+            return Err(crate::i18n::tf!("The boot sector is {} bytes: it has 512, the last two 55 AA (end it with TIMES 510-($-$$) DB 0 and DW 0AA55h).", bytes.len()));
+        }
+        if bytes.len() < 512 || bytes[510..] != [0x55, 0xAA] {
+            return Err(crate::i18n::tr("A boot sector ends with 55 AA at byte 510, or the PC won't boot it: end the source with TIMES 510-($-$$) DB 0 and DW 0AA55h.").into());
+        }
+        return Ok(Runnable { machine: Machine::Pc, format: Format::Img, name: format!("{stem}.img"), bytes: Arc::new(crate::running::pc_boot_floppy(&bytes)) });
+    }
+    if low != 0x100 {
+        return Err(crate::i18n::tf!("A DOS .COM program is loaded at 100h, but this starts at {low:X}h: put ORG 100h at its top (or ORG 7C00h for a boot sector)."));
+    }
+    if bytes.len() > 0xFF00 {
+        return Err(crate::i18n::tf!("A .COM program fits in 65,280 bytes, and this is {}.", bytes.len()));
+    }
+    Ok(Runnable { machine: Machine::Pc, format: Format::Com, name: format!("{stem}.com"), bytes: Arc::new(bytes) })
 }
 
 pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> Result<Runnable, String> {
@@ -670,7 +766,7 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
             // A Commodore 64's, unless it loads where another Commodore's BASIC starts.
             Some(Micro6502::C64) => {
                 let bytes = crate::asm::output::commodore_program(assembly)?;
-                Runnable::from_file(&format!("{stem}.prg"), bytes).ok_or_else(|| "The program couldn't be made.".to_string())
+                Runnable::from_file(&format!("{stem}.prg"), bytes).ok_or_else(|| crate::i18n::tr("The program couldn't be made.").to_string())
             }
             // An Atari 2600 cartridge: its ROM, from the lowest address to the highest.
             Some(Micro6502::Atari2600) => {

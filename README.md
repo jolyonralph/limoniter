@@ -1,5 +1,10 @@
 Limoniter is an open-source text editor inspired by editors such as UltraEdit and Notepad++ with a special emphasis on support for legacy and retro formats such as 8-bit and 16-bit system character sets.
 
+It's also a full IDE: open a folder and you get an Explorer with Git's status, Go to file and Go to symbol, a Search
+panel that shows each replacement before it's made, files side by side, terminals in tabs, language servers (offered,
+and installed for you) with quick fixes and formatting, and debugging for Python, C, C++ and Rust. See
+[what's new](https://limoniter.com/whats-new.html) and [everything it can do](https://limoniter.com/features.html).
+
 ## Installing
 
 Download the Windows installer, the macOS app, or for Linux the AppImage or the .deb, from

@@ -762,11 +762,11 @@ fn edi_marks(text: &str) -> Result<(char, Option<char>), String> {
     let chars: Vec<char> = start.chars().take(120).collect();
     if start.starts_with("ISA") {
         // X12's first segment is a fixed length, and what comes straight after it is the terminator.
-        return chars.get(105).copied().filter(|c| !c.is_alphanumeric()).map(|c| (c, None)).ok_or_else(|| "This X12 file's ISA segment is too short to read.".to_string());
+        return chars.get(105).copied().filter(|c| !c.is_alphanumeric()).map(|c| (c, None)).ok_or_else(|| crate::i18n::tr("This X12 file's ISA segment is too short to read.").to_string());
     }
     if start.starts_with("UNA") {
         let (release, terminator) = (chars.get(6).copied(), chars.get(8).copied());
-        return terminator.map(|c| (c, release.filter(|r| *r != ' '))).ok_or_else(|| "This EDIFACT file's UNA segment is too short to read.".to_string());
+        return terminator.map(|c| (c, release.filter(|r| *r != ' '))).ok_or_else(|| crate::i18n::tr("This EDIFACT file's UNA segment is too short to read.").to_string());
     }
     if start.starts_with("UNB") {
         return Ok(('\'', Some('?')));

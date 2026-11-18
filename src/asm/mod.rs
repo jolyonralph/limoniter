@@ -9,7 +9,9 @@ pub mod expr;
 pub mod hunk;
 pub mod m6502;
 pub mod m6809;
+pub mod arm;
 pub mod m68k;
+pub mod x86;
 pub mod output;
 pub mod z80;
 
@@ -48,6 +50,20 @@ pub trait Isa {
     /// The same, for an instruction at a known address: a 6502 branch takes longer into another page.
     fn cycles_at(&self, bytes: &[u8], _address: i64) -> Option<String> {
         self.cycles(bytes)
+    }
+    /// Whether its source is NASM's: TIMES repeats a statement, $$ is where the section starts, and
+    /// [BITS 16]-style lines in brackets are directives.
+    fn nasm(&self) -> bool {
+        false
+    }
+    /// Whether a word is one of its own directives (NASM's BITS, CPU, RESB...), so it isn't taken for a label.
+    fn is_directive(&self, _word: &str) -> bool {
+        false
+    }
+    /// A directive of its own (NASM's BITS, CPU, RESB...), taken before the assembler's: the bytes it makes,
+    /// or None if it isn't one.
+    fn directive(&self, _word: &str, _operands: &str, _line: &mut Line) -> Option<Result<Vec<u8>, String>> {
+        None
     }
 }
 
@@ -264,6 +280,7 @@ fn assemble_relocating<'a>(isa: &'a dyn Isa, path: &Path, text: &str, read: &'a 
         state.options = Some(options);
         state.base = base;
         state.pc = base;
+        state.section_start = base;
         state.previous_anonymous = anonymous.clone();
         state.previous_pages = pages.clone();
         state.previous_used = used.clone();
@@ -288,6 +305,7 @@ fn assemble_relocating<'a>(isa: &'a dyn Isa, path: &Path, text: &str, read: &'a 
     state.options = Some(options);
     state.base = base;
     state.pc = base;
+    state.section_start = base;
     state.previous_anonymous = anonymous;
     state.previous_pages = pages;
     state.previous_used = used;
@@ -342,6 +360,10 @@ struct Pass<'a> {
     variables: std::collections::HashSet<String>,
     unknown: bool,
     pc: i64,
+    /// What the processor keeps from line to line (NASM's BITS and CPU), afresh each pass.
+    settings: HashMap<&'static str, i64>,
+    /// Where the section began: NASM's $$.
+    section_start: i64,
     /// Inside DISP: how far the addresses the code is assembled for are from where it's put.
     shift: i64,
     /// Anonymous labels (-, --, +, ++), where each was, in order, this pass and the last.
@@ -447,6 +469,8 @@ impl<'a> Pass<'a> {
             variables: Default::default(),
             unknown: false,
             pc: 0,
+            settings: HashMap::new(),
+            section_start: 0,
             shift: 0,
             anonymous: HashMap::new(),
             previous_anonymous: HashMap::new(),
@@ -515,13 +539,13 @@ impl<'a> Pass<'a> {
         }
         if !self.conditions.is_empty() {
             let (file, line) = self.at;
-            self.out.problems.push(Problem { file, line, message: "an IF has no ENDIF".into() });
+            self.out.problems.push(Problem { file, line, message: crate::i18n::tr("an IF has no ENDIF").into() });
         }
         if let Some(mut layout) = self.hunks.take() {
             layout.sections[layout.current].end = self.pc;
             if let Some(big) = layout.sections.iter().find(|s| s.size() >= hunk::SPACING / 2) {
                 let (file, line) = self.at;
-                self.out.problems.push(Problem { file, line, message: format!("the section {} is over 16 MB", big.name) });
+                self.out.problems.push(Problem { file, line, message: crate::i18n::tf!("the section {} is over 16 MB", big.name) });
             }
             self.out.sections = layout.sections;
         }
@@ -573,7 +597,7 @@ impl<'a> Pass<'a> {
             && self.last
             && self.depth == 1
         {
-            self.out.notes.push(format!("Read as {} source: Limoniter's assembler knows its everyday forms; for the rest, choose {} in File, Run on, Assemblers.", d.name(), d.name()));
+            self.out.notes.push(crate::i18n::tf!("Read as {} source: Limoniter's assembler knows its everyday forms; for the rest, choose {} in File, Run on, Assemblers.", d.name(), d.name()));
         }
         let text: &str = translated.as_deref().unwrap_or(&text);
         let mut joined: Option<(usize, String)> = None;
@@ -721,7 +745,7 @@ impl<'a> Pass<'a> {
         let first = line.split_whitespace().next().unwrap_or("");
         // ca65's is a colon on its own, referred to as :- and :+.
         let anonymous = !first.is_empty() && (first.chars().all(|c| c == '-') || first.chars().all(|c| c == '+') || first == ":") && first.len() <= 8;
-        let (label, rest) = if anonymous { (None, &line.trim_start()[first.len()..]) } else { split_label(line, at_start, |w| self.is_keyword(w), |w| self.isa.is_instruction(&w.to_ascii_lowercase())) };
+        let (label, rest) = if anonymous { (None, &line.trim_start()[first.len()..]) } else { split_label(line, at_start, self.isa.nasm(), |w| self.is_keyword(w), |w| self.isa.is_instruction(&w.to_ascii_lowercase())) };
         let rest = rest.trim();
         let word = rest.split(|c: char| c.is_whitespace()).next().unwrap_or("").to_ascii_lowercase();
         let word = word.trim_start_matches(['.', '!']).to_string();
@@ -881,7 +905,7 @@ impl<'a> Pass<'a> {
                     match usize::try_from(index).ok().and_then(|n| items.get(n)) {
                         Some(item) => out.push_str(item),
                         None => {
-                            self.problem(format!("{name}[{index}] is outside the array"));
+                            self.problem(crate::i18n::tf!("{name}[{index}] is outside the array"));
                             out.push('0');
                         }
                     }
@@ -955,7 +979,7 @@ impl<'a> Pass<'a> {
             defining.size += inner.size;
             return;
         } else {
-            self.problem(format!("{kind} isn't a kind of STRUCT field (BYTE, WORD, D24, DWORD, BLOCK, ALIGN, TEXT or a STRUCT)"));
+            self.problem(crate::i18n::tf!("{kind} isn't a kind of STRUCT field (BYTE, WORD, D24, DWORD, BLOCK, ALIGN, TEXT or a STRUCT)"));
             return;
         };
         let defining = &mut self.defining.as_mut().expect("defining").1;
@@ -1052,7 +1076,7 @@ impl<'a> Pass<'a> {
     fn is_keyword(&self, word: &str) -> bool {
         let lower = word.to_ascii_lowercase();
         let lower = lower.trim_start_matches(['.', '!']);
-        DIRECTIVES.contains(&lower) || self.isa.is_instruction(lower) || self.macros.contains_key(lower)
+        DIRECTIVES.contains(&lower) || self.isa.is_instruction(lower) || self.isa.is_directive(lower) || self.macros.contains_key(lower)
     }
 
     fn condition(&mut self, word: &str, operand: &str) {
@@ -1133,7 +1157,7 @@ impl<'a> Pass<'a> {
             self.global = name.clone();
         }
         if !variable && self.symbols.contains_key(&name) {
-            self.problem(format!("{label} is defined twice"));
+            self.problem(crate::i18n::tf!("{label} is defined twice"));
             return;
         }
         if variable {
@@ -1298,13 +1322,40 @@ impl<'a> Pass<'a> {
             };
             let times = self.eval(count).unwrap_or(0);
             if !(0..=0x10000).contains(&times) {
-                self.problem(format!("{times} is too many times to repeat"));
+                self.problem(crate::i18n::tf!("{times} is too many times to repeat"));
                 return;
             }
             for _ in 0..times {
                 self.statement(body.trim());
             }
             return;
+        }
+        if self.isa.nasm() {
+            // [BITS 16], [ORG 0x7C00]: NASM's primitive directives, in brackets.
+            let trimmed = text.trim();
+            if let Some(inner) = trimmed.strip_prefix('[').and_then(|t| t.strip_suffix(']'))
+                && !inner.contains('[')
+            {
+                return self.statement(inner);
+            }
+            let (op, operands) = split_word(trimmed);
+            if op.eq_ignore_ascii_case("times") {
+                return self.times(operands);
+            }
+        }
+        // The processor's own directives come before the assembler's.
+        {
+            let (op, operands) = split_word(text.trim());
+            let lower = op.to_ascii_lowercase();
+            let isa = self.isa;
+            let mut line = Line { pass: self };
+            if let Some(made) = isa.directive(&lower, operands.trim(), &mut line) {
+                match made {
+                    Ok(bytes) => self.emit(bytes),
+                    Err(problem) => self.problem(problem),
+                }
+                return;
+            }
         }
         let (op, operands) = split_word(text);
         // OUT(C),A: the operand may follow the mnemonic with no space.
@@ -1357,7 +1408,7 @@ impl<'a> Pass<'a> {
             return;
         }
         if !self.isa.is_instruction(&lower) {
-            self.problem(format!("{op} isn't a {} instruction or a directive", self.isa.name()));
+            self.problem(crate::i18n::tf!("{op} isn't a {} instruction or a directive", self.isa.name()));
             return;
         }
         let isa = self.isa;
@@ -1367,6 +1418,44 @@ impl<'a> Pass<'a> {
         match isa.encode(&lower, operands, &mut line) {
             Ok(bytes) => self.emit(bytes),
             Err(problem) => self.problem(problem),
+        }
+    }
+
+    /// NASM's TIMES: a count, then the statement to make that many times. The count's expression ends where a
+    /// directive or instruction starts.
+    fn times(&mut self, operands: &str) {
+        let operands = operands.trim();
+        let mut split = None;
+        for (at, _) in operands.match_indices(|c: char| c.is_whitespace()) {
+            let rest = operands[at..].trim_start();
+            let word = rest.split(|c: char| c.is_whitespace()).next().unwrap_or("").to_ascii_lowercase();
+            let known = DIRECTIVES.contains(&word.as_str()) || self.isa.is_instruction(&word) || ["resb", "resw", "resd", "resq", "dq", "dt", "align"].contains(&word.as_str());
+            if known {
+                split = Some(at);
+                break;
+            }
+        }
+        let Some(at) = split else {
+            return self.problem(crate::i18n::tr("TIMES needs a count and then what to repeat, as TIMES 4 NOP"));
+        };
+        let times = self.eval(&operands[..at]).unwrap_or(0);
+        if times < 0 {
+            // TIMES 510-($-$$) DB 0 below nothing: what comes before is too long, as a boot sector's code can be.
+            if self.last {
+                let over = -times;
+                self.problem(crate::i18n::tf!("TIMES's count comes to {times}: what's before it is {over} bytes too long for the room it's given"));
+            }
+            return;
+        }
+        if times > 0x100_0000 {
+            if self.last {
+                self.problem(crate::i18n::tf!("{times} is too many times to repeat"));
+            }
+            return;
+        }
+        let body = operands[at..].trim().to_string();
+        for _ in 0..times {
+            self.statement(&body);
         }
     }
 
@@ -1460,6 +1549,7 @@ impl<'a> Pass<'a> {
                         // Under a device, addresses are the Z80's 64K.
                         self.pc = if self.device.is_some() { (v & 0xFFFF) + self.base } else { v + self.base };
                         self.absolute = true;
+                        self.section_start = self.pc;
                     }
                     Err(problem) => self.problem(problem),
                 }
@@ -1483,7 +1573,7 @@ impl<'a> Pass<'a> {
                         None => match self.eval(&item) {
                             Ok(v) => {
                                 if self.last && !(-256..=255).contains(&v) {
-                                    self.warn(format!("{item} is {v}, too big for a byte; its low byte is used"));
+                                    self.warn(crate::i18n::tf!("{item} is {v}, too big for a byte; its low byte is used"));
                                 }
                                 bytes.push(v as u8);
                             }
@@ -1518,7 +1608,7 @@ impl<'a> Pass<'a> {
                 let count = self.eval(items.first().map(String::as_str).unwrap_or("0")).unwrap_or(0);
                 let fill = items.get(1).map(|f| self.eval(f).unwrap_or(0)).unwrap_or(0);
                 if !(0..=0x100_0000).contains(&count) {
-                    self.problem(format!("{count} bytes is too many to leave"));
+                    self.problem(crate::i18n::tf!("{count} bytes is too many to leave"));
                     return;
                 }
                 self.emit(vec![fill as u8; count as usize]);
@@ -1545,7 +1635,7 @@ impl<'a> Pass<'a> {
                         self.run_file(&path, &text);
                         self.at = at;
                     }
-                    Err(problem) => self.problem(format!("{name} couldn't be read: {problem}")),
+                    Err(problem) => self.problem(crate::i18n::tf!("{name} couldn't be read: {problem}")),
                 }
             }
             "incbin" | "binary" | "insert" | "incbin_" => {
@@ -1560,7 +1650,7 @@ impl<'a> Pass<'a> {
                         let to = length.map_or(bytes.len(), |l| (from + l).min(bytes.len()));
                         self.emit(bytes[from..to].to_vec());
                     }
-                    Err(problem) => self.problem(format!("{name} couldn't be read: {problem}")),
+                    Err(problem) => self.problem(crate::i18n::tf!("{name} couldn't be read: {problem}")),
                 }
             }
             "end" => {
@@ -1648,7 +1738,7 @@ impl<'a> Pass<'a> {
             "endzone" => {
                 self.global = operands.trim().to_string();
             }
-            "endm" | "endr" | "edup" | "endmacro" | "endrepeat" => self.problem(format!("{} without its start", directive.to_ascii_uppercase())),
+            "endm" | "endr" | "edup" | "endmacro" | "endrepeat" => self.problem(crate::i18n::tf!("{} without its start", directive.to_ascii_uppercase())),
             "device" => {
                 self.sjasm = true;
                 self.choose_device(operands);
@@ -1697,7 +1787,7 @@ impl<'a> Pass<'a> {
                 let (name, value) = split_word(operands);
                 if !name.is_empty() {
                     if directive == "define" && self.defines.contains_key(name) && self.last {
-                        self.problem(format!("{name} is DEFINEd twice"));
+                        self.problem(crate::i18n::tf!("{name} is DEFINEd twice"));
                     }
                     self.defines.insert(name.to_string(), value.trim().to_string());
                 }
@@ -1797,8 +1887,8 @@ impl<'a> Pass<'a> {
                         let to = take.map_or(data.len(), |t| (from + t).min(data.len()));
                         self.emit(data[from..to].to_vec());
                     }
-                    Ok(_) => self.problem(format!("{name} is too short to be a Hobeta file")),
-                    Err(problem) => self.problem(format!("{name} couldn't be read: {problem}")),
+                    Ok(_) => self.problem(crate::i18n::tf!("{name} is too short to be a Hobeta file")),
+                    Err(problem) => self.problem(crate::i18n::tf!("{name} couldn't be read: {problem}")),
                 }
             }
             "slot" | "page" | "mmu" | "savebin" | "save3dos" | "savesna" | "savetap" | "emptytap" | "savenex" | "savedev" | "output" | "outend" if self.device_directive(directive, operands) => {}
@@ -1847,7 +1937,7 @@ impl<'a> Pass<'a> {
             }
             "assert" => {
                 if self.last && self.eval(operands).is_ok_and(|v| v == 0) {
-                    self.problem(format!("ASSERT {operands} failed"));
+                    self.problem(crate::i18n::tf!("ASSERT {operands} failed"));
                 }
             }
             "error" | "fail" => self.problem(unquote(operands)),
@@ -1884,7 +1974,7 @@ impl<'a> Pass<'a> {
                 let pc = self.pc;
                 self.devices.last_mut().expect("just made").reset_tracking(Some(pc));
             }
-            None => self.problem(format!("{name} isn't a DEVICE Limoniter knows (ZXSPECTRUM48, ZXSPECTRUM128 and the larger ones, ZXSPECTRUMNEXT, NOSLOT64K, AMSTRADCPC464, AMSTRADCPC6128)")),
+            None => self.problem(crate::i18n::tf!("{name} isn't a DEVICE Limoniter knows (ZXSPECTRUM48, ZXSPECTRUM128 and the larger ones, ZXSPECTRUMNEXT, NOSLOT64K, AMSTRADCPC464, AMSTRADCPC6128)")),
         }
     }
 
@@ -1967,7 +2057,7 @@ impl<'a> Pass<'a> {
                 let file = self.file_name(items.first().map(String::as_str).unwrap_or(""));
                 self.out.saves.push(Save { kind: directive.to_string(), file, start });
             }
-            self.problem(format!("{} needs a DEVICE (DEVICE ZXSPECTRUM48, ZXSPECTRUM128 or ZXSPECTRUMNEXT)", directive.to_ascii_uppercase()));
+            self.problem(crate::i18n::tf!("{} needs a DEVICE (DEVICE ZXSPECTRUM48, ZXSPECTRUM128 or ZXSPECTRUMNEXT)", directive.to_ascii_uppercase()));
             return true;
         };
         match directive {
@@ -1977,7 +2067,7 @@ impl<'a> Pass<'a> {
                 if (0..self.devices[index].slots.len() as i64).contains(&slot) {
                     self.devices[index].current = slot as usize;
                 } else {
-                    self.problem(format!("SLOT is a slot's number, 0 to {}, or the address it starts at", self.devices[index].slots.len() - 1));
+                    self.problem(crate::i18n::tf!("SLOT is a slot's number, 0 to {}, or the address it starts at", self.devices[index].slots.len() - 1));
                 }
             }
             "page" => {
@@ -2115,12 +2205,12 @@ impl<'a> Pass<'a> {
         let (slot1, slot2) = (device.slot_number(slot1), device.slot_number(slot2));
         if slot1 < 0 || slot2 < slot1 || slot2 >= device.slots.len() as i64 {
             let most = device.slots.len() - 1;
-            self.problem(format!("MMU's slots are 0 to {most} (or the address a slot starts at), first to last"));
+            self.problem(crate::i18n::tf!("MMU's slots are 0 to {most} (or the address a slot starts at), first to last"));
             return;
         }
         if page < 0 || page + (slot2 - slot1) >= device.pages as i64 {
             let most = device.pages - 1;
-            self.problem(format!("MMU's pages are 0 to {most}"));
+            self.problem(crate::i18n::tf!("MMU's pages are 0 to {most}"));
             return;
         }
         for (i, slot) in (slot1..=slot2).enumerate() {
@@ -2250,7 +2340,7 @@ impl<'a> Pass<'a> {
                     let path = self.beside(&name);
                     match (self.read)(&path) {
                         Ok(bytes) => appended.push(bytes),
-                        Err(problem) => self.problem(format!("{name} couldn't be read: {problem}")),
+                        Err(problem) => self.problem(crate::i18n::tf!("{name} couldn't be read: {problem}")),
                     }
                 }
                 let nex = self.nex.take().expect("open");
@@ -2423,6 +2513,10 @@ impl Scope for Pass<'_> {
     }
 
     fn page_here(&self) -> Option<i64> {
+        // NASM's $$: where the section starts.
+        if self.isa.nasm() {
+            return Some(self.section_start);
+        }
         self.device.and_then(|d| self.devices[d].page_at(self.pc & 0xFFFF)).map(|p| p as i64)
     }
 
@@ -2506,6 +2600,15 @@ impl Line<'_, '_> {
     /// Whether this is the pass that reports problems (and so values must be in range).
     pub fn checking(&self) -> bool {
         self.pass.last
+    }
+
+    /// A setting the processor keeps from line to line (NASM's BITS), if it's been set this pass.
+    pub fn setting(&self, key: &str) -> Option<i64> {
+        self.pass.settings.get(key).copied()
+    }
+
+    pub fn set_setting(&mut self, key: &'static str, value: i64) {
+        self.pass.settings.insert(key, value);
     }
 
     /// Says something about the line that doesn't stop the program being made.
@@ -2651,7 +2754,7 @@ fn first_words(line: &str) -> Vec<String> {
 }
 
 /// A label at the start of a line, and what follows it.
-fn split_label(line: &str, at_start: bool, is_keyword: impl Fn(&str) -> bool, is_instruction: impl Fn(&str) -> bool) -> (Option<String>, &str) {
+fn split_label(line: &str, at_start: bool, nasm: bool, is_keyword: impl Fn(&str) -> bool, is_instruction: impl Fn(&str) -> bool) -> (Option<String>, &str) {
     let trimmed = line.trim_start();
     let length = trimmed.bytes().take_while(|c| expr::is_name_char(*c)).count();
     if length == 0 {
@@ -2679,7 +2782,8 @@ fn split_label(line: &str, at_start: bool, is_keyword: impl Fn(&str) -> bool, is
     // instruction alone there (RET, NOP) is still the instruction.
     let next_is_keyword = split_word(after).0.split(':').next().is_some_and(|w| !w.is_empty() && is_keyword(w));
     // So is any word there with an instruction or directive after it (SL1 LD SP,0: SL1 is a label).
-    if at_start && (next_is_keyword || after.trim().is_empty() && !is_instruction(name)) {
+    // In NASM's way an instruction is never a label: REP MOVSB is a prefix and an instruction.
+    if at_start && (next_is_keyword || after.trim().is_empty() && !is_instruction(name)) && !(nasm && is_instruction(name)) {
         return (Some(name.to_string()), after);
     }
     (None, line)
