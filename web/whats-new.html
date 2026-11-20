@@ -51,6 +51,7 @@
       </div>
       <nav class="contents" aria-label="Releases">
         <ul>
+<li><a href="#v0-14-1">0.14.1</a></li>
 <li><a href="#v0-14-0">0.14.0</a></li>
 <li><a href="#v0-13-0">0.13.0</a></li>
 <li><a href="#v0-12-0">0.12.0</a></li>
@@ -65,6 +66,15 @@
 <li><a href="#v0-5-0">0.5.0</a></li>
         </ul>
       </nav>
+<h2 id="v0-14-1">0.14.1</h2>
+<p class="released">Released 20 November 2026.</p>
+<p>Limoniter 0.14.1 installs more emulators for you and finds the ones you install yourself. It counts the 6809's and 6309's cycles, runs Dragon programs from a Dragon DOS disk, and remembers how each program is debugged.</p>
+<h3>Emulators</h3>
+<ul><li><strong>Get an emulator</strong> now installs MAME on Windows, from its GitHub releases, along with Hatari, XRoar, WinUAE, BlastEm, Fuse, BGB, Gearsystem, Gearcoleco and TIC-80. On Linux it adds Mesen, TIC-80 and SameBoy, and on a Mac BlastEm, Gearsystem and FCEUX. The Mac commands for Stella, mGBA and ZEsarUX, which no longer worked, are put right.</li><li><strong>Emulators you unpack yourself are found:</strong> in a folder at the top of a drive (<code>C:\MAME</code>), and as a program straight inside Downloads or the Desktop, as MAME's own unpacker leaves it.</li><li>MAME's link now goes to its GitHub releases, as its website isn't answering.</li></ul>
+<h3>For 6809 and Dragon programmers</h3>
+<ul><li><strong>Cycle counts beside 6809 and 6309 code</strong>, as for the 6502 and Z80: every opcode and indexed mode, from Motorola's and Hitachi's figures. The 6309's counts are given for its native mode or its 6809 mode, as the source sets with <code>PRAGMA 6309</code> or <code>LDMD</code>. They show in the status bar and on hover, and selected lines are added up.</li><li><strong>F9 to a Dragon DOS disk:</strong> with <code>; run from: disk</code>, or the choice in XRoar's settings, the program goes on a disk made for the run, and XRoar starts with it in drive 1 and <code>RUN"NAME.BIN"</code> typed. A <code>.vdk</code> disk you open runs with F9 too, and files on a Dragon DOS disk can be renamed.</li></ul>
+<h3>Also</h3>
+<ul><li><strong>Debug settings kept:</strong> the program, arguments, folder and debugger chosen for each file are kept for next time. A project's files keep them with the project, so they move with it; other files keep them in Limoniter's settings.</li><li><code>limoniter --version</code> (or <code>-V</code>) prints the version with no window. An option Limoniter doesn't know is now refused with the usage, rather than opened as a file.</li><li>F9 says "A program was made" for an Amiga program or another assembler's program, instead of calling it a tape. Its problem count is translated too.</li></ul>
 <h2 id="v0-14-0">0.14.0</h2>
 <p class="released">Released 20 November 2026.</p>
 <p>Limoniter 0.14 is a workshop for the older machines as much as an editor. How To Code v8, the Amiga demo coders' guide, is rewritten, tested and built in. An Atari 2600, a ZX81 and a Jupiter Ace are built in beside the Spectrum. You can now build for the Game Boy, the NES, Sega's consoles and the ColecoVision, compile Boriel's ZX Basic and C for the retro machines, and debug Amiga code in Copperline, stepping backwards as well as forwards. Crunched Amiga files are unpacked. For everyday work there's a start page, an optional ribbon, Mermaid diagrams and PDFs from Markdown, SFTP and FTP projects, and VS Code extensions' themes and grammars.</p>
@@ -124,22 +134,7 @@
 <h2 id="v0-10-0">0.10.0</h2>
 <p class="released">Released 16 November 2026.</p>
 <p>Lots of everyday editing improvements, previews of web pages, pictures and old documents, a value inspector for hex, two new disassemblers, and support for the Cambridge Z88 and the Amstrad NC100, NC150 and NC200.</p>
-<h3>Editing</h3>
-<ul><li><strong>Surround with</strong> (Edit): puts the selection in brackets, quotes, a tag or a snippet, and leaves it selected.</li><li><strong>Bookmarks</strong> (Search): go to any bookmark from a list; copy, cut or delete the bookmarked lines, or delete every other line; swap bookmarked and not; clear them all.</li><li><strong>Tabs and spaces</strong> (Format): whether Tab types spaces, the tab size, and converting tabs and spaces, including in the indent only.</li><li><strong>Convert</strong> (Format): Base64 encode and decode, and JSON to XML and back.</li><li><strong>Column markers</strong> at chosen columns (such as 72 or 80), and <strong>line spacing</strong>.</li><li><strong>Your own highlighting grammars:</strong> put Sublime Text <code>.sublime-syntax</code> files in the grammars folder (Settings, Editing).</li></ul>
-<h3>Files and windows</h3>
-<ul><li><strong>Window, Layouts</strong> saves which panels are open under a name, so you can switch between them. <strong>Window, Gather windows</strong> brings every box back onto the screen.</li><li><strong>Move to the Recycle Bin</strong> (File, This file), or to the Trash on Mac and Linux.</li><li><strong>Changes made by other programs</strong> can be checked for every two seconds. Files with no unsaved changes can be reloaded without asking, staying at the end to follow a growing log.</li><li><strong>File properties</strong> shows the file's owner, the program it opens with, and its lines of code.</li><li><strong>Save and restore settings</strong> (Tools) puts all of Limoniter's settings in one file, to keep or to move to another computer.</li><li><strong>Check for a newer Limoniter</strong> (Help) asks GitHub. It also runs once a day by itself, which can be turned off.</li></ul>
-<h3>Previews and conversions</h3>
-<ul><li><strong>Web pages</strong> (<code>.html</code>) are laid out in the preview, without their scripts or styles.</li><li><strong>PNG and JPEG</strong> open as pictures.</li><li><strong>Old word processors' documents</strong> opened by themselves are shown converted: WordStar, WordPerfect, Protext, 1st Word, Signum!, Final Writer, Wordworth, ProWrite and others. <strong>Format, Save the document as</strong> saves them as text, Markdown, RTF or CSV.</li></ul>
-<h3>Hex and character sets</h3>
-<ul><li><strong>The value inspector</strong> (View, Hex) reads the bytes at the cursor as numbers:<ul><li>integers and IEEE floats, in either byte order</li><li>IBM hexadecimal floats</li><li>VAX F, D, G and H floats</li><li>packed decimal</li><li>RADIX-50</li></ul></li><li><strong>New character sets:</strong><ul><li>the national versions of ASCII (ISO 646)</li><li>DEC Special Graphics</li><li>ASCII with the top bit set, as Prime computers kept text</li><li>the Amstrad PCW's text and screen sets, the Cambridge Z88's, and the Amstrad NC's</li></ul></li></ul>
-<h3>Machine code</h3>
-<ul><li><strong>An x86 disassembler</strong> covers everything from the 8086 to AVX-512. It reads DOS <code>.COM</code> and <code>.EXE</code> files, Windows programs and DLLs, and Linux programs, and follows their code from where it starts.</li><li><strong>An ICL 2900 disassembler</strong> lists the code in SFL, from ICL's *2900 Order Code*.</li><li><strong>6502 source</strong> runs on a BBC Micro when it calls the MOS, and on a C64 when it uses the KERNAL. When the code doesn't say, F9 asks, or a <code>; machine:</code> line in the source can say.</li></ul>
-<h3>Cambridge Z88 and Amstrad NC100, NC150 and NC200</h3>
-<ul><li><strong>BBC BASIC (Z80)</strong> programs are listed, and tokenised from a listing.</li><li><strong>Z88 card images</strong> (<code>.epr</code>) open in the browser, and <strong>PipeDream</strong> documents and spreadsheets are converted.</li><li><strong>The Z80 disassembler</strong> names the Z88's operating system calls when asked.</li><li><strong>NC memory card images</strong> (<code>.card</code>) in ZCN's format open in the browser, and program cards are recognised.</li></ul>
-<h3>Also</h3>
-<ul><li><strong>Get an emulator</strong> (File, Send to device, Manage devices) installs any emulator Limoniter runs programs in:<ul><li>on Windows, it downloads and installs ZEsarUX, b2, openMSX, FS-UAE and VICE itself</li><li>on Linux and Mac, it runs apt or Homebrew in the Terminal panel</li><li>otherwise, it opens the emulator's download page</li></ul></li><li><strong>The table generator and the character and sprite editor</strong> write their data in the form you choose:<ul><li>assemblers: 68000 <code>dc</code> lines, Z80 <code>db</code>, ACME or 64tass for the 6502, 6809 <code>fcb</code>, NASM</li><li>BASIC DATA lines</li><li>arrays for C, PHP, Python, JavaScript or Rust</li><li>Spectrum BASIC that sets the UDGs, for characters</li></ul></li><li><strong>Apple II Integer BASIC</strong> programs are listed.</li><li><strong>A file formats page</strong> on the website lists every format Limoniter reads or writes.</li></ul>
-<h3>Fixed</h3>
-<ul><li>The Amiga, Atari ST and C64 hardware guides' lists of registers ran across the window on top of each other.</li><li>Assembling for a machine that runs from a disk said a tape was made.</li></ul>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.10.0">All that was new in 0.10.0</a></p>
 <h2 id="v0-9-1">0.9.1</h2>
 <p class="released">Released 15 November 2026.</p>
 <p>The Mac app now runs on Intel Macs as well as Apple Silicon ones: one app for both, in the same download.</p>

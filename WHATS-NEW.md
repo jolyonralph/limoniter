@@ -2,6 +2,26 @@
 
 Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.
 
+## 0.14.1
+
+Released 20 November 2026.
+
+Limoniter 0.14.1 installs more emulators for you and finds the ones you install yourself. It counts the 6809's and 6309's cycles, runs Dragon programs from a Dragon DOS disk, and remembers how each program is debugged.
+
+**Emulators**
+- **Get an emulator** now installs MAME on Windows, from its GitHub releases, along with Hatari, XRoar, WinUAE, BlastEm, Fuse, BGB, Gearsystem, Gearcoleco and TIC-80. On Linux it adds Mesen, TIC-80 and SameBoy, and on a Mac BlastEm, Gearsystem and FCEUX. The Mac commands for Stella, mGBA and ZEsarUX, which no longer worked, are put right.
+- **Emulators you unpack yourself are found:** in a folder at the top of a drive (`C:\MAME`), and as a program straight inside Downloads or the Desktop, as MAME's own unpacker leaves it.
+- MAME's link now goes to its GitHub releases, as its website isn't answering.
+
+**For 6809 and Dragon programmers**
+- **Cycle counts beside 6809 and 6309 code**, as for the 6502 and Z80: every opcode and indexed mode, from Motorola's and Hitachi's figures. The 6309's counts are given for its native mode or its 6809 mode, as the source sets with `PRAGMA 6309` or `LDMD`. They show in the status bar and on hover, and selected lines are added up.
+- **F9 to a Dragon DOS disk:** with `; run from: disk`, or the choice in XRoar's settings, the program goes on a disk made for the run, and XRoar starts with it in drive 1 and `RUN"NAME.BIN"` typed. A `.vdk` disk you open runs with F9 too, and files on a Dragon DOS disk can be renamed.
+
+**Also**
+- **Debug settings kept:** the program, arguments, folder and debugger chosen for each file are kept for next time. A project's files keep them with the project, so they move with it; other files keep them in Limoniter's settings.
+- `limoniter --version` (or `-V`) prints the version with no window. An option Limoniter doesn't know is now refused with the usage, rather than opened as a file.
+- F9 says "A program was made" for an Amiga program or another assembler's program, instead of calling it a tape. Its problem count is translated too.
+
 ## 0.14.0
 
 Released 20 November 2026.
