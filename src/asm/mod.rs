@@ -8,11 +8,14 @@ pub mod device;
 pub mod expr;
 pub mod hunk;
 pub mod m6502;
+pub mod m65x;
 pub mod m6809;
 pub mod arm;
 pub mod m68k;
 pub mod x86;
 pub mod output;
+pub mod sm83;
+pub mod spc700;
 pub mod z80;
 
 use expr::{Scope, Value};
@@ -63,6 +66,11 @@ pub trait Isa {
     /// A directive of its own (NASM's BITS, CPU, RESB...), taken before the assembler's: the bytes it makes,
     /// or None if it isn't one.
     fn directive(&self, _word: &str, _operands: &str, _line: &mut Line) -> Option<Result<Vec<u8>, String>> {
+        None
+    }
+    /// A line written in the way this processor's own assemblers write it, rewritten into a form Limoniter's
+    /// assembler takes (RGBDS's DEF X EQU 1 as X EQU 1); None to take it as it is.
+    fn translate(&self, _line: &str) -> Option<String> {
         None
     }
 }
@@ -693,7 +701,7 @@ impl<'a> Pass<'a> {
     fn source_line(&mut self, file: usize, number: usize, original: &str) {
         let raw = original;
         // ACME's blocks and directives, when the processor's the 6502.
-        let translated = if self.isa.name() == "6502" { self.translate(raw) } else { None };
+        let translated = if self.isa.name() == "6502" { self.translate(raw) } else { self.isa.translate(raw) };
         let raw = translated.as_deref().map(|t| {
             // Keep the label in front, if there was one.
             let code = raw.trim_start();
@@ -2609,6 +2617,17 @@ impl Line<'_, '_> {
 
     pub fn set_setting(&mut self, key: &'static str, value: i64) {
         self.pass.settings.insert(key, value);
+    }
+
+    /// Moves on to another part of memory, as a Game Boy SECTION does: what follows is put at `physical`, its labels
+    /// taking addresses from `logical` (a ROM bank seen at $4000 while it's further on in the ROM); and with
+    /// `reserved`, room is only left, as for RAM, and nothing written.
+    pub fn place(&mut self, physical: i64, logical: i64, reserved: bool) {
+        self.pass.pc = physical + self.pass.base;
+        self.pass.shift = logical - physical;
+        self.pass.uninitialised = reserved;
+        self.pass.absolute = true;
+        self.pass.section_start = self.pass.pc;
     }
 
     /// Says something about the line that doesn't stop the program being made.

@@ -49,8 +49,26 @@ fn side_to_json(side: &Side, base: Option<&Path>) -> Value {
         Side::Git { repo, revision, folder } => json!({ "kind": "git", "repo": path_out(repo, base), "revision": revision, "folder": folder }),
         Side::Image { file, folder } => json!({ "kind": "image", "file": path_out(file, base), "folder": folder }),
         // Never a password: that stays in the system's credential store.
-        Side::Sftp { site, folder } => json!({ "kind": "sftp", "host": site.host, "port": site.port, "user": site.user, "key_file": site.key_file.as_ref().map(|key| key.display().to_string()), "folder": folder }),
+        Side::Sftp { site, folder } => {
+            let mut value = site_to_json(site);
+            value["kind"] = json!("sftp");
+            value["folder"] = json!(folder);
+            value
+        }
     }
+}
+
+/// A site as it's kept in a file: how it's reached, where and as whom. Never a password: that stays in the
+/// system's credential store.
+pub(crate) fn site_to_json(site: &Site) -> Value {
+    json!({ "scheme": site.scheme.prefix(), "host": site.host, "port": site.port, "user": site.user, "key_file": site.key_file.as_ref().map(|key| key.display().to_string()) })
+}
+
+pub(crate) fn site_from_json(value: &Value) -> Option<Site> {
+    let text = |name: &str| value.get(name).and_then(Value::as_str).map(str::to_string);
+    let scheme = text("scheme").and_then(|prefix| crate::remote::Scheme::from_prefix(&prefix)).unwrap_or_default();
+    let port = value.get("port").and_then(Value::as_u64).and_then(|port| u16::try_from(port).ok()).unwrap_or(scheme.default_port());
+    Some(Site { scheme, host: text("host")?, port, user: text("user")?, key_file: text("key_file").map(PathBuf::from) })
 }
 
 fn side_from_json(value: &Value, base: Option<&Path>) -> Option<Side> {
@@ -59,10 +77,7 @@ fn side_from_json(value: &Value, base: Option<&Path>) -> Option<Side> {
         "folder" => Side::Folder(path_in(&text("path")?, base)),
         "git" => Side::Git { repo: path_in(&text("repo")?, base), revision: text("revision").unwrap_or_else(|| "HEAD".into()), folder: text("folder").unwrap_or_default() },
         "image" => Side::Image { file: path_in(&text("file")?, base), folder: text("folder").unwrap_or_default() },
-        "sftp" => Side::Sftp {
-            site: Site { host: text("host")?, port: value.get("port").and_then(Value::as_u64).and_then(|port| u16::try_from(port).ok()).unwrap_or(22), user: text("user")?, key_file: text("key_file").map(PathBuf::from) },
-            folder: text("folder").unwrap_or_default(),
-        },
+        "sftp" => Side::Sftp { site: site_from_json(value)?, folder: text("folder").unwrap_or_default() },
         _ => return None,
     })
 }
@@ -82,12 +97,12 @@ fn unhex(text: &str) -> Option<[u8; 32]> {
     Some(out)
 }
 
-fn snapshot_to_json(snapshot: &Snapshot) -> Value {
+pub(crate) fn snapshot_to_json(snapshot: &Snapshot) -> Value {
     let files: serde_json::Map<String, Value> = snapshot.files.iter().map(|(path, entry)| (path.clone(), json!([entry.left.size, entry.left.modified, entry.right.size, entry.right.modified, entry.hash.map(|h| hex(&h))]))).collect();
     json!({ "taken": snapshot.taken, "files": files })
 }
 
-fn snapshot_from_json(value: &Value) -> Option<Snapshot> {
+pub(crate) fn snapshot_from_json(value: &Value) -> Option<Snapshot> {
     let mut snapshot = Snapshot { taken: value.get("taken")?.as_u64()?, ..Snapshot::default() };
     for (path, entry) in value.get("files")?.as_object()? {
         let Some(parts) = entry.as_array().filter(|parts| parts.len() == 5) else { continue };
@@ -189,7 +204,7 @@ mod tests {
         Session {
             name: name.into(),
             left: Side::Folder(base.join("src")),
-            right: Side::Sftp { site: Site { host: "example.com".into(), port: 2222, user: "me".into(), key_file: Some(PathBuf::from("/keys/id")) }, folder: "/srv/www".into() },
+            right: Side::Sftp { site: Site { host: "example.com".into(), port: 2222, user: "me".into(), key_file: Some(PathBuf::from("/keys/id")), ..Site::default() }, folder: "/srv/www".into() },
             mode: Mode::Thorough,
             filters: Filters { include: "*.rs".into(), exclude: "*.tmp".into(), gitignore: true, rules },
             hide_same: true,

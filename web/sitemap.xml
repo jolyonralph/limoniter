@@ -17,4 +17,23 @@
   <url><loc>https://limoniter.com/guide/git.html</loc></url>
   <url><loc>https://limoniter.com/guide/remote-files.html</loc></url>
   <url><loc>https://limoniter.com/guide/settings.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/index.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/01-introduction.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/02-working-with-limoniter.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/03-general-guidelines.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/04-startup-and-exit.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/05-interrupts.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/06-copper.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/07-blitter.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/08-display.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/09-aga.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/10-chunky-to-planar.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/11-input.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/12-sound-and-music.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/13-vectors.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/14-processors.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/15-loading-and-memory.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/16-debugging-and-testing.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/17-releasing.html</loc></url>
+  <url><loc>https://limoniter.com/howtocode/18-further-reading.html</loc></url>
 </urlset>

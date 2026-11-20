@@ -1,6 +1,8 @@
-//! Running programs on an emulated Amiga (FS-UAE or WinUAE): the model, the Kickstart ROM it starts with, and the
-//! folder that's its hard drive. The program goes in the folder with an S/Startup-Sequence that runs it, and the
-//! emulator is started from a configuration file made for the run, so the Amiga boots straight into it.
+//! Running programs on an emulated Amiga (FS-UAE, WinUAE or Copperline): the model, the Kickstart ROM it starts
+//! with, and the folder that's its hard drive. For FS-UAE and WinUAE the program goes in the folder with an
+//! S/Startup-Sequence that runs it, and the emulator is started from a configuration file made for the run, so the
+//! Amiga boots straight into it. Copperline boots straight into a program itself (its --run), so it's only given
+//! the machine, in a configuration of its own beside the program.
 //!
 //! Kickstart is Commodore's (now Cloanto's and Hyperion's), so Limoniter never includes or copies one: the person
 //! points at their own (Amiga Forever's, or FS-UAE's or WinUAE's ROM folder), or the emulator's own AROS, a free
@@ -44,6 +46,16 @@ impl Model {
             Model::A500 => "a500",
             Model::A500Plus => "a500plus",
             Model::A1200 => "a1200",
+        }
+    }
+
+    /// Copperline's machine profile for it: its A500 is the common Rev 6A board (512K chip and 512K slow), its
+    /// A500Plus has 1 MB of chip memory and the ECS chips, and its A1200 2 MB and AGA.
+    fn copperline(self) -> &'static str {
+        match self {
+            Model::A500 => "A500",
+            Model::A500Plus => "A500Plus",
+            Model::A1200 => "A1200",
         }
     }
 
@@ -310,9 +322,13 @@ fn amiga_name(name: &str) -> String {
     if safe.is_empty() { "program".to_string() } else { safe }
 }
 
+/// The name of the configuration Copperline is given for a run, beside the program or disk.
+pub const COPPERLINE_CONFIG: &str = "copperline.toml";
+
 /// Makes what a run needs in `folder` (a new folder of its own): the hard drive holding the program and the
 /// startup-sequence that runs it (or the disk, for a disk), and the emulator's configuration. Gives the file to
-/// start the emulator with.
+/// start the emulator with. For Copperline, that's the program (or the disk) itself, with its configuration
+/// beside it, named `COPPERLINE_CONFIG`.
 pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Settings) -> Result<PathBuf, String> {
     let failed = |e: std::io::Error| crate::i18n::tf!("The Amiga's drive couldn't be made.\n\n{e}");
     let model = settings.model;
@@ -321,6 +337,9 @@ pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Setting
         && !rom.is_file()
     {
         return Err(crate::i18n::tf!("The Kickstart chosen for the {} isn't there: {}.\n\nChoose another in File, Devices, under the emulator.", model.short_name(), rom.display()));
+    }
+    if emulator == "copperline" {
+        return prepare_copperline(folder, run, model, kickstart.as_deref()).map_err(failed);
     }
     let (drive, disk) = match run.format {
         Format::Adf => {
@@ -369,6 +388,55 @@ pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Setting
     };
     std::fs::write(&file, text).map_err(failed)?;
     Ok(file)
+}
+
+/// Copperline's run: the program (named as AmigaDOS can take it) or the disk in the folder, and beside it a
+/// configuration with the machine and its Kickstart. With no Kickstart, it has none, and Copperline boots its own
+/// AROS. Being named with --config, the configuration is all there is: Copperline's own saved settings aren't
+/// mixed in, so every run is on the same machine.
+fn prepare_copperline(folder: &Path, run: &Runnable, model: Model, kickstart: Option<&Path>) -> std::io::Result<PathBuf> {
+    let file = match run.format {
+        Format::Adf if run.name.to_ascii_lowercase().ends_with(".adf") => folder.join(&run.name),
+        Format::Adf => folder.join(format!("{}.adf", amiga_name(&run.name))),
+        _ => folder.join(amiga_name(&run.name)),
+    };
+    std::fs::write(&file, run.bytes.as_slice())?;
+    let mut lines = vec![format!("# {}", crate::i18n::tr("Made by Limoniter to run a program"))];
+    if let Some(rom) = kickstart {
+        lines.push(format!("rom = {}", toml_string(&rom.display().to_string())));
+    }
+    lines.extend([String::new(), "[machine]".into(), format!("profile = \"{}\"", model.copperline())]);
+    std::fs::write(folder.join(COPPERLINE_CONFIG), lines.join("\n") + "\n")?;
+    Ok(file)
+}
+
+/// Arms Copperline's checks in the configuration made for a run being debugged: its validator of the custom chips'
+/// use (writes the chips ignore, read-only registers written, pointers past chip memory, blits started over
+/// others) and its detector of code written after it ran, which the Debug panel's warnings read.
+pub fn arm_copperline_checks(folder: &Path) -> std::io::Result<()> {
+    let file = folder.join(COPPERLINE_CONFIG);
+    let mut text = std::fs::read_to_string(&file)?;
+    text.push_str("\n[debug]\nvalidate_chipset = true\ndetect_smc = true\n");
+    std::fs::write(file, text)
+}
+
+/// A string as TOML writes it: in single quotes, where nothing in it is changed (so a Windows path's backslashes
+/// are kept), unless it has a single quote of its own, when it's in double quotes with its backslashes and double
+/// quotes escaped.
+fn toml_string(text: &str) -> String {
+    if !text.contains('\'') && !text.chars().any(char::is_control) {
+        return format!("'{text}'");
+    }
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            c if c.is_control() => out.push_str(&format!("\\u{:04X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out + "\""
 }
 
 /// The Amiga's own rows in an Amiga emulator's fields, in the Devices box: the model, and its Kickstart.
@@ -422,6 +490,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
             None => crate::i18n::tr("That file isn't there.").to_string(),
         },
         None if emulator == "winuae" => crate::i18n::tr("None chosen: WinUAE uses its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.").to_string(),
+        None if emulator == "copperline" => crate::i18n::tr("None chosen: Copperline uses its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.").to_string(),
         None => crate::i18n::tr("None chosen: FS-UAE uses one from its Kickstarts folder, or its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.").to_string(),
     };
     let said = match found_note {
@@ -430,7 +499,12 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
     };
     ui.scope(|ui| {
         ui.set_max_width(330.0);
-        ui.add(egui::Label::new(hint(&crate::i18n::tf!("{said} The program runs from a folder that's the Amiga's hard drive, DH0:, which it can write files to."))).wrap());
+        let drive = if emulator == "copperline" {
+            crate::i18n::tf!("{said} The program is started straight from its folder, which the Amiga sees as RunProg: and can write files to. With copperline-ctl beside Copperline, it's debugged there: breakpoints, stepping (backwards too) and the registers, in the Debug panel.")
+        } else {
+            crate::i18n::tf!("{said} The program runs from a folder that's the Amiga's hard drive, DH0:, which it can write files to.")
+        };
+        ui.add(egui::Label::new(hint(&drive)).wrap());
     });
     ui.end_row();
     if settings != before {
@@ -513,9 +587,39 @@ mod tests {
         let disk = Runnable { machine: crate::running::Machine::Amiga, format: Format::Adf, name: "game.adf".into(), bytes: Arc::new(vec![0; 901_120]) };
         let text = std::fs::read_to_string(prepare("fs-uae", &folder, &disk, &settings).unwrap()).unwrap();
         assert!(text.contains(&format!("floppy_drive_0 = {}", folder.join("game.adf").display())) && !text.contains("hard_drive_0"), "{text}");
+        // Copperline's: the program in the folder, named as AmigaDOS takes it, and the machine beside it.
+        settings.model = Model::A500Plus;
+        settings.set_kickstart(Model::A500Plus, Some(rom.clone()));
+        let program_file = prepare("copperline", &folder, &program, &settings).unwrap();
+        assert_eq!(program_file, folder.join("mydemo"));
+        assert_eq!(std::fs::read(&program_file).unwrap(), [0, 0, 3, 0xF3]);
+        let text = std::fs::read_to_string(folder.join(COPPERLINE_CONFIG)).unwrap();
+        assert!(text.contains(&format!("rom = '{}'\n", rom.display())) && text.ends_with("\n[machine]\nprofile = \"A500Plus\"\n"), "{text}");
+        let disk_file = prepare("copperline", &folder, &disk, &settings).unwrap();
+        assert_eq!(disk_file, folder.join("game.adf"));
         // A Kickstart that's gone is said to be.
+        settings.model = Model::A500;
         settings.set_kickstart(Model::A500, Some(folder.join("gone.rom")));
         assert!(prepare("fs-uae", &folder, &program, &settings).unwrap_err().contains("isn't there"));
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn copperlines_configuration_is_toml() {
+        assert_eq!(toml_string("C:\\Amiga Files\\kick13.rom"), "'C:\\Amiga Files\\kick13.rom'", "a Windows path as it is");
+        assert_eq!(toml_string("/roms/Jo's \"kick\" \\1.3.rom"), "\"/roms/Jo's \\\"kick\\\" \\\\1.3.rom\"");
+        // With no Kickstart, there's no rom line: Copperline boots its own AROS.
+        let folder = std::env::temp_dir().join(format!("limoniter-copperline-run-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let program = Runnable { machine: crate::running::Machine::Amiga, format: Format::Hunk, name: "demo".into(), bytes: Arc::new(vec![0, 0, 3, 0xF3]) };
+        prepare_copperline(&folder, &program, Model::A1200, None).unwrap();
+        let text = std::fs::read_to_string(folder.join(COPPERLINE_CONFIG)).unwrap();
+        assert!(!text.contains("rom") && text.contains("profile = \"A1200\""), "{text}");
+        // Debugged, its checks are armed.
+        arm_copperline_checks(&folder).unwrap();
+        let text = std::fs::read_to_string(folder.join(COPPERLINE_CONFIG)).unwrap();
+        assert!(text.ends_with("profile = \"A1200\"\n\n[debug]\nvalidate_chipset = true\ndetect_smc = true\n"), "{text}");
         let _ = std::fs::remove_dir_all(&folder);
     }
 

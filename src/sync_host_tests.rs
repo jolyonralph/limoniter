@@ -335,7 +335,7 @@ fn reports_can_be_the_counts_only_or_a_csv_file() {
 #[test]
 fn a_saved_site_fills_in_a_server_side_with_its_key() {
     let (mut app, ctx) = app_with("");
-    app.remote_sites = vec![remote_host::SavedSite { name: "web".into(), site: crate::remote::Site { host: "example.com".into(), port: 2222, user: "me".into(), key_file: Some(PathBuf::from("/keys/id")) } }];
+    app.remote_sites = vec![remote_host::SavedSite { name: "web".into(), site: crate::remote::Site { host: "example.com".into(), port: 2222, user: "me".into(), key_file: Some(PathBuf::from("/keys/id")), ..crate::remote::Site::default() } }];
     app.open_folder_compare_sides(None, None);
     folder_tab(&mut app).pickers[1].kind = SideKind::Server;
     draw(&mut app, &ctx, Vec::new());

@@ -15,10 +15,12 @@ pub(super) enum Program {
     C64,
     Bbc,
     OpticOs,
+    Zx81,
+    JupiterAce,
 }
 
 impl Program {
-    pub const ALL: [Self; 6] = [Self::None, Self::Spectrum, Self::Next, Self::C64, Self::Bbc, Self::OpticOs];
+    pub const ALL: [Self; 8] = [Self::None, Self::Spectrum, Self::Next, Self::C64, Self::Bbc, Self::OpticOs, Self::Zx81, Self::JupiterAce];
 
     fn id(self) -> &'static str {
         match self {
@@ -28,6 +30,8 @@ impl Program {
             Self::C64 => "c64",
             Self::Bbc => "bbc",
             Self::OpticOs => "opticos",
+            Self::Zx81 => "zx81",
+            Self::JupiterAce => "jupiterace",
         }
     }
 
@@ -39,6 +43,8 @@ impl Program {
             Self::C64 => "A Commodore 64 program (.prg)",
             Self::Bbc => "A BBC BASIC program",
             Self::OpticOs => "An OpticOS program (.tap)",
+            Self::Zx81 => "A ZX81 program (.p)",
+            Self::JupiterAce => "Jupiter Ace Forth, typed in",
         }
     }
 
@@ -50,6 +56,8 @@ impl Program {
             Self::C64 => Some(basic::Machine::Commodore(basic::CbmMachine::C64)),
             Self::Bbc => Some(basic::Machine::Bbc),
             Self::OpticOs => Some(basic::Machine::OpticOs),
+            Self::Zx81 => Some(basic::Machine::Zx81),
+            Self::JupiterAce => Some(basic::Machine::JupiterAce),
         }
     }
 }
@@ -86,12 +94,16 @@ impl NewKind {
             Self::new("Spectrum Next BASIC", "bas", "utf-8", line, highlight::BASIC_SINCLAIR, Program::Next, "10 PRINT \"Hello from Limoniter\""),
             Self::new("Commodore 64 BASIC", "bas", "utf-8", line, highlight::BASIC_COMMODORE, Program::C64, "10 PRINT \"HELLO FROM LIMONITER\""),
             Self::new("BBC BASIC", "bas", "utf-8", line, "", Program::Bbc, "10 PRINT \"Hello from Limoniter\""),
+            Self::new("Boriel ZX Basic (Spectrum)", "bas", "utf-8", line, highlight::BASIC_BORIEL, Program::None, crate::boriel::STARTER),
             Self::new("OpticBASIC (OpticOS)", "bas", "utf-8", line, "", Program::OpticOs, "DEF PROC hello\n  PRINT \"Hello from Limoniter\"\nENDPROC\nhello"),
+            Self::new("ZX81 BASIC", "bas", "utf-8", line, "", Program::Zx81, "10 PRINT \"HELLO FROM LIMONITER\""),
+            Self::new("ZX81 machine code (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::zx81_program::STARTER),
+            Self::new("Jupiter Ace Forth", "fth", "utf-8", line, "Forth", Program::JupiterAce, ": HELLO\n  .\" HELLO FROM LIMONITER\" CR ;\nHELLO"),
             Self::new("Z80 assembler", "asm", "utf-8", line, "Assembly Z80", Program::None, "        org 32768\nstart:  ld a,2\n        out (254),a         ; a red border\n        ret"),
             Self::new("6502 assembler", "a65", "utf-8", line, "Assembly 6502", Program::None, "        * = $c000\nstart:  lda #2\n        sta $d020           ; a red border\n        rts"),
             Self::new("6809 assembler", "asm", "utf-8", line, "Assembly 6809", Program::None, "        org $3000\nstart:  lda #1\n        rts\n        end start"),
             Self::new("68000 assembler", "s", "utf-8", line, "Assembly 680x0", Program::None, "start:  clr.w -(sp)\n        trap #1             ; back to the desktop"),
-            Self::new("Amiga demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::amiga_starters::DEMO),
+            Self::new("Amiga demo (68000, How To Code v8)", "s", "utf-8", line, "Assembly 680x0", Program::None, &crate::howtocode::single_file_demo()),
             Self::new("Amiga copper only (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::amiga_starters::COPPER),
             Self::new("Atari ST demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::st_starters::ST_DEMO),
             Self::new("Atari STE demo (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::st_starters::STE_DEMO),
@@ -101,7 +113,20 @@ impl NewKind {
             Self::new("DOS program (x86, .COM)", "asm", "utf-8", line, "Assembly 80x86", Program::None, crate::pc_starters::COM),
             Self::new("PC boot sector (x86)", "asm", "utf-8", line, "Assembly 80x86", Program::None, crate::pc_starters::BOOT),
             Self::new("Vectrex cartridge (6809)", "asm", "utf-8", line, "Assembly 6809", Program::None, crate::vectrex::STARTER),
+            Self::new("Sega Mega Drive / Genesis (68000)", "s", "utf-8", line, "Assembly 680x0", Program::None, crate::sega::MEGA_DRIVE_STARTER),
+            Self::new("Sega Master System (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::sega::MASTER_SYSTEM_STARTER),
+            Self::new("Sega Game Gear (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::sega::GAME_GEAR_STARTER),
+            Self::new("Sega SG-1000 (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::sega::SG1000_STARTER),
+            Self::new("ColecoVision (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::sega::COLECO_STARTER),
+            Self::new("Game Boy program (SM83)", "asm", "utf-8", line, crate::highlight::ASM_SM83, Program::None, crate::gameboy::STARTER),
+            Self::new("NES program (6502)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::nes::STARTER),
             Self::new("Dragon 32 program (6809)", "asm", "utf-8", line, "Assembly 6809", Program::None, crate::vectrex::DRAGON_STARTER),
+            Self::new("C for the Commodore 64 (cc65 or llvm-mos)", "c", "utf-8", line, "C", Program::None, crate::c_starters::C64),
+            Self::new("C for the ZX Spectrum (z88dk)", "c", "utf-8", line, "C", Program::None, crate::c_starters::SPECTRUM),
+            Self::new("C for the ZX Spectrum (SDCC)", "c", "utf-8", line, "C", Program::None, crate::c_starters::SPECTRUM_SDCC),
+            Self::new("C for the Sega Master System (z88dk)", "c", "utf-8", line, "C", Program::None, crate::c_starters::MASTER_SYSTEM),
+            Self::new("C for the Sega Mega Drive (SGDK)", "c", "utf-8", line, "C", Program::None, crate::c_starters::MEGA_DRIVE),
+            Self::new("C for the Amiga (amiga-gcc or vbcc)", "c", "utf-8", line, "C", Program::None, crate::c_starters::AMIGA),
             Self::new("Markdown", "md", "utf-8", line, "Markdown", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),

@@ -318,18 +318,6 @@ pub enum Base {
     Decimal,
 }
 
-/// A value as the assembler would have it: hex in two's complement for its size, decimal with its sign.
-fn asm_number(value: i64, size: Size, base: Base) -> String {
-    match base {
-        Base::Decimal => value.to_string(),
-        Base::Hex => {
-            let digits = size.bytes() * 2;
-            let mask = if size == Size::Long { 0xFFFF_FFFF } else { (1i64 << (digits * 4)) - 1 };
-            format!("${:0digits$X}", value & mask)
-        }
-    }
-}
-
 /// As C has it: hex with a minus sign for negative numbers, so the value stays the same in a signed type.
 fn c_number(value: i64, size: Size, base: Base) -> String {
     match base {
@@ -354,18 +342,20 @@ fn as_directives(values: &[i64], size: Size, base: Base, per_line: usize, label:
         Size::Word => 1,
         Size::Long => 2,
     }];
+    if form == Form::Pic {
+        return crate::table_forms::as_retlw(values, base, label);
+    }
     let mut out = String::new();
     if !label.is_empty() {
-        out.push_str(&format!("{label}{}\n", if form.label_colon() { ":" } else { "" }));
+        // BBC BASIC's assembler marks a label with a full stop before it.
+        if form == Form::BbcAsm {
+            out.push_str(&format!(".{label}\n"));
+        } else {
+            out.push_str(&format!("{label}{}\n", if form.label_colon() { ":" } else { "" }));
+        }
     }
     for line in values.chunks(per_line.max(1)) {
-        let items: Vec<String> = line
-            .iter()
-            .map(|v| {
-                let number = asm_number(*v, size, base);
-                if form == Form::Nasm { number.replacen('$', "0x", 1) } else { number }
-            })
-            .collect();
+        let items: Vec<String> = line.iter().map(|v| crate::table_forms::asm_number(*v, size, base, form.hex_style())).collect();
         out.push_str(&format!("        {directive:<6}  {}\n", items.join(",")));
     }
     out
@@ -373,17 +363,7 @@ fn as_directives(values: &[i64], size: Size, base: Base, per_line: usize, label:
 
 /// BASIC DATA lines from line 1000 in tens, in decimal, which every BASIC reads, with the label in a REM first.
 pub fn as_basic(values: &[i64], per_line: usize, label: &str) -> String {
-    let mut out = String::new();
-    let mut number = 1000;
-    if !label.is_empty() {
-        out.push_str(&format!("{number} REM {label}\n"));
-        number += 10;
-    }
-    for line in values.chunks(per_line.max(1)) {
-        out.push_str(&format!("{number} DATA {}\n", line.iter().map(i64::to_string).collect::<Vec<_>>().join(",")));
-        number += 10;
-    }
-    out
+    crate::table_forms::as_basic(values, Size::Long, Base::Decimal, per_line, label, &crate::table_forms::BasicOptions::default())
 }
 
 /// An array in a scripting language or Rust: its opening, the values as that language writes numbers, its close.
@@ -440,7 +420,10 @@ pub fn write(values: &[i64], size: Size, signed: bool, base: Base, per_line: usi
         Form::Basic => as_basic(values, per_line, label),
         Form::C => as_c(values, size, signed, base, per_line, label),
         Form::Php | Form::Python | Form::JavaScript | Form::Rust => as_array(values, size, signed, base, per_line, label, form),
-        assembler => as_directives(values, size, base, per_line, label, assembler),
+        other => match other.language() {
+            Some(language) => crate::table_forms::as_language(values, size, signed, base, per_line, label, language),
+            None => as_directives(values, size, base, per_line, label, other),
+        },
     }
 }
 
@@ -466,10 +449,73 @@ pub enum Form {
     Python,
     JavaScript,
     Rust,
+    Dasm,
+    Kick,
+    Merlin,
+    BbcAsm,
+    Arm,
+    Masm,
+    Gas,
+    Mads,
+    WlaDx,
+    Rgbds,
+    Avr,
+    Pic,
+    Pascal,
+    Java,
+    CSharp,
+    Go,
+    Swift,
+    Kotlin,
+    Lua,
+    AmigaE,
+    Fortran,
+    Forth,
+    Json,
+    Csv,
+    Arduino,
 }
 
 impl Form {
-    pub const ALL: [Form; 12] = [Form::Motorola, Form::Z80, Form::Acme, Form::Dot, Form::M6809, Form::Nasm, Form::Basic, Form::C, Form::Php, Form::Python, Form::JavaScript, Form::Rust];
+    pub const ALL: [Form; 37] = [
+        Form::Motorola,
+        Form::Z80,
+        Form::Acme,
+        Form::Dot,
+        Form::Dasm,
+        Form::Kick,
+        Form::Mads,
+        Form::Merlin,
+        Form::BbcAsm,
+        Form::M6809,
+        Form::WlaDx,
+        Form::Rgbds,
+        Form::Nasm,
+        Form::Masm,
+        Form::Gas,
+        Form::Arm,
+        Form::Avr,
+        Form::Pic,
+        Form::Basic,
+        Form::C,
+        Form::Arduino,
+        Form::Rust,
+        Form::Go,
+        Form::Pascal,
+        Form::Java,
+        Form::CSharp,
+        Form::Kotlin,
+        Form::Swift,
+        Form::Php,
+        Form::Python,
+        Form::JavaScript,
+        Form::Lua,
+        Form::AmigaE,
+        Form::Fortran,
+        Form::Forth,
+        Form::Json,
+        Form::Csv,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -485,14 +531,78 @@ impl Form {
             Form::Python => "Python list",
             Form::JavaScript => "JavaScript array",
             Form::Rust => "Rust array",
+            Form::Dasm => "6502, DASM: .byte, .word",
+            Form::Kick => "6502, KickAssembler: .byte, .word",
+            Form::Merlin => "6502, Merlin: DFB, DA",
+            Form::BbcAsm => "BBC BASIC's assembler: EQUB, EQUW, EQUD",
+            Form::Arm => "ARM: DCB, DCW, DCD",
+            Form::Masm => "x86, MASM and TASM: db, dw, dd (0FFh)",
+            Form::Gas => "GNU as: .byte, .short, .long",
+            Form::Mads => "6502, MADS: .byte, .word",
+            Form::WlaDx => "WLA-DX: .db, .dw",
+            Form::Rgbds => "Game Boy, RGBDS: db, dw",
+            Form::Avr => "AVR: .db, .dw",
+            Form::Pic => "PIC: a RETLW for each byte",
+            Form::Pascal => "Pascal and Delphi array",
+            Form::Java => "Java array",
+            Form::CSharp => "C# array",
+            Form::Go => "Go array",
+            Form::Swift => "Swift array",
+            Form::Kotlin => "Kotlin array",
+            Form::Lua => "Lua table",
+            Form::AmigaE => "Amiga E list",
+            Form::Fortran => "Fortran DATA",
+            Form::Forth => "Forth: create with c, or ,",
+            Form::Json => "JSON array",
+            Form::Csv => "CSV",
+            Form::Arduino => "C for Arduino (PROGMEM)",
+        }
+    }
+
+    /// The language a form writes an array in, if it's one written by table_forms.
+    fn language(self) -> Option<crate::table_forms::Language> {
+        use crate::table_forms::Language;
+        Some(match self {
+            Form::Pascal => Language::Pascal,
+            Form::Java => Language::Java,
+            Form::CSharp => Language::CSharp,
+            Form::Go => Language::Go,
+            Form::Swift => Language::Swift,
+            Form::Kotlin => Language::Kotlin,
+            Form::Lua => Language::Lua,
+            Form::AmigaE => Language::AmigaE,
+            Form::Fortran => Language::Fortran,
+            Form::Forth => Language::Forth,
+            Form::Json => Language::Json,
+            Form::Csv => Language::Csv,
+            Form::Arduino => Language::Arduino,
+            _ => return None,
+        })
+    }
+
+    /// How the assembler writes hex.
+    fn hex_style(self) -> crate::table_forms::HexStyle {
+        use crate::table_forms::HexStyle;
+        match self {
+            Form::Nasm | Form::Gas | Form::Arm | Form::Avr | Form::Pic => HexStyle::ZeroX,
+            Form::Masm => HexStyle::HSuffix,
+            Form::BbcAsm => HexStyle::Ampersand,
+            _ => HexStyle::Dollar,
         }
     }
 
     fn directives(self) -> [&'static str; 3] {
         match self {
-            Form::Z80 | Form::Nasm => ["db", "dw", "dd"],
+            Form::Z80 | Form::Nasm | Form::Masm => ["db", "dw", "dd"],
             Form::Acme => ["!byte", "!word", "!32"],
-            Form::Dot => [".byte", ".word", ".dword"],
+            Form::Dot | Form::Kick | Form::Mads => [".byte", ".word", ".dword"],
+            Form::Dasm => [".byte", ".word", ".long"],
+            Form::Merlin => ["DFB", "DA", "ADRL"],
+            Form::BbcAsm => ["EQUB", "EQUW", "EQUD"],
+            Form::Arm => ["DCB", "DCW", "DCD"],
+            Form::Gas => [".byte", ".short", ".long"],
+            Form::WlaDx | Form::Avr => [".db", ".dw", ".dd"],
+            Form::Rgbds => ["db", "dw", "dl"],
             Form::M6809 => ["fcb", "fdb", "fqb"],
             _ => ["dc.b", "dc.w", "dc.l"],
         }
@@ -500,13 +610,14 @@ impl Form {
 
     /// Whether a label is written with a colon; ACME, 64tass and lwasm take a label by its place at the start.
     fn label_colon(self) -> bool {
-        !matches!(self, Form::Acme | Form::Dot | Form::M6809)
+        !matches!(self, Form::Acme | Form::Dot | Form::M6809 | Form::Merlin | Form::Dasm)
     }
 
     /// The one to start with for source in this language, by its highlighting's name.
     pub fn for_language(language: &str) -> Option<Form> {
         Some(match language {
             "Assembly Z80" => Form::Z80,
+            "Assembly SM83 (Game Boy)" => Form::Rgbds,
             "Assembly 6502" => Form::Acme,
             "Assembly 6809" => Form::M6809,
             "Assembly 680x0" => Form::Motorola,
@@ -516,6 +627,20 @@ impl Form {
             "Python" => Form::Python,
             "JavaScript" | "TypeScript" => Form::JavaScript,
             "Rust" => Form::Rust,
+            "Pascal" => Form::Pascal,
+            "Java" => Form::Java,
+            "C#" => Form::CSharp,
+            "Go" => Form::Go,
+            "Swift" => Form::Swift,
+            "Kotlin" => Form::Kotlin,
+            "Lua" => Form::Lua,
+            "Amiga E" => Form::AmigaE,
+            "Fortran" | "Fortran (Modern)" => Form::Fortran,
+            "Forth" => Form::Forth,
+            "JSON" => Form::Json,
+            "Assembly ARM" | "ARM Assembly" => Form::Arm,
+            "Assembly AVR" => Form::Avr,
+            "Assembly PIC" => Form::Pic,
             _ if language.contains("BASIC") || language == "BASIC" => Form::Basic,
             _ => return None,
         })
@@ -530,13 +655,17 @@ pub struct Generator {
     pub label: String,
     pub form: Form,
     pub big_endian: bool,
+    /// How BASIC DATA lines are written.
+    pub basic: crate::table_forms::BasicOptions,
+    /// Where an Intel HEX or S-record file puts the table.
+    pub address: u32,
     table: Table,
     made_from: Option<Settings>,
 }
 
 impl Default for Generator {
     fn default() -> Self {
-        Generator { settings: Settings::default(), base: Base::Hex, per_line: 8, label: String::new(), form: Form::Motorola, big_endian: true, table: Table::default(), made_from: None }
+        Generator { settings: Settings::default(), base: Base::Hex, per_line: 8, label: String::new(), form: Form::Motorola, big_endian: true, basic: crate::table_forms::BasicOptions::default(), address: 0, table: Table::default(), made_from: None }
     }
 }
 
@@ -562,7 +691,12 @@ impl Generator {
 
     pub fn text(&mut self) -> String {
         let (size, signed, base, per_line, form, label) = (self.settings.size, self.settings.signed, self.base, self.per_line, self.form, self.label());
+        let mut basic = self.basic;
+        basic.scale = f64::from(1u32 << self.settings.fraction_bits.min(30));
         let values = &self.table().values;
+        if form == Form::Basic {
+            return crate::table_forms::as_basic(values, size, base, per_line, &label, &basic);
+        }
         write(values, size, signed, base, per_line, &label, form)
     }
 
@@ -671,6 +805,33 @@ impl Generator {
             ui.label(crate::i18n::tr("Label"));
             ui.add(egui::TextEdit::singleline(&mut self.label).hint_text(self.settings.kind.label()).desired_width(120.0));
         });
+        // BASIC: which one, its line numbers, real numbers, and loading it into an array.
+        if self.form == Form::Basic {
+            let b = &mut self.basic;
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("table-dialect").selected_text(crate::i18n::tr(b.dialect.name())).width(230.0).show_ui(ui, |ui| {
+                    for dialect in crate::table_forms::Dialect::ALL {
+                        ui.selectable_value(&mut b.dialect, dialect, crate::i18n::tr(dialect.name()));
+                    }
+                });
+                if b.dialect.numbered() {
+                    ui.label(crate::i18n::tr("From line"));
+                    ui.add(egui::DragValue::new(&mut b.first).range(0..=65000));
+                    ui.label(crate::i18n::tr("Step"));
+                    ui.add(egui::DragValue::new(&mut b.step).range(1..=1000));
+                }
+            });
+            ui.horizontal(|ui| {
+                let mut real = b.places.is_some();
+                if ui.checkbox(&mut real, crate::i18n::tr("Real numbers")).on_hover_text(crate::i18n::tr("The values divided by 2 to the fraction bits, with so many places")).changed() {
+                    b.places = real.then_some(3);
+                }
+                if let Some(places) = &mut b.places {
+                    ui.add(egui::DragValue::new(places).range(0..=9)).on_hover_text(crate::i18n::tr("Places after the point"));
+                }
+                ui.checkbox(&mut b.read_loop, crate::i18n::tr("DIM and READ into an array"));
+            });
+        }
         let text = self.text();
         let first: String = text.lines().take(3).collect::<Vec<_>>().join("\n");
         ui.label(RichText::new(first).monospace().color(crate::theme::text_dim()));
@@ -687,6 +848,18 @@ impl Generator {
                 asked = Some(Asked::Save(bytes, format!("{}.bin", self.label())));
             }
             ui.checkbox(&mut self.big_endian, crate::i18n::tr("Big-endian")).on_hover_text(crate::i18n::tr("The 68000's order, highest byte first; off for the Z80, 6502 and PC"));
+        });
+        // As a file an EPROM programmer or a monitor loads: Intel HEX or S-records, at an address.
+        ui.horizontal(|ui| {
+            let bytes = || as_binary(&table.values, self.settings.size, self.big_endian);
+            if ui.button(crate::i18n::tr("Save as Intel HEX\u{2026}")).clicked() {
+                asked = Some(Asked::Save(crate::table_forms::intel_hex(&bytes(), self.address).into_bytes(), format!("{}.hex", self.label())));
+            }
+            if ui.button(crate::i18n::tr("Save as S-records\u{2026}")).clicked() {
+                asked = Some(Asked::Save(crate::table_forms::s_records(&bytes(), self.address, &self.label()).into_bytes(), format!("{}.s19", self.label())));
+            }
+            ui.label(crate::i18n::tr("at"));
+            ui.add(egui::DragValue::new(&mut self.address).hexadecimal(4, false, true).range(0..=0xFFFF_FFFFu32)).on_hover_text(crate::i18n::tr("The address the file puts the table at"));
         });
         asked
     }

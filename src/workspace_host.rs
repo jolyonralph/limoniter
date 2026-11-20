@@ -31,6 +31,37 @@ pub(super) struct GoToFile {
     focus: bool,
     /// The symbols of the file in front, worked out once.
     file_symbols: Option<Vec<(usize, String)>>,
+    /// The chosen file's first lines, shown below the list as the choice moves; read once for each file.
+    preview: Option<(PathBuf, Preview)>,
+}
+
+/// What Go to file shows of the file chosen.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Preview {
+    Lines(Vec<String>),
+    /// Not text, or not readable: why.
+    Not(String),
+}
+
+/// The most of a file read for its preview, and the most lines kept.
+const PREVIEW_BYTES: usize = 256 * 1024;
+const PREVIEW_LINES: usize = 4000;
+/// How many lines the preview shows.
+const PREVIEW_ROWS: usize = 12;
+
+/// Reads the start of a file for Go to file's preview.
+pub(super) fn preview_of(path: &Path) -> Preview {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    let read = std::fs::File::open(path).and_then(|file| file.take(PREVIEW_BYTES as u64).read_to_end(&mut bytes));
+    if let Err(e) = read {
+        return Preview::Not(e.to_string());
+    }
+    if crate::codec::looks_binary(&bytes) {
+        return Preview::Not(crate::i18n::tr("Not text: Enter opens it to see it.").to_string());
+    }
+    let text = String::from_utf8_lossy(&bytes);
+    Preview::Lines(text.lines().take(PREVIEW_LINES).map(|l| l.replace('\t', "    ").chars().take(200).collect()).collect())
 }
 
 /// Each file's functions and labels, as its language's grammar finds them, and when the file was last changed.
@@ -172,6 +203,8 @@ impl Limoniter {
     pub(super) fn explorer_act(&mut self, act: crate::explorer::Act, ui: &Ui) {
         use crate::explorer::Act;
         let root = self.project.as_ref().map(Project::folder).unwrap_or_default();
+        // In a folder on a server, the same is done there afterwards.
+        let done = act.clone();
         let changed = match act {
             Act::Open(path) => {
                 self.open_path(&path);
@@ -218,7 +251,7 @@ impl Limoniter {
             }
             Act::Delete(path) => {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                let question = if path.is_dir() { crate::i18n::tf!("Move the folder {name}, and everything in it, to the Recycle Bin?") } else { crate::i18n::tf!("Move {name} to the Recycle Bin?") };
+                let question = self.remote_project_delete_question(&path).unwrap_or_else(|| if path.is_dir() { crate::i18n::tf!("Move the folder {name}, and everything in it, to the Recycle Bin?") } else { crate::i18n::tf!("Move {name} to the Recycle Bin?") });
                 if !ask_yes_no(crate::i18n::tr("Move to the Recycle Bin"), &question) {
                     return;
                 }
@@ -255,6 +288,7 @@ impl Limoniter {
             Act::CompareWith(_) | Act::CompareFolder(_) | Act::CompareWithHead(_) => false,
         };
         if changed {
+            self.remote_project_explorer(&done);
             self.panels.project_panel.explorer.refresh();
             self.index_project();
         }
@@ -374,7 +408,7 @@ impl Limoniter {
             if files.is_empty() {
                 ui.label(RichText::new(crate::i18n::tr("Open a folder (File, Open folder) to find its files here; until then, the files open and those opened lately are.")).color(theme::text_faint()).size(12.5));
             }
-            egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
+            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
                 for (n, (path, line, text, places)) in found.iter().enumerate() {
                     let mut job = egui::text::LayoutJob::default();
                     for (i, c) in text.chars().enumerate() {
@@ -383,12 +417,18 @@ impl Limoniter {
                     }
                     let galley = ui.painter().layout_job(job);
                     let (rect, response) = ui.allocate_exact_size(egui::vec2(ui.available_width(), galley.size().y + 6.0), egui::Sense::click());
+                    // A file has its badge before it; a symbol has none.
+                    let icon = if line.is_none() { crate::file_icons::width(13.0) + 4.0 } else { 0.0 };
                     if n == state.chosen {
                         ui.painter().rect_filled(rect, 3.0, ui.visuals().selection.bg_fill);
                     } else if response.hovered() {
                         ui.painter().rect_filled(rect, 3.0, ui.visuals().widgets.hovered.weak_bg_fill);
                     }
-                    ui.painter().galley(rect.min + egui::vec2(6.0, 3.0), galley, theme::text());
+                    if line.is_none() {
+                        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                        crate::file_icons::paint(ui.painter(), egui::Rect::from_min_size(rect.min + egui::vec2(5.0, 0.0), egui::vec2(icon, rect.height())), &name, 13.0);
+                    }
+                    ui.painter().galley(rect.min + egui::vec2(6.0 + icon, 3.0), galley, theme::text());
                     if n == state.chosen {
                         response.scroll_to_me(None);
                     }
@@ -397,6 +437,37 @@ impl Limoniter {
                     }
                 }
             });
+            // The file chosen, as the choice moves through the list: its first lines, or those around a symbol.
+            if let Some((path, line, ..)) = found.get(state.chosen)
+                && path.is_file()
+            {
+                if state.preview.as_ref().is_none_or(|(p, _)| p != path) {
+                    state.preview = Some((path.clone(), preview_of(path)));
+                }
+                ui.separator();
+                let mono = egui::FontId::monospace(12.0);
+                match state.preview.as_ref().map(|(_, p)| p) {
+                    Some(Preview::Lines(lines)) => {
+                        let first = line.map_or(0, |l| l.saturating_sub(PREVIEW_ROWS / 3));
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        // A line each, each cut at the box's edge.
+                        for (number, text) in lines.iter().enumerate().skip(first).take(PREVIEW_ROWS) {
+                            let mut job = egui::text::LayoutJob::default();
+                            job.append(&format!("{:>5}  ", number + 1), 0.0, egui::TextFormat::simple(mono.clone(), theme::text_faint()));
+                            let mut format = egui::TextFormat::simple(mono.clone(), theme::text());
+                            if *line == Some(number) {
+                                format.background = ui.visuals().selection.bg_fill;
+                            }
+                            job.append(text, 0.0, format);
+                            ui.add(egui::Label::new(job).wrap_mode(egui::TextWrapMode::Truncate));
+                        }
+                    }
+                    Some(Preview::Not(why)) => {
+                        ui.label(RichText::new(why).color(theme::text_faint()).size(12.5));
+                    }
+                    None => {}
+                }
+            }
         });
         if let Some((path, line)) = open {
             let front = (!self.no_file()).then(|| self.docs[self.active].id);

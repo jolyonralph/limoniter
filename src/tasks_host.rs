@@ -3,6 +3,7 @@
 //! their lines in the files open, and a test task's results are listed test by test, failures first.
 
 use super::*;
+use crate::assemblers::Cpu;
 use crate::tasks::{Kind, Task, TestResult};
 
 /// A task running, to read back what it printed when it's done.
@@ -18,6 +19,8 @@ pub(super) struct TestPanel {
     pub task: Task,
     pub folder: PathBuf,
     pub results: Vec<TestResult>,
+    /// For assembly tests run on the built-in processors: the source they're in, and its processor.
+    pub assembly: Option<(PathBuf, Cpu)>,
 }
 
 impl Limoniter {
@@ -34,7 +37,9 @@ impl Limoniter {
     pub(super) fn tasks_here(&self) -> Vec<Task> {
         let mut tasks: Vec<Task> = self.project.as_ref().map(|p| p.tasks.clone()).unwrap_or_default();
         if let Some(folder) = self.task_folder() {
-            for detected in crate::tasks::detect(&folder) {
+            // The languages of the files open in the folder say which microcontroller's flashing to offer.
+            let languages: Vec<String> = self.docs.iter().filter(|d| d.path.as_deref().is_some_and(|p| p.starts_with(&folder))).map(|d| d.language_name()).collect();
+            for detected in crate::tasks::detect(&folder).into_iter().chain(self.flashing.tasks(&folder, &languages)) {
                 if !tasks.iter().any(|t| t.command == detected.command) {
                     tasks.push(detected);
                 }
@@ -81,6 +86,15 @@ impl Limoniter {
     }
 
     pub(super) fn run_test_task(&mut self) {
+        // Assembly with tests written beside it runs them on the built-in processor, with no task needed.
+        if let Some(cpu) = self.doc_cpu(self.active).filter(|c| crate::asm_tests::runs_on(*c)) {
+            let doc = &self.docs[self.active];
+            let text = doc.text.all_lines().iter().map(|l| l.as_ref()).collect::<Vec<&str>>().join("\n");
+            if crate::asm_tests::has_tests(doc.path.as_deref(), &text) {
+                let path = std::path::absolute(doc.path_or_name()).unwrap_or_else(|_| doc.path_or_name());
+                return self.run_assembly_tests(&path, cpu, None);
+            }
+        }
         match self.tasks_here().into_iter().find(|t| t.kind == Kind::Test) {
             Some(task) => self.run_task(task),
             None => self.message("Tests", crate::i18n::tr("There's no test task here.").into()),
@@ -116,7 +130,7 @@ impl Limoniter {
         if run.task.kind == Kind::Test {
             let mut results = crate::tasks::test_results(&lines);
             results.sort_by_key(|r| r.passed);
-            self.test_panel = Some(TestPanel { task: run.task, folder: run.folder, results });
+            self.test_panel = Some(TestPanel { task: run.task, folder: run.folder, results, assembly: None });
         }
     }
 
@@ -155,27 +169,79 @@ impl Limoniter {
                                 go = Some(place.clone());
                             }
                         }
+                        if let Some(note) = &result.note {
+                            ui.label(RichText::new(note).size(11.5).color(theme::text_faint()));
+                        }
                         if !result.passed && ui.small_button(crate::i18n::tr("Run only this")).clicked() {
                             only = Some(result.name.clone());
                         }
                     });
+                    for line in &result.detail {
+                        ui.horizontal(|ui| {
+                            ui.add_space(18.0);
+                            ui.add(egui::Label::new(RichText::new(line).size(11.5).color(theme::text_dim())).wrap());
+                        });
+                    }
                 }
             });
         });
-        let (task, folder) = (panel.task.clone(), panel.folder.clone());
+        let (task, folder, assembly) = (panel.task.clone(), panel.folder.clone(), panel.assembly.clone());
+        let assembly_none = assembly.is_none();
         if close {
             self.test_panel = None;
         }
-        if again {
+        if let Some((path, cpu)) = assembly.filter(|_| again || only.is_some()) {
+            self.run_assembly_tests(&path, cpu, only.as_deref());
+        } else if again {
             self.run_task(task.clone());
         }
-        if let Some(name) = only {
+        if let Some(name) = only.filter(|_| assembly_none) {
             self.run_task(Task { name: format!("{} {name}", task.name), command: crate::tasks::only_this(&task.command, &name), kind: Kind::Test });
         }
         if let Some((file, line)) = go {
             let path = if Path::new(&file).is_absolute() { PathBuf::from(&file) } else { folder.join(&file) };
             self.go_to_place(&path.display().to_string(), line);
         }
+    }
+
+    /// The assembly tests of the source in front, run on the built-in Z80 or 6502, into the Tests panel.
+    pub(super) fn assembly_tests_here(&mut self) {
+        let Some(cpu) = self.doc_cpu(self.active) else {
+            return self.message("Tests", crate::i18n::tr("Assembly tests are for Z80 and 6502 source: open the source with the tests in its comments.").into());
+        };
+        let doc = &self.docs[self.active];
+        let path = std::path::absolute(doc.path_or_name()).unwrap_or_else(|_| doc.path_or_name());
+        self.run_assembly_tests(&path, cpu, None);
+    }
+
+    /// Runs a source's assembly tests (all, or one by name), as it is in the editor if it's open, and lists them.
+    pub(super) fn run_assembly_tests(&mut self, path: &Path, cpu: Cpu, only: Option<&str>) {
+        let open_text = |path: &Path| {
+            self.docs.iter().find(|d| d.path.as_deref().is_some_and(|p| same_path(p, path)) || (d.path.is_none() && d.path_or_name() == path)).map(|d| d.text.all_lines().iter().map(|l| l.as_ref()).collect::<Vec<&str>>().join("\n"))
+        };
+        let Some(text) = open_text(path).or_else(|| std::fs::read_to_string(path).ok()) else {
+            return self.message("Tests", crate::i18n::tf!("Couldn't read {}.", path.display()));
+        };
+        let tests_file = crate::asm_tests::tests_file_for(path);
+        let tests_text = open_text(&tests_file).or_else(|| std::fs::read_to_string(&tests_file).ok());
+        let outcomes = crate::asm_tests::run(cpu, path, &text, tests_text.as_deref().map(|t| (tests_file.as_path(), t)), only);
+        if outcomes.is_empty() {
+            return self.message("Tests", crate::i18n::tr("There are no tests in this source. Write one in a comment above the routine:\n\n; test: adds one\n; given: A=5\n; expect: A=6 flags: Z=0\n; within: 20 cycles\n\nor in a file beside it with .tests on the end of its name.").into());
+        }
+        let mut results: Vec<TestResult> = outcomes
+            .into_iter()
+            .map(|o| TestResult {
+                name: o.name,
+                passed: o.passed,
+                place: Some((o.file.display().to_string(), o.line)),
+                note: o.cycles.map(|c| if cpu == Cpu::Z80 { crate::i18n::tf!("{c} T-states") } else { crate::i18n::tf!("{c} cycles") }),
+                detail: o.differences,
+            })
+            .collect();
+        results.sort_by_key(|r| r.passed);
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let task = Task { name: crate::i18n::tr("Assembly tests").into(), command: format!("{name} ({})", cpu.name()), kind: Kind::Test };
+        self.test_panel = Some(TestPanel { task, folder: path.parent().map(Path::to_path_buf).unwrap_or_default(), results, assembly: Some((path.to_path_buf(), cpu)) });
     }
 
     /// The box editing the project's own tasks.
@@ -277,6 +343,33 @@ mod tests {
         let results = app.test_panel.as_ref().map(|p| p.results.clone()).unwrap_or_default();
         assert_eq!(results.iter().map(|r| (r.name.as_str(), r.passed)).collect::<Vec<_>>(), [("tests::wrong", false), ("tests::adds", true)], "{:?}", app.script_output);
         assert_eq!(results[0].place, Some(("src/lib.rs".to_string(), 8)));
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// Z80 source with tests in its comments and in a tests file beside it: Ctrl+Shift+T runs them on the built-in
+    /// Z80 into the Tests panel, failures first with what differed, each with its T-states, and Run only this
+    /// runs one again.
+    #[test]
+    fn assembly_tests_run_into_the_tests_panel() {
+        let (mut app, _ctx) = app_with("");
+        let folder = std::env::temp_dir().join(format!("limoniter-asm-tests-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let source = folder.join("maths.z80");
+        std::fs::write(&source, "        org $8000\n; test: doubles\n; given: A=21\n; expect: A=42\ndouble: add a,a\n        ret\n").unwrap();
+        std::fs::write(folder.join("maths.z80.tests"), "test: wrong\ngiven: A=1\ncall: double\nexpect: A=3\n").unwrap();
+        assert!(app.open_path(&source));
+        highlight::load_now();
+        app.doc().update_syntax();
+        assert_eq!(app.doc_cpu(app.active), Some(Cpu::Z80));
+        app.run_test_task();
+        let panel = app.test_panel.as_ref().expect("the Tests panel");
+        let results: Vec<(&str, bool, Option<&str>)> = panel.results.iter().map(|r| (r.name.as_str(), r.passed, r.note.as_deref())).collect();
+        assert_eq!(results, [("wrong", false, Some("14 T-states")), ("doubles", true, Some("14 T-states"))]);
+        assert_eq!(panel.results[0].detail, ["A is $02, not $03"]);
+        assert_eq!(panel.results[1].place, Some((source.display().to_string(), 2)));
+        app.run_assembly_tests(&source, Cpu::Z80, Some("doubles"));
+        assert_eq!(app.test_panel.as_ref().unwrap().results.len(), 1);
         let _ = std::fs::remove_dir_all(folder);
     }
 

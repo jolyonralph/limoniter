@@ -1,4 +1,4 @@
-//! Files on other computers, reached over SFTP (SSH). A remote file is fetched into a folder of copies on this
+//! Files on other computers, reached over SFTP (SSH) or FTP (see `ftp`). A remote file is fetched into a folder of copies on this
 //! computer and opened from there, so everything that works on a file on disk works on it too, very large files
 //! included. Saving writes the copy, then sends it back.
 //!
@@ -19,9 +19,59 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const CHUNK: usize = 256 * 1024;
 const CREDENTIAL_SERVICE: &str = "Limoniter SFTP";
 
+/// How a site is reached.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Scheme {
+    #[default]
+    Sftp,
+    /// Plain FTP, with nothing kept private.
+    Ftp,
+    /// FTP with TLS asked for on the usual port (ftpes://).
+    Ftpes,
+    /// FTP with TLS from the start (ftps://), usually on port 990.
+    Ftps,
+}
+
+impl Scheme {
+    /// How it starts an address, as FileZilla writes them.
+    pub fn prefix(self) -> &'static str {
+        match self {
+            Scheme::Sftp => "sftp",
+            Scheme::Ftp => "ftp",
+            Scheme::Ftpes => "ftpes",
+            Scheme::Ftps => "ftps",
+        }
+    }
+
+    pub fn from_prefix(prefix: &str) -> Option<Self> {
+        [Scheme::Sftp, Scheme::Ftp, Scheme::Ftpes, Scheme::Ftps].into_iter().find(|scheme| scheme.prefix().eq_ignore_ascii_case(prefix))
+    }
+
+    pub fn default_port(self) -> u16 {
+        match self {
+            Scheme::Sftp => 22,
+            Scheme::Ftp | Scheme::Ftpes => 21,
+            Scheme::Ftps => 990,
+        }
+    }
+
+    pub fn is_ftp(self) -> bool {
+        self != Scheme::Sftp
+    }
+
+    fn security(self) -> crate::ftp::Security {
+        match self {
+            Scheme::Sftp | Scheme::Ftp => crate::ftp::Security::Plain,
+            Scheme::Ftpes => crate::ftp::Security::Explicit,
+            Scheme::Ftps => crate::ftp::Security::Implicit,
+        }
+    }
+}
+
 /// Where to connect, and as whom.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Site {
+    pub scheme: Scheme,
     pub host: String,
     pub port: u16,
     pub user: String,
@@ -30,30 +80,44 @@ pub struct Site {
 }
 
 impl Site {
-    /// user@host:port, which names the site and its stored password.
+    /// user@host:port, which names the site and its stored password; ftp:user@host:port for an FTP server,
+    /// as a device sent to over FTP names it, so the one password does for both.
     pub fn key(&self) -> String {
-        format!("{}@{}:{}", self.user, self.host, self.port)
+        let kind = if self.scheme.is_ftp() { "ftp:" } else { "" };
+        format!("{kind}{}@{}:{}", self.user, self.host, self.port)
     }
 
     pub fn url(&self, path: &str) -> String {
-        let port = if self.port == 22 { String::new() } else { format!(":{}", self.port) };
-        format!("sftp://{}@{}{port}{}", self.user, self.host, if path.starts_with('/') { path.to_string() } else { format!("/{path}") })
+        let port = if self.port == self.scheme.default_port() { String::new() } else { format!(":{}", self.port) };
+        let host = if self.host.contains(':') { format!("[{}]", self.host) } else { self.host.clone() };
+        format!("{}://{}@{host}{port}{}", self.scheme.prefix(), self.user, if path.starts_with('/') { path.to_string() } else { format!("/{path}") })
     }
 }
 
-/// Reads sftp://user@host:port/path into its parts. The port is 22 unless it's given.
+/// Whether some text is a server's address: sftp://, ftp://, ftpes:// or ftps://.
+pub fn is_address(text: &str) -> bool {
+    text.split_once("://").is_some_and(|(prefix, _)| Scheme::from_prefix(prefix).is_some())
+}
+
+/// Reads sftp://user@host:port/path into its parts, or ftp://, ftpes:// or ftps://. The port is the usual one
+/// unless it's given. For FTP, the user may be left out, to sign in as anonymous.
 pub fn parse_url(url: &str) -> Result<(Site, String), String> {
-    let rest = url.trim().strip_prefix("sftp://").ok_or(crate::i18n::tr("A remote file is written sftp://user@host/path."))?;
+    let (prefix, rest) = url.trim().split_once("://").ok_or(crate::i18n::tr("A remote file is written sftp://user@host/path, or ftp://user@host/path."))?;
+    let scheme = Scheme::from_prefix(prefix).ok_or(crate::i18n::tr("A remote file is written sftp://user@host/path, or ftp://user@host/path."))?;
     let (place, path) = rest.split_once('/').map_or((rest, "/".to_string()), |(place, path)| (place, format!("/{path}")));
-    let (user, host_port) = place.rsplit_once('@').ok_or(crate::i18n::tr("Say who to sign in as: sftp://user@host/path."))?;
+    let (user, host_port) = match place.rsplit_once('@') {
+        Some(found) => found,
+        None if scheme.is_ftp() => ("anonymous", place),
+        None => return Err(crate::i18n::tr("Say who to sign in as: sftp://user@host/path.").into()),
+    };
     let (host, port) = match host_port.rsplit_once(':') {
         Some((host, port)) if !host.ends_with(']') || host.starts_with('[') => (host, port.parse::<u16>().map_err(|_| crate::i18n::tf!("\u{201C}{port}\u{201D} isn't a port number."))?),
-        _ => (host_port, 22),
+        _ => (host_port, scheme.default_port()),
     };
     if user.is_empty() || host.is_empty() {
         return Err(crate::i18n::tr("Say who to sign in as and where: sftp://user@host/path.").to_string());
     }
-    Ok((Site { host: host.trim_matches(|c| c == '[' || c == ']').to_string(), port, user: user.to_string(), key_file: None }, path))
+    Ok((Site { scheme, host: host.trim_matches(|c| c == '[' || c == ']').to_string(), port, user: user.to_string(), key_file: None }, path))
 }
 
 /// How to sign in.
@@ -115,6 +179,10 @@ pub enum Refused {
 impl Refused {
     pub fn describe(&self, site: &Site) -> String {
         match self {
+            Refused::UnknownHost(print) if site.scheme.is_ftp() => crate::i18n::tf!("{}'s certificate isn't vouched for by an authority this computer trusts, as is usual for a server at home that made its own. Its fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.", site.host),
+            Refused::HostKeyChanged { expected, found } if site.scheme.is_ftp() => crate::i18n::tf!("The certificate of {} isn't the one it had before, and no authority this computer trusts vouches for it, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new certificate.\n\nTrusted before: {expected}\nNow: {found}",
+                site.host
+            ),
             Refused::UnknownHost(print) => crate::i18n::tf!("This is the first time Limoniter has connected to {}. Its key's fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.", site.host),
             Refused::HostKeyChanged { expected, found } => crate::i18n::tf!("The key of {} isn't the one it had before, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new key.\n\nTrusted before: {expected}\nNow: {found}",
                 site.host
@@ -129,10 +197,10 @@ fn failed(e: impl std::fmt::Display) -> Refused {
     Refused::Failed(e.to_string())
 }
 
-/// An open SFTP connection.
-pub struct Connection {
-    _session: ssh2::Session,
-    sftp: ssh2::Sftp,
+/// An open connection: SFTP, or FTP, whose one connection takes one command at a time.
+pub enum Connection {
+    Sftp { _session: ssh2::Session, sftp: ssh2::Sftp },
+    Ftp(Mutex<crate::ftp::Client>),
 }
 
 /// A file or folder in a remote listing.
@@ -155,8 +223,8 @@ fn stamp_of(stat: &ssh2::FileStat) -> Stamp {
     Stamp { size: stat.size.unwrap_or(0), modified: stat.mtime.unwrap_or(0) }
 }
 
-/// The SHA-256 fingerprint of a server key, as OpenSSH shows it.
-fn fingerprint(raw: &[u8]) -> String {
+/// The SHA-256 fingerprint of a server key, as OpenSSH shows it, or of an FTPS server's certificate.
+pub(crate) fn fingerprint(raw: &[u8]) -> String {
     use std::fmt::Write as _;
     let digest = Sha256::digest(raw);
     // Base64 without padding, as ssh-keygen -l prints it.
@@ -173,6 +241,17 @@ fn fingerprint(raw: &[u8]) -> String {
 
 /// Connects and signs in. The server's key is checked against those trusted before; see `Refused`.
 pub fn connect(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<Connection, Refused> {
+    if site.scheme.is_ftp() {
+        // Anonymous FTP takes anything as a password; anyone else's has to have been typed or kept.
+        let anonymous = site.user.is_empty() || site.user.eq_ignore_ascii_case("anonymous") || site.user.eq_ignore_ascii_case("ftp");
+        let password = match secret {
+            Secret::Password(password) => password.clone(),
+            Secret::KeyPassphrase(_) if anonymous => "limoniter@".to_string(),
+            Secret::KeyPassphrase(_) => return Err(Refused::SignIn(crate::i18n::tr("It needs a password.").to_string())),
+        };
+        let client = crate::ftp::connect(&site.host, site.port, site.scheme.security(), &site.user, &password, known.known(site))?;
+        return Ok(Connection::Ftp(Mutex::new(client)));
+    }
     let address = (site.host.as_str(), site.port).to_socket_addrs().map_err(|e| Refused::Failed(crate::i18n::tf!("{} couldn't be found: {e}", site.host)))?.next().ok_or_else(|| Refused::Failed(crate::i18n::tf!("{} couldn't be found.", site.host)))?;
     let tcp = TcpStream::connect_timeout(&address, CONNECT_TIMEOUT).map_err(|e| Refused::Failed(crate::i18n::tf!("Couldn't reach {} on port {}: {e}", site.host, site.port)))?;
     let mut session = ssh2::Session::new().map_err(failed)?;
@@ -198,7 +277,7 @@ pub fn connect(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<Conne
         return Err(Refused::SignIn(String::new()));
     }
     let sftp = session.sftp().map_err(|e| Refused::Failed(crate::i18n::tf!("{} doesn't offer SFTP: {e}", site.host)))?;
-    Ok(Connection { _session: session, sftp })
+    Ok(Connection::Sftp { _session: session, sftp })
 }
 
 fn path(text: &str) -> &Path {
@@ -220,15 +299,26 @@ pub fn parent(of: &str) -> String {
 }
 
 impl Connection {
+    /// The FTP connection, for one command at a time.
+    fn ftp(lock: &Mutex<crate::ftp::Client>) -> std::sync::MutexGuard<'_, crate::ftp::Client> {
+        lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// Where the person starts: their home folder, as the server names it.
     pub fn home(&self) -> Result<String, String> {
-        self.sftp.realpath(path(".")).map(|p| p.to_string_lossy().replace('\\', "/")).map_err(|e| e.to_string())
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.realpath(path(".")).map(|p| p.to_string_lossy().replace('\\', "/")).map_err(|e| e.to_string()),
+            Connection::Ftp(ftp) => Self::ftp(ftp).home(),
+        }
     }
 
     /// What's in a folder: folders first, then files, each by name.
     pub fn list(&self, folder: &str) -> Result<Vec<Entry>, String> {
-        let mut entries: Vec<Entry> = self
-            .sftp
+        let sftp = match self {
+            Connection::Sftp { sftp, .. } => sftp,
+            Connection::Ftp(ftp) => return Self::ftp(ftp).list(folder),
+        };
+        let mut entries: Vec<Entry> = sftp
             .readdir(path(folder))
             .map_err(|e| crate::i18n::tf!("{folder} couldn't be listed: {e}"))?
             .into_iter()
@@ -242,44 +332,73 @@ impl Connection {
     }
 
     pub fn stamp(&self, remote: &str) -> Result<Stamp, String> {
-        self.sftp.stat(path(remote)).map(|stat| stamp_of(&stat)).map_err(|e| e.to_string())
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.stat(path(remote)).map(|stat| stamp_of(&stat)).map_err(|e| e.to_string()),
+            Connection::Ftp(ftp) => Self::ftp(ftp).look(remote)?.map(|(_, stamp)| stamp).ok_or_else(|| crate::i18n::tf!("{remote} couldn't be found.")),
+        }
     }
 
     /// Whether something is at a path, without following a link: if so, whether it's a folder, and its stamp.
     pub fn look(&self, remote: &str) -> Result<Option<(bool, Stamp)>, String> {
-        match self.sftp.lstat(path(remote)) {
-            Ok(stat) => Ok(Some((stat.is_dir(), stamp_of(&stat)))),
-            // LIBSSH2_FX_NO_SUCH_FILE
-            Err(e) if e.code() == ssh2::ErrorCode::SFTP(2) => Ok(None),
-            Err(e) => Err(crate::i18n::tf!("{remote} couldn't be looked at: {e}")),
+        match self {
+            Connection::Sftp { sftp, .. } => match sftp.lstat(path(remote)) {
+                Ok(stat) => Ok(Some((stat.is_dir(), stamp_of(&stat)))),
+                // LIBSSH2_FX_NO_SUCH_FILE
+                Err(e) if e.code() == ssh2::ErrorCode::SFTP(2) => Ok(None),
+                Err(e) => Err(crate::i18n::tf!("{remote} couldn't be looked at: {e}")),
+            },
+            Connection::Ftp(ftp) => Self::ftp(ftp).look(remote),
         }
     }
 
     /// Gives a file the modified time it's to have.
     pub fn set_modified(&self, remote: &str, time: u64) -> Result<(), String> {
-        self.sftp.setstat(path(remote), ssh2::FileStat { size: None, uid: None, gid: None, perm: None, atime: Some(time), mtime: Some(time) }).map_err(|e| e.to_string())
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.setstat(path(remote), ssh2::FileStat { size: None, uid: None, gid: None, perm: None, atime: Some(time), mtime: Some(time) }).map_err(|e| e.to_string()),
+            Connection::Ftp(ftp) => Self::ftp(ftp).set_modified(remote, time),
+        }
+    }
+
+    pub fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.rename(path(from), path(to), None).map_err(|e| crate::i18n::tf!("{from} couldn't be renamed: {e}")),
+            Connection::Ftp(ftp) => Self::ftp(ftp).rename(from, to),
+        }
     }
 
     pub fn make_folder(&self, remote: &str) -> Result<(), String> {
-        self.sftp.mkdir(path(remote), 0o755).map_err(|e| crate::i18n::tf!("{remote} couldn't be made: {e}"))
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.mkdir(path(remote), 0o755).map_err(|e| crate::i18n::tf!("{remote} couldn't be made: {e}")),
+            Connection::Ftp(ftp) => Self::ftp(ftp).make_folder(remote),
+        }
     }
 
     pub fn remove_file(&self, remote: &str) -> Result<(), String> {
-        self.sftp.unlink(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be taken away: {e}"))
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.unlink(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be taken away: {e}")),
+            Connection::Ftp(ftp) => Self::ftp(ftp).remove_file(remote),
+        }
     }
 
     /// Takes away a folder, which has to be empty.
     pub fn remove_folder(&self, remote: &str) -> Result<(), String> {
-        self.sftp.rmdir(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be taken away: {e}"))
+        match self {
+            Connection::Sftp { sftp, .. } => sftp.rmdir(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be taken away: {e}")),
+            Connection::Ftp(ftp) => Self::ftp(ftp).remove_folder(remote),
+        }
     }
 
     /// Copies a remote file to a local one, counting the bytes as they come.
     pub fn download(&self, remote: &str, local: &Path, done: &AtomicU64, stop: &AtomicBool) -> Result<Stamp, String> {
-        let stat = self.sftp.stat(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be found: {e}"))?;
+        let sftp = match self {
+            Connection::Sftp { sftp, .. } => sftp,
+            Connection::Ftp(ftp) => return Self::ftp(ftp).download(remote, local, done, stop),
+        };
+        let stat = sftp.stat(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be found: {e}"))?;
         if stat.is_dir() {
             return Err(crate::i18n::tf!("{remote} is a folder."));
         }
-        let mut from = self.sftp.open(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be opened: {e}"))?;
+        let mut from = sftp.open(path(remote)).map_err(|e| crate::i18n::tf!("{remote} couldn't be opened: {e}"))?;
         if let Some(folder) = local.parent() {
             std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
         }
@@ -306,7 +425,11 @@ impl Connection {
     /// file on the server is whole all the time. Unless `force`, it's refused if the remote file has changed since
     /// `expected` (the stamp it had when it was opened).
     pub fn upload(&self, local: &Path, remote: &str, expected: Option<Stamp>, force: bool, done: &AtomicU64, stop: &AtomicBool) -> Result<Stamp, UploadError> {
-        let before = self.sftp.stat(path(remote)).ok();
+        let sftp = match self {
+            Connection::Sftp { sftp, .. } => sftp,
+            Connection::Ftp(ftp) => return Self::ftp(ftp).upload(local, remote, expected, force, done, stop),
+        };
+        let before = sftp.stat(path(remote)).ok();
         if !force
             && let (Some(expected), Some(now)) = (expected, before.as_ref())
             && stamp_of(now) != expected
@@ -316,7 +439,7 @@ impl Connection {
         let temp = format!("{remote}.limoniter-tmp");
         let result = (|| -> Result<(), String> {
             let mut from = std::fs::File::open(local).map_err(|e| e.to_string())?;
-            let mut to = self.sftp.create(path(&temp)).map_err(|e| crate::i18n::tf!("{temp} couldn't be made: {e}"))?;
+            let mut to = sftp.create(path(&temp)).map_err(|e| crate::i18n::tf!("{temp} couldn't be made: {e}"))?;
             let mut buffer = vec![0u8; CHUNK];
             let mut total = 0u64;
             loop {
@@ -336,32 +459,32 @@ impl Connection {
             drop(to);
             // The new file keeps the permissions the old one had.
             if let Some(perm) = before.as_ref().and_then(|stat| stat.perm) {
-                let _ = self.sftp.setstat(path(&temp), ssh2::FileStat { size: None, uid: None, gid: None, perm: Some(perm), atime: None, mtime: None });
+                let _ = sftp.setstat(path(&temp), ssh2::FileStat { size: None, uid: None, gid: None, perm: Some(perm), atime: None, mtime: None });
             }
-            self.replace(&temp, remote, before.is_some())
+            Self::replace(sftp, &temp, remote, before.is_some())
         })();
         if let Err(problem) = result {
-            let _ = self.sftp.unlink(path(&temp));
+            let _ = sftp.unlink(path(&temp));
             return Err(UploadError::Failed(problem));
         }
-        self.sftp.stat(path(remote)).map(|stat| stamp_of(&stat)).map_err(|e| UploadError::Failed(e.to_string()))
+        sftp.stat(path(remote)).map(|stat| stamp_of(&stat)).map_err(|e| UploadError::Failed(e.to_string()))
     }
 
     /// Puts `temp` where `target` is. Many servers won't rename over a file, so the old one is moved aside first
     /// and put back if that fails.
-    fn replace(&self, temp: &str, target: &str, exists: bool) -> Result<(), String> {
+    fn replace(sftp: &ssh2::Sftp, temp: &str, target: &str, exists: bool) -> Result<(), String> {
         let flags = ssh2::RenameFlags::OVERWRITE | ssh2::RenameFlags::ATOMIC | ssh2::RenameFlags::NATIVE;
-        if !exists || self.sftp.rename(path(temp), path(target), Some(flags)).is_ok() {
-            return if exists { Ok(()) } else { self.sftp.rename(path(temp), path(target), Some(flags)).map_err(|e| e.to_string()) };
+        if !exists || sftp.rename(path(temp), path(target), Some(flags)).is_ok() {
+            return if exists { Ok(()) } else { sftp.rename(path(temp), path(target), Some(flags)).map_err(|e| e.to_string()) };
         }
         let aside = format!("{target}.limoniter-old");
-        let _ = self.sftp.unlink(path(&aside));
-        self.sftp.rename(path(target), path(&aside), None).map_err(|e| crate::i18n::tf!("{target} couldn't be replaced: {e}"))?;
-        if let Err(e) = self.sftp.rename(path(temp), path(target), None) {
-            let _ = self.sftp.rename(path(&aside), path(target), None);
+        let _ = sftp.unlink(path(&aside));
+        sftp.rename(path(target), path(&aside), None).map_err(|e| crate::i18n::tf!("{target} couldn't be replaced: {e}"))?;
+        if let Err(e) = sftp.rename(path(temp), path(target), None) {
+            let _ = sftp.rename(path(&aside), path(target), None);
             return Err(crate::i18n::tf!("{target} couldn't be replaced: {e}"));
         }
-        let _ = self.sftp.unlink(path(&aside));
+        let _ = sftp.unlink(path(&aside));
         Ok(())
     }
 }
@@ -377,7 +500,9 @@ pub enum UploadError {
 
 /// A password kept in the system's store for a site, if there is one.
 pub fn stored_password(site: &Site) -> Option<String> {
-    keyring::Entry::new(CREDENTIAL_SERVICE, &site.key()).ok()?.get_password().ok()
+    let own = keyring::Entry::new(CREDENTIAL_SERVICE, &site.key()).ok().and_then(|entry| entry.get_password().ok());
+    // An FTP server's may have been kept when a device was sent to over FTP.
+    own.or_else(|| site.scheme.is_ftp().then(|| crate::deploy::stored_password(&site.key())).flatten())
 }
 
 pub fn store_password(site: &Site, password: &str) -> Result<(), String> {
@@ -399,6 +524,18 @@ pub enum Task {
     List(Option<String>),
     Download { remote: String, local: PathBuf },
     Upload { local: PathBuf, remote: String, expected: Option<Stamp>, force: bool },
+    /// What a file's like now, to notice it changing on the server.
+    Look(String),
+    /// A change in the remote file browser, then the folder listed again.
+    Change { change: Change, folder: String },
+}
+
+/// A change made in the remote file browser.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Change {
+    Rename { from: String, to: String },
+    Remove { path: String, folder: bool },
+    MakeFolder(String),
 }
 
 #[derive(Clone, Debug)]
@@ -406,6 +543,7 @@ pub enum Outcome {
     Listed { folder: String, entries: Vec<Entry> },
     Downloaded { remote: String, local: PathBuf, stamp: Stamp },
     Uploaded { stamp: Stamp },
+    Looked { stamp: Option<Stamp> },
     Refused(Refused),
     ChangedOnServer,
     Failed(String),
@@ -473,6 +611,22 @@ fn perform(site: &Site, secret: &Secret, known: &KnownHosts, task: Task, done: &
                 Err(problem) => Outcome::Failed(problem),
             }
         }
+        Task::Look(remote) => match connection.look(&remote) {
+            Ok(found) => Outcome::Looked { stamp: found.map(|(_, stamp)| stamp) },
+            Err(problem) => Outcome::Failed(problem),
+        },
+        Task::Change { change, folder } => {
+            let done = match &change {
+                Change::Rename { from, to } => connection.rename(from, to),
+                Change::Remove { path, folder: true } => connection.remove_folder(path),
+                Change::Remove { path, folder: false } => connection.remove_file(path),
+                Change::MakeFolder(path) => connection.make_folder(path),
+            };
+            match done.and_then(|()| connection.list(&folder)) {
+                Ok(entries) => Outcome::Listed { folder, entries },
+                Err(problem) => Outcome::Failed(problem),
+            }
+        }
         Task::Upload { local, remote, expected, force } => {
             total.store(std::fs::metadata(&local).map_or(0, |m| m.len()), Ordering::Relaxed);
             match connection.upload(&local, &remote, expected, force, done, stop) {
@@ -482,6 +636,60 @@ fn perform(site: &Site, secret: &Secret, known: &KnownHosts, task: Task, done: &
             }
         }
     }
+}
+
+/// The hosts named in an OpenSSH config file (~/.ssh/config), each as a site: its HostName (or the name itself),
+/// User, Port and IdentityFile. Patterns (*, ?) aren't sites, and are left out.
+pub fn ssh_config_hosts(text: &str, home: Option<&Path>, user: &str) -> Vec<(String, Site)> {
+    let mut found: Vec<(String, Site)> = Vec::new();
+    let mut current: Vec<usize> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (word, value) = line.split_once(|c: char| c.is_whitespace() || c == '=').map_or((line, ""), |(w, v)| (w, v.trim_start_matches(|c: char| c.is_whitespace() || c == '=').trim()));
+        let value = value.trim_matches('"');
+        match word.to_lowercase().as_str() {
+            "host" => {
+                current.clear();
+                for alias in value.split_whitespace().filter(|a| !a.contains(['*', '?', '!'])) {
+                    found.push((alias.to_string(), Site { host: alias.to_string(), port: 22, user: user.to_string(), ..Site::default() }));
+                    current.push(found.len() - 1);
+                }
+            }
+            // Settings of a Match block, or before any Host, don't belong to a site named here.
+            "match" => current.clear(),
+            "hostname" => current.iter().for_each(|i| found[*i].1.host = value.to_string()),
+            "user" => current.iter().for_each(|i| found[*i].1.user = value.to_string()),
+            "port" => {
+                if let Ok(port) = value.parse() {
+                    current.iter().for_each(|i| found[*i].1.port = port);
+                }
+            }
+            "identityfile" => {
+                let key = match (value.strip_prefix("~/"), home) {
+                    (Some(rest), Some(home)) => home.join(rest),
+                    _ => PathBuf::from(value),
+                };
+                current.iter().for_each(|i| {
+                    if found[*i].1.key_file.is_none() {
+                        found[*i].1.key_file = Some(key.clone());
+                    }
+                });
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
+/// The hosts in the person's own ~/.ssh/config.
+pub fn own_ssh_hosts() -> Vec<(String, Site)> {
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from);
+    let user = std::env::var(if cfg!(windows) { "USERNAME" } else { "USER" }).unwrap_or_default();
+    let Some(text) = home.as_ref().and_then(|h| std::fs::read_to_string(h.join(".ssh").join("config")).ok()) else { return Vec::new() };
+    ssh_config_hosts(&text, home.as_deref(), &user)
 }
 
 /// Where the copy of a remote file is kept on this computer: a folder for each site and path, so two files of the
@@ -497,6 +705,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hosts_are_read_from_an_ssh_config() {
+        let config = "Host *\n  ServerAliveInterval 60\n\nHost mister retro\n  HostName 192.168.1.40\n  User root\n\nHost web\n  HostName example.org\n  Port 2222\n  IdentityFile ~/.ssh/web_key\n";
+        let hosts = ssh_config_hosts(config, Some(Path::new("/home/ann")), "ann");
+        let names: Vec<&str> = hosts.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["mister", "retro", "web"]);
+        assert_eq!((hosts[0].1.host.as_str(), hosts[0].1.user.as_str(), hosts[0].1.port), ("192.168.1.40", "root", 22));
+        assert_eq!((hosts[2].1.user.as_str(), hosts[2].1.port), ("ann", 2222));
+        assert_eq!(hosts[2].1.key_file.as_deref(), Some(Path::new("/home/ann/.ssh/web_key")));
+    }
+
+    #[test]
     fn urls_are_read_and_written() {
         let (site, path) = parse_url("sftp://ann@example.org/home/ann/notes.txt").unwrap();
         assert_eq!((site.user.as_str(), site.host.as_str(), site.port, path.as_str()), ("ann", "example.org", 22, "/home/ann/notes.txt"));
@@ -506,6 +725,17 @@ mod tests {
         assert_eq!(site.url("/x"), "sftp://bob@10.0.0.2:2222/x");
         let (site, _) = parse_url("sftp://c@[::1]:2200/f").unwrap();
         assert_eq!((site.host.as_str(), site.port), ("::1", 2200));
+        // FTP, its private kinds, and anonymous for no one given.
+        let (site, path) = parse_url("ftp://192.168.1.64/Usb0/games").unwrap();
+        assert_eq!((site.scheme, site.user.as_str(), site.port, path.as_str()), (Scheme::Ftp, "anonymous", 21, "/Usb0/games"));
+        assert_eq!(site.url(&path), "ftp://anonymous@192.168.1.64/Usb0/games");
+        let (site, _) = parse_url("ftps://ann@nas/home").unwrap();
+        assert_eq!((site.scheme, site.port), (Scheme::Ftps, 990));
+        let (site, _) = parse_url("FTPES://ann@nas:2121/home").unwrap();
+        assert_eq!((site.scheme, site.port), (Scheme::Ftpes, 2121));
+        assert_eq!(site.url("/x"), "ftpes://ann@nas:2121/x");
+        assert_ne!(site.key(), Site { scheme: Scheme::Sftp, ..site.clone() }.key(), "an FTP password is kept apart from an SFTP one");
+        assert!(is_address("ftp://h/x") && is_address("sftp://u@h/x") && !is_address("https://h/x") && !is_address("C:/x"));
         assert!(parse_url("http://x/y").is_err());
         assert!(parse_url("sftp://host/y").is_err());
         assert!(parse_url("sftp://u@h:port/y").is_err());
@@ -529,7 +759,7 @@ mod tests {
 
     #[test]
     fn a_trusted_key_is_kept_and_a_different_one_noticed() {
-        let site = Site { host: "Example.org".into(), port: 22, user: "ann".into(), key_file: None };
+        let site = Site { host: "Example.org".into(), port: 22, user: "ann".into(), ..Site::default() };
         let mut known = KnownHosts::default();
         assert_eq!(known.known(&site), None);
         known.trust(&site, "SHA256:aaa");
@@ -541,7 +771,7 @@ mod tests {
 
     #[test]
     fn copies_of_remote_files_keep_their_names_apart() {
-        let site = Site { host: "h".into(), port: 22, user: "u".into(), key_file: None };
+        let site = Site { host: "h".into(), port: 22, user: "u".into(), ..Site::default() };
         let a = local_copy(Path::new("C:/cache"), &site, "/one/notes.txt");
         let b = local_copy(Path::new("C:/cache"), &site, "/two/notes.txt");
         assert_ne!(a, b);
@@ -552,7 +782,7 @@ mod tests {
     #[test]
     #[ignore = "touches the system's credential store"]
     fn a_kept_password_comes_back_and_can_be_forgotten() {
-        let site = Site { host: "limoniter-test.invalid".into(), port: 2299, user: "nobody".into(), key_file: None };
+        let site = Site { host: "limoniter-test.invalid".into(), port: 2299, user: "nobody".into(), ..Site::default() };
         store_password(&site, "not a real password").unwrap();
         assert_eq!(stored_password(&site).as_deref(), Some("not a real password"));
         forget_password(&site);
@@ -599,7 +829,7 @@ mod tests {
         connection.download(&remote, &back, &done, &stop).unwrap();
         assert_eq!(std::fs::read(&back).unwrap(), b"replaced\n");
         assert!(connection.list(&folder).unwrap().iter().all(|e| !e.name.ends_with(".limoniter-tmp") && !e.name.ends_with(".limoniter-old")), "nothing left behind");
-        connection.sftp.unlink(path(&remote)).unwrap();
+        connection.remove_file(&remote).unwrap();
         let _ = std::fs::remove_file(&local);
         let _ = std::fs::remove_file(&back);
     }

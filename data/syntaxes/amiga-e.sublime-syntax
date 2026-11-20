@@ -1,0 +1,70 @@
+%YAML 1.2
+---
+# Amiga E, Wouter van Oortmerssen's language for the Amiga (EC 3.3a, and E-VO, ECX, CreativE and PortablE after
+# it). Its keywords are in capitals and case matters: PROC and ENDPROC, IF and ENDIF, OBJECT and ENDOBJECT,
+# EXCEPT and HANDLE; built-in functions begin with a capital (WriteF, StrCopy, OpenW); a word all in capitals that
+# isn't a keyword is a constant (TRUE, NIL, IDCMP_CLOSEWINDOW). Comments are /* ... */, which nest, and -> to the
+# end of the line. Strings are in single quotes, with \n and the like; double quotes make a character constant
+# ("ab" is a number). PROC names its functions and methods, which the outline lists.
+name: Amiga E
+file_extensions: ["e", "em"]
+scope: source.amiga-e
+contexts:
+  main:
+    - match: '->.*$'
+      scope: comment.line.arrow.amiga-e
+    - match: '/\*'
+      push: comment
+    - match: "'"
+      push: string
+    - match: '"[^"\n]{0,4}"'
+      scope: constant.character.amiga-e
+    # PROC name(...) [OF object], the function or method it starts.
+    - match: '\b(PROC)\s+([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.function.amiga-e
+        2: entity.name.function.amiga-e
+    - match: '\b(OBJECT)\s+([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.amiga-e
+        2: entity.name.type.amiga-e
+    - match: '\b(MODULE)\b'
+      scope: keyword.control.import.amiga-e
+    - match: '\b(?:PROC|ENDPROC|IF|THEN|ELSE|ELSEIF|ENDIF|FOR|TO|STEP|ENDFOR|WHILE|ENDWHILE|ELSEWHILE|REPEAT|UNTIL|LOOP|ENDLOOP|SELECT|CASE|DEFAULT|ENDSELECT|OF|DEF|CONST|ENUM|SET|OBJECT|ENDOBJECT|OPT|RETURN|IS|EXCEPT|DO|HANDLE|RAISE|EXIT|JUMP|AND|OR|BUT|NEW|END|PTR|ARRAY|LIST|STRING|CHAR|INT|LONG|REAL|INC|DEC|INCBIN|SUPER|PRIVATE|PUBLIC|EXPORT|LIBRARY|ENDLIBRARY|WITH|ENDWITH|NOT|SIZEOF|EMPTY)\b'
+      scope: keyword.control.amiga-e
+    # OPT's options.
+    - match: '\b(?:OSVERSION|PREPROCESS|LARGE|STACK|ASM|NOWARN|REG|DIR|RTD|MODULE|POOL|EXPORT|AMIGAOS4|MORPHOS|AROS)\b(?=[\s,=]|$)'
+      scope: keyword.other.option.amiga-e
+    - match: '\b(?:TRUE|FALSE|NIL|ALL|GADGETSIZE|OLDFILE|NEWFILE|STRLEN|CHAR|ARG|WBMESSAGE|STDOUT|STDIN|CONOUT|STDRAST|EXCEPTION|EXCEPTIONINFO|DOSBASE|EXECBASE|GFXBASE|INTUITIONBASE|MATHBASE)\b'
+      scope: constant.language.amiga-e
+    # A word all in capitals is a constant, the system's (IDCMP_CLOSEWINDOW) or the program's own.
+    - match: '\b[A-Z][A-Z0-9_]+\b'
+      scope: constant.other.amiga-e
+    # The built-in functions, which begin with a capital.
+    - match: '\b(?:WriteF|PrintF|StringF|TextF|StrCopy|StrAdd|StrLen|EstrLen|StrMax|StrCmp|String|SetStr|RightStr|MidStr|Val|InStr|TrimStr|UpperStr|LowerStr|ReadStr|Out|Inp|OpenW|CloseW|OpenS|CloseS|Gadget|Mouse|MouseX|MouseY|LeftMouse|WaitLeftMouse|WaitIMessage|MsgCode|MsgQualifier|MsgIaddr|Plot|Line|Box|Colour|SetColour|SetStdRast|SetStdIn|SetStdOut|SetTopaz|Rnd|RndQ|Mod|Abs|Shl|Shr|Mul|Div|And|Or|Not|Eor|Long|Int|Char|PutLong|PutInt|PutChar|New|NewR|NewM|Dispose|DisposeLink|FastNew|FastDispose|FastDisposeList|List|ListCopy|ListAdd|ListCmp|ListLen|ListMax|ListItem|SetList|Link|Next|Forward|Throw|ReThrow|Raise|CleanUp|FreeStack|CtrlC|Eval|ForAll|Exists|MapList|SelectList|Bounds|Min|Max|Sign|Odd|Even|KickVersion|Fabs|Ffloor|Fceil|Fsin|Fcos|Ftan|Fexp|Flog|Fpow|Fsqrt|RealF|RealVal|Ptr|Car|Cdr|Cons|FreeCells|Sizeof)\b(?=\s*\()'
+      scope: support.function.builtin.amiga-e
+    # Hexadecimal $, binary %, decimal and real numbers.
+    - match: '(?<![\w.])(?:\$[0-9A-Fa-f]+|%[01]+|\d+\.\d*|\d+)'
+      scope: constant.numeric.amiga-e
+    # A label, where a line starts with one.
+    - match: '^\s*([A-Za-z_]\w*)(:)(?!=)'
+      captures:
+        1: entity.name.label.amiga-e
+        2: punctuation.separator.amiga-e
+    - match: ':=|<=>|<=|>=|<>|\+\+|--|[-+*/=<>]'
+      scope: keyword.operator.amiga-e
+  comment:
+    - meta_scope: comment.block.amiga-e
+    # They nest.
+    - match: '/\*'
+      push: comment
+    - match: '\*/'
+      pop: true
+  string:
+    - meta_scope: string.quoted.single.amiga-e
+    - match: '\\.'
+      scope: constant.character.escape.amiga-e
+    - match: "'"
+      pop: true
+    - match: '(?=\n)'
+      pop: true

@@ -183,6 +183,38 @@ pub struct ViewOptions {
     pub breadcrumbs: bool,
     /// The function or label scrolled past, kept at the top of the text.
     pub sticky_scroll: bool,
+    /// A call's parameter hints under its line rather than over it.
+    pub hints_below: bool,
+    /// The pane under the pointer takes the keyboard, without a click.
+    pub focus_follows_mouse: bool,
+    /// A faint line down each level of indentation, coloured by its depth if `indent_rainbow`.
+    pub indent_guides: bool,
+    pub indent_rainbow: bool,
+    /// Each line's problems written faintly at its end, as well as marked beside it.
+    pub problems_at_line_end: bool,
+    /// Colours written in the text (#rrggbb, rgb() and the like) shown under them, with a picker at the cursor.
+    pub colour_swatches: bool,
+    /// TODO, FIXME, NOTE and comments beginning with ! or ? in colours of their own.
+    pub comment_kinds: bool,
+    /// Comments not drawn: the code alone, the file unchanged.
+    pub hide_comments: bool,
+    /// A fold takes in the line closing its bracket, shown as { … } on the folded line.
+    pub fold_closer: bool,
+    /// Now and then, a note of the keys for a command chosen from a menu or the command box.
+    pub learn_keys: bool,
+    /// The ribbon in place of the menus, as Word and UltraEdit have, and whether it's folded to its tabs.
+    pub ribbon: bool,
+    pub ribbon_folded: bool,
+    /// The start page, once every tab is closed, rather than an empty window.
+    pub start_page: bool,
+    /// The side panels hide themselves, coming out when the pointer reaches the window's edge.
+    pub panels_hide: bool,
+    /// Time spent working is kept, on this computer only.
+    pub track_time: bool,
+    /// Trailing spaces taken off as a file's saved (as .editorconfig's trim_trailing_whitespace does), and if
+    /// `trim_only_changed`, only on the lines changed since it was opened.
+    pub trim_on_save: bool,
+    pub trim_only_changed: bool,
     /// How tall each row is, as a multiple of the font's own line height: 1 is as close as the font sets them.
     pub line_spacing: f32,
 }
@@ -234,7 +266,7 @@ impl std::fmt::Display for MarkerColumns {
 
 impl Default for ViewOptions {
     fn default() -> Self {
-        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), breadcrumbs: true, sticky_scroll: true, line_spacing: 1.0 }
+        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), breadcrumbs: true, sticky_scroll: true, hints_below: false, focus_follows_mouse: false, indent_guides: true, indent_rainbow: false, problems_at_line_end: true, colour_swatches: true, comment_kinds: true, hide_comments: false, fold_closer: true, learn_keys: true, panels_hide: false, track_time: false, trim_on_save: false, trim_only_changed: true, line_spacing: 1.0, ribbon: false, ribbon_folded: false, start_page: true }
     }
 }
 
@@ -242,8 +274,8 @@ impl ViewOptions {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\nbreadcrumbs={}\nsticky_scroll={}\n",
-            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing, self.breadcrumbs, self.sticky_scroll
+            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\nbreadcrumbs={}\nsticky_scroll={}\nhints_below={}\nfocus_follows_mouse={}\nindent_guides={}\nindent_rainbow={}\nproblems_at_line_end={}\ncolour_swatches={}\ncomment_kinds={}\nhide_comments={}\nfold_closer={}\nlearn_keys={}\npanels_hide={}\ntrack_time={}\ntrim_on_save={}\ntrim_only_changed={}\nribbon={}\nribbon_folded={}\nstart_page={}\n",
+            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing, self.breadcrumbs, self.sticky_scroll, self.hints_below, self.focus_follows_mouse, self.indent_guides, self.indent_rainbow, self.problems_at_line_end, self.colour_swatches, self.comment_kinds, self.hide_comments, self.fold_closer, self.learn_keys, self.panels_hide, self.track_time, self.trim_on_save, self.trim_only_changed, self.ribbon, self.ribbon_folded, self.start_page
         )
     }
 
@@ -273,6 +305,23 @@ impl ViewOptions {
                 "column_markers" => options.column_markers = flag.unwrap_or(options.column_markers),
                 "breadcrumbs" => options.breadcrumbs = flag.unwrap_or(options.breadcrumbs),
                 "sticky_scroll" => options.sticky_scroll = flag.unwrap_or(options.sticky_scroll),
+                "hints_below" => options.hints_below = flag.unwrap_or(options.hints_below),
+                "focus_follows_mouse" => options.focus_follows_mouse = flag.unwrap_or(options.focus_follows_mouse),
+                "indent_guides" => options.indent_guides = flag.unwrap_or(options.indent_guides),
+                "indent_rainbow" => options.indent_rainbow = flag.unwrap_or(options.indent_rainbow),
+                "problems_at_line_end" => options.problems_at_line_end = flag.unwrap_or(options.problems_at_line_end),
+                "colour_swatches" => options.colour_swatches = flag.unwrap_or(options.colour_swatches),
+                "comment_kinds" => options.comment_kinds = flag.unwrap_or(options.comment_kinds),
+                "hide_comments" => options.hide_comments = flag.unwrap_or(options.hide_comments),
+                "fold_closer" => options.fold_closer = flag.unwrap_or(options.fold_closer),
+                "learn_keys" => options.learn_keys = flag.unwrap_or(options.learn_keys),
+                "panels_hide" => options.panels_hide = flag.unwrap_or(options.panels_hide),
+                "track_time" => options.track_time = flag.unwrap_or(options.track_time),
+                "trim_on_save" => options.trim_on_save = flag.unwrap_or(options.trim_on_save),
+                "trim_only_changed" => options.trim_only_changed = flag.unwrap_or(options.trim_only_changed),
+                "ribbon" => options.ribbon = flag.unwrap_or(options.ribbon),
+                "ribbon_folded" => options.ribbon_folded = flag.unwrap_or(options.ribbon_folded),
+                "start_page" => options.start_page = flag.unwrap_or(options.start_page),
                 "marker_columns" => options.marker_columns = MarkerColumns::parse(value).unwrap_or(options.marker_columns),
                 "tab_size" => {
                     if let Ok(size) = value.trim().parse::<usize>()
@@ -345,6 +394,10 @@ pub struct ViewState {
     pub top: usize,
     /// The line kept at the top as the text scrolls past it (sticky scroll), set before drawing.
     pub sticky: Option<usize>,
+    /// The folder the file's in, for finishing paths typed in it.
+    pub folder: Option<std::path::PathBuf>,
+    /// The colour at the cursor being changed with the picker: its line, where it starts, and how it's written.
+    colour_picking: Option<(usize, usize, crate::view_extras::Form)>,
     left: usize,
     rows: usize,
     wheel: Vec2,
@@ -382,6 +435,16 @@ pub struct Completion {
 /// Opens, updates or closes the list of words offered at the cursor. `asked` opens it whatever has been typed;
 /// otherwise it opens once two characters of a word are typed.
 pub fn offer_completions(buffer: &TextBuffer, state: &mut ViewState, asked: bool) {
+    // A path being typed: the files and folders that could finish it.
+    if !buffer.has_selection()
+        && !buffer.has_multi()
+        && let Some(folder) = state.folder.clone()
+        && let Some((start, items)) = crate::path_complete::complete(&buffer.line(buffer.caret_line), buffer.caret_col, &folder)
+    {
+        let keep = state.completion.as_ref().and_then(|c| c.items.get(c.selected)).and_then(|was| items.iter().position(|i| i == was)).unwrap_or(0);
+        state.completion = Some(Completion { line: buffer.caret_line, start, items, selected: keep });
+        return;
+    }
     let Some(intel) = buffer.intel.as_ref().filter(|_| !buffer.has_selection() && !buffer.has_multi()) else {
         state.completion = None;
         return;
@@ -994,6 +1057,54 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     if !focused {
         state.completion = None;
     }
+    // A colour written where the cursor is: a swatch of it just above, which opens a picker that writes it back.
+    // While the picker's in use it keeps the keyboard from the text, so it stays open until the cursor moves on.
+    if (focused || state.colour_picking.is_some()) && options.colour_swatches && !buffer.has_selection()
+        && let Some(at) = caret_spot
+    {
+        let (line, caret) = buffer.caret_char_position();
+        let text = buffer.line(line).to_string();
+        let here = crate::view_extras::colours_in(&text).into_iter().find(|w| caret >= w.from && caret <= w.to);
+        if state.colour_picking.is_some_and(|(l, from, _)| l != line || here.is_none_or(|w| w.from != from)) {
+            state.colour_picking = None;
+        }
+        if let Some(written) = here {
+            let column_x = |chars: usize| at.x - (caret as f32 - chars as f32) * cell.x;
+            let spot = pos2(column_x(written.from), at.y - cell.y - 16.0);
+            let mut picking = state.colour_picking.is_some();
+            egui::Area::new(id.with("colour-swatch")).order(egui::Order::Foreground).fixed_pos(spot).show(ui.ctx(), |ui| {
+                let (rect, response) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::click());
+                ui.painter().rect_filled(rect, 2.0, written.colour);
+                ui.painter().rect_stroke(rect, 2.0, Stroke::new(1.0, theme::editor_text()), egui::StrokeKind::Outside);
+                if response.on_hover_text(crate::i18n::tr("Change this colour")).clicked() {
+                    picking = !picking;
+                }
+            });
+            if picking {
+                state.colour_picking = Some((line, written.from, written.form));
+                let mut colour = written.colour;
+                let mut changed = false;
+                egui::Area::new(id.with("colour-picker")).order(egui::Order::Foreground).fixed_pos(pos2(spot.x, spot.y + 18.0)).show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        changed = egui::color_picker::color_picker_color32(ui, &mut colour, egui::color_picker::Alpha::OnlyBlend);
+                    });
+                });
+                if changed {
+                    // Written back as it was written, over the old: one undo takes it back.
+                    let new = crate::view_extras::write(colour, written.form);
+                    let byte = |chars: usize| text.char_indices().nth(chars).map_or(text.len(), |(b, _)| b);
+                    buffer.select_match(line, byte(written.from), byte(written.to));
+                    buffer.type_text(&new);
+                    buffer.move_caret_to_char(line, written.from + new.chars().count().min(caret.saturating_sub(written.from)));
+                }
+                if ui.input(|i| i.key_pressed(Key::Escape)) {
+                    state.colour_picking = None;
+                }
+            } else {
+                state.colour_picking = None;
+            }
+        }
+    }
     // The call being typed: what it takes, the parameter being typed in bold, just above the line.
     if focused
         && let (Some((line, words, part)), Some(at)) = (buffer.intel.as_ref().and_then(|i| i.lsp_signature.clone()), caret_spot)
@@ -1008,8 +1119,8 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         job.append(&chars[..a].iter().collect::<String>(), 0.0, plain.clone());
         job.append(&chars[a..b].iter().collect::<String>(), 0.0, strong);
         job.append(&chars[b..].iter().collect::<String>(), 0.0, plain);
-        // Above the line, or below it near the top.
-        let above = at.y - cell.y * 2.2 > view.min.y;
+        // Above the line (or below it, as chosen, and near the top).
+        let above = !options.hints_below && at.y - cell.y * 2.2 > view.min.y;
         let (at, pivot) = if above { (pos2(at.x, at.y - cell.y - 2.0), egui::Align2::LEFT_BOTTOM) } else { (at, egui::Align2::LEFT_TOP) };
         if state.completion.is_none() || above {
             egui::Area::new(id.with("signature")).order(egui::Order::Foreground).fixed_pos(at).pivot(pivot).interactable(false).show(ui.ctx(), |ui| {
@@ -1049,6 +1160,9 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     }
     command
 }
+
+/// The longest line looked through for colours written in it.
+const MAX_SWATCH_LINE: usize = 2000;
 
 /// Scrolls so that the cursor's row is on screen, doing nothing if it already is.
 fn reveal_wrapped(buffer: &TextBuffer, state: &mut ViewState, rows: usize, width: usize) {
@@ -1223,7 +1337,7 @@ fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             Event::Text(t) if swallow > 0 && t.chars().count() == 1 => swallow -= 1,
             Event::Text(t) if is_typed(&t, current_mods) => {
                 state.wrap_goal = None;
-                typed_word = t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '@'));
+                typed_word = t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '@' | '/' | '\\'));
                 if !buffer.read_only {
                     scripting::note_typed(&t);
                     buffer.type_text(&t);
@@ -1823,6 +1937,10 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
     let col_at = |row_start: usize, c: usize| view.min.x + gutter + (c as f64 - row_start as f64) as f32 * cell.x;
     let mut open_brackets = l.rainbow.clone();
     let needle = if l.options.highlight_selected { highlight_needle(b) } else { None };
+    // The indentation of the last line with any, for a blank line's guides.
+    let mut last_indent: Option<usize> = None;
+    // The guides' step: the file's own indent, as the smallest indent of the lines in view, else a tab's width.
+    let indent_step = if l.options.indent_guides { crate::view_extras::indent_step(l.slots.iter().filter(|s| s.sub == 0).map(|s| b.line(s.line)), crate::text_buffer::tab_size()) } else { 1 };
 
     let mut first = 0;
     while first < l.slots.len() {
@@ -1861,7 +1979,24 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                 .collect();
             shown = without;
         }
-        let runs = coloured.map_or_else(Vec::new, |line| span_columns(&raw, &line.spans));
+        let mut runs = coloured.map_or_else(Vec::new, |line| span_columns(&raw, &line.spans));
+        let comment_columns = coloured.map_or_else(Vec::new, |line| char_spans_to_columns(&raw, &line.comments));
+        // Comments of a kind, and the words in them that stand out, in their own colours.
+        if l.options.comment_kinds && !comment_columns.is_empty() {
+            let over: Vec<(usize, usize, Color32)> = crate::view_extras::comment_kinds(&shown, &comment_columns).into_iter().map(|(a, z, tag)| (a, z, theme::tag_colour(tag))).collect();
+            if !over.is_empty() {
+                runs = crate::view_extras::overlay(&runs, &over);
+            }
+        }
+        // Hidden comments aren't drawn at all.
+        if l.options.hide_comments && !comment_columns.is_empty() {
+            runs = crate::view_extras::overlay(&runs, &comment_columns.iter().map(|(a, z)| (*a, *z, Color32::TRANSPARENT)).collect::<Vec<_>>());
+        }
+        let colours_written = if l.options.colour_swatches && raw.len() <= MAX_SWATCH_LINE { crate::view_extras::colours_in(&raw) } else { Vec::new() };
+        let indent = if l.options.indent_guides { crate::view_extras::indent_levels(&raw, crate::text_buffer::tab_size(), indent_step) } else { None };
+        if indent.is_some() {
+            last_indent = indent;
+        }
         let copies = needle.as_deref().map_or_else(Vec::new, |text| matches_on_line(&raw, text));
         let mistakes = if crate::spelling::is_on() && raw.len() <= MOST_SPELLED {
             crate::spelling::marks_for(&b.format.readable_text(&raw)).map_or_else(Vec::new, |marks| char_spans_to_columns(&raw, &marks))
@@ -1901,6 +2036,17 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                 let x = col_x(b.caret_col);
                 painter.rect_filled(Rect::from_min_max(pos2(x, y), pos2(x + cell.x, y + cell.y)), 0.0, theme::active_line());
             }
+            // The tag the cursor's in and its partner.
+            if let Some((one, other)) = &b.tag_pair {
+                for tag in [one, other].into_iter().filter(|t| t.line == r) {
+                    for (a, z) in char_spans_to_columns(&raw, &[(tag.start, tag.end)]) {
+                        let (a, z) = (a.max(start), z.min(start + count));
+                        if a < z {
+                            painter.rect_filled(Rect::from_min_max(pos2(col_x(a), y), pos2(col_x(z), y + cell.y)), 2.0, theme::highlight_all());
+                        }
+                    }
+                }
+            }
             for (a, z) in &copies {
                 let (a, z) = ((*a).max(start), (*z).min(start + count));
                 if a < z {
@@ -1923,6 +2069,18 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             }
             if l.options.whitespace || l.options.line_endings {
                 paint_invisibles(&painter, &raw, slot.last && r + 1 < b.line_count(), y, start, count, &col_x, l);
+            }
+            // Indentation guides: at each level's start, a blank line taking the level of the line before.
+            if l.options.indent_guides
+                && let Some(levels) = indent.or(last_indent)
+            {
+                for level in 0..levels {
+                    let column = level * indent_step;
+                    if column >= start && column < start + count {
+                        let colour = if l.options.indent_rainbow { theme::rainbow()[level % theme::rainbow().len()].gamma_multiply(0.45) } else { theme::whitespace().lerp_to_gamma(theme::editor_text(), 0.15) };
+                        painter.vline(col_x(column) + 0.5, y..=y + cell.y, Stroke::new(1.0, colour));
+                    }
+                }
             }
             let on_row: Vec<&Token> = tokens.iter().filter(|token| token.column + token.width > start && token.column < start + count).collect();
             paint_tokens(&painter, &on_row, y + l.pad, vec2(cell.x, cell.y - 2.0 * l.pad), f, &col_x);
@@ -1975,6 +2133,17 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                     squiggle(&painter, col_x(a), col_x(z), y + cell.y - 1.5);
                 }
             }
+            // Each colour written in the text, shown as a bar of itself under it.
+            for written in &colours_written {
+                for (a, z) in char_spans_to_columns(&raw, &[(written.from, written.to)]) {
+                    let (a, z) = (a.max(start), z.min(start + count));
+                    if a < z {
+                        let bar = Rect::from_min_max(pos2(col_x(a), y + cell.y - 3.0), pos2(col_x(z), y + cell.y));
+                        painter.rect_filled(bar, 1.0, written.colour);
+                        painter.rect_stroke(bar, 1.0, Stroke::new(0.5, theme::whitespace()), egui::StrokeKind::Inside);
+                    }
+                }
+            }
             // Every one of several cursors, on the row it falls on.
             if l.caret_on {
                 for (_, _, head) in &spots {
@@ -1982,6 +2151,15 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                         painter.rect_filled(Rect::from_min_size(pos2(col_x(*head), y), vec2(1.5, cell.y)), 0.0, theme::caret());
                     }
                 }
+            }
+            // A folded { … }: what's hidden, and the closing bracket it took in, after the line.
+            if slot.last
+                && let Some(last) = b.folds().get(&r)
+                && let closing = b.line(*last)
+                && crate::text_buffer::closer_of(&closing).is_some()
+            {
+                let end = col_x(display_text(&raw).trim_end().chars().count());
+                painter.text(pos2(end + cell.x * 0.5, y + 1.0 + l.pad), Align2::LEFT_TOP, format!("\u{2026} {}", closing.trim()), f.clone(), theme::text_faint());
             }
             // A line standing for a folded stretch has a rule under it.
             if slot.last && l.fold_width > 0.0 && b.is_folded(r) {
@@ -2021,6 +2199,23 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             }
             let end = col_at(slot.start, display_text(&b.line(slot.line)).trim_end().chars().count());
             painter.text(pos2(end + cell.x * 2.0, row_y(index) + 1.0 + l.pad), Align2::LEFT_TOP, hints.join("  "), small.clone(), theme::text_faint());
+        }
+    }
+
+    // Each line's problems written after it, faint, in the problem's colour (as Error Lens does).
+    if l.options.problems_at_line_end {
+        let small = FontId::monospace((f.size * 0.85).round());
+        for (index, slot) in l.slots.iter().enumerate() {
+            if l.slots.get(index + 1).is_some_and(|next| next.line == slot.line) {
+                continue;
+            }
+            let from_code = b.code.as_ref().and_then(|c| c.problem_at(slot.line)).map(|p| p.to_string());
+            let from_intel = b.intel.as_ref().and_then(|i| i.diagnostics.iter().chain(&i.build_problems).find(|(line, _)| *line == slot.line).map(|(_, words)| words.clone()));
+            let Some(words) = from_code.or(from_intel) else { continue };
+            let hints = b.intel.as_ref().map_or(0, |i| i.lsp_hints.iter().filter(|(line, _)| *line == slot.line).map(|(_, h)| h.chars().count() + 2).sum::<usize>());
+            let end = col_at(slot.start, display_text(&b.line(slot.line)).trim_end().chars().count() + hints);
+            let words: String = words.lines().next().unwrap_or("").chars().take(160).collect();
+            painter.text(pos2(end + cell.x * 3.0, row_y(index) + 1.0 + l.pad), Align2::LEFT_TOP, format!("\u{25CF} {words}"), small.clone(), theme::problem_mark().gamma_multiply(0.85));
         }
     }
 
@@ -2711,7 +2906,7 @@ mod tests {
 
     #[test]
     fn view_settings_are_remembered_and_bad_ones_are_ignored() {
-        let options = ViewOptions { whitespace: true, document_map: false, rainbow_parentheses: true, source_view: false, tab_size: 3, font_size: 18.0, column_markers: true, marker_columns: MarkerColumns::parse("7, 72").unwrap(), line_spacing: 1.5, ..ViewOptions::default() };
+        let options = ViewOptions { whitespace: true, document_map: false, rainbow_parentheses: true, source_view: false, tab_size: 3, font_size: 18.0, column_markers: true, marker_columns: MarkerColumns::parse("7, 72").unwrap(), line_spacing: 1.5, hints_below: true, sticky_scroll: false, focus_follows_mouse: true, indent_guides: false, indent_rainbow: true, problems_at_line_end: false, colour_swatches: false, comment_kinds: false, hide_comments: true, fold_closer: false, learn_keys: false, panels_hide: true, track_time: true, trim_on_save: true, trim_only_changed: false, ribbon: true, ribbon_folded: true, start_page: false, ..ViewOptions::default() };
         assert_eq!(ViewOptions::from_settings(&options.to_settings()), options);
         let odd = ViewOptions::from_settings("ruler=maybe\nfont_size=900\ntab_size=0\nnonsense\nwhitespace=true\nmarker_columns=72,x\nline_spacing=7");
         assert_eq!(odd, ViewOptions { whitespace: true, ..ViewOptions::default() });

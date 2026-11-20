@@ -8,7 +8,12 @@
 
   // ---------- The heading's last word, typed and retyped ----------
 
-  const words = ["PETSCII", "ATASCII", "EBCDIC", "Mode 7", "ZX Spectrum", "Amiga", "CP437", "Applesoft", "teletext", "8-bit"];
+  // The machines, processors and character sets it knows best: not all of them, but the ones people come for.
+  const words = [
+    "PETSCII", "Z80", "Amiga", "6502", "ZX Spectrum", "68000", "Commodore 64", "Mode 7", "Atari ST", "Game Boy",
+    "BBC Micro", "ATASCII", "Mega Drive", "Atari 2600", "MSX", "Amstrad CPC", "NES", "ZX81", "Spectrum Next",
+    "Vectrex", "EBCDIC", "Master System", "6809", "CP437", "Dragon 32", "PICO-8", "teletext", "8-bit",
+  ];
   const speaks = document.querySelector(".speaks");
   if (speaks && !reducedMotion) {
     let index = 0;
@@ -69,7 +74,7 @@
       text: "Amiga text, and Amiga ANSI with the console's own sequences. Syntax colouring for AmigaGuide, the Installer language, AMOS, Blitz Basic and 680x0 assembler.",
       media: "ADF floppies (OFS and FFS), ADZ, DMS, HDF hard disks with partitions, LHA archives and RP9 packages.",
       basic: "AMOS and Blitz Basic source is coloured as you edit.",
-      develop: "68000 source in vasm and Devpac syntax built into an Amiga executable and booted in FS-UAE or WinUAE with F9, then debugged at source level. Every custom register is explained on hover, with copper lists and blitter minterms worked out. Shrinkler and Cranker pack it, and LightSpeedPlayer and The Player replay calls are written for you. Programs, boot blocks and Kickstart ROMs disassemble into source that rebuilds, and MOD, S3M, XM and IT modules play.",
+      develop: "68000 source in vasm and Devpac syntax built into an Amiga executable and booted in FS-UAE, WinUAE or Copperline with F9, then debugged at source level, in Copperline stepping backwards too. How To Code v8, the demo coders' guide, is built in with its startup and examples. Crunched programs (PowerPacker, Imploder, StoneCracker, CrunchMania, ByteKiller) are unpacked to be disassembled. Every custom register is explained on hover, with copper lists and blitter minterms worked out. Shrinkler and Cranker pack it, and LightSpeedPlayer and The Player replay calls are written for you. Programs, boot blocks and Kickstart ROMs disassemble into source that rebuilds, and MOD, S3M, XM and IT modules play.",
       pictures: "IFF ILBM and PBM, including HAM, HAM8, Extra Half-Brite and deep pictures, with Deluxe Paint colour cycling.",
       send: "A stick for a Gotek, a CF card, or a shared folder or FTP server on a networked Amiga.",
     },
@@ -84,12 +89,42 @@
       send: "A TNFS server's folder for FujiNet, or a card for an SIO2SD or SDrive.",
     },
     {
+      name: "ZX81 and Jupiter Ace",
+      blurb: "Sinclair's ZX81 (and the Timex 1000), and the Jupiter Ace that ran Forth.",
+      text: "The ZX81's own character set, and the Ace's.",
+      media: ".p and .81 programs and ZX81 TZX tapes; the Ace's .tap and .tzx dictionaries.",
+      basic: "ZX81 BASIC listed, and typed in as text to be run.",
+      develop: "Both built in, with your own ROM: F9 runs ZX81 BASIC, ZX81 machine code (Z80 source put in a REM) and Ace Forth, the ZX81's picture made by its Z80 as on the real one, with the debugger at your source line.",
+      pictures: "The ZX81's screen as its program drew it.",
+      send: "A card for a ZXpand or similar interface, or any folder or command line.",
+    },
+    {
+      name: "Game Boy and NES",
+      blurb: "Nintendo's Game Boy and Game Boy Color, and the NES and Famicom.",
+      text: "Code and data, with the Game Boy's hardware registers named.",
+      media: ".gb and .gbc cartridges, and iNES and NES 2.0 files, their headers read.",
+      basic: "Not BASIC machines: assembly and C.",
+      develop: "The Game Boy's SM83 in RGBDS's syntax, made into a cartridge as rgbfix makes them; 6502 source made into an .nes file. F9 runs them in SameBoy, mGBA, Gambatte, BGB, Mesen, FCEUX, Nestopia or MAME. Starters for both.",
+      pictures: "Tiles in the Game Boy's and the NES's 2-bit layouts, in the tile map editor.",
+      send: "A card for a flash cartridge, such as an EverDrive.",
+    },
+    {
+      name: "Sega and ColecoVision",
+      blurb: "The Mega Drive (Genesis), Master System, Game Gear and SG-1000, and the ColecoVision.",
+      text: "Code and data, with each machine's video chip named in the starters.",
+      media: "Mega Drive, Master System, Game Gear, SG-1000 and ColecoVision cartridges.",
+      basic: "Not BASIC machines: assembly and C.",
+      develop: "68000 and Z80 source made into cartridges with their headers and checksums written (TMR SEGA, the Mega Drive's ROM end and sum), run in BlastEm, Emulicious, Gearsystem, Gearcoleco or MAME with F9. C through SGDK and z88dk too. A starter for each machine.",
+      pictures: "4-bit Master System and Mega Drive tiles in the tile map editor.",
+      send: "A card for a flash cartridge, such as an EverDrive or a Mega EverDrive.",
+    },
+    {
       name: "Atari 2600",
       blurb: "The VCS, and its cartridges from 2K to 32K.",
       text: "Source in DASM's syntax, with the TIA's and RIOT's registers known.",
       media: "Cartridges (.a26) with their bank switching worked out: F8, F6, F4 and the Superchip's, FA, E0, E7, FE, 3F and DPC.",
       basic: "Cartridges disassemble into DASM source that rebuilds them, bank by bank, with the registers named.",
-      develop: "DASM source is made into a cartridge and run in Stella or MAME with F9. A starter frame (sync, timed blanking, 192 lines, overscan) runs at once. Disassembly puts each instruction's cycles beside it and points out code that runs past a scanline's 76 cycles.",
+      develop: "DASM source is made into a cartridge and run with F9 on the built-in 2600 (cycle-exact, debugged at your source line), or in Stella or MAME. A starter frame (sync, timed blanking, 192 lines, overscan) runs at once. Disassembly puts each instruction's cycles beside it and points out code that runs past a scanline's 76 cycles.",
       pictures: "Player sprites and the playfield drawn in the TV's colours, sprites taken from a cartridge and a picture made into a playfield, out as DASM tables and a program that shows them. Short runs of data in a cartridge are drawn as the pixels they'd be. Sound effects for the TIA, heard as they're made, with a player for the overscan.",
       send: "A card for a Harmony or UnoCart cartridge, or a folder for an emulator.",
     },

@@ -22,6 +22,8 @@ pub(super) struct DisasmBox {
     /// Z80 code for a Cambridge Z88, whose RST &20 calls are named.
     /// The variant: a Cambridge Z88's Z80, or a Hitachi 6309.
     pub z88: bool,
+    /// For the 6502: the 65C02 or the HuC6280, whose own instructions are decoded too.
+    pub variant: crate::asm::m65x::Variant,
     /// 68000 code: the program the file was found to be (an Amiga or Atari ST program, a boot block, a cartridge
     /// or a ROM), or plain code for `machine`.
     pub m68k_program: Option<crate::m68k_disasm::Program>,
@@ -95,6 +97,25 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
         let name = title.join(" ");
         return (Cpu::M6809, bytes.to_vec(), 0, vec![code as u16], crate::i18n::tf!("A Vectrex cartridge, \u{201C}{name}\u{201D}: its code starts at ${code:04X}, after the header"));
     }
+    // A Game Boy cartridge: from address 0, followed from $0100, where the boot ROM leaves it.
+    if matches!(ending.as_str(), "gb" | "gbc" | "sgb")
+        && let Some((code, origin, starts, found)) = crate::gameboy::for_disassembly(bytes)
+    {
+        return (Cpu::Sm83, code, origin, starts, found);
+    }
+    // An NES cartridge: its program's last 16K, which is where the 6502 starts (at $C000 to $FFFF), from the
+    // reset vector and the NMI's.
+    if ending == "nes"
+        && let Some((code, origin, starts, found)) = crate::nes::for_disassembly(bytes)
+    {
+        return (Cpu::M6502, code, origin, starts, found);
+    }
+    // An SPC music file: the sound processor's 64K as it was, from where it was playing.
+    if ending == "spc"
+        && let Some((code, pc)) = spc_memory(bytes)
+    {
+        return (Cpu::Spc700, code, 0, vec![pc], crate::i18n::tf!("An SPC file: the SNES sound processor's 64K, playing at ${pc:04X}"));
+    }
     // A Dragon DOS binary: where it loads, and where it starts.
     if let Some((load, length, exec)) = crate::dragon_dos::binary_header(bytes)
         && bytes.get(1) == Some(&0x02)
@@ -133,6 +154,15 @@ pub(super) fn guess(name: &str, bytes: &[u8], load_address: Option<u16>) -> (Cpu
     (Cpu::Z80, bytes.to_vec(), origin, vec![origin], found)
 }
 
+/// An SPC file's sound RAM and the PC it was saved at: its header says SNES-SPC700 Sound File Data, the registers
+/// follow at $25, and the 64K at $100.
+pub(super) fn spc_memory(bytes: &[u8]) -> Option<(Vec<u8>, u16)> {
+    if !bytes.starts_with(b"SNES-SPC700 Sound File Data") || bytes.len() < 0x10100 {
+        return None;
+    }
+    Some((bytes[0x100..0x10100].to_vec(), u16::from_le_bytes([bytes[0x25], bytes[0x26]])))
+}
+
 /// A number as typed: $8000, 0x8000, #8000, 8000h or 32768.
 fn number(text: &str) -> Option<u16> {
     number32(text).and_then(|n| u16::try_from(n).ok())
@@ -158,8 +188,14 @@ fn number64(text: &str) -> Option<u64> {
 
 impl Limoniter {
     pub(super) fn open_disassemble_box(&mut self) {
+        // With nothing open, the file to disassemble is asked for, and opened.
         if self.no_file() {
-            return;
+            let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("A program to disassemble")).pick_file() else {
+                return;
+            };
+            if !self.open_path(&path) || self.no_file() {
+                return;
+            }
         }
         let doc = &self.docs[self.active];
         let name = doc.path_or_name().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -169,23 +205,54 @@ impl Limoniter {
         if bytes.is_empty() {
             return self.message("Disassemble", crate::i18n::tr("There's nothing in this file to disassemble.").into());
         }
+        // An Amiga file crunched with PowerPacker, Imploder, StoneCracker, CrunchMania or ByteKiller is disassembled
+        // as what it decrunches to (for a program, the program built again), and says so.
+        let (bytes, crunched) = match crate::amiga_crunch::decrunch(&bytes) {
+            // A program crunched to be put at a fixed address is that memory, from where it's started.
+            Some(Ok(decrunched)) if decrunched.found.load.is_some() => {
+                let (load, start) = decrunched.found.load.unwrap_or_default();
+                let mut program = crate::m68k_disasm::raw(&decrunched.bytes, load, &[start], crate::m68k_disasm::Machine::Amiga);
+                program.what = crate::i18n::tf!("{}; shown decrunched: {} bytes put at ${load:X} and started at ${start:X}", decrunched.said(), decrunched.bytes.len());
+                let found = program.what.clone();
+                self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: Some(program), machine: crate::m68k_disasm::Machine::Amiga, vcs: None, bytes: decrunched.bytes, origin: format!("${load:X}"), starts: format!("${start:X}"), stem, found, error: String::new() }));
+                return;
+            }
+            Some(Ok(decrunched)) => {
+                let note = crate::i18n::tf!("{}; shown decrunched", decrunched.said());
+                (decrunched.bytes, Some(note))
+            }
+            Some(Err(why)) => (bytes, Some(why)),
+            None => (bytes, None),
+        };
+        self.choose_disassembly(name, stem, load_address, bytes);
+        if let (Some(note), Dialog::Disassemble(state)) = (crunched, &mut self.dialog) {
+            let note = note.trim_end_matches('.');
+            state.found = format!("{note}. {}", state.found);
+            if let Some(program) = &mut state.m68k_program {
+                program.what = format!("{note}. {}", program.what);
+            }
+        }
+    }
+
+    /// Opens the box asking how to disassemble these bytes, with what the file was found to be.
+    fn choose_disassembly(&mut self, name: String, stem: String, load_address: Option<u16>, bytes: Vec<u8>) {
         // A later ARM program (an ELF for ARM or AArch64, a Raspberry Pi kernel) is taken whole.
         if let Some(program) = crate::arm_modern::recognise(&name, &bytes) {
             let found = program.what.clone();
             let origin = format!("${:X}", program.parts[0].0);
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: Some(program.mode), arm_program: Some(program), x86: false, x86_bits: 32, x86_program: None, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin, starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: Some(program.mode), arm_program: Some(program), x86: false, x86_bits: 32, x86_program: None, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin, starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // An x86 program (PE, ELF, MZ or .COM) is taken whole.
         if let Some(program) = crate::x86::recognise(&name, &bytes) {
             let found = program.what.clone();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // An Atari 2600 cartridge: its banks, and how it switches them.
         if let Some(cart) = crate::atari2600::recognise(&name, &bytes) {
             let found = cart.describe();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // A 68000 program (Amiga, Atari ST, a boot block, a Mega Drive cartridge, a Kickstart ROM) says the rest.
@@ -194,12 +261,12 @@ impl Limoniter {
             let machine = program.machine;
             let origin = format!("${:X}", program.sections[0].base);
             let starts = program.starts.iter().map(|s| format!("${s:X}")).collect::<Vec<_>>().join(", ");
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: Some(program), machine, vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: Some(program), machine, vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
             return;
         }
         let (cpu, code, origin, starts, found) = guess(&name, &bytes, load_address);
         let starts = starts.iter().map(|s| format!("${s:04X}")).collect::<Vec<_>>().join(", ");
-        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
+        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
     }
 
     pub(super) fn disassemble_dialog(&mut self, ctx: &Context) -> bool {
@@ -214,7 +281,7 @@ impl Limoniter {
             egui::Grid::new("disasm-grid").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 ui.label(crate::i18n::tr("Processor"));
                 ui.horizontal(|ui| {
-                    for (cpu, name) in [(Cpu::Z80, "Z80 (and the Next's)"), (Cpu::M6502, "6502"), (Cpu::M6809, "6809"), (Cpu::M68k, "68000")] {
+                    for (cpu, name) in [(Cpu::Z80, "Z80 (and the Next's)"), (Cpu::M6502, "6502"), (Cpu::M6809, "6809"), (Cpu::M68k, "68000"), (Cpu::Sm83, "SM83 (Game Boy)"), (Cpu::Spc700, "SPC700")] {
                         if ui.radio(!state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == cpu, name).clicked() {
                             (state.cpu, state.icl2900, state.x86, state.arm, state.arm_later) = (cpu, false, false, false, None);
                         }
@@ -255,6 +322,16 @@ impl Limoniter {
                 if !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M6809 {
                     ui.label(crate::i18n::tr(""));
                     ui.checkbox(&mut state.z88, crate::i18n::tr("For a Hitachi 6309: its own instructions and registers as well"));
+                    ui.end_row();
+                }
+                if !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M6502 && state.vcs.is_none() {
+                    ui.label(crate::i18n::tr("Chip"));
+                    ui.horizontal(|ui| {
+                        use crate::asm::m65x::Variant;
+                        ui.radio_value(&mut state.variant, Variant::Nmos, crate::i18n::tr("6502"));
+                        ui.radio_value(&mut state.variant, Variant::C65, crate::i18n::tr("65C02"));
+                        ui.radio_value(&mut state.variant, Variant::HuC6280, crate::i18n::tr("HuC6280 (PC Engine)"));
+                    });
                     ui.end_row();
                 }
                 let vcs = !state.icl2900 && !state.x86 && !state.arm && state.arm_later.is_none() && state.cpu == Cpu::M6502 && state.vcs.is_some();
@@ -479,8 +556,12 @@ impl Limoniter {
                 state.error = crate::i18n::tf!("{} bytes from ${origin:04X} go past the end of 64K.", state.bytes.len());
                 return true;
             }
-            let (cpu, stem, z88) = (state.cpu, state.stem.clone(), state.z88);
-            let source = crate::disasm::disassemble_checked_for(cpu, &state.bytes, origin, &starts, z88);
+            let (cpu, stem, z88, variant) = (state.cpu, state.stem.clone(), state.z88, state.variant);
+            let source = if cpu == Cpu::M6502 && variant != crate::asm::m65x::Variant::Nmos {
+                crate::disasm::disassemble_checked_variant(&state.bytes, origin, &starts, variant)
+            } else {
+                crate::disasm::disassemble_checked_for(cpu, &state.bytes, origin, &starts, z88)
+            };
             // A Vectrex cartridge's calls to its BIOS, named.
             let source = if cpu == Cpu::M6809 && origin == 0 && crate::vectrex::is_cartridge(&state.bytes) { crate::vectrex::name_bios_calls(&source) } else { source };
             self.dialog = Dialog::None;
@@ -490,6 +571,8 @@ impl Limoniter {
             let language = match cpu {
                 Cpu::M6502 => "Assembly 6502",
                 Cpu::M6809 => "Assembly 6809",
+                Cpu::Sm83 => crate::highlight::ASM_SM83,
+                Cpu::Spc700 => crate::highlight::ASM_SPC700,
                 _ => "Assembly Z80",
             };
             if let Some((_, syntax)) = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == language)) {
@@ -531,6 +614,15 @@ mod tests {
         assert_eq!((cpu, origin, starts, code.len()), (Cpu::M6502, 0x0600, vec![0x0600, 0x2000], 0x2003 - 0x0600));
         let (cpu, code, origin, starts, _) = guess("GAME.XEX \u{203A} segment 3 $2000-$2002 run $2000.seg", &[0x4C, 0x00, 0x20], None);
         assert_eq!((cpu, origin, starts, code.len()), (Cpu::M6502, 0x2000, vec![0x2000], 3));
+        // An SPC file: the sound processor's memory, from its PC.
+        let mut spc = b"SNES-SPC700 Sound File Data v0.30".to_vec();
+        spc.resize(0x10100, 0);
+        spc[0x25..0x27].copy_from_slice(&[0x00, 0x04]);
+        spc[0x500..0x502].copy_from_slice(&[0x2F, 0xFE]);
+        let (cpu, code, origin, starts, _) = guess("tune.spc", &spc, None);
+        assert_eq!((cpu, code.len(), origin, starts.clone()), (Cpu::Spc700, 0x10000, 0, vec![0x0400]));
+        let source = crate::disasm::disassemble_checked(cpu, &code[..0x500], 0, &starts);
+        assert!(source.contains("L0400:  bra L0400"), "{source}");
         // Anything else: where a tape said it loads, or $8000.
         assert_eq!(guess("udgs.code", &[1, 2], Some(65368)).2, 65368);
         assert_eq!(number("$8000"), Some(0x8000));

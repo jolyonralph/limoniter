@@ -242,7 +242,7 @@ impl Limoniter {
     pub(super) fn terminal_panel(&mut self, ui: &mut Ui) {
         let mut close = false;
         let mut restart = false;
-        let font_size = self.view.font_size;
+        let font_size = self.text_view_options().font_size;
         let Some(terminal) = self.terminal.as_mut() else {
             return;
         };

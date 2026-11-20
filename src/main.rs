@@ -6,6 +6,8 @@ mod arm_disasm;
 mod arm_modern;
 mod amiga_bootdisk_ui;
 mod amiga_copper;
+mod asm_tests;
+mod raster_designer;
 mod amiga_debug;
 mod amiga_hw;
 mod amiga_ndk;
@@ -16,12 +18,17 @@ mod amiga_source;
 mod amiga_tools;
 mod ansi_art;
 mod addons;
+mod vsix;
+mod vsix_grammar;
+mod vsix_theme;
 mod access;
 mod app;
 mod platform;
 #[cfg(target_os = "macos")]
 mod mac_open;
 mod remote;
+mod ftp;
+mod remote_project;
 mod remote_debug;
 mod deploy;
 mod big_jobs;
@@ -33,6 +40,7 @@ mod opticbasic;
 mod opticos_rom;
 mod char_table;
 mod clambers;
+mod cli_assemble;
 mod clipboards;
 mod charset;
 mod code_format;
@@ -55,12 +63,15 @@ mod encoding_ui;
 #[cfg(test)]
 mod fold_multi_tests;
 mod find_files;
+mod ext_formatters;
+mod file_icons;
 mod formatters;
 mod git;
 mod git_setup;
 mod merge3;
 mod byte_store;
 mod hex_buffer;
+mod howtocode;
 mod highlight;
 mod i18n;
 mod history_file;
@@ -75,11 +86,14 @@ mod navigation;
 mod panels;
 mod pc_starters;
 mod pictures;
+mod pdf;
 mod preview;
+mod preview_pdf;
 mod print;
 mod protracker;
 mod st_music;
 mod st_packers;
+mod amiga_crunch;
 mod st_tools;
 mod sid;
 mod c64_tools;
@@ -90,6 +104,10 @@ mod sound;
 mod speaker;
 mod asm;
 mod assemblers;
+mod boriel;
+mod c_starters;
+mod compilers;
+mod sasc;
 mod c64_assemblers;
 mod c64_hw;
 mod c64_source;
@@ -103,7 +121,18 @@ mod disasm;
 mod icl2900;
 mod workspace;
 mod x86;
+mod live_server;
+mod markdown_tools;
+mod mermaid;
+mod instruction_ref;
+mod call_graph;
+mod code_panels;
+mod diagram;
+mod path_complete;
 mod pixel_editor;
+mod tile_ctm;
+mod tile_map;
+mod tile_map_editor;
 mod screen_designer;
 mod amiga_planar;
 mod quantise;
@@ -122,6 +151,9 @@ mod st_converter;
 mod amiga_sprites;
 mod bitplane_tool;
 mod blitter;
+mod table_forms;
+mod tags;
+mod time_spent;
 mod table_gen;
 mod amiga_starters;
 mod st_hw;
@@ -131,7 +163,6 @@ mod st_blitter;
 mod mfp_timer;
 mod st_starters;
 mod m6502_timing;
-#[cfg(test)]
 mod m6502_cpu;
 mod c64_raster;
 mod c64_irq;
@@ -139,16 +170,36 @@ mod c64_starters;
 mod profiler;
 mod lsp;
 mod dap;
+mod doc_comments;
 mod dragon_dos;
 mod vectrex;
+mod sega;
+mod gameboy;
+mod nes;
+mod fantasy_carts;
+mod binary_tools;
+mod code_picture;
+mod regex_tester;
+mod status_items;
+mod todo_panel;
+mod view_extras;
 mod terminal;
+mod serial_link;
+mod xmodem;
+mod eprom;
 mod tasks;
 mod zx_machine;
+mod z80_micro;
+mod micro_roms;
+mod zx81;
+mod zx81_program;
+mod jupiter_ace;
 mod machine_link;
 mod retro_screens;
 mod region_history;
 mod recovery;
 mod rainbow;
+mod ribbon_icons;
 mod ripper;
 mod ripper_ui;
 mod screen;
@@ -176,6 +227,8 @@ mod m68k_disasm;
 mod atari2600;
 mod atari2600_gfx;
 mod atari2600_painter;
+mod atari2600_machine;
+mod atari2600_tia;
 mod sfx;
 mod sfx_designer;
 mod amos;
@@ -221,6 +274,17 @@ fn report_crashes() {
 }
 
 /// The icon for the window and the taskbar. The program file has the same one built in, for Explorer.
+/// The window's size: 1280 by 720, or for a picture, what LIMONITER_SHOT_SIZE says (1600x1000, say), for a panel
+/// with more in it than fits the usual window.
+fn screenshot_size(picture: bool) -> [f32; 2] {
+    let asked = std::env::var("LIMONITER_SHOT_SIZE").ok().filter(|_| picture);
+    asked.and_then(|size| {
+        let (width, height) = size.split_once('x')?;
+        Some([width.trim().parse::<f32>().ok()?.clamp(480.0, 4000.0), height.trim().parse::<f32>().ok()?.clamp(300.0, 3000.0)])
+    })
+    .unwrap_or([1280.0, 720.0])
+}
+
 fn window_icon() -> Option<egui::IconData> {
     let mut reader = png::Decoder::new(std::io::Cursor::new(&include_bytes!("../data/icon.png")[..])).read_info().ok()?;
     let mut rgba = vec![0; reader.output_buffer_size()?];
@@ -237,6 +301,10 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     let all: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    // 68000 source made into an Amiga program, with no window.
+    if cli_assemble::wanted(&all) {
+        std::process::exit(cli_assemble::run(&all));
+    }
     if all.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!("{}", app::USAGE);
         return Ok(());
@@ -295,7 +363,7 @@ fn main() -> eframe::Result {
             .with_title("Limoniter")
             // On a Wayland desktop, what ties the window to its .desktop file, for its icon and name in the dock.
             .with_app_id("com.limoniter.Limoniter")
-            .with_inner_size([1280.0, 720.0])
+            .with_inner_size(screenshot_size(screenshot.is_some()))
             .with_min_inner_size([480.0, 300.0])
             .with_drag_and_drop(true)
             // A run that only takes a picture mustn't take the keyboard from whatever's being typed in.

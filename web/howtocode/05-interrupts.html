@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5. Interrupts · How To Code v8</title>
+  <meta name="description" content="An interrupt is the hardware tapping the processor on the shoulder: stop what you&#x27;re doing, deal with this, then carry on.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/05-interrupts.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/05-interrupts.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="5. Interrupts · How To Code v8">
+  <meta property="og:description" content="An interrupt is the hardware tapping the processor on the shoulder: stop what you&#x27;re doing, deal with this, then carry on.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/05-interrupts.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html" aria-current="page">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>5. Interrupts</h1>
+        <div class="article-lead">
+<p>An interrupt is the hardware tapping the processor on the shoulder: stop what you're doing, deal with this, then carry on. A demo uses them to know when a frame starts, to do something when the beam reaches a line, to play music at a steady rate, and to hear that the blitter has finished. This chapter covers how the Amiga's interrupts work, the four kinds a demo uses most, and how to install each one both ways: with the machine taken, and with the system still running.</p>
+<p>There are two whole examples, each built both ways like every v8 example:</p>
+<ul><li><code>examples/ch05_copper_interrupt.s</code>: the copper raises an interrupt twice a frame, and the processor changes the background colour there. The copper marks the moment it asks with a white dash, so you can see how long the processor takes to answer.</li><li><code>examples/ch05_cia_timer.s</code>: a CIA timer interrupt at 50 Hz, worked out from the machine's clock so it's 50 Hz on PAL and NTSC alike.</li></ul>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#levels">Levels</a></li>
+<li><a href="#intena-and-intreq">INTENA and INTREQ</a></li>
+<li><a href="#vectors-and-the-vbr">Vectors, and the VBR</a></li>
+<li><a href="#acknowledging-twice">Acknowledging, twice</a></li>
+<li><a href="#the-vertical-blank">The vertical blank</a></li>
+<li><a href="#the-copper-interrupt">The copper interrupt</a></li>
+<li><a href="#the-blitter-finished-interrupt">The blitter-finished interrupt</a></li>
+<li><a href="#the-cia-timers">The CIA timers</a></li>
+<li><a href="#interrupts-and-the-main-loop-sharing-data">Interrupts and the main loop: sharing data</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+</ul>
+</nav>
+<h2 id="levels">Levels</h2>
+<p>The 68000 has three interrupt input lines, which together give a <strong>level</strong> from 1 to 7 (0 is no interrupt). The Amiga's interrupts (all but the NMI) go through one chip, <strong>Paula</strong> (which also does the sound, the disk and the serial port). Paula collects fourteen sources, and presents the highest-level one that's both asking and enabled on those three lines. Agnus's sources (the copper, the blitter and the vertical blank) come to Paula too, as do the two CIAs.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Level</th>
+<th scope="col">Bit</th>
+<th scope="col">Name</th>
+<th scope="col">Raised by</th>
+<th scope="col">Vector</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">1</th>
+<td>0</td>
+<td><code>TBE</code></td>
+<td>the serial port: transmit buffer empty</td>
+<td><code>$64</code></td>
+</tr>
+<tr>
+<th scope="row"></th>
+<td>1</td>
+<td><code>DSKBLK</code></td>
+<td>the disk: a block has been read or written</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row"></th>
+<td>2</td>
+<td><code>SOFTINT</code></td>
+<td>software (exec uses it for its software interrupts)</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row">2</th>
+<td>3</td>
+<td><code>PORTS</code></td>
+<td><strong>CIA-A</strong>, and the expansion bus's INT2 line</td>
+<td><code>$68</code></td>
+</tr>
+<tr>
+<th scope="row">3</th>
+<td>4</td>
+<td><code>COPER</code></td>
+<td><strong>the copper</strong>, by writing <code>INTREQ</code></td>
+<td><code>$6C</code></td>
+</tr>
+<tr>
+<th scope="row"></th>
+<td>5</td>
+<td><code>VERTB</code></td>
+<td><strong>the vertical blank</strong>: the start of each frame</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row"></th>
+<td>6</td>
+<td><code>BLIT</code></td>
+<td><strong>the blitter</strong>, when it finishes</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row">4</th>
+<td>7-10</td>
+<td><code>AUD0</code>-<code>AUD3</code></td>
+<td>the four sound channels</td>
+<td><code>$70</code></td>
+</tr>
+<tr>
+<th scope="row">5</th>
+<td>11</td>
+<td><code>RBF</code></td>
+<td>the serial port: receive buffer full</td>
+<td><code>$74</code></td>
+</tr>
+<tr>
+<th scope="row"></th>
+<td>12</td>
+<td><code>DSKSYNC</code></td>
+<td>the disk: the sync word found</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row">6</th>
+<td>13</td>
+<td><code>EXTER</code></td>
+<td><strong>CIA-B</strong>, and the expansion bus's INT6 line</td>
+<td><code>$78</code></td>
+</tr>
+<tr>
+<th scope="row">7</th>
+<td></td>
+<td><code>NMI</code></td>
+<td>nothing in the Amiga itself; the expansion bus can</td>
+<td><code>$7C</code></td>
+</tr>
+</tbody></table></div>
+<p>The processor's status register holds the level it's working at. An interrupt at a higher level than that is taken at once; one at the same level or lower waits. So while a level 3 handler runs, another level 3 interrupt waits until it returns, but a level 6 one (a CIA-B timer) comes straight in, in the middle of it. Level 7 can't be masked at all; the HRM says nothing in the Amiga generates it.</p>
+<p>The levels and sources are from the <em>Hardware Reference Manual</em>, chapter 7 ("Interrupts"), and the vectors from the <em>ROM Kernel Manual: Libraries</em>, chapter 26 ("Exec Interrupts").</p>
+<h2 id="intena-and-intreq">INTENA and INTREQ</h2>
+<p>Two registers, each with the bits in the table above:</p>
+<ul><li><strong><code>INTENA</code></strong> (<code>$DFF09A</code>, read at <code>INTENAR</code>, <code>$DFF01C</code>): which interrupts are enabled.</li><li><strong><code>INTREQ</code></strong> (<code>$DFF09C</code>, read at <code>INTREQR</code>, <code>$DFF01E</code>): which are asking. A source sets its bit here whether it's enabled or not; it only reaches the processor if its <code>INTENA</code> bit is set too.</li></ul>
+<p>Bit 14 of <code>INTENA</code>, <strong><code>INTEN</code></strong>, is the master switch: with it clear, no interrupt reaches the processor at all (but the NMI). It's only a switch: the HRM says it "creates no interrupt request".</p>
+<p>Both registers are written the same way as <code>DMACON</code>. Bit 15, <strong><code>SETCLR</code></strong>, says whether the other bits you write are to be set (1) or cleared (0); bits written as 0 aren't changed. So:</p>
+<div class="code-block"><pre><code>        move.w  #INTF_SETCLR!INTF_COPER,INTENA(a5)      ; the copper interrupt on; the rest as they were
+        move.w  #INTF_COPER,INTENA(a5)                  ; and off again
+        move.w  #INTF_COPER,INTREQ(a5)                  ; a copper interrupt acknowledged (its request cleared)
+        move.w  #INTF_SETCLR!INTF_SOFTINT,INTREQ(a5)    ; a request made, from software</code></pre></div>
+<p>Writing a bit to <code>INTREQ</code> with <code>SETCLR</code> <em>makes</em> an interrupt request, just as if the hardware had. That's how the copper raises its interrupt, below.</p>
+<p>Two common mistakes:</p>
+<ul><li><strong>Forgetting <code>SETCLR</code></strong> when switching something on: <code>move.w #INTF_COPER,INTENA(a5)</code> switches the copper interrupt <em>off</em>.</li><li><strong>Acknowledging everything</strong>: <code>move.w #$7fff,INTREQ(a5)</code> at the end of a handler throws away any other request that came in while it ran (a blitter interrupt, say), and that interrupt never happens. Acknowledge the bits you handled, and no others.</li></ul>
+<h2 id="vectors-and-the-vbr">Vectors, and the VBR</h2>
+<p>When the 68000 takes an interrupt, it saves the status register and the program counter on the supervisor stack, raises its level to the interrupt's, and jumps to the address in that level's <strong>autovector</strong>: <code>$64</code> for level 1, up to <code>$7C</code> for level 7, as in the table. The handler ends with <strong><code>RTE</code></strong>, which puts the status register and program counter back.</p>
+<p>On a 68010 or later, those addresses are offsets from the <strong>vector base register</strong> (VBR), not from 0. Many accelerated machines run with the VBR moved into fast RAM, and then writing to <code>$6C</code> does nothing. That's why the startup reads the VBR and leaves it in <code>VectorBase</code> (<a href="04-startup-and-exit.html">Startup and exit</a> has the details): the level 3 vector is at <code>VectorBase+$6C</code>, the level 6 vector at <code>VectorBase+$78</code>.</p>
+<p>The vectors belong to exec. With the system running, the RKM says never to change them: exec's own handler is behind each one, and it calls the code you give it through <code>AddIntServer</code> or <code>SetIntVector</code>. Taking the machine, you write the vectors yourself, because you've taken everything else too, and you put the old ones back as you leave.</p>
+<p>A handler on a vector of its own must:</p>
+<ul><li><strong>save every register it changes</strong>, and put them back: the main loop was in the middle of something;</li><li><strong>find out which source it is</strong>, from <code>INTREQR</code>, as three sources share level 3 (and several share every other level);</li><li><strong>acknowledge</strong> the request (below);</li><li>end with <strong><code>RTE</code></strong>, not <code>RTS</code>.</li></ul>
+<p>Code that exec calls for you (a server or a handler) is different: it's a subroutine, ending with <code>RTS</code>, with rules of its own about registers, below.</p>
+<h2 id="acknowledging-twice">Acknowledging, twice</h2>
+<p>A request stays set until it's cleared. If a handler returns without clearing its bit in <code>INTREQ</code>, the interrupt is still there, and the processor takes it again the moment the <code>RTE</code> has run: forever.</p>
+<p>And clear it <strong>twice</strong>:</p>
+<div class="code-block"><pre><code>        move.w  #INTF_COPER,INTREQ(a0)
+        move.w  #INTF_COPER,INTREQ(a0)</code></pre></div>
+<p>On a 68000, one write is enough: it's finished before the next instruction starts. A 68040 or 68060 can <strong>buffer</strong> a write and carry on before it has reached the chips, and the chips are on a slow bus. So the <code>RTE</code> can run while the write is still on its way, the request is still set as the processor looks at its interrupt lines, and the interrupt comes straight back. The second write can't start until the first has finished, and by the time it does, the request has gone. It costs a few cycles on a 68000.</p>
+<p>This fault doesn't show in FS-UAE: v8 tried a copper interrupt with one write on emulated 68020, 68040 and 68060 machines, and it worked on each. It's real hardware's bus timing that causes it. Write it twice anyway; the startup does.</p>
+<p>Acknowledge as soon as you know the interrupt is yours, rather than at the end. If the same source asks again while the handler is busy, that new request then stays set and is answered after the <code>RTE</code>, instead of being cleared with the old one and lost.</p>
+<h2 id="the-vertical-blank">The vertical blank</h2>
+<p><code>VERTB</code> is raised at line 0, the start of each frame, 50 times a second on PAL and 60 on NTSC. The HRM says the vertical blanking takes at least 25 lines on PAL and 20 on NTSC; where the display actually starts is up to <code>DIWSTRT</code>.</p>
+<p>It's the startup's own interrupt. Taking the machine, the startup's level 3 handler counts the frame (<code>Frames</code>) and calls your <code>VBlank</code>; keeping the system running, its server on exec's vertical blank chain does the same. Use <code>VBlank</code> for things that must happen once a frame however late the main loop is: a music replay, a frame counter, double-buffered pointers swapped for the next frame. Keep it short. Everything else belongs in <code>Frame</code>.</p>
+<h2 id="the-copper-interrupt">The copper interrupt</h2>
+<p>The copper can write <code>INTREQ</code> like any other register, and setting bit 4 (<code>COPER</code>) raises a level 3 interrupt. So the copper can interrupt the processor at any position on the screen it can wait for:</p>
+<div class="code-block"><pre><code>        dc.w    $7051,$fffe                     ; wait for line $70, near its left edge
+        dc.w    INTREQ,INTF_SETCLR!INTF_COPER   ; and ask for a copper interrupt</code></pre></div>
+<p>The HRM's suggestion for it: when the vertical blank is too short for all a frame's work, start the work with a copper interrupt just after the last line of the display, instead of waiting for line 0. A demo also uses it to do something on the processor that has to wait until the beam has passed a line: start drawing into the top half of the screen once it has been shown, say.</p>
+<h3 id="how-late-is-the-processor">How late is the processor?</h3>
+<figure class="guide-shot"><img src="images/ch05_copper_interrupt.png" alt="The copper&#x27;s white dash, and where the processor changed the colour: with the machine taken (top) and with the system running (bottom), on an Amiga 500" loading="lazy"></figure>
+<p>The copper writes a register at an exact place on the screen. The processor, answering an interrupt, can't. In <code>ch05_copper_interrupt.s</code> the copper makes the background white for two moves around its write to <code>INTREQ</code>, and the handler then sets the band's colour. The gap between the two is the time from the copper's request to the processor's write. On a 68000 at 7.09 MHz, one clock cycle is almost exactly one lores pixel, so the gap is how many cycles it took. On an emulated Amiga 500 (68000, Kickstart 1.3 and 3.1), over several frames:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">From the request to the colour changing</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Taking the machine (its own level 3 handler)</th>
+<td>220 to 240 cycles: half a line, on the same line</td>
+</tr>
+<tr>
+<th scope="row">Keeping the system running (an exec server)</th>
+<td>about 490 cycles: more than a whole line (455 cycles)</td>
+</tr>
+</tbody></table></div>
+<p>Taking the machine, it's nearly all the handler's own instructions. The 68000 takes 44 cycles to take the interrupt and get to the handler. Testing the bit, acknowledging it twice, saving three registers, calling <code>CopperWork</code> and reading the colour take another 180 or so; add up the instructions' times in the 68000's manual and that's what you get. Then the instruction the processor was in the middle of has to finish first, and that varies: a <code>DIVS</code> can take over 150 cycles. So the processor's change wobbles from frame to frame, and the less you do before it, the sooner it comes.</p>
+<p>With the system running, exec's interrupt dispatcher works out which interrupt it is and walks the copper server chain before your server is called, and the server itself does far less than the handler above: exec's part is most of a line. v7 said system interrupts have "a very tiny overhead". For one vertical blank server a frame, that's true. For an interrupt that has to land at a place on the screen, it isn't.</p>
+<p>So: <strong>for an exact place on the screen, let the copper do it.</strong> Use the copper interrupt to <em>start</em> work on the processor once the beam is past a line, and leave a few lines' margin.</p>
+<h3 id="taking-the-machine">Taking the machine</h3>
+<p>The startup's level 3 handler is already at <code>VectorBase+$6C</code> when <code>Init</code> runs, counting the frames. The example puts its own handler in front of it, and passes every level 3 interrupt on:</p>
+<div class="code-block"><pre><code>Init:
+        ...
+        move.l  VectorBase,a0
+        move.l  $6c(a0),NextLevel3              ; the startup's handler
+        move.l  #CopperLevel3,$6c(a0)           ; ours in front of it
+        move.w  #INTF_SETCLR!INTF_COPER,INTENA(a5)
+        move.l  #CopperExit,ExitHook
+
+CopperLevel3:
+        btst    #INTB_COPER,CUSTOM+INTREQR+1    ; ours?
+        beq.s   .notours
+        move.w  #INTF_COPER,CUSTOM+INTREQ       ; acknowledged, twice
+        move.w  #INTF_COPER,CUSTOM+INTREQ
+        movem.l d0/a0-a1,-(sp)
+        lea     CUSTOM,a0
+        bsr     CopperWork
+        movem.l (sp)+,d0/a0-a1
+.notours:
+        move.l  NextLevel3,-(sp)                ; on to the startup's handler
+        rts</code></pre></div>
+<p>The last two lines <strong>chain</strong> to the next handler: pushing its address and "returning" to it jumps there with the stack exactly as the interrupt left it, so it runs as if the processor had gone straight to it, and its <code>RTE</code> returns from the interrupt. This is the usual way to add to a vector that something else already uses.</p>
+<p><code>ExitHook</code> is the startup's: the routine whose address you put there is called first as the demo ends, while everything is still running. <code>CopperExit</code> switches the copper interrupt off and puts the startup's handler back, so the startup finds the vector as it left it:</p>
+<div class="code-block"><pre><code>CopperExit:
+        move.w  #INTF_COPER,INTENA(a5)
+        move.l  VectorBase,a0
+        move.l  NextLevel3,$6c(a0)
+        rts</code></pre></div>
+<p>The copper interrupt comes twice a frame in the example, at the band's top and bottom. The handler tells them apart with a counter, <code>CopperCount</code>, which <code>VBlank</code> sets back to 0 each frame. They're both level 3, so neither can interrupt the other, and they can share it safely (see <a href="#interrupts-and-the-main-loop-sharing-data">sharing data</a>, below).</p>
+<h3 id="keeping-the-system-running-a-server">Keeping the system running: a server</h3>
+<p>With the system running, the copper interrupt is a <strong>server chain</strong>: exec keeps a list of routines to call for it, and <code>AddIntServer</code> adds yours. v7 showed how, and its lessons still hold; here they are, checked against the NDK 3.2's autodocs and the <em>RKM Libraries</em>:</p>
+<div class="code-block"><pre><code>Init:
+        move.l  ExecBase.w,a6
+        moveq   #INTB_COPER,d0
+        lea     CopperServer,a1
+        jsr     _LVOAddIntServer(a6)    ; the first server on a chain enables its interrupt
+        ...
+
+CopperExit:
+        move.l  ExecBase.w,a6
+        moveq   #INTB_COPER,d0
+        lea     CopperServer,a1
+        jsr     _LVORemIntServer(a6)
+        rts
+
+CopperServerCode:                       ; called by exec as a subroutine
+        lea     CUSTOM,a0
+        bsr     CopperWork
+        moveq   #0,d0                   ; Z set: let the other servers on the chain run too
+        rts
+
+CopperServer:
+        dc.l    0,0                     ; the node's links
+        dc.b    NT_INTERRUPT,0          ; its type, and its priority on the chain
+        dc.l    CopperServerName        ; a name
+        dc.l    0,CopperServerCode      ; is_Data, is_Code</code></pre></div>
+<ul><li><strong>Registers.</strong> A server may change d0, d1, a0, a1, a5 and a6, and must keep the rest. It's called with a1 = the <code>is_Data</code> from its structure (handy for a pointer to your variables), and a5 = its own address.</li><li><strong>The Z flag.</strong> exec calls each server on the chain, highest priority first, until one returns with the Z flag <em>clear</em>: that means "this interrupt was mine and no one else's". Return with Z <em>set</em> (<code>moveq #0,d0</code>) to let the rest run. A vertical blank server must always return with Z set. Watch out for the last instruction before the <code>RTS</code>: the autodoc warns that a <code>MOVEM</code> (which doesn't change the flags) turned into a <code>MOVE</code> (which does) by an optimising assembler changes what you return.</li><li><strong>a0 for high priorities.</strong> The <code>AddIntServer</code> autodoc, under BUGS: "The graphics library's VBLANK server, and some user code, currently assume that address register A0 will contain a pointer to the custom chips. If you add a server at a priority of 10 or greater, you must compensate for this by providing the expected value ($DFF000)." The RKM puts it as: a vertical blank server at priority 10 or more must leave <code>$DFF000</code> in a0 when it returns. At priority 0, as here, it doesn't matter.</li><li><strong>The name.</strong> By convention <code>LN_NAME</code> points at a description, "so that other users may identify who currently has control of the interrupt".</li><li><strong>Don't acknowledge it.</strong> The RKM: "In a server chain, the interrupt is cleared automatically by the system. Having a server clear its interrupt is not recommended and not necessary."</li><li><strong>End with <code>RTS</code></strong>, not <code>RTE</code>. exec does the <code>RTE</code>.</li><li><strong>Take it away.</strong> <code>RemIntServer</code> before the program ends, or exec calls into memory that's been freed. From Kickstart 2 on it also disables the interrupt if yours was the last server on the chain; before that (the autodoc, under BUGS) it doesn't, and the copper interrupt stays enabled with an empty chain, which does no harm.</li></ul>
+<p>PORTS, COPER, VERTB, EXTER and the NMI are server chains. The others are <strong>handlers</strong>: one routine each, set with <code>SetIntVector</code>, and the system uses most of them itself (the disk, the serial port, audio.device). Leave those alone with the system running.</p>
+<p>An interrupt runs outside any task, so the RKM limits what it may call: <code>Signal()</code>, <code>Cause()</code>, <code>PutMsg()</code>, <code>ReplyMsg()</code>, <code>GetMsg()</code>, <code>FindTask()</code>, <code>FindPort()</code>, <code>Disable()</code> and <code>Enable()</code>, and list functions on lists of your own. Nothing that allocates memory, waits, or calls <code>Forbid()</code>. The startup's vertical blank server <code>Signal()</code>s the main loop, and that's the pattern: the interrupt notes that something happened, and a task does the work.</p>
+<h2 id="the-blitter-finished-interrupt">The blitter-finished interrupt</h2>
+<p><code>BLIT</code> (bit 6, level 3) is set each time a blit finishes. Taking the machine, it lets the processor start the next blit from an interrupt instead of waiting in a loop: keep a queue of blits, start the first, and let the handler start each next one as the last finishes, while the main loop gets on with something else. The handler is like the copper one, with <code>INTB_BLIT</code> and <code>INTF_BLIT</code>, and <code>INTF_SETCLR!INTF_BLIT</code> in <code>INTENA</code> to switch it on.</p>
+<p>Two things to watch. <a href="07-blitter.html">The blitter</a> chapter's rules still hold: the processor mustn't touch what the blitter is still writing, and blits started from both an interrupt and the main loop get in each other's way, so start them all from one place (here, the interrupt). And <code>BLIT</code> is set in <code>INTREQ</code> whenever <em>any</em> blit finishes, enabled or not, so clear it before enabling the interrupt, or a blit that finished long ago interrupts at once.</p>
+<p>With the system running, <code>BLIT</code> is a handler, not a chain, and it's the system's: <code>graphics.library</code> keeps an interrupt structure for it in GfxBase (<code>gb_bltsrv</code>, beside its vertical blank server's), and drives its queue of blits, <code>QBlit()</code>, with it. So don't take it. Use <code>OwnBlitter()</code> and wait for your blits (the startup's <code>BLIT_BEGIN</code> and <code>BLIT_END</code>), or queue them with <code>QBlit()</code>, whose routine is called when the blitter is yours.</p>
+<h2 id="the-cia-timers">The CIA timers</h2>
+<p>Each of the two CIAs (the 8520 chips that look after the keyboard, the disk drives' signals, the parallel and serial ports' control lines, and the mouse buttons) has two 16-bit <strong>interval timers</strong>, A and B. A timer counts down from a value you set (its <strong>latch</strong>), and when it passes zero it raises an interrupt and, in continuous mode, starts again from the latch. CIA-A's interrupts come in at level 2 (<code>PORTS</code>), CIA-B's at level 6 (<code>EXTER</code>).</p>
+<p>They count the <strong>E clock</strong>, which is a tenth of the 68000's clock. The HRM gives it as <strong>709379 Hz on PAL</strong> machines and <strong>715909 Hz on NTSC</strong> ones (appendix F, the CIA's timer registers and its clock input). The NDK's <code>exec/execbase.i</code> gives the same two numbers.</p>
+<h3 id="why-a-timer-and-not-the-vertical-blank">Why a timer, and not the vertical blank</h3>
+<p>A music replay called from the vertical blank runs 20% faster on NTSC than on PAL: 60 frames a second instead of 50. A CIA timer runs at the same rate on both, if you set it from the machine's E clock. That's why trackers have a "CIA timing" mode: the tempo isn't tied to the display. The same goes for anything else that has to keep time.</p>
+<p>The count for a rate is the E clock divided by the rate, rounded:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">E clock</th>
+<th scope="col">For 50 Hz: 1 tick every</th>
+<th scope="col">Rounded</th>
+<th scope="col">So the rate is</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">PAL</th>
+<td>709379 Hz</td>
+<td>14187.58 E clocks</td>
+<td>14188</td>
+<td>49.9985 Hz</td>
+</tr>
+<tr>
+<th scope="row">NTSC</th>
+<td>715909 Hz</td>
+<td>14318.18 E clocks</td>
+<td>14318</td>
+<td>50.0006 Hz</td>
+</tr>
+</tbody></table></div>
+<p>The E clock comes from the machine's crystal, so it's whether the <em>machine</em> is PAL or NTSC that matters, not what the display is set to. From Kickstart 2 on, exec knows it exactly: <code>ex_EClockFrequency</code> in ExecBase (offset 568). Kickstart 1.3 has no such field, so <code>ch05_cia_timer.s</code> falls back on the startup's <code>PalDisplay</code> there:</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        move.l  #709379,d0                      ; PAL
+        cmp.w   #36,LIB_VERSION(a6)
+        blo.s   .oldkick
+        move.l  ex_EClockFrequency(a6),d0       ; Kickstart 2 and later: exact
+        bra.s   .eclock
+.oldkick:
+        tst.b   PalDisplay
+        bne.s   .eclock
+        move.l  #715909,d0                      ; NTSC
+.eclock:
+        add.l   #TICK_HZ/2,d0                   ; rounded
+        divu    #TICK_HZ,d0                     ; the count, in the low word</code></pre></div>
+<figure class="guide-shot"><img src="images/ch05_cia_timer.png" alt="ch05_cia_timer.s on PAL (left) and NTSC (right): the top bar grows a pixel a frame, the bottom one a pixel a timer tick" loading="lazy"></figure>
+<p>The example shows it working. The top bar grows a pixel each frame, the bottom one a pixel each timer tick, with a mark every 50 pixels (a second, for the timer's bar); both start again after 256. On a PAL machine they keep together. On an NTSC machine the frame bar runs ahead, and the timer's bar still grows 50 pixels a second. Each tick also lightens the background from where the beam is when it comes, and that edge doesn't stay put: the timer isn't tied to the display. On the emulated PAL machine it crept up the screen about 25 lines a second, so each tick came a little earlier in the frame than the last. That's the PAL display's frame rate being a little under 50 Hz (about 49.92, by that speed), while the timer's is 49.9985.</p>
+<h3 id="the-registers">The registers</h3>
+<p>Each CIA's registers are a byte each, <code>$100</code> apart: CIA-A's on odd addresses from <code>$BFE001</code>, CIA-B's on even ones from <code>$BFD000</code>. For a timer:</p>
+<ul><li><strong><code>TALO</code>, <code>TAHI</code></strong> (timer B: <code>TBLO</code>, <code>TBHI</code>): write the latch, low byte first. Reading gives the count as it is now.</li><li><strong><code>CRA</code></strong> (timer B: <code>CRB</code>): its control register. Bit 0 <code>START</code> runs it; bit 3 <code>RUNMODE</code> is one-shot (1) or continuous (0); bit 4 <code>LOAD</code> (write only) loads the latch into the count at once; bit 5 <code>INMODE</code> (0) counts the E clock. The other bits are for other things, and some are the system's: <code>CRA</code>'s bit 6 sets the CIA's serial port's direction, and CIA-A's serial port is the keyboard. So change only the timer's bits, with <code>AND.B</code> and <code>OR.B</code>, never with a <code>MOVE.B</code> of a whole value. The RKM's own example (<code>Cia_Interval.c</code>) stops a timer A by keeping bits 1, 2, 6 and 7 and clearing the rest; the example does the same.</li><li><strong><code>ICR</code></strong>: the interrupt control register. Writing sets the <strong>mask</strong>, which interrupts are enabled, with bit 7 as set/clear just like <code>INTENA</code>'s bit 15: <code>$81</code> enables timer A's interrupt, <code>$01</code> disables it. <em>Reading</em> gives the <strong>data</strong>: which of the five sources (timer A, timer B, the TOD alarm, the serial port, the FLAG pin) have fired since the last read, with bit 7 set if any enabled one has. And reading <strong>clears it</strong>.</li></ul>
+<div class="code-block"><pre><code>        and.b   #STOPA_AND,(a0)         ; a0 = CRA: stopped, continuous, counting the E clock
+        move.b  d0,CIATALO(a1)          ; the latch, low byte
+        lsr.w   #8,d0
+        move.b  d0,CIATAHI(a1)          ; and high byte
+        or.b    #CIACRAF_START!CIACRAF_LOAD,(a0)        ; loaded, and going</code></pre></div>
+<p>The HRM's general guidelines: "Even if you are taking over the machine, do not assume the initial contents of any of the CIA registers or the state of any enabled interrupts." So set every bit of the timer you use.</p>
+<h3 id="taking-the-machine-level-6">Taking the machine: level 6</h3>
+<p><code>ch05_cia_timer.s</code> uses CIA-B's timer A, and its own level 6 handler at <code>VectorBase+$78</code>. In <code>Init</code>:</p>
+<div class="code-block"><pre><code>        move.l  VectorBase,a0
+        move.l  $78(a0),OldLevel6
+        move.l  #TimerLevel6,$78(a0)
+
+        lea     CIAB,a1
+        move.b  #CIAICRF_TA,CIAICR(a1)          ; timer A's interrupt off while it's set up
+        bsr     StartTimer
+        tst.b   CIAICR(a1)                      ; reading clears any old request
+        move.b  #CIAICRF_SETCLR!CIAICRF_TA,CIAICR(a1)   ; timer A's interrupt on
+
+        move.w  #INTF_EXTER,INTREQ(a5)
+        move.w  #INTF_SETCLR!INTF_EXTER,INTENA(a5)      ; and level 6
+        move.l  #TimerExit,ExitHook</code></pre></div>
+<p>The handler:</p>
+<div class="code-block"><pre><code>TimerLevel6:
+        movem.l d0/a0,-(sp)
+        lea     CUSTOM,a0
+        move.b  CIAB+CIAICR,d0                  ; what CIA-B has to say (and cleared)
+        move.w  #INTF_EXTER,INTREQ(a0)          ; then acknowledged, twice
+        move.w  #INTF_EXTER,INTREQ(a0)
+        btst    #CIAICRB_TA,d0
+        beq.s   .nottimer
+        bsr     TimerWork
+.nottimer:
+        movem.l (sp)+,d0/a0
+        rte</code></pre></div>
+<p><strong>Read the ICR before acknowledging <code>EXTER</code>.</strong> While the CIA has an interrupt to report, it holds its interrupt line low. Reading the ICR lets the line go (the HRM: "When you read the DATA register, its contents are cleared (set to 0), and the IRQ line returns to a high state"). Acknowledge <code>EXTER</code> first, with the line still held, and Paula sets the bit again straight away: v8 tried it, and every tick came in twice. And since reading clears everything the ICR was showing, read it once, into a register, and test every bit you care about from that.</p>
+<p><code>TimerExit</code> undoes it all, in <code>ExitHook</code>: the timer stopped, level 6 off in <code>INTENA</code>, timer A's interrupt off in the ICR, and the system's level 6 vector back.</p>
+<h3 id="keeping-the-system-running-cia-resource">Keeping the system running: cia.resource</h3>
+<p>With the system running, the CIAs are shared, and the system owns some of what's in them. The way to get a timer is to ask <strong><code>ciab.resource</code></strong> (or <code>ciaa.resource</code>) for it with <code>AddICRVector</code>. The resource's own level 6 handler then reads the ICR and calls the routine of whoever owns each bit that's set.</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        lea     CiabName,a1                     ; "ciab.resource"
+        jsr     _LVOOpenResource(a6)            ; (there's no CloseResource)
+        move.l  d0,CiabBase
+        beq     .notimer
+        jsr     _LVODisable(a6)
+        move.l  CiabBase,a6
+        moveq   #CIAICRB_TA,d0                  ; timer A, if it's free
+        lea     TimerInterrupt,a1
+        jsr     _LVOAddICRVector(a6)            ; 0: it's ours
+        tst.l   d0
+        bne.s   .tryb                           ; else d0 is its owner's Interrupt
+        ...</code></pre></div>
+<ul><li><strong><code>AddICRVector</code></strong> returns 0 if the bit is now yours, and enables its interrupt in the CIA. If someone already has it, it returns their <code>Interrupt</code> structure (whose name says who). The RKM's advice is to try for another timer: the example tries CIA-B's timer A, then its timer B, and gives up cleanly (setting <code>ExitNow</code>) if both are taken. The autodoc suggests calling it with interrupts off (<code>Disable()</code>), so the timer can be set up before its first interrupt comes; the example does, and is quick about it, as the RKM asks that interrupts are never off for more than 250 microseconds.</li><li><strong>Never read the ICR yourself.</strong> Reading clears it for everyone, and the system's own handler would miss its interrupts. The autodoc for <code>SetICR</code>: "Never read the contents of the CIA interrupt control registers directly." Use <code>SetICR()</code> to clear or check a request and <code>AbleICR()</code> to switch one on or off, and only for bits you own.</li><li><strong>The routine</strong> is called with a1 = <code>is_Data</code> and a5 = its own address. The RKM: "You must observe the standard convention of preserving all registers except D0-D1 and A0-A1." It returns with <code>RTS</code>, and doesn't acknowledge anything; the resource has.</li><li><strong><code>RemICRVector</code></strong> as the demo ends (in <code>ExitHook</code>), after stopping the timer. It disables the timer's interrupt in the CIA and gives the timer back.</li></ul>
+<p>Which timers are free? On the emulated A500s v8 was tested on, after booting to the CLI, <code>AddICRVector</code> found CIA-A's timer B already taken on both Kickstart 1.3 and 3.1, and the other three free. Don't build on that. The RKM says plainly: "Do not make any assumptions regarding which interval timers are in use", and that <code>timer.device</code> "may dynamically allocate one of the interval timers". So <strong>never touch a CIA timer you haven't been given</strong>, and above all not CIA-A's, where the system's own timer was in the test: change a timer the system is counting with, and whatever it was timing goes wrong, for every program that relies on it, long after your demo has gone. That goes for the control register's bits that aren't the timer's, too.</p>
+<p>CIA-B's timers are the ones to ask for, for music: level 6 is above everything else, so the replay's timing doesn't wobble when the disk or the keyboard is busy. The <code>AddICRVector</code> autodoc's caution is the other side of that: a level 6 interrupt holds up every other interrupt while it runs, so keep it short, and do anything long in the main loop.</p>
+<h2 id="interrupts-and-the-main-loop-sharing-data">Interrupts and the main loop: sharing data</h2>
+<p>An interrupt can come between any two instructions of the main loop. Anything both of them use has to survive that.</p>
+<p><strong>One instruction is safe.</strong> The 680x0 takes interrupts only between instructions, never in the middle of one. So the main loop can read a counter that an interrupt keeps with one <code>MOVE.L</code>, even on a 68000, whose 16-bit bus reads it in two halves: no interrupt comes between them. <code>ch05_cia_timer.s</code> reads its tick count like that:</p>
+<div class="code-block"><pre><code>        move.l  Ticks,d0                ; counted by the timer interrupt</code></pre></div>
+<p><strong>Several instructions are not.</strong> These go wrong, rarely, and only when the timing is unlucky:</p>
+<ul><li><strong>Reading two things that belong together.</strong> The interrupt updates an X and a Y; the main loop reads X, the interrupt comes, and the main loop reads the <em>new</em> Y with the old X. Or a long read as two words, the low word one instruction after the high.</li><li><strong>Read, change, write back, when the interrupt writes too.</strong></li></ul>
+<div class="code-block"><pre><code>        move.w  Score,d0                ; the main loop adds 10...
+        add.w   #10,d0
+        move.w  d0,Score                ; ...and the interrupt's addq.w #1,Score in between is lost</code></pre></div>
+<p>The fixes, simplest first:</p>
+<ul><li><strong>Do it in one instruction:</strong> <code>add.w #10,Score</code>, <code>addq.l #1,Ticks</code>, <code>bset</code>, <code>or.w</code>. A read-modify-write instruction can't be interrupted part way.</li><li><strong>Let only one side write.</strong> The interrupt writes, the main loop only reads (or the other way round). <code>ch05_copper_interrupt.s</code> does this with the band's colour: <code>Frame</code> writes it, the interrupt only reads it.</li><li><strong>Keep it at one level.</strong> Two interrupts at the same level can't interrupt each other: the copper example's <code>CopperCount</code> is used by the copper interrupt and by <code>VBlank</code>, both level 3, so neither can catch the other half way. A CIA-B timer (level 6) <em>can</em> interrupt either.</li><li><strong>Switch interrupts off around it</strong>, briefly. Taking the machine: <code>move.w #INTF_INTEN,INTENA(a5)</code> before, and <code>move.w #INTF_SETCLR!INTF_INTEN,INTENA(a5)</code> after. With the system running: <code>Disable()</code> and <code>Enable()</code> (they nest), for no more than the RKM's 250 microseconds.</li></ul>
+<p><strong>The chips aren't the processor.</strong> "One instruction" only protects you from interrupts. The copper and the blitter read memory between the processor's bus cycles, so on a 68000 a <code>MOVE.L</code> into a copper list can be seen half old and half new by the copper: a bitplane pointer with the old high word and the new low one. Change what the copper reads while it isn't reading it (in the vertical blank, before it gets there), or keep two copies and switch between them.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>Both ways.</strong> v7's chapter showed one thing: a vertical blank server with the system running. Its lessons (the Z flag, a0 for priorities of 10 and more, the server's name, <code>RTS</code> not <code>RTE</code>) are all still right, and are here. v8 adds interrupts on vectors of your own, with the machine taken.</li><li><strong>The VBR</strong>, which v7 never mentioned: the vectors may not be at 0.</li><li><strong>Acknowledging twice</strong>, for faster processors.</li><li><strong>The copper interrupt's latency, measured.</strong> v7 called system interrupts' overhead "very tiny". For a copper interrupt that has to land on the screen, exec's dispatcher costs most of a line on a 68000.</li><li><strong>CIA timers</strong>, both ways, with the E clock from ExecBase on Kickstart 2 and later, and <code>cia.resource</code> with the system running.</li><li><strong>One fix to v7's example.</strong> v7's <code>SystemOff</code> called <code>Forbid()</code> and then added a server. v8's startup doesn't <code>Forbid()</code> with the system running (the point of keeping it is to let it work: <a href="04-startup-and-exit.html">Startup and exit</a>), and a server needs none.</li></ul>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p>Both examples were built both ways (<code>OS_FRIENDLY=0</code> and <code>1</code>, with <code>AUTOEXIT=500</code>) and run in FS-UAE:</p>
+<ul><li>an Amiga 500 (68000) with Kickstart 1.3 and with Kickstart 3.1;</li><li>Kickstart 3.1 with a 68020 and with a 68040, and Kickstart 1.3 with a 68040, each with fast RAM;</li><li><code>ch05_cia_timer.s</code> on an NTSC Amiga 500 too, with Kickstart 1.3 and 3.1, both ways.</li></ul>
+<p>Every run showed the effect, and then the CLI with "back in AmigaDOS, return code OK" after the demo had ended. The NTSC runs showed the timer's bar growing at 5/6 the rate of the frame bar, as 50 ticks a second against 60 frames should. The latencies above were measured from the screen captures of the 68000 runs (the emulated 68020 and 68040 aren't cycle-exact, so their timings aren't given). Three more things were tried to check what this chapter says: which CIA timers <code>AddICRVector</code> could get; acknowledging <code>EXTER</code> before reading the ICR (each tick then came twice); and a copper interrupt acknowledged only once on a 68020, 68040 and 68060 (which FS-UAE didn't fault).</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="04-startup-and-exit.html"><span>Back</span>4. Startup and exit</a>
+<a class="pager-next" href="06-copper.html"><span>Next</span>6. The copper</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

@@ -1,0 +1,84 @@
+%YAML 1.2
+---
+# Written for Limoniter from Boriel's ZX Basic (zxbc) as its documentation describes it: SUB and FUNCTION with
+# their parameters' types, DIM ... AS, the integer types (UBYTE, UINTEGER, ULONG and the rest), FASTCALL and
+# STDCALL, ' and REM comments and /' ... '/ blocks, the preprocessor's # lines, $ and 0x hex and % binary numbers,
+# @ addresses, and ASM ... END ASM blocks, coloured as Z80 assembler. Sinclair BASIC's own words are kept.
+name: BASIC (Boriel ZX Basic)
+file_extensions: [zxb]
+scope: source.basic.boriel
+variables:
+  edge_before: (?<![\w$@.])
+  edge_after: (?![\w$])
+  statements: (?:BEEP|BORDER|BRIGHT|CIRCLE|CLS|CONST|CONTINUE|DATA|DECLARE|DIM|DO|DRAW|ELSEIF|ELSE|END\s+IF|END\s+WHILE|END|EXIT|FLASH|FOR|GO\s*SUB|GO\s*TO|IF|INK|INVERSE|ITALIC|BOLD|LET|LOAD|LOOP|NEXT|ON|OUT|OVER|PAPER|PAUSE|PLOT|POKE|PRINT|RANDOMIZE|READ|RESTORE|RETURN|SAVE|STEP|STOP|THEN|TO|UNTIL|VERIFY|WEND|WHILE|AT|TAB|BYREF|BYVAL|AS|CAST)
+  functions: (?:ABS|ACS|ASN|ATN|BIN|CHR\$?|CODE|COS|EXP|IN|INKEY\$?|INPUT|INT|LBOUND|UBOUND|LEN|LN|PEEK|PI|RND|SGN|SIN|SQR|STR\$?|TAN|USR|VAL|ATTR|POINT|SCREEN\$?|CSRLIN|POS|HEX|HEX16|ASC|LCASE|UCASE|GETKEY|MULTIKEYS|GETKEYSCANCODE|INPUT42|PRINT42|PRINTAT42|PRINT64|PRINTAT64)
+  operators: (?:AND|OR|XOR|NOT|MOD|SHL|SHR|bAND|bOR|bXOR|bNOT)
+  types: (?:UBYTE|BYTE|UINTEGER|INTEGER|ULONG|LONG|FIXED|FLOAT|STRING|BOOLEAN)
+contexts:
+  main:
+    - include: comments
+    - match: '^\s*(#\s*(?:include|define|undef|ifdef|ifndef|if|else|endif|pragma|init|require|line|error|warning))\b(.*)$'
+      captures:
+        1: keyword.control.import.preprocessor.basic.boriel
+        2: string.unquoted.preprocessor.basic.boriel
+    - match: '(?i)^\s*(asm)\s*$'
+      captures:
+        1: keyword.control.asm.basic.boriel
+      push: asm
+    - match: '(?i){{edge_before}}(end\s+(?:sub|function))\b'
+      scope: keyword.declaration.basic.boriel
+    - match: '(?i){{edge_before}}(sub|function)(?:\s+(fastcall|stdcall))?\s+([A-Za-z_]\w*\$?)'
+      captures:
+        1: keyword.declaration.basic.boriel
+        2: storage.modifier.basic.boriel
+        3: entity.name.function.basic.boriel
+    - match: '(?i){{edge_before}}(?:fastcall|stdcall){{edge_after}}'
+      scope: storage.modifier.basic.boriel
+    - match: '"'
+      push: string
+    - match: '^\s*\d+'
+      scope: constant.numeric.line-number.basic.boriel
+    - match: '^\s*[A-Za-z_]\w*:(?!=)'
+      scope: entity.name.label.basic.boriel
+    - match: '@[A-Za-z_]\w*'
+      scope: variable.other.address.basic.boriel
+    - match: '(?i){{edge_before}}{{types}}{{edge_after}}'
+      scope: storage.type.basic.boriel
+    - match: '(?i){{edge_before}}{{operators}}{{edge_after}}'
+      scope: keyword.operator.basic.boriel
+    - match: '(?i){{edge_before}}{{statements}}{{edge_after}}'
+      scope: keyword.control.basic.boriel
+    - match: '(?i){{edge_before}}{{functions}}(?![\w])'
+      scope: support.function.basic.boriel
+    - match: '(?i)\$[0-9a-f]+\b|0x[0-9a-f]+\b|\b[0-9][0-9a-f]*h\b|%[01]+\b|\b[01]+b\b'
+      scope: constant.numeric.basic.boriel
+    - match: '(?<![\w.$])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?'
+      scope: constant.numeric.basic.boriel
+    - match: '<<|>>|<=|>=|<>|[-+*/^=<>]'
+      scope: keyword.operator.basic.boriel
+  comments:
+    - match: "/'"
+      push: block_comment
+    - match: "'.*$"
+      scope: comment.line.basic.boriel
+    - match: '(?i)(?<![\w$])rem(?![\w$]).*$'
+      scope: comment.line.basic.boriel
+  block_comment:
+    - meta_scope: comment.block.basic.boriel
+    - match: "'/"
+      pop: true
+  string:
+    - meta_scope: string.quoted.double.basic.boriel
+    - match: '""'
+      scope: constant.character.escape.basic.boriel
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  asm:
+    - meta_content_scope: source.assembly.z80.embedded.basic.boriel
+    - match: '(?i)^\s*(end\s+asm)\b'
+      captures:
+        1: keyword.control.asm.basic.boriel
+      pop: true
+    - include: scope:source.assembly.z80

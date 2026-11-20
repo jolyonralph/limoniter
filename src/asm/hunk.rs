@@ -271,6 +271,93 @@ pub fn executable(normal: &Assembly, moved: &Assembly, symbols: bool) -> Result<
     Ok(file)
 }
 
+/// The executable made from `assembly` (by `executable`), with each code hunk's source lines added before its
+/// HUNK_END (see `line_debug`), for a debugger to stop and step by line: what F9 runs in Copperline. Programs
+/// saved or built from the command line are left without them, as vasm leaves them without -linedebug, so a
+/// released program doesn't carry the folders it was made in.
+pub fn add_line_debug(file: &[u8], assembly: &Assembly) -> Result<Vec<u8>, String> {
+    let short = || crate::i18n::tr("The file ends too soon.").to_string();
+    let long_at = |at: usize| file.get(at..at + 4).map(|b| u32::from_be_bytes(b.try_into().expect("four"))).ok_or_else(short);
+    let sections = hunks(assembly);
+    if long_at(0)? != HUNK_HEADER || long_at(4)? != 0 || long_at(8)? as usize != sections.len() {
+        return Err(crate::i18n::tr("It isn't the program made from this source.").into());
+    }
+    let mut at = 20 + sections.len() * 4;
+    let mut out = file[..at].to_vec();
+    let mut hunk = 0;
+    while at < file.len() {
+        let id = long_at(at)?;
+        let start = at;
+        at += 4;
+        match id {
+            HUNK_CODE | HUNK_DATA => at += 4 + long_at(at)? as usize * 4,
+            HUNK_BSS => at += 4,
+            HUNK_DEBUG => at += 4 + long_at(at)? as usize * 4,
+            HUNK_RELOC32 => loop {
+                let count = long_at(at)? as usize;
+                at += 4;
+                if count == 0 {
+                    break;
+                }
+                at += 4 + count * 4;
+            },
+            HUNK_SYMBOL => loop {
+                let name = long_at(at)? as usize;
+                at += 4;
+                if name == 0 {
+                    break;
+                }
+                at += name * 4 + 4;
+            },
+            HUNK_END => {
+                let section = sections.get(hunk).ok_or_else(short)?;
+                if section.kind == Kind::Code {
+                    for block in line_debug(assembly, section) {
+                        out.extend(HUNK_DEBUG.to_be_bytes());
+                        out.extend(((block.len() / 4) as u32).to_be_bytes());
+                        out.extend(block);
+                    }
+                }
+                hunk += 1;
+            }
+            other => return Err(crate::i18n::tf!("A hunk of a kind not written here (${other:X}).")),
+        }
+        out.extend(file.get(start..at).ok_or_else(short)?);
+    }
+    Ok(out)
+}
+
+/// A code hunk's source lines, as vasm's -linedebug writes them, in the SAS/C "LINE" form that debuggers read
+/// (Copperline's among them, to set breakpoints and step by source line): one HUNK_DEBUG block for each source
+/// file with code in the hunk, holding the hunk offset everything is counted from (0), "LINE", the file's name
+/// (its full path, so a debugger finds it), and then each line, counted from 1, with how far into the hunk its
+/// code starts. Each block is given without its HUNK_DEBUG and length.
+pub fn line_debug(assembly: &Assembly, section: &Section) -> Vec<Vec<u8>> {
+    let mut by_file: std::collections::BTreeMap<usize, Vec<(u32, u32)>> = Default::default();
+    for placed in assembly.lines.iter().filter(|p| !p.bytes.is_empty() && p.address >= section.start && p.address < section.end) {
+        by_file.entry(placed.file).or_default().push((placed.line as u32 + 1, (placed.address - section.start) as u32));
+    }
+    by_file
+        .into_iter()
+        .map(|(file, mut rows)| {
+            rows.sort_by_key(|(line, offset)| (*offset, *line));
+            let name = assembly.files.get(file).map(|f| f.display().to_string()).unwrap_or_default();
+            let mut name = name.into_bytes();
+            name.resize(name.len().div_ceil(4) * 4, 0);
+            let mut block = Vec::with_capacity(12 + name.len() + rows.len() * 8);
+            block.extend(0u32.to_be_bytes());
+            block.extend(b"LINE");
+            block.extend(((name.len() / 4) as u32).to_be_bytes());
+            block.extend(name);
+            for (line, offset) in rows {
+                block.extend(line.to_be_bytes());
+                block.extend(offset.to_be_bytes());
+            }
+            block
+        })
+        .collect()
+}
+
 /// Assembles 68000 source into an Amiga executable: the program as assembled (with its sections apart, for its
 /// problems and labels), with the file if it could be made; if it couldn't, why is among the problems.
 pub fn assemble_executable(path: &std::path::Path, text: &str, read: &dyn Fn(&std::path::Path) -> Result<Vec<u8>, String>, symbols: bool, options: &super::Options) -> (Assembly, Option<Vec<u8>>) {
@@ -545,6 +632,43 @@ mod tests {
         let loaded = load(&hunks, &[0x10000, 0x20000, 0x30000, 0x40000, 0x50000]);
         let longs: Vec<u32> = loaded[1][4..20].chunks(4).map(|c| u32::from_be_bytes(c.try_into().unwrap())).collect();
         assert_eq!(longs, [0x10000, 0x30000, 0x40002, 0x10000 + 0x88]);
+    }
+
+    /// With its lines added, each code hunk ends with a HUNK_DEBUG block in the "LINE" form vasm's -linedebug
+    /// writes, read back here as Copperline's debugger reads it: the file's full name, then each line (from 1) and
+    /// how far into the hunk its code is. The program loads just as it does without them.
+    #[test]
+    fn line_debug_says_where_each_line_is() {
+        let source = "\tsection one,code\nstart:\tmoveq\t#1,d0\n\n\tlea\ttable,a0\n\trts\n\tsection two,data\ntable:\tdc.l\tstart\n\tsection three,code\nmore:\tnop\n";
+        let path = Path::new("/work/demo/main.s");
+        let (assembly, without) = assemble_executable(path, source, &no_files, true, &Default::default());
+        let without = without.unwrap();
+        let with = add_line_debug(&without, &assembly).unwrap();
+        assert!(add_line_debug(&with, &assembly).unwrap().len() > with.len(), "the hunks are walked, debug blocks and all");
+        assert!(add_line_debug(&[0, 0, 3, 0xF3, 0, 0, 0, 0, 0, 0, 0, 9], &assembly).is_err(), "another program");
+        let at: Vec<u32> = vec![0x1000, 0x2000, 0x3000];
+        assert_eq!(load(&read_executable(&with).unwrap(), &at), load(&read_executable(&without).unwrap(), &at));
+        // Walk the file for its debug blocks, as a debugger does: each long after HUNK_DEBUG is its length.
+        let longs: Vec<u32> = with.chunks(4).map(|c| u32::from_be_bytes(c.try_into().unwrap())).collect();
+        let blocks: Vec<&[u32]> = longs.iter().enumerate().filter(|(_, l)| **l == HUNK_DEBUG).map(|(i, _)| &longs[i + 2..i + 2 + longs[i + 1] as usize]).collect();
+        assert_eq!(blocks.len(), 2, "one for each code hunk, none for data");
+        let read = |block: &[u32]| {
+            assert_eq!((block[0], block[1]), (0, u32::from_be_bytes(*b"LINE")));
+            let name: Vec<u8> = block[3..3 + block[2] as usize].iter().flat_map(|l| l.to_be_bytes()).take_while(|b| *b != 0).collect();
+            let rows: Vec<(u32, u32)> = block[3 + block[2] as usize..].chunks(2).map(|r| (r[0], r[1])).collect();
+            (String::from_utf8(name).unwrap(), rows)
+        };
+        assert_eq!(read(blocks[0]), (path.display().to_string(), vec![(2, 0), (4, 2), (5, 8)]), "moveq at 0, lea with a long address at 2, rts at 8");
+        assert_eq!(read(blocks[1]), (path.display().to_string(), vec![(9, 0)]));
+        // Lines in an included file get a block of their own, named for that file.
+        let include = |p: &Path| if p.ends_with("part.i") { Ok(b"\tnop\n\tnop\n".to_vec()) } else { no_files(p) };
+        let (assembly, file) = assemble_executable(path, "\tsection one,code\n\tmoveq\t#0,d0\n\tinclude\t\"part.i\"\n\trts\n", &include, false, &Default::default());
+        assert!(assembly.ok(), "{:?}", assembly.problems);
+        let file = add_line_debug(&file.unwrap(), &assembly);
+        let section = assembly.sections.iter().find(|s| s.size() > 0).unwrap();
+        let blocks = line_debug(&assembly, section);
+        assert_eq!(blocks.len(), 2);
+        assert!(file.unwrap().windows(6).any(|w| w == b"part.i"));
     }
 
     #[test]

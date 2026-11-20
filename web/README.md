@@ -17,6 +17,10 @@ The promotional site for https://limoniter.com, in plain HTML, CSS and JavaScrip
 - `guide/`: the user guide, made from the Markdown in `guide/src/` by `tools/make-guide.py`, inside
   `tools/guide-template.html`. The order of the pages is set in the script. Publishing makes them afresh; to see a
   change before then, run `python web/tools/make-guide.py` from the app folder. Don't edit the pages themselves.
+- `howtocode/`: How To Code v8, the Amiga demo coders' guide that's built into Limoniter, made from
+  `../data/howtocode/` by `tools/make-howtocode.py` inside the user guide's template, with its pictures and examples
+  copied beside the pages. It's CC0, and its pages say so. Publishing makes them afresh; to see a change before then,
+  run `python web/tools/make-howtocode.py` from the app folder. Don't edit the pages themselves.
 - `images/`: made by `tools/make-images.py SCREENSHOTS_FOLDER` from full-size screenshots: each as a whole window
   (`NAME.webp`) and a readable part of it (`NAME-close.webp`), the themes collage, and `social.png` for shared links.
 - `images/`: the icon and screenshots.

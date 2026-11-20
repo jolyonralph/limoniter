@@ -41,6 +41,10 @@ Usage:
                                               with 0 if RESULT was saved with no conflicts left, 1 if not,
                                               as git mergetool expects.
   limoniter --screenshot PICTURE [FILE...]    Saves a picture of the window, then closes.
+  limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]
+                                              Makes 68000 source into an Amiga program, as F9 does, with no
+                                              window. NAME=VALUE gives a setting (NAME equ in the source) a
+                                              value, such as OS_FRIENDLY=1.
   limoniter --help                            Shows this.
 
 Git can use Limoniter for git difftool and git mergetool: Git, Use Limoniter for Git diff and merge.";

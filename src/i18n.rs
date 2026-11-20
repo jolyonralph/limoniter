@@ -141,7 +141,8 @@ pub fn fill(template: &str, pieces: &[(&str, String)]) -> String {
 /// Rust, or a `*` starting the line, as 68000 source writes whole-line comments. The index of its text.
 pub fn comment_start(line: &str) -> Option<usize> {
     let trimmed = line.trim_start();
-    if trimmed.starts_with("* ") {
+    // BASIC's ' at the start of a line (Boriel's ZX Basic writes comments that way), and 68000 source's *.
+    if trimmed.starts_with("* ") || trimmed.starts_with("' ") {
         return Some(line.len() - trimmed.len() + 2);
     }
     let mut quote: Option<char> = None;

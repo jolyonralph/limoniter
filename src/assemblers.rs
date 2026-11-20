@@ -18,10 +18,14 @@ pub enum Cpu {
     X86,
     /// The Archimedes' ARM (ARM2 and ARM3), in Acorn's syntax.
     Arm,
+    /// The Game Boy's Sharp SM83, in RGBDS's syntax.
+    Sm83,
+    /// Sony's SPC700, the SNES's sound processor, in Sony's syntax.
+    Spc700,
 }
 
 impl Cpu {
-    pub const ALL: [Cpu; 6] = [Cpu::Z80, Cpu::M6502, Cpu::M6809, Cpu::M68k, Cpu::X86, Cpu::Arm];
+    pub const ALL: [Cpu; 8] = [Cpu::Z80, Cpu::M6502, Cpu::M6809, Cpu::M68k, Cpu::X86, Cpu::Arm, Cpu::Sm83, Cpu::Spc700];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -31,6 +35,8 @@ impl Cpu {
             Cpu::M68k => "68000",
             Cpu::X86 => "x86",
             Cpu::Arm => "ARM",
+            Cpu::Sm83 => "SM83 (Game Boy)",
+            Cpu::Spc700 => "SPC700 (SNES sound)",
         }
     }
 
@@ -42,6 +48,8 @@ impl Cpu {
             Cpu::M68k => "68000",
             Cpu::X86 => "x86",
             Cpu::Arm => "arm",
+            Cpu::Sm83 => "sm83",
+            Cpu::Spc700 => "spc700",
         }
     }
 
@@ -54,6 +62,8 @@ impl Cpu {
             "Assembly 680x0" => Some(Cpu::M68k),
             "Assembly 80x86" => Some(Cpu::X86),
             "Assembly ARM (ARM2 and ARM3)" => Some(Cpu::Arm),
+            crate::highlight::ASM_SM83 => Some(Cpu::Sm83),
+            crate::highlight::ASM_SPC700 => Some(Cpu::Spc700),
             _ => None,
         }
     }
@@ -66,6 +76,8 @@ impl Cpu {
             Cpu::M68k => &asm::m68k::M68k,
             Cpu::X86 => &asm::x86::X86,
             Cpu::Arm => &asm::arm::Arm,
+            Cpu::Sm83 => &asm::sm83::Sm83,
+            Cpu::Spc700 => &asm::spc700::Spc700,
         }
     }
 }
@@ -190,7 +202,7 @@ pub fn assemble_own(cpu: Cpu, path: &Path, text: &str) -> Assembled {
 }
 
 /// Assembles with Limoniter's own assembler to run: the same, except that 68000 source for the Amiga is made into
-/// an Amiga executable, its sections as hunks.
+/// an Amiga executable, its sections as hunks, with its labels in it for debuggers.
 pub fn assemble_own_to_run(cpu: Cpu, path: &Path, text: &str) -> Assembled {
     if cpu == Cpu::M68k && asm::hunk::is_amiga_source(text) {
         let files: std::cell::RefCell<std::collections::HashMap<PathBuf, Result<Vec<u8>, String>>> = Default::default();

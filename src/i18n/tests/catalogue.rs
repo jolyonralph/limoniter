@@ -268,6 +268,16 @@ pub fn catalogue() -> BTreeSet<String> {
             for mark in ["Item(\"", "Keyed(\"", "Check(\"", "Sub(\"", "Live(\"", "(\""] {
                 after(text, mark, &mut out);
             }
+            // A sub-menu's name on the line after Sub(, as rustfmt puts a long one.
+            for (at, _) in text.match_indices("Sub(") {
+                let rest = &text[at + 4..];
+                let gap = rest.len() - rest.trim_start().len();
+                if rest.trim_start().starts_with('"')
+                    && let Some((name, _)) = literal_at(text, at + 4 + gap + 1)
+                {
+                    out.insert(name);
+                }
+            }
         }
         if name.ends_with("settings.rs") {
             for mark in ["Row::Flag(\"", "Row::Special(\"", "Row::Heading(\"", "        \""] {

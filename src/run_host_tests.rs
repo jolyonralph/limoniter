@@ -18,10 +18,11 @@ fn the_first_run_asks_where_and_the_answer_is_remembered() {
     let Dialog::Run(boxed) = &app.dialog else { panic!("it asks where") };
     let run_host::RunBox::Where { runnable, .. } = boxed.as_ref() else { panic!("it asks where") };
     assert_eq!(runnable.machine, crate::running::Machine::Spectrum48);
-    // The built-in Spectrum takes it; with nothing else set up, it's the only place.
+    // The built-in Spectrum takes it; with nothing else set up, it's the only place (the built-in 2600 says no).
     let targets = app.targets_for(runnable);
-    assert_eq!(targets.len(), 1);
+    assert_eq!(targets.len(), 2);
     assert!(targets[0].2.is_ok());
+    assert!(targets[1].2.is_err());
     let run = (**runnable).clone();
     app.close_dialog();
     app.running.defaults.push(("spectrum48".into(), run_host::BUILT_IN_NAME.into()));
@@ -31,6 +32,33 @@ fn the_first_run_asks_where_and_the_answer_is_remembered() {
     assert!(app.running.to_settings().contains("run_on=spectrum48\u{1}Built-in Spectrum"));
     app.stop_all_sessions();
     assert!(app.running.sessions.is_empty());
+}
+
+/// A 2600 cartridge's source: the built-in 2600 is offered for it (and the Spectrum isn't), and runs it beside the
+/// source, drawing its frames.
+#[test]
+fn the_built_in_2600_runs_a_cartridge_s_source() {
+    let (mut app, _ctx) = app_with("run_on=atari2600\u{1}Built-in Atari 2600\n");
+    crate::highlight::load_now();
+    app.new_document();
+    app.doc().untitled = "rainbow.asm".into();
+    app.doc().text.set_content(crate::atari2600::STARTER.lines().map(str::to_string).collect());
+    app.doc().update_syntax();
+    let run = app.runnable().expect("it builds").expect("a cartridge");
+    assert_eq!(run.machine, crate::running::Machine::Atari2600);
+    let targets = app.targets_for(&run);
+    let said = |name: &str| targets.iter().find(|(_, n, _)| n == name).map(|(.., s)| s.clone()).unwrap();
+    assert!(said(run_host::BUILT_IN_2600_NAME).is_ok());
+    assert!(said(run_host::BUILT_IN_NAME).is_err());
+    app.run_on_machine();
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", app.running.note);
+    let session = app.running.sessions.iter_mut().find(|s| s.target == run_host::BUILT_IN_2600_NAME).expect("it runs");
+    let run_host::SessionKind::Atari2600 { machine, .. } = &mut session.kind else { panic!() };
+    for _ in 0..5 {
+        machine.frame().unwrap();
+    }
+    assert!(machine.frames >= 4);
+    assert!(machine.picture().chunks(4).any(|p| p[..3] != [0, 0, 0]), "something drawn");
 }
 
 #[test]

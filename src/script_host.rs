@@ -490,6 +490,7 @@ impl Limoniter {
             regex: !by_bytes && search.regex,
             hex_bytes: false,
             backward: search.backward,
+            code_only: None,
         }
     }
 

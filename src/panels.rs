@@ -283,13 +283,22 @@ pub struct Panels {
     pub macros: bool,
     pub scripts: bool,
     pub history: bool,
+    /// TODO, FIXME and the like, in the file in front or across the project.
+    pub todos: bool,
     pub strings: bool,
     /// The value inspector: the bytes at the hex cursor as numbers.
     pub inspector: bool,
+    /// An assembly program's call graph.
+    pub call_graph: bool,
+    /// The instruction reference for the processor in front.
+    pub instructions: bool,
+    call_graph_panel: crate::code_panels::CallGraphPanel,
+    instruction_panel: crate::code_panels::InstructionPanel,
     strings_panel: crate::strings_explorer::PanelState,
     macros_panel: crate::scripting::PanelState,
     scripts_panel: crate::scripting::PanelState,
     pub project_panel: crate::project::PanelState,
+    todo_panel: crate::todo_panel::TodoPanel,
     /// Tags added by the person. Kept in the settings file.
     pub custom_tags: Vec<Tag>,
     functions_panel: FunctionsPanel,
@@ -311,10 +320,10 @@ impl Panels {
     pub fn to_settings(&self) -> String {
         let flags: String = self.flags().iter().map(|(name, value)| format!("{name}={value}\n")).collect();
         let tags: String = self.custom_tags.iter().map(|tag| format!("custom_tag={}\u{1}{}\u{1}{}\n", tag.name, tag.before.replace('\n', "\u{2}"), tag.after.replace('\n', "\u{2}"))).collect();
-        flags + tags.as_str()
+        flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 19] {
+    fn flags(&self) -> [(&'static str, bool); 22] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -333,8 +342,11 @@ impl Panels {
             ("macros_panel", self.macros),
             ("scripts_panel", self.scripts),
             ("history_panel", self.history),
+            ("todo_panel", self.todos),
             ("strings_panel", self.strings),
             ("inspector_panel", self.inspector),
+            ("call_graph_panel", self.call_graph),
+            ("instruction_panel", self.instructions),
         ]
     }
 
@@ -348,6 +360,7 @@ impl Panels {
             let Some((name, value)) = line.split_once('=') else {
                 continue;
             };
+            self.project_panel.explorer.order.read_setting(name.trim(), value.trim());
             if name.trim() == "custom_tag" {
                 let parts: Vec<&str> = value.split('\u{1}').collect();
                 if let [tag_name, before, after] = parts[..] {
@@ -368,6 +381,8 @@ impl Panels {
                 "encoding_preview" => self.encoding_preview = flag,
                 "strings_panel" => self.strings = flag,
                 "inspector_panel" => self.inspector = flag,
+                "call_graph_panel" => self.call_graph = flag,
+                "instruction_panel" => self.instructions = flag,
                 "file_explorer" => self.file_explorer = flag,
                 "open_files" => self.open_files = flag,
                 "bookmarks" => self.bookmarks = flag,
@@ -378,6 +393,7 @@ impl Panels {
                 "macros_panel" => self.macros = flag,
                 "scripts_panel" => self.scripts = flag,
                 "history_panel" => self.history = flag,
+                "todo_panel" => self.todos = flag,
                 _ => {}
             }
         }
@@ -401,15 +417,56 @@ impl Panels {
         self.macros = false;
         self.scripts = false;
         self.history = false;
+        self.todos = false;
         self.strings = false;
         self.inspector = false;
+        self.call_graph = false;
+        self.instructions = false;
     }
 
     fn right_count(&self) -> usize {
-        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector]
+        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector, self.call_graph, self.instructions]
             .iter()
             .filter(|on| **on)
             .count()
+    }
+
+    /// Draws the TODO panel, if it's open.
+    pub fn show_todos(&mut self, ui: &mut Ui, doc: &DocView<'_>, project: Option<&crate::project::Project>) -> Vec<crate::todo_panel::TodoAct> {
+        let mut acts = Vec::new();
+        if self.todos {
+            let mut open = true;
+            let panel = &mut self.todo_panel;
+            let (root, files) = project.map_or((None, &[][..]), |p| (p.root.as_deref().or_else(|| p.path.parent()), p.files.as_slice()));
+            let line_count = if doc.hex_mode || doc.no_file || doc.text.is_disk_backed() { 0 } else { doc.text.line_count() };
+            dock(ui, false, "todo-panel", "TODO notes", 240.0, &mut open, |ui| acts = panel.draw(ui, doc.id, line_count, &|i| doc.text.line(i).to_string(), root, files));
+            self.todos = open;
+        }
+        acts
+    }
+
+    /// Shows a language server's call hierarchy in the call graph panel, opening it.
+    pub fn show_server_graph(&mut self, doc: u64, graph: crate::call_graph::CallGraph, files: Vec<PathBuf>) {
+        self.call_graph = true;
+        self.call_graph_panel.set_from_server(doc, graph, files);
+    }
+
+    /// Draws the call graph and instruction reference panels, if they're open.
+    pub fn show_code(&mut self, ui: &mut Ui, doc: &DocView<'_>) -> Vec<crate::code_panels::CodeAct> {
+        let mut acts = Vec::new();
+        if self.instructions {
+            let mut open = true;
+            let panel = &mut self.instruction_panel;
+            dock(ui, true, "instruction-panel", "Instruction reference", 330.0, &mut open, |ui| panel.draw(ui, doc));
+            self.instructions = open;
+        }
+        if self.call_graph {
+            let mut open = true;
+            let panel = &mut self.call_graph_panel;
+            dock(ui, true, "call-graph-panel", "Call graph", 360.0, &mut open, |ui| acts = panel.draw(ui, doc));
+            self.call_graph = open;
+        }
+        acts
     }
 
     /// Draws the Project panel, if it's open.
@@ -583,17 +640,76 @@ fn remember_clip(items: &mut Vec<String>, text: String) {
     items.truncate(MAX_CLIPBOARD_ITEMS);
 }
 
+thread_local! {
+    /// Panels that hide themselves: whether they do, whether each side's are showing now (left, right), and how far
+    /// in each side's panels reached when they were last drawn.
+    static HIDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static SHOWING: std::cell::Cell<[bool; 2]> = const { std::cell::Cell::new([false; 2]) };
+    static REACH: std::cell::Cell<[f32; 2]> = const { std::cell::Cell::new([0.0; 2]) };
+    static TUCKED: std::cell::Cell<[bool; 2]> = const { std::cell::Cell::new([false; 2]) };
+}
+
+/// How near the window's edge the pointer has to come to bring hidden panels out.
+const EDGE: f32 = 6.0;
+
+/// Works out, once a frame before the panels are drawn, whether each side's hidden panels are showing: while the
+/// pointer is at that edge or over them, or something in them is being typed in.
+pub fn reveal_sides(ctx: &egui::Context, hiding: bool) {
+    HIDING.set(hiding);
+    let [was_left, was_right] = SHOWING.get();
+    let [reach_left, reach_right] = REACH.get();
+    let screen = ctx.content_rect();
+    let pointer = ctx.input(|i| i.pointer.latest_pos());
+    // Where the widget with the keyboard is, so a panel being typed in stays out.
+    let focused = ctx.memory(|m| m.focused()).and_then(|id| ctx.read_response(id)).map(|r| r.rect.center().x);
+    let left = pointer.is_some_and(|p| p.x <= screen.min.x + EDGE);
+    let right = pointer.is_some_and(|p| p.x >= screen.max.x - EDGE);
+    let in_left = pointer.is_some_and(|p| p.x <= reach_left + EDGE) || focused.is_some_and(|x| x <= reach_left);
+    let in_right = reach_right > 0.0 && (pointer.is_some_and(|p| p.x >= reach_right - EDGE) || focused.is_some_and(|x| x >= reach_right));
+    let side = |was: bool, at_edge: bool, inside: bool| at_edge || (was && (inside || ctx.dragged_id().is_some()));
+    SHOWING.set([side(was_left, left, in_left), side(was_right, right, in_right)]);
+    REACH.set([0.0, 0.0]);
+    TUCKED.set([false, false]);
+}
+
+/// Whether each side's panels were drawn in the last frame, and whether any were tucked away instead.
+#[cfg(test)]
+pub fn sides_drawn() -> ([bool; 2], [bool; 2]) {
+    let reach = REACH.get();
+    ([reach[0] > 0.0, reach[1] > 0.0], TUCKED.get())
+}
+
+/// After the panels: a thin strip at each edge where panels are tucked away, so it's clear where they went.
+pub fn mark_tucked(ctx: &egui::Context) {
+    let screen = ctx.content_rect();
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("tucked-panels")));
+    let [left, right] = TUCKED.get();
+    if left {
+        painter.rect_filled(egui::Rect::from_min_max(screen.min, egui::pos2(screen.min.x + 3.0, screen.max.y)), 0.0, theme::accent().gamma_multiply(0.6));
+    }
+    if right {
+        painter.rect_filled(egui::Rect::from_min_max(egui::pos2(screen.max.x - 3.0, screen.min.y), screen.max), 0.0, theme::accent().gamma_multiply(0.6));
+    }
+}
+
 /// A docked panel with a title row and a close button.
 fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
+    let side = usize::from(right);
+    if HIDING.get() && !SHOWING.get()[side] {
+        let mut tucked = TUCKED.get();
+        tucked[side] = true;
+        TUCKED.set(tucked);
+        return;
+    }
     let panel = if right { Panel::right(id) } else { Panel::left(id) };
-    panel
+    let shown = panel
         .default_size(width)
         .size_range(90.0..=900.0)
         .resizable(true)
         .frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(3, 2)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(title).color(theme::text()).size(12.5));
+                ui.label(RichText::new(crate::i18n::tr(title)).color(theme::text()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if crate::access::called(ui.add(egui::Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
                         *open = false;
@@ -603,6 +719,10 @@ fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, ope
             ui.add_space(2.0);
             content(ui);
         });
+    // How far in this side's panels reach, so the pointer can move over them without their going.
+    let mut reach = REACH.get();
+    reach[side] = if right { if reach[side] == 0.0 { shown.response.rect.min.x } else { reach[side].min(shown.response.rect.min.x) } } else { reach[side].max(shown.response.rect.max.x) };
+    REACH.set(reach);
 }
 
 fn heading_label(ui: &mut Ui, text: &str) {
@@ -684,6 +804,11 @@ fn module_sections<'a>(cache: &'a mut Option<((u64, u64), Vec<crate::media::Info
         } else {
             Vec::new()
         };
+        // An Amiga file crunched with PowerPacker, Imploder, StoneCracker, CrunchMania or ByteKiller says so.
+        let mut sections = sections;
+        if doc.hex_mode && doc.hex.len() <= crate::amiga_crunch::MOST && crate::amiga_crunch::worth_reading(&doc.hex.read(0, 12), doc.hex.len() as u64) {
+            sections.extend(crate::amiga_crunch::sections(&doc.hex.read(0, doc.hex.len())));
+        }
         *cache = Some((key, sections));
     }
     cache.as_ref().map_or(&[], |(_, sections)| sections.as_slice())

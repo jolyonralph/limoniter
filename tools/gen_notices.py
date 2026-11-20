@@ -84,6 +84,8 @@ def main():
         icu = file.read().strip()
     with open(os.path.join(folder, 'data', 'nextstep-mapping-notice.txt'), encoding='utf-8') as file:
         nextstep = file.read().strip()
+    with open(os.path.join(folder, 'data', 'ancient-license.txt'), encoding='utf-8') as file:
+        ancient = file.read().strip()
 
     out = [
         'Limoniter is built with the work of many other people. Their licences follow.',
@@ -119,23 +121,32 @@ def main():
         nextstep,
         '',
         RULE,
-        'Part 3: the grammars used for colouring code',
+        'Part 3: the Amiga decrunchers',
+        RULE,
+        '',
+        'The decoders for data crunched with PowerPacker, Imploder, CrunchMania, StoneCracker and ByteKiller are ported',
+        'from Teemu Suutari\'s ancient library (https://github.com/temisu/ancient), under this licence:',
+        '',
+        ancient,
+        '',
+        RULE,
+        'Part 4: the grammars used for colouring code',
         RULE,
         '',
         grammars.strip(),
         '',
         RULE,
-        'Part 4: every software library built into Limoniter, with where its source can be found',
+        'Part 5: every software library built into Limoniter, with where its source can be found',
         RULE,
         '',
         *listing,
         '',
         RULE,
-        'Part 5: the text of those libraries\' licences',
+        'Part 6: the text of those libraries\' licences',
         RULE,
     ]
     if without:
-        out += ['', 'These libraries don\'t carry their own copy of the licence they state, as listed in Part 4. The standard', 'text of those licences is among the texts below: ' + ', '.join(without) + '.']
+        out += ['', 'These libraries don\'t carry their own copy of the licence they state, as listed in Part 5. The standard', 'text of those licences is among the texts below: ' + ', '.join(without) + '.']
     for digest in sorted(by_text, key=lambda each: by_text[each][0]):
         out += ['', RULE, 'This text applies to: ' + ', '.join(by_text[digest]), RULE, '', first_seen[digest]]
     os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)

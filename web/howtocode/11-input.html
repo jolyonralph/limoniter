@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>11. Input · How To Code v8</title>
+  <meta name="description" content="Most demos need very little input: the left mouse button to leave, perhaps a key to skip to the next part.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/11-input.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/11-input.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="11. Input · How To Code v8">
+  <meta property="og:description" content="Most demos need very little input: the left mouse button to leave, perhaps a key to skip to the next part.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/11-input.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html" aria-current="page">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>11. Input</h1>
+        <div class="article-lead">
+<p>Most demos need very little input: the left mouse button to leave, perhaps a key to skip to the next part. A music disk wants a menu, an intro may have a hidden part behind a key, and a game written by a demo coder needs a joystick and maybe the keyboard. All of it is easy to read straight from the hardware, with one exception: the keyboard, which has a handshake that v7 warned people kept getting wrong. This chapter goes through each of them, both ways: taking the machine, and with the system left running.</p>
+<p><code>examples/ch11_keyboard_joystick.s</code> shows all of them at once. A cell lights for each key held down (one cell for each of the 128 raw key codes, in code order), the joystick's directions and buttons light theirs, a sprite follows the mouse, and the registers are shown in hexadecimal. Esc or the left mouse button leaves.</p>
+<figure class="guide-shot"><img src="images/ch11_keyboard_joystick.png" alt="ch11_keyboard_joystick.s with the system running, on Kickstart 3.1: the A key, joystick up and left with fire, and the right mouse button, all held" loading="lazy"></figure>
+<p>The numbers, top to bottom, are <code>JOY0DAT</code> (the mouse), <code>JOY1DAT</code> (the joystick), <code>POTGOR</code> (the second buttons), the last raw key code, and the character that key types, from the keymap (only with the system running on Kickstart 2 or later; <code>--</code> otherwise).</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-two-ports">The two ports</a></li>
+<li><a href="#the-mouse">The mouse</a></li>
+<li><a href="#the-joystick">The joystick</a></li>
+<li><a href="#the-fire-buttons">The fire buttons</a></li>
+<li><a href="#the-second-buttons-and-potgo">The second buttons, and POTGO</a></li>
+<li><a href="#the-keyboard">The keyboard</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="the-two-ports">The two ports</h2>
+<p>Every Amiga has two nine-pin ports for a mouse or a joystick. The software numbers them <strong>0</strong> (the mouse's port) and <strong>1</strong> (the joystick's); the <em>Hardware Reference Manual</em> calls the same two ports 1 and 2. This chapter uses the software's numbers, as the register names do.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">What</th>
+<th scope="col">Port 0 (mouse)</th>
+<th scope="col">Port 1 (joystick)</th>
+<th scope="col">Pressed reads as</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Movement: mouse counters, or joystick switches</th>
+<td><code>JOY0DAT</code> (<code>$DFF00A</code>)</td>
+<td><code>JOY1DAT</code> (<code>$DFF00C</code>)</td>
+<td>see below</td>
+</tr>
+<tr>
+<th scope="row">Fire button (pin 6): left mouse button, joystick fire</th>
+<td>CIA-A <code>PRA</code> (<code>$BFE001</code>) bit 6</td>
+<td>bit 7</td>
+<td>0</td>
+</tr>
+<tr>
+<th scope="row">Pin 9: right mouse button, joystick's second button</th>
+<td><code>POTGOR</code> (<code>$DFF016</code>) bit 10</td>
+<td>bit 14</td>
+<td>0</td>
+</tr>
+<tr>
+<th scope="row">Pin 5: middle mouse button</th>
+<td><code>POTGOR</code> bit 8</td>
+<td>bit 12</td>
+<td>0</td>
+</tr>
+</tbody></table></div>
+<p>Reading any of these is harmless, with the system running or not: the system reads them too. Writing is another matter, as the section on <code>POTGO</code> shows.</p>
+<h2 id="the-mouse">The mouse</h2>
+<p><code>JOY0DAT</code> holds two 8-bit counters: the vertical count in the high byte and the horizontal count in the low byte. The mouse sends pulses as it moves, and the chips count them: up as it moves right or down (towards you), down as it moves left or up. They never stop at an edge: they <strong>wrap around</strong>, from 255 to 0 and from 0 to 255. So the counters aren't a position, and they don't start at any particular value. What they give is <em>movement</em>: read them once a frame, and subtract last frame's reading.</p>
+<p>The <em>Hardware Reference Manual</em> suggests doing the subtraction with signed 8-bit arithmetic: the difference between two readings, as a signed byte, is the movement, as long as the mouse moved less than 128 counts between them. The manual's figures: about 200 counts per inch, so reading once a frame, the mouse would have to move at more than 38 inches a second to go wrong. (It says once each 1/60 of a second: that's NTSC. On PAL it's 1/50, which still allows 32 inches a second.)</p>
+<div class="code-block"><pre><code>        move.w  JOY0DAT(a5),d0
+        move.w  OldMouse,d1
+        move.w  d0,OldMouse
+        move.b  d0,d2                   ; horizontal: the low bytes
+        sub.b   d1,d2
+        ext.w   d2                      ; d2.w: how far right (negative: left)
+        add.w   PointerX,d2
+        ...
+        lsr.w   #8,d0                   ; vertical: the high bytes
+        lsr.w   #8,d1
+        sub.b   d1,d0
+        ext.w   d0                      ; d0.w: how far down (negative: up)</code></pre></div>
+<p>The mistake is to subtract the two words at once (<code>sub.w d1,d0</code>) and split the answer: when the horizontal count wraps, the borrow from the low byte goes into the high byte, and the pointer jumps a line up or down every time it crosses that point. Each byte is its own counter: subtract them separately.</p>
+<p>Remember the first reading before the first frame, as the example's <code>Init</code> does, or the first frame sees a jump from wherever the counters happened to be.</p>
+<h2 id="the-joystick">The joystick</h2>
+<p>A digital joystick is four switches, and the chips read them through the same counters as a mouse, in <code>JOY1DAT</code> (or <code>JOY0DAT</code>, for a joystick in the mouse's port). So the directions aren't simply four bits. From the <em>Hardware Reference Manual</em>'s table:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Direction</th>
+<th scope="col">Bit, in <code>JOY1DAT</code></th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Right</th>
+<td>bit 1</td>
+</tr>
+<tr>
+<th scope="row">Left</th>
+<td>bit 9</td>
+</tr>
+<tr>
+<th scope="row">Down</th>
+<td>bit 1 XOR bit 0</td>
+</tr>
+<tr>
+<th scope="row">Up</th>
+<td>bit 9 XOR bit 8</td>
+</tr>
+</tbody></table></div>
+<p>The usual way: shift a copy right by one bit and exclusive-OR it with the original. Then bit 0 is down and bit 8 is up, while right and left are read from the original.</p>
+<div class="code-block"><pre><code>        move.w  JOY1DAT(a5),d0
+        move.w  d0,d1
+        lsr.w   #1,d1
+        eor.w   d0,d1                   ; now bit 8 = up, bit 0 = down
+        btst    #8,d1
+        sne     Up
+        btst    #0,d1
+        sne     Down
+        btst    #9,d0
+        sne     Left
+        btst    #1,d0
+        sne     Right</code></pre></div>
+<p>The mistake is testing bit 0 for down and bit 8 for up. It seems to work when you try it, pushing straight down. But push right and the joystick reads as "down", and push down and right together and down disappears.</p>
+<h2 id="the-fire-buttons">The fire buttons</h2>
+<p>Each port's fire button (pin 6, which is also the left mouse button) is a bit of CIA-A's port A, at <code>$BFE001</code>: bit 6 for port 0, bit 7 for port 1. The bit is 0 while the button is held.</p>
+<div class="code-block"><pre><code>        btst    #7,$bfe001              ; CIAB_GAMEPORT1 in the NDK
+        seq     Fire                    ; 0 while pressed: so "equal" means pressed</code></pre></div>
+<p>Only read it. The same register's other bits do other things: bit 1 switches the audio filter (and the power light on most models), and bit 0 is the overlay that maps the ROM over chip RAM. A careless <code>move.b</code> to <code>$BFE001</code> changes them all, and <code>CIAADDRA</code> (<code>$BFE201</code>), which makes these pins outputs, is the system's.</p>
+<h2 id="the-second-buttons-and-potgo">The second buttons, and POTGO</h2>
+<p>The right mouse button, a joystick's second button and a mouse's middle button are on pins 9 and 5, the "pot" pins, which were made for analogue paddles and joysticks. They can be read as plain buttons in <code>POTGOR</code> (bits 10, 14, 8 and 12, as in the table above), 0 while pressed, but only when the pin is set up for it. The <em>Hardware Reference Manual</em>: "The Amiga must provide a pull-up resistance on the sense pin. To do this, set the proper pin to output, and drive the line high (set both OUT... and DAT... to 1)." That's done in <code>POTGO</code> (<code>$DFF034</code>):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"><code>POTGO</code> bit</th>
+<th scope="col">Name</th>
+<th scope="col">What it does</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">15, 14</th>
+<td><code>OUTRY</code>, <code>DATRY</code></td>
+<td>port 1, pin 9: output, and its level</td>
+</tr>
+<tr>
+<th scope="row">13, 12</th>
+<td><code>OUTRX</code>, <code>DATRX</code></td>
+<td>port 1, pin 5</td>
+</tr>
+<tr>
+<th scope="row">11, 10</th>
+<td><code>OUTLY</code>, <code>DATLY</code></td>
+<td>port 0, pin 9 (the right mouse button)</td>
+</tr>
+<tr>
+<th scope="row">9, 8</th>
+<td><code>OUTLX</code>, <code>DATLX</code></td>
+<td>port 0, pin 5 (the middle button)</td>
+</tr>
+<tr>
+<th scope="row">0</th>
+<td><code>START</code></td>
+<td>start the analogue counters (which also discharges the pins)</td>
+</tr>
+</tbody></table></div>
+<p>The system sets up port 0's pin 9 for itself, since Intuition reads the right mouse button. So <strong>the right mouse button can simply be read</strong>, either way. v8 checked this on an emulated A500 with Kickstart 1.3 and 3.1: <code>POTGOR</code> bit 10 was 1 with the button up and 0 with it held, with nothing written to <code>POTGO</code>.</p>
+<p>The joystick's second button is different. On Kickstart 1.3, <code>POTGOR</code> read <code>$0500</code> with nothing pressed: bit 14 at 0, as if the second button were held down, because nothing had set up port 1's pin 9. (Kickstart 3.1 read <code>$5500</code>.) So a program that wants the second button has to set the pin up itself, and that means writing <code>POTGO</code>. This is where it goes wrong:</p>
+<ul><li><strong><code>POTGO</code> can't be read back.</strong> <code>POTGOR</code> gives the pins' levels, not what was written. Write your own value, and you can't put back what was there.</li><li><strong>It's shared.</strong> Its bits belong to different users: Intuition has the right mouse button, and a three-button mouse driver, a paddle program or <code>lowlevel.library</code> may have others. The system keeps its own copy of what each owner wrote. A program that writes <code>POTGO</code> directly changes every bit at once. It takes away the pull-up for the right mouse button (which then reads wrongly for the system as well as for you), or sets <code>START</code>, and the system's copy no longer matches the hardware.</li></ul>
+<p>The right way is <strong><code>potgo.resource</code></strong>, which keeps that copy: ask for the bits with <code>AllocPotBits</code>, set them with <code>WritePotgo</code>, and give them back with <code>FreePotBits</code>. It's a few register writes inside, so it's fine with the machine taken, too. From the example's <code>Init</code>:</p>
+<div class="code-block"><pre><code>OUTRY           equ     $8000           ; POTGO: the joystick port's pin 9 an output...
+DATRY           equ     $4000           ; ...driven high (and in POTGOR, the pin's level)
+_LVOAllocPotBits equ    -6
+_LVOFreePotBits equ     -12
+_LVOWritePotgo  equ     -18
+
+        move.l  ExecBase.w,a6
+        lea     PotgoName(pc),a1        ; "potgo.resource"
+        jsr     _LVOOpenResource(a6)
+        move.l  d0,PotgoBase
+        beq.s   .nopotgo
+        move.l  d0,a6
+        move.l  #OUTRY!DATRY,d0
+        jsr     _LVOAllocPotBits(a6)
+        move.w  d0,PotBits              ; what we were given (0 if someone else has them)
+        and.w   #DATRY,d0
+        beq.s   .nopotgo
+        move.l  #OUTRY!DATRY,d0         ; the bits' values...
+        move.l  d0,d1                   ; ...and which bits to write
+        jsr     _LVOWritePotgo(a6)
+.nopotgo:</code></pre></div>
+<p>As the demo ends, <code>WritePotgo(0, OUTRY!DATRY)</code> puts the pin back to an input, and <code>FreePotBits(PotBits)</code> gives the bits back. With that, the example's second button read 1 (up) on Kickstart 1.3 too. The pins have large capacitors, so the manual says a change can take up to 300 microseconds to show: set them up in <code>Init</code>, and read them from the next frame.</p>
+<h2 id="the-keyboard">The keyboard</h2>
+<p>The keyboard isn't read like the others. It has a processor of its own, which scans the keys and sends a code to the Amiga each time one goes down or up. It sends them one bit at a time, to CIA-A's serial port: the keyboard's data line (KDAT) is the CIA's <code>SP</code> pin and its clock (KCLK) is the <code>CNT</code> pin. When eight bits have arrived, the CIA puts the byte in its serial data register (<code>SDR</code>, <code>$BFEC01</code>), sets bit 3 (<code>SP</code>) in its interrupt control register (<code>ICR</code>, <code>$BFED01</code>), and interrupts the processor at level 2 (<code>INTF_PORTS</code>).</p>
+<h3 id="what-the-keyboard-sends">What the keyboard sends</h3>
+<p>Each code is a <strong>raw key code</strong>: bits 0 to 6 say which key, and bit 7 is set when the key is let go. So the A key sends <code>$20</code> going down and <code>$A0</code> coming up. The codes are <em>positions</em> on the keyboard, not letters: <code>$20</code> is the key right of Caps Lock, which is A on an English keyboard and Q on a French one. The <em>Hardware Reference Manual</em> lists them all; a few a demo might use are Space <code>$40</code>, Return <code>$44</code>, Esc <code>$45</code>, the cursor keys <code>$4C</code>-<code>$4F</code> (up, down, right, left), F1-F10 <code>$50</code>-<code>$59</code>, and the Shift, Alt, Ctrl and Amiga keys <code>$60</code>-<code>$67</code>. Codes <code>$68</code> to <code>$7F</code>, and the same with bit 7 set, aren't keys: <code>$78</code> warns of a reset (Ctrl-Amiga-Amiga) and <code>$F9</code> to <code>$FE</code> are the keyboard's own messages ("the last code was bad", "my buffer overflowed", the codes sent at power-up). Caps Lock is odd too: it sends a code only when pressed, with bit 7 saying whether its light went off.</p>
+<p>Two things are done to each byte on the way. It's sent <strong>rotated</strong> (bit 6 first, bit 7 last: "6-5-4-3-2-1-0-7", so that a byte cut short reads as a key going up rather than down), and the line is <strong>active low</strong>, so every bit arrives <strong>inverted</strong>. Reading it, undo both:</p>
+<div class="code-block"><pre><code>        move.b  $bfec01,d0              ; CIA-A SDR: the byte as it came
+        not.b   d0
+        ror.b   #1,d0                   ; d0: the raw key code</code></pre></div>
+<h3 id="the-handshake">The handshake</h3>
+<p>After each byte, the Amiga must tell the keyboard it has the byte. It does this by pulling KDAT low for a moment, the <strong>handshake</strong>. Until it sees the handshake, the keyboard sends nothing more (it keeps up to 10 codes waiting). The <em>Hardware Reference Manual</em>, twice: "While some keyboards can detect a 1 microsecond handshake pulse, the pulse must be at least 85 microseconds for operation with all models of Amiga keyboards," and in its keyboard appendix, "Software MUST pulse the line low for 85 microseconds to ensure compatibility with all keyboard models."</p>
+<p>The pulse is made by switching CIA-A's serial port to output (bit 6, <code>SPMODE</code>, of control register A, <code>CRA</code> at <code>$BFEE01</code>), which pulls KDAT low, and back to input after the 85 microseconds.</p>
+<p>If the handshake doesn't come within 143 milliseconds, the keyboard decides it has lost touch. It clocks out 1 bits until it gets a handshake, then sends <code>$F9</code> ("the last code was bad") and the code again. So a missing handshake loses keys and repeats them, and a handshake too short for that keyboard to notice is a missing handshake.</p>
+<p><strong>Time it with the hardware, never with a loop.</strong> v7's warning, and its example: in F-15 Strike Eagle II on an Amiga 3000, "the key repeat delay is ridiculously short, you ttyyppee lliikkee tthhiiss aallll tthhee ttiimmee". A <code>dbf</code> loop that lasts 85 microseconds on a 7 MHz 68000 is over in a fraction of that on a 68030 or 68040, whose caches run it from inside the processor. v7: "I have seen too many, even commercial, programs that just ignores this and have NO delay code or just a simple dbf-loop. After about 15 keypresses your keyboard is dead and there is no code to reset it."</p>
+<p>Two clocks run at the same speed on every Amiga:</p>
+<ul><li><strong>The beam.</strong> <code>VHPOSR</code>'s high byte is the line being drawn, and it changes every 64 microseconds on PAL (63.5 on NTSC), whatever the processor. Wait until it has changed three times, and at least two whole lines have passed: 127 microseconds or more. The first change may come at once, which is why it's three. This needs nothing from the system, and it's what the example does.</li><li><strong>A CIA timer.</strong> They count the 0.7 MHz E clock: 709,379 counts a second on PAL, 715,909 on NTSC, so 85 microseconds is 61 counts on either. But the system uses the CIA timers itself, so one has to be asked for through <code>cia.resource</code> (<code>AddICRVector</code>) and given back, even with the machine taken. It's more work than the beam for no gain here.</li></ul>
+<p>v8 couldn't show a short handshake failing: FS-UAE took the keyboard's codes even with no wait at all, on a 68040. So the 85 microseconds here rest on the <em>Hardware Reference Manual</em>, and on v7's experience with real keyboards, not on v8's tests.</p>
+<h3 id="taking-the-machine-a-level-2-interrupt">Taking the machine: a level 2 interrupt</h3>
+<p>With the machine taken, the system's keyboard handling (<code>keyboard.device</code>, behind the level 2 interrupt) isn't running, so the demo needs its own level 2 interrupt. The startup switches every interrupt off and puts its own level 3 interrupt in place. The example adds level 2 in <code>Init</code>, at the vector base the startup found (on a 68010 or later the vectors may not be at address 0; see <a href="04-startup-and-exit.html">startup and exit</a>), and takes it out again in the routine it gives the startup as <code>ExitHook</code>:</p>
+<div class="code-block"><pre><code>        move.l  VectorBase,a0
+        move.l  $68(a0),OldLevel2       ; level 2's vector: $68 from the vector base
+        move.l  #Level2,$68(a0)
+        move.w  #INTF_SETCLR!INTF_PORTS,INTENA(a5)</code></pre></div>
+<p>The CIA's own interrupt for the serial port is already switched on: <code>keyboard.device</code> switched it on when the system started. A trackmo running with no system would switch it on itself, by writing <code>$88</code> to CIA-A's <code>ICR</code> (bit 7 set means "switch these on"; bit 3 is <code>SP</code>).</p>
+<p>The interrupt, from the example:</p>
+<div class="code-block"><pre><code>Level2:
+        movem.l d0-d2/a0-a1,-(sp)
+        move.b  CIAA+CIAICR,d0          ; which of CIA-A's events: reading clears them all
+        move.b  d0,d1
+        and.b   #$1f&amp;~(1&lt;&lt;CIAICRB_SP),d1
+        or.b    d1,MissedICR            ; the others, noted for the system (see below)
+        btst    #CIAICRB_SP,d0
+        beq.s   .done
+
+        move.b  CIAA+CIASDR,d0          ; the byte, as it came
+        bset    #CIACRAB_SPMODE,CIAA+CIACRA ; the handshake starts: KDAT low
+        move.b  CUSTOM+VHPOSR,d2        ; the line it started on
+
+        not.b   d0                      ; inverted and rotated: put it right
+        ror.b   #1,d0
+        bsr     QueueKey                ; for Frame to take
+
+        moveq   #3-1,d1                 ; until three new lines have started:
+.line:                                  ; at least 127 microseconds, on any processor
+        cmp.b   CUSTOM+VHPOSR,d2
+        beq.s   .line
+        move.b  CUSTOM+VHPOSR,d2
+        dbf     d1,.line
+        bclr    #CIACRAB_SPMODE,CIAA+CIACRA ; the handshake ends
+
+.done:
+        move.w  #INTF_PORTS,CUSTOM+INTREQ ; twice, for fast processors
+        move.w  #INTF_PORTS,CUSTOM+INTREQ
+        movem.l (sp)+,d0-d2/a0-a1
+        rte</code></pre></div>
+<p>Things to notice:</p>
+<ul><li><strong>The ICR first, then INTREQ.</strong> Reading CIA-A's <code>ICR</code> is what lets go of the CIA's interrupt line. Clear <code>INTREQ</code> before that and the request comes straight back. And acknowledge it twice, as the startup's level 3 interrupt does: on a fast processor the first write may not have reached the chips by the <code>RTE</code>.</li><li><strong>The handshake starts as soon as the byte is read</strong>, and the decoding and queueing happen while it lasts, so the wait is only for whatever's left of it.</li><li><strong>Keep the interrupt short, and do the work in <code>Frame</code>.</strong> The interrupt only puts the code in a small queue (16 bytes with two counters, one written only by the interrupt and one only by <code>Frame</code>, so neither has to stop the other). <code>Frame</code> takes the codes off, once a frame.</li><li><strong>Reading the ICR clears everything in it</strong>, not only the keyboard's event: anything else CIA-A had to report (a timer the system was using, say) is lost with it. The NDK's <code>cia.resource</code> documentation warns: "Never read the contents of the CIA interrupt control registers directly. Reading the contents of one of the CIA interrupt control registers clears the register. This can result in interrupts being missed by critical operating system code." Taking the machine, you have to read it: there's no other way to know a byte has come. So the example notes any other events it sees (<code>MissedICR</code>), and as the demo ends, gives them back to the system with <code>cia.resource</code>'s <code>SetICR</code>, which passes them on to the system's handlers:</li></ul>
+<div class="code-block"><pre><code>        move.l  CiaaBase,a6             ; OpenResource("ciaa.resource"), in Init
+        move.b  MissedICR,d0
+        and.b   SystemICRMask,d0        ; the ones the system wants: AbleICR(0), in Init
+        and.w   #$1f&amp;~(1&lt;&lt;CIAICRB_SP),d0 ; not the keyboard's: that byte was ours
+        beq.s   .none
+        or.w    #$80,d0                 ; bit 7 set: cause them
+        jsr     _LVOSetICR(a6)
+.none:</code></pre></div>
+<ul><li><strong>Level 2 is shared</strong> with the expansion bus: hard disk controllers and network cards use it too. With the machine taken, nothing should be busy there. But don't take the machine while the disk is still being written to, or a controller may be left waiting for an interrupt nobody answers.</li></ul>
+<h3 id="with-the-system-running-an-input-handler">With the system running: an input handler</h3>
+<p>With the system running, <code>keyboard.device</code> does all of the above (handshake included) and passes each key to <code>input.device</code>, which sends every input event down a chain of <strong>input handlers</strong>, highest priority first. Intuition's is at priority 50, and the startup adds one at 100, so it sees mouse and keyboard events first. It notes the last key (<code>LastKey</code>) and the left button, and turns both kinds of event into nothing, so they don't fall through to Workbench. That's what v7 asked for: "add an input handler... at a high priority to grab all input events before workbench/cli can get to them. You can then use this for your keyboard handler too (no more $bfexxx peeking, PLEASE!!!)" (v7 pointed to ProTracker's source, by Lars Hamre, as a good example.)</p>
+<p><code>LastKey</code> is enough for "press space for the next part". It isn't enough for more than that, which v8 found by testing. The first version of the example read <code>LastKey</code> once a frame. When ten keys were typed quickly (each held for 0.15 seconds, so each one went down before the last came up), keys went down and their release was never seen: a key's release and the next key's press came within the same frame, and only the later survived. Nine cells stayed lit with no key held.</p>
+<p>So the example adds its own input handler, at priority 101, ahead of the startup's, which puts every key on the same queue the level 2 interrupt uses when the machine is taken. <code>Frame</code> then works the same either way. The handler is added with the startup's own request to <code>input.device</code>, which is open already (<code>InputRequest</code>), and taken out again in <code>ExitHook</code>:</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        lea     InputRequest,a1
+        move.w  #IND_ADDHANDLER,IO_COMMAND(a1)
+        move.l  #KeyHandler,IO_DATA(a1)
+        jsr     _LVODoIO(a6)
+        ...
+KeyHandler:
+        dc.l    0,0                     ; the node's links
+        dc.b    NT_INTERRUPT,101        ; ahead of the startup's handler (100) and Intuition (50)
+        dc.l    KeyHandlerName
+        dc.l    0,KeyHandlerCode        ; is_Data, is_Code</code></pre></div>
+<p>The handler is called by <code>input.device</code>, in its own task, with <code>a0</code> pointing at a list of events, and returns the list in <code>d0</code>. It leaves the events alone: the startup's handler, next in line, swallows them.</p>
+<div class="code-block"><pre><code>KeyHandlerCode:
+        move.l  a0,-(sp)
+.event:
+        cmp.b   #IECLASS_RAWKEY,ie_Class(a0)
+        bne.s   .next
+        btst    #IEQUALIFIERB_REPEAT-8,ie_Qualifier(a0) ; a held key repeating: not a new press
+        bne.s   .next
+        move.b  ie_Code+1(a0),d0
+        bsr     QueueKey
+.next:
+        move.l  (a0),d0                 ; ie_NextEvent
+        move.l  d0,a0
+        bne.s   .event
+        move.l  (sp)+,d0                ; the list, as it came
+        rts</code></pre></div>
+<p>With this, the same ten-key test left nothing lit, both ways, on every Kickstart and processor tried.</p>
+<h3 id="from-raw-keys-to-characters">From raw keys to characters</h3>
+<p>Raw key codes are positions. For "press space", that's what you want. To let someone <em>type</em> (a name for a high-score table, a hidden word), the codes must become characters by the user's keymap, so that the key marked A gives "a" in Germany and France too. On Kickstart 2 and later, <code>keymap.library</code>'s <code>MapRawKey</code> does it (V36):</p>
+<div class="code-block"><pre><code>_LVOMapRawKey   equ     -42             ; keymap.library
+
+        lea     RawKeyEvent,a0          ; an InputEvent, all zeros but these:
+        move.b  #IECLASS_RAWKEY,ie_Class(a0)
+        move.w  d0,ie_Code(a0)          ; the raw key code
+        clr.w   ie_Qualifier(a0)        ; no Shift, no Alt: a real program passes the event's own
+        lea     MapBuffer,a1            ; where the characters go
+        moveq   #8,d1                   ; its size
+        sub.l   a2,a2                   ; the default keymap
+        move.l  KeymapBase,a6
+        jsr     _LVOMapRawKey(a6)       ; d0: how many characters (0 for Shift alone, -1 if too many)</code></pre></div>
+<p>The example shows the first character's code: the A key gave <code>$61</code> ("a") on Kickstart 3.1. A real program would keep each event's <code>ie_Qualifier</code> in its queue too, so that Shift and Alt work. Kickstart 1.3 has no <code>keymap.library</code>; there, <code>console.device</code>'s <code>RawKeyConvert</code> does the same job. v8 hasn't tested it.</p>
+<p>With the machine taken, there's no keymap: a table of your own from raw codes to characters, for the keys you need, is the usual answer.</p>
+<h3 id="peeking-at-bfec01">Peeking at $BFEC01</h3>
+<p>v7: "no more $bfexxx peeking, PLEASE!!!" The habit it meant looks like this:</p>
+<div class="code-block"><pre><code>        cmp.b   #$7f,$bfec01            ; wrong: is space ($40, rotated and inverted) the last key?
+        beq     NextPart</code></pre></div>
+<p>With the system running, this seems to work, because <code>keyboard.device</code> is reading every byte and doing the handshake; the <code>SDR</code> just still holds the last byte. But it's the last byte the <em>system</em> received, so a key can come and go between two looks and be missed, or one press seen many times. With the machine taken it fails outright: nothing makes the handshake, so the keyboard sends one code and waits, and 143 milliseconds later starts its "lost sync" recovery. Use the input handler, or a level 2 interrupt with a handshake.</p>
+<h3 id="v7-s-warnings-today">v7's warnings, today</h3>
+<ul><li><strong>Different keyboards.</strong> v7 noted that Cherry keyboards (on some A2000s, with small function keys) had different timings from the usual Mitsumi ones. The manual's 85 microseconds covers "all models"; a handshake of that length or more is right for every one.</li><li><strong>The A1200.</strong> v7 said hardware-hitting routines seemed unable to read more than one key at a time on the A1200's keyboard, and didn't know why. v8 couldn't check this: the emulator doesn't model the keyboard's own controller. Two things in the manual are worth knowing for any keyboard. The handshake must be at least 85 microseconds. And not every combination of keys can be read at once: the keys are wired in a grid, and since the A500 the keyboard's controller holds back a key whose combination with others could be a "ghost", until the grid clears. Only the seven qualifier keys (both Shifts, both Alts, both Amiga keys and Ctrl) are wired separately and never block or ghost. A game that needs several keys held at once should test the combinations on real keyboards, or use the qualifiers.</li><li><strong>"If you can, skip having your own keyboard routines, since they mostly fail anyway"</strong> (v7). With the system running, there's no reason for your own. Taking the machine, you need one, and the reason they "mostly failed" was the handshake. Timed by the beam, it's a few lines.</li></ul>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p><code>ch11_keyboard_joystick.s</code> was run both ways on an emulated A500 (FS-UAE) with Kickstart 1.3 and 3.1, each with a 68000, a 68020 and a 68040, twelve runs in all. FS-UAE can play its joystick from the keyboard, so the test pressed real keys into the emulator through the X server's XTEST extension. In each run:</p>
+<ul><li><strong>Holding keys and controls:</strong> A held, with joystick up and left, fire, and the right mouse button. All lit, with <code>JOY1DAT</code> at <code>$0200</code> (left, and up by the XOR) and <code>POTGOR</code> bit 10 clear.</li><li><strong>Fast typing:</strong> ten keys typed quickly, Q to P, so each went down before the last came up. Nothing was left lit, and the last code was <code>$99</code> (P let go).</li><li><strong>After the demo:</strong> <code>echo ok</code> typed at the CLI worked, so the keyboard was still in step with the system.</li></ul>
+<p>Separately:</p>
+<ul><li><strong>The mouse:</strong> moving it moved the pointer, both ways.</li><li><strong>Esc:</strong> it ended the demo, both ways.</li><li><strong>The keymap:</strong> <code>MapRawKey</code> gave <code>$61</code> for A and <code>$70</code> for P on Kickstart 3.1.</li></ul>
+<p>Not tested:</p>
+<ul><li>a handshake that's too short (the emulator accepts any);</li><li>the joystick's second button being pressed (the emulator's keyboard joystick has one button);</li><li>the middle mouse button;</li><li>real keyboards, the A1200's among them.</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>The handshake</strong> is given its number (at least 85 microseconds, from the <em>Hardware Reference Manual</em>) and timed by the beam. v7 said only to use "the given time-delay", and not a loop.</li><li><strong>Taking the machine</strong>, the keyboard is read with v8's own level 2 interrupt, put in through the startup's <code>ExitHook</code>. The other CIA-A events it consumes are handed back with <code>cia.resource</code>.</li><li><strong>With the system running</strong>, v7's advice (an input handler, not <code>$BFExxx</code> peeking) stands, and v8's startup has one. A program that needs every key adds a second, as the example does.</li><li><strong>The mouse, the joystick and the buttons</strong> are new: v7 didn't cover them. So are <code>POTGO</code>'s dangers and <code>potgo.resource</code>.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="10-chunky-to-planar.html"><span>Back</span>10. Chunky to planar</a>
+<a class="pager-next" href="12-sound-and-music.html"><span>Next</span>12. Sound and music</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

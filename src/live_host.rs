@@ -74,7 +74,9 @@ impl Limoniter {
                 // XRoar's GDB stub is for debugging; its memory and BASIC aren't followed from here.
                 Link::Gdb | Link::None => None,
             },
-            SessionKind::App { .. } => None,
+            SessionKind::App { .. } | SessionKind::Atari2600 { .. } => None,
+            // The built-in ZX81 and Ace aren't reached by the Machine commands.
+            SessionKind::Micro { .. } => None,
         };
         let own = self.running.sessions.iter().find(|s| matches!(s.kind, SessionKind::BuiltIn { doc_id: d, .. } if Some(d) == doc_id));
         own.into_iter().chain(self.running.sessions.iter().rev()).find_map(|session| reach(session).map(|r| (r, session.machine, session.target.clone())))

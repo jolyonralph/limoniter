@@ -82,6 +82,8 @@ pub enum Micro6502 {
     C64,
     Bbc,
     Atari2600,
+    /// The NES: its cartridge, an .nes file.
+    Nes,
 }
 
 impl Micro6502 {
@@ -97,6 +99,7 @@ impl Micro6502 {
                 "c64" | "commodore 64" | "commodore64" => Some(Micro6502::C64),
                 "bbc" | "bbc micro" | "bbcmicro" => Some(Micro6502::Bbc),
                 "atari 2600" | "atari2600" | "2600" | "vcs" | "atari vcs" => Some(Micro6502::Atari2600),
+                "nes" | "famicom" | "nintendo" => Some(Micro6502::Nes),
                 _ => None,
             }
         })
@@ -120,6 +123,10 @@ pub fn machine_6502(assembly: &Assembly) -> Option<Micro6502> {
     let called = |(op, address): (u8, i64)| matches!(op, 0x20 | 0x4C).then_some(address);
     // $FFE7, the C64's CLALL, is the BBC's OSNEWL as well, so it says neither.
     let kernal = |address: i64| (0xFF81..=0xFFF3).contains(&address) && (address - 0xFF81) % 3 == 0 && address != 0xFFE7;
+    // An NES program: the picture chip's registers worked, and the vectors at $FFFA.
+    if crate::nes::looks_like(assembly) {
+        return Some(Micro6502::Nes);
+    }
     // An Atari 2600 cartridge: code that waits for WSYNC, filling a cartridge's room up to its vectors.
     if let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest())
         && assembly.lines.iter().any(|p| p.bytes[..] == [0x85, 0x02])

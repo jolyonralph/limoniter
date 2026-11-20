@@ -561,6 +561,11 @@ pub fn open_file(path: &Path) -> Result<Box<dyn Volume>, String> {
 }
 
 /// Whether bytes taken out of an image are themselves an image or archive, to open in the browser too.
+/// Unpacks gzipped bytes (a release's .tar.gz, say), as an .adz is unpacked.
+pub fn gunzip_bytes(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    amiga::gunzip(&bytes.to_vec())
+}
+
 pub fn is_nested_image(name: &str, bytes: &[u8]) -> bool {
     is_image(name, &bytes[..bytes.len().min(0x8800)], bytes.len() as u64)
 }

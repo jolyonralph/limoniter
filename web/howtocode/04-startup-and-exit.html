@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4. Startup and exit · How To Code v8</title>
+  <meta name="description" content="How To Code began as an angry protest: new demos that refused to run on anything but the machine they were written on.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/04-startup-and-exit.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/04-startup-and-exit.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="4. Startup and exit · How To Code v8">
+  <meta property="og:description" content="How To Code began as an angry protest: new demos that refused to run on anything but the machine they were written on.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/04-startup-and-exit.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html" aria-current="page">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>4. Startup and exit</h1>
+        <div class="article-lead">
+<p>How To Code began as an angry protest: new demos that refused to run on anything but the machine they were written on. Most of the time the effect itself was fine. What failed was the few dozen lines at the start and end: the part that takes the Amiga from its operating system and gives it back. Get those right once, and every demo you build on them starts from solid ground.</p>
+<p>v8's startup is in <code>examples/startup.i</code>. This chapter explains every part of it, and why each part is there. <code>examples/startup_demo.s</code> is the smallest whole demo built on it.</p>
+<figure class="guide-shot"><img src="images/ch04_startup_demo.png" alt="The startup demo on an Amiga 500 with Kickstart 1.3, and the CLI it leaves behind" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#two-ways-to-take-the-machine">Two ways to take the machine</a></li>
+<li><a href="#what-your-demo-writes">What your demo writes</a></li>
+<li><a href="#step-by-step">Step by step</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="two-ways-to-take-the-machine">Two ways to take the machine</h2>
+<p>There are two ways for a demo to get the hardware to itself, and both are right, for different demos.</p>
+<p><strong>Taking the machine.</strong> Multitasking stops, every interrupt and every kind of DMA is switched off, and the demo installs its own. Nothing else runs, nothing takes cycles, and the timing is the demo's alone. This is how almost every demo works today. The cost: while the demo runs, the system can't do anything for it. In particular it can't load a file.</p>
+<p><strong>Keeping the system running.</strong> The demo shows its own display, but multitasking carries on underneath. The demo's frame comes from an interrupt server on the system's own chain, its input goes through an input handler, and it shares the blitter. Whenever the demo waits for the next frame, the system's tasks run: so <code>dos.library</code> can load the next part from a floppy, a hard drive or a CD while the effect keeps going. This is the way How To Code v7 recommended, and it's still the way for a demo that loads as it goes.</p>
+<p>The startup does both, chosen by one setting at the top of the demo:</p>
+<div class="code-block"><pre><code>OS_FRIENDLY     equ     0               ; 0: take the machine; 1: keep the system running</code></pre></div>
+<p>The rest of the demo doesn't change. A demo can be built both ways and tried both ways, and the v8 examples are.</p>
+<h2 id="what-your-demo-writes">What your demo writes</h2>
+<p>The startup calls four things that belong to the demo:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">What it is</th>
+<th scope="col">When</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>Init</code></th>
+<td>a routine</td>
+<td>once, before the display starts: build the screen, fill in the copper list</td>
+</tr>
+<tr>
+<th scope="row"><code>Frame</code></th>
+<td>a routine</td>
+<td>once a frame, from the main loop, with the display running</td>
+</tr>
+<tr>
+<th scope="row"><code>VBlank</code></th>
+<td>a routine</td>
+<td>at the start of every frame, from the interrupt: keep it short (a music replay, a counter)</td>
+</tr>
+<tr>
+<th scope="row"><code>Copper</code></th>
+<td>the copper list</td>
+<td>in a chip RAM section</td>
+</tr>
+</tbody></table></div>
+<p>Each is called with <code>a5</code> pointing at the custom chips (<code>$DFF000</code>), and may change any register. The demo ends when the left mouse button is pressed, or when the demo sets <code>ExitNow</code> to non-zero.</p>
+<p>A demo that installs something of its own in <code>Init</code> (another interrupt, say) gives the startup a routine that takes it away again:</p>
+<div class="code-block"><pre><code>        move.l  #MyExit,ExitHook</code></pre></div>
+<p>The startup calls it first as the demo ends, while everything is still running.</p>
+<p>The startup also gives the demo a few things: <code>Frames</code> (how many frames have been shown), <code>PalDisplay</code> (not zero on PAL), <code>GfxBase</code>, and <code>VectorBase</code> (where the exception vectors are). With the system running there are also <code>ButtonPressed</code> and <code>LastKey</code>, from the input handler.</p>
+<h2 id="step-by-step">Step by step</h2>
+<h3 id="started-from-an-icon">Started from an icon</h3>
+<p>A program started from Workbench is sent a message, and must take it before anything else and give it back as it ends. From the CLI there's none. v7 pointed this out (a demo given an icon would crash, or lose its memory), and the fix is a few lines:</p>
+<div class="code-block"><pre><code>        sub.l   a1,a1
+        jsr     _LVOFindTask(a6)        ; our own task
+        move.l  d0,a4
+        tst.l   pr_CLI(a4)              ; started from the CLI?
+        bne.s   .fromcli
+        lea     pr_MsgPort(a4),a0
+        jsr     _LVOWaitPort(a6)
+        lea     pr_MsgPort(a4),a0
+        jsr     _LVOGetMsg(a6)          ; Workbench's message: kept until the end
+        move.l  d0,WorkbenchMessage
+.fromcli:</code></pre></div>
+<p>At the end the message goes back with multitasking off (<code>Forbid</code>), so Workbench can't unload the program before it has finished returning. That is the one place a program ends while forbidden, and it's how the system's own startup code does it.</p>
+<h3 id="the-libraries">The libraries</h3>
+<p>Open each library with a version, and check that it opened:</p>
+<div class="code-block"><pre><code>        lea     GraphicsName(pc),a1
+        moveq   #33,d0                  ; version 33: Kickstart 1.2 or later
+        jsr     _LVOOpenLibrary(a6)
+        move.l  d0,GfxBase
+        beq     StartNoGraphics         ; it can fail: say goodbye politely</code></pre></div>
+<p>Never walk ExecBase's list of libraries to find one, and never use <code>OldOpenLibrary</code> (it's only <code>OpenLibrary</code> with version 0, and saves nothing). v7 said both, and they're still true.</p>
+<h3 id="pal-or-ntsc">PAL or NTSC</h3>
+<p>From Kickstart 2 on, <code>graphics.library</code> knows: the <code>PAL</code> bit in <code>gb_DisplayFlags</code>. On Kickstart 1.x the best there is the vertical blank rate exec was started with, <code>VBlankFrequency</code> (50 or 60). The startup works it out and leaves it in <code>PalDisplay</code>, so the demo can, say, show fewer lines on an NTSC machine.</p>
+<h3 id="where-the-vectors-are-the-vbr">Where the vectors are: the VBR</h3>
+<p>This one is missing from v7, and it broke many demos. On a 68000 the processor's exception vectors are at address 0, always, so the level 3 interrupt's address goes at <code>$6C</code>. A 68010 or anything later has a <strong>vector base register</strong> (VBR), and the vectors are wherever it points. Tools such as VBRControl, and the software of some accelerator boards, move them into fast RAM, where the processor reads them faster, and many accelerated Amigas run with them moved. A demo that writes <code>$6C</code> on such a machine changes nothing the processor looks at, and its interrupt never runs.</p>
+<p>The VBR can only be read in supervisor mode, so the startup asks exec to run a two-instruction routine there:</p>
+<div class="code-block"><pre><code>        moveq   #0,d0                   ; on a 68000, the vectors are at 0
+        btst    #AFB_68010,AttnFlags+1(a6)
+        beq.s   .novbr
+        lea     ReadVBR(pc),a5
+        jsr     _LVOSupervisor(a6)      ; runs ReadVBR in supervisor mode
+.novbr:
+        move.l  d0,VectorBase
+        ...
+ReadVBR:
+        dc.l    $4e7a0801               ; movec vbr,d0
+        rte</code></pre></div>
+<p><code>MOVEC VBR,D0</code> is written as its two words, so any assembler set for the 68000 accepts it. It's only ever run on a 68010 or later.</p>
+<h3 id="an-empty-display">An empty display</h3>
+<div class="code-block"><pre><code>        move.l  gb_ActiView(a6),OldView ; the view on show, to put back
+        sub.l   a1,a1
+        jsr     _LVOLoadView(a6)        ; show nothing
+        jsr     _LVOWaitTOF(a6)
+        jsr     _LVOWaitTOF(a6)</code></pre></div>
+<p><code>LoadView(0)</code> puts the display back to plain settings. Whatever Workbench was showing (an AGA mode, interlace, a strange screen promoted to something else), the chips are back to an ordinary display. Two <code>WaitTOF</code>s let both fields of an interlaced view finish.</p>
+<p>One thing found while testing v8: on Kickstart 3, <code>LoadView(0)</code> also switches the bitplanes' DMA off, while Kickstart 1.3 leaves it on. A demo written on a 1.3 machine that keeps the system running, and never switches the bitplanes on itself, shows nothing on a 3.1 machine. Never count on DMA, or any register, being left as your own machine leaves it.</p>
+<h3 id="taking-the-machine">Taking the machine</h3>
+<p>With <code>OS_FRIENDLY</code> at 0:</p>
+<div class="code-block"><pre><code>        jsr     _LVOOwnBlitter(a6)      ; the blitter is ours
+        jsr     _LVOWaitBlit(a6)        ; once anything the system started has finished
+        move.l  ExecBase.w,a6
+        jsr     _LVOForbid(a6)          ; no other task runs
+
+        move.w  DMACONR(a5),d0          ; note the chips' settings
+        or.w    #DMAF_SETCLR,d0
+        move.w  d0,OldDMACON
+        ...                             ; the same for INTENA and ADKCON
+
+        bsr     WaitVerticalBlank
+        move.w  #$7fff,INTENA(a5)       ; every interrupt off,
+        move.w  #$7fff,INTREQ(a5)       ; every request cleared,
+        move.w  #$7fff,INTREQ(a5)
+        move.w  #$7fff,DMACON(a5)       ; every kind of DMA off</code></pre></div>
+<p>Reading <code>DMACONR</code> gives the bits that are on. With bit 15 (<code>SETCLR</code>) set, writing the same value back switches those bits on again, which is how they're restored at the end. Everything is switched off in the vertical blank: v7 warned that stopping sprite DMA in the middle of a frame can leave a sprite's last line smeared down the screen as a vertical stripe.</p>
+<p>Then the startup installs its level 3 interrupt at <code>VectorBase+$6C</code>, switches the blitter on, calls <code>Init</code>, and starts the display at the next frame:</p>
+<div class="code-block"><pre><code>        move.l  #Copper,COP1LC(a5)
+        move.w  d0,COPJMP1(a5)          ; writing anything here starts the copper list
+        move.w  #DMAF_SETCLR!DMAF_MASTER!DMAF_RASTER!DMAF_COPPER!DMAF_BLITTER,DMACON(a5)
+        move.w  #INTF_SETCLR!INTF_INTEN!INTF_VERTB,INTENA(a5)</code></pre></div>
+<p>Sprite DMA stays off: a demo that wants sprites switches it on in <code>Init</code>. The interrupt counts the frame, calls <code>VBlank</code>, and acknowledges the request <strong>twice</strong>:</p>
+<div class="code-block"><pre><code>        move.w  #INTF_COPER!INTF_VERTB!INTF_BLIT,INTREQ(a5)
+        move.w  #INTF_COPER!INTF_VERTB!INTF_BLIT,INTREQ(a5)
+        movem.l (sp)+,d0-d7/a0-a6
+        rte</code></pre></div>
+<p>On a fast processor, the first write may still be on its way to the chips when the <code>RTE</code> runs. The request is then still set, and the interrupt comes straight back. The second write makes sure. It costs nothing on a 68000.</p>
+<h3 id="keeping-the-system-running">Keeping the system running</h3>
+<p>With <code>OS_FRIENDLY</code> at 1, nothing is switched off. Instead:</p>
+<ul><li>The task's <strong>priority</strong> goes up to 30 (<code>TASK_PRIORITY</code>), rather than multitasking being stopped with <code>Forbid</code>. That's above input.device (20) and the tasks that run the disks, so the demo isn't held up, but they all run whenever the demo waits for the next frame. v7 suggested 127; anything above the system's own tasks does the job, and a lower number leaves room above the demo.</li><li>A <strong>signal</strong> is set aside, and a <strong>vertical blank interrupt server</strong> is added to the system's chain with <code>AddIntServer</code>. Each frame it counts the frame, calls <code>VBlank</code>, and signals the main loop. The main loop sleeps in <code>Wait()</code> until then, and while it sleeps, the system works.</li><li>An <strong>input handler</strong> at priority 100 sees every input event before Intuition (priority 50) does. Mouse and keyboard events are noted (<code>ButtonPressed</code>, <code>LastKey</code>) and then turned into nothing (<code>IECLASS_NULL</code>). So clicks don't fall through to Workbench, which v7 warned about: a click on the demo shouldn't drag Workbench's windows about underneath it. Other events, such as a disk being put in, carry on.</li><li>The <strong>DMA</strong> the demo needs (bitplanes, copper, blitter) is switched on, because of the Kickstart 3 behaviour above. The startup notes how those bits were, and puts them back as it ends.</li><li>The <strong>blitter is shared.</strong> The system uses it too: Kickstart 1.x even decodes floppy disk tracks with it. So the demo owns it only around its own blitting. That's what the two macros are for:</li></ul>
+<div class="code-block"><pre><code>        BLIT_BEGIN                      ; OwnBlitter (with the system running), then wait
+        move.l  #Screen,BLTDPTH(a5)
+        ...
+        move.w  #(HEIGHT&lt;&lt;6)!(ROWBYTES/2),BLTSIZE(a5)
+        BLIT_END                        ; wait for it to finish, then DisownBlitter</code></pre></div>
+<h3 id="the-blitter-and-the-processor-a-lesson-from-testing">The blitter and the processor: a lesson from testing</h3>
+<p><code>BLIT_END</code> always waits for the blitter to finish, in both ways. The first version of v8's startup didn't wait when it had taken the machine. <code>startup_demo.s</code> clears its screen with the blitter, then draws a chequerboard with the processor. On a 68000 the blitter finishes long before the processor gets far, and all was well. On an emulated 68040 the screen stayed black: the processor drew the chequerboard while the blitter was still clearing, and the clear wiped it out.</p>
+<p>Never touch, with the processor, anything the blitter is still writing. On a 68000 you'll usually get away with it, so this is the bug that hides until someone runs your demo on an accelerated machine. <a href="07-blitter.html">The blitter</a> has more.</p>
+<h3 id="the-main-loop">The main loop</h3>
+<div class="code-block"><pre><code>MainLoop:
+        jsr     WaitFrame               ; until the next frame starts
+        lea     CUSTOM,a5
+        jsr     Frame                   ; the demo's work for this frame
+        tst.b   ExitNow
+        bne.s   .out
+        bsr     MouseClicked
+        beq.s   MainLoop</code></pre></div>
+<p>Taking the machine, <code>WaitFrame</code> waits for the interrupt's frame counter to change. With the system running, it <code>Wait()</code>s for the server's signal. Either way the demo's <code>Frame</code> runs once a frame, at its start. A frame that takes too long simply misses the next one.</p>
+<h3 id="giving-it-all-back">Giving it all back</h3>
+<p>The order matters. In this order:</p>
+<ol class="steps"><li><strong>The demo's own things</strong>: <code>ExitHook</code>, while everything it set up is still running.</li><li><strong>The sound stops</strong>, taking the machine: audio DMA off, and every channel's volume to 0. With the system running, the sound is the demo's own business, as other programs may be playing: unless it asked the startup to allocate its channels (<code>AUDIO_CHANNELS</code>, below), when those are silenced and given back to audio.device.</li><li><strong>The blitter finishes</strong> whatever it's doing.</li><li><strong>Interrupts and DMA off</strong>, in the vertical blank (taking the machine), and the old level 3 vector back. With the system running: the server off the chain, and the input handler removed.</li><li><strong>The system's copper list</strong> (<code>gb_copinit</code>) back in <code>COP1LC</code>, then the chips' old settings: <code>ADKCON</code>, <code>DMACON</code>, and last <code>INTENA</code>, so no interrupt arrives before everything is in place.</li><li><strong><code>Permit()</code></strong> and <strong><code>DisownBlitter()</code></strong>.</li><li><strong>The audio filter</strong> as it was found (bit 1 of CIA-A's port A, which some replayers change and don't put back), and on an AGA machine <strong><code>BPLCON4</code></strong> to <code>$0011</code>, which the system never sets itself (see <a href="09-aga.html">AGA</a>).</li><li><strong>The old view</strong> with <code>LoadView</code>, two <code>WaitTOF</code>s, and <code>RethinkDisplay()</code>, so Intuition rebuilds its screens' copper lists properly.</li><li><strong>The libraries closed</strong>, Workbench's message returned, and <strong>the return code in <code>d0</code></strong>: 0, all went well.</li></ol>
+<p>That last one is from v7 too. The value in <code>d0</code> as a program ends is its return code. Leave rubbish there, and a script that runs the demo stops with "Program failed return code 184641234". Zero means all went well; the startup only gives 5, a warning a script carries on after, when a demo that needs AGA finds it isn't there.</p>
+<h3 id="more-settings">More settings</h3>
+<p>Two more settings, given before the include like the others, cover what some demos need:</p>
+<ul><li><strong><code>NEEDS_AGA</code></strong> (1): the demo needs the AGA chips. The startup checks before taking anything, by asking the chip (<code>DENISEID</code>, as <a href="09-aga.html">AGA</a> explains, so it's right before SetPatch has run), and on a machine without them says so in the CLI and ends. A demo that only <em>uses</em> AGA when it's there reads <code>AgaChips</code>, which the startup sets either way.</li><li><strong><code>AUDIO_CHANNELS</code></strong> (a mask, <code>%1111</code> for all four): with the system running, the startup allocates these channels from audio.device at the highest precedence as the demo starts, so no other program's sound cuts in, and silences them and gives them back as it ends. <a href="12-sound-and-music.html">Sound and music</a> shows how to do it yourself.</li></ul>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p>Every v8 example is built both ways and run in FS-UAE:</p>
+<ul><li>an Amiga 500 with Kickstart 1.3, and with Kickstart 3.1;</li><li>a 68020, a 68040 and a 68060, with fast RAM.</li></ul>
+<p>Each test build ends itself after 500 frames (<code>AUTOEXIT=500</code>, given on the command line). The emulated machine's startup-sequence then runs a small program that prints "back in AmigaDOS". So each run shows two things in its screen captures: the effect while it runs, and a working CLI after it.</p>
+<div class="code-block"><pre><code>limoniter --assemble startup_demo.s demo OS_FRIENDLY=0 AUTOEXIT=500
+limoniter --assemble startup_demo.s demo OS_FRIENDLY=1 AUTOEXIT=500</code></pre></div>
+<p>Testing the startup this way found the two faults described above, both before anyone else could:</p>
+<ul><li>the bitplanes left off by Kickstart 3's <code>LoadView(0)</code> with the system running;</li><li>the 68040 overtaking the blitter.</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>One startup, both ways.</strong> v7's startup kept the system running. v8's does that or takes the machine, chosen by one setting, with the same demo code on top.</li><li><strong>The VBR</strong> is found and used. v7 didn't mention it.</li><li><strong>Frames come from an interrupt</strong> (or a server with a signal), not from polling the beam.</li><li><strong>The DMA is never assumed</strong> to be as Workbench leaves it.</li><li><strong>The blitter is waited for</strong> before the processor uses its work.</li><li><strong>The input handler</strong> that v7 promised "next time" is here.</li><li><strong>v7's fix for the V39 sprite resolution bug is left to the <a href="09-aga.html">AGA chapter</a>.</strong> On AGA machines, Kickstart 3.0's <code>LoadView(0)</code> didn't reset the sprites' resolution, and v7's startup set it back through <code>VideoControl</code>. The v8 startup leaves sprites off, so only a demo that uses them on AGA needs it.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="03-general-guidelines.html"><span>Back</span>3. General guidelines</a>
+<a class="pager-next" href="05-interrupts.html"><span>Next</span>5. Interrupts</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

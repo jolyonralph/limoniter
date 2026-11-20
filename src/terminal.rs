@@ -163,7 +163,7 @@ pub fn key_bytes(key: Key, modifiers: Modifiers, application_cursor: bool) -> Op
 }
 
 /// An xterm colour as it's drawn: the 16 named ones, the 6x6x6 cube, the greys, or red, green and blue.
-fn colour(c: vt100::Color, default: Color32) -> Color32 {
+pub(crate) fn colour(c: vt100::Color, default: Color32) -> Color32 {
     const NAMED: [u32; 16] = [0x1E1E1E, 0xCD3131, 0x0DBC79, 0xE5E510, 0x2472C8, 0xBC3FBC, 0x11A8CD, 0xE5E5E5, 0x666666, 0xF14C4C, 0x23D18B, 0xF5F543, 0x3B8EEA, 0xD670D6, 0x29B8DB, 0xFFFFFF];
     match c {
         vt100::Color::Default => default,

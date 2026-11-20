@@ -30,6 +30,8 @@ pub(super) struct ImageBrowser {
     /// Whether the selected file is a document that can be converted or a picture that can be saved as PNG, kept
     /// for the place and entry it was found for.
     document: Option<(String, Option<legacy_docs::Kind>, Option<crate::pictures::Format>)>,
+    /// Whether the selected file is crunched on the Amiga, and with what, kept for the place and entry it was found for.
+    crunched: Option<(String, Option<crate::amiga_crunch::Found>)>,
     /// The image's file, to change it.
     path: Option<PathBuf>,
     /// What can be changed, worked out when first drawn, or why nothing can (empty if it isn't a kind written).
@@ -43,6 +45,13 @@ pub(super) struct ImageBrowser {
     changed: bool,
 }
 
+/// What a file holds: unpacked if it's packed with an Atari ST packer, decrunched if it's crunched data from the
+/// Amiga, else as it is.
+fn unpacked(bytes: &[u8]) -> Vec<u8> {
+    let bytes = crate::st_packers::contents(bytes);
+    crate::amiga_crunch::contents(&bytes).into_owned()
+}
+
 /// Files no larger than this are looked at, when selected, to see if they're documents to convert.
 const MOST_DOCUMENT_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -51,6 +60,8 @@ enum BrowserAction {
     Up,
     SaveCopy(usize),
     SavePng(usize),
+    /// Saves what a crunched Amiga file decrunches to.
+    SaveDecrunched(usize),
     ImageInHex,
     /// Shows or hides File properties, which says all the image says about itself.
     ToggleInfo,
@@ -62,7 +73,7 @@ enum BrowserAction {
 
 impl ImageBrowser {
     pub(super) fn new(name: String, volume: Box<dyn Volume>) -> Self {
-        let mut browser = Self { levels: Vec::new(), selected: None, problem: None, document: None, path: None, abilities: None, pending: Vec::new(), editing: None, undo: Vec::new(), free: None, changed: false };
+        let mut browser = Self { levels: Vec::new(), selected: None, problem: None, document: None, crunched: None, path: None, abilities: None, pending: Vec::new(), editing: None, undo: Vec::new(), free: None, changed: false };
         browser.push(name, volume);
         browser
     }
@@ -143,13 +154,32 @@ impl ImageBrowser {
         let (kind, picture) = if entry.is_dir || entry.size > crate::pictures::MOST_PICTURE_BYTES as u64 {
             (None, None)
         } else {
-            self.take(index).ok().map(|(name, bytes)| (name, crate::st_packers::contents(&bytes).into_owned())).map_or((None, None), |(name, bytes)| {
+            self.take(index).ok().map(|(name, bytes)| (name, unpacked(&bytes))).map_or((None, None), |(name, bytes)| {
                 let document = if bytes.len() as u64 <= MOST_DOCUMENT_BYTES { legacy_docs::detect(&name, &bytes) } else { None };
                 (document, crate::pictures::detect(&name, &bytes))
             })
         };
         self.document = Some((key, kind, picture));
         (kind, picture)
+    }
+
+    /// Chooses an entry, as a click on it does.
+    pub(super) fn select(&mut self, index: usize) {
+        self.selected = Some(index);
+    }
+
+    /// Whether the file at this place is crunched on the Amiga, and with what; read once when selected.
+    fn crunch_kind(&mut self, index: usize) -> Option<crate::amiga_crunch::Found> {
+        let key = format!("{}#{index}", self.place());
+        if let Some((known, found)) = &self.crunched
+            && *known == key
+        {
+            return found.clone();
+        }
+        let entry = self.level().entries.get(index)?;
+        let found = if entry.is_dir || entry.size > crate::amiga_crunch::MOST as u64 { None } else { self.take(index).ok().and_then(|(_, bytes)| crate::amiga_crunch::recognise(&bytes)) };
+        self.crunched = Some((key, found.clone()));
+        found
     }
 
     /// A file's bytes and the name to open it under.
@@ -192,11 +222,8 @@ impl ImageBrowser {
             let level = self.level();
             (name, level.volume.reading_bytes(&level.entries[index], bytes))
         });
-        // A file packed with Pack-Ice or Atomik opens as what it holds.
-        let taken = taken.map(|(name, bytes)| match crate::st_packers::unpack(&bytes) {
-            Some(Ok(unpacked)) => (name, unpacked.bytes),
-            _ => (name, bytes),
-        });
+        // A file packed with Pack-Ice or Atomik, or crunched data from the Amiga, opens as what it holds.
+        let taken = taken.map(|(name, bytes)| (name, unpacked(&bytes)));
         if let Ok((name, bytes)) = &taken
             && media::is_nested_image(name, bytes)
             && let Ok(volume) = media::open(Arc::new(bytes.clone()), name)
@@ -210,6 +237,7 @@ impl ImageBrowser {
     fn draw(&mut self, ui: &mut Ui, info_open: bool) -> Option<BrowserAction> {
         let mut action = None;
         let (document, picture) = self.selected.map_or((None, None), |i| self.document_kind(i));
+        let crunched = self.selected.and_then(|i| self.crunch_kind(i));
         let level = self.levels.last().expect("a browser always has its image");
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
@@ -241,6 +269,12 @@ impl ImageBrowser {
             {
                 action = Some(BrowserAction::SavePng(i));
             }
+            if let (Some(i), Some(found)) = (chosen, &crunched) {
+                let label = if found.program { crate::i18n::tr("Save the decrunched program\u{2026}") } else { crate::i18n::tr("Save the decrunched file\u{2026}") };
+                if ui.button(label).on_hover_text(crate::amiga_crunch::said(found)).clicked() {
+                    action = Some(BrowserAction::SaveDecrunched(i));
+                }
+            }
             if let (Some(i), Some(kind)) = (chosen, document) {
                 ui.menu_button(crate::i18n::tf!("Convert ({})", kind.name()), |ui| {
                     if ui.button(crate::i18n::tr("Open as text")).on_hover_text(crate::i18n::tr("The document's text in a new tab, its formatting codes taken out")).clicked() {
@@ -262,6 +296,10 @@ impl ImageBrowser {
                 action = Some(BrowserAction::ToggleInfo);
             }
         });
+        if let Some(found) = &crunched {
+            let what = if found.program { crate::i18n::tf!("{}: opened, it shows as it is; Disassemble shows it decrunched.", crate::amiga_crunch::said(found)) } else { crate::i18n::tf!("{}: opened, it shows as what it holds.", crate::amiga_crunch::said(found)) };
+            ui.label(RichText::new(what).color(theme::text_faint()).size(11.5));
+        }
         let chosen = self.selected.filter(|i| *i < self.level().entries.len());
         let mut edit = None;
         ui.horizontal_wrapped(|ui| self.edit_buttons(ui, chosen, &mut edit));
@@ -473,9 +511,28 @@ impl Limoniter {
                 }
                 Err(problem) => self.message("Save a copy", problem),
             },
+            Some(BrowserAction::SaveDecrunched(i)) => match browser.take(i) {
+                Ok((name, bytes)) => match crate::amiga_crunch::decrunch(&bytes) {
+                    Some(Ok(decrunched)) => {
+                        let title = if decrunched.found.program { "Save the decrunched program" } else { "Save the decrunched file" };
+                        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr(title)).set_file_name(&name);
+                        if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
+                            picker = picker.set_directory(folder);
+                        }
+                        if let Some(target) = picker.save_file()
+                            && let Err(e) = codec::write_file(&target, &decrunched.bytes)
+                        {
+                            self.message(title, crate::i18n::tf!("Couldn't save {}.\n\n{e}", target.display()));
+                        }
+                    }
+                    Some(Err(why)) => self.message("Save the decrunched program", why),
+                    None => {}
+                },
+                Err(problem) => self.message("Save the decrunched program", problem),
+            },
             Some(BrowserAction::SavePng(i)) => {
                 let png = browser.take(i).and_then(|(name, bytes)| {
-                    let bytes = crate::st_packers::contents(&bytes);
+                    let bytes = unpacked(&bytes);
                     let format = crate::pictures::detect(&name, &bytes).ok_or(crate::i18n::tr("This isn't a picture Limoniter can read."))?;
                     let png = crate::pictures::to_png(&crate::pictures::decode_named(format, &name, &bytes)?)?;
                     Ok((name, png))
@@ -497,7 +554,7 @@ impl Limoniter {
             }
             Some(BrowserAction::Convert(i, target)) => {
                 let converted = browser.take(i).and_then(|(name, bytes)| {
-                    let bytes = crate::st_packers::contents(&bytes);
+                    let bytes = unpacked(&bytes);
                     let kind = legacy_docs::detect(&name, &bytes).ok_or(crate::i18n::tr("This isn't a document Limoniter can convert."))?;
                     Ok((name, legacy_docs::convert(kind, &bytes)?))
                 });

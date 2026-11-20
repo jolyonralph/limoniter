@@ -1,0 +1,258 @@
+# ares (ISC licence), ares/component/processor/spc700/disassembler.cpp: each opcode from 00 to FF, how many bytes it
+# is, and how ares writes it, in its 6502-like way.
+1 "nop"
+1 "jst $ffde"
+2 "set $", dp(0), ":0"
+3 "bbs $", dp(0), ":0=$", rel(+3, 1)
+2 "ora $", dp(0)
+3 "ora $", a()
+1 "ora (x)"
+2 "ora ($", dp(0), ",x)"
+2 "ora #$", b(0)
+3 "orr $", dp(1), "=$", dp(0)
+3 "orc $", ab()
+2 "asl $", dp(0)
+3 "asl $", a()
+1 "php"
+3 "tsb $", a()
+1 "brk"
+2 "bpl $", rel(+2)
+1 "jst $ffdc"
+2 "clr $", dp(0), ":0"
+3 "bbc $", dp(0), ":0=$", rel(+3, 1)
+2 "ora $", dp(0), ",x"
+3 "ora $", a(), ",x"
+3 "ora $", a(), ",y"
+2 "ora ($", dp(0), "),y"
+3 "orr $", dp(1), "=#$", b(0)
+1 "orr (x)=(y)"
+2 "dew $", dp(0)
+2 "asl $", dp(0), ",x"
+1 "asl"
+1 "dex"
+3 "cpx $", a()
+3 "jmp ($", a(), ",x)"
+1 "clp"
+1 "jst $ffda"
+2 "set $", dp(0), ":1"
+3 "bbs $", dp(0), ":1=$", rel(+3, 1)
+2 "and $", dp(0)
+3 "and $", a()
+1 "and (x)"
+2 "and ($", dp(0), ",x)"
+2 "and #$", b(0)
+3 "and $", dp(1), "=$", dp(0)
+3 "orc !$", ab()
+2 "rol $", dp(0)
+3 "rol $", a()
+1 "pha"
+3 "bne $", dp(0), "=$", rel(+3, 1)
+2 "bra $", rel(+2)
+2 "bmi $", rel(+2)
+1 "jst $ffd8"
+2 "clr $", dp(0), ":1"
+3 "bbc $", dp(0), ":1=$", rel(+3, 1)
+2 "and $", dp(0), ",x"
+3 "and $", a(), ",x"
+3 "and $", a(), ",y"
+2 "and ($", dp(0), "),y"
+3 "and $", dp(1), "=#$", b(0)
+1 "and (x)=(y)"
+2 "inw $", dp(0)
+2 "rol $", dp(0), ",x"
+1 "rol"
+1 "inx"
+2 "cpx $", dp(0)
+3 "jsr $", a()
+1 "sep"
+1 "jst $ffd6"
+2 "set $", dp(0), ":2"
+3 "bbs $", dp(0), ":2=$", rel(+3, 1)
+2 "eor $", dp(0)
+3 "eor $", a()
+1 "eor (x)"
+2 "eor ($", dp(0), ",x)"
+2 "eor #$", b(0)
+3 "eor $", dp(1), "=$", dp(0)
+3 "and $", ab()
+2 "lsr $", dp(0)
+3 "lsr $", a()
+1 "phx"
+3 "trb $", a()
+2 "jsp $ff", b(0)
+2 "bvc $", rel(+2)
+1 "jst $ffd4"
+2 "clr $", dp(0), ":2"
+3 "bbc $", dp(0), ":2=$", rel(+3, 1)
+2 "eor $", dp(0), ",x"
+3 "eor $", a(), ",x"
+3 "eor $", a(), ",y"
+2 "eor ($", dp(0), "),y"
+3 "eor $", dp(1), "=#$", b(0)
+1 "eor (x)=(y)"
+3 "cpw $", a()
+2 "lsr $", dp(0), ",x"
+1 "lsr"
+1 "tax"
+3 "cpy $", a()
+3 "jmp $", a()
+1 "clc"
+1 "jst $ffd2"
+2 "set $", dp(0), ":3"
+3 "bbs $", dp(0), ":3=$", rel(+3, 1)
+2 "cmp $", dp(0)
+3 "cmp $", a()
+1 "cmp (x)"
+2 "cmp ($", dp(0), ",x)"
+2 "cmp #$", b(0)
+3 "cmp $", dp(1), "=$", dp(0)
+3 "and !$", ab()
+2 "ror $", dp(0)
+3 "ror $", a()
+1 "phy"
+3 "bne --$", dp(0), "=$", rel(+3, 1)
+1 "rts"
+2 "bvs $", rel(+2)
+1 "jst $ffd0"
+2 "clr $", dp(0), ":3"
+3 "bbc $", dp(0), ":3=$", rel(+3, 1)
+2 "cmp $", dp(0), ",x"
+3 "cmp $", a(), ",x"
+3 "cmp $", a(), ",y"
+2 "cmp ($", dp(0), "),y"
+3 "cmp $", dp(1), "=#$", b(0)
+1 "cmp (x)=(y)"
+3 "adw $", a()
+2 "ror $", dp(0), ",x"
+1 "ror"
+1 "txa"
+2 "cpy $", dp(0)
+1 "rti"
+1 "sec"
+1 "jst $ffce"
+2 "set $", dp(0), ":4"
+3 "bbs $", dp(0), ":4=$", rel(+3, 1)
+2 "adc $", dp(0)
+3 "adc $", a()
+1 "adc (x)"
+2 "adc ($", dp(0), ",x)"
+2 "adc #$", b(0)
+3 "adc $", dp(1), "=$", dp(0)
+3 "eor $", ab()
+2 "dec $", dp(0)
+3 "dec $", a()
+2 "ldy #$", b(0)
+1 "plp"
+3 "str $", dp(1), "=#$", b(0)
+2 "bcc $", rel(+2)
+1 "jst $ffcc"
+2 "clr $", dp(0), ":4"
+3 "bbc $", dp(0), ":4=$", rel(+3, 1)
+2 "adc $", dp(0), ",x"
+3 "adc $", a(), ",x"
+3 "adc $", a(), ",y"
+2 "adc ($", dp(0), "),y"
+3 "adc $", dp(1), "=#$", b(0)
+1 "adc (x)=(y)"
+3 "sbw $", a()
+2 "dec $", dp(0), ",x"
+1 "dec"
+1 "tsx"
+1 "div"
+1 "xcn"
+1 "sei"
+1 "jst $ffca"
+2 "set $", dp(0), ":5"
+3 "bbs $", dp(0), ":5=$", rel(+3, 1)
+2 "sbc $", dp(0)
+3 "sbc $", a()
+1 "sbc (x)"
+2 "sbc ($", dp(0), ",x)"
+2 "sbc #$", b(0)
+3 "sbc $", dp(1), "=$", dp(0)
+3 "ldc $", ab()
+2 "inc $", dp(0)
+3 "inc $", a()
+2 "cpy #$", b(0)
+1 "pla"
+1 "sta (x++)"
+2 "bcs $", rel(+2)
+1 "jst $ffc8"
+2 "clr $", dp(0), ":5"
+3 "bbc $", dp(0), ":5=$", rel(+3, 1)
+2 "sbc $", dp(0), ",x"
+3 "sbc $", a(), ",x"
+3 "sbc $", a(), ",y"
+2 "sbc ($", dp(0), "),y"
+3 "sbc $", dp(1), "=#$", b(0)
+1 "sbc (x)=(y)"
+2 "ldw $", dp(0)
+2 "inc $", dp(0), ",x"
+1 "inc"
+1 "txs"
+1 "das"
+1 "lda (x++)"
+1 "cli"
+1 "jst $ffc6"
+2 "set $", dp(0), ":6"
+3 "bbs $", dp(0), ":6=$", rel(+3, 1)
+2 "sta $", dp(0)
+3 "sta $", a()
+1 "sta (x)"
+2 "sta ($", dp(0), ",x)"
+2 "cpx #$", b(0)
+3 "stx $", a()
+3 "stc $", ab()
+2 "sty $", dp(0)
+3 "sty $", a()
+2 "ldx #$", b(0)
+1 "plx"
+1 "mul"
+2 "bne $", rel(+2)
+1 "jst $ffc4"
+2 "clr $", dp(0), ":6"
+3 "bbc $", dp(0), ":6=$", rel(+3, 1)
+2 "sta $", dp(0), ",x"
+3 "sta $", a(), ",x"
+3 "sta $", a(), ",y"
+2 "sta ($", dp(0), "),y"
+2 "stx $", dp(0)
+2 "stx $", dp(0), ",y"
+2 "stw $", dp(0)
+2 "sty $", dp(0), ",x"
+1 "dey"
+1 "tya"
+3 "bne $", dp(0), ",x=$", rel(+3, 1)
+1 "daa"
+1 "clv"
+1 "jst $ffc2"
+2 "set $", dp(0), ":7"
+3 "bbs $", dp(0), ":7=$", rel(+3, 1)
+2 "lda $", dp(0)
+3 "lda $", a()
+1 "lda (x)"
+2 "lda ($", dp(0), ",x)"
+2 "lda #$", b(0)
+3 "ldx $", a()
+3 "not $", ab()
+2 "ldy $", dp(0)
+3 "ldy $", a()
+1 "cmc"
+1 "ply"
+1 "wai"
+2 "beq $", rel(+2)
+1 "jst $ffc0"
+2 "clr $", dp(0), ":7"
+3 "bbc $", dp(0), ":7=$", rel(+3, 1)
+2 "lda $", dp(0), ",x"
+3 "lda $", a(), ",x"
+3 "lda $", a(), ",y"
+2 "lda ($", dp(0), "),y"
+2 "ldx $", dp(0)
+2 "ldx $", dp(0), ",y"
+3 "str $", dp(1), "=$", dp(0)
+2 "ldy $", dp(0), ",x"
+1 "iny"
+1 "tay"
+2 "bne --y=$", rel(+2)
+1 "stp"

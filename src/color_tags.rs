@@ -173,7 +173,7 @@ impl Limoniter {
     }
 
     /// A built-in Markdown page, opened as a tab showing the page it makes, or gone to if it's open already.
-    fn open_page(&mut self, name: &str, markdown: String) {
+    pub(super) fn open_page(&mut self, name: &str, markdown: String) {
         if let Some(index) = self.docs.iter().position(|doc| !doc.placeholder && doc.path.is_none() && doc.untitled == name) {
             self.active = index;
             self.pending_focus = true;
@@ -194,7 +194,7 @@ impl Limoniter {
     }
 
     #[cfg(test)]
-    fn run_command_for_test(&mut self, command: Command, ctx: &Context) {
+    pub(super) fn run_command_for_test(&mut self, command: Command, ctx: &Context) {
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| self.run(command, ui));
         output.textures_delta.clear();
     }

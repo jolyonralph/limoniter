@@ -107,6 +107,8 @@ pub(super) struct Themes {
     pub window: String,
     pub document: String,
     pub rules: Vec<Rule>,
+    /// The names of the themes VS Code extensions give, which come and go with them and aren't saved.
+    pub from_extensions: Vec<String>,
 }
 
 impl Themes {
@@ -127,8 +129,6 @@ impl Themes {
         }
         // Before there were themes there was light or dark, which carries over.
         let usual = if light { "Limoniter Light" } else { "Limoniter Dark" };
-        let window = list_setting(settings, "window_theme").into_iter().next().filter(|n| windows.iter().any(|t| &t.name == n)).unwrap_or_else(|| usual.into());
-        let document = list_setting(settings, "document_theme").into_iter().next().filter(|n| documents.iter().any(|t| &t.name == n)).unwrap_or_else(|| usual.into());
         let saved: Vec<Rule> = list_setting(settings, "theme_rule")
             .iter()
             .filter_map(|line| {
@@ -138,7 +138,33 @@ impl Themes {
             .collect();
         // Rules that have been looked at are kept as they are, even none at all.
         let rules = if settings.lines().any(|l| l.starts_with("theme_rules_set=")) { saved } else { suggested_rules() };
-        Themes { windows, documents, window, document, rules }
+        let mut themes = Themes { windows, documents, window: String::new(), document: String::new(), rules, from_extensions: Vec::new() };
+        themes.take_extensions();
+        themes.window = list_setting(settings, "window_theme").into_iter().next().filter(|n| themes.windows.iter().any(|t| &t.name == n)).unwrap_or_else(|| usual.into());
+        themes.document = list_setting(settings, "document_theme").into_iter().next().filter(|n| themes.documents.iter().any(|t| &t.name == n)).unwrap_or_else(|| usual.into());
+        themes
+    }
+
+    /// Takes in the themes of the VS Code extensions that are on, in place of those taken in before. One whose name
+    /// is already a theme's is called by its name with (VS Code) after it.
+    pub(super) fn take_extensions(&mut self) {
+        let old = std::mem::take(&mut self.from_extensions);
+        self.windows.retain(|t| !old.contains(&t.name));
+        self.documents.retain(|t| !old.contains(&t.name));
+        for theme in &crate::vsix::current().themes {
+            let mut document = theme.document.clone();
+            let mut window = theme.window.clone();
+            if self.documents.iter().any(|t| t.name == document.name) || self.windows.iter().any(|t| t.name == window.name) {
+                document.name = format!("{} (VS Code)", document.name);
+                window.name.clone_from(&document.name);
+            }
+            if self.documents.iter().any(|t| t.name == document.name) {
+                continue;
+            }
+            self.from_extensions.push(document.name.clone());
+            self.documents.push(Rc::new(document));
+            self.windows.push(Rc::new(window));
+        }
     }
 
     pub(super) fn to_settings(&self) -> String {
@@ -155,12 +181,13 @@ impl Themes {
         out
     }
 
+    /// Built in, or from an extension: either way, not saved, and copied to be changed.
     pub(super) fn is_built_in_window(&self, name: &str) -> bool {
-        theme::built_in_windows().iter().any(|t| t.name == name)
+        theme::built_in_windows().iter().any(|t| t.name == name) || self.from_extensions.iter().any(|n| n == name)
     }
 
     pub(super) fn is_built_in_document(&self, name: &str) -> bool {
-        theme::built_in_documents().iter().any(|t| t.name == name)
+        theme::built_in_documents().iter().any(|t| t.name == name) || self.from_extensions.iter().any(|n| n == name)
     }
 
     pub(super) fn window_theme(&self) -> Rc<WindowTheme> {
@@ -449,6 +476,13 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                         for scheme in crate::highlight::SCHEMES {
                             if ui.selectable_label(theme.syntax == scheme.as_name(), scheme.as_name()).clicked() {
                                 theme.syntax = scheme.as_name().to_string();
+                                changed = true;
+                            }
+                        }
+                        // Those of VS Code extensions' themes.
+                        for scheme in crate::vsix::scheme_names() {
+                            if ui.selectable_label(theme.syntax == scheme, scheme.as_str()).clicked() {
+                                theme.syntax = scheme;
                                 changed = true;
                             }
                         }

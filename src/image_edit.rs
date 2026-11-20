@@ -438,9 +438,13 @@ impl Limoniter {
         egui::Window::new(crate::i18n::tr("New disk or tape image")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(RichText::new(crate::i18n::tr("A blank image, formatted as its machine would format it, to add files to.")).color(theme::text_dim()));
             ui.add_space(6.0);
-            for blank in Blank::ALL {
-                ui.radio_value(&mut state.kind, blank, crate::i18n::tr(blank.name()));
-            }
+            // The kinds scroll in a short window, leaving room for the name and the buttons below them.
+            let room = (ctx.content_rect().height() - 220.0).max(120.0);
+            egui::ScrollArea::vertical().max_height(room).auto_shrink([false, true]).show(ui, |ui| {
+                for blank in Blank::ALL {
+                    ui.radio_value(&mut state.kind, blank, crate::i18n::tr(blank.name()));
+                }
+            });
             ui.add_space(6.0);
             let named = !matches!(state.kind, Blank::SpectrumTap | Blank::SpectrumTzx | Blank::Plus3 | Blank::Atari90 | Blank::Atari130 | Blank::AtariMyDos360 | Blank::CocoSingle);
             ui.add_enabled_ui(named, |ui| {

@@ -2,7 +2,7 @@
 //! or saving one to it, and sending a remote file back each time it's saved.
 
 use super::*;
-use crate::remote::{self, Entry, Job, KnownHosts, Outcome, Refused, Secret, Site, Stamp, Task};
+use crate::remote::{self, Change, Entry, Job, KnownHosts, Outcome, Refused, Secret, Site, Stamp, Task};
 
 /// Where a document that came from a server goes back to.
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ pub(super) struct SavedSite {
 pub(super) fn sites_to_settings(sites: &[SavedSite]) -> String {
     sites
         .iter()
-        .map(|s| format!("sftp_site={}\u{1}{}\u{1}{}\u{1}{}\u{1}{}\n", s.name, s.site.host, s.site.port, s.site.user, s.site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string())))
+        .map(|s| format!("sftp_site={}\u{1}{}\u{1}{}\u{1}{}\u{1}{}\u{1}{}\n", s.name, s.site.host, s.site.port, s.site.user, s.site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string()), s.site.scheme.prefix()))
         .collect()
 }
 
@@ -34,11 +34,14 @@ pub(super) fn sites_from_settings(values: &[String]) -> Vec<SavedSite> {
         .iter()
         .filter_map(|value| {
             let parts: Vec<&str> = value.split('\u{1}').collect();
-            let [name, host, port, user, key] = parts.as_slice() else {
-                return None;
+            // Kept before FTP could be used, a site had no scheme: it's SFTP.
+            let (name, host, port, user, key, scheme) = match parts.as_slice() {
+                [name, host, port, user, key] => (name, host, port, user, key, remote::Scheme::Sftp),
+                [name, host, port, user, key, scheme] => (name, host, port, user, key, remote::Scheme::from_prefix(scheme).unwrap_or_default()),
+                _ => return None,
             };
             let key_file = (!key.is_empty()).then(|| PathBuf::from(key));
-            Some(SavedSite { name: (*name).to_string(), site: Site { host: (*host).to_string(), port: port.parse().ok()?, user: (*user).to_string(), key_file } })
+            Some(SavedSite { name: (*name).to_string(), site: Site { scheme, host: (*host).to_string(), port: port.parse().ok()?, user: (*user).to_string(), key_file } })
         })
         .collect()
 }
@@ -52,7 +55,14 @@ pub(super) enum Purpose {
     Open,
     /// Sending a document back after it was saved.
     Send(u64),
+    /// Looking at a document's file on the server, to notice it changing there.
+    Watch(u64),
+    /// Fetching it again, into its copy here, once it has.
+    Refresh(u64),
 }
+
+/// How often an open remote file is looked at on its server.
+const WATCH_REMOTE_EVERY: Duration = Duration::from_secs(15);
 
 /// The Open remote file box, and Save to a server.
 #[derive(Default)]
@@ -71,6 +81,15 @@ pub(super) struct RemoteBox {
     /// Saving this document to the server, rather than opening a file from it.
     pub saving: Option<u64>,
     pub file_name: String,
+    /// The hosts in ~/.ssh/config, offered beside the saved sites.
+    pub ssh_hosts: Vec<(String, Site)>,
+    /// Files chosen with Ctrl to open together.
+    pub chosen: std::collections::BTreeSet<String>,
+    /// A file or folder being renamed (its name, and the new one), or a new folder being named.
+    pub renaming: Option<(String, String)>,
+    pub new_folder: Option<String>,
+    /// Choosing a folder to open as a project, rather than a file.
+    pub project: bool,
 }
 
 impl RemoteBox {
@@ -103,7 +122,7 @@ impl Limoniter {
     }
 
     pub(super) fn open_remote_box(&mut self, saving: Option<u64>) {
-        let mut state = RemoteBox { remember: true, ..RemoteBox::default() };
+        let mut state = RemoteBox { remember: true, ssh_hosts: remote::own_ssh_hosts(), ..RemoteBox::default() };
         let from = saving.and_then(|id| self.docs.iter().find(|d| d.id == id)).and_then(|doc| doc.remote.clone());
         if let Some(link) = from {
             state.address = link.site.url(&remote::parent(&link.path));
@@ -167,12 +186,18 @@ impl Limoniter {
     /// Sends back every remote document that has just been saved.
     pub(super) fn send_saved_remotes(&mut self) {
         let mut wanted: Vec<(u64, RemoteLink)> = Vec::new();
+        let mut in_projects: Vec<PathBuf> = Vec::new();
         for doc in &mut self.docs {
-            if std::mem::take(&mut doc.upload_wanted)
-                && let Some(link) = doc.remote.clone()
-            {
-                wanted.push((doc.id, link));
+            if std::mem::take(&mut doc.upload_wanted) {
+                match (doc.remote.clone(), &doc.path) {
+                    (Some(link), _) => wanted.push((doc.id, link)),
+                    (None, Some(path)) => in_projects.push(path.clone()),
+                    (None, None) => {}
+                }
             }
+        }
+        for path in in_projects {
+            self.remote_project_saved(&path);
         }
         for (id, link) in wanted {
             self.remote_jobs.retain(|(purpose, _)| !matches!(purpose, Purpose::Send(other) if *other == id));
@@ -198,6 +223,21 @@ impl Limoniter {
     fn remote_finished(&mut self, purpose: Purpose, job: &Job, outcome: Outcome) {
         let site = job.site.clone();
         match (purpose, outcome) {
+            // Looking at a file on its server in the background: said nothing of, it's tried again later.
+            (Purpose::Watch(_) | Purpose::Refresh(_), Outcome::Refused(_) | Outcome::Failed(_)) => {}
+            // An sftp:// address opened with nothing to sign in with yet: the box, to sign in.
+            (Purpose::Open, Outcome::Refused(refused)) if !matches!(self.dialog, Dialog::Remote(_)) => {
+                let text = refused.describe(&site);
+                self.open_remote_box(None);
+                if let Dialog::Remote(state) = &mut self.dialog {
+                    state.address = site.url(&remote::parent(&self.remote_opening.take().unwrap_or_default()));
+                    state.key_file = site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string());
+                    state.status = text;
+                    if let Refused::UnknownHost(print) = refused {
+                        state.trust = Some(print);
+                    }
+                }
+            }
             (_, Outcome::Refused(refused)) => {
                 let text = refused.describe(&site);
                 if let Dialog::Remote(state) = &mut self.dialog {
@@ -240,11 +280,28 @@ impl Limoniter {
                 if self.open_path(&local)
                     && let Some(doc) = self.docs.iter_mut().find(|doc| doc.path.as_deref().is_some_and(|p| same_path(p, &local)))
                 {
-                    doc.remote = Some(RemoteLink { site: site.clone(), path: path.clone(), local, stamp: Some(stamp) });
+                    doc.remote = Some(RemoteLink { site: site.clone(), path: path.clone(), local: local.clone(), stamp: Some(stamp) });
                     if !self.remote_recent.contains(&site.url(&path)) {
                         self.remote_recent.insert(0, site.url(&path));
                         self.remote_recent.truncate(15);
                     }
+                    // In the ordinary recent files as its address, rather than its copy here, to open again from there.
+                    self.panels.recent.retain(|p| !same_path(p, &local));
+                    panels::note_recent(&mut self.panels.recent, &PathBuf::from(site.url(&path)));
+                }
+            }
+            (Purpose::Watch(id), Outcome::Looked { stamp: Some(now) }) => {
+                // Changed on the server: fetched into the copy here, where the change is noticed as any file's is.
+                if let Some(link) = self.docs.iter().find(|doc| doc.id == id).and_then(|doc| doc.remote.clone())
+                    && link.stamp.is_some_and(|was| was != now)
+                {
+                    let task = Task::Download { remote: link.path.clone(), local: link.local.clone() };
+                    self.start_remote(Purpose::Refresh(id), link.site, task);
+                }
+            }
+            (Purpose::Refresh(id), Outcome::Downloaded { stamp, .. }) => {
+                if let Some(link) = self.docs.iter_mut().find(|doc| doc.id == id).and_then(|doc| doc.remote.as_mut()) {
+                    link.stamp = Some(stamp);
                 }
             }
             (Purpose::Send(id), Outcome::Uploaded { stamp, .. }) => {
@@ -291,16 +348,26 @@ impl Limoniter {
         let mut trust = false;
         let mut forget_key = false;
         let mut forget_password = false;
-        let title = if state.saving.is_some() { "Save to a server" } else { "Open a remote file" };
+        let (mut change, mut change_cancelled, mut deleting, mut open_many): (Option<Change>, bool, Option<(String, bool)>, Vec<String>) = (None, false, None, Vec::new());
+        let title = if state.saving.is_some() {
+            "Save to a server"
+        } else if state.project {
+            "Open a remote folder as a project"
+        } else {
+            "Open a remote file"
+        };
+        // FTP signs in with a password only.
+        let ftp = state.address.trim_start().get(..3).is_some_and(|start| start.eq_ignore_ascii_case("ftp"));
+        let mut open_project = None;
         let sites = self.remote_sites.clone();
         let recent = self.remote_recent.clone();
         egui::Window::new(title).collapsible(false).resizable(true).default_size([640.0, 520.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             egui::Grid::new("remote-sign-in").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 ui.label(crate::i18n::tr("Address:"));
                 ui.horizontal(|ui| {
-                    let field = ui.add(egui::TextEdit::singleline(&mut state.address).hint_text(crate::i18n::tr("sftp://user@host:port/folder")).desired_width(380.0));
+                    let field = ui.add(egui::TextEdit::singleline(&mut state.address).hint_text(crate::i18n::tr("sftp://user@host:port/folder, or ftp://, ftpes://, ftps://")).desired_width(380.0));
                     connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                    if !sites.is_empty() || !recent.is_empty() {
+                    if !sites.is_empty() || !recent.is_empty() || !state.ssh_hosts.is_empty() {
                         egui::ComboBox::from_id_salt("remote-sites").selected_text(crate::i18n::tr("Recent")).width(90.0).show_ui(ui, |ui| {
                             for saved in &sites {
                                 if ui.selectable_label(false, saved.site.url("")).clicked() {
@@ -313,20 +380,34 @@ impl Limoniter {
                                     state.address.clone_from(url);
                                 }
                             }
+                            if !state.ssh_hosts.is_empty() {
+                                ui.separator();
+                                ui.label(RichText::new(crate::i18n::tr("From ~/.ssh/config")).small().color(theme::text_dim()));
+                                for (name, site) in state.ssh_hosts.clone() {
+                                    if ui.selectable_label(false, &name).on_hover_text(site.url("")).clicked() {
+                                        state.address = site.url("");
+                                        state.key_file = site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string());
+                                    }
+                                }
+                            }
                         });
                     }
                 });
                 ui.end_row();
-                ui.label(crate::i18n::tr("Key file:"));
-                ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(380.0));
-                    if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
-                        && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
-                    {
-                        state.key_file = file.display().to_string();
-                    }
-                });
-                ui.end_row();
+                if ftp {
+                    state.key_file.clear();
+                } else {
+                    ui.label(crate::i18n::tr("Key file:"));
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(380.0));
+                        if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
+                            && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
+                        {
+                            state.key_file = file.display().to_string();
+                        }
+                    });
+                    ui.end_row();
+                }
                 ui.label(if state.key_file.trim().is_empty() { crate::i18n::tr("Password:") } else { crate::i18n::tr("Passphrase:") });
                 ui.horizontal(|ui| {
                     let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).hint_text(crate::i18n::tr("Asked for only if needed")).desired_width(240.0));
@@ -372,35 +453,98 @@ impl Limoniter {
                     if folder != "/" && ui.small_button(crate::i18n::tr("Up")).clicked() {
                         go_to = Some(remote::parent(&folder));
                     }
+                    if ui.small_button(crate::i18n::tr("New folder")).clicked() {
+                        state.new_folder = Some(String::new());
+                    }
                 });
+                // A new folder or a new name being typed.
+                if let Some(name) = &mut state.new_folder {
+                    ui.horizontal(|ui| {
+                        ui.label(crate::i18n::tr("New folder:"));
+                        let field = ui.add(egui::TextEdit::singleline(name).desired_width(240.0));
+                        field.request_focus();
+                        let ok = !name.trim().is_empty() && !name.contains('/');
+                        if ui.add_enabled(ok, egui::Button::new(crate::i18n::tr("Make it"))).clicked() || (ok && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
+                            change = Some(Change::MakeFolder(remote::join(&folder, name.trim())));
+                        }
+                        if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                            change_cancelled = true;
+                        }
+                    });
+                }
+                if let Some((old, name)) = &mut state.renaming {
+                    ui.horizontal(|ui| {
+                        ui.label(crate::i18n::tf!("Rename {old} to:"));
+                        let field = ui.add(egui::TextEdit::singleline(name).desired_width(240.0));
+                        let ok = !name.trim().is_empty() && !name.contains('/') && name.trim() != old.as_str();
+                        if ui.add_enabled(ok, egui::Button::new(crate::i18n::tr("Rename"))).clicked() || (ok && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
+                            change = Some(Change::Rename { from: remote::join(&folder, old), to: remote::join(&folder, name.trim()) });
+                        }
+                        if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                            change_cancelled = true;
+                        }
+                    });
+                }
                 egui::ScrollArea::vertical().max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
                     for entry in &state.entries {
                         let label = if entry.folder { format!("\u{1F4C1} {}", entry.name) } else { format!("    {}", entry.name) };
                         let size = if entry.folder { String::new() } else { short_size(entry.size) };
                         let response = ui.horizontal(|ui| {
-                            let response = ui.selectable_label(!entry.folder && entry.name == state.file_name, crate::i18n::tr(&label));
+                            let picked = !entry.folder && (entry.name == state.file_name || state.chosen.contains(&entry.name));
+                            let response = ui.selectable_label(picked, crate::i18n::tr(&label));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(size).color(theme::text_faint())));
                             response
                         });
                         let response = response.inner;
+                        let with_ctrl = ui.input(|i| i.modifiers.command);
                         if entry.folder && response.clicked() {
                             go_to = Some(remote::join(&folder, &entry.name));
+                        } else if response.clicked() && with_ctrl && state.saving.is_none() {
+                            // Ctrl chooses several to open together.
+                            if !state.chosen.remove(&entry.name) {
+                                state.chosen.insert(entry.name.clone());
+                            }
                         } else if response.clicked() {
+                            state.chosen.clear();
                             state.file_name.clone_from(&entry.name);
                         }
-                        if !entry.folder && response.double_clicked() && state.saving.is_none() {
+                        response.context_menu(|ui| {
+                            if ui.button(crate::i18n::tr("Rename\u{2026}")).clicked() {
+                                state.renaming = Some((entry.name.clone(), entry.name.clone()));
+                                ui.close();
+                            }
+                            if ui.button(crate::i18n::tr("Delete")).clicked() {
+                                deleting = Some((remote::join(&folder, &entry.name), entry.folder));
+                                ui.close();
+                            }
+                        });
+                        if !entry.folder && response.double_clicked() && state.saving.is_none() && !state.project {
                             open = Some(remote::join(&folder, &entry.name));
                         }
                     }
                 });
                 ui.separator();
+                if state.project {
+                    ui.horizontal(|ui| {
+                        if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open {folder} as a project"))).on_hover_text(crate::i18n::tr("Its files are fetched into a folder on this computer, and each save is sent back")).clicked() {
+                            open_project = Some(folder.clone());
+                        }
+                    });
+                }
                 ui.horizontal(|ui| {
+                    if state.project {
+                        return;
+                    }
                     ui.label(crate::i18n::tr("File name:"));
                     ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(300.0));
                     let name_ok = !state.file_name.trim().is_empty() && !state.file_name.contains('/');
                     if state.saving.is_some() {
                         if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Save here"))).clicked() {
                             save_here = true;
+                        }
+                    } else if !state.chosen.is_empty() {
+                        if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open the {} chosen", state.chosen.len()))).clicked() {
+                            open_many = state.chosen.iter().map(|name| remote::join(&folder, name)).collect();
                         }
                     } else if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Open"))).clicked() {
                         open = Some(remote::join(&folder, state.file_name.trim()));
@@ -439,6 +583,32 @@ impl Limoniter {
             self.remote_fetch(site, path);
             close = false;
         }
+        if let (Some(folder), Some(site)) = (open_project, site.clone()) {
+            self.close_dialog();
+            self.open_remote_project(site, folder);
+            return true;
+        }
+        if let Some(site) = site.clone() {
+            for path in open_many {
+                self.remote_fetch(site.clone(), path);
+            }
+        }
+        if let Some((path, is_folder)) = deleting {
+            let question = if is_folder { crate::i18n::tf!("Delete the folder {path} on the server? It has to be empty.") } else { crate::i18n::tf!("Delete {path} on the server? This can't be undone.") };
+            if ask_yes_no("Delete", &question) {
+                change = Some(Change::Remove { path, folder: is_folder });
+            }
+        }
+        if (change.is_some() || change_cancelled)
+            && let Dialog::Remote(state) = &mut self.dialog
+        {
+            state.renaming = None;
+            state.new_folder = None;
+            state.chosen.clear();
+        }
+        if let (Some(change), Some(site), Some(folder)) = (change, site.clone(), folder.clone()) {
+            self.start_remote(Purpose::Browse, site, Task::Change { change, folder });
+        }
         if save_here && let (Some(site), Some(folder), Some(id)) = (site, folder, saving) {
             let path = remote::join(&folder, &file_name);
             if !exists || ask_yes_no("Save to a server", &crate::i18n::tf!("{file_name} is already there. Replace it?")) {
@@ -460,6 +630,54 @@ impl Limoniter {
             self.close_dialog();
         }
         true
+    }
+
+    /// Every so often, each remote file open is looked at on its server, so a change made there is noticed while
+    /// it's open, not only on saving.
+    pub(super) fn watch_remote_files(&mut self, ctx: &Context) {
+        let open: Vec<(u64, RemoteLink)> = self.docs.iter().filter_map(|doc| doc.remote.clone().filter(|l| l.stamp.is_some()).map(|link| (doc.id, link))).collect();
+        if open.is_empty() {
+            return;
+        }
+        ctx.request_repaint_after(WATCH_REMOTE_EVERY);
+        if self.remote_watched.is_some_and(|at| at.elapsed() < WATCH_REMOTE_EVERY) {
+            return;
+        }
+        self.remote_watched = Some(std::time::Instant::now());
+        for (id, link) in open {
+            let busy = self.remote_jobs.iter().any(|(purpose, _)| matches!(purpose, Purpose::Watch(i) | Purpose::Refresh(i) | Purpose::Send(i) if *i == id));
+            // Only with a way to sign in already known, so nothing's asked for.
+            let known = self.remote_secrets.contains_key(&link.site.key()) || link.site.key_file.is_some() || remote::stored_password(&link.site).is_some();
+            if !busy && known {
+                self.start_remote(Purpose::Watch(id), link.site.clone(), Task::Look(link.path.clone()));
+            }
+        }
+    }
+
+    /// An sftp:// address, from the command line, Open an address or the recent files: fetched and opened, with the
+    /// remote box to sign in if it's needed.
+    pub(super) fn open_sftp_address(&mut self, address: &str) -> bool {
+        match remote::parse_url(address) {
+            Ok((site, path)) if path != "/" && !path.ends_with('/') => {
+                // Signing in as that site did before.
+                let site = self.remote_sites.iter().find(|s| s.site.host == site.host && s.site.user == site.user && s.site.port == site.port).map_or(site, |s| s.site.clone());
+                self.remote_opening = Some(path.clone());
+                self.remote_fetch(site, path);
+                true
+            }
+            Ok(_) => {
+                self.open_remote_box(None);
+                if let Dialog::Remote(state) = &mut self.dialog {
+                    state.address = address.to_string();
+                }
+                self.remote_connect(None);
+                true
+            }
+            Err(problem) => {
+                self.message("Open", problem);
+                false
+            }
+        }
     }
 
     /// Words for the status bar while files are being fetched or sent.
@@ -488,10 +706,16 @@ mod tests {
 
     #[test]
     fn sites_are_kept_without_passwords() {
-        let sites = vec![SavedSite { name: "work".into(), site: Site { host: "h".into(), port: 2222, user: "u".into(), key_file: Some(PathBuf::from("C:/k")) } }, SavedSite { name: "home".into(), site: Site { host: "g".into(), port: 22, user: "v".into(), key_file: None } }];
+        let sites = vec![
+            SavedSite { name: "work".into(), site: Site { host: "h".into(), port: 2222, user: "u".into(), key_file: Some(PathBuf::from("C:/k")), ..Site::default() } },
+            SavedSite { name: "home".into(), site: Site { host: "g".into(), port: 22, user: "v".into(), key_file: None, ..Site::default() } },
+            SavedSite { name: "nas".into(), site: Site { scheme: remote::Scheme::Ftpes, host: "nas".into(), port: 21, user: "ann".into(), key_file: None } },
+        ];
         let text = sites_to_settings(&sites);
         assert!(!text.to_lowercase().contains("password"));
         let back = sites_from_settings(&text.lines().filter_map(|l| l.strip_prefix("sftp_site=")).map(str::to_string).collect::<Vec<_>>());
         assert_eq!(back, sites);
+        // One kept before FTP could be used is SFTP.
+        assert_eq!(sites_from_settings(&["old\u{1}h\u{1}22\u{1}u\u{1}".to_string()])[0].site.scheme, remote::Scheme::Sftp);
     }
 }

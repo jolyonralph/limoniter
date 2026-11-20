@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2. Working with Limoniter · How To Code v8</title>
+  <meta name="description" content="In 1993, v7&#x27;s chapter on assemblers told you to avoid K-Seka, explained why Devpac 2&#x27;s optimiser made broken code, and how to drive ArgAsm from CygnusEd with ARexx macros.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/02-working-with-limoniter.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/02-working-with-limoniter.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="2. Working with Limoniter · How To Code v8">
+  <meta property="og:description" content="In 1993, v7&#x27;s chapter on assemblers told you to avoid K-Seka, explained why Devpac 2&#x27;s optimiser made broken code, and how to drive ArgAsm from CygnusEd with ARexx macros.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/02-working-with-limoniter.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html" aria-current="page">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>2. Working with Limoniter</h1>
+        <div class="article-lead">
+<p>In 1993, v7's chapter on assemblers told you to avoid K-Seka, explained why Devpac 2's optimiser made broken code, and how to drive ArgAsm from CygnusEd with ARexx macros. Most of those tools are long gone, and so is the way of working: the source in RAM on the Amiga itself, one crash away from being lost.</p>
+<p>Today most Amiga demos are written on a PC or a Mac. The source is assembled there, and the program runs in an emulated Amiga a second later. This chapter is about doing that with Limoniter, the editor v8 ships in. Every example in v8 is plain Devpac/vasm syntax, so you can just as well use vasm and your own editor, and the chapter says how.</p>
+<p>On the Amiga itself, Devpac and ASM-One (and its descendant ASM-Pro) are still used and still fine. If you write on a real Amiga, v8's examples assemble there too, as long as your assembler takes Devpac syntax and the <code>include</code> files sit beside the source.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#what-you-need">What you need</a></li>
+<li><a href="#starting-a-project">Starting a project</a></li>
+<li><a href="#build-and-run-f9">Build and run: F9</a></li>
+<li><a href="#limoniter-s-assembler">Limoniter's assembler</a></li>
+<li><a href="#using-vasm-instead">Using vasm instead</a></li>
+<li><a href="#building-from-the-command-line">Building from the command line</a></li>
+<li><a href="#help-while-you-write">Help while you write</a></li>
+<li><a href="#graphics-the-bitplane-sprite-and-bob-converter">Graphics: the bitplane, sprite and bob converter</a></li>
+<li><a href="#tables-the-table-generator">Tables: the table generator</a></li>
+<li><a href="#the-ripper">The Ripper</a></li>
+<li><a href="#crunching-disks-and-real-amigas">Crunching, disks and real Amigas</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="what-you-need">What you need</h2>
+<h3 id="an-emulator">An emulator</h3>
+<p>Limoniter runs Amiga programs in <strong>FS-UAE</strong> (Linux, macOS and Windows, &lt;https://fs-uae.net/&gt;) or <strong>WinUAE</strong> (Windows, &lt;https://www.winuae.net/&gt;). Open <strong>File › Run on › Devices and emulators…</strong>: <strong>Find emulators</strong> adds the ones already installed, and <strong>Get an emulator…</strong> fetches one the simplest way your computer has. On Windows, Limoniter downloads FS-UAE's latest release from its GitHub page; on Linux it installs FS-UAE with apt, and on a Mac with Homebrew, in the Terminal panel where you can watch. WinUAE it can't fetch: get it from its own site.</p>
+<p>For debugging at source level (<a href="16-debugging-and-testing.html">chapter 16</a>) you need an emulator with a GDB server built in: the FS-UAE that comes with uae-dap, or WinUAE with Bartman's GDB server. They run programs just like the ordinary ones, so you may as well start with one of those.</p>
+<h3 id="kickstart">Kickstart</h3>
+<p>An Amiga needs its Kickstart ROM, and Kickstart is still copyrighted, so neither Limoniter nor v8 can include it. Either buy <strong>Amiga Forever</strong> (&lt;https://www.amigaforever.com/&gt;), which has every Kickstart, or copy the ROM from your own Amiga.</p>
+<p>In <strong>Devices and emulators</strong>, under the Amiga emulator, choose the <strong>Amiga</strong> to run on:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Model</th>
+<th scope="col">What it is</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">A500 (OCS, 1 MB, Kickstart 1.3)</th>
+<td>the machine every v8 example must work on: a 68000, 512K of chip RAM and 512K of slow RAM</td>
+</tr>
+<tr>
+<th scope="row">A500+ (ECS, 1 MB chip, Kickstart 2.04)</th>
+<td>the ECS chipset and Kickstart 2</td>
+</tr>
+<tr>
+<th scope="row">A1200 (AGA, 68020, 2 MB, Kickstart 3.1)</th>
+<td>AGA, a 68020, and no fast RAM</td>
+</tr>
+</tbody></table></div>
+<p>and a <strong>Kickstart</strong> for each: <strong>Choose…</strong> one, or <strong>Find</strong> them where Amiga Forever (its encrypted ROMs too, with its <code>rom.key</code>), FS-UAE and WinUAE keep them. Limoniter knows the usual ROMs by their checksums and picks the best for each model; it tells you if the one you chose isn't meant for that model. To try an A500 with Kickstart 3.1, choose a 3.1 ROM for the A500 (Limoniter knows the A500/A600/A2000 3.1 ROM, 40.63).</p>
+<p>With no Kickstart at all, the emulator uses AROS, a free replacement for Kickstart. AROS runs well-behaved system programs, but not every demo, and it isn't what anyone's Amiga runs: test on real Kickstarts.</p>
+<h3 id="the-ndk-optional">The NDK (optional)</h3>
+<p>The <strong>NDK 3.2</strong>, Hyperion's Native Developer Kit for AmigaOS 3.2, has the assembler includes and the Autodocs for every library (see <a href="03-general-guidelines.html">chapter 3</a>). It's free to download, but it isn't Limoniter's to hand out, so Limoniter fetches it only when you ask: <strong>File › Run on › Amiga NDK (code hints)…</strong> (or <strong>Tools › Amiga › NDK (code hints)…</strong>), then <strong>Download from Aminet</strong>. It's about 8 MB, and it's unpacked beside Limoniter's settings. <strong>Use a folder…</strong> points Limoniter at an NDK you already have.</p>
+<p>With the NDK, Limoniter explains system functions as you write (below), and its assembler finds the NDK's headers: <code>include "exec/types.i"</code> works, and <code>jsr _LVOAllocMem(a6)</code> assembles with no include at all (a definition of your own wins). v8's examples don't need it: everything they use from the system is in <code>system.i</code>.</p>
+<h2 id="starting-a-project">Starting a project</h2>
+<p>The quickest start is v8's own: copy <code>examples/startup.i</code>, <code>hardware.i</code>, <code>system.i</code> and <code>startup_demo.s</code> into a folder of your own, rename <code>startup_demo.s</code>, and open the folder with <strong>File › Open folder…</strong>. <a href="04-startup-and-exit.html">Chapter 4</a> explains the startup; your demo is four things (<code>Init</code>, <code>Frame</code>, <code>VBlank</code> and <code>Copper</code>) and the startup does the rest, either taking the machine or keeping the system running, as <code>OS_FRIENDLY</code> says.</p>
+<p>Limoniter has starters of its own too: <strong>File › New as › Amiga demo (68000)</strong>, a complete program in one file (it takes the machine, shows a bitplane with a raster bar bouncing over it, and gives everything back when the left mouse button is pressed), and <strong>Amiga copper only (68000)</strong>, a smaller one with a copper gradient. They're good for trying something out. For a demo you mean to release, start from v8's startup: it also handles being started from an icon, finds the VBR, and can keep the system running.</p>
+<h2 id="build-and-run-f9">Build and run: F9</h2>
+<p>Press <strong>F9</strong> (<strong>File › Run on machine</strong>). Limoniter assembles the source, and if there's a problem, marks the line and stops there. Otherwise it makes an AmigaDOS program of it, puts the program in a new folder that becomes the Amiga's hard drive (<code>DH0:</code>), writes an <code>S/Startup-Sequence</code> that runs it, and starts the emulator with a configuration made for that run. The Amiga boots straight into your program. Your program can write files back to <code>DH0:</code>, which is handy for dumping a table or a picture to look at.</p>
+<p>The first time, F9 asks which emulator to run on; it remembers. <strong>File › Run on › Stop running</strong> closes the emulator. <strong>File › Run on › Assemble and save</strong> keeps the program, saved beside the source.</p>
+<p>Limoniter decides that 68000 source is for the Amiga when it has a <code>SECTION</code>, or uses the custom chips at <code>$DFF000</code>, or calls the system's libraries. An <code>.adf</code> disk image in front goes into the emulated floppy drive instead, so F9 boots a disk you've made (see <a href="17-releasing.html">releasing</a>).</p>
+<h2 id="limoniter-s-assembler">Limoniter's assembler</h2>
+<p>Limoniter has its own 68000 assembler, so you need nothing else installed. It takes Motorola syntax as Devpac and vasm write it: <code>dc.b</code>/<code>dc.w</code>/<code>dc.l</code>, <code>ds</code>, <code>dcb</code>, <code>even</code>, <code>cnop</code>, <code>include</code>, <code>incbin</code>, <code>macro</code>, <code>rept</code>, <code>ifd</code>/<code>ifnd</code>, <code>ifeq</code>/<code>ifne</code> and the rest of the conditionals, and <code>section</code> with <code>code</code>, <code>data</code> and <code>bss</code>, with <code>_c</code> or <code>_f</code> for chip or fast memory.</p>
+<p>Each section becomes a <strong>hunk</strong> of the AmigaDOS program, as vasm makes one with <code>-Fhunkexe -kick1hunks</code> and its optimiser off: only the hunk types Kickstart 1.3 knows, so the program loads on every Amiga. Every v8 example comes out with the same code, data and relocations from both (checked against vasm 2.0f); only the order of the labels in the symbol hunk, and sometimes of the relocations, differs, which changes nothing once the program is loaded. An address one section keeps of another becomes a relocation for AmigaDOS's loader to fix up; the labels go in a symbol hunk, for debuggers. A line the loader can't fix up (a word holding an address, or an <code>org</code>) is marked.</p>
+<p>Two things to know:</p>
+<ul><li><strong>Nothing is changed behind your back.</strong> As with vasm's <code>-no-opt</code>, what you write is what you get: a <code>move.l #0,d0</code> stays six bytes, and a branch without a size is a word branch. Write <code>moveq</code> and <code>bra.s</code> where you mean them. That's how Devpac's own optimiser bit v7's readers, so it's no great loss.</li><li><strong>It's a 68000 assembler.</strong> It doesn't know the 68020's and later processors' own instructions (<code>movec</code>, <code>extb.l</code>, bit fields...). Where a program needs one only on a later processor, write it as words, as the startup writes <code>movec vbr,d0</code>; for code written for the 68020 and up, use vasm.</li></ul>
+<p>It also works while you type: the source is assembled quietly a moment after you stop, so a mistake is underlined before you press F9.</p>
+<p>And it goes the other way: <strong>Tools › General › Disassemble…</strong> turns an Amiga program back into source, a section for each hunk, every relocated address as a label, and custom chip registers and library calls named beside the code. The source assembles back to the same bytes.</p>
+<h2 id="using-vasm-instead">Using vasm instead</h2>
+<p>vasm, by Volker Barthelmann and Frank Wille (&lt;http://www.compilers.de/vasm.html&gt;), is what most Amiga coders cross-assemble with today, with Frank Wille's linker vlink (&lt;http://www.compilers.de/vlink.html&gt;) for linking objects. To have F9 use it, choose it in <strong>File › Run on › Assemblers…</strong>. Limoniter then runs <code>vasmm68k_mot</code> with <code>-Fhunkexe -kick1hunks -no-opt</code> (and <code>-I</code> for the NDK's includes, if you have it), and runs what vasm makes. The same from a shell:</p>
+<div class="code-block"><pre><code>vasmm68k_mot -Fhunkexe -kick1hunks -no-opt -o demo startup_demo.s</code></pre></div>
+<p>The one thing you give up is source-level debugging in Limoniter, which needs Limoniter's own assembler to know which line made which bytes.</p>
+<h2 id="building-from-the-command-line">Building from the command line</h2>
+<p>Limoniter assembles from a shell or a Makefile too, as F9 does:</p>
+<div class="code-block"><pre><code>limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]</code></pre></div>
+<p>It writes the AmigaDOS program to OUTPUT and says how big it is:</p>
+<div class="code-block"><pre><code>$ limoniter --assemble startup_demo.s demo
+demo: 2764 bytes</code></pre></div>
+<p>Each <code>NAME=VALUE</code> is a setting. A line of the source that starts <code>NAME equ</code> (at the start of the line, as a setting is written) gets that value instead; if there's no such line, one is added at the top. So one source builds every way it can be built, without editing it:</p>
+<div class="code-block"><pre><code>limoniter --assemble startup_demo.s demo-takeover OS_FRIENDLY=0 AUTOEXIT=500
+limoniter --assemble startup_demo.s demo-os OS_FRIENDLY=1 AUTOEXIT=500</code></pre></div>
+<p>That's exactly how every v8 example is built for testing (<a href="16-debugging-and-testing.html">chapter 16</a>). Problems are printed as <code>file:line: message</code>, one a line, and the exit code says what happened: 0 for a program written, 1 for problems in the source (or a file that couldn't be read or written), 2 for a command line it didn't understand.</p>
+<p><code>--assemble</code> always uses Limoniter's own assembler, whatever F9 is set to use, and the NDK if you've set it up.</p>
+<h2 id="help-while-you-write">Help while you write</h2>
+<p><strong>The custom chips.</strong> Rest the pointer on a register in 68000 source, written any of the usual ways (<code>$dff180</code>, <code>COLOR00</code>, <code>bplcon0(a6)</code>, <code>$180(a5)</code> once <code>a5</code> holds <code>$dff000</code>, <code>custom+dmacon</code>, <code>$bfe001</code>), and Limoniter shows its name, its address, whether it's read or written or a strobe, which chipsets have it, and what each bit does. Where a value is written to it, the value is read into its bits: <code>move.w #$5200,BPLCON0</code> says "5 bitplanes, lowres, colour on". <code>btst #6,$bfe001</code> says which bit that is (the left mouse button).</p>
+<p><strong>Copper lists.</strong> Over a copper list, written as <code>dc.w</code> pairs or with <code>CMOVE</code>, <code>CWAIT</code> and <code>CEND</code>, each instruction is decoded: "MOVE $0FFF to COLOR00", "WAIT for line $2C, x $06", "END". AGA colours written through BPLCON3's banks are followed, and so is the <code>$FFDF</code> wait that gets a copper list past line 255 (<a href="06-copper.html">chapter 6</a>). An Amiga colour, <code>$0RGB</code> on a line with a colour register, is underlined in its own colour; put the cursor in it for a swatch that opens a colour picker.</p>
+<p><strong>System functions</strong>, with the NDK: rest the pointer on <code>_LVOAllocMem</code> for its prototype, library, offset, the registers its arguments go in, and its Autodoc. Typing <code>_LVO</code> offers them all. Structure offsets and flags too: <code>LN_NAME</code> is "offset 10 in LN (APTR, 4 bytes)", and <code>MEMF_CHIP</code> shows its value and bit.</p>
+<p><strong>Tools › Amiga › Hardware registers and copper lists</strong> is the same knowledge as a guide: every custom chip register from <code>$DFF000</code> to <code>$DFF1FE</code> and both CIAs', grouped by what they're for, searchable, narrowed to one chipset, with any value you type read into its bits. Its <strong>Copper list</strong> page shows the copper list the cursor is in, line by line, beside a picture of what it does to a PAL frame, and puts MOVE, WAIT and END lines in for you. Its <strong>Gradient</strong> page makes a copper gradient from colour stops, 12-bit or AGA 24-bit, and writes it into your source as <code>dc.w</code> lines.</p>
+<p><strong>Tools › Amiga › Blitter minterms</strong> works out BLTCON0 and BLTCON1: type the function as <code>A&amp;B | ~A&amp;C</code> or the classic <code>AB + aC</code>, or pick a common one (copy, cookie-cut, clear, invert, XOR, OR), and set the shifts, channels, descending and fill. It also takes existing BLTCON values apart, and warns when the function reads a channel that's switched off. See <a href="07-blitter.html">the blitter</a>.</p>
+<h2 id="graphics-the-bitplane-sprite-and-bob-converter">Graphics: the bitplane, sprite and bob converter</h2>
+<p><strong>Tools › Amiga › Bitplane, sprite and bob converter</strong> turns a picture (PNG, JPEG, IFF, or any older machine's picture Limoniter reads) into what an Amiga program shows. Choose the resolution, 1 to 8 bitplanes, extra half-brite, HAM6 or HAM8, and the palette (found from the picture, 12-bit for OCS and ECS or 24-bit for AGA, or taken from a palette file), and dithering if you want it. The result is shown as the Amiga would show it, pixels their true shape, while you change the settings.</p>
+<p>Out come the bitplanes (one after another, or interleaved), the palette (as words, as copper moves, or AGA's 24-bit colours in BPLCON3 banks), an IFF ILBM, and assembler source with the sizes, the modulos, a copper list and <code>incbin</code>s of the planes. Hardware sprites (16 pixels wide, or 32 or 64 on AGA, attached or not) come with their control words and their colours as copper moves; bobs come with a mask plane and a spare word a row for shifting, and BLTSIZE worked out.</p>
+<p>It works the other way too: raw bitplanes from a file (ripped from a program, say) are shown as a picture, once you've told it the width, height, number of planes and layout.</p>
+<h2 id="tables-the-table-generator">Tables: the table generator</h2>
+<p><strong>Tools › General › Table generator (sine, ramps…)</strong> makes the tables demos live on: sine and cosine (amplitude, offset, phase, how many waves), straight ramps, easing curves, multiplication and division tables, perspective (scale ÷ z) and random numbers from a seed. Choose signed or unsigned bytes, words or longs, in fixed point if you want, see the table as a graph, and put it in at the cursor as <code>dc.b</code>, <code>dc.w</code> or <code>dc.l</code> lines, in hex or decimal, so many a line. Or save it as a binary file to <code>incbin</code>. Values are rounded to the nearest (halves away from zero), and any that don't fit are held at the end of the range and counted, so a table never wraps round by surprise.</p>
+<h2 id="the-ripper">The Ripper</h2>
+<p><strong>Tools › General › Ripper: music and graphics in any file</strong> looks through any file (a program, a memory dump, a disk image, and every file inside a disk image or archive) for music and graphics. It finds ProTracker modules and their relatives by their marks, and the older 15-sample Soundtracker modules by their instruments' disk names; each one found can be opened, played and saved. For graphics, it shows the bytes as Amiga bitplanes (or other machines' layouts) at any offset and width, and saves what you see as a PNG, or copies it as source.</p>
+<p>Use it to look inside your own work (did the module really end up in the program?), and to study how something was done. What you find belongs to whoever made it: ask before you use it.</p>
+<h2 id="crunching-disks-and-real-amigas">Crunching, disks and real Amigas</h2>
+<ul><li><strong>Crunching</strong>: <strong>File › Run on › Amiga crunchers and music…</strong> runs Shrinkler or Cranker on a program, and can crunch a copy every time F9 builds. When and how, in <a href="17-releasing.html">releasing</a>.</li><li><strong>Music</strong>: the same window converts a ProTracker module for LightSpeedPlayer, and writes the calls to its replay routine into your source (<a href="12-sound-and-music.html">chapter 12</a>).</li><li><strong>Trackmo disks</strong>: <strong>Tools › Amiga › Boot disk with no file system (trackmo)</strong> builds a disk with no AmigaDOS on it, the way many demos and games are made; see <a href="17-releasing.html">releasing</a>.</li><li><strong>A real Amiga</strong>: <strong>File › Send to device</strong> copies a file to a Gotek's USB stick, a card, a shared folder, or an FTP server (an Amiga running one, say). See <a href="16-debugging-and-testing.html">chapter 16</a>.</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li>v7's tools (K-Seka, ArgAsm, CygnusEd and its ARexx macros) are gone. Devpac and ASM-One are still used on real Amigas; on other computers, vasm and vlink, or Limoniter's own assembler.</li><li>v7's Devpac advice (<code>opt o3-</code>, so the optimiser didn't turn relocatable addresses into short ones) isn't needed with Limoniter's assembler or with vasm's <code>-no-opt</code>, which don't optimise at all. If you turn an optimiser on, test what it makes.</li><li>v7 assumed you'd write and run on the same Amiga. Now the emulator is a second away, so test early and on every machine: that's <a href="16-debugging-and-testing.html">chapter 16</a>.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="01-introduction.html"><span>Back</span>1. Introduction</a>
+<a class="pager-next" href="03-general-guidelines.html"><span>Next</span>3. General guidelines</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

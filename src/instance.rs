@@ -34,7 +34,7 @@ fn files_in(text: &str, token: &str) -> Option<Vec<PathBuf>> {
     if lines.next()? != GREETING || lines.next()? != token {
         return None;
     }
-    let files: Vec<PathBuf> = lines.take_while(|line| !line.is_empty()).map(PathBuf::from).filter(|path| path.is_absolute()).collect();
+    let files: Vec<PathBuf> = lines.take_while(|line| !line.is_empty()).map(PathBuf::from).filter(|path| path.is_absolute() || is_address(path)).collect();
     (!files.is_empty()).then_some(files)
 }
 
@@ -47,7 +47,8 @@ pub fn hand_off(folder: &Path, files: &[PathBuf]) -> bool {
     let (Some(port), Some(token)) = (parts.next().and_then(|port| port.parse::<u16>().ok()), parts.next()) else {
         return false;
     };
-    let files: Vec<PathBuf> = files.iter().map(|file| std::path::absolute(file).unwrap_or_else(|_| file.clone())).collect();
+    // A file on a server goes as its address; anything else, as its whole path.
+    let files: Vec<PathBuf> = files.iter().map(|file| if is_address(file) { file.clone() } else { std::path::absolute(file).unwrap_or_else(|_| file.clone()) }).collect();
     // Windows only lets the program in front bring another to the front. This one was just started from Explorer,
     // so it's in front, and it lets the window it's handing the files to come forward.
     #[cfg(windows)]
@@ -137,6 +138,11 @@ pub fn listen(folder: &Path, wake: impl Fn() + Send + 'static) -> Option<Listeni
         })
         .ok()?;
     Some(Listening { files: receiver, note_path, note })
+}
+
+/// Whether a "file" is a server's address (sftp://user@host/path, or ftp://), passed on as it is.
+fn is_address(path: &Path) -> bool {
+    path.to_str().is_some_and(crate::remote::is_address)
 }
 
 #[cfg(test)]

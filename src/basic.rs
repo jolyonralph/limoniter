@@ -1539,6 +1539,9 @@ pub fn machine_of(dialect: &str, extension: &str, bytes: &[u8]) -> Option<Machin
     if dialect == "STOS BASIC" {
         return Some(Machine::Stos);
     }
+    if dialect == "ZX81 BASIC" {
+        return Some(Machine::Zx81);
+    }
     // A .p00 file has its own header before the load address.
     let load = if extension == "p00" { bytes.get(26..28) } else { bytes.get(0..2) }.map(|b| u16::from_le_bytes([b[0], b[1]]))?;
     CbmMachine::ALL.into_iter().find(|machine| machine.dialect() == dialect && machine.load_address() == load).map(Machine::Commodore)
@@ -1562,6 +1565,10 @@ pub enum Machine {
     Amos,
     /// STOS on the Atari ST, saved as its .BAS file.
     Stos,
+    /// A ZX81, saved as a `.p` file.
+    Zx81,
+    /// A Jupiter Ace, whose Forth is typed in rather than tokenised: kept as text.
+    JupiterAce,
 }
 
 impl Machine {
@@ -1576,6 +1583,8 @@ impl Machine {
             Machine::OpticOs => "tap",
             Machine::Amos => "AMOS",
             Machine::Stos => "BAS",
+            Machine::Zx81 => "p",
+            Machine::JupiterAce => "fth",
         }
     }
 
@@ -1590,6 +1599,8 @@ impl Machine {
             Machine::OpticOs => "OpticOS tape",
             Machine::Amos => "AMOS program",
             Machine::Stos => "STOS program",
+            Machine::Zx81 => "ZX81 program",
+            Machine::JupiterAce => "Jupiter Ace Forth source",
         }
     }
 }

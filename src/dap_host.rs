@@ -2,7 +2,9 @@
 //! set beside the line numbers, the line it's stopped on marked as the assembler debuggers mark it, and a Debug
 //! panel with the controls, the call stack, the variables (opened a level at a time) and a console that shows what
 //! the program writes and works out expressions typed into it. While a session runs, F5 carries on, Shift+F5
-//! stops, F10 steps over, F11 steps in and Shift+F11 steps out, as in VS Code.
+//! stops, F10 steps over, F11 steps in and Shift+F11 steps out, as in VS Code. An adapter that can go backwards
+//! (Copperline's) steps back with Shift+F10, and runs back to the breakpoint before; one that reads memory (also
+//! Copperline's) has a window on it, as the assembler debuggers have.
 
 use super::*;
 use crate::dap::{self, Config, Frame, Session, Variable};
@@ -27,8 +29,60 @@ enum Asked {
     Scopes,
     Variables(i64),
     Evaluate(String),
+    /// Where the memory window is, worked out from what was typed (a register or a label).
+    MemoryAt(String),
+    Memory,
+    /// Copperline's own copperline/profile.
+    Profile,
+    /// Copperline's chipset.report and smc.report, asked through evaluate.
+    Warnings(WarningKind),
     Other,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WarningKind {
+    Chipset,
+    Code,
+}
+
+/// What's Copperline's own in a session: where the program is (to say which line a warning is about), its
+/// warnings when last looked for (or why they couldn't be read), and whether the stop is being read again.
+#[derive(Default)]
+pub(super) struct CopperlineView {
+    pub program: dap::ProgramMap,
+    chipset: Option<Result<Vec<dap::Warning>, String>>,
+    code: Option<Result<Vec<dap::Warning>, String>>,
+    looking: bool,
+    /// Set for a picture, to fold the call stack and variables away once.
+    fold: bool,
+    /// Set when the stop is read again after a raw request (which makes the adapter forget its variables), so
+    /// the memory window isn't taken to have changed.
+    rereading: bool,
+}
+
+/// Copperline's CPU profile: how many frames to profile for, whether it's being made, and the last one (with the
+/// text of its busiest lines), or why there isn't one.
+#[derive(Default)]
+pub(super) struct ProfileView {
+    frames: u32,
+    making: bool,
+    made: Option<Result<(dap::CpuProfile, HashMap<(PathBuf, usize), String>), String>>,
+}
+
+/// The memory window: what's typed for where it is, where that was worked out to be, and what's there now and
+/// was there at the stop before.
+#[derive(Default)]
+pub(super) struct MemoryView {
+    pub at: String,
+    /// What was last worked out, and what it came to.
+    asked: Option<String>,
+    address: Option<Result<u64, String>>,
+    now: Option<(u64, Vec<u8>)>,
+    before: Option<(u64, Vec<u8>)>,
+}
+
+/// How much of the memory is read at a time: eight rows of sixteen.
+const MEMORY_SHOWN: u64 = 128;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum State {
@@ -60,6 +114,11 @@ pub(super) struct Debugging {
     configured: bool,
     /// Whether the console's last line is still being written.
     line_open: bool,
+    /// What the adapter said it can do.
+    pub can: dap::Capabilities,
+    pub memory: MemoryView,
+    profile: ProfileView,
+    pub copperline: CopperlineView,
 }
 
 impl Debugging {
@@ -101,6 +160,67 @@ impl Debugging {
             self.state = State::Running;
         }
     }
+
+    /// Works out where the memory window is (A0 when nothing's typed), and reads it, once it's stopped.
+    fn look_at_memory(&mut self) {
+        if !self.can.read_memory || self.state != State::Paused {
+            return;
+        }
+        let typed = if self.memory.at.trim().is_empty() { "a0".to_string() } else { self.memory.at.trim().to_string() };
+        self.memory.asked = Some(self.memory.at.clone());
+        match dap::number(&typed) {
+            Some(address) => self.read_memory(address),
+            None => {
+                let frame = self.frames.get(self.chosen).map(|f| f.id);
+                self.ask("evaluate", json!({ "expression": typed, "frameId": frame, "context": "watch" }), Asked::MemoryAt(typed.clone()));
+            }
+        }
+    }
+
+    /// Asks Copperline for its warnings about the program: the chipset validator's and the self-modifying code
+    /// detector's (armed by the run's configuration), as raw control requests through evaluate.
+    fn look_for_warnings(&mut self) {
+        if self.state != State::Paused || self.copperline.looking {
+            return;
+        }
+        self.copperline.looking = true;
+        self.ask("evaluate", json!({ "expression": "!chipset.report", "context": "repl" }), Asked::Warnings(WarningKind::Chipset));
+        self.ask("evaluate", json!({ "expression": "!smc.report", "context": "repl" }), Asked::Warnings(WarningKind::Code));
+    }
+
+    /// One report read. Once both are, the stop is read again: a raw request makes the adapter forget the
+    /// variables it numbered, so the ones shown would no longer open.
+    fn took_warnings(&mut self, kind: WarningKind, read: Result<Vec<dap::Warning>, String>) {
+        match kind {
+            WarningKind::Chipset => self.copperline.chipset = Some(read),
+            WarningKind::Code => {
+                self.copperline.code = Some(read);
+                self.copperline.looking = false;
+                if self.state == State::Paused {
+                    self.copperline.rereading = true;
+                    let thread = self.thread;
+                    self.ask("stackTrace", json!({ "threadId": thread, "startFrame": 0, "levels": 64 }), Asked::StackTrace);
+                }
+            }
+        }
+    }
+
+    fn read_memory(&mut self, address: u64) {
+        let start = address & !0xF;
+        self.memory.address = Some(Ok(start));
+        self.ask("readMemory", json!({ "memoryReference": format!("0x{start:X}"), "count": MEMORY_SHOWN }), Asked::Memory);
+    }
+}
+
+/// A session dropped while it's going (Limoniter closed, say) is ended as Stop ends it, so an emulator its adapter
+/// started (Copperline) is closed with it rather than left running.
+impl Drop for Debugging {
+    fn drop(&mut self) {
+        if self.state != State::Ended {
+            self.ask("disconnect", json!({ "terminateDebuggee": true }), Asked::Other);
+            self.session.end_within(Duration::from_secs(if self.config.kind == dap::Kind::Copperline { 3 } else { 0 }));
+        }
+    }
 }
 
 impl Limoniter {
@@ -130,6 +250,8 @@ impl Limoniter {
 
     /// Starts the adapter and the program in it.
     pub(super) fn launch_debugger(&mut self, config: Config) {
+        // One still going is ended first, as Stop ends it: an adapter that started an emulator closes it.
+        self.debug_control("stop");
         if let Some(mut old) = self.debugging.take() {
             old.session.stop();
         }
@@ -138,19 +260,38 @@ impl Limoniter {
             let install = if cfg!(windows) { "py -m pip install debugpy" } else { "python3 -m pip install --user debugpy" };
             return self.message("Debug", crate::i18n::tf!("Python is debugged with debugpy, which isn't installed. In a terminal (Ctrl+`):\n\n{install}"));
         }
-        if config.kind != dap::Kind::Debugpy && !crate::lsp::on_path(crate::emulators::split_options(&config.adapter).first().map_or("", String::as_str)) {
+        if !matches!(config.kind, dap::Kind::Debugpy | dap::Kind::Copperline) && !crate::lsp::on_path(crate::emulators::split_options(&config.adapter).first().map_or("", String::as_str)) {
             return self.message("Debug", crate::i18n::tr("C, C++ and Rust are debugged with gdb (version 14 or later) or lldb-dap, and neither is installed.").into());
         }
-        let session = match Session::start(&config.adapter, Path::new(&config.folder)) {
-            Ok(session) => session,
-            Err(problem) => return self.message("Debug", problem),
-        };
-        let mut debugging = Debugging { session, config, asked: HashMap::new(), state: State::Starting, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false };
+        match Session::start(&config.adapter, Path::new(&config.folder)) {
+            Ok(session) => self.begin_debugging(config, session),
+            Err(problem) => self.message("Debug", problem),
+        }
+    }
+
+    /// Starts talking to an adapter that's been started: it's asked what it can do, and then (as it answers) to
+    /// launch the program.
+    fn begin_debugging(&mut self, config: Config, session: Session) {
+        let mut debugging = Debugging { session, config, asked: HashMap::new(), state: State::Starting, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false, can: Default::default(), memory: Default::default(), profile: Default::default(), copperline: Default::default() };
         let adapter_id = debugging.config.kind.adapter_name();
         debugging.ask("initialize", json!({ "clientID": "limoniter", "clientName": "Limoniter", "adapterID": adapter_id, "linesStartAt1": true, "columnsStartAt1": true, "pathFormat": "path", "supportsVariableType": true, "supportsRunInTerminalRequest": false }), Asked::Initialize);
         let program = Path::new(&debugging.config.program).file_name().map_or_else(|| debugging.config.program.clone(), |n| n.to_string_lossy().into_owned());
         debugging.line(crate::i18n::tf!("Debugging {program} with {adapter_id}"));
         self.debugging = Some(Box::new(debugging));
+    }
+
+    /// Runs an Amiga program assembled here in Copperline through its debug adapter, which starts the emulator with
+    /// the program and stops at the source's breakpoints, in the Debug panel. `program` is the copy made for the
+    /// run, with its configuration beside it; `emulator` is Copperline, `ctl` its copperline-ctl, and `options`
+    /// the person's own for the emulator.
+    pub(super) fn debug_in_copperline(&mut self, program: &Path, emulator: &Path, ctl: &Path, options: &str, assembly: Option<&crate::asm::Assembly>) {
+        let folder = program.parent().map(Path::to_path_buf).unwrap_or_default();
+        let emulator = Some(dap::Emulated { program: emulator.display().to_string(), options: crate::emulators::split_options(options) });
+        let config = Config { kind: dap::Kind::Copperline, adapter: dap::copperline_adapter(ctl), program: program.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator };
+        self.launch_debugger(config);
+        if let (Some(d), Some(assembly)) = (self.debugging.as_mut(), assembly) {
+            d.copperline.program = dap::ProgramMap::of(assembly);
+        }
     }
 
     /// Takes the stopped line's mark off every file.
@@ -219,13 +360,21 @@ impl Limoniter {
                             d.configured = true;
                             self.tell_breakpoints();
                             if let Some(d) = self.debugging.as_mut() {
-                                d.ask("setExceptionBreakpoints", json!({ "filters": [] }), Asked::Other);
+                                // Copperline stops at an address error, an illegal instruction and TRAP #7 unless
+                                // told not to, which is what's wanted of a program being written.
+                                let filters = if d.config.kind == dap::Kind::Copperline { d.can.exception_defaults.clone() } else { Vec::new() };
+                                d.ask("setExceptionBreakpoints", json!({ "filters": filters }), Asked::Other);
                                 d.ask("configurationDone", json!({}), Asked::Other);
                             }
                         }
                         "stopped" => {
                             d.state = State::Paused;
                             d.reason = body.get("reason").and_then(Value::as_str).unwrap_or("").to_string();
+                            // Copperline says why it stopped where the reason alone wouldn't: the exception, or
+                            // what a breakpoint set in its own window was.
+                            if let Some(why) = body.get("description").and_then(Value::as_str).filter(|w| !w.is_empty() && d.config.kind == dap::Kind::Copperline) {
+                                d.line(why.to_string());
+                            }
                             match body.get("threadId").and_then(Value::as_i64) {
                                 Some(thread) => {
                                     d.thread = thread;
@@ -244,6 +393,9 @@ impl Limoniter {
                         "output" => {
                             if body.get("category").and_then(Value::as_str) != Some("telemetry") {
                                 let text = body.get("output").and_then(Value::as_str).unwrap_or("").to_string();
+                                if let Some(bases) = dap::loaded_at(&text).filter(|_| d.config.kind == dap::Kind::Copperline) {
+                                    d.copperline.program.bases = bases;
+                                }
                                 d.say(&text);
                             }
                         }
@@ -268,6 +420,12 @@ impl Limoniter {
                         let detail = message.pointer("/body/error/format").and_then(Value::as_str).unwrap_or("").to_string();
                         match asked {
                             Asked::Evaluate(_) => d.line(if detail.is_empty() { why } else { detail }),
+                            Asked::MemoryAt(_) | Asked::Memory => d.memory.address = Some(Err(if detail.is_empty() { why } else { detail })),
+                            Asked::Profile => {
+                                d.profile.making = false;
+                                d.profile.made = Some(Err(if detail.is_empty() { why } else { detail }));
+                            }
+                            Asked::Warnings(kind) => d.took_warnings(kind, Err(if detail.is_empty() { why } else { detail })),
                             Asked::Launch => {
                                 d.line(crate::i18n::tf!("It couldn't be started: {} {}", why, detail));
                                 d.state = State::Ended;
@@ -280,6 +438,7 @@ impl Limoniter {
                     }
                     match asked {
                         Asked::Initialize => {
+                            d.can = dap::capabilities(&body);
                             let launch = dap::launch_arguments(&d.config);
                             let asked = Asked::Launch;
                             d.ask("launch", launch, asked);
@@ -299,6 +458,13 @@ impl Limoniter {
                                 d.ask("scopes", json!({ "frameId": frame.id }), Asked::Scopes);
                                 show = Some(frame);
                             }
+                            // What was in the memory window is kept, for what's changed since to stand out.
+                            if !std::mem::take(&mut d.copperline.rereading) {
+                                if d.memory.now.is_some() {
+                                    d.memory.before = d.memory.now.take();
+                                }
+                                d.look_at_memory();
+                            }
                         }
                         Asked::Scopes => {
                             d.scopes = dap::scopes(&body);
@@ -315,6 +481,26 @@ impl Limoniter {
                         Asked::Evaluate(expression) => {
                             let result = body.get("result").and_then(Value::as_str).unwrap_or("").to_string();
                             d.line(format!("{expression} = {result}"));
+                        }
+                        Asked::MemoryAt(expression) => {
+                            let result = body.get("result").and_then(Value::as_str).unwrap_or("");
+                            match body.get("memoryReference").and_then(Value::as_str).and_then(dap::number).or_else(|| dap::address_in(result)) {
+                                Some(address) => d.read_memory(address),
+                                None => d.memory.address = Some(Err(crate::i18n::tf!("{expression} isn't an address: {result}"))),
+                            }
+                        }
+                        Asked::Memory => d.memory.now = dap::memory(&body),
+                        Asked::Warnings(kind) => {
+                            let read = dap::warnings(body.get("result").and_then(Value::as_str).unwrap_or(""));
+                            d.took_warnings(kind, read);
+                        }
+                        Asked::Profile => {
+                            d.profile.making = false;
+                            let path = body.get("path").and_then(Value::as_str).unwrap_or("").to_string();
+                            d.profile.made = Some(std::fs::read_to_string(&path).map_err(|e| crate::i18n::tf!("The profile {path} couldn't be read: {e}")).and_then(|text| dap::cpu_profile(&text)).map(|profile| {
+                                let texts = source_lines(profile.lines.iter().take(PROFILE_LINES).map(|(p, l, _)| (p.clone(), *l)));
+                                (profile, texts)
+                            }));
                         }
                         Asked::Launch | Asked::Other => {}
                     }
@@ -345,6 +531,7 @@ impl Limoniter {
         let Some(d) = self.debugging.as_mut() else { return };
         match what {
             "continue" | "next" | "stepIn" | "stepOut" => d.step(what),
+            "stepBack" | "reverseContinue" if d.can.step_back => d.step(what),
             "pause" if d.state == State::Running => {
                 let thread = d.thread;
                 d.ask("pause", json!({ "threadId": thread }), Asked::Other);
@@ -353,13 +540,64 @@ impl Limoniter {
                 d.ask("disconnect", json!({ "terminateDebuggee": true }), Asked::Other);
                 d.state = State::Ended;
                 d.line(crate::i18n::tr("Stopped.").to_string());
-                // A moment for it to end the program, then it's ended.
-                std::thread::sleep(Duration::from_millis(100));
-                d.session.stop();
+                // A moment for it to end the program, then it's ended. Copperline's adapter closes the emulator
+                // it started first, which takes a little longer.
+                if d.config.kind == dap::Kind::Copperline {
+                    d.session.end_within(Duration::from_secs(3));
+                } else {
+                    std::thread::sleep(Duration::from_millis(100));
+                    d.session.stop();
+                }
                 self.clear_stopped_marks();
             }
             _ => {}
         }
+    }
+
+    /// Whether a picture should wait for the debugger: until the program stops, and everything asked of the adapter
+    /// (a profile, the warnings) has been answered.
+    pub(super) fn debug_busy_for_picture(&self) -> bool {
+        self.debugging.as_ref().is_some_and(|d| matches!(d.state, State::Starting | State::Running) || !d.asked.is_empty() || d.profile.making || d.copperline.looking)
+    }
+
+    /// The screenshot steps for debugging in Copperline: `copperline-debug:EMULATOR;LINE` runs the program in front
+    /// in Copperline (its Kickstart from LIMONITER_KICKSTART, if set) with a breakpoint on LINE, the picture waiting
+    /// for it to stop there; `debug-memory:WHERE`, `debug-profile:FRAMES`, `debug-warnings:on` and
+    /// `copperline-window:analyzer` do what the Debug panel's memory window and buttons do, and `debug-fold:on`
+    /// folds the call stack and variables away so what's below is in the picture.
+    pub(super) fn copperline_screenshot_step(&mut self, name: &str, value: &str) {
+        match name {
+            "copperline-debug" => {
+                let (emulator, line) = value.split_once(';').unwrap_or((value, "1"));
+                let mut settings = crate::amiga_run::settings();
+                settings.set_kickstart(settings.model, std::env::var_os("LIMONITER_KICKSTART").map(PathBuf::from));
+                crate::amiga_run::set_settings(settings);
+                let line = line.parse::<usize>().unwrap_or(1).saturating_sub(1);
+                self.docs[self.active].text.code.get_or_insert_with(Box::default).breakpoints.insert(line);
+                self.sends.devices = vec![crate::deploy::Device { name: "Copperline".into(), place: crate::deploy::Place::Emulator { emulator: "copperline".into(), program: emulator.into(), options: "--noaudio".into() }, preset: None, eject: false }];
+                self.run_on_target(run_host::Target::Device(0));
+            }
+            _ => {
+                let Some(d) = self.debugging.as_mut() else { return };
+                match name {
+                    "debug-memory" => d.memory.at = value.to_string(),
+                    "debug-profile" => {
+                        d.profile.frames = value.parse().unwrap_or(1);
+                        d.profile.making = true;
+                        let frames = d.profile.frames.max(1);
+                        d.ask("copperline/profile", json!({ "frames": frames }), Asked::Profile);
+                    }
+                    "debug-warnings" => d.look_for_warnings(),
+                    "debug-fold" => d.copperline.fold = true,
+                    _ => d.ask("copperline/ui.show", json!({ "window": value }), Asked::Other),
+                }
+            }
+        }
+    }
+
+    /// Whether the program being debugged is paused where its debugger can step back.
+    pub(super) fn can_step_back(&self) -> bool {
+        self.debugging.as_ref().is_some_and(|d| d.can.step_back && d.state == State::Paused)
     }
 
     /// The debugging keys, taken first while a session runs.
@@ -373,6 +611,7 @@ impl Limoniter {
             (Modifiers::NONE, Key::F10, "next"),
             (Modifiers::NONE, Key::F11, "stepIn"),
             (Modifiers::SHIFT, Key::F11, "stepOut"),
+            (Modifiers::SHIFT, Key::F10, "stepBack"),
         ];
         for (modifiers, key, what) in keys {
             if ctx.input_mut(|i| i.consume_key(modifiers, key)) {
@@ -424,6 +663,8 @@ impl Limoniter {
     pub(super) fn debug_panel(&mut self, ui: &mut Ui) {
         let Some(d) = self.debugging.as_mut() else { return };
         let (mut control, mut close, mut again, mut frame_chosen, mut evaluate) = (None, false, false, None, None);
+        let (mut profile, mut go_to): (bool, Option<(PathBuf, usize)>) = (false, None);
+        let (mut show_window, mut look) = (None, false);
         let mut toggled: Vec<i64> = Vec::new();
         Panel::right("debug-panel").default_size(360.0).size_range(240.0..=900.0).resizable(true).frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -448,6 +689,15 @@ impl Limoniter {
                 if button(ui, paused, "Step out", "Shift+F11") {
                     control = Some("stepOut");
                 }
+                // Back through what it's done, replayed from the emulator's snapshots.
+                if d.can.step_back {
+                    if button(ui, paused, "\u{25C0} Step back", "Shift+F10: back to the line before") {
+                        control = Some("stepBack");
+                    }
+                    if button(ui, paused, "Run back", "Runs backwards to the breakpoint before, or to where it can go back no further") {
+                        control = Some("reverseContinue");
+                    }
+                }
                 if button(ui, d.state == State::Running, "Pause", "Stops it where it is") {
                     control = Some("pause");
                 }
@@ -469,8 +719,12 @@ impl Limoniter {
             ui.label(RichText::new(status).color(theme::text_dim()).size(12.5));
             ui.separator();
             let height = ui.available_height();
-            egui::ScrollArea::vertical().id_salt("debug-state").max_height(height * 0.55).auto_shrink([false, true]).show(ui, |ui| {
-                egui::CollapsingHeader::new(crate::i18n::tr("Call stack")).default_open(true).show(ui, |ui| {
+            // Copperline's session has more above the console (memory, the profile, its warnings), and says less in it.
+            let share = if d.config.kind == dap::Kind::Copperline { 0.72 } else { 0.55 };
+            egui::ScrollArea::vertical().id_salt("debug-state").max_height(height * share).auto_shrink([false, true]).show(ui, |ui| {
+                // A picture of what's below them folds these first (see `copperline_screenshot_step`).
+                let fold = std::mem::take(&mut d.copperline.fold).then_some(false);
+                egui::CollapsingHeader::new(crate::i18n::tr("Call stack")).default_open(true).open(fold).show(ui, |ui| {
                     for (n, frame) in d.frames.iter().enumerate() {
                         let place = frame.path.as_ref().and_then(|p| p.file_name()).map(|f| format!("  {}:{}", f.to_string_lossy(), frame.line + 1)).unwrap_or_default();
                         if ui.selectable_label(n == d.chosen, RichText::new(format!("{}{place}", frame.name)).monospace().size(12.0)).clicked() {
@@ -478,12 +732,44 @@ impl Limoniter {
                         }
                     }
                 });
-                egui::CollapsingHeader::new(crate::i18n::tr("Variables")).default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new(crate::i18n::tr("Variables")).default_open(true).open(fold).show(ui, |ui| {
                     let scopes = d.scopes.clone();
                     for scope in &scopes {
                         variable_rows(ui, d, scope, 0, &mut toggled);
                     }
                 });
+                if d.can.read_memory && d.memory.address.is_none() {
+                    egui::CollapsingHeader::new(crate::i18n::tr("Memory")).id_salt("debug-memory").default_open(true).show(ui, |ui| {
+                        ui.label(RichText::new(crate::i18n::tr("It's read when the program stops.")).color(theme::text_faint()).size(11.5));
+                    });
+                } else if d.can.read_memory {
+                    let memory = &mut d.memory;
+                    let address = memory.address.clone();
+                    let peek = |at: u32| memory.now.as_ref().and_then(|(start, bytes)| u64::from(at).checked_sub(*start).and_then(|i| bytes.get(i as usize)).copied());
+                    let before = |at: u32| memory.before.as_ref().and_then(|(start, bytes)| u64::from(at).checked_sub(*start).and_then(|i| bytes.get(i as usize)).copied());
+                    let start = |_: &str| match &address {
+                        Some(Ok(at)) => Ok(*at as i64),
+                        Some(Err(problem)) => Err(problem.clone()),
+                        None => Err(String::new()),
+                    };
+                    let mut at = memory.at.clone();
+                    crate::debug_panel::memory_section(ui, &mut at, "A0, $DFF180, a label...", &start, 6, &peek, &before);
+                    memory.at = at;
+                }
+                if d.config.kind == dap::Kind::Copperline {
+                    profile_section(ui, d, &mut profile, &mut go_to);
+                    warnings_section(ui, d, &mut look, &mut go_to);
+                    if dap::has_display() {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(crate::i18n::tr("In Copperline's window:")).color(theme::text_dim()).size(12.0));
+                            for (window, label, tip) in [("analyzer", "Frame analyser", "Copperline's frame analyser: who used the chip bus in each slot of a frame, the register writes and the CPU's waits"), ("debugger", "Its debugger", "Copperline's own debugger, in its window"), ("console", "Its console", "Copperline's debugger console, in its window")] {
+                                if ui.small_button(crate::i18n::tr(label)).on_hover_text(crate::i18n::tr(tip)).clicked() {
+                                    show_window = Some(window);
+                                }
+                            }
+                        });
+                    }
+                }
             });
             ui.separator();
             ui.label(RichText::new(crate::i18n::tr("Console")).color(theme::text_dim()).size(12.0));
@@ -499,6 +785,10 @@ impl Limoniter {
             });
         });
         let d = self.debugging.as_mut().unwrap();
+        // Somewhere else typed for the memory window: worked out and read, if it's stopped.
+        if d.memory.asked.as_ref() != Some(&d.memory.at) && d.state == State::Paused {
+            d.look_at_memory();
+        }
         for number in toggled {
             if !d.open.remove(&number) {
                 d.open.insert(number);
@@ -512,12 +802,26 @@ impl Limoniter {
             d.line(format!("> {expression}"));
             d.ask("evaluate", json!({ "expression": expression, "frameId": frame, "context": "repl" }), Asked::Evaluate(expression.clone()));
         }
+        if let Some(window) = show_window {
+            d.ask("copperline/ui.show", json!({ "window": window }), Asked::Other);
+        }
+        if look {
+            d.look_for_warnings();
+        }
+        if profile && d.state == State::Paused {
+            let frames = d.profile.frames.max(1);
+            d.profile.making = true;
+            d.ask("copperline/profile", json!({ "frames": frames }), Asked::Profile);
+        }
         if let Some(n) = frame_chosen
             && let Some(frame) = d.frames.get(n).cloned()
         {
             d.chosen = n;
             d.ask("scopes", json!({ "frameId": frame.id }), Asked::Scopes);
             self.show_frame(&frame);
+        }
+        if let Some((path, line)) = go_to {
+            self.go_to_place(&path.display().to_string(), line + 1);
         }
         if let Some(what) = control {
             self.debug_control(what);
@@ -551,10 +855,160 @@ fn variable_rows(ui: &mut Ui, d: &Debugging, variable: &Variable, depth: usize, 
         }
     });
     if open && let Some(parts) = d.parts.get(&variable.parts) {
-        for part in parts.iter().take(500) {
+        // Many short-named values with nothing inside them (a 68000's D0-D7 and A0-A7) go two to a row, as the
+        // assembler debuggers show registers, so what's below them is still in sight.
+        let (short, rest): (Vec<&Variable>, Vec<&Variable>) = parts.iter().take(500).partition(|p| p.parts == 0 && p.name.chars().count() <= 3);
+        let (short, rest) = if short.len() >= 8 { (short, rest) } else { (Vec::new(), parts.iter().take(500).collect()) };
+        if !short.is_empty() {
+            ui.horizontal(|ui| {
+                ui.add_space((depth + 1) as f32 * 12.0 + 12.0);
+                egui::Grid::new(("debug-short-values", variable.parts)).num_columns(2).spacing([16.0, 2.0]).show(ui, |ui| {
+                    for pair in short.chunks(2) {
+                        for part in pair {
+                            // Just the value's first word ("0x00C05564" of "0x00C05564 (12604772)"); all of it on
+                            // hovering.
+                            let first = part.value.split_whitespace().next().unwrap_or("");
+                            let words = RichText::new(format!("{} = {first}", part.name)).monospace().size(12.0);
+                            let whole = if part.kind.is_empty() { part.value.clone() } else { format!("{} ({})", part.value, part.kind) };
+                            ui.label(words).on_hover_text(whole);
+                        }
+                        ui.end_row();
+                    }
+                });
+            });
+        }
+        for part in rest {
             variable_rows(ui, d, part, depth + 1, toggled);
         }
     }
+}
+
+/// The most of a profile's busiest lines shown.
+const PROFILE_LINES: usize = 15;
+
+/// Copperline's profile, in the Debug panel: a button that runs the program on for some frames counting where its
+/// time goes (and stops it again), and then the routines and source lines that took most, a line's click going to
+/// it.
+fn profile_section(ui: &mut Ui, d: &mut Debugging, profile: &mut bool, go_to: &mut Option<(PathBuf, usize)>) {
+    egui::CollapsingHeader::new(crate::i18n::tr("Profile")).id_salt("debug-profile").default_open(true).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            let ready = d.state == State::Paused && !d.profile.making;
+            *profile = ui.add_enabled(ready, egui::Button::new(crate::i18n::tr("Profile"))).on_hover_text(crate::i18n::tr("Runs the program on for this many frames, counting where its time goes, and stops it again")).clicked();
+            d.profile.frames = d.profile.frames.max(1);
+            ui.add(egui::DragValue::new(&mut d.profile.frames).range(1..=50));
+            ui.label(crate::i18n::tr("frames"));
+            if d.profile.making {
+                ui.spinner();
+            }
+        });
+        let mono = |text: String| RichText::new(text).monospace().size(12.0);
+        match &d.profile.made {
+            None => {}
+            Some(Err(problem)) => {
+                ui.add(egui::Label::new(RichText::new(problem).color(theme::problem_mark()).size(11.5)).wrap());
+            }
+            Some(Ok((made, texts))) => {
+                let share = |time: u64| if made.total == 0 { 0.0 } else { time as f64 * 100.0 / made.total as f64 };
+                egui::Grid::new("debug-profile-routines").num_columns(2).spacing([14.0, 2.0]).striped(true).show(ui, |ui| {
+                    ui.label(RichText::new(crate::i18n::tr("Routine")).strong().size(12.0));
+                    ui.label(RichText::new(crate::i18n::tr("Share")).strong().size(12.0));
+                    ui.end_row();
+                    for (name, time) in made.routines.iter().take(10) {
+                        ui.label(mono(name.clone()));
+                        ui.label(mono(crate::i18n::tf!("{:.1}%", share(*time))));
+                        ui.end_row();
+                    }
+                });
+                if made.lines.is_empty() {
+                    ui.label(RichText::new(crate::i18n::tr("No time was spent on the program's own source lines.")).color(theme::text_faint()).size(11.5));
+                    return;
+                }
+                ui.add_space(4.0);
+                egui::Grid::new("debug-profile-lines").num_columns(3).spacing([14.0, 2.0]).striped(true).show(ui, |ui| {
+                    ui.label(RichText::new(crate::i18n::tr("Line")).strong().size(12.0));
+                    ui.label(RichText::new(crate::i18n::tr("Share")).strong().size(12.0));
+                    ui.label(RichText::new(crate::i18n::tr("Source")).strong().size(12.0));
+                    ui.end_row();
+                    for (path, line, time) in made.lines.iter().take(PROFILE_LINES) {
+                        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                        let place = crate::access::clickable(ui.add(egui::Label::new(mono(format!("{name}:{}", line + 1))).sense(egui::Sense::click())));
+                        if place.clicked() {
+                            *go_to = Some((path.clone(), *line));
+                        }
+                        ui.label(mono(crate::i18n::tf!("{:.1}%", share(*time))));
+                        ui.add(egui::Label::new(mono(texts.get(&(path.clone(), *line)).cloned().unwrap_or_default())).truncate());
+                        ui.end_row();
+                    }
+                });
+            }
+        }
+    });
+}
+
+/// Copperline's warnings about the program, looked for when asked (the program paused): each with the source
+/// line that did it, a click going there. Those from Kickstart or other programs are only counted.
+fn warnings_section(ui: &mut Ui, d: &mut Debugging, look: &mut bool, go_to: &mut Option<(PathBuf, usize)>) {
+    let header = match (&d.copperline.chipset, &d.copperline.code) {
+        (Some(Ok(chipset)), Some(Ok(code))) => {
+            let mine = chipset.iter().chain(code).filter(|w| d.copperline.program.contains(w.by)).count();
+            crate::i18n::tf!("Warnings ({mine})")
+        }
+        _ => crate::i18n::tr("Warnings").to_string(),
+    };
+    egui::CollapsingHeader::new(header).id_salt("debug-warnings").default_open(true).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            let ready = d.state == State::Paused && !d.copperline.looking;
+            *look = ui.add_enabled(ready, egui::Button::new(crate::i18n::tr("Look for warnings"))).on_hover_text(crate::i18n::tr("What Copperline saw the program do that the chips ignore or get wrong (a byte written to a word register, a read-only register written, a pointer past chip memory, a blit started over another) and code written after it ran")).clicked();
+            if d.copperline.looking {
+                ui.spinner();
+            }
+        });
+        let program = &d.copperline.program;
+        for (title, found) in [(crate::i18n::tr("The custom chips"), &d.copperline.chipset), (crate::i18n::tr("Self-modifying code"), &d.copperline.code)] {
+            let Some(found) = found else { continue };
+            ui.label(RichText::new(title).strong().size(12.0));
+            match found {
+                Err(problem) => {
+                    ui.add(egui::Label::new(RichText::new(problem).color(theme::problem_mark()).size(11.5)).wrap());
+                }
+                Ok(found) => {
+                    let mine: Vec<&dap::Warning> = found.iter().filter(|w| program.contains(w.by)).collect();
+                    if mine.is_empty() {
+                        ui.label(RichText::new(crate::i18n::tr("None from the program.")).color(theme::text_faint()).size(11.5));
+                    }
+                    for warning in mine {
+                        let place = program.place(warning.by);
+                        ui.horizontal_wrapped(|ui| {
+                            if let Some((path, line)) = &place {
+                                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                                if crate::access::clickable(ui.add(egui::Label::new(RichText::new(format!("{name}:{}", line + 1)).monospace().size(12.0).color(theme::accent())).sense(egui::Sense::click()))).clicked() {
+                                    *go_to = Some((path.clone(), *line));
+                                }
+                            }
+                            ui.add(egui::Label::new(RichText::new(&warning.text).size(11.5)).wrap());
+                        });
+                    }
+                    let others = found.iter().filter(|w| !program.contains(w.by)).count();
+                    if others > 0 {
+                        ui.label(RichText::new(crate::i18n::tf!("And {others} from Kickstart or other programs.")).color(theme::text_faint()).size(11.5));
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// The text of some source lines (from 0), each file read once.
+fn source_lines(wanted: impl Iterator<Item = (PathBuf, usize)>) -> HashMap<(PathBuf, usize), String> {
+    let mut files: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    let mut texts = HashMap::new();
+    for (path, line) in wanted {
+        let lines = files.entry(path.clone()).or_insert_with(|| std::fs::read_to_string(&path).map(|t| t.lines().map(|l| l.trim().to_string()).collect()).unwrap_or_default());
+        if let Some(text) = lines.get(line) {
+            texts.insert((path, line), text.clone());
+        }
+    }
+    texts
 }
 
 /// Whether the Python an adapter command runs has debugpy.
@@ -588,7 +1042,7 @@ mod tests {
         assert!(app.open_path(&file));
         app.doc().update_syntax();
         app.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(2);
-        let config = Config { kind: dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: file.display().to_string(), arguments: String::new(), folder: folder.display().to_string() };
+        let config = Config { kind: dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: file.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: None };
         app.launch_debugger(config);
         let wait = |app: &mut Limoniter, done: &dyn Fn(&Limoniter) -> bool| {
             let began = std::time::Instant::now();
@@ -620,11 +1074,213 @@ mod tests {
         let _ = std::fs::remove_dir_all(folder);
     }
 
+    /// A stand-in for copperline-ctl --dap, answering as Copperline 1.1.0 was seen to: it can step back and read
+    /// memory, and stops at address errors and illegal instructions unless told otherwise. It stops at line 4 of
+    /// `file` when configured, and at line 3 when stepped back. Everything asked of it is kept in `heard`.
+    fn fake_copperline(file: PathBuf) -> (Session, std::sync::Arc<std::sync::Mutex<Vec<Value>>>) {
+        let (from_us, to_it) = std::io::pipe().unwrap();
+        let (from_it, to_us) = std::io::pipe().unwrap();
+        let heard: std::sync::Arc<std::sync::Mutex<Vec<Value>>> = Default::default();
+        let kept = heard.clone();
+        std::thread::spawn(move || {
+            let mut out = to_us;
+            let mut seq = 0;
+            let mut say = |message: Value| {
+                use std::io::Write;
+                seq += 1;
+                let mut message = message;
+                message["seq"] = json!(seq);
+                let body = message.to_string();
+                let _ = out.write_all(format!("Content-Length: {}\r\n\r\n{body}", body.len()).as_bytes());
+            };
+            let (send, asked) = std::sync::mpsc::channel();
+            std::thread::spawn(move || crate::lsp::read_messages(from_us, &send));
+            let mut line = 4;
+            for request in asked {
+                kept.lock().unwrap().push(request.clone());
+                let command = request["command"].as_str().unwrap_or("").to_string();
+                let answer = |body: Value| json!({ "type": "response", "request_seq": request["seq"], "command": command, "success": true, "body": body });
+                match command.as_str() {
+                    "initialize" => say(answer(json!({ "supportsStepBack": true, "supportsReadMemoryRequest": true, "exceptionBreakpointFilters": [{ "filter": "bus-error", "label": "Bus error", "default": false }, { "filter": "address-error", "label": "Address error", "default": true }, { "filter": "illegal", "label": "Illegal instruction", "default": true }] }))),
+                    "launch" => {
+                        say(answer(json!({})));
+                        say(json!({ "type": "event", "event": "initialized" }));
+                        say(json!({ "type": "event", "event": "output", "body": { "category": "console", "output": "count loaded at $C0F4D0\n" } }));
+                    }
+                    "setBreakpoints" => say(answer(json!({ "breakpoints": [{ "verified": false }] }))),
+                    "configurationDone" => {
+                        say(answer(json!({})));
+                        say(json!({ "type": "event", "event": "stopped", "body": { "reason": "breakpoint", "threadId": 1, "allThreadsStopped": true } }));
+                    }
+                    "stackTrace" => say(answer(json!({ "stackFrames": [{ "id": 1000, "name": "loop", "line": line, "column": 0, "source": { "path": file } }], "totalFrames": 1 }))),
+                    "scopes" => say(answer(json!({ "scopes": [{ "name": "Registers", "presentationHint": "registers", "variablesReference": 1 }, { "name": "Chipset", "variablesReference": 4, "expensive": true }] }))),
+                    "variables" => say(answer(json!({ "variables": [{ "name": "d0", "value": format!("0x{line:08X} ({line})"), "type": "long", "variablesReference": 0 }, { "name": "a0", "value": "0x00000400 (1024)", "type": "long", "variablesReference": 0 }] }))),
+                    // Copperline's reports, as raw control requests: a byte written to COLOR00 by line 4's
+                    // instruction (at $C0F4D4), and one of Kickstart's.
+                    "evaluate" if request["arguments"]["expression"] == "!chipset.report" => say(answer(json!({ "result": json!({ "armed": true, "findings": [{ "addr": 0xC0F4D4u32, "count": 3, "detail": "COLOR00 accessed a byte at a time" }, { "addr": 0xFC6D6Cu32, "count": 118, "detail": "COP2LCH aimed at 0xC00000" }] }).to_string(), "variablesReference": 0 }))),
+                    "evaluate" if request["arguments"]["expression"] == "!smc.report" => say(answer(json!({ "result": json!({ "armed": true, "writes": [] }).to_string(), "variablesReference": 0 }))),
+                    "evaluate" => say(answer(json!({ "result": "0x00000400 (1024)", "memoryReference": "0x400", "variablesReference": 0 }))),
+                    "readMemory" => {
+                        let bytes: Vec<u8> = (0..128).map(|i| (i as u8).wrapping_add(line as u8)).collect();
+                        say(answer(json!({ "address": request["arguments"]["memoryReference"], "data": crate::conversions::base64_encode(&bytes, false) })));
+                    }
+                    "stepBack" => {
+                        line = 3;
+                        say(answer(json!({})));
+                        say(json!({ "type": "event", "event": "stopped", "body": { "reason": "step", "threadId": 1 } }));
+                    }
+                    "disconnect" => {
+                        say(answer(json!({})));
+                        return;
+                    }
+                    _ => say(answer(json!({}))),
+                }
+            }
+        });
+        (Session::over(Box::new(to_it), from_it), heard)
+    }
+
+    /// Debugging in Copperline, against the stand-in: its exceptions are left on, the breakpoint beside the source
+    /// is told, the line it stops at is marked with its registers shown and memory read (at A0, where nothing's
+    /// typed), and stepping back goes back a line, with the memory that changed known.
+    #[test]
+    fn an_amiga_program_is_debugged_through_copperlines_adapter() {
+        crate::highlight::load_now();
+        let (mut app, ctx) = app_with("");
+        let folder = std::env::temp_dir().join(format!("limoniter-dap-fake-copperline-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let file = folder.join("count.s");
+        std::fs::write(&file, "\tsection code,code\nstart:\tmoveq\t#0,d0\n\tmoveq\t#5,d1\nloop:\taddq.l\t#1,d0\n\tsubq.l\t#1,d1\n\tbne.s\tloop\n\trts\n").unwrap();
+        assert!(app.open_path(&file));
+        app.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(3);
+        let (session, heard) = fake_copperline(file.clone());
+        let config = Config { kind: dap::Kind::Copperline, adapter: String::new(), program: folder.join("count").display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: Some(dap::Emulated { program: "copperline".into(), options: Vec::new() }) };
+        app.begin_debugging(config, session);
+        let text = std::fs::read_to_string(&file).unwrap();
+        let (assembly, _) = crate::asm::hunk::assemble_executable(&file, &text, &|_| Err("no".into()), false, &crate::asm::Options::default());
+        app.debugging.as_mut().unwrap().copperline.program = dap::ProgramMap::of(&assembly);
+        let wait = |app: &mut Limoniter, done: &dyn Fn(&Limoniter) -> bool| {
+            let began = std::time::Instant::now();
+            while began.elapsed() < Duration::from_secs(10) && !done(app) {
+                app.debug_tick(&ctx);
+                ctx.run_ui(Default::default(), |ui| app.debug_panel(ui)).textures_delta.clear();
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(done(app), "{:?}", app.debugging.as_ref().map(|d| (d.state, d.console.clone())));
+        };
+        wait(&mut app, &|app| app.debugging.as_ref().is_some_and(|d| d.state == State::Paused && d.memory.now.is_some() && d.parts.contains_key(&1)));
+        assert_eq!(app.doc().text.code.as_ref().unwrap().stopped, Some(3), "line 4 is marked");
+        assert!(app.can_step_back());
+        let d = app.debugging.as_ref().unwrap();
+        assert_eq!(d.parts[&1][0], Variable { name: "d0".into(), value: "0x00000004 (4)".into(), kind: "long".into(), parts: 0 }, "the registers are the first scope, opened");
+        assert_eq!(d.memory.now.as_ref().map(|(at, bytes)| (*at, bytes[0])), Some((0x400, 4)), "read at A0");
+        {
+            let heard = heard.lock().unwrap();
+            let asked = |command: &str| heard.iter().find(|r| r["command"] == command).cloned().unwrap_or(Value::Null);
+            assert_eq!(asked("setExceptionBreakpoints")["arguments"]["filters"], json!(["address-error", "illegal"]));
+            assert_eq!(asked("setBreakpoints")["arguments"]["source"]["path"], json!(file.display().to_string()));
+            assert_eq!(asked("setBreakpoints")["arguments"]["breakpoints"], json!([{ "line": 4 }]));
+            assert_eq!(asked("launch")["arguments"]["copperline"], "copperline");
+            assert_eq!(asked("initialize")["arguments"]["adapterID"], "copperline");
+            assert_eq!(asked("evaluate")["arguments"]["expression"], "a0");
+        }
+        // Step back, as Shift+F10 or the menu's Step back asks.
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| app.run(Command::DebugStepBack, ui));
+        wait(&mut app, &|app| app.debugging.as_ref().is_some_and(|d| d.state == State::Paused && d.memory.before.is_some() && d.memory.now.as_ref().is_some_and(|(_, b)| b[0] == 3)));
+        assert_eq!(app.doc().text.code.as_ref().unwrap().stopped, Some(2), "back to line 3");
+        assert!(heard.lock().unwrap().iter().any(|r| r["command"] == "stepBack" && r["arguments"]["threadId"] == 1));
+        // Copperline's warnings: the program's own put at its line; Kickstart's only counted. The stop is read
+        // again afterwards, the adapter having forgotten its variables.
+        let traces = |heard: &[Value]| heard.iter().filter(|r| r["command"] == "stackTrace").count();
+        let before = traces(&heard.lock().unwrap());
+        app.debugging.as_mut().unwrap().look_for_warnings();
+        wait(&mut app, &|app| app.debugging.as_ref().is_some_and(|d| d.copperline.code.is_some() && d.asked.is_empty()));
+        let d = app.debugging.as_ref().unwrap();
+        let chipset = d.copperline.chipset.clone().unwrap().unwrap();
+        assert_eq!(chipset.len(), 2);
+        assert_eq!(d.copperline.program.place(chipset[0].by), Some((file.clone(), 3)), "line 4");
+        assert!(!d.copperline.program.contains(chipset[1].by), "Kickstart's");
+        assert_eq!(traces(&heard.lock().unwrap()), before + 1);
+        app.debug_control("stop");
+        let told = || heard.lock().unwrap().iter().any(|r| r["command"] == "disconnect" && r["arguments"]["terminateDebuggee"] == true);
+        let began = std::time::Instant::now();
+        while !told() && began.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(told(), "told to end, and to close the emulator");
+        assert_eq!(app.doc().text.code.as_ref().unwrap().stopped, None);
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    /// With LIMONITER_COPPERLINE naming Copperline (its AppImage will do) and copperline-ctl beside it, on its
+    /// path or in its tools folder beside it, and LIMONITER_KICKSTART a Kickstart 1.3 (else its own AROS is used):
+    /// Run on machine (F9) assembles the program with its source lines, Copperline boots it and stops at the
+    /// breakpoint beside line 5, with D0 read; a step goes to line 6, stepping back returns to line 5, and memory
+    /// is read. Run without a display (no DISPLAY), Copperline has no window.
+    #[test]
+    #[ignore]
+    fn an_amiga_program_is_debugged_in_a_real_copperline() {
+        let Some(emulator) = std::env::var_os("LIMONITER_COPPERLINE") else { return };
+        crate::highlight::load_now();
+        let (mut app, ctx) = app_with("");
+        let folder = std::env::temp_dir().join(format!("limoniter-real-copperline-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let file = folder.join("count.s");
+        std::fs::write(&file, "\tsection code,code\nstart:\tmove.l\t4.w,a6\n\tmoveq\t#0,d0\n\tmoveq\t#5,d1\nloop:\taddq.l\t#1,d0\n\tsubq.l\t#1,d1\n\tbne.s\tloop\n\trts\n").unwrap();
+        let mut settings = crate::amiga_run::Settings::default();
+        settings.set_kickstart(crate::amiga_run::Model::A500, std::env::var_os("LIMONITER_KICKSTART").map(PathBuf::from));
+        crate::amiga_run::set_settings(settings);
+        assert!(app.open_path(&file));
+        app.doc().update_syntax();
+        assert_eq!(app.doc().language_name(), "Assembly 680x0");
+        app.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(4);
+        app.sends.devices = vec![crate::deploy::Device { name: "Copperline".into(), place: crate::deploy::Place::Emulator { emulator: "copperline".into(), program: emulator.into(), options: "--noaudio".into() }, preset: None, eject: false }];
+        app.runnable().unwrap();
+        app.run_on_target(run_host::Target::Device(0));
+        if let Dialog::Message { body, .. } = &app.dialog {
+            panic!("{body}");
+        }
+        assert!(matches!(app.dialog, Dialog::None));
+        let wait = |app: &mut Limoniter, seconds: u64, done: &dyn Fn(&Limoniter) -> bool| {
+            let began = std::time::Instant::now();
+            while began.elapsed() < Duration::from_secs(seconds) && !done(app) {
+                app.debug_tick(&ctx);
+                ctx.run_ui(Default::default(), |ui| app.debug_panel(ui)).textures_delta.clear();
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            assert!(done(app), "{:?}", app.debugging.as_ref().map(|d| (d.state, d.console.clone(), d.frames.clone())));
+        };
+        // Stopped there, with everything asked at the stop (the registers among it) answered.
+        let stopped_at = |app: &Limoniter, line: usize| app.debugging.as_ref().is_some_and(|d| d.state == State::Paused && d.frames.first().is_some_and(|f| f.line == line) && d.asked.is_empty() && d.parts.contains_key(&d.scopes.first().map_or(-1, |s| s.parts)));
+        wait(&mut app, 180, &|app| stopped_at(app, 4));
+        let d0 = |app: &Limoniter| app.debugging.as_ref().and_then(|d| d.parts.values().flatten().find(|v| v.name.eq_ignore_ascii_case("d0")).map(|v| v.value.clone())).unwrap_or_default();
+        println!("stopped at line 5, d0 = {}", d0(&app));
+        assert!(d0(&app).starts_with("0x00000000"), "{}", d0(&app));
+        assert_eq!(app.doc().text.code.as_ref().unwrap().stopped, Some(4));
+        assert!(app.can_step_back(), "Copperline says it can step back");
+        app.debug_control("next");
+        wait(&mut app, 30, &|app| stopped_at(app, 5));
+        println!("stepped to line 6, d0 = {}", d0(&app));
+        assert!(d0(&app).starts_with("0x00000001"), "{}", d0(&app));
+        app.debug_control("stepBack");
+        wait(&mut app, 30, &|app| stopped_at(app, 4));
+        println!("stepped back to line 5, d0 = {}", d0(&app));
+        assert!(d0(&app).starts_with("0x00000000"), "{}", d0(&app));
+        app.debugging.as_mut().unwrap().memory.at = "$0".into();
+        wait(&mut app, 30, &|app| app.debugging.as_ref().is_some_and(|d| d.memory.now.as_ref().is_some_and(|(at, b)| *at == 0 && b.len() == 128)));
+        println!("memory at 0: {:02X?}", &app.debugging.as_ref().unwrap().memory.now.as_ref().unwrap().1[..8]);
+        println!("{}", app.debugging.as_ref().unwrap().console.join("\n"));
+        app.debug_control("stop");
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
     #[test]
     fn the_console_joins_what_comes_in_pieces() {
         let (reader, writer) = std::io::pipe().unwrap();
         let session = Session::over(Box::new(writer), reader);
-        let mut d = Debugging { session, config: dap::guess(dap::Kind::Debugpy, String::new(), Path::new("/w/a.py")), asked: HashMap::new(), state: State::Running, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false };
+        let mut d = Debugging { session, config: dap::guess(dap::Kind::Debugpy, String::new(), Path::new("/w/a.py")), asked: HashMap::new(), state: State::Running, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false, can: Default::default(), memory: Default::default(), profile: Default::default(), copperline: Default::default() };
         d.say("res");
         d.say("ult 8\nnext ");
         d.say("line\n");

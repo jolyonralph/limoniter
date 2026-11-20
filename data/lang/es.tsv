@@ -3921,7 +3921,7 @@ zx_notation	zx_notation
 {scope}, as text:\n\nSHA-256: {hash}\n\nThe hash has been copied.	{scope}, como texto:\n\nSHA-256: {hash}\n\nSe ha copiado el hash.
 {shown} is a folder here, so a file can't replace it.	{shown} es aquí una carpeta, así que un archivo no puede reemplazarla.
 {shown} is protected; unprotect it on the Atari first.	{shown} está protegido; quite la protección en el Atari primero.
-{stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, Disassemble… turns it into 6502 source, starting from its init and play routines; File, Save as keeps it.	{stem}.prg es el código y los datos de la melodía en su dirección de carga, como programa de C64. Herramientas, Desensamblar… lo convierte en código fuente 6502, empezando por sus rutinas init y play; Archivo, Guardar como lo conserva.
+{stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, General, Disassemble… turns it into 6502 source, starting from its init and play routines; File, Save as keeps it.	{stem}.prg es el código y los datos de la melodía en su dirección de carga, como programa de C64. Herramientas, General, Desensamblar… lo convierte en código fuente 6502, empezando por sus rutinas init y play; Archivo, Guardar como lo conserva.
 {target} couldn't be replaced: {e}	no se pudo reemplazar {target}: {e}
 {target} isn't there.	{target} no existe.
 {temp} couldn't be made: {e}	no se pudo crear {temp}: {e}
@@ -7407,3 +7407,1690 @@ to the square's corner	a la esquina del cuadrado
 {upper} takes # and a value, then an address, as {upper} #$0F,$40	{upper} toma # y un valor, luego una dirección, como {upper} #$0F,$40
 {upper} takes a register, two bit numbers and an address, as {upper} A,0,7,$40	{upper} toma un registro, dos números de bit y una dirección, como {upper} A,0,7,$40
 {upper} works on CC, A or B	{upper} trabaja con CC, A o B
+A to Z	De la A a la Z
+Apple	Apple
+Apple II and the SNES	Apple II y la SNES
+Assembly	Ensamblador
+Atari 8-bit and 2600	Atari de 8 bits y 2600
+BASIC	BASIC
+BBC Micro and Acorn	BBC Micro y Acorn
+By kind	Por tipo
+By machine	Por máquina
+CP/M	CP/M
+Colour as another language	Colorear como otro lenguaje
+Colour as…	Colorear como…
+Commodore 64, VIC-20 and PET	Commodore 64, VIC-20 y PET
+Containers and the cloud	Contenedores y la nube
+DEC PDP-11 and VAX	DEC PDP-11 y VAX
+Data and configuration	Datos y configuración
+Documents and markup	Documentos y marcado
+Dragon, Color Computer and Vectrex	Dragon, Color Computer y Vectrex
+Everything else	Todo lo demás
+Functional and logic	Funcionales y lógicos
+Games and graphics	Juegos y gráficos
+Hardware and shaders	Hardware y shaders
+IBM PC and DOS	IBM PC y DOS
+IBM mainframes and IBM i	Mainframes de IBM e IBM i
+Interactive fiction	Ficción interactiva
+Java and Android	Java y Android
+Java, .NET and their kin	Java, .NET y afines
+Lately:	Últimamente:
+Logs and system files	Registros y archivos del sistema
+MSX, Amstrad CPC and other Z80s	MSX, Amstrad CPC y otros Z80
+Mainframes and minicomputers	Mainframes y miniordenadores
+Microcontrollers	Microcontroladores
+Microsoft and Windows	Microsoft y Windows
+No file open. Open a file, or a folder of code (File, Open folder), or drop one here.	No hay ningún archivo abierto. Abra un archivo, o una carpeta de código (Archivo, Abrir carpeta), o arrástrelo aquí.
+No language has those letters.	Ningún lenguaje tiene esas letras.
+Science and statistics	Ciencia y estadística
+Scripting	Scripting
+Shell, build and packaging	Shell, compilación y empaquetado
+Systems and applications	Sistemas y aplicaciones
+The web	La web
+Type to find a language, such as 6502 or rust	Escriba para buscar un lenguaje, como 6502 o rust
+Unix and Linux	Unix y Linux
+Web servers and browsers	Servidores web y navegadores
+Work it out ({name})	Deducirlo ({name})
+ZX Spectrum and Next	ZX Spectrum y Next
+A program to disassemble	Un programa para desensamblar
+Next Layer 2 painter	Programa de dibujo Layer 2 del Next
+Screen designer	Diseñador de pantallas
+Sprites and playfield	Sprites y playfield
+Change case	Mayúsculas y minúsculas
+Clipboards	Portapapeles
+Columns	Columnas
+Compress	Compactar
+Convert	Convertir
+Folding	Contraer
+General	General
+Lay out code	Dar formato al código
+Lines	Líneas
+Panels	Paneles
+Tabs and spaces	Tabulaciones y espacios
+Theme	Tema
+This file	Este archivo
+Tokenised BASIC	BASIC tokenizado
+A call's parameters, as a language server gives them, shown under the line being typed rather than over it	Los parámetros de una llamada, tal como los da un servidor de lenguaje, mostrados debajo de la línea que se escribe en vez de encima
+A faint line down each level of indentation	Una línea tenue a lo largo de cada nivel de sangría
+A folded block shows as { … } on one line, the line with its closing bracket folded in with it	Un bloque plegado se muestra como { … } en una línea; la línea con su llave de cierre se pliega con él
+As .editorconfig's trim_trailing_whitespace does; a file's .editorconfig has the last word	Como hace trim_trailing_whitespace de .editorconfig; el .editorconfig de un archivo tiene la última palabra
+Change this colour	Cambiar este color
+Character table	Tabla de caracteres
+Clipboard History	Historial del portapapeles
+Colours shown where they're written	Colores mostrados donde están escritos
+Comment kinds in colour	Tipos de comentario en color
+Control sequences	Secuencias de control
+Date changed, newest first	Fecha de cambio, lo más reciente primero
+Drag, type, or turn the mouse wheel over it	Arrastra, escribe o gira la rueda del ratón sobre él
+Each level of the guides in its own colour, as the rainbow brackets are	Cada nivel de las guías en su propio color, como los corchetes arcoíris
+Each line's problem written faintly after it, as well as marked beside it	El problema de cada línea escrito tenue tras ella, además de marcado a su lado
+Editable or read-only	Editable o de solo lectura
+Encoding Preview	Vista previa de la codificación
+Fewer {what}	Menos {what}
+File explorer	Explorador de archivos
+File size	Tamaño del archivo
+Focus follows the mouse	El foco sigue al ratón
+Folders first	Carpetas primero
+Folds take in their closing bracket	Los plegados incluyen su llave de cierre
+For the menus, panels, boxes and the status bar. The text's own font and size are under View, Font, and Ctrl and + or -.	Para los menús, paneles, cuadros y la barra de estado. La fuente y el tamaño del propio texto están en Ver, Fuente, y con Ctrl y + o -.
+Further left	Más a la izquierda
+Further right	Más a la derecha
+Hide comments	Ocultar comentarios
+Indentation guides	Guías de sangría
+Indentation guides coloured by depth	Guías de sangría coloreadas por profundidad
+JSON manager	Gestor de JSON
+Looking through the project…	Revisando el proyecto…
+Matches in the code alone count	Solo cuentan las coincidencias en el código
+More {what}	Más {what}
+No TODO, FIXME, BUG, HACK or XXX notes in comments.	No hay notas TODO, FIXME, BUG, HACK ni XXX en los comentarios.
+Not in comments or strings	No en comentarios ni cadenas
+Now and then, a note of the shortcut for a command just chosen from a menu or the command box, to learn the keys by	De vez en cuando, una nota con el atajo de un comando recién elegido en un menú o en el cuadro de comandos, para aprender las teclas
+Only on the lines changed	Solo en las líneas cambiadas
+Open a folder or a project first	Abre primero una carpeta o un proyecto
+Panels hide themselves	Los paneles se ocultan solos
+Parameter hints below the line	Pistas de parámetros bajo la línea
+Problems at the ends of their lines	Problemas al final de sus líneas
+Put them back as they were	Dejarlos como estaban
+Show the keys for commands chosen from a menu	Mostrar las teclas de los comandos elegidos en un menú
+Shown in the status bar	Se muestra en la barra de estado
+Size, largest first	Tamaño, lo más grande primero
+Sizes and dates	Tamaños y fechas
+Sort by, and sizes and dates	Ordenar por, y tamaños y fechas
+TODO notes	Notas TODO
+TODO, FIXME, NOTE and the like, and comments beginning with ! or ?, in colours of their own	TODO, FIXME, NOTE y similares, y los comentarios que empiezan por ! o ?, en colores propios
+That font can't be read.	No se puede leer esa fuente.
+The comments of this file's language aren't known	No se conocen los comentarios del lenguaje de este archivo
+The pane under the pointer takes the keyboard without a click: either half of a split file, or either of two files side by side	El panel bajo el puntero toma el teclado sin hacer clic: cualquier mitad de un archivo dividido, o cualquiera de dos archivos lado a lado
+The project	El proyecto
+The side panels come out when the pointer reaches the window's edge, and go again when it leaves them	Los paneles laterales aparecen cuando el puntero llega al borde de la ventana, y se van al dejarlos
+The usual one	La habitual
+Trailing spaces are trimmed on the lines changed since the file was opened, so the rest of its history isn't touched	Los espacios finales se quitan en las líneas cambiadas desde que se abrió el archivo, para no tocar el resto de su historial
+Trim trailing spaces as a file's saved	Quitar los espacios finales al guardar un archivo
+Type	Tipo
+Usual	Habitual
+Where the cursor is	Dónde está el cursor
+Window font and size	Fuente y tamaño de la ventana
+Window font and size…	Fuente y tamaño de la ventana…
+Written as #rrggbb, rgb(), hsl(), or the Amiga's $0RGB beside COLOR registers, with a picker at the cursor to change one	Escritos como #rrggbb, rgb(), hsl() o el $0RGB del Amiga junto a registros COLOR, con un selector en el cursor para cambiar uno
+XML manager	Gestor de XML
+{keys} does {name} without the menu.	{keys} hace {name} sin el menú.
+ or 	 o 
+(none)	(ninguno)
+. matches a line break too	. coincide también con un salto de línea
+. takes line breaks	. admite saltos de línea
+1 match:	1 coincidencia:
+30 days	30 días
+6502, DASM: .byte, .word	6502, DASM: .byte, .word
+6502, KickAssembler: .byte, .word	6502, KickAssembler: .byte, .word
+6502, MADS: .byte, .word	6502, MADS: .byte, .word
+6502, Merlin: DFB, DA	6502, Merlin: DFB, DA
+A JSON Schema	Un JSON Schema
+A patch to apply	Un parche que aplicar
+A pattern, such as (\\w+)@(\\w+)\\.com	Un patrón, como (\\w+)@(\\w+)\\.com
+A {} ROM. Its header's checksum is {has}; the ROM's is {right}.	Una ROM de {}. La suma de comprobación de su cabecera es {has}; la de la ROM es {right}.
+AMOS	AMOS
+ARM: DCB, DCW, DCD	ARM: DCB, DCW, DCD
+AVR, with avrdude	AVR, con avrdude
+AVR: .db, .dw	AVR: .db, .dw
+All	Todo
+Along the file, each {block} bytes:	A lo largo del archivo, cada {block} bytes:
+Amiga E list	Lista de Amiga E
+Amiga Kickstart	Amiga Kickstart
+Any BASIC (numbered, decimal)	Cualquier BASIC (numerado, decimal)
+Applesoft BASIC	Applesoft BASIC
+Apply a patch to the file in front…	Aplicar un parche al archivo en primer plano…
+Atari BASIC	Atari BASIC
+BBC BASIC (numbered)	BBC BASIC (numerado)
+BBC BASIC V and later	BBC BASIC V y posteriores
+BBC BASIC's assembler: EQUB, EQUW, EQUD	Ensamblador de BBC BASIC: EQUB, EQUW, EQUD
+Binary tools	Herramientas para binarios
+Blitz Basic	Blitz Basic
+By day	Por día
+By file	Por archivo
+By language	Por lenguaje
+By project	Por proyecto
+C for Arduino (PROGMEM)	C para Arduino (PROGMEM)
+C# array	Array de C#
+Check	Comprobar
+Check JSON or YAML against a schema	Comprobar JSON o YAML con un esquema
+Checksums	Sumas de comprobación
+Checksums and ROM headers	Sumas de comprobación y cabeceras de ROM
+Choose a schema first.	Elija primero un esquema.
+Choose the schema…	Elegir el esquema…
+Code as a picture	Código como imagen
+Code as a picture…	Código como imagen…
+Commodore BASIC (C64, VIC-20, PET)	Commodore BASIC (C64, VIC-20, PET)
+Copy the picture	Copiar la imagen
+Cycle counts beside 6502 and Z80 code	Recuento de ciclos junto al código 6502 y Z80
+DIM and READ into an array	DIM y READ en un array
+Delete the folder {path} on the server? It has to be empty.	¿Eliminar la carpeta {path} del servidor? Tiene que estar vacía.
+Delete {path} on the server? This can't be undone.	¿Eliminar {path} del servidor? No se puede deshacer.
+Doc comment	Comentario de documentación
+Doc comment for this function	Comentario de documentación para esta función
+Drawn at	Dibujado a
+Entropy and byte counts	Entropía y recuento de bytes
+Entropy: {:.2} bits a byte (8 looks random: packed or encrypted; plain text is about 4 to 5)	Entropía: {:.2} bits por byte (8 parece aleatorio: comprimido o cifrado; el texto normal ronda entre 4 y 5)
+Fits none of the choices it should fit one of (anyOf).	No encaja con ninguna de las opciones, y debería encajar con alguna (anyOf).
+Fits what it mustn't (not).	Encaja con lo que no debe (not).
+Fits {fitting} of the choices, and should fit exactly one (oneOf).	Encaja con {fitting} de las opciones, y debería encajar exactamente con una (oneOf).
+Format document uses these where no language server formats the file. Only those installed can be chosen.	Formatear documento los usa cuando ningún servidor de lenguaje formatea el archivo. Solo se pueden elegir los que están instalados.
+Formatters	Formateadores
+Formatters…	Formateadores…
+Formatting is done by a language server for the file's language (Settings, Editing, Language servers), or by a formatter such as Prettier, Black or clang-format when one is installed (Format, Formatters).	El formateo lo hace un servidor de lenguaje para el lenguaje del archivo (Configuración, Edición, Servidores de lenguaje), o un formateador como Prettier, Black o clang-format si hay uno instalado (Formato, Formateadores).
+Forth: create with c, or ,	Forth: create con c, o ,
+Fortran DATA	Fortran DATA
+From line	Desde la línea
+From ~/.ssh/config	De ~/.ssh/config
+GNU as: .byte, .short, .long	GNU as: .byte, .short, .long
+GW-BASIC	GW-BASIC
+Game Boy	Game Boy
+Game Boy, RGBDS: db, dw	Game Boy, RGBDS: db, dw
+Go array	Array de Go
+How many of each byte, $00 to $FF:	Cuántos hay de cada byte, de $00 a $FF:
+IPS is the oldest and reaches 16 MB; BPS and UPS check the file they're applied to and what they make.	IPS es el más antiguo y llega a 16 MB; BPS y UPS comprueban el archivo al que se aplican y el que producen.
+IPS patches only reach the first 16 MB of a file; BPS or UPS can do larger ones.	Los parches IPS solo llegan a los primeros 16 MB de un archivo; BPS o UPS admiten archivos más grandes.
+In all: {}	En total: {}
+In the file in front, as one change that Undo takes back	En el archivo en primer plano, como un solo cambio que Deshacer revierte
+It keeps to the schema.	Se ajusta al esquema.
+It's neither JSON nor YAML that can be read: {e}	No es JSON ni YAML legible: {e}
+Item {i} is the same as one before it; each should be different.	El elemento {i} es igual a uno anterior; todos deberían ser distintos.
+JSON Schema	JSON Schema
+JSON array	Array JSON
+JSON or YAML against a schema	JSON o YAML con un esquema
+Java array	Array de Java
+Keep count of the time spent working	Llevar la cuenta del tiempo de trabajo
+Kept in time-spent.tsv beside the settings, on this computer only, and sent nowhere. A pause of over two minutes isn't counted.	Se guarda en time-spent.tsv junto a la configuración, solo en este ordenador, y no se envía a ningún sitio. Las pausas de más de dos minutos no se cuentan.
+Kotlin array	Array de Kotlin
+Left empty for a USB programmer that needs none	Se deja vacío para un programador USB que no lo necesita
+Live server	Servidor en vivo
+Lua table	Tabla de Lua
+MD001: a heading of level {hashes} straight after one of level {last_level}; headings go down one level at a time	MD001: un encabezado de nivel {hashes} justo después de uno de nivel {last_level}; los encabezados bajan de nivel de uno en uno
+MD009: spaces at the end of the line (two make a line break; others do nothing)	MD009: espacios al final de la línea (dos hacen un salto de línea; los demás no hacen nada)
+MD010: a tab; use spaces	MD010: un tabulador; use espacios
+MD012: more than one blank line together	MD012: más de una línea en blanco seguida
+MD018: put a space after the # of a heading	MD018: ponga un espacio después del # de un encabezado
+MD022: put a blank line above and below a heading	MD022: ponga una línea en blanco encima y debajo de un encabezado
+MD025: more than one top-level heading	MD025: más de un encabezado de nivel superior
+MD031: put a blank line after fenced code	MD031: ponga una línea en blanco después de un bloque de código delimitado
+MD031: put a blank line before fenced code	MD031: ponga una línea en blanco antes de un bloque de código delimitado
+MSX BASIC	MSX BASIC
+Make a patch from the file in front (the original) to a changed copy of it:	Crear un parche del archivo en primer plano (el original) a una copia modificada de él:
+Margin	Margen
+Markdown: line up the table	Markdown: alinear la tabla
+Markdown: table of contents	Markdown: índice
+Mega Drive / Genesis	Mega Drive / Genesis
+Microcontroller flashing	Grabación de microcontroladores
+Microcontroller flashing…	Grabación de microcontroladores…
+Multi-line: ^ and $ match at the start and end of every line, not only of the whole text	Multilínea: ^ y $ coinciden al principio y al final de cada línea, no solo del texto entero
+NEXT {}	NEXT {}
+New folder:	Nueva carpeta:
+No matches.	No hay coincidencias.
+No port from 5500 to 5599 is free to serve on.	Ningún puerto del 5500 al 5599 está libre para servir.
+No project	Sin proyecto
+No schema chosen	Ningún esquema elegido
+None installed	Ninguno instalado
+Not text: Enter opens it to see it.	No es texto: Enter lo abre para verlo.
+Nothing counted for these days yet.	Aún no hay nada contado para estos días.
+Nothing is allowed here.	Aquí no se permite nada.
+Once a .hex file has been built, Tools, Tasks, Run has a task that flashes it, made with these.	Una vez compilado un archivo .hex, Herramientas, Tareas, Ejecutar tiene una tarea que lo graba, creada con estos datos.
+Open a file first: these work on the file in front.	Abra primero un archivo: estas funcionan sobre el archivo en primer plano.
+Open a folder, or save the page, first: the folder it's in is what's served.	Abra primero una carpeta, o guarde la página: lo que se sirve es la carpeta donde está.
+Open the {} chosen	Abrir los {} elegidos
+PIC, with MPLAB IPE's ipecmd	PIC, con ipecmd de MPLAB IPE
+PIC: a RETLW for each byte	PIC: un RETLW por cada byte
+Part {}: {:.2} bits a byte	Parte {}: {:.2} bits por byte
+Pascal and Delphi array	Array de Pascal y Delphi
+Patched, and checked: the file was the one the patch was made for, and the result is what it should be.	Parcheado y comprobado: el archivo era aquel para el que se hizo el parche, y el resultado es el que debe ser.
+Patched. IPS patches carry no check, so whether it was the right file isn't known.	Parcheado. Los parches IPS no llevan comprobación, así que no se sabe si era el archivo correcto.
+Patches	Parches
+Pattern and schema tester	Probador de patrones y esquemas
+Places after the point	Decimales
+PlatformIO: build	PlatformIO: compilar
+PlatformIO: serial monitor	PlatformIO: monitor serie
+PlatformIO: test	PlatformIO: pruebas
+PlatformIO: upload to the board	PlatformIO: subir a la placa
+Port	Puerto
+Programmer	Programador
+Put the JSON or YAML to check in front first.	Ponga primero en primer plano el JSON o YAML que quiere comprobar.
+Put the code in front first, with the lines selected, or none for the whole file.	Ponga primero el código en primer plano, con las líneas seleccionadas, o ninguna para todo el archivo.
+Put the cursor in a table first: rows of cells between | marks, with a line of dashes under the first.	Ponga primero el cursor en una tabla: filas de celdas entre marcas |, con una línea de guiones bajo la primera.
+Put the cursor on a function's first line, or just above it, to write its doc comment.	Ponga el cursor en la primera línea de una función, o justo encima, para escribir su comentario de documentación.
+Put the header's checksum right	Corregir la suma de comprobación de la cabecera
+QBasic and QuickBASIC	QBasic y QuickBASIC
+ROM patches: IPS, BPS, UPS	Parches de ROM: IPS, BPS, UPS
+Real numbers	Números reales
+Regular expression tester	Probador de expresiones regulares
+Rename {old} to:	Cambiar el nombre de {old} a:
+Replace with	Reemplazar por
+SNES	SNES
+STOS	STOS
+SVG drawing	Dibujo SVG
+Save as Intel HEX…	Guardar como Intel HEX…
+Save as S-records…	Guardar como S-records…
+Save the patch	Guardar el parche
+Save the picture	Guardar la imagen
+Saved.	Guardado.
+Serve this folder in a browser (live server)	Servir esta carpeta en un navegador (servidor en vivo)
+Sharpness	Nitidez
+Shift+Alt+F	Shift+Alt+F
+Should be a multiple of {step}.	Debería ser múltiplo de {step}.
+Should be at least {least} characters long.	Debería tener al menos {least} caracteres.
+Should be at least {least}.	Debería ser como mínimo {least}.
+Should be at most {most} characters long.	Debería tener como máximo {most} caracteres.
+Should be at most {most}.	Debería ser como máximo {most}.
+Should be less than {most}.	Debería ser menor que {most}.
+Should be more than {least}.	Debería ser mayor que {least}.
+Should be one of {}.	Debería ser uno de {}.
+Should be {wanted}.	Debería ser {wanted}.
+Should be {}, but is {}.	Debería ser {}, pero es {}.
+Should have at least {least} items.	Debería tener al menos {least} elementos.
+Should have at most {most} items.	Debería tener como máximo {most} elementos.
+Should match the pattern {pattern}.	Debería coincidir con el patrón {pattern}.
+Sinclair BASIC (ZX Spectrum)	Sinclair BASIC (ZX Spectrum)
+Swift array	Array de Swift
+Text to try it on:	Texto en el que probarlo:
+That isn't an IPS, BPS or UPS patch.	Eso no es un parche IPS, BPS ni UPS.
+That table has no line of dashes under its first row, so its columns can't be told apart.	Esa tabla no tiene una línea de guiones bajo su primera fila, así que no se pueden distinguir sus columnas.
+That's too large to make a picture of.	Es demasiado grande para convertirlo en imagen.
+The JSON or YAML in front is checked against a JSON Schema.	El JSON o YAML en primer plano se comprueba con un JSON Schema.
+The address the file puts the table at	La dirección en la que el archivo coloca la tabla
+The changed copy	La copia modificada
+The file isn't the one this patch was made for (its CRC-32 is different).	El archivo no es aquel para el que se hizo este parche (su CRC-32 es distinto).
+The formatter couldn't be given the text.	No se pudo pasar el texto al formateador.
+The header's checksum has been put right. Save the file to keep it.	Se ha corregido la suma de comprobación de la cabecera. Guarde el archivo para conservarla.
+The patch is saved: {} bytes.	El parche se ha guardado: {} bytes.
+The patch itself is damaged: its own check doesn't match.	El propio parche está dañado: su comprobación no coincide.
+The patched file isn't what the patch says it makes (its CRC-32 is different).	El archivo parcheado no es el que el parche dice que produce (su CRC-32 es distinto).
+The patched file opens in a new tab, for you to check and save	El archivo parcheado se abre en una pestaña nueva, para que lo compruebe y lo guarde
+The pattern goes in the Find box, as a regular expression	El patrón va al cuadro Buscar, como expresión regular
+The picture is on the clipboard.	La imagen está en el portapapeles.
+The schema isn't JSON that can be read: {e}	El esquema no es JSON legible: {e}
+The schema's $ref {reference} can't be found; only references within the schema are followed.	No se encuentra el $ref {reference} del esquema; solo se siguen las referencias dentro del esquema.
+The schema's pattern {pattern} isn't one that can be read.	El patrón {pattern} del esquema no se puede leer.
+The values divided by 2 to the fraction bits, with so many places	Los valores divididos entre 2 elevado a los bits de fracción, con tantos decimales
+There's no preview for this kind of file yet. There are previews for Markdown, web pages, SVG drawings, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, tracker music modules (MOD, S3M, XM and IT), sound files (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC and AU), and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.	Aún no hay vista previa para este tipo de archivo. Hay vistas previas para Markdown, páginas web, dibujos SVG, arte ANSI de PC, PETSCII, pantallas de Commodore, teletexto, texto de ZX Spectrum, BASIC tokenizado, módulos de música de tracker (MOD, S3M, XM e IT), archivos de sonido (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC y AU), e imágenes de Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum y Kodak Photo CD.
+They match.	Coinciden.
+This BPS patch is cut short or damaged.	Este parche BPS está truncado o dañado.
+This IPS patch is cut short or damaged.	Este parche IPS está truncado o dañado.
+This SVG can't be drawn: {e}	Este SVG no se puede dibujar: {e}
+This SVG is too large to draw.	Este SVG es demasiado grande para dibujarlo.
+This UPS patch is cut short or damaged.	Este parche UPS está truncado o dañado.
+This week	Esta semana
+Time spent	Tiempo dedicado
+Time spent…	Tiempo dedicado…
+Today	Hoy
+Types, properties and required fields, items, enums, limits on numbers and lengths, patterns, allOf, anyOf, oneOf, not, and $ref within the schema are checked.	Se comprueban los tipos, las propiedades y los campos obligatorios, los elementos, los enums, los límites de números y longitudes, los patrones, allOf, anyOf, oneOf, not y los $ref dentro del esquema.
+Use in Find	Usar en Buscar
+WLA-DX: .db, .dw	WLA-DX: .db, .dw
+^ and $ at each line	^ y $ en cada línea
+line {}, column {}	línea {}, columna {}
+pio device monitor	pio device monitor
+pio run	pio run
+pio run -t upload	pio run -t upload
+pio test	pio test
+x86, MASM and TASM: db, dw, dd (0FFh)	x86, MASM y TASM: db, dw, dd (0FFh)
+{folder} isn't being served any more.	{folder} ya no se está sirviendo.
+{from} couldn't be renamed: {e}	No se pudo cambiar el nombre de {from}: {e}
+{name} is missing, and it's required.	Falta {name}, y es obligatorio.
+{name} isn't one of the fields allowed here.	{name} no es uno de los campos permitidos aquí.
+{n} matches:	{n} coincidencias:
+{} couldn't format it:\n\n{said}	{} no pudo formatearlo:\n\n{said}
+{} gave back something that isn't text.	{} devolvió algo que no es texto.
+{} is served at {address}, on this computer only. Its pages reload each time a file's saved. Choose Run, Serve this folder again to stop.	{} se sirve en {address}, solo en este ordenador. Sus páginas se recargan cada vez que se guarda un archivo. Elija Ejecutar, Servir esta carpeta de nuevo para detenerlo.
+{} isn't installed	{} no está instalado
+{} isn't installed.	{} no está instalado.
+{} lines, {} × {} pixels, in this theme's colours	{} líneas, {} × {} píxeles, con los colores de este tema
+{} places don't keep to the schema:	{} sitios no se ajustan al esquema:
+{} took too long, and was stopped.	{} tardó demasiado y se detuvo.
+{}: {} bytes, as they'd be saved	{}: {} bytes, tal como se guardarían
+$40: to write video memory	$40: para escribir la memoria de vídeo
+$C0: to write the colours	$C0: para escribir los colores
+(the Game Gear's Start button is read at port 0 instead)	(el botón Start de la Game Gear se lee en el puerto 0)
+0 once it's the 68000's	0 en cuanto es del 68000
+0: Graphics I	0: Graphics I
+0: mode 4, the Master System's own	0: modo 4, el propio de la Master System
+0: no horizontal interrupt	0: sin interrupción horizontal
+10: no line interrupt	10: sin interrupción de línea
+11: the whole screen scrolls as one	11: toda la pantalla se desplaza a la vez
+12: 320 pixels wide	12: 320 píxeles de ancho
+13: the horizontal scroll table at $FC00	13: la tabla de desplazamiento horizontal en $FC00
+15: each write moves on 2 bytes	15: cada escritura avanza 2 bytes
+16: planes of 64 by 32 tiles	16: planos de 64 por 32 tiles
+16K, the display on, the frame interrupt on, Graphics I	16K, la pantalla activada, la interrupción de cuadro activada, Graphics I
+192: columns 6 to 25 of the name table, and rows 3 to 20.	192: las columnas 6 a 25 de la tabla de nombres y las filas 3 a 20.
+1: 16K, display off for now	1: 16K, pantalla apagada por ahora
+1: display off for now	1: pantalla apagada por ahora
+1: display off for now; Mega Drive mode	1: pantalla apagada por ahora; modo Mega Drive
+2: plane A's tiles at $C000	2: los tiles del plano A en $C000
+2: the name table at $1800	2: la tabla de nombres en $1800
+2: the name table at $3800	2: la tabla de nombres en $3800
+3: the colour table at $2000	3: la tabla de colores en $2000
+3: the window's at $D000	3: la ventana está en $D000
+4: plane B's at $E000	4: los del plano B en $E000
+4: the patterns at $0000	4: los patrones en $0000
+5: the sprites' table at $1B00	5: la tabla de sprites en $1B00
+5: the sprites' table at $3F00	5: la tabla de sprites en $3F00
+5: the sprites' table at $F000	5: la tabla de sprites en $F000
+6: the sprites' patterns at $3800	6: los patrones de los sprites en $3800
+6: the sprites' tiles from $0000	6: los tiles de los sprites desde $0000
+7: a dark blue backdrop	7: un fondo azul oscuro
+7: the background is colour 0	7: el fondo es el color 0
+7: the border is colour 0 of the sprites'	7: el borde es el color 0 de los sprites
+; script:	; script:
+A ColecoVision cartridge holds 32K, and this is {} bytes.	Un cartucho de ColecoVision admite 32K, y este tiene {} bytes.
+A ColecoVision cartridge starts at $8000 with DB $55,$AA (or $AA,$55 to show the BIOS's title screen), or the console won't start it.	Un cartucho de ColecoVision empieza en $8000 con DB $55,$AA (o $AA,$55 para mostrar la pantalla de título de la BIOS), o la consola no lo arranca.
+A ColecoVision cartridge starts at $8000, but this starts at ${low:04X}: put ORG $8000 at its top.	Un cartucho de ColecoVision empieza en $8000, pero este empieza en ${low:04X}: pon ORG $8000 al principio.
+A ColecoVision cartridge. F9 runs it in Emulicious, Gearcoleco or MAME (each needs the ColecoVision's BIOS).	Un cartucho de ColecoVision. F9 lo ejecuta en Emulicious, Gearcoleco o MAME (todos necesitan la BIOS de la ColecoVision).
+A Master System cartridge holds 1MB at most, and this is {} bytes.	Un cartucho de Master System admite como mucho 1MB, y este tiene {} bytes.
+A Mega Drive cartridge has its header at $100, starting with "SEGA MEGA DRIVE " or "SEGA GENESIS    ", or the console won't run it.	Un cartucho de Mega Drive tiene su cabecera en $100, empezando por "SEGA MEGA DRIVE " o "SEGA GENESIS    ", o la consola no lo ejecuta.
+A Sega Game Gear cartridge. F9 writes its header (TMR SEGA, with the Game Gear's region) and checksum, and runs	Un cartucho de Sega Game Gear. F9 escribe su cabecera (TMR SEGA, con la región de la Game Gear) y su suma de control, y lo ejecuta
+A Sega Master System cartridge. F9 writes its header (TMR SEGA, which the export BIOS needs) and checksum, and	Un cartucho de Sega Master System. F9 escribe su cabecera (TMR SEGA, que necesita la BIOS de exportación) y su suma de control, y
+A Sega Mega Drive (Genesis) cartridge. F9 sets its header's ROM end and checksum, and runs it in BlastEm or	Un cartucho de Sega Mega Drive (Genesis). F9 pone en su cabecera el final de la ROM y la suma de control, y lo ejecuta en BlastEm o
+A Sega SG-1000 cartridge. F9 runs it in Emulicious, Gearsystem or MAME. It sets up the video chip (a TI	Un cartucho de Sega SG-1000. F9 lo ejecuta en Emulicious, Gearsystem o MAME. Prepara el chip de vídeo (un TI
+A box of character 1 in the name table (at $1800, 32 a row): 8 rows of 16.	Un recuadro del carácter 1 en la tabla de nombres (en $1800, 32 por fila): 8 filas de 16.
+A box of tile 1 in the name table (at $3800, 32 tiles a row, two bytes each): 8 rows of 16.	Un recuadro del tile 1 en la tabla de nombres (en $3800, 32 tiles por fila, dos bytes cada uno): 8 filas de 16.
+A box of tile 1 on plane A (at $C000, 64 tiles a row): 8 rows of 20, in the middle of the screen.	Un recuadro del tile 1 en el plano A (en $C000, 64 tiles por fila): 8 filas de 20, en el centro de la pantalla.
+A box of tile 1: 6 rows of 12, inside the Game Gear's screen.	Un recuadro del tile 1: 6 filas de 12, dentro de la pantalla de la Game Gear.
+A folder for the examples	Una carpeta para los ejemplos
+A {what} cartridge starts at address 0, but this starts at ${low:04X}: put ORG 0 at its top.	Un cartucho de {what} empieza en la dirección 0, pero este empieza en ${low:04X}: pon ORG 0 al principio.
+All 16K of video memory cleared.	Los 16K de memoria de vídeo, borrados.
+All of video memory cleared, then the colours, and the vertical scroll.	Toda la memoria de vídeo borrada, luego los colores y el desplazamiento vertical.
+An SG-1000 cartridge holds 48K, and this is {} bytes.	Un cartucho de SG-1000 admite 48K, y este tiene {} bytes.
+Cart's sprites, map and sounds	Sprites, mapa y sonidos del cartucho
+Character 1's pattern, at $0008.	El patrón del carácter 1, en $0008.
+Character 1's pattern, at $0008: a square outline.	El patrón del carácter 1, en $0008: el contorno de un cuadrado.
+ColecoVision	ColecoVision
+Colour 1 changes every eight frames.	El color 1 cambia cada ocho cuadros.
+Colours are 0000 BBB0 GGG0 RRR0.	Los colores son 0000 BBB0 GGG0 RRR0.
+Copy How To Code's examples to a folder…	Copiar los ejemplos de How To Code a una carpeta…
+Each word is $8000, the register's number times $100, and its value.	Cada palabra es $8000, el número del registro por $100, y su valor.
+Four bits a pixel, eight pixels a long.	Cuatro bits por píxel, ocho píxeles por palabra larga.
+How To Code	How To Code
+How To Code: writing Amiga demos	How To Code: escribir demos para Amiga
+MAME. It sets up the VDP (the video chip), draws a box of tiles whose colour changes as it runs, and has the Z80	MAME. Prepara el VDP (el chip de vídeo), dibuja un recuadro de tiles cuyo color va cambiando, y hace que el Z80
+MOVE, not CLR: on a 68000, CLR reads the port first	MOVE, no CLR: en un 68000, CLR lee antes el puerto
+Map	Mapa
+Music	Música
+PICO-8	PICO-8
+PICO-8 and TIC-80	PICO-8 y TIC-80
+PICO-8 and TIC-80 cart	Cartucho de PICO-8 y TIC-80
+Parts	Partes
+RST $08 to $30	RST $08 a $30
+Sega Game Gear	Sega Game Gear
+Sega Master System	Sega Master System
+Sega Mega Drive / Genesis	Sega Mega Drive / Genesis
+Sega SG-1000	Sega SG-1000
+Sound effects: {}	Efectos de sonido: {}
+Sounds	Sonidos
+Sprite {number}	Sprite {number}
+Sprite {}	Sprite {}
+Starts on {first}	Empieza en {first}
+TIC-80	TIC-80
+TMS9918A, as in the MSX and the ColecoVision) in Graphics I mode, and draws a box of characters whose colour	TMS9918A, como en el MSX y la ColecoVision) en modo Graphics I, y dibuja un recuadro de caracteres cuyo color
+TRAPs and the rest	los TRAP y lo demás
+The 68000's vectors: the stack, where it starts, then its exceptions and interrupts.	Los vectores del 68000: la pila, dónde empieza, y luego sus excepciones e interrupciones.
+The TMSS: every console from the VA7 board on keeps the VDP locked until SEGA is written here.	El TMSS: toda consola desde la placa VA7 mantiene bloqueado el VDP hasta que se escribe SEGA aquí.
+The VDP's registers, display off while the screen's made.	Los registros del VDP, con la pantalla apagada mientras se prepara.
+The Z80 is given its program: its bus taken from it, the program copied in, then it's reset and let go.	El Z80 recibe su programa: se le quita el bus, se copia el programa, y luego se reinicia y se le deja ir.
+The Z80's program (its source is in Limoniter's tests): a note on the sound chip for about a second.	El programa del Z80 (su fuente está en las pruebas de Limoniter): una nota en el chip de sonido durante un segundo más o menos.
+The cartridge starts at $8000 with its header. The video chip is a TI TMS9918A, as in the SG-1000 and the MSX;	El cartucho empieza en $8000 con su cabecera. El chip de vídeo es un TI TMS9918A, como en la SG-1000 y el MSX;
+The colours: 00BBGGRR, 16 for the tiles and 16 for the sprites.	Los colores: 00BBGGRR, 16 para los tiles y 16 para los sprites.
+The colours: two bytes each, GGGGRRRR then 0000BBBB, 32 of them.	Los colores: dos bytes cada uno, GGGGRRRR y luego 0000BBBB, 32 en total.
+The file in front isn't a PICO-8 cart (.p8) or a TIC-80 cart saved as text (a .lua with -- script: at its top).	El archivo de delante no es un cartucho de PICO-8 (.p8) ni uno de TIC-80 guardado como texto (un .lua con -- script: al principio).
+The frame interrupt: reading the VDP's status says it's been seen.	La interrupción de cuadro: leer el estado del VDP indica que se ha visto.
+The frame interrupt: reading the status says it's been seen (or there's never another). Then colours 0 to 7's	La interrupción de cuadro: leer el estado indica que se ha visto (o nunca llega otra). Luego la entrada de los caracteres 0 a 7
+The frame interrupt: reading the status says it's been seen. Then colours 0 to 7's entry in the colour table	La interrupción de cuadro: leer el estado indica que se ha visto. Luego la entrada de los caracteres 0 a 7 en la tabla de colores
+The header, at $100. F9 fills in its checksum and ROM end.	La cabecera, en $100. F9 rellena su suma de control y el final de la ROM.
+The map's lower half (rows 32 to 63) shares its memory with the sprite sheet's lower half.	La mitad inferior del mapa (filas 32 a 63) comparte su memoria con la mitad inferior de la hoja de sprites.
+The pause button.	El botón de pausa.
+The program has code or data at $7FF0 to $7FFF, where the cartridge's header goes: move it, or leave those 16 bytes free.	El programa tiene código o datos en $7FF0 a $7FFF, donde va la cabecera del cartucho: muévelos o deja libres esos 16 bytes.
+There's no folder to keep Limoniter's files in.	No hay ninguna carpeta donde guardar los archivos de Limoniter.
+This cart has no sounds.	Este cartucho no tiene sonidos.
+Tile 1, at $0020.	El tile 1, en $0020.
+Tile 1, at $0020: a square with a border.	El tile 1, en $0020: un cuadrado con borde.
+Tile 1, at $0020: four bytes a row, one from each bit plane.	El tile 1, en $0020: cuatro bytes por fila, uno de cada plano de bits.
+Usage: limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]	Uso: limoniter --assemble FUENTE SALIDA [NOMBRE=VALOR...]
+Video memory is written from where d1 says: the VDP takes the address in two halves, the top two bits last.	La memoria de vídeo se escribe desde donde dice d1: el VDP toma la dirección en dos mitades, los dos bits altos al final.
+a game, its product number and version	un juego, su número de producto y versión
+and away it goes	y en marcha
+and everywhere else	y en todas partes
+and interrupts: level 6 and up	e interrupciones: nivel 6 y superiores
+and the high 6: 254, which is 440Hz	y los 6 altos: 254, que son 440Hz
+ask for the Z80's bus	pedir el bus del Z80
+bus error, address error, illegal instruction and the rest	error de bus, error de dirección, instrucción ilegal y lo demás
+changes. All the video chip's work after the start is done in the frame interrupt: the chip has one address for	cambia. Todo el trabajo con el chip de vídeo tras el arranque se hace en la interrupción de cuadro: el chip tiene una dirección para
+colour 1 is at byte 2	el color 1 está en el byte 2
+colour 2 all along	color 2 en toda la fila
+colour 2, six of colour 1, colour 2	color 2, seis del color 1, color 2
+entry in the colour table is changed every eight frames.	en la tabla de colores cambia cada ocho cuadros.
+everything else happens in the NMI	todo lo demás ocurre en la NMI
+everything else happens in the interrupt	todo lo demás ocurre en la interrupción
+example.org), [up](../secret.md) and [all](/etc/passwd).	example.org), [up](../secret.md) and [all](/etc/passwd).
+for Japan, the USA and Europe	para Japón, EE. UU. y Europa
+in RAM (1K, at $7000)	en la RAM (1K, en $7000)
+in RAM (1K, at $C000)	en la RAM (1K, en $C000)
+in RAM: counted by the frame interrupt	en la RAM: la cuenta la interrupción de cuadro
+in RAM: counted by the vertical blank interrupt	en la RAM: la cuenta la interrupción del retrazado vertical
+interrupts to $38	interrupciones a $38
+is changed every eight frames.	cambia cada ocho cuadros.
+is done there: the chip has one address for reading and writing, and an NMI that used it while the main	se hace ahí: el chip tiene una dirección para leer y escribir, y una NMI que la usara mientras el programa
+it in Emulicious, Gearsystem or MAME. Its screen is the middle 160 by 144 pixels of the Master System's 256 by	en Emulicious, Gearsystem o MAME. Su pantalla son los 160 por 144 píxeles centrales de los 256 por
+its bus back	su bus de vuelta
+its colours 0 to 15, not flipped	sus colores 0 a 15, sin voltear
+its control port: registers set, and where the next data goes	su puerto de control: se ponen los registros y adónde van los datos siguientes
+its frame interrupt is the Z80's NMI, which can't be switched off, so all the video chip's work after the start	su interrupción de cuadro es la NMI del Z80, que no se puede desactivar, así que todo el trabajo con el chip de vídeo tras el arranque
+its name in Japan	su nombre en Japón
+level 4: the horizontal blank	nivel 4: el retrazado horizontal
+level 5	nivel 5
+level 6: the vertical blank, once a frame	nivel 6: el retrazado vertical, una vez por cuadro
+level 7	nivel 7
+levels 1 to 3 (2 is the joypad port's)	niveles 1 a 3 (el 2 es del puerto del mando)
+long enough for the reset to take	lo bastante para que el reinicio surta efecto
+machine: coleco	machine: coleco
+machine: gamegear	machine: gamegear
+machine: megadrive	machine: megadrive
+machine: sg1000	machine: sg1000
+machine: sms	machine: sms
+no battery-backed RAM	sin RAM con pila
+no interrupts while it's set up	sin interrupciones mientras se prepara
+no modem	sin módem
+no scrolling	sin desplazamiento
+no window	sin ventana
+out of reset, or the bus is never handed over	fuera del reinicio, o el bus nunca se cede
+play a note through the sound chip, as Mega Drive games leave their sound to the Z80.	toque una nota con el chip de sonido, como los juegos de Mega Drive dejan su sonido al Z80.
+program was half-way through setting it would send the main program's bytes somewhere else.	principal estuviera a medio ponerla enviaría los bytes del programa principal a otra parte.
+reading and writing, and an interrupt that used it while the main program was half-way through setting it would	leer y escribir, y una interrupción que la usara mientras el programa principal estuviera a medio ponerla
+reading the control port forgets a half-written command	leer el puerto de control olvida una orden escrita a medias
+reset it, so it starts from 0	reiniciarlo, para que empiece desde 0
+runs it in Emulicious, Gearsystem or MAME. It sets up the VDP and draws a box of tiles whose colour changes.	lo ejecuta en Emulicious, Gearsystem o MAME. Prepara el VDP y dibuja un recuadro de tiles cuyo color cambia.
+send the main program's bytes somewhere else.	enviaría los bytes del programa principal a otra parte.
+set once the screen's made, so the NMI leaves the chip alone till then	se pone cuando la pantalla está hecha, para que la NMI no toque el chip hasta entonces
+silent again	de nuevo en silencio
+speed {}	velocidad {}
+spurious interrupt	interrupción espuria
+straight to the game ($AA,$55 shows the BIOS's title screen first)	directo al juego ($AA,$55 muestra antes la pantalla de título de la BIOS)
+the BIOS's sprite tables, work area and controller map:	las tablas de sprites, la zona de trabajo y el mapa de mandos de la BIOS:
+the NMI: the video chip's frame interrupt	la NMI: la interrupción de cuadro del chip de vídeo
+the VDP's data port	el puerto de datos del VDP
+the VDP's registers: each value, then $80 and the register's number	los registros del VDP: cada valor, luego $80 y el número del registro
+the Z80's 8K, as the 68000 sees it	los 8K del Z80, tal como los ve el 68000
+the checksum	la suma de control
+the colour table, at $2000	la tabla de colores, en $2000
+the console checks for SEGA here	la consola busca SEGA aquí
+the console's version and region	la versión y la región de la consola
+the display on, with the frame interrupt	la pantalla activada, con la interrupción de cuadro
+the display on, with the vertical blank interrupt	la pantalla activada, con la interrupción del retrazado vertical
+the foreground colour in the top four bits, the background clear	el color de primer plano en los cuatro bits altos, el fondo transparente
+the lock that later consoles put on the VDP	el bloqueo que las consolas posteriores ponen al VDP
+the maskable interrupt (from the expansion port)	la interrupción enmascarable (del puerto de expansión)
+the pause button	el botón de pausa
+the sound chip (PSG), as the Z80 sees it	el chip de sonido (PSG), tal como lo ve el Z80
+the stack, near the top of RAM	la pila, cerca del final de la RAM
+this program doesn't use the BIOS's routines	este programa no usa las rutinas de la BIOS
+tile 1	tile 1
+tile 1, colours 0 to 15, in front	tile 1, colores 0 a 15, delante
+tone 0's volume: fairly loud	el volumen del tono 0: bastante alto
+tone 0: the low 4 bits of its period	tono 0: los 4 bits bajos de su periodo
+wait for the frame interrupt	esperar la interrupción de cuadro
+wait for the next frame	esperar el cuadro siguiente
+what it uses: J, a three-button pad	lo que usa: J, un mando de tres botones
+where RAM starts and ends	dónde empieza y acaba la RAM
+where the ROM starts and ends	dónde empieza y acaba la ROM
+who, and when	quién, y cuándo
+write the colours, from 0	escribir los colores, desde 0
+write the colours, from colour 1	escribir los colores, desde el color 1
+write the vertical scroll memory, from 0	escribir la memoria de desplazamiento vertical, desde 0
+write video memory, from 0	escribir la memoria de vídeo, desde 0
+{arg} isn't NAME=VALUE.	{arg} no es NOMBRE=VALOR.
+{copied} files copied. startup_demo.s is the smallest whole demo: F9 builds it and runs it. Files that were there already were left as they were.	{copied} archivos copiados. startup_demo.s es la demo completa más pequeña: F9 la construye y la ejecuta. Los archivos que ya estaban se dejaron como estaban.
+{name}, line {}	{name}, línea {}
+{upper} can't use {} on a 68000: a PC-relative operand here is the 68020's	{upper} no puede usar {} en un 68000: un operando relativo al PC aquí es del 68020
+{upper} is a 68020 instruction: the 68000 has only {}.W	{upper} es una instrucción del 68020: el 68000 solo tiene {}.W
+{used} sprites drawn.	{used} sprites dibujados.
+{}: this isn't 68000 source for the Amiga: it has no SECTION, and uses no system calls or custom chips.	{}: esto no es código fuente 68000 para Amiga: no tiene SECTION ni usa llamadas al sistema ni chips propios.
+1 bit a pixel	1 bit por píxel
+2 bits a pixel, Game Boy (planes row by row)	2 bits por píxel, Game Boy (planos fila a fila)
+2 bits a pixel, NES (one plane, then the other)	2 bits por píxel, NES (un plano y luego el otro)
+2 bits a pixel, chunky	2 bits por píxel, chunky
+4 bits a pixel, Amiga bitplanes (one after another)	4 bits por píxel, planos de bits de Amiga (uno tras otro)
+4 bits a pixel, Master System and Game Gear (planes row by row)	4 bits por píxel, Master System y Game Gear (planos fila a fila)
+4 bits a pixel, chunky (Mega Drive, MSX2, Next tiles)	4 bits por píxel, chunky (Mega Drive, MSX2, tiles de la Next)
+8 bits a pixel, chunky	8 bits por píxel, chunky
+A CharPad file has one map: only the first layer went into it.	Un archivo de CharPad tiene un solo mapa: solo entró la primera capa.
+A CharPad file holds at most 65536 characters and 65536 tiles.	Un archivo de CharPad admite como mucho 65536 caracteres y 65536 tiles.
+A CharPad map is at most 65535 tiles across and down.	Un mapa de CharPad tiene como mucho 65535 tiles de ancho y de alto.
+A CharPad tile is at most 255 characters across and down.	Un tile de CharPad tiene como mucho 255 caracteres de ancho y de alto.
+A blank character at the end	Un carácter en blanco al final
+A blank tile after this one	Un tile en blanco después de este
+A copy of this tile after it, made of the same characters	Una copia de este tile detrás, hecha con los mismos caracteres
+A number for the game, 0 to 15 (wall, ladder and so on): CharPad's material	Un número para el juego, de 0 a 15 (muro, escalera, etc.): el material de CharPad
+A number for the game: CharPad's tile tag	Un número para el juego: la etiqueta de tile de CharPad
+A tile map (.ltm) or a CharPad project (.ctm, versions 5 to 9)	Un mapa de tiles (.ltm) o un proyecto de CharPad (.ctm, versiones 5 a 9)
+Add a layer	Añadir una capa
+Another map over this one: its tile 0 lets those below show through	Otro mapa encima de este: su tile 0 deja ver los de debajo
+Apply	Aplicar
+As a tile map (.ltm), or a CharPad project (.ctm) for the C64's modes	Como mapa de tiles (.ltm) o como proyecto de CharPad (.ctm) para los modos del C64
+Attribute, {whose}	Atributo, {whose}
+Binary files…	Archivos binarios…
+Bright	Brillo
+C64 extended background colour text (ECM)	Texto del C64 con color de fondo extendido (ECM)
+C64 hires bitmap	Mapa de bits hires del C64
+C64 hires text	Texto hires del C64
+C64 multicolour bitmap	Mapa de bits multicolor del C64
+C64 multicolour text	Texto multicolor del C64
+CharPad	CharPad
+CharPad files are for the C64's modes: choose one of those to save one.	Los archivos de CharPad son para los modos del C64: elige uno de ellos para guardar uno.
+CharPad project	Proyecto de CharPad
+CharPad's version {version} doesn't have the {} mode: save it as version {}.	La versión {version} de CharPad no tiene el modo {}: guárdalo como versión {}.
+Character {c}	Carácter {c}
+Character {}'s material	Material del carácter {}
+Characters: {}	Caracteres: {}
+Clears the character chosen	Borra el carácter elegido
+Click a cell to paint with its tile	Haz clic en una celda para pintar con su tile
+Colour {value}	Color {value}
+Copied to the clipboard.	Copiado al portapapeles.
+Copied, and tile 0 left in its place	Copiado, y el tile 0 puesto en su lugar
+Drag across the map, then copy, cut or clear the block	Arrastra por el mapa y luego copia, corta o borra el bloque
+Draw	Dibujar
+Draw with	Dibujar con
+Drawn in	Dibujado en
+Each character its own	Cada carácter el suyo
+Each part as a file of its own, into a folder	Cada parte como archivo propio, en una carpeta
+Each tile its own	Cada tile el suyo
+Each tile keeps the characters at its top left	Cada tile conserva los caracteres de su esquina superior izquierda
+Fills the cells joined to the one clicked that hold its tile	Rellena las celdas unidas a la pulsada que tienen su tile
+Flash	Parpadeo
+Flip it top to bottom	Voltearlo de arriba abajo
+Flip the character chosen left to right	Voltear el carácter elegido de izquierda a derecha
+Gives this tile copies of its characters, so drawing on it changes no other tile	Da a este tile copias de sus caracteres, para que dibujar en él no cambie ningún otro tile
+In the form chosen, to the clipboard	En la forma elegida, al portapapeles
+Ink	Tinta
+It isn't a CharPad file: those start "CTM".	No es un archivo de CharPad: esos empiezan por "CTM".
+It isn't a Limoniter tile map: those start "limoniter-tilemap".	No es un mapa de tiles de Limoniter: esos empiezan por "limoniter-tilemap".
+It's a CharPad file of version {version}: Limoniter reads versions 5 to 9.	Es un archivo de CharPad de la versión {version}: Limoniter lee las versiones 5 a 9.
+Layer	Capa
+Layer {n}	Capa {n}
+Layer {}	Capa {}
+Limoniter writes CharPad's versions 5 to 9, not {version}.	Limoniter escribe las versiones 5 a 9 de CharPad, no la {version}.
+Line {n} of the tile map can't be read.	No se puede leer la línea {n} del mapa de tiles.
+Map as characters	Mapa como caracteres
+Map's colours	Colores del mapa
+Materials	Materiales
+Open a tile map	Abrir un mapa de tiles
+Opened {}.	{} abierto.
+Out	Salida
+Own characters	Caracteres propios
+Paint	Pintar
+Paper	Papel
+Pick	Tomar
+Place characters	Colocar caracteres
+Remove it	Quitarlo
+Save the binary files into a folder	Guardar los archivos binarios en una carpeta
+Save the tile map	Guardar el mapa de tiles
+Saved {} files in {}.	{} archivos guardados en {}.
+Saved {}.	{} guardado.
+Shown	Visible
+Swaps its set and clear pixels	Intercambia sus píxeles encendidos y apagados
+Takes out characters no tile uses, and makes those just like another one	Quita los caracteres que no usa ningún tile y los que son iguales a otro
+The CharPad file ends too soon.	El archivo de CharPad termina demasiado pronto.
+The CharPad file's block {} should start at byte {at}, but doesn't.	El bloque {} del archivo de CharPad debería empezar en el byte {at}, pero no lo hace.
+The CharPad file's tiles have no size.	Los tiles del archivo de CharPad no tienen tamaño.
+The block selected becomes what's painted	El bloque seleccionado pasa a ser lo que se pinta
+The left button draws in the colour chosen, the right rubs out	El botón izquierdo dibuja en el color elegido, el derecho borra
+The left button paints the tile chosen (or the block copied); the right picks up the tile under it	El botón izquierdo pinta el tile elegido (o el bloque copiado); el derecho toma el tile de debajo
+The left button puts the character chosen below into a cell; the right picks up a cell's character	El botón izquierdo pone el carácter elegido abajo en una celda; el derecho toma el carácter de una celda
+The same everywhere	Igual en todas partes
+Tidy	Ordenar
+Tile 0 in the block selected	El tile 0 en el bloque seleccionado
+Tile map	Mapa de tiles
+Tile map and level editor	Editor de mapas de tiles y niveles
+Tile maps and CharPad projects	Mapas de tiles y proyectos de CharPad
+Tile set: {} tiles	Juego de tiles: {} tiles
+Tile {t}	Tile {t}
+Tile {}	Tile {}
+Turn it a quarter clockwise	Girarlo un cuarto en el sentido de las agujas del reloj
+Version 5 has no tile tags or names: they were left out.	La versión 5 no tiene etiquetas ni nombres de tiles: se omitieron.
+What's there stays at the top left	Lo que hay se queda arriba a la izquierda
+Where the map has it, tile 0 instead	Donde el mapa lo tiene, el tile 0 en su lugar
+Words high byte first, as the 68000 has them; otherwise low byte first (Z80, 6502, x86)	Palabras con el byte alto primero, como en el 68000; si no, el bajo primero (Z80, 6502, x86)
+ZX Spectrum, with attributes	ZX Spectrum, con atributos
+a block of {}×{}	un bloque de {}×{}
+character {}	carácter {}
+characters; map	caracteres; mapa
+everywhere	en todas partes
+tile {}	tile {}
+tiles	tiles
+version {}	versión {}
+x {x}, y {y} · tile {} · painting with {brush}	x {x}, y {y} · tile {} · pintando con {brush}
+x {}, y {} · character {char} · pen {value}	x {}, y {} · carácter {char} · lápiz {value}
+{gone} characters taken out.	{gone} caracteres quitados.
+{made} characters added for tile {}.	{made} caracteres añadidos para el tile {}.
+{mw}×{mh} tiles · painting with {brush}	{mw}×{mh} tiles · pintando con {brush}
+${:04X} is in the Game Boy's RAM, not its cartridge: only ROM ($0000 to $7FFF) can hold code and data. Use SECTION "name", WRAM0 and DS for variables.	${:04X} está en la RAM de la Game Boy, no en su cartucho: solo la ROM ($0000 a $7FFF) puede contener código y datos. Usa SECTION "name", WRAM0 y DS para las variables.
+${:04X} isn't in the cartridge: an NES program's ROM is $8000 to $FFFF (its RAM, $0000 to $07FF, is for variables, given addresses with =).	${:04X} no está en el cartucho: la ROM de un programa de NES es $8000 a $FFFF (su RAM, $0000 a $07FF, es para variables, con direcciones dadas con =).
+${logical:04X} isn't in {} (${start:04X} to ${:04X})	${logical:04X} no está en {} (${start:04X} a ${:04X})
+...but for a row of smileys across the middle, row 14.	...salvo una fila de caritas en el centro, la fila 14.
+...but for a row of smileys across the middle.	...salvo una fila de caritas en el centro.
+: its first 32K, banks 0 and 1	: sus primeros 32K, bancos 0 y 1
+A Game Boy cartridge holds at most 8M, and this reaches ${high:X}.	Un cartucho de Game Boy admite como mucho 8M, y este llega a ${high:X}.
+A Game Boy cartridge starts at address 0.	Un cartucho de Game Boy empieza en la dirección 0.
+A Game Boy cartridge, “{}” ({kind}, {size}K){more}	Un cartucho de Game Boy, «{}» ({kind}, {size}K){more}
+A Game Boy program, in RGBDS's syntax. F9 makes the cartridge (its header, logo and	Un programa de Game Boy, con la sintaxis de RGBDS. F9 hace el cartucho (su cabecera, logotipo y
+An NES cartridge ({kind}): mapper {}, {}K of program, {tiles}	Un cartucho de NES ({kind}): mapper {}, {}K de programa, {tiles}
+An NES program ends with its three vectors at $FFFA: where NMI, reset and IRQ go (as .word nmi, reset, irq).	Un programa de NES acaba con sus tres vectores en $FFFA: adónde van NMI, reset e IRQ (como .word nmi, reset, irq).
+An NES program. F9 makes the .nes file (an NES 2.0 header: mapper 0, 16K of program and 8K of RAM for the	Un programa de NES. F9 hace el archivo .nes (una cabecera NES 2.0: mapper 0, 16K de programa y 8K de RAM para los
+An SPC file: the SNES sound processor's 64K, playing at ${pc:04X}	Un archivo SPC: los 64K del procesador de sonido de la SNES, sonando en ${pc:04X}
+At each vertical blank: the background scrolled a pixel further.	En cada retrazado vertical: el fondo desplazado un píxel más.
+Each tile is 16 bytes: the low bit of each pixel's colour, eight rows, then the high bit.	Cada tile son 16 bytes: el bit bajo del color de cada píxel, ocho filas, y luego el bit alto.
+Eight rows of eight pixels, each 0 to 3.	Ocho filas de ocho píxeles, cada uno de 0 a 3.
+Game Boy, NES and SNES	Game Boy, NES y SNES
+HuC6280	HuC6280
+HuC6280 (PC Engine)	HuC6280 (PC Engine)
+Is this 6502 program for a Commodore 64, a BBC Micro, an Atari 2600 or an NES? Its code doesn't say.	¿Este programa 6502 es para un Commodore 64, un BBC Micro, una Atari 2600 o una NES? Su código no lo dice.
+It doesn't say whether it's for a Commodore 64, a BBC Micro, an Atari 2600 or an NES. Put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top to say.	No dice si es para un Commodore 64, un BBC Micro, una Atari 2600 o una NES. Pon ; machine: c64, ; machine: bbc, ; machine: 2600 o ; machine: nes cerca del principio para decirlo.
+It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top.	Se recuerda mientras el archivo está abierto. Para decirlo en la fuente, pon ; machine: c64, ; machine: bbc, ; machine: 2600 o ; machine: nes cerca del principio.
+LDH reaches $FF00 to $FFFF, and {text} is ${v:X}	LDH alcanza de $FF00 a $FFFF, y {text} es ${v:X}
+NES	NES
+Once a frame, at the start of the vertical blank, scroll the background a pixel.	Una vez por cuadro, al principio del retrazado vertical, desplazar el fondo un píxel.
+ROMX's bank is 1 to 511, and this is {bank}	El banco de ROMX es de 1 a 511, y este es {bank}
+RST goes to $00, $08, $10 and so on up to $38, and {n} isn't one	RST va a $00, $08, $10 y así hasta $38, y {n} no es uno de ellos
+SECTION needs a name and a kind of memory: SECTION "Main", ROM0	SECTION necesita un nombre y un tipo de memoria: SECTION "Main", ROM0
+SM83	SM83
+SM83 (Game Boy)	SM83 (Game Boy)
+SPC700	SPC700
+SPC700 (SNES sound)	SPC700 (sonido de la SNES)
+The background's map, 32 by 32 tiles at $9800, all blank...	El mapa del fondo, 32 por 32 tiles en $9800, todos en blanco...
+The background's name table at $2000, and its colours after it: all tile 0...	La tabla de nombres del fondo en $2000, y sus colores detrás: todo el tile 0...
+The hardware's registers, as hardware.inc names them.	Los registros del hardware, como los llama hardware.inc.
+The palette, at $3F00 in the picture chip's memory: four colours for each of eight palettes.	La paleta, en $3F00 en la memoria del chip de imagen: cuatro colores para cada una de ocho paletas.
+The picture chip needs two vertical blanks to warm up after the NES is switched on.	El chip de imagen necesita dos retrazados verticales para calentarse tras encender la NES.
+The picture chip's registers, and two of the sound chip's.	Los registros del chip de imagen, y dos del chip de sonido.
+The program has to start at $0150 or after, past the cartridge's header, or at $0100 with a jump over it.	El programa debe empezar en $0150 o después, pasada la cabecera del cartucho, o en $0100 con un salto por encima.
+The screen may only be turned off in the vertical blank, or the hardware can be harmed.	La pantalla solo puede apagarse durante el retrazado vertical, o el hardware puede dañarse.
+The source writes an iNES header, but the ROMs it says there are aren't all there after it.	La fuente escribe una cabecera iNES, pero las ROM que dice que hay no están todas detrás.
+Tile 0 blank and tile 1 the smiley, into the RAM for tiles at $0000.	El tile 0 en blanco y el tile 1 la carita, en la RAM de tiles en $0000.
+Tile 1 (at $8010) is the smiley below; tile 0 is left blank.	El tile 1 (en $8010) es la carita de abajo; el tile 0 queda en blanco.
+`{pixels} isn't a row of pixels: up to eight of 0, 1, 2 and 3	`{pixels} no es una fila de píxeles: hasta ocho de 0, 1, 2 y 3
+an NMI at each vertical blank; tiles from $0000	una NMI en cada retrazado vertical; tiles desde $0000
+blue behind, a yellow face, white, black	azul detrás, una cara amarilla, blanco, negro
+checksums put in) and runs it in an emulator: SameBoy, mGBA, Gambatte, BGB, Mesen or MAME.	sumas de control puestas) y lo ejecuta en un emulador: SameBoy, mGBA, Gambatte, BGB, Mesen o MAME.
+four times 256 bytes	cuatro veces 256 bytes
+horizontally, the name table at $2400 is the one at $2000 again, so the row scrolls round without a gap.	horizontalmente, la tabla de nombres en $2400 es otra vez la de $2000, así que la fila da la vuelta sin hueco.
+in zero page: how far the background has scrolled	en la página cero: cuánto se ha desplazado el fondo
+machine: NES	machine: NES
+mirroring: horizontal	mirroring: horizontal
+no NMI yet	todavía sin NMI
+no interrupts from samples	sin interrupciones de las muestras
+no interrupts from the sound's frame counter	sin interrupciones del contador de cuadros del sonido
+screen off, so video memory can be written at any time	pantalla apagada, para poder escribir la memoria de vídeo en cualquier momento
+screen on, the background on, its tiles from $8000	pantalla encendida, el fondo activado, sus tiles desde $8000
+shades 3, 2, 1, 0: colour 0 white, colour 3 black	tonos 3, 2, 1, 0: el color 0 blanco, el color 3 negro
+sound off: this doesn't use it	sonido apagado: esto no lo usa
+sound on or off	sonido activado o no
+the 2K of RAM cleared	los 2K de RAM borrados
+the background on, in the leftmost column too	el fondo activado, también en la columna de más a la izquierda
+the background's four shades	los cuatro tonos del fondo
+the background's scroll	el desplazamiento del fondo
+the header: filled in when the cartridge is made	la cabecera: se rellena al hacer el cartucho
+the line being drawn: 144 to 153 is the vertical blank	la línea que se dibuja: de 144 a 153 es el retrazado vertical
+the screen's control	el control de la pantalla
+the sprites', not used	los de los sprites, sin usar
+tiles, which the program fills) and runs it in an emulator: Mesen, FCEUX, Nestopia or MAME. Mirrored	tiles, que el programa rellena) y lo ejecuta en un emulador: Mesen, FCEUX, Nestopia o MAME. Con espejo
+{address} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP	{address} está a {offset} bytes, fuera del alcance de un salto (-128 a 127); salta alrededor de un JMP
+{kind_text} isn't a kind of Game Boy memory (ROM0, ROMX, VRAM, SRAM, WRAM0, WRAMX, OAM or HRAM)	{kind_text} no es un tipo de memoria de la Game Boy (ROM0, ROMX, VRAM, SRAM, WRAM0, WRAMX, OAM o HRAM)
+{mnemonic} isn't an SM83 instruction	{mnemonic} no es una instrucción del SM83
+{mnemonic} isn't an SPC700 instruction	{mnemonic} no es una instrucción del SPC700
+{text} is {offset} bytes away, out of JR's reach (-128 to 127); use JP	{text} está a {offset} bytes, fuera del alcance de JR (-128 a 127); usa JP
+{text} is {offset} bytes away, out of a branch's reach (-128 to 127)	{text} está a {offset} bytes, fuera del alcance de un salto (-128 a 127)
+{text} is {v}, and SP can only be moved by -128 to 127	{text} es {v}, y SP solo puede moverse de -128 a 127
+{text} is {v}, which doesn't fit in 16 bits	{text} es {v}, que no cabe en 16 bits
+{text} is {v}, which doesn't fit in a byte	{text} es {v}, que no cabe en un byte
+{upper} can't take {operands}	{upper} no admite {operands}
+{upper} can't take {}	{upper} no admite {}
+{upper} can't take {} operands	{upper} no admite {} operandos
+{upper}'s bit is 0 to 7, and this is {n}	El bit de {upper} es de 0 a 7, y este es {n}
+{upper}'s bit is in the first 8K ($0000 to $1FFF), bits 0 to 7	El bit de {upper} está en los primeros 8K ($0000 a $1FFF), bits 0 a 7
+{upper}'s target is {offset} bytes away, out of a branch's reach (-128 to 127)	El destino de {upper} está a {offset} bytes, fuera del alcance de un salto (-128 a 127)
+{what} {} is {v}, which doesn't fit in a byte	{what} {} es {v}, que no cabe en un byte
+{} is one of the 6502's undocumented instructions, which the {} hasn't got	{} es una de las instrucciones no documentadas del 6502, que el {} no tiene
+{} is the {chip}'s, not the 6502's: put .setcpu "{chip}" near the top to use it	{} es del {chip}, no del 6502: pon .setcpu "{chip}" cerca del principio para usarla
+{} is {v}, which doesn't fit in 16 bits	{} es {v}, que no cabe en 16 bits
+{}K of RAM for tiles	{}K de RAM para tiles
+{}K of tiles	{}K de tiles
+A difficulty switch: A is the harder	Un interruptor de dificultad: A es la más difícil
+Bank {bank}	Banco {bank}
+Click the screen to play with the keyboard.	Haz clic en la pantalla para jugar con el teclado.
+Colour	Color
+Game Reset	Game Reset
+Game Select	Game Select
+Left difficulty	Dificultad izquierda
+Line {line}, cycle {cycle}	Línea {line}, ciclo {cycle}
+Right difficulty	Dificultad derecha
+Runs the cartridge again from the start	Ejecuta el cartucho otra vez desde el principio
+The 6507 has jammed: the instruction at ${:04X} stops the processor.	El 6507 se ha bloqueado: la instrucción en ${:04X} detiene el procesador.
+The TV type switch: colour, or black and white	El interruptor de tipo de televisor: color, o blanco y negro
+The arrow keys and Space are the left joystick; Y, G, H, J and F the right. Enter is Game Reset and Backspace Game Select. Click the text to type there again.	Las flechas y el espacio son el joystick izquierdo; Y, G, H, J y F el derecho. Intro es Game Reset y Retroceso Game Select. Haz clic en el texto para volver a escribir ahí.
+The built-in Atari 2600 {why}	La Atari 2600 integrada {why}
+The console's Game Reset switch, held while the button is (or Enter, while the screen has the keyboard)	El interruptor Game Reset de la consola, pulsado mientras lo esté el botón (o Intro, mientras la pantalla tiene el teclado)
+The console's Game Select switch, held while the button is (or Backspace, while the screen has the keyboard)	El interruptor Game Select de la consola, pulsado mientras lo esté el botón (o Retroceso, mientras la pantalla tiene el teclado)
+can't tell how this cartridge switches its banks.	no sabe cómo cambia de banco este cartucho.
+doesn't switch banks the {} way yet: run it in Stella or MAME.	aún no cambia de banco a la manera {}: ejecútalo en Stella o MAME.
+runs only Atari 2600 cartridges, not {} programs.	solo ejecuta cartuchos de Atari 2600, no programas de {}.
+: HELLO\n  ." HELLO FROM LIMONITER" CR ;\nHELLO	: HELLO\n  ." HELLO FROM LIMONITER" CR ;\nHELLO
+A ZX81 program (.p)	Un programa de ZX81 (.p)
+Choose the ROM file…	Elegir el archivo de la ROM…
+Click the screen to type on the {name}.	Haz clic en la pantalla para escribir en el {name}.
+Forth	Forth
+HELLO, in the ZX81's own characters	HELLO, con los caracteres propios del ZX81
+Jupiter Ace	Jupiter Ace
+Jupiter Ace Forth	Jupiter Ace Forth
+Jupiter Ace Forth, typed in	Forth del Jupiter Ace, tecleado
+Line {number} comes after line {}: the numbers have to go up.	La línea {number} va después de la {}: los números tienen que subir.
+Line {number}: the ZX81 has no {c} character.	Línea {number}: el ZX81 no tiene el carácter {c}.
+Line {number}: the ZX81's lines are numbered from 1 to 9999.	Línea {number}: las líneas del ZX81 van numeradas de 1 a 9999.
+Line {number}: {e}	Línea {number}: {e}
+Line {} of the text has no line number.	La línea {} del texto no tiene número de línea.
+ROM	ROM
+That file is {} bytes; the {} ROM is 8,192.	Ese archivo tiene {} bytes; la ROM del {} tiene 8.192.
+That isn't a ZX81 ROM.	Esa no es una ROM de ZX81.
+That isn't the Jupiter Ace ROM Limoniter knows (its CRC-32 is {crc:08X}).	Esa no es la ROM del Jupiter Ace que conoce Limoniter (su CRC-32 es {crc:08X}).
+That looks like a ZX81 ROM, but not one Limoniter knows (its CRC-32 is {crc:08X}), so it may be changed or damaged.	Parece una ROM de ZX81, pero no una que conozca Limoniter (su CRC-32 es {crc:08X}), así que puede estar cambiada o dañada.
+The Jupiter Ace has no key for {c}.	El Jupiter Ace no tiene tecla para {c}.
+The Jupiter Ace's ROM is 8K.	La ROM del Jupiter Ace es de 8K.
+The ZX81's ROM is 8K.	La ROM del ZX81 es de 8K.
+The built-in Jupiter Ace needs the Ace's own 8K ROM, and nobody is known to hold its rights since Jupiter Cantab closed, so it can't come with Limoniter. Jupiter Ace emulators come with it (ZEsarUX, for one, as ace.rom), or it can be read from an Ace's two ROM chips, put one after the other. Choose the file once, and it's kept.	El Jupiter Ace integrado necesita la ROM de 8K propia del Ace, y no se sabe de nadie que tenga sus derechos desde que cerró Jupiter Cantab, así que no puede venir con Limoniter. Los emuladores del Jupiter Ace la traen (ZEsarUX, por ejemplo, como ace.rom), o puede leerse de los dos chips de ROM de un Ace, uno tras otro. Elige el archivo una vez y se guarda.
+The built-in Jupiter Ace runs Ace tapes and Forth source.	El Jupiter Ace integrado ejecuta cintas del Ace y código fuente Forth.
+The built-in ZX81 needs the ZX81's own 8K ROM, which belongs to Nine Tiles, who wrote it, so it can't come with Limoniter. ZX81 emulators come with it (ZEsarUX, for one, as zx81.rom), or it can be read from a ZX81's ROM chip. Choose the file once, and it's kept.	El ZX81 integrado necesita la ROM de 8K propia del ZX81, que pertenece a Nine Tiles, que la escribieron, así que no puede venir con Limoniter. Los emuladores del ZX81 la traen (ZEsarUX, por ejemplo, como zx81.rom), o puede leerse del chip de ROM de un ZX81. Elige el archivo una vez y se guarda.
+The built-in ZX81 runs ZX81 programs (.p files and ZX81 tapes).	El ZX81 integrado ejecuta programas de ZX81 (archivos .p y cintas de ZX81).
+The program is {} bytes, more than fits in the ZX81's {}K.	El programa tiene {} bytes, más de lo que cabe en los {}K del ZX81.
+The tape stops partway through a block.	La cinta se corta a mitad de un bloque.
+The {name}'s screen: typing goes to the {name} while it has the keyboard	La pantalla del {name}: lo que se teclea va al {name} mientras tiene el teclado
+The {} ROM	La ROM del {}
+The {} ROM chosen before, {}, can't be read: {e}	La ROM del {} elegida antes, {}, no se puede leer: {e}
+There are no lines to tokenise.	No hay líneas que tokenizar.
+There's no Jupiter Ace file on this tape.	No hay ningún archivo de Jupiter Ace en esta cinta.
+There's no ZX81 program on this tape.	No hay ningún programa de ZX81 en esta cinta.
+There's nothing on this tape.	No hay nada en esta cinta.
+This is put at $4009, as a whole ZX81 program, but it isn't one: {problem}	Esto va en $4009, como programa completo de ZX81, pero no lo es: {problem}
+This isn't a program Limoniter knows how to run. Run it as a listing for:	Este no es un programa que Limoniter sepa ejecutar. Ejecutarlo como listado para:
+Typing goes to the Jupiter Ace: Shift is its SHIFT, Ctrl or Alt its SYMBOL SHIFT, Backspace deletes, the arrows move the cursor and Esc is BREAK. Click the text to type there again.	Lo que se teclea va al Jupiter Ace: Mayús es su SHIFT, Ctrl o Alt su SYMBOL SHIFT, Retroceso borra, las flechas mueven el cursor y Esc es BREAK. Haz clic en el texto para volver a escribir ahí.
+Typing goes to the ZX81, whose keys type keywords as its own do: Shift is its SHIFT, Backspace rubs out, the arrows move the cursor, and Esc or Space is BREAK. Click the text to type there again.	Lo que se teclea va al ZX81, cuyas teclas escriben palabras clave como las suyas: Mayús es su SHIFT, Retroceso borra, las flechas mueven el cursor y Esc o Espacio es BREAK. Haz clic en el texto para volver a escribir ahí.
+Typing the program in…	Tecleando el programa…
+ZX81	ZX81
+ZX81 BASIC	ZX81 BASIC
+ZX81 machine code goes in a REM from 16514 ($4082); this starts at {low} (${low:04X}). Put ORG 16514 at its top.	El código máquina del ZX81 va en un REM desde 16514 ($4082); esto empieza en {low} (${low:04X}). Pon ORG 16514 al principio.
+back to BASIC	de vuelta a BASIC
+fth	fth
+in line 1's REM, where ZX81 machine code is kept	en el REM de la línea 1, donde se guarda el código máquina del ZX81
+machine: zx81	machine: zx81
+the ROM prints the character in A	la ROM imprime el carácter de A
+{value} is too big or too small for the ZX81	{value} es demasiado grande o pequeño para el ZX81
+{} bytes of machine code won't fit in a 16K ZX81 with its screen.	{} bytes de código máquina no caben en un ZX81 de 16K con su pantalla.
+{} can't be read: {e}	{} no se puede leer: {e}
+{} programs don't run on a built-in machine.	Los programas de {} no se ejecutan en una máquina integrada.
+(compiled procedure: its code can't be listed)	(procedimiento compilado: su código no se puede listar)
+, in the folder {} names,	, en la carpeta que indica {},
+, with {} of its patterns left out, as Limoniter can't use them	, con {} de sus patrones omitidos, ya que Limoniter no puede usarlos
+// a red border	// un borde rojo
+// stripes of colour	// franjas de color
+// three seconds, at 50 a second	// tres segundos, a 50 por segundo
+1 file has changed on both sides since the last sync. Tick it to choose that side's version.	1 archivo ha cambiado en ambos lados desde la última sincronización. Márquelo para elegir la versión de ese lado.
+1 file to sync with {host}	1 archivo para sincronizar con {host}
+1 problem.	1 problema.
+50 Hz	50 Hz
+60 Hz	60 Hz
+<dos.h> is SAS/C's own header (getreg, putreg and the like); the others don't have it.	<dos.h> es la cabecera propia de SAS/C (getreg, putreg y similares); los demás no la tienen.
+A fixed-point number, 16 bits each side of the point: faster than FLOAT.	Un número de coma fija, 16 bits a cada lado de la coma: más rápido que FLOAT.
+A floating-point number, as Sinclair BASIC's (5 bytes).	Un número de coma flotante, como los de Sinclair BASIC (5 bytes).
+A folder to compile in couldn't be made: {e}	No se ha podido crear una carpeta donde compilar: {e}
+A language server for {languages}, run with Node.js	Un servidor de lenguaje para {languages}, que se ejecuta con Node.js
+A language server for {languages}, which it carries	Un servidor de lenguaje para {languages}, que trae consigo
+A language server for {languages}: {}	Un servidor de lenguaje para {languages}: {}
+A new file: a whole Amiga program showing the list, to run with F9	Un archivo nuevo: un programa de Amiga completo que muestra la lista, para ejecutar con F9
+A new {} file, with a starter to change	Un archivo {} nuevo, con una plantilla para cambiar
+A program to try it	Un programa para probarlo
+A remote file is written sftp://user@host/path, or ftp://user@host/path.	Un archivo remoto se escribe sftp://user@host/path, o ftp://user@host/path.
+A string of characters.	Una cadena de caracteres.
+A terminal in the window, in the file's folder.	Un terminal en la ventana, en la carpeta del archivo.
+A whole number from -128 to 127, in one byte.	Un número entero de -128 a 127, en un byte.
+A whole number from -2147483648 to 2147483647, in four bytes.	Un número entero de -2147483648 a 2147483647, en cuatro bytes.
+A whole number from -32768 to 32767, in two bytes.	Un número entero de -32768 a 32767, en dos bytes.
+A whole number from 0 to 255, in one byte: the fastest type.	Un número entero de 0 a 255, en un byte: el tipo más rápido.
+A whole number from 0 to 4294967295, in four bytes.	Un número entero de 0 a 4294967295, en cuatro bytes.
+A whole number from 0 to 65535, in two bytes.	Un número entero de 0 a 65535, en dos bytes.
+ABS	ABS
+ABS(x): x without its sign.	ABS(x): x sin su signo.
+ACS	ACS
+ACS(x): the angle, in radians, whose cosine is x.	ACS(x): el ángulo, en radianes, cuyo coseno es x.
+AND	AND
+AS	AS
+ASC	ASC
+ASC(s$, n): the code of a string's nth character.	ASC(s$, n): el código del carácter n de una cadena.
+ASM	ASM
+ASN	ASN
+ASN(x): the angle, in radians, whose sine is x.	ASN(x): el ángulo, en radianes, cuyo seno es x.
+AT	AT
+ATN	ATN
+ATN(x): the angle, in radians, whose tangent is x.	ATN(x): el ángulo, en radianes, cuya tangente es x.
+ATTR	ATTR
+ATTR(row, column): the colours of a character square.	ATTR(row, column): los colores de una casilla de carácter.
+Add a bar	Añadir una barra
+Add a colour	Añadir un color
+Add a split	Añadir una división
+Also in Settings, Appearance. When it's off, the window is left empty.	También en Configuración, Apariencia. Si está desactivado, la ventana queda vacía.
+Amiga (AGA)	Amiga (AGA)
+Amiga (OCS, ECS)	Amiga (OCS, ECS)
+An SFTP server's address starts sftp://. For an FTP server, choose FTP server as its kind.	La dirección de un servidor SFTP empieza por sftp://. Para un servidor FTP, elija Servidor FTP como tipo.
+And another register	Y otro registro
+Another tip	Otro consejo
+As wide as the panel	Tan ancho como el panel
+Ask the language server	Preguntar al servidor de lenguaje
+Assembling and running	Ensamblar y ejecutar
+Assembly tests	Pruebas de ensamblador
+Assembly tests are for Z80 and 6502 source: open the source with the tests in its comments.	Las pruebas de ensamblador son para código fuente Z80 y 6502: abra el código fuente con las pruebas en sus comentarios.
+At the top of the frame	En la parte superior del fotograma
+Atari STE	Atari STE
+BAND	BAND
+BEEP	BEEP
+BEEP duration, pitch: plays a note, as on the Spectrum.	BEEP duration, pitch: toca una nota, como en el Spectrum.
+BIN	BIN
+BIN 01010101: a number written in binary.	BIN 01010101: un número escrito en binario.
+BNOT	BNOT
+BOLD	BOLD
+BOLD 1: prints in bold (BOLD 0 to stop).	BOLD 1: imprime en negrita (BOLD 0 para parar).
+BOR	BOR
+BORDER	BORDER
+BORDER colour: sets the border's colour, 0 to 7.	BORDER colour: fija el color del borde, de 0 a 7.
+BPLCON3: LOCT off again	BPLCON3: LOCT desactivado de nuevo
+BPLCON3: LOCT on, for the low bits	BPLCON3: LOCT activado, para los bits bajos
+BRIGHT 1: prints bright (BRIGHT 0 to stop).	BRIGHT 1: imprime con brillo (BRIGHT 0 para parar).
+BXOR	BXOR
+BYREF	BYREF
+BYTE	BYTE
+BYVAL	BYVAL
+Bookmark a line to come back to it; F2 goes to the next.	Ponga un marcador en una línea para volver a ella; F2 va al siguiente.
+Boriel's ZX Basic and C for the older machines are compiled when they're run (F9), with the first compiler installed for their machine, and the program made is run there. C says its machine with a line such as // machine: c64 near its top (or by the machine's own header), and may ask for a compiler with // compiler: llvm-mos.	El ZX Basic de Boriel y el C para las máquinas antiguas se compilan al ejecutarlos (F9), con el primer compilador instalado para su máquina, y el programa resultante se ejecuta allí. El C indica su máquina con una línea como // machine: c64 cerca del principio (o con la cabecera propia de la máquina), y puede pedir un compilador con // compiler: llvm-mos.
+Boriel's ZX Basic compiler (zxbc) wasn't found on this computer. Get it from {}: Limoniter looks for zxbc on the PATH{also} and in a folder named zxbasic in Program Files, Downloads or on the Desktop.	No se ha encontrado en este equipo el compilador ZX Basic de Boriel (zxbc). Obténgalo en {}: Limoniter busca zxbc en el PATH{also} y en una carpeta llamada zxbasic en Program Files, Descargas o en el Escritorio.
+CAST	CAST
+CAST(type, x): x converted to that type.	CAST(type, x): x convertido a ese tipo.
+CHR	CHR
+CHR(n) or CHR$(n): the character with that code. Several codes give a string of them.	CHR(n) o CHR$(n): el carácter con ese código. Varios códigos dan una cadena con ellos.
+CIRCLE	CIRCLE
+CIRCLE x, y, radius: draws a circle.	CIRCLE x, y, radius: dibuja un círculo.
+CLS	CLS
+CLS: clears the screen.	CLS: borra la pantalla.
+CODE	CODE
+CODE(s$): the code of the string's first character.	CODE(s$): el código del primer carácter de la cadena.
+CONST	CONST
+CONST name AS type = value: a value that never changes.	CONST name AS type = value: un valor que nunca cambia.
+CONTINUE	CONTINUE
+CONTINUE FOR, WHILE or DO: goes straight to the loop's next turn.	CONTINUE FOR, WHILE o DO: pasa directamente a la siguiente vuelta del bucle.
+COS	COS
+COS(x): the cosine of x, in radians.	COS(x): el coseno de x, en radianes.
+CSRLIN	CSRLIN
+CSRLIN: the row PRINT will print on next.	CSRLIN: la fila en la que PRINT imprimirá a continuación.
+Call graph	Grafo de llamadas
+Callers above the routines they call	Las que llaman, encima de las rutinas a las que llaman
+Callers to the left of the routines they call	Las que llaman, a la izquierda de las rutinas a las que llaman
+Change a colour	Cambiar un color
+Change a register	Cambiar un registro
+Changed here and on the server since the last sync	Cambiado aquí y en el servidor desde la última sincronización
+Changed here, and deleted from the server, since the last sync	Cambiado aquí, y eliminado del servidor, desde la última sincronización
+Changed on the server	Cambiado en el servidor
+Changed on the server, and deleted here, since the last sync	Cambiado en el servidor, y eliminado aquí, desde la última sincronización
+Changes	Cambios
+Changing {host}	Cambiando {host}
+Choose a bar or split on the picture, or add one.	Elija una barra o división en la imagen, o añada una.
+Click to show this tab's buttons; double-click, or Ctrl+F1, to keep the ribbon open	Clic para mostrar los botones de esta pestaña; doble clic, o Ctrl+F1, para mantener abierta la cinta
+Click to sync with the server, or to connect again	Clic para sincronizar con el servidor, o para volver a conectar
+Clone a Git repository…	Clonar un repositorio Git…
+Code	Código
+Colour themes, as document and window themes: {}	Temas de color, como temas de documento y de ventana: {}
+Colour themes, grammars, snippets, file icons and language settings from VS Code extensions, and the language servers they start. An extension's own program (JavaScript) isn't run here: one that's nothing but its program can't be installed, and one that has a program says what's left behind.	Temas de color, gramáticas, fragmentos de código, iconos de archivo y ajustes de lenguaje de las extensiones de VS Code, y los servidores de lenguaje que inician. El programa propio de una extensión (JavaScript) no se ejecuta aquí: una que no es más que su programa no se puede instalar, y una que tiene programa indica lo que se queda fuera.
+Colouring for {name}	Coloreado para {name}
+Colours, top to bottom	Colores, de arriba abajo
+Comment marks, brackets that close themselves and indenting for {name}	Marcas de comentario, paréntesis que se cierran solos y sangría para {name}
+Compilers	Compiladores
+Compilers…	Compiladores…
+Compiling {name} with {} ({}) for the {}…	Compilando {name} con {} ({}) para {}…
+Connecting to {}	Conectando con {}
+Copy a project from online (clone)…	Copiar un proyecto de la red (clonar)…
+Copy the line you're on, or the selection, just below it.	Copie la línea en la que está, o la selección, justo debajo.
+Couldn't make a folder for its files at {}.\n\n{e}	No se pudo crear una carpeta para sus archivos en {}.\n\n{e}
+Couldn't open a connection for the file: {e}	No se pudo abrir una conexión para el archivo: {e}
+Couldn't reach {host} on port {port}: {e}	No se pudo llegar a {host} en el puerto {port}: {e}
+Couldn't read {}.	No se pudo leer {}.
+Couldn't send {path} to {}.\n\n{problem}\n\nYour changes are saved on this computer.	No se pudo enviar {path} a {}.\n\n{problem}\n\nSus cambios están guardados en este equipo.
+Ctrl+F1	Ctrl+F1
+Cycles	Ciclos
+Cycles: {}	Ciclos: {}
+DATA	DATA
+DATA values: values for READ to take, in order.	DATA values: valores que READ toma, en orden.
+DECLARE	DECLARE
+DECLARE FUNCTION f(...) AS type: lets a FUNCTION be used before it's written.	DECLARE FUNCTION f(...) AS type: permite usar una FUNCTION antes de escribirla.
+DIM	DIM
+DIM name AS type, or DIM a(10) AS UBYTE for an array: declares a variable.	DIM name AS type, o DIM a(10) AS UBYTE para un array: declara una variable.
+DO	DO
+DO ... LOOP UNTIL condition: loops until it's true.	DO ... LOOP UNTIL condition: repite hasta que se cumpla.
+DO ... LOOP, with WHILE or UNTIL at either end: a loop.	DO ... LOOP, con WHILE o UNTIL en cualquiera de los extremos: un bucle.
+DRAW	DRAW
+DRAW dx, dy: draws a line from the last point plotted.	DRAW dx, dy: dibuja una línea desde el último punto trazado.
+Deleted from the server since the last sync	Eliminado del servidor desde la última sincronización
+Deleted here since the last sync	Eliminado aquí desde la última sincronización
+Do the {ticked} ticked	Hacer los {ticked} marcados
+Document	Documento
+Double-click, or Ctrl+F1, to fold the ribbon to its tabs	Doble clic, o Ctrl+F1, para contraer la cinta a sus pestañas
+Downloading {id} from Open VSX…	Descargando {id} de Open VSX…
+Drop to open	Suelte para abrir
+ELSE	ELSE
+ELSEIF	ELSEIF
+ELSEIF condition THEN: another test, when the ones before were false.	ELSEIF condition THEN: otra prueba, cuando las anteriores fueron falsas.
+END: ends the program. END IF, END SUB, END FUNCTION, END WHILE and END ASM close a block.	END: termina el programa. END IF, END SUB, END FUNCTION, END WHILE y END ASM cierran un bloque.
+EXIT	EXIT
+EXIT FOR, WHILE, DO, SUB or FUNCTION: leaves it straight away.	EXIT FOR, WHILE, DO, SUB o FUNCTION: lo abandona de inmediato.
+EXP	EXP
+EXP(x): e to the power x.	EXP(x): e elevado a x.
+Each is looked for on the PATH, in the folder its own variable names (CC65_HOME, Z88DK, GDK, VBCC), where its installer puts it, and in a folder named for it in Program Files, Downloads or on the Desktop.	Cada uno se busca en el PATH, en la carpeta que indica su propia variable (CC65_HOME, Z88DK, GDK, VBCC), donde lo pone su instalador, y en una carpeta con su nombre en Program Files, Descargas o en el Escritorio.
+Each line: wait for it	Cada línea: esperarla
+Ends a DO loop: LOOP, LOOP WHILE condition or LOOP UNTIL condition.	Termina un bucle DO: LOOP, LOOP WHILE condition o LOOP UNTIL condition.
+Every frame, from the VBL: the top of the frame as it is above the first change, and Timer B started again.	Cada fotograma, desde el VBL: la parte superior del fotograma tal como está por encima del primer cambio, y el Timer B iniciado de nuevo.
+Every kind of new file	Todos los tipos de archivo nuevo
+Every kind…	Todos los tipos…
+Every recent file, folder and remote file	Todos los archivos, carpetas y archivos remotos recientes
+Everything in short, a section for each kind of work	Todo en resumen, una sección para cada tipo de trabajo
+FASTCALL	FASTCALL
+FIXED	FIXED
+FLASH 1: prints flashing (FLASH 0 to stop).	FLASH 1: imprime parpadeando (FLASH 0 para parar).
+FLOAT	FLOAT
+FOR	FOR
+FOR i = 1 TO 10 STEP 1 ... NEXT i: a counted loop.	FOR i = 1 TO 10 STEP 1 ... NEXT i: un bucle con contador.
+FOR i = a TO b STEP n: how much i changes each time round.	FOR i = a TO b STEP n: cuánto cambia i en cada vuelta.
+FOR i = a TO b: where the loop ends.	FOR i = a TO b: dónde acaba el bucle.
+FUNCTION	FUNCTION
+FUNCTION name(parameters) AS type ... END FUNCTION: a routine that gives back a value.	FUNCTION name(parameters) AS type ... END FUNCTION: una rutina que devuelve un valor.
+Fetch the server's changes	Recuperar los cambios del servidor
+Fetching {path} from {host}	Recuperando {path} de {host}
+Fewer	Menos
+File icons:	Iconos de archivo:
+File icons: {}	Iconos de archivo: {}
+Files and folders dropped here open.	Los archivos y carpetas que suelte aquí se abren.
+Files, folders and projects you open will be listed here, each a click away.	Los archivos, carpetas y proyectos que abra aparecerán aquí, cada uno a un clic.
+Find any command by what it does, without hunting through the menus.	Encuentre cualquier comando por lo que hace, sin rebuscar en los menús.
+Find on Open VSX, or type publisher.name	Buscar en Open VSX, o escribir publisher.name
+First line	Primera línea
+Fit	Ajustar
+Flags	Indicadores
+Fold the ribbon to its tabs	Contraer la cinta a sus pestañas
+Folders and projects	Carpetas y proyectos
+Form	Forma
+From Limoniter's raster designer.	Del diseñador raster de Limoniter.
+From SCOPTIONS: {}	De SCOPTIONS: {}
+From the extension {from}. In VS Code it's typed as {}.	De la extensión {from}. En VS Code se escribe como {}.
+From the library: #include <{file}>	De la biblioteca: #include <{file}>
+GETKEY	GETKEY
+GETKEYSCANCODE	GETKEYSCANCODE
+GOSUB	GOSUB
+GOSUB label: calls the lines there, until RETURN.	GOSUB label: llama a las líneas de allí, hasta RETURN.
+GOTO	GOTO
+GOTO label (or line number): carries on from there.	GOTO label (o número de línea): continúa desde allí.
+GetKey: waits for a key and gives its code.	GetKey: espera una tecla y da su código.
+GetKeyScanCode: the code of the key held down, for MultiKeys.	GetKeyScanCode: el código de la tecla pulsada, para MultiKeys.
+Getting started	Primeros pasos
+Gives a type: DIM x AS UBYTE, FUNCTION f(a AS INTEGER) AS LONG.	Indica un tipo: DIM x AS UBYTE, FUNCTION f(a AS INTEGER) AS LONG.
+Go to any file in the folder from a few letters of its name.	Vaya a cualquier archivo de la carpeta con unas pocas letras de su nombre.
+Go to where a function or label is defined.	Vaya a donde se define una función o una etiqueta.
+Guide	Guía
+HEX	HEX
+HEX(n): a 32-bit number as eight hex digits.	HEX(n): un número de 32 bits como ocho dígitos hexadecimales.
+HEX16	HEX16
+HEX16(n): a 16-bit number as four hex digits.	HEX16(n): un número de 16 bits como cuatro dígitos hexadecimales.
+IF	IF
+IF ... THEN ... ELSE ... END IF: what's done when the condition is false.	IF ... THEN ... ELSE ... END IF: lo que se hace cuando la condición es falsa.
+IF condition THEN ... END IF: does it only if the condition is true.	IF condition THEN ... END IF: lo hace solo si la condición es verdadera.
+IF condition THEN: what follows is done when the condition is true.	IF condition THEN: lo que sigue se hace cuando la condición es verdadera.
+IN	IN
+IN(port): reads a byte from a Z80 port.	IN(port): lee un byte de un puerto del Z80.
+INK	INK
+INK colour: sets the colour text and drawing are in, 0 to 7.	INK colour: fija el color del texto y del dibujo, de 0 a 7.
+INKEY	INKEY
+INKEY or INKEY$: the key being pressed, or "" if none.	INKEY o INKEY$: la tecla que se está pulsando, o "" si no hay ninguna.
+INPUT	INPUT
+INPUT(n): reads up to n characters typed. Library: #include <input.bas>.	INPUT(n): lee hasta n caracteres tecleados. Biblioteca: #include <input.bas>.
+INT	INT
+INT(x): x rounded down to a whole number.	INT(x): x redondeado hacia abajo a un número entero.
+INTEGER	INTEGER
+INVERSE	INVERSE
+INVERSE 1: prints with ink and paper swapped (INVERSE 0 to stop).	INVERSE 1: imprime con tinta y papel intercambiados (INVERSE 0 para parar).
+ITALIC	ITALIC
+ITALIC 1: prints slanted (ITALIC 0 to stop).	ITALIC 1: imprime en cursiva (ITALIC 0 para parar).
+In the menus: {}	En los menús: {}
+Install	Instalar
+Install a VS Code extension	Instalar una extensión de VS Code
+Install again	Instalar de nuevo
+Install from a file…	Instalar desde un archivo…
+Install this one	Instalar esta
+Installing {}…	Instalando {}…
+Installs the extension with this id from Open VSX	Instala la extensión con este id desde Open VSX
+Instruction reference	Referencia de instrucciones
+It has no package.json, so it isn't a VS Code extension.	No tiene package.json, así que no es una extensión de VS Code.
+It isn't a .vsix: a .vsix is a zip, and this can't be read as one.	No es un .vsix: un .vsix es un zip, y este no se puede leer como tal.
+It isn't a VS Code extension: there's no extension folder in it.	No es una extensión de VS Code: no contiene ninguna carpeta extension.
+It needs a password.	Necesita una contraseña.
+It unpacks to more than a gigabyte, which is more than an extension should.	Desempaquetado ocupa más de un gigabyte, más de lo que debería ocupar una extensión.
+It's built for {} only, not for this computer ({platform}).	Está hecha solo para {}, no para este equipo ({platform}).
+Its files are fetched into a folder on this computer, and each save is sent back	Sus archivos se traen a una carpeta de este equipo, y cada guardado se envía de vuelta
+Its own program (JavaScript) isn't run, so these aren't here: {}.	Su propio programa (JavaScript) no se ejecuta, así que estos no están: {}.
+Its package.json can't be read: {e}	No se puede leer su package.json: {e}
+Its package.json doesn't give its publisher and name.	Su package.json no indica su editor y su nombre.
+Keep it	Conservarlo
+Keep the other side's version instead	Conservar en su lugar la versión del otro lado
+LBOUND	LBOUND
+LBOUND(array, n): the lowest index of the array's nth dimension.	LBOUND(array, n): el índice más bajo de la dimensión n del array.
+LCASE	LCASE
+LCASE(s$): the string in small letters.	LCASE(s$): la cadena en minúsculas.
+LEN	LEN
+LEN(s$): how many characters a string has.	LEN(s$): cuántos caracteres tiene una cadena.
+LET	LET
+LET x = value: sets a variable (LET can be left out).	LET x = value: asigna una variable (LET se puede omitir).
+LN	LN
+LN(x): the natural logarithm of x.	LN(x): el logaritmo natural de x.
+LOAD	LOAD
+LOAD "name" CODE: loads bytes from tape, as on the Spectrum.	LOAD "name" CODE: carga bytes de cinta, como en el Spectrum.
+LONG	LONG
+LOOP	LOOP
+Larger	Más grande
+Learn	Aprender
+Limoniter's own badges	Insignias propias de Limoniter
+Logical AND: true when both sides are.	AND lógico: verdadero cuando ambos lados lo son.
+Logical OR: true when either side is.	OR lógico: verdadero cuando cualquiera de los lados lo es.
+Look up	Consultar
+Looking on Open VSX for “{query}”…	Buscando “{query}” en Open VSX…
+MOD	MOD
+MULTIKEYS	MULTIKEYS
+Made {} ({} bytes) for the {}.	Creado {} ({} bytes) para {}.
+Mermaid's “{kind}” diagrams aren't drawn here yet, so here is its text.	Los diagramas “{kind}” de Mermaid aún no se dibujan aquí, así que aquí está su texto.
+More	Más
+More…	Más…
+Move the folder {name}, and everything in it, to the Recycle Bin, and delete it from {} too? On the server, that can't be undone.	¿Mover la carpeta {name}, con todo lo que contiene, a la Papelera de reciclaje, y eliminarla también de {}? En el servidor, eso no se puede deshacer.
+Move {name} to the Recycle Bin, and delete it from {} too? On the server, that can't be undone.	¿Mover {name} a la Papelera de reciclaje, y eliminarlo también de {}? En el servidor, eso no se puede deshacer.
+MultiKeys(code): whether a key is held down, read straight from the keyboard.	MultiKeys(code): si una tecla está pulsada, leído directamente del teclado.
+NEXT	NEXT
+NEXT i: ends a FOR loop.	NEXT i: termina un bucle FOR.
+NOT	NOT
+NOT x: true when x is false.	NOT x: verdadero cuando x es falso.
+Narrow to the selection to work on part of a file as if it were all of it.	Acote a la selección para trabajar con parte de un archivo como si fuera el archivo entero.
+New as:	Nuevo como:
+No C compiler for the {} was found on this computer. Install one of {}: Limoniter looks on the PATH{also} and where each usually goes, or in a folder named for it in Program Files, Downloads or on the Desktop.	No se ha encontrado en este equipo ningún compilador de C para {}. Instale uno de {}: Limoniter busca en el PATH{also} y donde suele ir cada uno, o en una carpeta con su nombre en Program Files, Descargas o en el Escritorio.
+No calls found yet. Routines that call others (with CALL, JSR, BSR or BL) to a label are drawn here, each joined to those it calls.	Aún no se han encontrado llamadas. Las rutinas que llaman a otras (con CALL, JSR, BSR o BL) por una etiqueta se dibujan aquí, cada una unida a las que llama.
+No extensions yet. Find one on Open VSX above, or install a .vsix file you have.	Aún no hay extensiones. Busque una en Open VSX arriba, o instale un archivo .vsix que tenga.
+No form of it could be assembled here on its own.	Ninguna de sus formas se pudo ensamblar aquí por sí sola.
+Not compiled yet: F9 compiles it.	Aún no compilado: F9 lo compila.
+Not connected to {host}	Sin conexión con {host}
+Not found: get it	No encontrado: obtenerlo
+Nothing on Open VSX matches that.	Nada en Open VSX coincide con eso.
+OR	OR
+OUT	OUT
+OUT port, value: writes a byte to a Z80 port.	OUT port, value: escribe un byte en un puerto del Z80.
+OVER	OVER
+OVER 1: prints and draws by exclusive OR, so drawing twice rubs out (OVER 0 to stop).	OVER 1: imprime y dibuja con O exclusivo, así que dibujar dos veces borra (OVER 0 para dejarlo).
+On Open VSX	En Open VSX
+Once every tab is closed: new files, recent work and the guide, rather than an empty window	Cuando se cierran todas las pestañas: archivos nuevos, trabajo reciente y la guía, en lugar de una ventana vacía
+Only a preview laid out as a document can be saved as a PDF: Markdown, a web page, a converted document or a BASIC listing.	Solo una vista previa compuesta como documento se puede guardar como PDF: Markdown, una página web, un documento convertido o un listado BASIC.
+Only the first {} are drawn.	Solo se dibujan las primeras {}.
+Open VSX couldn't be reached: {e}	No se pudo contactar con Open VSX: {e}
+Open VSX has no download for it.	Open VSX no tiene ninguna descarga para ella.
+Open VSX says: {problem}	Open VSX dice: {problem}
+Open VSX's answer wasn't what was expected.	La respuesta de Open VSX no era la esperada.
+Open a folder…	Abrir una carpeta…
+Open a remote file (SFTP or FTP)…	Abrir un archivo remoto (SFTP o FTP)…
+Open a remote file or folder…	Abrir un archivo o una carpeta remotos…
+Open a remote folder	Abrir una carpeta remota
+Open a remote folder as a project (SFTP or FTP)…	Abrir una carpeta remota como proyecto (SFTP o FTP)…
+Open a remote folder as a project…	Abrir una carpeta remota como proyecto…
+Open another file beside the one in front.	Abrir otro archivo junto al que está delante.
+Open from the web…	Abrir de la web…
+Open the extensions folder	Abrir la carpeta de extensiones
+Open {folder} as a project	Abrir {folder} como proyecto
+Our copper list from the top of a frame	Nuestra lista copper desde el principio de un fotograma
+PAPER	PAPER
+PAPER colour: sets the background colour, 0 to 7.	PAPER colour: fija el color de fondo, de 0 a 7.
+PAUSE	PAUSE
+PAUSE n: waits n frames (50 a second); PAUSE 0 waits for a key.	PAUSE n: espera n fotogramas (50 por segundo); PAUSE 0 espera una tecla.
+PDF document	Documento PDF
+PEEK	PEEK
+PEEK(address), or PEEK(type, address): the byte (or value of that type) in memory there.	PEEK(address), o PEEK(type, address): el byte (o el valor de ese tipo) que hay en esa posición de memoria.
+PI	PI
+PI: 3.14159265...	PI: 3.14159265...
+PLOT	PLOT
+PLOT x, y: puts a dot there, 0 to 255 across and 0 to 191 up.	PLOT x, y: pone un punto ahí, de 0 a 255 en horizontal y de 0 a 191 hacia arriba.
+POINT	POINT
+POINT(x, y): 1 if the pixel there is set.	POINT(x, y): 1 si el píxel de ahí está activado.
+POKE	POKE
+POKE address, value, or POKE type address, value: writes to memory.	POKE address, value, o POKE type address, value: escribe en memoria.
+POS	POS
+POS: the column PRINT will print in next.	POS: la columna en la que PRINT imprimirá a continuación.
+PRINT	PRINT
+PRINT AT row, column; puts the text there.	PRINT AT row, column; pone el texto ahí.
+PRINT TAB n; moves to column n.	PRINT TAB n; pasa a la columna n.
+PRINT things: shows them, at the next place on the screen. ; keeps on the same line, , moves to the next half.	PRINT things: los muestra en el siguiente lugar de la pantalla. ; sigue en la misma línea, , pasa a la mitad siguiente.
+PRINT42	PRINT42
+PRINT64	PRINT64
+PRINTAT42	PRINTAT42
+PRINTAT64	PRINTAT64
+Page {} of {total}	Página {} de {total}
+Passes a parameter by reference: the SUB or FUNCTION can change the caller's variable.	Pasa un parámetro por referencia: la SUB o FUNCTION puede cambiar la variable de quien la llama.
+Passes a parameter by value, a copy (the usual way).	Pasa un parámetro por valor, una copia (la forma habitual).
+Picture converter	Conversor de imágenes
+Point the bitplanes elsewhere	Apuntar los bitplanes a otro sitio
+Put the cursor on an instruction, or type one above.	Ponga el cursor sobre una instrucción, o escriba una arriba.
+Puts the pictures'	Pone las direcciones de las imágenes
+Puts the pictures' addresses into the list's bitplane pointers: call it once, from your code section,	Pone las direcciones de las imágenes en los punteros de bitplane de la lista: llámela una vez, desde su sección de código,
+RANDOMIZE	RANDOMIZE
+RANDOMIZE, or RANDOMIZE n: starts RND's sequence somewhere new.	RANDOMIZE, o RANDOMIZE n: empieza la secuencia de RND en otro punto.
+READ	READ
+READ variables: takes the next values from DATA.	READ variables: toma los siguientes valores de DATA.
+REM	REM
+REM or ': a comment, to the end of the line.	REM o ': un comentario, hasta el final de la línea.
+RESTORE	RESTORE
+RESTORE label: READ starts again from the DATA there.	RESTORE label: READ vuelve a empezar desde los DATA de ahí.
+RETURN	RETURN
+RETURN: back from a GOSUB; RETURN value gives back a FUNCTION's value.	RETURN: vuelve de un GOSUB; RETURN value devuelve el valor de una FUNCTION.
+RND	RND
+RND: a random number from 0 up to (not including) 1.	RND: un número aleatorio de 0 hasta 1 (sin incluirlo).
+Raster and copper designer	Diseñador de raster y copper
+Raster and copper designer: Amiga, C64, ST	Diseñador de raster y copper: Amiga, C64, ST
+Remote	Remotos
+Retro	Retro
+Ribbon	Cinta de opciones
+Ribbon: off. Click for tabs of buttons with pictures, in place of the menus	Cinta de opciones: desactivada. Haga clic para tener pestañas de botones con imágenes en lugar de los menús
+Ribbon: on. Click for the menus instead	Cinta de opciones: activada. Haga clic para volver a los menús
+Run the program in front on its machine, in an emulator or the real thing.	Ejecutar el programa que está delante en su máquina, en un emulador o en la de verdad.
+SAS/C calls functions named _STI... as the program starts and _STD... as it ends; amiga-gcc doesn't: mark them __attribute__((constructor)) and ((destructor)).	SAS/C llama a las funciones llamadas _STI... al empezar el programa y _STD... al terminar; amiga-gcc no: márquelas con __attribute__((constructor)) y ((destructor)).
+SAS/C calls functions named _STI... as the program starts and _STD... as it ends; vbcc's are named _INIT_ and _EXIT_.	SAS/C llama a las funciones llamadas _STI... al empezar el programa y _STD... al terminar; las de vbcc se llaman _INIT_ y _EXIT_.
+SAVE	SAVE
+SAVE "name" CODE start, length: saves bytes to tape.	SAVE "name" CODE start, length: guarda bytes en cinta.
+SCREEN	SCREEN
+SCREEN(row, column) or SCREEN$: the character at a square.	SCREEN(row, column) o SCREEN$: el carácter de una casilla.
+SGN	SGN
+SGN(x): -1, 0 or 1, as x is negative, zero or positive.	SGN(x): -1, 0 o 1, según x sea negativo, cero o positivo.
+SHL	SHL
+SHR	SHR
+SIN	SIN
+SIN(x): the sine of x, in radians.	SIN(x): el seno de x, en radianes.
+SQR	SQR
+SQR(x): the square root of x.	SQR(x): la raíz cuadrada de x.
+STDCALL	STDCALL
+STEP	STEP
+STOP	STOP
+STOP: stops the program.	STOP: detiene el programa.
+STR	STR
+STR(x) or STR$(x): a number written as a string.	STR(x) o STR$(x): un número escrito como cadena.
+STRING	STRING
+SUB	SUB
+SUB FASTCALL or FUNCTION FASTCALL: the first parameter comes in registers (A, HL or DE HL), for routines written in assembler.	SUB FASTCALL o FUNCTION FASTCALL: el primer parámetro llega en registros (A, HL o DE HL), para rutinas escritas en ensamblador.
+SUB STDCALL or FUNCTION STDCALL: parameters passed on the stack (the usual way).	SUB STDCALL o FUNCTION STDCALL: parámetros pasados por la pila (la forma habitual).
+SUB name(parameters) ... END SUB: a routine called by its name, which gives nothing back.	SUB name(parameters) ... END SUB: una rutina que se llama por su nombre y no devuelve nada.
+Save as PDF	Guardar como PDF
+Save the preview as PDF	Guardar la vista previa como PDF
+Save the preview as PDF…	Guardar la vista previa como PDF…
+Save to a server (SFTP or FTP)…	Guardar en un servidor (SFTP o FTP)…
+Search every file in the folder as you type.	Buscar en todos los archivos de la carpeta mientras escribe.
+Search panel	Panel de búsqueda
+See any file as bytes, and back again.	Ver cualquier archivo como bytes, y volver.
+Sending {path} to {host}	Enviando {path} a {host}
+Show the start page	Mostrar la página de inicio
+Show this page when every tab is closed	Mostrar esta página cuando se cierren todas las pestañas
+Smaller	Más pequeño
+Snippets put in the text you type again and again.	Los fragmentos de código insertan el texto que escribe una y otra vez.
+Snippets: {problem}	Fragmentos de código: {problem}
+Starts a block of Z80 assembler, ended by END ASM.	Empieza un bloque de ensamblador Z80, que termina con END ASM.
+Sync with the server	Sincronizar con el servidor
+Sync with the server…	Sincronizar con el servidor…
+Syncing with {host}{share}	Sincronizando con {host}{share}
+TAB	TAB
+TAN	TAN
+TAN(x): the tangent of x, in radians.	TAN(x): la tangente de x, en radianes.
+THEN	THEN
+TLS on the connection for the file failed: {e}	Falló el TLS en la conexión del archivo: {e}
+TO	TO
+Tabs of large buttons with pictures in place of the menus, as Word and UltraEdit have. Ctrl+F1 folds it to its tabs	Pestañas de botones grandes con imágenes en lugar de los menús, como en Word y UltraEdit. Ctrl+F1 la pliega a sus pestañas
+Test the assembly routines (Z80, 6502)	Probar las rutinas en ensamblador (Z80, 6502)
+Text and hex editing, from today's code to yesterday's computers. Version {}.	Edición de texto y hexadecimal, del código de hoy a los ordenadores de ayer. Versión {}.
+The TLS greeting with {host} failed: {problem}	Falló el saludo TLS con {host}: {problem}
+The bar at line {} needs a height, a colour and a register to change.	La barra de la línea {} necesita una altura, un color y un registro que cambiar.
+The call graph is drawn for assembler source that Limoniter's own assembler can read (Z80, 6502, 6809, 68000, x86 or ARM) as you type. For other code, put the cursor in a function and ask its language server.	El grafo de llamadas se dibuja mientras escribe para el código ensamblador que puede leer el propio ensamblador de Limoniter (Z80, 6502, 6809, 68000, x86 o ARM). Para otro código, ponga el cursor en una función y pregunte a su servidor de lenguaje.
+The call graph is drawn for assembler source, or by a language server for other code.	El grafo de llamadas se dibuja para código ensamblador, o lo hace un servidor de lenguaje para otro código.
+The calls into and out of the function at the cursor, as the file's language server finds them	Las llamadas que entran y salen de la función del cursor, tal como las encuentra el servidor de lenguaje del archivo
+The certificate of {} isn't the one it had before, and no authority this computer trusts vouches for it, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new certificate.\n\nTrusted before: {expected}\nNow: {found}	El certificado de {} no es el que tenía antes, y ninguna autoridad en la que confíe este equipo lo avala, así que Limoniter no se ha conectado.\n\nEsto puede significar que el servidor se ha vuelto a configurar, o que alguien está entre usted y él, leyendo lo que se envía. Consulte con quien administre el servidor antes de confiar en el nuevo certificado.\n\nDe confianza antes: {expected}\nAhora: {found}
+The compiler stopped unexpectedly.	El compilador se detuvo inesperadamente.
+The configuration for {name}: {problem}	La configuración de {name}: {problem}
+The file couldn't be saved, so it wasn't compiled.	No se pudo guardar el archivo, así que no se compiló.
+The file icons {}: its file isn't there.	Los iconos de archivo {}: su archivo no está.
+The file icons {}: {problem}	Los iconos de archivo {}: {problem}
+The grammar for {name}: {problem}	La gramática de {name}: {problem}
+The grammar for {} couldn't be loaded: {problem}	No se pudo cargar la gramática de {}: {problem}
+The instruction reference is for assembler source: Z80, 6502, 6809, 68000, x86 or ARM. It follows the instruction the cursor is on.	La referencia de instrucciones es para código ensamblador: Z80, 6502, 6809, 68000, x86 o ARM. Sigue la instrucción en la que está el cursor.
+The language server found no function at the cursor, or can't draw calls. Put the cursor on a function's name.	El servidor de lenguaje no encontró ninguna función en el cursor, o no puede dibujar llamadas. Ponga el cursor sobre el nombre de una función.
+The other way	Al revés
+The project and {host} are alike: there's nothing to sync.	El proyecto y {host} son iguales: no hay nada que sincronizar.
+The project open isn't a folder on a server. Open one with File, Open a remote folder.	El proyecto abierto no es una carpeta de un servidor. Abra una con Archivo, Abrir una carpeta remota.
+The server can't set a file's time.	El servidor no puede fijar la fecha de un archivo.
+The server said something unexpected: {first}	El servidor dijo algo inesperado: {first}
+The server stopped answering: {e}	El servidor dejó de responder: {e}
+The server's answer couldn't be read: {text}	No se pudo leer la respuesta del servidor: {text}
+The split at line {} needs the label of the picture its bitplanes are in.	La división de la línea {} necesita la etiqueta de la imagen en la que están sus bitplanes.
+The theme {}: {problem}	El tema {}: {problem}
+The top of the frame: everything as it is above the first change.	El principio del fotograma: todo tal como está por encima del primer cambio.
+The {} has no instruction {}.	El {} no tiene la instrucción {}.
+There are no tests in this source. Write one in a comment above the routine:\n\n; test: adds one\n; given: A=5\n; expect: A=6 flags: Z=0\n; within: 20 cycles\n\nor in a file beside it with .tests on the end of its name.	No hay pruebas en este código. Escriba una en un comentario encima de la rutina:\n\n; test: suma uno\n; given: A=5\n; expect: A=6 flags: Z=0\n; within: 20 cycles\n\no en un archivo junto a él cuyo nombre termine en .tests.
+There's no note for this one yet; its forms are below.	Aún no hay ninguna nota para esta; sus formas están abajo.
+This Gantt chart's task “{}” has a start that can't be read: dates are read as YYYY-MM-DD here.	La tarea «{}» de este diagrama de Gantt tiene un inicio que no se puede leer: aquí las fechas se leen como YYYY-MM-DD.
+This Mermaid diagram has nothing in it to draw.	Este diagrama Mermaid no tiene nada que dibujar.
+This Mermaid diagram is empty.	Este diagrama Mermaid está vacío.
+Timer B stopped until the next frame	Timer B detenido hasta el siguiente fotograma
+Timer B stopped while it's set	Timer B detenido mientras se configura
+Timer B's interrupt is done	La interrupción del Timer B ha terminado
+Tip	Consejo
+Try it	Pruébelo
+Turned off, it gives nothing until it's turned on again	Desactivada, no aporta nada hasta que se vuelva a activar
+UBOUND	UBOUND
+UBOUND(array, n): the highest index of the array's nth dimension.	UBOUND(array, n): el índice más alto de la n-ésima dimensión del array.
+UBYTE	UBYTE
+UCASE	UCASE
+UCASE(s$): the string in capitals.	UCASE(s$): la cadena en mayúsculas.
+UINTEGER	UINTEGER
+ULONG	ULONG
+UNTIL	UNTIL
+USR	USR
+USR(address): calls machine code there and gives back BC.	USR(address): llama al código máquina de esa dirección y devuelve BC.
+VAL	VAL
+VAL(s$): the number a string holds.	VAL(s$): el número que contiene una cadena.
+VS Code extensions	Extensiones de VS Code
+VS Code extensions…	Extensiones de VS Code…
+WHILE	WHILE
+WHILE condition ... END WHILE (or WEND): loops while it's true.	WHILE condition ... END WHILE (o WEND): repite mientras sea verdadera.
+Wait for the next frame, letting SGDK do its work.	Esperar al siguiente fotograma, dejando que SGDK haga su trabajo.
+What would make the project and {host} alike. Nothing is done until you say. Each file replaced or deleted is kept first, in the project's backups.	Lo que haría iguales el proyecto y {host}. No se hace nada hasta que usted lo diga. Cada archivo reemplazado o eliminado se guarda antes en las copias de seguridad del proyecto.
+What's new in Limoniter {}	Novedades de Limoniter {}
+What's new in this version	Novedades de esta versión
+What's new in {}	Novedades de {}
+Which machine is this C for? Put a line such as // machine: c64 near its top (c64, c128, vic20, plus4, pet, spectrum, sms, gamegear, coleco, megadrive, amiga or atari2600), or include the machine's own header, and F9 compiles it with the compiler installed for it.	¿Para qué máquina es este C? Ponga una línea como // machine: c64 cerca del principio (c64, c128, vic20, plus4, pet, spectrum, sms, gamegear, coleco, megadrive, amiga o atari2600), o incluya la cabecera propia de la máquina, y F9 lo compilará con el compilador instalado para ella.
+Working on a folder of code	Trabajar en una carpeta de código
+Yes, remove it	Sí, quitarla
+Your version is saved on this computer, at {}. Project, Sync with the server shows what's different.	Su versión está guardada en este equipo, en {}. Proyecto, Sincronizar con el servidor muestra lo que es distinto.
+__emit puts words into the code only SAS/C understands: write it as inline assembler.	__emit pone palabras en el código, algo que solo entiende SAS/C: escríbalo como ensamblador en línea.
+__oslibversion sets the version of the libraries SAS/C's start-up opens; check which version the libraries are opened at here.	__oslibversion fija la versión de las bibliotecas que abre el arranque de SAS/C; compruebe con qué versión se abren aquí las bibliotecas.
+a MOD b: the remainder when a is divided by b.	a MOD b: el resto de dividir a entre b.
+a SHL n, or a << n: a's bits shifted n places left.	a SHL n, o a << n: los bits de a desplazados n posiciones a la izquierda.
+a SHR n, or a >> n: a's bits shifted n places right.	a SHR n, o a >> n: los bits de a desplazados n posiciones a la derecha.
+a tab's letter puts letters on its buttons, and a button's letter does it. Escape goes back.	la letra de una pestaña pone letras en sus botones, y la letra de un botón lo pulsa. Escape vuelve atrás.
+amiga-gcc	amiga-gcc
+asc.bas	asc.bas
+attr.bas	attr.bas
+bAND: bitwise AND of two integers.	bAND: AND bit a bit de dos enteros.
+bNOT: every bit of an integer flipped.	bNOT: todos los bits de un entero invertidos.
+bOR: bitwise OR of two integers.	bOR: OR bit a bit de dos enteros.
+bXOR: bitwise exclusive OR of two integers.	bXOR: O exclusivo bit a bit de dos enteros.
+before the list is shown.	antes de que se muestre la lista.
+bitplane pointers, filled in by {}_set_planes: split {}	punteros de bitplane, rellenados por {}_set_planes: división {}
+blog/2026-11-19.html	blog/2026-11-19.html
+bytes apart	bytes de separación
+cleared	puesto a 0
+colour {n} ($FF{:04X})	color {n} ($FF{:04X})
+commands	comandos
+counting display lines again	vuelve a contar líneas de pantalla
+csrlin.bas	csrlin.bas
+debuggers	depuradores
+display line {line}	línea de pantalla {line}
+editors of its own	editores propios
+every language	todos los lenguajes
+getreg, putreg and geta4 read and set registers in SAS/C only.	getreg, putreg y geta4 leen y fijan registros solo en SAS/C.
+hex.bas	hex.bas
+in {}	en {}
+index.html	index.html
+interrupts at the end of the line before each change, so the change shows from the start of its line.	interrumpe al final de la línea anterior a cada cambio, así que el cambio se ve desde el principio de su línea.
+it isn't JSON that can be read: {e}	no es un JSON legible: {e}
+it isn't XML that can be read: {e}	no es un XML legible: {e}
+it isn't YAML that can be read: {e}	no es un YAML legible: {e}
+it's empty	está vacío
+its changes; each change waits for $D012 to reach its line, then stores, so it lands in the first cycles	sus cambios; cada cambio espera a que $D012 llegue a su línea y luego guarda, así que cae en los primeros ciclos
+its themes include each other round in a circle	sus temas se incluyen unos a otros en círculo
+keys.bas	keys.bas
+kinds of task	tipos de tarea
+label	etiqueta
+left undefined	queda indefinido
+line ${line:02X}	línea ${line:02X}
+line {line} (${line:03X})	línea {line} (${line:03X})
+line {l}	línea {l}
+nn is a byte of the operand: n a number, d a displacement, label a place to branch to. Each form is shown with one register where others would do.	nn es un byte del operando: n un número, d un desplazamiento, label un lugar al que saltar. Cada forma se muestra con un registro donde valdrían otros.
+not changed	sin cambios
+notebooks	notebooks
+of the line, before the picture starts, bad line or not.	de la línea, antes de que empiece la imagen, sea bad line o no.
+overflow	desbordamiento
+panels	paneles
+parity	paridad
+point.bas	point.bas
+pos.bas	pos.bas
+print42(s$): prints in 42 columns.	print42(s$): imprime en 42 columnas.
+print42.bas	print42.bas
+print64(s$): prints in 64 columns.	print64(s$): imprime en 64 columnas.
+print64.bas	print64.bas
+printat42(row, column): where print42 prints next.	printat42(row, column): dónde imprimirá print42 a continuación.
+printat64(row, column): where print64 prints next.	printat64(row, column): dónde imprimirá print64 a continuación.
+screen.bas	screen.bas
+set	puesto a 1
+set by the result	según el resultado
+settings	ajustes
+sftp://user@host:port/folder, or ftp://, ftpes://, ftps://	sftp://user@host:port/folder, o ftp://, ftpes://, ftps://
+string.bas	string.bas
+the cursor's instruction	la instrucción del cursor
+the grammar has no scopeName	la gramática no tiene scopeName
+the high word	la palabra alta
+the next line's handler	el manejador de la línea siguiente
+the next plane	el siguiente plano
+the property list is empty	la lista de propiedades está vacía
+then the low word	luego la palabra baja
+until the line starts	hasta que empiece la línea
+vbcc	vbcc
+wait for line ${line:03X}, x $06	esperar a la línea ${line:03X}, x $06
+wait for the end of line 255: the next WAIT's line counts from 256	esperar al final de la línea 255: la línea del siguiente WAIT cuenta desde 256
+{conflicts} files have changed on both sides since the last sync. Tick each to choose that side's version.	{conflicts} archivos han cambiado en ambos lados desde la última sincronización. Marque cada uno para elegir la versión de ese lado.
+{count} lines of code	{count} líneas de código
+{count} lines on	{count} líneas más adelante
+{count} routines and {calls} calls. Click a routine to go to it.	{count} rutinas y {calls} llamadas. Haga clic en una rutina para ir a ella.
+{c} T-states	{c} T-states
+{c} cycles	{c} ciclos
+{errors} problems.	{errors} problemas.
+{from} isn't there.	{from} no está.
+{host} couldn't be found.	No se encontró {host}.
+{host} couldn't be found: {e}	No se encontró {host}: {e}
+{host} didn't greet as an FTP server does.\n\n{text}	{host} no saludó como lo hace un servidor FTP.\n\n{text}
+{host} doesn't offer TLS, so nothing was sent. An ftp:// address connects without it, password and all in the open.\n\n{text}	{host} no ofrece TLS, así que no se envió nada. Una dirección ftp:// se conecta sin él, con la contraseña y todo a la vista.\n\n{text}
+{host} isn't a name TLS can check a certificate against.	{host} no es un nombre con el que TLS pueda comprobar un certificado.
+{injections} grammars that only add to other languages' colouring are left out.	Se omiten {injections} gramáticas que solo añaden algo al resaltado de otros lenguajes.
+{path} has been changed on {host} since it was last fetched.\n\nReplace it with your version?	{path} ha cambiado en {host} desde la última vez que se obtuvo.\n\n¿Reemplazarlo con su versión?
+{path} isn't in the project's folder.	{path} no está en la carpeta del proyecto.
+{path} isn't on the server any more.	{path} ya no está en el servidor.
+{remote} couldn't be found.	No se encontró {remote}.
+{remote} isn't there after sending it.	{remote} no está después de enviarlo.
+{waiting} files to sync with {host}	{waiting} archivos por sincronizar con {host}
+{} at ${:04X}, line {} of {place}. Called from {callers} routines; calls {callees}.	{} en ${:04X}, línea {} de {place}. Llamada desde {callers} rutinas; llama a {callees}.
+{} couldn't be copied to build: {e}	No se pudo copiar {} para compilar: {e}
+{} couldn't be put in place: {e}	No se pudo poner {} en su sitio: {e}
+{} couldn't be removed: {e}	No se pudo eliminar {}: {e}
+{} didn't make an Amiga program.	{} no generó un programa de Amiga.
+{} doesn't compile for the {}.	{} no compila para el {}.
+{} downloads	{} descargas
+{} finished, but the program it should have made wasn't there.	{} terminó, pero el programa que debía generar no estaba.
+{} gives nothing Limoniter can take in: no colour themes, grammars, snippets, file icons or language settings. So it wasn't installed.	{} no aporta nada que Limoniter pueda aprovechar: ni temas de color, ni gramáticas, ni fragmentos de código, ni iconos de archivo, ni ajustes de lenguaje. Así que no se instaló.
+{} is installed.	{} está instalada.
+{} is removed.	{} se ha eliminado.
+{} on {}	{} en {}
+{} snippets, in Edit › Snippets, for {}	{} fragmentos de código, en Editar › Fragmentos de código, para {}
+{} stopped without saying why.	{} se detuvo sin decir por qué.
+{} took over {} seconds, so it was stopped.	{} tardó más de {} segundos, así que se detuvo.
+{} was assembled by SAS/C's asm, and isn't built here: assemble it with vasm (-Fhunk) and link it in, or rewrite it as C.	{} se ensamblaba con el asm de SAS/C, y aquí no se compila: ensámblelo con vasm (-Fhunk) y enlácelo, o reescríbalo en C.
+{} wasn't found on this computer. Get it from {}, or take out the // compiler: line to use another.	No se encontró {} en este equipo. Consígalo en {}, o quite la línea // compiler: para usar otro.
+{} works through its own program (JavaScript), which Limoniter doesn't run, and it gives nothing Limoniter can take in without it: no colour themes, grammars, snippets, file icons or language settings. So it wasn't installed.	{} funciona mediante su propio programa (JavaScript), que Limoniter no ejecuta, y sin él no aporta nada que Limoniter pueda aprovechar: ni temas de color, ni gramáticas, ni fragmentos de código, ni iconos de archivo, ni ajustes de lenguaje. Así que no se instaló.
+{}'s certificate isn't vouched for by an authority this computer trusts, as is usual for a server at home that made its own. Its fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.	El certificado de {} no lo avala ninguna autoridad en la que confíe este equipo, como es habitual en un servidor doméstico que se ha hecho el suyo propio. Su huella digital es\n\n{print}\n\nSi es la que el propietario del servidor dice que debe ser, confíe en él y conéctese.
+{}, line {} of {place}. Called from {callers}; calls {callees}.	{}, línea {} de {place}. Llamada desde {callers}; llama a {callees}.
+“{id}” isn't an extension's id, which is written publisher.name.	«{id}» no es un id de extensión, que se escribe publisher.name.
+↑ To the server	↑ Al servidor
+↓ From the server	↓ Del servidor
+#pragma {what} is SAS/C's own, and is left out here.	#pragma {what} es propio de SAS/C, y aquí se omite.
+#pragma {what} is SAS/C's way of calling a library: include the library's <proto/...> header instead, which {} understands.	#pragma {what} es la manera de SAS/C de llamar a una biblioteca: incluye en su lugar la cabecera <proto/...> de la biblioteca, que {} entiende.
+$D020 border	$D020 borde
+$D021 background	$D021 fondo
+$D022 background 1	$D022 fondo 1
+$D023 background 2	$D023 fondo 2
+$D024 background 3	$D024 fondo 3
+A hunk of a kind not written here (${other:X}).	Un hunk de un tipo que aquí no se escribe (${other:X}).
+It isn't the program made from this source.	No es el programa hecho a partir de esta fuente.
+It's read when the program stops.	Se lee cuando el programa se detiene.
+Made by Limoniter to run a program	Hecho por Limoniter para ejecutar un programa
+No time was spent on the program's own source lines.	No se pasó tiempo en las líneas de la fuente del propio programa.
+None chosen: Copperline uses its own AROS, a free stand-in for Kickstart that runs system-friendly programs, though not every demo.	Ninguno elegido: Copperline usa su propio AROS, un sustituto libre de Kickstart que ejecuta programas respetuosos con el sistema, aunque no todas las demos.
+Runs the program on for this many frames, counting where its time goes, and stops it again	Deja correr el programa estos cuadros, contando adónde va su tiempo, y lo detiene de nuevo
+Share	Parte
+Shift+F10	Shift+F10
+Step back	Paso atrás
+The latest release of {} has no download for Linux that Limoniter knows.	La última versión de {} no tiene ninguna descarga para Linux que Limoniter conozca.
+The profile couldn't be read: {e}	No se pudo leer el perfil: {e}
+The profile {path} couldn't be read: {e}	No se pudo leer el perfil {path}: {e}
+The tar file ends too soon.	El archivo tar termina demasiado pronto.
+{expression} isn't an address: {result}	{expression} no es una dirección: {result}
+{said} The program is started straight from its folder, which the Amiga sees as RunProg: and can write files to. With copperline-ctl beside Copperline, it's debugged there: breakpoints, stepping (backwards too) and the registers, in the Debug panel.	{said} El programa se inicia directamente desde su carpeta, que el Amiga ve como RunProg: y en la que puede escribir archivos. Con copperline-ctl junto a Copperline, se depura allí: puntos de interrupción, pasos (también hacia atrás) y los registros, en el panel de depuración.
+ (chip)	 (chip)
+A crunched Amiga file to decrunch	Un archivo de Amiga comprimido para descomprimir
+A program that decrunches itself as it starts	Un programa que se descomprime a sí mismo al arrancar
+BSS	BSS
+ByteKiller (or a cruncher built on it)	ByteKiller (o un compresor basado en él)
+CrunchMania (its decruncher in CrM.library)	CrunchMania (su descompresor en CrM.library)
+CrunchMania (its simple decruncher)	CrunchMania (su descompresor sencillo)
+Crunched	Comprimido
+Crunched with	Comprimido con
+Decrunched size	Tamaño descomprimido
+Disassemble shows it decrunched; Tools, Save the decrunched program… writes it out.	Desensamblar lo muestra descomprimido; Herramientas, Guardar el programa descomprimido… lo escribe.
+Imploder	Imploder
+Imploder (its decruncher in explode.library)	Imploder (su descompresor en explode.library)
+Its hunks	Sus hunks
+PowerPacker	PowerPacker
+PowerPacker, encrypted	PowerPacker, cifrado
+Relocations	Reubicaciones
+Save the decrunched file	Guardar el archivo descomprimido
+Save the decrunched file…	Guardar el archivo descomprimido…
+Save the decrunched program	Guardar el programa descomprimido
+Save the decrunched program…	Guardar el programa descomprimido…
+StoneCracker 2.9	StoneCracker 2.9
+StoneCracker 3.00	StoneCracker 3.00
+StoneCracker 3.10	StoneCracker 3.10
+StoneCracker 4.00	StoneCracker 4.00
+StoneCracker 4.01	StoneCracker 4.01
+StoneCracker 4.02	StoneCracker 4.02
+StoneCracker 4.10	StoneCracker 4.10
+StoneCracker 4.10 (its decruncher in stc.library)	StoneCracker 4.10 (su descompresor en stc.library)
+This file was crunched with PowerPacker and encrypted with a password, which Limoniter doesn't decrypt.	Este archivo se comprimió con PowerPacker y se cifró con una contraseña, que Limoniter no descifra.
+This file was crunched with {name}	Este archivo se comprimió con {name}
+This file was crunched with {name}, but it doesn't decrunch: it may be damaged or cut short.	Este archivo se comprimió con {name}, pero no se descomprime: puede estar dañado o cortado.
+This program was crunched with {name}	Este programa se comprimió con {name}
+This program was crunched with {name}, but it doesn't decrunch: it may be damaged, or crunched in a way Limoniter doesn't know.	Este programa se comprimió con {name}, pero no se descomprime: puede estar dañado, o comprimido de una forma que Limoniter no conoce.
+What it is	Qué es
+code	código
+{kind}{chip} {} bytes	{kind}{chip} {} bytes
+{name} isn't crunched with PowerPacker, Imploder, StoneCracker, CrunchMania or ByteKiller, as far as Limoniter can tell.	{name} no está comprimido con PowerPacker, Imploder, StoneCracker, CrunchMania ni ByteKiller, hasta donde Limoniter puede saber.
+{name} was crunched with {cruncher} ({} bytes): it's open as what it holds, {} bytes, read-only.	{name} se comprimió con {cruncher} ({} bytes): está abierto como lo que contiene, {} bytes, de solo lectura.
+{name}: {}; Disassemble shows it decrunched.	{name}: {}; Desensamblar lo muestra descomprimido.
+{}: opened, it shows as it is; Disassemble shows it decrunched.	{}: al abrirlo se muestra tal cual; Desensamblar lo muestra descomprimido.
+{}: opened, it shows as what it holds.	{}: al abrirlo se muestra lo que contiene.
+{}; saved decrunched as {} ({} bytes).	{}; guardado descomprimido como {} ({} bytes).
+{}; shown decrunched	{}; mostrado descomprimido
+{}; shown decrunched: {} bytes put at ${load:X} and started at ${start:X}	{}; mostrado descomprimido: {} bytes puestos en ${load:X} y arrancado en ${start:X}
+A smaller file	Un archivo más pequeño
+ASCII and UTF-8	ASCII y UTF-8
+ATASCII (Atari 8-bit)	ATASCII (Atari de 8 bits)
+An Ultimate set up in File, Send to device is offered here by name.	Un Ultimate configurado en Archivo, Enviar al dispositivo se ofrece aquí por su nombre.
+And {more} more: type more of the name.	Y {more} más: escriba más del nombre.
+And {others} from Kickstart or other programs.	Y {others} de Kickstart o de otros programas.
+Answer telnet's questions and keep them out of what's shown: for telnet servers and BBSes, not for a plain socket	Responder a las preguntas de telnet y no mostrarlas: para servidores telnet y BBS, no para un socket simple
+Any other speed, in bits a second	Cualquier otra velocidad, en bits por segundo
+At the end	Al final
+Blank check	Comprobar si está vacío
+Both ways, in hex with times	En ambos sentidos, en hexadecimal con horas
+Bytes in hex, such as 1B 5B 41	Bytes en hexadecimal, como 1B 5B 41
+CR LF	CR LF
+Chips for	Chips para
+Choose a serial port first.	Elija primero un puerto serie.
+Chosen	Elegido
+Connected: {}	Conectado: {}
+Copperline's debugger console, in its window	La consola del depurador de Copperline, en su ventana
+Copperline's frame analyser: who used the chip bus in each slot of a frame, the register writes and the CPU's waits	El analizador de fotogramas de Copperline: quién usó el bus de chips en cada ranura de un fotograma, las escrituras de registros y las esperas de la CPU
+Copperline's own debugger, in its window	El propio depurador de Copperline, en su ventana
+Couldn't connect to {host} on port {port}: {e}	No se pudo conectar con {host} en el puerto {port}: {e}
+Couldn't write to {}: {e}	No se pudo escribir en {}: {e}
+Data bits	Bits de datos
+Disconnect	Desconectar
+Don't erase first	No borrar antes
+Drop DTR for a moment, which resets an Arduino	Bajar DTR un momento, lo que reinicia un Arduino
+EPROM programmer (minipro)	Programador de EPROM (minipro)
+EPROM programmer: TL866 and T48 (minipro)…	Programador de EPROM: TL866 y T48 (minipro)…
+Ending	Final de línea
+Erase	Borrar
+Erased.	Borrado.
+Even	Par
+Every pin is making contact.	Todas las patillas hacen contacto.
+Files to send	Archivos que enviar
+Flow control	Control de flujo
+For a chip already blank, or a UV EPROM, which only a UV eraser can erase	Para un chip ya vacío, o una EPROM UV, que solo un borrador UV puede borrar
+For a chip whose ID doesn't match, such as another maker's copy	Para un chip cuyo ID no coincide, como la copia de otro fabricante
+For a machine that doesn't echo what's typed to it	Para una máquina que no devuelve el eco de lo que se le teclea
+Found {f}.	Encontrado: {f}.
+Frame analyser	Analizador de fotogramas
+Hardware	Hardware
+Ignore the chip's ID	Ignorar el ID del chip
+In Copperline's window:	En la ventana de Copperline:
+In circuit (ICSP)	En circuito (ICSP)
+Its console	Su consola
+Its debugger	Su depurador
+List the serial ports again, after plugging one in	Volver a listar los puertos serie, tras conectar uno
+Log to a file	Registrar en un archivo
+Log to a file…	Registrar en un archivo…
+Look for warnings	Buscar advertencias
+Network	Red
+No programmer found yet.	Aún no se ha encontrado ningún programador.
+No programmer was found. Is it plugged in (and, on Linux, are minipro's udev rules installed)?	No se encontró ningún programador. ¿Está conectado (y, en Linux, están instaladas las reglas udev de minipro)?
+No serial ports were found. Type the port's name in the box beside.	No se encontraron puertos serie. Escriba el nombre del puerto en el cuadro de al lado.
+None from the program.	Ninguna del programa.
+None yet	Aún ninguno
+Odd	Impar
+Open the ROM to write first: its file, or its bytes in the hex editor.	Abra primero la ROM que va a escribir: su archivo, o sus bytes en el editor hexadecimal.
+Open the file to send first.	Abra primero el archivo que va a enviar.
+Options	Opciones
+PETSCII, lower and upper case	PETSCII, minúsculas y mayúsculas
+PETSCII, upper case and graphics	PETSCII, mayúsculas y gráficos
+Parity	Paridad
+Pin contact check	Comprobación de contacto de las patillas
+Programmer: {found}	Programador: {found}
+RTS/CTS (hardware)	RTS/CTS (hardware)
+Read into a new tab	Leer en una pestaña nueva
+Read. The chip's contents are open in a new tab.	Leído. El contenido del chip está abierto en una pestaña nueva.
+Receive	Recibir
+Received {count} files, with {retries} blocks tried again.	Recibidos {count} archivos, con {retries} bloques reintentados.
+Receiving {name}: {done} bytes, {retries} tried again	Recibiendo {name}: {done} bytes, {retries} reintentados
+Repeated to fill the chip	Repetido hasta llenar el chip
+Reset (DTR)	Reiniciar (DTR)
+Save the file received	Guardar el archivo recibido
+Screen (VT100)	Pantalla (VT100)
+Self-modifying code	Código automodificable
+Send a break	Enviar un break
+Send files…	Enviar archivos…
+Send the file in front	Enviar el archivo que está delante
+Sending {name}: {done} bytes, {retries} tried again	Enviando {name}: {done} bytes, {retries} reintentados
+Sent, with {retries} blocks tried again.	Enviado, con {retries} bloques reintentados.
+Serial port	Puerto serie
+Serial terminal	Terminal serie
+Serial terminal and XMODEM/YMODEM…	Terminal serie y XMODEM/YMODEM…
+Show what's sent	Mostrar lo que se envía
+Speed	Velocidad
+Stop bits	Bits de parada
+Stop logging	Dejar de registrar
+TL866A or TL866CS	TL866A o TL866CS
+TL866II+	TL866II+
+Take the padding off	Quitar el relleno
+Telnet	Telnet
+That isn't hex: pairs of digits 0 to 9 and A to F, such as 1B 5B 41.	Eso no es hexadecimal: pares de dígitos del 0 al 9 y de la A a la F, como 1B 5B 41.
+The Ultimate 64 and Ultimate II+ take connections on the network: its modem (as a C64 terminal program sees it) on the port set in its Modem settings, 6400 unless changed; and its own menu over telnet, on port 23, once Telnet is turned on in its network settings.	El Ultimate 64 y el Ultimate II+ aceptan conexiones por la red: su módem (tal como lo ve un programa de terminal de C64) en el puerto fijado en su configuración de Modem, 6400 si no se ha cambiado; y su propio menú por telnet, en el puerto 23, una vez activado Telnet en su configuración de red.
+The chip holds {size} bytes.	El chip tiene capacidad para {size} bytes.
+The chip is blank.	El chip está en blanco.
+The chip is different from the file at ${address:04X}: the file has ${file:02X}, the chip ${chip:02X}.	El chip difiere del archivo en ${address:04X}: el archivo tiene ${file:02X} y el chip ${chip:02X}.
+The chip isn't blank: ${address:04X} holds ${chip:02X}.	El chip no está en blanco: ${address:04X} contiene ${chip:02X}.
+The chip's details are below.	Los datos del chip están abajo.
+The connection closed.	La conexión se cerró.
+The connection ended: {why}	La conexión terminó: {why}
+The connection failed: {e}	La conexión falló: {e}
+The custom chips	Los chips custom
+The file in front: {name}	El archivo que está delante: {name}
+The file is {have} bytes, but the chip holds only {room}.	El archivo tiene {have} bytes, pero el chip solo admite {room}.
+The file received	El archivo recibido
+The one plugged in	El que está conectado
+The other end closed the connection.	El otro extremo cerró la conexión.
+The other side cancelled the transfer.	El otro lado canceló la transferencia.
+The other side never began. Start the transfer there too (or first, if it's sending).	El otro lado no llegó a empezar. Inicie la transferencia también allí (o primero allí, si es el que envía).
+The other side sent blocks out of order, so the transfer was given up.	El otro lado envió bloques desordenados, así que se abandonó la transferencia.
+The port's name, typed: a pseudo-terminal or a port not listed	El nombre del puerto, escrito a mano: un pseudoterminal o un puerto que no aparece en la lista
+The transfer was stopped.	Se detuvo la transferencia.
+Times	Horas
+To write	A escribir
+Too many blocks went wrong, so the transfer was given up. A slower speed, or flow control, may help.	Fallaron demasiados bloques, así que se abandonó la transferencia. Puede ayudar una velocidad más baja o el control de flujo.
+Type a line to send	Escriba una línea para enviar
+Type part of its name: 27C256, AT28C64	Escriba parte de su nombre: 27C256, AT28C64
+Ultimate 64…	Ultimate 64…
+Verified: the chip matches the file.	Verificado: el chip coincide con el archivo.
+Verify	Verificar
+Waiting for the other side to begin…	Esperando a que el otro lado empiece…
+Warnings	Avisos
+Warnings ({mine})	Avisos ({mine})
+What Copperline saw the program do that the chips ignore or get wrong (a byte written to a word register, a read-only register written, a pointer past chip memory, a blit started over another) and code written after it ran	Lo que Copperline vio hacer al programa que los chips ignoran o hacen mal (un byte escrito en un registro de palabra, un registro de solo lectura escrito, un puntero más allá de la chip memory, un blit iniciado sobre otro) y código sobrescrito después de ejecutarse
+What came in, as it came	Lo que llegó, tal como llegó
+Write and verify	Escribir y verificar
+Written, and verified: the chip matches the file.	Escrito y verificado: el chip coincide con el archivo.
+Written.	Escrito.
+XMODEM (checksum, 128-byte blocks)	XMODEM (suma de comprobación, bloques de 128 bytes)
+XMODEM sends whole blocks, padded with byte $1A: take that off the end of what's received	XMODEM envía bloques enteros, rellenados con el byte $1A: quitarlo del final de lo recibido
+XMODEM-1K (CRC, 1024-byte blocks)	XMODEM-1K (CRC, bloques de 1024 bytes)
+XMODEM-CRC (128-byte blocks)	XMODEM-CRC (bloques de 128 bytes)
+XON/XOFF (software)	XON/XOFF (software)
+YMODEM (batch, with names and sizes)	YMODEM (por lotes, con nombres y tamaños)
+analyzer	analyzer
+console	console
+debugger	debugger
+device="$1" ;;	device="$1" ;;
+device="$1"; mode=info ;;	device="$1"; mode=info ;;
+echo "Devices: 7" >&2; exit 0 ;;	echo "Devices: 7" >&2; exit 0 ;;
+echo "Pin test passed." >&2 ;;	echo "Pin test passed." >&2 ;;
+exit 0 ;;	exit 0 ;;
+exit 1 ;;	exit 1 ;;
+file="$1"; mode=read ;;	file="$1"; mode=read ;;
+file="$1"; mode=verify ;;	file="$1"; mode=verify ;;
+file="$1"; mode=write ;;	file="$1"; mode=write ;;
+minipro answered, but didn't say which programmer it found.	minipro respondió, pero no dijo qué programador encontró.
+minipro couldn't be started: {e}	No se pudo iniciar minipro: {e}
+minipro doesn't know a chip called {device}. Choose one from its list.	minipro no conoce ningún chip llamado {device}. Elija uno de su lista.
+minipro isn't installed. It's made for Linux, BSD and macOS; on Windows, it can be built with MSYS2 from {HOME}, or XGecu's own Xgpro program used instead.	minipro no está instalado. Está hecho para Linux, BSD y macOS; en Windows se puede compilar con MSYS2 desde {HOME}, o usar en su lugar el propio programa Xgpro de XGecu.
+minipro isn't installed. Most Linux distributions have it as a package called minipro; or build it from {HOME}. Its udev rules let it use the programmer without being root.	minipro no está instalado. La mayoría de las distribuciones de Linux lo tienen como un paquete llamado minipro; o compílelo desde {HOME}. Sus reglas de udev le permiten usar el programador sin ser root.
+minipro isn't installed. With Homebrew: brew install minipro. Or build it from {HOME}.	minipro no está instalado. Con Homebrew: brew install minipro. O compílelo desde {HOME}.
+minipro reported a problem: {last}	minipro informó de un problema: {last}
+minipro's list of chips isn't here: is a programmer plugged in?	La lista de chips de minipro no está: ¿hay un programador conectado?
+minipro: {}	minipro: {}
+printf 'Chip ID: 0x1E08  OK\\nReading Code...  0.43Sec  OK\\n' >&2; cp "$chip" "$file" ;;	printf 'Chip ID: 0x1E08  OK\\nReading Code...  0.43Sec  OK\\n' >&2; cp "$chip" "$file" ;;
+printf 'Erasing... 0.10Sec  OK\\n' >&2; head -c 32768 /dev/zero | tr '\\000' '\\377' > "$chip" ;;	printf 'Erasing... 0.10Sec  OK\\n' >&2; head -c 32768 /dev/zero | tr '\\000' '\\377' > "$chip" ;;
+the rest filled with $	el resto rellenado con $
+then echo "Code memory section is blank." >&2; else	then echo "Code memory section is blank." >&2; else
+then echo "No programmer found." >&2; exit 1; fi	then echo "No programmer found." >&2; exit 1; fi
+then echo "Verification OK" >&2; else	then echo "Verification OK" >&2; else
+then printf 'Incorrect file size: %s (needed 32768, use -s/S to ignore)\\n' "$size" >&2; exit 1; fi	then printf 'Incorrect file size: %s (needed 32768, use -s/S to ignore)\\n' "$size" >&2; exit 1; fi
+{chip}: {size} bytes	{chip}: {size} bytes
+{chip}: {size} bytes, going by its name	{chip}: {size} bytes, a juzgar por su nombre
+{count} chips listed.	{count} chips en la lista.
+{host}: its menu over telnet, port 23	{host}: su menú por telnet, puerto 23
+{host}: its modem, port 6400	{host}: su módem, puerto 6400
+{name}, {size} bytes	{name}, {size} bytes

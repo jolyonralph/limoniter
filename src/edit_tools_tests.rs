@@ -669,3 +669,61 @@ fn column_mode_asked_for_with_word_wrap_on_offers_to_turn_word_wrap_off() {
     assert!(app.view.word_wrap);
     assert!(!app.docs[app.active].text.column_mode());
 }
+
+#[test]
+fn html_tags_close_themselves_and_their_partners_follow() {
+    let (mut app, ctx) = app_with_text(&["<ul>", "</ul>"]);
+    app.doc().text.markup = Some(true);
+    // > after an opening tag puts its closing tag after the cursor.
+    app.doc().text.move_caret(0, 4, false);
+    app.doc().text.new_line();
+    app.doc().text.type_text("<li class=\"x\"");
+    app.doc().text.type_text(">");
+    assert_eq!(&*app.doc().text.line(1), "<li class=\"x\"></li>");
+    // Renaming ul renames its closing tag too, in the same undo step.
+    app.doc().text.move_caret(0, 3, false);
+    app.doc().text.follow_tags();
+    app.doc().text.type_text("x");
+    app.doc().text.follow_tags();
+    assert_eq!(&*app.doc().text.line(0), "<ulx>");
+    assert_eq!(&*app.doc().text.line(2), "</ulx>");
+    // And the pair's found for highlighting.
+    let pair = app.doc().text.tag_pair.clone().expect("a pair");
+    assert_eq!((pair.0.line, pair.1.line), (0, 2));
+    app.doc().text.undo();
+    assert_eq!(&*app.doc().text.line(2), "</ul>");
+    let _ = ctx;
+}
+
+#[test]
+fn a_functions_doc_comment_is_written_from_its_signature() {
+    let (mut app, _ctx) = app_with_text(&["int main(void) {}", "", "static int add(int a,", "               int b) {", "    return a + b;", "}"]);
+    let engine = crate::highlight::load_now();
+    let syntax = engine.names().iter().find(|(n, _)| n == "C").map(|(_, s)| *s).unwrap();
+    app.doc().set_language(Language::Named(syntax));
+    app.doc().update_syntax();
+    app.doc().text.move_caret(2, 0, false);
+    app.write_doc_comment();
+    let text: Vec<String> = (0..10).map(|i| app.doc().text.line(i).to_string()).collect();
+    assert_eq!(&text[2..9], ["/**", " * ", " *", " * @param a ", " * @param b ", " * @return ", " */"]);
+    assert_eq!(app.doc().text.caret_line, 3, "on the summary");
+}
+
+#[test]
+fn markdown_lists_carry_on_and_problems_are_marked() {
+    let (mut app, ctx) = app_with_text(&["# Notes", "", "1. first"]);
+    let engine = crate::highlight::load_now();
+    let syntax = engine.names().iter().find(|(n, _)| n == "Markdown").map(|(_, s)| *s).unwrap();
+    app.doc().set_language(Language::Named(syntax));
+    app.doc().update_syntax();
+    frame(&mut app, &ctx, Vec::new());
+    app.doc().text.move_caret(2, 8, false);
+    app.doc().text.new_line();
+    assert_eq!(&*app.doc().text.line(3), "2. ");
+    app.doc().text.new_line();
+    assert_eq!(&*app.doc().text.line(3), "", "an empty item ends the list");
+    app.doc().text.type_text("#Bad");
+    frame(&mut app, &ctx, Vec::new());
+    let marked = app.doc().text.intel.as_ref().map(|i| i.diagnostics.clone()).unwrap_or_default();
+    assert!(marked.iter().any(|(line, words)| *line == 3 && words.starts_with("MD018")), "{marked:?}");
+}

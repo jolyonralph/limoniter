@@ -1,0 +1,49 @@
+%YAML 1.2
+---
+# Written for Limoniter from Sony's SPC700, the SNES's sound processor, as Sony's manual writes it: destination
+# first, ! for an absolute address, [dp+X] and [dp]+Y, and dp.bit and mem.bit for single bits.
+name: Assembly SPC700 (SNES sound)
+file_extensions: [spc700, s700]
+scope: source.assembly.spc700
+variables:
+  branch: (?:bbc|bbs|bcc|bcs|beq|bmi|bne|bpl|bvc|bvs|bra|brk|call|cbne|dbnz|jmp|pcall|ret|reti|tcall|sleep|stop)
+  instruction: (?:adc|addw|and|and1|asl|clr1|clrc|clrp|clrv|cmp|cmpw|daa|das|dec|decw|di|div|ei|eor|eor1|inc|incw|lsr|mov|mov1|movw|mul|nop|not1|notc|or|or1|pop|push|rol|ror|sbc|set1|setc|setp|subw|tclr1|tset1|xcn)
+  directive: (?:org|equ|db|dw|ds|byte|word|incbin|include|macro|endm|rept|endr|if|else|endif|align)
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.@][\w.@]*:{1,2}'
+      scope: entity.name.label.spc700
+    - match: '(?i)(?<![\w.])\.?(?:{{directive}})(?![\w.])'
+      scope: keyword.control.directive.spc700
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{branch}})(?![\w.])'
+      scope: keyword.control.branch.spc700
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{instruction}})(?![\w.])'
+      scope: support.function.instruction.spc700
+      push: operands
+    - match: '^[A-Za-z_.@][\w.@]*'
+      scope: entity.name.label.spc700
+    - match: '='
+      scope: keyword.operator.spc700
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i)(?<![\w.$@%&])(?:ya|sp|psw|[axyc])(?![\w$@])'
+      scope: variable.language.register.spc700
+    - match: '[+\-*/&|^~<>=!\[\]#]'
+      scope: keyword.operator.spc700
+  comment:
+    - match: ';.*$'
+      scope: comment.line.semicolon.spc700
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.spc700
+  numbers:
+    - match: '(?i)\$[0-9a-f]+|%[01]+|(?<![\w.$@])[0-9][0-9a-f]*h(?![\w.])|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.spc700

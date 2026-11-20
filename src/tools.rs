@@ -26,10 +26,93 @@ pub fn comment_marks(language: &str) -> Option<CommentMarks> {
         "Batch File" => line("REM"),
         "VimL" => line("\""),
         "Visual Basic" | "VBScript" | "ASP" => line("'"),
-        "Lisp" | "Clojure" | "Scheme" | "Assembly x86_64" | "Assembly 80x86" | "Assembly 680x0" | "Assembly 6502" | "Assembly Z80" | "INI" | "Racket" => line(";"),
+        "Lisp" | "Clojure" | "Scheme" | "Assembly x86_64" | "Assembly 80x86" | "Assembly 680x0" | "Assembly 6502" | "Assembly Z80" | "Assembly SM83 (Game Boy)" | "Assembly SPC700 (SNES sound)" | "INI" | "Racket" => line(";"),
         "LaTeX" | "TeX" | "MATLAB" | "Erlang" | "BibTeX" => line("%"),
-        _ => None,
+        // A language a VS Code extension gives says its own.
+        other => crate::vsix::comment_marks(other),
     }
+}
+
+/// The stretches of a line inside comments and strings, as byte ranges, for a search that looks in the code alone.
+/// `in_block` says whether the line begins inside a block comment, and is left saying whether the next does.
+/// A "string" runs to its closing quote; a '…' only counts if it closes on the same line, so a Lisp quote or
+/// an apostrophe in a word doesn't swallow the rest of the line.
+pub fn not_code(line: &str, marks: &CommentMarks, in_block: &mut bool) -> Vec<(usize, usize)> {
+    let mut found = Vec::new();
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    if *in_block {
+        let Some((_, close)) = marks.block else {
+            *in_block = false;
+            return found;
+        };
+        match line.find(close) {
+            Some(end) => {
+                found.push((0, end + close.len()));
+                i = end + close.len();
+                *in_block = false;
+            }
+            None => return vec![(0, line.len())],
+        }
+    }
+    while i < bytes.len() {
+        let rest = &line[i..];
+        if let Some(mark) = marks.line
+            && rest.starts_with(mark)
+            // A word-like marker (REM) only counts as a word of its own.
+            && (!mark.chars().all(char::is_alphabetic) || line[..i].chars().last().is_none_or(|c| !c.is_alphanumeric()))
+        {
+            found.push((i, line.len()));
+            return found;
+        }
+        if let Some((open, close)) = marks.block
+            && rest.starts_with(open)
+        {
+            match rest[open.len()..].find(close) {
+                Some(end) => {
+                    let stop = i + open.len() + end + close.len();
+                    found.push((i, stop));
+                    i = stop;
+                    continue;
+                }
+                None => {
+                    found.push((i, line.len()));
+                    *in_block = true;
+                    return found;
+                }
+            }
+        }
+        let c = bytes[i];
+        if c == b'"' || (c == b'\'' && marks.line != Some("'")) {
+            let mut j = i + 1;
+            let mut closed = None;
+            while j < bytes.len() {
+                if bytes[j] == b'\\' {
+                    j += 2;
+                    continue;
+                }
+                if bytes[j] == c {
+                    closed = Some(j + 1);
+                    break;
+                }
+                j += 1;
+            }
+            match closed {
+                Some(stop) => {
+                    found.push((i, stop));
+                    i = stop;
+                    continue;
+                }
+                None if c == b'"' => {
+                    found.push((i, line.len()));
+                    return found;
+                }
+                None => {}
+            }
+        }
+        i += line[i..].chars().next().map_or(1, char::len_utf8);
+    }
+    found
 }
 
 /// Reads a file to put its text in at the cursor. It's read in its own encoding, whatever the document's is.
@@ -135,6 +218,18 @@ mod tests {
     #[test]
     fn languages_have_their_own_comment_marks_and_unknown_ones_have_none() {
         assert_eq!(comment_marks("Rust").unwrap().line, Some("//"));
+        // What's code and what isn't, carried across lines for a block comment.
+        let c = comment_marks("C").unwrap();
+        let mut in_block = false;
+        let line = r#"call("a \" b"); x /* note */ y; // rest"#;
+        let stretches: Vec<&str> = not_code(line, &c, &mut in_block).iter().map(|(a, z)| &line[*a..*z]).collect();
+        assert_eq!(stretches, [r#""a \" b""#, "/* note */", "// rest"]);
+        assert_eq!(not_code("a /* opens", &c, &mut in_block), [(2, 10)]);
+        assert!(in_block);
+        assert_eq!(not_code("still */ code", &c, &mut in_block), [(0, 8)]);
+        assert!(!in_block);
+        let lisp = comment_marks("Lisp").unwrap();
+        assert_eq!(not_code("(quote 'x) ; why", &lisp, &mut in_block), [(11, 16)], "an unclosed ' isn't a string");
         for assembler in ["Assembly x86_64", "Assembly 80x86", "Assembly 680x0", "Assembly 6502", "Assembly Z80"] {
             assert_eq!(comment_marks(assembler).unwrap().line, Some(";"), "{assembler}");
         }

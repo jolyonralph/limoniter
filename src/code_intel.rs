@@ -45,6 +45,8 @@ pub struct CodeIntel {
     pub atari: Option<Arc<crate::st_source::Source>>,
     /// For 6502 source: what it does with the Commodore 64's chips and which KERNAL routines it calls.
     pub c64: Option<Arc<crate::c64_source::Source>>,
+    /// Boriel's ZX Basic: its words are described on hover, and its comments start with ' rather than ;.
+    pub boriel: bool,
 }
 
 impl PartialEq for CodeIntel {
@@ -162,6 +164,10 @@ impl CodeIntel {
         {
             return Some(words.clone());
         }
+        // Boriel's ZX Basic's words and its library's.
+        if self.boriel {
+            return word_at(text, col).filter(|_| !crate::boriel::in_comment_or_string(text, col)).and_then(|(_, _, word)| crate::boriel::describe(&word));
+        }
         // The Commodore 64's chips and KERNAL, for 6502 source.
         if let Some(c64) = self.c64.as_ref().filter(|s| s.c64)
             && !in_comment_or_string(text, col)
@@ -239,8 +245,12 @@ impl CodeIntel {
         {
             return crate::st_source::Source::function_names(&prefix);
         }
+        // Boriel's ZX Basic's comments start with ', and its semicolons are PRINT's.
+        if self.boriel && crate::boriel::in_comment_or_string(text, col) {
+            return Vec::new();
+        }
         // C's semicolons end statements, not lines: only assembler and BASIC have comments that way.
-        if (self.amiga.is_none() || self.cpu.is_some()) && in_comment_or_string(text, col) {
+        if !self.boriel && (self.amiga.is_none() || self.cpu.is_some()) && in_comment_or_string(text, col) {
             return Vec::new();
         }
         let Some((word_start, prefix)) = prefix_at(text, col) else {
@@ -335,6 +345,13 @@ fn words_for(cpu: Cpu) -> Vec<String> {
             "bits", "cpu", "times", "resb", "resw", "resd", "dq",
             // The x87's commonest.
             "fld", "fst", "fstp", "fild", "fist", "fistp", "fadd", "faddp", "fsub", "fsubp", "fmul", "fmulp", "fdiv", "fdivp", "fcom", "fcomp", "fxch", "fsqrt", "fabs", "fchs", "fldz", "fld1", "fldpi", "finit", "fninit", "fwait",
+        ],
+        Cpu::Sm83 => &[
+            "adc", "add", "and", "bit", "call", "ccf", "cp", "cpl", "daa", "dec", "di", "ei", "halt", "inc", "jp", "jr", "ld", "ldh", "ldi", "ldd", "nop", "or", "pop", "push", "res", "ret", "reti", "rl", "rla", "rlc", "rlca", "rr", "rra", "rrc", "rrca", "rst", "sbc", "scf", "set", "sla", "sra", "srl", "stop", "sub", "swap", "xor",
+            "section", "def", "export",
+        ],
+        Cpu::Spc700 => &[
+            "adc", "addw", "and", "and1", "asl", "bbc", "bbs", "bcc", "bcs", "beq", "bmi", "bne", "bpl", "bra", "brk", "bvc", "bvs", "call", "cbne", "clr1", "clrc", "clrp", "clrv", "cmp", "cmpw", "daa", "das", "dbnz", "dec", "decw", "di", "div", "ei", "eor", "eor1", "inc", "incw", "jmp", "lsr", "mov", "mov1", "movw", "mul", "nop", "not1", "notc", "or", "or1", "pcall", "pop", "push", "ret", "reti", "rol", "ror", "sbc", "set1", "setc", "setp", "sleep", "stop", "subw", "tcall", "tclr1", "tset1", "xcn",
         ],
         Cpu::Arm => &[
             "adc", "add", "adr", "and", "b", "beq", "bne", "bcs", "bcc", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bic", "bl", "cdp", "cmn", "cmp", "eor", "ldc", "ldmfd", "ldmia", "ldmib", "ldmda", "ldmdb", "ldr", "ldrb", "mcr", "mla", "mov", "movs", "mrc", "mul", "mvn", "nop", "orr", "rsb", "rsc", "sbc", "stc", "stmfd", "stmia", "stmib", "stmda", "stmdb", "str", "strb", "sub", "subs", "swi", "swp", "swpb", "teq", "teqp", "tst",

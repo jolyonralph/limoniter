@@ -90,6 +90,13 @@ impl Limoniter {
             return;
         }
         let Some(cpu) = cpu else {
+            // Boriel's ZX Basic: its words and its library's, each described.
+            if language == highlight::BASIC_BORIEL {
+                if doc.text.intel.as_ref().is_none_or(|i| !i.boriel) {
+                    doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel { boriel: true, ..crate::code_intel::CodeIntel::keywords(crate::boriel::keywords()) }));
+                }
+                return;
+            }
             // BASIC: its keywords.
             let spectrum = match &doc.listing_of {
                 Some((basic::Machine::Next, _)) => Some(Some(basic::ZxDialect::Next)),
@@ -100,15 +107,15 @@ impl Limoniter {
             // C for the Amiga: its system functions, when the NDK is there.
             let amiga_c = spectrum.is_none() && amiga_c_source(doc);
             match spectrum {
-                Some(dialect) if doc.text.intel.as_ref().is_none_or(|i| i.cpu.is_some() || i.words.is_empty()) => doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::keywords(basic::keywords(dialect)))),
+                Some(dialect) if doc.text.intel.as_ref().is_none_or(|i| i.cpu.is_some() || i.words.is_empty() || i.boriel) => doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::keywords(basic::keywords(dialect)))),
                 Some(_) => {}
                 None if amiga_c => match crate::amiga_ndk::current() {
                     Some(ndk) => doc.text.intel.get_or_insert_with(Box::default).amiga = Some(ndk),
                     None if doc.text.intel.as_ref().is_some_and(|i| i.lsp || !i.build_problems.is_empty()) => {}
                     None => doc.text.intel = None,
                 },
-                // What a language server says is kept.
-                None if doc.text.intel.as_ref().is_some_and(|i| i.lsp || !i.build_problems.is_empty()) => {}
+                // What a language server says is kept, and Markdown's own problems.
+                None if doc.text.intel.as_ref().is_some_and(|i| i.lsp || !i.build_problems.is_empty()) || doc.text.markdown => {}
                 None => doc.text.intel = None,
             }
             return;
@@ -330,7 +337,7 @@ impl Limoniter {
                     self.memory_map = Some(map);
                 }
             }
-            Err(problem) if problem == ASK_6502 => lines.push(crate::i18n::tr("It doesn't say whether it's for a Commodore 64, a BBC Micro or an Atari 2600. Put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top to say.").into()),
+            Err(problem) if problem == ASK_6502 => lines.push(crate::i18n::tr("It doesn't say whether it's for a Commodore 64, a BBC Micro, an Atari 2600 or an NES. Put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top to say.").into()),
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
             Err(_) if assembly.ok() => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
@@ -643,6 +650,8 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
                 }
             }
         }
+        // A cartridge for one of Sega's consoles, or the ColecoVision, as the source says or its header shows.
+        Cpu::M68k | Cpu::Z80 if assembled.tape.is_none() && let Some(made) = console_cartridge(cpu, assembled, stem) => made.map(Made::Run),
         // An Amiga executable, made by the assembler from source for the Amiga.
         Cpu::M68k if assembled.tape.is_some() => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
         // An Atari ST program, if it isn't put at an address of its own: else the bytes as they go in memory.
@@ -662,6 +671,20 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
             Ok(Made::Saved { name: format!("{stem}.bin"), bytes: assembly.image(low, high) })
         }
         Cpu::X86 => pc_program(&assembled.assembly, stem).map(Made::Run),
+        // The SNES's sound processor's code, to be loaded into its RAM by the SNES's own program.
+        Cpu::Spc700 => {
+            let assembly = &assembled.assembly;
+            let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+                return Err(crate::i18n::tr("Nothing was assembled.").into());
+            };
+            Ok(Made::Saved { name: format!("{stem}.bin"), bytes: assembly.image(low, high) })
+        }
+        // A Game Boy cartridge, its header made complete.
+        Cpu::Sm83 => {
+            let bytes = crate::gameboy::cartridge(&assembled.assembly, stem)?;
+            let format = if crate::gameboy::ending(&bytes) == "gbc" { Format::Gbc } else { Format::Gb };
+            Ok(Made::Run(Runnable { machine: Machine::GameBoy, format, name: format!("{stem}.{}", format.ending()), bytes: Arc::new(bytes) }))
+        }
         // A RISC OS application's code, run where RISC OS puts it, at &8000: an Absolute file (type FF8), named
         // as RISC OS's files are kept on other computers, with ,ff8 after the name.
         Cpu::Arm => {
@@ -674,6 +697,45 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
         }
         _ => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
     }
+}
+
+/// A Mega Drive cartridge from 68000 source, or a Master System, Game Gear, SG-1000 or ColecoVision cartridge
+/// from Z80 source, if the source says so (; machine: megadrive, sms, gamegear, sg1000 or coleco) or its bytes
+/// show it: a Mega Drive's header at $100, TMR SEGA at $7FF0, or a ColecoVision's AA 55 at $8000. None for
+/// anything else, which is made as before.
+fn console_cartridge(cpu: Cpu, assembled: &Assembled, stem: &str) -> Option<Result<Runnable, String>> {
+    let assembly = &assembled.assembly;
+    let lines = || assembled.source.as_deref().unwrap_or_default().lines();
+    let (low, high) = (assembly.lowest()?, assembly.highest()?);
+    let image = || assembly.image(low, high);
+    let at_zero = |what: &str| if low == 0 { Ok(()) } else { Err(crate::i18n::tf!("A {what} cartridge starts at address 0, but this starts at ${low:04X}: put ORG 0 at its top.")) };
+    let (machine, format, bytes) = if cpu == Cpu::M68k {
+        if !crate::sega::says_mega_drive(lines()) && !(low == 0 && crate::sega::is_mega_drive(&image())) {
+            return None;
+        }
+        let made = at_zero("Mega Drive").and_then(|()| crate::sega::fix_mega_drive(image()));
+        (Machine::MegaDrive, Format::MdRom, made)
+    } else {
+        let said = crate::sega::machine_z80(lines());
+        let shown = || {
+            let bytes = image();
+            if low == 0x8000 && crate::sega::is_coleco(&bytes) {
+                Some(Machine::ColecoVision)
+            } else if low == 0 {
+                crate::sega::sms_header(&bytes).map(|(_, region)| if region >= 5 { Machine::GameGear } else { Machine::MasterSystem })
+            } else {
+                None
+            }
+        };
+        match said.or_else(shown)? {
+            Machine::MasterSystem => (Machine::MasterSystem, Format::SmsRom, at_zero("Master System").and_then(|()| crate::sega::fix_sms(image(), false))),
+            Machine::GameGear => (Machine::GameGear, Format::GgRom, at_zero("Game Gear").and_then(|()| crate::sega::fix_sms(image(), true))),
+            Machine::Sg1000 => (Machine::Sg1000, Format::SgRom, at_zero("SG-1000").and_then(|()| crate::sega::fix_sg1000(image()))),
+            _ if low != 0x8000 => (Machine::ColecoVision, Format::ColRom, Err(crate::i18n::tf!("A ColecoVision cartridge starts at $8000, but this starts at ${low:04X}: put ORG $8000 at its top."))),
+            _ => (Machine::ColecoVision, Format::ColRom, crate::sega::fix_coleco(image())),
+        }
+    };
+    Some(bytes.map(|bytes| Runnable { machine, format, name: format!("{stem}.{}", format.ending()), bytes: Arc::new(bytes) }))
 }
 
 /// Which machine 6809 source says it's for, near its top: ; machine: dragon32 (or dragon64, coco or vectrex).
@@ -690,6 +752,17 @@ pub fn machine_6809<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Mach
             "vectrex" => Some(Machine::Vectrex),
             _ => None,
         }
+    })
+}
+
+/// The machine Z80 source names in a `; machine:` comment near its top, where it's one with a way of its own to run
+/// code: the ZX81.
+pub fn machine_z80<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Machine> {
+    lines.into_iter().take(50).find_map(|line| {
+        let comment = line.trim_start().strip_prefix(';').or_else(|| line.trim_start().strip_prefix("//"))?;
+        let comment = comment.trim_start_matches([';', '/', ' ', '\t']).to_ascii_lowercase();
+        let value = comment.strip_prefix("machine")?.trim_start().strip_prefix(':')?.trim().replace(' ', "");
+        matches!(value.as_str(), "zx81" | "ts1000" | "timexsinclair1000").then_some(Machine::Zx81)
     })
 }
 
@@ -779,8 +852,30 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
                 }
                 Ok(Runnable { machine: Machine::Atari2600, format: Format::A26, name: format!("{stem}.a26"), bytes: Arc::new(bytes) })
             }
+            // An NES cartridge, with its iNES header.
+            Some(Micro6502::Nes) => {
+                let bytes = crate::nes::cartridge(assembly, assembled.source.as_deref())?;
+                Ok(Runnable { machine: Machine::Nes, format: Format::Nes, name: format!("{stem}.nes"), bytes: Arc::new(bytes) })
+            }
             None => Err(ASK_6502.to_string()),
         };
+    }
+    // A ZX81's: said so in the source, or put where a ZX81 program's code goes.
+    let said = assembled.source.as_deref().and_then(|text| machine_z80(text.lines()));
+    if said == Some(Machine::Zx81) || (said.is_none() && assembly.lowest().is_some_and(crate::zx81_program::is_zx81_code)) {
+        let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+            return Err(crate::i18n::tr("Nothing was assembled.").into());
+        };
+        let image = assembly.image(low, high);
+        let bytes = if low == i64::from(crate::zx81::FILE_START) {
+            // The source made the whole program, its system variables and all.
+            crate::basic_extra::zx81_skip(&image).map_err(|problem| crate::i18n::tf!("This is put at $4009, as a whole ZX81 program, but it isn't one: {problem}"))?;
+            image
+        } else {
+            let start = assembly.start().unwrap_or(low);
+            crate::zx81_program::machine_code(&image, u16::try_from(low).unwrap_or(0), u16::try_from(start).unwrap_or(0))?
+        };
+        return Ok(Runnable { machine: Machine::Zx81, format: Format::P, name: format!("{stem}.p"), bytes: Arc::new(bytes) });
     }
     let device = assembly.device.clone().unwrap_or_default();
     if device.contains("NEXT") {
@@ -803,4 +898,28 @@ fn amiga_c_source(doc: &super::Document) -> bool {
         let line = line.trim_start();
         line.starts_with("#include") && ["<exec/", "<proto/", "<clib/", "<intuition/", "<dos/", "<graphics/", "<libraries/", "<workbench/", "<devices/", "<pragmas/", "<inline/"].iter().any(|h| line.contains(h))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assemblers::assemble_own;
+
+    /// What F9 makes of the Game Boy's and the NES's starters, and of SPC700 code: a cartridge each to run, and the
+    /// sound processor's bytes to save.
+    #[test]
+    fn f9_makes_game_boy_and_nes_cartridges() {
+        let made = |cpu: Cpu, text: &str| made_from(cpu, &assemble_own(cpu, Path::new("p.asm"), text), "p", Micro::default());
+        let Ok(Made::Run(gb)) = made(Cpu::Sm83, crate::gameboy::STARTER) else { panic!("a Game Boy cartridge") };
+        assert_eq!((gb.machine, gb.format, gb.name.as_str(), gb.bytes.len()), (Machine::GameBoy, Format::Gb, "p.gb", 0x8000));
+        assert!(crate::gameboy::header(&gb.bytes).unwrap().checksum_right);
+        let Ok(Made::Run(nes)) = made(Cpu::M6502, crate::nes::STARTER) else { panic!("an NES cartridge") };
+        assert_eq!((nes.machine, nes.format, nes.name.as_str()), (Machine::Nes, Format::Nes, "p.nes"));
+        let Ok(Made::Saved { name, bytes }) = made(Cpu::Spc700, "  org $0200\nloop: bra loop\n") else { panic!("SPC700 bytes") };
+        assert_eq!((name.as_str(), bytes), ("p.bin", vec![0x2F, 0xFE]));
+        // An NES program is known by its code too, with nothing said.
+        let unsaid = "  org $C000\nreset: lda #0\n  sta $2001\nloop: jmp loop\n  org $FFFA\n  .word reset,reset,reset\n";
+        let Ok(Made::Run(nes)) = made(Cpu::M6502, unsaid) else { panic!("an NES cartridge") };
+        assert_eq!(nes.machine, Machine::Nes);
+    }
 }

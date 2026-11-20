@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>14. The 68000 and later processors · How To Code v8</title>
+  <meta name="description" content="Every Amiga has a processor from Motorola&#x27;s 68000 family, but not the same one.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/14-processors.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/14-processors.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="14. The 68000 and later processors · How To Code v8">
+  <meta property="og:description" content="Every Amiga has a processor from Motorola&#x27;s 68000 family, but not the same one.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/14-processors.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html" aria-current="page">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>14. The 68000 and later processors</h1>
+        <div class="article-lead">
+<p>Every Amiga has a processor from Motorola's 68000 family, but not the same one. The Amiga 500 has a 68000 at 7 MHz; the A1200 a 68020 at 14 MHz; accelerator boards bring 68030s, 68040s and 68060s, and today FPGA processors that are faster still. A demo is usually written for the first and has to survive the rest.</p>
+<p>This chapter is about both halves of that. First, how fast things really are on the A500's 68000: what each instruction costs, why the same code runs at different speeds in different memory, and which of v7's optimisation tips still hold. Then what changes on each later processor, and what breaks. Throughout, it measures rather than guesses, with the oldest tool there is: the raster bar.</p>
+<figure class="guide-shot"><img src="images/ch14_rastertime_a500.png" alt="ch14_rastertime.s on an emulated Amiga 500: ten routines, each a band as tall as the time it took" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#which-processor-is-this">Which processor is this?</a></li>
+<li><a href="#the-68000-in-the-amiga-500">The 68000 in the Amiga 500</a></li>
+<li><a href="#v7-s-68000-tips-checked">v7's 68000 tips, checked</a></li>
+<li><a href="#the-68010">The 68010</a></li>
+<li><a href="#the-68020-and-68030">The 68020 and 68030</a></li>
+<li><a href="#the-68040-and-68060">The 68040 and 68060</a></li>
+<li><a href="#the-68080">The 68080</a></li>
+<li><a href="#measuring-raster-time">Measuring: raster time</a></li>
+<li><a href="#the-examples">The examples</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="which-processor-is-this">Which processor is this?</h2>
+<p>Exec knows, and keeps it in <code>AttnFlags</code>, a word in ExecBase. Each bit says a processor (or a maths coprocessor) is there. From the NDK 3.2's <code>exec/execbase.i</code>:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Bit</th>
+<th scope="col">Name</th>
+<th scope="col">Set for</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">0</th>
+<td><code>AFB_68010</code></td>
+<td>a 68010, and every later processor</td>
+</tr>
+<tr>
+<th scope="row">1</th>
+<td><code>AFB_68020</code></td>
+<td>a 68020 and later</td>
+</tr>
+<tr>
+<th scope="row">2</th>
+<td><code>AFB_68030</code></td>
+<td>a 68030 and later (Kickstart 2 on)</td>
+</tr>
+<tr>
+<th scope="row">3</th>
+<td><code>AFB_68040</code></td>
+<td>a 68040 and later (Kickstart 2 on)</td>
+</tr>
+<tr>
+<th scope="row">4</th>
+<td><code>AFB_68881</code></td>
+<td>a 68881 or 68882 maths coprocessor</td>
+</tr>
+<tr>
+<th scope="row">5</th>
+<td><code>AFB_68882</code></td>
+<td>a 68882 (Kickstart 2 on)</td>
+</tr>
+<tr>
+<th scope="row">6</th>
+<td><code>AFB_FPU40</code></td>
+<td>the 68040's own FPU</td>
+</tr>
+<tr>
+<th scope="row">7</th>
+<td><code>AFB_68060</code></td>
+<td>a 68060</td>
+</tr>
+<tr>
+<th scope="row">10</th>
+<td><code>AFB_FPGA</code></td>
+<td>an FPGA processor (named in the NDK 3.2)</td>
+</tr>
+</tbody></table></div>
+<p>The processor bits add up: a 68030 sets bits 0, 1 and 2. So test the highest first. This is <code>WhichProcessor</code> from <code>ch14_rastertime.s</code>:</p>
+<div class="code-block"><pre><code>WhichProcessor:
+        move.l  ExecBase.w,a6
+        move.w  AttnFlags(a6),d0
+        lea     Name68060,a0
+        btst    #AFB_68060,d0
+        bne.s   .known
+        lea     Name68040,a0
+        btst    #AFB_68040,d0
+        bne.s   .known
+        lea     Name68030,a0
+        btst    #AFB_68030,d0
+        bne.s   .known
+        lea     Name68020,a0
+        btst    #AFB_68020,d0
+        bne.s   .known
+        lea     Name68010,a0
+        btst    #AFB_68010,d0
+        bne.s   .known
+        lea     Name68000,a0
+.known:
+        rts</code></pre></div>
+<p>Some things to know about it:</p>
+<ul><li><strong>Kickstart 1.3 knows only bits 0, 1 and 4.</strong> v7 marked the others "V37+". On 1.3 a 68030 shows as a 68020, and a 68040 or 68060 isn't known at all (1.3 was never made for them, though FS-UAE will boot it on an emulated 68040).</li><li><strong>Bit 7 isn't set by Kickstart 3.1.</strong> Its exec doesn't know the 68060: it's the board's <code>68060.library</code> that sets the bit, when it's loaded. Without it, a 68060 shows as a 68040. FS-UAE's 68060, run on Kickstart 3.1 with no 68060.library, did exactly that: <code>ch14_rastertime.s</code> said "CPU 68040". Not every 68060.library sets it, either: Thomas Richter's notes to his MMULib, in the NDK 3.2, say the one for the Apollo LC75 board didn't. So read "68040" as "68040 or later".</li><li><strong>A non-zero <code>AttnFlags</code> doesn't mean a faster processor.</strong> v7's warning still holds: a 68881 maths chip can sit beside a plain 68000.</li><li><strong>It doesn't tell you the speed.</strong> A 68000 can be at 7 MHz or 14 MHz, and a 68030 anything from 16 to 50 MHz. Never use the processor type to time anything: use the beam, the CIA timers or the frame (<a href="03-general-guidelines.html">general guidelines</a> says more).</li></ul>
+<h2 id="the-68000-in-the-amiga-500">The 68000 in the Amiga 500</h2>
+<h3 id="clocks-memory-cycles-and-raster-lines">Clocks, memory cycles and raster lines</h3>
+<p>A PAL Amiga 500's 68000 runs at 7.09 MHz (an NTSC one at 7.16). Each time it reads or writes memory takes 4 of its clock cycles at least. The custom chips count in <strong>colour clocks</strong>, half the processor's speed: one colour clock is one memory slot, about 280 nanoseconds, and a PAL line is 227 of them. (The HRM's figure is 227.5, which is NTSC's average: its lines alternate between 227 and 228.)</p>
+<p>So a PAL line lasts 454 of the 68000's clocks, about 64 microseconds, and a frame of 312 lines about 141,600. That's the budget. A routine that takes 20 lines takes a fifteenth of the frame.</p>
+<p>Motorola's manual gives every instruction's time in clocks, written like <strong>12(1/2)</strong>: 12 clocks in all, of which 1 is a read and 2 are writes (each read or write takes 4 clocks; the rest is the processor working inside). The figures below are from the <em>M68000 8-/16-/32-Bit Microprocessors User's Manual</em> (Motorola, 1993, on bitsavers.org), checked against a second copy of the tables (the NVG Amiga archive's "MC68000 Instructions timing").</p>
+<h3 id="sharing-chip-ram-the-processor-s-turns">Sharing chip RAM: the processor's turns</h3>
+<p>The chips and the processor share chip RAM, and take turns at it, one slot each colour clock. The <em>Hardware Reference Manual</em> (HRM) explains the order: disk, audio, sprites and the display have first claim on the slots they're given; then the copper; then the blitter; and last the processor. And: "The 68000 uses only the even-numbered memory access cycles." The display's slots are the odd ones, as long as there are no more than four low-resolution bitplanes; so with up to four, a 68000 hardly notices the display.</p>
+<p>More bitplanes than that, and the display starts taking even slots too. <code>ch14_contention.s</code> shows it. The copper divides the screen into six zones, each with a different display, and all the way down the processor does the same small job again and again: write 256 bytes to chip RAM. Each time, it changes the background colour, so each stripe is one go, and each zone's label gives the average time of a go there.</p>
+<figure class="guide-shot"><img src="images/ch14_contention.png" alt="ch14_contention.s on an emulated Amiga 500: the stripes get taller where the display takes the processor&#x27;s turns" loading="lazy"></figure>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Display in the zone</th>
+<th scope="col">A500, 68000</th>
+<th scope="col">A500, program in fast RAM</th>
+<th scope="col">A1200, 68020</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">1 bitplane</th>
+<td>2.8 lines</td>
+<td>2.7</td>
+<td>0.8</td>
+</tr>
+<tr>
+<th scope="row">4 bitplanes</th>
+<td>2.8</td>
+<td>2.7</td>
+<td>0.9</td>
+</tr>
+<tr>
+<th scope="row">5 bitplanes</th>
+<td>3.2</td>
+<td>3.1</td>
+<td>0.9</td>
+</tr>
+<tr>
+<th scope="row">6 bitplanes</th>
+<td>3.9</td>
+<td>3.1</td>
+<td>1.1</td>
+</tr>
+<tr>
+<th scope="row">2 high resolution bitplanes</th>
+<td>3.0</td>
+<td>3.0</td>
+<td>0.9</td>
+</tr>
+<tr>
+<th scope="row">4 high resolution bitplanes</th>
+<td>8.8</td>
+<td>8.0</td>
+<td>2.7</td>
+</tr>
+</tbody></table></div>
+<p>Up to four low-resolution bitplanes cost nothing. Six take 40% longer: the HRM says six bitplanes take half the processor's slots ("bitplane DMA steals 50 percent of the open slots"), but only while the display is being fetched, about 70% of each line. Four high-resolution bitplanes take every slot while the line is shown (the HRM: it "effectively locks out the 68000 ... from any memory access during the display"), and the job runs only in the borders, three times slower.</p>
+<p>That's the display. The blitter, while it's running, takes the even slots too: see <a href="07-blitter.html#the-blitter-nasty">the blitter nasty</a>.</p>
+<p>Three things follow:</p>
+<ul><li><strong>The processor's own instructions are memory reads too.</strong> On an A500 the program is in chip RAM, or in the slow RAM of a trapdoor expansion, so even code that touches no data waits for its turns. With the program in fast RAM (the second column), only the job's writes wait, and six bitplanes cost 15% instead of 40%.</li><li><strong>Slow RAM is no faster than chip RAM.</strong> The A500's trapdoor RAM at <code>$C00000</code> is on the same bus as chip RAM, and waits for the same slots; only the chips can't reach it. (<a href="03-general-guidelines.html">General guidelines</a> has more on slow RAM.)</li><li><strong>Fast RAM doesn't wait at all.</strong> Real fast RAM (an A590's, or any Zorro board's) is on the processor's own side, and the chips never use it.</li></ul>
+<h3 id="not-quite-the-manual-s-figures-in-chip-and-slow-ram">Not quite the manual's figures, in chip and slow RAM</h3>
+<p>There's a subtler cost. The processor's turns come every 4 clocks, and its memory accesses take 4 clocks; but many instructions spend 2 clocks working inside, between their accesses (<code>DBF</code> takes 10, a <code>MULU #40</code> 46). After those, the next access has to wait for the next slot. The HRM: "Some 68000 instructions do not match perfectly with the allocation of even cycles and cause cycles to be missed."</p>
+<p>The raster time example shows how much. Here are its ten routines on the emulated A500, with the time Motorola's figures give (plus about half a line for the timing code around each), the time with the program in slow RAM, and with it in fast RAM:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Routine</th>
+<th scope="col">By the book</th>
+<th scope="col">Slow RAM</th>
+<th scope="col">Fast RAM</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Clear 1536 bytes, <code>CLR.L (A0)+</code> loop</th>
+<td>25.9 lines</td>
+<td>27.0</td>
+<td>27.0</td>
+</tr>
+<tr>
+<th scope="row">... <code>MOVE.L D1,(A0)+</code> loop</th>
+<td>19.2</td>
+<td>20.4</td>
+<td>20.4</td>
+</tr>
+<tr>
+<th scope="row">... the same, 16 to a loop</th>
+<td>11.2</td>
+<td>11.4</td>
+<td>11.4</td>
+</tr>
+<tr>
+<th scope="row">... <code>MOVEM.L</code> of 12 registers, in a loop</th>
+<td>8.8</td>
+<td>8.9</td>
+<td>8.9</td>
+</tr>
+<tr>
+<th scope="row">... 32 <code>MOVEM.L</code>s, no loop</th>
+<td>8.1</td>
+<td>8.1</td>
+<td>8.1</td>
+</tr>
+<tr>
+<th scope="row">... <code>MOVEM.L</code> loop, into "any" memory</th>
+<td>8.8</td>
+<td>8.9</td>
+<td>8.8</td>
+</tr>
+<tr>
+<th scope="row">... the blitter, the processor waiting</th>
+<td></td>
+<td>10.4</td>
+<td>10.3</td>
+</tr>
+<tr>
+<th scope="row">256 numbers times 40 with <code>MULU #40</code></th>
+<td>41.2</td>
+<td>43.2</td>
+<td>41.2</td>
+</tr>
+<tr>
+<th scope="row">... with <code>ADD</code>s and a shift</th>
+<td>31.0</td>
+<td>31.9</td>
+<td>31.0</td>
+</tr>
+<tr>
+<th scope="row">... from a table</th>
+<td>23.2</td>
+<td>24.8</td>
+<td>23.2</td>
+</tr>
+</tbody></table></div>
+<p>In fast RAM, the multiplications take exactly the book's time, to a tenth of a line: their code and data are all in fast RAM, and nothing waits. In slow RAM they take up to 7% longer. The clears write to chip RAM wherever the code is, so they wait either way; the 32 <code>MOVEM</code>s, each 104 clocks (a multiple of 4), wait least of all. On a real A500 with only chip and slow RAM, plan for the middle column.</p>
+<p>(These are FS-UAE's figures. Its 68000 is cycle-exact, and where nothing waits it matches Motorola's figures to the tenth of a line, but it is still an emulator.)</p>
+<h3 id="what-instructions-cost">What instructions cost</h3>
+<p>The 68000 figures for the instructions demos use most. An instruction that reads or writes memory also pays for its <strong>addressing mode</strong>, the second table; where a time has a "+", add that.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Instruction</th>
+<th scope="col">Clocks</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>MOVEQ #n,Dn</code></th>
+<td>4</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.W</code>/<code>MOVE.L Dn,Dn</code></th>
+<td>4</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L Dn,(An)+</code></th>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L (An)+,(An)+</code></th>
+<td>20</td>
+</tr>
+<tr>
+<th scope="row"><code>ADD.W Dn,Dn</code> / <code>ADD.L Dn,Dn</code></th>
+<td>4 / 8</td>
+</tr>
+<tr>
+<th scope="row"><code>ADDQ.W #n,Dn</code> / <code>ADDQ.L #n,Dn</code></th>
+<td>4 / 8</td>
+</tr>
+<tr>
+<th scope="row"><code>ADDQ #n,An</code> (word or long)</th>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>ADDI.W #n,Dn</code> / <code>ADDI.L #n,Dn</code></th>
+<td>8 / 16</td>
+</tr>
+<tr>
+<th scope="row"><code>LEA d16(An),An</code></th>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>ADDA.W #n,An</code> / <code>ADDA.L #n,An</code></th>
+<td>12 / 16</td>
+</tr>
+<tr>
+<th scope="row"><code>CLR.L Dn</code></th>
+<td>6</td>
+</tr>
+<tr>
+<th scope="row"><code>CLR.L (An)+</code></th>
+<td>20 (it reads, then writes)</td>
+</tr>
+<tr>
+<th scope="row"><code>LSL</code>, <code>LSR</code>, <code>ASL</code>, <code>ASR</code>, <code>ROL</code>... <code>.W</code> by n</th>
+<td>6 + 2n</td>
+</tr>
+<tr>
+<th scope="row">... <code>.L</code> by n</th>
+<td>8 + 2n</td>
+</tr>
+<tr>
+<th scope="row"><code>SWAP</code>, <code>EXT</code></th>
+<td>4</td>
+</tr>
+<tr>
+<th scope="row"><code>MULU</code>, <code>MULS</code></th>
+<td>38 + 2n (at most 70) +</td>
+</tr>
+<tr>
+<th scope="row"><code>DIVU</code></th>
+<td>at most 140 +</td>
+</tr>
+<tr>
+<th scope="row"><code>DIVS</code></th>
+<td>at most 158 +</td>
+</tr>
+<tr>
+<th scope="row"><code>DBF</code> (looping / falling through)</th>
+<td>10 / 14</td>
+</tr>
+<tr>
+<th scope="row"><code>Bcc.S</code>, <code>Bcc.W</code> taken</th>
+<td>10</td>
+</tr>
+<tr>
+<th scope="row"><code>Bcc.S</code> / <code>Bcc.W</code> not taken</th>
+<td>8 / 12</td>
+</tr>
+<tr>
+<th scope="row"><code>BRA</code></th>
+<td>10</td>
+</tr>
+<tr>
+<th scope="row"><code>BSR</code> / <code>JSR</code> (absolute long)</th>
+<td>18 / 20</td>
+</tr>
+<tr>
+<th scope="row"><code>RTS</code></th>
+<td>16</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVEM.L</code> registers to <code>-(An)</code> or <code>(An)</code></th>
+<td>8 + 8 per register</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVEM.L</code> <code>(An)+</code> to registers</th>
+<td>12 + 8 per register</td>
+</tr>
+<tr>
+<th scope="row"><code>BTST #n,Dn</code></th>
+<td>10</td>
+</tr>
+</tbody></table></div>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Addressing mode</th>
+<th scope="col">Byte or word</th>
+<th scope="col">Long</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>Dn</code>, <code>An</code></th>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<th scope="row"><code>(An)</code>, <code>(An)+</code></th>
+<td>4</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>-(An)</code></th>
+<td>6</td>
+<td>10</td>
+</tr>
+<tr>
+<th scope="row"><code>d16(An)</code>, <code>d16(PC)</code>, <code>$nnnn.W</code></th>
+<td>8</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row"><code>d8(An,Xn)</code>, <code>d8(PC,Xn)</code></th>
+<td>10</td>
+<td>14</td>
+</tr>
+<tr>
+<th scope="row"><code>$nnnnnnnn</code> (absolute long)</th>
+<td>12</td>
+<td>16</td>
+</tr>
+<tr>
+<th scope="row"><code>#n</code></th>
+<td>4</td>
+<td>8</td>
+</tr>
+</tbody></table></div>
+<p><strong>Multiplying</strong> takes 38 clocks plus 2 for each 1 bit in the <em>source</em> (<code>MULU</code>; for <code>MULS</code>, each change from 0 to 1 or 1 to 0 in it). So the source decides the cost: <code>MULU #40,D0</code> is 38 + 2×2 + 4 (for the <code>#40</code>) = 46 clocks, while <code>MULU #$FFFF,D0</code> would be 70 + 4. Put the number with fewer 1s as the source when you can.</p>
+<p><strong>Dividing</strong> is the slowest thing the 68000 does: Motorola gives at most 140 clocks for <code>DIVU</code> and 158 for <code>DIVS</code>, and says the best case is less than 10% faster. Avoid it in anything done often: multiply by a reciprocal, shift, or look it up.</p>
+<h3 id="loops-unrolling-and-movem">Loops, unrolling and MOVEM</h3>
+<p>The clears in the table show the usual steps, from 27 lines down to 8:</p>
+<ul><li><strong><code>CLR</code> is slow in memory</strong>, because on a 68000 it reads before it writes: <code>CLR.L (A0)+</code> is 20 clocks against 12 for <code>MOVE.L D1,(A0)+</code> with D1 zero. (Never <code>CLR</code> a chip register either: see <a href="03-general-guidelines.html#the-processor-isnt-fixed-either">general guidelines</a>.)</li><li><strong>A loop costs its <code>DBF</code> each time round</strong>: 10 clocks, against 12 for each <code>MOVE.L</code> in it. <strong>Unrolling</strong>, 16 <code>MOVE.L</code>s to each <code>DBF</code>, pays for it once in 64 bytes, and nearly halves the time.</li><li><strong><code>MOVEM</code> writes many registers in one instruction</strong>, 8 clocks a long and 8 for the instruction: 48 bytes in 104 clocks with 12 registers, against 144 for 12 <code>MOVE.L</code>s.</li><li><strong>No loop at all</strong> (32 <code>MOVEM</code>s one after another) saves a little more. The example doesn't keep 32 copies in its source: it writes them as it starts, from one <code>MOVEM</code> it copies, and then clears the processor's caches before running them. <a href="03-general-guidelines.html#code-written-at-run-time-done-properly">General guidelines</a> explains why that last step matters.</li></ul>
+<p>The blitter, on the A500, takes 10.4 lines for the same clear, while the processor waits for it. That's slower than the best processor loop, but the blitter leaves every other slot free, so the processor can work alongside it; <a href="07-blitter.html#clearing">the blitter chapter</a> measures both together.</p>
+<h3 id="multiplying-faster">Multiplying faster</h3>
+<p>256 numbers times 40 took 43.2 lines with <code>MULU</code>, 31.9 with <code>ADD</code>s and a shift (n×4+n, then ×8), and 24.8 from a table made once at the start. On a 68000, a table usually wins, if there's the memory for it.</p>
+<p>On the A1200 the order changes: 14.8, 11.1 and 11.1 lines. The table is no better than the arithmetic there, because the A1200's chip RAM is slow for its processor, and reading the table is a trip to it. v7's notes from Chris Green of Commodore said this in 1993: "it may be better to use calculations for some things that you might have used tables for on the A500."</p>
+<h2 id="v7-s-68000-tips-checked">v7's 68000 tips, checked</h2>
+<p>v7's "68000 Optimisation", by Irmen de Jong with notes by Comrade J, listed tricks that every coder then knew. Each is checked here against Motorola's figures. Most are right. Some save bytes but not time, two can give wrong answers, and one points at the wrong register.</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">v7's tip</th>
+<th scope="col">Checked</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>BRA</code>/<code>BSR</code> to <code>BRA.S</code>/<code>BSR.S</code></th>
+<td>Shorter, not faster: a taken branch is 10 clocks (<code>BSR</code> 18) either way. Only a <code>Bcc</code> that <em>isn't</em> taken is quicker short: 8 against 12.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L #0,Dn</code> to <code>MOVEQ #0,Dn</code>; <code>CLR.L Dn</code> to <code>MOVEQ</code></th>
+<td>Right: 4 clocks, against 12 and 6.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L #0,An</code> to <code>SUB.L An,An</code></th>
+<td>Right: 8 against 12.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.x #0,mem</code> to <code>CLR.x mem</code></th>
+<td>Shorter, but <code>CLR</code> reads the memory first, and it's no faster than storing a register that holds 0.</td>
+</tr>
+<tr>
+<th scope="row"><code>CMP #0</code> to <code>TST</code></th>
+<td>Right: <code>TST.W Dn</code> 4, <code>CMPI.W #0,Dn</code> 8.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L #n,Dn</code> to <code>MOVEQ</code></th>
+<td>Right, for -128 to 127: 4 against 12.</td>
+</tr>
+<tr>
+<th scope="row"><code>ADD</code>/<code>SUB #n</code> to <code>ADDQ</code>/<code>SUBQ</code></th>
+<td>Right, for 1 to 8: <code>ADDQ.W #n,Dn</code> 4 against <code>ADDI.W</code> 8. On an address register <code>ADDQ</code> is 8, word or long.</td>
+</tr>
+<tr>
+<th scope="row"><code>JMP</code>/<code>JSR</code> to <code>BRA</code>/<code>BSR</code></th>
+<td>Right (2 clocks), but only within a section: sections can be loaded anywhere.</td>
+</tr>
+<tr>
+<th scope="row"><code>JSR x</code> then <code>RTS</code> to <code>JMP x</code></th>
+<td>Right.</td>
+</tr>
+<tr>
+<th scope="row"><code>LSL #1</code> or <code>#2</code> to one or two <code>ADD Dn,Dn</code></th>
+<td>Right for words: 4 against 8, 8 against 10. <strong>Wrong for two on a longword</strong>: two <code>ADD.L</code>s take 16, <code>LSL.L #2</code> only 12. One <code>ADD.L</code> (8) still beats <code>LSL.L #1</code> (10).</td>
+</tr>
+<tr>
+<th scope="row"><code>MULU #2^n</code> to a shift</th>
+<td>Much faster, but not the same: <code>MULU</code> uses only the bottom word of the register, a shift all of it. Clear the top word first, unless you know it's clear.</td>
+</tr>
+<tr>
+<th scope="row"><code>DIVU #2^n</code> to a shift</th>
+<td>As v7 says, there's no remainder in the top word. And: <strong><code>ASR</code> isn't <code>DIVS</code></strong> for negative numbers. <code>DIVS</code> rounds towards 0 (-7/2 is -3), <code>ASR</code> down (-7 shifted right once is -4).</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVEA.L #n,An</code> to <code>MOVEA.W #n,An</code></th>
+<td>Right: 8 against 12, for -32768 to 32767 (it's sign-extended).</td>
+</tr>
+<tr>
+<th scope="row"><code>ADDA #n,An</code> to <code>LEA n(An),An</code></th>
+<td>Right: 8, against 12 (<code>ADDA.W</code>) or 16 (<code>ADDA.L</code>).</td>
+</tr>
+<tr>
+<th scope="row"><code>LEA n(An),An</code> to <code>ADDQ.W #n,An</code></th>
+<td>Shorter, not faster: both 8.</td>
+</tr>
+<tr>
+<th scope="row"><code>$0000nnnn</code> to <code>$nnnn.W</code></th>
+<td>Right: 4 clocks and a word, for <code>$0000</code> to <code>$7FFF</code> (and <code>$FFFF8000</code> up). <code>move.l 4.w,a6</code> is the famous one.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L #x,An</code> to <code>LEA x,An</code></th>
+<td>No faster: both 12. <code>LEA x(PC),An</code> is 8.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE.L Ax,Ay</code> and <code>ADD #n,Ay</code> to <code>LEA n(Ax),Ay</code></th>
+<td>Right.</td>
+</tr>
+<tr>
+<th scope="row"><code>x</code> to <code>x(PC)</code></th>
+<td>Right for reading (4 clocks less than absolute long). The 68000 can't write to a PC-relative address.</td>
+</tr>
+<tr>
+<th scope="row"><code>(Ax,Dx.L)</code> to <code>(Ax,Dx.W)</code></th>
+<td><strong>No faster.</strong> Motorola: "The size of the index register (Xn) does not affect execution time."</td>
+</tr>
+<tr>
+<th scope="row"><code>BSET</code>/<code>BCLR</code>/<code>BCHG #n</code> to <code>ORI</code>/<code>ANDI</code>/<code>EORI.W</code></th>
+<td>On a data register, right: 8 against 12 to 14 (and the flags differ). <strong>On memory, no faster</strong> (<code>BSET #n,(An)</code> and <code>ORI.B #x,(An)</code> are both 16), and a bit operation on memory is on a byte, so its bit numbers aren't <code>ORI.W</code>'s.</td>
+</tr>
+<tr>
+<th scope="row"><code>BTST #n,Dn</code> to <code>ANDI.W</code></th>
+<td>8 against 10, but <code>ANDI</code> changes the register. Only if you're finished with it.</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVEM</code> of one register to <code>MOVE.L</code></th>
+<td>Right: 12 against 16. (<code>MOVE</code> sets the flags; <code>MOVEM</code> doesn't.)</td>
+</tr>
+<tr>
+<th scope="row"><code>MOVE x,-(SP)</code> to <code>PEA x</code></th>
+<td>For a constant that fits in a word, right: <code>PEA $1234.W</code> is 16, <code>MOVE.L #$1234,-(SP)</code> 20. <code>PEA (Ax)</code> pushes Ax (as <code>MOVE.L Ax,-(SP)</code> does, in the same time), <em>not</em> what Ax points at.</td>
+</tr>
+<tr>
+<th scope="row"><code>0(Ax)</code> to <code>(Ax)</code></th>
+<td>Right (4 clocks); assemblers do it for you.</td>
+</tr>
+<tr>
+<th scope="row"><code>MULU #0</code> to <code>MOVEQ #0</code>; <code>MULU #1</code> to <code>SWAP</code>, <code>CLR.W</code>, <code>SWAP</code></th>
+<td>Right. For <code>MULS #1</code>, <code>EXT.L</code> alone does it.</td>
+</tr>
+<tr>
+<th scope="row">Unroll loops</th>
+<td>Right: see the clears above.</td>
+</tr>
+<tr>
+<th scope="row">Clear with <code>MOVEM</code> from all 15 registers, with the stack pointer as the pointer</th>
+<td>Fast, but don't use SP. With the system running, a task switch saves the task's registers on its stack, which is now your buffer, and as SP reaches the start of the buffer they land in memory below it. In supervisor mode an interrupt does the same. Use another address register: 14 registers of zero, or 13 and a loop counter, are almost as fast.</td>
+</tr>
+<tr>
+<th scope="row">"If it's chip memory, use the blitter"</th>
+<td>On an A500, the blitter alone was slower than a <code>MOVEM</code> loop here; working together they're fastest (<a href="07-blitter.html#clearing">the blitter</a>). On faster processors the processor wins outright (below).</td>
+</tr>
+<tr>
+<th scope="row">Always wait for the blitter after clearing with both</th>
+<td>Right, and more than v7 knew: see <a href="07-blitter.html#the-race-wait-before-the-processor-touches-the-blitters-work">the race</a>.</td>
+</tr>
+<tr>
+<th scope="row">"Don't set BLTPRI (#10 in $dff09a)"</th>
+<td>The advice and the bit are right, but <strong>the register is <code>DMACON</code>, <code>$DFF096</code></strong>. <code>$DFF09A</code> is <code>INTENA</code>.</td>
+</tr>
+<tr>
+<th scope="row">Use registers, not memory; pass parameters in registers; replace <code>MULU</code>/<code>DIVU</code> with tables</th>
+<td>Right on a 68000. Tables are no help on an A1200 (above).</td>
+</tr>
+<tr>
+<th scope="row">Find the 10% of the code that takes 90% of the time</th>
+<td>Right, and raster bars are how you find it (below).</td>
+</tr>
+</tbody></table></div>
+<h2 id="the-68010">The 68010</h2>
+<p>The 68010 fits the 68000's socket, and some A500 and A2000 owners fitted one. Three differences matter to a demo:</p>
+<ul><li><strong>The vector base register.</strong> The exception vectors, the interrupts' among them, are at the VBR, not at address 0. The system may move them. The startup reads the VBR with <code>Supervisor()</code> and <code>MOVEC VBR,D0</code> (a 68010 instruction, written as words so a 68000 assembler takes it) when <code>AttnFlags</code> says there's a 68010 or later. <a href="05-interrupts.html#vectors-and-the-vbr">Interrupts</a> explains it.</li><li><strong><code>MOVE SR,&lt;ea&gt;</code> is privileged.</strong> Run in user mode, it's a privilege violation: a crash. Exec's <code>GetCC()</code> gives the flags on any processor.</li><li><strong>Exception stack frames have an extra word</strong>, so a handler that looks into the frame (rather than just ending with <code>RTE</code>) must know which processor it's on.</li></ul>
+<p>The 68010 also has <strong>loop mode</strong>: a one-word instruction followed by a <code>DBcc</code> that branches back to it runs without fetching either instruction again. Motorola's manual lists which instructions can loop (moves, adds, compares and others, on <code>(An)</code>, <code>(An)+</code> and <code>-(An)</code>). <code>MOVE.B (A0)+,(A1)+</code> and <code>DBF</code> take 14 clocks a byte in loop mode, against 22 on a 68000. v8 hasn't measured it.</p>
+<h2 id="the-68020-and-68030">The 68020 and 68030</h2>
+<p>The <strong>68020</strong> is a 32-bit processor (the A1200's 68EC020 has a 24-bit address bus; see <a href="03-general-guidelines.html#addresses-are-32-bits">general guidelines</a>). The <strong>68030</strong> is much the same to a demo, with an MMU and a data cache added.</p>
+<h3 id="the-caches">The caches</h3>
+<p>The 68020 has a 256-byte <strong>instruction cache</strong>: 64 longwords of the instructions it has run, kept on the chip. A loop that fits runs without reading its instructions from memory at all. One that doesn't fit, doesn't: each address has one place in the cache, shared with the addresses 256, 512... bytes away, so a loop over 256 bytes pushes part of itself out every time round. v7's advice from Chris Green: "A straight line loop 258 bytes long will execute slower than a 254 byte one." So on a 68020, unrolling stops paying when the loop outgrows the cache.</p>
+<p>The 68030 has a 256-byte instruction cache and a 256-byte <strong>data cache</strong>. The system sets chip RAM so the data cache never holds it ("For all current Amiga models, Chip memory is set with Instruction caching enabled, data caching disabled": the <code>CacheClearE</code> Autodoc), so data the chips write is always what the processor reads. Instructions in chip RAM are cached.</p>
+<p>Code that writes code has to clear the caches before running it: <a href="03-general-guidelines.html#no-self-modifying-code">general guidelines</a> explains, and has a routine that does it on every Kickstart. <code>ch14_rastertime.s</code> does it too, and says which way it cleared them: "FLUSH CACHECLEARU" (Kickstart 2.04 or later), "FLUSH MOVEC CACR" (Kickstart 1.3 with a 68020) or "FLUSH NOT NEEDED" (Kickstart 1.3 on a 68000).</p>
+<h3 id="the-a1200">The A1200</h3>
+<figure class="guide-shot"><img src="images/ch14_rastertime_a1200.png" alt="ch14_rastertime.s on an emulated A1200: everything faster, and now the blitter is the slowest clear" loading="lazy"></figure>
+<p>On an A1200 with no fast RAM, the routines take between a quarter and a half of their A500 time, with one exception: the blitter, which is the same chip at the same speed, took 9.9 lines. Every processor clear beat it, the best by two and a half times. v7 said "almost three times" for its A1200. With the blitter that slow by comparison, give the processor something else to do while it runs, or have the processor do the work.</p>
+<h3 id="new-instructions-and-what-they-cost-you">New instructions, and what they cost you</h3>
+<p>The 68020 added instructions and addressing modes. v7 listed the useful ones:</p>
+<div class="code-block"><pre><code>        move.w  (a1,d0.w*2),d1          ; scaled index: d0*2, d0*4 or d0*8, at no extra cost
+        muls.l  d2,d1                   ; 32 x 32 bits
+        divs.l  d2,d1                   ; 32 / 32 bits
+        extb.l  d0                      ; byte to longword in one
+        bfextu  (a0){d1:5},d2           ; a bit field: 5 bits from bit d1 on
+        tst.w   table(pc,d0.w)          ; TST and CMPI may read relative to the PC</code></pre></div>
+<p>Also the 64-bit forms of <code>MULU.L</code>/<code>MULS.L</code>/<code>DIVU.L</code>/<code>DIVS.L</code>, the rest of the bit field instructions (<code>BFINS</code>, <code>BFFFO</code>, <code>BFSET</code>, <code>BFCLR</code>...), 16- and 32-bit displacements in indexed modes, and memory-indirect addressing. Shifts take the same time whatever the count.</p>
+<p><strong>Use any of them and the program needs a 68020.</strong> On a 68000 each is an illegal instruction, and a crash. If that's what you want (most AGA demos assume a 68020), check as the program starts, and say so if it isn't there:</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        btst    #AFB_68020,AttnFlags+1(a6)
+        beq     NeedA68020              ; tell the user, and leave</code></pre></div>
+<p>Or keep two versions of the routine that matters, and choose one at the start.</p>
+<p>It's easier to use them by accident than you'd think. <code>ch14_contention.s</code>, as first written for v8, had <code>tst.b ZoneHires(pc,d4.w)</code>, which looked like ordinary 68000 code. It ran on the emulated A1200 and crashed the A500: on a 68000, <code>TST</code> can't read relative to the PC. (Limoniter's assembler took it without a word; tell your assembler which processor you mean, if it can be told, and test on a 68000.) The same goes for the other way round: the 68020 reads a word or a longword from an odd address (slowly), but the 68000 takes an <strong>address error</strong>, and the program stops. A demo tested only on an A1200 can fail on an A500 for both reasons.</p>
+<h2 id="the-68040-and-68060">The 68040 and 68060</h2>
+<p>These are many times faster than the chips they drive, and that's where their problems come from.</p>
+<p><strong>Bigger caches, written back later.</strong> The 68040 has 4K instruction and 4K data caches, the 68060 8K each. Both can run the data cache in <strong>copyback</strong> mode: a write to fast RAM can stay in the cache for a while before it reaches memory. Code that writes code must clear the caches (again, <a href="03-general-guidelines.html#code-written-at-run-time-done-properly">general guidelines</a>); a trackloader that loads code must too. Chip RAM isn't data-cached, so the chips see what the processor writes there.</p>
+<p><strong>The processor outruns the chips.</strong> A 68040 can do far more between two chip RAM slots than a 68000 can. Code that only worked because the processor was slow breaks:</p>
+<ul><li><strong>The blitter.</strong> v8 found this in its own startup demo: the processor drew on the screen while the blitter was still clearing it. On a 68000 the blitter always finished first; on a 68040 it didn't. Always wait for the blitter before touching what it's working on (<a href="07-blitter.html#the-race-wait-before-the-processor-touches-the-blitters-work">the blitter</a>).</li><li><strong>Interrupts.</strong> A write to <code>INTREQ</code> can still be on its way when the <code>RTE</code> runs, so acknowledge twice (<a href="05-interrupts.html#acknowledging-twice">interrupts</a>).</li><li><strong>Timing by instruction counts.</strong> None of it holds.</li></ul>
+<figure class="guide-shot"><img src="images/ch14_rastertime_68040.png" alt="ch14_rastertime.s on FS-UAE&#x27;s 68040, which runs as fast as the computer running it allows: only the blitter takes a visible time" loading="lazy"></figure>
+<p>On FS-UAE's emulated 68040 every processor routine took a line or two at most (it varies from run to run), and the blitter about 4.5. Don't trust any of those figures: FS-UAE runs its 68030, 68040 and 68060 as fast as the computer running it can, not at any real processor's speed, and doesn't make them wait for chip RAM as a real one would (in <code>ch14_contention.s</code> every zone took "0.0 lines"); and with them its blitter isn't cycle-exact either (it took 10.4 lines on the A500). What they do show is true of a real one: the processor is so much faster than the blitter that it spends its time waiting for it.</p>
+<p><strong>MOVE16.</strong> The 68040 and 68060 have <code>MOVE16</code>, which copies 16 bytes at a time, from and to addresses on a 16-byte boundary, in a single burst. It's for copying in fast RAM. It isn't on the 68030 or anything earlier.</p>
+<p><strong>Instructions that aren't there.</strong> The 68040's FPU lacks some of the 68881's instructions (<code>FSIN</code>, <code>FCOS</code> and the rest), which <code>68040.library</code> emulates. The 68060 also lacks some <strong>integer</strong> instructions, which its Motorola manual lists:</p>
+<ul><li><code>MOVEP</code></li><li><code>CHK2</code> and <code>CMP2</code></li><li><code>CAS2</code>, and <code>CAS</code> on a misaligned address</li><li>the 64-bit <code>MULU.L</code>, <code>MULS.L</code>, <code>DIVU.L</code> and <code>DIVS.L</code> (32 × 32 to 64 bits, and 64 / 32)</li></ul>
+<p>Each traps to <code>68060.library</code>, which does it in software: correct, but far slower than an instruction. The 32-bit forms of <code>MULx.L</code> and <code>DIVx.L</code> are there. <code>MOVEP</code>, made for 8-bit peripheral chips (it reads or writes every other byte), has been used in graphics routines for that odd ability; on a 68060, avoid it in anything that runs often.</p>
+<h2 id="the-68080">The 68080</h2>
+<p>The Apollo 68080, in Vampire accelerators and the Apollo team's stand-alone machines, is a processor built in an FPGA: faster than a 68060 by its makers' figures, running 68000-family code, with instructions of its own as well. The NDK 3.2 names <code>AttnFlags</code> bit 10, <code>AFB_FPGA</code>, for an FPGA processor, and <code>ch14_rastertime.s</code> adds "FPGA" after the processor's name when it's set.</p>
+<p>v8 hasn't run its examples on one, and FS-UAE doesn't emulate it, so this chapter says no more than that. Everything above about fast processors applies. If you use its own instructions, the demo is for Vampires only: say so.</p>
+<h2 id="measuring-raster-time">Measuring: raster time</h2>
+<p>The quickest way to see how long something takes is to change the background colour when it starts. The beam draws the border in <code>COLOR00</code>, so each routine paints a band down the screen as it runs, as tall as the time it takes: one line is 64 microseconds. Every demo coder has done it, and it needs no tools at all.</p>
+<p><code>ch14_rastertime.s</code> does it with ten routines, one after another, from the first line of the display:</p>
+<div class="code-block"><pre><code>Frame:
+        move.w  #FIRSTLINE,d0
+        bsr     WaitLine                ; start at the same line every frame
+        lea     Tests,a6
+.test:
+        move.l  TEST_CODE(a6),d0
+        beq.s   .tested
+        move.w  TEST_COLOUR(a6),COLOR00(a5)     ; this routine's band starts here
+        bsr     BeamPosition
+        move.l  d0,TEST_TIME(a6)
+        move.l  TEST_CODE(a6),a0
+        jsr     (a0)
+        lea     CUSTOM,a5
+        bsr     BeamPosition
+        sub.l   TEST_TIME(a6),d0        ; how long, in colour clocks
+        move.l  d0,TEST_TIME(a6)
+        lea     TEST_SIZE(a6),a6
+        bra.s   .test
+.tested:
+        move.w  #$000,COLOR00(a5)</code></pre></div>
+<p>The bands are enough to compare routines by eye. For a figure, it also reads where the beam is before and after: <code>VPOSR</code>, read as a longword, has the line in bits 16 to 8 and the position across it (in colour clocks) in bits 7 to 0.</p>
+<div class="code-block"><pre><code>BeamPosition:
+        move.l  VPOSR(a5),d0
+        moveq   #0,d1
+        move.b  d0,d1                   ; the position on the line
+        lsr.l   #8,d0
+        and.w   #$1ff,d0                ; the line
+        mulu    #LINECLOCKS,d0          ; 227 colour clocks a line, on PAL
+        add.l   d1,d0
+        rts</code></pre></div>
+<p>Some things to keep in mind:</p>
+<ul><li><strong>Start at the same line each frame</strong>, or the bands jump about.</li><li><strong>The measuring costs something too</strong>: about half a line here, for each routine.</li><li><strong>Interrupts land in the middle.</strong> With the machine taken, only your own do; with the system running, its interrupts add a little, at random.</li><li><strong>Measure on the machine you're writing for</strong>, with its memory. The tables above show a routine's time changing with the memory its code is in.</li><li><strong>A frame overrun shows as flicker</strong>: if the work takes longer than a frame, the bands are drawn every other frame. The first version of the example did exactly that, on the A500.</li></ul>
+<p>Use it to find where the time goes before you optimise anything: the band that's tallest is the one to work on.</p>
+<h2 id="the-examples">The examples</h2>
+<ul><li><strong><code>ch14_rastertime.s</code></strong>: ten routines each frame, each a band of colour; the panel names them, gives each time in lines, and shows the processor, the VBR, where the program was loaded, and how the caches were cleared after writing code.</li><li><strong><code>ch14_contention.s</code></strong>: the same job done again and again under six different displays, showing what bitplanes cost the processor.</li></ul>
+<p>Both were run both ways (taking the machine, and with the system running), on an emulated A500 with Kickstart 1.3 and 3.1; on Kickstart 3.1 with a 68020, 68030, 68040 and 68060, each with 8 MB of fast RAM; on Kickstart 1.3 with a 68020; on an A500 with a 68000 and fast RAM; and on an A1200. Each showed its effect, then the CLI with "back in AmigaDOS, return code OK".</p>
+<p>How far to trust the figures: FS-UAE's 68000 and 68020 are cycle-exact (its log says so), and so is its blitter on those machines. Its 68020 on an A500 runs at about the A500's own 7 MHz, by our measurements (a loop of <code>DBF</code>s, and the <code>MULU</code>s, both fit that), and has the 8 MB of fast RAM; its A1200 runs at 14 MHz, with no fast RAM. On Kickstart 1.3, AmigaDOS loaded the programs into slow RAM even with fast RAM fitted. The 68030, 68040 and 68060 run as fast as the host allows, so their timings mean nothing.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>Processor detection</strong> has bit 7 (the 68060, set by <code>68060.library</code>) and bit 10 (FPGA processors), and the warning that Kickstart 3.1 alone calls a 68060 a 68040.</li><li><strong>Instruction timings</strong> are given, from Motorola's manual, and measured on an emulated A500, in chip, slow and fast RAM. v7 had none.</li><li><strong>v7's 68000 tips are checked</strong>: some save bytes but no time (<code>BRA.S</code>, <code>ADDQ</code> for <code>LEA</code>, <code>LEA</code> for <code>MOVE.L #</code>, <code>.W</code> for <code>.L</code> index registers); <code>LSL.L #2</code> beats two <code>ADD.L</code>s; <code>ASR</code> isn't <code>DIVS</code>; <code>PEA (Ax)</code> isn't pushing what Ax points at; <code>ORI.W</code> isn't <code>BSET</code> on memory; BLTPRI is in <code>DMACON</code>, not at <code>$DFF09A</code>; and the <code>MOVEM</code> clear through SP is dangerous.</li><li><strong>Chip-bus contention</strong> is explained and measured: the display's slots, slow RAM's waits, and instructions that miss their slot.</li><li><strong>The 68010</strong> section has the VBR, <code>MOVE SR</code> and the exception frames, not only loop mode.</li><li><strong>The 68040 and 68060</strong>: copyback caches, the processor outrunning the chips, <code>MOVE16</code>, and the instructions the 68060 doesn't have. <strong>The 68080</strong> gets a mention.</li><li><strong>v7's 68020 notes from Chris Green are kept</strong>, and the A1200's blitter-against-processor figure checked again: two and a half times, against v7's "almost three".</li><li><strong>Measuring with raster bars</strong> is shown, as a whole example.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="13-vectors.html"><span>Back</span>13. 3D vectors</a>
+<a class="pager-next" href="15-loading-and-memory.html"><span>Next</span>15. Loading and memory</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

@@ -44,6 +44,8 @@ thread_local! {
     static TAB_SIZE: std::cell::Cell<usize> = const { std::cell::Cell::new(DEFAULT_TAB_SIZE) };
     /// Whether controls show as readable tokens, or as one small cell each.
     static SOURCE_VIEW: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    /// Whether a fold takes in its closing bracket's line, so { … } is one line.
+    static FOLD_CLOSER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// How many cells each kept byte takes on screen, for the document being worked on.
     static BYTE_CELLS: std::cell::Cell<Option<&'static [u8; 256]>> = const { std::cell::Cell::new(None) };
 }
@@ -51,6 +53,23 @@ thread_local! {
 /// Which set's tokens the columns are counted with; set for the document being worked on.
 pub fn set_cell_profile(set: &'static Charset) {
     BYTE_CELLS.with(|cell| cell.set(Some(set.widths())));
+}
+
+pub fn set_fold_closer(on: bool) {
+    FOLD_CLOSER.with(|cell| cell.set(on));
+}
+
+/// A line that's only a closing bracket (and a ; or , after it), and the opening one it closes.
+pub fn closer_of(line: &str) -> Option<char> {
+    let trimmed = line.trim();
+    let first = trimmed.chars().next()?;
+    let opener = match first {
+        '}' => '{',
+        ')' => '(',
+        ']' => '[',
+        _ => return None,
+    };
+    (trimmed.len() <= 4 && trimmed.chars().skip(1).all(|c| matches!(c, '}' | ')' | ']' | ';' | ','))).then_some(opener)
 }
 
 pub fn source_view() -> bool {
@@ -108,6 +127,8 @@ pub struct SearchOptions {
     pub regex: bool,
     pub hex_bytes: bool,
     pub backward: bool,
+    /// Only matches in the code count, not in comments or strings, by the file's language's comment marks.
+    pub code_only: Option<crate::tools::CommentMarks>,
 }
 
 /// What a word count works out.
@@ -262,6 +283,22 @@ pub struct TextBuffer {
     pub zx: Option<Box<crate::zx_graphics::ZxText>>,
     /// What's known about the code, for completion, hover, going to definitions and the outline.
     pub intel: Option<Box<crate::code_intel::CodeIntel>>,
+    /// HTML or XML (true for HTML, whose empty elements have no closing tag): closing tags go in as opening ones
+    /// are typed, and a tag's partner is renamed with it. None for anything else.
+    pub markup: Option<bool>,
+    /// Markdown: lists carry on as Enter is pressed.
+    pub markdown: bool,
+    /// A language a VS Code extension gives: the brackets that close themselves, and when lines indent.
+    pub rules: Option<Arc<crate::vsix::LanguageRules>>,
+    /// Where a closer was last put in by itself (line, character), so typing it there steps over it.
+    auto_closed: Option<(usize, usize)>,
+    /// The version the Markdown problems were last found for.
+    pub markdown_checked: Option<u64>,
+    /// The tag being edited and its partner, with the name it had, so the partner can follow it.
+    tag_link: Option<(crate::tags::Tag, crate::tags::Tag)>,
+    /// The tag the cursor's in and its partner, for highlighting, and what they were found for.
+    pub tag_pair: Option<(crate::tags::Tag, crate::tags::Tag)>,
+    tag_pair_for: Option<(u64, usize, usize)>,
 }
 
 /// Where a search has got to; large files are searched a little at a time between frames.
@@ -271,6 +308,8 @@ pub struct SearchCursor {
     line: usize,
     byte: usize,
     step: usize,
+    /// For a search of the code alone: each line's comments and strings, which matches are skipped in.
+    not_code: Option<Vec<Vec<(usize, usize)>>>,
 }
 
 pub enum SearchStep {
@@ -291,6 +330,8 @@ pub struct ReplaceCursor {
     most_held: usize,
     /// It stopped because the changes would hold too much in memory, and nothing has changed.
     pub too_large: bool,
+    /// For a replace in the code alone: whether the next line begins inside a block comment.
+    in_block: bool,
 }
 
 /// The most text a Replace All on a file kept on disk will hold in memory until it's saved.
@@ -298,10 +339,24 @@ const MOST_REPLACED_IN_MEMORY: usize = 1024 * 1024 * 1024;
 
 /// One line with every match replaced, and how many there were. None if it has none.
 pub fn replaced_line(re: &Regex, options: &SearchOptions, line: &str) -> Option<(String, usize)> {
+    replaced_line_skipping(re, options, line, &[])
+}
+
+/// Whether a match starting at this byte is in a stretch to skip.
+fn skipped(skip: &[(usize, usize)], at: usize) -> bool {
+    skip.iter().any(|(a, z)| at >= *a && at < *z)
+}
+
+/// One line with every match replaced but those starting in the stretches given, and how many there were.
+pub fn replaced_line_skipping(re: &Regex, options: &SearchOptions, line: &str, skip: &[(usize, usize)]) -> Option<(String, usize)> {
     let mut here = 0usize;
     let replaced = re.replace_all(line, |caps: &Captures| {
         if caps[0].is_empty() {
             return String::new();
+        }
+        let whole = caps.get(0).expect("a match");
+        if skipped(skip, whole.start()) {
+            return whole.as_str().to_string();
         }
         here += 1;
         if options.regex {
@@ -345,6 +400,14 @@ impl Default for TextBuffer {
             code: None,
             zx: None,
             intel: None,
+            markup: None,
+            markdown: false,
+            rules: None,
+            auto_closed: None,
+            markdown_checked: None,
+            tag_link: None,
+            tag_pair: None,
+            tag_pair_for: None,
             notice: None,
         }
     }
@@ -562,6 +625,12 @@ fn char_of_byte(s: &str, byte: usize) -> usize {
 }
 
 /// Replaces characters a..b of a line with new text.
+/// One step of indenting, the way a line indented by `like` is: a tab if it's tabs, else spaces (a tab's width
+/// of them), and as the settings say for a line that isn't indented yet.
+fn indent_unit(like: &str) -> String {
+    if like.starts_with('\t') || (like.is_empty() && !edit_prefs().spaces_for_tab) { "\t".to_string() } else { " ".repeat(tab_size()) }
+}
+
 fn splice(s: &str, a: usize, b: usize, with: &str) -> String {
     let (ba, bb) = (byte_of(s, a), byte_of(s, b));
     let mut out = String::with_capacity(s.len() + with.len());
@@ -644,10 +713,10 @@ enum LineSearch {
 }
 
 /// Looks through one line going forward; on the last pass round, stops where the search began.
-fn forward_in_line(re: &Regex, s: &str, k: usize, count: usize, byte: usize) -> LineSearch {
+fn forward_in_line(re: &Regex, s: &str, k: usize, count: usize, byte: usize, skip: &[(usize, usize)]) -> LineSearch {
     let from = if k == 0 { byte } else { 0 };
     for m in re.find_iter(s) {
-        if m.start() < from || m.is_empty() {
+        if m.start() < from || m.is_empty() || skipped(skip, m.start()) {
             continue;
         }
         if k == count && m.start() >= byte {
@@ -658,10 +727,10 @@ fn forward_in_line(re: &Regex, s: &str, k: usize, count: usize, byte: usize) -> 
     LineSearch::Nothing
 }
 
-fn backward_in_line(re: &Regex, s: &str, k: usize, count: usize, byte: usize) -> LineSearch {
+fn backward_in_line(re: &Regex, s: &str, k: usize, count: usize, byte: usize, skip: &[(usize, usize)]) -> LineSearch {
     let mut best = LineSearch::Nothing;
     for m in re.find_iter(s) {
-        if m.is_empty() {
+        if m.is_empty() || skipped(skip, m.start()) {
             continue;
         }
         if k == 0 && m.end() > byte {
@@ -1812,10 +1881,17 @@ impl TextBuffer {
             return;
         }
         let prepared = self.format.prepare_input(text, self.input_table());
+        // A language's own rules work on a character typed as it is.
+        let rules = self.rules.clone().filter(|_| prepared == text && text.chars().count() == 1 && !self.is_block() && !self.is_rows() && !self.overwrite && !self.has_multi());
         let text = prepared.as_str();
         if self.has_multi() && !text.contains(['\r', '\n']) {
             let kind = if text.chars().count() == 1 { Some("type") } else { None };
             self.multi_edit(kind, |spot, _, _| (spot.start(), spot.end(), text.to_string()));
+            return;
+        }
+        if let Some(rules) = &rules
+            && self.typed_by_rules(rules, text)
+        {
             return;
         }
         self.push_undo(if text.chars().count() == 1 { Some("type") } else { None });
@@ -1834,9 +1910,132 @@ impl TextBuffer {
                     self.set_line(self.caret_line, splice(&s, i, i + 1, ""));
                 }
             }
+            let before_typing = self.lines.get(self.caret_line).to_string();
             self.insert_stream(text);
+            if let Some(rules) = &rules {
+                self.after_typing_by_rules(rules, &before_typing);
+            }
+            // A > ending an opening tag puts its closing tag after the cursor.
+            if let Some(html) = self.markup
+                && text == ">"
+            {
+                let line = self.lines.get(self.caret_line).to_string();
+                let at = index_at_or_before(&line, self.caret_col);
+                let split = line.char_indices().nth(at).map_or(line.len(), |(b, _)| b);
+                if let Some(close) = crate::tags::closing_for(&line[..split], &line[split..], html) {
+                    self.set_line(self.caret_line, splice(&line, at, at, &close));
+                }
+            }
         }
         self.edited();
+    }
+
+    /// A character typed in a language with rules of its own: a closer that was put in by itself is stepped over,
+    /// and an opener typed with text selected goes round it. True if it's been dealt with.
+    fn typed_by_rules(&mut self, rules: &crate::vsix::LanguageRules, typed: &str) -> bool {
+        if self.has_selection() {
+            let Some(close) = rules.surrounding(typed).map(str::to_string) else {
+                return false;
+            };
+            self.push_undo(None);
+            let selected = self.selection_text();
+            self.delete_stream_selection();
+            let (line, at) = self.caret_char_position();
+            self.insert_stream(&format!("{typed}{selected}{close}"));
+            let (end_line, end) = self.caret_char_position();
+            self.select_chars((line, at + typed.chars().count()), (end_line, end.saturating_sub(close.chars().count())));
+            self.edited();
+            return true;
+        }
+        let (line, at) = self.caret_char_position();
+        let here = self.lines.get(line);
+        if self.auto_closed == Some((line, at)) && rules.is_closer(typed) && here.chars().nth(at).is_some_and(|c| typed.starts_with(c)) {
+            self.auto_closed = None;
+            self.move_caret_to_char(line, at + 1);
+            return true;
+        }
+        false
+    }
+
+    /// After a character's typed in a language with rules of its own: the closer of a pair it opens goes after the
+    /// cursor, and a line it makes a closing one comes out a step.
+    fn after_typing_by_rules(&mut self, rules: &crate::vsix::LanguageRules, before_typing: &str) {
+        let line = self.lines.get(self.caret_line).to_string();
+        let at = index_at_or_before(&line, self.caret_col);
+        let split = byte_of(&line, at);
+        // A closer put in by itself further along the line has moved along with what was typed before it.
+        if let Some((closed_line, closer)) = self.auto_closed
+            && closed_line == self.caret_line
+            && closer + 1 >= at
+        {
+            self.auto_closed = Some((closed_line, closer + 1));
+        }
+        if let Some(close) = rules.closing_for(&line[..split], &line[split..]) {
+            self.set_line(self.caret_line, splice(&line, at, at, close));
+            self.auto_closed = Some((self.caret_line, at));
+            return;
+        }
+        if rules.outdents(&line) && !rules.outdents(before_typing) && self.caret_line > 0 {
+            let above = (0..self.caret_line).rev().map(|n| self.lines.get(n)).find(|l| !l.trim().is_empty());
+            let Some(above) = above else { return };
+            let indent_of = |s: &str| s.chars().take_while(|c| *c == ' ' || *c == '\t').collect::<String>();
+            let (mine, theirs) = (indent_of(&line), indent_of(&above));
+            let unit = indent_unit(&theirs);
+            let target = if rules.indents_after(&above) { theirs.clone() } else { theirs.strip_suffix(unit.as_str()).unwrap_or(&theirs).to_string() };
+            if visual_len(&mine) > visual_len(&target) {
+                let kept = at - mine.chars().count() + target.chars().count();
+                self.set_line(self.caret_line, format!("{target}{}", &line[mine.len()..]));
+                self.caret_col = visual_of(&self.lines.get(self.caret_line), kept);
+                self.collapse_to_caret();
+            }
+        }
+    }
+
+    /// Keeps a tag's partner named as the tag is (Auto Rename Tag), and finds the pair the cursor's in for
+    /// highlighting. Called once a frame for the file being edited; a rename joins the typing's undo step.
+    pub fn follow_tags(&mut self) {
+        if self.markup.is_none() || self.has_selection() || self.has_multi() || self.lines.is_disk_backed() {
+            self.tag_link = None;
+            self.tag_pair = None;
+            return;
+        }
+        let line = self.lines.get(self.caret_line).to_string();
+        let column = index_at_or_before(&line, self.caret_col);
+        let here = crate::tags::tag_at(&line, self.caret_line, column);
+        // The tag's name changed since the last frame: the partner's changes to match.
+        if let (Some(now), Some((was, other))) = (&here, self.tag_link.clone())
+            && now.line == was.line
+            && now.start == was.start
+            && now.closing == was.closing
+            && now.name != was.name
+        {
+            let partner_line = self.lines.get(other.line).to_string();
+            let still: String = partner_line.chars().skip(other.start).take(other.end - other.start).collect();
+            if still == was.name {
+                let (now, mut moved) = (now.clone(), other);
+                self.set_line(moved.line, splice(&partner_line, moved.start, moved.end, &now.name));
+                moved.end = moved.start + now.name.chars().count();
+                // On the same line after the tag being typed in, the partner has moved along with it.
+                if moved.line == now.line && moved.start > now.start {
+                    let by = now.name.chars().count() as isize - was.name.chars().count() as isize;
+                    moved.start = (moved.start as isize + by) as usize;
+                    moved.end = (moved.end as isize + by) as usize;
+                }
+                moved.name = now.name.clone();
+                self.tag_link = Some((now, moved));
+                self.edited();
+                self.tag_pair_for = None;
+                return;
+            }
+        }
+        let key = (self.version(), self.caret_line, column);
+        if self.tag_pair_for != Some(key) {
+            self.tag_pair_for = Some(key);
+            let count = self.lines.len();
+            let lines = &self.lines;
+            self.tag_pair = here.as_ref().and_then(|tag| crate::tags::partner(tag, count, &|n| lines.get(n).to_string()).map(|other| (tag.clone(), other)));
+            self.tag_link = self.tag_pair.clone();
+        }
     }
 
     fn type_in_block(&mut self, text: &str) {
@@ -1995,7 +2194,14 @@ impl TextBuffer {
             return;
         }
         self.push_undo(Some("back"));
-        self.set_line(self.caret_line, splice(&s, i - 1, i, ""));
+        // Between a pair that closed itself, both go.
+        let pair = self.auto_closed == Some((self.caret_line, i))
+            && self.rules.as_ref().is_some_and(|rules| {
+                let (before, after) = (s.chars().nth(i - 1), s.chars().nth(i));
+                rules.auto_close.iter().any(|p| p.open.chars().count() == 1 && p.open.chars().next() == before && p.close.chars().next() == after && p.close.chars().count() == 1)
+            });
+        self.auto_closed = None;
+        self.set_line(self.caret_line, splice(&s, i - 1, if pair { i + 1 } else { i }, ""));
         self.caret_col = visual_of(&self.lines.get(self.caret_line), i - 1);
         self.collapse_to_caret();
         self.edited();
@@ -2094,9 +2300,51 @@ impl TextBuffer {
         }
         let i = self.index_for_edit(self.caret_line, self.caret_col, false);
         let s = self.lines.get(self.caret_line).clone();
-        let indent_chars = if edit_prefs().auto_indent { s.chars().take_while(|c| *c == ' ' || *c == '\t').count().min(i) } else { 0 };
-        let indent = s[..byte_of(&s, indent_chars)].to_string();
+        let mut indent_chars = if edit_prefs().auto_indent { s.chars().take_while(|c| *c == ' ' || *c == '\t').count().min(i) } else { 0 };
+        let mut indent = s[..byte_of(&s, indent_chars)].to_string();
         let split = byte_of(&s, i);
+        // At the end of a Markdown list item, the list carries on; on an empty one, it ends.
+        if self.markdown && split == s.len() {
+            match crate::markdown_tools::on_enter(&s) {
+                Some(crate::markdown_tools::Enter::EndList(keep)) => {
+                    let length = keep.chars().count();
+                    self.set_line(self.caret_line, keep);
+                    self.caret_col = visual_of(&self.lines.get(self.caret_line), length);
+                    self.collapse_to_caret();
+                    self.edited();
+                    return;
+                }
+                Some(crate::markdown_tools::Enter::Continue(prefix)) => {
+                    indent_chars = prefix.chars().count();
+                    indent = prefix;
+                }
+                None => {}
+            }
+        }
+        // A language with rules of its own: after a line that opens something, the next goes in a step; between a
+        // bracket and its closer, the closer goes on a line of its own below.
+        if let Some(rules) = self.rules.clone().filter(|_| edit_prefs().auto_indent)
+            && rules.indents_after(&s[..split])
+        {
+            let unit = indent_unit(&indent);
+            let rest = s[split..].trim_start();
+            if rules.brackets.iter().any(|(open, close)| rest.starts_with(close.as_str()) && s[..split].trim_end().ends_with(open.as_str())) {
+                let tag = self.lines.tag_at(self.caret_line).filter(|(_, last, _)| *last == self.caret_line);
+                self.set_line(self.caret_line, s[..split].to_string());
+                self.lines.insert_many(self.caret_line + 1, vec![Arc::from(format!("{indent}{unit}")), Arc::from(format!("{indent}{rest}"))]);
+                self.lines.split_terminator(self.caret_line, 2);
+                if let Some((first, last, colour)) = tag {
+                    self.lines.set_tag(first, last + 2, colour);
+                }
+                self.caret_line += 1;
+                self.caret_col = visual_of(&self.lines.get(self.caret_line), indent_chars + unit.chars().count());
+                self.collapse_to_caret();
+                self.edited();
+                return;
+            }
+            indent_chars += unit.chars().count();
+            indent += &unit;
+        }
         // Splitting the last line of a tagged section keeps both halves in it. Enter at its very end starts a line
         // after it instead, outside.
         let tag = self.lines.tag_at(self.caret_line).filter(|(_, last, _)| *last == self.caret_line && split < s.len());
@@ -2965,12 +3213,25 @@ impl TextBuffer {
         }
     }
 
+    /// What folding a line hides: its stretch, and the line after if that only closes the bracket this line opens,
+    /// so a folded { … } is one line.
+    fn fold_stretch(&self, line: usize) -> Option<usize> {
+        let last = self.fold_end(line)?;
+        let opens = self.lines.get(line).trim_end().chars().last();
+        let next = last + 1;
+        let closes = FOLD_CLOSER.with(std::cell::Cell::get)
+            && next < self.lines.len()
+            && closer_of(&self.lines.get(next)).is_some_and(|opener| Some(opener) == opens)
+            && indent_of(&self.lines.get(next)) == indent_of(&self.lines.get(line));
+        Some(if closes { next } else { last })
+    }
+
     /// Folds this line's stretch, or opens it if it's folded. Returns false if there's nothing to fold.
     pub fn toggle_fold(&mut self, line: usize) -> bool {
         if self.lines.remove_fold(line) {
             return true;
         }
-        let Some(last) = self.fold_end(line) else {
+        let Some(last) = self.fold_stretch(line) else {
             return false;
         };
         self.lines.set_fold(line, last);
@@ -2986,7 +3247,7 @@ impl TextBuffer {
         }
         let mut line = 0;
         while line < self.lines.len() {
-            match self.fold_end(line) {
+            match self.fold_stretch(line) {
                 Some(last) => {
                     self.lines.set_fold(line, last);
                     line = last + 1;
@@ -3050,7 +3311,7 @@ impl TextBuffer {
     // ---------- Whole-line commands ----------
 
     /// The rows a line command works on. A selection ending at the very start of a row leaves that row out.
-    fn selected_rows(&self) -> (usize, usize) {
+    pub fn selected_rows(&self) -> (usize, usize) {
         let top = self.caret_line.min(self.anchor_line);
         let mut bottom = self.caret_line.max(self.anchor_line);
         if bottom > top && !self.is_block() {
@@ -3267,6 +3528,31 @@ impl TextBuffer {
         self.rewrite_rows(|s| s.trim_end_matches([' ', '\t']).to_string());
     }
 
+    /// Trailing spaces and tabs off as the file's saved: every line, or only those changed since it was opened, so
+    /// the rest of its history isn't touched. The selection plays no part. Returns how many lines it changed.
+    pub fn trim_trailing_on_save(&mut self, only_changed: bool) -> usize {
+        let lines: Vec<usize> = if only_changed { self.lines.changed_lines().keys().copied().filter(|l| *l < self.lines.len()).collect() } else { (0..self.lines.len()).collect() };
+        let trimmed: Vec<(usize, String)> = lines
+            .into_iter()
+            .filter_map(|l| {
+                let line = self.lines.get(l);
+                let kept = line.trim_end_matches([' ', '\t']);
+                (kept.len() < line.len()).then(|| (l, kept.to_string()))
+            })
+            .collect();
+        if trimmed.is_empty() {
+            return 0;
+        }
+        self.push_undo(None);
+        let count = trimmed.len();
+        for (l, line) in trimmed {
+            self.set_line(l, line);
+        }
+        self.snap_after_rewrite();
+        self.edited();
+        count
+    }
+
     pub fn tabs_to_spaces(&mut self) {
         self.rewrite_rows(expand_tabs);
     }
@@ -3448,7 +3734,12 @@ impl TextBuffer {
         let (line, col) = if o.backward { (sl, sc) } else { (el, ec) };
         let text = self.lines.get(line);
         let byte = byte_of(&text, index_at_or_before(&text, col));
-        Ok(Some(SearchCursor { re, backward: o.backward, line, byte, step: 0 }))
+        // The comments and strings of every line, worked out from the top, as a block comment carries on.
+        let not_code = o.code_only.map(|marks| {
+            let mut in_block = false;
+            (0..self.lines.len()).map(|r| crate::tools::not_code(&self.lines.get(r), &marks, &mut in_block)).collect()
+        });
+        Ok(Some(SearchCursor { re, backward: o.backward, line, byte, step: 0, not_code }))
     }
 
     /// Searches for up to the given time, selecting the match if it finds one.
@@ -3459,7 +3750,8 @@ impl TextBuffer {
             let k = c.step;
             let r = if c.backward { (c.line + count - (k % count)) % count } else { (c.line + k) % count };
             let s = self.lines.get(r);
-            let found = if c.backward { backward_in_line(&c.re, &s, k, count, c.byte) } else { forward_in_line(&c.re, &s, k, count, c.byte) };
+            let skip = c.not_code.as_ref().and_then(|lines| lines.get(r)).map_or(&[][..], Vec::as_slice);
+            let found = if c.backward { backward_in_line(&c.re, &s, k, count, c.byte, skip) } else { forward_in_line(&c.re, &s, k, count, c.byte, skip) };
             match found {
                 LineSearch::Hit(start, end) => {
                     self.select_match(r, start, end);
@@ -3539,7 +3831,7 @@ impl TextBuffer {
         }
         let re = Self::build_regex(o)?;
         let most_held = if self.lines.is_disk_backed() { MOST_REPLACED_IN_MEMORY } else { usize::MAX };
-        Ok(Some(ReplaceCursor { re, options: o.clone(), next: 0, count: 0, edits: Vec::new(), held: 0, most_held, too_large: false }))
+        Ok(Some(ReplaceCursor { re, options: o.clone(), next: 0, count: 0, edits: Vec::new(), held: 0, most_held, too_large: false, in_block: false }))
     }
 
     /// Works through lines for up to the given time. Returns the share done, or None when finished.
@@ -3547,7 +3839,8 @@ impl TextBuffer {
         let began = Instant::now();
         while c.next < self.lines.len() {
             let line = self.lines.get(c.next);
-            if let Some((replaced, here)) = replaced_line(&c.re, &c.options, &line) {
+            let skip = c.options.code_only.map_or_else(Vec::new, |marks| crate::tools::not_code(&line, &marks, &mut c.in_block));
+            if let Some((replaced, here)) = replaced_line_skipping(&c.re, &c.options, &line, &skip) {
                 c.held += replaced.len();
                 if c.held > c.most_held {
                     c.edits = Vec::new();
@@ -4678,6 +4971,47 @@ mod tests {
     }
 
     #[test]
+    fn a_fold_takes_in_its_closing_bracket() {
+        set_fold_closer(true);
+        let mut b = buffer(&["fn f() {", "    x();", "}", "if a:", "    b()", "c"]);
+        assert!(b.toggle_fold(0));
+        assert_eq!(b.folds().get(&0), Some(&2), "the closing bracket goes in with the fold");
+        assert!(b.toggle_fold(3));
+        assert_eq!(b.folds().get(&3), Some(&4), "c isn't a closing bracket");
+        set_fold_closer(false);
+        b.expand_all();
+        b.toggle_fold(0);
+        assert_eq!(b.folds().get(&0), Some(&1));
+        assert_eq!(closer_of("  });"), Some('{'));
+        assert_eq!(closer_of("} else {"), None);
+    }
+
+    #[test]
+    fn trimming_as_a_file_is_saved_can_keep_to_the_lines_changed() {
+        let mut b = buffer(&["kept  ", "changed", "also kept\t"]);
+        b.move_caret(1, 7, false);
+        b.type_text("  ");
+        b.select_all();
+        assert_eq!(b.trim_trailing_on_save(true), 1);
+        assert_eq!(text(&b), ["kept  ", "changed", "also kept\t"], "only the changed line, whatever's selected");
+        assert_eq!(b.trim_trailing_on_save(false), 2);
+        assert_eq!(text(&b), ["kept", "changed", "also kept"]);
+    }
+
+    #[test]
+    fn a_search_can_look_in_the_code_alone() {
+        let marks = crate::tools::comment_marks("C");
+        let mut b = buffer(&["// count the total", "puts(\"total\"); /* a", " total */", "total = 0;"]);
+        let o = SearchOptions { pattern: "total".into(), code_only: marks, ..SearchOptions::default() };
+        assert_eq!(b.find(&o), Ok(true));
+        assert_eq!((b.caret_line, b.caret_col), (3, 5), "the comments, the string and the block comment are passed over");
+        assert_eq!(b.replace_all(&SearchOptions { replacement: "sum".into(), ..o.clone() }), Ok(1));
+        assert_eq!(text(&b), ["// count the total", "puts(\"total\"); /* a", " total */", "sum = 0;"]);
+        // Without it, every one counts.
+        assert_eq!(b.replace_all(&SearchOptions { pattern: "total".into(), replacement: "sum".into(), ..SearchOptions::default() }), Ok(3));
+    }
+
+    #[test]
     fn languages_with_only_block_comments_wrap_each_line() {
         let marks = crate::tools::CommentMarks { line: None, block: Some(("<!--", "-->")) };
         let mut b = buffer(&["  <p>x</p>"]);
@@ -4698,6 +5032,75 @@ mod tests {
         blank.select_all();
         blank.comment_lines(&marks);
         assert!(!blank.can_undo());
+    }
+
+    fn with_rules(lines: &[&str]) -> TextBuffer {
+        let json = crate::vsix_grammar::parse_jsonc(
+            r#"{ "brackets": [["{", "}"], ["(", ")"]], "autoClosingPairs": [["{", "}"], ["(", ")"], {"open": "'", "close": "'"}], "surroundingPairs": [["(", ")"]],
+                "indentationRules": { "increaseIndentPattern": "^.*\\{[^}]*$|\\bdo\\s*$", "decreaseIndentPattern": "^\\s*(\\}|end\\b)" } }"#,
+        )
+        .unwrap();
+        let mut b = buffer(lines);
+        b.rules = Some(Arc::new(crate::vsix::read_rules(&json)));
+        b
+    }
+
+    #[test]
+    fn a_language_s_pairs_close_themselves_and_are_stepped_over() {
+        set_edit_prefs(EditPrefs { spaces_for_tab: true, ..EditPrefs::default() });
+        set_tab_size(4);
+        let mut b = with_rules(&[""]);
+        for c in ["f", "(", "x"] {
+            b.type_text(c);
+        }
+        assert_eq!(text(&b), ["f(x)"]);
+        b.type_text(")");
+        assert_eq!(text(&b), ["f(x)"], "the closer that's there is stepped over");
+        assert_eq!(b.caret_char_position(), (0, 4));
+        b.type_text("'");
+        b.backspace();
+        assert_eq!(text(&b), ["f(x)"], "backspace between a pair takes both");
+        // Not before a word, and not an apostrophe.
+        let mut b = with_rules(&["word"]);
+        b.type_text("(");
+        assert_eq!(text(&b), ["(word"]);
+        let mut b = with_rules(&["don"]);
+        b.move_caret_to_char(0, 3);
+        b.type_text("'");
+        assert_eq!(text(&b), ["don'"]);
+        // Typed with a selection, an opener goes round it.
+        let mut b = with_rules(&["a + b"]);
+        b.set_selection((0, 0), (0, 5), false);
+        b.type_text("(");
+        assert_eq!(text(&b), ["(a + b)"]);
+        assert_eq!(b.selection_text(), "a + b");
+        // Without rules, nothing changes.
+        let mut b = buffer(&[""]);
+        b.type_text("(");
+        assert_eq!(text(&b), ["("]);
+        set_edit_prefs(EditPrefs::default());
+    }
+
+    #[test]
+    fn a_language_s_rules_indent_and_outdent_lines() {
+        set_edit_prefs(EditPrefs { spaces_for_tab: true, ..EditPrefs::default() });
+        set_tab_size(4);
+        let mut b = with_rules(&["fn main() "]);
+        b.move_caret_to_char(0, 10);
+        b.type_text("{");
+        assert_eq!(text(&b), ["fn main() {}"]);
+        b.new_line();
+        assert_eq!(text(&b), ["fn main() {", "    ", "}"], "between the brackets, the closer goes below");
+        assert_eq!(b.caret_char_position(), (1, 4));
+        let mut b = with_rules(&["repeat do"]);
+        b.move_caret_to_char(0, 9);
+        b.new_line();
+        assert_eq!(text(&b), ["repeat do", "    "]);
+        for c in ["e", "n", "d"] {
+            b.type_text(c);
+        }
+        assert_eq!(text(&b), ["repeat do", "end"], "a closing line comes out a step");
+        set_edit_prefs(EditPrefs::default());
     }
 
     #[test]

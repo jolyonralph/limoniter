@@ -1,6 +1,7 @@
 //! The preview beside the text. Markdown is the first format; another joins by adding a `Kind`, saying which
 //! files it's for in `kind_for`, and turning its text into `Block`s in `render`.
-//! Nothing here runs anything or fetches anything: links only open when clicked, and images aren't loaded.
+//! Nothing here runs anything or fetches anything: links only open when clicked, and the only pictures shown are
+//! files beside the one previewed (a Markdown guide's own pictures); nothing is fetched from the web.
 
 use crate::theme;
 use eframe::egui::{self, Color32, FontFamily, FontId, RichText, Stroke, TextFormat, Ui, text::LayoutJob};
@@ -54,6 +55,8 @@ pub enum Kind {
     Document,
     /// A web page, laid out from its HTML: headings, paragraphs, lists, tables and links, with no scripts or styles.
     Html,
+    /// An SVG drawing, drawn.
+    Svg,
 }
 
 impl Kind {
@@ -71,12 +74,13 @@ impl Kind {
             Kind::Sound => "Sound",
             Kind::Document => "Converted document",
             Kind::Html => "Web page",
+            Kind::Svg => "SVG drawing",
         }
     }
 
     /// Drawn as a machine's screen, rather than laid out as a document.
     pub fn is_screen(self) -> bool {
-        !matches!(self, Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Sound | Kind::Document)
+        !matches!(self, Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Sound | Kind::Document | Kind::Svg)
     }
 
     /// Made from the file's exact bytes rather than its text, so it works from hex mode too.
@@ -148,7 +152,7 @@ pub fn render_screen(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat
             crate::retro_screens::teletext(bytes, set, format.newline.parity(), mode7)
         }
         Kind::AnsiArt if is_amiga_console(format) => crate::ansi_art::render_amiga(bytes),
-        Kind::AnsiArt | Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Sound | Kind::Document => crate::ansi_art::render(bytes, dos),
+        Kind::AnsiArt | Kind::Markdown | Kind::Html | Kind::Basic | Kind::Picture | Kind::Module | Kind::Sound | Kind::Document | Kind::Svg => crate::ansi_art::render(bytes, dos),
     }
 }
 
@@ -158,7 +162,53 @@ pub fn is_amiga_console(format: &crate::codec::TextFormat) -> bool {
 }
 
 /// Makes a preview from a file's bytes: a retro screen, or a BASIC program's listing.
+/// The longest side an SVG is drawn at, and the shortest it's drawn up to, so an icon isn't a speck.
+const SVG_MOST: f32 = 2048.0;
+const SVG_LEAST: f32 = 256.0;
+
+/// The fonts an SVG's text is drawn in: the computer's own, found once.
+fn svg_fonts() -> std::sync::Arc<resvg::usvg::fontdb::Database> {
+    static FONTS: std::sync::OnceLock<std::sync::Arc<resvg::usvg::fontdb::Database>> = std::sync::OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let mut fonts = resvg::usvg::fontdb::Database::new();
+            fonts.load_system_fonts();
+            std::sync::Arc::new(fonts)
+        })
+        .clone()
+}
+
+/// An SVG drawn as a picture, at its own size (made larger if it's tiny, smaller if it's huge), on a clear
+/// background. Pictures it links to are looked for beside it.
+pub fn svg_picture(bytes: &[u8], folder: Option<&Path>) -> Result<crate::pictures::Picture, String> {
+    let options = resvg::usvg::Options { resources_dir: folder.map(Path::to_path_buf), fontdb: svg_fonts(), ..resvg::usvg::Options::default() };
+    let tree = resvg::usvg::Tree::from_data(bytes, &options).map_err(|e| crate::i18n::tf!("This SVG can't be drawn: {e}"))?;
+    let size = tree.size();
+    let longest = size.width().max(size.height()).max(1.0);
+    let scale = if longest > SVG_MOST { SVG_MOST / longest } else if longest < SVG_LEAST { SVG_LEAST / longest } else { 1.0 };
+    let (width, height) = (((size.width() * scale).ceil() as u32).max(1), ((size.height() * scale).ceil() as u32).max(1));
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).ok_or_else(|| crate::i18n::tr("This SVG is too large to draw.").to_string())?;
+    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    // tiny-skia keeps colours multiplied by their opacity; a picture here has them as they are.
+    let rgba: Vec<u8> = pixmap.pixels().iter().flat_map(|p| {
+        let c = p.demultiply();
+        [c.red(), c.green(), c.blue(), c.alpha()]
+    }).collect();
+    let mut info = vec![(crate::i18n::tr("Size").to_string(), format!("{:.0} \u{D7} {:.0}", size.width(), size.height()))];
+    if (scale - 1.0).abs() > f32::EPSILON {
+        info.push((crate::i18n::tr("Drawn at").to_string(), format!("{width} \u{D7} {height}")));
+    }
+    Ok(crate::pictures::Picture { width: width as usize, height: height as usize, rgba, aspect: 1.0, info, cycling: None })
+}
+
 pub fn render_bytes(kind: Kind, bytes: &[u8], format: &crate::codec::TextFormat, path: Option<&Path>) -> FromBytes {
+    if kind == Kind::Svg {
+        let folder = path.and_then(Path::parent).map(Path::to_path_buf);
+        return match svg_picture(bytes, folder.as_deref()) {
+            Ok(picture) => FromBytes::Picture(picture),
+            Err(why) => FromBytes::Nothing(why),
+        };
+    }
     if kind == Kind::Picture {
         let name = path.and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         return match crate::pictures::detect(&name, bytes).ok_or_else(|| crate::i18n::tr("This isn't a picture Limoniter can show any more.").to_string()).and_then(|f| crate::pictures::decode_named(f, &name, bytes)) {
@@ -255,6 +305,8 @@ pub fn kind_for(path: Option<&Path>, language: &str) -> Option<Kind> {
         Some("md" | "markdown" | "mdown" | "mkd" | "mdtext") => Some(Kind::Markdown),
         _ if matches!(language, "Markdown" | "MultiMarkdown") => Some(Kind::Markdown),
         Some("html" | "htm" | "xhtml") => Some(Kind::Html),
+        Some("svg" | "svgz") => Some(Kind::Svg),
+        _ if language == "SVG" => Some(Kind::Svg),
         _ if language == "HTML" => Some(Kind::Html),
         _ => None,
     }
@@ -278,6 +330,10 @@ pub enum BlockKind {
     Code,
     Rule,
     Table(Vec<Vec<Vec<Span>>>),
+    /// A picture beside the file, by its path from the file's folder, and the words standing for it.
+    Picture(String, String),
+    /// A Mermaid diagram's text, drawn as the diagram.
+    Diagram(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -615,9 +671,33 @@ fn safe_link(address: &str) -> Option<String> {
     (lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:")).then(|| address.trim().to_string())
 }
 
+/// What a link written in Markdown is followed as: a web address, or a file beside the one previewed (by its path
+/// from that file's folder, marked "local:"), which Limoniter opens itself. A file further up than the folder, or by
+/// a whole path, stays plain text.
+fn markdown_link(address: &str) -> Option<String> {
+    let address = address.trim();
+    // A heading in the same file, as a table of contents links to them.
+    if address.starts_with('#') && address.len() > 1 && !address.contains(char::is_whitespace) {
+        return Some(address.to_string());
+    }
+    safe_link(address).or_else(|| local_path(address).map(|path| format!("{LOCAL}{path}")))
+}
+
+/// How a link to a file beside the one previewed is marked.
+pub const LOCAL: &str = "local:";
+
+/// A path from the previewed file's folder, if it's a plain one: no scheme, not from the top, nothing above.
+fn local_path(address: &str) -> Option<String> {
+    let address = address.trim().split('#').next()?.trim();
+    let plain = !address.is_empty() && !address.contains(':') && !address.starts_with(['/', '\\']) && !address.split(['/', '\\']).any(|part| part == "..");
+    plain.then(|| address.to_string())
+}
+
 #[derive(Default)]
 struct Builder {
     blocks: Vec<Block>,
+    /// A picture being read, and its words so far.
+    picture: Option<(String, String)>,
     spans: Vec<Span>,
     strong: usize,
     italic: usize,
@@ -628,6 +708,8 @@ struct Builder {
     lists: Vec<Option<u64>>,
     marker: Option<String>,
     in_code: bool,
+    /// Inside a fenced block marked mermaid.
+    in_mermaid: bool,
     table: Option<Vec<Vec<Vec<Span>>>>,
     row: Vec<Vec<Span>>,
 }
@@ -676,8 +758,15 @@ fn markdown(text: &str) -> Vec<Block> {
                 Tag::Strong => b.strong += 1,
                 Tag::Emphasis => b.italic += 1,
                 Tag::Strikethrough => b.strike += 1,
-                Tag::Link { dest_url, .. } => b.link = safe_link(&dest_url),
-                Tag::Image { .. } => b.push_text("[image: ", false),
+                Tag::Link { dest_url, .. } => b.link = markdown_link(&dest_url),
+                // A picture beside the file is shown; any other is only named.
+                Tag::Image { dest_url, .. } => match local_path(&dest_url).filter(|p| is_picture_file(p)) {
+                    Some(path) => {
+                        b.flush();
+                        b.picture = Some((path, String::new()));
+                    }
+                    None => b.push_text("[image: ", false),
+                },
                 Tag::BlockQuote(_) => {
                     b.flush();
                     b.quote += 1;
@@ -697,15 +786,17 @@ fn markdown(text: &str) -> Vec<Block> {
                     };
                     b.marker = Some(marker);
                 }
-                Tag::CodeBlock(_) => {
+                Tag::CodeBlock(kind) => {
                     b.flush();
                     b.in_code = true;
+                    b.in_mermaid = matches!(&kind, pulldown_cmark::CodeBlockKind::Fenced(info) if info.split_whitespace().next().is_some_and(|l| l.eq_ignore_ascii_case("mermaid")));
                 }
                 Tag::Table(_) => {
                     b.flush();
                     b.table = Some(Vec::new());
                 }
                 Tag::TableHead | Tag::TableRow => b.row = Vec::new(),
+                Tag::HtmlBlock => b.flush(),
                 _ => {}
             },
             Event::End(tag) => match tag {
@@ -713,8 +804,11 @@ fn markdown(text: &str) -> Vec<Block> {
                 TagEnd::Emphasis => b.italic = b.italic.saturating_sub(1),
                 TagEnd::Strikethrough => b.strike = b.strike.saturating_sub(1),
                 TagEnd::Link => b.link = None,
-                TagEnd::Image => b.push_text("]", false),
-                TagEnd::Paragraph | TagEnd::Item => b.flush(),
+                TagEnd::Image => match b.picture.take() {
+                    Some((path, alt)) => b.blocks.push(Block { kind: BlockKind::Picture(path, alt), spans: Vec::new(), indent: 0, quote: 0, marker: None }),
+                    None => b.push_text("]", false),
+                },
+                TagEnd::Paragraph | TagEnd::Item | TagEnd::HtmlBlock => b.flush(),
                 TagEnd::BlockQuote(_) => {
                     b.flush();
                     b.quote = b.quote.saturating_sub(1);
@@ -736,7 +830,12 @@ fn markdown(text: &str) -> Vec<Block> {
                 }
                 TagEnd::CodeBlock => {
                     b.in_code = false;
-                    b.push_block(BlockKind::Code);
+                    if std::mem::take(&mut b.in_mermaid) {
+                        let source: String = b.spans.drain(..).map(|span| span.text).collect();
+                        b.push_block(BlockKind::Diagram(source));
+                    } else {
+                        b.push_block(BlockKind::Code);
+                    }
                 }
                 TagEnd::TableCell => {
                     let cell = std::mem::take(&mut b.spans);
@@ -755,10 +854,16 @@ fn markdown(text: &str) -> Vec<Block> {
                 _ => {}
             },
             Event::Text(text) => {
+                if let Some((_, alt)) = b.picture.as_mut() {
+                    alt.push_str(&text);
+                    continue;
+                }
                 let in_code = b.in_code;
                 b.push_text(&text, in_code);
             }
             Event::Code(text) => b.push_text(&text, true),
+            // A comment, such as a table of contents' markers, isn't shown, as it isn't on a web page.
+            Event::Html(text) | Event::InlineHtml(text) if text.trim().starts_with("<!--") && text.trim().ends_with("-->") => {}
             // Web page markup is shown as it's written: it's never acted on.
             Event::Html(text) | Event::InlineHtml(text) => b.push_text(&text, true),
             Event::SoftBreak => b.push_text(" ", false),
@@ -846,18 +951,29 @@ fn follow_links(ui: &Ui, response: egui::Response, position: egui::Pos2, galley:
             let clicked = response.clicked();
             response.on_hover_text(address.clone());
             if clicked {
-                ui.ctx().open_url(egui::OpenUrl::new_tab(address));
+                // A file beside this one is opened by the window, a heading in this one scrolled to, and anything
+                // else goes to the browser.
+                if let Some(anchor) = address.strip_prefix('#') {
+                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(SCROLL_TO), anchor.to_lowercase()));
+                } else {
+                    match address.strip_prefix(LOCAL) {
+                        Some(path) => {
+                            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(OPEN_LOCAL), path.to_string()));
+                        }
+                        None => ui.ctx().open_url(egui::OpenUrl::new_tab(address)),
+                    }
+                }
             }
         }
     }
 }
 
-const TABLE_GAP: f32 = 12.0;
+pub const TABLE_GAP: f32 = 12.0;
 
 /// How wide each column of a table can be. If they all fit they keep their natural widths. If not, narrow
 /// columns still keep theirs and the wide ones share what's left equally, wrapping their text to fit.
 /// The result always fits, however little room there is.
-fn column_widths(natural: &[f32], available: f32) -> Vec<f32> {
+pub fn column_widths(natural: &[f32], available: f32) -> Vec<f32> {
     let gaps = TABLE_GAP * natural.len().saturating_sub(1) as f32;
     let room = (available - gaps).max(natural.len() as f32);
     if natural.iter().sum::<f32>() <= room {
@@ -937,6 +1053,9 @@ fn draw_table(ui: &mut Ui, rows: &[Vec<Vec<Span>>]) {
 
 fn draw_block(ui: &mut Ui, block: &Block) {
     match &block.kind {
+        BlockKind::Picture(_, alt) => {
+            ui.label(RichText::new(format!("[image: {alt}]")).color(theme::text_faint()));
+        }
         BlockKind::Heading(level) => {
             ui.add_space(8.0);
             draw_spans(ui, &block.spans, heading_size(*level), true);
@@ -970,12 +1089,101 @@ fn draw_block(ui: &mut Ui, block: &Block) {
             draw_table(ui, rows);
             ui.add_space(6.0);
         }
+        BlockKind::Diagram(source) => {
+            draw_diagram(ui, source);
+            ui.add_space(6.0);
+        }
+    }
+}
+
+/// A Mermaid diagram, as large as it was laid out or smaller to fit; or, if it can't be drawn, why, and its text.
+fn draw_diagram(ui: &mut Ui, source: &str) {
+    match &*crate::mermaid::cached(source) {
+        Ok(scene) => {
+            // Centred, as Mermaid's own are.
+            let width = ui.available_width();
+            let scale = (width / scene.width).min(1.0);
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(width, scene.height * scale), egui::Sense::hover());
+            if ui.is_rect_visible(rect) {
+                let left = rect.min.x + (width - scene.width * scale) / 2.0;
+                crate::diagram::paint(ui.painter(), scene, egui::pos2(left, rect.min.y), scale);
+            }
+        }
+        Err(why) => {
+            ui.label(RichText::new(why).color(theme::text_faint()).size(12.5));
+            egui::Frame::new().fill(theme::ruler_back()).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(RichText::new(source.trim_end_matches('\n')).monospace().size(13.0));
+            });
+        }
     }
 }
 
 /// Draws a preview, with its own scrolling. It takes the room it's given and nothing more: whatever is in the
 /// file, it can't push the panel it's in any wider, because that would run the text off the window.
-pub fn draw(ui: &mut Ui, blocks: &[Block]) {
+/// Whether a path names a picture that can be shown beside a guide's text.
+pub fn is_picture_file(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".png") || lower.ends_with(".svg")
+}
+
+/// A picture beside the file, read from its PNG or SVG.
+pub fn read_local_picture(path: &Path) -> Option<crate::pictures::Picture> {
+    let bytes = std::fs::read(path).ok()?;
+    if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg")) {
+        return svg_picture(&bytes, path.parent()).ok();
+    }
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(png::Transformations::normalize_to_color8() | png::Transformations::ALPHA);
+    let mut reader = decoder.read_info().ok()?;
+    let mut buffer = vec![0; reader.output_buffer_size()?];
+    let info = reader.next_frame(&mut buffer).ok()?;
+    let (width, height) = (info.width as usize, info.height as usize);
+    let rgba: Vec<u8> = match info.color_type {
+        png::ColorType::Rgba => buffer[..width * height * 4].to_vec(),
+        png::ColorType::GrayscaleAlpha => buffer[..width * height * 2].chunks(2).flat_map(|p| [p[0], p[0], p[0], p[1]]).collect(),
+        _ => return None,
+    };
+    Some(crate::pictures::Picture { width, height, rgba, aspect: 1.0, info: Vec::new(), cycling: None })
+}
+
+/// The temporary data a click on a link to a file beside the previewed one leaves, for the window to open it.
+pub const OPEN_LOCAL: &str = "preview-open-local";
+/// The heading a click on a link to one leaves, for the preview to scroll to.
+const SCROLL_TO: &str = "preview-scroll-to";
+
+/// Each block's link name if it's a heading, as GitHub makes them (and the table of contents links to them): a
+/// second heading with the same words gets -1 on the end, a third -2.
+pub fn heading_anchors(blocks: &[Block]) -> Vec<Option<String>> {
+    let mut used: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    blocks
+        .iter()
+        .map(|block| {
+            let BlockKind::Heading(_) = block.kind else { return None };
+            let text: String = block.spans.iter().map(|s| s.text.as_str()).collect();
+            let base = crate::markdown_tools::anchor(text.trim());
+            let count = used.entry(base.clone()).or_insert(0);
+            let name = if *count == 0 { base } else { format!("{base}-{count}") };
+            *count += 1;
+            Some(name)
+        })
+        .collect()
+}
+
+/// A picture beside the file, read once and kept as a texture.
+fn local_picture(ui: &Ui, path: &Path) -> Option<egui::TextureHandle> {
+    let id = egui::Id::unique("preview-picture").with(path.to_path_buf());
+    if let Some(texture) = ui.ctx().data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let picture = read_local_picture(path)?;
+    let texture = ui.ctx().load_texture(path.display().to_string(), egui::ColorImage::from_rgba_unmultiplied([picture.width, picture.height], &picture.rgba), egui::TextureOptions::LINEAR);
+    ui.ctx().data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
+}
+
+/// Draws the blocks; `folder` is the previewed file's own, where pictures and linked files beside it are found.
+pub fn draw_in(ui: &mut Ui, blocks: &[Block], folder: Option<&Path>) {
     let area = ui.available_rect_before_wrap();
     ui.allocate_rect(area, egui::Sense::hover());
     let mut contained = ui.new_child(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::top_down(egui::Align::Min)));
@@ -985,7 +1193,32 @@ pub fn draw(ui: &mut Ui, blocks: &[Block]) {
         if blocks.is_empty() {
             ui.label(RichText::new(crate::i18n::tr("There's nothing to preview yet.")).color(theme::text_faint()));
         }
-        for block in blocks {
+        let wanted: Option<String> = ui.ctx().data(|d| d.get_temp(egui::Id::unique(SCROLL_TO)));
+        let anchors = if wanted.is_some() { heading_anchors(blocks) } else { Vec::new() };
+        for (number, block) in blocks.iter().enumerate() {
+            if let Some(wanted) = &wanted
+                && anchors.get(number).is_some_and(|a| a.as_ref() == Some(wanted))
+            {
+                let top = ui.cursor().min;
+                ui.scroll_to_rect(egui::Rect::from_min_size(top, egui::vec2(1.0, 24.0)), Some(egui::Align::TOP));
+                ui.ctx().data_mut(|d| d.remove::<String>(egui::Id::unique(SCROLL_TO)));
+            }
+            if let BlockKind::Picture(path, alt) = &block.kind {
+                match folder.and_then(|f| local_picture(ui, &f.join(path))) {
+                    Some(texture) => {
+                        // At its own size, or smaller to fit.
+                        let size = texture.size_vec2();
+                        let scale = (ui.available_width() / size.x).min(1.0);
+                        ui.add_space(4.0);
+                        ui.add(egui::Image::new((texture.id(), size * scale))).on_hover_text(alt.clone());
+                        ui.add_space(4.0);
+                    }
+                    None => {
+                        ui.label(RichText::new(format!("[image: {alt}]")).color(theme::text_faint()));
+                    }
+                }
+                continue;
+            }
             let shift = block.indent as f32 * 18.0 + block.quote as f32 * 12.0;
             if shift == 0.0 {
                 draw_block(ui, block);
@@ -1001,6 +1234,42 @@ pub fn draw(ui: &mut Ui, blocks: &[Block]) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod guide_tests {
+    use super::*;
+
+    #[test]
+    fn a_guides_own_links_and_pictures_are_followed_and_nothing_else() {
+        let blocks = markdown("See [the copper](06-copper.md#waits), [the web](https://example.org), [up](../secret.md) and [all](/etc/passwd).\n\n![A demo](images/ch04.png)\n\n![Far away](https://example.org/x.png)\n");
+        let links: Vec<Option<&str>> = blocks[0].spans.iter().filter(|s| !s.text.trim().is_empty() && !s.text.contains(',') && s.text != " and ").map(|s| s.link.as_deref()).collect();
+        assert!(links.contains(&Some("local:06-copper.md")), "{links:?}");
+        assert!(links.contains(&Some("https://example.org")));
+        let plain: Vec<&str> = blocks[0].spans.iter().filter(|s| s.link.is_none()).map(|s| s.text.as_str()).collect();
+        assert!(plain.iter().any(|t| t.contains("up")) && plain.iter().any(|t| t.contains("all")), "a file above, or by its whole path, isn't a link: {plain:?}");
+        assert_eq!(blocks[1].kind, BlockKind::Picture("images/ch04.png".into(), "A demo".into()));
+        assert!(blocks.iter().all(|b| !matches!(&b.kind, BlockKind::Picture(p, _) if p.contains("example.org"))), "nothing from the web is fetched");
+    }
+}
+
+#[cfg(test)]
+mod svg_tests {
+    use super::*;
+
+    #[test]
+    fn svg_is_drawn_as_a_picture() {
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect x="0" y="0" width="200" height="300" fill="#ff0000"/></svg>"##;
+        let picture = svg_picture(svg, None).unwrap();
+        assert_eq!((picture.width, picture.height), (400, 300));
+        assert_eq!(&picture.rgba[..4], &[255, 0, 0, 255], "red at the left");
+        assert_eq!(picture.rgba[(300 * 400) * 4 - 1], 0, "clear at the right");
+        // A small icon is drawn larger.
+        let icon = svg_picture(br#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>"#, None).unwrap();
+        assert_eq!(icon.width, 256);
+        assert!(svg_picture(b"<svg", None).is_err());
+        assert_eq!(kind_for(Some(Path::new("logo.svg")), ""), Some(Kind::Svg));
+    }
 }
 
 #[cfg(test)]
@@ -1120,7 +1389,8 @@ mod tests {
         assert_eq!(link("mail").as_deref(), Some("mailto:a@b.c"));
         assert_eq!(link("bad"), None);
         assert_eq!(link("file"), None);
-        assert_eq!(link("near"), None);
+        // A file beside this one is opened by Limoniter itself, not handed to anything else.
+        assert_eq!(link("near").as_deref(), Some("local:other.md"));
     }
 
     #[test]
@@ -1207,7 +1477,7 @@ mod tests {
             for _ in 0..6 {
                 let raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 900.0))), ..Default::default() };
                 let mut output = ctx.run_ui(raw, |ui| {
-                    panel = egui::Panel::right("preview-test").default_size(width).size_range(100.0..=1400.0).frame(egui::Frame::NONE).show(ui, |ui| draw(ui, &blocks)).response.rect;
+                    panel = egui::Panel::right("preview-test").default_size(width).size_range(100.0..=1400.0).frame(egui::Frame::NONE).show(ui, |ui| draw_in(ui, &blocks, None)).response.rect;
                 });
                 output.textures_delta.clear();
                 texts.clear();
@@ -1230,7 +1500,7 @@ mod tests {
             let ctx = egui::Context::default();
             for _ in 0..2 {
                 let raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
-                let mut output = ctx.run_ui(raw, |ui| draw(ui, &blocks));
+                let mut output = ctx.run_ui(raw, |ui| draw_in(ui, &blocks, None));
                 output.textures_delta.clear();
             }
         }

@@ -232,7 +232,7 @@ fn write_watches(code: &crate::text_buffer::CodeMarks, labels: Option<&std::coll
 }
 
 /// A program named without a folder, found where the system looks for programs.
-fn on_path(program: &Path) -> PathBuf {
+pub(super) fn on_path(program: &Path) -> PathBuf {
     if program.components().count() > 1 || program.is_file() {
         return program.to_path_buf();
     }

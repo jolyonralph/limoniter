@@ -347,7 +347,7 @@ fn a_folder_on_a_server_is_compared_and_synced_into() {
     }
     files.lock().unwrap().insert("/srv/www/index.html".into(), (b"old page".to_vec(), 100));
     files.lock().unwrap().insert("/srv/www/old/stale.css".into(), (b"stale".to_vec(), 100));
-    let site = Site { host: "example.com".into(), port: 22, user: "me".into(), key_file: None };
+    let site = Site { host: "example.com".into(), port: 22, user: "me".into(), ..Site::default() };
     let remote: Arc<dyn Tree> = Arc::new(SftpTree::with(Box::new(server), &site, "/srv/www").unwrap());
     let local = Arc::new(MemoryTree::with(&[("index.html", "new page", Some(500)), ("css/site.css", "body{}", Some(500))]));
     let sftp = Side::Sftp { site: site.clone(), folder: "/srv/www".into() };

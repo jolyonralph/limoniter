@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>12. Sound and music · How To Code v8</title>
+  <meta name="description" content="The Amiga&#x27;s sound comes from Paula, the chip that also looks after the interrupts, the disk and the serial port.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/12-sound-and-music.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/12-sound-and-music.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="12. Sound and music · How To Code v8">
+  <meta property="og:description" content="The Amiga&#x27;s sound comes from Paula, the chip that also looks after the interrupts, the disk and the serial port.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/12-sound-and-music.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html" aria-current="page">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>12. Sound and music</h1>
+        <div class="article-lead">
+<p>The Amiga's sound comes from <strong>Paula</strong>, the chip that also looks after the interrupts, the disk and the serial port. It has four sound channels, each reading 8-bit samples from chip RAM by DMA and turning them into sound without the processor's help. A demo sets a channel going, and from then on the processor's work is only to say when to change something: a new note, a new volume.</p>
+<p>This chapter covers how to play a sound on Paula properly, the one timing problem that broke a generation of replayers on faster Amigas, and the replayers to use today. Everything here was checked against chapter 5 of the <em>Hardware Reference Manual</em> (HRM), its appendices on the CIAs, and the NDK 3.2. The examples were run on an emulated Amiga 500 with Kickstart 1.3 and 3.1, both ways, with a 68000, 68020 and 68040, and on an NTSC machine; and their sound was <strong>recorded</strong> from the emulator and checked note by note (how is in <a href="#the-examples">the examples</a> below).</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#paula-s-four-channels">Paula's four channels</a></li>
+<li><a href="#playing-a-sample">Playing a sample</a></li>
+<li><a href="#periods-and-notes">Periods and notes</a></li>
+<li><a href="#volume">Volume</a></li>
+<li><a href="#starting-a-new-note-the-wait">Starting a new note: the wait</a></li>
+<li><a href="#modulation-adkcon">Modulation: ADKCON</a></li>
+<li><a href="#the-audio-interrupts">The audio interrupts</a></li>
+<li><a href="#a-tiny-player">A tiny player</a></li>
+<li><a href="#tempo-the-vertical-blank-or-a-cia-timer">Tempo: the vertical blank or a CIA timer</a></li>
+<li><a href="#replayers-today">Replayers today</a></li>
+<li><a href="#music-you-have-the-right-to-use">Music you have the right to use</a></li>
+<li><a href="#the-examples">The examples</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="paula-s-four-channels">Paula's four channels</h2>
+<p>Each channel has a digital-to-analogue converter of its own, fed by its own DMA. Channels <strong>0 and 3 come out on the left</strong>, <strong>1 and 2 on the right</strong>. There's no panning: a sound on channel 0 is on the left only. (The HRM's online edition says it the other way round, 0 and 3 on the right; its own note there says the printed manual has 0 and 3 on the left, "which is identical how the real hardware works". The emulated A500 agrees: channel 0 came out on the left.) Emulators often blend the two sides a little for headphones; a real Amiga doesn't.</p>
+<p>Each channel has five registers, <code>$10</code> apart, from <code>$DFF0A0</code> for channel 0:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Register</th>
+<th scope="col">Offset</th>
+<th scope="col">What it is</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>AUDxLC</code> (<code>AUDxLCH</code>, <code>AUDxLCL</code>)</th>
+<td><code>$A0</code></td>
+<td>where the sample starts: a long word, an even address in chip RAM</td>
+</tr>
+<tr>
+<th scope="row"><code>AUDxLEN</code></th>
+<td><code>$A4</code></td>
+<td>its length, <strong>in words</strong> (two samples a word)</td>
+</tr>
+<tr>
+<th scope="row"><code>AUDxPER</code></th>
+<td><code>$A6</code></td>
+<td>its <strong>period</strong>: how many clock ticks each sample lasts, so how fast it plays</td>
+</tr>
+<tr>
+<th scope="row"><code>AUDxVOL</code></th>
+<td><code>$A8</code></td>
+<td>its volume, 0 to 64</td>
+</tr>
+<tr>
+<th scope="row"><code>AUDxDAT</code></th>
+<td><code>$AA</code></td>
+<td>the next two samples, for playing without DMA (rarely used)</td>
+</tr>
+</tbody></table></div>
+<p><code>hardware.i</code> has them as <code>AUD0LC</code>, <code>AUD0LEN</code>, <code>AUD0PER</code>, <code>AUD0VOL</code>, <code>AUD0DAT</code>, with <code>AUD1LC</code> to <code>AUD3LC</code> and <code>AUD_SIZE</code> (<code>$10</code>) for the others.</p>
+<p>A sample is a list of signed bytes, -128 to 127. It has to be in <strong>chip RAM</strong>, like anything the custom chips read: a <code>data_c</code> or <code>bss_c</code> section, or memory allocated with <code>MEMF_CHIP</code>. Each channel gets one word (two samples) from memory in every scan line, in a slot kept for it (the HRM: "Each audio channel is allocated one DMA slot per horizontal scan line"); the slots are there whether the channel plays or not, so playing sound takes no time from the processor or the blitter.</p>
+<h2 id="playing-a-sample">Playing a sample</h2>
+<p>Set the four registers, then switch the channel's DMA on in <code>DMACON</code>, with <code>DMAEN</code> (the master switch) as well. From <code>ch12_tone.s</code>:</p>
+<div class="code-block"><pre><code>        lea     CUSTOM,a5
+        move.l  #Wave,AUD0LC(a5)                ; the address: chip RAM, a word boundary
+        move.w  #WAVEBYTES/2,AUD0LEN(a5)        ; the length, in words
+        move.w  #VOLUME,AUD0VOL(a5)
+        move.l  Periods,a0
+        move.w  (a0),AUD0PER(a5)                ; the first note
+        clr.w   NoteIndex
+        move.w  #DMAF_SETCLR!DMAF_MASTER!DMAF_AUD0,DMACON(a5)  ; and go: the waveform repeats until it's stopped</code></pre></div>
+<p>The channel plays the sample, and when it gets to the end, plays it again from the start, for ever: a sample of one cycle of a waveform makes a steady tone. That's because the channel doesn't use <code>AUDxLC</code> and <code>AUDxLEN</code> directly. When it starts, it <strong>copies</strong> them into counters of its own (the HRM calls them back-up registers), plays from those, and copies them again each time it gets to the end. So writing <code>AUDxLC</code> and <code>AUDxLEN</code> while a channel plays changes nothing now: it's what the channel will play <em>next</em>, after the current sample ends. Trackers use exactly that for a sample with a loop: start the whole sample, then point the registers at the loop, which plays when the sample has finished and then repeats.</p>
+<p><code>AUDxPER</code> and <code>AUDxVOL</code> are different: they're used from the next sample on. Writing a new period while a channel plays changes the pitch at once, with no click, as the waveform carries on where it was. That's how <code>ch12_tone.s</code> changes note every second, and how a tracker does vibrato, slides and arpeggios.</p>
+<p><strong>Stopping</strong> is the channel's bit in <code>DMACON</code> with bit 15 clear, and its volume to 0:</p>
+<div class="code-block"><pre><code>        move.w  #DMAF_AUD0,DMACON(a5)
+        move.w  #0,AUD0VOL(a5)</code></pre></div>
+<p>Set the volume to 0 as well: a channel left without new data holds its last sample's value on its output (the HRM says so of playing without DMA), and with the volume at 0 there's nothing left to hear, whatever comes next.</p>
+<figure class="guide-shot"><img src="images/ch12_tone.png" alt="Eight keys, the fourth lit: ch12_tone.s playing F, on an Amiga 500 with Kickstart 1.3" loading="lazy"></figure>
+<p><code>ch12_tone.s</code> plays a waveform on channel 0, up and down a C major scale, a note a second, with the note playing lit on screen. Its waveform is one cycle of 32 samples: a sine with a little of its second and third harmonics, which sounds rounder than a plain sine. It starts at 0, so starting it makes no click.</p>
+<h3 id="stopping-as-the-demo-ends">Stopping as the demo ends</h3>
+<p>Taking the machine, the startup stops all four channels as the demo ends: audio DMA off and every volume 0. With the system running it leaves sound alone, as other programs may be playing, unless the demo set <code>AUDIO_CHANNELS</code> (a mask of the channels it plays): then the startup allocates those channels from audio.device as the demo starts and silences and frees them as it ends, as the examples below do for themselves. Either way, a program that starts a sound should stop it too, in its <code>ExitHook</code> (see <a href="04-startup-and-exit.html">startup and exit</a>), and there's an order to it. The vertical blank goes on running until the startup takes its interrupt away, which is <em>after</em> <code>ExitHook</code>. A player that's still running then will start the next note again. So stop the player first, then the sound:</p>
+<div class="code-block"><pre><code>PlayerExit:
+        sf      Playing                         ; the vertical blank does nothing from now on
+        move.w  #DMAF_AUDIO,DMACON(a5)
+        moveq   #0,d0
+        move.w  d0,AUD0VOL(a5)
+        ...</code></pre></div>
+<h3 id="with-the-system-running-ask-audio-device-first">With the system running: ask audio.device first</h3>
+<p>With <code>OS_FRIENDLY</code> set, the system is still running, and <strong>audio.device</strong> owns the four channels: other programs ask it for them. A program that writes the audio registers itself must allocate its channels from audio.device first, so the system won't give them to anyone else while the demo plays. The audio.device autodoc: "If you decide to store directly to the audio hardware registers, you must either lock the channels you've allocated, or set the precedence to maximum (ADALLOC_MAXPREC) to prevent the channels from being stolen."</p>
+<p>Opening the device with a list of the channel combinations you'd take allocates them; closing it frees them again. The allocation needs a message port, made by hand here as <code>CreateMsgPort</code> is only in Kickstart 2 and later (the startup makes its input handler's port the same way). From <code>ch12_tone.s</code> (the port's set up just before):</p>
+<div class="code-block"><pre><code>        lea     AudioRequest,a1
+        move.b  #NT_MESSAGE,LN_TYPE(a1)
+        move.b  #ADALLOC_MAXPREC,LN_PRI(a1)     ; the allocation's precedence: nothing can take it from us
+        move.l  a0,MN_REPLYPORT(a1)
+        move.w  #ioa_SIZEOF,MN_LENGTH(a1)
+        move.l  #ChannelWanted,ioa_Data(a1)
+        move.l  #1,ioa_Length(a1)               ; one combination to try
+        lea     AudioName(pc),a0
+        moveq   #0,d0
+        moveq   #0,d1
+        jsr     _LVOOpenDevice(a6)
+        tst.l   d0
+        bne.s   .noopen
+...
+ChannelWanted:  dc.b    %0001                   ; channel 0 (bits 0 to 3 are channels 0 to 3)</code></pre></div>
+<p><code>ADALLOC_MAXPREC</code> is 127, and <code>ioa_Data</code>, <code>ioa_Length</code> and <code>ioa_SIZEOF</code> are offsets in the <code>IOAudio</code> structure (34, 38 and 68, from the NDK's <code>devices/audio.i</code>). If <code>OpenDevice</code> fails, another program has the channels: both examples then run without sound rather than fight over them. The channels go back with <code>CloseDevice</code> in <code>ExitHook</code>, after the sound has stopped. audio.device is in the Kickstart ROM, 1.3 included.</p>
+<p>Taking the machine, none of this is needed: nothing else runs.</p>
+<h2 id="periods-and-notes">Periods and notes</h2>
+<p>The period is how many ticks of the chips' clock each sample lasts. That clock is the <strong>colour clock</strong>: <strong>3,546,895 Hz on PAL</strong> machines and <strong>3,579,545 Hz on NTSC</strong> ones (the HRM's "clock constant"). So:</p>
+<div class="code-block"><pre><code>samples a second = clock / period
+frequency of a note = clock / (period * samples in one cycle of the waveform)</code></pre></div>
+<p>For <code>ch12_tone.s</code>'s 32-sample waveform, middle C (261.6 Hz) is 3546895 / (32 × 261.6) = <strong>424</strong> on PAL. On NTSC it's <strong>428</strong>. The two clocks differ by about 1%, so a demo that wants to be in tune on both has two tables, and picks one at the start, as <code>ch12_tone.s</code> does with the startup's <code>PalDisplay</code>:</p>
+<div class="code-block"><pre><code>PeriodsPAL:     dc.w    424,377,336,317,283,252,224,212
+PeriodsNTSC:    dc.w    428,381,339,320,285,254,226,214</code></pre></div>
+<p>Doubling the period plays a note an octave lower. So does doubling the length of the waveform at the same period: <code>ch12_tiny_player.s</code> plays its bass from the same period table as the lead, with a waveform of 64 samples instead of 32, and it sounds an octave below.</p>
+<p><strong>ProTracker's periods.</strong> ProTracker's period table runs from 856 (its C-1) to 113 (B-3), with C-2 at 428. Those are the NTSC values above: a sample played at C-2 plays at 3579545 / 428 = 8363 samples a second on NTSC, and 3546895 / 428 = 8287 on PAL, so on a PAL Amiga every module plays about a sixth of a semitone flat. Since most modules were written and heard on PAL Amigas, that's how they're meant to sound. Its finetune tables go a little further: the longest period, C-1 at finetune -8, is 907.</p>
+<p><strong>The shortest period is 124</strong> (the HRM; 123 on PAL). The reason is the DMA: a channel gets one word, two samples, a line. A PAL line is 227 colour clocks, so two samples a line is a period of 113.5 at the very least; the HRM leaves a margin and says 124. Below it, "the audio DMA will not have had enough time to retrieve the next data sample and the previous sample will be reused". ProTracker's top note, B-3 at 113, is under the HRM's limit, and a whisker under even 113.5. With a 32-sample waveform, 124 is about 894 Hz on PAL; for higher notes, use a waveform with fewer samples a cycle (or more than one cycle in it), not a shorter period. The longest period is 65535.</p>
+<p><strong>The filter.</strong> The Amiga has a low-pass filter on its output that the HRM says starts to cut in around 4 kHz, and later A500s, and A2000s with two-layer boards, can switch it off (the HRM): it's bit 1 of CIA-A's port A (<code>$BFE001</code>), the same bit that dims the power light. The HRM's advice for waveforms of one cycle is periods from 124 to 256 (14,000 to 28,000 samples a second), which keeps the waveform's own harmonics where the filter can do its job; that means a different waveform for each octave. If anything you use changes the filter bit (some replayers do, below), the v8 startup puts it back as the demo ends, as it was found; a demo on another startup has to do it itself.</p>
+<h2 id="volume">Volume</h2>
+<p><code>AUDxVOL</code> is 0 (silent) to 64 (loudest): 64 is the top, not 63. It scales the sample's amplitude in a straight line, so 32 is half as loud in amplitude, 6 dB down; the HRM's table has 48 at -2.5 dB and 16 at -12 dB.</p>
+<p>Changing the volume every frame gives a note a shape, an <strong>envelope</strong>: loud as it starts, falling away. <code>ch12_tiny_player.s</code> does that for each channel, keeping the volume times 256 so it can fall by fractions of a step each frame.</p>
+<p>The HRM has three rules for clean changes from one sound to another: avoid <strong>clicks</strong> by making a waveform start and end at about the same value; avoid <strong>pops</strong> by starting a waveform at a zero crossing; and avoid <strong>thumps</strong> by giving waveforms the same average value, best of all 0. The tiny player's pulse wave is 96 for a quarter of its cycle and -32 for the rest, rather than ±64, so it averages 0.</p>
+<h2 id="starting-a-new-note-the-wait">Starting a new note: the wait</h2>
+<p>Playing a new sample on a channel that's already playing (a new note in a tune) takes three steps:</p>
+<ol class="steps"><li>Switch the channel's DMA off.</li><li>Set <code>AUDxLC</code>, <code>AUDxLEN</code> and <code>AUDxPER</code> for the new sample, and switch its DMA on again.</li><li>Once it's started, point <code>AUDxLC</code> and <code>AUDxLEN</code> at what follows: the sample's loop, or silence.</li></ol>
+<p>And there must be a <strong>wait</strong> after step 1, and another after step 2. They're where v7's tracker section came from, and where most replayers of the time went wrong.</p>
+<h3 id="why-it-has-to-wait">Why it has to wait</h3>
+<p>A channel only looks at its DMA bit at the end of a sample, and it may be up to two samples from that. The HRM: "If the channel is disabled for a very short time (less than two sampling periods) it may stay on and thus continue from where it left off." Switch it on again before then and, as far as the channel knows, it never stopped. It carries on through the <em>old</em> sample, and the new note's start is lost: it only gets the new sample when the old one runs out, and by then step 3 has pointed the registers at the loop. That's the classic "notes missing" fault, and it's worst for low notes, as their samples are longest: two samples at ProTracker's longest period, 907, are 1,814 colour clocks, about <strong>eight lines</strong>.</p>
+<p>v8 measured it. A test program played a long sample at period 907, then stopped it, waited a number of new lines (counted with the beam, as below) and started a different sample. It tried each wait at eight different points in the old sample, on the emulated A500, and the sound was recorded to see whether the new sample was heard:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">New lines waited</th>
+<th scope="col">1</th>
+<th scope="col">2</th>
+<th scope="col">3</th>
+<th scope="col">4</th>
+<th scope="col">5</th>
+<th scope="col">6</th>
+<th scope="col">7</th>
+<th scope="col">8 to 12</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">New note heard, of 8</th>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+<td>6</td>
+<td>7</td>
+<td>8</td>
+</tr>
+</tbody></table></div>
+<p>Just as the HRM says: whether a short wait works depends on where the old sample was, and from eight lines on, it always worked. (This is the emulator's model of Paula, FS-UAE's, which follows the HRM's state machine; it wasn't checked on a real A500.)</p>
+<p>So: <strong>after stopping a channel, wait at least two of its old samples: twice its period in colour clocks</strong>. A line is 227 colour clocks (227.5 on NTSC). Counting new lines with the beam, the first may be nearly over as you start, so count one more than you need. <code>ch12_tiny_player.s</code> waits for 10, at least nine whole lines, 2,043 colour clocks: enough for any period up to 1,021.</p>
+<h3 id="how-not-to-wait">How not to wait</h3>
+<p>v7's tracker section was about this wait. It reported that ProTracker 2.3's replay routine had an equate, <code>DMAWait = 300</code>, "Set this as low as possible without losing low notes", and then never used it, waiting with a hard-coded <code>dbf</code> loop of 300 instead; v7's advice was to use the equate and raise it to 1024, or to 1800 to 2000 on a 68040.</p>
+<p>The fault wasn't the number. A <code>dbf</code> loop's time depends on the processor: on a 68000 at 7 MHz, 300 times round takes about 3,000 cycles, about six and a half lines; a 68030 or 68040 running it from its cache is done in a fraction of a line, and an emulator with a just-in-time compiler takes no time at all. There's no right number of times round a loop. Waiting for a clock that runs at the same speed on every Amiga is the fix (see <a href="03-general-guidelines.html">general guidelines</a>: no delay loops).</p>
+<h3 id="the-right-ways">The right ways</h3>
+<ul><li><strong>The beam.</strong> Count new lines with <code>VHPOSR</code>. Any processor, any speed. This is the tiny player's way:</li></ul>
+<p>``<code>asm ; Waits until the beam has started d0 new lines. Any processor, any speed: the beam is the clock. WaitLines: .line: move.b  VHPOSR(a5),d1                   ; the line the beam is on (its low 8 bits) .same: cmp.b   VHPOSR(a5),d1 beq.s   .same subq.w  #1,d0 bne.s   .line rts </code>``</p>
+<p>It's simple, but the processor does nothing else while it waits, ten lines or so for each row of a tune with a new note in it. (v7's archive came with a replayer that did wait with the beam, for six new lines between its steps, plus the time it spent on the other channels.)</p>
+<ul><li><strong>A CIA timer.</strong> Start a one-shot timer, and do the next step in its interrupt. The processor's free meanwhile. A CIA tick is exactly five colour clocks (709,379 × 5 = 3,546,895 on PAL; 715,909 × 5 = 3,579,545 on NTSC). LightSpeedPlayer's CIA toolkit waits 496 ticks (2,480 colour clocks, nearly 11 lines); ptplayer waits 576 (12.7 lines; its history says it was raised from 496 to fix low notes on a few A1200s). See <a href="05-interrupts.html">interrupts</a> for CIA timers both ways.</li></ul>
+<ul><li><strong>The copper.</strong> If the replay runs at a known line each frame (the top of the frame, from the vertical blank), a copper <code>MOVE</code> to <code>DMACON</code> about 11 lines further down the copper list can do step 2's DMA on. The replay stops the channels, sets the new samples, and writes which channels to start into that <code>MOVE</code>'s value. LightSpeedPlayer and The Player do it this way. The <code>MOVE</code> has to be in every copper list the demo uses.</li></ul>
+<h3 id="the-second-wait-the-channel-says-when-it-s-ready">The second wait: the channel says when it's ready</h3>
+<p>After step 2, the channel has to take the new sample's address and length into its counters before step 3 changes the registers; change them too soon and it starts from the loop, or the silence, instead. Players wait a second time for this, as long again. But the channel says when it's done it, with its <strong>audio interrupt request</strong>. The HRM: "Interrupts occur immediately after the audio DMA channel has read the location and length registers and stored their values in the back-up registers." The request shows in <code>INTREQR</code> (bits 7 to 10 for channels 0 to 3) whether the interrupt is enabled or not. So clear the request, start the channel, and wait for the request to come back; in v8's test it came within a line. <code>ch12_tiny_player.s</code> does all three steps for every channel starting a note at once:</p>
+<div class="code-block"><pre><code>StartNotes:
+        move.w  d7,DMACON(a5)                   ; 1: the channels' DMA off (bit 15 clear: clear these bits)
+        moveq   #DMA_WAIT_LINES,d0
+        bsr     WaitLines
+
+        ...                                     ; 2: the new samples, into AUDxLC, AUDxLEN, AUDxPER
+
+        move.w  d7,d5                           ; their audio interrupt requests: INTF_AUD0 is bit 7
+        lsl.w   #7,d5
+        move.w  d5,INTREQ(a5)                   ; cleared, so a new one shows the start
+        move.w  d5,INTREQ(a5)
+        move.w  d7,d0
+        or.w    #DMAF_SETCLR,d0
+        move.w  d0,DMACON(a5)                   ; and go
+
+        moveq   #DMA_WAIT_LINES,d2              ; 3: wait for every channel to ask
+        move.b  VHPOSR(a5),d1
+.ask:
+        move.w  INTREQR(a5),d0
+        and.w   d5,d0
+        cmp.w   d5,d0
+        beq.s   .asked
+        cmp.b   VHPOSR(a5),d1
+        beq.s   .ask
+        move.b  VHPOSR(a5),d1
+        subq.w  #1,d2
+        bne.s   .ask
+.asked:
+        move.w  d5,INTREQ(a5)
+        move.w  d5,INTREQ(a5)
+
+        ...                                     ; then the drums' AUDxLC and AUDxLEN to silence</code></pre></div>
+<p>The wait has a limit (<code>DMA_WAIT_LINES</code>), in case the request never comes. In v8's stop-and-start test, it never came when the new note was lost: the channel hadn't restarted. Taking the machine, the startup leaves the audio interrupts disabled, so nothing else clears the requests. With the system running, the channels are the demo's (allocated, above), so audio.device has no business with them either.</p>
+<p>The other way is to leave step 3 to the next tick: a frame later, the channel has long since started. LightSpeedPlayer does that.</p>
+<h3 id="playing-a-sample-once">Playing a sample once</h3>
+<p>A channel never stops by itself: at the end of a sample it plays it again. To play a sample once (a drum), point the channel at a word of silence as soon as it has started, with a length of one word, and it plays the sample and then repeats nothing:</p>
+<div class="code-block"><pre><code>        move.l  #Silence,(a1)                   ; a1: the channel's AUDxLC
+        move.w  #1,AUDLEN(a1)
+...
+Silence:        ds.w    1               ; a word of 0, in chip RAM</code></pre></div>
+<p>Trackers do the same with the first word of a sample, kept at 0 for it. ptplayer's readme asks the same of sound effects: "always make sure the first word is cleared! It is used for idling when the effect stopped. This is the same technique as used by the music samples in Amiga trackers."</p>
+<h2 id="modulation-adkcon">Modulation: ADKCON</h2>
+<p>A channel can <strong>modulate</strong> the next one instead of making a sound: its samples become the next channel's volume or period, one word each time its own period runs out. Channel 0 modulates 1, 1 modulates 2, 2 modulates 3; channel 3 has no next channel, so attaching it only silences it. <code>ADKCON</code>'s bits:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Bit</th>
+<th scope="col">Name</th>
+<th scope="col"></th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">7, 6, 5, 4</th>
+<td><code>ATPER3</code> to <code>ATPER0</code> (the NDK's <code>ADKB_USE3PN</code> to <code>ADKB_USE0P1</code>)</td>
+<td>channel 3, 2, 1, 0 modulates the next one's period</td>
+</tr>
+<tr>
+<th scope="row">3, 2, 1, 0</th>
+<td><code>ATVOL3</code> to <code>ATVOL0</code> (<code>ADKB_USE3VN</code> to <code>ADKB_USE0V1</code>)</td>
+<td>channel 3, 2, 1, 0 modulates the next one's volume</td>
+</tr>
+</tbody></table></div>
+<p>With both bits set for a channel, its words go volume, period, volume, period. For a volume word only bits 6 to 0 count; for a period, all 16. The HRM suggests it for vibrato and tremolo, done by the chips with no processor time; demos rarely use it, as it costs a channel, and a replayer can do the same a frame at a time.</p>
+<p><code>ADKCON</code> is a set/clear register, like <code>DMACON</code>: bit 15 set sets the bits given, clear clears them. Its other bits (8 to 14) are the <strong>disk's</strong> settings and the serial port's break, so never write a whole value to it: set and clear only the audio bits you mean. <code>ADKCONR</code> reads it back. Taking the machine, the startup puts <code>ADKCON</code> back as it was; with the system running, it doesn't, so clear any of these bits you set.</p>
+<h2 id="the-audio-interrupts">The audio interrupts</h2>
+<p>Each channel has an interrupt, at level 4 (<code>INTENA</code>/<code>INTREQ</code> bits 7 to 10, <code>AUD0</code> to <code>AUD3</code>; the vector is at <code>VectorBase+$70</code>). It comes, as above, when the channel has taken <code>AUDxLC</code> and <code>AUDxLEN</code> into its counters: when a sample starts, and each time it starts again. So in the interrupt, the registers are free for what plays next, and there's the whole length of the sample now playing to set it. That's <strong>double buffering</strong> for sound: two buffers, one playing while the program fills the other. It's how sound is mixed in software (more than four sounds at once, or a sample stream from disk), and how the HRM joins waveforms end to end with no gap.</p>
+<p>v8 tried this sketch, taking the machine (<code>Init</code> and <code>ExitHook</code> of a test demo): channel 0 plays two buffers of 4096 samples in turn, queued by the interrupt. The recording was continuous, the two tones alternating every 0.23 seconds, on a 68000 and a 68040:</p>
+<div class="code-block"><pre><code>        move.l  VectorBase,a0
+        move.l  $70(a0),OldLevel4               ; level 4: the audio interrupts
+        move.l  #Level4,$70(a0)
+        move.l  #BufferA,AUD0LC(a5)             ; the first buffer
+        move.w  #BUFBYTES/2,AUD0LEN(a5)
+        move.w  #200,AUD0PER(a5)
+        move.w  #48,AUD0VOL(a5)
+        move.l  #BufferB,NextBuffer             ; and the one to queue when it starts
+        move.w  #INTF_AUD0,INTREQ(a5)
+        move.w  #INTF_SETCLR!INTF_AUD0,INTENA(a5)
+        move.w  #DMAF_SETCLR!DMAF_AUD0,DMACON(a5)
+        rts
+
+; Called each time channel 0 has taken AUD0LC and AUD0LEN and started a buffer: queue the other.
+Level4:
+        movem.l d0/a0,-(sp)
+        lea     CUSTOM,a0
+        move.l  NextBuffer,d0
+        move.l  d0,AUD0LC(a0)                   ; played after the one that's just started
+        cmp.l   #BufferA,d0                     ; and the next time, the other one
+        beq.s   .tob
+        move.l  #BufferA,NextBuffer
+        bra.s   .ack
+.tob:
+        move.l  #BufferB,NextBuffer
+.ack:
+        move.w  #INTF_AUD0,INTREQ(a0)
+        move.w  #INTF_AUD0,INTREQ(a0)
+        movem.l (sp)+,d0/a0
+        rte
+
+AudioExit:                                      ; the ExitHook
+        move.w  #INTF_AUD0,INTENA(a5)
+        move.w  #DMAF_AUD0,DMACON(a5)
+        move.w  #INTF_AUD0,INTREQ(a5)
+        move.l  VectorBase,a0
+        move.l  OldLevel4,$70(a0)
+        rts</code></pre></div>
+<p>Acknowledge twice, as every interrupt on a fast processor (see <a href="05-interrupts.html">interrupts</a>). The startup gives back <code>INTENA</code> but not the level 4 vector, so <code>ExitHook</code> puts it back.</p>
+<p>With the system running, the audio interrupts are <strong>handlers</strong>, not server chains: one routine each, which audio.device uses. Allocate the channel first (above), then install a handler with exec's <code>SetIntVector</code> (<code>INTB_AUD0</code> and so on), which returns the old one to put back as the demo ends. Its autodoc: the handler is called with <code>a1</code> = <code>IS_DATA</code> and <code>a0</code> = the custom chips, may change <code>d0</code>, <code>d1</code>, <code>a0</code>, <code>a1</code>, <code>a5</code> and <code>a6</code>, returns with <code>rts</code>, and has to clear its request in <code>INTREQ</code> itself. (v8 hasn't run this one.)</p>
+<p>Without DMA, a program can write samples to <code>AUDxDAT</code> itself, two at a time, and the interrupt comes after each word instead. The HRM: "more processor-intensive and is therefore not recommended". If a new word isn't written within two samples, the output stays where it was.</p>
+<h2 id="a-tiny-player">A tiny player</h2>
+<p><code>ch12_tiny_player.s</code> plays a short tune of its own on all four channels, from the startup's <code>VBlank</code>: bass, a lead, a chord arpeggio and drums. It's a player to learn from, not a tracker replayer, but it does everything a replayer has to do:</p>
+<ul><li><strong>A tick a frame.</strong> Like a tracker, it counts <strong>ticks</strong>, 50 a second, and moves on a <strong>row</strong> every six (the "speed"). Each channel has its own list of notes and how many rows each lasts, and they loop.</li><li><strong>Envelopes</strong>: each tick, each channel's volume falls towards a floor, and is written to <code>AUDxVOL</code>.</li><li><strong>An arpeggio</strong>: the chord channel plays one note of its chord a tick, changing <code>AUDxPER</code> each frame with no restart: the old chip-music way to play a chord on one channel.</li><li><strong>Starting notes</strong> with the three steps and two waits above, all the channels at once.</li><li><strong>Drums played once</strong>, then silence. The drums and waveforms are worked out by the code in <code>Init</code>: a triangle falling in pitch for the kick, and noise from a shift register for the snare and hi-hat, each fading out. So the example needs no sample files, and all of it is CC0.</li><li><strong>The same tempo on NTSC</strong>: it skips every sixth frame there, so it still has 50 ticks a second.</li><li><strong>Two period tables</strong>, PAL and NTSC, so it's in tune on both.</li></ul>
+<figure class="guide-shot"><img src="images/ch12_tiny_player.png" alt="Four coloured bars showing the four channels&#x27; volumes, and a row of sixteen steps with one lit" loading="lazy"></figure>
+<p>The bars are the channels' volumes as the envelopes move them, and the steps along the bottom are the rows.</p>
+<h2 id="tempo-the-vertical-blank-or-a-cia-timer">Tempo: the vertical blank or a CIA timer</h2>
+<p>A ProTracker module plays at a <strong>speed</strong> (ticks a row, 6 at first) and a <strong>tempo</strong> in "BPM" (125 at first). The tempo sets how many ticks there are a second: BPM × 2 / 5, so <strong>125 BPM is 50 ticks a second</strong>, and with four rows to a beat at speed 6, that's 125 beats a minute.</p>
+<p>There are two ways to get the ticks:</p>
+<ul><li><strong>The vertical blank</strong>: one tick a frame. Simple, and the replay runs at a known point in the frame. But it's 50 ticks a second only on PAL. On an NTSC Amiga, frames come 60 a second, and the music plays 20% fast. And a module's tempo commands (<code>Fxx</code> with xx of <code>$20</code> or more) can't change anything: there's one tick a frame, whatever the tempo. Players with a vertical blank mode play every module at 125 BPM.</li><li><strong>A CIA timer</strong>: a timer interrupt at the tempo's rate. The timer counts the E clock (709,379 Hz PAL, 715,909 Hz NTSC), so for a tempo of <code>bpm</code>, the timer is set to 709379 × 2.5 / <code>bpm</code> = <strong>1773447 / bpm</strong> on PAL, and <strong>1789773 / bpm</strong> on NTSC (LightSpeedPlayer's CIA toolkit uses exactly these two numbers). At 125 BPM that's 14,188 ticks, 50 interrupts a second, on both. Tempo commands work, and NTSC plays at the right speed.</li></ul>
+<p>Taking the machine, a CIA-B timer is yours to set; with the system running, ask <code>ciab.resource</code> for one, as <a href="05-interrupts.html">interrupts</a> shows, and give it back in <code>ExitHook</code>. Level 6 is above everything else, so the music's timing doesn't waver when the disk or keyboard is busy.</p>
+<p>A demo that draws in step with its music may still prefer the vertical blank, with the music at 125 BPM. The tiny player shows the third way, for NTSC: skip a frame in six, so there are 50 ticks a second still; the cost is a slightly uneven step on NTSC, which nobody hears.</p>
+<h2 id="replayers-today">Replayers today</h2>
+<p>For a real tune, use a replayer: a tracker module has effects (slides, vibrato, arpeggios, retriggers, pattern breaks) that take a lot of code to get right. These three are widely used, and their terms are clear.</p>
+<h3 id="lightspeedplayer">LightSpeedPlayer</h3>
+<p><strong>LightSpeedPlayer</strong> (LSP), by <strong>Arnaud Carré (Leonard / Oxygene)</strong>: &lt;https://github.com/arnaud-carre/LSPlayer&gt;. MIT licence.</p>
+<p>LSP does nearly all of the work before the demo runs. Its converter, <strong>LSPConvert</strong>, plays a ProTracker module through (using Martin Cameron's micromod library) and writes down what each tick does to Paula: which volumes, periods and samples change. The replayer on the Amiga only reads that back and writes the registers; it has no code for effects at all. It's under 512 bytes, and its README, measured on an A500, gives 0.83 lines a tick on average and 2.27 at most. The files LSPConvert writes are a <code>.lsmusic</code> (the score, any memory) and a <code>.lsbank</code> (the samples, chip RAM).</p>
+<p>It comes three ways:</p>
+<ul><li><strong>Standard</strong> (<code>LightSpeedPlayer.asm</code>): call <code>LSP_MusicPlayTick</code> once a tick, with <code>a6</code> = <code>$DFF0A0</code>. It stops the channels whose notes start, and writes which ones to start into the low byte of a copper <code>MOVE</code> to <code>DMACON</code>, about 11 lines later in your copper list. It sets the loop pointers a tick later, when the channel has long since started.</li><li><strong>Insane</strong> (<code>-insane</code>): LSPConvert writes a replayer just for that module, taking about half the time of the standard one (0.46 lines on average), but up to 30K of code.</li><li><strong>Micro</strong> (<code>-micro</code>, <code>LightSpeedPlayer_Micro.asm</code>): a replayer of 224 bytes once packed, for 4K and 40K intros; its music data is bigger but packs very well.</li></ul>
+<p>There's also a <strong>CIA toolkit</strong> (<code>LightSpeedPlayer_cia.asm</code>), the easiest to use: it plays on CIA-B's timer A at the module's tempo, and starts the channels from timer B, one-shot, 496 ticks later, so you don't need the copper <code>MOVE</code>. It takes CIA-B and the level 6 vector (it asks for the VBR, so give it <code>VectorBase</code>), and, as its own comment says, "this code doesn't restore any amiga OS stuff": use it taking the machine, and call <code>LSP_MusicDriver_CIA_Stop</code> in <code>ExitHook</code>. It also wants <code>d0</code> = 0 on PAL or 1 on NTSC, for its timer's clock; only bit 0 counts, so don't pass the startup's <code>PalDisplay</code> as it is (it's <code>$FF</code> on PAL): test it and load 0 or 1.</p>
+<p>Two things to know: <code>LSP_MusicInit</code> switches the audio filter off (it sets bit 1 of <code>$BFE001</code>) and doesn't put it back; and <code>-fixed50hz</code> makes a module whose tempo isn't 125 play right from a 50 Hz vertical blank, without a CIA timer.</p>
+<p><strong>In Limoniter</strong>: with a ProTracker module in front, <strong>File › Run on › Amiga crunchers and music</strong> converts it with LSPConvert, with LSPConvert's options, writing the <code>.lsmusic</code> and <code>.lsbank</code> beside the module (and, if you ask, the insane player's source, or a WAV of how it will sound on the Amiga). Limoniter can download LSPConvert's release from GitHub when you ask. It then writes the <strong>replay calls</strong> as commented 68000 source, into your source at the cursor or onto the clipboard: LSP with its CIA toolkit; LSP from your own interrupt with <code>DMACON</code> set by the copper 11 lines later; the insane player; or the micro player. They <code>include</code> LSP's own files from its package rather than copying them. Limoniter also plays modules in its preview, so you can hear one before converting it.</p>
+<h3 id="the-player-6-1a">The Player 6.1A</h3>
+<p><strong>The Player 6.1A</strong>, by <strong>Jarno Paananen (Guru / Sahara Surfers)</strong>, fixed in 1998 by NoName, Platon42, Tolkien and The Dark Coder, and optimised in 2010 by <strong>Photon / Scoopex</strong> (version 610.8): &lt;https://aminet.net/package/mus/misc/P6108&gt;. It's freely distributed on Aminet, with no licence beyond that, and the original's copyright notice: include it as it comes.</p>
+<p>Its converter, <strong>P61Con</strong>, packs a module into its own P61 format and is an Amiga program: run it on an Amiga or in an emulator, and it saves a <code>P61.name</code> file. It also gives a <strong>USE code</strong> that says which effects the module uses, so the replayer can leave out the rest (and keeps it in the file's comment). The replayer, <code>P6108-Play.S</code> with its options in <code>P6108-StandardOptions.S</code>, has <code>P61_Init</code>, <code>P61_Music</code> once a tick and <code>P61_End</code>, and plays from the vertical blank or a CIA timer. Its readme, timed on a 68000: a module that took 8.7 lines a tick with version 6.106 takes 3.5 to 4.5 with its fastest options. Like LSP, it has a mode that writes the channels to start into a copper <code>MOVE</code> to <code>DMACON</code> 11 lines on, rather than using a level 6 interrupt for it.</p>
+<p>In Limoniter, the same menu finds the P61 file P61Con saved beside the module, and writes the replay calls for it: <code>P61_Init</code>, <code>P61_Music</code> and <code>P61_End</code>, with the <code>use</code> value to fill in.</p>
+<h3 id="ptplayer">ptplayer</h3>
+<p><strong>ptplayer</strong>, by <strong>Frank Wille</strong>, version 6.4 (2024): &lt;https://aminet.net/package/mus/play/ptplayer&gt;. It's <strong>public domain</strong>: its readme says Frank Wille releases it "into the public domain. This applies worldwide."</p>
+<p>It plays ProTracker modules as they are, with no converting, and was written for games: it can play <strong>sound effects</strong> in among the music, choosing the channel each time (one that's free, or the music can spare), with priorities, and has a master volume for the music alone. Its readme: "No busy waiting. DMA and repeat pointers are set with timer interrupts." By default it takes CIA-B's timer A for the music and timer B for the DMA waits (576 ticks for the DMA, since version 6.0), taking the machine. Its options: <code>VBLANK_MUSIC</code> to call <code>_mt_music</code> from your own vertical blank (timer B is still used for the waits, and tempo commands no longer work); <code>NO_TIMERS</code>, which leaves the waits to you ("wait at least 550 ticks, then call _mt_dmaon", and again before <code>_mt_setrep</code>); and <code>OSCOMPAT</code>, which allocates the channels from audio.device and its CIA interrupts through the system, for a demo that keeps it running.</p>
+<h3 id="which">Which?</h3>
+<ul><li><strong>For a demo</strong>: LightSpeedPlayer. It's the fastest by its own benchmarks, by a long way, and the easiest to get a module into with Limoniter.</li><li><strong>With sound effects over the music</strong> (a game, an intro with sounds), or a module played as it is: ptplayer.</li><li><strong>The Player</strong> is a good replayer that many demos used, and you'll meet it in older sources.</li></ul>
+<h2 id="music-you-have-the-right-to-use">Music you have the right to use</h2>
+<p>Most music in old demos was written for them, by the group's own musicians, and the ripped modules that are on every archive site are still theirs. Using someone's module in your demo, or the samples out of it, needs their permission, whatever the archive says. Use music you've made, music written for you, or music whose licence says you can (CC0, or a Creative Commons licence whose terms you keep, credit included). Credit the musician either way: it's what the scene has always done, and many parties' rules ask for it. v8's examples have music of their own making, so they can be CC0.</p>
+<h2 id="the-examples">The examples</h2>
+<p>Both run on the v8 startup, both ways (<code>OS_FRIENDLY</code> 0 and 1); with the system running, they allocate their channels from audio.device first.</p>
+<ul><li><code>ch12_tone.s</code>: a sampled waveform on one channel, a new note from a period table each second, the note on screen; PAL and NTSC periods; stopping cleanly.</li><li><code>ch12_tiny_player.s</code>: the tiny player: a four-channel tune of its own from the vertical blank, with envelopes, an arpeggio, one-shot drums and the DMA waits.</li></ul>
+<p>Each was run in FS-UAE on an Amiga 500 with Kickstart 1.3 and 3.1, both ways, with a 68000, 68020 and 68040, and on an NTSC machine, ending each time with the CLI's "back in AmigaDOS" line. The emulator's sound was recorded to a file (FS-UAE plays its sound through OpenAL Soft, which can write a WAV file instead of using a sound card), and checked by measuring the pitch of each note:</p>
+<ul><li><code>ch12_tone.s</code> played C, D, E, F, G, A, B, C and back down, a second each, within 0.2% of the notes' frequencies, PAL and NTSC; and then silence.</li><li><code>ch12_tiny_player.s</code>: every bass and lead note in the ten seconds it played, on every machine, was the note in its list, within 18 cents, at 0.12 seconds a row on PAL and NTSC alike. Separately (with the other channels silenced in a copy), the drums started on their rows and stopped, and 493 of 499 arpeggio ticks were notes of their bar's chord (the other six all came in the last second or so of the recording).</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li>v7's tracker section was one bug report: ProTracker 2.3's replay routine ignored its own <code>DMAWait</code> equate and waited with a hard-coded <code>dbf</code> loop of 300. v7's fix was to use the equate and make it bigger (1024, or 1800 to 2000 on a 68040). The problem was real, but no loop count is right: a loop's time depends on the processor. v8 waits for the beam, or a CIA timer, or lets the copper do it, and for the second wait, the channel's own interrupt request. It also measures how long the first wait has to be: two of the old note's samples, about eight lines for ProTracker's lowest notes.</li><li>v7 said "No demo would be complete without a tracker module" and that tracker code "seems to be amongst the worst written I've seen". The replayers above are well written, and say what they need.</li><li>v7's archive had a ProTracker replayer by others (<code>protracker_replay.s</code>). It isn't in v8; v8 points to replayers whose terms are clear.</li><li>New: Paula's registers, playing and stopping a sample properly, allocating the channels from audio.device with the system running, periods for PAL and NTSC, the minimum period and why, volume, modulation, the audio interrupts, tempo from the vertical blank or a CIA timer, today's replayers, and using music you have the right to.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="11-input.html"><span>Back</span>11. Input</a>
+<a class="pager-next" href="13-vectors.html"><span>Next</span>13. 3D vectors</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

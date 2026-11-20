@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>6. The copper · How To Code v8</title>
+  <meta name="description" content="The copper is the Amiga&#x27;s display coprocessor: a tiny processor in Agnus that reads a list of instructions from chip RAM, once a frame, in step with the video beam.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/06-copper.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/06-copper.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="6. The copper · How To Code v8">
+  <meta property="og:description" content="The copper is the Amiga&#x27;s display coprocessor: a tiny processor in Agnus that reads a list of instructions from chip RAM, once a frame, in step with the video beam.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/06-copper.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html" aria-current="page">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>6. The copper</h1>
+        <div class="article-lead">
+<p>The copper is the Amiga's display coprocessor: a tiny processor in Agnus that reads a list of instructions from chip RAM, once a frame, in step with the video beam. It has only three instructions, and two of them are all most demos use: <em>wait until the beam gets here</em>, and <em>put this value in that register</em>. With those it changes colours, bitplane pointers, scroll values and screen modes at exact places on the screen, every frame, without the processor doing anything at all. v7 called it "probably the most wonderful part of the Amiga architecture", and it still is.</p>
+<p>This chapter covers the instructions, where a wait really happens on the screen, the line 255 problem, the danger bit, lists that jump, change and double-buffer, and the effects demos have always made with it: bars, gradients, colour cycling and split screens. There are five whole examples, each built both ways (with the machine taken and with the system running) like every v8 example:</p>
+<ul><li><code>examples/ch06_waits.s</code>: where a <code>WAIT</code> lands. Colour changes after <code>$xx01</code> waits and after <code>$xx07</code> waits, and a ruler of horizontal positions.</li><li><code>examples/ch06_gradient.s</code>: a colour on every one of 256 lines behind a city skyline, cycling through a palette.</li><li><code>examples/ch06_bars.s</code>: six copper bars on a sine wave, built in one list while the copper shows another, with a jump through <code>COP2LC</code>.</li><li><code>examples/ch06_split.s</code>: a low resolution top that wobbles (a scroll value for each line) and a high resolution bottom with its own bitplanes.</li><li><code>examples/ch06_line255.s</code>: bars bouncing across line 255, in a list rebuilt each frame; two lists take turns through <code>COP1LC</code>.</li></ul>
+<figure class="guide-shot"><img src="images/ch06_examples.png" alt="ch06_gradient.s, ch06_bars.s, ch06_split.s and ch06_line255.s in FS-UAE (in the last, the grey line is line 256)" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-three-instructions">The three instructions</a></li>
+<li><a href="#where-a-wait-happens">Where a WAIT happens</a></li>
+<li><a href="#ending-a-list">Ending a list</a></li>
+<li><a href="#starting-the-copper-and-every-frame-after">Starting the copper, and every frame after</a></li>
+<li><a href="#what-the-copper-may-write-copcon-s-danger-bit">What the copper may write: COPCON's danger bit</a></li>
+<li><a href="#jumps-cop2lc-and-the-strobes">Jumps: COP2LC and the strobes</a></li>
+<li><a href="#changing-a-list-while-it-s-shown">Changing a list while it's shown</a></li>
+<li><a href="#bars-and-gradients">Bars and gradients</a></li>
+<li><a href="#colour-cycling">Colour cycling</a></li>
+<li><a href="#splitting-the-screen">Splitting the screen</a></li>
+<li><a href="#the-copper-and-the-blitter">The copper and the blitter</a></li>
+<li><a href="#what-the-copper-costs">What the copper costs</a></li>
+<li><a href="#the-copper-in-an-interrupt">The copper in an interrupt</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+</ul>
+</nav>
+<h2 id="the-three-instructions">The three instructions</h2>
+<p>Every copper instruction is two words, and the copper always fetches both. Bit 0 of each word says which instruction it is:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">First word</th>
+<th scope="col">Second word</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><strong>MOVE</strong></th>
+<td>the register's offset from <code>$DFF000</code> (bit 0 is 0)</td>
+<td>the value to write</td>
+</tr>
+<tr>
+<th scope="row"><strong>WAIT</strong></th>
+<td>the beam position (bit 0 is 1)</td>
+<td>which bits of it to compare (bit 0 is 0)</td>
+</tr>
+<tr>
+<th scope="row"><strong>SKIP</strong></th>
+<td>the beam position (bit 0 is 1)</td>
+<td>which bits of it to compare (bit 0 is 1)</td>
+</tr>
+</tbody></table></div>
+<h3 id="move">MOVE</h3>
+<div class="code-block"><pre><code>        dc.w    COLOR00,$0f00           ; the background red
+        dc.w    BPL1PTH,$0002           ; bitplane 1 from $21000: the high word...
+        dc.w    BPL1PTL,$1000           ; ...and the low word</code></pre></div>
+<p>The first word is a register's offset (<code>$180</code> for <code>COLOR00</code>); the second is the value. The copper writes words only, so a pointer takes two MOVEs, high word first. Bits 15-9 of the first word aren't used; keep them 0.</p>
+<h3 id="wait">WAIT</h3>
+<div class="code-block"><pre><code>        dc.w    $6407,$fffe             ; wait for line $64, horizontal position $06</code></pre></div>
+<p>The first word holds the line in bits 15-8 and the horizontal position in bits 7-1 (bit 0 is the 1 that makes it a WAIT, so <code>$xx07</code> waits for position 6, and <code>$xx01</code> for position 0). The second word says which of those bits to compare: <code>$fffe</code> compares them all, and is what nearly every WAIT uses. The copper then sits, off the bus, until the beam's position is <strong>equal to or greater than</strong> the one given. Not <em>equal</em>: greater than or equal. That matters below.</p>
+<p>Bit 15 of the second word is the blitter-finished-disable bit (BFD). It's normally 1; with it 0, the WAIT also waits for the blitter to finish (<a href="#the-copper-and-the-blitter">below</a>).</p>
+<p>The comparison bits (bits 14-1 of the second word) let a WAIT ignore part of the position: <code>$80fe</code> ignores the line (keeping BFD set), and waits for a horizontal position on whatever line it's on. One bit can't be ignored: the line's top bit (bit 7), because its place in the second word is taken by BFD. So a WAIT "for any line" still compares line bit 7, and from line 128 on it's always true. The Hardware Reference Manual warns about this, and v8's tests show it happen: a loop of masked WAITs that splits each line in two works down to line 127, then races round and round, every WAIT passing at once.</p>
+<h3 id="skip">SKIP</h3>
+<div class="code-block"><pre><code>        dc.w    $c001,$ff01             ; skip the next instruction if the beam is at line $C0 or later
+        dc.w    COPJMP2,$0000           ; (skipped from line $C0 on) jump to COP2LC</code></pre></div>
+<p>SKIP is a WAIT that doesn't wait: if the beam has reached the position, the copper skips the instruction after it. Its use is to end a loop, as here: <a href="#jumps-cop2lc-and-the-strobes">jumps</a> below.</p>
+<h2 id="where-a-wait-happens">Where a WAIT happens</h2>
+<h3 id="lines-8-bits-and-line-255">Lines: 8 bits, and line 255</h3>
+<p>The first word has room for 8 bits of the line, 0 to 255. A PAL frame has 312 lines (and 313 in an interlaced long frame), and a NTSC frame 262 or 263. The usual PAL display runs from line <code>$2C</code> (44) to line <code>$12B</code> (299), so every full-height PAL effect crosses line 255.</p>
+<p>The copper compares the low 8 bits of the line. Line 256 looks like line 0 to it, line 300 like 44. So "wait for line 300" is <code>$2c07,$fffe</code>... but put that in a list at the top of the frame, and it passes on line 44, 256 lines too soon. The copper must first be made to wait until the line count has wrapped round:</p>
+<div class="code-block"><pre><code>        dc.w    $ffdf,$fffe             ; wait for the end of line 255
+        dc.w    $2c07,$fffe             ; now line $2C is line 300 ($12C)</code></pre></div>
+<p>Why <code>$DF</code> (position $DE)? The next WAIT is compared as soon as it's read, and must be read <em>after</em> line 255 has ended, or it too passes at once (<code>$FF</code> is greater than <code>$2C</code>). A line is 227 positions long (<code>$00</code> to <code>$E2</code> on PAL), so position $DE is near the end, and by the time the copper has fetched the next WAIT, the line has wrapped. That was tested in FS-UAE, with a list that made the background red on line 240, then had one of these WAITs, then <code>$1007,$fffe</code> (meaning line 272) and a change to green:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">The WAIT before <code>$1007,$fffe</code></th>
+<th scope="col">Where the background turned green</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">none</th>
+<td>at once, on line 240</td>
+</tr>
+<tr>
+<th scope="row"><code>$ff07,$fffe</code></th>
+<td>on line 255</td>
+</tr>
+<tr>
+<th scope="row"><code>$ffd1</code>, <code>$ffd7</code>, <code>$ffdb</code></th>
+<td>at the right-hand end of line 255</td>
+</tr>
+<tr>
+<th scope="row"><code>$ffdd</code>, <code>$ffdf</code>, <code>$ffe1</code></th>
+<td>on line 272: right</td>
+</tr>
+</tbody></table></div>
+<p>So <code>$ffdf,$fffe</code> it is, with a little to spare. The Hardware Reference Manual's own advice for the last lines (wait for line 255, then for lines 0 to 5) leaves this out; written as it says, with a WAIT for the <em>start</em> of line 255, the next WAIT passes on line 255.</p>
+<p>Only the first WAIT after line 255 needs it. After the <code>$FFDF</code> wait, the rest work as usual, by their low 8 bits. <code>ch06_gradient.s</code> puts it in a list of fixed WAITs; <code>ch06_line255.s</code> puts it wherever the first line after 255 falls, in a list rebuilt each frame:</p>
+<div class="code-block"><pre><code>        cmp.w   #$100,d0                ; this WAIT is for line 256 or later...
+        blo.s   .wait
+        tst.b   d3                      ; ...and the first one that is?
+        bne.s   .wait
+        move.l  #$ffdffffe,(a0)+        ; then the end of line 255 first
+        st      d3
+.wait:
+        move.w  d0,d4
+        lsl.w   #8,d4                   ; the line's low 8 bits (the 9th falls off the top)
+        or.w    #$07,d4</code></pre></div>
+<h3 id="across-the-line-4-pixels-at-a-time">Across the line: 4 pixels at a time</h3>
+<p>The horizontal position counts the beam in <em>color clocks</em>: 280 nanoseconds each, the time of two low resolution pixels. A WAIT's position ignores the lowest bit, so its steps are 2 color clocks: <strong>4 low resolution pixels</strong>, 8 high resolution ones. There are 113 of them on a line (<code>$00</code> to <code>$E2</code>). So a copper colour change can only start at every 4th low resolution pixel, and the copper can't make anything finer than that.</p>
+<p>A MOVE takes the copper 4 color clocks (it reads two words, on every other memory cycle), so back-to-back MOVEs change something every 8 low resolution pixels. That's the copper's finest horizontal detail, and why "copper chunky" effects are made of blocks 8 pixels wide (see <a href="#what-the-copper-costs">what the copper costs</a>).</p>
+<p>Where does position <code>h</code> land on the screen? <code>ch06_waits.s</code> has a ruler: on its bottom band, the colour changes after WAITs for positions <code>$10</code>, <code>$20</code> ... <code>$E0</code>, over a bitplane with a line every 16 pixels. In FS-UAE, a colour changed straight after a WAIT for position <code>h</code> appears at about low resolution pixel <code>2h+4</code> on the scale <code>DIWSTRT</code> uses: that is, with the usual window starting at <code>$81</code>, the WAIT for position <code>$40</code> changes the colour about 3 pixels into the screen. Each step of 1 in <code>h</code> is 2 pixels further right. The few pixels' lag is the copper fetching and doing the MOVE, and the picture's own delay.</p>
+<p>The horizontal count starts again, and the line count goes up by one, before the line's picture has finished: position 0 is out in the right-hand border, a little before the horizontal blank begins (at position <code>$0F</code>, the Hardware Reference Manual says). That's the root of the next section.</p>
+<h3 id="xx07-not-xx01"><code>$xx07</code>, not <code>$xx01</code></h3>
+<p>The Hardware Reference Manual waits for the start of a line with <code>$xx01,$fffe</code>: line <code>xx</code>, position 0. v7 pointed out that this changes a colour "just before the end of the previous line", leaving a step at the far right of the screen, and that <code>$xx07,$fffe</code> puts the change exactly at the start of the line.</p>
+<p>v8 tested it: <code>ch06_waits.s</code> changes the background colour, red and blue in turn, on each line of two bands, after <code>$xx01</code> waits in the top band and <code>$xx07</code> waits in the middle one.</p>
+<figure class="guide-shot"><img src="images/ch06_waits.png" alt="ch06_waits.s in FS-UAE: the $xx01 band, the $xx07 band and the ruler (top); below, the right-hand half of the screen enlarged: the $xx01 band&#x27;s step at the end of each line, and the start of the $xx07 band, with none" loading="lazy"></figure>
+<p>v7 was right. With <code>$xx01</code>, the new colour starts on the line <em>before</em>, about 13 low resolution pixels right of the usual 320-pixel screen's right edge: there's a step at the end of every line, out in the overscan border. With <code>$xx07</code>, the change moves 12 pixels later, past the right-hand edge of FS-UAE's picture (set to show the whole picture, borders and all), so each line is one colour from edge to edge. Whether a real monitor shows the <code>$xx01</code> step depends on how much of the border it shows; with <code>$xx07</code> there's nothing to see.</p>
+<p>So wait with <code>$xx07</code> for anything that changes what the border or the background shows. There's still time after it: about 40 color clocks pass before a usual low resolution display's first fetch, room for ten or so MOVEs before the line's picture starts (a split screen's handful of registers fits easily).</p>
+<h2 id="ending-a-list">Ending a list</h2>
+<p>The copper has no instruction to stop. A list ends with a WAIT that can never pass:</p>
+<div class="code-block"><pre><code>        dc.w    $ffff,$fffe             ; line 255, position $FE: there's no such position</code></pre></div>
+<p>The horizontal position never goes past <code>$E2</code>, so <code>$FFFE</code> never comes, and the copper waits there until the next frame starts it again. (A WAIT for position <code>$FE</code> on any line before 255 would pass as soon as the line count went past it: "greater than or equal".)</p>
+<h2 id="starting-the-copper-and-every-frame-after">Starting the copper, and every frame after</h2>
+<p>The copper's program counter is loaded from one of two <strong>location registers</strong>, <code>COP1LC</code> and <code>COP2LC</code>, when you write to the matching <strong>strobe</strong>, <code>COPJMP1</code> or <code>COPJMP2</code> (the value written doesn't matter):</p>
+<div class="code-block"><pre><code>        move.l  #Copper,COP1LC(a5)      ; a long word: both halves of the address at once
+        move.w  d0,COPJMP1(a5)          ; start the copper there now</code></pre></div>
+<p>At the start of every frame, the copper starts again from <code>COP1LC</code> by itself. That's what makes a list run once a frame, and it's why the startup only has to write <code>COP1LC</code> once. It does that in the vertical blank, then switches on the copper's DMA: the copper DMA bit and the master bit in <code>DMACON</code> (<a href="04-startup-and-exit.html">Startup and exit</a>).</p>
+<p>Copper lists must be in <strong>chip RAM</strong>: the copper reads them by DMA, like the other chips' data. Put them in a <code>data_c</code> or <code>bss_c</code> section.</p>
+<h2 id="what-the-copper-may-write-copcon-s-danger-bit">What the copper may write: COPCON's danger bit</h2>
+<p>The copper can't write every register. Which ones it can depends on bit 1 of <code>COPCON</code>, <code>CDANG</code> (the "copper danger" bit), and on the chips:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col"><code>CDANG</code> 0</th>
+<th scope="col"><code>CDANG</code> 1</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">OCS</th>
+<td><code>$80</code> and up</td>
+<td><code>$40</code> and up (adds the blitter)</td>
+</tr>
+<tr>
+<th scope="row">ECS and AGA</th>
+<td><code>$80</code> and up</td>
+<td>all of them</td>
+</tr>
+</tbody></table></div>
+<p>That's the Hardware Reference Manual's chapter 2 for the original chips, and its Appendix C for ECS. (The manual muddles this in places: its MOVE section says <code>$20</code> and up, and Appendix C's description of the ECS change contradicts itself. Only the <code>$80</code>-and-up row matters to most demos.)</p>
+<p><code>$80</code> and up is everything a display needs: the copper's own registers, the display, bitplanes, sprites, colours, <code>DMACON</code>, <code>INTENA</code>, <code>INTREQ</code> and audio. <code>CDANG</code> exists to keep a broken copper list away from the blitter, which can write anywhere in chip RAM.</p>
+<p>A MOVE to a register the copper may not write doesn't just do nothing. <strong>The copper stops</strong>, and nothing after it in the list happens that frame. v8 tried it on an emulated Amiga 500: a MOVE to <code>BLTCON1</code> with <code>CDANG</code> clear, in the middle of a list of colour changes, and every change after it was gone.</p>
+<p>Set it with the processor (<code>move.w #2,COPCON(a5)</code>): with <code>CDANG</code> clear, <code>COPCON</code> (at <code>$2E</code>) is out of the copper's reach. It's write-only, so it can't be saved; if your demo sets it, clear it again as it ends (an <code>ExitHook</code>, <a href="04-startup-and-exit.html">Startup and exit</a>).</p>
+<h2 id="jumps-cop2lc-and-the-strobes">Jumps: COP2LC and the strobes</h2>
+<p>The copper can write its own location registers and strobes ($80 to $8A), so a list can jump:</p>
+<div class="code-block"><pre><code>        dc.w    COPJMP2,$0000           ; carry on at COP2LC</code></pre></div>
+<p><code>COP2LC</code> isn't touched by the start of a frame, so it's free for anything. Two uses:</p>
+<ul><li><strong>A fixed start and a changing rest.</strong> <code>ch06_bars.s</code> keeps a short list at <code>COP1LC</code> (the display's settings) that ends by jumping to <code>COP2LC</code>; the processor points <code>COP2LC</code> at whichever of two lists it has just built. See <a href="#changing-a-list-while-its-shown">double buffering</a>.</li><li><strong>Loops.</strong> Point <code>COP2LC</code> at the top of a loop, end the loop with <code>COPJMP2</code>, and put a SKIP before the jump to get out:</li></ul>
+<div class="code-block"><pre><code>Loop:                                   ; COP2LC points here
+        dc.w    COLOR00,$0f00
+        dc.w    $0081,$80fe             ; position $80, on whatever line this is (line bits ignored)
+        dc.w    COLOR00,$000f
+        dc.w    $00e1,$80fe             ; position $E0
+        dc.w    $c001,$ff01             ; SKIP: from line $C0 on, don't jump back
+        dc.w    COPJMP2,$0000
+        dc.w    COLOR00,$0000</code></pre></div>
+<p>That makes every line half red, half blue, with one copy of the instructions. And it shows the masking catch from above: in v8's test it works to line 127, then the masked WAITs pass at once and the loop races until the SKIP stops it at line <code>$C0</code>. The Hardware Reference Manual's way round it is a second loop for lines 128 and on, with bit 7 set in its WAITs.</p>
+<h2 id="changing-a-list-while-it-s-shown">Changing a list while it's shown</h2>
+<p>The processor can change a copper list in memory at any time: write a new colour into a MOVE's second word, and the copper uses it next time it gets there. That's how almost every copper effect moves.</p>
+<p>The trouble is <em>when</em>. The copper reads the list as the beam goes down the screen. Rewrite a list from the top while it's shown, and if your writing falls behind the beam, the bottom of the screen shows this frame and the top shows the next: a tear. Rewrite only a few words, near the start of the frame, before the beam gets to them, and it's fine. Rebuild a whole list (or change one late in the frame, or on a slow machine with the system running, where <code>Frame</code> may start a little late), and you need two lists:</p>
+<ol class="steps"><li>The copper shows list A while the processor builds list B.</li><li>When B is done, point the copper at it <strong>for the next frame</strong>.</li><li>Next frame, build A while B is shown; and so on.</li></ol>
+<p>Step 2 is safe because of when the copper reads its location registers. <code>COP1LC</code> is read at the start of each frame, so writing it during a frame changes nothing until the next. <code>ch06_line255.s</code> does it this way:</p>
+<div class="code-block"><pre><code>        move.l  Hidden,d0               ; the list just built
+        move.l  d0,COP1LC(a5)           ; shown from the next frame</code></pre></div>
+<p><code>ch06_bars.s</code> does the same with <code>COP2LC</code> instead. Its <code>COP1LC</code> list is fixed, and ends with <code>COPJMP2</code>; by the time <code>Frame</code> runs, the copper has already jumped for this frame, so a new <code>COP2LC</code> takes effect at the next:</p>
+<div class="code-block"><pre><code>Copper:
+        dc.w    FMODE,$0000
+        dc.w    BPLCON3,$0c00
+        dc.w    BPLCON0,$0200           ; no bitplanes: only the background colour
+        dc.w    COLOR00,$0000
+        dc.w    COPJMP2,$0000           ; jump to whichever list COP2LC points at</code></pre></div>
+<p>One care: a pointer is written as two words, and if the copper reads it between them, it gets half of each. So don't write <code>COP1LC</code> or <code>COP2LC</code> at the moment the copper uses them, at the very start of a frame. Writing them at the end of <code>Frame</code>, as these examples do, keeps well away from it.</p>
+<p>The same goes for the bitplane and sprite pointers the copper sets: <code>ch08_scroll.s</code> and <code>ch08_sprites.s</code> in <a href="08-display.html">the display chapter</a> write them from the vertical blank interrupt, and have the copper read them after a WAIT for line 16, so they're always written first.</p>
+<h2 id="bars-and-gradients">Bars and gradients</h2>
+<p>A <strong>copper gradient</strong> is a WAIT and a MOVE for every line, each with a slightly different colour. <code>ch06_gradient.s</code> makes the list in <code>Init</code>, with a <code>$FFDF</code> wait before line 256:</p>
+<div class="code-block"><pre><code>.line:
+        cmp.w   #$100,d0
+        bne.s   .notwrap
+        move.l  #$ffdffffe,(a0)+        ; wait for the end of line 255
+.notwrap:
+        move.w  d0,d1
+        lsl.w   #8,d1                   ; the line's low 8 bits, in the WAIT's top byte
+        or.w    #$07,d1
+        move.w  d1,(a0)+
+        move.w  #$fffe,(a0)+
+        move.w  #COLOR00,(a0)+          ; and a MOVE, its colour filled in each frame
+        clr.w   (a0)+</code></pre></div>
+<p>The colour changes only the background, so a bitplane picture in front of it (the skyline) stays as it is, and the gradient shows wherever its pixels are 0: around the buildings and through their windows. The 12-bit colours come from a few key colours with 16 steps worked out between each pair; with 4 bits a component, a smooth gradient needs its key colours close together, or the steps show as bands.</p>
+<p>A <strong>copper bar</strong> is a gradient a few lines tall that moves. The simple way to move several, and let them overlap, is to draw them into a table of one colour a line, as you'd draw into a bitplane, and then copy the table into the list's MOVEs. <code>ch06_bars.s</code> does that each frame: the background first, then each bar at its place on a sine wave, the later bars over the earlier:</p>
+<div class="code-block"><pre><code>        move.w  (a2,d0.w),d0            ; sine, -16384 to 16384
+        muls    BarSwing,d0
+        add.l   d0,d0
+        add.l   d0,d0
+        swap    d0                      ; * 4 / 65536: the same as / 16384
+        add.w   BarCentre,d0            ; the bar's top line</code></pre></div>
+<p>The sine table is in the source as <code>dc.w</code> lines, made with one line of Python (it's in the comment above the table); Limoniter's <strong>Tools › General › Table generator</strong> makes the same.</p>
+<p><code>ch06_line255.s</code> writes its list differently: a WAIT and a MOVE only where a line's colour differs from the line above's. The list is short, but its length changes every frame, so it has to be rebuilt every frame, and it's double-buffered.</p>
+<h2 id="colour-cycling">Colour cycling</h2>
+<p>Colour cycling moves colours rather than pixels. With the copper, that's rewriting the colours in a gradient's MOVEs one step further along the palette each frame: <code>ch06_gradient.s</code> writes 256 words a frame, from the top, at the start of the frame. The 68000 writes them far faster than the beam goes down the screen, so it's always ahead, and the list needs no second copy.</p>
+<p>The other kind, for a bitplane picture, rotates the values in the colour registers themselves (<code>COLOR01</code> to <code>COLOR07</code>, say), so the pixels drawn in those colours seem to flow. The copper can set those registers too, at the top of the list, from values the processor changes each frame.</p>
+<h2 id="splitting-the-screen">Splitting the screen</h2>
+<p>Nearly every display register can be changed by the copper between one line and the next, so one screen can be several. <code>ch06_split.s</code> has a low resolution, four-colour top and a high resolution bottom:</p>
+<div class="code-block"><pre><code>        dc.w    (SPLITLINE&lt;&lt;8)!$07,$fffe
+        dc.w    BPLCON0,$0200           ; no bitplanes on the dividing line
+        dc.w    COLOR00,$0fff
+        dc.w    BPLCON1,$0000
+        dc.w    DDFSTRT,$003c           ; high resolution's fetch
+        dc.w    DDFSTOP,$00d4
+        dc.w    BPL1MOD,$0000
+        dc.w    BPL2MOD,$0000
+        ...                             ; the bottom's colours and bitplane pointers
+        dc.w    ((SPLITLINE+2)&lt;&lt;8)!$07,$fffe
+        dc.w    COLOR00,$0012
+        dc.w    BPLCON0,$a200           ; high resolution, two bitplanes</code></pre></div>
+<p>Three things make a split clean:</p>
+<ul><li><strong>Change things between the fetches.</strong> A line's bitplane data is fetched between <code>DDFSTRT</code> and <code>DDFSTOP</code>. The fetch registers, the modulos and the pointers should change after one line's fetch has finished and before the next one's starts. A <code>$xx07</code> WAIT does that, if what follows is short.</li><li><strong>Or give it a line with nothing on it.</strong> <code>ch06_split.s</code> switches the bitplanes off (<code>BPLCON0</code> <code>$0200</code>) for its white dividing lines, so nothing is fetched or shown while the copper changes everything, and then switches them on in the new mode. A blank line or two between modes is normal in demos, and hides any half-changed line.</li><li><strong>Each part has its own pointers.</strong> The bitplane pointers go up as each line is fetched (and the modulo is added at the end of each line). The bottom part sets its own, so it starts where it should whatever the top did.</li></ul>
+<p><code>ch06_split.s</code> also moves the bottom's pointers each frame to scroll it up and down, by rewriting the words in the list after the split. And its top <strong>wobbles</strong>: there's a WAIT and a <code>MOVE BPLCON1</code> for every line, each a different scroll value from a sine wave, so each line of the picture is shifted by a different number of pixels. For that, the top fetches one word more than it shows (<code>DDFSTRT</code> <code>$30</code> rather than <code>$38</code>), as any horizontally scrolled screen must: <a href="08-display.html#hardware-scrolling">scrolling</a>.</p>
+<h2 id="the-copper-and-the-blitter">The copper and the blitter</h2>
+<p>With <code>CDANG</code> set, the copper can write the blitter's registers, and start blits by writing <code>BLTSIZE</code>. For a run of blits, it has to know when each has finished, and that's the BFD bit: a WAIT whose second word has bit 15 clear waits for the beam position <strong>and</strong> for the blitter to finish.</p>
+<div class="code-block"><pre><code>        dc.w    $6001,$fffe             ; line $60
+        dc.w    BLTCON0,$01ff           ; D only, all ones: fill
+        dc.w    BLTCON1,$0000
+        dc.w    BLTDMOD,$0000
+        dc.w    BLTDPTH,0,BLTDPTL,0     ; (filled in by the processor)
+        dc.w    BLTSIZE,(200&lt;&lt;6)!20     ; 200 lines of 20 words: the blit starts
+        dc.w    $6101,$7ffe             ; line $61, and the blitter finished (BFD clear)
+        dc.w    COLOR00,$0f00</code></pre></div>
+<p>v8 tried this list (with <code>CDANG</code> set by the processor). The copper filled the rectangle every frame. With <code>$fffe</code> in the last WAIT, the background turned red on line <code>$61</code>; with <code>$7ffe</code>, over twenty lines further down, when the blit had finished.</p>
+<p>The blitter must be yours for the copper to use it: with the machine taken it is; with the system running, own it (<a href="07-blitter.html">the blitter</a>) for as long as the copper may start blits. And the processor mustn't start blits of its own meanwhile.</p>
+<h2 id="what-the-copper-costs">What the copper costs</h2>
+<p>The copper reads its list by DMA, from chip RAM. The Hardware Reference Manual's figures:</p>
+<ul><li>A line has about 227 memory cycles. The copper uses every other one: not the cycles kept for memory refresh, the disk, audio, sprites and a low resolution display, but the ones the processor and the blitter use. It has priority over both.</li><li>A MOVE takes 2 memory cycles (4 cycles of time, as it uses every other one); a WAIT 3 (6), as it takes an extra cycle to wake. While a WAIT waits, the copper uses no cycles at all.</li><li>So the copper can do at most about 56 MOVEs a line, and fewer with WAITs between them.</li><li>A list busy with MOVEs all the way across the line slows the blitter, and slows the processor's chip RAM accesses. Code and data in fast RAM don't care.</li><li><strong>Bitplanes can take the copper's cycles too.</strong> During the display, up to four low resolution bitplanes, or two high resolution ones, leave them alone. Five or six low resolution bitplanes take half of them. Four high resolution bitplanes take every cycle there is, and the copper (like the processor and the blitter) can do nothing until the line's fetch is over. So mid-line colour changes need a light display.</li></ul>
+<p>In practice the copper's cost is small for anything but the busiest lists, and it's always cheaper than the processor doing the same: the processor would have to be there at the right moment, which it can't (<a href="05-interrupts.html#how-late-is-the-processor">interrupts</a>).</p>
+<h2 id="the-copper-in-an-interrupt">The copper in an interrupt</h2>
+<p>The copper can write <code>INTREQ</code> (<code>$9C</code>), so it can raise the level 3 copper interrupt at any line it can wait for. <a href="05-interrupts.html#the-copper-interrupt">Interrupts</a> has it in full, and shows how late the processor answers.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong><code>$xx07</code> waits</strong>: v7's tip, tested, and right. The step it gets rid of is shown in a screenshot, with where it falls.</li><li><strong>Line 255</strong>, which v7 didn't cover: why <code>$FFDF</code>, tested, and that the Hardware Reference Manual's own description leaves out the end of the line.</li><li><strong>The danger bit</strong>, and that the copper <em>stops</em> at a register it may not write.</li><li><strong>Double-buffered lists</strong>, with both location registers, and why changing a list as it's shown tears.</li><li><strong>The masked WAIT's catch</strong> (line bit 7 can't be ignored), seen in a test, not only read about.</li><li><strong>v7's "proper copper startup"</strong> (saving the view, <code>LoadView(0)</code>, two <code>WaitTOF</code>s) is now the startup's job: <a href="04-startup-and-exit.html">Startup and exit</a>.</li></ul>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p>The five examples were built both ways (<code>OS_FRIENDLY=0</code> and <code>1</code>, with <code>AUTOEXIT=500</code>) and run in FS-UAE:</p>
+<ul><li>an Amiga 500 (68000) with Kickstart 1.3 and with Kickstart 3.1;</li><li>Kickstart 3.1 with a 68020 and with a 68040, each with fast RAM;</li><li>an Amiga 1200 (AGA) with Kickstart 3.1, taking the machine;</li><li>an NTSC Amiga 500 with Kickstart 1.3, with the system running.</li></ul>
+<p>Every run showed the effect, and then the CLI with "back in AmigaDOS, return code OK" after the demo had ended. Besides the examples, small test lists (not in <code>examples/</code>) checked what this chapter says about: the WAITs before line 256 (the table above); a MOVE to <code>BLTCON1</code> without <code>CDANG</code>; a copper-started blit with BFD set and clear; and the masked WAIT loop with SKIP. The screen positions given are FS-UAE's, measured from its screen captures; a real Amiga's picture may sit a pixel or two differently, and how much of the border a monitor shows is up to the monitor.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="05-interrupts.html"><span>Back</span>5. Interrupts</a>
+<a class="pager-next" href="07-blitter.html"><span>Next</span>7. The blitter</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

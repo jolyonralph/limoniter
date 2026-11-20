@@ -579,3 +579,142 @@ fn another_file_shows_beside_and_a_click_brings_it_forward() {
     give(&mut app, &ctx, Command::OpenBeside);
     assert!(app.beside.is_none());
 }
+
+/// With nothing open, a folder can still be opened and worked in: Open folder and its kin aren't greyed out.
+#[test]
+fn a_folder_can_be_opened_with_no_file_open() {
+    let (mut app, ctx) = app_with_text(&["x"]);
+    app.close_tab(0);
+    frame(&mut app, &ctx, Vec::new());
+    assert!(app.no_file());
+    let standalone = [Command::OpenFolder, Command::GoToFile, Command::GoToSymbol(true), Command::SearchPanel, Command::ToggleTerminal, Command::DragonDisk, Command::AmigaBootDisk, Command::NewImage, Command::OpenUrl, Command::UseClipboard(3), Command::Features, Command::Disassemble, Command::SaveDecrunched];
+    for (n, command) in standalone.into_iter().enumerate() {
+        assert!(app.can(command), "command {n}");
+    }
+    // Tasks need somewhere to run: a project (or folder) open.
+    assert!(!app.can(Command::BuildTask) && !app.can(Command::EditTasks));
+    let root = std::env::temp_dir();
+    app.project = Some(crate::project::Project::of_folder(&root.join("t.limproj"), &root));
+    assert!(app.can(Command::BuildTask) && app.can(Command::TestTask) && app.can(Command::EditTasks));
+    // What works on the file in front stays greyed out.
+    for (n, command) in [Command::Save, Command::Find, Command::ConvertNumber, Command::StFloppy, Command::WordCount].into_iter().enumerate() {
+        assert!(!app.can(command), "document command {n}");
+    }
+}
+
+/// The window's size is its own: the window zooms, the text stays the size chosen, and it's kept with the settings.
+#[test]
+fn the_window_has_its_own_size_apart_from_the_text() {
+    let (mut app, ctx) = app_with_text(&["x"]);
+    let text_size = app.view.font_size;
+    app.window_scale = 1.5;
+    // It takes effect the frame after it's set.
+    frame(&mut app, &ctx, Vec::new());
+    frame(&mut app, &ctx, Vec::new());
+    assert!((ctx.zoom_factor() - 1.5).abs() < 0.001, "the window's zoomed");
+    assert!((app.text_view_options().font_size * 1.5 - text_size).abs() < 0.01, "the text is drawn at the size it was");
+    let kept = app.current_settings();
+    assert!(kept.contains("window_scale=1.5"), "{kept}");
+    let back = Limoniter::build(kept, None, Some(PathBuf::from("never-written.png")));
+    assert!((back.window_scale - 1.5).abs() < 0.001);
+    // The box draws.
+    app.dialog = Dialog::WindowFont { error: String::new() };
+    frame(&mut app, &ctx, Vec::new());
+    assert!(matches!(app.dialog, Dialog::WindowFont { .. }));
+}
+
+/// With focus following the mouse, moving the pointer into the file beside brings it to the front, no click needed;
+/// without it, only a click does.
+#[test]
+fn focus_follows_the_mouse_between_files_side_by_side() {
+    let (mut app, ctx) = app_with_text(&["left"]);
+    let first = app.docs[app.active].id;
+    app.new_document();
+    let second = app.docs[app.active].id;
+    app.active = app.docs.iter().position(|d| d.id == first).unwrap();
+    app.used_order = vec![first, second];
+    give(&mut app, &ctx, Command::OpenBeside);
+    frame(&mut app, &ctx, Vec::new());
+    // Off: the pointer moving over the right half changes nothing.
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(1300.0, 300.0))]);
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(1310.0, 310.0))]);
+    assert_eq!(app.docs[app.active].id, first);
+    // On: it brings the second forward.
+    app.view.focus_follows_mouse = true;
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(1320.0, 320.0))]);
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(1330.0, 330.0))]);
+    assert_eq!(app.docs[app.active].id, second);
+}
+
+#[test]
+fn the_keys_for_a_command_from_a_menu_are_noted_now_and_then() {
+    let (mut app, _ctx) = app_with_text(&["text"]);
+    for _ in 0..5 {
+        app.key_note = None;
+        app.note_keys(Command::New);
+    }
+    assert_eq!(app.key_notes_given.values().copied().collect::<Vec<_>>(), [3], "three times, then no more");
+    app.key_notes_given.clear();
+    app.note_keys(Command::New);
+    assert!(app.key_note.as_ref().is_some_and(|(words, _)| words.contains("Ctrl+N")));
+    // Nothing for a command without keys, or with the notes turned off.
+    app.key_note = None;
+    app.note_keys(Command::Features);
+    assert!(app.key_note.is_none());
+    app.view.learn_keys = false;
+    app.key_notes_given.clear();
+    app.note_keys(Command::New);
+    assert!(app.key_note.is_none());
+}
+
+#[test]
+fn panels_that_hide_themselves_come_out_at_the_edge() {
+    let (mut app, ctx) = app_with_text(&["x"]);
+    app.panels.bookmarks = true;
+    app.view.panels_hide = true;
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(600.0, 300.0))]);
+    assert_eq!(panels::sides_drawn(), ([false, false], [true, false]), "tucked away at the left");
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(1.0, 300.0))]);
+    assert_eq!(panels::sides_drawn().0, [true, false], "out at the edge");
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(60.0, 300.0))]);
+    assert_eq!(panels::sides_drawn().0, [true, false], "and staying while the pointer's over it");
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(700.0, 300.0))]);
+    assert_eq!(panels::sides_drawn().0, [false, false], "gone again after");
+    app.view.panels_hide = false;
+    frame(&mut app, &ctx, Vec::new());
+    assert_eq!(panels::sides_drawn(), ([true, false], [false, false]), "always there with it off");
+}
+
+#[test]
+fn go_to_file_shows_the_file_chosen() {
+    let dir = std::env::temp_dir().join(format!("limoniter-preview-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.txt"), "first\n\tsecond\n").unwrap();
+    std::fs::write(dir.join("b.bin"), [0u8, 159, 146, 150, 0, 0, 1]).unwrap();
+    assert_eq!(workspace_host::preview_of(&dir.join("a.txt")), workspace_host::Preview::Lines(vec!["first".into(), "    second".into()]));
+    assert!(matches!(workspace_host::preview_of(&dir.join("b.bin")), workspace_host::Preview::Not(_)));
+    assert!(matches!(workspace_host::preview_of(&dir.join("missing")), workspace_host::Preview::Not(_)));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn code_is_made_into_a_picture() {
+    let (mut app, ctx) = app_with_text(&["fn main() {", "\tlet x = 1;", "}"]);
+    app.open_code_picture();
+    assert!(app.code_picture.is_some(), "the box opens");
+    frame(&mut app, &ctx, Vec::new());
+    let state = app.code_picture.as_ref().expect("still open");
+    assert_eq!(binary_tools_host::state_lines(state), 3);
+    assert!(binary_tools_host::state_made(state), "a picture is made");
+}
+
+#[test]
+fn an_sftp_address_opens_by_fetching_the_file() {
+    let (mut app, _ctx) = app_with_text(&["x"]);
+    assert!(app.open_path(Path::new("sftp://ann@127.0.0.1:1/home/ann/notes.txt")));
+    assert_eq!(app.remote_jobs.len(), 1, "a fetch is under way");
+    assert_eq!(app.remote_opening.as_deref(), Some("/home/ann/notes.txt"));
+    // A folder's address opens the box on it instead.
+    assert!(app.open_path(Path::new("sftp://ann@127.0.0.1:1/home/ann/")));
+    assert!(matches!(app.dialog, Dialog::Remote(_)));
+}

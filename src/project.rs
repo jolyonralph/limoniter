@@ -30,6 +30,8 @@ pub struct Project {
     /// A folder opened as a project, as VS Code opens one: everything in it is the project, read from the disk as
     /// it is now, so `files` is its index rather than a list kept in the project's file.
     pub root: Option<PathBuf>,
+    /// Where a folder project came from, when it's the mirror of a folder on a server: to connect to again.
+    pub remote: Option<crate::remote_project::Origin>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -107,6 +109,9 @@ impl Project {
         if let Some(root) = &self.root {
             value["root"] = json!(stored(&folder_of(&self.path), root));
         }
+        if let Some(remote) = &self.remote {
+            value["remote"] = remote.to_json();
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -123,7 +128,8 @@ impl Project {
             items.iter().filter_map(|t| Some(crate::tasks::Task { name: t.get("name")?.as_str()?.to_string(), command: t.get("command")?.as_str()?.to_string(), kind: crate::tasks::Kind::from_id(t.get("kind").and_then(Value::as_str).unwrap_or("")) })).collect()
         });
         let comparisons = crate::compare_session::list_from_json(value.get("comparisons"), Some(&base));
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root };
+        let remote = value.get("remote").and_then(crate::remote_project::Origin::from_json);
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }

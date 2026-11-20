@@ -338,14 +338,14 @@ pub fn list_trs80_model4(data: &[u8], set: &Charset) -> Listing {
 
 /// The ZX81's keywords for codes &C0 to &FF, in the ROM's order: &C0 is the "" that stands for a quote inside a
 /// string, &C3 is unused.
-const ZX81_TOKENS: [&str; 64] = [
+pub(crate) const ZX81_TOKENS: [&str; 64] = [
     "\"\"", "AT", "TAB", "?", "CODE", "VAL", "LEN", "SIN", "COS", "TAN", "ASN", "ACS", "ATN", "LN", "EXP", "INT", "SQR", "SGN", "ABS", "PEEK",
     "USR", "STR$", "CHR$", "NOT", "**", "OR", "AND", "<=", ">=", "<>", "THEN", "TO", "STEP", "LPRINT", "LLIST", "STOP", "SLOW", "FAST", "NEW",
     "SCROLL", "CONT", "DIM", "REM", "FOR", "GOTO", "GOSUB", "INPUT", "LOAD", "LIST", "LET", "PAUSE", "NEXT", "POKE", "PRINT", "PLOT", "RUN", "SAVE",
     "RAND", "IF", "CLS", "UNPLOT", "CLEAR", "RETURN", "COPY",
 ];
 /// The functions at &40 to &42, which have no spaces round them.
-const ZX81_FUNCTIONS: [&str; 3] = ["RND", "INKEY$", "PI"];
+pub(crate) const ZX81_FUNCTIONS: [&str; 3] = ["RND", "INKEY$", "PI"];
 
 /// Where a ZX81 program file's memory starts: a `.p` file is the RAM from the system variable VERSN at &4009 up to
 /// E_LINE, so the system variables come first, then the program at &407D, the display file and the variables.
@@ -386,6 +386,11 @@ fn zx81_file(data: &[u8]) -> Result<(usize, Zx81File), String> {
         Some(Ok(found)) => Ok(found),
         _ => plain.map(|file| (0, file)),
     }
+}
+
+/// Where a ZX81 program file's memory starts in it: after the name, in a `.p81`; at once, in a `.p`.
+pub fn zx81_skip(data: &[u8]) -> Result<usize, String> {
+    zx81_file(data).map(|(skip, _)| skip)
 }
 
 /// How a ZX81 character is written in a listing: its character from the ZX81 set, an inverse one with % before it

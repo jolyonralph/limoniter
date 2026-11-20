@@ -3,6 +3,9 @@
 //! Limoniter's own assembler as with vasm.
 
 /// The demo starter: system takeover, a bitplane, a moving raster bar, left mouse button to leave.
+/// No longer on File, New as (How To Code v8's startup is, as one file), but kept: vasm's assembly of it checks
+/// Limoniter's 68000 assembler.
+#[cfg(test)]
 pub const DEMO: &str = include_str!("starters/amiga_demo.s");
 
 /// The copper-only starter: system takeover and a colour gradient made by the copper.

@@ -61,7 +61,7 @@ impl Side {
     /// as a folder.
     pub fn from_path(path: &Path) -> Side {
         let text = path.to_string_lossy();
-        if text.starts_with("sftp://")
+        if remote::is_address(&text)
             && let Ok((site, folder)) = remote::parse_url(&text)
         {
             return Side::Sftp { site, folder };
@@ -154,6 +154,11 @@ pub trait Tree: Send + Sync {
     /// Takes an empty folder away. One with anything in it is left, and that's said.
     fn remove_folder(&self, path: &str) -> Result<(), String> {
         let _ = path;
+        Err(READ_ONLY.into())
+    }
+    /// Gives a file or folder a new path, in the same tree.
+    fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        let _ = (from, to);
         Err(READ_ONLY.into())
     }
 }
@@ -423,6 +428,10 @@ pub trait RemoteFs: Send {
     fn make_folder(&self, path: &str) -> Result<(), String>;
     fn remove_file(&self, path: &str) -> Result<(), String>;
     fn remove_folder(&self, path: &str) -> Result<(), String>;
+    fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        let _ = (from, to);
+        Err(READ_ONLY.into())
+    }
 }
 
 impl RemoteFs for remote::Connection {
@@ -456,6 +465,9 @@ impl RemoteFs for remote::Connection {
     fn remove_folder(&self, path: &str) -> Result<(), String> {
         remote::Connection::remove_folder(self, path)
     }
+    fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        remote::Connection::rename(self, from, to)
+    }
 }
 
 /// A file on this computer for a moment, taken away again when it's done with.
@@ -474,7 +486,7 @@ impl Drop for Scratch {
     }
 }
 
-/// A folder on an SFTP server. Files are written to it only by sending each to a new file beside the old and
+/// A folder on an SFTP or FTP server. Files are written to it only by sending each to a new file beside the old and
 /// putting it in place, so a file there is never half written.
 pub struct SftpTree {
     connection: Mutex<Box<dyn RemoteFs>>,
@@ -587,6 +599,12 @@ impl Tree for SftpTree {
         }
         connection.remove_folder(&self.place(path))
     }
+
+    fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        safe_path(from)?;
+        safe_path(to)?;
+        self.connection().rename(&self.place(from), &self.place(to))
+    }
 }
 
 /// A tree held in memory, for tests. It can be written to when it's made `writable`.
@@ -691,6 +709,21 @@ impl Tree for MemoryTree {
             return Err(crate::i18n::tr("It still has files in it that weren't compared, so it was kept.").into());
         }
         self.folders.lock().unwrap().remove(path);
+        Ok(())
+    }
+
+    fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        self.writing(to)?;
+        let mut files = self.files.lock().unwrap();
+        let inside = format!("{from}/");
+        let moving: Vec<String> = files.keys().filter(|path| *path == from || path.starts_with(&inside)).cloned().collect();
+        if moving.is_empty() {
+            return Err(crate::i18n::tf!("{from} isn't there."));
+        }
+        for path in moving {
+            let value = files.remove(&path).unwrap_or_default();
+            files.insert(format!("{to}{}", &path[from.len()..]), value);
+        }
         Ok(())
     }
 }
@@ -2556,7 +2589,7 @@ mod tests {
         assert_eq!(revision_words("HEAD"), "the last commit");
         assert_eq!(revision_words("0123456789abcdef0123456789abcdef01234567"), "commit 01234567");
         assert_eq!(revision_words("main"), "main");
-        let site = remote::Site { host: "example.com".into(), port: 22, user: "me".into(), key_file: None };
+        let site = remote::Site { host: "example.com".into(), port: 22, user: "me".into(), ..remote::Site::default() };
         assert_eq!(Side::Sftp { site, folder: "/srv".into() }.describe(), "sftp://me@example.com/srv");
         assert!(matches!(Side::from_path(Path::new("sftp://me@example.com/srv")), Side::Sftp { .. }));
         assert!(Side::Folder(PathBuf::from("x")).writable());

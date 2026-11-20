@@ -285,6 +285,21 @@ fn every_68000_instruction_is_assembled_as_vasm_does() {
     assert_eq!(assembly.image(0x1000, 0x1000 + expected.len() as i64), expected);
 }
 
+/// The 68020's forms are refused, not quietly assembled as different 68000 instructions: MULU.L as MULU.W, or a
+/// TST of a PC-relative address, which the 68000 can't do and an A500 crashes on.
+#[test]
+fn the_68020s_forms_are_refused_in_68000_code() {
+    for wrong in ["mulu.l d0,d1", "muls.l d0,d1", "divu.l d0,d1", "divs.l #3,d1", "mulu.l #3,d1", "chk.l d0,d1", "tst.b x(pc)", "tst.w x(pc,d0.w)", "cmpi.w #1,x(pc)", "cmpi.b #1,x(pc,d1.w)", "clr.w x(pc)", "addq.w #1,x(pc)", "add.w d0,x(pc)", "bset #1,x(pc)", "st x(pc)", "lsl x(pc)"] {
+        let source = format!("\t{wrong}\nx:\tdc.w 0\n");
+        assert!(!assemble(&m68k::M68k, Path::new("t.s"), &source, &no_files).ok(), "{wrong} should be refused");
+    }
+    for right in ["mulu.w d0,d1", "mulu d0,d1", "divs.w #3,d1", "btst #1,x(pc)", "tst.b x", "cmpi.w #1,x", "move.w x(pc),d0", "add.w x(pc),d0", "cmp.w x(pc,d0.w),d1", "lsl.w #2,d0"] {
+        let source = format!("\t{right}\nx:\tdc.w 0\n");
+        let assembly = assemble(&m68k::M68k, Path::new("t.s"), &source, &no_files);
+        assert!(assembly.ok(), "{right}: {:?}", assembly.problems);
+    }
+}
+
 /// An Atari ST program, its addresses found by assembling it twice, as vasm writes it (-Ftos -nosym).
 #[test]
 fn an_atari_st_program_matches_vasm() {

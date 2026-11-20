@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>8. The display · How To Code v8</title>
+  <meta name="description" content="v7&#x27;s chapter on video was about one thing: telling PAL from NTSC.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/08-display.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/08-display.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="8. The display · How To Code v8">
+  <meta property="og:description" content="v7&#x27;s chapter on video was about one thing: telling PAL from NTSC.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/08-display.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html" aria-current="page">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>8. The display</h1>
+        <div class="article-lead">
+<p>v7's chapter on video was about one thing: telling PAL from NTSC. This one covers that, and the rest of what a demo needs to set up its own display: the window and the fetch, the bitplanes and their control registers, modulos, scrolling, dual playfield, interlace, sprites, and the two special colour modes. Everything here is the original chip set's (OCS) and ECS's, which every Amiga has; AGA's additions are in <a href="09-aga.html">the AGA chapter</a>.</p>
+<p>There are four whole examples, each built both ways (with the machine taken and with the system running) like every v8 example:</p>
+<ul><li><code>examples/ch08_scroll.s</code>: smooth horizontal scrolling across a landscape three screens wide.</li><li><code>examples/ch08_dualpf.s</code>: dual playfield parallax: two playfields, each with its own bitplanes, modulo and scroll.</li><li><code>examples/ch08_sprites.s</code>: 31 balls from the 8 hardware sprites, used several times each down the screen, and an attached pair of 15 colours.</li><li><code>examples/ch08_interlace.s</code>: a 640 by 512 interlaced screen, from two copper lists.</li></ul>
+<figure class="guide-shot"><img src="images/ch08_examples.png" alt="ch08_scroll.s, ch08_dualpf.s, ch08_sprites.s and ch08_interlace.s in FS-UAE" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#pal-and-ntsc">PAL and NTSC</a></li>
+<li><a href="#the-display-window-and-the-fetch">The display window and the fetch</a></li>
+<li><a href="#bitplanes-and-the-modulo">Bitplanes, and the modulo</a></li>
+<li><a href="#the-control-registers-bplcon0-1-and-2">The control registers: BPLCON0, 1 and 2</a></li>
+<li><a href="#hardware-scrolling">Hardware scrolling</a></li>
+<li><a href="#dual-playfield">Dual playfield</a></li>
+<li><a href="#interlace">Interlace</a></li>
+<li><a href="#sprites">Sprites</a></li>
+<li><a href="#ehb-and-ham">EHB and HAM</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+</ul>
+</nav>
+<h2 id="pal-and-ntsc">PAL and NTSC</h2>
+<p>An Amiga is made for one TV standard, and its Agnus chip counts lines for it:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">PAL (Europe, Australia)</th>
+<th scope="col">NTSC (North America, Japan)</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Frames a second</th>
+<td>50</td>
+<td>60</td>
+</tr>
+<tr>
+<th scope="row">Lines a frame</th>
+<td>312 (313 in an interlaced long frame)</td>
+<td>262 (263)</td>
+</tr>
+<tr>
+<th scope="row">The usual display</th>
+<td>256 lines, from line <code>$2C</code> to <code>$12B</code></td>
+<td>200 lines, from <code>$2C</code> to <code>$F3</code></td>
+</tr>
+<tr>
+<th scope="row">Color clock</th>
+<td>3,546,895 Hz</td>
+<td>3,579,545 Hz</td>
+</tr>
+</tbody></table></div>
+<p>A line is 227 color clocks on PAL (227 and 228 in turn on NTSC): about 64 microseconds. The usual screen's top line is <code>$2C</code> on both too, so the difference is at the bottom: an NTSC display ends 56 lines sooner. That's v7's point, still true: a demo made for 256 lines loses its bottom fifth on NTSC, and one made for 200 leaves a PAL screen's bottom fifth empty.</p>
+<p>The v8 examples set the display window for 256 lines in their copper lists, and change it for 200 in <code>Init</code> if the startup found NTSC:</p>
+<div class="code-block"><pre><code>        tst.b   PalDisplay              ; set by the startup
+        bne.s   .pal
+        move.w  #$f4c1,CopperWindowEnd+2        ; NTSC: the window ends at line $F4
+.pal:</code></pre></div>
+<p>Which picture goes in the 200 lines is up to the demo: <code>ch06_gradient.s</code> starts its bitplane 56 rows further down on NTSC, so its skyline sits on the bottom of the screen either way.</p>
+<h3 id="finding-out-which">Finding out which</h3>
+<p>The startup does it the way v7 recommended, with v7's warning heeded:</p>
+<ul><li><strong>Kickstart 2.0 and later:</strong> the <code>PAL</code> bit (bit 2) of <code>gb_DisplayFlags</code> in GfxBase. Kickstart 2's boot menu lets ECS and AGA machines start in the other mode, and this tells you the mode the machine was started in, which is what's on the screen.</li><li><strong>Kickstart 1.x:</strong> the vertical blank frequency exec was started with, <code>VBlankFrequency</code> in ExecBase: 50 or 60. v7 found that 1.x's <code>gb_DisplayFlags</code> "can guess wrong", so it isn't used there.</li></ul>
+<p>The answer is in <code>PalDisplay</code>. It says how the machine was started, not what the monitor can show. From Kickstart 3.0 (V39) on, <code>REALLY_PAL</code> (bit 4 of <code>gb_DisplayFlags</code>) tells you what the machine's crystal is, if the boot menu has been used to switch.</p>
+<h3 id="switching-beamcon0-carefully">Switching: BEAMCON0, carefully</h3>
+<p>An ECS or AGA Agnus has <code>BEAMCON0</code> (<code>$1DC</code>), and its bit 5 (<code>PAL</code>) switches the line counting and sync between PAL and NTSC. v7 gave the pokes:</p>
+<div class="code-block"><pre><code>        move.w  #$0020,BEAMCON0(a5)     ; PAL: 50 Hz
+        move.w  #$0000,BEAMCON0(a5)     ; NTSC: 60 Hz</code></pre></div>
+<p>v8 tried the second on an emulated Amiga 500+ (ECS), PAL, in <code>ch06_gradient.s</code>: the frame became 262 lines, the gradient stopped at the bottom of the NTSC frame, and writing <code>$0020</code> back as the demo ended left the CLI as it was. On an Amiga 500 with the original Agnus, which has no <code>BEAMCON0</code>, the write did nothing at all.</p>
+<p>Be careful with it:</p>
+<ul><li>The other bits of <code>BEAMCON0</code> matter: they set sync polarities, blanking, and the programmable modes the productivity and VGA-like screens use. These pokes set them all to 0, which is right only for a plain 15 kHz PAL or NTSC display. The Hardware Reference Manual's own advice is not to write it at all, and says a wrong value can (just possibly) harm a multisync monitor.</li><li>Only the counting changes; the machine's clock, which comes from its crystal, doesn't. Whether the screen copes is up to the monitor: v7 noted that 1084-type monitors and multisyncs take both, and most American TVs won't take PAL.</li><li>Put it back as you found it. Since it can't be read, that means knowing what it was (<code>PalDisplay</code> tells you which of the two plain values), and writing it in an <code>ExitHook</code> (<a href="04-startup-and-exit.html">Startup and exit</a>).</li></ul>
+<p>v7's suggestion still stands: if your demo is made for PAL, ask an NTSC user before switching, rather than switching on your own.</p>
+<h2 id="the-display-window-and-the-fetch">The display window and the fetch</h2>
+<p>Four registers set where the picture is and what's fetched for it. They're the ones every v8 copper list starts with:</p>
+<div class="code-block"><pre><code>        dc.w    DIWSTRT,$2c81           ; the window's top left: line $2C, pixel $81
+        dc.w    DIWSTOP,$2cc1           ; its bottom right: line $12C, pixel $1C1
+        dc.w    DDFSTRT,$0038           ; the fetch starts at color clock $38...
+        dc.w    DDFSTOP,$00d0           ; ...and its last 16 pixels are fetched from $D0</code></pre></div>
+<h3 id="the-window-diwstrt-and-diwstop">The window: DIWSTRT and DIWSTOP</h3>
+<p>The <strong>display window</strong> is the part of the screen where bitplanes (and sprites) can be seen; outside it there's only the background colour, <code>COLOR00</code>. <code>DIWSTRT</code> holds its top line (bits 15-8) and left pixel (bits 7-0); <code>DIWSTOP</code> the line and pixel just past its bottom right. The pixels are low resolution ones, and the lines non-interlaced ones, whatever mode the screen is in.</p>
+<p>8 bits isn't enough for either, so the chips fill in a 9th:</p>
+<ul><li><code>DIWSTRT</code>'s horizontal and vertical start are taken as they are (0 to 255).</li><li><code>DIWSTOP</code>'s horizontal stop has 256 added: <code>$C1</code> is pixel <code>$1C1</code>.</li><li><code>DIWSTOP</code>'s vertical stop gets a 9th bit that's the opposite of its 8th: <code>$2C</code> (bit 7 clear) is line <code>$12C</code>; <code>$F4</code> (bit 7 set) is line <code>$F4</code>. So the bottom can be anywhere from line <code>$80</code> to <code>$17F</code>.</li></ul>
+<p>The usual 320 by 256 PAL screen is <code>$2C81</code> and <code>$2CC1</code>; NTSC's 200 lines end at <code>$F4C1</code>. On ECS, a further register, <code>DIWHIGH</code>, holds full 9-bit and 11-bit positions, and lifts these limits; the Hardware Reference Manual's Appendix C has it.</p>
+<h3 id="the-fetch-ddfstrt-and-ddfstop">The fetch: DDFSTRT and DDFSTOP</h3>
+<p>The window says where the picture is shown. <strong>Data fetch</strong> says when the bitplane DMA reads it. <code>DDFSTRT</code> and <code>DDFSTOP</code> are horizontal positions in color clocks, the same units as a copper WAIT's: one is 2 low resolution pixels.</p>
+<p>A low resolution line is fetched 16 pixels (8 color clocks) at a time, and the manual recommends starting the fetch on a multiple of 8 (4 in high resolution). The data arrives a little after it's fetched, so the fetch starts 8.5 color clocks before the window:</p>
+<ul><li>low resolution: <code>DDFSTRT</code> = window start / 2 - 8.5: <code>$81</code> / 2 - 8.5 = <code>$38</code>. <code>DDFSTOP</code> = <code>DDFSTRT</code> + 8 × (words a line - 1): for 20 words (320 pixels), <code>$38</code> + <code>$98</code> = <code>$D0</code>.</li><li>high resolution: <code>DDFSTRT</code> = window start / 2 - 4.5 = <code>$3C</code>, and <code>DDFSTOP</code> = <code>DDFSTRT</code> + 4 × (words a line - 2): for 40 words, <code>$D4</code>.</li></ul>
+<p>Those are the Hardware Reference Manual's formulas. Make the fetch and the window agree, or the picture's edges show garbage or are cut off.</p>
+<h3 id="overscan-and-its-limits">Overscan, and its limits</h3>
+<p>A screen bigger than 320 by 256 is <strong>overscan</strong>: a bigger window, fetching more. The limits:</p>
+<ul><li>The fetch can't start before <code>$18</code> or end after <code>$D8</code>: 25 words a line at most in low resolution. Horizontal blanking leaves 368 low resolution pixels that can be seen.</li><li>Vertically, nothing shows in the vertical blank: from line 29 on PAL (21 on NTSC), so up to about 283 lines on PAL and 241 on NTSC.</li><li><strong>A fetch that starts before <code>$38</code> costs sprites.</strong> The sprite DMA's slots are just before the display's; an earlier fetch takes them. v8 tried it: with <code>DDFSTRT</code> <code>$30</code> sprite 7 vanished, and with <code>$28</code> sprites 6 and 7 did. Each 8 color clocks earlier loses one more.</li><li>How much of the overscan a monitor or TV shows varies. The edges of a big overscan screen may be off a TV's edges, and well inside a monitor's. Keep what matters away from them.</li></ul>
+<h2 id="bitplanes-and-the-modulo">Bitplanes, and the modulo</h2>
+<p>A screen is up to six <strong>bitplanes</strong>: separate pictures one bit deep, each pixel's bits together making its colour's number. <code>BPLxPTH</code>/<code>BPLxPTL</code> point at each plane's top-left word. As each line is fetched, the pointers go up past it, so they must be set again for every frame: the copper does it, at the top of its list, every frame.</p>
+<p>At the end of each line's fetch the <strong>modulo</strong> is added to the pointers: <code>BPL1MOD</code> for the odd planes (1, 3, 5), <code>BPL2MOD</code> for the even ones (2, 4, 6). A screen exactly as wide as it's shown needs a modulo of 0. A picture wider than the screen needs the bytes of each row that aren't fetched:</p>
+<div class="code-block"><pre><code>        dc.w    BPL1MOD,ROWBYTES-FETCHBYTES     ; skip the rest of the row</code></pre></div>
+<p>The modulo is a signed word, so it can be negative. A modulo of minus the bytes fetched shows the same line again; the copper can switch it on and off down the screen to stretch a picture.</p>
+<p>The planes can be one after another in memory (each a whole picture), or <strong>interleaved</strong>: row 0 of plane 1, row 0 of plane 2, ... then row 1 of plane 1. Interleaved, each plane's pointer starts one row further on, and the modulo skips the other planes' rows. The blitter likes that (<a href="07-blitter.html#interleaved-bitplanes">the blitter</a>).</p>
+<h2 id="the-control-registers-bplcon0-1-and-2">The control registers: BPLCON0, 1 and 2</h2>
+<p><code>BPLCON0</code> sets the mode:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Bit</th>
+<th scope="col">Name</th>
+<th scope="col"></th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">15</th>
+<td><code>HIRES</code></td>
+<td>high resolution (640 pixels across)</td>
+</tr>
+<tr>
+<th scope="row">14-12</th>
+<td><code>BPU</code></td>
+<td>how many bitplanes, 0 to 6</td>
+</tr>
+<tr>
+<th scope="row">11</th>
+<td><code>HOMOD</code></td>
+<td>hold-and-modify (<a href="#ehb-and-ham">below</a>)</td>
+</tr>
+<tr>
+<th scope="row">10</th>
+<td><code>DBLPF</code></td>
+<td>dual playfield (<a href="#dual-playfield">below</a>)</td>
+</tr>
+<tr>
+<th scope="row">9</th>
+<td><code>COLOR</code></td>
+<td>colour on the composite output (only the A1000 has colour composite; set it anyway)</td>
+</tr>
+<tr>
+<th scope="row">8</th>
+<td><code>GAUD</code></td>
+<td>genlock audio</td>
+</tr>
+<tr>
+<th scope="row">3</th>
+<td><code>LPEN</code></td>
+<td>light pen</td>
+</tr>
+<tr>
+<th scope="row">2</th>
+<td><code>LACE</code></td>
+<td>interlace (<a href="#interlace">below</a>)</td>
+</tr>
+<tr>
+<th scope="row">1</th>
+<td><code>ERSY</code></td>
+<td>external sync, for a genlock: never set it yourself</td>
+</tr>
+</tbody></table></div>
+<p>So <code>$1200</code> is one low resolution bitplane, <code>$4600</code> four in dual playfield, <code>$9204</code> one high resolution plane, interlaced. The other bits belong to ECS and AGA (super high resolution, AGA's eighth plane): keep them 0 unless you mean them, and see <a href="09-aga.html">AGA</a>. In high resolution there are at most four bitplanes on OCS and ECS.</p>
+<p><code>BPLCON1</code> is the horizontal <strong>scroll</strong> (delay) for each playfield: bits 3-0 for the odd planes, bits 7-4 for the even ones (<a href="#hardware-scrolling">scrolling</a>).</p>
+<p><code>BPLCON2</code> sets <strong>priorities</strong>: which of the playfields and the four pairs of sprites is in front:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Bits</th>
+<th scope="col">Name</th>
+<th scope="col"></th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">6</th>
+<td><code>PF2PRI</code></td>
+<td>playfield 2 (the even planes) in front of playfield 1</td>
+</tr>
+<tr>
+<th scope="row">5-3</th>
+<td><code>PF2P</code></td>
+<td>where playfield 2 goes among the sprites: 0 in front of all, 4 behind all</td>
+</tr>
+<tr>
+<th scope="row">2-0</th>
+<td><code>PF1P</code></td>
+<td>the same for playfield 1</td>
+</tr>
+</tbody></table></div>
+<p>The value <code>n</code> puts the playfield behind the first <code>n</code> pairs of sprites: 1 behind sprites 0 and 1, 2 behind 0 to 3, and so on. A catch: <strong>in a single playfield, it's <code>PF2P</code> (bits 5-3) that places the screen among the sprites</strong>, though the bitplanes are numbered from 1. The Hardware Reference Manual warns of it in a box, and v8 checked: in <code>ch08_sprites.s</code> (one bitplane), <code>BPLCON2</code> <code>$0004</code> left the balls <em>behind</em> the grid lines, and <code>$0020</code> put them in front. The example writes <code>$0024</code>, both, which works either way. With <code>BPLCON2</code> 0, every sprite is behind every non-zero pixel of the screen.</p>
+<p><code>BPLCON3</code> (ECS and AGA) and <code>BPLCON4</code> (AGA) add more. v8's examples write <code>BPLCON3</code> <code>$0C00</code> and <code>FMODE</code> 0 in their copper lists: on AGA, that puts the colour banks, sprites and fetch back to how OCS and ECS have them, whatever Workbench left (<a href="09-aga.html">AGA</a>).</p>
+<h2 id="hardware-scrolling">Hardware scrolling</h2>
+<p><strong>Vertically</strong>, a screen scrolls by its bitplane pointers: start one row further down the picture, and it moves up a line. Any amount, any frame, for nothing.</p>
+<p><strong>Horizontally</strong>, the pointers can only move a word at a time: 16 pixels. The pixels in between are done by <code>BPLCON1</code>'s delay, which shows each line's data 0 to 15 pixels later (to the right). For that to work, there must be data to fill in from the left: so the fetch <strong>starts 16 pixels earlier</strong>, fetching one more word than the screen shows. For the usual low resolution screen, <code>DDFSTRT</code> goes from <code>$38</code> to <code>$30</code>, and <code>DDFSTOP</code> stays at <code>$D0</code>: 21 words a line, so the modulo is the row's bytes less 42.</p>
+<p>With the fetch 16 pixels early and no delay, the first word fetched is hidden to the left of the window, and the screen shows from the 17th pixel fetched. A delay of <code>d</code> moves everything <code>d</code> pixels right. So to show a picture from pixel <code>x</code>, with its pixel 0 at the start of a word, put one empty word to the left of the picture in memory, and:</p>
+<ul><li>fetch from word <code>w</code> = (<code>x</code> + 15) / 16 of the row;</li><li>with a delay of 16 × <code>w</code> - <code>x</code> (0 to 15) for both playfields.</li></ul>
+<p><code>ch08_scroll.s</code> works it out in its vertical blank routine:</p>
+<div class="code-block"><pre><code>        move.w  d0,d1                   ; x
+        add.w   #15,d1
+        lsr.w   #4,d1                   ; w
+        move.w  d1,d2
+        lsl.w   #4,d2
+        sub.w   d0,d2                   ; the delay
+        move.w  d2,d0
+        lsl.w   #4,d0
+        or.w    d0,d2                   ; the same for both playfields
+        move.w  d2,CopperScroll+2
+        add.w   d1,d1                   ; w words is 2w bytes</code></pre></div>
+<p>v8 checked it pixel by pixel: built with <code>x</code> fixed at 0, 1, 15, 16, 17, 31 and 32, the landscape's posts moved exactly one pixel for each, across the word boundaries too.</p>
+<p>The vertical blank routine writes the new pointers and delay into the copper list, and the copper sets them after a WAIT for line 16, so they're always written before the copper reads them. If the copper set them at the top of its list, at line 0, the processor would be writing them in the same moment, and a frame could get the old pointer with the new delay: a one-frame jerk (<a href="06-copper.html#changing-a-list-while-its-shown">the copper</a>).</p>
+<p>Remember the sprites: with <code>DDFSTRT</code> at <code>$30</code>, sprite 7 is gone (<a href="#overscan-and-its-limits">above</a>). In high resolution, the delay counts in pairs of high resolution pixels (low resolution pixels, still), and the extra fetch is two words.</p>
+<h2 id="dual-playfield">Dual playfield</h2>
+<p>With <code>DBLPF</code> set in <code>BPLCON0</code>, the odd bitplanes make <strong>playfield 1</strong> and the even ones <strong>playfield 2</strong>: two separate screens, one in front of the other. Where the front one's pixels are 0, the back one shows through; where both are 0, the background colour does.</p>
+<ul><li>With up to six low resolution planes, each playfield has up to three (seven colours and clear). In high resolution, two each.</li><li>Playfield 1's colours are <code>COLOR01</code> to <code>COLOR07</code>; playfield 2's are <code>COLOR09</code> to <code>COLOR15</code>. (On AGA, <code>BPLCON3</code>'s bits 12-10 move playfield 2's colours; <code>$0C00</code> puts them at 8, as on OCS.)</li><li><code>PF2PRI</code> (<code>BPLCON2</code> bit 6) puts playfield 2 in front; normally playfield 1 is.</li><li>Each has its own pointers, its own modulo (<code>BPL1MOD</code> for playfield 1, <code>BPL2MOD</code> for 2), and its own scroll (<code>BPLCON1</code>'s two halves). They share the fetch (<code>DDFSTRT</code>, <code>DDFSTOP</code>).</li></ul>
+<p>So two layers can scroll at different speeds, the parallax of a hundred games and demos. <code>ch08_dualpf.s</code> scrolls hills at a pixel a frame behind pillars at two, both fetching from <code>$30</code>:</p>
+<div class="code-block"><pre><code>        dc.w    BPLCON0,$4600           ; four bitplanes, dual playfield (bit 10), colour
+        dc.w    BPLCON2,$0000           ; playfield 1 in front</code></pre></div>
+<p>Its vertical blank routine works out each playfield's word and delay as <code>ch08_scroll.s</code> does, and puts the two delays in <code>BPLCON1</code> together: playfield 1's in bits 3-0, playfield 2's in bits 7-4. Each picture repeats every 320 pixels, and is drawn 320 pixels wider than that, so any 320 pixels of a period can be shown, and the scroll goes round for ever.</p>
+<p>If only one playfield scrolls, the Hardware Reference Manual's advice: give both the early fetch (it's shared), and make the still one's pointers 2 bytes lower and its modulo 2 less, so it doesn't move.</p>
+<h2 id="interlace">Interlace</h2>
+<p>With <code>LACE</code> set, the display alternates between two kinds of frame: <strong>long frames</strong> (313 lines on PAL, 263 on NTSC) and <strong>short frames</strong> (312, 262). The long frame's lines fall between the short frame's on the screen, so together they make one picture of twice the lines: 512 on PAL, 400 on NTSC, at 25 or 30 whole pictures a second. That's the flicker everyone remembers interlace for: a thin horizontal line is shown in one frame in two.</p>
+<p>The bitplanes are fetched as usual each frame, so the picture's rows have to be split between them: one frame shows rows 0, 2, 4 ..., the other rows 1, 3, 5 .... So:</p>
+<ul><li>the modulo skips a row: the row's bytes (80 for a 640-wide plane);</li><li>there are <strong>two copper lists</strong>, the same but for the bitplane pointers: one starts at row 0, the other at row 1;</li><li>and each frame, the copper must start the right one.</li></ul>
+<p><code>VPOSR</code> bit 15 (<code>LOF</code>) says which kind of frame it is: 1 in a long frame. The copper starts each frame from <code>COP1LC</code> before the processor gets a look in, so the vertical blank routine sets <code>COP1LC</code> for the <em>next</em> frame, which is the other kind:</p>
+<div class="code-block"><pre><code>VBlank:
+        btst    #7,VPOSR(a5)            ; LOF: bit 15 of the word, bit 7 of its first byte
+        beq.s   .short
+        move.l  #CopperShort,COP1LC(a5) ; a long frame now: the next is short, rows 1, 3, 5...
+        rts
+.short:
+        move.l  #Copper,COP1LC(a5)      ; a short frame now: the next is long, rows 0, 2, 4...
+        rts</code></pre></div>
+<p>Which rows does the long frame show? The Hardware Reference Manual doesn't say. In FS-UAE, <strong>the long frame shows rows 0, 2, 4</strong>: <code>ch08_interlace.s</code> draws rings fine enough that the wrong order shows, and built the other way round, its rings came out combed, every pair of lines swapped.</p>
+<p>The display window is still given in non-interlaced lines (<code>$2C81</code> and <code>$2CC1</code>), and the copper's WAITs count each frame's own lines. Keep an interlaced window an even number of lines tall, so both frames show as many.</p>
+<figure class="guide-shot"><img src="images/ch08_interlace.png" alt="ch08_interlace.s, enlarged: rings at 640 by 512 (top), and the same with the frames&#x27; rows the wrong way round (bottom)" loading="lazy"></figure>
+<h2 id="sprites">Sprites</h2>
+<p>The Amiga has eight <strong>sprites</strong>: small pictures, 16 pixels wide and any height, that the hardware puts on the screen wherever you say, over or under the playfields, without touching the bitplanes. Each has its own DMA channel, which fetches its data two words a line during the horizontal blank.</p>
+<h3 id="a-sprite-s-data">A sprite's data</h3>
+<div class="code-block"><pre><code>Ball:
+        dc.w    $6d60,$7200             ; SPRxPOS, SPRxCTL: where it is
+        dc.w    $0990,$07e0             ; line 1: the low bits of its 16 pixels, then the high bits
+        dc.w    $13c8,$0ff0             ; line 2
+        ...
+        dc.w    $0000,$0000             ; the end</code></pre></div>
+<p>The two <strong>control words</strong> come first:</p>
+<ul><li><code>SPRxPOS</code>: bits 15-8 are the top line's low 8 bits; bits 7-0 are the horizontal start's high 8 bits.</li><li><code>SPRxCTL</code>: bits 15-8 are the low 8 bits of the line <em>after</em> the bottom; bit 7 attaches it (<a href="#attached-sprites">below</a>); bit 2 is the top line's 9th bit, bit 1 the stop line's; bit 0 is the horizontal start's low bit.</li></ul>
+<p>Then two words for each line. Each pixel's colour is 2 bits: the first word gives bit 0, the second word bit 1. 0 is transparent; 1 to 3 are three colours. Sprites 0 and 1 use <code>COLOR17</code> to <code>COLOR19</code>, 2 and 3 <code>COLOR21</code> to <code>COLOR23</code>, 4 and 5 <code>COLOR25</code> to <code>COLOR27</code>, 6 and 7 <code>COLOR29</code> to <code>COLOR31</code>.</p>
+<p>Positions are in low resolution pixels and non-interlaced lines, whatever the screen's mode. The line is the beam's line (<code>$2C</code> is the usual screen's top). For the horizontal start, v8 measured it in FS-UAE: <strong>a sprite at <code>$80</code> + x lines up with pixel x</strong> of a screen whose window starts at <code>$81</code>. <code>ch08_sprites.s</code> sets them like this:</p>
+<div class="code-block"><pre><code>        move.w  d4,d0
+        add.w   #$80,d0                 ; the horizontal start
+        move.w  d5,d1                   ; the top line
+        move.w  d5,d2
+        add.w   #BALLLINES,d2           ; the line after the bottom
+        ...
+        btst    #8,d2
+        beq.s   .stoplow
+        bset    #1,d1                   ; the stop line's 9th bit
+.stoplow:</code></pre></div>
+<p>Sprites are shown only inside the display window, and only lines after the vertical blank.</p>
+<h3 id="showing-them">Showing them</h3>
+<p>The sprite pointers (<code>SPRxPTH</code>/<code>SPRxPTL</code>) go up as the data is fetched, like the bitplane pointers, so the copper sets all eight every frame. <strong>Every sprite you don't use must point at a pair of zero words</strong> (an empty sprite), or it shows whatever its pointer happens to point at. And sprite DMA has to be on: the v8 startup leaves it off, and <code>ch08_sprites.s</code> has its copper list switch it on (the copper can write <code>DMACON</code>):</p>
+<div class="code-block"><pre><code>        dc.w    DMACON,DMAF_SETCLR!DMAF_SPRITE</code></pre></div>
+<p>Change a sprite's control words while its DMA is reading them, and you can get the top from one frame and the bottom from the next. <code>ch08_sprites.s</code> keeps two copies of all its sprite data: <code>Frame</code> writes the next frame's positions into one, while the sprite DMA reads the other; when it's done, the vertical blank routine swaps them, by changing the pointers the copper sets after its WAIT for line 16.</p>
+<h3 id="reusing-sprites-down-the-screen">Reusing sprites down the screen</h3>
+<p>When a sprite ends (the beam reaches its stop line), its DMA reads the next two words as new control words. If they're another sprite's position, further down, the same channel shows that too. So one channel can show any number of sprites, one under another:</p>
+<div class="code-block"><pre><code>        dc.w    pos1,ctl1               ; the first use
+        dc.w    ...                     ; its lines
+        dc.w    pos2,ctl2               ; the second: it must start at least one line below the first's end
+        dc.w    ...
+        dc.w    0,0                     ; the end</code></pre></div>
+<p>The line on which a use ends is spent fetching the next one's control words, so there must be at least one empty line between a use's last line and the next one's first. v8 saw it: a second use whose top was the first's stop line (the line after its last) showed a gap of one line between them. In <code>ch08_sprites.s</code>, sprites 0 to 5 are each used five times, in bands 50 lines apart; 30 balls, from six channels.</p>
+<p>The sprite's colours can change between uses too: the copper can rewrite <code>COLOR17</code> to <code>COLOR31</code> on the lines in between.</p>
+<h3 id="attached-sprites">Attached sprites</h3>
+<p>Two sprites of a pair (0 and 1, 2 and 3, 4 and 5, 6 and 7) can be <strong>attached</strong>: set bit 7 of the odd sprite's <code>SPRxCTL</code>, put them at the same position, and each pixel takes 2 bits from each, a number from 0 to 15. 0 is transparent; 1 to 15 are <code>COLOR17</code> to <code>COLOR31</code>. The even sprite's words are bits 0 and 1, the odd sprite's bits 2 and 3. If they come apart, they're two 3-colour sprites again.</p>
+<p>The 15 colours are all the sprite colours, shared with the other pairs. <code>ch08_sprites.s</code> makes that a virtue: <code>COLOR17</code> to <code>COLOR31</code> are one ramp from dark purple to white, the attached pair (sprites 6 and 7) uses all of it for a smoothly shaded ball, and each other pair takes three steps of it.</p>
+<figure class="guide-shot"><img src="images/ch08_sprites.png" alt="ch08_sprites.s, enlarged: 3-colour balls, and the 15-colour attached ball (middle)" loading="lazy"></figure>
+<h3 id="sprites-on-aga">Sprites on AGA</h3>
+<p>AGA sprites can be wider and in other resolutions, and Kickstart 3.0's <code>LoadView(0)</code> doesn't put the sprites' resolution back (v7 found that bug). v8's examples write <code>BPLCON3</code> and <code>FMODE</code> in their copper lists, which sets both back to OCS's on AGA; the details, and the rest, are in <a href="09-aga.html">AGA</a>.</p>
+<h2 id="ehb-and-ham">EHB and HAM</h2>
+<p>Two modes give more colours from six low resolution bitplanes. Both are low resolution only on OCS and ECS, and six planes take half the processor's chip RAM cycles during the display (<a href="06-copper.html#what-the-copper-costs">the copper</a> has the details).</p>
+<p><strong>Extra Half-Brite</strong> (EHB): <code>BPLCON0</code> with six bitplanes, <code>HOMOD</code> and <code>DBLPF</code> clear (<code>$6200</code>). Planes 1 to 5 choose one of the 32 colour registers as usual; where plane 6 is 1, that colour is shown at half brightness (each component halved). 64 colours from 32 registers.</p>
+<p><strong>Hold-and-modify</strong> (HAM6): <code>HOMOD</code> set, with six (or five) bitplanes (<code>$6A00</code>). Planes 5 and 6 say what each pixel does with planes 1 to 4's value:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Planes 6, 5</th>
+<th scope="col">The pixel is</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">00</th>
+<td>colour register 0 to 15, chosen by planes 4 to 1</td>
+</tr>
+<tr>
+<th scope="row">01</th>
+<td>the pixel to its left, with blue changed to planes 4 to 1's value</td>
+</tr>
+<tr>
+<th scope="row">10</th>
+<td>the same, with red changed</td>
+</tr>
+<tr>
+<th scope="row">11</th>
+<td>the same, with green changed</td>
+</tr>
+</tbody></table></div>
+<p>So any of the 4,096 colours can be on screen at once, but each pixel can only change one component of the one before; sharp edges between very different colours take up to three pixels to arrive at, and smear. HAM suits pictures, not things drawn and moved. AGA's HAM8 is in <a href="09-aga.html">AGA</a>.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>v7's video chapter was PAL and NTSC only.</strong> Its advice holds: find which, and look after both. Its two checks (<code>VBlankFrequency</code> for Kickstart 1.x, <code>gb_DisplayFlags</code> from 2.0) are the startup's.</li><li><strong><code>BEAMCON0</code></strong>: v7's pokes are right for a plain display on an ECS or AGA machine (v8 tried them), but they reset the register's other bits, do nothing on the original chips, and should be undone as the demo ends.</li><li><strong>The rest is new</strong>: the window and the fetch, scrolling, dual playfield, interlace, sprites, EHB and HAM, each checked against the Hardware Reference Manual and on the emulator.</li><li><strong>Two things the manual says that matter more than they look</strong>, both tested: an early fetch costs sprites, and in a single playfield it's <code>PF2P</code> that places the sprites.</li></ul>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p>The four examples were built both ways (<code>OS_FRIENDLY=0</code> and <code>1</code>, with <code>AUTOEXIT=500</code>) and run in FS-UAE:</p>
+<ul><li>an Amiga 500 (68000) with Kickstart 1.3 and with Kickstart 3.1;</li><li>Kickstart 3.1 with a 68020 and with a 68040, each with fast RAM;</li><li>an Amiga 1200 (AGA) with Kickstart 3.1, taking the machine;</li><li>an NTSC Amiga 500 with Kickstart 1.3, with the system running.</li></ul>
+<p>Every run showed the effect, and then the CLI with "back in AmigaDOS, return code OK" after the demo had ended. Besides the examples, small test programs (not in <code>examples/</code>) checked: where sprites line up with the playfield; which sprites an early <code>DDFSTRT</code> loses; the sprite priorities in a single playfield; the scroll position at fixed values of x; the interlaced rows both ways round; and <code>BEAMCON0</code> on an Amiga 500+ and an Amiga 500. The positions given are FS-UAE's, measured from its screen captures.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="07-blitter.html"><span>Back</span>7. The blitter</a>
+<a class="pager-next" href="09-aga.html"><span>Next</span>9. AGA</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

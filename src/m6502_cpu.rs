@@ -1,8 +1,17 @@
-//! A 6502 for tests: every documented instruction, with its cycles (one more for a page crossed where the chip
-//! takes one, and for a branch taken, two if it crosses a page). Memory and what's at each address are the bus's.
+//! The NMOS 6502 (and the 6507 the Atari 2600 has), a cycle at a time: every cycle of every instruction is one
+//! read or write on the bus, the dummy reads and writes the chip makes among them, so a machine whose chips count
+//! the processor's cycles (the 2600's TIA and RIOT) sees each access in the cycle the chip makes it. All 256
+//! opcodes run, the undocumented ones as the NMOS chip runs them; the twelve that jam it stop it.
+//!
+//! How each opcode addresses its operand comes from the timing table (`m6502_timing::OPS`), so the two can't
+//! disagree.
+
+use crate::asm::m6502::Mode;
 
 pub trait Bus {
+    /// One cycle reading.
     fn read(&mut self, address: u16) -> u8;
+    /// One cycle writing.
     fn write(&mut self, address: u16, value: u8);
 }
 
@@ -19,26 +28,71 @@ pub struct Cpu {
     pub d: bool,
     pub v: bool,
     pub n: bool,
+    /// Stopped by one of the opcodes that jam the chip, at the address after it; only a reset starts it again.
+    pub jammed: bool,
 }
 
-#[derive(Clone, Copy)]
-enum Mode {
-    Implied,
-    Immediate,
-    Zero,
-    ZeroX,
-    ZeroY,
-    Absolute,
-    AbsoluteX,
-    AbsoluteY,
-    IndirectX,
-    IndirectY,
-    Relative,
-    Indirect,
+/// What an instruction does, as the timing table names it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Kind {
+    Adc, And, Asl, Bit, Branch(u8), Brk, Clc, Cld, Cli, Clv, Cmp, Cpx, Cpy, Dec, Dex, Dey, Eor, Inc, Inx, Iny, Jmp, Jsr, Lda, Ldx, Ldy, Lsr, Nop, Ora, Pha, Php, Pla, Plp, Rol, Ror, Rti, Rts, Sbc, Sec, Sed, Sei, Sta, Stx, Sty, Tax, Tay, Tsx, Txa, Txs, Tya,
+    // The undocumented ones.
+    Slo, Rla, Sre, Rra, Sax, Lax, Dcp, Isc, Anc, Alr, Arr, Ane, Lxa, Sbx, Las, Tas, Sha, Shx, Shy, Jam,
 }
+
+/// How an instruction touches its operand, which decides the dummy cycles it makes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Access {
+    Read,
+    Write,
+    Modify,
+}
+
+fn kind_of(op: u8) -> Kind {
+    use Kind::*;
+    match crate::m6502_timing::OPS[usize::from(op)].name {
+        "adc" => Adc, "and" => And, "asl" => Asl, "bit" => Bit, "brk" => Brk, "clc" => Clc, "cld" => Cld, "cli" => Cli, "clv" => Clv,
+        "cmp" => Cmp, "cpx" => Cpx, "cpy" => Cpy, "dec" => Dec, "dex" => Dex, "dey" => Dey, "eor" => Eor, "inc" => Inc, "inx" => Inx,
+        "iny" => Iny, "jmp" => Jmp, "jsr" => Jsr, "lda" => Lda, "ldx" => Ldx, "ldy" => Ldy, "lsr" => Lsr, "nop" => Nop, "ora" => Ora,
+        "pha" => Pha, "php" => Php, "pla" => Pla, "plp" => Plp, "rol" => Rol, "ror" => Ror, "rti" => Rti, "rts" => Rts, "sbc" => Sbc,
+        "sec" => Sec, "sed" => Sed, "sei" => Sei, "sta" => Sta, "stx" => Stx, "sty" => Sty, "tax" => Tax, "tay" => Tay, "tsx" => Tsx,
+        "txa" => Txa, "txs" => Txs, "tya" => Tya, "slo" => Slo, "rla" => Rla, "sre" => Sre, "rra" => Rra, "sax" => Sax, "lax" => Lax,
+        "dcp" => Dcp, "isc" => Isc, "anc" => Anc, "alr" => Alr, "arr" => Arr, "ane" => Ane, "lxa" => Lxa, "sbx" => Sbx, "las" => Las,
+        "tas" => Tas, "sha" => Sha, "shx" => Shx, "shy" => Shy,
+        "bpl" | "bmi" | "bvc" | "bvs" | "bcc" | "bcs" | "bne" | "beq" => Branch(op),
+        _ => Jam,
+    }
+}
+
+/// Each opcode's kind and addressing, worked out once.
+fn table() -> &'static [(Kind, Mode); 256] {
+    static TABLE: std::sync::OnceLock<[(Kind, Mode); 256]> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| std::array::from_fn(|op| (kind_of(op as u8), crate::m6502_timing::OPS[op].mode)))
+}
+
+/// The bus, counting the cycles an instruction takes as it goes.
+struct Counted<'a, B: Bus> {
+    bus: &'a mut B,
+    cycles: u32,
+}
+
+impl<B: Bus> Counted<'_, B> {
+    fn read(&mut self, address: u16) -> u8 {
+        self.cycles += 1;
+        self.bus.read(address)
+    }
+
+    fn write(&mut self, address: u16, value: u8) {
+        self.cycles += 1;
+        self.bus.write(address, value);
+    }
+}
+
+/// The value ANE and LXA mix into A: it varies from chip to chip; this is the commonest.
+const MAGIC: u8 = 0xEE;
 
 impl Cpu {
-    fn status(&self, b: bool) -> u8 {
+    pub fn status(&self, b: bool) -> u8 {
         u8::from(self.c) | u8::from(self.z) << 1 | u8::from(self.i) << 2 | u8::from(self.d) << 3 | u8::from(b) << 4 | 0x20 | u8::from(self.v) << 6 | u8::from(self.n) << 7
     }
 
@@ -57,75 +111,22 @@ impl Cpu {
         v
     }
 
-    fn push(&mut self, bus: &mut impl Bus, v: u8) {
-        bus.write(0x100 | u16::from(self.s), v);
-        self.s = self.s.wrapping_sub(1);
-    }
-
-    fn pull(&mut self, bus: &mut impl Bus) -> u8 {
-        self.s = self.s.wrapping_add(1);
-        bus.read(0x100 | u16::from(self.s))
-    }
-
-    fn word(bus: &mut impl Bus, at: u16) -> u16 {
-        u16::from(bus.read(at)) | u16::from(bus.read(at.wrapping_add(1))) << 8
-    }
-
-    fn zero_word(bus: &mut impl Bus, at: u8) -> u16 {
-        u16::from(bus.read(u16::from(at))) | u16::from(bus.read(u16::from(at.wrapping_add(1)))) << 8
-    }
-
-    /// Where the operand is, and whether a page was crossed reaching it.
-    fn address(&mut self, bus: &mut impl Bus, mode: Mode) -> (u16, bool) {
-        let at = self.pc;
-        let crossed = |base: u16, to: u16| base & 0xFF00 != to & 0xFF00;
-        match mode {
-            Mode::Implied | Mode::Relative => (0, false),
-            Mode::Immediate => {
-                self.pc = at.wrapping_add(1);
-                (at, false)
-            }
-            Mode::Zero | Mode::ZeroX | Mode::ZeroY => {
-                self.pc = at.wrapping_add(1);
-                let base = bus.read(at);
-                let index = match mode {
-                    Mode::ZeroX => self.x,
-                    Mode::ZeroY => self.y,
-                    _ => 0,
-                };
-                (u16::from(base.wrapping_add(index)), false)
-            }
-            Mode::Absolute | Mode::AbsoluteX | Mode::AbsoluteY => {
-                self.pc = at.wrapping_add(2);
-                let base = Self::word(bus, at);
-                let index = match mode {
-                    Mode::AbsoluteX => self.x,
-                    Mode::AbsoluteY => self.y,
-                    _ => 0,
-                };
-                let to = base.wrapping_add(u16::from(index));
-                (to, crossed(base, to))
-            }
-            Mode::IndirectX => {
-                self.pc = at.wrapping_add(1);
-                let zero = bus.read(at).wrapping_add(self.x);
-                (Self::zero_word(bus, zero), false)
-            }
-            Mode::IndirectY => {
-                self.pc = at.wrapping_add(1);
-                let zero = bus.read(at);
-                let base = Self::zero_word(bus, zero);
-                let to = base.wrapping_add(u16::from(self.y));
-                (to, crossed(base, to))
-            }
-            Mode::Indirect => {
-                self.pc = at.wrapping_add(2);
-                let pointer = Self::word(bus, at);
-                // The chip's own mistake: the high byte comes from the same page.
-                let high = (pointer & 0xFF00) | (pointer.wrapping_add(1) & 0x00FF);
-                (u16::from(bus.read(pointer)) | u16::from(bus.read(high)) << 8, false)
-            }
+    /// A reset: the processor reads its reset vector and starts there, its interrupts off, as the chip does after
+    /// the reset line is let go (with the stack pointer moved down three, for the pushes it pretends to make).
+    pub fn reset(&mut self, bus: &mut impl Bus) {
+        let mut bus = Counted { bus, cycles: 0 };
+        let pc = self.pc;
+        bus.read(pc);
+        bus.read(pc);
+        for _ in 0..3 {
+            bus.read(0x100 | u16::from(self.s));
+            self.s = self.s.wrapping_sub(1);
         }
+        let low = bus.read(0xFFFC);
+        let high = bus.read(0xFFFD);
+        self.pc = u16::from_le_bytes([low, high]);
+        self.i = true;
+        self.jammed = false;
     }
 
     fn adc(&mut self, v: u8) {
@@ -181,207 +182,18 @@ impl Cpu {
         self.nz(register.wrapping_sub(v));
     }
 
-    /// Runs one instruction; its cycles.
-    pub fn step(&mut self, bus: &mut impl Bus) -> u32 {
-        use Mode::*;
-        let op = bus.read(self.pc);
-        self.pc = self.pc.wrapping_add(1);
-        // The mode, the cycles, and whether a page crossed costs one more.
-        let (mode, cycles, extra): (Mode, u32, bool) = match op {
-            0x69 | 0x29 | 0xC9 | 0xE0 | 0xC0 | 0x49 | 0xA9 | 0xA2 | 0xA0 | 0x09 | 0xE9 => (Immediate, 2, false),
-            0x65 | 0x25 | 0x24 | 0xC5 | 0xE4 | 0xC4 | 0x45 | 0xA5 | 0xA6 | 0xA4 | 0x05 | 0xE5 | 0x85 | 0x86 | 0x84 => (Zero, 3, false),
-            0x06 | 0xC6 | 0xE6 | 0x46 | 0x26 | 0x66 => (Zero, 5, false),
-            0x75 | 0x35 | 0xD5 | 0x55 | 0xB5 | 0xB4 | 0x15 | 0xF5 | 0x95 | 0x94 => (ZeroX, 4, false),
-            0x16 | 0xD6 | 0xF6 | 0x56 | 0x36 | 0x76 => (ZeroX, 6, false),
-            0xB6 | 0x96 => (ZeroY, 4, false),
-            0x6D | 0x2D | 0x2C | 0xCD | 0xEC | 0xCC | 0x4D | 0xAD | 0xAE | 0xAC | 0x0D | 0xED | 0x8D | 0x8E | 0x8C => (Absolute, 4, false),
-            0x0E | 0xCE | 0xEE | 0x4E | 0x2E | 0x6E => (Absolute, 6, false),
-            0x4C => (Absolute, 3, false),
-            0x20 => (Absolute, 6, false),
-            0x7D | 0x3D | 0xDD | 0x5D | 0xBD | 0xBC | 0x1D | 0xFD => (AbsoluteX, 4, true),
-            0x9D => (AbsoluteX, 5, false),
-            0x1E | 0xDE | 0xFE | 0x5E | 0x3E | 0x7E => (AbsoluteX, 7, false),
-            0x79 | 0x39 | 0xD9 | 0x59 | 0xB9 | 0xBE | 0x19 | 0xF9 => (AbsoluteY, 4, true),
-            0x99 => (AbsoluteY, 5, false),
-            0x61 | 0x21 | 0xC1 | 0x41 | 0xA1 | 0x01 | 0xE1 | 0x81 => (IndirectX, 6, false),
-            0x71 | 0x31 | 0xD1 | 0x51 | 0xB1 | 0x11 | 0xF1 => (IndirectY, 5, true),
-            0x91 => (IndirectY, 6, false),
-            0x6C => (Indirect, 5, false),
-            0x10 | 0x30 | 0x50 | 0x70 | 0x90 | 0xB0 | 0xD0 | 0xF0 => (Relative, 2, false),
-            0x0A | 0x4A | 0x2A | 0x6A | 0x18 | 0x38 | 0x58 | 0x78 | 0xB8 | 0xD8 | 0xF8 | 0xCA | 0x88 | 0xE8 | 0xC8 | 0xEA | 0xAA | 0x8A | 0xA8 | 0x98 | 0xBA | 0x9A => (Implied, 2, false),
-            0x48 | 0x08 => (Implied, 3, false),
-            0x68 | 0x28 => (Implied, 4, false),
-            0x40 | 0x60 => (Implied, 6, false),
-            0x00 => (Implied, 7, false),
-            _ => panic!("${op:02X} at ${:04X} isn't a documented 6502 instruction", self.pc.wrapping_sub(1)),
-        };
-        let (at, crossed) = self.address(bus, mode);
-        let mut cycles = cycles + u32::from(extra && crossed);
-        match op {
-            // Loads, stores and transfers.
-            0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
-                let v = bus.read(at);
-                self.a = self.nz(v);
-            }
-            0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => {
-                let v = bus.read(at);
-                self.x = self.nz(v);
-            }
-            0xA0 | 0xA4 | 0xB4 | 0xAC | 0xBC => {
-                let v = bus.read(at);
-                self.y = self.nz(v);
-            }
-            0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => bus.write(at, self.a),
-            0x86 | 0x96 | 0x8E => bus.write(at, self.x),
-            0x84 | 0x94 | 0x8C => bus.write(at, self.y),
-            0xAA => self.x = self.nz(self.a),
-            0x8A => self.a = self.nz(self.x),
-            0xA8 => self.y = self.nz(self.a),
-            0x98 => self.a = self.nz(self.y),
-            0xBA => self.x = self.nz(self.s),
-            0x9A => self.s = self.x,
-            // Arithmetic and logic.
-            0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => {
-                let v = bus.read(at);
-                self.adc(v);
-            }
-            0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1 => {
-                let v = bus.read(at);
-                self.sbc(v);
-            }
-            0x29 | 0x25 | 0x35 | 0x2D | 0x3D | 0x39 | 0x21 | 0x31 => {
-                let v = bus.read(at);
-                self.a = self.nz(self.a & v);
-            }
-            0x09 | 0x05 | 0x15 | 0x0D | 0x1D | 0x19 | 0x01 | 0x11 => {
-                let v = bus.read(at);
-                self.a = self.nz(self.a | v);
-            }
-            0x49 | 0x45 | 0x55 | 0x4D | 0x5D | 0x59 | 0x41 | 0x51 => {
-                let v = bus.read(at);
-                self.a = self.nz(self.a ^ v);
-            }
-            0xC9 | 0xC5 | 0xD5 | 0xCD | 0xDD | 0xD9 | 0xC1 | 0xD1 => {
-                let v = bus.read(at);
-                self.compare(self.a, v);
-            }
-            0xE0 | 0xE4 | 0xEC => {
-                let v = bus.read(at);
-                self.compare(self.x, v);
-            }
-            0xC0 | 0xC4 | 0xCC => {
-                let v = bus.read(at);
-                self.compare(self.y, v);
-            }
-            0x24 | 0x2C => {
-                let v = bus.read(at);
-                self.z = self.a & v == 0;
-                self.n = v & 0x80 != 0;
-                self.v = v & 0x40 != 0;
-            }
-            // Increments, decrements and shifts, of memory or A.
-            0xE6 | 0xF6 | 0xEE | 0xFE | 0xC6 | 0xD6 | 0xCE | 0xDE | 0x06 | 0x16 | 0x0E | 0x1E | 0x46 | 0x56 | 0x4E | 0x5E | 0x26 | 0x36 | 0x2E | 0x3E | 0x66 | 0x76 | 0x6E | 0x7E => {
-                let v = bus.read(at);
-                let result = self.modify(op, v);
-                bus.write(at, result);
-            }
-            0x0A | 0x4A | 0x2A | 0x6A => {
-                self.a = self.modify(op, self.a);
-            }
-            0xE8 => self.x = self.nz(self.x.wrapping_add(1)),
-            0xCA => self.x = self.nz(self.x.wrapping_sub(1)),
-            0xC8 => self.y = self.nz(self.y.wrapping_add(1)),
-            0x88 => self.y = self.nz(self.y.wrapping_sub(1)),
-            // Flags.
-            0x18 => self.c = false,
-            0x38 => self.c = true,
-            0x58 => self.i = false,
-            0x78 => self.i = true,
-            0xB8 => self.v = false,
-            0xD8 => self.d = false,
-            0xF8 => self.d = true,
-            0xEA => {}
-            // The stack.
-            0x48 => self.push(bus, self.a),
-            0x08 => {
-                let p = self.status(true);
-                self.push(bus, p);
-            }
-            0x68 => {
-                let v = self.pull(bus);
-                self.a = self.nz(v);
-            }
-            0x28 => {
-                let p = self.pull(bus);
-                self.set_status(p);
-            }
-            // Jumps.
-            0x4C | 0x6C => self.pc = at,
-            0x20 => {
-                let back = self.pc.wrapping_sub(1);
-                self.push(bus, (back >> 8) as u8);
-                self.push(bus, back as u8);
-                self.pc = at;
-            }
-            0x60 => {
-                let low = self.pull(bus);
-                let high = self.pull(bus);
-                self.pc = (u16::from(low) | u16::from(high) << 8).wrapping_add(1);
-            }
-            0x40 => {
-                let p = self.pull(bus);
-                self.set_status(p);
-                let low = self.pull(bus);
-                let high = self.pull(bus);
-                self.pc = u16::from(low) | u16::from(high) << 8;
-            }
-            0x00 => {
-                let back = self.pc.wrapping_add(1);
-                self.push(bus, (back >> 8) as u8);
-                self.push(bus, back as u8);
-                let p = self.status(true);
-                self.push(bus, p);
-                self.i = true;
-                self.pc = Self::word(bus, 0xFFFE);
-            }
-            // Branches.
-            _ => {
-                let offset = bus.read(self.pc) as i8;
-                self.pc = self.pc.wrapping_add(1);
-                let taken = match op {
-                    0x10 => !self.n,
-                    0x30 => self.n,
-                    0x50 => !self.v,
-                    0x70 => self.v,
-                    0x90 => !self.c,
-                    0xB0 => self.c,
-                    0xD0 => !self.z,
-                    _ => self.z,
-                };
-                if taken {
-                    let to = self.pc.wrapping_add(offset as u16);
-                    cycles += if to & 0xFF00 != self.pc & 0xFF00 { 2 } else { 1 };
-                    self.pc = to;
-                }
-            }
-        }
-        cycles
-    }
-
-    /// INC, DEC, ASL, LSR, ROL or ROR (the opcode's low bits pick which) of a value.
-    fn modify(&mut self, op: u8, v: u8) -> u8 {
-        let result = match op & 0xE0 {
-            0xE0 => v.wrapping_add(1),
-            0xC0 => v.wrapping_sub(1),
-            0x00 => {
+    /// ASL, LSR, ROL or ROR of a value, setting the carry and N and Z.
+    fn shift(&mut self, kind: Kind, v: u8) -> u8 {
+        let result = match kind {
+            Kind::Asl | Kind::Slo => {
                 self.c = v & 0x80 != 0;
                 v << 1
             }
-            0x40 => {
+            Kind::Lsr | Kind::Sre => {
                 self.c = v & 1 != 0;
                 v >> 1
             }
-            0x20 => {
+            Kind::Rol | Kind::Rla => {
                 let carry = u8::from(self.c);
                 self.c = v & 0x80 != 0;
                 v << 1 | carry
@@ -393,6 +205,357 @@ impl Cpu {
             }
         };
         self.nz(result)
+    }
+
+    fn push(&mut self, bus: &mut Counted<impl Bus>, v: u8) {
+        bus.write(0x100 | u16::from(self.s), v);
+        self.s = self.s.wrapping_sub(1);
+    }
+
+    fn pull(&mut self, bus: &mut Counted<impl Bus>) -> u8 {
+        self.s = self.s.wrapping_add(1);
+        bus.read(0x100 | u16::from(self.s))
+    }
+
+    fn fetch(&mut self, bus: &mut Counted<impl Bus>) -> u8 {
+        let v = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+        v
+    }
+
+    /// Where the operand is, after the cycles the chip spends finding it (dummy reads among them). For an indexed
+    /// address that crosses a page, a read reads the wrong page first only then; a write or a change always does.
+    /// Also the high byte of the base address plus one, which SHA, SHX, SHY and TAS mix into what they store.
+    fn address(&mut self, bus: &mut Counted<impl Bus>, mode: Mode, access: Access) -> (u16, u8) {
+        let indexed = |bus: &mut Counted<_>, base: u16, index: u8| {
+            let to = base.wrapping_add(u16::from(index));
+            let wrong = (base & 0xFF00) | (to & 0x00FF);
+            if wrong != to || access != Access::Read {
+                bus.read(wrong);
+            }
+            (to, ((base >> 8) as u8).wrapping_add(1))
+        };
+        match mode {
+            Mode::Immediate => {
+                let at = self.pc;
+                self.pc = self.pc.wrapping_add(1);
+                (at, 0)
+            }
+            Mode::ZeroPage => (u16::from(self.fetch(bus)), 0),
+            Mode::ZeroPageX | Mode::ZeroPageY => {
+                let base = self.fetch(bus);
+                bus.read(u16::from(base));
+                let index = if mode == Mode::ZeroPageX { self.x } else { self.y };
+                (u16::from(base.wrapping_add(index)), 0)
+            }
+            Mode::Absolute => {
+                let low = self.fetch(bus);
+                let high = self.fetch(bus);
+                (u16::from_le_bytes([low, high]), high.wrapping_add(1))
+            }
+            Mode::AbsoluteX | Mode::AbsoluteY => {
+                let low = self.fetch(bus);
+                let high = self.fetch(bus);
+                let index = if mode == Mode::AbsoluteX { self.x } else { self.y };
+                indexed(bus, u16::from_le_bytes([low, high]), index)
+            }
+            Mode::IndirectX => {
+                let pointer = self.fetch(bus);
+                bus.read(u16::from(pointer));
+                let pointer = pointer.wrapping_add(self.x);
+                let low = bus.read(u16::from(pointer));
+                let high = bus.read(u16::from(pointer.wrapping_add(1)));
+                (u16::from_le_bytes([low, high]), high.wrapping_add(1))
+            }
+            Mode::IndirectY => {
+                let pointer = self.fetch(bus);
+                let low = bus.read(u16::from(pointer));
+                let high = bus.read(u16::from(pointer.wrapping_add(1)));
+                indexed(bus, u16::from_le_bytes([low, high]), self.y)
+            }
+            // Implied, the accumulator, branches and indirect jumps work out their own.
+            _ => (0, 0),
+        }
+    }
+
+    /// Runs one instruction, a bus access a cycle; how many cycles it took.
+    pub fn step(&mut self, bus: &mut impl Bus) -> u32 {
+        use Kind::*;
+        let mut bus = Counted { bus, cycles: 0 };
+        let bus = &mut bus;
+        if self.jammed {
+            // A jammed 6502 keeps the bus busy but does nothing more.
+            bus.read(0xFFFF);
+            return bus.cycles;
+        }
+        let op = self.fetch(bus);
+        let (kind, mode) = table()[usize::from(op)];
+        match kind {
+            // Two cycles, the second reading the next byte and letting it go.
+            Clc | Cld | Cli | Clv | Sec | Sed | Sei | Dex | Dey | Inx | Iny | Tax | Tay | Tsx | Txa | Txs | Tya => {
+                bus.read(self.pc);
+                match kind {
+                    Clc => self.c = false,
+                    Cld => self.d = false,
+                    Cli => self.i = false,
+                    Clv => self.v = false,
+                    Sec => self.c = true,
+                    Sed => self.d = true,
+                    Sei => self.i = true,
+                    Dex => self.x = self.nz(self.x.wrapping_sub(1)),
+                    Dey => self.y = self.nz(self.y.wrapping_sub(1)),
+                    Inx => self.x = self.nz(self.x.wrapping_add(1)),
+                    Iny => self.y = self.nz(self.y.wrapping_add(1)),
+                    Tax => self.x = self.nz(self.a),
+                    Tay => self.y = self.nz(self.a),
+                    Tsx => self.x = self.nz(self.s),
+                    Txa => self.a = self.nz(self.x),
+                    Txs => self.s = self.x,
+                    _ => self.a = self.nz(self.y),
+                }
+            }
+            Asl | Lsr | Rol | Ror if mode == Mode::Accumulator => {
+                bus.read(self.pc);
+                self.a = self.shift(kind, self.a);
+            }
+            Nop if mode == Mode::Implied => {
+                bus.read(self.pc);
+            }
+            Branch(op) => {
+                let offset = self.fetch(bus) as i8;
+                let taken = match op {
+                    0x10 => !self.n,
+                    0x30 => self.n,
+                    0x50 => !self.v,
+                    0x70 => self.v,
+                    0x90 => !self.c,
+                    0xB0 => self.c,
+                    0xD0 => !self.z,
+                    _ => self.z,
+                };
+                if taken {
+                    bus.read(self.pc);
+                    let to = self.pc.wrapping_add(offset as u16);
+                    if to & 0xFF00 != self.pc & 0xFF00 {
+                        bus.read((self.pc & 0xFF00) | (to & 0x00FF));
+                    }
+                    self.pc = to;
+                }
+            }
+            Brk => {
+                self.fetch(bus);
+                self.push(bus, (self.pc >> 8) as u8);
+                self.push(bus, self.pc as u8);
+                let p = self.status(true);
+                self.push(bus, p);
+                self.i = true;
+                let low = bus.read(0xFFFE);
+                let high = bus.read(0xFFFF);
+                self.pc = u16::from_le_bytes([low, high]);
+            }
+            Jsr => {
+                let low = self.fetch(bus);
+                bus.read(0x100 | u16::from(self.s));
+                self.push(bus, (self.pc >> 8) as u8);
+                self.push(bus, self.pc as u8);
+                let high = bus.read(self.pc);
+                self.pc = u16::from_le_bytes([low, high]);
+            }
+            Rts => {
+                bus.read(self.pc);
+                bus.read(0x100 | u16::from(self.s));
+                let low = self.pull(bus);
+                let high = self.pull(bus);
+                self.pc = u16::from_le_bytes([low, high]);
+                self.fetch(bus);
+            }
+            Rti => {
+                bus.read(self.pc);
+                bus.read(0x100 | u16::from(self.s));
+                let p = self.pull(bus);
+                self.set_status(p);
+                let low = self.pull(bus);
+                let high = self.pull(bus);
+                self.pc = u16::from_le_bytes([low, high]);
+            }
+            Pha | Php => {
+                bus.read(self.pc);
+                let v = if kind == Pha { self.a } else { self.status(true) };
+                self.push(bus, v);
+            }
+            Pla | Plp => {
+                bus.read(self.pc);
+                bus.read(0x100 | u16::from(self.s));
+                let v = self.pull(bus);
+                if kind == Pla {
+                    self.a = self.nz(v);
+                } else {
+                    self.set_status(v);
+                }
+            }
+            Jmp if mode == Mode::Absolute => {
+                let low = self.fetch(bus);
+                let high = self.fetch(bus);
+                self.pc = u16::from_le_bytes([low, high]);
+            }
+            Jmp => {
+                let low = self.fetch(bus);
+                let high = self.fetch(bus);
+                let pointer = u16::from_le_bytes([low, high]);
+                // The chip's own mistake: the high byte comes from the same page.
+                let to_low = bus.read(pointer);
+                let to_high = bus.read((pointer & 0xFF00) | (pointer.wrapping_add(1) & 0x00FF));
+                self.pc = u16::from_le_bytes([to_low, to_high]);
+            }
+            Jam => {
+                // It reads on, stuck: the bus sees a few more cycles, then nothing changes until a reset.
+                bus.read(self.pc);
+                self.jammed = true;
+            }
+            // Those that store a register.
+            Sta | Stx | Sty | Sax | Sha | Shx | Shy | Tas => {
+                let (at, high) = self.address(bus, mode, Access::Write);
+                let (at, v) = match kind {
+                    Sta => (at, self.a),
+                    Stx => (at, self.x),
+                    Sty => (at, self.y),
+                    Sax => (at, self.a & self.x),
+                    _ => {
+                        // These AND what they store with the high byte of the address plus one; where the index
+                        // crosses a page, that's the high byte the write goes to as well.
+                        let v = match kind {
+                            Sha => self.a & self.x & high,
+                            Shx => self.x & high,
+                            Shy => self.y & high,
+                            _ => {
+                                self.s = self.a & self.x;
+                                self.s & high
+                            }
+                        };
+                        let index = if mode == Mode::AbsoluteX { self.x } else { self.y };
+                        let base_low = (at.wrapping_sub(u16::from(index))) & 0xFF;
+                        let crossed = base_low + u16::from(index) > 0xFF;
+                        (if crossed { (u16::from(v) << 8) | (at & 0xFF) } else { at }, v)
+                    }
+                };
+                bus.write(at, v);
+            }
+            // Those that read and write back.
+            Asl | Lsr | Rol | Ror | Inc | Dec | Slo | Rla | Sre | Rra | Dcp | Isc => {
+                let (at, _) = self.address(bus, mode, Access::Modify);
+                let v = bus.read(at);
+                bus.write(at, v);
+                let result = match kind {
+                    Inc => self.nz(v.wrapping_add(1)),
+                    Dec => self.nz(v.wrapping_sub(1)),
+                    Dcp => {
+                        let r = v.wrapping_sub(1);
+                        self.compare(self.a, r);
+                        r
+                    }
+                    Isc => {
+                        let r = v.wrapping_add(1);
+                        self.sbc(r);
+                        r
+                    }
+                    _ => {
+                        let r = self.shift(kind, v);
+                        match kind {
+                            Slo => self.a = self.nz(self.a | r),
+                            Rla => self.a = self.nz(self.a & r),
+                            Sre => self.a = self.nz(self.a ^ r),
+                            Rra => self.adc(r),
+                            _ => {}
+                        }
+                        r
+                    }
+                };
+                bus.write(at, result);
+            }
+            // Those that read.
+            _ => {
+                let (at, _) = self.address(bus, mode, Access::Read);
+                let v = bus.read(at);
+                match kind {
+                    Adc => self.adc(v),
+                    Sbc => self.sbc(v),
+                    And => self.a = self.nz(self.a & v),
+                    Ora => self.a = self.nz(self.a | v),
+                    Eor => self.a = self.nz(self.a ^ v),
+                    Cmp => self.compare(self.a, v),
+                    Cpx => self.compare(self.x, v),
+                    Cpy => self.compare(self.y, v),
+                    Bit => {
+                        self.z = self.a & v == 0;
+                        self.n = v & 0x80 != 0;
+                        self.v = v & 0x40 != 0;
+                    }
+                    Lda => self.a = self.nz(v),
+                    Ldx => self.x = self.nz(v),
+                    Ldy => self.y = self.nz(v),
+                    Lax => {
+                        self.a = self.nz(v);
+                        self.x = v;
+                    }
+                    Las => {
+                        let r = v & self.s;
+                        self.a = self.nz(r);
+                        self.x = r;
+                        self.s = r;
+                    }
+                    Anc => {
+                        self.a = self.nz(self.a & v);
+                        self.c = self.n;
+                    }
+                    Alr => {
+                        let r = self.a & v;
+                        self.c = r & 1 != 0;
+                        self.a = self.nz(r >> 1);
+                    }
+                    Arr => self.arr(v),
+                    Ane => self.a = self.nz((self.a | MAGIC) & self.x & v),
+                    Lxa => {
+                        let r = (self.a | MAGIC) & v;
+                        self.a = self.nz(r);
+                        self.x = r;
+                    }
+                    Sbx => {
+                        let ax = self.a & self.x;
+                        self.c = ax >= v;
+                        self.x = self.nz(ax.wrapping_sub(v));
+                    }
+                    // The NOPs that read (and so can switch a cartridge's bank).
+                    _ => {}
+                }
+            }
+        }
+        bus.cycles
+    }
+
+    /// ARR: AND, then ROR, with its own flags (and its own decimal correction).
+    fn arr(&mut self, v: u8) {
+        let t = self.a & v;
+        let r = (t >> 1) | (u8::from(self.c) << 7);
+        if self.d {
+            self.n = self.c;
+            self.z = r == 0;
+            self.v = (t ^ r) & 0x40 != 0;
+            let mut r = r;
+            if (t & 0x0F) + (t & 0x01) > 5 {
+                r = (r & 0xF0) | (r.wrapping_add(6) & 0x0F);
+            }
+            if u16::from(t & 0xF0) + u16::from(t & 0x10) > 0x50 {
+                r = r.wrapping_add(0x60);
+                self.c = true;
+            } else {
+                self.c = false;
+            }
+            self.a = r;
+        } else {
+            self.a = self.nz(r);
+            self.c = r & 0x40 != 0;
+            self.v = ((r >> 6) ^ (r >> 5)) & 1 != 0;
+        }
     }
 }
 
@@ -410,11 +573,31 @@ mod tests {
         }
     }
 
-    fn run(source: &str) -> (Cpu, Ram) {
+    /// Memory that remembers every access, for the order the chip makes them in.
+    struct Traced {
+        ram: Vec<u8>,
+        log: Vec<(char, u16)>,
+    }
+    impl Bus for Traced {
+        fn read(&mut self, address: u16) -> u8 {
+            self.log.push(('r', address));
+            self.ram[usize::from(address)]
+        }
+        fn write(&mut self, address: u16, value: u8) {
+            self.log.push(('w', address));
+            self.ram[usize::from(address)] = value;
+        }
+    }
+
+    fn assemble(source: &str) -> Vec<u8> {
         let assembly = crate::asm::assemble(&crate::asm::m6502::M6502, std::path::Path::new("t.a"), &format!("* = $1000\n{source}\n brk\n"), &|_| Err(crate::i18n::tr("no").into()));
         assert!(assembly.ok(), "{:?}", assembly.problems.first().map(|p| &p.message));
+        assembly.image(0x1000, assembly.highest().unwrap())
+    }
+
+    fn run(source: &str) -> (Cpu, Ram) {
+        let image = assemble(source);
         let mut ram = Ram(vec![0; 0x10000]);
-        let image = assembly.image(0x1000, assembly.highest().unwrap());
         ram.0[0x1000..0x1000 + image.len()].copy_from_slice(&image);
         let mut cpu = Cpu { pc: 0x1000, s: 0xFF, ..Cpu::default() };
         while ram.0[usize::from(cpu.pc)] != 0 {
@@ -445,20 +628,13 @@ mod tests {
         assert_eq!(cpu.a, 2);
         let (cpu, _) = run(" lda #$34\n pha\n lda #0\n pla");
         assert_eq!(cpu.a, 0x34);
+        let (cpu, _) = run(" lda #>back\n pha\n lda #<back\n pha\n php\n rti\n lda #1\nback lda #7");
+        assert_eq!(cpu.a, 7, "RTI goes to the address pulled, not one past it");
     }
 
     #[test]
     fn cycles_count_crossed_pages_and_taken_branches() {
-        struct Ram2(Vec<u8>);
-        impl Bus for Ram2 {
-            fn read(&mut self, a: u16) -> u8 {
-                self.0[usize::from(a)]
-            }
-            fn write(&mut self, a: u16, v: u8) {
-                self.0[usize::from(a)] = v;
-            }
-        }
-        let mut ram = Ram2(vec![0; 0x10000]);
+        let mut ram = Ram(vec![0; 0x10000]);
         // LDA $10FF,X with X=1 crosses into $1100; LDA $1000,X doesn't.
         ram.0[0x200..0x206].copy_from_slice(&[0xBD, 0xFF, 0x10, 0xBD, 0x00, 0x10]);
         let mut cpu = Cpu { pc: 0x200, x: 1, ..Cpu::default() };
@@ -469,5 +645,97 @@ mod tests {
         let mut cpu = Cpu { pc: 0x300, z: false, ..Cpu::default() };
         assert_eq!(cpu.step(&mut ram), 3);
         assert_eq!(cpu.step(&mut ram), 2);
+        // A branch taken back over a page's edge takes four.
+        ram.0[0x400..0x402].copy_from_slice(&[0xD0, 0xF0]);
+        let mut cpu = Cpu { pc: 0x400, z: false, ..Cpu::default() };
+        assert_eq!(cpu.step(&mut ram), 4);
+        assert_eq!(cpu.pc, 0x3F2);
+    }
+
+    /// Every opcode takes the cycles the timing table gives it: with no page crossed, and with one.
+    #[test]
+    fn every_opcode_takes_the_cycles_the_table_says() {
+        use crate::m6502_timing::{Extra, OPS};
+        for op in 0..=255u8 {
+            let entry = OPS[usize::from(op)];
+            if entry.cycles == 0 {
+                let mut ram = Ram(vec![op; 0x10000]);
+                let mut cpu = Cpu { pc: 0x200, ..Cpu::default() };
+                cpu.step(&mut ram);
+                assert!(cpu.jammed, "${op:02X} jams");
+                continue;
+            }
+            for crossing in [false, true] {
+                let mut ram = Ram(vec![0; 0x10000]);
+                // The operand: zero page $F0, or $20F0. An index of $20 crosses a page from there, of 1 doesn't;
+                // a branch's offset of -16 goes back over the page's start, of 0 doesn't.
+                ram.0[0x200..0x203].copy_from_slice(&[op, if crossing || entry.extra != Extra::Branch { 0xF0 } else { 0x00 }, 0x20]);
+                let index: u8 = if crossing { 0x20 } else { 0x01 };
+                // (zp),Y's pointer at $F0, its low byte making Y cross or not; (zp,X)'s at $F0 + X.
+                ram.0[0xF0] = if crossing { 0xF0 } else { 0x00 };
+                ram.0[0xF1] = 0x20;
+                let mut cpu = Cpu { pc: 0x200, x: index, y: index, s: 0xFD, ..Cpu::default() };
+                // Each branch taken.
+                cpu.n = op == 0x30;
+                cpu.v = op == 0x70;
+                cpu.c = op == 0xB0;
+                cpu.z = op == 0xF0;
+                let low = if entry.mode == Mode::IndirectY { ram.0[0xF0] } else { 0xF0 };
+                let expected = u32::from(entry.cycles)
+                    + match entry.extra {
+                        Extra::None => 0,
+                        Extra::Page => u32::from(u16::from(low) + u16::from(index) > 0xFF),
+                        Extra::Branch => 1 + u32::from(crossing),
+                    };
+                assert_eq!(cpu.step(&mut ram), expected, "${op:02X} {} {:?} crossing {crossing}", entry.name, entry.mode);
+            }
+        }
+    }
+
+    #[test]
+    fn each_cycle_touches_the_bus_as_the_chip_does() {
+        let trace = |bytes: &[u8], x: u8| {
+            let mut bus = Traced { ram: vec![0; 0x10000], log: Vec::new() };
+            bus.ram[0x200..0x200 + bytes.len()].copy_from_slice(bytes);
+            let mut cpu = Cpu { pc: 0x200, x, y: x, s: 0xFD, ..Cpu::default() };
+            cpu.step(&mut bus);
+            bus.log
+        };
+        // STA $10F0,X with X=$20: the wrong page read first, then the write.
+        assert_eq!(trace(&[0x9D, 0xF0, 0x10], 0x20), vec![('r', 0x200), ('r', 0x201), ('r', 0x202), ('r', 0x1010), ('w', 0x1110)]);
+        // LDA $1000,X without a page crossed reads once.
+        assert_eq!(trace(&[0xBD, 0x00, 0x10], 0x01), vec![('r', 0x200), ('r', 0x201), ('r', 0x202), ('r', 0x1001)]);
+        // INC $80: read, the old value written back, then the new.
+        assert_eq!(trace(&[0xE6, 0x80], 0), vec![('r', 0x200), ('r', 0x201), ('r', 0x80), ('w', 0x80), ('w', 0x80)]);
+        // JSR $1234: the stack read, both halves of the return pushed, then the high byte.
+        assert_eq!(trace(&[0x20, 0x34, 0x12], 0), vec![('r', 0x200), ('r', 0x201), ('r', 0x1FD), ('w', 0x1FD), ('w', 0x1FC), ('r', 0x202)]);
+        // STA $02,X: zero page wraps, after reading the base.
+        assert_eq!(trace(&[0x95, 0xF0], 0x20), vec![('r', 0x200), ('r', 0x201), ('r', 0xF0), ('w', 0x10)]);
+        // A NOP with an absolute address reads it: the way some cartridges switch banks.
+        assert_eq!(trace(&[0x0C, 0xF8, 0x1F], 0), vec![('r', 0x200), ('r', 0x201), ('r', 0x202), ('r', 0x1FF8)]);
+    }
+
+    #[test]
+    fn the_undocumented_opcodes_do_what_the_chip_does() {
+        let (cpu, ram) = run(" lda #$f0\n ldx #$3c\n byte $87, $20"); // SAX $20
+        assert_eq!((ram.0[0x20], cpu.a, cpu.x), (0x30, 0xF0, 0x3C));
+        let (cpu, _) = run(" lda #$5a\n sta $21\n byte $a7, $21"); // LAX $21
+        assert_eq!((cpu.a, cpu.x), (0x5A, 0x5A));
+        let (cpu, ram) = run(" lda #$10\n sta $22\n lda #$0f\n byte $c7, $22"); // DCP $22
+        assert_eq!((ram.0[0x22], cpu.z, cpu.c), (0x0F, true, true));
+        let (cpu, ram) = run(" lda #$40\n sta $23\n lda #$10\n sec\n byte $e7, $23"); // ISC $23
+        assert_eq!((ram.0[0x23], cpu.a), (0x41, 0xCF));
+        let (cpu, ram) = run(" lda #$81\n sta $24\n lda #$01\n byte $07, $24"); // SLO $24
+        assert_eq!((ram.0[0x24], cpu.a, cpu.c), (0x02, 0x03, true));
+        let (cpu, _) = run(" lda #$ff\n ldx #$0f\n byte $cb, $05"); // SBX #5
+        assert_eq!((cpu.x, cpu.c), (0x0A, true));
+        let (cpu, _) = run(" lda #$ff\n byte $4b, $03"); // ALR #3
+        assert_eq!((cpu.a, cpu.c), (0x01, true));
+        let (cpu, _) = run(" lda #$80\n byte $0b, $ff"); // ANC #$FF
+        assert_eq!((cpu.a, cpu.c, cpu.n), (0x80, true, true));
+        let (cpu, _) = run(" sec\n lda #$ff\n byte $6b, $c0"); // ARR #$C0
+        assert_eq!((cpu.a, cpu.c, cpu.v), (0xE0, true, false));
+        let (cpu, _) = run(" lda #$0a\n sec\n byte $eb, $03"); // SBC #3, its other opcode
+        assert_eq!(cpu.a, 0x07);
     }
 }

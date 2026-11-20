@@ -36,6 +36,24 @@ pub enum Machine {
     Dragon64,
     /// The Vectrex, whose programs are its cartridges.
     Vectrex,
+    /// Sega's Mega Drive (the Genesis in America), its 68000 with a Z80 for sound.
+    MegaDrive,
+    /// Sega's Master System (and the Mark III), and the Game Gear: a Z80 and Sega's own video chip.
+    MasterSystem,
+    GameGear,
+    /// Sega's SG-1000 and the ColecoVision: a Z80, with TI's TMS9918A for video, as the MSX has.
+    Sg1000,
+    ColecoVision,
+    /// The fantasy consoles: PICO-8 and TIC-80, whose carts are kept as text.
+    Pico8,
+    Tic80,
+    /// The Game Boy (and the Game Boy Color, which runs its cartridges too).
+    GameBoy,
+    /// The Nintendo Entertainment System (the Famicom).
+    Nes,
+    /// The Sinclair ZX81, and the Jupiter Ace, which Limoniter has built in (with the person's own ROMs).
+    Zx81,
+    JupiterAce,
 }
 
 impl Machine {
@@ -63,6 +81,17 @@ impl Machine {
             Machine::Dragon32 => "Dragon 32",
             Machine::Dragon64 => "Dragon 64",
             Machine::Vectrex => "Vectrex",
+            Machine::MegaDrive => "Sega Mega Drive / Genesis",
+            Machine::MasterSystem => "Sega Master System",
+            Machine::GameGear => "Sega Game Gear",
+            Machine::Sg1000 => "Sega SG-1000",
+            Machine::ColecoVision => "ColecoVision",
+            Machine::Pico8 => "PICO-8",
+            Machine::Tic80 => "TIC-80",
+            Machine::GameBoy => "Game Boy",
+            Machine::Nes => "NES",
+            Machine::Zx81 => "ZX81",
+            Machine::JupiterAce => "Jupiter Ace",
         }
     }
 
@@ -91,6 +120,17 @@ impl Machine {
             Machine::Dragon32 => "dragon32",
             Machine::Dragon64 => "dragon64",
             Machine::Vectrex => "vectrex",
+            Machine::MegaDrive => "megadrive",
+            Machine::MasterSystem => "mastersystem",
+            Machine::GameGear => "gamegear",
+            Machine::Sg1000 => "sg1000",
+            Machine::ColecoVision => "colecovision",
+            Machine::Pico8 => "pico8",
+            Machine::Tic80 => "tic80",
+            Machine::GameBoy => "gameboy",
+            Machine::Nes => "nes",
+            Machine::Zx81 => "zx81",
+            Machine::JupiterAce => "jupiterace",
         }
     }
 
@@ -144,6 +184,31 @@ pub enum Format {
     Img,
     /// A Vectrex cartridge, its ROM as it is.
     VecCart,
+    /// A Mega Drive cartridge (.md, and .gen), its ROM as it is.
+    MdRom,
+    /// A Master System cartridge.
+    SmsRom,
+    /// A Game Gear cartridge.
+    GgRom,
+    /// An SG-1000 cartridge.
+    SgRom,
+    /// A ColecoVision cartridge.
+    ColRom,
+    /// A PICO-8 cart, as text.
+    P8,
+    /// A TIC-80 cart as it's saved, and as text: its code (Lua) with its data in comments at the end.
+    Tic,
+    TicText,
+    /// A Game Boy cartridge, its ROM as it is, header and all.
+    Gb,
+    /// The same, for the Game Boy Color.
+    Gbc,
+    /// An NES cartridge: the iNES (or NES 2.0) header, then its program's ROM and its tiles'.
+    Nes,
+    /// A ZX81 program: its memory from &4009, as SAVE writes it.
+    P,
+    /// Forth source, typed into a Jupiter Ace.
+    Forth,
 }
 
 impl Format {
@@ -152,12 +217,12 @@ impl Format {
         match self {
             Format::Tap | Format::Tzx | Format::Cas | Format::T64 => Some("tape"),
             Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa | Format::Img => Some("disk"),
-            Format::Crt | Format::Rom | Format::A26 | Format::VecCart => Some("cartridge"),
+            Format::Crt | Format::Rom | Format::A26 | Format::VecCart | Format::MdRom | Format::SmsRom | Format::GgRom | Format::SgRom | Format::ColRom | Format::Gb | Format::Gbc | Format::Nes => Some("cartridge"),
             _ => None,
         }
     }
 
-    pub const ALL: [Format; 30] = [
+    pub const ALL: [Format; 43] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -188,6 +253,19 @@ impl Format {
         Format::Com,
         Format::Img,
         Format::VecCart,
+        Format::MdRom,
+        Format::SmsRom,
+        Format::GgRom,
+        Format::SgRom,
+        Format::ColRom,
+        Format::P8,
+        Format::Tic,
+        Format::TicText,
+        Format::Gb,
+        Format::Gbc,
+        Format::Nes,
+        Format::P,
+        Format::Forth,
     ];
 
     /// The file ending it's written with.
@@ -223,11 +301,30 @@ impl Format {
             Format::Com => "com",
             Format::Img => "img",
             Format::VecCart => "vec",
+            Format::MdRom => "md",
+            Format::SmsRom => "sms",
+            Format::GgRom => "gg",
+            Format::SgRom => "sg",
+            Format::ColRom => "col",
+            Format::P8 => "p8",
+            Format::Tic => "tic",
+            Format::TicText => "lua",
+            Format::Gb => "gb",
+            Format::Gbc => "gbc",
+            Format::Nes => "nes",
+            Format::P => "p",
+            Format::Forth => "fth",
         }
     }
 
     pub fn from_ending(ending: &str) -> Option<Format> {
         let ending = ending.to_ascii_lowercase();
+        // A Mega Drive cartridge is as often .gen (for Genesis), and an SG-1000's .sc (for the SC-3000).
+        match ending.as_str() {
+            "gen" => return Some(Format::MdRom),
+            "sc" => return Some(Format::SgRom),
+            _ => {}
+        }
         Format::ALL.into_iter().find(|format| format.ending() == ending)
     }
 }
@@ -258,7 +355,11 @@ impl Runnable {
         if matches!(ending.to_ascii_lowercase().as_str(), "prg" | "ttp" | "app" | "gtp") && is_atari_program(&bytes) {
             return Some(Runnable { machine: Machine::AtariSt, format: Format::Tos, name: name.to_string(), bytes: Arc::new(bytes) });
         }
-        let format = Format::from_ending(ending)?;
+        // A ZX81 program is also a .81, or a .p81 with its name first.
+        let format = match ending.to_ascii_lowercase().as_str() {
+            "81" | "p81" => Format::P,
+            _ => Format::from_ending(ending)?,
+        };
         let machine = machine_for(format, &bytes)?;
         Some(Runnable { machine, format, name: name.to_string(), bytes: Arc::new(bytes) })
     }
@@ -274,9 +375,16 @@ impl Runnable {
             basic::Machine::BbcZ80 => return Err(crate::i18n::tr("BBC BASIC (Z80) programs can be saved, for a Z88 or an NC100, but there's no emulator to run them in yet.").into()),
             basic::Machine::Amos => return Err(crate::i18n::tr("AMOS programs can be saved (Format, Tokenised BASIC, Save as an AMOS program) and loaded in AMOS, but Limoniter can't run them in an emulator yet.").into()),
             basic::Machine::Stos => return Err(crate::i18n::tr("STOS programs can be saved (Format, Tokenised BASIC, Save as a STOS program) and loaded in STOS, but Limoniter can't run them in an emulator yet.").into()),
+            basic::Machine::Zx81 => (Machine::Zx81, Format::P, crate::zx81_program::program(lines)?),
+            basic::Machine::JupiterAce => (Machine::JupiterAce, Format::Forth, forth_text(lines)),
         };
         Ok(Runnable { machine, format, name: format!("{}.{}", file_stem(stem), format.ending()), bytes: Arc::new(bytes) })
     }
+}
+
+/// Forth source as the text typed into the Ace, a line at a time.
+pub fn forth_text<S: AsRef<str>>(lines: &[S]) -> Vec<u8> {
+    lines.iter().map(|l| format!("{}\n", l.as_ref())).collect::<String>().into_bytes()
 }
 
 fn commodore(cbm: basic::CbmMachine) -> Machine {
@@ -300,7 +408,17 @@ fn file_stem(stem: &str) -> String {
 /// The machine a file is for, from the kind of file and what's in it.
 pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
     Some(match format {
+        // The Jupiter Ace's tapes are also .tap and .tzx, with a longer header; a ZX81 tape in a TZX has its own
+        // blocks, and none of the Spectrum's.
+        Format::Tap if crate::jupiter_ace::is_ace_tape(bytes) => Machine::JupiterAce,
+        Format::Tzx if crate::jupiter_ace::is_ace_tzx(bytes) => Machine::JupiterAce,
+        Format::Tzx if basic::tape_blocks(bytes).0.is_empty() && !crate::media::spectrum::zx81_programs(bytes).is_empty() => Machine::Zx81,
         Format::Tap | Format::Tzx => Machine::Spectrum48,
+        // .p is also Pascal and Prolog source: a ZX81 program's system variables say what it is.
+        Format::P if crate::basic_extra::zx81_skip(bytes).is_ok() => Machine::Zx81,
+        Format::P => return None,
+        Format::Forth if std::str::from_utf8(bytes).is_ok() => Machine::JupiterAce,
+        Format::Forth => return None,
         // .z80 is also assembler source: a snapshot's header has control codes, and text has none.
         Format::Z80 if !bytes.iter().take(30).any(|b| *b < 9 || (14..32).contains(b)) => return None,
         Format::Z80 => z80_machine(bytes),
@@ -336,6 +454,25 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         // A Vectrex cartridge starts with its copyright line, "g GCE" and a year, as its BIOS checks.
         Format::VecCart if bytes.starts_with(b"g GCE") => Machine::Vectrex,
         Format::VecCart => return None,
+        Format::MdRom if crate::sega::is_mega_drive(bytes) => Machine::MegaDrive,
+        Format::MdRom => return None,
+        // A Master System cartridge needn't have its header (the Japanese ones don't), so the ending says.
+        Format::SmsRom => Machine::MasterSystem,
+        Format::GgRom => Machine::GameGear,
+        Format::SgRom => Machine::Sg1000,
+        Format::ColRom if crate::sega::is_coleco(bytes) => Machine::ColecoVision,
+        Format::ColRom => return None,
+        Format::P8 if bytes.starts_with(b"pico-8 cartridge") => Machine::Pico8,
+        Format::P8 => return None,
+        Format::Tic => Machine::Tic80,
+        // A .lua is a TIC-80 cart only when it says so at its top (-- script:), or carries the cart's data.
+        Format::TicText if crate::fantasy_carts::console_of("cart.lua", &String::from_utf8_lossy(bytes)) == Some(crate::fantasy_carts::Console::Tic80) => Machine::Tic80,
+        Format::TicText => return None,
+        // A Game Boy cartridge has the logo its boot ROM checks; an NES one starts NES and $1A.
+        Format::Gb | Format::Gbc if crate::gameboy::is_cartridge(bytes) => Machine::GameBoy,
+        Format::Gb | Format::Gbc => return None,
+        Format::Nes if crate::nes::Header::read(bytes).is_some() => Machine::Nes,
+        Format::Nes => return None,
         Format::Dsk => dsk_machine(bytes),
         Format::Trd | Format::Scl => Machine::Pentagon,
         Format::Prg => commodore_by_load(bytes.get(0..2)?),

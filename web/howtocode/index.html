@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How To Code v8</title>
+  <meta name="description" content="How to write Amiga demos that work: the Amiga demo coder&#x27;s reference, rewritten for today.
+Based on How To Code v7 (July 1993), edited by Comrade J / Share and Enjoy, with Carl-Henrik Skårstedt (Asterix / Movement), and the comments and contributions of the many people credited in the introduction.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/index.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/index.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="How To Code v8">
+  <meta property="og:description" content="How to write Amiga demos that work: the Amiga demo coder&#x27;s reference, rewritten for today.
+Based on How To Code v7 (July 1993), edited by Comrade J / Share and Enjoy, with Carl-Henrik Skårstedt (Asterix / Movement), and the comments and contributions of the many people credited in the introduction.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/README.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html" aria-current="page">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>How To Code v8</h1>
+        <div class="article-lead">
+<p><em>How to write Amiga demos that work: the Amiga demo coder's reference, rewritten for today.</em></p>
+<p>Based on How To Code v7 (July 1993), edited by Comrade J / Share and Enjoy, with Carl-Henrik Skårstedt (Asterix / Movement), and the comments and contributions of the many people credited in the introduction. Version 8 is released under <strong>CC0</strong>: use any of it, for anything.</p>
+<div class="note"><p><strong>Work in progress.</strong> This is the plan for v8. Chapters are written and checked one at a time; each example assembles with Limoniter and is run on an emulated Amiga 500 with Kickstart 1.3 and 3.1 before it goes in.</p></div>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#targets">Targets</a></li>
+<li><a href="#chapters">Chapters</a></li>
+<li><a href="#corrections-to-v7-already-found">Corrections to v7 already found</a></li>
+<li><a href="#examples">Examples</a></li>
+</ul>
+</nav>
+<h2 id="targets">Targets</h2>
+<p>Every example must work on an <strong>Amiga 500</strong>: a 68000, the OCS or ECS chipset, 512K of chip RAM (and often 512K of slow RAM), Kickstart 1.3 or later. Chapters about AGA are marked as such, and the guidelines cover what breaks on faster processors.</p>
+<h2 id="chapters">Chapters</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">Chapter</th>
+<th scope="col">From v7</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">1</th>
+<td><strong>Introduction</strong>: what v8 is, its history, every v7 contributor credited, CC0</td>
+<td>Introduction</td>
+</tr>
+<tr>
+<th scope="row">2</th>
+<td><strong>Working with Limoniter</strong>: a project, F9 to build and run, debugging, the hardware register help, crunching, trackmo disks</td>
+<td><em>new</em> (replaces Assembler)</td>
+</tr>
+<tr>
+<th scope="row">3</th>
+<td><strong>General guidelines</strong>: the v7 rules that still hold, corrected (slow RAM, caches, sections, version strings)</td>
+<td>General Guidelines</td>
+</tr>
+<tr>
+<th scope="row">4</th>
+<td><strong>Startup and exit</strong>: one startup with an <code>OS_FRIENDLY</code> flag, taking the machine completely or leaving the system running to load from disk; the VBR; giving everything back</td>
+<td>Startup and Exit, startup.asm</td>
+</tr>
+<tr>
+<th scope="row">5</th>
+<td><strong>Interrupts</strong>: vertical blank, copper and CIA interrupts, both ways; INTREQ on fast CPUs</td>
+<td>Interrupts</td>
+</tr>
+<tr>
+<th scope="row">6</th>
+<td><strong>The copper</strong>: waits, line 255, colour changes, copper-driven effects</td>
+<td>Copper</td>
+</tr>
+<tr>
+<th scope="row">7</th>
+<td><strong>The blitter</strong>: owning it, waiting for it, minterms, fills, lines, clearing</td>
+<td>Blitter</td>
+</tr>
+<tr>
+<th scope="row">8</th>
+<td><strong>Display and video</strong>: PAL and NTSC, display windows and fetch, scrolling, sprites</td>
+<td>Video</td>
+</tr>
+<tr>
+<th scope="row">9</th>
+<td><strong>AGA</strong> <em>(AGA only)</em>: FMODE, alignment, 24-bit colour, sprites, HAM8</td>
+<td>AGA</td>
+</tr>
+<tr>
+<th scope="row">10</th>
+<td><strong>Chunky to planar</strong> <em>(AGA, CD32 and A500)</em>: the merge routines for the processor, the blitter's share on an A500, and the CD32's Akiko, measured</td>
+<td><em>new</em></td>
+</tr>
+<tr>
+<th scope="row">11</th>
+<td><strong>Input</strong>: mouse and joystick, and the keyboard handshake done properly</td>
+<td>Input</td>
+</tr>
+<tr>
+<th scope="row">12</th>
+<td><strong>Sound and music</strong>: LightSpeedPlayer, The Player 6.1, ptplayer, audio DMA timing</td>
+<td>Tracker</td>
+</tr>
+<tr>
+<th scope="row">13</th>
+<td><strong>3D vectors</strong>: rewritten with tested code</td>
+<td>Vectors</td>
+</tr>
+<tr>
+<th scope="row">14</th>
+<td><strong>The 68000 and later processors</strong>: optimising, cycle costs, 68020 to 68060 issues</td>
+<td>Optimising, 680x0 issues</td>
+</tr>
+<tr>
+<th scope="row">15</th>
+<td><strong>Loading and memory</strong>: allocation; chip, slow and fast RAM; loading with the OS or a trackloader</td>
+<td>Misc, Kickstart</td>
+</tr>
+<tr>
+<th scope="row">16</th>
+<td><strong>Debugging and testing</strong>: the emulators, the target machines, real hardware</td>
+<td>Debugging</td>
+</tr>
+<tr>
+<th scope="row">17</th>
+<td><strong>Releasing</strong>: crunching, ADF and HDF, WHDLoad, scene sites</td>
+<td><em>new</em></td>
+</tr>
+<tr>
+<th scope="row">18</th>
+<td><strong>Further reading</strong></td>
+<td>Books</td>
+</tr>
+</tbody></table></div>
+<p>Left out of v8: Action Replay, CDTV, Reading C and Beginners (AMOS), and the advice on 1993's tools (K-Seka, ArgAsm, CygnusEd, Tetrapack).</p>
+<h2 id="corrections-to-v7-already-found">Corrections to v7 already found</h2>
+<ul><li><strong>Slow RAM.</strong> v7 says memory at $C00000 "does not exist on any production machines". The Amiga 500's trapdoor expansion puts 512K right there, and it's very common. The rule that stands: never assume any memory is there; allocate it.</li><li><strong>The VBR.</strong> v7 never mentions it. On a 68010 or later the exception vectors can be moved, so writing the level 3 interrupt's address to $6C directly can do nothing at all. v8's startup finds the VBR.</li><li><strong>protracker_replay.s</strong> in v7's archive is someone else's replayer, not part of How To Code; v8 uses ones whose terms are clear.</li></ul>
+<h2 id="examples">Examples</h2>
+<p>In <code>examples/</code>. Each is a whole program in Devpac / vasm syntax, needing no include files, that assembles with Limoniter's own assembler (and with vasm) and runs with F9.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-next" href="01-introduction.html"><span>Next</span>1. Introduction</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

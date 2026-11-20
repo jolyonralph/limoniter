@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>16. Debugging and testing · How To Code v8</title>
+  <meta name="description" content="v7 said a decent debugger was essential, and recommended MonAm (which came with Devpac) or ASM-One&#x27;s built-in one.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/16-debugging-and-testing.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/16-debugging-and-testing.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="16. Debugging and testing · How To Code v8">
+  <meta property="og:description" content="v7 said a decent debugger was essential, and recommended MonAm (which came with Devpac) or ASM-One&#x27;s built-in one.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/16-debugging-and-testing.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html" aria-current="page">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>16. Debugging and testing</h1>
+        <div class="article-lead">
+<p>v7 said a decent debugger was essential, and recommended MonAm (which came with Devpac) or ASM-One's built-in one. For the bugs a debugger can't see, it recommended Commodore's Enforcer, which needed a processor with an MMU, and a serial terminal (another Amiga, in Comrade J's case) to read what your code printed with <code>dprintf()</code> while it owned the display.</p>
+<p>That's all still the right idea, but the tools have moved. The emulator is now your debugger, your serial terminal and a room full of different Amigas. This chapter covers debugging at source level from Limoniter, the emulator's own debugger, the machines to test on, and how v8 tested its own examples.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#debugging-in-limoniter">Debugging in Limoniter</a></li>
+<li><a href="#the-emulator-s-own-debugger">The emulator's own debugger</a></li>
+<li><a href="#muforce-and-muguardianangel-enforcer-today">MuForce and MuGuardianAngel: Enforcer today</a></li>
+<li><a href="#the-machines-to-test-on">The machines to test on</a></li>
+<li><a href="#how-v8-tests-its-examples">How v8 tests its examples</a></li>
+<li><a href="#emulators-and-real-amigas">Emulators and real Amigas</a></li>
+<li><a href="#breaking-out-of-a-never-ending-loop">Breaking out of a never-ending loop</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="debugging-in-limoniter">Debugging in Limoniter</h2>
+<p>Limoniter debugs Amiga programs at source level through the emulator's <strong>GDB server</strong>: a part of the emulator that lets a debugger outside it stop the emulated processor, read and change its registers and memory, and set breakpoints. You set breakpoints beside your source's lines, press F9, and step through your demo line by line while it runs on the emulated Amiga.</p>
+<h3 id="what-you-need">What you need</h3>
+<p>An emulator with a GDB server. Two have one:</p>
+<ul><li><strong>The FS-UAE that comes with uae-dap.</strong> uae-dap, by Graham Bates (&lt;https://github.com/grahambates/uae-dap&gt;, GPL-3.0), is a debug adapter taken out of the vscode-amiga-assembly extension. It ships FS-UAE (based on the 4.x development builds), patched with a GDB server, for Windows, macOS and Debian Linux x64. Install it with <code>npm i -g uae-dap</code>; the programs are in its <code>bin/fs-uae</code> folder (<code>fs-uae-linux_x64</code>, <code>fs-uae-darwin_x64</code>, <code>fs-uae-win32_x64.exe</code>).</li><li><strong>WinUAE with Bartman's GDB server</strong>, as shipped by Bartman/Abyss's vscode-amiga-debug extension for Visual Studio Code (&lt;https://github.com/BartmanAbyss/vscode-amiga-debug&gt;), and by uae-dap in its <code>bin/winuae</code> folder.</li></ul>
+<p>In <strong>File › Run on › Devices and emulators…</strong>, point the emulator's program at one of these. Limoniter looks inside the emulator's program to see whether it has a GDB server. If it hasn't, and your source has breakpoints, F9 says so and runs the program anyway, without stopping.</p>
+<p>The program has to be assembled by <strong>Limoniter's own assembler</strong>, as an AmigaDOS program: Limoniter knows which line made which bytes in which section because it assembled them. A program built by vasm, or a boot disk, runs but can't be stepped through in the source (use the emulator's debugger, below).</p>
+<h3 id="how-it-works">How it works</h3>
+<p>Click beside a line's number for a <strong>breakpoint</strong>, and press <strong>F9</strong>. The Amiga boots. As AmigaDOS loads your program, the emulator notes where each hunk went (that can be anywhere in memory, and different every time) and stops as the program starts. Limoniter asks it where the hunks are, works out where each of your lines ended up, and sets the breakpoints there. Then the program runs until it reaches one.</p>
+<p>While it's stopped, the panel beside the source has:</p>
+<ul><li><strong>Step</strong> (to the next line, into the program's own subroutines; a call into the ROM or a library is run whole), <strong>Step over</strong>, <strong>Run to cursor</strong>, <strong>Carry on</strong>, and <strong>Pause</strong> while it runs.</li><li><strong>D0–D7, A0–A7, PC and SR</strong>, with SR's flags spelled out. Click one to change it.</li><li><strong>The call stack</strong>, as far as the JSRs and BSRs can be seen.</li><li><strong>Watches</strong>: expressions worked out at every stop, such as <code>D0.w</code>, <code>long[ptr]</code> or <code>COLOR00</code>.</li><li><strong>Conditions on breakpoints</strong>: a breakpoint with a condition, such as <code>word[BarLine]&gt;200</code>, only stops when it's true.</li><li><strong>Stop when written to</strong>: addresses, labels or ranges (<code>buffer..buffer+31</code>) whose writing stops the program after the instruction that wrote, saying what was written where. This finds the bug where something scribbles on your copper list.</li><li><strong>A memory window</strong>, to read and write the Amiga's memory.</li><li><strong>The custom chips' registers</strong>, named and explained as in the register guide (<a href="02-working-with-limoniter.html">chapter 2</a>), with colours shown as colours.</li><li><strong>Output</strong>: anything the program printed with <code>kprintf</code>, which these emulators pass on.</li></ul>
+<p>When the emulator stops, the whole emulated Amiga stops with it: the processor, the copper, the blitter and the beam. So you can stop in the middle of a frame and look at the copper list and the chips exactly as they are. Bear in mind that the frame you stopped in will be late when it carries on.</p>
+<p>One thing to watch: Bartman's WinUAE always listens on port 2345, so only one can be debugged at a time. Limoniter tells you if something else is using that port.</p>
+<h2 id="the-emulator-s-own-debugger">The emulator's own debugger</h2>
+<p>Both emulators have a debugger of their own, inherited from UAE. It knows nothing of your source, but it sees everything in the machine, and it works on anything: a crunched program, a boot disk, someone else's demo.</p>
+<p>In <strong>WinUAE</strong>, press <strong>Shift+F12</strong> (or End+F12) to stop the Amiga and open the debugger. In <strong>FS-UAE</strong>, set <code>console_debugger = 1</code> in its configuration, run it from a terminal, and press <strong>F12+D</strong>; the debugger is in the terminal.</p>
+<p>Type <code>h</code> or <code>?</code> for its full list of commands. The ones worth knowing for demos, from WinUAE's own help:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Command</th>
+<th scope="col">What it does</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>g</code></th>
+<td>carry on (<code>g &lt;address&gt;</code>: carry on from there)</td>
+</tr>
+<tr>
+<th scope="row"><code>t</code></th>
+<td>step one instruction (<code>t 10</code>: ten)</td>
+</tr>
+<tr>
+<th scope="row"><code>z</code></th>
+<td>step over a JSR, a DBRA loop and the like</td>
+</tr>
+<tr>
+<th scope="row"><code>fi</code></th>
+<td>run until the next RTS, RTD or RTE</td>
+</tr>
+<tr>
+<th scope="row"><code>f &lt;address&gt;</code></th>
+<td>set a breakpoint there, or clear it; <code>fl</code> lists them, <code>fd</code> removes them all</td>
+</tr>
+<tr>
+<th scope="row"><code>r</code></th>
+<td>the processor's registers; <code>r d0 1234</code> changes one</td>
+</tr>
+<tr>
+<th scope="row"><code>m &lt;address&gt;</code></th>
+<td>memory, in hex</td>
+</tr>
+<tr>
+<th scope="row"><code>d &lt;address&gt;</code></th>
+<td>disassemble</td>
+</tr>
+<tr>
+<th scope="row"><code>c</code></th>
+<td>the CIAs, the disk drives and the custom registers</td>
+</tr>
+<tr>
+<th scope="row"><code>e</code></th>
+<td>every custom register (<code>ea</code> for AGA's colours)</td>
+</tr>
+<tr>
+<th scope="row"><code>o 1</code></th>
+<td>the copper list COP1LC points at, as copper instructions (<code>o 0</code>: where the copper is now)</td>
+</tr>
+<tr>
+<th scope="row"><code>ob &lt;address&gt;</code></th>
+<td>stop when the copper reaches an address; <code>ot</code> steps the copper one instruction</td>
+</tr>
+<tr>
+<th scope="row"><code>w 1 &lt;address&gt; &lt;length&gt; W</code></th>
+<td>a watchpoint: stop when the memory is written (<code>R</code> for read); <code>w 1</code> again clears it</td>
+</tr>
+<tr>
+<th scope="row"><code>fs &lt;lines&gt;</code></th>
+<td>run on so many scanlines</td>
+</tr>
+<tr>
+<th scope="row"><code>v -2</code></th>
+<td>the visual DMA debugger: who used each memory cycle, drawn over the screen (accurate only in cycle-exact mode)</td>
+</tr>
+<tr>
+<th scope="row"><code>H &lt;count&gt;</code></th>
+<td>the last instructions run, before the stop</td>
+</tr>
+<tr>
+<th scope="row"><code>T</code></th>
+<td>exec's tasks, and their PCs</td>
+</tr>
+<tr>
+<th scope="row"><code>wd 1</code></th>
+<td>log accesses to memory that isn't there, and stop on one</td>
+</tr>
+<tr>
+<th scope="row"><code>smc 1</code></th>
+<td>detect self-modifying code, and stop on it</td>
+</tr>
+<tr>
+<th scope="row"><code>S &lt;file&gt; &lt;address&gt; &lt;length&gt;</code></th>
+<td>save memory to a file (a screen, a table, a decrunched program)</td>
+</tr>
+<tr>
+<th scope="row"><code>x</code></th>
+<td>close the debugger</td>
+</tr>
+</tbody></table></div>
+<p><code>wd</code> is an Enforcer of sorts, with no MMU needed. <code>smc</code> finds code that writes code, which works on a 68000 and then fails on a 68040 (<a href="03-general-guidelines.html">chapter 3</a> explains why). And <code>v -2</code> shows at a glance whether the blitter, the bitplanes or the processor is hogging the bus.</p>
+<h2 id="muforce-and-muguardianangel-enforcer-today">MuForce and MuGuardianAngel: Enforcer today</h2>
+<p>Enforcer used the MMU of a 68030 or 68040 to catch a program reading or writing memory it had no business touching: address 0 and the rest of the first page, or memory that isn't there. MungWall caught a program writing past the ends of the memory it had allocated, or freeing what it hadn't. Both still matter for anything that runs with the system: your startup, your loader, a demo with <code>OS_FRIENDLY=1</code>.</p>
+<p>Their modern successors, by Thomas Richter, are in the NDK 3.2's <code>MuTools</code> folder:</p>
+<ul><li><strong>MuForce</strong>, "an Enforcer type debugging tool" (it's based on Michael Sinz's Enforcer): it reports accesses to the zero page or to memory that doesn't exist.</li><li><strong>MuGuardianAngel</strong>, which also catches accesses to memory that exists but isn't allocated, and does everything MungWall did. It needs MuForce running.</li></ul>
+<p>They need the <strong>mmu.library</strong>, which isn't in the NDK: it's in Thomas Richter's MMULib on Aminet (&lt;https://aminet.net/package/util/libs/MMULib&gt;), which also has the latest MuTools. MMULib needs Kickstart 2.04 or later and a processor with a working MMU: a 68030, 68040 or 68060 (not their EC versions), or a 68020 with a 68851. And they must be started after SetPatch: start MuForce without it, and an alert says so: "The mmu.library and the MuTools \<em>MUST\</em> be run \<em>AFTER\</em> SetPatch. No exceptions, no excuses, no discussion. It won't work this way." So they need a Workbench 2.04 or later installed on the emulated hard drive.</p>
+<p>In FS-UAE, <code>cpu = 68030</code> or <code>cpu = 68040</code> gives a processor with an MMU (FS-UAE's <code>68040-NOMMU</code>, <code>68EC030</code> and the like don't have one). Then, from the Shell:</p>
+<div class="code-block"><pre><code>Run &gt;NIL: MuForce FILE=CON:0/0/640/100/HIT/AUTO/WAIT</code></pre></div>
+<p><code>FILE</code> sends the reports to a window that opens when there's something to say; without it, they go out of the serial port, as Enforcer's did. Give MuForce a few seconds to set up (its guide says so), then run your program. A report looks like this (from MuForce's guide):</p>
+<div class="code-block"><pre><code>WORD WRITE to  00000000        data=0000       PC: 01044774
+...
+01044770 :  31c0 0000                  move.w d0,$0.w
+01044774 : *4eae ff7c                  jsr -$84(a6)
+Name: "Initial CLI"  CLI: "lawbreaker"  Hunk 0000 Offset 00000074</code></pre></div>
+<p>The hunk and offset say where in your program it happened; Limoniter's disassembler, or your assembler's listing, takes you from there to the line.</p>
+<p><em>v8 checked that MuForce refuses to start without SetPatch in an emulated 68040; it didn't have a Workbench installation to run it further.</em></p>
+<h2 id="the-machines-to-test-on">The machines to test on</h2>
+<p>An Amiga demo that works on your machine has been tested on one Amiga. These are the ones that find the bugs, and how to get each in Limoniter. The model is chosen under the emulator in <strong>Devices and emulators</strong>; anything more is given to FS-UAE in the emulator's <strong>Extra options</strong>, which go on its command line and win over the configuration Limoniter makes (FS-UAE's log says so: "amiga_model = A500 (ignored)").</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Machine</th>
+<th scope="col">What it finds</th>
+<th scope="col">In Limoniter, with FS-UAE</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><strong>A500</strong>: 68000, OCS, 512K chip RAM and 512K slow RAM, Kickstart 1.3</th>
+<td>the baseline: everything must work here. Assuming any memory beyond chip RAM; Kickstart 2 functions called on 1.3</td>
+<td>the A500 model</td>
+</tr>
+<tr>
+<th scope="row"><strong>A500 with Kickstart 3.1</strong></th>
+<td>what changed in the system: v8 found Kickstart 3's <code>LoadView(0)</code> switching bitplane DMA off, which 1.3 doesn't</td>
+<td>the A500 model, with a 3.1 ROM chosen for it</td>
+</tr>
+<tr>
+<th scope="row"><strong>A500 with 512K and nothing else</strong></th>
+<td>a demo that needs the slow RAM it didn't ask for</td>
+<td>Extra options <code>--slow_memory=0</code></td>
+</tr>
+<tr>
+<th scope="row"><strong>A1200</strong>: 68020, AGA, 2 MB chip RAM, no fast RAM</th>
+<td>AGA's registers left as the system had them; a 68020's instruction cache; the VBR</td>
+<td>the A1200 model</td>
+</tr>
+<tr>
+<th scope="row"><strong>An accelerated Amiga</strong>: 68030, 68040 or 68060 with fast RAM</th>
+<td>code that only works because the 68000 is slow: the blitter not waited for, self-modifying code, timing loops, interrupts acknowledged once; data and code in fast RAM where the chips can't see them</td>
+<td>Extra options <code>--cpu=68040 --fast_memory=8192</code> (or <code>68030</code>, <code>68060</code>)</td>
+</tr>
+<tr>
+<th scope="row"><strong>NTSC</strong></th>
+<td>60 frames a second instead of 50, and 200 lines instead of 256</td>
+<td>Extra options <code>--ntsc_mode=1</code></td>
+</tr>
+</tbody></table></div>
+<p>Each option is in FS-UAE's documentation (&lt;https://fs-uae.net/docs/options/cpu/&gt; and the pages beside it). You can make a device for each machine, all pointing at the same FS-UAE with different extra options, and F9 asks which one.</p>
+<p>An emulated 68040 found the first bug in v8's own startup: its demo cleared its screen with the blitter and drew on it with the processor without waiting in between. On a 68000 the blitter was always first; on a 68040, the processor won and its picture was wiped (<a href="04-startup-and-exit.html">chapter 4</a> has the story).</p>
+<h2 id="how-v8-tests-its-examples">How v8 tests its examples</h2>
+<p>Every example in v8 is tested the same way, and you can do the same with your own demo.</p>
+<p><strong>1. Build it every way, ending by itself.</strong> The startup's <code>AUTOEXIT</code> setting ends the demo after so many frames, as if the mouse button had been pressed. So a test needs no one to press it:</p>
+<div class="code-block"><pre><code>limoniter --assemble mydemo.s test/dh0/demo OS_FRIENDLY=0 AUTOEXIT=500</code></pre></div>
+<p>500 frames is ten seconds on PAL. With <code>OS_FRIENDLY=1</code>, build it again and test that too.</p>
+<p><strong>2. Boot an Amiga straight into it, and see that it comes back.</strong> The test drive is a folder made the Amiga's hard drive, with the demo in it and this <code>S/Startup-Sequence</code>:</p>
+<div class="code-block"><pre><code>demo
+back</code></pre></div>
+<p><code>back</code> is a tiny program that prints a line in the CLI:</p>
+<div class="code-block"><pre><code>; back - prints one line, to show the Amiga is back in AmigaDOS after the demo before it.
+
+_LVOOpenLibrary equ     -552
+_LVOCloseLibrary equ    -414
+_LVOOutput      equ     -60
+_LVOWrite       equ     -48
+
+        section code,code
+        move.l  4.w,a6
+        lea     DosName(pc),a1
+        moveq   #33,d0
+        jsr     _LVOOpenLibrary(a6)
+        tst.l   d0
+        beq.s   .nodos
+        move.l  d0,a6
+        jsr     _LVOOutput(a6)          ; the CLI's window
+        move.l  d0,d1
+        lea     Line(pc),a0
+        move.l  a0,d2
+        moveq   #LineEnd-Line,d3
+        jsr     _LVOWrite(a6)
+        move.l  a6,a1
+        move.l  4.w,a6
+        jsr     _LVOCloseLibrary(a6)
+.nodos:
+        moveq   #0,d0
+        rts
+
+DosName:        dc.b    "dos.library",0
+Line:           dc.b    "Back in AmigaDOS",10
+LineEnd:
+        even</code></pre></div>
+<p>The line proves three things. The demo ended. It gave the machine back working well enough to run another program and draw text in a window. And it returned a good return code: a command in a script that fails with a return code of 10 or more stops the script, so <code>back</code> never runs.</p>
+<p>FS-UAE is started with a configuration like this one (the paths are your own):</p>
+<div class="code-block"><pre><code>[fs-uae]
+amiga_model = A500
+kickstart_file = /path/to/kick13.rom
+hard_drive_0 = /path/to/test/dh0
+hard_drive_0_label = DH0</code></pre></div>
+<p>with <code>cpu = 68040</code> and <code>fast_memory = 8192</code> added for the accelerated run, and so on. F9 does all this for you (without <code>back</code>); a script is for running every example on every machine without watching.</p>
+<p><strong>3. Look at the pictures.</strong> v8's script runs the emulator under a virtual display and takes the screen at set times: one while the effect runs, one after it has ended. Each must be right: the effect while it runs, and the CLI, with the line, after it.</p>
+<figure class="guide-shot"><img src="images/ch16_test_runs.png" alt="The startup demo on an A500 with Kickstart 1.3, taking the machine, and on a 68040 with Kickstart 3.1, keeping the system running: the effect, and the CLI afterwards" loading="lazy"></figure>
+<p><strong>4. Keep it building.</strong> Limoniter's own test suite assembles every v8 example both ways, so an example that stops assembling is caught at once.</p>
+<h2 id="emulators-and-real-amigas">Emulators and real Amigas</h2>
+<p>FS-UAE's <code>accuracy</code> setting is at its most accurate unless you change it. For the A500, Limoniter's WinUAE configuration turns WinUAE's <strong>cycle-exact</strong> emulation on for the processor and the blitter: every memory cycle is shared between the processor and the chips as on a real A500. That's what makes an emulator good enough to time an effect by, and to find a blitter that isn't waited for.</p>
+<p>But an emulator is a model of the machine, and the real ones differ, from each other as well as from the model. Things an emulator won't tell you:</p>
+<ul><li><strong>How it looks on a real display.</strong> A 1084 monitor, a TV, and today's flat screens and scan converters all show the edges of the picture differently. Keep anything important away from the edges of a PAL screen. v7 warned that AGA's other screen modes need a monitor that can show them; a demo that sticks to PAL (or NTSC) lores and hires, as almost all do, runs on everything.</li><li><strong>Real floppy drives.</strong> Loading speed, drives that are slower or fussier than the emulated one, and disks that have been copied a few times.</li><li><strong>Accelerator cards.</strong> Each has its own memory, speed and caches. An emulated 68040 is a good test of your code, but it isn't a particular card.</li></ul>
+<p><em>Which of these v8 has checked on real hardware: none. v8's examples are tested in FS-UAE.</em></p>
+<p>If you have a real Amiga, use it before you release. <strong>File › Send to device</strong> sends a file in one step to a card or a USB stick (a Gotek's, say, for an <code>.adf</code>), to a shared folder, or to an FTP server, such as one running on an Amiga with a network card. Set the device up once in <strong>Manage devices</strong>; <strong>Ctrl+Alt+S</strong> sends again.</p>
+<h2 id="breaking-out-of-a-never-ending-loop">Breaking out of a never-ending loop</h2>
+<p>v7 had a tip from Boerge: start the demo from inside <code>Supervisor()</code>, keep the stack pointer, and let the keyboard interrupt put the stack back and return with an RTE, so a demo stuck in a loop could still be left by a key, and its exit code run. On a real Amiga in 1993 that mattered: the alternative was a reset, and the reset took the unsaved source in your editor with it.</p>
+<p>Today the source is on another computer, and the emulator restarts in seconds, so v8 leaves the trick out. Instead, find out where it's stuck: <strong>Pause</strong> in Limoniter's debugger shows the line, and Shift+F12 in WinUAE shows the instruction, with <code>H</code> for the ones before it. An endless loop usually turns out to be waiting for something that will never happen: a frame counter that isn't counted because the interrupt is off, or the blitter that was never started.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>MonAm and ASM-One's debugger</strong> are replaced by source-level debugging through the emulator, and the emulator's own debugger.</li><li><strong>Enforcer and MungWall</strong> are replaced by MuForce and MuGuardianAngel, in the NDK 3.2, with MMULib's mmu.library. An emulated 68030 or 68040 has the MMU they need; nobody has to buy an A2620 any more, as v7 suggested.</li><li><strong>The serial terminal</strong> is replaced by the debugger's output window, and by the emulator, which lets you stop and look at everything.</li><li><strong>Testing</strong> is a matrix of machines run in an emulator, every build, rather than on whichever Amigas your friends had.</li><li><strong>The never-ending-loop trick</strong> is left out: stop the emulator and look, instead.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="15-loading-and-memory.html"><span>Back</span>15. Loading and memory</a>
+<a class="pager-next" href="17-releasing.html"><span>Next</span>17. Releasing</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

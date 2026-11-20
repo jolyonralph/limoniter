@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3. General guidelines · How To Code v8</title>
+  <meta name="description" content="The rules in this chapter are the ones that decide whether a demo runs on someone else&#x27;s Amiga.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/03-general-guidelines.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/03-general-guidelines.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="3. General guidelines · How To Code v8">
+  <meta property="og:description" content="The rules in this chapter are the ones that decide whether a demo runs on someone else&#x27;s Amiga.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/03-general-guidelines.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html" aria-current="page">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>3. General guidelines</h1>
+        <div class="article-lead">
+<p>The rules in this chapter are the ones that decide whether a demo runs on someone else's Amiga. Almost none of them costs an effect any speed. Most came from v7, which got them from Commodore's manuals and from a pile of demos that refused to run on the editor's A3000. Where v7 was wrong, or 1993 has gone, this chapter says so.</p>
+<p>The short version: <strong>read the manuals; allocate everything; never assume.</strong></p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#read-the-manuals">Read the manuals</a></li>
+<li><a href="#allocate-everything-never-use-a-fixed-address">Allocate everything; never use a fixed address</a></li>
+<li><a href="#addresses-are-32-bits">Addresses are 32 bits</a></li>
+<li><a href="#no-self-modifying-code">No self-modifying code</a></li>
+<li><a href="#open-libraries-properly">Open libraries properly</a></li>
+<li><a href="#never-assume-the-state-of-anything">Never assume the state of anything</a></li>
+<li><a href="#no-delay-loops">No delay loops</a></li>
+<li><a href="#take-the-hardware-properly">Take the hardware properly</a></li>
+<li><a href="#the-processor-isn-t-fixed-either">The processor isn't fixed either</a></li>
+<li><a href="#system-private-structures">System private structures</a></li>
+<li><a href="#put-a-version-string-in">Put a version string in</a></li>
+<li><a href="#crunching">Crunching</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="read-the-manuals">Read the manuals</h2>
+<p>v7 said: read the Commodore manuals, all of them, borrow them from friends or the library if you have to. That's easier today: they're free, and online.</p>
+<ul><li>The *<strong>Amiga Hardware Reference Manual</strong>* (3rd edition) describes every custom chip register, the copper, the blitter, the CIAs and the memory map. Its first chapter has a section, <strong>General Development Guidelines</strong>, that every demo coder should read once and follow to the letter. v7: "If it says 'Leave this bit cleared' then don't set it!"</li><li>The *<strong>ROM Kernel Reference Manuals</strong>* (<em>Libraries</em>, <em>Devices</em>, and <em>Includes and Autodocs</em>) describe the system: exec, graphics, dos and the rest.</li><li>The <strong>NDK 3.2</strong> (Native Developer Kit for AmigaOS 3.2, from Hyperion) has the assembler includes (<code>Include_I/</code>) and the Autodocs for every library, up to date. It's a free download from Aminet, and Limoniter fetches it for you when you ask. Each Autodoc says which version of the system added the function, as in "CacheClearU - User callable simple cache clearing (V37)".</li></ul>
+<p><a href="18-further-reading.html">Further reading</a> has the links. Everything in v8 is checked against these, and when a forum post, a tutorial or this guide disagrees with them, believe the manuals and test on the machine.</p>
+<h2 id="allocate-everything-never-use-a-fixed-address">Allocate everything; never use a fixed address</h2>
+<p>v7 put it strongly: "If you write demos that run from a fixed address you should be shot." The <em>Hardware Reference Manual</em> puts it more calmly: "All memory is dynamically allocated by the memory manager at boot time, and the actual locations of system structures may change from release-to-release, machine-to-machine, or boot-to-boot."</p>
+<p>There is exactly <strong>one</strong> fixed address in the system: <strong><code>$00000004</code></strong>, which holds the address of exec.library. Everything else (other libraries, free memory, the system's own copper list) is found from there, by asking the system.</p>
+<p>So:</p>
+<ul><li><strong>No <code>ORG</code></strong>, and no loading anything to an address you chose. Assemble an ordinary AmigaDOS program, and AmigaDOS's loader puts it wherever there's room and fixes up every address in it as it loads. Your code doesn't need to be PC-relative for that: <code>move.l #Screen,d0</code> works wherever the program lands, because the loader fixes the address inside the instruction. (Limoniter marks any line it can't make relocatable, such as a word holding an address.)</li><li><strong>Memory you need, you allocate</strong>: as a section of the program, or with <code>AllocMem</code>. Then give it back.</li><li><strong>Never assume memory is there</strong> because it was there on your machine.</li></ul>
+<h3 id="sections">Sections</h3>
+<p>Put the program in several sections, each kept in the kind of memory it needs:</p>
+<div class="code-block"><pre><code>        section code,code               ; code: any memory (fast RAM if there is any)
+        ...
+        section data,data               ; the processor's data: any memory
+        ...
+        section copper,data_c           ; anything the chips read: chip RAM
+Copper: dc.w    ...
+        ...
+        section screen,bss_c            ; screens, cleared, in chip RAM, taking no room in the file
+Screen: ds.b    40*256</code></pre></div>
+<p>v7's advice still holds: several small sections fit into fragmented memory more easily than one big one. Keep code that calls itself a lot in one section, though, as calls between sections need <code>jsr</code> with a full address rather than <code>bsr</code> (v8's examples call the startup with <code>jsr</code> for that reason).</p>
+<p><strong>Never use <code>code_f</code>, <code>data_f</code> or <code>bss_f</code>.</strong> They ask for fast RAM, and an Amiga with none (a plain 512K A500, an unexpanded A1200) can't load the program at all. Tried on an emulated 512K A500, a three-instruction program in a <code>code_f</code> section gets "Unable to load demo: Error code 103" from Kickstart 1.3, and "not enough memory available" from 3.1. Ask for no particular memory, and you get fast RAM if there is any. The <em>Hardware Reference Manual</em> says the same about <code>AllocMem</code>: "do not explicitly ask for Fast memory. Instead ask for memory type MEMF_PUBLIC or 0L as appropriate. If Fast memory is available, you will get it."</p>
+<h3 id="chip-ram-for-the-chips">Chip RAM for the chips</h3>
+<p>All data for the custom chips must be in chip RAM: bitplanes, copper lists, sprites, samples, and anything the blitter reads or writes. Get this wrong and it often <em>seems</em> to work, because a plain A500 has nothing but chip RAM, so everything lands there anyway. Then it fails on the first machine with any other memory, because the system gives that memory out first. The <em>Hardware Reference Manual</em> warns about exactly this: "a program can run correctly on an unexpanded Amiga which has only Chip memory while crashing on an Amiga which has expanded memory."</p>
+<p>The mistake looks like this:</p>
+<div class="code-block"><pre><code>        section data,data               ; wrong: any memory
+Copper: dc.w    COLOR00,$0000           ; the copper can't read this outside chip RAM</code></pre></div>
+<p>and the fix is one letter: <code>section data,data_c</code>. Test on a machine with fast RAM, or with an A500's trapdoor slow RAM, and you'll catch it at once.</p>
+<h3 id="slow-ram-v7-was-wrong">Slow RAM: v7 was wrong</h3>
+<p>v7 said: "$C00000 memory does not exist on any production machines now, so stop using it!!!". That's wrong. The Amiga 500's trapdoor expansion (Commodore's A501 and its many copies) puts 512K exactly there, at <code>$C00000</code>, and it's one of the most common Amiga expansions there is. The <em>Hardware Reference Manual</em>'s memory map lists <code>$C00000</code>-<code>$D7FFFF</code> as "Internal expansion (slow) memory (on some systems)".</p>
+<p>It's called <em>slow</em> RAM because it's on the chip bus: the processor waits for the chips there just as it does in chip RAM. But the chips can't read it. And the system counts it as <strong>fast</strong> RAM. v8 checked this on an emulated A500 with Kickstart 1.3 and 3.1: with the trapdoor's 512K fitted, <code>AllocMem</code> with <code>MEMF_FAST</code> succeeds and gives memory at <code>$C00000</code>, <code>MEMF_ANY</code> memory comes from there before chip RAM, and the <code>code_f</code> program above loads. Without it, <code>MEMF_FAST</code> fails. Two consequences:</p>
+<ul><li>A copper list in a plain <code>data</code> section works on a 512K A500 and fails on the very common 1MB one, where memory of no particular kind is slow RAM first.</li><li>A <code>code_f</code> program loads on a 1MB A500 and not on a 512K one. And "fast" RAM may be no faster than chip RAM.</li></ul>
+<p><a href="15-loading-and-memory.html">Loading and memory</a> has more.</p>
+<p>v7's real point stands, and it's the rule for all memory: <strong>don't use <code>$C00000</code>, or any other address, because you expect memory there. Allocate it.</strong> Then it doesn't matter whether there's slow RAM, fast RAM, or neither.</p>
+<h3 id="memory-on-a-boundary">Memory on a boundary</h3>
+<p>Sometimes memory has to start on a particular boundary: a table indexed by the low byte of an address, a screen that mustn't cross a 64K boundary (so only the low word of its bitplane pointers changes as it scrolls), or bitplanes for AGA's widest fetch mode, which <a href="09-aga.html">the AGA chapter</a> covers. <code>AllocMem</code>'s blocks always start on a multiple of 8 (<code>MEM_BLOCKSIZE</code> in the NDK's <code>exec/memory.i</code>), and nothing coarser is promised. v7 found 64K boundaries by trying <code>AllocAbs</code> at each one in turn. It's simpler to allocate a little more than you need and start at the first boundary inside it:</p>
+<div class="code-block"><pre><code>ALIGN           equ     65536           ; a power of two: here, a 64K boundary
+
+        move.l  ExecBase.w,a6
+        move.l  #SIZE+ALIGN-1,d0        ; ALIGN-1 bytes spare: the boundary is always inside
+        move.l  #MEMF_CHIP!MEMF_CLEAR,d1
+        jsr     _LVOAllocMem(a6)
+        move.l  d0,ScreenBlock          ; keep the block's own address: FreeMem needs it
+        beq     NoMemory                ; it can fail: always check
+        add.l   #ALIGN-1,d0             ; up to the next multiple of ALIGN
+        and.l   #-ALIGN,d0
+        move.l  d0,Screen
+        ...
+        move.l  ScreenBlock,a1          ; as the demo ends: the same address and size
+        move.l  #SIZE+ALIGN-1,d0
+        jsr     _LVOFreeMem(a6)</code></pre></div>
+<p>For a 64K boundary that wastes up to 64K, which a 512K machine may not have to spare. Then a screen that only must not <em>cross</em> a boundary is cheaper: allocate it, and if it crosses one, allocate again.</p>
+<h2 id="addresses-are-32-bits">Addresses are 32 bits</h2>
+<p>"Oh look," says the clever programmer in v7, "if I access <code>$DCDFF180</code> I can access the colour 0 hardware register, but it confuses people hacking my code!"</p>
+<p>On a 68000 that works: it has only 24 address lines, so the top byte of an address is ignored, and <code>$DCDFF180</code> is <code>$DFF180</code>. The 68010 and the A1200's 68EC020 are the same. But a 68020, 68030, 68040 or 68060 with all 32 address lines (any A3000 or A4000, and almost every accelerator) goes to <code>$DCDFF180</code>, where there's nothing, or someone else's memory.</p>
+<p>So, as the <em>Hardware Reference Manual</em> says:</p>
+<ul><li><strong>Treat every address as 32 bits.</strong> Write <code>$00DFF180</code>, or let the assembler, and never put anything in the top byte of a pointer: not flags, not your IQ (v7), not scroll text.</li><li><strong>Don't use signed arithmetic or comparisons on addresses.</strong> Addresses are unsigned. Use <code>blo</code>/<code>bhi</code>/<code>bls</code>/<code>bhs</code> to compare them, not <code>blt</code>/<code>bgt</code>:</li></ul>
+<div class="code-block"><pre><code>.copy:
+        move.l  (a0)+,(a1)+
+        cmp.l   a2,a0                   ; a2: the end
+        blo.s   .copy                   ; unsigned: right wherever the memory is</code></pre></div>
+<p>v7 also warned against relying on chip RAM appearing more than once: on some machines with only 512K of chip RAM, the same memory shows again at <code>$080000</code>, <code>$100000</code> and <code>$180000</code>. v7 said this "does not work on ECS and upwards". The truth is it depends on how much chip RAM the machine has and which chips it has: on a machine with 1 or 2 MB of chip RAM, <code>$080000</code> is real memory, and something else may be using it. Which is the rule again: never use an address you didn't allocate.</p>
+<h2 id="no-self-modifying-code">No self-modifying code</h2>
+<p>Self-modifying code is code that writes over its own instructions: say, storing a value into the immediate of an instruction in an inner loop, to save a register:</p>
+<div class="code-block"><pre><code>        move.w  d0,.add+2               ; patch the instruction below: don't
+        ...
+.add:   add.w   #0,d1                   ; the 0 is replaced as the program runs</code></pre></div>
+<p>On a 68000 this works (unless the patched instruction is the very next one, which the processor has already fetched: the <em>Hardware Reference Manual</em> warns that every 680x0 prefetches). On anything later, it fails, sooner or later:</p>
+<ul><li>The <strong>68020</strong> and <strong>68030</strong> have an instruction cache (256 bytes), and the 68030 a data cache too. The instruction cache doesn't see writes, so the processor can carry on running the <em>old</em> instruction from it.</li><li>The <strong>68040</strong> has 4K caches, and the <strong>68060</strong> 8K, and both can run their data caches in <strong>copyback</strong> mode: what the processor writes may sit in the data cache for a while before it reaches memory. Write some code and jump to it, and the instruction fetch may read memory that hasn't been written yet. v7 quoted the author of the Imploder cruncher, who had just found this out.</li></ul>
+<p>The bigger the cache, the more likely it is to bite, "even when you think you will be safe" (v7). Encrypted or "protected" code that decrypts itself is self-modifying code too. v7's view of protection still stands: what's the point?</p>
+<h3 id="code-written-at-run-time-done-properly">Code written at run time, done properly</h3>
+<p>There's a respectable cousin of self-modifying code: writing a routine once, as the demo starts, and then running it. Unrolled loops, "compiled" sprites and generated chunky-to-planar routines are made this way, because the generated code would be far bigger in the file than the loop that writes it. That's fine, as long as the caches are cleared <strong>after writing the code and before running it</strong>:</p>
+<ul><li>On <strong>Kickstart 2.04 (V37) and later</strong>, call exec's <code>CacheClearU()</code>. It clears every cache on every processor (pushing a copyback data cache out to memory first), including caches an accelerator adds that you've never heard of.</li><li><strong>Kickstart 1.x</strong> has no <code>CacheClearU</code>. A 68000 or 68010 has no cache to clear. On a 68020 or 68030, set the "clear instruction cache" bit in the processor's <code>CACR</code> register, in supervisor mode, as the <em>Hardware Reference Manual</em> shows. Kickstart 1.x was never made for the 68040 or 68060: it doesn't know them, and <code>AttnFlags</code> won't say they're there. (FS-UAE will boot 1.3 on an emulated 68040, and v8's examples ran there, but that says nothing about real accelerators.) (v7 was blunter about anyone who runs one under 1.3.)</li></ul>
+<div class="code-block"><pre><code>; Clears the processor's caches after code has been written to memory, on any Amiga.
+ClearCaches:
+        move.l  a6,-(sp)
+        move.l  ExecBase.w,a6
+        cmp.w   #37,LIB_VERSION(a6)     ; Kickstart 2.04 or later?
+        blo.s   .kick1
+        jsr     _LVOCacheClearU(a6)
+        bra.s   .done
+.kick1:
+        btst    #AFB_68020,AttnFlags+1(a6)
+        beq.s   .done                   ; 68000 or 68010: no cache
+        move.l  a5,-(sp)
+        lea     ClearInstructionCache(pc),a5
+        jsr     _LVOSupervisor(a6)      ; run it in supervisor mode
+        move.l  (sp)+,a5
+.done:
+        move.l  (sp)+,a6
+        rts
+
+ClearInstructionCache:
+        dc.l    $4e7a0002               ; movec cacr,d0
+        or.w    #$0008,d0               ; CACRF_ClearI
+        dc.l    $4e7b0002               ; movec d0,cacr
+        rte</code></pre></div>
+<p><code>CacheClearU</code> works with the machine taken over, too: it's an ordinary exec call that needs neither multitasking nor interrupts. <code>examples/ch03_generated_code.s</code> writes its drawing routine (about 5.5K of unrolled <code>MOVE.L</code>s) from a loop of a few dozen bytes, clears the caches, and runs it every frame. It was run both ways on an A500 with Kickstart 1.3 and 3.1 (with the trapdoor's slow RAM and without), on Kickstart 1.3 with a 68020, and on Kickstart 3.1 with a 68020, 68040 and 68060.</p>
+<figure class="guide-shot"><img src="images/ch03_generated_code.png" alt="ch03_generated_code.s on an emulated 68040 with Kickstart 3.1, and the CLI it leaves behind" loading="lazy"></figure>
+<p>You don't need to clear anything after the system loads your program: <code>LoadSeg</code> does it. Nor for the chips' work in chip RAM: the system sets chip RAM so the data cache never holds it, so what the blitter writes is what the processor reads (the <code>CacheClearE</code> Autodoc says so). But a cruncher's decruncher, which writes the program it unpacks, must clear the caches before jumping to it: a reason to use one that's known to (see <a href="17-releasing.html">releasing</a>).</p>
+<h2 id="open-libraries-properly">Open libraries properly</h2>
+<p><a href="04-startup-and-exit.html">Startup and exit</a> shows v8's startup doing this, and why. In short:</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        lea     GraphicsName(pc),a1
+        moveq   #33,d0                  ; the oldest version this program works with
+        jsr     _LVOOpenLibrary(a6)
+        move.l  d0,GfxBase
+        beq     NoGraphics              ; check the result, in d0 and nothing else
+        ...
+        move.l  GfxBase,a1              ; and close it as the program ends
+        jsr     _LVOCloseLibrary(a6)
+        ...
+GraphicsName:   dc.b    "graphics.library",0</code></pre></div>
+<ul><li><strong>Never walk exec's list of libraries</strong> to find one. v7 printed a contributor's code that took the second library down the list from ExecBase and called it graphics.library; it isn't, always. The NDK's <code>exec/execbase.i</code> marks the system's lists "(private!)". <code>OpenLibrary</code> finds the library for you.</li><li><strong>Never use <code>OldOpenLibrary</code>.</strong> Its Autodoc calls it "obsolete", kept for programs compiled on Kickstart 1.0, and it's "exactly the same as <code>OpenLibrary(libName,0L)</code>". It saves nothing.</li><li><strong>Give the version you need.</strong> The version is your promise about which functions you'll call. Every function in a library is reached through a table just before the library's base; call one newer than the library you've got, and you jump to whatever is in memory before that table. <code>CacheClearU</code> on Kickstart 1.3 is a crash, not an error. So ask for the version that has everything you use, or check <code>LIB_VERSION</code> before calling, as <code>ClearCaches</code> above does.</li></ul>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Version</th>
+<th scope="col">Kickstart</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">33</th>
+<td>1.2</td>
+</tr>
+<tr>
+<th scope="row">34</th>
+<td>1.3</td>
+</tr>
+<tr>
+<th scope="row">36</th>
+<td>2.0 (the first A3000s)</td>
+</tr>
+<tr>
+<th scope="row">37</th>
+<td>2.04 and 2.05</td>
+</tr>
+<tr>
+<th scope="row">39</th>
+<td>3.0</td>
+</tr>
+<tr>
+<th scope="row">40</th>
+<td>3.1</td>
+</tr>
+<tr>
+<th scope="row">46</th>
+<td>3.1.4 (Hyperion, 2018)</td>
+</tr>
+<tr>
+<th scope="row">47</th>
+<td>3.2 (Hyperion, 2021)</td>
+</tr>
+</tbody></table></div>
+<p>Asking for 33 means "any Kickstart from 1.2 on", which is what v8's startup asks for: it covers the A500's 1.3.</p>
+<h2 id="never-assume-the-state-of-anything">Never assume the state of anything</h2>
+<p>"Unlike inferior machines, almost everything on the Amiga can and will change" (v7). Chips change, the system changes, the processor changes. Something set to one value on your machine may be set to another on the next one. The <em>Hardware Reference Manual</em>: "Never assume that a hardware register will be initialized to any particular value. Different versions of the OS may leave registers set to different values."</p>
+<p>So <strong>set every register your code depends on</strong>, every time:</p>
+<ul><li><strong>The display.</strong> Set every display register in your copper list, each frame: the display window and data fetch (<code>DIWSTRT</code>, <code>DIWSTOP</code>, <code>DDFSTRT</code>, <code>DDFSTOP</code>), the bitplane controls (<code>BPLCON0</code> to <code>BPLCON2</code>), both modulos, every colour you use, every sprite pointer. v7 found that Kickstart 3.0 (V39) leaves the bitplane modulos non-zero, and demos that never set them broke. v8's examples also set <code>FMODE</code> and <code>BPLCON3</code>, which matter on ECS and AGA (and which OCS ignores): an AGA machine's Workbench may have left a wider fetch mode on.</li><li><strong>DMA.</strong> v8 found one while testing its own startup: on Kickstart 3, <code>LoadView(0)</code> switches bitplane DMA off; Kickstart 1.3 leaves it on. A demo written on 1.3 that never switched bitplane DMA on itself would show a blank screen on any Kickstart 3 machine. Switch on what you use.</li><li><strong>The CIAs.</strong> "Even if you are taking over the machine, do not assume the initial contents of any of the CIA registers or the state of any enabled interrupts" (<em>Hardware Reference Manual</em>). Set the timers and control registers you use.</li><li><strong>The processor's registers.</strong> Your routines are called with whatever the last one left. A classic:</li></ul>
+<div class="code-block"><pre><code>        move.w  Angle,d0
+        add.w   d0,d0
+        move.w  (a0,d0.l),d1            ; wrong: d0's upper word is whatever was there</code></pre></div>
+<p>Index with <code>d0.w</code>, or clear the register first with <code>moveq #0,d0</code>. It works on your machine because something happened to leave zero there; it won't on the next.</p>
+<p><strong>Check for features, not for machines.</strong> v7 told coders using AGA registers to check for AGA, and only AGA, because the next chipset (AAA, which never came) wouldn't be compatible. The rule outlived the chipset: find out what's there before you use it. The processor is in exec's <code>AttnFlags</code>; the chipset in graphics.library's <code>gb_ChipRevBits0</code> (with its AGA bits from V39; but on Kickstart 3.1 they only show AGA once SetPatch has run, so a demo started from the boot disk before SetPatch should read the chip's own ID, <code>DENISEID</code>, instead). <a href="09-aga.html">The AGA chapter</a> shows the test.</p>
+<h2 id="no-delay-loops">No delay loops</h2>
+<div class="code-block"><pre><code>        move.w  #5000,d0                ; wait a bit: don't
+.wait:  dbf     d0,.wait</code></pre></div>
+<p>How long that takes depends on the processor, its clock, its caches, and whether the code is in chip or fast RAM. On a 68060 it's over in a fraction of the time, and in an emulator with a just-in-time compiler it takes almost none. The <em>Hardware Reference Manual</em>: "Never use software delay loops!" For demos, there are always better clocks:</p>
+<ul><li><strong>the beam</strong>: wait for a line with <code>VPOSR</code>/<code>VHPOSR</code> (a line takes about 64 microseconds, PAL or NTSC; <a href="11-input.html">input</a> times the keyboard's handshake this way);</li><li><strong>the CIA timers</strong>, which count at about 0.7 MHz on every Amiga, whatever its processor;</li><li><strong>the blitter's busy bit</strong>, not a guess at how long a blit takes;</li><li><strong>the frame</strong>: the vertical blank interrupt.</li></ul>
+<h2 id="take-the-hardware-properly">Take the hardware properly</h2>
+<p>Using the hardware directly is what demos are for, but take it properly, and give it all back: own the blitter (<code>OwnBlitter</code>), stop multitasking or rise above it, save the chips' settings and restore them, find the vectors through the VBR. <a href="04-startup-and-exit.html">Startup and exit</a> does all of this, both ways, and every v8 example is built on it.</p>
+<p>With the system left running, share what the system uses: the blitter, and the CIAs, which the <em>Hardware Reference Manual</em> says to ask for through <code>cia.resource</code> rather than writing their interrupt registers directly.</p>
+<p>v7 had a section for authors of utilities, which drew their own copper lists for no reason: "If you want to write good utilities, learn C." The point survives in kinder words: a tool, a picture viewer or a music disk menu that doesn't need the hardware's tricks should open a screen through Intuition and multitask like any other program.</p>
+<p>And Chris Green, of Commodore US, asked v7 to say this early: "it IS possible to do quite exciting demos without poking any hardware registers, and that this can be as interesting as direct hardware access." That's still true. v8 is mostly about the hardware, because that's what most demos want. But it's a choice, not a rule.</p>
+<h2 id="the-processor-isn-t-fixed-either">The processor isn't fixed either</h2>
+<p>A few 68000 habits break on later processors. <a href="14-processors.html">The 68000 and later processors</a> has the details; the <em>Hardware Reference Manual</em>'s list is:</p>
+<ul><li>Don't use <code>MOVE SR,&lt;ea&gt;</code>: it's privileged from the 68010 on. Use exec's <code>GetCC()</code>.</li><li>Don't use <code>CLR</code> on a hardware register that something happens when you write: the 68000's <code>CLR</code> reads before it writes, so the register is touched twice. Use <code>move.w #0,...</code>.</li><li>Never use <code>TAS</code>: the chips' DMA can break its read-modify-write.</li><li>The stack frame an exception leaves differs on each processor, and the vectors may not be at address 0 (the VBR again).</li></ul>
+<h2 id="system-private-structures">System private structures</h2>
+<p>From v7, thanks to Arno Hollosi: if anywhere in the manuals, includes or Autodocs something is marked PRIVATE, RESERVED or INTERNAL (or anything like it), then</p>
+<ul><li>don't read it,</li><li>never write to it,</li><li>if it's a function, don't call it,</li><li>don't check it for anything.</li></ul>
+<p>Private parts of the system can change without notice, and have. The <em>Hardware Reference Manual</em> adds: "Do not modify or depend on the format of private system structures. This includes the poking of copper lists, memory lists, and library bases."</p>
+<p>And where the system has a function that changes something (<code>SetAPen</code> for the pen in a RastPort, say), use it, even if poking the structure would do the same today.</p>
+<p>The fields v8's startup reads (exec's <code>AttnFlags</code> and <code>VBlankFrequency</code>, graphics.library's <code>gb_ActiView</code> and <code>gb_copinit</code>, a library's <code>LIB_VERSION</code>) are documented in the NDK's includes, and the first two are marked "(readable)" there.</p>
+<h2 id="put-a-version-string-in">Put a version string in</h2>
+<p>Put a version string in every program, and in its source:</p>
+<div class="code-block"><pre><code>; $VER: mydemo.s 1.0 (20.11.2026)
+        ...
+        dc.b    "$VER: mydemo 1.0 (20.11.2026)",0
+        even</code></pre></div>
+<p>That's <code>$VER:</code>, the name, the version and revision, and the date as day.month.year, in brackets: the way the NDK's own files write theirs. AmigaOS's <code>Version</code> command finds it in the file (<code>Version mydemo</code>), as do many directory tools. v7 liked it for the demo compilations that renamed everything <code>1</code>, <code>2</code>, <code>3</code>: <code>Version 1</code> gives the real name.</p>
+<p>A crunched program hides its version string along with everything else. <a href="17-releasing.html">Releasing</a> has more.</p>
+<h2 id="crunching">Crunching</h2>
+<p>v7 advised against the crunchers of its day (Tetrapack, Bytekiller) and for others (PowerPacker, Imploder, Titanics Cruncher). They've all been overtaken. Today's demos are crunched with <strong>Shrinkler</strong>, by Aske Simon Christensen (Blueberry), which packs much smaller than 1993's crunchers did, or <strong>Cranker</strong>, by Timm S. Müller (The Electronic Knights), which decrunches as the program loads and needs no extra memory to do it. Limoniter runs both. <a href="17-releasing.html">Releasing</a> covers how to choose, and how to test the crunched program, which is a different program from the one you tested.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>Slow RAM</strong> at <code>$C00000</code> is real and common, and the system calls it fast RAM. v7 said it didn't exist. The rule is still "allocate, never assume".</li><li><strong>Aligned memory</strong> by allocating a little extra, rather than <code>AllocAbs</code> at every 64K boundary.</li><li><strong>Caches</strong>: <code>CacheClearU</code> on Kickstart 2.04 and later, and the <code>CACR</code> on a 68020 or 68030 under 1.3, with a tested example.</li><li><strong>Never assume</strong>, with a new case: Kickstart 3's <code>LoadView(0)</code> switches bitplane DMA off.</li><li><strong>No delay loops</strong> and <strong>the processor's own rules</strong>, from the <em>Hardware Reference Manual</em>.</li><li><strong>Version strings</strong> with four-digit years, as the NDK writes them.</li><li><strong>Crunchers</strong>: Shrinkler and Cranker, in <a href="17-releasing.html">releasing</a>, in place of 1993's.</li><li><strong>Left out</strong>: the list of 1993's manuals and where to buy them (now <a href="18-further-reading.html">further reading</a>), and the advice for utility authors.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="02-working-with-limoniter.html"><span>Back</span>2. Working with Limoniter</a>
+<a class="pager-next" href="04-startup-and-exit.html"><span>Next</span>4. Startup and exit</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

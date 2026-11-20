@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>10. Chunky to planar · How To Code v8</title>
+  <meta name="description" content="Texture mappers, rotozoomers, tunnels, voxel landscapes, the Doom-likes: the effects that made the A1200 years all work out the screen one pixel at a time.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/10-chunky-to-planar.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/10-chunky-to-planar.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="10. Chunky to planar · How To Code v8">
+  <meta property="og:description" content="Texture mappers, rotozoomers, tunnels, voxel landscapes, the Doom-likes: the effects that made the A1200 years all work out the screen one pixel at a time.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/10-chunky-to-planar.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html" aria-current="page">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>10. Chunky to planar</h1>
+        <div class="article-lead">
+<p>Texture mappers, rotozoomers, tunnels, voxel landscapes, the Doom-likes: the effects that made the A1200 years all work out the screen one pixel at a time. The Amiga's display isn't made for that. This chapter is about the answer everyone used: draw the picture in <strong>chunky</strong> form, a byte a pixel, and turn it into bitplanes once a frame. That's <strong>chunky to planar</strong>, C2P to its friends.</p>
+<p>It covers the three ways to do it:</p>
+<ul><li><strong>the processor</strong>, merging bits between registers (the way on the A1200 and anything faster);</li><li><strong>the blitter</strong>, doing the merges while the processor draws (the way on the A500);</li><li><strong>Akiko</strong>, the CD32's chip that does it in hardware.</li></ul>
+<p>There are three examples, each a rotozoomer with a panel that gives the time each part took:</p>
+<ul><li><code>examples/ch10_c2p_cpu.s</code> <em>(AGA)</em>: 8 bitplanes, 256 colours, 320 by 176 pixels, converted by the processor. Settings give the scrambled-chunky routine (<code>SCRAMBLE</code>) and 2x2 pixels (<code>DOUBLE</code>).</li><li><code>examples/ch10_c2p_blitter.s</code> <em>(any Amiga)</em>: 4 bitplanes, 16 colours, 2x2 pixels, on a 68000, converted by the blitter, or by the 68000 for comparison (<code>BLITTER</code> set to 0).</li><li><code>examples/ch10_c2p_akiko.s</code> <em>(AGA, made for the CD32)</em>: the first example's effect, converted by Akiko when there is one, and by the processor when there isn't. The panel says which.</li></ul>
+<figure class="guide-shot"><img src="images/ch10_c2p_cpu.png" alt="ch10_c2p_cpu.s on an emulated A1200 with fast RAM: a rotozoomer in 256 colours, and how long it took" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#chunky-and-planar">Chunky and planar</a></li>
+<li><a href="#what-it-costs">What it costs</a></li>
+<li><a href="#the-processor-s-way-merging">The processor's way: merging</a></li>
+<li><a href="#the-blitter-s-way">The blitter's way</a></li>
+<li><a href="#akiko-the-cd32-s-c2p">Akiko: the CD32's C2P</a></li>
+<li><a href="#measuring">Measuring</a></li>
+<li><a href="#the-examples">The examples</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+<li><a href="#further-reading">Further reading</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="chunky-and-planar">Chunky and planar</h2>
+<p>On the Amiga a picture is <strong>planar</strong>: each bit of a pixel's colour number is in a different bitplane. A 256-colour screen is 8 bitplanes, and the colour of the pixel at the left of the top line is made of the top bit of the first byte of each of them. Planar suits the blitter and scrolling, and lets a display use any number of colours from 2 to 256 without wasting memory.</p>
+<p><strong>Chunky</strong> is the other way: each pixel is a byte (or, for 16 colours, half a byte), the colour number whole, one pixel after another. It's what a PC's VGA card shows in its 320 by 200 mode, and what drawing one pixel at a time wants. Putting a pixel in chunky form is one write:</p>
+<div class="code-block"><pre><code>        move.b  d0,(a0)+                ; the next pixel is colour d0</code></pre></div>
+<p>The same in 8 bitplanes is a bit set or cleared in each of 8 bytes, each in a different bitplane, each a read and a write of chip RAM:</p>
+<div class="code-block"><pre><code>        ; d0 = the colour, d1 = the bit (7 - x &amp; 7), a0 = the byte in bitplane 0
+        moveq   #8-1,d2
+.plane: lsr.b   #1,d0
+        bcc.s   .clear
+        bset    d1,(a0)
+        bra.s   .next
+.clear: bclr    d1,(a0)
+.next:  lea     PLANESIZE(a0),a0
+        dbf     d2,.plane</code></pre></div>
+<p>A rotozoomer that drew a 320 by 256 screen like that would change chip RAM 655,360 times a frame, each a read and a write. So effects that draw pixel by pixel draw into a <strong>chunky buffer</strong>, ideally in fast RAM, where the processor needn't wait for the chips, and then convert the whole buffer into the screen's bitplanes in one go. Done well, the conversion handles 32 pixels at a time, reads the chunky buffer once and writes each byte of the screen once.</p>
+<p>AGA has no chunky display mode. Neither do OCS and ECS. Only graphics cards, and the CD32's Akiko (below), help.</p>
+<h2 id="what-it-costs">What it costs</h2>
+<p>A 320 by 256 screen in 8 bitplanes is 81,920 bytes. A C2P has to write every one of them to chip RAM, every frame, and do the work of moving 655,360 bits to their places.</p>
+<p><strong>The writes.</strong> Chip RAM is shared with the chips, and on an A1200 it's slow next to the processor: in 1996 one coder timed a plain copy of a 320 by 256, 8-bitplane screen into chip RAM on an A1200 with a 28 MHz 68030 at 21.5 ms, more than a PAL frame; the same thread has a bus test giving chip RAM writes of 1.9 to 3.8 MB/s (<a href="https://groups.google.com/g/comp.sys.amiga.programmer/c/WZQVhNzqQhw">comp.sys.amiga.programmer, March 1996</a>). So a full-screen, 1x1, 8-bitplane C2P at 50 frames a second is out of reach on any AGA machine, however fast the processor: the writes alone fill the frame. That's why AGA effects were shown at 2x2 pixels, or in a window, or with fewer colours (see <a href="#cheaper-pixels-2x1-1x2-and-2x2">cheaper pixels</a>).</p>
+<p><strong>The work.</strong> A good routine does it with a hundred or so register instructions for each 32 pixels (see <a href="#the-processors-way-merging">merging</a>). On a 68020 at 14 MHz that's the bigger cost. On a 68030 at 50 MHz the writes catch up: Mikael Kalms's notes give his 68030 routine 1.31 frames on a 50 MHz Blizzard 1230-IV with all DMA off (the note doesn't give the size; his readme's example is 320 by 256), not far off the 1.07 frames the 1996 copy took. On a 68040 or 68060 the work is quick and the routine waits on the writes: it runs at "copy speed", as fast as a plain copy to chip RAM. Kalms says this of his 68040 routine ("estimated to run at copyspeed on 040-40 and 060").</p>
+<p><strong>Writes that overlap the work.</strong> A 68020 or 68030 doesn't stop when it writes to chip RAM: its bus controller carries out the write while the processor goes on with the next instructions, as long as they come from its instruction cache and don't need the bus themselves. A second write has to wait for the first. So the best C2P routines don't save their writes for the end: they spread them through the work, one every dozen or so instructions, and the processor merges while the writes go out. The 68040 and 68060 overlap their writes with their work too.</p>
+<p><strong>Where the chunky buffer is</strong> matters as much. In fast RAM, reading it costs little. In chip RAM (an A1200 with no fast RAM, a CD32), every read of it waits its turn behind the display, which with 8 bitplanes takes a lot of the turns, and so do the instructions themselves if the program is in chip RAM too. Measured in <code>ch10_c2p_cpu.s</code> on the emulated A1200: drawing the effect took 7.27 frames and the C2P 6.71 with no fast RAM; with 8 MB of fast RAM, 3.92 and 4.18. With fast RAM, sending the C2P's output to more fast RAM instead of the screen (a test build) saved only 6% more: on a 68020 at 14 MHz, the work is what costs.</p>
+<p>All the timings in this chapter are FS-UAE's (3.1). Its 68000 and its A500's blitter are cycle-exact; its A1200's 68020 is what FS-UAE calls "~cycle-exact", and its 68030, 68040 and 68060 run as fast as the host computer allows, so no timings are given for those (see <a href="14-processors.html">the processors chapter</a>). The examples were run on them, for correctness.</p>
+<h2 id="the-processor-s-way-merging">The processor's way: merging</h2>
+<h3 id="a-transpose">A transpose</h3>
+<p>Take 8 pixels of 8 bits each and write them as the rows of a table, 8 bits across. The bitplanes' bytes are the <strong>columns</strong>: bitplane 0's byte is the bottom bit of each of the 8 pixels. C2P is turning the table on its side: a <strong>transpose</strong> of a matrix of bits.</p>
+<p>The fast way to transpose isn't bit by bit. It's in rounds, each swapping blocks: swap the top-right quarter of the table with the bottom-left, then do the same inside each quarter, and so on down to single bits. For an 8 by 8 table, 3 rounds. On a 32-bit processor each round handles whole registers at a time.</p>
+<h3 id="a-merge">A merge</h3>
+<p>The step everything is built from swaps a group of bits between two registers. With a register <code>lo</code>, a register <code>hi</code>, a shift <code>s</code> and a mask <code>m</code> that picks the bits to swap:</p>
+<div class="code-block"><pre><code>; swap lo's bits under the mask with hi's bits s places to their left; d5 is a spare register
+        move.l  hi,d5
+        lsr.l   #s,d5                   ; hi's bits, moved down to where lo's are
+        eor.l   lo,d5                   ; ...where the two differ
+        and.l   #m,d5                   ; ...under the mask
+        eor.l   d5,lo                   ; flip those in lo: now lo has hi's bits
+        lsl.l   #s,d5
+        eor.l   d5,hi                   ; and flip the same in hi: now hi has lo's</code></pre></div>
+<p>Seven instructions, no branches, and it moves 16 bits each way. The masks are <code>$0000FFFF</code> for s = 16 (swap a word), <code>$00FF00FF</code> for 8 (bytes), <code>$0F0F0F0F</code> for 4, <code>$33333333</code> for 2 and <code>$55555555</code> for 1. For s = 16 there's a shorter way that needs no spare register:</p>
+<div class="code-block"><pre><code>        swap    hi                      ; lo's low word and hi's high word swapped
+        eor.w   lo,hi
+        eor.w   hi,lo
+        eor.w   lo,hi
+        swap    hi</code></pre></div>
+<h3 id="32-pixels-in-8-registers">32 pixels in 8 registers</h3>
+<p>Load 32 chunky pixels into 8 registers, 4 pixels in each: 256 bits. Five rounds of merges, s = 16, 8, 4, 2 and 1, each of four merges between pairs of registers, leave each register holding 32 pixels of one bitplane. Which pairs each round merges, and in which order, is up to you, as long as the bits end up in the right places; the right choice makes the routine shorter. One way to see it is to number the 256 bits with 8 binary digits, 3 for the register and 5 for the position in it. In chunky form the register's digits are pixel number bits 4-2, and the position's are pixel bits 1-0 and then the colour's 3 bits. In planar form the register's digits are the colour's bits and the position's are the pixel number. A merge between registers differing in one digit, with shift 2&lt;sup&gt;k&lt;/sup&gt;, swaps that register digit with position digit k. The five rounds are the five swaps that put every digit in its place.</p>
+<p><code>ch10_c2p_cpu.s</code>'s <code>C2P8</code> does them in this order, for longwords L0 to L7:</p>
+<div class="code-block"><pre><code>s = 4  on (L0,L1) (L2,L3) (L4,L5) (L6,L7)
+then L0 L2 L4 L6 on their own:  s = 16 and s = 2 on (L0,L4) (L2,L6);  s = 8 and s = 1 on (L0,L2) (L4,L6)
+then L1 L3 L5 L7 the same</code></pre></div>
+<p>That leaves bitplane 7 in L0, 3 in L1, 6 in L2, 2 in L3, 5 in L4, 1 in L5, 4 in L6 and 0 in L7: the routine writes each to its own bitplane. The order splits the work into two halves of four registers after the first round, which matters because a merge needs a spare register, and with eight registers of pixels there isn't one: while one half is merged, the other waits in address registers (<code>move.l d0,a2</code> and <code>exg</code> are cheap).</p>
+<h3 id="spreading-the-writes">Spreading the writes</h3>
+<p><code>C2P8</code> writes each 32 pixels' 8 longwords as they're finished, spread through the next round of work, as described above: the first half's four bitplanes while the second half is merged, and the second half's four during the next 32 pixels' first round. The registers waiting to be written are kept in a2-a5, and a6 remembers where the last 32 pixels went. It's 163 instructions for each 32 pixels, all 68000 instructions: nothing in it needs a 68020.</p>
+<p>The loop is 408 bytes, more than the 68020's 256-byte instruction cache, so some of its instructions are fetched from memory every time round. A test version in two loops, each small enough for the cache (the first round in one, writing to a buffer in fast RAM; the rest in another), was 4% faster in FS-UAE: not enough to be worth it there. FS-UAE's 68020 timing is approximate, so on a real A1200 the cache may matter more. Kalms's collection has routines both ways.</p>
+<h3 id="checking-it">Checking it</h3>
+<p>A C2P that's wrong in one bit looks almost right, so test it properly. Each routine in this chapter was run in the emulator on a whole chunky buffer of pseudo-random pixels, the result was saved to a file on the emulated hard disk, and a Python script compared every bit with what it should be. A simple model of the merges, in Python, was checked the same way before the assembler was written. Every routine in the examples gave no errors, on the 68020 (A1200), the 68000 (A500) and Akiko (CD32).</p>
+<h3 id="the-cheapest-pixels-scrambled-chunky">The cheapest pixels: scrambled chunky</h3>
+<p>Look again at the rounds with s = 16 and s = 8. With 8-bit pixels they only move whole pixels about, two at a time and one at a time: the colour bits aren't touched. So if the drawing writes each 32 pixels to the chunky buffer <strong>already in the order those two rounds would leave them</strong>, the C2P needn't do them. Three rounds instead of five.</p>
+<p>The order is: the 32 bytes of each block hold pixels</p>
+<div class="code-block"><pre><code>0 8 16 24   4 12 20 28   1 9 17 25   5 13 21 29   2 10 18 26   6 14 22 30   3 11 19 27   7 15 23 31</code></pre></div>
+<p>For a rotozoomer it costs nothing at all: each line is drawn from a table of offsets into the texture, one for each pixel, and that table can be built in any order. <code>ch10_c2p_cpu.s</code> with <code>SCRAMBLE</code> set to 1 does exactly that (the table <code>Scramble</code> says where each pixel goes), and its <code>C2P8Scrambled</code> is <code>C2P8</code> without the two rounds. In FS-UAE on the A1200 with fast RAM, the C2P took 3.05 to 3.13 frames instead of 4.10 to 4.26: a quarter less. (With no fast RAM, 4.23 instead of 6.71: a third less.)</p>
+<p>The catch is everything else that draws into the chunky buffer: text, sprites, a polygon filler drawing spans across the screen. Each has to know the order. Drawers that write a column at a time (a Doom-like's walls) or a pixel at a time from a table don't mind. Kalms's collection calls these routines <code>c3</code>, for three rounds.</p>
+<h3 id="fewer-bitplanes">Fewer bitplanes</h3>
+<p>With 16 colours (4 bitplanes) or 32 (5), there are fewer bits to move. For 4 bitplanes, 8 pixels of 4 bits fit in one longword, a nibble each. 32 pixels are 4 longwords, and five rounds of two merges (s = 16, 4 and 1 between one pair of registers and the other, s = 8 and 2 within each pair) turn them into 4 longwords of bitplane: half the work of 8 bitplanes. Whether to keep each chunky pixel in a byte (simpler to draw, twice the memory to read) or two to a byte (half the reading, but drawing has to combine two pixels into each byte) depends on the drawing. For 5 or 6 bitplanes, it's the 8-bitplane routine with the unused bitplanes' results not written, or a routine that skips the merges they'd need: Kalms's collection has both.</p>
+<p>Fewer bitplanes also mean fewer writes, and on AGA, which can show any number from 1 to 8, that's a straight saving: 6 bitplanes (64 colours) is three quarters of the writes of 8.</p>
+<h3 id="cheaper-pixels-2x1-1x2-and-2x2">Cheaper pixels: 2x1, 1x2 and 2x2</h3>
+<p>Most A1200 effects weren't 1x1. Pixels twice as wide halve the drawing; twice as tall too halves it again, and halves the C2P.</p>
+<p><strong>2x1: twice as wide.</strong> Each chunky pixel makes two pixels on the screen. Doubling the chunky pixels before the C2P would cost a pass over the buffer. Instead, notice that with each pixel doubled, the last round of merges (s = 1) would merge two registers holding the same pixels. So <code>C2P8Double</code> does 16 chunky pixels (4 registers) at a time, four rounds of merges, which leave two bitplanes in each register in alternate bits, and then makes each bitplane by doubling its bits:</p>
+<div class="code-block"><pre><code>DOUBLEBITS      macro                   ; \1's even bits doubled into \1, its odd bits doubled into \2
+        move.l  \1,\2
+        and.l   #$55555555,\1           ; the even bits
+        eor.l   \1,\2                   ; the odd bits
+        move.l  \1,d5
+        add.l   d5,d5
+        or.l    d5,\1                   ; each even bit copied to its left
+        move.l  \2,d5
+        lsr.l   #1,d5
+        or.l    d5,\2                   ; each odd bit copied to its right
+        endm</code></pre></div>
+<p><strong>1x2: twice as tall,</strong> for nothing, with the copper. Each row of bitplanes is shown on two lines: the bitplane pointers, having fetched a line, are sent back to its start by the modulos. With interleaved bitplanes (each line of the screen holds a row of every bitplane in turn; see <a href="07-blitter.html">the blitter chapter</a>), the modulo after the first line of each pair is minus one row (back to the start of the same row) and after the second it skips the other bitplanes' rows as usual. The copper sets both modulos on every line:</p>
+<div class="code-block"><pre><code>        dc.w    $2c07,$fffe             ; the start of line $2C, before its fetch
+        dc.w    BPL1MOD,-ROWBYTES       ; after this line: back to the start of its row
+        dc.w    BPL2MOD,-ROWBYTES
+        dc.w    $2d07,$fffe
+        dc.w    BPL1MOD,ROWSTRIDE-ROWBYTES      ; after this one: on to the next row
+        dc.w    BPL2MOD,ROWSTRIDE-ROWBYTES
+        ; ... and so on, for every line</code></pre></div>
+<p>The modulo is added as the line's fetch ends, so set it at the start of the line, before the fetch begins. Both examples with 2x2 pixels build these copper lines as they start (<code>MakeCopperDoubling</code>).</p>
+<p><strong>2x2</strong> is both: a chunky buffer a quarter the size, a C2P doing half the rows. With <code>DOUBLE</code> set, <code>ch10_c2p_cpu.s</code> draws 160 by 88 chunky pixels and shows them as 320 by 176. On the emulated A1200 with fast RAM that took about a quarter of the 1x1 version's time to draw and a third of its time to convert (the <a href="#how-it-was-tested">test results</a> give the figures).</p>
+<h3 id="on-the-68040-and-68060">On the 68040 and 68060</h3>
+<p>On a 68040 or 68060 the merges take a fraction of the time the writes do, so the routine runs at the speed chip RAM takes writes, and the processor spends most of the C2P waiting. Two things follow:</p>
+<ul><li><strong>Don't bunch the writes</strong>, here too: with the writes spread out, each goes out while the processor merges, and the processor waits only when its buffer of pending writes is full. A routine that saves all its writes for the end waits for each.</li><li><strong>Do something useful in the waits</strong>, or do less writing: convert only the part of the screen that changed, or fewer bitplanes.</li></ul>
+<p>The <strong>68060</strong> issues two instructions at once when they don't depend on each other (it has two integer pipelines), so a merge written as seven instructions each needing the one before runs at half the speed it could. Interleave two merges, instruction by instruction, and they run side by side. Kalms's collection has routines written for it (<code>c2p1x1_5_c5_060</code>, for one). v8 couldn't time any of this: FS-UAE's 68040 and 68060 aren't timed like real ones.</p>
+<h3 id="on-the-68000">On the 68000</h3>
+<p>A 68000 can run the same merges, slowly: its shifts cost 2 cycles for each place shifted, and every register instruction 4 to 8 cycles. In <code>ch10_c2p_blitter.s</code> with <code>BLITTER</code> set to 0, the 68000 does two rounds of merges on a 128 by 80 pixel chunky buffer (4 bitplanes), in 1.96 frames; the blitter does them in 0.70. Without the drawing's tricks (below) there would be five rounds to do, not two. On an A500, a C2P has to be small, and has to lean on tables and the blitter, as below.</p>
+<h2 id="the-blitter-s-way">The blitter's way</h2>
+<p>The blitter can do a merge. Its A and B channels each have a barrel shifter, its logic function can pick each bit from one source or another by a mask, and a channel switched off gives a constant from its data register for nothing. A merge's two results are two blits. The low register of the pair keeps its own bits where the mask is 0, and takes the high one's, shifted right, where it's 1:</p>
+<div class="code-block"><pre><code>lo' = (hi &gt;&gt; s) &amp; m  |  lo &amp; ~m      A = hi (shifted s), B = lo, C = the mask (a constant): minterm $E4</code></pre></div>
+<p>and the high one keeps its bits where the mask is 1 and takes the low one's, shifted <strong>left</strong>, where it's 0. The blitter shifts only to the right, except in descending mode, so that blit runs backwards, from the last word:</p>
+<div class="code-block"><pre><code>hi' = (lo &lt;&lt; s) &amp; ~m  |  hi &amp; m      A = lo (shifted s, descending), B = hi, C = the mask: minterm $D8</code></pre></div>
+<p>(Minterm $E4 is A where C is 1, B where C is 0; $D8 is B where C is 1, A where C is 0. <a href="07-blitter.html#minterms-the-lf-byte">The blitter chapter</a> shows how they're worked out.) In both, the bits shifted in from the next word fall where the mask throws them away, so a whole buffer is one blit. A, B and D switched on take 6 clocks a word, the HRM's figure. The 68000's seven instructions take 60 to 68 clocks (by Motorola's figures) for two longwords, 15 to 17 a word, before it has loaded and stored them.</p>
+<p>That's the blitter's strength: <strong>shifts cost it nothing</strong>. The rounds with small shifts (4, 2, 1) are the 68000's most expensive and the blitter's cheapest. The rounds that move whole pixels, though, can usually be done for nothing in the drawing, as with scrambled chunky above. So the classic A500 C2P is: the drawing does what it can for free, and the blitter does the rest.</p>
+<h3 id="ch10-c2p-blitter-s">ch10_c2p_blitter.s</h3>
+<figure class="guide-shot"><img src="images/ch10_c2p_blitter.png" alt="ch10_c2p_blitter.s on an emulated A500: 16 colours, 2x2 pixels, the blitter doing the conversion" loading="lazy"></figure>
+<p>The example's rotozoomer draws 128 by 80 chunky pixels in 16 colours, each shown 2 by 2: 256 by 160 on the screen. Two tricks in the drawing do half the C2P before it starts:</p>
+<ul><li><strong>The texture holds each colour with its bits doubled</strong>: colour <code>%abcd</code> is stored as the byte <code>%aabbccdd</code>. One chunky pixel is two screen pixels side by side, and those two bits are already in a bitplane's order. Doubling the pixels across costs nothing.</li><li><strong>Each line is drawn as four runs</strong>: pixels 0, 4, 8 ... 124, then 2, 6 ... 126, then 1, 5 ... 125, then 3, 7 ... 127. (The table of offsets is simply in that order.) In blocks of 8 chunky pixels, each run holds a word of each block, and the four words are what two rounds of merges turn into a word of each of the 4 bitplanes.</li></ul>
+<p>The blitter does those two rounds: s = 4 (mask <code>$0F0F</code>) between runs 0 and 2 and runs 1 and 3, then s = 2 (mask <code>$3333</code>) between runs 0 and 1 and runs 2 and 3. The runs are laid out in each line as 0, 2, 1, 3, so that each round's pairs are a fixed distance apart and each half of a round is <strong>one</strong> blit with a modulo, not one blit for each pair. The first round writes to a halfway buffer; the second writes into the screen, whose rows hold the bitplanes in the order 3, 1, 2, 0 for the same reason (the bitplane pointers don't care what order they're in). Four blits in all:</p>
+<div class="code-block"><pre><code>        ; Round 1, low: runs 0 and 1 take bits from runs 2 and 3
+        move.l  #$4de40000,BLTCON0(a5)          ; A shifted 4, A B D on, minterm $E4; BLTCON1 0
+        move.l  #Chunky+ROWBYTES,BLTAPTH(a5)    ; runs 2 and 3
+        move.l  #Chunky,BLTBPTH(a5)             ; runs 0 and 1
+        move.l  #Halfway,BLTDPTH(a5)
+        move.w  #((CHUNKYH*2)&lt;&lt;6)!(ROWBYTES/2),BLTSIZE(a5)
+        jsr     WaitBlitter
+        ; Round 1, high: runs 2 and 3 take bits from runs 0 and 1, backwards from the last word
+        move.l  #$4dd80002,BLTCON0(a5)          ; minterm $D8; BLTCON1: descending
+        ...</code></pre></div>
+<p>with <code>BLTCDAT</code> holding the mask, the C channel switched off, and the modulos skipping the runs a blit doesn't touch. The chunky buffer, the halfway buffer and the screen are all in chip RAM: the blitter can't reach anything else.</p>
+<p>On the emulated A500 (68000, cycle-exact), the drawing took 2.26 frames and the blitter's C2P 0.70, so a new picture every 4 frames, 12.5 a second. With <code>BLITTER</code> set to 0 the 68000 took 1.96 frames for the same two rounds, and a new picture came every 5.</p>
+<p>The blitter's figure is more than the HRM's 6 clocks a word would give (4 blits of 2,560 words: 0.43 frames): while the display is fetching 4 bitplanes, it takes half the memory cycles, and the blitter gets only what's left; and the processor's work between the blits, and its waits, are in the figure too.</p>
+<h3 id="which-rounds-to-give-the-blitter">Which rounds to give the blitter</h3>
+<ul><li><strong>On an A500</strong>, every round you can't do in the drawing. The 68000 merges at a third of the blitter's speed or less.</li><li><strong>On an A1200</strong>, the blitter is the same speed as on an A500, and a 68020 with fast RAM merges faster than it does: <code>ch10_c2p_blitter.s</code> on the emulated A1200 with fast RAM took 0.68 frames with the blitter and 0.40 with the 68020 (<code>BLITTER</code> set to 0). But the blitter works <strong>at the same time</strong> as the processor: give it the last round while the processor does the first ones of the next part of the screen. Kalms's collection has such routines (<code>c3b1</code>: three rounds on the processor and one on the blitter), and gives one of them as running at copy speed on a 25 MHz 68040.</li></ul>
+<h3 id="the-race">The race</h3>
+<p>The blitter and the processor working at once is the point, and the danger. <a href="07-blitter.html#the-race-wait-before-the-processor-touches-the-blitters-work">The blitter chapter</a> explains it in general; for a C2P:</p>
+<ul><li><strong>Don't draw into the chunky buffer while the blitter is reading it.</strong> The next frame's drawing must wait until the round that reads the chunky buffer has finished. Double-buffer the chunky buffer if the drawing should start sooner.</li><li><strong>Don't start a blit before the last has finished.</strong> There's only one blitter, and its registers are read as it goes. <code>ch10_c2p_blitter.s</code> waits for each.</li><li><strong>Don't show the screen before the last blit into it has finished.</strong> <code>BLIT_END</code> waits; the screen is swapped after it.</li></ul>
+<p>On a 68000 the blitter usually wins the race; on a 68040 it never does. And on an A500 with no fast RAM, running both at once gains less than you'd hope: the blitter with A, B and D on uses every memory cycle it can get, and lets the processor have a cycle only after it has waited three (<a href="07-blitter.html#the-blitter-nasty">the blitter chapter</a>). The processor gets work done during a blit only if the work is in registers, or in fast RAM.</p>
+<h2 id="akiko-the-cd32-s-c2p">Akiko: the CD32's C2P</h2>
+<p>The CD32 has a chip the A1200 doesn't: <strong>Akiko</strong>, which drives the CD drive and the CD32's NVRAM, and also converts chunky pixels to planar ones. It's a register you write 32 chunky pixels to, as 8 longwords, and read 32 pixels of each bitplane back from, as 8 longwords, bitplane 0 first. The merges happen inside it.</p>
+<h3 id="finding-it">Finding it</h3>
+<p>graphics.library from V40 (Kickstart 3.1) keeps the address of the C2P hardware in <code>GfxBase</code>, as <code>gb_ChunkyToPlanarPtr</code>, or 0 if there isn't any. The autodoc for <code>WriteChunkyPixels()</code> says so, and how to use it:</p>
+<div class="note"><p>If using the hardware directly, it should only be accessed when the task using it has control of the blitter (via OwnBlitter()), since this is the locking used to arbitrate usage of this device.  For proper operation, exactly 8 longwords (containing 32 pixels) of chunky data should be written to *(GfxBase-&gt;ChunkyToPlanarPtr). After the data is written, bitplane data (starting with plane 0) can be read back a longword at a time. There is no need to read back all 8 longwords if the high-order bitplanes are not needed.</p></div>
+<p>and that the field is only there from V40. The NDK 3.2's <code>graphics/gfxbase.i</code> puts it at offset 508 (<code>gb_ChunkyToPlanarPtr equ gb_HWEmul</code>):</p>
+<div class="code-block"><pre><code>gb_ChunkyToPlanarPtr equ 508
+
+        move.l  GfxBase,a6
+        cmp.w   #40,LIB_VERSION(a6)
+        blo.s   .none                   ; before V40 the field isn't there
+        move.l  gb_ChunkyToPlanarPtr(a6),d0
+        beq.s   .none                   ; no C2P hardware
+        ; d0 = Akiko's C2P register</code></pre></div>
+<p>On the emulated CD32, with its own Kickstart, the pointer read <code>$00B80038</code>; on an A1200 with Kickstart 3.1 it read 0. Akiko is at <code>$B80000</code>, and WinUAE's emulation of it (<code>akiko.cpp</code>, by Toni Wilen) notes that its first longword reads <code>$C0CACAFE</code>, and that the Kickstart looks for <code>$CAFE</code> at <code>$B80002</code> to decide that Akiko is there. Read the pointer rather than look for the <code>$CAFE</code> yourself: the autodoc invites other hardware that works the same way to put its own address there, and on a machine without Akiko nothing promises what's at <code>$B80000</code>.</p>
+<p>As far as v8 knows, Akiko was only ever in the CD32: none of Commodore's other machines has it. WinUAE can add its C2P to any emulated machine (the "CD32 C2P" box in its chipset settings).</p>
+<h3 id="using-it">Using it</h3>
+<div class="code-block"><pre><code>; a0 = the chunky buffer, a1 = the screen (interleaved), a2 = Akiko's C2P register
+.block:
+        move.l  (a0)+,(a2)              ; 32 pixels in...
+        move.l  (a0)+,(a2)
+        move.l  (a0)+,(a2)
+        move.l  (a0)+,(a2)
+        move.l  (a0)+,(a2)
+        move.l  (a0)+,(a2)
+        move.l  (a0)+,(a2)
+        move.l  (a0)+,(a2)
+        move.l  (a2),(a1)               ; ...and 32 pixels of each bitplane out, from bitplane 0
+        move.l  (a2),1*ROWBYTES(a1)
+        move.l  (a2),2*ROWBYTES(a1)
+        move.l  (a2),3*ROWBYTES(a1)
+        move.l  (a2),4*ROWBYTES(a1)
+        move.l  (a2),5*ROWBYTES(a1)
+        move.l  (a2),6*ROWBYTES(a1)
+        move.l  (a2),7*ROWBYTES(a1)
+        addq.l  #4,a1
+        dbf     d6,.block</code></pre></div>
+<p>That's <code>AkikoC2P</code> in <code>ch10_c2p_akiko.s</code>, inside <code>BLIT_BEGIN</code> and <code>BLIT_END</code>: taking the machine, the startup owns the blitter already, and with the system running they call <code>OwnBlitter()</code> and <code>DisownBlitter()</code>. Use longword moves: WinUAE's emulation, at least, counts the 8 writes in longwords.</p>
+<p>Its output, read back on the emulated CD32 and compared bit by bit with what it should be, was right.</p>
+<h3 id="is-it-faster">Is it faster?</h3>
+<figure class="guide-shot"><img src="images/ch10_c2p_akiko.png" alt="ch10_c2p_akiko.s on an emulated CD32: Akiko converting" loading="lazy"></figure>
+<p>On a plain CD32, yes, by a lot, in FS-UAE. The CD32 has a 68020 at 14 MHz and no fast RAM, so a processor C2P reads the chunky buffer from chip RAM and fights the display for every turn. Akiko needs the processor only to move the data:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">CD32, 68020, no fast RAM (FS-UAE)</th>
+<th scope="col">Drawing</th>
+<th scope="col">C2P</th>
+<th scope="col">A new picture every</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>ch10_c2p_cpu.s</code>, <code>C2P8</code></th>
+<td>7.27 frames</td>
+<td>6.72 frames</td>
+<td>15 frames</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_akiko.s</code>, Akiko</th>
+<td>7.27 frames</td>
+<td>1.98 frames</td>
+<td>10 frames</td>
+</tr>
+</tbody></table></div>
+<p>With a faster processor and fast RAM, it's another story. Every pixel still crosses the bus three times (from the chunky buffer, to Akiko, from Akiko) before it's written to chip RAM, and a fast processor's C2P is limited by the chip RAM writes it has to make anyway. So on an accelerated CD32, a good processor routine is likely to be as fast as Akiko or faster. v8 couldn't measure it: FS-UAE's faster processors aren't timed, and how long a real Akiko takes to answer isn't something the emulator promises to match.</p>
+<p>There's another reason to keep Akiko for the 68020: the <strong>data cache</strong>. A 68030 or later can keep a copy of what it read from an address and give it back without reading again; if it did that with Akiko's register, the 8 reads would give the same longword. The system sets chip RAM so the data cache never holds it, but <code>$B80000</code> isn't chip RAM, and whether an accelerator's setup leaves it uncached isn't something to count on. (That's v8's reasoning, not tested on a real accelerated CD32.) c2p.library, a recent C2P library for the Amiga, also uses Akiko only with a 68020, as its author's devlog says. <code>ch10_c2p_akiko.s</code> does the same: with a 68030 or later it uses <code>C2P8</code>, and says so on its panel.</p>
+<h2 id="measuring">Measuring</h2>
+<p>The examples time the drawing and the C2P in <strong>lines</strong>, as <a href="14-processors.html#measuring-raster-time">the processors chapter</a> does, but these take several frames, so the beam position alone isn't enough. The time is the frames counted so far by the vertical blank interrupt, times the lines in a frame, plus the line the beam is on:</p>
+<div class="code-block"><pre><code>; Returns d0 = the time in lines. Changes d1-d3.
+LineClock:
+        move.l  Frames,d1
+        move.l  VPOSR+CUSTOM,d0
+        cmp.l   Frames,d1
+        bne.s   LineClock               ; the interrupt came in between: again
+        lsr.l   #8,d0
+        and.l   #$1ff,d0                ; the line
+        cmp.w   #2,d0
+        blo.s   LineClock               ; lines 0 and 1: wait until the frame's interrupt has certainly run
+        moveq   #0,d3
+        move.w  LinesPerFrame,d3        ; 313 on PAL, 263 on NTSC
+        move.l  d1,d2                   ; Frames * lines a frame, in 32 bits
+        swap    d2
+        mulu    d3,d2
+        swap    d2
+        clr.w   d2
+        mulu    d3,d1
+        add.l   d2,d1
+        add.l   d1,d0
+        rts</code></pre></div>
+<p>A PAL frame is 313 lines (0 to 312) and an NTSC one 263 (0 to 262): a test that read the beam's line as fast as it could, with interrupts off, saw no higher than 312 on the emulated A500 and A1200, and 262 on the NTSC A1200.</p>
+<p><strong>The mistake made here first.</strong> The HRM's list of the CIA registers calls CIA-B's time-of-day counter (<code>$BFD800</code> to <code>$BFDA00</code>) the "horizontal sync event counter": a 24-bit count of lines, ready-made. The first versions of the examples used it. Taking the machine, it worked. With the system running, the panels showed nonsense: graphics.library uses that counter as its beam counter (Commodore's <em>Amiga Mail</em> lists it as "used for graphics.library beam counter") and evidently sets it back every frame: read 100 frames apart, it had moved on by one line or none. Use it only when the machine is yours.</p>
+<p>The panels give each time in frames, to two places, and how many frames each new picture took in all ("EVERY"). Remember that the measuring sees the whole machine: with the system running, its interrupts and tasks add a little; and it measures the program as it runs, in the memory it was given.</p>
+<h2 id="the-examples">The examples</h2>
+<ul><li><strong><code>ch10_c2p_cpu.s</code></strong> <em>(AGA only)</em>: a rotozoomer, 320 by 176 pixels in 256 colours, drawn into a chunky buffer in any memory (fast RAM, if there is some) and converted by <code>C2P8</code>; with <code>SCRAMBLE</code> by <code>C2P8Scrambled</code>, from scrambled chunky; with <code>DOUBLE</code>, 2x2 pixels, by <code>C2P8Double</code> and the copper. It checks for AGA as chapter 9's examples do, and without it shows nothing and ends at once.</li><li><strong><code>ch10_c2p_blitter.s</code></strong> <em>(any Amiga)</em>: a rotozoomer, 128 by 80 chunky pixels in 16 colours, shown 2x2, on a 68000; converted by the blitter (<code>BlitterC2P</code>), or with <code>BLITTER</code> set to 0 by the 68000 (<code>CPUC2P</code>).</li><li><strong><code>ch10_c2p_akiko.s</code></strong> <em>(AGA only)</em>: <code>ch10_c2p_cpu.s</code>'s rotozoomer converted by Akiko when graphics.library says there is one and the processor is a 68020, and by <code>C2P8</code> otherwise.</li></ul>
+<p>Each C2P routine is between <code>; ---- name begin</code> and <code>; ---- name end</code> lines, so it can be lifted out whole. The texture in all three is the classic XOR pattern (u XOR v), and the drawing uses one more trick worth knowing: the texture is stored with every row twice over and the whole twice over, so that a texel's offset is u + v × 512, two offsets add without u carrying into v, and a line's start (32K into the texture, plus up to 64K) plus any offset read as a signed word lands inside the 128K. Each pixel is then two instructions:</p>
+<div class="code-block"><pre><code>        move.w  (a2)+,d3                ; this pixel's offset from the line's start
+        move.b  0(a0,d3.w),(a1)+        ; a0 = the line's start in the texture</code></pre></div>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p>Every example was built both ways (taking the machine, and with the system running), ending itself after 500 frames, and run in FS-UAE 3.1:</p>
+<ul><li><code>ch10_c2p_cpu.s</code> (as it is, with <code>SCRAMBLE</code> and with <code>DOUBLE</code>) on an A1200 with Kickstart 3.1 (the A500/A600/A2000 ROM, 40.63), with no fast RAM and with 8 MB, with a 68030 and a 68040 (8 MB each), on an NTSC A1200, and on a CD32; and on an A500 with Kickstart 1.3 and 3.1, to see it refuse;</li><li><code>ch10_c2p_akiko.s</code> on a CD32 (its own Kickstart and extended ROM, booting from the hard drive folder), on a CD32 with a 68030 and fast RAM, on an A1200, and on an A500 with Kickstart 1.3 and 3.1;</li><li><code>ch10_c2p_blitter.s</code> (with and without <code>BLITTER</code>) on an A500 with Kickstart 1.3 and 3.1, with its 512K of slow RAM and without (a plain 512K machine), with a 68020 and a 68040 (8 MB of fast RAM each), on Kickstart 1.3 with a 68020, and on an A1200.</li></ul>
+<p>Each showed its effect and then the CLI with "back in AmigaDOS, return code OK"; on the machines without AGA the AGA examples ended at once. The C2P routines' output was checked bit by bit against a model in Python, as described in <a href="#checking-it">checking it</a>. The times, in frames (PAL), from the panels:</p>
+<p>Taking the machine (with the system running, the figures were within a few per cent of these):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Example</th>
+<th scope="col">Machine (FS-UAE)</th>
+<th scope="col">Drawing</th>
+<th scope="col">C2P</th>
+<th scope="col">A new picture every</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>ch10_c2p_cpu.s</code></th>
+<td>A1200, 68020, no fast RAM</td>
+<td>7.27</td>
+<td>6.71</td>
+<td>15 frames</td>
+</tr>
+<tr>
+<th scope="row">... <code>SCRAMBLE</code></th>
+<td></td>
+<td>7.38</td>
+<td>4.23</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row">... <code>DOUBLE</code> (2x2)</th>
+<td></td>
+<td>1.87</td>
+<td>1.40</td>
+<td>4</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_cpu.s</code></th>
+<td>A1200, 68020, 8 MB fast RAM</td>
+<td>3.92</td>
+<td>4.18</td>
+<td>9</td>
+</tr>
+<tr>
+<th scope="row">... <code>SCRAMBLE</code></th>
+<td></td>
+<td>3.96</td>
+<td>3.05</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row">... <code>DOUBLE</code> (2x2)</th>
+<td></td>
+<td>1.01</td>
+<td>1.27</td>
+<td>3</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_cpu.s</code></th>
+<td>CD32, 68020, no fast RAM</td>
+<td>7.27</td>
+<td>6.72</td>
+<td>15</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_akiko.s</code> (Akiko)</th>
+<td>CD32, 68020, no fast RAM</td>
+<td>7.27</td>
+<td>1.98</td>
+<td>10</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_akiko.s</code> (no Akiko: <code>C2P8</code>)</th>
+<td>A1200, 68020, no fast RAM</td>
+<td>7.27</td>
+<td>6.90</td>
+<td>15</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_blitter.s</code></th>
+<td>A500, 68000, Kickstart 1.3 or 3.1, with or without slow RAM</td>
+<td>2.26</td>
+<td>0.70</td>
+<td>4</td>
+</tr>
+<tr>
+<th scope="row">... <code>BLITTER</code> 0 (the 68000 merges)</th>
+<td>A500, 68000</td>
+<td>2.26</td>
+<td>1.96</td>
+<td>5</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_blitter.s</code></th>
+<td>A1200, 68020, no fast RAM</td>
+<td>1.30</td>
+<td>0.64</td>
+<td>2</td>
+</tr>
+<tr>
+<th scope="row"><code>ch10_c2p_blitter.s</code></th>
+<td>A1200, 68020, 8 MB fast RAM (system running)</td>
+<td>0.93</td>
+<td>0.68</td>
+<td>2</td>
+</tr>
+<tr>
+<th scope="row">... <code>BLITTER</code> 0</th>
+<td>A1200, 68020, 8 MB fast RAM</td>
+<td>0.92</td>
+<td>0.40</td>
+<td>2</td>
+</tr>
+</tbody></table></div>
+<p>On the NTSC A1200 the times in frames were about a fifth higher, as an NTSC frame has 263 lines to PAL's 313. The 68030 and 68040 showed every example correctly, with times of a tenth of a frame or so, which mean nothing (FS-UAE runs them as fast as the host allows). The A500's 68020 in FS-UAE runs at about the A500's own speed, with fast RAM, so its figures (<code>ch10_c2p_blitter.s</code>: 1.57 and 0.52) say more about fast RAM than about the 68020.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><strong>Mikael Kalms's C2P collection</strong> (Scout / C-Lous), &lt;https://github.com/Kalmalyzer/kalms-c2p&gt;: routines for 1 to 8 bitplanes and 1x1, 2x1 and 2x2 pixels, for every processor from the 68020 to the 68060, processor-only and with the blitter, HAM8 converters, and the notes quoted above. Public domain, as its readme says (except the "others" folder, which holds other people's routines under their own terms). The routines in this chapter are v8's own, written for it; Kalms's are the place to go for one tuned to your machine.</li><li><strong>Kalms's tutorial</strong>, <em>Make your own Chunky Two Planar</em>, &lt;https://lysator.liu.se/~mikaelk/doc/1c2p.html&gt;: the merges step by step, from 8 pixels up.</li><li><strong>The <code>WriteChunkyPixels()</code> autodoc</strong>, in the NDK's <code>graphics.doc</code>: Akiko, <code>gb_ChunkyToPlanarPtr</code>, and the rules for using it.</li><li><strong>WinUAE's <code>akiko.cpp</code></strong>, &lt;https://github.com/tonioni/WinUAE&gt;: Akiko's registers as WinUAE emulates them, with Toni Wilen's notes on each.</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<p>v7 had no chapter on chunky to planar: it was written in 1993, as the A1200 was new, and the techniques here grew up in the years after it. This chapter is new in v8. <a href="09-aga.html#chunky-to-planar">The AGA chapter</a> introduces the idea; this one has the routines.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="09-aga.html"><span>Back</span>9. AGA</a>
+<a class="pager-next" href="11-input.html"><span>Next</span>11. Input</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

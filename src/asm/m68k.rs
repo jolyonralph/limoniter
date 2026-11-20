@@ -362,6 +362,28 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
     if let Some((_, op)) = PLAIN.iter().find(|(n, _)| *n == name) {
         return Ok(vec![*op]);
     }
+    // The 68000's multiplies and divides are word-sized only (MULU.W gives a long from two words); the .L forms,
+    // and CHK.L, are the 68020's, and quietly assembling a .W in their place would make a different program.
+    if matches!(name, "mulu" | "muls" | "divu" | "divs" | "chk") && size == Some(Size::Long) {
+        return Err(crate::i18n::tf!("{upper} is a 68020 instruction: the 68000 has only {}.W", name.to_ascii_uppercase()));
+    }
+    // What an instruction writes to, or (for TST and CMPI) what it may examine, has to be data that could be
+    // written: on the 68000 never PC-relative, nor an immediate. The 68020 lets TST and CMPI read PC-relative,
+    // which is why it's an easy mistake: such code runs on an A1200 and crashes an A500. (BTST may read
+    // PC-relative on any 68000, so it isn't here.)
+    let writes_last = matches!(name, "clr" | "neg" | "negx" | "not" | "tst" | "addq" | "subq" | "addi" | "subi" | "andi" | "ori" | "eori" | "cmpi" | "bchg" | "bclr" | "bset" | "tas" | "nbcd")
+        || is_scc(name)
+        || (matches!(name, "asl" | "asr" | "lsl" | "lsr" | "rol" | "ror" | "roxl" | "roxr") && ops.len() == 1)
+        || (matches!(name, "add" | "sub" | "and" | "or" | "eor") && ops.len() == 2 && !matches!(ops[1], Ea::D(_) | Ea::A(_)));
+    if writes_last && let Some(last) = ops.last() {
+        let pc = matches!(last, Ea::PcDisplacement(_) | Ea::PcIndexed(..));
+        if pc && matches!(name, "tst" | "cmpi") {
+            return Err(crate::i18n::tf!("{upper} can't use {} on a 68000: a PC-relative operand here is the 68020's", texts[texts.len() - 1]));
+        }
+        if pc || matches!(last, Ea::Immediate(_)) {
+            return Err(crate::i18n::tf!("{upper} can't write to {}", texts[texts.len() - 1]));
+        }
+    }
     if is_branch(name) {
         let target = line.eval(operands)?;
         let base: u16 = match name {

@@ -362,6 +362,9 @@ impl Drop for Server {
 
 /// The protocol's name for a language.
 pub fn language_id(language: &str) -> String {
+    if let Some(id) = crate::vsix::language_id(language) {
+        return id;
+    }
     match language {
         "C++" => "cpp".into(),
         "C#" => "csharp".into(),

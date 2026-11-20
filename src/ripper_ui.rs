@@ -247,9 +247,9 @@ impl Ripper {
                 };
             }
             if v.layout != Layout::Spectrum {
-                ui.add(egui::DragValue::new(&mut v.across).range(1..=256)).on_hover_text(v.layout.unit());
+                stepper(ui, &mut v.across, 1..=256, v.layout.unit());
                 ui.label(v.layout.unit());
-                ui.add(egui::DragValue::new(&mut v.down).range(1..=512));
+                stepper(ui, &mut v.down, 1..=512, crate::i18n::tr("down"));
                 ui.label(crate::i18n::tr("down"));
             }
             if matches!(v.layout, Layout::Amiga | Layout::AtariSt) {
@@ -302,5 +302,56 @@ impl Ripper {
             }
         });
         asked
+    }
+}
+
+/// A number with − and + either side, for finding a width by eye: each click a step, held down to keep going, and
+/// the mouse wheel over it a step a notch.
+fn stepper(ui: &mut egui::Ui, value: &mut usize, range: std::ops::RangeInclusive<usize>, what: &str) {
+    let (low, high) = (*range.start(), *range.end());
+    let step = |by: i64, value: &mut usize| *value = stepped(*value, by, low, high);
+    // Held for longer than a moment, a button steps again every few frames.
+    let repeat = |ui: &egui::Ui, button: &egui::Response| -> bool {
+        if button.clicked() {
+            return true;
+        }
+        if !button.is_pointer_button_down_on() {
+            return false;
+        }
+        let (now, since) = ui.input(|i| (i.time, i.pointer.press_start_time().unwrap_or(i.time)));
+        ui.ctx().request_repaint();
+        now - since > 0.4 && ui.ctx().cumulative_frame_nr().is_multiple_of(4)
+    };
+    let minus = ui.small_button("\u{2212}").on_hover_text(crate::i18n::tf!("Fewer {what}"));
+    if repeat(ui, &minus) {
+        step(-1, value);
+    }
+    let field = ui.add(egui::DragValue::new(value).range(range.clone())).on_hover_text(crate::i18n::tr("Drag, type, or turn the mouse wheel over it"));
+    if field.hovered() {
+        // Each notch of the wheel, up for more and down for fewer.
+        let notches: i64 = ui.input(|i| i.raw.events.iter().map(|e| match e { egui::Event::MouseWheel { delta, .. } if delta.y > 0.0 => 1, egui::Event::MouseWheel { delta, .. } if delta.y < 0.0 => -1, _ => 0 }).sum());
+        if notches != 0 {
+            step(notches, value);
+        }
+    }
+    let plus = ui.small_button("+").on_hover_text(crate::i18n::tf!("More {what}"));
+    if repeat(ui, &plus) {
+        step(1, value);
+    }
+}
+
+/// A value moved by a number of steps, kept within its range.
+fn stepped(value: usize, by: i64, low: usize, high: usize) -> usize {
+    (value as i64 + by).clamp(low as i64, high as i64) as usize
+}
+
+#[cfg(test)]
+mod stepper_tests {
+    #[test]
+    fn steps_stay_in_range() {
+        assert_eq!(super::stepped(16, 1, 1, 256), 17);
+        assert_eq!(super::stepped(1, -1, 1, 256), 1, "not below the least");
+        assert_eq!(super::stepped(256, 3, 1, 256), 256, "nor past the most");
+        assert_eq!(super::stepped(40, -3, 1, 256), 37, "three notches of the wheel");
     }
 }

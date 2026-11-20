@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>13. 3D vectors · How To Code v8</title>
+  <meta name="description" content="&quot;Vectors&quot;, in a demo, are objects worked out in three dimensions and drawn flat on the screen: dots, lines, filled faces, balls.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/13-vectors.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/13-vectors.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="13. 3D vectors · How To Code v8">
+  <meta property="og:description" content="&quot;Vectors&quot;, in a demo, are objects worked out in three dimensions and drawn flat on the screen: dots, lines, filled faces, balls.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/13-vectors.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html" aria-current="page">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>13. 3D vectors</h1>
+        <div class="article-lead">
+<p>"Vectors", in a demo, are objects worked out in three dimensions and drawn flat on the screen: dots, lines, filled faces, balls. This chapter goes through the maths and the drawing, from a turning cloud of dots to a solid cube, lit and in perspective, at 50 frames a second on an Amiga 500.</p>
+<p>The maths is <strong>Carl-Henrik Skårstedt</strong>'s (Asterix of Movement), v7's co-editor, who wrote v7's Vectors chapter over his Easter holidays in 1993: fixed point, the sine table, the rotation matrix worked out once a frame so each point takes nine multiplies, the back-face test and the sorting. v7 also carried a shorter way into rotation matrices by <strong>Michael Vissers</strong>, which is kept here too. The text and code are new: every routine in this chapter is in one of the two examples, each assembled with Limoniter and run on an emulated Amiga 500 with Kickstart 1.3 and 3.1, both ways (taking the machine and keeping the system running), and with a 68020 and a 68040. The fixed-point maths was checked separately against a model in Python.</p>
+<p>The examples:</p>
+<ul><li><code>ch13_dots.s</code>: a ring of 96 dots (a torus) turning in three dimensions. The simplest object, and the place to start.</li><li><code>ch13_cube.s</code>: a solid cube, three faces in view at once, each its own colour and lit by how squarely it faces you. It uses chapter 7's line and fill routines.</li></ul>
+<figure class="guide-shot"><img src="images/ch13_cube.png" alt="A solid cube, three faces visible: orange, teal and purple" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-budget">The budget</a></li>
+<li><a href="#fixed-point">Fixed point</a></li>
+<li><a href="#sines-and-cosines">Sines and cosines</a></li>
+<li><a href="#turning-a-point">Turning a point</a></li>
+<li><a href="#perspective">Perspective</a></li>
+<li><a href="#dots-the-first-object">Dots: the first object</a></li>
+<li><a href="#which-faces-you-can-see">Which faces you can see</a></li>
+<li><a href="#drawing-filled-faces-with-the-blitter">Drawing filled faces with the blitter</a></li>
+<li><a href="#two-screens">Two screens</a></li>
+<li><a href="#where-the-time-goes">Where the time goes</a></li>
+<li><a href="#objects-that-aren-t-convex-sorting">Objects that aren't convex: sorting</a></li>
+<li><a href="#vector-balls">Vector balls</a></li>
+<li><a href="#the-examples">The examples</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="the-budget">The budget</h2>
+<p>Everything has to be done in a frame: that's what makes it move smoothly. On a PAL Amiga 500 the 68000 runs at 7.09 MHz, and a frame is 312 lines of 227.5 memory cycles, two processor clocks each: about <strong>142,000 processor cycles a frame</strong>, or <strong>454 a line</strong>. (NTSC: 7.16 MHz and 262 lines, about 119,000 a frame, but 60 of them a second.) The blitter works from the same clock and memory.</p>
+<p>What the work costs, from the 68000 user's manual (Table 8-4) and the Hardware Reference Manual ("Blitter Speed"):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Work</th>
+<th scope="col">Cost</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>MULS</code>, <code>MULU</code> (16 × 16 bits = 32)</th>
+<td>38 + 2n cycles, at most 70, plus the operand's address time</td>
+</tr>
+<tr>
+<th scope="row"><code>DIVS</code> (32 ÷ 16 bits)</th>
+<td>at most 158 cycles; <code>DIVU</code> at most 140 (the best case is less than 10% quicker)</td>
+</tr>
+<tr>
+<th scope="row"><code>ADD.L Dn,Dn</code>; <code>SWAP</code></th>
+<td>8 cycles; 4</td>
+</tr>
+<tr>
+<th scope="row"><code>ASR.L #n,Dn</code></th>
+<td>8 + 2n cycles (n is 1 to 8)</td>
+</tr>
+<tr>
+<th scope="row">blitter: clear (D only) or fill (A to D)</th>
+<td>4 cycles a word</td>
+</tr>
+<tr>
+<th scope="row">blitter: a line</th>
+<td>8 cycles a pixel</td>
+</tr>
+</tbody></table></div>
+<p>(For <code>MULU</code>, n is the number of 1 bits in the source; for <code>MULS</code>, the number of times the bits change from 0 to 1 or 1 to 0 along the source with a 0 put below it, so the worst case is $5555.)</p>
+<p>So a point turned in 3D (9 multiplies) and put in perspective (2 more, or 2 divides) costs around a thousand cycles with everything around it: a hundred or so points a frame, if the 68000 does nothing else. Filling a 320 by 256 bitplane costs 5120 words × 4 = 20,480 cycles of blitter time, about 45 lines, before the display takes its share of memory. Those two facts shape everything below: turn few points, and fill and clear as little screen as you can.</p>
+<h2 id="fixed-point">Fixed point</h2>
+<p>The 68000 has no floating point, and sines are fractions. The answer is <strong>fixed point</strong>: keep each fraction multiplied by a power of 2, so it's a whole number, and shift the result back down after multiplying.</p>
+<p>Which power of 2? The 68000 multiplies 16 bits by 16 and gives 32. So the numbers that get multiplied should fit in 16 bits, and a sine (from −1 to 1) is best kept as <strong>2.14</strong>: multiplied by 16384 (2^14), with two bits for the whole part and sign and 14 for the fraction. 1.0 is 16384, which fits (1.15 would be more precise, but couldn't hold 1.0 itself). The coordinates of the object are plain whole numbers.</p>
+<p>Multiplying a coordinate by a sine gives the answer times 16384 in 32 bits. Shifting right by 14 brings it back; but <code>ASR.L</code> can only shift by 8 at a time, and two shifts (8, then 6) take 44 cycles. Shifting the other way is quicker: two doublings move the answer's whole part up into the top word, and <code>SWAP</code> brings it down. 20 cycles. Both examples have it as a macro:</p>
+<div class="code-block"><pre><code>; MULF: multiplies a word by a 2.14 fixed point number (a sine, or a matrix entry) and keeps the whole part.
+; MULS gives 32 bits, 14 of them fraction; two doublings and a swap leave bits 14 to 29 in the low word: the
+; same as shifting right by 14 (asr.l #8 then asr.l #6, 44 cycles), in 20.
+MULF    macro
+        muls    \1,\2
+        add.l   \2,\2
+        add.l   \2,\2
+        swap    \2
+        endm</code></pre></div>
+<p>It works for negative numbers too, as long as the product fits in 30 bits, which a coordinate times a sine always does. It <strong>truncates</strong> (rounds towards minus infinity). v7 had a trick for rounding to the nearest instead, halving the error: after <code>asr.l #8</code>, the last bit shifted out is in the X flag, and <code>addx.l</code> of a register holding 0 adds it back on. With MULF there's no shift to leave it in X; add half (<code>$2000</code>, from a register) before the doublings for the same effect.</p>
+<p>Why not 8.8 fixed point, sines times 256, as v7 used? It's cheaper (one <code>asr.l #8</code>), but coarse: in a Python model of the tables, a sine times 256 is up to 0.002 out, which is more than half a pixel on a point 111 pixels from the centre, before the errors of three products are added together. Objects wobble as they turn. With 2.14, the cube's corners in <code>ch13_cube.s</code> come out within about a pixel (at worst 1.01) of the exact answer at every angle tried (2000 of them), and the matrix entries within 4 of 16384.</p>
+<p>Why not 16.16, the usual choice on later processors? Multiplying two 32-bit numbers on a 68000 takes three or four <code>MULU</code>s and some adding, as it can only multiply 16 bits by 16. On a 68020 or later, <code>MULS.L</code> does it in one, and 16.16 is the easy choice there; but every example in this guide has to run on a 68000.</p>
+<h2 id="sines-and-cosines">Sines and cosines</h2>
+<p>Never work out a sine while the demo runs: look it up. <code>ch13_cube.s</code> and <code>ch13_dots.s</code> have a table of 1024 words, one whole turn, as 2.14:</p>
+<div class="code-block"><pre><code>import math
+sine = [round(16384 * math.sin(2 * math.pi * i / 1024)) for i in range(1024)]</code></pre></div>
+<p>Limoniter's <strong>table generator</strong> (Tools › General › Table generator) makes the same table without leaving the editor: a sine, 1024 values, signed words, amplitude 16384, put in the source at the cursor as <code>dc.w</code> lines. It does perspective tables (scale ÷ z) too, which comes up below.</p>
+<p>An angle is then a number from 0 to 1023, and a whole turn wraps round by itself with an <code>AND</code>. The examples keep each angle as a byte offset into the table (the angle times 2), so it's used as it is:</p>
+<div class="code-block"><pre><code>        move.w  (a1)+,d0                ; the angle, as a byte offset
+        and.w   #$7fe,d0                ; the angle wraps round: 1024 words
+        move.w  (a0,d0.w),SC_S1(a2)     ; its sine
+        add.w   #512,d0                 ; a quarter turn on
+        and.w   #$7fe,d0
+        move.w  (a0,d0.w),SC_C1(a2)     ; is its cosine</code></pre></div>
+<p>The cosine is the sine a quarter of a turn on, so one table does both. (v7 gave an AmigaBASIC program to make the table, and a series to work sines out in assembler; with a modern computer beside the Amiga, neither is needed.)</p>
+<h2 id="turning-a-point">Turning a point</h2>
+<p>In two dimensions, a point (x, y) turned by an angle a about the centre goes to</p>
+<p>x' = x·cos a − y·sin a y' = x·sin a + y·cos a</p>
+<p>In three dimensions, turning about one axis is the same, leaving that axis's coordinate alone: about the z axis, x and y change as above and z stays. To turn an object any way at all, turn it about z by one angle, then about y by a second, then about x by a third. The order matters: the same angles in another order give another answer.</p>
+<p>That's 4 multiplies for each turn, 12 for a point. Carl-Henrik's improvement: the three turns, one after another, come to x', y' and z' each being some amount of x, plus some of y, plus some of z, and those amounts depend only on the angles. Work the nine amounts out once a frame, as a <strong>rotation matrix</strong>, and each point takes 9 multiplies:</p>
+<p>x' = xx·x + xy·y + xz·z y' = yx·x + yy·y + yz·z z' = zx·x + zy·y + zz·z</p>
+<p>For the turns above (z by angle 1, then y by angle 2, then x by angle 3), with c1 for cos(angle 1), s2 for sin(angle 2) and so on:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">x</th>
+<th scope="col">y</th>
+<th scope="col">z</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><strong>x'</strong></th>
+<td>c2·c1</td>
+<td>−c2·s1</td>
+<td>−s2</td>
+</tr>
+<tr>
+<th scope="row"><strong>y'</strong></th>
+<td>s1·c3 − c1·s2·s3</td>
+<td>c1·c3 + s1·s2·s3</td>
+<td>−c2·s3</td>
+</tr>
+<tr>
+<th scope="row"><strong>z'</strong></th>
+<td>s1·s3 + c1·s2·c3</td>
+<td>c1·s3 − s1·s2·c3</td>
+<td>c2·c3</td>
+</tr>
+</tbody></table></div>
+<p>Working the matrix out the way Carl-Henrik did, c1·s2 and s1·s2 are each multiplied once and used twice: 14 multiplies in all, once a frame. Here's the start of <code>CalcMatrix</code>, with <code>MULF</code> doing the 2.14 multiplies:</p>
+<div class="code-block"><pre><code>        move.w  SC_C1(a0),d6            ; d6 = c1*s2
+        MULF    SC_S2(a0),d6
+        move.w  SC_S1(a0),d7            ; d7 = s1*s2
+        MULF    SC_S2(a0),d7
+
+        move.w  SC_C2(a0),d0            ; xx = c2*c1
+        MULF    SC_C1(a0),d0
+        move.w  d0,(a1)
+        ...
+        move.w  SC_S1(a0),d0            ; yx = s1*c3 - c1*s2*s3
+        MULF    SC_C3(a0),d0
+        move.w  d6,d1
+        MULF    SC_S3(a0),d1
+        sub.w   d1,d0
+        move.w  d0,6(a1)</code></pre></div>
+<p>Michael Vissers' way to the same place, in v7, was to write each turn as a matrix and multiply the three together; the result is the table above (his has other signs, as he turned the other way). Either way, if you only turn two or three points, turning them one axis at a time is quicker than making the matrix; for a whole object, the matrix wins. And to leave an angle out, put cos = 1 and sin = 0 into the table, and it simplifies itself.</p>
+<p>Two rules from v7 that still stand:</p>
+<ul><li><strong>Always turn the original points</strong>, by the whole angle so far, never last frame's turned points by a little more. Every turn loses a little to rounding, and after a few hundred frames, as Michael Vissers put it, you "lose all detail until nothing is left".</li><li><strong>The matrix only turns.</strong> Its determinant (a measure of how it changes volumes) must be 1; in the 2.14 model it is, to within 6 parts in 16384 at every angle tried.</li></ul>
+<p><strong>A mistake in v7.</strong> v7's two-dimensional formula was x' = x·cos a + y·sin a, y' = x·sin a − y·cos a. At a = 0 that gives (x, −y): it doesn't just turn, it mirrors. Its 3D matrix, built from three of those, has a determinant of −1 (v7 suggested checking that it's 1; it isn't). Everything comes out mirrored, which a cube hides; but a mirror also reverses which way round a face's corners go, so the visible-face test below gives the opposite answer. If all your faces vanish just when they should show, look for a mirror. (There's also a slip in v7's working-out of zy; its final table is right.)</p>
+<h2 id="perspective">Perspective</h2>
+<p>Things further away look smaller: a point's screen position is its x and y divided by how far away it is. With the eye <code>DISTANCE</code> from the centre of the object, and the screen 256 from the eye:</p>
+<p>screen x = centre x + x' × 256 / (z' + DISTANCE) screen y = centre y + y' × 256 / (z' + DISTANCE)</p>
+<p>(z goes into the screen, so a positive z' is further away; y goes down the screen, as the Amiga's does.) Bigger <code>DISTANCE</code> flattens the perspective; the 256 is the zoom.</p>
+<p>In <code>ch13_cube.s</code>, each sum of three products is the answer times 16384. Times 256 is what's wanted before dividing, so it's shifted right by 6, not 14, keeping the precision and saving a shift:</p>
+<div class="code-block"><pre><code>        move.w  d0,d3                   ; x
+        muls    (a1),d3
+        move.w  d1,d4
+        muls    2(a1),d4
+        add.l   d4,d3
+        move.w  d2,d4
+        muls    4(a1),d4
+        add.l   d4,d3
+        asr.l   #6,d3                   ; x * 256
+        divs    d5,d3                   ; / distance
+        add.w   #CENTREX,d3</code></pre></div>
+<p><code>DIVS</code> only gives a 16-bit answer, and it has to fit: here, x' is at most 111 and the distance at least 209, so the answer is well inside. Make sure the distance can never reach 0 or go negative: an object that passes the eye needs <strong>clipping</strong> (cutting off what's behind the eye or off the screen), which neither example needs and this chapter doesn't cover. Chapter 7's line routines don't clip either: every corner has to land on the screen.</p>
+<p>Two divides a point, at up to 158 cycles each, is fine for a cube's 8 corners. For many points, divide once per distance, not once per point: a <strong>reciprocal table</strong>. <code>ch13_dots.s</code> makes one as it starts, 256 × 16384 / (z + <code>DISTANCE</code>) for each z from −128 to 127; then the perspective is a <code>MULF</code> by the table entry, a multiply instead of a divide:</p>
+<div class="code-block"><pre><code>        add.w   d3,d3                   ; z, as a word offset
+        move.w  (a2,d3.w),d5            ; d5 = 256 * 16384 / (z + DISTANCE)
+        ...
+        MULF    d5,d3                   ; x * 256 / (z + DISTANCE)</code></pre></div>
+<p>The table entries must stay under 32768 to be signed words for <code>MULS</code>; with <code>DISTANCE</code> 320 the biggest is 21845. Limoniter's table generator can make this table too (perspective, scale ÷ z).</p>
+<h2 id="dots-the-first-object">Dots: the first object</h2>
+<p><code>ch13_dots.s</code> is all of the above and nothing else: 96 dots on a torus (the shape of a ring doughnut, made from the sine table as the program starts), turned, put in perspective, and plotted by the processor with <code>BSET</code>. The dots are shaded by distance: near ones in colour 3, far ones in colour 1, the rest in colour 2, which helps the eye see which way the ring is turning.</p>
+<figure class="guide-shot"><img src="images/ch13_dots.png" alt="A ring of dots seen at a slant" loading="lazy"></figure>
+<p>Two things in it are worth borrowing:</p>
+<ul><li>A <strong>table of line starts</strong> (y × 40), made as the program starts, saves a multiply for every dot.</li><li><strong>Rubbing out only the dots.</strong> Clearing a whole screen for a hundred dots is a waste. Each dot's byte offset goes in a list as it's plotted, and next time that screen is drawn in, those bytes are cleared (<code>CLR.B</code>, in both bitplanes) before the new dots go in. 96 dots take far less time than the blitter would to clear the screen.</li></ul>
+<p>It takes about 230 lines of the 312 in a frame on the emulated A500: about 1000 cycles a dot. With 128 dots it no longer fits, and drops to 25 frames a second. That's the limit of turning every point with 9 multiplies.</p>
+<h2 id="which-faces-you-can-see">Which faces you can see</h2>
+<p>A solid object is made of flat <strong>faces</strong>, each a polygon (a shape with straight edges). For a cube, 8 corners make 6 faces; turn the 8 corners, not the 24 corners of 6 squares. The faces just say which corners they use.</p>
+<p>Half the faces of a closed object face away from you, and they mustn't be drawn. Carl-Henrik's test: list every face's corners in the same order, clockwise as seen from outside the object. After turning and projecting, a face that still goes clockwise on the screen is facing you; one that goes anticlockwise faces away. The sign of the <strong>2D cross product</strong> of two of its edges tells which, from three of its corners (x0, y0), (x1, y1) and (x2, y2) on the screen:</p>
+<p>c = (x1 − x0)·(y2 − y0) − (y1 − y0)·(x2 − x0)</p>
+<p>With y going down the screen, as on the Amiga, c is positive when the corners go clockwise: draw the face. Two multiplies a face, and it uses the projected points, so it's right with perspective too. (v7's appendix showed why: c is the z part of the cross product of the two edges, which points out of a face that goes one way round, and into it for the other.)</p>
+<div class="code-block"><pre><code>        movem.w (a0)+,d0-d3             ; three corners (as offsets into Projected), and the colour
+        movem.w (a1,d0.w),d4-d5         ; x0, y0
+        movem.w (a1,d1.w),d0-d1         ; x1, y1
+        movem.w (a1,d2.w),d2/d6         ; x2, y2
+        sub.w   d4,d0                   ; x1-x0
+        sub.w   d5,d1                   ; y1-y0
+        sub.w   d4,d2                   ; x2-x0
+        sub.w   d5,d6                   ; y2-y0
+        muls    d6,d0
+        muls    d2,d1
+        sub.l   d1,d0
+        bgt.s   .visible
+        moveq   #0,d3                   ; turned away: colour 0
+.visible:
+        move.b  d3,(a2)+</code></pre></div>
+<p>A tempting shortcut is to look only at which way the face's normal (the direction it faces) points after turning: towards you or away. Without perspective that's the same test. With perspective it isn't: near the edges of the view you see a face a little from the side, and a face can be visible with its normal pointing slightly away. The cross product of the projected corners is always right.</p>
+<p>For a <strong>convex</strong> object (one with no dents, so no part of it can ever hide another), that's the whole of hidden surface removal: the faces that face you never overlap, so they can be drawn in any order. A cube, a pyramid, a football are convex. For the rest, see sorting, further down.</p>
+<h2 id="drawing-filled-faces-with-the-blitter">Drawing filled faces with the blitter</h2>
+<p>The blitter fills between lines, a row at a time (see <a href="07-blitter.html">the blitter</a>): draw each face's edges in a special way, then fill. Chapter 7's <code>DrawFillLine</code> draws the edges, and <code>FillArea</code> fills; <code>ch13_cube.s</code> uses both unchanged. In short, a line for filling:</p>
+<ul><li>has <strong>one dot on each row</strong> of the screen (the SING bit), as every dot turns the fill on or off;</li><li>is drawn with <strong>exclusive or</strong>, so two dots in the same place cancel;</li><li>leaves off its <strong>top end</strong>, so where one edge ends and the next carries on down, there's one dot on that row, not two that cancel and let the fill run out of the shape;</li><li>and <strong>level lines</strong> aren't drawn at all.</li></ul>
+<p>Chapter 7 leaves the top end off by pointing <code>BLTDPT</code> at a spare word: the blitter writes a line's first dot through <code>BLTDPT</code> and the rest through C's pointer, so the first dot lands out of sight. v7 (in Carl-Henrik's appendix) did it another way, which also works: just before starting the line, flip its first dot on the screen with the processor (<code>BCHG</code>), so the blitter's first dot flips it back. The first version of <code>ch13_cube.s</code> did that, and filled just as cleanly.</p>
+<h3 id="more-than-one-colour">More than one colour</h3>
+<p>A face of colour 3 is filled in bitplanes 0 and 1; colour 1 only in bitplane 0. Each bitplane is filled on its own, so each needs its own outline: round the faces whose colour has that bitplane's bit. Where two faces of colours 1 and 3 meet, the edge between them belongs in bitplane 1 (one side is colour 3, the other isn't), but not in bitplane 0, where both sides are filled.</p>
+<p>The rule that does it: an edge goes in the bitplanes given by the <strong>exclusive or of the colours of the two faces it joins</strong>, counting a hidden face as colour 0. Edges between two hidden faces go nowhere and aren't drawn; an edge on the outline of the object goes in the bitplanes of the one face you can see; an edge between two visible faces goes where they differ. Each edge is drawn once, in only the bitplanes it's needed in. (v7 noted that drawing every visible face's edges draws the shared ones twice, and that "with some struggle you can also find ways to omit some lines": this is that.)</p>
+<p>So <code>ch13_cube.s</code> keeps a list of the 12 edges, each with its two corners and the two faces it joins:</p>
+<div class="code-block"><pre><code>        movem.w (a2)+,d0-d3             ; its two corners (offsets into Projected), and its two faces
+        lea     FaceColour,a1
+        move.b  (a1,d2.w),d5
+        move.b  (a1,d3.w),d2
+        eor.b   d2,d5                   ; the bitplanes it goes in
+        beq.s   .next</code></pre></div>
+<p>Here are the edges of one frame before filling: orange in bitplane 0 only, teal in bitplane 1 only, purple in both. (The shallow edges are dotted: one dot a row.)</p>
+<figure class="guide-shot"><img src="images/ch13_edges.png" alt="The cube&#x27;s edges before filling, as rows of single dots in three colours" loading="lazy"></figure>
+<p>and the same frame filled, which is the picture at the top of the chapter. Opposite faces share a colour, as they're never both in view; so 2 bitplanes give the three colours a cube needs, and every face you see is always a different colour from its neighbours.</p>
+<p><strong>The fill</strong> covers only the box round the cube: its 8 projected corners' smallest and largest x and y, widened to whole words. The same box, remembered for each screen, is all that needs clearing next time that screen is drawn in. A 320 by 256 screen of two bitplanes would be 10,240 words to fill and 10,240 to clear, every frame; the box is usually under half of that.</p>
+<h3 id="light">Light</h3>
+<p>v7 described <strong>light sourcing</strong>: a face is brighter the more squarely it faces the light. The brightness is the cosine of the angle between the face's normal N and the direction of the light L, which is</p>
+<p>(N · L) / (|N| |L|) = (n1·l1 + n2·l2 + n3·l3) / (|N| |L|)</p>
+<p>N comes from the cross product of two of the face's edges; the lengths never change as the object turns, so they can be worked out once. For a cube there's a shortcut: the faces' normals are the x, y and z axes, so after turning they're simply the <strong>columns of the matrix</strong>. With the light coming from the viewer, the brightness of the x faces is how much their normal points along z: the matrix's zx. <code>ch13_cube.s</code> turns zx, zy and zz into one of 16 steps of each face colour, and changes the palette, not the picture.</p>
+<h2 id="two-screens">Two screens</h2>
+<p>While the blitter fills and clears one screen, it mustn't be on show, or you'd see the cube half drawn and flickering. So there are two, and they swap: one on show while the other is drawn (<strong>double buffering</strong>).</p>
+<p>The swap is a change to the bitplane pointers in the copper list, and when it happens matters. The copper reads its list from the top at the start of every frame, so a change made while it's reading the pointers would be seen half done: the high word of one screen's address with the low word of the other. In <code>ch13_cube.s</code>, <code>Frame</code> finishes the picture and leaves its address for the vertical blank:</p>
+<div class="code-block"><pre><code>        move.l  SCR_PLANES(a4),PendingScreen
+        st      SwapPending</code></pre></div>
+<p>and <code>VBlank</code>, which runs at the start of every frame from the interrupt, writes it into the copper list if one is waiting. The copper list sets the bitplane pointers only after a wait for line $28, long after the interrupt has run and still before the display starts at line $2c, so it can never see half a change:</p>
+<div class="code-block"><pre><code>        dc.w    $2801,$fffe             ; wait for line $28
+CopperPlanes:
+        dc.w    BPL1PTH,0,BPL1PTL,0
+        dc.w    BPL2PTH,0,BPL2PTL,0</code></pre></div>
+<p>The face colours go into the copper list the same way, so the picture and its colours change together.</p>
+<p><strong>The mistake to avoid</strong>: starting the next picture in the screen that's still on show. With the machine taken over, the startup's <code>WaitFrame</code> waits for the next frame to begin, by which time <code>VBlank</code> has made the swap. With the system running (<code>OS_FRIENDLY</code>), it waits for a signal, and a signal that came while <code>Frame</code> was still busy is still there: if one frame took too long, <code>Frame</code> is called again at once, before the swap, and would draw into the screen being shown. So <code>Frame</code> checks first:</p>
+<div class="code-block"><pre><code>.waitswap:
+        tst.b   SwapPending
+        beq.s   .swapped
+        jsr     WaitFrame
+        bra.s   .waitswap
+.swapped:</code></pre></div>
+<h2 id="where-the-time-goes">Where the time goes</h2>
+<p><code>ch13_cube.s</code> and <code>ch13_dots.s</code> have a setting, <code>SHOW_TIME</code>: set it to 1, and the cube changes the background colour as it works: red while the processor works out the picture (with the blitter clearing meanwhile), green while the edges are drawn, blue while the fill finishes. Each colour shows how many lines of the screen went by while that part took place.</p>
+<figure class="guide-shot"><img src="images/ch13_time.png" alt="The cube with a green band and a blue band across the top of the screen" loading="lazy"></figure>
+<p>The red isn't there: it's all over before the display starts. The frame begins at the vertical blank, 44 lines before the first line shown, and the turning, projecting and culling fit in those lines. Started later (a test build waited for line $40 first, so all of it showed), the cube on the emulated A500 took:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Part</th>
+<th scope="col">Lines</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">matrix, 8 corners, faces, box (the blitter clearing the first bitplane meanwhile)</th>
+<td>about 32</td>
+</tr>
+<tr>
+<th scope="row">edges (after the second bitplane's clear)</th>
+<td>30 to 42</td>
+</tr>
+<tr>
+<th scope="row">fill, both bitplanes</th>
+<td>43 to 70</td>
+</tr>
+<tr>
+<th scope="row"><strong>in all</strong></th>
+<td><strong>115 to 143 of 312</strong></td>
+</tr>
+</tbody></table></div>
+<p>Under half the frame, with the system running too: the cube runs at the full 50 frames a second on a 68000. A test build that turned the background green if a frame was ever missed ran with it unchanged on Kickstart 1.3 and 3.1, both ways. Notice that the processor's maths is the smallest part: on a 68000, filled vectors are limited by the blitter, and the size of what it fills. Big objects cost more than complicated ones.</p>
+<p>Those are emulated figures. FS-UAE's Amiga 500 is cycle-exact, but they haven't been checked on a real A500; and its 68020 and 68040 aren't cycle-exact, so no timings are given for them (both examples run correctly there).</p>
+<h2 id="objects-that-aren-t-convex-sorting">Objects that aren't convex: sorting</h2>
+<p>A torus, a letter, a spaceship: parts of them hide other parts, and back-face culling isn't enough. The classic answer is the <strong>painter's algorithm</strong>: draw the parts furthest away first, and let the nearer ones paint over them. For that, they have to be <strong>sorted</strong> by distance.</p>
+<p>With filled faces on the blitter, the faces can't simply be drawn into the same bitplanes one after another, as their edges would interfere in the fill. v7's advice: split the object into convex parts, draw each into a spare area on its own (edges, fill), and then copy it onto the screen as a cookie-cut bob (chapter 7), furthest first. Each part's distance is the average z of its corners, which v7 suggested taking from points inside the part rather than one corner, so two parts that share a corner don't sort the wrong way. That costs a lot more blitter time than a convex object, which is why so many demos stick to convex ones.</p>
+<p>v7 described three ways to sort:</p>
+<ul><li><strong>Bubble sort</strong>: compare neighbours, swap, repeat. v7: "Just make sure you don't use BUBBLE SORTING!!!!" It's far too slow for more than a handful.</li><li>What v7 called <strong>insert sort</strong> is really a <strong>counting sort</strong>: count how many entries have each z (after scaling z down to a small range), add the counts up so each z knows where its entries start, then put each entry in its place. Two passes over the entries and one over the range of z, and no comparisons at all. It's the quickest for many entries over a small range of z: vector balls, say. (v7's code needed a 68020 for one scaled index; on a 68000, double the index with an <code>ADD</code> instead.)</li><li><strong>Quicksort</strong>: take the first entry, split the rest into those nearer and those further, and sort each of the two the same way. Quick for long lists, but it calls itself, and needs stack for it.</li></ul>
+<p>One more, not in v7: an object turns only a little each frame, so last frame's order is almost right. <strong>Insertion sort</strong> (take each entry in turn and move it back past the ones it should be behind) is very quick on a list that's nearly in order, and very short to write. For a few dozen faces or balls, keeping last frame's order and insertion-sorting it is hard to beat.</p>
+<h2 id="vector-balls">Vector balls</h2>
+<p>Vector balls are an object made of balls (or any picture) instead of faces: turn the balls' centres as points, sort them by z, and blit a ball at each one, furthest first, so the near ones cover the far ones. The balls are cookie-cut bobs, as in chapter 7; a few sizes of ball, chosen by z, make them shrink into the distance. v7's order for a frame still makes sense: start the blitter clearing the screen not on show, turn and sort while it does, then wait for it and blit the balls.</p>
+<h2 id="the-examples">The examples</h2>
+<p>Both run on the v8 startup, both ways (<code>OS_FRIENDLY</code> 0 and 1), and were run on Kickstart 1.3 and 3.1 with a 68000, 68020 and 68040; each gave the machine back to the CLI afterwards.</p>
+<ul><li><code>ch13_dots.s</code>: 96 dots in a torus, turned with a matrix, a reciprocal table for perspective, shaded by distance, rubbed out from a list, two screens. About three quarters of a frame on a 68000.</li><li><code>ch13_cube.s</code>: a cube with filled faces, back-face culled, lit, two screens, with chapter 7's <code>DrawFillLine</code> and <code>FillArea</code>. Under half a frame on a 68000. <code>SHOW_TIME</code> shows where the time goes.</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li>The maths is Carl-Henrik's: fixed point, sine tables, the rotation matrix worked out once a frame (with his reuse of c1·s2 and s1·s2), the projection, the back-face test and its proof, light sourcing, and the sorting methods. Michael Vissers' matrix approach and his warning about turning turned points are kept.</li><li>v7's 2D rotation formula mirrors as well as turns, and its 3D matrix has a determinant of −1, not 1. The formulas here are corrected, and checked.</li><li>Fixed point is 2.14 instead of v7's 8.8, as 8.8 is visibly imprecise for objects over 100 pixels across.</li><li>v7's "insert sort" is a counting sort, and is described as one. Insertion sort on last frame's order is added.</li><li>The line drawer is chapter 7's, not v7's K-Seka routine; v7's way of dropping a fill line's top end (flipping the first dot with the processor) is described, and was tested.</li><li>New: the cost of each step on a 68000, measured; drawing several colours with one edge list (the exclusive or of the faces' colours); double buffering with the swap at the vertical blank, and the system-running trap; clearing and filling only the box the object is in; rubbing out dots from a list.</li><li>Left out: the AmigaBASIC program and the MacLaurin series for making sine tables (a script or the table generator does it now), the introduction to vectors (any linear algebra book has it), and glenz vectors, which v7 also left out ("they are amazingly depressive").</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="12-sound-and-music.html"><span>Back</span>12. Sound and music</a>
+<a class="pager-next" href="14-processors.html"><span>Next</span>14. The 68000 and later processors</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

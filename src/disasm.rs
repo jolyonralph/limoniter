@@ -721,17 +721,35 @@ enum Seen {
 /// For a Cambridge Z88 program, with `z88` set, RST &20 is an OZ call, named, with its code after it; for the 6809,
 /// it's the 6309, whose own instructions are decoded too.
 pub fn disassemble_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88: bool) -> String {
+    let decode = |at: &dyn Fn(usize) -> u8, a: u16| -> Decoded {
+        match cpu {
+            Cpu::M6502 => m6502(at, a),
+            Cpu::M6809 => m6809(at, a, z88),
+            Cpu::Sm83 => crate::asm::sm83::decode(at, a),
+            Cpu::Spc700 => crate::asm::spc700::decode(at, a),
+            _ if z88 => self::z88(at, a),
+            _ => z80(at, a),
+        }
+    };
+    disassemble_with(cpu, bytes, origin, starts, &decode)
+}
+
+/// Disassembles code for the 65C02 or the HuC6280, saying which at the top so it assembles again.
+pub fn disassemble_checked_variant(bytes: &[u8], origin: u16, starts: &[u16], variant: crate::asm::m65x::Variant) -> String {
+    let decode = |at: &dyn Fn(usize) -> u8, a: u16| crate::asm::m65x::disassemble(at, a, variant);
+    let source = disassemble_with(Cpu::M6502, bytes, origin, starts, &decode);
+    let source = if variant == crate::asm::m65x::Variant::Nmos { source } else { format!("{}\n{source}", variant.directive()) };
+    checked(Cpu::M6502, source, bytes, origin)
+}
+
+/// The same, with the instructions decoded as `decode` says.
+fn disassemble_with(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], decode: &dyn Fn(&dyn Fn(usize) -> u8, u16) -> Decoded) -> String {
     let end = usize::from(origin) + bytes.len();
     let inside = |a: u16| usize::from(a) >= usize::from(origin) && usize::from(a) < end;
     let decode = |a: u16| -> Decoded {
         let offset = usize::from(a - origin);
         let at = |i: usize| bytes.get(offset + i).copied().unwrap_or(0);
-        match cpu {
-            Cpu::M6502 => m6502(&at, a),
-            Cpu::M6809 => m6809(&at, a, z88),
-            _ if z88 => self::z88(&at, a),
-            _ => z80(&at, a),
-        }
+        decode(&at, a)
     };
     let mut seen = vec![Seen::Data; bytes.len()];
     let mut decoded: BTreeMap<u16, Decoded> = BTreeMap::new();
@@ -795,19 +813,28 @@ pub fn disassemble_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88:
         _ => ("db", "org "),
     };
     let mut lines = vec![format!("        {org}${origin:04X}")];
-    let mut at = origin;
-    while usize::from(at) < end {
+    // The Game Boy's hardware registers its LDHs name, defined first as hardware.inc defines them.
+    if cpu == Cpu::Sm83 {
+        let named: BTreeSet<(u16, &str)> = crate::asm::sm83::HARDWARE.iter().filter(|(_, n)| decoded.values().any(|d| d.text.contains(&format!("[{n}]")))).copied().collect();
+        for (address, name) in named.iter().rev() {
+            lines.insert(0, format!("DEF {name} EQU ${address:04X}"));
+        }
+    }
+    // Counted past $FFFF, so that code or data reaching the very top of memory (the 6502's vectors) ends there.
+    let mut position = usize::from(origin);
+    while position < end {
+        let at = position as u16;
         let label = if labels.contains(&at) { format!("{}:", name(at)) } else { String::new() };
         let pad = |label: &str| format!("{label:<8}");
         if let Some(d) = decoded.get(&at) {
             let text = d.text.replace("{addr}", &d.address.map(label_for).unwrap_or_default());
             lines.push(format!("{}{text}", pad(&label)));
-            at = at.wrapping_add(d.length as u16);
+            position += d.length;
             continue;
         }
         // Data, up to the next label or code, eight bytes a line, with text as text.
         let mut run = Vec::new();
-        while usize::from(at) + run.len() < end && run.len() < 8 {
+        while position + run.len() < end && run.len() < 8 {
             let a = at.wrapping_add(run.len() as u16);
             if !run.is_empty() && (labels.contains(&a) || decoded.contains_key(&a)) {
                 break;
@@ -816,7 +843,7 @@ pub fn disassemble_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88:
         }
         let items: Vec<String> = run.iter().map(|b| hex8(*b)).collect();
         lines.push(format!("{}{byte_word} {}", pad(&label), items.join(",")));
-        at = at.wrapping_add(run.len() as u16);
+        position += run.len();
     }
     lines.join("\n") + "\n"
 }
@@ -829,7 +856,11 @@ pub fn disassemble_checked(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16]) 
 }
 
 pub fn disassemble_checked_for(cpu: Cpu, bytes: &[u8], origin: u16, starts: &[u16], z88: bool) -> String {
-    let mut source = disassemble_for(cpu, bytes, origin, starts, z88);
+    checked(cpu, disassemble_for(cpu, bytes, origin, starts, z88), bytes, origin)
+}
+
+/// Source assembled again, any line that doesn't give back its bytes made into data, until it all does.
+fn checked(cpu: Cpu, mut source: String, bytes: &[u8], origin: u16) -> String {
     for _ in 0..8 {
         let assembly = crate::asm::assemble(cpu.isa(), std::path::Path::new("disassembly.asm"), &source, &|_| Err(crate::i18n::tr("no").into()));
         let mut lines: Vec<String> = source.lines().map(str::to_string).collect();

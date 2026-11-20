@@ -6,6 +6,7 @@
 use super::*;
 use crate::conversions::Conversion;
 use crate::preview;
+use super::start_page::Guide;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
 
 /// A switch that's simply on or off, toggled from a menu or the command box.
@@ -18,6 +19,9 @@ pub(super) enum Flag {
     DocumentMap,
     Breadcrumbs,
     StickyScroll,
+    IndentGuides,
+    HideComments,
+    PanelsHide,
     BookmarkGutter,
     FoldLines,
     LineChange,
@@ -40,6 +44,7 @@ pub(super) enum Flag {
     GitBlame,
     CycleCounts,
     AssistantPanel,
+    Ribbon,
     Panel(PanelFlag),
 }
 
@@ -55,6 +60,7 @@ pub(super) enum PanelFlag {
     Macros,
     Scripts,
     History,
+    Todos,
     FileProperties,
     Json,
     Xml,
@@ -63,6 +69,8 @@ pub(super) enum PanelFlag {
     Clipboard,
     Strings,
     Inspector,
+    CallGraph,
+    Instructions,
 }
 
 /// Lists that change, drawn as they are now.
@@ -77,7 +85,6 @@ pub(super) enum Live {
     NewAs,
     Tasks,
     RecentProjects,
-    Language,
     Macros,
     Scripts,
     AddOns,
@@ -122,79 +129,8 @@ const REPLACE_INSIDE: [Entry; 6] = objects(TextAction::ReplaceInside, false);
 const DELETE_INSIDE: [Entry; 6] = objects(TextAction::DeleteInside, false);
 const DELETE_AROUND: [Entry; 6] = objects(TextAction::DeleteAround, false);
 
-const FILE: &[Entry] = &[
-    Keyed("New", Command::New, "Ctrl+N"),
-    Entry::Live("New as", Live::NewAs),
-    Item("New disk or tape image\u{2026}", Command::NewImage),
-    Keyed("Open\u{2026}", Command::Open, "Ctrl+O"),
-    Item("Open folder\u{2026}", Command::OpenFolder),
-    Keyed("Go to file\u{2026}", Command::GoToFile, "Ctrl+E"),
-    Entry::Live("Open recent", Live::RecentFiles),
-    Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
-    Item("Open a remote file (SFTP)\u{2026}", Command::OpenRemote),
-    Line,
-    Keyed("Save", Command::Save, "Ctrl+S"),
-    Keyed("Save as\u{2026}", Command::SaveAs, "Ctrl+Shift+S"),
-    Item("Save the selection as\u{2026}", Command::SaveSelection),
-    Item("Save a copy in another encoding\u{2026}", Command::SaveCopyAs),
-    Item("Save to a server (SFTP)\u{2026}", Command::SaveRemote),
-    Sub("Send to device", &[Entry::Live("Devices", Live::Devices), Line, Keyed("Send again", Command::SendAgain, "Ctrl+Alt+S"), Item("Manage devices\u{2026}", Command::ManageDevices)]),
-    Keyed("Run on machine", Command::RunOnMachine, "F9"),
-    Sub(
-        "Run on",
-        &[
-            Entry::Live("Machines", Live::Machines),
-            Line,
-            Item("Its memory", Command::MachineMemory),
-            Item("Its screen as text", Command::MachineScreen),
-            Item("Take its BASIC program", Command::MachineBasicOut),
-            Item("Put this listing into it", Command::MachineBasicIn),
-            Line,
-            Item("Stop running", Command::StopRunning),
-            Line,
-            Item("Assemble and save", Command::AssembleAndSave),
-            Item("Assemble and save as binary\u{2026}", Command::AssembleBinary),
-            Item("Assemblers\u{2026}", Command::ChooseAssembler),
-            Item("Amiga NDK (code hints)\u{2026}", Command::AmigaNdk),
-            Item("Amiga crunchers and music\u{2026}", Command::AmigaTools),
-            Item("Profile in Hatari", Command::HatariProfile),
-            Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),
-            Item("Devices and emulators\u{2026}", Command::ManageDevices),
-        ],
-    ),
-    Line,
-    Sub(
-        "This file",
-        &[
-            Item("Rename\u{2026}", Command::RenameFile),
-            Item(crate::trash::MOVE_TO_BIN, Command::MoveToBin),
-            Item(crate::platform::SHOW_IN_FILE_MANAGER, Command::ShowInExplorer),
-            Item("Open in its usual program", Command::OpenWithDefault),
-            Line,
-            Item("Split into parts\u{2026}", Command::SplitFile),
-        ],
-    ),
-    Item("Reopen with another encoding\u{2026}", Command::ReopenAs),
-    Item("Recover unsaved edits\u{2026}", Command::RecoverEdits),
-    Line,
-    Keyed("Print\u{2026}", Command::Print, "Ctrl+P"),
-    Line,
-    Item("New window", Command::NewInstance),
-];
-
-const EDIT: &[Entry] = &[
-    Keyed("Undo", Command::Undo, "Ctrl+Z"),
-    Keyed("Redo", Command::Redo, "Ctrl+Y"),
-    Keyed("Edit history", Command::ShowHistory, "Ctrl+Shift+H"),
-    Keyed("History of this part", Command::PartHistory, "Ctrl+Alt+H"),
-    Line,
-    Keyed("Cut", Command::Cut, "Ctrl+X"),
-    Keyed("Copy", Command::Copy, "Ctrl+C"),
-    Keyed("Paste", Command::Paste, "Ctrl+V"),
-    Keyed("Swap with clipboard", Command::SwapClipboard, "Ctrl+Shift+V"),
-    Sub(
-        "Clipboards",
-        &[
+// Sub-menus kept by name, so the ribbon's drop-down lists are the very same lists as the menus'.
+pub(super) const CLIPBOARDS: &[Entry] = &[
             Keyed("The computer's clipboard", Command::UseClipboard(0), "Ctrl+0"),
             Line,
             Keyed("Clipboard 1", Command::UseClipboard(1), "Ctrl+1"),
@@ -206,26 +142,17 @@ const EDIT: &[Entry] = &[
             Keyed("Clipboard 7", Command::UseClipboard(7), "Ctrl+7"),
             Keyed("Clipboard 8", Command::UseClipboard(8), "Ctrl+8"),
             Keyed("Clipboard 9", Command::UseClipboard(9), "Ctrl+9"),
-        ],
-    ),
-    Line,
-    Keyed("Select all", Command::SelectAll, "Ctrl+A"),
-    Sub(
-        "Select",
-        &[
+        ];
+
+pub(super) const SELECT: &[Entry] = &[
             Sub("Inside", &SELECT_INSIDE),
             Sub("Around", &SELECT_AROUND),
             Line,
             Item("To the matching bracket", Command::SelectToBrace),
             Item("Every copy of the selection", Command::MakeSelections),
-        ],
-    ),
-    Sub("Replace inside", &REPLACE_INSIDE),
-    Sub("Delete", &[Sub("Inside", &DELETE_INSIDE), Sub("Around", &DELETE_AROUND)]),
-    Line,
-    Sub(
-        "Lines",
-        &[
+        ];
+
+pub(super) const LINES: &[Entry] = &[
             Item("Move up", Command::MoveLineUp),
             Item("Move down", Command::MoveLineDown),
             Keyed("Duplicate", Command::Duplicate, "Ctrl+D"),
@@ -238,11 +165,9 @@ const EDIT: &[Entry] = &[
             Item("Outdent", Command::Outdent),
             Item("Trim leading spaces", Command::TrimLeading),
             Item("Trim trailing spaces", Command::TrimTrailing),
-        ],
-    ),
-    Sub(
-        "Columns",
-        &[
+        ];
+
+pub(super) const COLUMNS: &[Entry] = &[
             Check("Column mode  (Alt+C)", Flag::ColumnMode),
             Line,
             Item("Insert or fill\u{2026}", Command::ColumnFill),
@@ -255,20 +180,16 @@ const EDIT: &[Entry] = &[
             Line,
             Item("Insert numbers\u{2026}", Command::ColumnNumber),
             Item("Add up the numbers", Command::ColumnSum),
-        ],
-    ),
-    Sub(
-        "Change case",
-        &[
+        ];
+
+pub(super) const CHANGE_CASE: &[Entry] = &[
             Keyed("UPPER CASE", Command::Upper, "Alt+U"),
             Keyed("lower case", Command::Lower, "Alt+L"),
             Item("Sentence case", Command::SentenceCase),
             Item("Title Case", Command::TitleCase),
-        ],
-    ),
-    Sub(
-        "Insert",
-        &[
+        ];
+
+pub(super) const INSERT: &[Entry] = &[
             Item("Date", Command::InsertDate),
             Item("Time", Command::InsertTime),
             Item("Date and time", Command::InsertDateTime),
@@ -282,12 +203,9 @@ const EDIT: &[Entry] = &[
             Item("Colour\u{2026}", Command::InsertColor),
             Item("A byte\u{2026}", Command::InsertByte),
             Item("Another file\u{2026}", Command::InsertFile),
-        ],
-    ),
-    Sub("Snippets", &[Keyed("Choose or make one\u{2026}", Command::Snippets, "Ctrl+J"), Line, Entry::Live("Insert", Live::Snippets)]),
-    Sub(
-        "Surround with",
-        &[
+        ];
+
+pub(super) const SURROUND: &[Entry] = &[
             Item("( and )", Command::Surround('(', ')')),
             Item("[ and ]", Command::Surround('[', ']')),
             Item("{ and }", Command::Surround('{', '}')),
@@ -300,11 +218,9 @@ const EDIT: &[Entry] = &[
             Line,
             Item("A tag\u{2026}", Command::SurroundTag),
             Entry::Live("A snippet", Live::SurroundSnippets),
-        ],
-    ),
-    Sub(
-        "Colour tag",
-        &[
+        ];
+
+pub(super) const COLOUR_TAG: &[Entry] = &[
             Keyed("Red", Command::Tag(0), "Ctrl+Shift+1"),
             Keyed("Orange", Command::Tag(1), "Ctrl+Shift+2"),
             Keyed("Yellow", Command::Tag(2), "Ctrl+Shift+3"),
@@ -313,13 +229,425 @@ const EDIT: &[Entry] = &[
             Keyed("Purple", Command::Tag(5), "Ctrl+Shift+6"),
             Line,
             Keyed("Remove the tag", Command::Untag, "Ctrl+Shift+0"),
-        ],
-    ),
+        ];
+
+pub(super) const BOOKMARKS: &[Entry] = &[
+            Keyed("Set or clear", Command::ToggleBookmark, "Ctrl+F2"),
+            Keyed("Next", Command::NextBookmark, "F2"),
+            Keyed("Previous", Command::PreviousBookmark, "Shift+F2"),
+            Entry::Live("Go to", Live::Bookmarks),
+            Line,
+            Item("Copy the bookmarked lines", Command::CopyBookmarked),
+            Item("Cut the bookmarked lines", Command::CutBookmarked),
+            Item("Delete the bookmarked lines", Command::DeleteBookmarked),
+            Item("Delete the lines that aren't bookmarked", Command::DeleteUnbookmarked),
+            Line,
+            Item("Swap bookmarked and not", Command::InvertBookmarks),
+            Item("Clear every bookmark", Command::ClearBookmarks),
+            Check("Bookmarks panel", Flag::Panel(PanelFlag::Bookmarks)),
+        ];
+
+pub(super) const THEME: &[Entry] = &[
+            Sub("Window", &[Entry::Live("Window themes", Live::WindowThemes)]),
+            Sub("Documents", &[Entry::Live("Document themes", Live::DocumentThemes)]),
+            Sub("This document only", &[Entry::Live("This document's theme", Live::ThisDocumentTheme)]),
+            Line,
+            Item("Themes and rules\u{2026}", Command::Themes),
+        ];
+
+pub(super) const SHOW: &[Entry] = &[
+            Check("Line numbers", Flag::LineNumbers),
+            Check("Ruler", Flag::Ruler),
+            Check("Column markers", Flag::ColumnMarkers),
+            Check("Document map", Flag::DocumentMap),
+            Check("Breadcrumbs", Flag::Breadcrumbs),
+            Check("Indentation guides", Flag::IndentGuides),
+            Check("Hide comments", Flag::HideComments),
+            Check("Panels hide themselves", Flag::PanelsHide),
+            Check("Sticky scroll", Flag::StickyScroll),
+            Check("Bookmark margin", Flag::BookmarkGutter),
+            Check("Fold markers", Flag::FoldLines),
+            Check("Changed lines", Flag::LineChange),
+            Line,
+            Check("Spaces and tabs", Flag::Whitespace),
+            Check("Line endings", Flag::LineEndings),
+            Check("Control characters as names", Flag::SourceView),
+            Line,
+            Check("The line with the cursor", Flag::ActiveLine),
+            Check("The column with the cursor", Flag::ActiveColumn),
+            Check("Rainbow brackets", Flag::Rainbow),
+            Check("Every copy of the selection", Flag::HighlightSelected),
+            Check("Spelling mistakes", Flag::Spelling),
+        ];
+
+pub(super) const FOLDING: &[Entry] = &[Item("Fold everything", Command::CollapseAll), Item("Unfold everything", Command::ExpandAll), Line, Item("Hide the selected lines", Command::HideLines), Item("Show the selected lines", Command::ShowLines)];
+
+pub(super) const PREVIEW: &[Entry] = &[Item("Off", Command::SetPreview(settings::PreviewView::Text)), Item("Beside the text", Command::SetPreview(settings::PreviewView::Split)), Item("Instead of the text", Command::SetPreview(settings::PreviewView::Full))];
+
+pub(super) const HEX: &[Entry] = &[
+            Item("As text", Command::ViewRegular),
+            Keyed("As hex", Command::ViewHex, "Ctrl+H"),
+            Item("As hex, in EBCDIC", Command::ViewEbcdic),
+            Line,
+            Item("Insert or delete bytes\u{2026}", Command::HexInsertDelete),
+            Item("Copy the selected rows", Command::HexCopySelected),
+            Line,
+            Check("String explorer", Flag::Panel(PanelFlag::Strings)),
+            Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
+        ];
+
+pub(super) const SPLIT: &[Entry] = &[Item("One above the other", Command::SplitHorizontal), Item("Side by side", Command::SplitVertical), Item("Another tab on this file", Command::DuplicateWindow), Keyed("Another file beside this one", Command::OpenBeside, "Ctrl+\\")];
+
+pub(super) const PANELS: &[Entry] = &[
+            Check("Files on this computer", Flag::Panel(PanelFlag::FileExplorer)),
+            Check("Project", Flag::Panel(PanelFlag::Project)),
+            Check("Open files", Flag::Panel(PanelFlag::OpenFiles)),
+            Check("File lists", Flag::Panel(PanelFlag::FileLists)),
+            Line,
+            Check("Functions", Flag::Panel(PanelFlag::Functions)),
+            Check("Call graph", Flag::Panel(PanelFlag::CallGraph)),
+            Check("Instruction reference", Flag::Panel(PanelFlag::Instructions)),
+            Check("Bookmarks", Flag::Panel(PanelFlag::Bookmarks)),
+            Check("TODO notes", Flag::Panel(PanelFlag::Todos)),
+            Check("Tags", Flag::Panel(PanelFlag::Tags)),
+            Check("Edit history", Flag::Panel(PanelFlag::History)),
+            Check("Macros", Flag::Panel(PanelFlag::Macros)),
+            Check("Scripts", Flag::Panel(PanelFlag::Scripts)),
+            Line,
+            Check("File properties", Flag::Panel(PanelFlag::FileProperties)),
+            Check("JSON", Flag::Panel(PanelFlag::Json)),
+            Check("XML", Flag::Panel(PanelFlag::Xml)),
+            Check("Characters", Flag::Panel(PanelFlag::Characters)),
+            Check("Encoding preview", Flag::Panel(PanelFlag::EncodingPreview)),
+            Check("String explorer", Flag::Panel(PanelFlag::Strings)),
+            Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
+            Check("Clipboard history", Flag::Panel(PanelFlag::Clipboard)),
+            Line,
+            Item("Close every panel", Command::HidePanels),
+        ];
+
+pub(super) const ENCODING: &[Entry] = &[
+            Item("Convert to\u{2026}", Command::ConvertTo),
+            Item("Reopen with\u{2026}", Command::ReopenAs),
+            Item("Save a copy in\u{2026}", Command::SaveCopyAs),
+            Item("Kind of computer for new files\u{2026}", Command::ChoosePreset),
+        ];
+
+pub(super) const TOKENISED_BASIC: &[Entry] = &[
+            Item("Open the listing as text", Command::OpenBasicListing),
+            Item("Save as a Spectrum tape (.tap)\u{2026}", Command::SaveSpectrumTape),
+            Item("Save as a Spectrum Next program (.bas)\u{2026}", Command::SaveNextProgram),
+            Item("Save as a Commodore program (.prg)\u{2026}", Command::SaveCommodoreProgram),
+            Item("Save as a BBC BASIC program\u{2026}", Command::SaveBbcProgram),
+            Item("Save as a BBC BASIC (Z80) program, for the Z88 or NC100\u{2026}", Command::SaveBbcZ80Program),
+            Item("Save as an AMOS program (.AMOS)\u{2026}", Command::SaveAmosProgram),
+            Item("Save as a STOS program (.BAS)\u{2026}", Command::SaveStosProgram),
+            Line,
+            Keyed("Spectrum GRAPH mode", Command::GraphMode, "Ctrl+Shift+9"),
+            Item("Spectrum UDG pictures from\u{2026}", Command::UdgPictures),
+        ];
+
+pub(super) const SAVE_DOCUMENT_AS: &[Entry] = &[
+            Item("Plain text\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Text)),
+            Item("Markdown\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Markdown)),
+            Item("RTF\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Rtf)),
+            Item("CSV, for a spreadsheet\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Csv)),
+        ];
+
+pub(super) const TABS_AND_SPACES: &[Entry] = &[
+            Check("Tab key types spaces", Flag::SpacesForTab),
+            Entry::Live("Tab size", Live::TabSize),
+            Line,
+            Item("Tabs to spaces", Command::TabsToSpaces),
+            Item("Tabs to spaces, in the indent only", Command::LeadingTabsToSpaces),
+            Item("Spaces to tabs, in the indent", Command::SpacesToTabs),
+            Line,
+            Item("Trim spaces at the ends of lines", Command::TrimTrailing),
+            Item("Trim spaces at the starts of lines", Command::TrimLeading),
+            Line,
+            Check("Show spaces and tabs", Flag::Whitespace),
+        ];
+
+pub(super) const PARAGRAPH: &[Entry] = &[
+            Item("Reformat", Command::ParagraphReformat),
+            Item("Width and margins\u{2026}", Command::ParagraphSetup),
+            Line,
+            Item("Align left", Command::AlignText(Align::Left)),
+            Item("Centre", Command::AlignText(Align::Center)),
+            Item("Align right", Command::AlignText(Align::Right)),
+            Item("Justify", Command::AlignText(Align::Justify)),
+            Line,
+            Item("Break long lines at a column\u{2026}", Command::WrapToLineEnds),
+            Item("Join each paragraph into one line", Command::LineEndsToWrap),
+        ];
+
+pub(super) const LAY_OUT_CODE: &[Entry] = &[
+            Item("HTML", Command::Format(formatters::Kind::Html)),
+            Item("XML", Command::Format(formatters::Kind::Xml)),
+            Item("JSON", Command::FormatJson),
+            Item("JavaScript", Command::Format(formatters::Kind::Js)),
+            Item("CSS", Command::Format(formatters::Kind::Css)),
+            Item("SQL", Command::Format(formatters::Kind::Sql)),
+            Item("C-like code, brace on the same line", Command::Format(formatters::Kind::CodeAttach)),
+            Item("C-like code, brace on its own line", Command::Format(formatters::Kind::CodeBreak)),
+            Item("EDI, one segment to a line", Command::Format(formatters::Kind::EdiLines)),
+        ];
+
+pub(super) const COMPRESS: &[Entry] = &[
+            Item("HTML", Command::Format(formatters::Kind::HtmlCompact)),
+            Item("XML", Command::Format(formatters::Kind::XmlCompact)),
+            Item("JSON", Command::CompactJson),
+            Item("JavaScript", Command::Format(formatters::Kind::JsCompact)),
+            Item("CSS", Command::Format(formatters::Kind::CssCompact)),
+            Item("EDI, onto one line", Command::Format(formatters::Kind::EdiOneLine)),
+        ];
+
+pub(super) const CONVERT: &[Entry] = &[
+            Item("Base64 encode", Command::Convert(Conversion::Base64Encode)),
+            Item("Base64 decode", Command::Convert(Conversion::Base64Decode)),
+            Line,
+            Item("JSON to XML", Command::Convert(Conversion::JsonToXml)),
+            Item("XML to JSON", Command::Convert(Conversion::XmlToJson)),
+        ];
+
+pub(super) const TABLE: &[Entry] = &[Item("Comma-separated to fixed columns\u{2026}", Command::CsvToFixed), Item("Fixed columns to comma-separated\u{2026}", Command::FixedToCsv)];
+
+pub(super) const GENERAL: &[Entry] = &[
+            Item("Disassemble\u{2026}", Command::Disassemble),
+            Item("Save the decrunched program\u{2026}", Command::SaveDecrunched),
+            Item("Character and sprite editor", Command::PixelEditor),
+            Item("Tile map and level editor", Command::TileMapEditor),
+            Item("Picture converter: Spectrum, Next, CPC, MSX, BBC", Command::RetroPictures),
+            Item("Sound effects: AY, SID, 2600, beeper", Command::SoundEffects),
+            Item("Ripper: music and graphics in any file", Command::Ripper),
+            Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
+            Item("Raster and copper designer: Amiga, C64, ST", Command::RasterDesigner),
+            Item("Checksums and ROM headers", Command::Checksums),
+            Item("ROM patches: IPS, BPS, UPS", Command::RomPatches),
+            Item("Entropy and byte counts", Command::Entropy),
+        ];
+
+pub(super) const HARDWARE: &[Entry] = &[
+            Item("Serial terminal and XMODEM/YMODEM\u{2026}", Command::SerialTerminal),
+            Item("EPROM programmer: TL866 and T48 (minipro)\u{2026}", Command::EpromProgrammer),
+        ];
+
+pub(super) const AMIGA: &[Entry] = &[
+            Item("Hardware registers and copper lists", Command::AmigaHardware),
+            Item("Bitplane, sprite and bob converter", Command::AmigaBitplanes),
+            Item("Blitter minterms", Command::BlitterMinterms),
+            Item("NDK (code hints)\u{2026}", Command::AmigaNdk),
+            Item("Crunchers and music\u{2026}", Command::AmigaTools),
+            Item("Boot disk with no file system (trackmo)", Command::AmigaBootDisk),
+            Line,
+            Item("How To Code: writing Amiga demos", Command::HowToCode),
+            Item("Copy How To Code's examples to a folder\u{2026}", Command::HowToCodeExamples),
+        ];
+
+pub(super) const ATARI_2600: &[Entry] = &[Item("Sprites and playfield", Command::Atari2600Graphics)];
+
+pub(super) const FANTASY: &[Entry] = &[Item("Cart's sprites, map and sounds", Command::CartView)];
+
+pub(super) const ATARI_ST: &[Entry] = &[
+            Item("Hardware registers and TOS calls", Command::AtariHardware),
+            Item("Picture, sprite and font converter", Command::StPictures),
+            Item("STE blitter", Command::AtariBlitter),
+            Item("MFP timers", Command::AtariTimers),
+            Item("Music, packers and YM2149\u{2026}", Command::StTools),
+            Line,
+            Item("Profile in Hatari", Command::HatariProfile),
+            Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),
+        ];
+
+pub(super) const C64: &[Entry] = &[
+            Item("VIC-II, SID, CIA and KERNAL guide", Command::C64Hardware),
+            Item("Picture, sprite and charset converter", Command::C64Pictures),
+            Item("Raster line calculator", Command::C64RasterLines),
+            Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
+            Item("SID music and packers\u{2026}", Command::C64Tools),
+            Check("Cycle counts beside 6502 and Z80 code", Flag::CycleCounts),
+        ];
+
+pub(super) const DRAGON: &[Entry] = &[Item("Dragon DOS disk\u{2026}", Command::DragonDisk)];
+
+pub(super) const SPECTRUM: &[Entry] = &[Item("Screen designer", Command::ScreenDesigner), Item("Next Layer 2 painter", Command::NextPainter)];
+
+pub(super) const TASKS: &[Entry] = &[
+            Entry::Live("Run", Live::Tasks),
+            Line,
+            Keyed("Build", Command::BuildTask, "Ctrl+Shift+B"),
+            Keyed("Test", Command::TestTask, "Ctrl+Shift+T"),
+            Item("Test the assembly routines (Z80, 6502)", Command::AssemblyTests),
+            Item("Edit the project's tasks\u{2026}", Command::EditTasks),
+            Item("Microcontroller flashing\u{2026}", Command::FlashSettings),
+        ];
+
+pub(super) const GIT: &[Entry] = &[
+            Keyed("Source control", Command::SourceControl, "Ctrl+Shift+G"),
+            Item("Compare with the last commit", Command::GitCompareHead),
+            Item("History of this file\u{2026}", Command::GitHistory),
+            Check("Show who changed each line", Flag::GitBlame),
+            Item("Put the change at the cursor in the next commit", Command::GitStageChange),
+            Item("Undo the change at the cursor", Command::GitUndoChange),
+            Line,
+            Item("Resolve in merge\u{2026}", Command::ResolveInMerge),
+            Item("Merge three files\u{2026}", Command::Merge),
+            Item("Use Limoniter for Git diff and merge", Command::GitUseTools),
+            Item("Stop using Limoniter for Git", Command::GitStopTools),
+            Line,
+            Item("Git wizard\u{2026}", Command::GitWizard),
+            Item("Copy a project from online (clone)\u{2026}", Command::GitClone),
+        ];
+
+pub(super) const ASSISTANT: &[Entry] = &[
+            Check("Assistant panel", Flag::AssistantPanel),
+            Line,
+            Keyed("Fix\u{2026}", Command::Assist(assistant::Task::Fix), "Ctrl+Shift+A"),
+            Item("Clean up\u{2026}", Command::Assist(assistant::Task::CleanUp)),
+            Item("Write code\u{2026}", Command::Assist(assistant::Task::Write)),
+            Item("Explain\u{2026}", Command::Assist(assistant::Task::Explain)),
+            Item("Ask about it\u{2026}", Command::Assist(assistant::Task::Ask)),
+        ];
+
+pub(super) const RUN: &[Entry] = &[
+            Keyed("Run a command\u{2026}", Command::RunTool, "F5"),
+            Item("Stop it", Command::StopTool),
+            Keyed("Debug (Python, C, C++, Rust)", Command::StartDebugging, "Ctrl+F5"),
+            Keyed("Step back", Command::DebugStepBack, "Shift+F10"),
+            Line,
+            Item("Serve this folder in a browser (live server)", Command::ServeFolder),
+            Line,
+            Check("Output panel", Flag::OutputWindow),
+        ];
+
+pub(super) const MACROS: &[Entry] = &[
+            Keyed("Record or stop", Command::RecordMacro, "Ctrl+Shift+R"),
+            Keyed("Play", Command::PlayMacro, "Ctrl+Shift+P"),
+            Item("Play several times\u{2026}", Command::PlayMacroTimes),
+            Entry::Live("Play a saved macro", Live::Macros),
+            Line,
+            Item("Load\u{2026}", Command::LoadMacro),
+            Check("Macros panel", Flag::Panel(PanelFlag::Macros)),
+        ];
+
+pub(super) const SCRIPTS: &[Entry] = &[Entry::Live("Run", Live::Scripts), Line, Item("New script\u{2026}", Command::NewScript), Item("Load\u{2026}", Command::LoadScript), Check("Scripts panel", Flag::Panel(PanelFlag::Scripts))];
+
+pub(super) const ADD_ONS: &[Entry] = &[Entry::Live("Commands", Live::AddOns), Line, Item("Manage add-ons\u{2026}", Command::ManageAddOns), Item("New add-on\u{2026}", Command::NewAddOn)];
+
+pub(super) const PROJECT: &[Entry] = &[
+            Item("Open a folder as a project\u{2026}", Command::OpenFolder),
+            Item("Open a remote folder as a project\u{2026}", Command::OpenRemoteFolder),
+            Item("New project\u{2026}", Command::ProjectNew),
+            Item("Open project\u{2026}", Command::ProjectOpen),
+            Entry::Live("Open recent", Live::RecentProjects),
+            Item("Close project", Command::ProjectClose),
+            Item("Name and notes\u{2026}", Command::ProjectSettings),
+            Line,
+            Item("Add this file", Command::ProjectAddActive),
+            Item("Add files\u{2026}", Command::ProjectAddFiles),
+            Item("Add a folder\u{2026}", Command::ProjectAddFolder),
+            Line,
+            Item("Fetch the server's changes", Command::RemoteProjectFetch),
+            Item("Sync with the server\u{2026}", Command::RemoteProjectSync),
+            Line,
+            Item("Back up", Command::ProjectBackup),
+            Item("Restore from a backup\u{2026}", Command::ProjectRestore),
+            Check("Project panel", Flag::Panel(PanelFlag::Project)),
+        ];
+
+pub(super) const RUN_ON: &[Entry] = &[
+            Entry::Live("Machines", Live::Machines),
+            Line,
+            Item("Its memory", Command::MachineMemory),
+            Item("Its screen as text", Command::MachineScreen),
+            Item("Take its BASIC program", Command::MachineBasicOut),
+            Item("Put this listing into it", Command::MachineBasicIn),
+            Line,
+            Item("Stop running", Command::StopRunning),
+            Line,
+            Item("Assemble and save", Command::AssembleAndSave),
+            Item("Assemble and save as binary\u{2026}", Command::AssembleBinary),
+            Item("Assemblers\u{2026}", Command::ChooseAssembler),
+            Item("Compilers\u{2026}", Command::Compilers),
+            Item("Amiga NDK (code hints)\u{2026}", Command::AmigaNdk),
+            Item("Amiga crunchers and music\u{2026}", Command::AmigaTools),
+            Item("Profile in Hatari", Command::HatariProfile),
+            Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),
+            Item("Devices and emulators\u{2026}", Command::ManageDevices),
+        ];
+
+pub(super) const SEND_TO: &[Entry] = &[Entry::Live("Devices", Live::Devices), Line, Keyed("Send again", Command::SendAgain, "Ctrl+Alt+S"), Item("Manage devices\u{2026}", Command::ManageDevices)];
+
+pub(super) const THIS_FILE: &[Entry] = &[
+            Item("Rename\u{2026}", Command::RenameFile),
+            Item(crate::trash::MOVE_TO_BIN, Command::MoveToBin),
+            Item(crate::platform::SHOW_IN_FILE_MANAGER, Command::ShowInExplorer),
+            Item("Open in its usual program", Command::OpenWithDefault),
+            Line,
+            Item("Split into parts\u{2026}", Command::SplitFile),
+        ];
+
+pub(super) const LAYOUTS: &[Entry] = &[Entry::Live("Use", Live::Layouts), Line, Item("Save this layout\u{2026}", Command::SaveLayout), Sub("Delete", &[Entry::Live("Delete a layout", Live::DeleteLayouts)])];
+
+pub(super) const FILE: &[Entry] = &[
+    Keyed("New", Command::New, "Ctrl+N"),
+    Entry::Live("New as", Live::NewAs),
+    Item("New disk or tape image\u{2026}", Command::NewImage),
+    Keyed("Open\u{2026}", Command::Open, "Ctrl+O"),
+    Item("Open folder\u{2026}", Command::OpenFolder),
+    Keyed("Go to file\u{2026}", Command::GoToFile, "Ctrl+E"),
+    Entry::Live("Open recent", Live::RecentFiles),
+    Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
+    Item("Open a remote file (SFTP or FTP)\u{2026}", Command::OpenRemote),
+    Item("Open a remote folder as a project (SFTP or FTP)\u{2026}", Command::OpenRemoteFolder),
+    Line,
+    Keyed("Save", Command::Save, "Ctrl+S"),
+    Keyed("Save as\u{2026}", Command::SaveAs, "Ctrl+Shift+S"),
+    Item("Save the selection as\u{2026}", Command::SaveSelection),
+    Item("Save a copy in another encoding\u{2026}", Command::SaveCopyAs),
+    Item("Save to a server (SFTP or FTP)\u{2026}", Command::SaveRemote),
+    Sub("Send to device", SEND_TO),
+    Keyed("Run on machine", Command::RunOnMachine, "F9"),
+    Sub("Run on", RUN_ON),
+    Line,
+    Sub("This file", THIS_FILE),
+    Item("Reopen with another encoding\u{2026}", Command::ReopenAs),
+    Item("Recover unsaved edits\u{2026}", Command::RecoverEdits),
+    Line,
+    Keyed("Print\u{2026}", Command::Print, "Ctrl+P"),
+    Line,
+    Item("New window", Command::NewInstance),
+];
+
+pub(super) const EDIT: &[Entry] = &[
+    Keyed("Undo", Command::Undo, "Ctrl+Z"),
+    Keyed("Redo", Command::Redo, "Ctrl+Y"),
+    Keyed("Edit history", Command::ShowHistory, "Ctrl+Shift+H"),
+    Keyed("History of this part", Command::PartHistory, "Ctrl+Alt+H"),
+    Line,
+    Keyed("Cut", Command::Cut, "Ctrl+X"),
+    Keyed("Copy", Command::Copy, "Ctrl+C"),
+    Keyed("Paste", Command::Paste, "Ctrl+V"),
+    Keyed("Swap with clipboard", Command::SwapClipboard, "Ctrl+Shift+V"),
+    Sub("Clipboards", CLIPBOARDS),
+    Line,
+    Keyed("Select all", Command::SelectAll, "Ctrl+A"),
+    Sub("Select", SELECT),
+    Sub("Replace inside", &REPLACE_INSIDE),
+    Sub("Delete", &[Sub("Inside", &DELETE_INSIDE), Sub("Around", &DELETE_AROUND)]),
+    Line,
+    Sub("Lines", LINES),
+    Sub("Columns", COLUMNS),
+    Sub("Change case", CHANGE_CASE),
+    Sub("Insert", INSERT),
+    Sub("Snippets", &[Keyed("Choose or make one\u{2026}", Command::Snippets, "Ctrl+J"), Line, Entry::Live("Insert", Live::Snippets)]),
+    Sub("Surround with", SURROUND),
+    Sub("Colour tag", COLOUR_TAG),
     Line,
     Check("Read-only", Flag::ReadOnly),
 ];
 
-const SEARCH: &[Entry] = &[
+pub(super) const SEARCH: &[Entry] = &[
     Keyed("Find\u{2026}", Command::Find, "Ctrl+F"),
     Keyed("Replace\u{2026}", Command::Replace, "Ctrl+R"),
     Keyed("Find next", Command::FindNext, "F3"),
@@ -343,242 +671,68 @@ const SEARCH: &[Entry] = &[
     Item("Previous change", Command::LastChange),
     Item("Next change", Command::NextChange),
     Line,
-    Sub(
-        "Bookmarks",
-        &[
-            Keyed("Set or clear", Command::ToggleBookmark, "Ctrl+F2"),
-            Keyed("Next", Command::NextBookmark, "F2"),
-            Keyed("Previous", Command::PreviousBookmark, "Shift+F2"),
-            Entry::Live("Go to", Live::Bookmarks),
-            Line,
-            Item("Copy the bookmarked lines", Command::CopyBookmarked),
-            Item("Cut the bookmarked lines", Command::CutBookmarked),
-            Item("Delete the bookmarked lines", Command::DeleteBookmarked),
-            Item("Delete the lines that aren't bookmarked", Command::DeleteUnbookmarked),
-            Line,
-            Item("Swap bookmarked and not", Command::InvertBookmarks),
-            Item("Clear every bookmark", Command::ClearBookmarks),
-            Check("Bookmarks panel", Flag::Panel(PanelFlag::Bookmarks)),
-        ],
-    ),
+    Sub("Bookmarks", BOOKMARKS),
     Sub("Colour tags", &[Keyed("Next", Command::NextTag, "F4"), Keyed("Previous", Command::PreviousTag, "Shift+F4"), Line, Entry::Live("Go to", Live::Tags)]),
 ];
 
-const VIEW: &[Entry] = &[
+pub(super) const VIEW: &[Entry] = &[
     Item("Larger text", Command::ZoomIn),
     Item("Smaller text", Command::ZoomOut),
     Item("Font\u{2026}", Command::ChooseFont),
-    Sub(
-        "Theme",
-        &[
-            Sub("Window", &[Entry::Live("Window themes", Live::WindowThemes)]),
-            Sub("Documents", &[Entry::Live("Document themes", Live::DocumentThemes)]),
-            Sub("This document only", &[Entry::Live("This document's theme", Live::ThisDocumentTheme)]),
-            Line,
-            Item("Themes and rules\u{2026}", Command::Themes),
-        ],
-    ),
+    Item("Window font and size\u{2026}", Command::WindowFont),
+    Sub("Theme", THEME),
     Line,
     Check("Word wrap", Flag::WordWrap),
-    Sub(
-        "Show",
-        &[
-            Check("Line numbers", Flag::LineNumbers),
-            Check("Ruler", Flag::Ruler),
-            Check("Column markers", Flag::ColumnMarkers),
-            Check("Document map", Flag::DocumentMap),
-            Check("Breadcrumbs", Flag::Breadcrumbs),
-            Check("Sticky scroll", Flag::StickyScroll),
-            Check("Bookmark margin", Flag::BookmarkGutter),
-            Check("Fold markers", Flag::FoldLines),
-            Check("Changed lines", Flag::LineChange),
-            Line,
-            Check("Spaces and tabs", Flag::Whitespace),
-            Check("Line endings", Flag::LineEndings),
-            Check("Control characters as names", Flag::SourceView),
-            Line,
-            Check("The line with the cursor", Flag::ActiveLine),
-            Check("The column with the cursor", Flag::ActiveColumn),
-            Check("Rainbow brackets", Flag::Rainbow),
-            Check("Every copy of the selection", Flag::HighlightSelected),
-            Check("Spelling mistakes", Flag::Spelling),
-        ],
-    ),
-    Sub(
-        "Folding",
-        &[Item("Fold everything", Command::CollapseAll), Item("Unfold everything", Command::ExpandAll), Line, Item("Hide the selected lines", Command::HideLines), Item("Show the selected lines", Command::ShowLines)],
-    ),
+    Sub("Show", SHOW),
+    Sub("Folding", FOLDING),
     Keyed("Narrow to the selection", Command::Narrow, "Ctrl+Shift+N"),
     Item("Show the whole file", Command::Widen),
     Keyed("Table view (CSV, TSV)", Command::ToggleTable, "F6"),
     Line,
-    Sub("Preview", &[Item("Off", Command::SetPreview(settings::PreviewView::Text)), Item("Beside the text", Command::SetPreview(settings::PreviewView::Split)), Item("Instead of the text", Command::SetPreview(settings::PreviewView::Full))]),
-    Sub(
-        "Hex",
-        &[
-            Item("As text", Command::ViewRegular),
-            Keyed("As hex", Command::ViewHex, "Ctrl+H"),
-            Item("As hex, in EBCDIC", Command::ViewEbcdic),
-            Line,
-            Item("Insert or delete bytes\u{2026}", Command::HexInsertDelete),
-            Item("Copy the selected rows", Command::HexCopySelected),
-            Line,
-            Check("String explorer", Flag::Panel(PanelFlag::Strings)),
-            Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
-        ],
-    ),
-    Sub("Split", &[Item("One above the other", Command::SplitHorizontal), Item("Side by side", Command::SplitVertical), Item("Another tab on this file", Command::DuplicateWindow), Keyed("Another file beside this one", Command::OpenBeside, "Ctrl+\\")]),
+    Sub("Preview", PREVIEW),
+    Sub("Hex", HEX),
+    Sub("Split", SPLIT),
     Line,
-    Sub(
-        "Panels",
-        &[
-            Check("Files on this computer", Flag::Panel(PanelFlag::FileExplorer)),
-            Check("Project", Flag::Panel(PanelFlag::Project)),
-            Check("Open files", Flag::Panel(PanelFlag::OpenFiles)),
-            Check("File lists", Flag::Panel(PanelFlag::FileLists)),
-            Line,
-            Check("Functions", Flag::Panel(PanelFlag::Functions)),
-            Check("Bookmarks", Flag::Panel(PanelFlag::Bookmarks)),
-            Check("Tags", Flag::Panel(PanelFlag::Tags)),
-            Check("Edit history", Flag::Panel(PanelFlag::History)),
-            Check("Macros", Flag::Panel(PanelFlag::Macros)),
-            Check("Scripts", Flag::Panel(PanelFlag::Scripts)),
-            Line,
-            Check("File properties", Flag::Panel(PanelFlag::FileProperties)),
-            Check("JSON", Flag::Panel(PanelFlag::Json)),
-            Check("XML", Flag::Panel(PanelFlag::Xml)),
-            Check("Characters", Flag::Panel(PanelFlag::Characters)),
-            Check("Encoding preview", Flag::Panel(PanelFlag::EncodingPreview)),
-            Check("String explorer", Flag::Panel(PanelFlag::Strings)),
-            Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
-            Check("Clipboard history", Flag::Panel(PanelFlag::Clipboard)),
-            Line,
-            Item("Close every panel", Command::HidePanels),
-        ],
-    ),
+    Sub("Panels", PANELS),
     Check("Output", Flag::OutputWindow),
     Keyed("Terminal", Command::ToggleTerminal, "Ctrl+`"),
     Check("File tabs", Flag::FileTabs),
     Check("Status bar", Flag::StatusBar),
+    Check("Ribbon", Flag::Ribbon),
+    Keyed("Fold the ribbon to its tabs", Command::FoldRibbon, "Ctrl+F1"),
     Line,
     Check("Always on top", Flag::AlwaysOnTop),
     Check("Full screen", Flag::FullScreen),
 ];
 
-const FORMAT: &[Entry] = &[
-    Sub(
-        "Encoding",
-        &[
-            Item("Convert to\u{2026}", Command::ConvertTo),
-            Item("Reopen with\u{2026}", Command::ReopenAs),
-            Item("Save a copy in\u{2026}", Command::SaveCopyAs),
-            Item("Kind of computer for new files\u{2026}", Command::ChoosePreset),
-        ],
-    ),
-    Sub(
-        "Tokenised BASIC",
-        &[
-            Item("Open the listing as text", Command::OpenBasicListing),
-            Item("Save as a Spectrum tape (.tap)\u{2026}", Command::SaveSpectrumTape),
-            Item("Save as a Spectrum Next program (.bas)\u{2026}", Command::SaveNextProgram),
-            Item("Save as a Commodore program (.prg)\u{2026}", Command::SaveCommodoreProgram),
-            Item("Save as a BBC BASIC program\u{2026}", Command::SaveBbcProgram),
-            Item("Save as a BBC BASIC (Z80) program, for the Z88 or NC100\u{2026}", Command::SaveBbcZ80Program),
-            Item("Save as an AMOS program (.AMOS)\u{2026}", Command::SaveAmosProgram),
-            Item("Save as a STOS program (.BAS)\u{2026}", Command::SaveStosProgram),
-            Line,
-            Keyed("Spectrum GRAPH mode", Command::GraphMode, "Ctrl+Shift+9"),
-            Item("Spectrum UDG pictures from\u{2026}", Command::UdgPictures),
-        ],
-    ),
+pub(super) const FORMAT: &[Entry] = &[
+    Sub("Encoding", ENCODING),
+    Sub("Tokenised BASIC", TOKENISED_BASIC),
     Item("Save the picture as PNG\u{2026}", Command::SavePictureAsPng),
-    Sub(
-        "Save the document as",
-        &[
-            Item("Plain text\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Text)),
-            Item("Markdown\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Markdown)),
-            Item("RTF\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Rtf)),
-            Item("CSV, for a spreadsheet\u{2026}", Command::SaveDocumentAs(crate::legacy_docs::Target::Csv)),
-        ],
-    ),
+    Item("Save the preview as PDF\u{2026}", Command::SavePreviewAsPdf),
+    Sub("Save the document as", SAVE_DOCUMENT_AS),
     Line,
     Item("Reindent", Command::Reindent),
-    Sub(
-        "Tabs and spaces",
-        &[
-            Check("Tab key types spaces", Flag::SpacesForTab),
-            Entry::Live("Tab size", Live::TabSize),
-            Line,
-            Item("Tabs to spaces", Command::TabsToSpaces),
-            Item("Tabs to spaces, in the indent only", Command::LeadingTabsToSpaces),
-            Item("Spaces to tabs, in the indent", Command::SpacesToTabs),
-            Line,
-            Item("Trim spaces at the ends of lines", Command::TrimTrailing),
-            Item("Trim spaces at the starts of lines", Command::TrimLeading),
-            Line,
-            Check("Show spaces and tabs", Flag::Whitespace),
-        ],
-    ),
+    Sub("Tabs and spaces", TABS_AND_SPACES),
     Line,
-    Sub(
-        "Paragraph",
-        &[
-            Item("Reformat", Command::ParagraphReformat),
-            Item("Width and margins\u{2026}", Command::ParagraphSetup),
-            Line,
-            Item("Align left", Command::AlignText(Align::Left)),
-            Item("Centre", Command::AlignText(Align::Center)),
-            Item("Align right", Command::AlignText(Align::Right)),
-            Item("Justify", Command::AlignText(Align::Justify)),
-            Line,
-            Item("Break long lines at a column\u{2026}", Command::WrapToLineEnds),
-            Item("Join each paragraph into one line", Command::LineEndsToWrap),
-        ],
-    ),
-    Keyed("Format document (language server)", Command::FormatDocument, "Shift+Alt+F"),
-    Sub(
-        "Lay out code",
-        &[
-            Item("HTML", Command::Format(formatters::Kind::Html)),
-            Item("XML", Command::Format(formatters::Kind::Xml)),
-            Item("JSON", Command::FormatJson),
-            Item("JavaScript", Command::Format(formatters::Kind::Js)),
-            Item("CSS", Command::Format(formatters::Kind::Css)),
-            Item("SQL", Command::Format(formatters::Kind::Sql)),
-            Item("C-like code, brace on the same line", Command::Format(formatters::Kind::CodeAttach)),
-            Item("C-like code, brace on its own line", Command::Format(formatters::Kind::CodeBreak)),
-            Item("EDI, one segment to a line", Command::Format(formatters::Kind::EdiLines)),
-        ],
-    ),
-    Sub(
-        "Compress",
-        &[
-            Item("HTML", Command::Format(formatters::Kind::HtmlCompact)),
-            Item("XML", Command::Format(formatters::Kind::XmlCompact)),
-            Item("JSON", Command::CompactJson),
-            Item("JavaScript", Command::Format(formatters::Kind::JsCompact)),
-            Item("CSS", Command::Format(formatters::Kind::CssCompact)),
-            Item("EDI, onto one line", Command::Format(formatters::Kind::EdiOneLine)),
-        ],
-    ),
-    Sub(
-        "Convert",
-        &[
-            Item("Base64 encode", Command::Convert(Conversion::Base64Encode)),
-            Item("Base64 decode", Command::Convert(Conversion::Base64Decode)),
-            Line,
-            Item("JSON to XML", Command::Convert(Conversion::JsonToXml)),
-            Item("XML to JSON", Command::Convert(Conversion::XmlToJson)),
-        ],
-    ),
-    Sub("Table", &[Item("Comma-separated to fixed columns\u{2026}", Command::CsvToFixed), Item("Fixed columns to comma-separated\u{2026}", Command::FixedToCsv)]),
+    Sub("Paragraph", PARAGRAPH),
+    Keyed("Format document", Command::FormatDocument, "Shift+Alt+F"),
+    Item("Formatters\u{2026}", Command::Formatters),
+    Sub("Lay out code", LAY_OUT_CODE),
+    Sub("Compress", COMPRESS),
+    Sub("Convert", CONVERT),
+    Sub("Table", TABLE),
     Line,
     Item("Comment out", Command::Comment),
     Item("Uncomment", Command::Uncomment),
+    Item("Doc comment for this function", Command::DocComment),
+    Line,
+    Item("Markdown: table of contents", Command::MarkdownToc),
+    Item("Markdown: line up the table", Command::MarkdownTable),
 ];
 
-const TOOLS: &[Entry] = &[
-    Entry::Live("Colour as", Live::Language),
+pub(super) const TOOLS: &[Entry] = &[
+    Item("Colour as\u{2026}", Command::ColourAs),
     Line,
     Item("Compare with\u{2026}", Command::Compare),
     Item("Compare files\u{2026}", Command::CompareFiles),
@@ -587,139 +741,41 @@ const TOOLS: &[Entry] = &[
     Item("Apply a patch\u{2026}", Command::ApplyPatch),
     Item("Count words", Command::WordCount),
     Item("Fingerprint (SHA-256)", Command::ComputeHash),
+    Item("Code as a picture\u{2026}", Command::CodePicture),
+    Item("Time spent\u{2026}", Command::TimeSpent),
     Item("Convert a number", Command::ConvertNumber),
+    Item("Regular expression tester", Command::RegexTester),
+    Item("Check JSON or YAML against a schema", Command::SchemaCheck),
     Item("Copy the file's path", Command::CopyPath),
-    Item("Disassemble\u{2026}", Command::Disassemble),
-    Item("Character and sprite editor", Command::PixelEditor),
-    Item("Spectrum screen designer", Command::ScreenDesigner),
-    Item("Picture converter: Spectrum, Next, CPC, MSX, BBC", Command::RetroPictures),
-    Item("Spectrum Next Layer 2 painter", Command::NextPainter),
-    Item("Atari 2600 sprites and playfield", Command::Atari2600Graphics),
-    Item("Sound effects: AY, SID, 2600, beeper", Command::SoundEffects),
-    Item("Ripper: music and graphics in any file", Command::Ripper),
-    Sub(
-        "Amiga",
-        &[
-            Item("Hardware registers and copper lists", Command::AmigaHardware),
-            Item("Bitplane, sprite and bob converter", Command::AmigaBitplanes),
-            Item("Blitter minterms", Command::BlitterMinterms),
-            Item("NDK (code hints)\u{2026}", Command::AmigaNdk),
-            Item("Crunchers and music\u{2026}", Command::AmigaTools),
-            Item("Boot disk with no file system (trackmo)", Command::AmigaBootDisk),
-        ],
-    ),
-    Sub("Dragon and Vectrex", &[Item("Dragon DOS disk\u{2026}", Command::DragonDisk)]),
-    Sub(
-        "Atari ST",
-        &[
-            Item("Hardware registers and TOS calls", Command::AtariHardware),
-            Item("Picture, sprite and font converter", Command::StPictures),
-            Item("STE blitter", Command::AtariBlitter),
-            Item("MFP timers", Command::AtariTimers),
-            Item("Music, packers and YM2149\u{2026}", Command::StTools),
-            Line,
-            Item("Profile in Hatari", Command::HatariProfile),
-            Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),
-        ],
-    ),
-    Sub(
-        "Commodore 64",
-        &[
-            Item("VIC-II, SID, CIA and KERNAL guide", Command::C64Hardware),
-            Item("Picture, sprite and charset converter", Command::C64Pictures),
-            Item("Raster line calculator", Command::C64RasterLines),
-            Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
-            Item("SID music and packers\u{2026}", Command::C64Tools),
-            Check("Cycle counts beside 6502 code", Flag::CycleCounts),
-        ],
-    ),
-    Item("Table generator (sine, ramps\u{2026})", Command::TableGenerator),
-    Sub(
-        "Tasks",
-        &[
-            Entry::Live("Run", Live::Tasks),
-            Line,
-            Keyed("Build", Command::BuildTask, "Ctrl+Shift+B"),
-            Keyed("Test", Command::TestTask, "Ctrl+Shift+T"),
-            Item("Edit the project's tasks\u{2026}", Command::EditTasks),
-        ],
-    ),
     Line,
-    Sub(
-        "Git",
-        &[
-            Keyed("Source control", Command::SourceControl, "Ctrl+Shift+G"),
-            Item("Compare with the last commit", Command::GitCompareHead),
-            Item("History of this file\u{2026}", Command::GitHistory),
-            Check("Show who changed each line", Flag::GitBlame),
-            Item("Put the change at the cursor in the next commit", Command::GitStageChange),
-            Item("Undo the change at the cursor", Command::GitUndoChange),
-            Line,
-            Item("Resolve in merge\u{2026}", Command::ResolveInMerge),
-            Item("Merge three files\u{2026}", Command::Merge),
-            Item("Use Limoniter for Git diff and merge", Command::GitUseTools),
-            Item("Stop using Limoniter for Git", Command::GitStopTools),
-            Line,
-            Item("Git wizard\u{2026}", Command::GitWizard),
-        ],
-    ),
+    // The retro tools: those for any machine, then each machine's own.
+    Sub("General", GENERAL),
+    Sub("Hardware", HARDWARE),
+    Sub("Amiga", AMIGA),
+    Sub("Atari 2600", ATARI_2600),
+    Sub("PICO-8 and TIC-80", FANTASY),
+    Sub("Atari ST", ATARI_ST),
+    Sub("Commodore 64", C64),
+    Sub("Dragon and Vectrex", DRAGON),
+    Sub("ZX Spectrum and Next", SPECTRUM),
+    Line,
+    Sub("Tasks", TASKS),
+    Sub("Git", GIT),
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
-    Sub(
-        "Assistant",
-        &[
-            Check("Assistant panel", Flag::AssistantPanel),
-            Line,
-            Keyed("Fix\u{2026}", Command::Assist(assistant::Task::Fix), "Ctrl+Shift+A"),
-            Item("Clean up\u{2026}", Command::Assist(assistant::Task::CleanUp)),
-            Item("Write code\u{2026}", Command::Assist(assistant::Task::Write)),
-            Item("Explain\u{2026}", Command::Assist(assistant::Task::Explain)),
-            Item("Ask about it\u{2026}", Command::Assist(assistant::Task::Ask)),
-        ],
-    ),
-    Sub("Run", &[Keyed("Run a command\u{2026}", Command::RunTool, "F5"), Item("Stop it", Command::StopTool), Keyed("Debug (Python, C, C++, Rust)", Command::StartDebugging, "Ctrl+F5"), Line, Check("Output panel", Flag::OutputWindow)]),
-    Sub(
-        "Macros",
-        &[
-            Keyed("Record or stop", Command::RecordMacro, "Ctrl+Shift+R"),
-            Keyed("Play", Command::PlayMacro, "Ctrl+Shift+P"),
-            Item("Play several times\u{2026}", Command::PlayMacroTimes),
-            Entry::Live("Play a saved macro", Live::Macros),
-            Line,
-            Item("Load\u{2026}", Command::LoadMacro),
-            Check("Macros panel", Flag::Panel(PanelFlag::Macros)),
-        ],
-    ),
-    Sub(
-        "Scripts",
-        &[Entry::Live("Run", Live::Scripts), Line, Item("New script\u{2026}", Command::NewScript), Item("Load\u{2026}", Command::LoadScript), Check("Scripts panel", Flag::Panel(PanelFlag::Scripts))],
-    ),
-    Sub("Add-ons", &[Entry::Live("Commands", Live::AddOns), Line, Item("Manage add-ons\u{2026}", Command::ManageAddOns), Item("New add-on\u{2026}", Command::NewAddOn)]),
-    Sub(
-        "Project",
-        &[
-            Item("Open a folder as a project\u{2026}", Command::OpenFolder),
-            Item("New project\u{2026}", Command::ProjectNew),
-            Item("Open project\u{2026}", Command::ProjectOpen),
-            Entry::Live("Open recent", Live::RecentProjects),
-            Item("Close project", Command::ProjectClose),
-            Item("Name and notes\u{2026}", Command::ProjectSettings),
-            Line,
-            Item("Add this file", Command::ProjectAddActive),
-            Item("Add files\u{2026}", Command::ProjectAddFiles),
-            Item("Add a folder\u{2026}", Command::ProjectAddFolder),
-            Line,
-            Item("Back up", Command::ProjectBackup),
-            Item("Restore from a backup\u{2026}", Command::ProjectRestore),
-            Check("Project panel", Flag::Panel(PanelFlag::Project)),
-        ],
-    ),
+    Sub("Assistant", ASSISTANT),
+    Sub("Run", RUN),
+    Sub("Macros", MACROS),
+    Sub("Scripts", SCRIPTS),
+    Sub("Add-ons", ADD_ONS),
+    Item("VS Code extensions\u{2026}", Command::Extensions),
+    Sub("Project", PROJECT),
     Line,
     Item("Settings\u{2026}", Command::Settings),
     Item("Save settings to a file\u{2026}", Command::SaveSettingsFile),
     Item("Restore settings from a file\u{2026}", Command::RestoreSettingsFile),
 ];
 
-const WINDOW: &[Entry] = &[
+pub(super) const WINDOW: &[Entry] = &[
     Keyed("Last file used", Command::UsedFileBack, "Ctrl+Tab"),
     Keyed("Least recently used file", Command::UsedFileForward, "Ctrl+Shift+Tab"),
     Item("Previous tab", Command::PreviousTab),
@@ -727,12 +783,15 @@ const WINDOW: &[Entry] = &[
     Check("List of open files", Flag::Panel(PanelFlag::OpenFiles)),
     Item("Recently opened files", Command::ShowFileLists),
     Line,
-    Sub("Layouts", &[Entry::Live("Use", Live::Layouts), Line, Item("Save this layout\u{2026}", Command::SaveLayout), Sub("Delete", &[Entry::Live("Delete a layout", Live::DeleteLayouts)])]),
+    Sub("Layouts", LAYOUTS),
     Item("Gather windows", Command::GatherWindows),
     Item("New window", Command::NewInstance),
 ];
 
-const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Item("What Limoniter can do", Command::Features), Item("Limoniter website", Command::Website), Item("Check for a newer Limoniter", Command::CheckUpdates), Item("Check for a newer OpticOS ROM", Command::CheckOpticos), Line, Item("About Limoniter", Command::About)];
+pub(super) const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Sub("Guide", GUIDE), Item("What's new in this version", Command::WhatsNew), Item("What Limoniter can do", Command::Features), Item("How To Code: writing Amiga demos", Command::HowToCode), Item("Limoniter website", Command::Website), Item("Check for a newer Limoniter", Command::CheckUpdates), Item("Check for a newer OpticOS ROM", Command::CheckOpticos), Line, Item("About Limoniter", Command::About)];
+
+/// The guide's pages, each a short walk through one kind of work.
+pub(super) const GUIDE: &[Entry] = &[Item("Getting started", Command::Guide(Guide::GettingStarted)), Item("Working on a folder of code", Command::Guide(Guide::Folder)), Item("Assembling and running", Command::Guide(Guide::Assembling))];
 
 pub(super) const MENUS: [(&str, &[Entry]); 8] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
 
@@ -793,7 +852,6 @@ enum Pick {
     WindowTheme(String),
     DocumentTheme(String),
     ThisDocumentTheme(Option<String>),
-    Language(Language),
     Snippet(usize),
     Line(usize),
     UseLayout(usize),
@@ -883,6 +941,7 @@ impl Limoniter {
             PanelFlag::Macros => p.macros,
             PanelFlag::Scripts => p.scripts,
             PanelFlag::History => p.history,
+            PanelFlag::Todos => p.todos,
             PanelFlag::FileProperties => p.file_properties,
             PanelFlag::Json => p.json_manager,
             PanelFlag::Xml => p.xml_manager,
@@ -891,6 +950,8 @@ impl Limoniter {
             PanelFlag::Clipboard => p.clipboard_history,
             PanelFlag::Strings => p.strings,
             PanelFlag::Inspector => p.inspector,
+            PanelFlag::CallGraph => p.call_graph,
+            PanelFlag::Instructions => p.instructions,
         }
     }
 
@@ -907,6 +968,7 @@ impl Limoniter {
             PanelFlag::Macros => &mut p.macros,
             PanelFlag::Scripts => &mut p.scripts,
             PanelFlag::History => &mut p.history,
+            PanelFlag::Todos => &mut p.todos,
             PanelFlag::FileProperties => &mut p.file_properties,
             PanelFlag::Json => &mut p.json_manager,
             PanelFlag::Xml => &mut p.xml_manager,
@@ -915,6 +977,8 @@ impl Limoniter {
             PanelFlag::Clipboard => &mut p.clipboard_history,
             PanelFlag::Strings => &mut p.strings,
             PanelFlag::Inspector => &mut p.inspector,
+            PanelFlag::CallGraph => &mut p.call_graph,
+            PanelFlag::Instructions => &mut p.instructions,
         }
     }
 
@@ -928,6 +992,9 @@ impl Limoniter {
             Flag::SpacesForTab => self.prefs.edit.spaces_for_tab,
             Flag::DocumentMap => v.document_map,
             Flag::Breadcrumbs => v.breadcrumbs,
+            Flag::IndentGuides => v.indent_guides,
+            Flag::HideComments => v.hide_comments,
+            Flag::PanelsHide => v.panels_hide,
             Flag::StickyScroll => v.sticky_scroll,
             Flag::BookmarkGutter => v.bookmark_gutter,
             Flag::FoldLines => v.fold_lines,
@@ -951,6 +1018,7 @@ impl Limoniter {
             Flag::GitBlame => self.git.blame_on,
             Flag::CycleCounts => crate::m6502_timing::shown(),
             Flag::AssistantPanel => self.assist_panel.open,
+            Flag::Ribbon => v.ribbon,
             Flag::Panel(panel) => self.panel_on(panel),
         }
     }
@@ -964,6 +1032,9 @@ impl Limoniter {
             Flag::SpacesForTab => &mut self.prefs.edit.spaces_for_tab,
             Flag::DocumentMap => &mut v.document_map,
             Flag::Breadcrumbs => &mut v.breadcrumbs,
+            Flag::IndentGuides => &mut v.indent_guides,
+            Flag::HideComments => &mut v.hide_comments,
+            Flag::PanelsHide => &mut v.panels_hide,
             Flag::StickyScroll => &mut v.sticky_scroll,
             Flag::BookmarkGutter => &mut v.bookmark_gutter,
             Flag::FoldLines => &mut v.fold_lines,
@@ -978,6 +1049,7 @@ impl Limoniter {
             Flag::FileTabs => &mut self.show_file_tabs,
             Flag::StatusBar => &mut self.show_status,
             Flag::OutputWindow => &mut self.show_results,
+            Flag::Ribbon => &mut v.ribbon,
             Flag::GitBlame => {
                 self.git.blame_on = !self.git.blame_on;
                 return;
@@ -1041,12 +1113,14 @@ impl Limoniter {
             Command::CopyPath | Command::RenameFile | Command::ShowInExplorer | Command::OpenWithDefault => doc.path.is_some(),
             Command::SendTo(n) if matches!(self.sends.devices.get(n).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => !no_file,
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
-            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOn(_) => !no_file,
+            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOnBuiltIn2600 | Command::RunOn(_) => !no_file,
             Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
             Command::GoToDefinition | Command::PeekDefinition => !no_file,
-            Command::QuickFix | Command::FormatDocument => self.has_lsp(),
+            Command::QuickFix => self.has_lsp(),
+            Command::FormatDocument => self.has_lsp() || (text && crate::ext_formatters::chosen(&doc.language_name(), &self.formatter_choices).is_some()),
             Command::AssembleAndSave | Command::AssembleBinary => !no_file && self.doc_cpu(self.active).is_some(),
             Command::StopRunning => !self.running.sessions.is_empty(),
+            Command::DebugStepBack => self.can_step_back(),
             Command::MachineMemory | Command::MachineScreen | Command::MachineBasicOut => self.reachable().is_some(),
             Command::MachineBasicIn => self.reachable().is_some() && doc.listing_of.is_some(),
             Command::GitCompareHead | Command::GitHistory | Command::GitStageChange => self.git.repo.is_some() && doc.path.is_some(),
@@ -1055,6 +1129,7 @@ impl Limoniter {
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
+            Command::SavePreviewAsPdf => !no_file && Self::pdf_preview_kind(doc).is_some(),
             Command::SaveDocumentAs(_) => doc.legacy.is_some(),
             Command::GraphMode | Command::UdgPictures => !no_file && self.is_spectrum_basic(self.active),
             Command::OpenBasicListing => !t.is_disk_backed() && preview::kind_for_file(doc.path.as_deref(), "", &t.format) == Some(preview::Kind::Basic),
@@ -1078,13 +1153,17 @@ impl Limoniter {
             Command::HexInsertDelete => hex,
             Command::HexCopySelected => hex && doc.hex.has_selection(),
             Command::Comment | Command::Uncomment => text && tools::comment_marks(&doc.language_name()).is_some(),
+            Command::DocComment => text && crate::doc_comments::style_for(&doc.language_name()).is_some(),
+            Command::MarkdownToc | Command::MarkdownTable => text && t.markdown,
             Command::Upper | Command::Lower | Command::SentenceCase | Command::TitleCase => text && t.has_selection(),
             Command::PreviousTab | Command::NextTab => self.all_tabs().len() > 1,
             Command::ProjectClose | Command::ProjectSettings | Command::ProjectAddFiles | Command::ProjectAddFolder | Command::ProjectBackup | Command::ProjectRestore => has_project,
             Command::ProjectAddActive => has_project && doc.path.is_some(),
+            Command::RemoteProjectFetch | Command::RemoteProjectSync => self.remote_project.is_some(),
             Command::PlayMacro | Command::PlayMacroTimes => self.current_macro.is_some(),
             Command::ZoomIn => self.view.font_size < 40.0,
             Command::ZoomOut => self.view.font_size > 8.0,
+            Command::FoldRibbon => self.view.ribbon,
             Command::Toggle(Flag::ColumnMode) => text,
             Command::Toggle(Flag::ReadOnly) => !no_file,
             // Hex mode has its own versions of these, or they're about the file rather than its text.
@@ -1116,6 +1195,7 @@ impl Limoniter {
             | Command::InsertByte
             | Command::RecoverEdits
             | Command::ChooseFont
+            | Command::WindowFont
             | Command::ShowFileLists
             | Command::AlwaysOnTop
             | Command::FullScreen
@@ -1135,8 +1215,10 @@ impl Limoniter {
             | Command::NewScript
             | Command::LoadScript
             | Command::ManageAddOns
+            | Command::Extensions
             | Command::NewAddOn
             | Command::OpenRemote
+            | Command::OpenRemoteFolder
             | Command::ManageDevices
             | Command::Themes
             | Command::Website
@@ -1155,12 +1237,49 @@ impl Limoniter {
             | Command::InsertFile
             | Command::Snippets
             | Command::RunTool
+            // A folder can be opened, searched and worked in with nothing open yet.
+            | Command::OpenFolder
+            | Command::GoToFile
+            | Command::GoToSymbol(true)
+            | Command::SearchPanel
+            | Command::DragonDisk
+            | Command::Checksums
+            | Command::RomPatches
+            | Command::Entropy
+            | Command::RegexTester
+            | Command::SchemaCheck
+            | Command::FlashSettings
+            | Command::SerialTerminal
+            | Command::EpromProgrammer
+            | Command::Formatters
+            | Command::ServeFolder
+            | Command::TimeSpent
+            | Command::HowToCode
+            | Command::HowToCodeExamples
+            | Command::AmigaBootDisk
+            | Command::ToggleTerminal
+            | Command::NewImage
+            | Command::OpenUrl
+            | Command::UseClipboard(_)
+            | Command::Features
+            | Command::WhatsNew
+            | Command::Guide(_)
+            | Command::GitClone
+            // With nothing open, it asks for a file to disassemble.
+            | Command::Disassemble
+            | Command::SaveDecrunched
+            | Command::RasterDesigner
             | Command::Toggle(_) => true,
+            // Tasks run in the project's folder, so need a project or a file in one.
+            Command::BuildTask | Command::TestTask => has_project || !no_file,
+            Command::EditTasks => has_project,
             _ => text,
         }
     }
 
     fn menu_item(&self, ui: &mut Ui, label: &str, shortcut: &str, command: Command, chosen: &mut Option<Command>) {
+        #[cfg(test)]
+        super::ribbon_bar::note_drawn(ui.ctx(), false, command, self.can(command), None);
         let button = Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(shown_shortcut(shortcut)).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0));
         if ui.add_enabled(self.can(command), button).clicked() {
             *chosen = Some(command);
@@ -1176,6 +1295,8 @@ impl Limoniter {
                 Keyed(label, command, key) => self.menu_item(ui, label, key, *command, chosen),
                 Check(label, flag) => {
                     let mut on = self.flag_on(*flag);
+                    #[cfg(test)]
+                    super::ribbon_bar::note_drawn(ui.ctx(), false, Command::Toggle(*flag), self.can(Command::Toggle(*flag)), Some(on));
                     if ui.add_enabled(self.can(Command::Toggle(*flag)), egui::Checkbox::new(&mut on, crate::i18n::tr(label))).clicked() {
                         *chosen = Some(Command::Toggle(*flag));
                     }
@@ -1209,6 +1330,20 @@ impl Limoniter {
                 }
             }
         }
+    }
+
+    /// A list of the menus' entries in one of the ribbon's drop-downs, drawn as the menus draw it, with what's
+    /// picked from it done. A list that changes, such as the recent files, is drawn in place.
+    pub(super) fn drop_down_list(&mut self, ui: &mut Ui, entries: &[Entry]) -> Option<Command> {
+        let mut chosen = None;
+        let mut picks = Vec::new();
+        ui.set_min_width(MENU_WIDTH);
+        match entries {
+            [Entry::Live(label, live)] => self.live_entries(ui, *live, label, &mut chosen, &mut picks),
+            _ => self.draw_entries(ui, entries, false, &mut chosen, &mut picks),
+        }
+        self.carry_out(picks);
+        chosen
     }
 
     fn live_entries(&mut self, ui: &mut Ui, live: Live, label: &str, chosen: &mut Option<Command>, picks: &mut Vec<Pick>) {
@@ -1346,7 +1481,7 @@ impl Limoniter {
             Live::Machines => {
                 // What the file in front would run as, so each machine says whether it can take it.
                 let runnable = if self.no_file() { None } else { self.runnable_quietly().ok().flatten() };
-                let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None))];
+                let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None)), (super::run_host::Target::BuiltIn2600, super::run_host::BUILT_IN_2600_NAME.to_string(), Pick::Command(Command::RunOnBuiltIn2600))];
                 targets.extend((0..self.sends.devices.len()).map(|n| (super::run_host::Target::Device(n), self.sends.devices[n].name.clone(), Pick::RunOn(Some(n)))));
                 for (target, name, pick) in targets {
                     let suits = runnable.as_ref().map(|run| self.suits(target, run));
@@ -1373,28 +1508,6 @@ impl Limoniter {
                         ui.close();
                     }
                 }
-            }
-            Live::Language => {
-                let doc = &self.docs[self.active];
-                let usable = !doc.hex_mode && !self.no_file() && highlight::engine().is_some();
-                ui.add_enabled_ui(usable, |ui| {
-                    egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
-                        if ui.radio(doc.language == Language::Auto, crate::i18n::tr("Work it out")).clicked() {
-                            picks.push(Pick::Language(Language::Auto));
-                        }
-                        if ui.radio(doc.language == Language::Off, crate::i18n::tr("Plain text")).clicked() {
-                            picks.push(Pick::Language(Language::Off));
-                        }
-                        ui.separator();
-                        if let Some(engine) = highlight::engine() {
-                            for (name, syntax) in engine.names() {
-                                if ui.radio(doc.language == Language::Named(*syntax), name).clicked() {
-                                    picks.push(Pick::Language(Language::Named(*syntax)));
-                                }
-                            }
-                        }
-                    });
-                });
             }
             Live::Snippets => {
                 if self.snippets.is_empty() {
@@ -1490,7 +1603,6 @@ impl Limoniter {
             match pick {
                 Pick::File(path) => self.open_request = Some(path),
                 Pick::Project(path) => self.open_project(&path),
-                Pick::Language(language) => self.doc().set_language(language),
                 Pick::Snippet(index) => self.insert_snippet(index),
                 Pick::UseLayout(index) => self.apply_layout(index),
                 Pick::DeleteLayout(index) => {
@@ -1537,18 +1649,27 @@ impl Limoniter {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.spacing_mut().button_padding = egui::vec2(9.0, 4.0);
             first_menu_left = ui.cursor().min.x;
-            for (number, (title, entries)) in MENUS.iter().enumerate() {
-                let menu = ui.menu_button(crate::i18n::tr(title), |ui| {
-                    ui.set_min_width(MENU_WIDTH);
-                    self.draw_entries(ui, entries, false, &mut chosen, &mut picks);
-                });
-                if number == 0 {
-                    ui.ctx().data_mut(|d| d.insert_temp(super::access_host::first_menu_key(), menu.response.id));
+            if self.view.ribbon {
+                // The ribbon's tabs take the menus' place.
+                self.ribbon_tab_bar(ui, &mut chosen);
+            } else {
+                for (number, (title, entries)) in MENUS.iter().enumerate() {
+                    let menu = ui.menu_button(crate::i18n::tr(title), |ui| {
+                        ui.set_min_width(MENU_WIDTH);
+                        self.draw_entries(ui, entries, false, &mut chosen, &mut picks);
+                    });
+                    if number == 0 {
+                        ui.ctx().data_mut(|d| d.insert_temp(super::access_host::first_menu_key(), menu.response.id));
+                    }
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if command_box(ui).clicked() {
                     chosen = Some(Command::CommandPalette);
+                }
+                ui.add_space(2.0);
+                if self.ribbon_switch(ui) {
+                    chosen = Some(Command::Toggle(Flag::Ribbon));
                 }
             });
         });
@@ -1584,6 +1705,7 @@ impl Limoniter {
         self.addons.refresh_if_stale();
         all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: crate::i18n::tf!("File \u{203A} Send to device \u{203A} {}", device.name), shortcut: "", command: Command::SendTo(number) }));
         all.push(Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_NAME), shortcut: "", command: Command::RunOnBuiltIn });
+        all.push(Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_2600_NAME), shortcut: "", command: Command::RunOnBuiltIn2600 });
         all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", device.name), shortcut: "", command: Command::RunOn(number) }));
         all.extend(self.addons.commands().into_iter().enumerate().map(|(number, listed)| Found { path: crate::i18n::tf!("Tools \u{203A} Add-ons \u{203A} {} \u{203A} {}", listed.addon, listed.title), shortcut: "", command: Command::AddOn(number) }));
         let mut found = hidden_commands(&query);
@@ -1601,7 +1723,9 @@ impl Limoniter {
         }
         state.selected = state.selected.min(found.len().saturating_sub(1));
         let mut run = None;
-        egui::Window::new(crate::i18n::tr("Find a command")).title_bar(false).collapsible(false).resizable(false).fixed_size(egui::vec2(560.0, 0.0)).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
+        // As wide as it was last left: its right and left edges drag to widen it.
+        let width = self.palette_width.clamp(MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH);
+        let shown = egui::Window::new(crate::i18n::tr("Find a command")).title_bar(false).collapsible(false).resizable([true, false]).default_width(width).min_width(MIN_PALETTE_WIDTH).max_width(MAX_PALETTE_WIDTH).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
             let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("Type what you want to do, such as \u{201C}sort\u{201D} or \u{201C}wrap\u{201D}")).desired_width(f32::INFINITY).margin(egui::vec2(10.0, 8.0)).font(egui::FontId::proportional(16.0)));
             if state.focus {
                 field.request_focus();
@@ -1662,12 +1786,20 @@ impl Limoniter {
             ui.add_space(4.0);
             ui.label(RichText::new(crate::i18n::tr("\u{2191} \u{2193} to choose, Enter to do it, Esc to close")).color(theme::text_faint()).size(11.5));
         });
+        if let Some(shown) = shown {
+            let now = shown.response.rect.width();
+            if (now - self.palette_width).abs() > 1.0 && now >= MIN_PALETTE_WIDTH {
+                // Kept with the settings when they're next saved.
+                self.palette_width = now;
+            }
+        }
         if enter && let Some(index) = found.get(state.selected).map(|_| state.selected) && usable[index] {
             run = Some(found[index].command);
         }
         if escape || run.is_some() {
             self.close_dialog();
         }
+        self.dialog_was_palette = run.is_some();
         self.pending_command = run;
         true
     }
@@ -1694,6 +1826,10 @@ fn command_box(ui: &mut Ui) -> egui::Response {
     response.on_hover_text(crate::i18n::tr("Find any command by what it does"))
 }
 
+/// The command box's narrowest and widest.
+const MIN_PALETTE_WIDTH: f32 = 420.0;
+const MAX_PALETTE_WIDTH: f32 = 1400.0;
+
 #[cfg(test)]
 mod mac_tests {
     #[test]
@@ -1703,3 +1839,4 @@ mod mac_tests {
         }
     }
 }
+

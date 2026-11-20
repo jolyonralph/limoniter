@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Limoniter: a powerful text and hex editor that speaks 8-bit</title>
+  <title>Limoniter: a full IDE for today's code that speaks 8-bit</title>
   <meta name="description" content="Limoniter is a free, open-source text and hex editor for Windows, macOS and Linux: column editing, an undo tree, Find in Files, folder and file compare, three-way merge, code layout, scripts and 10 GB files. It also edits the files of older computers byte for byte: PETSCII, ATASCII, EBCDIC, teletext and 170 more character sets. It opens their disks and tapes, lists their BASIC, and sends your work back to the machine.">
   <link rel="canonical" href="https://limoniter.com/">
   <meta property="og:type" content="website">
@@ -50,10 +50,10 @@
     <section class="hero">
       <div class="wrap hero-inner">
         <div class="hero-text">
-          <p class="eyebrow"><a href="#ide" class="new-badge">New in 0.13: a full IDE</a> · Free and open source · Windows, macOS and Linux</p>
-          <h1>A powerful editor for today's files, and one that speaks <span class="speaks-line"><span class="speaks">PETSCII</span><span class="cursor" aria-hidden="true"></span></span></h1>
+          <p class="eyebrow"><a href="#new" class="new-badge">New in 0.14: How To Code v8 and more</a> · Free and open source · Windows, macOS and Linux</p>
+          <h1>A full IDE for today's code, and one that speaks <span class="speaks-line"><span class="speaks">PETSCII</span><span class="cursor" aria-hidden="true"></span></span></h1>
           <p class="lead">Limoniter is a full-strength text and hex editor, and now <a href="#ide">a full IDE</a>. Open a folder and you get an Explorer with Git's status, Go to file and symbol, a Search panel that shows every replacement before it's made, language servers it installs for you, and debugging for Python, C, C++ and Rust. It has column editing, an undo tree, Find in Files, <a href="#compare">folder and file compare with three-way merge</a>, code layout, macros, scripts and add-ons, and files of 10 GB open in milliseconds.</p>
-          <p class="lead">It's also the only editor that knows the files of older computers, and a workshop for making new software for them. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, and lists their BASIC. It <a href="#develop">assembles and disassembles</a> Z80, 6502, 6809, 6309, 68000, x86 and ARM code, runs it in an emulator with <kbd>F9</kbd>, debugs it there at your source line, and sends your work back to the machine.</p>
+          <p class="lead">It's also the only editor that knows the files of older computers, and a workshop for making new software for them. It edits their text byte for byte in the machine's own character set, opens their disks and tapes, and lists their BASIC. It <a href="#develop">assembles and disassembles</a> Z80, 6502, the Game Boy's SM83, 6809, 6309, 68000, x86 and ARM code, compiles BASIC and C for them, runs it on a built-in machine or in an emulator with <kbd>F9</kbd>, debugs it there at your source line, and sends your work back to the machine.</p>
           <div class="actions">
             <a class="button primary" href="#get">Download</a>
             <a class="button" href="https://github.com/jolyonralph/limoniter">Source on GitHub</a>
@@ -117,9 +117,43 @@
       </div>
     </section>
 
+    <section id="new" class="section">
+      <div class="wrap">
+        <p class="eyebrow">New in 0.14</p>
+        <h2>A workshop for the older machines</h2>
+        <p class="section-lead">The Amiga demo coders' guide, rewritten and built in. Three more machines inside Limoniter, and many more to build for. Compilers, crunched files, and an emulator that steps backwards. <a href="whats-new.html">Everything that's new</a>.</p>
+        <div class="cards">
+          <article class="card">
+            <h3>How To Code v8</h3>
+            <p>The 1993 guide to writing Amiga demos, rewritten for today and free for anyone (CC0): 18 chapters, from the startup and the copper to chunky to planar and AGA, every fact checked and its 31 examples run on emulated A500s, A1200s and a CD32. Read it in Limoniter, start a demo from its startup with <strong>File › New as</strong>, or <a href="howtocode/index.html">read it here</a>.</p>
+          </article>
+          <article class="card">
+            <h3>Atari 2600, ZX81 and Jupiter Ace, built in</h3>
+            <p>Beside the Spectrum: a cycle-exact Atari 2600 whose frames match MAME's pixel for pixel, a ZX81 whose Z80 draws its own picture as the real one does, and a Jupiter Ace you type Forth into. <kbd>F9</kbd> runs your program, and the debugger stops at your source line.</p>
+          </article>
+          <article class="card">
+            <h3>Game Boy, NES, Sega and more</h3>
+            <p>Build for the Game Boy, the NES, the Mega Drive, Master System, Game Gear, SG-1000 and ColecoVision, with their cartridge headers and checksums written for you, and run them in the emulators people use. PICO-8 and TIC-80 carts show their sprites, maps and sounds.</p>
+          </article>
+          <article class="card">
+            <h3>Compilers for the old machines</h3>
+            <p>Boriel's ZX Basic for the Spectrum, and C through cc65, llvm-mos, z88dk, SDCC, SGDK, vbcc and amiga-gcc, each found and run by <kbd>F9</kbd>, its errors marked on their lines. SAS/C sources build again with today's Amiga compilers.</p>
+          </article>
+          <article class="card">
+            <h3>Step back through Amiga code</h3>
+            <p>Copperline joins FS-UAE and WinUAE: your program boots at once and is debugged at its source lines, stepping backwards as well as forwards, with a profile of where the time goes and warnings when it misuses the chips. Programs crunched with PowerPacker, Imploder, StoneCracker, CrunchMania or ByteKiller are unpacked to be disassembled.</p>
+          </article>
+          <article class="card">
+            <h3>Tools for making things</h3>
+            <p>A tile map and level editor that reads CharPad's files, a raster and copper designer, unit tests for Z80 and 6502 routines, an instruction reference and a call graph, a serial terminal with XMODEM and YMODEM, and EPROM programming with TL866 and T48 programmers.</p>
+          </article>
+        </div>
+        <p class="section-lead">And for everyday work: a start page, a ribbon if you'd like one, Mermaid diagrams and PDFs from Markdown, SFTP and FTP folders opened as projects, and the themes, grammars, snippets and icons of VS Code extensions.</p>
+      </div>
+    </section>
+
     <section id="ide" class="section alt">
       <div class="wrap">
-        <p class="eyebrow">New in 0.13</p>
         <h2>A full IDE for your projects</h2>
         <p class="section-lead">Open a folder with <strong>File › Open folder</strong> and Limoniter works across all of it, the way VS Code does. Thousands of files are indexed in the background, following <code>.gitignore</code>, and nothing is written into the folder unless you ask. Everything you'd reach for in VS Code is a familiar shortcut away, and the retro tools are still right there.</p>
         <div class="cards">
@@ -296,11 +330,11 @@
         <div class="cards">
           <article class="card">
             <h3>Assemblers built in</h3>
-            <p>Z80 (with the Spectrum Next's instructions), 6502, 6809 and the 6309, 68000, x86 (in NASM's syntax) and the Archimedes's ARM, in the syntaxes people use: sjasmplus, ACME, KickAssembler, 64tass, DASM, lwasm, vasm and Devpac. They make tapes, <code>.prg</code> files, disks, C64 and Atari 2600 cartridges, Atari ST programs and Amiga executables, and mistakes are marked as you type. Your own assemblers can be used instead.</p>
+            <p>Z80 (with the Spectrum Next's instructions), 6502 (and the 65C02 and HuC6280), the Game Boy's SM83, 6809 and the 6309, 68000, the SNES's SPC700, x86 (in NASM's syntax) and the Archimedes's ARM, in the syntaxes people use: sjasmplus, ACME, KickAssembler, 64tass, DASM, lwasm, vasm, Devpac and RGBDS. They make tapes, <code>.prg</code> files, disks, cartridges for the C64, Atari 2600, Game Boy, NES, Sega's consoles and the ColecoVision, Atari ST programs and Amiga executables, and mistakes are marked as you type. Your own assemblers can be used instead.</p>
           </article>
           <article class="card">
             <h3><kbd>F9</kbd> runs it</h3>
-            <p>On the built-in ZX Spectrum, with nothing to install, or in VICE, ZEsarUX, Hatari, FS-UAE, WinUAE, b2, openMSX, XRoar (as a CoCo or a Dragon), Stella, MAME (a Vectrex cartridge too), DOSBox or QEMU. An Amiga program boots straight into it, and an ST program can go on a bootable floppy. <strong>Get an emulator</strong> installs the ones you don't have.</p>
+            <p>On the built-in ZX Spectrum, Atari 2600, ZX81 or Jupiter Ace, with nothing to install, or in VICE, ZEsarUX, Hatari, FS-UAE, WinUAE, Copperline, b2, openMSX, XRoar (as a CoCo or a Dragon), Stella, BlastEm, SameBoy, Mesen, Emulicious, MAME (a Vectrex cartridge too), DOSBox or QEMU. An Amiga program boots straight into it, and an ST program can go on a bootable floppy. <strong>Get an emulator</strong> installs the ones you don't have.</p>
           </article>
           <article class="card">
             <h3>Debugging at source level</h3>
@@ -316,7 +350,7 @@
           </article>
           <article class="card">
             <h3>The scene's toolbox</h3>
-            <p>There are demo starters that run at once: Amiga copper bars, ST Timer B rasters and C64 stable rasters. Shrinkler, Cranker, ZX0, LZSA, Exomizer and more pack the result. Replay calls for MOD, SNDH and SID music are written for you. There are bitplane, sprite and charset converters, a picture converter that makes any JPEG into a Spectrum, Next, CPC, MSX or BBC screen, sine tables in any assembler's syntax, and copper lists, blitter minterms and MFP timers worked out. Modules play in the preview.</p>
+            <p>There are demo starters that run at once: Amiga copper bars, ST Timer B rasters and C64 stable rasters. Shrinkler, Cranker, ZX0, LZSA, Exomizer and more pack the result. Replay calls for MOD, SNDH and SID music are written for you. There are bitplane, sprite and charset converters, a picture converter that makes any JPEG into a Spectrum, Next, CPC, MSX or BBC screen, sine tables in any assembler's syntax, and copper lists, blitter minterms and MFP timers worked out. Modules play in the preview. <a href="howtocode/index.html">How To Code v8</a>, the Amiga demo coders' guide, rewritten, tested and free for anyone (CC0), comes with it, with a startup and examples to build on.</p>
           </article>
         </div>
         <div class="split develop-split">
@@ -470,7 +504,7 @@ cargo build --release</code></pre>
         <div class="cards name-cards">
           <article class="card">
             <h3>Limonite</h3>
-            <p>Limonite is an iron ore made of hydrated iron oxides, mostly goethite, that forms where iron weathers. In other words, it's rust that nature made. Its name comes from the Greek <i>leimon</i>, a meadow, because it was dug as bog iron ore from wet meadows and marshes.</p>
+            <p>Limonite is an iron ore made of hydrated iron oxides, mostly goethite, that forms where iron weathers. In other words, it's rust that nature made. Its name comes from the Greek <i>leimon</i>, a meadow, because it was dug as bog iron ore from wet meadows and marshes. <a href="https://www.mindat.org/min-2402.html">Mindat has much more about limonite</a>, with photographs from around the world.</p>
           </article>
           <article class="card">
             <h3>Written in Rust</h3>

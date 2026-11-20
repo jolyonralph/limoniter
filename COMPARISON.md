@@ -68,7 +68,7 @@ Limoniter keeps files of 64 MB and more on disk and opens them quickly, and edit
 | Remote files (FTP, SFTP, SSH) | ◐ SFTP; FTP only to send | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ◐ | ✓ | ✗ |
 | Editing together in real time | ✗ | ✗ | ✗ | ◐ | ✗ | ◐ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | AI assistance | ◐ via Claude Code or Codex, if installed | ✓ | ◐ | ✓ | ◐ | ◐ | ◐ | ✓ | ? | ✓ | ◐ | ✓ | ✗ |
-| Interface in languages other than English | ✗ | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✗ | ✓ | ✓ | ✗ | ✗ | ✓ |
+| Interface in languages other than English | ✓ French, German, Italian and Spanish | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✗ | ✓ | ✓ | ✗ | ✗ | ✓ |
 
 ## Older computers' files
 

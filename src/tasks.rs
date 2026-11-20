@@ -99,7 +99,104 @@ pub fn detect(folder: &Path) -> Vec<Task> {
     if folder.join("CMakeLists.txt").is_file() {
         found.extend([task("cmake configure", "cmake -S . -B build", Kind::Other), task("cmake build", "cmake --build build", Kind::Build)]);
     }
+    // PlatformIO, for Arduino, AVR, ESP32 and the rest: building, uploading to the board, its tests and its monitor.
+    if folder.join("platformio.ini").is_file() {
+        found.extend([
+            task("PlatformIO: build", "pio run", Kind::Build),
+            task("PlatformIO: upload to the board", "pio run -t upload", Kind::Run),
+            task("PlatformIO: test", "pio test", Kind::Test),
+            task("PlatformIO: serial monitor", "pio device monitor", Kind::Other),
+        ]);
+    }
     found
+}
+
+/// How a microcontroller is flashed: the programmer, the chip, and the port it's on, for avrdude (AVR) and MPLAB
+/// IPE's ipecmd (PIC). Kept in the settings file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Flashing {
+    pub avr_programmer: String,
+    pub avr_part: String,
+    pub avr_port: String,
+    pub pic_tool: String,
+    pub pic_part: String,
+}
+
+impl Default for Flashing {
+    fn default() -> Self {
+        Flashing { avr_programmer: "arduino".into(), avr_part: "atmega328p".into(), avr_port: String::new(), pic_tool: "PK4".into(), pic_part: "16F877A".into() }
+    }
+}
+
+/// avrdude's programmers most often used, and what each is.
+pub const AVR_PROGRAMMERS: [(&str, &str); 9] = [
+    ("arduino", "An Arduino's own bootloader (Uno, Nano)"),
+    ("wiring", "An Arduino Mega's bootloader"),
+    ("usbasp", "USBasp"),
+    ("usbtiny", "USBtinyISP"),
+    ("avrisp2", "AVRISP mkII"),
+    ("stk500v2", "STK500 version 2"),
+    ("atmelice_isp", "Atmel-ICE"),
+    ("serialupdi", "UPDI over a serial adapter (newer ATtiny and ATmega)"),
+    ("jtag2updi", "jtag2updi"),
+];
+
+/// MPLAB IPE's tools, as ipecmd names them.
+pub const PIC_TOOLS: [(&str, &str); 5] = [("PK3", "PICkit 3"), ("PK4", "PICkit 4"), ("PK5", "PICkit 5"), ("PPK4", "MPLAB PICkit 4 (in PIC mode)"), ("ICD4", "MPLAB ICD 4")];
+
+impl Flashing {
+    pub fn to_settings(&self) -> String {
+        format!(
+            "avr_programmer={}\navr_part={}\navr_port={}\npic_tool={}\npic_part={}\n",
+            self.avr_programmer, self.avr_part, self.avr_port, self.pic_tool, self.pic_part
+        )
+    }
+
+    pub fn read_setting(&mut self, name: &str, value: &str) {
+        let value = value.trim().to_string();
+        match name {
+            "avr_programmer" => self.avr_programmer = value,
+            "avr_part" => self.avr_part = value,
+            "avr_port" => self.avr_port = value,
+            "pic_tool" => self.pic_tool = value,
+            "pic_part" => self.pic_part = value,
+            _ => {}
+        }
+    }
+
+    /// The tasks that flash what's been built in a folder: an Intel HEX file (the newest, in it or in build/),
+    /// sent with avrdude where there's AVR code and with ipecmd where there's PIC code.
+    pub fn tasks(&self, folder: &Path, languages: &[String]) -> Vec<Task> {
+        let Some(hex) = newest_hex(folder) else { return Vec::new() };
+        let shown = hex.strip_prefix(folder).unwrap_or(&hex).display().to_string();
+        let quoted = if shown.contains(' ') { format!("\"{shown}\"") } else { shown.clone() };
+        let mut found = Vec::new();
+        let has = |words: &[&str]| languages.iter().any(|l| words.iter().any(|w| l.contains(w)));
+        if has(&["AVR", "Arduino"]) {
+            let port = if self.avr_port.trim().is_empty() { String::new() } else { format!(" -P {}", self.avr_port.trim()) };
+            found.push(task(&format!("avrdude: flash {shown}"), &format!("avrdude -c {} -p {}{port} -U flash:w:{quoted}:i", self.avr_programmer, self.avr_part), Kind::Run));
+        }
+        if has(&["PIC"]) {
+            found.push(task(&format!("ipecmd: flash {shown}"), &format!("ipecmd -TP{} -P{} -F{quoted} -M -OL", self.pic_tool, self.pic_part), Kind::Run));
+        }
+        found
+    }
+}
+
+/// The newest .hex file in a folder or its build folders.
+fn newest_hex(folder: &Path) -> Option<PathBuf> {
+    let mut found: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
+    for place in [folder.to_path_buf(), folder.join("build"), folder.join("Debug"), folder.join("Release")] {
+        let Ok(entries) = std::fs::read_dir(&place) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("hex")) {
+                let when = entry.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+                found.push((when, path));
+            }
+        }
+    }
+    found.into_iter().max_by_key(|(when, _)| *when).map(|(_, path)| path)
 }
 
 /// A place a compiler or tool printed: the file, the line (from 1), and what it said.
@@ -149,12 +246,16 @@ pub fn place_in(line: &str) -> Option<(String, usize, String)> {
 }
 
 /// One test's result.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TestResult {
     pub name: String,
     pub passed: bool,
     /// Where it failed, if the output says.
     pub place: Option<(String, usize)>,
+    /// Said beside it, such as the cycles an assembly routine took.
+    pub note: Option<String>,
+    /// What went wrong, a line each, shown under it.
+    pub detail: Vec<String>,
 }
 
 /// The tests in a test runner's output, as cargo test, pytest -v and go test -v print them.
@@ -167,8 +268,8 @@ pub fn test_results(lines: &[String]) -> Vec<TestResult> {
             && let Some((name, outcome)) = rest.rsplit_once(" ... ")
         {
             match outcome.trim() {
-                "ok" => results.push(TestResult { name: name.into(), passed: true, place: None }),
-                "FAILED" => results.push(TestResult { name: name.into(), passed: false, place: None }),
+                "ok" => results.push(TestResult { name: name.into(), passed: true, place: None, ..Default::default() }),
+                "FAILED" => results.push(TestResult { name: name.into(), passed: false, place: None, ..Default::default() }),
                 _ => {}
             }
             continue;
@@ -176,7 +277,7 @@ pub fn test_results(lines: &[String]) -> Vec<TestResult> {
         // go: "--- PASS: TestName (0.00s)".
         if let Some(rest) = t.strip_prefix("--- PASS: ").or_else(|| t.strip_prefix("--- FAIL: ")) {
             let name = rest.split_whitespace().next().unwrap_or("").to_string();
-            results.push(TestResult { name, passed: t.starts_with("--- PASS"), place: None });
+            results.push(TestResult { name, passed: t.starts_with("--- PASS"), place: None, ..Default::default() });
             continue;
         }
         // pytest -v: "tests/test_x.py::test_name PASSED [ 50%]".
@@ -184,7 +285,7 @@ pub fn test_results(lines: &[String]) -> Vec<TestResult> {
             && t[..at].contains("::")
             && !t.starts_with("FAILED ")
         {
-            results.push(TestResult { name: t[..at].to_string(), passed: t[at..].starts_with(" PASSED"), place: None });
+            results.push(TestResult { name: t[..at].to_string(), passed: t[at..].starts_with(" PASSED"), place: None, ..Default::default() });
         }
     }
     // Where failures happened: cargo's panics name the thread (the test), pytest's "file:line: Error" follows
@@ -237,6 +338,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn microcontrollers_are_flashed_with_what_was_built() {
+        let folder = std::env::temp_dir().join(format!("limoniter-flash-{}", std::process::id()));
+        std::fs::create_dir_all(folder.join("build")).unwrap();
+        std::fs::write(folder.join("platformio.ini"), "[env:uno]\n").unwrap();
+        assert!(detect(&folder).iter().any(|t| t.command == "pio run -t upload"));
+        let flashing = Flashing { avr_port: "COM3".into(), ..Flashing::default() };
+        assert!(flashing.tasks(&folder, &["Assembly AVR".into()]).is_empty(), "nothing built yet");
+        std::fs::write(folder.join("build/blink.hex"), ":00000001FF\n").unwrap();
+        let tasks = flashing.tasks(&folder, &["Assembly AVR".into()]);
+        assert_eq!(tasks[0].command, format!("avrdude -c arduino -p atmega328p -P COM3 -U flash:w:{}:i", std::path::Path::new("build").join("blink.hex").display()));
+        let pic = Flashing { pic_part: "16F84A".into(), ..Flashing::default() }.tasks(&folder, &["Assembly PIC".into()]);
+        assert!(pic.iter().any(|t| t.command.starts_with("ipecmd -TPPK4 -P16F84A -F")));
+        let mut read = Flashing::default();
+        for line in flashing.to_settings().lines() {
+            let (name, value) = line.split_once('=').unwrap();
+            read.read_setting(name, value);
+        }
+        assert_eq!(read, flashing);
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
     fn places_are_found_in_what_compilers_print() {
         assert_eq!(place_in("src/main.c:12:5: error: expected ';'"), Some(("src/main.c".into(), 12, "expected ';'".into())));
         assert_eq!(place_in("   --> src/lib.rs:40:9"), Some(("src/lib.rs".into(), 40, String::new())));
@@ -253,12 +376,12 @@ mod tests {
     fn test_results_are_read_from_each_runner() {
         let lines = |text: &str| text.lines().map(str::to_string).collect::<Vec<_>>();
         let cargo = test_results(&lines("running 2 tests\ntest tests::adds ... ok\ntest tests::subtracts ... FAILED\n\nfailures:\n\n---- tests::subtracts stdout ----\nthread 'tests::subtracts' (99) panicked at src/lib.rs:20:9:\nassertion failed\n"));
-        assert_eq!(cargo, [TestResult { name: "tests::adds".into(), passed: true, place: None }, TestResult { name: "tests::subtracts".into(), passed: false, place: Some(("src/lib.rs".into(), 20)) }]);
+        assert_eq!(cargo, [TestResult { name: "tests::adds".into(), passed: true, place: None, ..Default::default() }, TestResult { name: "tests::subtracts".into(), passed: false, place: Some(("src/lib.rs".into(), 20)), ..Default::default() }]);
         let pytest = test_results(&lines("test_maths.py::test_add PASSED  [ 50%]\ntest_maths.py::test_sub FAILED  [100%]\n=== FAILURES ===\n____ test_sub ____\n    def test_sub():\n>       assert 1 - 1 == 1\nE       assert 0 == 1\n\ntest_maths.py:6: AssertionError\n"));
         assert_eq!(pytest.len(), 2);
         assert_eq!(pytest[1].place, Some(("test_maths.py".into(), 6)));
         let go = test_results(&lines("=== RUN   TestAdd\n--- PASS: TestAdd (0.00s)\n=== RUN   TestSub\n    maths_test.go:14: got 0, want 1\n--- FAIL: TestSub (0.00s)\nFAIL\n"));
-        assert_eq!(go[1], TestResult { name: "TestSub".into(), passed: false, place: Some(("maths_test.go".into(), 14)) });
+        assert_eq!(go[1], TestResult { name: "TestSub".into(), passed: false, place: Some(("maths_test.go".into(), 14)), ..Default::default() });
         assert_eq!(only_this("cargo test", "tests::adds"), "cargo test tests::adds -- --exact");
         assert_eq!(only_this("go test -v ./...", "TestSub"), "go test -v ./... -run '^TestSub$'");
     }

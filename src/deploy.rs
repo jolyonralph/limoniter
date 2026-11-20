@@ -167,7 +167,11 @@ impl Device {
         match &self.place {
             Place::Card { label, .. } if label.trim().is_empty() => Some(crate::i18n::tr("Say which card: its volume label.").into()),
             Place::Folder { path } if path.as_os_str().is_empty() => Some(crate::i18n::tr("Choose the folder.").into()),
-            Place::Sftp { address, .. } => crate::remote::parse_url(address).err(),
+            Place::Sftp { address, .. } => match crate::remote::parse_url(address) {
+                Ok((site, _)) if site.scheme.is_ftp() => Some(crate::i18n::tr("An SFTP server's address starts sftp://. For an FTP server, choose FTP server as its kind.").into()),
+                Ok(_) => None,
+                Err(problem) => Some(problem),
+            },
             Place::Ftp { host, .. } | Place::Ultimate { host } if host.trim().is_empty() => Some(crate::i18n::tr("Say which machine: its name or address.").into()),
             Place::Command { line } if !line.contains("{file}") => Some(crate::i18n::tr("The command line needs {file} where the file goes.").into()),
             Place::Emulator { emulator, .. } if crate::emulators::by_id(emulator).is_none() => Some(crate::i18n::tr("Choose which emulator it is.").into()),

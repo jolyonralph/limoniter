@@ -7,7 +7,6 @@ use crate::text_buffer::TextBuffer;
 use eframe::egui::{self, Color32};
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use syntect::easy::ScopeRegionIterator;
 use syntect::highlighting::{HighlightIterator, HighlightState, Highlighter, Theme};
@@ -77,7 +76,11 @@ fn read_own_grammars(folder: &std::path::Path) -> Vec<(String, Result<SyntaxDefi
         .collect()
 }
 
-static ENGINE: OnceLock<Engine> = OnceLock::new();
+/// The grammars in use. They're made again when extensions change; the ones before are left be (they're never
+/// freed), as colouring that's under way on another thread may still be using them, and that happens rarely.
+static ENGINE: std::sync::RwLock<Option<&'static Engine>> = std::sync::RwLock::new(None);
+/// Held while grammars are being loaded, so two threads asking at once load them only once.
+static LOADING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// The scheme that colours nothing: every word in the theme's own text colour, as the older machines showed code.
 pub const NO_SYNTAX_COLOURS: &str = "None";
@@ -116,11 +119,13 @@ pub const SCHEMES: [EmbeddedThemeName; 29] = [
 ];
 
 /// Grammars written for Limoniter, added to the ones from two-face.
-const OWN_GRAMMARS: [(&str, &str); 39] = [
+const OWN_GRAMMARS: [(&str, &str); 43] = [
     (ASM_80X86, include_str!("../data/syntaxes/assembly-80x86.sublime-syntax")),
     (ASM_680X0, include_str!("../data/syntaxes/assembly-680x0.sublime-syntax")),
     (ASM_6502, include_str!("../data/syntaxes/assembly-6502.sublime-syntax")),
     (ASM_Z80, include_str!("../data/syntaxes/assembly-z80.sublime-syntax")),
+    (ASM_SM83, include_str!("../data/syntaxes/assembly-sm83.sublime-syntax")),
+    (ASM_SPC700, include_str!("../data/syntaxes/assembly-spc700.sublime-syntax")),
     (ASM_HLASM, include_str!("../data/syntaxes/assembly-hlasm.sublime-syntax")),
     (COBOL, include_str!("../data/syntaxes/cobol.sublime-syntax")),
     (JCL, include_str!("../data/syntaxes/jcl.sublime-syntax")),
@@ -156,10 +161,15 @@ const OWN_GRAMMARS: [(&str, &str); 39] = [
     (POSTSCRIPT, include_str!("../data/syntaxes/postscript.sublime-syntax")),
     (INFORM6, include_str!("../data/syntaxes/inform6.sublime-syntax")),
     (ZIL, include_str!("../data/syntaxes/zil.sublime-syntax")),
+    (AMIGA_E, include_str!("../data/syntaxes/amiga-e.sublime-syntax")),
+    (BASIC_BORIEL, include_str!("../data/syntaxes/basic-boriel.sublime-syntax")),
 ];
+const AMIGA_E: &str = "Amiga E";
 const ASM_680X0: &str = "Assembly 680x0";
 const ASM_6502: &str = "Assembly 6502";
 const ASM_Z80: &str = "Assembly Z80";
+pub const ASM_SM83: &str = "Assembly SM83 (Game Boy)";
+pub const ASM_SPC700: &str = "Assembly SPC700 (SNES sound)";
 const ASM_80X86: &str = "Assembly 80x86";
 const ASM_HLASM: &str = "Assembly HLASM";
 const ASM_6809: &str = "Assembly 6809";
@@ -196,6 +206,7 @@ const COBOL: &str = "COBOL";
 const JCL: &str = "JCL";
 pub const BASIC_SINCLAIR: &str = "BASIC (Sinclair and Next)";
 pub const BASIC_COMMODORE: &str = "BASIC (Commodore)";
+pub const BASIC_BORIEL: &str = "BASIC (Boriel ZX Basic)";
 
 /// File name endings used for assembler of any kind, which say nothing about which processor it's for.
 const GENERAL_ASM_EXTENSIONS: [&str; 8] = ["asm", "s", "a", "i", "inc", "src", "mac", "as"];
@@ -231,6 +242,8 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     let mut m6502_only = 0;
     let mut others = [(0usize, ASM_6809, &M6809[..]), (0, ASM_8080, &I8080[..]), (0, ASM_65816, &W65816[..]), (0, ASM_ARM, &ARM[..]), (0, ASM_PDP11, &PDP11[..]), (0, ASM_VAX, &VAX[..]), (0, ASM_AVR, &AVR[..]), (0, ASM_PIC, &PIC[..])];
     let mut sixty_four = false;
+    // The Game Boy's own: LDH, SWAP, LDI and LDD with operands, [HL+], and RGBDS's sections and their memory.
+    let mut sm83 = 0;
     for line in lines {
         let code = line.split(';').next().unwrap_or("").to_lowercase();
         if code.trim_start().starts_with('*') {
@@ -257,6 +270,12 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
         }
         if names.iter().any(|(name, _)| Z80.contains(name)) {
             z80 += 1;
+        }
+        let sm83_only = names.iter().any(|(name, _)| matches!(*name, "ldh" | "swap"))
+            || (names.iter().any(|(name, _)| matches!(*name, "ldi" | "ldd")) && code.contains(','))
+            || ["[hl+]", "[hl-]", "[hli]", "[hld]", "rom0", "romx", "wram0", "hram"].iter().any(|mark| code.replace(' ', "").contains(mark));
+        if sm83_only {
+            sm83 += 1;
         }
         if names.iter().any(|(name, _)| HLASM.contains(name)) {
             hlasm += 1;
@@ -285,7 +304,9 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     if others[2].0 > 0 {
         others[2].0 += m6502;
     }
-    let mut ranked = vec![(m68k, ASM_680X0), (m6502, ASM_6502), (z80, ASM_Z80), (m86, ASM_80X86), (hlasm, ASM_HLASM)];
+    // The Game Boy's code is the Z80's, near enough, until its own instructions turn up.
+    let z80_like = if sm83 >= 2 { (z80 + sm83, ASM_SM83) } else { (z80, ASM_Z80) };
+    let mut ranked = vec![(m68k, ASM_680X0), (m6502, ASM_6502), z80_like, (m86, ASM_80X86), (hlasm, ASM_HLASM)];
     ranked.extend(others.iter().map(|(count, name, _)| (*count, *name)));
     let best = ranked.iter().max_by_key(|entry| entry.0)?;
     let next = ranked.iter().filter(|entry| entry.1 != best.1).map(|entry| entry.0).max().unwrap_or(0);
@@ -296,6 +317,10 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
 /// taken for unless a Sinclair or Commodore listing gives itself away: Sinclair's two-word keywords and colour
 /// statements, or the `{clr}`-style codes Commodore listings write their control characters as.
 pub fn guess_basic(lines: &[std::sync::Arc<str>]) -> &'static str {
+    // Boriel's ZX Basic, compiled rather than listed, has its own words and no line numbers.
+    if crate::boriel::looks_like_boriel(lines) {
+        return BASIC_BORIEL;
+    }
     const SINCLAIR: [&str; 14] = ["GO TO", "GO SUB", "BORDER ", "PAPER ", "INK ", "BRIGHT ", "RANDOMIZE", "{INK", "{AT ", "{UDG-", "DEFPROC", "LAYER ", "ENDPROC", "DEF FN "];
     const COMMODORE: [&str; 12] = ["{clr}", "{home}", "{rvon}", "{rvof}", "{down}", "{rght}", "{wht}", "{red}", "{blu}", "POKE53280", "POKE 53280", "{cyn}"];
     let (mut sinclair, mut commodore) = (0, 0);
@@ -343,25 +368,49 @@ fn looks_like_inform(lines: &[std::sync::Arc<str>]) -> bool {
 /// Loads the grammars in the background, so opening the window doesn't wait for them.
 pub fn start_loading(ctx: egui::Context) {
     std::thread::spawn(move || {
-        ENGINE.get_or_init(Engine::load);
+        load_now();
         ctx.request_repaint();
     });
 }
 
 /// The grammars, loaded now if they haven't been, for tests and screenshots.
 pub fn load_now() -> &'static Engine {
-    ENGINE.get_or_init(Engine::load)
+    if let Some(engine) = engine() {
+        return engine;
+    }
+    let _loading = LOADING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(engine) = engine() {
+        return engine;
+    }
+    let engine: &'static Engine = Box::leak(Box::new(Engine::load()));
+    *ENGINE.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(engine);
+    engine
 }
 
 /// The grammars, once they've loaded.
 pub fn engine() -> Option<&'static Engine> {
-    ENGINE.get()
+    *ENGINE.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Loads the grammars again in the background, with the extensions as they are now. The ones in use go on being
+/// used until the new ones are ready.
+pub fn reload(ctx: egui::Context) {
+    std::thread::spawn(move || {
+        let _loading = LOADING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let engine: &'static Engine = Box::leak(Box::new(Engine::load()));
+        *ENGINE.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(engine);
+        ctx.request_repaint();
+    });
 }
 
 impl Engine {
     /// A syntax colour scheme by name. One that isn't known gives the usual one for dark or light documents.
     pub fn scheme(&self, name: &str) -> std::sync::Arc<Theme> {
         let mut read = self.read.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        // An extension's theme's colours come first, and aren't kept here, as extensions come and go.
+        if let Some(theme) = crate::vsix::scheme(name) {
+            return theme;
+        }
         if let Some(theme) = read.get(name) {
             return theme.clone();
         }
@@ -388,6 +437,11 @@ impl Engine {
                 }
                 Err(problem) => own.push((file, Err(problem))),
             }
+        }
+        // VS Code extensions' grammars come last, so for a file ending another grammar knows, theirs is used.
+        let taken: std::collections::HashSet<String> = builder.syntaxes().iter().map(|s| s.name.clone()).collect();
+        for grammar in crate::vsix::grammars(&taken) {
+            builder.add(grammar);
         }
         let syntaxes = builder.build();
         let mut names: Vec<(String, usize)> = syntaxes
@@ -439,6 +493,10 @@ impl Engine {
         if extension.as_deref() == Some("inf") && looks_like_inform(sample) {
             return self.syntaxes.syntaxes().iter().position(|s| s.name == INFORM6);
         }
+        // A PICO-8 cart is mostly its Lua code (its data, after, is plain hex either way).
+        if extension.as_deref() == Some("p8") {
+            return self.syntaxes.syntaxes().iter().position(|s| s.name == "Lua");
+        }
         if extension.as_deref() == Some("bas") {
             let name = guess_basic(sample);
             return self.syntaxes.syntaxes().iter().position(|s| s.name == name);
@@ -462,7 +520,8 @@ impl Engine {
         if found.name == "Plain Text" {
             return None;
         }
-        self.syntaxes.syntaxes().iter().position(|s| s.name == found.name)
+        // The very grammar found, not the first of the same name, so an extension's own grammar is used.
+        self.syntaxes.syntaxes().iter().position(|s| std::ptr::eq(s, found)).or_else(|| self.syntaxes.syntaxes().iter().position(|s| s.name == found.name))
     }
 }
 
@@ -525,6 +584,8 @@ pub struct ColouredLine {
     pub spans: Vec<(usize, Color32)>,
     /// Brackets outside strings and comments: character position, bracket and nesting depth.
     pub brackets: Vec<(usize, char, Option<usize>)>,
+    /// The stretches inside comments: from and to, by character.
+    pub comments: Vec<(usize, usize)>,
     /// The text has changed since, so this is shown only until the new colours are ready.
     stale: bool,
 }
@@ -576,20 +637,32 @@ fn colour_line(engine: &Engine, highlighter: &Highlighter<'_>, state: &mut State
     // The stretches inside strings and comments, where brackets don't count.
     let mut path = state.highlight.path.clone();
     let mut quoted: Vec<(usize, usize)> = Vec::new();
+    let mut comments: Vec<(usize, usize)> = Vec::new();
     let mut position = 0;
     for (piece, op) in ScopeRegionIterator::new(&ops, &text) {
         if path.apply(op).is_err() || piece.is_empty() {
             continue;
         }
         let length = piece.chars().count();
-        let inside = path.as_slice().iter().any(|scope| engine.string_scope.is_prefix_of(*scope) || engine.comment_scope.is_prefix_of(*scope));
-        if inside {
+        let in_comment = path.as_slice().iter().any(|scope| engine.comment_scope.is_prefix_of(*scope));
+        let in_string = !in_comment && path.as_slice().iter().any(|scope| engine.string_scope.is_prefix_of(*scope));
+        if in_comment || in_string {
             quoted.push((position, position + length));
+        }
+        // Joined up with the stretch before where they meet.
+        if in_comment {
+            match comments.last_mut() {
+                Some((_, end)) if *end == position => *end = position + length,
+                _ => comments.push((position, position + length)),
+            }
         }
         position += length;
     }
 
-    let mut coloured = ColouredLine::default();
+    // The newline the grammar's given doesn't count: each stretch ends where the line does.
+    let chars = line.chars().count();
+    let clamp = |list: Vec<(usize, usize)>| list.into_iter().map(|(a, z)| (a.min(chars), z.min(chars))).filter(|(a, z)| a < z).collect();
+    let mut coloured = ColouredLine { comments: clamp(comments), ..ColouredLine::default() };
     for (style, piece) in HighlightIterator::new(&mut state.highlight, &ops, &text, highlighter) {
         let length = piece.trim_end_matches('\n').chars().count();
         if length == 0 {
@@ -729,7 +802,7 @@ mod tests {
     use crate::rainbow::RainbowCache;
 
     fn test_engine() -> &'static Engine {
-        ENGINE.get_or_init(Engine::load)
+        load_now()
     }
 
     #[test]
@@ -742,6 +815,13 @@ mod tests {
         let mut buffer = TextBuffer::default();
         buffer.set_content(lines.iter().map(|l| l.to_string()).collect());
         buffer
+    }
+
+    #[test]
+    fn a_pico8_cart_is_coloured_as_lua() {
+        let engine = test_engine();
+        let found = engine.detect_with_sample(Some(Path::new("game.p8")), &[std::sync::Arc::from("pico-8 cartridge // http://www.pico-8.com")]);
+        assert_eq!(found.map(|n| engine.name_of(n)), Some("Lua"));
     }
 
     fn syntax_for(file: &str) -> Option<usize> {
@@ -762,6 +842,14 @@ mod tests {
         assert_eq!(found, [(1, "first".to_string()), (4, "second".to_string())]);
         let python = functions_in("Python", &["def one():", "    pass", "x = 'def nope():'", "def two(a):", "    return a"]);
         assert_eq!(python, [(0, "one".to_string()), (3, "two".to_string())]);
+    }
+
+    #[test]
+    fn boriel_subs_and_functions_are_listed_and_its_asm_is_z80() {
+        let text = ["SUB FASTCALL Plot(x AS UBYTE)", "  ASM", "  start: ld a,2", "  END ASM", "END SUB", "' SUB NotThis()", "Function Clamp(v AS INTEGER) AS UBYTE", "END FUNCTION"];
+        let found = functions_in(BASIC_BORIEL, &text);
+        let names: Vec<(usize, &str)> = found.iter().map(|(line, name)| (*line, name.as_str())).collect();
+        assert_eq!(names, [(0, "Plot"), (2, "start:"), (6, "Clamp")], "the label inside ASM is the Z80 grammar's");
     }
 
     #[test]
@@ -863,6 +951,21 @@ mod tests {
         assert_eq!(test_engine().name_of(job), JCL, "a job card says what it is");
     }
 
+    /// Amiga E: a .e file is taken for it, its PROCs (methods too) are the outline's, and comments (which nest),
+    /// strings, keywords, built-in functions and constants are told apart.
+    #[test]
+    fn amiga_e_is_coloured_and_its_procs_listed() {
+        let engine = test_engine();
+        let syntax = syntax_for("hello.e").expect("a .e file is Amiga E");
+        assert_eq!(engine.name_of(syntax), AMIGA_E);
+        let text = "MODULE 'intuition/intuition'\n\n/* outer /* nested */ still comment */\nOBJECT point\n  x, y\nENDOBJECT\n\nPROC main() HANDLE\n  DEF w:PTR TO window -> a window\n  w := OpenW(10, 10, 200, 100, IDCMP_CLOSEWINDOW, 0, 'Hello\\n', NIL, 1, NIL)\n  WriteF('\\d\\n', \"ab\" + $FF)\nEXCEPT DO\n  IF w THEN CloseW(w)\nENDPROC\n\nPROC move(dx) OF point\n  self.x := self.x + dx\nENDPROC\n";
+        let lines: Vec<std::sync::Arc<str>> = text.lines().map(std::sync::Arc::from).collect();
+        let found: Vec<String> = engine.list_functions(syntax, &lines, &std::sync::atomic::AtomicBool::new(false)).into_iter().map(|(_, n)| n).collect();
+        assert!(found.contains(&"main".to_string()) && found.contains(&"move".to_string()), "{found:?}");
+        let grammar = SyntaxDefinition::load_from_str(include_str!("../data/syntaxes/amiga-e.sublime-syntax"), true, None).unwrap();
+        assert_eq!(grammar.name, AMIGA_E);
+    }
+
     #[test]
     fn basic_listings_get_their_colours() {
         let lines = ["  10 BORDER 1: LAYER 2,1", "  20 REM all of this is a comment", "  30 PRINT \"{INK 2}Hi\";%a MOD 2", "  40 ; LD BC,1234", "  50 PROC draw(): GO TO @top", "  60 LET x=$ff+@101: .nexload game.nex"];
@@ -936,6 +1039,7 @@ mod tests {
         assert_eq!(guess_basic(&arcs(&["10 PRINT \"HI\"", "20 GOTO 10"])), BASIC_QBASIC, "GW-BASIC looks like this too");
         assert_eq!(guess_basic(&arcs(&["10 BORDER 1: PAPER 1", "20 GO TO 10"])), BASIC_SINCLAIR);
         assert_eq!(guess_basic(&arcs(&["10 PRINT\"{clr}{red}HI\"", "20 GOTO10"])), BASIC_COMMODORE);
+        assert_eq!(guess_basic(&arcs(&["DIM score AS UINTEGER", "BORDER 0: CLS", "SUB Show()", "  PRINT AT 0,0; score", "END SUB"])), BASIC_BORIEL);
         let found = test_engine().detect_with_sample(Some(Path::new("game.bas")), &arcs(&["SUB Main", "END SUB"])).unwrap();
         assert_eq!(test_engine().name_of(found), BASIC_QBASIC);
     }
@@ -1195,6 +1299,12 @@ mod tests {
         assert_eq!(engine.name_of(found), ASM_680X0);
         let rust = engine.detect_with_sample(Some(Path::new("main.rs")), &z80).unwrap();
         assert_eq!(engine.name_of(rust), "Rust", "only general assembler endings are looked into");
+        // The Game Boy's: Z80-like, with its own LDH and [HL+], and RGBDS's sections.
+        let game_boy = arcs(&["SECTION \"Main\", ROM0", "Start:", "  ld a,[hl+]", "  ldh [$40],a", "  ld b,4", "  jr Start"]);
+        assert_eq!(guess_assembly(&game_boy), Some(ASM_SM83));
+        let found = engine.detect_with_sample(Some(Path::new("main.asm")), &game_boy).unwrap();
+        assert_eq!(engine.name_of(found), ASM_SM83);
+        assert_eq!(guess_assembly(&arcs(&["  ld a,(hl)", "  ldi", "  ldd", "  jr nz,x"])), Some(ASM_Z80), "the Z80's LDI and LDD don't count");
     }
 
     #[test]

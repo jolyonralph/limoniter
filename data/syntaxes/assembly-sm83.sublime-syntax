@@ -1,0 +1,56 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Sharp SM83's instruction set (the Game Boy's processor), as RGBDS writes it:
+# memory in square brackets, LDH, [HL+] and [HL-], SWAP and STOP, SECTION and DEF, and `0123 rows of a tile.
+name: Assembly SM83 (Game Boy)
+file_extensions: [sm83, gbz80, rgbasm]
+scope: source.assembly.sm83
+variables:
+  branch: (?:call|jp|jr|ret|reti|rst|halt|stop)
+  instruction: (?:adc|add|and|bit|ccf|cp|cpl|daa|dec|di|ei|inc|ld|ldh|ldi|ldd|ldio|ldhl|nop|or|pop|push|res|rl|rla|rlc|rlca|rr|rra|rrc|rrca|sbc|scf|set|sla|sra|srl|sub|swap|xor)
+  directive: (?:section|endsection|def|redef|equ|equs|rb|rw|rsreset|rsset|db|dw|dl|ds|org|include|incbin|macro|endm|rept|endr|for|if|elif|else|endc|endif|export|global|purge|assert|static_assert|charmap|newcharmap|setcharmap|pushs|pops|load|endl|union|nextu|endu|opt|warn|fail|print|println|shift|rom0|romx|vram|sram|wram0|wramx|oam|hram|bank|align)
+contexts:
+  main:
+    - include: comment
+    - match: '^\s*[A-Za-z_.][\w.#@]*:{1,2}'
+      scope: entity.name.label.sm83
+    - match: '(?i)(?<![\w.])(?:{{directive}})(?![\w.])'
+      scope: keyword.control.directive.sm83
+      push: operands
+    - match: '(?i)(?<![\w.])({{branch}})(?:\s+(z|nz|nc|c)(?![\w$]))?(?![\w.])'
+      captures:
+        1: keyword.control.branch.sm83
+        2: variable.language.condition.sm83
+      push: operands
+    - match: '(?i)(?<![\w.])(?:{{instruction}})(?![\w.])'
+      scope: support.function.instruction.sm83
+      push: operands
+    - match: '^[A-Za-z_.][\w.#@]*'
+      scope: entity.name.label.sm83
+    - match: '[A-Za-z_.][\w.#@]*'
+      scope: variable.function.macro.sm83
+      push: operands
+    - match: '='
+      scope: keyword.operator.sm83
+      push: operands
+  operands:
+    - match: '\n'
+      pop: true
+    - include: comment
+    - include: strings
+    - include: numbers
+    - match: '(?i)(?<![\w.$@%&])(?:af|bc|de|hl|sp|hli|hld|nz|nc|[abcdehlz])(?![\w$@])'
+      scope: variable.language.register.sm83
+    - match: '(?i)(?<![\w.])(?:{{directive}})(?![\w.])'
+      scope: keyword.control.directive.sm83
+    - match: '[+\-*/&|^~<>=!\[\]]'
+      scope: keyword.operator.sm83
+  comment:
+    - match: ';.*$'
+      scope: comment.line.semicolon.sm83
+  strings:
+    - match: '"[^"\n]*"?'
+      scope: string.quoted.double.sm83
+  numbers:
+    - match: '(?i)\$[0-9a-f]+|%[01]+|&[0-7]+|`[0-3]+|(?<![\w.$@])\d+(?![\w.])'
+      scope: constant.numeric.sm83

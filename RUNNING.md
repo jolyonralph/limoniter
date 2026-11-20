@@ -22,7 +22,8 @@ The machine is worked out from the file: a Commodore program by where it loads, 
 
 Every place a program can run is in one list, **File, Send to device, Devices**:
 
-- **Built in:** a ZX Spectrum 48K and 128K, running in the preview pane, with nothing to install.
+- **Built in:** a ZX Spectrum 48K and 128K, running in the preview pane, and an Atari 2600, running in a panel
+  beside the cartridge or its source, with nothing to install.
 - **Emulators:** Fuse, ZEsarUX, VICE, CSpect, b2, openMSX and others, started as programs of their own. Limoniter
   finds the ones installed, and any other can be added by its path.
 - **Real machines:** the devices programs are sent to. An Ultimate 64 runs a program as it arrives; a Spectrum
@@ -79,6 +80,8 @@ Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to 
 the address stopped at back to a line:
 
 - The built-in Spectrum: rustzx's debug interface (`zx_machine::Breaks`), registers read from a snapshot.
+- The built-in Atari 2600 (`src/atari2600_machine.rs`): Limoniter's own 6502 core (`src/m6502_cpu.rs`, a bus
+  access a cycle), checked against the breakpoints before each instruction; its TIA is `src/atari2600_tia.rs`.
 - ZEsarUX (`src/remote_debug.rs`): ZRCP in step mode, started empty so the breakpoints are set before the program
   loads; a Spectrum tape is loaded in the built-in Spectrum and handed over as a snapshot at its first instruction.
 - VICE: binary monitor checkpoints, set before the program is autostarted through the monitor.

@@ -49,7 +49,7 @@ To type graphics as the Spectrum's GRAPHICS key does:
 2. Press 1 to 8 for the block graphics, with Shift for the inverted ones, and A to U for the UDGs.
 3. Press 9 or [[Esc]] to leave GRAPH mode.
 
-UDGs are drawn as their pictures when Limoniter can find them: on the tape the program came from, in its snapshot, or in its own DATA lines. To take them from another file, choose **Format › Tokenised BASIC › Spectrum UDG pictures from…**. Put the cursor in one to see it as text again and edit it. **Tools › Character and sprite editor** draws new ones.
+UDGs are drawn as their pictures when Limoniter can find them: on the tape the program came from, in its snapshot, or in its own DATA lines. To take them from another file, choose **Format › Tokenised BASIC › Spectrum UDG pictures from…**. Put the cursor in one to see it as text again and edit it. **Tools › General › Character and sprite editor** draws new ones.
 
 ## Commodore control codes
 

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>15. Loading and memory · How To Code v8</title>
+  <meta name="description" content="A demo that fits in one file and runs from start to end with the machine taken needs to know little about memory, beyond putting the chips&#x27; data in chip RAM.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/15-loading-and-memory.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/15-loading-and-memory.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="15. Loading and memory · How To Code v8">
+  <meta property="og:description" content="A demo that fits in one file and runs from start to end with the machine taken needs to know little about memory, beyond putting the chips&#x27; data in chip RAM.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/15-loading-and-memory.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html" aria-current="page">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-releasing.html">17. Releasing</a></li>
+<li><a href="18-further-reading.html">18. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>15. Loading and memory</h1>
+        <div class="article-lead">
+<p>A demo that fits in one file and runs from start to end with the machine taken needs to know little about memory, beyond putting the chips' data in chip RAM. Bigger productions need more: memory found at run time, files loaded while something is on the screen, parts loaded one after another, sometimes a disk with no file system at all. This chapter covers memory first (the kinds there are, how to ask for them, and why you never assume an address), then loading: with the system running, between parts, and with a trackloader.</p>
+<p><a href="03-general-guidelines.html">General guidelines</a> already covers the basics, and this chapter doesn't repeat them: sections, chip RAM for the chips, v7's mistake about slow RAM, memory on a boundary, and 32-bit addresses.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-kinds-of-memory">The kinds of memory</a></li>
+<li><a href="#asking-for-memory-allocmem-and-freemem">Asking for memory: AllocMem and FreeMem</a></li>
+<li><a href="#allocabs-and-why-it-s-rarely-right">AllocAbs, and why it's rarely right</a></li>
+<li><a href="#never-assume-an-address">Never assume an address</a></li>
+<li><a href="#loading-with-the-system-running">Loading with the system running</a></li>
+<li><a href="#taking-the-machine-giving-it-back-to-load">Taking the machine, giving it back to load</a></li>
+<li><a href="#trackloaders">Trackloaders</a></li>
+<li><a href="#which-kickstart">Which Kickstart</a></li>
+<li><a href="#resetting-the-machine">Resetting the machine</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="the-kinds-of-memory">The kinds of memory</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Kind</th>
+<th scope="col">Who can use it</th>
+<th scope="col">Where</th>
+<th scope="col">Use it for</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><strong>Chip RAM</strong></th>
+<td>the processor and the custom chips</td>
+<td>from address 0: 512K, 1 MB or 2 MB, depending on the machine</td>
+<td>everything the chips read or write: bitplanes, copper lists, sprites, samples, the blitter's data</td>
+</tr>
+<tr>
+<th scope="row"><strong>Slow RAM</strong></th>
+<td>the processor only</td>
+<td><code>$C00000</code> (an A500's or A2000's trapdoor or internal expansion)</td>
+<td>as fast RAM, but no faster than chip RAM</td>
+</tr>
+<tr>
+<th scope="row"><strong>Fast RAM</strong></th>
+<td>the processor only</td>
+<td>an expansion's address: <code>$200000</code> up for 24-bit (Zorro II) memory, above <code>$1000000</code> for 32-bit</td>
+<td>code, tables, buffers: anything only the processor touches</td>
+</tr>
+</tbody></table></div>
+<p><strong>Chip RAM</strong> is shared. The custom chips read it by DMA (bitplanes, the copper, sprites, audio, the disk, the blitter), and when they need the bus, the processor waits. A demo with six bitplanes on screen and the blitter running leaves the processor very little time in chip RAM; see <a href="14-processors.html">the 68000 and later processors</a>.</p>
+<p><strong>Fast RAM</strong> isn't on that bus, so the processor never waits for the chips there. On a 68000 the gain is modest. On a 68020 or later it's large: a 32-bit processor at 14, 25 or 50 MHz running from chip RAM is held to the chips' pace. Code and the processor's own data belong in fast RAM when there is some, which is what a plain <code>code</code> or <code>data</code> section gives you.</p>
+<p><strong>Slow RAM</strong> is the odd one, and v7 got it wrong (see <a href="03-general-guidelines.html#slow-ram-v7-was-wrong">general guidelines</a>). It's on the chip bus, so the processor waits for the chips there, but the chips can't read it. Exec calls it fast RAM. v8's memory map example shows exec's own view of it:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Kickstart</th>
+<th scope="col">Slow RAM's attributes</th>
+<th scope="col">Chip RAM's attributes</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">1.3</th>
+<td><code>$0005</code>: <code>MEMF_PUBLIC</code>, <code>MEMF_FAST</code></td>
+<td><code>$0003</code>: <code>MEMF_PUBLIC</code>, <code>MEMF_CHIP</code></td>
+</tr>
+<tr>
+<th scope="row">3.1</th>
+<td><code>$0705</code>: as 1.3, plus <code>MEMF_LOCAL</code>, <code>MEMF_24BITDMA</code>, <code>MEMF_KICK</code></td>
+<td><code>$0703</code></td>
+</tr>
+</tbody></table></div>
+<p>(The three extra bits came with V36 and V39. <code>MEMF_LOCAL</code> means the memory survives a reset, and <code>MEMF_24BITDMA</code> that a Zorro II card can reach it.)</p>
+<h2 id="asking-for-memory-allocmem-and-freemem">Asking for memory: AllocMem and FreeMem</h2>
+<p>Memory a program needs beyond its sections comes from exec:</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        move.l  #SCREENSIZE,d0          ; how many bytes
+        move.l  #MEMF_CHIP!MEMF_CLEAR,d1 ; what kind, and cleared to zero
+        jsr     _LVOAllocMem(a6)
+        move.l  d0,Screen
+        beq     NoMemory                ; 0: there wasn't any. Always check.
+        ...
+        move.l  Screen,a1               ; as the demo ends: the address...
+        move.l  #SCREENSIZE,d0          ; ...and the same size
+        jsr     _LVOFreeMem(a6)</code></pre></div>
+<p>The rules, from the <code>AllocMem</code> Autodoc:</p>
+<ul><li><strong><code>MEMF_CHIP</code></strong> for anything the chips use. "If the requested memory will be used by the Amiga custom chips, this flag <em>must</em> be set."</li><li><strong>Nothing (<code>MEMF_ANY</code>, 0)</strong> for everything else: "If no flags are set, the system will return the best available memory block. For expanded systems, the fast memory pool is searched first."</li><li><strong>Never <code>MEMF_FAST</code> alone</strong>: "DO NOT SPECIFY MEMF_FAST unless you know exactly what you are doing! If MEMF_FAST is set, AllocMem() will fail on machines that only have chip memory!" If you'd <em>like</em> fast RAM for a table but can manage without, ask for <code>MEMF_FAST</code>, and if that fails, ask again with <code>MEMF_ANY</code>.</li><li><strong><code>MEMF_CLEAR</code></strong> clears the block to zero. Without it, the block holds whatever was there before.</li><li><strong><code>MEMF_PUBLIC</code></strong> for memory used by interrupts or other tasks. On today's AmigaOS all memory is public in practice, but the Autodoc asks for it, and it costs nothing.</li><li><strong>Check for 0</strong>, every time. A 512K Amiga runs out quickly.</li><li><strong><code>FreeMem</code> with the same size.</strong> Exec doesn't remember it for you. (<code>AllocVec</code> and <code>FreeVec</code> do, from V36; they don't exist on Kickstart 1.3.)</li><li><strong>Blocks start on a multiple of 8 bytes</strong> (<code>MEM_BLOCKSIZE</code>). For anything coarser, see <a href="03-general-guidelines.html#memory-on-a-boundary">memory on a boundary</a>.</li></ul>
+<p>To find out how much there is, <code>AvailMem</code> (exec, <code>-216</code>) takes the kind in <code>d1</code> and returns the bytes free. Add <code>MEMF_LARGEST</code> to get the biggest single block, which is what decides whether one big allocation can succeed.</p>
+<p><strong>When to allocate.</strong> With v8's startup, in <code>Init</code>. Taking the machine, the startup has called <code>Forbid</code> by then. <code>AllocMem</code> works under <code>Forbid</code> (it needs neither interrupts nor another task), but never call it from an interrupt. Free everything in the routine you give the startup as <code>ExitHook</code>, as <code>ch15_load_picture.s</code> does.</p>
+<p><strong>Sections or <code>AllocMem</code>?</strong> A <code>bss_c</code> section is allocated by AmigaDOS's loader as the program loads, and freed when it ends: no code, no failure to handle (if there isn't room, the program doesn't start). Use sections for what the demo always needs. Use <code>AllocMem</code> for memory that depends on the machine (fast RAM if there is some), for memory that's only needed for a while, and when you want to fail with a message rather than not start.</p>
+<h2 id="allocabs-and-why-it-s-rarely-right">AllocAbs, and why it's rarely right</h2>
+<p><code>AllocAbs(size, address)</code> (exec, <code>-204</code>) allocates memory at an address you choose, if it's free. v7 used it to look for a block on a 64K boundary, trying each boundary in turn. It's the right tool for very little, and the Autodoc says what it's for: "Often this is used by boot-surviving entities such as recoverable ram-disks."</p>
+<p>Why not to use it in a demo:</p>
+<ul><li><strong>The address you want is usually taken.</strong> The system's own structures, the program's own sections and other programs live at addresses that differ from machine to machine and boot to boot. "It's free on my A500" is the assumption v7 spent pages arguing against.</li><li><strong>It doesn't check what kind of memory is there.</strong> An address that's chip RAM on one Amiga is slow RAM, or nothing, on another.</li><li><strong>The block's edges aren't yours.</strong> The Autodoc: "The 8 bytes past the end of an AllocAbs will be changed by Exec relinking the next block of memory. Generally you can't trust the first 8 bytes of anything you AllocAbs."</li><li><strong>There's always a better way.</strong> For a boundary, allocate a little more and round up, as <a href="03-general-guidelines.html#memory-on-a-boundary">general guidelines</a> shows. For an old demo assembled with <code>ORG</code> at a fixed address, make it relocatable: assemble it as an ordinary program.</li></ul>
+<p>The one place it fits is a trackmo's boot code, with the system barely started, loading parts to fixed addresses (see <a href="#trackloaders">trackloaders</a> below). There, <code>AllocAbs</code> on each address before loading is a cheap check that the memory exists and nothing is using it.</p>
+<h2 id="never-assume-an-address">Never assume an address</h2>
+<p>The rule from <a href="03-general-guidelines.html#allocate-everything-never-use-a-fixed-address">general guidelines</a> is worth seeing in numbers. <code>examples/ch15_memory_map.s</code> shows each region of memory exec knows about (its attributes, first address, the address after its end, and bytes free) and what <code>AvailMem</code> says is free. It works either way. These are its readings on emulated Amigas (FS-UAE):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Machine</th>
+<th scope="col">Regions, as exec lists them</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">A500, 512K chip only, Kickstart 1.3</th>
+<td>chip <code>$0008E8</code>-<code>$07E800</code></td>
+</tr>
+<tr>
+<th scope="row">A500, 512K chip only, Kickstart 3.1</th>
+<td>chip <code>$000420</code>-<code>$080000</code></td>
+</tr>
+<tr>
+<th scope="row">A500 with the trapdoor's 512K, Kickstart 1.3</th>
+<td>slow <code>$C004E8</code>-<code>$C7E800</code>; chip <code>$000420</code>-<code>$080000</code></td>
+</tr>
+<tr>
+<th scope="row">A500 with the trapdoor's 512K, Kickstart 3.1</th>
+<td>slow <code>$C00020</code>-<code>$C80000</code>; chip <code>$000420</code>-<code>$080000</code></td>
+</tr>
+<tr>
+<th scope="row">A500, 1 MB chip, Kickstart 1.3</th>
+<td>chip <code>$0008E8</code>-<code>$0FE800</code></td>
+</tr>
+<tr>
+<th scope="row">A500, 1 MB chip and the trapdoor's 512K, Kickstart 3.1</th>
+<td>slow <code>$C00020</code>-<code>$C80000</code>; chip <code>$000420</code>-<code>$100000</code></td>
+</tr>
+<tr>
+<th scope="row">2 MB chip and the trapdoor's 512K, Kickstart 3.1</th>
+<td>slow <code>$C00020</code>-<code>$C80000</code>; chip <code>$000420</code>-<code>$200000</code></td>
+</tr>
+<tr>
+<th scope="row">A500 with a 68020 and 8 MB fast, Kickstart 1.3</th>
+<td>slow <code>$C004E8</code>-<code>$C7E800</code>; fast <code>$200020</code>-<code>$A00000</code>; chip <code>$000420</code>-<code>$080000</code></td>
+</tr>
+<tr>
+<th scope="row">A500 with a 68040 and 8 MB fast, Kickstart 3.1</th>
+<td>fast <code>$200020</code>-<code>$A00000</code>; slow <code>$C00020</code>-<code>$C80000</code>; chip <code>$001020</code>-<code>$080000</code></td>
+</tr>
+<tr>
+<th scope="row">CD32 (AGA, 2 MB chip), Kickstart 3.1</th>
+<td>chip <code>$000420</code>-<code>$200000</code></td>
+</tr>
+</tbody></table></div>
+<p>What it shows:</p>
+<ul><li><strong>Even chip RAM doesn't start or end at the same place.</strong> With nothing but chip RAM, Kickstart 1.3 keeps some of it for itself, outside the list: up to <code>$0008E8</code> at the bottom (exec's base), and the top 6K (the system stack), so the region runs from <code>$0008E8</code> to <code>$07E800</code>. Give it slow RAM and both move there: chip RAM's region then runs from <code>$000420</code> to the full <code>$080000</code>, and the slow region shrinks instead. On the 68040, chip RAM's first free address moved up from <code>$420</code> to <code>$1020</code>.</li><li><strong>The order differs too.</strong> Exec lists the regions by priority, and allocates from the first that fits. With Kickstart 1.3 and the trapdoor's 512K, slow RAM came before the real fast RAM: an allocation of "any memory" got slow RAM first.</li><li>So any address you picked because it was free on your Amiga is somebody else's on another. Allocate.</li></ul>
+<p>(FS-UAE's A500 comes with the trapdoor's 512K unless told otherwise, as the A500s most people had did; the 512K-only rows were run with <code>slow_memory = 0</code>.)</p>
+<p>Reading exec's list of regions (<code>MemList</code> in ExecBase) is reading a private structure, so the example only reads it, with multitasking off (<code>Forbid</code>), and treats it as information for a person, not something to act on. For a program, <code>AvailMem</code> and <code>TypeOfMem</code> (exec, <code>-534</code>: what kind of memory an address is in) are the documented ways to ask.</p>
+<h3 id="the-amigas-memory">The Amigas' memory</h3>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Machine</th>
+<th scope="col">Chip RAM</th>
+<th scope="col">Usual expansion</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">A500</th>
+<td>512K; 1 MB with the later Agnus (8372A), set by a jumper on later boards</td>
+<td>trapdoor: 512K of slow RAM at <code>$C00000</code>; fast RAM from the side expansion port</td>
+</tr>
+<tr>
+<th scope="row">A500+, A600</th>
+<td>1 MB (ECS)</td>
+<td>A600: a trapdoor card giving 2 MB of chip RAM; PCMCIA memory as fast RAM</td>
+</tr>
+<tr>
+<th scope="row">A1200</th>
+<td>2 MB (AGA)</td>
+<td>trapdoor accelerators with fast RAM; PCMCIA memory</td>
+</tr>
+<tr>
+<th scope="row">A3000, A4000</th>
+<td>1 or 2 MB; 2 MB</td>
+<td>32-bit fast RAM on the motherboard</td>
+</tr>
+</tbody></table></div>
+<p>The <em>Hardware Reference Manual</em> gives the ECS Agnus 1 MB of chip RAM (on the A2000 "with proper jumpering of the motherboard"), and says the A3000 can have 2 MB. The rest of this table comes from the machines' own documentation, not the HRM, and v8 hasn't checked it on real machines. The emulated machines above had 512K, 1 MB and 2 MB of chip RAM, and the memory map example reads whatever yours has.</p>
+<h3 id="24-and-32-bits">24 and 32 bits</h3>
+<p>A 68000 has 24 address lines: 16 MB of addresses, <code>$000000</code> to <code>$FFFFFF</code>, which is the map in the <em>Hardware Reference Manual</em> (chip RAM at the bottom, Zorro II expansion from <code>$200000</code> to <code>$9FFFFF</code>, slow RAM from <code>$C00000</code>, the chips' registers at <code>$DFF000</code>, the ROM at the top). The A1200's 68EC020 is the same. A 68020, 68030, 68040 or 68060 with all 32 lines (the A3000, the A4000, nearly every accelerator) has 4 GB of addresses, and its fast RAM is usually above <code>$1000000</code>, out of a 68000's reach. Two consequences, besides the top-byte rule in <a href="03-general-guidelines.html#addresses-are-32-bits">general guidelines</a>:</p>
+<ul><li><strong>Keep whole 32-bit addresses.</strong> A word or a 24-bit value isn't enough to hold the address of something in fast RAM.</li><li><strong>The chips only reach chip RAM.</strong> Copying a picture from fast RAM to the screen is the processor's job, not the blitter's.</li></ul>
+<h2 id="loading-with-the-system-running">Loading with the system running</h2>
+<p>This is the way to load during a demo: on a hard drive, a CD or a floppy alike, with every file system and device, and with the effect still running. With v8's startup it's <code>OS_FRIENDLY 1</code>, and loading is ordinary <code>dos.library</code>: <code>Open</code>, <code>Read</code>, <code>Close</code>.</p>
+<p><code>examples/ch15_load_picture.s</code> loads a 16-colour picture (<code>ch15_picture.raw</code>, 38432 bytes: 16 colours, then 240 lines of four interleaved bitplanes) a band at a time, while a copper bar bounces over it and the blitter draws a progress bar.</p>
+<figure class="guide-shot"><img src="images/ch15_load_picture.png" alt="ch15_load_picture.s on an A500 with Kickstart 1.3, loading from a floppy: the top of the picture has arrived, the progress bar is under a third full, and the copper bar keeps moving" loading="lazy"></figure>
+<h3 id="open-read-close">Open, Read, Close</h3>
+<div class="code-block"><pre><code>MODE_OLDFILE    equ     1005            ; dos/dos.i: a file that's there already
+
+        move.l  DosBase,a6              ; OpenLibrary("dos.library", 33), in Init
+        move.l  #PictureName,d1         ; the name...
+        move.l  #MODE_OLDFILE,d2        ; ...and how to open it: in d1 and d2, not a0
+        jsr     _LVOOpen(a6)
+        move.l  d0,File
+        beq     Failed                  ; 0: no such file (or no disk, or...)
+
+        move.l  File,d1                 ; the file
+        move.l  Screen,d2               ; where to put what's read: any memory, chip RAM too
+        move.l  #CHUNKLINES*LINEBYTES,d3 ; how many bytes
+        jsr     _LVORead(a6)
+        tst.l   d0                      ; how many it read: -1 is an error, 0 the end of the file
+        ble     Failed
+        ...
+        move.l  File,d1
+        jsr     _LVOClose(a6)</code></pre></div>
+<p><code>dos.library</code> takes its arguments in data registers, <code>d1</code> first. The name is relative to the program's current directory, which is the CLI's when started from the CLI, and the program's own drawer when started from an icon, so a demo's files can sit beside it. <code>Read</code> can read straight into chip RAM: the file system takes care of how the data gets there.</p>
+<p>Close every file you open, including when the demo is left halfway through loading. The example's <code>ExitHook</code> routine does that, and frees the screen's memory.</p>
+<h3 id="only-a-process-can-load-and-it-waits">Only a process can load, and it waits</h3>
+<p><code>dos.library</code> must be called from a <strong>process</strong>: a task that AmigaDOS knows about, as a program started from the CLI or Workbench is. Never call it from an interrupt (the startup's <code>VBlank</code>, an input handler). And a <code>Read</code> doesn't return until the data has arrived: from a floppy that can be a second or more. Meanwhile the main loop is stopped, <code>Frame</code> isn't called, and nothing it does moves.</p>
+<p>So whatever must keep moving during loading is done in <strong><code>VBlank</code></strong>, which the system calls at the start of every frame whatever the main task is doing: the music, and in the example, the copper bar. <code>Frame</code> does the loading, a band at a time, so the picture appears as it comes and the left mouse button is noticed between bands. (A demo that can't put its effect in the interrupt can load from a second process of its own instead, with <code>CreateProc</code> or <code>CreateNewProc</code>. That's more work, and v8 has no example of it yet.)</p>
+<h3 id="share-the-blitter">Share the blitter</h3>
+<p>With the system running, the blitter belongs to whoever owns it, and the system uses it too. <code>trackdisk.device</code>, which reads and writes floppy disks, does its MFM encoding and decoding with the blitter. That's always so on Kickstart 1.x, and even AmigaOS 3.2's <code>trackdisk.device</code> still does on a 68000: its release notes, in the NDK, record the change to "a new MFM-Encoder using the CPU... used if there is a 68020 or better" and "TDMfmDecode will use always the CPU if 68020+ is present". So a demo that blits without asking can wreck a floppy read in progress, or have its own blit wrecked.</p>
+<p>v8's startup has two macros for this: <code>BLIT_BEGIN</code> (<code>OwnBlitter</code>, then wait until the blitter is idle) and <code>BLIT_END</code> (wait for the blit, then <code>DisownBlitter</code>). Put every blit, or run of blits, between them:</p>
+<div class="code-block"><pre><code>        BLIT_BEGIN                      ; waits, if the system's using it
+        move.l  d1,BLTDPTH(a5)
+        move.w  d1,BLTDMOD(a5)
+        move.l  #$01ff0000,BLTCON0(a5)  ; D only, minterm $ff: all 1s
+        move.w  d0,BLTSIZE(a5)
+        BLIT_END</code></pre></div>
+<p>v8 tried to make it go wrong, to show what happens, and couldn't: blits without <code>OwnBlitter</code>, from <code>Frame</code> and from the vertical blank interrupt, while Kickstart 1.3 loaded the picture from an emulated floppy, left the picture whole. The emulator may not reproduce the clash, or the timing may never have met. The documentation is clear, and the macros cost almost nothing.</p>
+<h3 id="how-it-was-tested">How it was tested</h3>
+<p><code>ch15_load_picture.s</code> loaded its picture:</p>
+<ul><li><strong>From DH0</strong> (the emulator's hard drive): on an A500 with Kickstart 1.3 and 3.1, each with a 68000, a 68020 and a 68040.</li><li><strong>From a floppy:</strong> an OFS disk in DF0, made for the test, with Kickstart 1.3 and 3.1 on a 68000 and a 68040. From the floppy it took about three seconds at the emulator's normal floppy speed, with the picture arriving 16 lines at a time.</li></ul>
+<p>Every run showed the whole picture, and was back at the CLI after. Built with <code>OS_FRIENDLY 0</code> it ends at once, as its first comment says, cleanly on both Kickstarts. v8's test copies the program and <code>ch15_picture.raw</code> into the emulated Amiga's DH0 (or onto the floppy), and starts the program with that as its current directory. <code>ch15_make_picture.py</code> beside it makes the picture again.</p>
+<h2 id="taking-the-machine-giving-it-back-to-load">Taking the machine, giving it back to load</h2>
+<p>Taking the machine gives a demo everything, except loading. The multi-part demos of the 1990s, run from the CLI or a hard drive, loaded their parts with the system in between:</p>
+<ol class="steps"><li>Part one takes the machine, runs, and gives everything back, exactly as v8's startup does at the end.</li><li>With the system running again (perhaps showing a still picture, or a simple effect from <code>VBlank</code> as in the example above), the next part is loaded.</li><li>The next part takes the machine again.</li></ol>
+<p>With v8's startup, the simplest way to do this is to make each part a program of its own, built on the startup, and run them one after another. That can be from a script, or from a small main program that loads each part with <code>dos.library</code>'s <code>LoadSeg</code> (it loads a program and fixes up its addresses, like the CLI does), calls it, and frees it with <code>UnLoadSeg</code>. The main program can be <code>OS_FRIENDLY 1</code> itself, keeping a picture or an effect on screen while each <code>LoadSeg</code> waits for the disk, as <code>ch15_load_picture.s</code> does with its <code>Read</code>s. v8 has no example of this yet.</p>
+<p>Giving the machine back "briefly", in the middle of one part, is the same thing in smaller pieces: everything the startup does at the end (interrupts and DMA back as they were, the system's vectors and copper list, <code>Permit</code>, <code>DisownBlitter</code>), then the loading, then everything it does at the start. Done properly, it costs a visible pause, which is why trackmos exist.</p>
+<h2 id="trackloaders">Trackloaders</h2>
+<p>A <strong>trackloader</strong> reads the floppy disk directly, track by track, with no file system: the demo's parts are put at known places on the disk (and loaded to known places in memory). The disk needn't be an AmigaDOS disk at all. Kickstart reads its <strong>boot block</strong> (the first two sectors, 1024 bytes) and runs the code in it, and that code loads the rest. A demo on such a disk is a <strong>trackmo</strong>.</p>
+<p>Why demos used them, and still do: loading is faster and needs no memory for a file system, the disk can be packed full, and the whole machine can belong to the demo from the moment the boot block runs. The costs: the demo only runs from a floppy (not a hard drive, not a CD, unless someone patches it, which is what WHDLoad is for), and a hardware trackloader is real driver code, with real timing.</p>
+<p>v7 had two pieces of advice, both still sound. "Use CIA timers! DON'T use processor timing. If you use processor timing you will MESS UP the diskdrives in accelerated Amigas." (The drive's head needs milliseconds to step and settle; a delay loop that's long enough on a 68000 is far too short on a 68030.) And "Use AddICRVector to allocate your timers, don't hit $bfxxxx addresses!!!", which holds while the system is running. Then: "On second thoughts. DON'T use trackloaders! Use Dos..." For a demo that should run from a hard drive, that's still the answer.</p>
+<p>There's a middle way that keeps most of a trackmo's advantages: the boot block, and later parts, load with <strong><code>trackdisk.device</code></strong>, the system's own floppy driver, rather than with the hardware. That needs no file system on the disk, and nothing of your own to go wrong with drive timing on fast machines.</p>
+<h3 id="trackmos-with-limoniter">Trackmos with Limoniter</h3>
+<p>Limoniter makes such disks itself: <strong>Tools › Amiga › Boot disk with no file system (trackmo)</strong>.</p>
+<ul><li><strong>Pieces.</strong> Each piece is an assembler source (assembled by Limoniter's 68000 assembler at its <code>ORG</code>, or at the address given) or any other file (graphics, music, packed data). Each is put at a <strong>first sector</strong> of your choosing and loaded to an <strong>address</strong>. One piece is marked to <strong>start</strong>. A piece can be left unloaded, for a program that loads it itself later.</li><li><strong>The boot block.</strong> Limoniter's example reads each piece from its sectors <strong>with <code>trackdisk.device</code></strong>, turns the drive's motor off, and jumps to the start, with <code>a6</code> still ExecBase. <strong>Change it</strong> saves the example's source beside the plan and opens it, to make it your own (a fade, a loader that unpacks). However it's written, Limoniter assembles it, checks it fits in 1024 bytes, gives it "DOS", and works out its checksum as Kickstart checks it.</li><li><strong>Checks before writing.</strong> The disk's map shows every sector, and points out pieces on the boot block, past the disk's end, over each other, or with no start or two.</li><li><strong>Writing and running.</strong> It writes the disk as an <code>.adf</code> (880K or 1760K), and <strong>Run it</strong> boots it in the emulator. The plan is kept in a <code>.bootdisk</code> file, to build again after any change.</li></ul>
+<p><a href="02-working-with-limoniter.html">Working with Limoniter</a> and <a href="17-releasing.html">releasing</a> say more.</p>
+<p>Pieces load to fixed addresses: this is the one place in a demo where that's normal, because when the boot block runs there's no program loader to place things for you. Choose the addresses with the same care as everything else in this chapter:</p>
+<ul><li><strong>Only chip RAM is certain</strong>, and only 512K of it. Everything above <code>$80000</code> may not exist.</li><li><strong>Chip RAM is the system's while it runs.</strong> The vectors, exec's base, the boot block's own buffers, and (on Kickstart 1.3 with nothing but chip RAM, as the table above shows) the system stack at the top of chip RAM are all in use.</li><li><strong>Before loading, the boot code can ask exec</strong> with <code>AllocAbs</code> whether each region is free, and refuse to start rather than overwrite something.</li></ul>
+<h3 id="clear-the-caches-after-loading-code">Clear the caches after loading code</h3>
+<p>Code that arrives other than through <code>LoadSeg</code> (loaded with <code>Read</code>, by a trackloader or <code>trackdisk.device</code>, or unpacked by a decruncher) may not be what the processor runs: a 68020 or 68030's instruction cache can hold what was at those addresses before, and a 68040 or 68060's copyback data cache may not have written all of it to memory yet. After loading or unpacking code, and before jumping to it, call exec's <code>CacheClearU</code> (V37 and later). <code>LoadSeg</code> does this itself. <a href="03-general-guidelines.html#code-written-at-run-time-done-properly">General guidelines</a> has the code, including what to do on Kickstart 1.3, where there's no such call.</p>
+<p>v7 quoted the Imploder's author on why this became urgent with the 68040: its copyback cache meant that "if you stuff some code into memory and try to execute it, chances are some of it will still be in the data cache. The code cache won't know about this..." That's as true of a trackloader as of a cruncher.</p>
+<h2 id="which-kickstart">Which Kickstart</h2>
+<p>v7 had a chapter on Kickstart versions. The rule it gave stands: find out which version you're on from exec's version number, and compare with "higher or same", never "equal".</p>
+<div class="code-block"><pre><code>        move.l  ExecBase.w,a6
+        cmp.w   #37,LIB_VERSION(a6)     ; a word: LIB_VERSION is a UWORD
+        bhs.s   .kick2                  ; 37 or later: Kickstart 2.04 or later</code></pre></div>
+<p>(v7's own example had <code>move.l LIB_VERSION(a6),d0</code>, which reads the version <em>and</em> the revision after it as one long: compare that with 39 and every Kickstart is "newer". Read a word.)</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Version</th>
+<th scope="col">Kickstart</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">33</th>
+<td>1.2</td>
+</tr>
+<tr>
+<th scope="row">34</th>
+<td>1.3</td>
+</tr>
+<tr>
+<th scope="row">36</th>
+<td>2.0 (early: the first A3000s)</td>
+</tr>
+<tr>
+<th scope="row">37</th>
+<td>2.04, and the A600's 2.05</td>
+</tr>
+<tr>
+<th scope="row">39</th>
+<td>3.0</td>
+</tr>
+<tr>
+<th scope="row">40</th>
+<td>3.1</td>
+</tr>
+<tr>
+<th scope="row">45, 46</th>
+<td>3.1.4 (2018)</td>
+</tr>
+<tr>
+<th scope="row">47</th>
+<td>3.2</td>
+</tr>
+</tbody></table></div>
+<p>(v7's list also had 35, an early 1.4 beta, and 38, Workbench 2.1, which was disk-based libraries only: exec never reports it. The 3.1.4 and 3.2 numbers are from the release notes in the NDK 3.2.)</p>
+<p>v7's other warnings are worth keeping too. Everything in the ROM moves between versions: never use an address in it, a routine you found there, or the data of the ROM's topaz font. And new versions bring new functions, which won't be there on older ones (see <a href="03-general-guidelines.html#open-libraries-properly">opening libraries properly</a>).</p>
+<h2 id="resetting-the-machine">Resetting the machine</h2>
+<p>A trackmo, with nothing to go back to, often ends by resetting the Amiga. On Kickstart 2 and later (V36), there's a call: exec's <code>ColdReboot</code> (<code>-726</code>), which "never returns". On Kickstart 1.3 there isn't, and v7 gave the routine Commodore supported for it, which v8 tested:</p>
+<div class="code-block"><pre><code>_LVOColdReboot  equ     -726
+
+Reset:
+        move.l  ExecBase.w,a6
+        cmp.w   #36,LIB_VERSION(a6)
+        blo.s   .old
+        jmp     _LVOColdReboot(a6)      ; Kickstart 2 and later: the system's own way
+.old:
+        lea     .reset(pc),a5
+        jsr     _LVOSupervisor(a6)      ; RESET needs supervisor mode
+        cnop    0,4                     ; RESET and JMP must be in one longword: see below
+.reset:
+        lea     $01000000,a0            ; the end of the ROM
+        sub.l   -$14(a0),a0             ; less the ROM's size, kept $14 before its end: its start
+        move.l  4(a0),a0                ; the ROM's starting address, from its second longword
+        subq.l  #2,a0                   ; back two bytes, to the RESET instruction before it
+        reset                           ; resets the chips and expansions: the ROM appears at 0
+        jmp     (a0)                    ; already fetched, so it runs even though memory moved</code></pre></div>
+<p>The <code>RESET</code> instruction resets everything outside the processor, and on the Amiga that brings the ROM's "overlay" back: the ROM appears at address 0, over chip RAM, so the next instruction can no longer be fetched from where it was. That's why the <code>cnop 0,4</code> matters. With <code>RESET</code> and <code>JMP</code> in the same longword, the <code>JMP</code> was fetched along with the <code>RESET</code> and still runs.</p>
+<p>v8 ran this in FS-UAE: <code>ColdReboot</code> on Kickstart 3.1, and the routine for 1.3 on both 1.3 and 3.1. All three reset the machine and booted again. On Kickstart 2 and later, use <code>ColdReboot</code>: it knows about accelerators and memory that the old routine doesn't.</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>Slow RAM</strong> at <code>$C00000</code> is real and common, and exec calls it fast RAM. v7 said it didn't exist (<a href="03-general-guidelines.html">general guidelines</a> has the details). This chapter adds what exec reports on a range of machines, measured.</li><li><strong><code>AllocMem</code> and <code>FreeMem</code></strong> are explained, with the Autodoc's rules. <strong><code>AllocAbs</code></strong> is shown for what it is: a tool for boot-surviving code and trackmo boot blocks, not for finding memory.</li><li><strong>Loading with the system running</strong> is shown in a tested example. It explains why the effect goes in the interrupt, and that the blitter must be shared because <code>trackdisk.device</code> uses it, on Kickstart 1.x and on a 68000 even with AmigaOS 3.2.</li><li><strong>Trackloaders</strong>: v7's advice (CIA timers, not loops; better, use DOS) stands, with <code>trackdisk.device</code> as the middle way, and Limoniter's trackmo disks.</li><li><strong>Kickstart versions</strong> brought up to 3.2, and v7's <code>move.l LIB_VERSION</code> corrected to a word.</li><li><strong>The reset routine</strong> is v7's (Commodore's), tested, with <code>ColdReboot</code> first where it exists.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="14-processors.html"><span>Back</span>14. The 68000 and later processors</a>
+<a class="pager-next" href="16-debugging-and-testing.html"><span>Next</span>16. Debugging and testing</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

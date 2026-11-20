@@ -7,7 +7,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'COMPARISON.md', 'FEATURES.md', 'FORMATS.md', 'WHATS-NEW.md', 'Cargo.toml', '.github/workflows/website.yml']
+    paths: ['web/**', 'COMPARISON.md', 'FEATURES.md', 'FORMATS.md', 'WHATS-NEW.md', 'Cargo.toml', 'data/howtocode/**', '.github/workflows/website.yml']
   workflow_dispatch:
 
 permissions:
@@ -35,11 +35,17 @@ jobs:
       - name: Make the user guide from its Markdown
         run: python3 web/tools/make-guide.py
 
+      - name: Make How To Code v8 from its Markdown
+        run: python3 web/tools/make-howtocode.py
+
       - name: Gather the site, without the tools that make it
         run: |
           mkdir _site
           cp -r web/. _site/
           rm -rf _site/tools _site/README.md _site/guide/src
+
+      - name: Note which pages changed, to tell search engines once they're up
+        run: python3 web/tools/indexnow.py changed _site _changed.txt
 
       - uses: actions/configure-pages@v6
 
@@ -49,3 +55,6 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v5
+
+      - name: Tell search engines (IndexNow) of the pages that changed
+        run: python3 web/tools/indexnow.py submit _changed.txt

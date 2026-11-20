@@ -158,7 +158,7 @@ fn run_command(b: &mut TextBuffer, dice: &mut Dice, on_disk: bool) {
             b.go_to(&dice.roll(lines + 5).to_string());
         }
         39 => {
-            let options = SearchOptions { pattern: ["a", "\u{e9}", "line", "(", "^", "."][dice.roll(6)].to_string(), replacement: dice.text().replace(['\r', '\n'], ""), match_case: dice.roll(2) == 0, whole_word: dice.roll(4) == 0, regex: dice.roll(3) == 0, hex_bytes: false, backward: dice.roll(2) == 0 };
+            let options = SearchOptions { pattern: ["a", "\u{e9}", "line", "(", "^", "."][dice.roll(6)].to_string(), replacement: dice.text().replace(['\r', '\n'], ""), match_case: dice.roll(2) == 0, whole_word: dice.roll(4) == 0, regex: dice.roll(3) == 0, hex_bytes: false, backward: dice.roll(2) == 0, code_only: None };
             let _ = b.find(&options);
             let _ = b.replace_current(&options);
             if !on_disk {

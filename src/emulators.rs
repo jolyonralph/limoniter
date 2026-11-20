@@ -43,8 +43,8 @@ pub const KNOWN: &[Emulator] = &[
         programs: &["zesarux"],
         folder_hints: &["zesarux"],
         mac_apps: &[("ZEsarUX.app", "zesarux")],
-        machines: &[Spectrum48, Spectrum128, SpectrumPlus3, Pentagon, Next],
-        formats: &[Tap, Tzx, Z80, Sna, Nex, Dsk, Trd, Scl],
+        machines: &[Spectrum48, Spectrum128, SpectrumPlus3, Pentagon, Next, Zx81, JupiterAce],
+        formats: &[Tap, Tzx, Z80, Sna, Nex, Dsk, Trd, Scl, P],
         link: Link::Zrcp,
         website: "https://github.com/chernandezba/zesarux",
     },
@@ -149,6 +149,20 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://www.winuae.net",
     },
+    // Copperline, a cycle-exact OCS, ECS and AGA Amiga written in Rust (1.1, October 2026): a program is
+    // warp-booted with --run, its folder mounted as a drive, and debugged at its source lines through
+    // copperline-ctl, its Debug Adapter Protocol server, which can step backwards too (see `dap`).
+    Emulator {
+        id: "copperline",
+        name: "Copperline",
+        programs: &["copperline", "Copperline"],
+        folder_hints: &["copperline"],
+        mac_apps: &[("Copperline.app", "copperline")],
+        machines: &[Amiga],
+        formats: &[Hunk, Adf],
+        link: Link::None,
+        website: "https://github.com/CopperlineHQ/Copperline",
+    },
     // The PC: DOSBox runs a .COM from its folder, made its C: drive, and boots a floppy; QEMU boots one.
     Emulator {
         id: "dosbox",
@@ -183,17 +197,169 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://stella-emu.github.io",
     },
-    // MAME's Atari 2600 needs no ROMs of its own: the cartridge is all there is. Its Vectrex needs the Vectrex's.
+    // The Game Boy's: SameBoy, mGBA, Gambatte and BGB (on Windows), each given the cartridge.
+    Emulator {
+        id: "sameboy",
+        name: "SameBoy",
+        programs: &["sameboy", "SameBoy"],
+        folder_hints: &["sameboy"],
+        mac_apps: &[("SameBoy.app", "SameBoy")],
+        machines: &[GameBoy],
+        formats: &[Gb, Gbc],
+        link: Link::None,
+        website: "https://sameboy.github.io",
+    },
+    Emulator {
+        id: "mgba",
+        name: "mGBA",
+        programs: &["mgba-qt", "mgba", "mGBA"],
+        folder_hints: &["mgba"],
+        mac_apps: &[("mGBA.app", "mGBA")],
+        machines: &[GameBoy],
+        formats: &[Gb, Gbc],
+        link: Link::None,
+        website: "https://mgba.io",
+    },
+    Emulator {
+        id: "gambatte",
+        name: "Gambatte",
+        programs: &["gambatte_qt", "gambatte_sdl", "gambatte"],
+        folder_hints: &["gambatte"],
+        mac_apps: &[],
+        machines: &[GameBoy],
+        formats: &[Gb, Gbc],
+        link: Link::None,
+        website: "https://github.com/pokemon-speedrunning/gambatte-core",
+    },
+    Emulator {
+        id: "bgb",
+        name: "BGB",
+        programs: &["bgb64", "bgb"],
+        folder_hints: &["bgb"],
+        mac_apps: &[],
+        machines: &[GameBoy],
+        formats: &[Gb, Gbc],
+        link: Link::None,
+        website: "https://bgb.bircd.org",
+    },
+    // The NES's: Mesen (which runs the Game Boy too), FCEUX and Nestopia.
+    Emulator {
+        id: "mesen",
+        name: "Mesen",
+        programs: &["Mesen", "mesen"],
+        folder_hints: &["mesen"],
+        mac_apps: &[("Mesen.app", "Mesen")],
+        machines: &[Machine::Nes, GameBoy],
+        formats: &[Format::Nes, Gb, Gbc],
+        link: Link::None,
+        website: "https://www.mesen.ca",
+    },
+    Emulator {
+        id: "fceux",
+        name: "FCEUX",
+        programs: &["fceux", "fceux64", "qfceux"],
+        folder_hints: &["fceux"],
+        mac_apps: &[("fceux.app", "fceux")],
+        machines: &[Machine::Nes],
+        formats: &[Format::Nes],
+        link: Link::None,
+        website: "https://fceux.com",
+    },
+    Emulator {
+        id: "nestopia",
+        name: "Nestopia",
+        programs: &["nestopia"],
+        folder_hints: &["nestopia"],
+        mac_apps: &[("Nestopia.app", "nestopia")],
+        machines: &[Machine::Nes],
+        formats: &[Format::Nes],
+        link: Link::None,
+        website: "http://0ldsk00l.ca/nestopia/",
+    },
+    // MAME's Atari 2600, NES, Mega Drive and SG-1000 need no ROMs of their own: the cartridge is all there is. Its
+    // Master System is the Mark III, which has no BIOS either; its Vectrex, Game Gear and ColecoVision need theirs,
+    // and its Game Boy the Game Boy's boot ROM.
     Emulator {
         id: "mame",
         name: "MAME",
         programs: &["mame", "mame64"],
         folder_hints: &["mame"],
         mac_apps: &[],
-        machines: &[Atari2600, Vectrex],
-        formats: &[A26, VecCart],
+        machines: &[Atari2600, Vectrex, MegaDrive, MasterSystem, GameGear, Sg1000, ColecoVision, Machine::Nes, GameBoy],
+        formats: &[A26, VecCart, MdRom, SmsRom, GgRom, SgRom, ColRom, Format::Nes, Gb, Gbc],
         link: Link::None,
         website: "https://www.mamedev.org",
+    },
+    // BlastEm, the most exact Mega Drive emulator, given the cartridge.
+    Emulator {
+        id: "blastem",
+        name: "BlastEm",
+        programs: &["blastem"],
+        folder_hints: &["blastem"],
+        mac_apps: &[("BlastEm.app", "blastem")],
+        machines: &[MegaDrive],
+        formats: &[MdRom],
+        link: Link::None,
+        website: "https://www.retrodev.com/blastem/",
+    },
+    // Emulicious: the Master System, Game Gear, SG-1000 and ColecoVision (and the Game Boy), with a debugger.
+    Emulator {
+        id: "emulicious",
+        name: "Emulicious",
+        programs: &["Emulicious", "emulicious"],
+        folder_hints: &["emulicious"],
+        mac_apps: &[],
+        machines: &[MasterSystem, GameGear, Sg1000, ColecoVision],
+        formats: &[SmsRom, GgRom, SgRom, ColRom],
+        link: Link::None,
+        website: "https://emulicious.net",
+    },
+    // Gearsystem and Gearcoleco, by the same author: the cartridge given to each.
+    Emulator {
+        id: "gearsystem",
+        name: "Gearsystem",
+        programs: &["gearsystem", "Gearsystem"],
+        folder_hints: &["gearsystem"],
+        mac_apps: &[("Gearsystem.app", "Gearsystem")],
+        machines: &[MasterSystem, GameGear, Sg1000],
+        formats: &[SmsRom, GgRom, SgRom],
+        link: Link::None,
+        website: "https://github.com/drhelius/Gearsystem",
+    },
+    Emulator {
+        id: "gearcoleco",
+        name: "Gearcoleco",
+        programs: &["gearcoleco", "Gearcoleco"],
+        folder_hints: &["gearcoleco"],
+        mac_apps: &[("Gearcoleco.app", "Gearcoleco")],
+        machines: &[ColecoVision],
+        formats: &[ColRom],
+        link: Link::None,
+        website: "https://github.com/drhelius/Gearcoleco",
+    },
+    // The fantasy consoles themselves: PICO-8 is told to load the cart and run it; TIC-80 is given it to load,
+    // with its start-up animation skipped.
+    Emulator {
+        id: "pico8",
+        name: "PICO-8",
+        programs: &["pico8"],
+        folder_hints: &["pico-8", "pico8"],
+        mac_apps: &[("PICO-8.app", "pico8")],
+        machines: &[Pico8],
+        formats: &[P8],
+        link: Link::None,
+        website: "https://www.lexaloffle.com/pico-8.php",
+    },
+    Emulator {
+        id: "tic80",
+        name: "TIC-80",
+        programs: &["tic80"],
+        folder_hints: &["tic-80", "tic80"],
+        mac_apps: &[("tic80.app", "tic80")],
+        machines: &[Tic80],
+        formats: &[Tic, TicText],
+        link: Link::None,
+        website: "https://tic80.com",
     },
     // ParaJVE, the Vectrex in Java, given the cartridge to load.
     Emulator {
@@ -263,6 +429,8 @@ impl Emulator {
                     SpectrumPlus3 => "P341",
                     Pentagon => "Pentagon",
                     Next => "TBBlue",
+                    Zx81 => "ZX81",
+                    JupiterAce => "ACE",
                     _ => "48k",
                 };
                 args.extend(["--machine".into(), id.into()]);
@@ -316,11 +484,40 @@ impl Emulator {
             // The file is the configuration made for the run.
             "fs-uae" => args.push(file),
             "winuae" => args.extend(["-f".into(), file]),
+            // Copperline's machine (the model and its Kickstart) is in the configuration made beside the program
+            // or disk for the run (see `amiga_run`). A program is booted straight into with --run, its folder a
+            // drive; a disk goes in DF0:.
+            "copperline" => {
+                let config = Path::new(&file).with_file_name(crate::amiga_run::COPPERLINE_CONFIG);
+                args.extend(["--config".into(), config.display().to_string()]);
+                if format == Hunk {
+                    args.push("--run".into());
+                }
+                args.push(file);
+            }
             // The Vectrex needs its BIOS ROM (vectrex.zip) in MAME's ROM folder; the 2600 needs none.
-            "mame" => args.extend([if format == VecCart { "vectrex" } else { "a2600" }.into(), "-cart".into(), file, "-skip_gameinfo".into()]),
+            "mame" => {
+                let system = match format {
+                    VecCart => "vectrex",
+                    MdRom => "genesis",
+                    // The Mark III: the Japanese Master System, which runs its cartridges with no BIOS to find.
+                    SmsRom => "sg1000m3",
+                    GgRom => "gamegear",
+                    SgRom => "sg1000",
+                    ColRom => "coleco",
+                    Format::Nes => "nes",
+                    // The Game Boy needs its boot ROM (gameboy.zip, or gbcolor.zip for the Color).
+                    Gb => "gameboy",
+                    Gbc => "gbcolor",
+                    _ => "a2600",
+                };
+                args.extend([system.into(), "-cart".into(), file, "-skip_gameinfo".into()]);
+            }
             // A .COM given to DOSBox is run, its folder made drive C:; a floppy is booted.
             "dosbox" if format == Img => args.extend(["-c".into(), format!("boot \"{file}\"")]),
             "dosbox" => args.push(file),
+            "pico8" => args.extend(["-run".into(), file]),
+            "tic80" => args.extend([file, "--skip".into()]),
             "qemu" => args.extend(["-fda".into(), file, "-boot".into(), "a".into()]),
             _ => args.push(file),
         }
@@ -461,6 +658,23 @@ mod tests {
         assert_eq!(by_id("cspect").unwrap().arguments(Next, Nex, Path::new("/tmp/a.nex"), None, ""), ["-zxnext", "-w3", "/tmp/a.nex"]);
         assert_eq!(by_id("fs-uae").unwrap().arguments(Amiga, Hunk, Path::new("/tmp/amiga.fs-uae"), None, "--fullscreen=1"), ["--fullscreen=1", "/tmp/amiga.fs-uae"]);
         assert_eq!(by_id("winuae").unwrap().arguments(Amiga, Hunk, Path::new("C:\\run\\amiga.uae"), None, ""), ["-f", "C:\\run\\amiga.uae"]);
+        // Copperline: the configuration made beside the program, and the program warp-booted with --run; a disk is
+        // simply given, for DF0:.
+        let copperline = by_id("copperline").unwrap();
+        assert!(copperline.runs(Amiga, Hunk) && copperline.runs(Amiga, Adf));
+        assert_eq!(copperline.arguments(Amiga, Hunk, Path::new("/tmp/run/demo"), None, "--window-scale 2"), ["--window-scale", "2", "--config", "/tmp/run/copperline.toml", "--run", "/tmp/run/demo"]);
+        assert_eq!(copperline.arguments(Amiga, Adf, Path::new("/tmp/run/game.adf"), None, ""), ["--config", "/tmp/run/copperline.toml", "/tmp/run/game.adf"]);
+        // The Game Boy's and the NES's are given the cartridge; MAME is told which machine it's for.
+        for id in ["sameboy", "mgba", "gambatte", "bgb", "mesen"] {
+            assert_eq!(by_id(id).unwrap().arguments(GameBoy, Gb, Path::new("/tmp/a.gb"), None, ""), ["/tmp/a.gb"], "{id}");
+        }
+        for id in ["mesen", "fceux", "nestopia"] {
+            assert!(by_id(id).unwrap().runs(Machine::Nes, Format::Nes), "{id}");
+            assert_eq!(by_id(id).unwrap().arguments(Machine::Nes, Format::Nes, Path::new("/tmp/a.nes"), None, ""), ["/tmp/a.nes"], "{id}");
+        }
+        let mame = by_id("mame").unwrap();
+        assert_eq!(mame.arguments(GameBoy, Gbc, Path::new("/tmp/a.gbc"), None, ""), ["gbcolor", "-cart", "/tmp/a.gbc", "-skip_gameinfo"]);
+        assert_eq!(mame.arguments(Atari2600, A26, Path::new("/tmp/a.a26"), None, ""), ["a2600", "-cart", "/tmp/a.a26", "-skip_gameinfo"]);
     }
 
     #[test]

@@ -281,7 +281,7 @@ impl Limoniter {
                 self.docs.push(doc);
                 self.active = self.docs.len() - 1;
                 self.dialog = Dialog::None;
-                self.message("The tune's code", crate::i18n::tf!("{stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, Disassemble\u{2026} turns it into 6502 source, starting from its init and play routines; File, Save as keeps it."));
+                self.message("The tune's code", crate::i18n::tf!("{stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, General, Disassemble\u{2026} turns it into 6502 source, starting from its init and play routines; File, Save as keeps it."));
             }
             Act::Vsid => {
                 let Dialog::C64Tools(state) = &self.dialog else {

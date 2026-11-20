@@ -14,11 +14,17 @@ use std::time::Instant;
 pub(super) enum Target {
     /// The Spectrum built into Limoniter, in the preview pane.
     BuiltIn,
+    /// The Atari 2600 built into Limoniter, in a panel beside the source or cartridge.
+    BuiltIn2600,
     /// A device or emulator, by its place in the list.
     Device(usize),
+    /// The ZX81 and the Jupiter Ace built into Limoniter.
+    Zx81,
+    Ace,
 }
 
 pub(super) const BUILT_IN_NAME: &str = "Built-in Spectrum";
+pub(super) const BUILT_IN_2600_NAME: &str = "Built-in Atari 2600";
 /// Where the status bar's Stop button leaves word that it was pressed.
 pub(super) const STOP_ASKED: &str = "stop-running-asked";
 
@@ -36,6 +42,10 @@ pub(super) enum SessionKind {
     App { child: Option<Child>, emulator: &'static Emulator, port: Option<u16>, log: PathBuf, debug: Option<Box<Debugging>> },
     /// The built-in Spectrum, drawn in the preview pane of the document it was run from.
     BuiltIn { machine: Box<crate::zx_machine::BuiltIn>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
+    /// The built-in Atari 2600, drawn in a panel beside the document it was run from.
+    Atari2600 { machine: Box<crate::atari2600_machine::Atari2600>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
+    /// The built-in ZX81 or Jupiter Ace, in a panel beside the document it was run from.
+    Micro { machine: Box<super::micro_host::Micro>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
 }
 
 /// A program from assembler source being debugged in an emulator: the document, the debugger, and the
@@ -68,6 +78,8 @@ pub(super) struct Running {
     pub assemblers: Vec<(String, String)>,
     /// The last program assembled.
     pub assembled: Option<super::asm_host::AssembledCache>,
+    /// Boriel's ZX Basic and C being compiled, and the last program compiled (see `compile_host`).
+    pub compiled: super::compile_host::Compiling,
     /// The Atari ST's side: a profile asked for, profiled runs going on, and the last profile (see `st_host`).
     pub st: super::st_host::StRuns,
 }
@@ -107,11 +119,13 @@ pub(super) enum RunBox {
 }
 
 /// The machines a plain text can be run as the BASIC of.
-const LISTING_MACHINES: [(basic::Machine, &str); 4] = [
+const LISTING_MACHINES: [(basic::Machine, &str); 6] = [
     (basic::Machine::Spectrum, "ZX Spectrum 48K BASIC"),
     (basic::Machine::Next, "ZX Spectrum Next BASIC (NextBASIC)"),
     (basic::Machine::Commodore(basic::CbmMachine::C64), "Commodore 64 BASIC"),
     (basic::Machine::Bbc, "BBC BASIC"),
+    (basic::Machine::Zx81, "ZX81 BASIC"),
+    (basic::Machine::JupiterAce, "Jupiter Ace Forth"),
 ];
 
 impl Limoniter {
@@ -127,6 +141,9 @@ impl Limoniter {
     }
 
     fn runnable_reporting(&mut self, report: bool) -> Result<Option<Runnable>, String> {
+        if let Some(kind) = self.compiles(self.active) {
+            return self.compiled_runnable(kind, report).map(Some);
+        }
         if let Some(cpu) = self.doc_cpu(self.active) {
             return self.assemble_to_run(cpu, report).map(Some);
         }
@@ -156,6 +173,11 @@ impl Limoniter {
         if !doc.hex_mode && doc.text.is_disk_backed() {
             return Err(crate::i18n::tr("This file is too large to run.").into());
         }
+        // Forth source runs on the Jupiter Ace, typed in.
+        if !doc.hex_mode && doc.browser.is_none() && doc.language_name() == "Forth" {
+            let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| doc.name(), |s| s.to_string_lossy().into_owned());
+            return Runnable::from_listing(&doc.text.all_lines(), basic::Machine::JupiterAce, &stem).map(Some);
+        }
         let name = doc.name();
         let bytes = self.document_bytes();
         if let Some(runnable) = Runnable::from_file(&name, bytes) {
@@ -172,6 +194,9 @@ impl Limoniter {
     fn target_name(&self, target: Target) -> String {
         match target {
             Target::BuiltIn => BUILT_IN_NAME.to_string(),
+            Target::BuiltIn2600 => BUILT_IN_2600_NAME.to_string(),
+            Target::Zx81 => super::micro_host::ZX81_NAME.to_string(),
+            Target::Ace => super::micro_host::ACE_NAME.to_string(),
             Target::Device(n) => self.sends.devices.get(n).map_or_else(String::new, |device| device.name.clone()),
         }
     }
@@ -180,6 +205,15 @@ impl Limoniter {
         if name == BUILT_IN_NAME {
             return Some(Target::BuiltIn);
         }
+        if name == BUILT_IN_2600_NAME {
+            return Some(Target::BuiltIn2600);
+        }
+        if name == super::micro_host::ZX81_NAME {
+            return Some(Target::Zx81);
+        }
+        if name == super::micro_host::ACE_NAME {
+            return Some(Target::Ace);
+        }
         self.sends.devices.iter().position(|device| device.name == name).map(Target::Device)
     }
 
@@ -187,6 +221,9 @@ impl Limoniter {
     pub(super) fn suits(&self, target: Target, run: &Runnable) -> Result<(), String> {
         match target {
             Target::BuiltIn => crate::zx_machine::BuiltIn::takes(run).map_err(|why| crate::i18n::tf!("The built-in Spectrum {why}")),
+            Target::BuiltIn2600 => crate::atari2600_machine::Atari2600::takes(run).map_err(|why| crate::i18n::tf!("The built-in Atari 2600 {why}")),
+            Target::Zx81 => super::micro_host::takes(crate::micro_roms::Needs::Zx81, run),
+            Target::Ace => super::micro_host::takes(crate::micro_roms::Needs::Ace, run),
             Target::Device(n) => {
                 let Some(device) = self.sends.devices.get(n) else {
                     return Err(crate::i18n::tr("It's no longer set up.").into());
@@ -212,7 +249,13 @@ impl Limoniter {
 
     /// Every target, with whether it can take this.
     pub(super) fn targets_for(&self, run: &Runnable) -> Vec<(Target, String, Result<(), String>)> {
-        let mut all = vec![(Target::BuiltIn, BUILT_IN_NAME.to_string(), self.suits(Target::BuiltIn, run))];
+        let mut all = vec![(Target::BuiltIn, BUILT_IN_NAME.to_string(), self.suits(Target::BuiltIn, run)), (Target::BuiltIn2600, BUILT_IN_2600_NAME.to_string(), self.suits(Target::BuiltIn2600, run))];
+        // The built-in ZX81 and Ace are offered for their own programs only.
+        for (target, machine) in [(Target::Zx81, Machine::Zx81), (Target::Ace, Machine::JupiterAce)] {
+            if run.machine == machine {
+                all.insert(0, (target, self.target_name(target), self.suits(target, run)));
+            }
+        }
         all.extend((0..self.sends.devices.len()).map(|n| (Target::Device(n), self.sends.devices[n].name.clone(), self.suits(Target::Device(n), run))));
         all
     }
@@ -290,7 +333,8 @@ impl Limoniter {
                 Err(why) => self.message("Run on", why),
             },
             Ok(None) => self.dialog = Dialog::Run(Box::new(RunBox::Which { doc_id: self.docs[self.active].id })),
-            Err(problem) if problem.is_empty() => {}
+            // Source being compiled runs there once it's built.
+            Err(problem) if problem.is_empty() => self.running.compiled.target = Some(target),
             Err(problem) if problem == super::asm_host::ASK_6502 => self.ask_6502(Some(target)),
             Err(problem) => self.message("Run on", problem),
         }
@@ -307,6 +351,8 @@ impl Limoniter {
         let mut runs = true;
         let outcome = match target {
             Target::BuiltIn => self.run_built_in(run.clone()),
+            Target::BuiltIn2600 => self.run_built_in_2600(run.clone()),
+            Target::Zx81 | Target::Ace => self.run_micro(run.clone()),
             Target::Device(n) => {
                 let device = self.sends.devices[n].clone();
                 match &device.place {
@@ -396,6 +442,24 @@ impl Limoniter {
         if let Some(st) = &st {
             let at = args.len().saturating_sub(1);
             args.splice(at..at, st.options.iter().cloned());
+        }
+        // In Copperline, Amiga source assembled here is debugged through its debug adapter, copperline-ctl, which
+        // starts the emulator with the program itself, when it's there to be found.
+        if emulator.id == "copperline"
+            && run.format == crate::running::Format::Hunk
+            && self.running.assembled.as_ref().is_some_and(|c| c.doc_id == doc_id && c.runnable.is_ok())
+            && let Some(ctl) = crate::dap::copperline_ctl(&amiga_debug_host::on_path(&program))
+        {
+            // Its copy carries each instruction's source line, for Copperline to stop and step by line, and the
+            // machine watches for the program misusing the chips or changing its own code.
+            let assembly = self.running.assembled.as_ref().map(|c| c.assembly.clone());
+            if let Some(assembly) = &assembly {
+                let lined = crate::asm::hunk::add_line_debug(&run.bytes, assembly)?;
+                std::fs::write(&file, lined).map_err(|e| crate::i18n::tf!("Couldn't make the copy to run.\n\n{e}"))?;
+            }
+            crate::amiga_run::arm_copperline_checks(&folder).map_err(|e| crate::i18n::tf!("Couldn't make the copy to run.\n\n{e}"))?;
+            self.debug_in_copperline(&file, &program, &ctl, options, assembly.as_deref());
+            return Ok(());
         }
         // Amiga source assembled here is debugged through the emulator's GDB server, where it has one.
         if run.machine == Machine::Amiga
@@ -546,8 +610,8 @@ impl Limoniter {
         Ok(())
     }
 
-    /// The speakers, for the built-in Spectrum's sound; none in a test or a screenshot.
-    fn speaker(&self) -> Option<crate::speaker::Speaker> {
+    /// The speakers, for the built-in Spectrum's and 2600's sound; none in a test or a screenshot.
+    pub(super) fn speaker(&self) -> Option<crate::speaker::Speaker> {
         if cfg!(test) || self.screenshot.is_some() {
             return None;
         }
@@ -865,13 +929,31 @@ impl Limoniter {
                     }
                 }
             }
+            if let SessionKind::Atari2600 { machine, doc_id: d, .. } = &mut session.kind
+                && *d == doc_id
+            {
+                machine.set_breakpoints(breakpoints.clone());
+                for _ in 0..60 * 30 {
+                    if machine.frame().is_err() || machine.paused {
+                        break;
+                    }
+                }
+            }
         }
     }
 
     /// For a screenshot: the built-in machines run on for a number of frames, as if that much time had passed.
     pub(super) fn run_frames_for_screenshot(&mut self, frames: usize) {
+        self.run_micro_frames_for_screenshot(frames);
         for session in &mut self.running.sessions {
             if let SessionKind::BuiltIn { machine, .. } = &mut session.kind {
+                for _ in 0..frames {
+                    if machine.frame().is_err() {
+                        break;
+                    }
+                }
+            }
+            if let SessionKind::Atari2600 { machine, .. } = &mut session.kind {
                 for _ in 0..frames {
                     if machine.frame().is_err() {
                         break;
@@ -1061,7 +1143,7 @@ impl Limoniter {
                 });
             }
             None if which_6502 => {
-                ui.label(crate::i18n::tr("Is this 6502 program for a Commodore 64, a BBC Micro or an Atari 2600? Its code doesn't say."));
+                ui.label(crate::i18n::tr("Is this 6502 program for a Commodore 64, a BBC Micro, an Atari 2600 or an NES? Its code doesn't say."));
                 ui.add_space(6.0);
                 if ui.button(crate::i18n::tr("Commodore 64")).clicked() {
                     as_6502 = Some(Micro6502::C64);
@@ -1072,13 +1154,16 @@ impl Limoniter {
                 if ui.button(crate::i18n::tr("Atari 2600")).clicked() {
                     as_6502 = Some(Micro6502::Atari2600);
                 }
+                if ui.button(crate::i18n::tr("NES")).clicked() {
+                    as_6502 = Some(Micro6502::Nes);
+                }
                 ui.add_space(6.0);
-                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc or ; machine: 2600 near the top.")).color(theme::text_dim())).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top.")).color(theme::text_dim())).wrap());
                 ui.add_space(6.0);
                 close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             }
             None => {
-                ui.label(crate::i18n::tr("This isn't a program Limoniter knows how to run. Run it as a BASIC listing for:"));
+                ui.label(crate::i18n::tr("This isn't a program Limoniter knows how to run. Run it as a listing for:"));
                 ui.add_space(6.0);
                 for (machine, name) in LISTING_MACHINES {
                     if ui.button(crate::i18n::tr(name)).clicked() {

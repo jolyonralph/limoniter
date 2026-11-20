@@ -461,7 +461,7 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         // Watches: expressions worked out at every stop.
         watches_section(ui, code, &|watch| eval(watch, &seen), "A, HL, [counter], word[ptr]...");
         // A window on memory, at an address, a label, or anything an expression gives.
-        memory_section(ui, code, "HL, $5800, a label...", &|text| if text.trim().is_empty() { Ok(i64::from(r.hl)) } else { eval(text, &seen) }, 4, &|a| Some(peek(a as u16)), &|a| before.map(|b| b[(a & 0xFFFF) as usize]));
+        memory_section(ui, &mut code.memory_at, "HL, $5800, a label...", &|text| if text.trim().is_empty() { Ok(i64::from(r.hl)) } else { eval(text, &seen) }, 4, &|a| Some(peek(a as u16)), &|a| before.map(|b| b[(a & 0xFFFF) as usize]));
     });
     action
 }
@@ -502,16 +502,16 @@ fn watches_section(ui: &mut Ui, code: &mut CodeMarks, value: &dyn Fn(&str) -> Re
 /// A window on memory, at what `start` makes of the address typed: 128 bytes, with those changed since the stop
 /// before standing out, and those not read shown as --. `digits` is how wide addresses are written. Gives where
 /// it starts, if the address could be worked out.
-fn memory_section(ui: &mut Ui, code: &mut CodeMarks, hint: &str, start: &dyn Fn(&str) -> Result<i64, String>, digits: usize, peek: &dyn Fn(u32) -> Option<u8>, before: &dyn Fn(u32) -> Option<u8>) -> Option<u32> {
+pub fn memory_section(ui: &mut Ui, typed: &mut String, hint: &str, start: &dyn Fn(&str) -> Result<i64, String>, digits: usize, peek: &dyn Fn(u32) -> Option<u8>, before: &dyn Fn(u32) -> Option<u8>) -> Option<u32> {
     let mono = |text: String| RichText::new(text).monospace().size(12.0);
     let mask = if digits <= 4 { 0xFFFF } else { 0xFFFF_FFFF };
     let mut shown_at = None;
     egui::CollapsingHeader::new(crate::i18n::tr("Memory")).id_salt("debug-memory").default_open(true).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.label(crate::i18n::tr("At"));
-            ui.add(egui::TextEdit::singleline(&mut code.memory_at).hint_text(hint).desired_width(160.0));
+            ui.add(egui::TextEdit::singleline(typed).hint_text(hint).desired_width(160.0));
         });
-        match start(&code.memory_at) {
+        match start(typed) {
             Ok(start) => {
                 let start = (start as u32) & mask & !0xF;
                 shown_at = Some(start);
@@ -752,7 +752,7 @@ pub fn stopped_68k(ui: &mut Ui, stop: &Stop, shown: &mut crate::amiga_debug::Sho
             }
         });
         watches_section(ui, code, &|watch| eval_wide(watch, &wide, labels.as_ref()), "D0, A0.w, [count], long[ptr], COLOR00...");
-        let at = memory_section(ui, code, "A0, $DFF180, a label...", &|text| if text.trim().is_empty() { Ok(i64::from(r[8])) } else { eval_wide(text, &wide, labels.as_ref()) }, 8, &|a| now.peek(a), &|a| before.as_ref().and_then(|b| b.peek(a)));
+        let at = memory_section(ui, &mut code.memory_at, "A0, $DFF180, a label...", &|text| if text.trim().is_empty() { Ok(i64::from(r[8])) } else { eval_wide(text, &wide, labels.as_ref()) }, 8, &|a| now.peek(a), &|a| before.as_ref().and_then(|b| b.peek(a)));
         if let Some(at) = at.filter(|at| !now.has(*at, 128)) {
             missing.borrow_mut().push(at);
             missing.borrow_mut().push(at.wrapping_add(127));

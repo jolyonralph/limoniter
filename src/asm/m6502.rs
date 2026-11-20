@@ -133,6 +133,11 @@ pub fn decode(op: u8) -> Option<(&'static str, Mode)> {
     OPCODES.iter().find_map(|(name, modes)| modes.iter().find(|(_, o)| *o == op).map(|(mode, _)| (*name, *mode)))
 }
 
+/// Whether the 6502 itself has an instruction (the later chips add their own).
+pub fn has(mnemonic: &str) -> bool {
+    opcodes(mnemonic).is_some()
+}
+
 fn opcodes(mnemonic: &str) -> Option<&'static [(Mode, u8)]> {
     let mnemonic = canonical(mnemonic);
     OPCODES.iter().find(|(name, _)| *name == mnemonic).map(|(_, modes)| *modes)
@@ -165,7 +170,25 @@ impl Isa for M6502 {
 
     fn is_instruction(&self, word: &str) -> bool {
         // ACME's +2 and the like after a mnemonic force a size: lda+2; DASM's .w and .b (or .z) do the same.
-        opcodes(strip_size(word).0).is_some()
+        // The 65C02's and the HuC6280's count too, but for the HuC6280's SET, which is the assembler's own word
+        // for giving a label a value; that's taken as a directive (below) when it stands alone.
+        opcodes(strip_size(word).0).is_some() || (super::m65x::is_instruction(word) && word != "set")
+    }
+
+    fn is_directive(&self, word: &str) -> bool {
+        matches!(word.trim_start_matches(['.', '!']), "setcpu" | "pc02" | "p02" | "cpu" | "processor")
+    }
+
+    fn directive(&self, word: &str, operands: &str, line: &mut Line) -> Option<Result<Vec<u8>, String>> {
+        // Which of the family: .SETCPU "65C02", .PC02, CPU 65C02, PROCESSOR 65C02.
+        if let Some(variant) = super::m65x::said(word, operands) {
+            line.set_setting(super::m65x::SETTING, variant as i64);
+            return Some(Ok(Vec::new()));
+        }
+        if word == "set" && operands.is_empty() && super::m65x::variant_of(line) == super::m65x::Variant::HuC6280 {
+            return Some(Ok(vec![0xF4]));
+        }
+        None
     }
 
     fn colon_separates(&self) -> bool {
@@ -187,6 +210,22 @@ impl Isa for M6502 {
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
         // A size forced with +1 or +2 (ACME), .b or .w (DASM), or a: for absolute (ca65).
         let (mnemonic, forced) = strip_size(mnemonic);
+        // The 65C02's and the HuC6280's own forms, when the source says it's for one.
+        let variant = super::m65x::variant_of(line);
+        if forced.is_none()
+            && let Some(made) = super::m65x::encode(variant, canonical(mnemonic), operands, line)
+        {
+            return made;
+        }
+        if variant != super::m65x::Variant::Nmos && super::m65x::undocumented(canonical(mnemonic)) {
+            return Err(crate::i18n::tf!("{} is one of the 6502's undocumented instructions, which the {} hasn't got", mnemonic.to_ascii_uppercase(), variant.name()));
+        }
+        if opcodes(mnemonic).is_none()
+            && let Some(chip) = super::m65x::which_has(mnemonic)
+        {
+            let chip = chip.name();
+            return Err(crate::i18n::tf!("{} is the {chip}'s, not the 6502's: put .setcpu \"{chip}\" near the top to use it", mnemonic.to_ascii_uppercase()));
+        }
         let modes = opcodes(mnemonic).ok_or_else(|| crate::i18n::tf!("{mnemonic} isn't a 6502 instruction"))?;
         let upper = mnemonic.to_ascii_uppercase();
         let text = operands.trim();

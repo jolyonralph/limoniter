@@ -514,19 +514,25 @@ impl SpriteSet {
         out
     }
 
-    /// A SpritePad file: the newer kind with "SPD" first, or the older, which is just the three colours and the
-    /// sprites.
+    /// A SpritePad file: SpritePad 1.8's, which is just the three colours and the sprites, or one with "SPD" and
+    /// its version first. Version 1 (SpritePad 2.0) has the count of sprites less one at byte 4 and the colours at
+    /// 6; versions 2 to 5 (SpritePad 2.3 to the Pro releases) have flags at byte 4, the number of sprites as a word
+    /// at 5 and the colours at 13, and the sprites after a header of 16 bytes (20 from version 4, which adds the
+    /// overlay distances). Their tiles and animations, after the sprites, aren't read.
     pub fn from_spd(bytes: &[u8]) -> Option<SpriteSet> {
-        let (colours, count) = if bytes.starts_with(b"SPD") {
-            (*bytes.get(3)? >= 1).then_some(())?;
-            (6, usize::from(*bytes.get(4)?) + 1)
+        let (colours, count, start) = if bytes.starts_with(b"SPD") {
+            match *bytes.get(3)? {
+                1 => (6, usize::from(*bytes.get(4)?) + 1, 9),
+                version @ 2..=5 => (13, usize::from(u16::from_le_bytes([*bytes.get(5)?, *bytes.get(6)?])), if version >= 4 { 20 } else { 16 }),
+                _ => return None,
+            }
         } else {
             if bytes.len() < 3 + 64 || !(bytes.len() - 3).is_multiple_of(64) {
                 return None;
             }
-            (0, (bytes.len() - 3) / 64)
+            (0, (bytes.len() - 3) / 64, 3)
         };
-        let start = colours + 3;
+        bytes.get(colours + 2)?;
         let sprites: Vec<[u8; 64]> = (0..count).map_while(|i| bytes.get(start + i * 64..start + i * 64 + 64).map(|b| std::array::from_fn(|j| b[j]))).collect();
         if sprites.is_empty() {
             return None;
@@ -920,7 +926,21 @@ mod tests {
         assert_eq!(SpriteSet::from_spd(&spd), Some(set.clone()));
         let mut old = vec![0, 11, 1];
         old.extend(set.data());
-        assert_eq!(SpriteSet::from_spd(&old), Some(set));
+        assert_eq!(SpriteSet::from_spd(&old), Some(set.clone()));
+        // Versions 2 to 5: flags, then the number of sprites (not less one) as a word, the colours at 13, and the
+        // sprites after the header (16 bytes; 20 from version 4). Tiles after them are passed over.
+        for version in 2..=5u8 {
+            let mut newer = b"SPD".to_vec();
+            newer.extend([version, 1, 2, 0, 1, 0, 0, if version >= 3 { 0 } else { 1 }, 2, 1, 0, 11, 1]);
+            if version >= 4 {
+                newer.extend([1, 0, 1, 0]);
+            }
+            newer.extend(set.data());
+            newer.extend([0, 0, 1, 0]);
+            assert_eq!(SpriteSet::from_spd(&newer), Some(set.clone()), "version {version}");
+        }
+        assert_eq!(SpriteSet::from_spd(b"SPD\x09rest"), None);
+        assert_eq!(SpriteSet::from_spd(b"SPD\x05\x00\x09\x00"), None, "cut short");
     }
 
     #[test]

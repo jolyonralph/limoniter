@@ -232,7 +232,13 @@ pub fn show(on: bool) {
 /// last assembled, while the text is as it was then. A line of several instructions shows their sum.
 pub fn line_notes(intel: &crate::code_intel::CodeIntel, version: u64, first: usize, last: usize) -> std::collections::HashMap<usize, String> {
     let mut sums: std::collections::HashMap<usize, Cycles> = std::collections::HashMap::new();
-    if !shown() || intel.cpu != Some(crate::assemblers::Cpu::M6502) || intel.version != version {
+    if !shown() || intel.version != version {
+        return std::collections::HashMap::new();
+    }
+    if intel.cpu == Some(crate::assemblers::Cpu::Z80) {
+        return z80_line_notes(intel, first, last);
+    }
+    if intel.cpu != Some(crate::assemblers::Cpu::M6502) {
         return std::collections::HashMap::new();
     }
     let Some(assembly) = &intel.assembly else {
@@ -247,6 +253,42 @@ pub fn line_notes(intel: &crate::code_intel::CodeIntel, version: u64, first: usi
     sums.into_iter().map(|(line, c)| (line, c.text())).collect()
 }
 
+/// The 48K Spectrum's contended memory, where the ULA can hold the Z80 up while it draws the screen.
+const CONTENDED: std::ops::Range<i64> = 0x4000..0x8000;
+/// The most a contended access can be held up, in T-states.
+const MOST_HELD: u32 = 6;
+
+/// A Z80 instruction's T-states (least and most, for a condition not met and met), and the most the ULA can add if
+/// it's in contended memory: each byte fetched from there can be held up to 6 T-states. Only for bytes that are
+/// one whole instruction, so data lines aren't timed.
+pub fn z80_timing(bytes: &[u8], address: i64) -> Option<(Cycles, u32)> {
+    let decoded = crate::disasm::z80(&|i| bytes.get(i).copied().unwrap_or(0), address as u16);
+    if decoded.length != bytes.len() {
+        return None;
+    }
+    let text = crate::asm::z80::cycles(bytes)?;
+    let mut numbers = text.split('/').filter_map(|n| n.parse::<u32>().ok());
+    let least = numbers.next()?;
+    let most = numbers.next().unwrap_or(least);
+    let held = if CONTENDED.contains(&address) { MOST_HELD * bytes.len() as u32 } else { 0 };
+    Some((Cycles { least, most }, held))
+}
+
+/// Each Z80 line's T-states, and with "+n" the most contended memory can add.
+fn z80_line_notes(intel: &crate::code_intel::CodeIntel, first: usize, last: usize) -> std::collections::HashMap<usize, String> {
+    let mut sums: std::collections::HashMap<usize, (Cycles, u32)> = std::collections::HashMap::new();
+    let Some(assembly) = &intel.assembly else {
+        return std::collections::HashMap::new();
+    };
+    for placed in assembly.lines.iter().filter(|p| p.file == intel.file && p.line >= first && p.line <= last) {
+        if let Some((c, held)) = z80_timing(&placed.bytes, placed.address) {
+            let sum = sums.entry(placed.line).or_insert((Cycles { least: 0, most: 0 }, 0));
+            *sum = (sum.0.add(c), sum.1 + held);
+        }
+    }
+    sums.into_iter().map(|(line, (c, held))| (line, if held > 0 { format!("{} +{held}", c.text()) } else { c.text() })).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,6 +300,15 @@ mod tests {
     /// twelve JAMs it gives no cycles for). Each entry is opcode, cycles, and + for a page-crossing extra or b for
     /// a branch.
     const REFERENCE: &str = include_str!("asm/testdata/m6502_cycles.txt");
+
+    #[test]
+    fn z80_lines_are_timed_with_what_contention_can_add() {
+        // ld b,8 takes 7; jr nz takes 7 or 12; in contended memory each of its bytes can be held 6 more.
+        assert_eq!(z80_timing(&[0x06, 0x08], 0x8000), Some((Cycles { least: 7, most: 7 }, 0)));
+        assert_eq!(z80_timing(&[0x20, 0xFE], 0x8000), Some((Cycles { least: 7, most: 12 }, 0)));
+        assert_eq!(z80_timing(&[0x06, 0x08], 0x6000), Some((Cycles { least: 7, most: 7 }, 12)));
+        assert_eq!(z80_timing(&[0x01, 0x02, 0x03, 0x04], 0x8000), None, "four bytes of data aren't one instruction");
+    }
 
     #[test]
     fn every_opcode_takes_the_cycles_the_reference_gives() {

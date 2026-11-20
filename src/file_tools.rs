@@ -311,6 +311,8 @@ pub(super) fn tokenised<S: AsRef<str>>(lines: &[S], machine: basic::Machine, ste
         basic::Machine::OpticOs => crate::opticbasic::tokenise(lines).map(|program| crate::opticbasic::tape(&program, stem, None)),
         basic::Machine::Amos => crate::amos::tokenise(lines),
         basic::Machine::Stos => crate::stos::tokenise(lines),
+        basic::Machine::Zx81 => crate::zx81_program::program(lines),
+        basic::Machine::JupiterAce => Ok(crate::running::forth_text(lines)),
     }?;
     Ok((bytes, machine.ending(), machine.kind()))
 }
@@ -833,8 +835,18 @@ impl Limoniter {
         Ok(())
     }
 
+    /// The snippets VS Code extensions give for the language of the file in front; in the Snippets box they come
+    /// after your own, numbered on from them.
+    pub(super) fn extension_snippets(&self) -> Vec<crate::vsix::ExtSnippet> {
+        if self.no_file() || self.docs[self.active].hex_mode {
+            return Vec::new();
+        }
+        crate::vsix::snippets_for(&self.docs[self.active].language_name())
+    }
+
     pub(super) fn insert_snippet(&mut self, index: usize) {
-        let Some(snippet) = self.snippets.get(index).cloned() else {
+        let from_extension = index.checked_sub(self.snippets.len()).and_then(|at| self.extension_snippets().into_iter().nth(at));
+        let Some(snippet) = self.snippets.get(index).cloned().or_else(|| from_extension.as_ref().map(|s| Snippet { name: s.name.clone(), body: s.body.clone() })) else {
             return;
         };
         if self.no_file() {
@@ -860,7 +872,11 @@ impl Limoniter {
         let selection = doc.text.format.readable_text(&doc.text.selection_text()).replace("\r\n", "\n");
         let now = chrono::Local::now();
         let (date, time, file) = (now.format("%d/%m/%Y").to_string(), now.format("%H:%M").to_string(), doc.name());
-        let (before, after) = expand_snippet(&snippet.body, &Fill { date: &date, time: &time, file: &file, selection: &selection });
+        let (before, after) = if from_extension.is_some() {
+            crate::vsix::expand_snippet(&snippet.body, &crate::vsix::Fill { date: now, file: &file, selection: &selection })
+        } else {
+            expand_snippet(&snippet.body, &Fill { date: &date, time: &time, file: &file, selection: &selection })
+        };
         let text = &mut self.doc().text;
         text.begin_undo_group(false);
         if text.has_selection() {
@@ -880,12 +896,16 @@ impl Limoniter {
         }
         let can_insert = !self.no_file() && !self.docs[self.active].hex_mode;
         let has_selection = can_insert && self.docs[self.active].text.has_selection();
+        let extra = self.extension_snippets();
+        let own = self.snippets.len();
         let Dialog::Snippets(state) = &mut self.dialog else {
             return false;
         };
         let (enter, escape, up, down) = ctx.input(|i| (i.key_pressed(Key::Enter), i.key_pressed(Key::Escape), i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown)));
         let words = state.filter.to_lowercase();
-        let shown: Vec<usize> = (0..self.snippets.len()).filter(|at| words.is_empty() || self.snippets[*at].name.to_lowercase().contains(&words) || self.snippets[*at].body.to_lowercase().contains(&words)).collect();
+        let mut shown: Vec<usize> = (0..self.snippets.len()).filter(|at| words.is_empty() || self.snippets[*at].name.to_lowercase().contains(&words) || self.snippets[*at].body.to_lowercase().contains(&words)).collect();
+        // Those an extension gives, found by their prefix too.
+        shown.extend((0..extra.len()).filter(|at| words.is_empty() || [&extra[*at].name, &extra[*at].prefix, &extra[*at].description, &extra[*at].body].iter().any(|t| t.to_lowercase().contains(&words))).map(|at| own + at));
         if state.chosen.is_none_or(|at| !shown.contains(&at)) {
             state.chosen = shown.first().copied();
         }
@@ -913,11 +933,15 @@ impl Limoniter {
                     ui.set_width(200.0);
                     egui::ScrollArea::vertical().id_salt("snippet-list").min_scrolled_height(260.0).max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
                         if shown.is_empty() {
-                            ui.label(RichText::new(if self.snippets.is_empty() { crate::i18n::tr("No snippets yet. Press New to make one.") } else { crate::i18n::tr("Nothing matches that.") }).color(theme::text_faint()));
+                            ui.label(RichText::new(if self.snippets.is_empty() && extra.is_empty() { crate::i18n::tr("No snippets yet. Press New to make one.") } else { crate::i18n::tr("Nothing matches that.") }).color(theme::text_faint()));
                         }
                         for at in &shown {
                             let here = state.chosen == Some(*at);
-                            let label = ui.add_sized([200.0, 24.0], egui::Button::selectable(here, self.snippets[*at].name.as_str()));
+                            let name = match at.checked_sub(own) {
+                                None => RichText::new(self.snippets[*at].name.as_str()),
+                                Some(e) => RichText::new(if extra[e].prefix.is_empty() { extra[e].name.clone() } else { format!("{}  \u{2039}{}\u{203A}", extra[e].name, extra[e].prefix) }).italics(),
+                            };
+                            let label = ui.add_sized([200.0, 24.0], egui::Button::selectable(here, name));
                             if label.clicked() {
                                 state.chosen = Some(*at);
                             }
@@ -929,7 +953,18 @@ impl Limoniter {
                 });
                 ui.separator();
                 ui.vertical(|ui| {
-                    if let Some(snippet) = state.chosen.and_then(|at| self.snippets.get_mut(at)) {
+                    if let Some(snippet) = state.chosen.and_then(|at| at.checked_sub(own)).and_then(|e| extra.get(e)) {
+                        // An extension's, to look at and put in, not to change.
+                        ui.label(RichText::new(snippet.name.as_str()).strong());
+                        let from = crate::vsix::current().extensions.iter().find(|x| x.manifest.id == snippet.extension).map_or_else(|| snippet.extension.clone(), |x| x.manifest.name.clone());
+                        ui.label(RichText::new(crate::i18n::tf!("From the extension {from}. In VS Code it's typed as {}.", snippet.prefix)).color(theme::text_faint()).size(11.5));
+                        if !snippet.description.is_empty() {
+                            ui.label(snippet.description.as_str());
+                        }
+                        ui.add_space(4.0);
+                        let mut body = snippet.body.clone();
+                        ui.add(egui::TextEdit::multiline(&mut body).code_editor().desired_rows(7).desired_width(f32::INFINITY).interactive(false));
+                    } else if let Some(snippet) = state.chosen.and_then(|at| self.snippets.get_mut(at)) {
                         ui.horizontal(|ui| {
                             ui.label(crate::i18n::tr("Name"));
                             ui.add(egui::TextEdit::singleline(&mut snippet.name).desired_width(f32::INFINITY));
@@ -950,7 +985,7 @@ impl Limoniter {
                 }
                 add = ui.button(crate::i18n::tr("New")).clicked();
                 from_selection = ui.add_enabled(has_selection, Button::new(crate::i18n::tr("New from the selection"))).clicked();
-                remove = ui.add_enabled(state.chosen.is_some(), Button::new(crate::i18n::tr("Delete"))).clicked();
+                remove = ui.add_enabled(state.chosen.is_some_and(|at| at < own), Button::new(crate::i18n::tr("Delete"))).clicked();
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     close |= ui.button(crate::i18n::tr("Close")).clicked();
                 });

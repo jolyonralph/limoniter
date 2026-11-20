@@ -103,6 +103,16 @@ impl LspState {
         text
     }
 
+    /// Thinks again about offering a server for the file in front, as extensions have changed what there is.
+    pub fn reconsider(&mut self) {
+        self.considered = None;
+    }
+
+    /// The server for a language: as Settings has it, or else one a VS Code extension gives.
+    pub fn server_for(&self, language: &str) -> Option<ServerSetting> {
+        self.settings.iter().find(|s| s.language == language).cloned().or_else(|| crate::vsix::server_for(language).map(|command| ServerSetting { language: language.to_string(), command }))
+    }
+
     /// Stops every server.
     pub fn stop_all(&mut self) {
         for (_, server) in &mut self.servers {
@@ -121,7 +131,7 @@ fn whole_text(doc: &Document) -> String {
 
 impl Limoniter {
     /// The server looking after the document in front, if there is one and it's ready, with the file's path.
-    fn lsp_server_for(&self, index: usize) -> Option<(usize, PathBuf)> {
+    pub(super) fn lsp_server_for(&self, index: usize) -> Option<(usize, PathBuf)> {
         let doc = self.docs.get(index)?;
         let (server, _, _) = self.lsp.opened.get(&doc.id)?;
         Some((*server, doc.path.clone()?))
@@ -141,7 +151,7 @@ impl Limoniter {
             self.lsp.offer = None;
             return;
         }
-        let Some(setting) = self.lsp.settings.iter().find(|s| s.language == language) else {
+        let Some(setting) = self.lsp.server_for(&language) else {
             self.lsp.offer = None;
             return;
         };
@@ -149,6 +159,12 @@ impl Limoniter {
         let there = lsp::on_path(&program);
         let failed = self.lsp.failed.contains(&language);
         self.lsp.offer = if there && !failed {
+            // A server written in JavaScript is shown by its own name, not Node.js's.
+            let words = crate::emulators::split_options(&setting.command);
+            let program = match words.get(1).filter(|_| program == "node") {
+                Some(script) => format!("{} (Node.js)", Path::new(script).file_name().map_or_else(|| script.clone(), |n| n.to_string_lossy().into_owned())),
+                None => program,
+            };
             (!self.lsp.on).then_some(Offer { language, program, install: None })
         } else {
             lsp::install_command(&program).map(|(command, _)| Offer { language, program, install: Some(command) })
@@ -292,7 +308,7 @@ impl Limoniter {
             return;
         };
         let language = doc.language_name();
-        let Some(setting) = self.lsp.settings.iter().find(|s| s.language == language).cloned() else {
+        let Some(setting) = self.lsp.server_for(&language) else {
             return;
         };
         if self.lsp.failed.contains(&language) {
@@ -542,12 +558,19 @@ impl Limoniter {
     /// Has the server format a document, as it's saved (quietly) or when asked.
     pub(super) fn lsp_format(&mut self, index: usize, quiet: bool) {
         let Some((server, path)) = self.lsp_sync(index) else {
+            // No language server: a formatter installed for the language, if there is one.
+            if self.external_format(index, quiet) {
+                return;
+            }
             if !quiet {
-                self.message("Format document", crate::i18n::tr("Formatting is done by a language server for the file's language (Settings, Editing, Language servers).").into());
+                self.message("Format document", crate::i18n::tr("Formatting is done by a language server for the file's language (Settings, Editing, Language servers), or by a formatter such as Prettier, Black or clang-format when one is installed (Format, Formatters).").into());
             }
             return;
         };
         if !self.lsp.servers[server].1.can("documentFormattingProvider") {
+            if self.external_format(index, quiet) {
+                return;
+            }
             if !quiet {
                 let name = self.lsp.servers[server].1.name.clone();
                 self.message("Format document", crate::i18n::tf!("The language server ({name}) doesn't format files."));
@@ -657,6 +680,13 @@ impl Limoniter {
         } else {
             self.lsp.fixes = Some((server, fixes, chosen));
         }
+    }
+
+    /// Sends a request to a server and waits for its answer, up to a few seconds.
+    pub(super) fn lsp_request_wait(&mut self, server: usize, method: &str, params: Value) -> Option<Value> {
+        let server_ref = &mut self.lsp.servers.get_mut(server)?.1;
+        let id = server_ref.request(method, params);
+        server_ref.wait_for(id, Duration::from_secs(3))
     }
 
     /// Asks the server about the word at the cursor, waiting for its answer a few seconds.
