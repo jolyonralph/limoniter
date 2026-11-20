@@ -538,6 +538,8 @@ pub(crate) mod tests {
         use std::os::unix::fs::PermissionsExt;
         std::fs::create_dir_all(dir).unwrap();
         let script = r#"#!/bin/sh
+# Bytes as bytes for tr and od, whatever the machine's language (a Mac's tr reads \377 as a letter in UTF-8).
+LC_ALL=C; export LC_ALL
 here=$(dirname "$0")
 echo "$@" >> "$here/arguments"
 chip="$here/chip.bin"

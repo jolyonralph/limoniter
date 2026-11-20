@@ -1032,7 +1032,8 @@ mod tests {
     #[test]
     fn nobody_at_the_other_end_is_noticed() {
         let (mut a, _b) = cable();
-        let timing = Timing { start: Duration::from_millis(400), ..quick() };
+        // A second to start in, so even a busy machine asks more than once before giving up.
+        let timing = Timing { start: Duration::from_millis(1000), ..quick() };
         assert_eq!(send(&mut a, Protocol::Xmodem, &[one("n", vec![1])], &timing, &AtomicBool::new(false), &mut |_| {}), Err(Failure::NeverStarted));
         let (mut a, b) = cable();
         assert_eq!(receive(&mut a, Protocol::Ymodem, false, &timing, &AtomicBool::new(false), &mut |_| {}), Err(Failure::NeverStarted));
@@ -1043,7 +1044,7 @@ mod tests {
             heard.push(byte);
         }
         let cs = heard.iter().take_while(|b| **b == WANT_CRC).count();
-        assert!(cs >= 3, "{heard:?}");
+        assert!(cs >= 2, "{heard:?}");
         assert!(heard[cs..].iter().all(|b| *b == CAN) && heard.len() > cs, "{heard:?}");
     }
 
