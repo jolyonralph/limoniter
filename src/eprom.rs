@@ -539,7 +539,7 @@ pub(crate) mod tests {
         std::fs::create_dir_all(dir).unwrap();
         let script = r#"#!/bin/sh
 # Bytes as bytes for tr and od, whatever the machine's language (a Mac's tr reads \377 as a letter in UTF-8).
-LC_ALL=C; export LC_ALL
+export LC_ALL=C
 here=$(dirname "$0")
 echo "$@" >> "$here/arguments"
 chip="$here/chip.bin"
@@ -582,7 +582,7 @@ case "$mode" in
     read) found; printf 'Chip ID: 0x1E08  OK\nReading Code...  0.43Sec  OK\n' >&2; cp "$chip" "$file" ;;
     write)
         found
-        size=$(wc -c < "$file")
+        size=$(wc -c < "$file" | tr -d ' ')    # a Mac's wc pads the number with spaces
         if [ "$size" -ne 32768 ]; then printf 'Incorrect file size: %s (needed 32768, use -s/S to ignore)\n' "$size" >&2; exit 1; fi
         printf 'Chip ID: 0x1E08  OK\nErasing... 0.02Sec  OK\n' >&2
         printf 'Writing Code...  1%%\rWriting Code...  50%%\rWriting Code...  2.85Sec  OK\n' >&2
