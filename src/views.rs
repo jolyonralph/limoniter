@@ -2219,7 +2219,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         }
     }
 
-    // In 6502 source, each line's cycles at the right, where the line leaves room.
+    // In 6502, Z80 and 6809 source, each line's cycles at the right, where the line leaves room.
     if let (Some(intel), Some(top), Some(bottom)) = (b.intel.as_deref(), l.slots.first(), l.slots.last()) {
         let notes = crate::m6502_timing::line_notes(intel, b.version(), top.line, bottom.line);
         let small = FontId::monospace((f.size * 0.85).round());

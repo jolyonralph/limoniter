@@ -224,6 +224,32 @@ impl Disk {
         true
     }
 
+    /// Gives a file a new name and ending, as RENAME does, keeping its place on the disk. Its new name mustn't
+    /// be another file's.
+    pub fn rename(&mut self, name: &str, ending: &str, new_name: &str, new_ending: &str) -> Result<(), String> {
+        let (new_name, new_ending) = (clean(new_name, 8), clean(new_ending, 3));
+        if new_name.is_empty() {
+            return Err(crate::i18n::tr("A Dragon DOS file needs a name: up to eight letters and digits.").into());
+        }
+        let find = |disk: &Disk, name: &str, ending: &str| {
+            (0..MOST_ENTRIES).find(|n| {
+                let at = disk.entry_offset(*n);
+                disk.data[at] & 0xA0 == 0 && trimmed(&disk.data[at + 1..at + 9]) == name && trimmed(&disk.data[at + 9..at + 12]) == ending
+            })
+        };
+        let Some(n) = find(self, &clean(name, 8), &clean(ending, 3)) else {
+            return Err(crate::i18n::tf!("{name}.{ending} isn't on the disk."));
+        };
+        if find(self, &new_name, &new_ending).is_some_and(|other| other != n) {
+            return Err(crate::i18n::tf!("There's already a {new_name}.{new_ending} on the disk."));
+        }
+        let at = self.entry_offset(n);
+        self.data[at + 1..at + 9].copy_from_slice(&padded(&new_name, 8));
+        self.data[at + 9..at + 12].copy_from_slice(&padded(&new_ending, 3));
+        self.copy_to_backup();
+        Ok(())
+    }
+
     /// Sets the end-of-directory mark on the entry after the last one used.
     fn mark_end(&mut self) {
         let last_used = (0..MOST_ENTRIES).rev().find(|n| self.data[self.entry_offset(*n)] & 0x80 == 0);
@@ -350,6 +376,31 @@ mod tests {
         assert_eq!((0..disk.sector_count()).filter(|l| disk.is_free(*l)).count(), free_at_first - 1);
         // Too big for a disk.
         assert!(disk.add("huge", "dat", &vec![0; 200_000]).is_err());
+    }
+
+    #[test]
+    fn files_are_renamed_where_they_are() {
+        let mut disk = Disk::new(40, 1);
+        let program = binary(0x3000, 0x3000, &[0x39]);
+        disk.add("first", "bin", &program).unwrap();
+        disk.add("second", "dat", b"words").unwrap();
+        let free = (0..disk.sector_count()).filter(|l| disk.is_free(*l)).count();
+        disk.rename("FIRST", "BIN", "game!", "bin").unwrap();
+        let files = disk.files();
+        assert_eq!(files.iter().map(|f| format!("{}.{}", f.name, f.ending)).collect::<Vec<_>>(), ["GAME.BIN", "SECOND.DAT"], "in its place, its name cleaned");
+        assert_eq!(files[0].bytes, program);
+        assert_eq!((0..disk.sector_count()).filter(|l| disk.is_free(*l)).count(), free, "no sectors moved");
+        // The backup directory has the new name too.
+        let size = SECTORS * SECTOR;
+        assert_eq!(disk.data[16 * size..17 * size], disk.data[20 * size..21 * size]);
+        // Not to another file's name, not to nothing, and not a file that isn't there.
+        assert!(disk.rename("GAME", "BIN", "second", "dat").unwrap_err().contains("SECOND.DAT"));
+        assert!(disk.rename("GAME", "BIN", "", "bin").is_err());
+        assert!(disk.rename("NOTHERE", "BIN", "X", "BIN").is_err());
+        // To the same name, with only its ending changed, is fine.
+        disk.rename("GAME", "BIN", "game", "old").unwrap();
+        assert_eq!(disk.files()[0].ending, "OLD");
+        assert_eq!(Disk::from_vdk(&disk.to_vdk()).unwrap().files(), disk.files());
     }
 }
 

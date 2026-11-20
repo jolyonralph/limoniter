@@ -281,6 +281,31 @@ fn z80_source(app: &mut Limoniter, lines: &[&str]) {
     app.doc().update_syntax();
 }
 
+/// What F9 says it made: an Amiga program is a program, not a tape, and Limoniter's own builds give their bytes.
+#[test]
+fn what_was_made_is_named_for_what_it_is() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-made-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("demo.s");
+    std::fs::write(&path, "start:  move.w #$0f00,$dff180\n        moveq #0,d0\n        lea $dff000,a5\n        rts\n").unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M68k), "{}", app.doc().language_name());
+    let made = app.runnable();
+    let said = app.script_output.join("\n");
+    assert!(said.contains("A program was made: demo.exe for the Amiga") && !said.contains("tape"), "{said} {:?}", made.map(|r| r.map(|r| r.name)));
+    app.script_output.clear();
+    z80_source(&mut app, &["  org 32768", "start: ld a,2", "  out ($fe),a", "  ld hl,$4000", "  ld (hl),$ff", "loop: jr loop"]);
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::Z80), "{}", app.doc().language_name());
+    let _ = app.runnable();
+    let said = app.script_output.join("\n");
+    assert!(said.contains("bytes from $8000") && said.contains(".tap for the ZX Spectrum 48K"), "{said}");
+    let _ = std::fs::remove_dir_all(&folder);
+}
+
 #[test]
 fn z80_source_is_assembled_and_runs_on_the_built_in_spectrum() {
     let (mut app, _ctx) = app_with("run_on=spectrum48\u{1}Built-in Spectrum\n");

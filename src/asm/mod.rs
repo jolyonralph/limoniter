@@ -151,6 +151,9 @@ pub struct Assembly {
     pub relocations: Vec<(i64, i64, bool, i64)>,
     /// The Amiga's sections, each put far from the others, when assembled to be made into hunks.
     pub sections: Vec<hunk::Section>,
+    /// Where a setting the processor keeps changed (the 6809's PRAGMA 6309, NASM's BITS): from which of `lines` on
+    /// it holds, its name and its new value. The 6309's cycles are counted by it.
+    pub settings: Vec<(usize, &'static str, i64)>,
 }
 
 impl Assembly {
@@ -2617,6 +2620,10 @@ impl Line<'_, '_> {
 
     pub fn set_setting(&mut self, key: &'static str, value: i64) {
         self.pass.settings.insert(key, value);
+        if self.pass.last {
+            let from = self.pass.out.lines.len();
+            self.pass.out.settings.push((from, key, value));
+        }
     }
 
     /// Moves on to another part of memory, as a Game Boy SECTION does: what follows is put at `physical`, its labels

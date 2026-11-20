@@ -240,11 +240,39 @@ impl Limoniter {
         if self.docs[self.active].is_modified() && !self.save(self.active) {
             return;
         }
-        match self.debug_configs.get(&path).cloned() {
+        match self.kept_debug_config(&path) {
+            // Kept from before, but its program isn't there (not built yet, or moved): the box is shown again,
+            // filled in as it was, to say so and to choose another.
+            Some(config) if !config.kind.runs_the_file() && !Path::new(&config.program).exists() => self.debug_setup = Some((path, config)),
             Some(config) => self.launch_debugger(config),
             // A script is run as it is; for a compiled program, which one is asked first.
             None if kind.runs_the_file() => self.launch_debugger(dap::guess(kind, adapter, &path)),
             None => self.debug_setup = Some((path.clone(), dap::guess(kind, adapter, &path))),
+        }
+    }
+
+    /// Whether a file's debug settings are kept with the open project (the file's in it, or in its folder),
+    /// rather than in the settings file.
+    fn debug_kept_in_project(&self, file: &Path) -> bool {
+        self.project.as_ref().is_some_and(|project| project.contains(file) || file.starts_with(project.folder()))
+    }
+
+    /// How a file was debugged before, kept in its project or in the settings.
+    fn kept_debug_config(&self, file: &Path) -> Option<Config> {
+        let in_project = self.project.as_ref().filter(|_| self.debug_kept_in_project(file)).and_then(|project| project.debug.get(file));
+        in_project.or_else(|| self.debug_configs.get(file)).cloned()
+    }
+
+    /// Keeps how a file is debugged, for next time: in the project's file for one of its files, and otherwise in
+    /// the settings file.
+    fn keep_debug_config(&mut self, file: PathBuf, config: Config) {
+        if self.debug_kept_in_project(&file)
+            && let Some(project) = self.project.as_mut()
+        {
+            project.debug.insert(file, config);
+            self.save_project();
+        } else {
+            self.debug_configs.insert(file, config);
         }
     }
 
@@ -622,6 +650,11 @@ impl Limoniter {
 
     /// The box saying which program is debugged, and how, for a file built into one.
     pub(super) fn debug_setup_window(&mut self, ctx: &Context) {
+        let Some(file) = self.debug_setup.as_ref().map(|(path, _)| path.clone()) else { return };
+        let kept_where = match self.project.as_ref().filter(|_| self.debug_kept_in_project(&file)) {
+            Some(project) => crate::i18n::tf!("Kept with the project {}, for this file.", project.name),
+            None => crate::i18n::tr("Kept in Limoniter's settings, for this file.").to_string(),
+        };
         let Some((path, config)) = self.debug_setup.as_mut() else { return };
         let (mut go, mut close) = (false, ctx.input(|i| i.key_pressed(Key::Escape)));
         egui::Window::new(crate::i18n::tr("Debug")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
@@ -644,6 +677,7 @@ impl Limoniter {
             if !config.kind.runs_the_file() && !Path::new(&config.program).exists() {
                 ui.label(RichText::new(crate::i18n::tr("There's no program there yet: build it first (Ctrl+Shift+B).")).color(theme::text_faint()).size(12.0));
             }
+            ui.label(RichText::new(&kept_where).color(theme::text_faint()).size(12.0));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 go = ui.button(crate::i18n::tr("Debug")).clicked();
@@ -652,7 +686,7 @@ impl Limoniter {
         });
         if go {
             let (path, config) = self.debug_setup.take().unwrap();
-            self.debug_configs.insert(path, config.clone());
+            self.keep_debug_config(path, config.clone());
             self.launch_debugger(config);
         } else if close {
             self.debug_setup = None;
@@ -1021,8 +1055,93 @@ fn python_has_debugpy(adapter: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::app_with;
+    use super::super::tests::{app_with, draw};
     use super::*;
+
+    fn folder(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("limoniter-debug-kept-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Ctrl+F5 on the file in front, and the Debug box it shows (which, for a C file whose program isn't built,
+    /// it always does).
+    fn debug_box_for(app: &mut Limoniter, file: &Path) -> Config {
+        crate::highlight::load_now();
+        assert!(app.open_path(file));
+        app.doc().update_syntax();
+        assert_eq!(app.doc().language_name(), "C");
+        app.start_debugging();
+        let (path, config) = app.debug_setup.clone().expect("the Debug box is shown");
+        assert_eq!(path, file);
+        config
+    }
+
+    #[test]
+    fn a_projects_debug_settings_are_kept_with_it_and_fill_the_box_next_time() {
+        let dir = folder("project");
+        let file = dir.join("src").join("life.c");
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, "int main(void) { return 0; }\n").unwrap();
+        let (mut app, ctx) = app_with("");
+        app.new_project(dir.join("life"));
+        let mut config = debug_box_for(&mut app, &file);
+        // The guess is the program a build would make beside it: life.exe on Windows.
+        let guess = if cfg!(windows) { "life.exe" } else { "life" };
+        assert_eq!(config.program, dir.join("src").join(guess).display().to_string(), "first, a guess");
+        draw(&mut app, &ctx, Vec::new());
+        config.program = dir.join("build").join("life").display().to_string();
+        config.arguments = "--size 40".into();
+        app.debug_setup = None;
+        app.keep_debug_config(file.clone(), config.clone());
+        assert!(app.debug_configs.is_empty(), "not in the settings");
+        let saved = std::fs::read_to_string(dir.join("life.limproj")).unwrap();
+        assert!(saved.contains("\"src/life.c\"") && saved.contains("\"build/life\"") && saved.contains("--size 40"), "{saved}");
+        drop(app);
+
+        // Limoniter started afresh, with the project moved to another folder: the box comes back filled in, with
+        // the program found in the new place.
+        let moved = folder("project-moved");
+        std::fs::remove_dir_all(&moved).unwrap();
+        std::fs::rename(&dir, &moved).unwrap();
+        let (mut again, ctx) = app_with("");
+        again.open_project(&moved.join("life.limproj"));
+        let filled = debug_box_for(&mut again, &moved.join("src").join("life.c"));
+        assert_eq!(filled.program, moved.join("build").join("life").display().to_string());
+        assert_eq!(filled.arguments, "--size 40");
+        assert_eq!(filled.adapter, config.adapter);
+        draw(&mut again, &ctx, Vec::new());
+        drop(again);
+        std::fs::remove_dir_all(&moved).unwrap();
+    }
+
+    #[test]
+    fn a_loose_files_debug_settings_are_kept_in_the_settings() {
+        let dir = folder("loose");
+        let file = dir.join("tool.c");
+        std::fs::write(&file, "int main(void) { return 0; }\n").unwrap();
+        let (mut app, ctx) = app_with("");
+        let mut config = debug_box_for(&mut app, &file);
+        draw(&mut app, &ctx, Vec::new());
+        config.arguments = "-v".into();
+        config.folder = dir.join("out").display().to_string();
+        app.debug_setup = None;
+        app.keep_debug_config(file.clone(), config.clone());
+        let settings = app.current_settings();
+        assert!(settings.contains("debug_settings="), "{settings}");
+        drop(app);
+        let (mut again, ctx) = app_with(&settings);
+        assert_eq!(debug_box_for(&mut again, &file), config);
+        draw(&mut again, &ctx, Vec::new());
+        // A project open that the file isn't in doesn't take it over.
+        again.new_project(folder("other").join("other"));
+        assert_eq!(again.kept_debug_config(&file), Some(config));
+        assert!(!again.debug_kept_in_project(&file));
+        drop(again);
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(folder("other")).unwrap();
+    }
 
     /// With LIMONITER_DEBUGPY naming a Python that has debugpy: a breakpoint in a function stops there, its
     /// variables are read, stepping and carrying on work, and what the program prints comes to the console.

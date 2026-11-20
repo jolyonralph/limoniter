@@ -121,7 +121,7 @@ pub const KNOWN: &[Emulator] = &[
         folder_hints: &["xroar"],
         mac_apps: &[("XRoar.app", "xroar")],
         machines: &[CoCo, Dragon32, Dragon64],
-        formats: &[CocoBin],
+        formats: &[CocoBin, Vdk],
         link: Link::Gdb,
         website: "https://www.6809.org.uk/xroar/",
     },
@@ -288,7 +288,8 @@ pub const KNOWN: &[Emulator] = &[
         machines: &[Atari2600, Vectrex, MegaDrive, MasterSystem, GameGear, Sg1000, ColecoVision, Machine::Nes, GameBoy],
         formats: &[A26, VecCart, MdRom, SmsRom, GgRom, SgRom, ColRom, Format::Nes, Gb, Gbc],
         link: Link::None,
-        website: "https://www.mamedev.org",
+        // mamedev.org doesn't always answer; its releases on GitHub are the same files.
+        website: "https://github.com/mamedev/mame/releases/latest",
     },
     // BlastEm, the most exact Mega Drive emulator, given the cartridge.
     Emulator {
@@ -320,7 +321,7 @@ pub const KNOWN: &[Emulator] = &[
         name: "Gearsystem",
         programs: &["gearsystem", "Gearsystem"],
         folder_hints: &["gearsystem"],
-        mac_apps: &[("Gearsystem.app", "Gearsystem")],
+        mac_apps: &[("Gearsystem.app", "gearsystem")],
         machines: &[MasterSystem, GameGear, Sg1000],
         formats: &[SmsRom, GgRom, SgRom],
         link: Link::None,
@@ -331,7 +332,7 @@ pub const KNOWN: &[Emulator] = &[
         name: "Gearcoleco",
         programs: &["gearcoleco", "Gearcoleco"],
         folder_hints: &["gearcoleco"],
-        mac_apps: &[("Gearcoleco.app", "Gearcoleco")],
+        mac_apps: &[("Gearcoleco.app", "gearcoleco")],
         machines: &[ColecoVision],
         formats: &[ColRom],
         link: Link::None,
@@ -467,7 +468,9 @@ impl Emulator {
                 args.extend(["-autostart".into(), file]);
             }
             "b2" => args.extend(["-0".into(), file, "-b".into()]),
-            // XRoar needs the machine's BASIC ROMs, found in its ROM folder or named in the options.
+            // XRoar needs the machine's BASIC ROMs, found in its ROM folder or named in the options. A Dragon DOS
+            // disk needs the DragonDOS cartridge's ROM too, and has the command to run its program typed (see
+            // `dragon_run`).
             "xroar" => {
                 let id = match machine {
                     Dragon32 => "dragon32",
@@ -478,7 +481,11 @@ impl Emulator {
                 if let Some(port) = port {
                     args.extend(["-gdb".into(), "-gdb-port".into(), port.to_string()]);
                 }
-                args.extend(["-run".into(), file]);
+                if format == Vdk {
+                    args.extend(crate::dragon_run::disk_arguments(Path::new(&file)));
+                } else {
+                    args.extend(["-run".into(), file]);
+                }
             }
             "openmsx" => args.extend([if format == Cas { "-cassetteplayer" } else { "-carta" }.into(), file]),
             // The file is the configuration made for the run.
@@ -573,7 +580,16 @@ pub fn find_program(programs: &'static [&'static str], folder_hints: &'static [&
 }
 
 fn find(emulator: &Emulator) -> Option<PathBuf> {
-    let path: Vec<PathBuf> = std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).collect()).unwrap_or_default();
+    let mut path: Vec<PathBuf> = std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).collect()).unwrap_or_default();
+    // Where package managers put programs, which a program started from the desktop may not have on its path:
+    // Homebrew's folders on a Mac (an app opened from the Finder has only the system's), and the games folders
+    // Debian's and Ubuntu's packages use for emulators such as MAME.
+    let usual: &[&str] = if cfg!(target_os = "macos") { &["/opt/homebrew/bin", "/usr/local/bin"] } else if cfg!(windows) { &[] } else { &["/usr/games", "/usr/local/games"] };
+    for folder in usual.iter().map(PathBuf::from) {
+        if !path.contains(&folder) {
+            path.push(folder);
+        }
+    }
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let apps: Vec<PathBuf> = if cfg!(target_os = "macos") { [Some(PathBuf::from("/Applications")), home.map(|h| h.join("Applications"))].into_iter().flatten().collect() } else { Vec::new() };
     // Where Windows installers and unzipped downloads leave a program, in a folder of its own.
@@ -592,12 +608,42 @@ fn find(emulator: &Emulator) -> Option<PathBuf> {
     roots.extend(crate::emulator_get::folder());
     if cfg!(windows) {
         roots.extend(["C:\\Emulators", "C:\\emulators", "C:\\Games", "D:\\Emulators", "E:\\emulators"].map(PathBuf::from));
+        // The top of each of the computer's own drives, where a program with no installer, such as MAME, is often
+        // unpacked: C:\MAME, or D:\mame0289b_64bit.
+        roots.extend(fixed_drives());
     }
     find_in(emulator, &path, &apps, &roots, cfg!(windows))
 }
 
+/// The tops of the computer's own fixed drives (C:\, D:\ and so on), from the drives Windows says there are,
+/// without touching any: card readers, DVD drives and network drives are left out, as an empty one can make
+/// Windows ask for a disk and an asleep one can take many seconds to answer.
+#[cfg(windows)]
+fn fixed_drives() -> Vec<PathBuf> {
+    use windows::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives};
+    use windows::core::PCWSTR;
+    let mask = unsafe { GetLogicalDrives() };
+    (0..26u8)
+        .filter(|n| mask & (1 << n) != 0)
+        .map(|n| format!("{}:\\", (b'A' + n) as char))
+        .filter(|root| {
+            let wide: Vec<u16> = root.encode_utf16().chain(Some(0)).collect();
+            // 3 is a fixed drive.
+            unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) == 3 }
+        })
+        .map(PathBuf::from)
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn fixed_drives() -> Vec<PathBuf> {
+    Vec::new()
+}
+
 /// Looks for an emulator: on the path, as a package manager puts it; as an app, in the Mac's Applications
-/// folders; and one or two levels down from each root, in a folder whose name says what it is.
+/// folders; in each root itself, where a release unpacked where it was downloaded leaves its program (MAME's
+/// unpacks into the folder it's in, Downloads, unless told otherwise); and one or two levels down from each root,
+/// in a folder whose name says what it is (the name is matched whatever its capitals: MAME, mame0289b_64bit).
 fn find_in(emulator: &Emulator, path: &[PathBuf], apps: &[PathBuf], roots: &[PathBuf], windows: bool) -> Option<PathBuf> {
     let exe = |name: &str| if windows { format!("{name}.exe") } else { name.to_string() };
     for folder in path {
@@ -611,6 +657,14 @@ fn find_in(emulator: &Emulator, path: &[PathBuf], apps: &[PathBuf], roots: &[Pat
     for root in apps {
         for (app, program) in emulator.mac_apps {
             let candidate = root.join(app).join("Contents/MacOS").join(program);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    for root in roots {
+        for program in emulator.programs {
+            let candidate = root.join(exe(program));
             if candidate.is_file() {
                 return Some(candidate);
             }
@@ -699,6 +753,33 @@ mod tests {
         assert_eq!(find_in(by_id("fuse").unwrap(), &[], &[base.join("Applications")], &roots, false), Some(base.join("Applications/Fuse.app/Contents/MacOS/Fuse")));
         assert_eq!(find_in(by_id("b2").unwrap(), &[], &[], &roots, true), None, "a program in a folder named for something else isn't taken for it");
         assert_eq!(find_in(by_id("zesarux").unwrap(), &[], &[], &roots, true), None);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn mame_is_found_where_it_was_unpacked_by_hand() {
+        let base = std::env::temp_dir().join(format!("limoniter-find-mame-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let make = |path: PathBuf| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, "").unwrap();
+        };
+        let mame = by_id("mame").unwrap();
+        // At the top of a drive, in a folder named as MAME's release is, with capitals.
+        make(base.join("D/Windows/notepad.exe"));
+        make(base.join("D/MAME0289b_64bit/mame.exe"));
+        assert_eq!(find_in(mame, &[], &[], &[base.join("C"), base.join("D")], true), Some(base.join("D/MAME0289b_64bit/mame.exe")));
+        // Unpacked straight into Downloads, where the release was, as it is unless told otherwise.
+        make(base.join("Downloads/mame.exe"));
+        make(base.join("Downloads/mame0289b_x64.exe"));
+        assert_eq!(find_in(mame, &[], &[], &[base.join("Downloads")], true), Some(base.join("Downloads/mame.exe")));
+        // Not a program named for another emulator, in a folder with MAME's name.
+        make(base.join("E/mame-tools/stella.exe"));
+        assert_eq!(find_in(by_id("stella").unwrap(), &[], &[], &[base.join("E")], true), None);
+        // Folder hints are written small, as folder names are made small to match them.
+        for emulator in KNOWN {
+            assert!(emulator.folder_hints.iter().all(|h| *h == h.to_lowercase()), "{}", emulator.id);
+        }
         let _ = std::fs::remove_dir_all(&base);
     }
 

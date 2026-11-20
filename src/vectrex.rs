@@ -305,6 +305,7 @@ square:
 /// The Dragon 32 starter: a program that LOADM (or F9, in XRoar) runs, printing with the ROM's character output.
 pub const DRAGON_STARTER: &str = r#"; machine:dragon32
 ; A Dragon 32 program. F9 runs it in XRoar; Tools, Dragon and Vectrex, Dragon DOS disk puts it on a disk.
+; To run it from a Dragon DOS disk, with RUN typed for it, add a comment saying run from: disk.
 OUTCHR  equ $A002               ; the ROM's vector to print the character in A
 
         org $3000

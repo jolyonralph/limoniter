@@ -1767,7 +1767,9 @@ pub struct Limoniter {
     peek: Option<intel_host::Peek>,
     /// A program being debugged; how each file's is debugged; and the box asking that.
     debugging: Option<Box<dap_host::Debugging>>,
-    debug_configs: std::collections::HashMap<PathBuf, crate::dap::Config>,
+    /// How files outside a project are debugged, by their whole path, kept in the settings file. A project's own
+    /// files keep theirs in the project (`Project::debug`).
+    debug_configs: crate::dap::Kept,
     debug_setup: Option<(PathBuf, crate::dap::Config)>,
     dragon_disk: Option<Box<dragon_disk_host::DragonDisk>>,
     binary_tools: Option<Box<binary_tools_host::BinaryTools>>,
@@ -1967,7 +1969,7 @@ impl Limoniter {
             outline: Default::default(),
             peek: None,
             debugging: None,
-            debug_configs: Default::default(),
+            debug_configs: crate::dap::kept_from_settings(&settings),
             debug_setup: None,
             dragon_disk: None,
             binary_tools: None,
@@ -5167,7 +5169,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str()
         )
     }
 
@@ -7591,6 +7593,12 @@ impl Limoniter {
                         std::thread::sleep(Duration::from_millis(20));
                     }
                 }
+                "debug-setup" => {
+                    // Ctrl+F5 on the file in front: for a C program not yet built, the Debug box that asks how.
+                    highlight::load_now();
+                    self.doc().update_syntax();
+                    self.start_debugging();
+                }
                 "menu" => {
                     // A menu laid open, by its place along the bar ("5" is Tools); "5+" opens its sub-menus out too.
                     let (index, out) = value.strip_suffix('+').map_or((value, false), |v| (v, true));
@@ -8068,7 +8076,18 @@ impl Limoniter {
                         }
                     }
                 }
-                "devices" | "send" => {
+                // The Dragon DOS disk window with a binary and a BASIC program on its disk, the first being renamed.
+                "dragon-disk" | "dragon-disk-rename" => {
+                    self.open_dragon_disk();
+                    if let Some(window) = &mut self.dragon_disk {
+                        let _ = window.disk.add("GAME", "BIN", &crate::dragon_dos::binary(0x3000, 0x3000, &[0x39; 300]));
+                        let _ = window.disk.add("LOADER", "BAS", &[0x55, 0x01, 0x1E, 0x01, 0, 4, 0x8B, 0x8D, 0xAA, 0, 0, 0, 0]);
+                        if step == "dragon-disk-rename" {
+                            window.renaming = Some((0, "MYGAME.BIN".into()));
+                        }
+                    }
+                }
+                "devices" | "devices-xroar" | "send" => {
                     use crate::deploy::{Device, Place};
                     self.sends.devices = vec![
                         Device { name: "Gotek".into(), place: Place::Card { label: "GOTEK".into(), folder: "GAMES/WIP".into() }, preset: None, eject: true },
@@ -8077,10 +8096,13 @@ impl Limoniter {
                         Device { name: "MiSTer".into(), place: Place::Sftp { address: "sftp://root@mister/media/fat/games/C64".into(), key_file: String::new() }, preset: None, eject: false },
                         Device { name: "VICE".into(), place: Place::Command { line: "x64sc -autostart {file}".into() }, preset: Some("commodore".into()), eject: false },
                     ];
-                    if step == "devices" {
+                    if step == "devices-xroar" {
+                        self.sends.devices.push(Device { name: "XRoar".into(), place: Place::Emulator { emulator: "xroar".into(), program: "/usr/bin/xroar".into(), options: String::new() }, preset: None, eject: false });
+                    }
+                    if step != "send" {
                         self.open_devices_box();
                         if let Dialog::Devices(state) = &mut self.dialog {
-                            state.selected = 1;
+                            state.selected = if step == "devices" { 1 } else { 5 };
                         }
                     } else {
                         self.open_send_box(2);
@@ -9476,7 +9498,12 @@ mod git_wizard;
 
 #[path = "merge_host.rs"]
 mod merge_host;
-pub use merge_host::{ToolLaunch, USAGE, parse_tool_args, tool_exit_code};
+pub use merge_host::{ToolLaunch, USAGE, parse_tool_args, tool_exit_code, unknown_option};
+
+/// What's said of an option Limoniter doesn't know.
+pub fn i18n_unknown_option(option: &str) -> String {
+    crate::i18n::tf!("{option} isn't an option Limoniter knows.")
+}
 
 #[cfg(test)]
 #[path = "git_host_tests.rs"]

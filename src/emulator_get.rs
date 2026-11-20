@@ -1,14 +1,19 @@
 //! Getting an emulator that isn't installed, the simplest way there is on this computer, and only when asked:
 //!
-//! - Windows: the emulator's latest release from its own GitHub page (ZEsarUX, b2, openMSX, FS-UAE, VICE, Stella,
-//!   SameBoy, Mesen, FCEUX, Nestopia, Copperline), unpacked
-//!   into Limoniter's emulators folder beside its settings, where Find emulators then finds it.
-//! - Linux: Debian's and Ubuntu's own packages (Fuse, VICE, Hatari, openMSX, FS-UAE, Stella, MAME, mGBA, FCEUX,
-//!   Nestopia), installed with apt in the
-//!   Terminal panel, where the command can be seen and the password typed. Copperline, which has no package, is
-//!   downloaded from GitHub as its AppImage and its command-line tools, side by side.
-//! - A Mac: Homebrew (VICE, Hatari, openMSX, FS-UAE, XRoar, MAME, Copperline from its own tap, and ZEsarUX's,
-//!   Stella's, SameBoy's and mGBA's apps), in the Terminal panel the same way, when Homebrew is installed.
+//! - Windows: the emulator's latest release, unpacked into Limoniter's emulators folder beside its settings, where
+//!   Find emulators then finds it. Most come from their GitHub pages (ZEsarUX, b2, openMSX, FS-UAE, VICE, Stella,
+//!   DOSBox Staging, SameBoy, Mesen, FCEUX, Nestopia, Copperline, Gearsystem, Gearcoleco, TIC-80 and MAME); Hatari
+//!   from its Framagit page; XRoar, WinUAE, BlastEm and Fuse from the link on their own download pages; and BGB from
+//!   the address it's always at. Each is a zip, except MAME's, which is a 7-Zip archive that unpacks itself.
+//!   Installers are never run: an emulator offered only as one has its page opened instead.
+//! - Linux: Debian's and Ubuntu's own packages (Fuse, VICE, Hatari, openMSX, FS-UAE, Stella, MAME, BlastEm, DOSBox,
+//!   QEMU, mGBA, FCEUX, Nestopia, SameBoy), installed with apt in the Terminal panel, where the command can be seen
+//!   and the password typed. Copperline, which has no package, is downloaded from GitHub as its AppImage and its
+//!   command-line tools, side by side; Mesen and TIC-80, which haven't either, as the one program their Linux
+//!   zips hold.
+//! - A Mac: Homebrew (VICE, Hatari, openMSX, FS-UAE, XRoar, Stella, MAME, DOSBox Staging, QEMU, mGBA, FCEUX,
+//!   BlastEm, Copperline from its own tap, and SameBoy's and Gearsystem's apps), in the Terminal panel the same way,
+//!   when Homebrew is installed.
 //! - Anything else: the emulator's own download page.
 
 use crate::emulators::Emulator;
@@ -18,10 +23,13 @@ use std::path::{Path, PathBuf};
 /// The most an emulator's download is let grow to.
 const MOST_DOWNLOAD: u64 = 400 << 20;
 
+/// The longest a self-unpacking archive is given to unpack itself (MAME's is 600 MB unpacked).
+const MOST_UNPACKING: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
 /// How an emulator can be had here.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Way {
-    /// Downloaded from its GitHub releases and unpacked by Limoniter.
+    /// Downloaded from its latest release and unpacked by Limoniter.
     Download,
     /// A command to run in the Terminal panel.
     Command(String),
@@ -29,22 +37,61 @@ pub enum Way {
     Page,
 }
 
-/// The emulators with a Windows release on GitHub: the repository, and what the right file's name has in it.
-fn github(id: &str) -> Option<(&'static str, fn(&str) -> bool)> {
+/// Where an emulator's Windows release comes from, and which of the files there is the one.
+#[derive(Clone, Copy)]
+enum Release {
+    /// The latest release on GitHub: the repository, and what the file's name has in it.
+    GitHub(&'static str, fn(&str) -> bool),
+    /// The latest release on a GitLab server: the address of the project's latest release in its API, and what
+    /// the file's name has in it.
+    GitLab(&'static str, fn(&str) -> bool),
+    /// A download page that links to each new release: the page, and what the link has in it.
+    Linked(&'static str, fn(&str) -> bool),
+    /// A file that's always at the same address.
+    Fixed(&'static str),
+}
+
+/// Whether this is an ARM computer, which some emulators have Windows releases of their own for.
+fn arm() -> bool {
+    std::env::consts::ARCH == "aarch64"
+}
+
+/// MAME's Windows release for this kind of computer: a 7-Zip archive that unpacks itself, one for x64 and one
+/// for ARM. The other files are its source (also an .exe) and its documentation.
+fn mame_file(name: &str, arm: bool) -> bool {
+    name.starts_with("mame") && name.ends_with(if arm { "b_arm64.exe" } else { "b_x64.exe" })
+}
+
+/// Where each emulator with a Windows release that needs no installing comes from.
+fn windows_release(id: &str) -> Option<Release> {
+    use Release::*;
     Some(match id {
-        "zesarux" => ("chernandezba/zesarux", |n| n.contains("_windows-") && !n.contains("legacy") && n.ends_with(".zip")),
-        "b2" => ("tom-seddon/b2", |n| n.starts_with("b2-windows-") && n.ends_with(".zip")),
-        "openmsx" => ("openMSX/openMSX", |n| n.ends_with("-windows-vc-x64-bin.zip")),
-        "fs-uae" => ("FrodeSolheim/fs-uae", |n| n.ends_with("_Windows_x86-64.zip")),
-        "vice" => ("VICE-Team/svn-mirror", |n| n.starts_with("GTK3VICE-") && n.ends_with("-win64.zip")),
-        "stella" => ("stella-emu/stella", |n| n.starts_with("Stella-") && n.ends_with("-windows.zip")),
-        "dosbox" => ("dosbox-staging/dosbox-staging", |n| n.starts_with("dosbox-staging-windows-x64-") && n.ends_with(".zip")),
-        "sameboy" => ("LIJI32/SameBoy", |n| n.starts_with("sameboy_winsdl_") && n.ends_with(".zip")),
-        "mesen" => ("SourMesen/Mesen2", |n| n.starts_with("Mesen_") && n.ends_with("_Windows.zip")),
-        "fceux" => ("TASEmulators/fceux", |n| n.starts_with("fceux-") && n.ends_with("-win64.zip")),
-        "nestopia" => ("0ldsk00l/nestopia", |n| n.starts_with("nestopia-") && n.ends_with("-windows-x86_64.zip")),
+        "zesarux" => GitHub("chernandezba/zesarux", |n| n.contains("_windows-") && !n.contains("legacy") && n.ends_with(".zip")),
+        "b2" => GitHub("tom-seddon/b2", |n| n.starts_with("b2-windows-") && n.ends_with(".zip")),
+        "openmsx" => GitHub("openMSX/openMSX", |n| n.ends_with("-windows-vc-x64-bin.zip")),
+        "fs-uae" => GitHub("FrodeSolheim/fs-uae", |n| n.ends_with("_Windows_x86-64.zip")),
+        "vice" => GitHub("VICE-Team/svn-mirror", |n| n.starts_with("GTK3VICE-") && n.ends_with("-win64.zip")),
+        "stella" => GitHub("stella-emu/stella", |n| n.starts_with("Stella-") && n.ends_with("-windows.zip")),
+        "dosbox" => GitHub("dosbox-staging/dosbox-staging", |n| n.starts_with("dosbox-staging-windows-x64-") && n.ends_with(".zip")),
+        "sameboy" => GitHub("LIJI32/SameBoy", |n| n.starts_with("sameboy_winsdl_") && n.ends_with(".zip")),
+        "mesen" => GitHub("SourMesen/Mesen2", |n| n.starts_with("Mesen_") && n.ends_with("_Windows.zip")),
+        "fceux" => GitHub("TASEmulators/fceux", |n| n.starts_with("fceux-") && n.ends_with("-win64.zip")),
+        "nestopia" => GitHub("0ldsk00l/nestopia", |n| n.starts_with("nestopia-") && n.ends_with("-windows-x86_64.zip")),
         // The portable zip, not the installer: copperline.exe with copperline-ctl.exe beside it.
-        "copperline" => ("CopperlineHQ/Copperline", |n| n.starts_with("Copperline-") && n.ends_with("-win-x64.zip")),
+        "copperline" => GitHub("CopperlineHQ/Copperline", |n| n.starts_with("Copperline-") && n.ends_with(if arm() { "-win-arm64.zip" } else { "-win-x64.zip" })),
+        "gearsystem" => GitHub("drhelius/Gearsystem", |n| n.starts_with("Gearsystem-") && n.ends_with(if arm() { "-desktop-windows-arm64.zip" } else { "-desktop-windows-x64.zip" })),
+        "gearcoleco" => GitHub("drhelius/Gearcoleco", |n| n.starts_with("Gearcoleco-") && n.ends_with(if arm() { "-desktop-windows-arm64.zip" } else { "-desktop-windows-x64.zip" })),
+        "tic80" => GitHub("nesbox/TIC-80", |n| n.starts_with("tic80-") && n.ends_with("-win.zip")),
+        "mame" => GitHub("mamedev/mame", |n| mame_file(n, arm())),
+        // Hatari's releases are on Framagit, a GitLab, with the Windows build linked from each.
+        "hatari" => GitLab("https://framagit.org/api/v4/projects/hatari%2Fhatari/releases/permalink/latest", |n| n.starts_with("hatari-") && n.ends_with("_windows64.zip")),
+        // These link the latest release's zip from their download pages, beside its installer.
+        "xroar" => Linked("https://www.6809.org.uk/xroar/", |link| link.contains("/xroar-") && link.ends_with("-w64.zip")),
+        "winuae" => Linked("https://www.winuae.net/download/", |link| link.contains("/WinUAE") && link.ends_with("_x64.zip")),
+        "blastem" => Linked("https://www.retrodev.com/blastem/downloads.html", |link| link.contains("/blastem-win64-") && link.ends_with(".zip")),
+        // SourceForge's address for a file, which passes it on to a mirror.
+        "fuse" => Linked("https://fuse-emulator.sourceforge.net/", |link| link.contains("/fuse-") && link.ends_with("-win32.zip/download")),
+        "bgb" => Fixed("https://bgb.bircd.org/bgbw64.zip"),
         _ => return None,
     })
 }
@@ -65,6 +112,8 @@ fn apt_package(id: &str) -> Option<&'static str> {
         "mgba" => "mgba-qt",
         "fceux" => "fceux",
         "nestopia" => "nestopia",
+        // From Ubuntu 26.04 and Debian 14; on an older one, apt says there's no such package.
+        "sameboy" => "sameboy",
         _ => return None,
     })
 }
@@ -77,22 +126,31 @@ fn brew_package(id: &str) -> Option<(&'static str, bool)> {
         "openmsx" => ("openmsx", false),
         "fs-uae" => ("fs-uae", false),
         "xroar" => ("xroar", false),
-        "zesarux" => ("zesarux", true),
-        "stella" => ("stella", true),
+        // A formula now, not an app; ZEsarUX's and TIC-80's apps were switched off by Homebrew in September 2026,
+        // as macOS wouldn't open them, so theirs are got from their pages.
+        "stella" => ("stella", false),
         "mame" => ("mame", false),
         "dosbox" => ("dosbox-staging", false),
         "qemu" => ("qemu", false),
         "sameboy" => ("sameboy", true),
-        "mgba" => ("mgba", true),
+        // A formula, which Homebrew means to retire in May 2027, as it needs an old Qt.
+        "mgba" => ("mgba", false),
+        "fceux" => ("fceux", false),
+        "blastem" => ("blastem", false),
+        "gearsystem" => ("gearsystem", true),
         _ => return None,
     })
 }
 
-/// The emulators with a Linux release on GitHub that's a program in itself (an AppImage), and the tools that go
-/// beside it: the repository, and what each file's name has in it. Only for x86-64, which is all they're built for.
+/// The emulators with no Linux package but a Linux release on GitHub that's a program in itself (an AppImage, or a
+/// zip with only the program in it), and the tools that go beside it: the repository, and what each file's name
+/// has in it. Only for x86-64, which is all some are built for.
 fn linux_github(id: &str) -> Option<(&'static str, fn(&str) -> bool, fn(&str) -> bool)> {
     Some(match id {
         "copperline" => ("CopperlineHQ/Copperline", |n| n.starts_with("Copperline-") && n.ends_with("-x86_64.AppImage"), |n| n.starts_with("Copperline-") && n.ends_with("-x86_64-tools.tar.gz")),
+        // Mesen needs SDL2, which a Linux desktop almost always has.
+        "mesen" => ("SourMesen/Mesen2", |n| n.starts_with("Mesen_") && n.ends_with("_Linux_x64.zip"), |_| false),
+        "tic80" => ("nesbox/TIC-80", |n| n.starts_with("tic80-") && n.ends_with("-linux.zip"), |_| false),
         _ => return None,
     })
 }
@@ -121,7 +179,7 @@ pub fn way(emulator: &Emulator) -> Way {
 }
 
 fn way_for(id: &str, windows: bool, mac: bool, apt: bool, homebrew: bool, linux_x86: bool) -> Way {
-    if windows && github(id).is_some() {
+    if windows && windows_release(id).is_some() {
         return Way::Download;
     }
     if linux_x86 && linux_github(id).is_some() {
@@ -179,6 +237,70 @@ fn pick_asset(release: &str, wanted: fn(&str) -> bool) -> Result<(String, String
         .ok_or_else(|| crate::i18n::tf!("The latest release ({tag}) has no download for Windows that Limoniter knows."))
 }
 
+/// The file to download, from a GitLab server's description of the latest release: the first of the files
+/// linked from it whose name is wanted.
+fn pick_gitlab(release: &str, wanted: fn(&str) -> bool) -> Result<String, String> {
+    let json: serde_json::Value = serde_json::from_str(release).map_err(|_| crate::i18n::tr("The answer about the latest release wasn't what was expected.").to_string())?;
+    let tag = json["tag_name"].as_str().unwrap_or("").to_string();
+    json["assets"]["links"]
+        .as_array()
+        .and_then(|links| links.iter().filter_map(|l| l["url"].as_str()).find(|url| wanted(url.rsplit('/').next().unwrap_or(url))))
+        .map(str::to_string)
+        .ok_or_else(|| crate::i18n::tf!("The latest release ({tag}) has no download for Windows that Limoniter knows."))
+}
+
+/// Every link on a web page, made whole: one relative to the page (dl/xroar.zip) or to its server (/files/a.zip)
+/// is given the page's address before it.
+fn page_links(html: &str, page: &str) -> Vec<String> {
+    let server_end = page.find("://").map(|at| at + 3).and_then(|from| page[from..].find('/').map(|slash| from + slash)).unwrap_or(page.len());
+    let folder = if page.len() > server_end { &page[..page.rfind('/').map_or(page.len(), |slash| slash + 1)] } else { page };
+    let mut links = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find("href=") {
+        rest = &rest[at + 5..];
+        let Some(quote) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') else {
+            continue;
+        };
+        let Some(end) = rest[1..].find(quote) else {
+            break;
+        };
+        let link = rest[1..1 + end].replace("&amp;", "&");
+        rest = &rest[1 + end..];
+        links.push(if link.contains("://") {
+            link
+        } else if let Some(path) = link.strip_prefix('/') {
+            format!("{}/{path}", &page[..server_end])
+        } else if folder.ends_with('/') {
+            format!("{folder}{link}")
+        } else {
+            format!("{folder}/{link}")
+        });
+    }
+    links
+}
+
+/// The first link on a download page that's wanted.
+fn pick_link(html: &str, page: &str, wanted: fn(&str) -> bool) -> Result<String, String> {
+    page_links(html, page).into_iter().find(|link| wanted(link)).ok_or_else(|| crate::i18n::tf!("{page} has no download for Windows that Limoniter knows."))
+}
+
+fn text(bytes: Vec<u8>, from: &str) -> Result<String, String> {
+    String::from_utf8(bytes).map_err(|_| crate::i18n::tf!("{from}'s answer wasn't text."))
+}
+
+/// Where the file of an emulator's latest Windows release is.
+fn release_address(release: Release) -> Result<String, String> {
+    match release {
+        Release::GitHub(repo, wanted) => {
+            let address = format!("https://api.github.com/repos/{repo}/releases/latest");
+            pick_asset(&text(get(&address)?, "GitHub")?, wanted).map(|(_, url)| url)
+        }
+        Release::GitLab(address, wanted) => pick_gitlab(&text(get(address)?, address)?, wanted),
+        Release::Linked(page, wanted) => pick_link(&String::from_utf8_lossy(&get(page)?), page, wanted),
+        Release::Fixed(address) => Ok(address.to_string()),
+    }
+}
+
 /// Downloads an emulator's latest Windows release and unpacks it into its own folder, replacing any there before.
 /// Gives the emulator's program. On Linux, an AppImage and its tools are downloaded instead (see `download_linux`).
 pub fn download(emulator: &Emulator) -> Result<PathBuf, String> {
@@ -187,26 +309,82 @@ pub fn download(emulator: &Emulator) -> Result<PathBuf, String> {
     {
         return download_linux(emulator, found);
     }
-    let (repo, wanted) = github(emulator.id).ok_or_else(|| crate::i18n::tf!("{} isn't downloaded by Limoniter: get it from {}.", emulator.name, emulator.website))?;
+    let release = windows_release(emulator.id).ok_or_else(|| crate::i18n::tf!("{} isn't downloaded by Limoniter: get it from {}.", emulator.name, emulator.website))?;
     let home = folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?;
-    let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest"))?).map_err(|_| crate::i18n::tr("GitHub's answer wasn't text.").to_string())?;
-    let (_, address) = pick_asset(&release, wanted)?;
-    let zip = get(&address)?;
+    let bytes = get(&release_address(release)?)?;
     let target = home.join(emulator.id);
     let _ = std::fs::remove_dir_all(&target);
-    unzip(zip, &target)?;
+    if bytes.starts_with(b"PK\x03\x04") {
+        unzip(bytes, &target)?;
+    } else if self_unpacking(&bytes) {
+        let archive = home.join(format!("{}-release.exe", emulator.id));
+        std::fs::write(&archive, &bytes).map_err(|e| crate::i18n::tf!("{} couldn't be written: {e}", archive.display()))?;
+        drop(bytes);
+        let unpacked = unpack_itself(&archive, &target);
+        let _ = std::fs::remove_file(&archive);
+        unpacked?;
+    } else {
+        return Err(crate::i18n::tf!("The download of {} isn't a kind Limoniter can unpack: get it from {}.", emulator.name, emulator.website));
+    }
     find_program(&target, emulator.programs).ok_or_else(|| crate::i18n::tf!("{} was unpacked into {}, but its program wasn't found in it.", emulator.name, target.display()))
+}
+
+/// Whether a download is a Windows program with a 7-Zip archive after it, which is how 7-Zip makes an archive
+/// that unpacks itself (MAME's release is one). An installer of any other kind isn't, and is never run.
+fn self_unpacking(bytes: &[u8]) -> bool {
+    const SEVEN_ZIP: &[u8] = b"7z\xBC\xAF\x27\x1C";
+    // 7-Zip's unpacker is a few hundred kilobytes; the archive starts straight after it.
+    bytes.starts_with(b"MZ") && bytes[..bytes.len().min(4 << 20)].windows(SEVEN_ZIP.len()).any(|w| w == SEVEN_ZIP)
+}
+
+/// What a 7-Zip archive that unpacks itself is told: -y, to ask nothing and write over anything there, and -o, the
+/// folder to unpack into (7-Zip's own SFX module reads both; see SfxWin.cpp in its source).
+fn unpack_arguments(target: &Path) -> Vec<std::ffi::OsString> {
+    let mut folder = std::ffi::OsString::from("-o");
+    folder.push(target.as_os_str());
+    vec!["-y".into(), folder]
+}
+
+/// Runs a 7-Zip archive that unpacks itself, into a folder, waiting for it as long as it should take at most.
+/// 7-Zip shows how far it's got in a little window of its own while it works.
+fn unpack_itself(archive: &Path, target: &Path) -> Result<(), String> {
+    let mut command = std::process::Command::new(archive);
+    command.args(unpack_arguments(target)).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", archive.display()))?;
+    let started = std::time::Instant::now();
+    loop {
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            return if status.success() { Ok(()) } else { Err(crate::i18n::tf!("{} couldn't be unpacked ({status}).", archive.display())) };
+        }
+        if started.elapsed() > MOST_UNPACKING {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(crate::i18n::tf!("{} took too long to unpack, and was stopped.", archive.display()));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
 }
 
 /// Downloads an emulator's latest AppImage, kept under its own program name so Find emulators knows it, and the
 /// command-line tools released with it unpacked beside it (for Copperline, copperline-ctl, which finds the
-/// emulator beside itself).
+/// emulator beside itself). A zip is unpacked instead, and the program in it let run.
 fn download_linux(emulator: &Emulator, (repo, program, tools): (&str, fn(&str) -> bool, fn(&str) -> bool)) -> Result<PathBuf, String> {
     let home = folder().ok_or(crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found."))?;
-    let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest"))?).map_err(|_| crate::i18n::tr("GitHub's answer wasn't text.").to_string())?;
+    let release = text(get(&format!("https://api.github.com/repos/{repo}/releases/latest"))?, "GitHub")?;
     let (_, image) = pick_asset(&release, program).map_err(|_| crate::i18n::tf!("The latest release of {} has no download for Linux that Limoniter knows.", emulator.name))?;
     let target = home.join(emulator.id);
     let _ = std::fs::remove_dir_all(&target);
+    if image.ends_with(".zip") {
+        unzip(get(&image)?, &target)?;
+        let path = find_program(&target, emulator.programs).ok_or_else(|| crate::i18n::tf!("{} was unpacked into {}, but its program wasn't found in it.", emulator.name, target.display()))?;
+        make_runnable(&path, 0o755);
+        return Ok(path);
+    }
     if let Ok((_, address)) = pick_asset(&release, tools) {
         untar(&crate::media::gunzip_bytes(&get(&address)?)?, &target)?;
     }
@@ -321,11 +499,26 @@ mod tests {
     #[test]
     fn each_computer_gets_its_own_way() {
         assert_eq!(way_for("vice", true, false, false, false, false), Way::Download);
-        assert_eq!(way_for("hatari", true, false, false, false, false), Way::Page, "no Windows release on GitHub");
+        assert_eq!(way_for("hatari", true, false, false, false, false), Way::Download, "from Framagit");
+        assert_eq!(way_for("cspect", true, false, false, false, false), Way::Page, "only from itch.io");
+        assert_eq!(way_for("qemu", true, false, false, false, false), Way::Page, "only an installer");
+        assert_eq!(way_for("mame", true, false, false, false, false), Way::Download, "from GitHub, unpacking itself");
+        for id in ["bgb", "xroar", "winuae", "blastem", "fuse", "gearsystem", "gearcoleco", "tic80"] {
+            assert_eq!(way_for(id, true, false, false, false, false), Way::Download, "{id}");
+        }
         assert_eq!(way_for("vice", false, false, true, false, true), Way::Command("sudo apt-get install vice".into()));
         assert_eq!(way_for("fuse", false, false, true, false, true), Way::Command("sudo apt-get install fuse-emulator-gtk".into()));
         assert_eq!(way_for("b2", false, false, true, false, true), Way::Page);
-        assert_eq!(way_for("zesarux", false, true, false, true, false), Way::Command("brew install --cask zesarux".into()));
+        assert_eq!(way_for("zesarux", false, true, false, true, false), Way::Page, "Homebrew switched its app off");
+        assert_eq!(way_for("tic80", false, true, false, true, false), Way::Page, "Homebrew switched its app off");
+        assert_eq!(way_for("stella", false, true, false, true, false), Way::Command("brew install stella".into()), "a formula now");
+        assert_eq!(way_for("mgba", false, true, false, true, false), Way::Command("brew install mgba".into()), "a formula, not an app");
+        assert_eq!(way_for("gearsystem", false, true, false, true, false), Way::Command("brew install --cask gearsystem".into()));
+        assert_eq!(way_for("mame", false, true, false, true, false), Way::Command("brew install mame".into()));
+        // On Linux, Mesen and TIC-80 have no package, so their own Linux builds are downloaded.
+        assert_eq!(way_for("mesen", false, false, true, false, true), Way::Download);
+        assert_eq!(way_for("tic80", false, false, true, false, true), Way::Download);
+        assert_eq!(way_for("mame", false, false, true, false, true), Way::Command("sudo apt-get install mame".into()));
         assert_eq!(way_for("fuse", false, true, false, true, false), Way::Page, "Homebrew's fuse is something else");
         assert_eq!(way_for("hatari", false, true, false, false, false), Way::Page, "no Homebrew");
         // Copperline: its zip on Windows, its AppImage on a PC's Linux (not an ARM one's), and its own tap on a Mac.
@@ -341,7 +534,11 @@ mod tests {
     #[test]
     fn the_windows_file_is_picked_from_each_release() {
         let release = |names: &[&str]| serde_json::json!({"tag_name": "v1", "assets": names.iter().map(|n| serde_json::json!({"name": n, "browser_download_url": format!("https://github.com/x/{n}")})).collect::<Vec<_>>()}).to_string();
-        let pick = |id: &str, names: &[&str]| pick_asset(&release(names), github(id).unwrap().1).map(|(_, url)| url.rsplit('/').next().unwrap().to_string());
+        let wanted = |id: &str| match windows_release(id) {
+            Some(Release::GitHub(_, wanted)) => wanted,
+            _ => panic!("{id} isn't from GitHub"),
+        };
+        let pick = |id: &str, names: &[&str]| pick_asset(&release(names), wanted(id)).map(|(_, url)| url.rsplit('/').next().unwrap().to_string());
         assert_eq!(pick("zesarux", &["ZEsarUX_windows-13.0-legacy.zip", "ZEsarUX_windows-13.0.zip", "ZEsarUX_src-13.0.tar.gz"]).unwrap(), "ZEsarUX_windows-13.0.zip");
         assert_eq!(pick("openmsx", &["openmsx-22.0-windows-vc-x64-bin-msi.zip", "openmsx-22.0-windows-vc-x64-bin.zip", "openmsx-22.0-windows-vc-x64-pdb.zip"]).unwrap(), "openmsx-22.0-windows-vc-x64-bin.zip");
         assert_eq!(pick("vice", &["GTK3VICE-3.10-win64.7z", "GTK3VICE-3.10-win64.zip", "SDL2VICE-3.10-win64.zip"]).unwrap(), "GTK3VICE-3.10-win64.zip");
@@ -353,15 +550,83 @@ mod tests {
         assert_eq!(pick("mesen", &["Mesen_2.1.1_Linux_x64.zip", "Mesen_2.1.1_Windows.zip"]).unwrap(), "Mesen_2.1.1_Windows.zip");
         assert_eq!(pick("fceux", &["fceux-2.7.0-win32.zip", "fceux-2.7.0-win64-QtSDL.zip", "fceux-2.7.0-win64.zip"]).unwrap(), "fceux-2.7.0-win64.zip");
         assert_eq!(pick("nestopia", &["nestopia-2.0.0-macos-arm64.dmg", "nestopia-2.0.0-windows-x86_64.zip"]).unwrap(), "nestopia-2.0.0-windows-x86_64.zip");
+        // As their latest releases name them (20 November 2026).
+        assert_eq!(pick("stella", &["Stella-7.0-macos.dmg", "stella-7.0-src.tar.xz", "Stella-7.0c-windows.zip", "Stella-7.0c-x64.exe", "stella_7.0_amd64.deb"]).unwrap(), "Stella-7.0c-windows.zip");
+        assert_eq!(pick("dosbox", &["dosbox-staging-linux-x86_64-v0.83.1.tar.xz", "dosbox-staging-windows-x64-v0.83.1-setup.exe", "dosbox-staging-windows-x64-v0.83.1.zip"]).unwrap(), "dosbox-staging-windows-x64-v0.83.1.zip");
+        let tic80 = ["tic80-v1.4-html.zip", "tic80-v1.4-linux-arm64.deb", "tic80-v1.4-linux-arm64.zip", "tic80-v1.4-linux.deb", "tic80-v1.4-linux.zip", "tic80-v1.4-mac-arm64.app.zip", "tic80-v1.4-mac.zip", "tic80-v1.4-switch.zip", "tic80-v1.4-win.zip"];
+        assert_eq!(pick("tic80", &tic80).unwrap(), "tic80-v1.4-win.zip");
+        let mame = ["mame0289b_arm64.exe", "mame0289b_x64.exe", "mame0289lx.zip", "mame0289s.exe", "SHA1SUMS", "SHA256SUMS", "whatsnew_0289.txt"];
+        let pick_mame = |arm: bool| mame.iter().find(|n| mame_file(n, arm)).copied();
+        assert_eq!(pick_mame(false), Some("mame0289b_x64.exe"));
+        assert_eq!(pick_mame(true), Some("mame0289b_arm64.exe"), "an ARM computer's own");
+        assert!(!mame_file("mame0289s.exe", false) && !mame_file("mame0289lx.zip", false), "not its source, nor its documentation");
+        if !arm() {
+            assert_eq!(pick("mame", &mame).unwrap(), "mame0289b_x64.exe");
+            let gearsystem = ["Gearsystem-3.9.25-desktop-macos-arm64.zip", "Gearsystem-3.9.25-desktop-ubuntu24.04-x64.zip", "Gearsystem-3.9.25-desktop-windows-arm64.zip", "Gearsystem-3.9.25-desktop-windows-x64.zip", "Gearsystem-3.9.25-libretro-linux-x64.zip", "Gearsystem-3.9.25-mcpb-windows-x64.mcpb"];
+            assert_eq!(pick("gearsystem", &gearsystem).unwrap(), "Gearsystem-3.9.25-desktop-windows-x64.zip");
+            let gearcoleco = ["Gearcoleco-1.8.0-desktop-bsd-x64.zip", "Gearcoleco-1.8.0-desktop-windows-arm64.zip", "Gearcoleco-1.8.0-desktop-windows-x64.zip", "Gearcoleco-1.8.0-mcpb-windows-x64.mcpb"];
+            assert_eq!(pick("gearcoleco", &gearcoleco).unwrap(), "Gearcoleco-1.8.0-desktop-windows-x64.zip");
+        }
+        let linux = |id: &str, names: &[&str]| pick_asset(&release(names), linux_github(id).unwrap().1).map(|(_, url)| url.rsplit('/').next().unwrap().to_string());
+        assert_eq!(linux("tic80", &tic80).unwrap(), "tic80-v1.4-linux.zip", "not the ARM one");
+        assert_eq!(linux("mesen", &["Mesen_2.1.1_Linux_ARM64.zip", "Mesen_2.1.1_Linux_x64.zip", "Mesen_2.1.1_Windows.zip"]).unwrap(), "Mesen_2.1.1_Linux_x64.zip");
         assert_eq!(way_for("mgba", false, false, true, false, true), Way::Command("sudo apt-get install mgba-qt".into()));
         assert_eq!(way_for("sameboy", false, true, false, true, false), Way::Command("brew install --cask sameboy".into()));
         // Copperline's, as its 1.1.0 release names them.
         let copperline = ["Copperline-1.1.0-libretro-Linux-X64.zip", "Copperline-1.1.0-libretro-Windows-X64.zip", "Copperline-1.1.0-macos-universal.dmg", "Copperline-1.1.0-win-arm64.zip", "Copperline-1.1.0-win-x64-setup.exe", "Copperline-1.1.0-win-x64.zip", "Copperline-1.1.0-x86_64-net-helper.tar.gz", "Copperline-1.1.0-x86_64-tools.tar.gz", "Copperline-1.1.0-x86_64.AppImage"];
-        assert_eq!(pick("copperline", &copperline).unwrap(), "Copperline-1.1.0-win-x64.zip");
+        if !arm() {
+            assert_eq!(pick("copperline", &copperline).unwrap(), "Copperline-1.1.0-win-x64.zip");
+        }
         let (_, image, tools) = linux_github("copperline").unwrap();
         let named = |wanted: fn(&str) -> bool| pick_asset(&release(&copperline), wanted).map(|(_, url)| url.rsplit('/').next().unwrap().to_string());
         assert_eq!(named(image).unwrap(), "Copperline-1.1.0-x86_64.AppImage");
         assert_eq!(named(tools).unwrap(), "Copperline-1.1.0-x86_64-tools.tar.gz");
+    }
+
+    #[test]
+    fn a_release_is_found_on_gitlab_and_on_download_pages() {
+        // Hatari's latest release, as Framagit's API describes it (cut short).
+        let hatari = r#"{"name":"v2.6.1","tag_name":"v2.6.1","assets":{"count":8,"sources":[{"format":"zip","url":"https://framagit.org/hatari/hatari/-/archive/v2.6.1/hatari-v2.6.1.zip"}],"links":[{"name":"Windows 64-bit binary","url":"https://framagit.org/hatari/releases/-/raw/main/v2.6.1/hatari-2.6.1_windows64.zip"},{"name":"Windows 32-bit binary","url":"https://framagit.org/hatari/releases/-/raw/main/v2.6.1/hatari-2.6.1_windows.zip"},{"name":"macOS binary","url":"https://framagit.org/hatari/releases/-/raw/main/v2.6.1/hatari-2.6.1_macos.zip"}]}}"#;
+        let Some(Release::GitLab(_, wanted)) = windows_release("hatari") else { panic!("Hatari is on Framagit") };
+        assert_eq!(pick_gitlab(hatari, wanted).unwrap(), "https://framagit.org/hatari/releases/-/raw/main/v2.6.1/hatari-2.6.1_windows64.zip");
+        assert!(pick_gitlab(r#"{"tag_name":"v3","assets":{"links":[]}}"#, wanted).is_err());
+        // Each download page, as it links its files (20 November 2026).
+        let linked = |id: &str, html: &str| {
+            let Some(Release::Linked(page, wanted)) = windows_release(id) else { panic!("{id} is linked from its page") };
+            pick_link(html, page, wanted)
+        };
+        let xroar = "<li>64-bit Windows: <a href='dl/xroar-1.13.1-w64.zip'>ZIP archive</a>,\n    <a href='dl/xroar-1.13.1-w64.msi'>MSI installer</a>\n<li>32-bit Windows: <a href='dl/xroar-1.13.1-w32.zip'>ZIP archive</a>";
+        assert_eq!(linked("xroar", xroar).unwrap(), "https://www.6809.org.uk/xroar/dl/xroar-1.13.1-w64.zip");
+        let winuae = r#"<a href="https://download.abime.net/winuae/releases/InstallWinUAE6030_x64.msi">x</a><a href="https://download.abime.net/winuae/releases/WinUAE6030.zip">x</a><a href="https://download.abime.net/winuae/releases/WinUAE6030_x64.zip">x</a><a href="https://download.abime.net/winuae/releases/translations/WinUAE6030_translation.zip">x</a>"#;
+        assert_eq!(linked("winuae", winuae).unwrap(), "https://download.abime.net/winuae/releases/WinUAE6030_x64.zip");
+        let blastem = r#"<a href="blastem-win32-1.0.0.zip">32-bit</a> <a href="blastem-win64-1.0.0.zip">64-bit</a>"#;
+        assert_eq!(linked("blastem", blastem).unwrap(), "https://www.retrodev.com/blastem/blastem-win64-1.0.0.zip");
+        let fuse = r#"<a href="https://sourceforge.net/projects/fuse-emulator/files/fuse/1.10.1/fuse-1.10.1-win32-setup.exe/download">installer</a> <a href="https://sourceforge.net/projects/fuse-emulator/files/fuse/1.10.1/fuse-1.10.1-win32.zip/download">zip</a> <a href="https://sourceforge.net/projects/fuse-emulator/files/fuse-utils/1.5.1/fuse-utils-1.5.1-win32.zip/download">utils</a>"#;
+        assert_eq!(linked("fuse", fuse).unwrap(), "https://sourceforge.net/projects/fuse-emulator/files/fuse/1.10.1/fuse-1.10.1-win32.zip/download");
+        assert!(linked("xroar", "<a href='dl/xroar-1.13.1.tar.gz'>source</a>").is_err());
+        // Links relative to the server, with &amp; in them, and on a page with no path.
+        assert_eq!(page_links(r#"<a href="/files/a.zip?x=1&amp;y=2">a</a>"#, "https://example.org/emu/get.html"), ["https://example.org/files/a.zip?x=1&y=2"]);
+        assert_eq!(page_links(r#"<a href="b.zip">b</a>"#, "https://example.org"), ["https://example.org/b.zip"]);
+        assert!(matches!(windows_release("bgb"), Some(Release::Fixed("https://bgb.bircd.org/bgbw64.zip"))));
+    }
+
+    #[test]
+    fn only_a_7_zip_archive_that_unpacks_itself_is_run() {
+        // As MAME's begins: 7-Zip's unpacker (a Windows program), then the archive at 205,824 bytes in.
+        let mut mame = b"MZ".to_vec();
+        mame.resize(205_824, 0);
+        mame.extend(b"7z\xBC\xAF\x27\x1C\0\x04");
+        assert!(self_unpacking(&mame));
+        let mut installer = b"MZ".to_vec();
+        installer.resize(300_000, 0x55);
+        assert!(!self_unpacking(&installer), "another kind of installer is never run");
+        assert!(!self_unpacking(b"PK\x03\x04 7z\xBC\xAF\x27\x1C"), "a zip is unzipped");
+        // It's told to ask nothing and where to unpack, as one word each, as 7-Zip's SFX module reads them.
+        let target = std::env::temp_dir().join("Limoniter emulators").join("mame");
+        let arguments = unpack_arguments(&target);
+        assert_eq!(arguments[0], "-y");
+        assert_eq!(arguments[1], std::ffi::OsString::from(format!("-o{}", target.display())));
+        assert_eq!(arguments.len(), 2);
     }
 
     /// A zip with its files stored, as the KickAssembler tests make one.
@@ -442,15 +707,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&folder);
     }
 
-    /// Asks GitHub for real: cargo test -- --ignored emulator_get::tests::every_release_has_its_windows_file
+    /// Asks each emulator's release page for real: cargo test -- --ignored emulator_get::tests::every_release_has_its_windows_file
     #[test]
     #[ignore]
     fn every_release_has_its_windows_file() {
-        for id in ["zesarux", "b2", "openmsx", "fs-uae", "vice", "sameboy", "mesen", "fceux", "nestopia", "copperline"] {
-            let (repo, wanted) = github(id).unwrap();
-            let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest")).unwrap()).unwrap();
-            println!("{id}: {:?}", pick_asset(&release, wanted));
-            assert!(pick_asset(&release, wanted).is_ok(), "{id}");
+        for emulator in crate::emulators::KNOWN {
+            if let Some(release) = windows_release(emulator.id) {
+                let address = release_address(release);
+                println!("{}: {address:?}", emulator.id);
+                assert!(address.is_ok(), "{}", emulator.id);
+            }
+            if let Some((repo, program, _)) = linux_github(emulator.id) {
+                let release = String::from_utf8(get(&format!("https://api.github.com/repos/{repo}/releases/latest")).unwrap()).unwrap();
+                println!("{} on Linux: {:?}", emulator.id, pick_asset(&release, program));
+                assert!(pick_asset(&release, program).is_ok(), "{} on Linux", emulator.id);
+            }
         }
     }
 }

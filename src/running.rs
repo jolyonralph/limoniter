@@ -209,6 +209,8 @@ pub enum Format {
     P,
     /// Forth source, typed into a Jupiter Ace.
     Forth,
+    /// A Dragon DOS disk, kept as a VDK file (PC-Dragon's, which XRoar reads).
+    Vdk,
 }
 
 impl Format {
@@ -216,13 +218,13 @@ impl Format {
     pub fn medium(self) -> Option<&'static str> {
         match self {
             Format::Tap | Format::Tzx | Format::Cas | Format::T64 => Some("tape"),
-            Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa | Format::Img => Some("disk"),
+            Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa | Format::Img | Format::Vdk => Some("disk"),
             Format::Crt | Format::Rom | Format::A26 | Format::VecCart | Format::MdRom | Format::SmsRom | Format::GgRom | Format::SgRom | Format::ColRom | Format::Gb | Format::Gbc | Format::Nes => Some("cartridge"),
             _ => None,
         }
     }
 
-    pub const ALL: [Format; 43] = [
+    pub const ALL: [Format; 44] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -266,6 +268,7 @@ impl Format {
         Format::Nes,
         Format::P,
         Format::Forth,
+        Format::Vdk,
     ];
 
     /// The file ending it's written with.
@@ -314,6 +317,7 @@ impl Format {
             Format::Nes => "nes",
             Format::P => "p",
             Format::Forth => "fth",
+            Format::Vdk => "vdk",
         }
     }
 
@@ -419,6 +423,9 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         Format::P => return None,
         Format::Forth if std::str::from_utf8(bytes).is_ok() => Machine::JupiterAce,
         Format::Forth => return None,
+        // A Dragon DOS disk: its directory's map says how many tracks it has, and the same again inverted.
+        Format::Vdk if crate::dragon_dos::Disk::from_vdk(bytes).is_some() => Machine::Dragon32,
+        Format::Vdk => return None,
         // .z80 is also assembler source: a snapshot's header has control codes, and text has none.
         Format::Z80 if !bytes.iter().take(30).any(|b| *b < 9 || (14..32).contains(b)) => return None,
         Format::Z80 => z80_machine(bytes),

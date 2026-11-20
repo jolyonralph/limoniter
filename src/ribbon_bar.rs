@@ -339,7 +339,7 @@ const RETRO: &[Group] = &[
             small("Assemble and save as binary\u{2026}", Icon::Text("01"), Command::AssembleBinary),
             small("Assemblers\u{2026}", Icon::Settings, Command::ChooseAssembler),
             small("Disassemble\u{2026}", Icon::Text("01"), Command::Disassemble),
-            tick("Cycle counts beside 6502 and Z80 code", Icon::Clock, Flag::CycleCounts),
+            tick("Cycle counts beside 6502, Z80 and 6809 code", Icon::Clock, Flag::CycleCounts),
         ],
     },
     Group {
@@ -415,7 +415,7 @@ const ASSEMBLY: &[Group] = &[
             small("Go to definition", Icon::Text("f()"), Command::GoToDefinition),
             small("Find all uses", Icon::Find, Command::FindUses),
             small("Rename\u{2026}", Icon::Text("ab"), Command::RenameLabel),
-            tick("Cycle counts beside 6502 and Z80 code", Icon::Clock, Flag::CycleCounts),
+            tick("Cycle counts beside 6502, Z80 and 6809 code", Icon::Clock, Flag::CycleCounts),
             small("Disassemble\u{2026}", Icon::Text("01"), Command::Disassemble),
         ],
     },

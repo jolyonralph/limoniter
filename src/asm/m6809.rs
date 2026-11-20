@@ -286,6 +286,11 @@ impl Isa for M6809 {
         word == "pragma"
     }
 
+    /// Its cycles on a 6809 (or a 6309 in emulation mode), and in the 6309's native mode where that's different.
+    fn cycles(&self, bytes: &[u8]) -> Option<String> {
+        crate::m6809_timing::both(bytes)
+    }
+
     fn encode(&self, mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
         let upper = mnemonic.to_ascii_uppercase();
         let h6309 = with_6309(line);

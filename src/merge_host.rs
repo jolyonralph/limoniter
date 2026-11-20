@@ -45,9 +45,35 @@ Usage:
                                               Makes 68000 source into an Amiga program, as F9 does, with no
                                               window. NAME=VALUE gives a setting (NAME equ in the source) a
                                               value, such as OS_FRIENDLY=1.
+  limoniter --version                         Shows which version this is (also -V).
   limoniter --help                            Shows this.
+  limoniter -- FILE...                        Opens files even if their names start with -.
 
 Git can use Limoniter for git difftool and git mergetool: Git, Use Limoniter for Git diff and merge.";
+
+/// The first option on the command line Limoniter doesn't know, if any: something starting with - that isn't one
+/// of its own, so it's refused rather than opened as a file. The files after --diff, --merge and --screenshot are
+/// theirs; after a bare --, everything is a file; and -psn_..., which older macOS adds when Finder starts a
+/// program, is let through.
+pub fn unknown_option(args: &[std::ffi::OsString]) -> Option<String> {
+    let mut args = args.iter().map(|arg| arg.to_string_lossy().into_owned());
+    while let Some(arg) = args.next() {
+        let takes = match arg.as_str() {
+            "--" => return None,
+            "--diff" => 2,
+            "--merge" => 4,
+            "--screenshot" => 1,
+            "--help" | "-h" | "--version" | "-V" | "--unregister-file-types" => 0,
+            _ if arg.starts_with("-psn_") => 0,
+            _ if arg.starts_with('-') && arg.len() > 1 => return Some(arg),
+            _ => 0,
+        };
+        for _ in 0..takes {
+            args.next();
+        }
+    }
+    None
+}
 
 /// Works out what the command line asks for. Ok(None) for nothing special; Err for a mistake, to be told.
 pub fn parse_tool_args(args: &[std::ffi::OsString]) -> Result<Option<ToolLaunch>, String> {
@@ -684,6 +710,23 @@ fn sides_view(ui: &mut Ui, tab: &mut MergeTab) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+
+    /// An option Limoniter doesn't know is refused, not opened as a file; files that only look like options are
+    /// still opened after --, or as the files an option takes.
+    #[test]
+    fn unknown_options_are_refused_and_files_are_not() {
+        let args = |list: &[&str]| list.iter().map(std::ffi::OsString::from).collect::<Vec<_>>();
+        assert_eq!(unknown_option(&args(&["--frobnicate"])), Some("--frobnicate".into()));
+        assert_eq!(unknown_option(&args(&["notes.txt", "-x"])), Some("-x".into()));
+        assert_eq!(unknown_option(&args(&["notes.txt", "--version"])), None);
+        assert_eq!(unknown_option(&args(&["-V"])), None);
+        assert_eq!(unknown_option(&args(&["--", "-odd name.txt"])), None);
+        assert_eq!(unknown_option(&args(&["--diff", "-a.txt", "-b.txt"])), None, "the files --diff takes");
+        assert_eq!(unknown_option(&args(&["--screenshot", "-shot.png", "a.txt"])), None);
+        assert_eq!(unknown_option(&args(&["-psn_0_12345"])), None, "macOS's own");
+        assert_eq!(unknown_option(&args(&["-", "a.txt"])), None, "a lone - is a file name");
+    }
+
     use super::super::tests::{app_with, draw};
     use super::*;
 
@@ -719,6 +762,7 @@ mod tests {
         assert!(parse_tool_args(&args(&["--merge", "b", "m", "t"])).is_err());
         assert!(parse_tool_args(&args(&["--diff", "l"])).is_err());
         assert!(USAGE.contains("--diff LEFT RIGHT") && USAGE.contains("--merge BASE MINE THEIRS RESULT"));
+        assert!(USAGE.contains("--version"));
     }
 
     #[test]

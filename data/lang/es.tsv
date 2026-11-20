@@ -9094,3 +9094,42 @@ then printf 'Incorrect file size: %s (needed 32768, use -s/S to ignore)\\n' "$si
 {host}: its menu over telnet, port 23	{host}: su menú por telnet, puerto 23
 {host}: its modem, port 6400	{host}: su módem, puerto 6400
 {name}, {size} bytes	{name}, {size} bytes
+A tape was made	Se hizo una cinta
+A disk image was made	Se hizo una imagen de disco
+A cartridge was made	Se hizo un cartucho
+A program was made	Se hizo un programa
+{option} isn't an option Limoniter knows.	{option} no es una opción que Limoniter conozca.
+The answer about the latest release wasn't what was expected.	La respuesta sobre la última versión no era la esperada.
+The download of {} isn't a kind Limoniter can unpack: get it from {}.	La descarga de {} no es de un tipo que Limoniter pueda desempaquetar: consíguelo en {}.
+{from}'s answer wasn't text.	La respuesta de {from} no era texto.
+{page} has no download for Windows that Limoniter knows.	{page} no tiene ninguna descarga para Windows que Limoniter conozca.
+{} couldn't be unpacked ({status}).	No se pudo desempaquetar {} ({status}).
+{} took too long to unpack, and was stopped.	{} tardaba demasiado en desempaquetarse y se detuvo.
+\n{there} in a 6309's native mode	\n{there} en el modo nativo de un 6309
+\n{there} on a 6809, or a 6309 in emulation mode	\n{there} en un 6809, o un 6309 en modo de emulación
+2 more when either number is negative	2 más cuando alguno de los números es negativo
+3 more for each byte moved; W says how many	3 más por cada byte movido; W dice cuántos
+6 after a FIRQ; 15 after the others, which stack every register	6 tras una FIRQ; 15 tras las demás, que apilan todos los registros
+6 after a FIRQ; 17 after the others, which stack every register	6 tras una FIRQ; 17 tras las demás, que apilan todos los registros
+Cycle counts beside 6502, Z80 and 6809 code	Ciclos junto al código 6502, Z80 y 6809
+Dragon programs:	Programas de Dragon:
+From a Dragon DOS disk	Desde un disco Dragon DOS
+Kept in Limoniter's settings, for this file.	Guardado en los ajustes de Limoniter, para este archivo.
+Kept with the project {}, for this file.	Guardado con el proyecto {}, para este archivo.
+Loaded into memory	Cargado en la memoria
+Selected: 1 instruction, {} cycles in native mode	Seleccionado: 1 instrucción, {} ciclos en modo nativo
+Selected: {count} instructions, {} cycles in native mode	Seleccionado: {count} instrucciones, {} ciclos en modo nativo
+The Dragon DOS binary F9 makes is loaded straight into memory by XRoar and started. Source can say otherwise near its top, with ; run from: disk.	El binario de Dragon DOS que hace F9 lo carga XRoar directamente en la memoria y lo arranca. La fuente puede decir otra cosa cerca del principio, con ; run from: disk.
+The program is put on a Dragon DOS disk made for the run, as NAME.BIN, and XRoar starts with the DragonDOS cartridge (it needs its ROM) and types RUN"NAME.BIN" for it. Source can say otherwise near its top, with ; run from: binary.	El programa se pone en un disco Dragon DOS hecho para la ejecución, como NAME.BIN, y XRoar arranca con el cartucho DragonDOS (necesita su ROM) y teclea RUN"NAME.BIN". La fuente puede decir otra cosa cerca del principio, con ; run from: binary.
+There's already a {new_name}.{new_ending} on the disk.	Ya hay un {new_name}.{new_ending} en el disco.
+To run a program from it in XRoar: load the disk, then type RUN"NAME" for BASIC or RUN"NAME.BIN" for machine code. A saved disk opened in Limoniter runs with F9, its first program typed for; and 6809 source saying run from: disk is put on a disk to run.	Para ejecutar un programa desde él en XRoar: carga el disco y teclea RUN"NAME" para BASIC o RUN"NAME.BIN" para código máquina. Un disco guardado abierto en Limoniter se ejecuta con F9, tecleando su primer programa; y la fuente 6809 que dice run from: disk se pone en un disco para ejecutarla.
+To run it from a Dragon DOS disk, with RUN typed for it, add a comment saying run from: disk.	Para ejecutarlo desde un disco Dragon DOS, con RUN tecleado, añade un comentario que diga run from: disk.
+Type its new name, then press Enter	Teclea su nombre nuevo y pulsa Intro
+at least: it waits for an interrupt	como mínimo: espera una interrupción
+dragon_start={}\n	dragon_start={}\n
+fewer when the quotient doesn't fit	menos cuando el cociente no cabe
+one more when taken	uno más si se salta
+{emulation} ({native} native)	{emulation} ({native} nativo)
+{name}.{ending} isn't on the disk.	{name}.{ending} no está en el disco.
+{text} cycles	{text} ciclos
+{text} cycles in native mode	{text} ciclos en modo nativo

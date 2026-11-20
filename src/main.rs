@@ -163,6 +163,7 @@ mod st_blitter;
 mod mfp_timer;
 mod st_starters;
 mod m6502_timing;
+mod m6809_timing;
 mod m6502_cpu;
 mod c64_raster;
 mod c64_irq;
@@ -172,6 +173,7 @@ mod lsp;
 mod dap;
 mod doc_comments;
 mod dragon_dos;
+mod dragon_run;
 mod vectrex;
 mod sega;
 mod gameboy;
@@ -309,6 +311,16 @@ fn main() -> eframe::Result {
         println!("{}", app::USAGE);
         return Ok(());
     }
+    // The version, and nothing else: no window, as scripts and installers expect.
+    if all.iter().any(|arg| arg == "--version" || arg == "-V") {
+        println!("Limoniter {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    // An option Limoniter doesn't know is a mistake to be told, not a file to open in a window.
+    if let Some(option) = app::unknown_option(&all) {
+        eprintln!("{}\n\n{}", app::i18n_unknown_option(&option), app::USAGE);
+        std::process::exit(2);
+    }
     // A diff or merge for Git: a window of its own, which Git waits on, rather than a tab in one already open.
     let launch = match app::parse_tool_args(&all) {
         Ok(launch) => launch,
@@ -337,6 +349,8 @@ fn main() -> eframe::Result {
                 eprintln!("The picture wasn't ready in time.");
                 std::process::exit(1);
             });
+        } else if arg == "--" || arg.to_string_lossy().starts_with("-psn_") {
+            // The end of the options; or macOS's own, which is no file.
         } else {
             files.push(std::path::PathBuf::from(arg));
         }

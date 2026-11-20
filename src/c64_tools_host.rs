@@ -83,8 +83,8 @@ impl Limoniter {
         }
     }
 
-    /// For 6502 source with lines selected: how many instructions there are and the cycles they take, least and
-    /// most, from the program as last assembled, for the status bar.
+    /// For 6502, 6809 or 6309 source with lines selected: how many instructions there are and the cycles they take,
+    /// least and most, from the program as last assembled, for the status bar.
     pub(super) fn selection_cycles(&self) -> Option<String> {
         if self.no_file() {
             return None;
@@ -93,12 +93,21 @@ impl Limoniter {
         if !doc.text.has_selection() || doc.text.anchor_line == doc.text.caret_line {
             return None;
         }
-        let intel = doc.text.intel.as_ref().filter(|i| i.cpu == Some(crate::assemblers::Cpu::M6502) && i.version == doc.text.version())?;
+        let intel = doc.text.intel.as_ref().filter(|i| matches!(i.cpu, Some(crate::assemblers::Cpu::M6502 | crate::assemblers::Cpu::M6809)) && i.version == doc.text.version())?;
         let assembly = intel.assembly.as_ref()?;
         let (first, mut last) = (doc.text.anchor_line.min(doc.text.caret_line), doc.text.anchor_line.max(doc.text.caret_line));
         // A selection ending at the start of a line doesn't take that line in.
         if (doc.text.caret_line == last && doc.text.caret_col == 0) || (doc.text.anchor_line == last && doc.text.anchor_col == 0) {
             last = last.saturating_sub(1);
+        }
+        if intel.cpu == Some(crate::assemblers::Cpu::M6809) {
+            let (sum, count, native) = crate::m6809_timing::block(assembly, intel.file, first, last);
+            return (count > 0).then(|| match (count, native) {
+                (1, false) => crate::i18n::tf!("Selected: 1 instruction, {} cycles", sum.range()),
+                (1, true) => crate::i18n::tf!("Selected: 1 instruction, {} cycles in native mode", sum.range()),
+                (_, false) => crate::i18n::tf!("Selected: {count} instructions, {} cycles", sum.range()),
+                (_, true) => crate::i18n::tf!("Selected: {count} instructions, {} cycles in native mode", sum.range()),
+            });
         }
         let (sum, count) = crate::m6502_timing::block(assembly, intel.file, first, last);
         (count > 0).then(|| if count == 1 { crate::i18n::tf!("Selected: 1 instruction, {} cycles", sum.range()) } else { crate::i18n::tf!("Selected: {count} instructions, {} cycles", sum.range()) })
@@ -153,5 +162,25 @@ mod tests {
         doc.text.caret_col = 0;
         // LDA 4, STA abs,X 5, BNE 2 or 3 (back into the same page).
         assert_eq!(app.selection_cycles().as_deref(), Some("Selected: 3 instructions, 11\u{2013}12 cycles"));
+    }
+
+    #[test]
+    fn a_6809_selection_says_its_cycles_in_its_mode() {
+        let (mut app, _ctx) = app_with("");
+        let index = app.new_kinds.iter().position(|k| k.name == "6809 assembler").unwrap();
+        app.new_of_kind(index);
+        let doc = &mut app.docs[app.active];
+        doc.text.set_content(vec!["        org $3000".into(), "        pragma 6309".into(), "loop    lda <$20".into(), "        tfm x+,y+".into(), "        rts".into()]);
+        let version = doc.text.version();
+        let text = doc.text.all_lines().join("\n");
+        let assembly = crate::assemblers::assemble_own(crate::assemblers::Cpu::M6809, std::path::Path::new("t.asm"), &text).assembly;
+        doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel { assembly: Some(std::sync::Arc::new(assembly)), version, cpu: Some(crate::assemblers::Cpu::M6809), ..Default::default() }));
+        let doc = &mut app.docs[app.active];
+        doc.text.anchor_line = 2;
+        doc.text.anchor_col = 0;
+        doc.text.caret_line = 4;
+        doc.text.caret_col = 9;
+        // In native mode: LDA direct 3, TFM 6 and 3 for each byte, RTS 4.
+        assert_eq!(app.selection_cycles().as_deref(), Some("Selected: 3 instructions, 13+3n cycles in native mode"));
     }
 }

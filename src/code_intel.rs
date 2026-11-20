@@ -226,8 +226,17 @@ impl CodeIntel {
         let bytes: Vec<String> = placed.bytes.iter().take(8).map(|b| format!("{b:02X}")).collect();
         let more = if placed.bytes.len() > 8 { " \u{2026}" } else { "" };
         let time = self.cpu.and_then(|cpu| cpu.isa().cycles_at(&placed.bytes, placed.address)).map(|c| format!(", {c} {}", if self.cpu == Some(Cpu::Z80) { "T-states" } else { "cycles" })).unwrap_or_default();
+        // The 6809's and 6309's in the mode the source says, with the other mode's and why they may vary.
+        let six309 = (self.cpu == Some(Cpu::M6809)).then(|| crate::m6809_timing::line(assembly, self.file, line)).flatten();
+        let time = match six309 {
+            Some((_, mode, timing)) => format!(", {}", crate::m6809_timing::words(timing, mode)),
+            None if self.cpu == Some(Cpu::M6809) => String::new(),
+            None => time,
+        };
         // On the 6502, what may add a cycle: an index crossing a page, a branch taken.
-        let why = if self.cpu == Some(Cpu::M6502) && crate::m6502_timing::is_instruction(&placed.bytes) {
+        let why = if let Some((_, mode, _)) = six309 {
+            crate::m6809_timing::more(&placed.bytes, mode)
+        } else if self.cpu == Some(Cpu::M6502) && crate::m6502_timing::is_instruction(&placed.bytes) {
             crate::m6502_timing::explain(&placed.bytes, Some(placed.address)).and_then(|w| w.split_once(" (").map(|(_, why)| format!("\n({why}"))).unwrap_or_default()
         } else {
             String::new()

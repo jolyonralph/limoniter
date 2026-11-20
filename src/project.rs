@@ -32,6 +32,8 @@ pub struct Project {
     pub root: Option<PathBuf>,
     /// Where a folder project came from, when it's the mirror of a folder on a server: to connect to again.
     pub remote: Option<crate::remote_project::Origin>,
+    /// How each of the project's files is debugged (Ctrl+F5), by the file: kept here so it's asked only once.
+    pub debug: crate::dap::Kept,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -112,6 +114,10 @@ impl Project {
         if let Some(remote) = &self.remote {
             value["remote"] = remote.to_json();
         }
+        // Left out when there's nothing to keep, so a project that's never been debugged has a file as before.
+        if !self.debug.is_empty() {
+            value["debug"] = crate::dap::kept_to_json(&self.debug, Some(&base));
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -129,7 +135,8 @@ impl Project {
         });
         let comparisons = crate::compare_session::list_from_json(value.get("comparisons"), Some(&base));
         let remote = value.get("remote").and_then(crate::remote_project::Origin::from_json);
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote };
+        let debug = crate::dap::kept_from_json(value.get("debug"), Some(&base));
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -504,6 +511,48 @@ mod tests {
         project.add([old.parent().unwrap().join("x.txt")]);
         let moved = Project::from_text(&new, &project.to_text()).unwrap();
         assert_eq!(moved.files, [new.parent().unwrap().join("x.txt")]);
+    }
+
+    /// How a C file in the project is debugged: its program and folder in the project, a debugger of its own.
+    fn debugged_here(base: &Path) -> (PathBuf, crate::dap::Config) {
+        let config = crate::dap::Config { kind: crate::dap::Kind::Gdb, adapter: "gdb -i dap".into(), program: base.join("build").join("life").display().to_string(), arguments: "--size 40 \"two words\"".into(), folder: base.join("data").display().to_string(), emulator: None };
+        (base.join("src").join("life.c"), config)
+    }
+
+    #[test]
+    fn debug_settings_are_kept_in_the_project_relative_to_it() {
+        let base = PathBuf::from(if cfg!(windows) { r"C:\work\life" } else { "/work/life" });
+        let path = base.join("life.limproj");
+        let mut project = Project::new(&path);
+        let (file, config) = debugged_here(&base);
+        project.debug.insert(file.clone(), config.clone());
+        let text = project.to_text();
+        assert!(text.contains("\"src/life.c\"") && text.contains("\"build/life\"") && text.contains("\"data\""), "kept relative: {text}");
+        assert!(!text.contains("work"), "with no whole path in it: {text}");
+        assert_eq!(Project::from_text(&path, &text).unwrap(), project);
+        // Moved to another folder (and drive), the file, its program and its folder are found in the new place.
+        let new_base = PathBuf::from(if cfg!(windows) { r"D:\elsewhere\life2" } else { "/elsewhere/life2" });
+        let moved = Project::from_text(&new_base.join("life.limproj"), &text).unwrap();
+        let (new_file, new_config) = debugged_here(&new_base);
+        assert_eq!(moved.debug.get(&new_file), Some(&new_config));
+        assert_eq!(moved.debug.len(), 1);
+    }
+
+    #[test]
+    fn a_project_from_before_debug_settings_still_opens() {
+        let base = PathBuf::from(if cfg!(windows) { r"C:\old" } else { "/old" });
+        let path = base.join("old.limproj");
+        let old = "{\n  \"limoniter_project\": 1,\n  \"name\": \"old\",\n  \"notes\": \"\",\n  \"files\": [\"a.c\"],\n  \"open_files\": [],\n  \"tasks\": [],\n  \"comparisons\": []\n}\n";
+        let project = Project::from_text(&path, old).unwrap();
+        assert!(project.debug.is_empty());
+        assert_eq!(project.files, [base.join("a.c")]);
+        assert!(!project.to_text().contains("debug"), "and one that's never been debugged is written as before");
+        // An entry this version can't read is left out, and the rest kept.
+        let odd = old.replace("\"comparisons\": []", "\"comparisons\": [], \"debug\": [{\"file\": \"a.c\", \"debugger\": \"future\"}, {\"file\": \"b.c\", \"debugger\": \"lldb-dap\", \"program\": \"b\"}, 7]");
+        let read = Project::from_text(&path, &odd).unwrap();
+        assert_eq!(read.debug.len(), 1);
+        assert_eq!(read.debug[&base.join("b.c")].program, base.join("b").display().to_string());
+        assert_eq!(read.debug[&base.join("b.c")].kind, crate::dap::Kind::Lldb);
     }
 
     #[cfg(windows)]

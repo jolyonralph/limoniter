@@ -465,7 +465,7 @@ pub(super) const C64: &[Entry] = &[
             Item("Raster line calculator", Command::C64RasterLines),
             Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
             Item("SID music and packers\u{2026}", Command::C64Tools),
-            Check("Cycle counts beside 6502 and Z80 code", Flag::CycleCounts),
+            Check("Cycle counts beside 6502, Z80 and 6809 code", Flag::CycleCounts),
         ];
 
 pub(super) const DRAGON: &[Entry] = &[Item("Dragon DOS disk\u{2026}", Command::DragonDisk)];

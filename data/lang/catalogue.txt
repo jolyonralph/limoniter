@@ -20,6 +20,8 @@
 \nWith $DD00 = ${bank:02X} (bank ${:04X}): {}
 \nWith the other byte, timer {}: {}
 \nWith the other byte: {}
+\n{there} in a 6309's native mode
+\n{there} on a 6809, or a 6309 in emulation mode
 \n{} of its {} arguments are pushed in the lines just above.
         * = $c000\nstart:  lda #2\n        sta $d020           ; a red border\n        rts
         org $3000\nstart:  lda #1\n        rts\n        end start
@@ -275,6 +277,7 @@ ${} is too large a number
 2 bits a pixel, NES (one plane, then the other)
 2 bits a pixel, chunky
 2 for a two-line kernel
+2 more when either number is negative
 24-bit (AGA)
 25 rows
 256 bytes to port $5b
@@ -286,6 +289,7 @@ ${} is too large a number
 2: the name table at $3800
 2× (NUSIZ 5)
 3 a pair
+3 more for each byte moved; W says how many
 3, which isn't a resolution
 30 days
 32 pixels (AGA FMODE 1 or 2)
@@ -323,6 +327,8 @@ ${} is too large a number
 5: the sprites' table at $1B00
 5: the sprites' table at $3F00
 5: the sprites' table at $F000
+6 after a FIRQ; 15 after the others, which stack every register
+6 after a FIRQ; 17 after the others, which stack every register
 60 Hz
 64 bytes each
 64 colours, extra half-brite
@@ -520,6 +526,7 @@ A byte for each line of the picture, the last line first, as Y counts down; a pa
 A byte…
 A call's parameters, as a language server gives them, shown under the line being typed rather than over it
 A cartridge is made from an 8K or 16K binary, or from a program that loads at $8000 (with the CBM80 signature at its start).
+A cartridge was made
 A chain of clusters loops back on itself.
 A chequerboard of 16 by 16 squares: rows of $FFFF0000, turned over every 16 rows.
 A code file from a tape, loading at ${at:04X}
@@ -540,6 +547,7 @@ A directory lies past the disc's end, so the disc is damaged.
 A directory's chain of blocks is broken, so the disk can't be changed safely.
 A directory's length doesn't make sense, so the disk is damaged.
 A disk image or archive to compare
+A disk image was made
 A faint line down each level of indentation
 A few letters of the file's name; @ for this file's functions and labels, # for the folder's
 A file
@@ -627,6 +635,7 @@ A program that shows it: LOAD and RUN
 A program that unpacks and starts itself
 A program to disassemble
 A program to try it
+A program was made
 A project keeps tasks of its own: open or make one (File, Project). Without one, the tasks a folder's own files say (Cargo, Make, npm, Go, pytest, CMake) are still listed.
 A pull is partway through: some of your commits clash with ones from online. Settle each conflict below, press + beside it, then Carry on.
 A quarter turn clockwise
@@ -669,6 +678,7 @@ A state keeps more lines than it came from.
 A string of characters.
 A symbol comes before its hunk.
 A tag…
+A tape was made
 A terminal couldn't be made: {e}
 A terminal in the window, in the file's folder.
 A text and hex editor for files old and new, and an explorer for the disks, tapes and archives of classic computers.
@@ -693,7 +703,6 @@ A {bits}-bit Windows {kind} (PE), 1 executable section from {base:#X}, entered a
 A {bits}-bit Windows {kind} (PE), {count} executable sections from {base:#X}, entered at {entry:#X}
 A {what} cartridge starts at address 0, but this starts at ${low:04X}: put ORG 0 at its top.
 A {} ROM. Its header's checksum is {has}; the ROM's is {right}.
-A {} was made
 A&B | ~A&C and AB + aC both work: a lower-case letter is NOT; + or | is OR, ^ XOR, & or nothing AND.
 A1200 (AGA, 68020, 2 MB, Kickstart 3.1)
 A500 (OCS, 1 MB, Kickstart 1.3)
@@ -1862,7 +1871,7 @@ Cut
 Cut columns…
 Cut from line {}
 Cut the bookmarked lines
-Cycle counts beside 6502 and Z80 code
+Cycle counts beside 6502, Z80 and 6809 code
 Cycle {}: {what}
 Cycle-exact
 Cycles
@@ -2035,6 +2044,7 @@ Dragon DOS disk{within}
 Dragon DOS disk…
 Dragon and Vectrex
 Dragon disk
+Dragon programs:
 Dragon, Color Computer and Vectrex
 Draw
 Draw the note above and the volume below; click a frame for its values.
@@ -2455,6 +2465,7 @@ Frequency
 From
 From Limoniter's raster designer.
 From SCOPTIONS: {}
+From a Dragon DOS disk
 From a cartridge…
 From line
 From offset {from} on, {} pulses aren't in the KERNAL's format: most likely a turbo loader's, which isn't decoded (its commonest pulses are {} long, in units of 8 cycles).
@@ -2524,7 +2535,6 @@ Git's settings are back as they were, but the note of them couldn't be removed: 
 Git, step by step
 GitHub couldn't be asked: {e}
 GitHub's answer couldn't be read: {e}
-GitHub's answer wasn't text.
 GitHub's answer wasn't what was expected.
 Give a web address starting with http:// or https://.
 Give it a name to keep it. Without one it stays until you record another or close Limoniter.
@@ -2997,11 +3007,13 @@ Keep undo history after a file is closed
 Keeps them. They're offered again next time, or from File, Recover unsaved edits
 Keeps this version, with your message
 Kept as they are
+Kept in Limoniter's settings, for this file.
 Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit
 Kept in time-spent.tsv beside the settings, on this computer only, and sent nowhere. A pause of over two minutes isn't counted.
 Kept in {}, not in Limoniter's settings
 Kept open, in BC
 Kept open, written to ${at:04X}
+Kept with the project {}, for this file.
 Key file:
 Keyboard
 KickAssembler
@@ -3240,6 +3252,7 @@ Load {} · Exec {}
 Load {} · Exec {} · {} block(s){}
 Load...
 Loaded
+Loaded into memory
 Loaded to
 Loading bar
 Loads at
@@ -4770,7 +4783,9 @@ Select the effects' source in the document first: from their first line to their
 Select the program to run in the list first.
 Select two or more lines first. The first of them stays showing, and stands for the rest.
 Selected: 1 instruction, {} cycles
+Selected: 1 instruction, {} cycles in native mode
 Selected: {count} instructions, {} cycles
+Selected: {count} instructions, {} cycles in native mode
 Self-modifying code
 Semitones a frame: up when more than 0
 Semitones either way
@@ -5365,6 +5380,7 @@ The CharPad file's block {} should start at byte {at}, but doesn't.
 The CharPad file's tiles have no size.
 The DSK image ends partway through a sector.
 The DSK image ends partway through a track.
+The Dragon DOS binary F9 makes is loaded straight into memory by XRoar and started. Source can say otherwise near its top, with ; run from: disk.
 The EQU lines at the cursor
 The FAT boot sector's sizes don't add up.
 The Git wizard: setting up, and what it all means
@@ -5441,6 +5457,7 @@ The Z80's program (its source is in Limoniter's tests): a note on the sound chip
 The ZX81's ROM is 8K.
 The active display profile
 The address the file puts the table at
+The answer about the latest release wasn't what was expected.
 The archive ended before that file.
 The archive ends before this file's packed data does, so it's damaged or cut short.
 The archive ends in the middle of an entry's header.
@@ -5616,6 +5633,7 @@ The disk's type, &{other:02X}, isn't one TR-DOS has, so it isn't changed.
 The document's text in a new tab, its formatting codes taken out
 The download had no EmuTOS images in it.
 The download has no KickAss.jar in it.
+The download of {} isn't a kind Limoniter can unpack: get it from {}.
 The download stopped: {e}
 The effect goes on for more than 10,000 frames without ending.
 The effect stops before its end ($D0 $20).
@@ -5899,6 +5917,7 @@ The program is bigger than a 48K Spectrum has room for.
 The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there.
 The program is put in a folder that's drive C: (Hatari's GEMDOS hard drive), which it can write files to, and started straight away.
 The program is put in the AUTO folder of a 720K floppy made for the run, which the Atari boots from, as a demo on a disk does. Boot sector code, if chosen, goes on it with its checksum made $1234, so TOS runs it first.
+The program is put on a Dragon DOS disk made for the run, as NAME.BIN, and XRoar starts with the DragonDOS cartridge (it needs its ROM) and types RUN"NAME.BIN" for it. Source can say otherwise near its top, with ; run from: binary.
 The program is too big for the machine's memory.
 The program is too large for the room the machine has.
 The program is too long for Applesoft's memory.
@@ -6093,6 +6112,7 @@ There's already a file called {name} there.
 There's already a label called {new}.
 There's already a theme called {new_name}.
 There's already a {name} on {}, not one sent from here.\n\nReplace it?
+There's already a {new_name}.{new_ending} on the disk.
 There's already a {} called {name}.
 There's already an add-on called {name}.
 There's already one called {name}.
@@ -6549,7 +6569,8 @@ Title Case
 To
 To draw on it, and change its palette
 To draw on it, cell by cell
-To run a program from it in XRoar: load the disk, then type RUN"NAME" for BASIC or LOAD"NAME.BIN" and EXEC for machine code.
+To run a program from it in XRoar: load the disk, then type RUN"NAME" for BASIC or RUN"NAME.BIN" for machine code. A saved disk opened in Limoniter runs with F9, its first program typed for; and 6809 source saying run from: disk is put on a disk to run.
+To run it from a Dragon DOS disk, with RUN typed for it, add a comment saying run from: disk.
 To stop: stop calling music_tick, then turn the four audio channels off.
 To the left…
 To the matching bracket
@@ -6618,6 +6639,7 @@ Type a tag's name, such as p or div class="note".
 Type an expression over A, B and C, such as AB + aC.
 Type each as $hex, %binary or decimal, up to $FFFF.
 Type how many lines go in each part, as a whole number.
+Type its new name, then press Enter
 Type part of its name: 27C256, AT28C64
 Type something to find first.
 Type the new name.
@@ -7113,6 +7135,7 @@ asm
 assistant_tool={}\n
 at
 at ExecBase. This reads each piece from its sectors to its address, turns the drive's motor off, and jumps
+at least: it waits for an interrupt
 at most
 atari-8bit
 atari-st
@@ -7305,6 +7328,7 @@ dos-us
 dos-western
 down
 dr
+dragon_start={}\n
 duplicate_line
 duplicate_window
 each channel: where its effect has got to (0 when free), and how long it's played
@@ -7340,6 +7364,7 @@ extents
 extents tree
 extra-half-brite (unless BPLCON2 KILLEHB)
 few lines. Press space to leave.
+fewer when the quotient doesn't fit
 file="$1"; mode=read ;;
 file="$1"; mode=verify ;;
 file="$1"; mode=write ;;
@@ -7681,6 +7706,7 @@ once a frame: line 250 comes round once
 once a frame: wait, and put the beam back in the middle
 one bitplane, colour on
 one dot per line
+one more when taken
 only ,R++ and ,--R can be indirect
 only when
 open files
@@ -7919,7 +7945,6 @@ sustain at {}/15, release {}
 swap_with_clipboard
 switch the same bits on again.
 tabs_to_spaces
-tape
 target; *.log
 teletext
 teletext, bbc-mode7
@@ -8335,6 +8360,7 @@ zx_notation
 {decoys} sector ID(s) whose data never read on any track, as copy protection writes, aren't part of the disk here.
 {differing} bytes differ
 {digits} is past the last line number there can be, 32767
+{emulation} ({native} native)
 {encrypted} locked procedures were decrypted to be listed.
 {errors} problems.
 {expression} isn't an address: {result}
@@ -8355,6 +8381,7 @@ zx_notation
 {free} of {} sectors free ({} KB). A column is a track; the boot block is the first two sectors. Click a free sector to put the selected piece there.
 {from} couldn't be renamed: {e}
 {from} isn't there.
+{from}'s answer wasn't text.
 {gone} characters taken out.
 {host} couldn't be found.
 {host} couldn't be found: {e}
@@ -8501,6 +8528,7 @@ zx_notation
 {name}, {size} bytes
 {name}, {} bytes
 {name}.{ending} doesn't fit: there isn't room left on the disk.
+{name}.{ending} isn't on the disk.
 {name}: click to bring it to the front
 {name}: click to change it
 {name}: offset {value} in {structure} ({kind}, 1 byte)
@@ -8527,6 +8555,7 @@ zx_notation
 {operands} is too far away for a branch
 {operands} is {offset} bytes away, out of a short branch's reach; use L{upper}
 {operands} is {offset} bytes away, out of a short branch's reach; use {}.W
+{option} isn't an option Limoniter knows.
 {op} isn't a {} instruction or a directive
 {op} isn't an operator
 {other} files are an early kind ST-Sound no longer plays; Limoniter only names it.
@@ -8535,6 +8564,7 @@ zx_notation
 {other} isn't a SAVENEX command (OPEN, CORE, CFG, CFG3, BAR, PALETTE, SCREEN, COPPER, BANK, AUTO, CLOSE)
 {other} isn't a key that can be held down. Use Ctrl, Shift or Alt.
 {other} isn't a kind of memory: CHIP or FAST
+{page} has no download for Windows that Limoniter knows.
 {pair} ({pair}H and {pair}L) = {shown}\n{about}, written as one long word
 {path} couldn't be read from {}.
 {path} couldn't be read: {e}
@@ -8609,6 +8639,8 @@ zx_notation
 {term}: a register is scaled by 1, 2, 4 or 8
 {text}\n\nTrust it, and send?
 {text}\n\nYour changes are saved on this computer. File, Save to a server can send them once it can connect.
+{text} cycles
+{text} cycles in native mode
 {text} is {offset} bytes away, out of JR's reach (-128 to 127); use JP
 {text} is {offset} bytes away, out of a branch's reach (-128 to 127)
 {text} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP
@@ -8767,6 +8799,7 @@ zx_notation
 {} couldn't be saved: {e}
 {} couldn't be sent: {e}
 {} couldn't be started: {e}
+{} couldn't be unpacked ({status}).
 {} couldn't be written: {e}
 {} couldn't format it:\n\n{said}
 {} cycles (${:02X} in the file)
@@ -8937,6 +8970,7 @@ zx_notation
 {} took over a minute, so it was stopped.
 {} took over an hour, so it was stopped.
 {} took over {} seconds, so it was stopped.
+{} took too long to unpack, and was stopped.
 {} took too long, and was stopped.
 {} was assembled by SAS/C's asm, and isn't built here: assemble it with vasm (-Fhunk) and link it in, or rewrite it as C.
 {} was unpacked into {}, but its program wasn't found in it.

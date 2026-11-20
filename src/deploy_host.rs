@@ -981,6 +981,9 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 if known.is_some_and(|k| k.id == "hatari") {
                     crate::st_run::settings_rows(ui, &hint, program);
                 }
+                if known.is_some_and(|k| k.id == "xroar") {
+                    crate::dragon_run::settings_rows(ui, &hint);
+                }
                 if let Some(known) = known {
                     ui.label(crate::i18n::tr(""));
                     let machines: Vec<&str> = known.machines.iter().map(|m| m.name()).collect();

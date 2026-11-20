@@ -34,6 +34,11 @@ impl Kind {
         }
     }
 
+    /// Back from the name `adapter_name` gives, as kept settings write it.
+    pub fn from_name(name: &str) -> Option<Kind> {
+        [Kind::Debugpy, Kind::Gdb, Kind::Lldb, Kind::Copperline].into_iter().find(|kind| kind.adapter_name() == name)
+    }
+
     /// Whether what's debugged is the file itself (a script), rather than a program built from it.
     pub fn runs_the_file(self) -> bool {
         self == Kind::Debugpy
@@ -142,6 +147,71 @@ pub fn launch_arguments(config: &Config) -> Value {
             launch
         }
     }
+}
+
+// ---------- Keeping each file's settings ----------
+
+/// The debug settings chosen for each file, kept between runs: in a project's file for the project's files, and
+/// otherwise in the settings file. Copperline's are made afresh for each run, so they're never kept.
+pub type Kept = std::collections::BTreeMap<PathBuf, Config>;
+
+/// A path as it's kept: relative to `base` (a project's folder) when there is one, so the project can move.
+/// One typed as a bare name, or left empty, is kept as it is.
+fn keep_path(base: Option<&Path>, path: &str) -> String {
+    match base {
+        Some(base) if Path::new(path).is_absolute() => crate::project::stored(base, Path::new(path)),
+        _ => path.to_string(),
+    }
+}
+
+fn kept_path(base: Option<&Path>, written: &str) -> String {
+    match base {
+        Some(base) if !written.is_empty() => crate::project::resolved(base, written).display().to_string(),
+        _ => written.to_string(),
+    }
+}
+
+/// The kept settings as a list, each with the file it's for; paths relative to `base` when it's given.
+pub fn kept_to_json(kept: &Kept, base: Option<&Path>) -> Value {
+    let list = kept.iter().filter(|(_, config)| config.kind != Kind::Copperline).map(|(file, config)| {
+        json!({
+            "file": keep_path(base, &file.display().to_string()),
+            "debugger": config.kind.adapter_name(),
+            "adapter": config.adapter,
+            "program": keep_path(base, &config.program),
+            "arguments": config.arguments,
+            "folder": keep_path(base, &config.folder),
+        })
+    });
+    Value::Array(list.collect())
+}
+
+/// Back from `kept_to_json`. An entry that can't be read (a debugger this version doesn't know) is left out.
+pub fn kept_from_json(value: Option<&Value>, base: Option<&Path>) -> Kept {
+    let Some(items) = value.and_then(Value::as_array) else { return Kept::new() };
+    items
+        .iter()
+        .filter_map(|item| {
+            let text = |name: &str| item.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
+            let file = item.get("file").and_then(Value::as_str).filter(|f| !f.is_empty())?;
+            let kind = Kind::from_name(item.get("debugger")?.as_str()?).filter(|kind| *kind != Kind::Copperline)?;
+            let config = Config { kind, adapter: text("adapter"), program: kept_path(base, &text("program")), arguments: text("arguments"), folder: kept_path(base, &text("folder")), emulator: None };
+            Some((PathBuf::from(kept_path(base, file)), config))
+        })
+        .collect()
+}
+
+/// The settings file's line for those kept outside a project, whole paths and all.
+pub fn kept_to_settings(kept: &Kept) -> String {
+    if kept.is_empty() {
+        return String::new();
+    }
+    format!("debug_settings={}\n", kept_to_json(kept, None))
+}
+
+pub fn kept_from_settings(settings: &str) -> Kept {
+    let value = settings.lines().find_map(|line| line.strip_prefix("debug_settings=")).and_then(|text| serde_json::from_str::<Value>(text).ok());
+    kept_from_json(value.as_ref(), None)
 }
 
 /// Whether there's a display for a window: always on Windows and a Mac, and on Linux when X or Wayland is there.
@@ -512,6 +582,24 @@ impl Drop for Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn debug_settings_outside_a_project_are_kept_in_the_settings_with_whole_paths() {
+        assert_eq!(kept_to_settings(&Kept::new()), "", "nothing is written when there's nothing kept");
+        assert!(kept_from_settings("theme=dark\n").is_empty());
+        let file = PathBuf::from(if cfg!(windows) { r"C:\loose\tool.c" } else { "/loose/tool.c" });
+        let mut kept = Kept::new();
+        kept.insert(file.clone(), Config { kind: Kind::Lldb, adapter: "lldb-dap".into(), program: file.with_file_name("tool").display().to_string(), arguments: "-v 'a b'".into(), folder: "out".into(), emulator: None });
+        let line = kept_to_settings(&kept);
+        assert!(line.starts_with("debug_settings=") && line.ends_with('\n') && line.lines().count() == 1, "{line}");
+        assert!(line.contains(&serde_json::to_string(&file.display().to_string()).unwrap()), "the whole path: {line}");
+        assert_eq!(kept_from_settings(&format!("theme=dark\n{line}other=1\n")), kept);
+        // Every debugger's name comes back as itself.
+        for kind in [Kind::Debugpy, Kind::Gdb, Kind::Lldb, Kind::Copperline] {
+            assert_eq!(Kind::from_name(kind.adapter_name()), Some(kind));
+        }
+        assert_eq!(Kind::from_name("nothing"), None);
+    }
 
     #[test]
     fn programs_are_guessed_and_launched_as_each_debugger_wants() {

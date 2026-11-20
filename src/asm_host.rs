@@ -328,7 +328,16 @@ impl Limoniter {
         match runnable {
             Ok(run) => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
-                let size = if assembled.tape.is_some() { crate::i18n::tf!("A {} was made", run.format.medium().unwrap_or("tape")) } else { crate::i18n::tf!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)) };
+                // What was made, by the kind of file it is: each a whole sentence, so it translates as one.
+                // A program made whole (an Amiga program, or another assembler's .prg) is named by the kind of
+                // file it is, each a whole sentence so it translates as one; otherwise its bytes are given.
+                let size = match run.format.medium() {
+                    _ if assembled.tape.is_none() => crate::i18n::tf!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)),
+                    Some("tape") => crate::i18n::tr("A tape was made").to_string(),
+                    Some("disk") => crate::i18n::tr("A disk image was made").to_string(),
+                    Some("cartridge") => crate::i18n::tr("A cartridge was made").to_string(),
+                    _ => crate::i18n::tr("A program was made").to_string(),
+                };
                 lines.push(format!("{size}: {} for the {}.", run.name, run.machine.name()));
                 let chunks: Vec<(i64, usize)> = assembly.chunks.iter().map(|c| (c.address, c.bytes.len())).collect();
                 if let Some(map) = crate::memory_map::map(run.machine, &chunks) {
@@ -343,7 +352,10 @@ impl Limoniter {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
                 lines.push(crate::i18n::tf!("{} bytes from ${low:04X} to ${:04X}, starting at ${:04X}.", high - low, (high - 1).max(low), assembly.start().unwrap_or(low)));
             }
-            Err(_) => lines.push(format!("{} problem{}.", assembly.problems.len(), if assembly.problems.len() == 1 { "" } else { "s" })),
+            Err(_) => lines.push(match assembly.problems.len() {
+                1 => crate::i18n::tr("1 problem.").to_string(),
+                errors => crate::i18n::tf!("{errors} problems."),
+            }),
         }
         for (n, line) in lines.into_iter().enumerate() {
             self.script_print(line, n == 0);
@@ -595,7 +607,12 @@ impl Limoniter {
         let more = if placed.bytes.len() > 8 { format!(" \u{2026} ({} bytes)", placed.bytes.len()) } else { String::new() };
         let cpu = self.doc_cpu(self.docs.iter().position(|d| d.id == doc_id)?)?;
         let unit = if cpu == Cpu::Z80 { "T-states" } else { "cycles" };
-        let timing = cpu.isa().cycles_at(&placed.bytes, address).filter(|_| placed.bytes.len() <= 4).map(|t| format!(", {t} {unit}")).unwrap_or_default();
+        let timing = if cpu == Cpu::M6809 {
+            // The 6309's native mode is told from the source, so the whole program is looked at.
+            crate::m6809_timing::line(&cache.assembly, 0, line).map(|(_, mode, t)| format!(", {}", crate::m6809_timing::words(t, mode))).unwrap_or_default()
+        } else {
+            cpu.isa().cycles_at(&placed.bytes, address).filter(|_| placed.bytes.len() <= 4).map(|t| format!(", {t} {unit}")).unwrap_or_default()
+        };
         Some(format!("${address:04X}: {}{more}{timing}", shown.join(" ")))
     }
 }
@@ -623,8 +640,8 @@ pub struct Micro {
 
 pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> Result<Made, String> {
     match cpu {
-        // A Vectrex cartridge; a Dragon DOS binary; or a Color Computer binary, which LOADM loads, and XRoar runs
-        // (and debugs).
+        // A Vectrex cartridge; a Dragon DOS binary, or a disk with it on; or a Color Computer binary, which LOADM
+        // loads, and XRoar runs (and debugs).
         Cpu::M6809 => {
             let said = assembled.source.as_deref().and_then(|text| machine_6809(text.lines()));
             let assembly = &assembled.assembly;
@@ -642,6 +659,11 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
                     }
                     let start = assembly.start().unwrap_or(low);
                     let bytes = crate::dragon_dos::binary(low as u16, start as u16, &image);
+                    // On a Dragon DOS disk, for DragonDOS to load and run, if the source or the setting says so.
+                    if crate::dragon_run::wants_disk(assembled.source.as_deref().unwrap_or_default().lines()) {
+                        let (name, disk) = crate::dragon_run::disk_holding(stem, &bytes)?;
+                        return Ok(Made::Run(Runnable { machine, format: Format::Vdk, name, bytes: Arc::new(disk) }));
+                    }
                     Ok(Made::Run(Runnable { machine, format: Format::CocoBin, name: format!("{stem}.bin"), bytes: Arc::new(bytes) }))
                 }
                 _ => {

@@ -219,7 +219,7 @@ thread_local! {
     static SHOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
-/// Whether each line of 6502 source shows its cycles at the right (Tools, Commodore 64).
+/// Whether each line of 6502, Z80 and 6809 source shows its cycles at the right (Tools, Commodore 64).
 pub fn shown() -> bool {
     SHOWN.get()
 }
@@ -237,6 +237,9 @@ pub fn line_notes(intel: &crate::code_intel::CodeIntel, version: u64, first: usi
     }
     if intel.cpu == Some(crate::assemblers::Cpu::Z80) {
         return z80_line_notes(intel, first, last);
+    }
+    if intel.cpu == Some(crate::assemblers::Cpu::M6809) {
+        return crate::m6809_timing::line_notes(intel, first, last);
     }
     if intel.cpu != Some(crate::assemblers::Cpu::M6502) {
         return std::collections::HashMap::new();
