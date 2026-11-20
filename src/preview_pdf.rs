@@ -488,7 +488,8 @@ mod tests {
         std::fs::create_dir_all(&folder).unwrap();
         let path = folder.join("guide.pdf");
         std::fs::write(&path, make(&blocks, None, "Caf\u{E9}")).unwrap();
-        let out = std::process::Command::new("pdftotext").arg(&path).arg("-").output().unwrap();
+        // In UTF-8: pdftotext on Windows writes Latin-1 unless told.
+        let out = std::process::Command::new("pdftotext").args(["-enc", "UTF-8"]).arg(&path).arg("-").output().unwrap();
         let words = String::from_utf8_lossy(&out.stdout);
         let _ = std::fs::remove_dir_all(&folder);
         assert!(words.contains("Caf\u{E9} guide"), "{words}");

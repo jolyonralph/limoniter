@@ -650,9 +650,10 @@ mod tests {
         }
     }
 
+    /// A command line as text, its paths with / whichever system joined them (Windows joins with \\).
     fn line_of(steps: &[(PathBuf, Vec<String>)], n: usize) -> String {
         let (program, args) = &steps[n];
-        format!("{} {}", program.file_name().unwrap().to_string_lossy(), args.join(" "))
+        format!("{} {}", program.file_name().unwrap().to_string_lossy(), args.join(" ")).replace('\\', "/")
     }
 
     /// Each command line is the one its compiler's documentation gives (NOTES.md says where).
@@ -675,7 +676,7 @@ mod tests {
         let mut sgdk = job("sgdk", Machine::MegaDrive, &["/src/main.c"]);
         sgdk.program = PathBuf::from("/opt/sgdk");
         let steps = commands(&sgdk, work);
-        assert_eq!(steps[0].1, ["-f", "/opt/sgdk/makefile.gen"]);
+        assert_eq!(steps[0].1.iter().map(|a| a.replace('\\', "/")).collect::<Vec<_>>(), ["-f", "/opt/sgdk/makefile.gen"]);
         assert_eq!(line_of(&commands(&job("vbcc", Machine::Amiga, &["/src/a.c"]), work), 0), "vc +aos68k -c99 -O1 -o /w/prog /src/a.c -lamiga");
         assert_eq!(line_of(&commands(&job("amiga-gcc", Machine::Amiga, &["/src/a.c"]), work), 0), "m68k-amigaos-gcc -Os -noixemul -o /w/prog /src/a.c");
     }

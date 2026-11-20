@@ -662,8 +662,10 @@ mod tests {
         // simply given, for DF0:.
         let copperline = by_id("copperline").unwrap();
         assert!(copperline.runs(Amiga, Hunk) && copperline.runs(Amiga, Adf));
-        assert_eq!(copperline.arguments(Amiga, Hunk, Path::new("/tmp/run/demo"), None, "--window-scale 2"), ["--window-scale", "2", "--config", "/tmp/run/copperline.toml", "--run", "/tmp/run/demo"]);
-        assert_eq!(copperline.arguments(Amiga, Adf, Path::new("/tmp/run/game.adf"), None, ""), ["--config", "/tmp/run/copperline.toml", "/tmp/run/game.adf"]);
+        // Paths with / whichever system joined them (Windows joins with \\).
+        let slashes = |args: Vec<String>| args.into_iter().map(|a| a.replace('\\', "/")).collect::<Vec<_>>();
+        assert_eq!(slashes(copperline.arguments(Amiga, Hunk, Path::new("/tmp/run/demo"), None, "--window-scale 2")), ["--window-scale", "2", "--config", "/tmp/run/copperline.toml", "--run", "/tmp/run/demo"]);
+        assert_eq!(slashes(copperline.arguments(Amiga, Adf, Path::new("/tmp/run/game.adf"), None, "")), ["--config", "/tmp/run/copperline.toml", "/tmp/run/game.adf"]);
         // The Game Boy's and the NES's are given the cartridge; MAME is told which machine it's for.
         for id in ["sameboy", "mgba", "gambatte", "bgb", "mesen"] {
             assert_eq!(by_id(id).unwrap().arguments(GameBoy, Gb, Path::new("/tmp/a.gb"), None, ""), ["/tmp/a.gb"], "{id}");

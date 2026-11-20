@@ -3,3 +3,8 @@
 src/**/*.s   text eol=lf
 src/**/*.asm text eol=lf
 src/**/*.a   text eol=lf
+
+# Test files compared byte for byte (crunched files and the originals they were crunched from, CharPad projects):
+# never given CR LF line ends on Windows.
+src/**/testdata/** -text
+src/tile_testdata/** -text
