@@ -590,7 +590,7 @@ case "$mode" in
         found
         printf 'Reading Code...  0.45Sec  OK\n' >&2
         if cmp -s "$file" "$chip"; then echo "Verification OK" >&2; else
-            at=$(cmp "$file" "$chip" | sed 's/.*byte \([0-9]*\).*/\1/')
+            at=$(cmp "$file" "$chip" | sed -E 's/.* (byte|char) ([0-9]+).*/\2/')    # GNU cmp says byte, BSD's (a Mac's) char
             at=$((at - 1))
             f=$(od -An -tx1 -j "$at" -N1 "$file" | tr -d ' ')
             d=$(od -An -tx1 -j "$at" -N1 "$chip" | tr -d ' ')

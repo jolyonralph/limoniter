@@ -656,7 +656,9 @@ fn the_keys_for_a_command_from_a_menu_are_noted_now_and_then() {
     assert_eq!(app.key_notes_given.values().copied().collect::<Vec<_>>(), [3], "three times, then no more");
     app.key_notes_given.clear();
     app.note_keys(Command::New);
-    assert!(app.key_note.as_ref().is_some_and(|(words, _)| words.contains("Ctrl+N")));
+    // As the menus show it on this system: Ctrl+N, or on a Mac its own sign for Cmd and N.
+    let keys = super::menus::shown_shortcut("Ctrl+N");
+    assert!(app.key_note.as_ref().is_some_and(|(words, _)| words.contains(&keys)), "{:?}", app.key_note);
     // Nothing for a command without keys, or with the notes turned off.
     app.key_note = None;
     app.note_keys(Command::Features);
