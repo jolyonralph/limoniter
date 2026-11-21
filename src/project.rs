@@ -34,6 +34,10 @@ pub struct Project {
     pub remote: Option<crate::remote_project::Origin>,
     /// How each of the project's files is debugged (Ctrl+F5), by the file: kept here so it's asked only once.
     pub debug: crate::dap::Kept,
+    /// The assembler each processor's source in the project is built with (a processor's id, an assembler's id:
+    /// "68000", "gnu-as"), so it's never built with another, whichever is chosen for other source. Where the
+    /// program is on this computer comes from the settings, as that differs from one computer to the next.
+    pub assemblers: Vec<(String, String)>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -118,6 +122,9 @@ impl Project {
         if !self.debug.is_empty() {
             value["debug"] = crate::dap::kept_to_json(&self.debug, Some(&base));
         }
+        if !self.assemblers.is_empty() {
+            value["assemblers"] = Value::Object(self.assemblers.iter().map(|(cpu, id)| (cpu.clone(), json!(id))).collect());
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -136,7 +143,8 @@ impl Project {
         let comparisons = crate::compare_session::list_from_json(value.get("comparisons"), Some(&base));
         let remote = value.get("remote").and_then(crate::remote_project::Origin::from_json);
         let debug = crate::dap::kept_from_json(value.get("debug"), Some(&base));
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug };
+        let assemblers = value.get("assemblers").and_then(Value::as_object).map_or_else(Vec::new, |map| map.iter().filter_map(|(cpu, id)| Some((cpu.clone(), id.as_str()?.to_string()))).collect());
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -166,6 +174,19 @@ impl Project {
         }
         self.files.sort_by_key(|path| path.to_string_lossy().to_lowercase());
         added
+    }
+
+    /// The assembler the project builds a processor's source with, by its id, if it says.
+    pub fn assembler(&self, cpu: &str) -> Option<&str> {
+        self.assemblers.iter().find(|(c, _)| c == cpu).map(|(_, id)| id.as_str())
+    }
+
+    /// Says which assembler the project builds a processor's source with, or (with None) leaves it to the settings.
+    pub fn set_assembler(&mut self, cpu: &str, id: Option<&str>) {
+        self.assemblers.retain(|(c, _)| c != cpu);
+        if let Some(id) = id {
+            self.assemblers.push((cpu.to_string(), id.to_string()));
+        }
     }
 
     pub fn remove(&mut self, path: &Path) {
@@ -502,6 +523,20 @@ mod tests {
         let text = project.to_text();
         assert!(text.contains("\"index.html\"") && text.contains("\"css/a.css\"") && text.contains("\"../shared.txt\""), "{text}");
         assert_eq!(Project::from_text(&path, &text).unwrap(), project);
+    }
+
+    #[test]
+    fn a_project_keeps_the_assembler_each_processor_s_source_is_built_with() {
+        let dir = folder("assemblers");
+        let mut project = Project::new(&dir.join("demo.limproj"));
+        assert!(!project.to_text().contains("assemblers"), "nothing said, nothing written");
+        project.set_assembler("68000", Some("gnu-as"));
+        project.set_assembler("z80", Some("limoniter"));
+        project.set_assembler("z80", None);
+        let loaded = Project::from_text(&project.path, &project.to_text()).unwrap();
+        assert_eq!(loaded.assembler("68000"), Some("gnu-as"));
+        assert_eq!(loaded.assembler("z80"), None);
+        assert_eq!(loaded, project);
     }
 
     #[test]

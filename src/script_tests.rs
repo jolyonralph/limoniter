@@ -337,7 +337,8 @@ fn text_in_an_old_encoding_reads_and_writes_as_ordinary_characters() {
     app.doc().text.type_text("caf\u{E9}");
     let held = lines(&app)[0].clone();
     assert_ne!(held, "caf\u{E9}", "held as its byte");
-    play(&mut app, &ctx, "if line_text(1) == \"caf\u{E9}\" { set_line(1, line_text(1) + \"\u{E9}\"); }\nif find(\"\u{E9}\") { type_text(\"e\"); }");
+    // The cursor put after the first é, where it was typed, so the search finds the second whatever set_line does with it.
+    play(&mut app, &ctx, "if line_text(1) == \"caf\u{E9}\" { set_line(1, line_text(1) + \"\u{E9}\"); }\ngo_to(1, 5);\nif find(\"\u{E9}\") { type_text(\"e\"); }");
     assert_eq!(told(&app), "");
     let doc = &app.docs[0];
     assert_eq!(doc.text.format.readable_text(&lines(&app)[0]), "caf\u{E9}e", "the search began after the first, where the cursor was");

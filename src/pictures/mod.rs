@@ -53,10 +53,12 @@ pub enum Format {
     Atari8,
     /// A Windows bitmap, as the Spectrum Next's `.bmpload` takes.
     Bmp,
+    /// An Amiga Workbench icon (.info): the original, NewIcons, GlowIcons or OS 4's PNG (see `amiga_icon`).
+    AmigaIcon,
 }
 
 impl Format {
-    pub const ALL: [Self; 15] = [Self::Png, Self::Jpeg, Self::Bmp, Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
+    pub const ALL: [Self; 16] = [Self::AmigaIcon, Self::Png, Self::Jpeg, Self::Bmp, Self::Ilbm, Self::SpectrumScreen, Self::PhotoCd, Self::C64, Self::AtariSt, Self::MacPaint, Self::Sprite, Self::Pcx, Self::GemImg, Self::AppleHires, Self::NextScreen, Self::Atari8];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -75,6 +77,7 @@ impl Format {
             Self::NextScreen => "ZX Spectrum Next screen",
             Self::Atari8 => "Atari 8-bit screen",
             Self::Bmp => "BMP picture",
+            Self::AmigaIcon => "Amiga Workbench icon",
         }
     }
 }
@@ -111,6 +114,10 @@ impl Picture {
 
 /// Which picture format a file is, from its first bytes or, for formats with no signature, its name and size.
 pub fn detect(name: &str, bytes: &[u8]) -> Option<Format> {
+    // Before PNG: OS 4's icons are PNGs with an icOn chunk.
+    if crate::amiga_icon::looks_like(bytes) {
+        return Some(Format::AmigaIcon);
+    }
     if bytes.starts_with(b"\x89PNG\r\n\x1A\n") {
         return Some(Format::Png);
     }
@@ -203,6 +210,7 @@ pub fn decode(format: Format, bytes: &[u8]) -> Result<Picture, String> {
         }
         Format::Ilbm => ilbm::decode(bytes),
         Format::Bmp => bmp::decode(bytes),
+        Format::AmigaIcon => crate::amiga_icon::to_picture(bytes),
         Format::SpectrumScreen => spectrum::decode(bytes),
         Format::PhotoCd => photo_cd::decode(bytes),
         Format::C64 => c64::decode(bytes),
@@ -255,7 +263,7 @@ pub fn to_png(picture: &Picture) -> Result<Vec<u8>, String> {
 /// A name to save a picture as PNG under: the file's own, with ".png" in place of its ending.
 pub fn png_name(name: &str) -> String {
     let path = std::path::Path::new(name);
-    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "spu" | "spc" | "sps" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic" | "hip" | "bmp"));
+    let known = path.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_lowercase().as_str(), "iff" | "ilbm" | "lbm" | "bbm" | "pic" | "scr" | "brush" | "pcd" | "koa" | "kla" | "art" | "ocp" | "dd" | "pi1" | "pi2" | "pi3" | "pc1" | "pc2" | "pc3" | "neo" | "spu" | "spc" | "sps" | "pntg" | "pnt" | "mac" | "ff9" | "spr" | "pcx" | "pcc" | "img" | "ximg" | "hgr" | "gr8" | "gr9" | "gr7" | "mic" | "hip" | "bmp" | "info"));
     let stem = if known { path.file_stem() } else { path.file_name() };
     format!("{}.png", stem.map_or_else(|| "picture".into(), |s| s.to_string_lossy()))
 }
@@ -392,6 +400,7 @@ mod tests {
                             Format::NextScreen => "sl2",
                             Format::Atari8 => name.rsplit('.').next().unwrap_or("gr8"),
                             Format::Bmp => "bmp",
+                            Format::AmigaIcon => "info",
                         };
                         std::fs::write(out.join(format!("{number:04}.{ending}")), bytes).unwrap();
                         std::fs::write(out.join(format!("{number:04}.png")), to_png(&picture).unwrap()).unwrap();
@@ -423,5 +432,6 @@ mod tests {
         assert_eq!(png_name("Title.scr"), "Title.png");
         assert_eq!(png_name("Picture.1"), "Picture.1.png");
         assert_eq!(png_name("Logo"), "Logo.png");
+        assert_eq!(png_name("Shell.info"), "Shell.png");
     }
 }

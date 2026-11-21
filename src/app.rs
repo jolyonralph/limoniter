@@ -295,7 +295,23 @@ enum Command {
     NewImage,
     OpenUrl,
     AmigaNdk,
+    AutoDocs,
     AmigaTools,
+    AmigaIcon,
+    /// A new Amiga C project from a template, in a folder of its own.
+    AmigaNewProject,
+    /// A folder of Amiga C (SAS/C's among it) opened as a project, sorted and given makefiles.
+    AmigaImportProject,
+    /// The Amiga project's makefiles written again from its files.
+    AmigaMakefiles,
+    /// The Amiga catalog translation in front checked against its description, or the description's translations.
+    CatalogCheck,
+    /// Each translation's catalog and the strings' C header, made by Limoniter.
+    CatalogMake,
+    /// Each translation's catalog made by FlexCat.
+    CatalogFlexCat,
+    /// A translation for the description in front, new or with the strings it's missing added.
+    CatalogTranslation,
     HatariProfile,
     StFloppy,
     StTools,
@@ -438,6 +454,10 @@ impl Command {
                 | Command::GitClone
                 | Command::Clambers
                 | Command::AmigaNdk
+                | Command::AmigaNewProject
+                | Command::AmigaImportProject
+                | Command::AmigaMakefiles
+                | Command::AutoDocs
                 | Command::AmigaHardware
                 | Command::AmigaTools
                 | Command::StTools
@@ -1536,6 +1556,8 @@ enum Dialog {
     Assembler(Box<asm_host::AssemblerBox>),
     /// The compilers installed, and where to get the rest.
     Compilers(Vec<(&'static crate::compilers::Compiler, Option<PathBuf>)>),
+    /// F9 on Boriel's ZX Basic with no zxbc: why, and an offer to install it.
+    ZxbcMissing(String),
     NewKinds(Box<new_kinds::NewKindsBox>),
     /// Saving a folder comparison by name, or looking after those saved.
     CompareSession(Box<compare_host::sync_host::SessionBox>),
@@ -1546,7 +1568,9 @@ enum Dialog {
     NewImage(Box<image_browser::NewImageBox>),
     OpenUrl(Box<web_host::WebBox>),
     AmigaNdk(Box<ndk_host::NdkBox>),
+    AmigaProject(Box<amiga_project_host::NewProjectBox>),
     AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
+    AmigaIcon(Box<amiga_icon_host::IconBox>),
     StTools(Box<st_tools_host::StToolsBox>),
     C64Tools(Box<c64_music_host::C64ToolsBox>),
     LanguageServers(Vec<crate::lsp::ServerSetting>),
@@ -1598,6 +1622,8 @@ pub struct Limoniter {
     next_painter: Option<Box<crate::next_painter::Painter>>,
     atari2600_graphics: Option<Box<crate::atari2600_painter::Editor>>,
     cart_view: Option<Box<fantasy_carts_host::CartView>>,
+    /// The AutoDoc reader, while it's open.
+    autodoc_reader: Option<Box<autodocs_host::Reader>>,
     sound_effects: Option<Box<crate::sfx_designer::Editor>>,
     /// Where the last program built sits in its machine's memory, for the bar over the Output panel.
     memory_map: Option<crate::memory_map::Map>,
@@ -1745,6 +1771,8 @@ pub struct Limoniter {
     running: run_host::Running,
     /// Programs F9 built being crunched in the background.
     amiga_jobs: Vec<amiga_tools_host::Job>,
+    /// Programs and scripts running in vamos, their output coming into the Output panel.
+    vamos_runs: Vec<crate::amiga_vamos::Running>,
     c64_jobs: Vec<c64_music_host::Job>,
     git: git_host::GitState,
     /// The Amiga's pens for ANSI previews, and the table that changes them.
@@ -1952,6 +1980,7 @@ impl Limoniter {
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
             amiga_jobs: Vec::new(),
+            vamos_runs: Vec::new(),
             c64_jobs: Vec::new(),
             git: git_host::GitState::from_settings(&settings),
             amiga_palette: crate::ansi_art::AmigaPalette::from_settings(&settings),
@@ -2076,6 +2105,7 @@ impl Limoniter {
             next_painter: None,
             atari2600_graphics: None,
             cart_view: None,
+            autodoc_reader: None,
             sound_effects: None,
             memory_map: None,
             ripper: None,
@@ -2674,6 +2704,7 @@ impl Limoniter {
             doc.text.mark_saved();
         }
         self.keep_history(index, &bytes);
+        self.amiga_saved(path);
         true
     }
 
@@ -2984,9 +3015,14 @@ impl Limoniter {
     }
 
     fn add_to_project(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        let paths: Vec<PathBuf> = paths.into_iter().collect();
         if let Some(project) = &mut self.project {
-            project.add(paths);
+            project.add(paths.iter().cloned());
             self.save_project();
+        }
+        // An Amiga project's makefiles take in the C files added.
+        for path in &paths {
+            self.amiga_files_changed(path);
         }
     }
 
@@ -3102,6 +3138,7 @@ impl Limoniter {
         self.assembly_tick();
         self.compile_tick(ctx);
         self.amiga_jobs_tick(ctx);
+        self.vamos_tick(ctx);
         self.c64_jobs_tick(ctx);
         if self.intel_wait.is_some() {
             ctx.request_repaint_after(Duration::from_millis(350));
@@ -4330,7 +4367,10 @@ impl Limoniter {
             Command::RunOnBuiltIn => self.run_on_target(run_host::Target::BuiltIn),
             Command::RunOnBuiltIn2600 => self.run_on_target(run_host::Target::BuiltIn2600),
             Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
-            Command::StopRunning => self.stop_all_sessions(),
+            Command::StopRunning => {
+                self.stop_vamos();
+                self.stop_all_sessions();
+            }
             Command::ChooseAssembler => self.open_assembler_box(),
             Command::Compilers => self.open_compilers_box(),
             Command::AssembleAndSave => self.assemble_and_save(),
@@ -4345,8 +4385,17 @@ impl Limoniter {
             Command::OpenUrl => self.open_web_box(),
             Command::Clambers => self.open_clambers(),
             Command::AmigaNdk => self.open_ndk_box(),
+            Command::AmigaNewProject => self.open_amiga_project_box(),
+            Command::AmigaImportProject => self.import_amiga_project(),
+            Command::AmigaMakefiles => self.refresh_amiga_makefiles(true),
+            Command::CatalogCheck => self.check_catalogs(),
+            Command::CatalogMake => self.make_catalogs(false),
+            Command::CatalogFlexCat => self.make_catalogs(true),
+            Command::CatalogTranslation => self.new_translation(),
+            Command::AutoDocs => self.open_autodocs_at_caret(),
             Command::AmigaHardware => self.open_amiga_hardware(amiga_hw_host::Tab::Registers),
             Command::AmigaTools => self.open_amiga_tools(),
+            Command::AmigaIcon => self.open_amiga_icon(ui.ctx()),
             Command::HatariProfile => self.profile_in_hatari(),
             Command::StFloppy => self.make_st_floppy(),
             Command::StTools => self.open_st_tools(),
@@ -5377,7 +5426,16 @@ impl Limoniter {
             }
         }
         for act in explorer_acts {
+            // An Amiga project's makefiles follow the files made, renamed and deleted in the folder.
+            let touched: Vec<PathBuf> = match &act {
+                crate::explorer::Act::Create { path, .. } | crate::explorer::Act::Delete(path) => vec![path.clone()],
+                crate::explorer::Act::Rename { from, to } => vec![from.clone(), to.clone()],
+                _ => Vec::new(),
+            };
             self.explorer_act(act, ui);
+            for path in touched {
+                self.amiga_files_changed(&path);
+            }
         }
         for act in code_acts {
             match act {
@@ -5502,6 +5560,10 @@ impl Limoniter {
     /// Draws whichever preview was made last: a retro screen or a laid-out document.
     fn draw_preview(&mut self, ui: &mut Ui, kind: Option<preview::Kind>) {
         if matches!(kind, Some(preview::Kind::Picture | preview::Kind::Svg)) {
+            // A Workbench icon's details can be changed, in a window of their own.
+            if self.docs[self.active].picture == Some(crate::pictures::Format::AmigaIcon) && ui.button(crate::i18n::tr("Change the icon's tool types\u{2026}")).on_hover_text(crate::i18n::tr("Its kind, default tool, stack and tool types (Amiga, Workbench icon)")).clicked() {
+                self.pending_command = Some(Command::AmigaIcon);
+            }
             if let Some((picture, texture)) = &mut self.preview_picture
                 && draw_picture(ui, picture, texture, &mut self.preview_cycling)
             {
@@ -7158,7 +7220,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
         let mut close = false;
@@ -7512,6 +7574,23 @@ impl Limoniter {
                     }
                     self.atari2600_graphics = Some(Box::new(editor));
                 }
+                // The AutoDoc reader, at a page found from a word (AllocMem), or with a filter ("filter:mem").
+                // "autodocs-ndk" uses the NDK in a folder first, and "autodocs-mui" MUI's autodocs in a folder.
+                "autodocs-ndk" => {
+                    let _ = crate::amiga_ndk::set_folder(Some(Path::new(value)));
+                }
+                "autodocs-mui" => {
+                    let _ = crate::autodocs::choose_mui(Some(Path::new(value)));
+                }
+                "autodocs" => match value.strip_prefix("filter:") {
+                    Some(filter) => {
+                        self.open_autodocs(None);
+                        if let Some(reader) = &mut self.autodoc_reader {
+                            reader.filter = filter.to_string();
+                        }
+                    }
+                    None => self.open_autodocs(Some(value.to_string())),
+                },
                 // The PICO-8 and TIC-80 cart window, on the file in front, at a tab: sprites, map, sounds or parts.
                 "cart-view" => {
                     self.open_cart_view();
@@ -7624,6 +7703,16 @@ impl Limoniter {
                     self.ribbon.popped = self.view.ribbon_folded && value == "buttons";
                 }
                 "new-image" => self.open_new_image_box(),
+                // The Workbench icon window, for the icon in front.
+                "amiga-icon" => self.pending_command = Some(Command::AmigaIcon),
+                "amiga-project" => {
+                    // The New Amiga C project box, with a template chosen by its place in the list and a folder.
+                    self.open_amiga_project_box();
+                    if let Dialog::AmigaProject(state) = &mut self.dialog {
+                        state.show_for_screenshot(value);
+                    }
+                }
+                "catalog-check" => self.check_catalogs(),
                 // The Disassemble box for the file in front, as Tools, Disassemble opens it.
                 "disassemble" => self.open_disassemble_box(),
                 // An entry chosen in the image browser in front, without opening it.
@@ -7935,6 +8024,10 @@ impl Limoniter {
         {
             match step {
                 "close" => self.close_tab(self.active),
+                // F9 on the file in front (for Boriel's ZX Basic with no zxbc, the box offering to install it),
+                // and the Compilers box.
+                "f9" => self.run_on_machine(),
+                "compilers" => self.open_compilers_box(),
                 "ebcdic" => self.set_view(Some(true)),
                 "select" => {
                     let bytes = &mut self.doc().hex;
@@ -8558,7 +8651,9 @@ impl Limoniter {
         egui::CentralPanel::default().frame(egui::Frame::new().fill(theme::editor_back())).show(ui, |ui| {
             context_command = self.central(ui, full_preview, view, input_on);
         });
-        if let Some(command) = context_command {
+        if let Some(ContextCommand::Explain(word)) = &context_command {
+            self.open_autodocs(Some(word.clone()));
+        } else if let Some(command) = context_command {
             self.run(
                 match command {
                     ContextCommand::Cut => Command::Cut,
@@ -8568,6 +8663,7 @@ impl Limoniter {
                     ContextCommand::Tag(colour) => Command::Tag(colour),
                     ContextCommand::Untag => Command::Untag,
                     ContextCommand::Assist => Command::Assist(assistant::Task::Fix),
+                    ContextCommand::Explain(_) => Command::AutoDocs,
                 },
                 ui,
             );
@@ -8594,6 +8690,7 @@ impl Limoniter {
         self.next_painter_window(&ctx);
         self.atari2600_graphics_window(&ctx);
         self.cart_view_window(&ctx);
+        self.autodocs_window(&ctx);
         self.sound_effects_window(&ctx);
         self.ripper_window(&ctx);
         self.boot_disk_window(&ctx);
@@ -9378,10 +9475,18 @@ mod opticos_host;
 mod update_host;
 #[path = "ndk_host.rs"]
 mod ndk_host;
+#[path = "amiga_project_host.rs"]
+mod amiga_project_host;
+#[path = "autodocs_host.rs"]
+mod autodocs_host;
 #[path = "st_host.rs"]
 mod st_host;
 #[path = "amiga_tools_host.rs"]
 mod amiga_tools_host;
+#[path = "amiga_icon_host.rs"]
+mod amiga_icon_host;
+#[path = "amiga_vamos_host.rs"]
+mod amiga_vamos_host;
 #[path = "music_host.rs"]
 mod music_host;
 #[path = "st_tools_host.rs"]

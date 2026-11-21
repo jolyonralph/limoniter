@@ -18,6 +18,14 @@ pub(super) struct AssembledCache {
     pub assembly: Arc<Assembly>,
 }
 
+/// How the settings remember where an assembler a project names is on this computer: "where:gnu-as".
+const WHERE: &str = "where:";
+
+/// Whether a choice is GNU as, which reads only its own way of writing 68000 source.
+fn row_is_gnu(choice: &Choice) -> bool {
+    matches!(choice, Choice::Program { id, .. } if *id == assemblers::GNU_AS)
+}
+
 /// The box choosing an assembler for each processor.
 pub(super) struct AssemblerBox {
     /// Each processor, the assemblers found for it, and the one chosen.
@@ -33,6 +41,8 @@ pub(super) struct AssemblerRow {
     pub cpu: Cpu,
     pub found: Vec<(&'static assemblers::External, PathBuf)>,
     pub chosen: Choice,
+    /// Whether the choice is the project's own, kept in its file, rather than the settings'.
+    pub for_project: bool,
 }
 
 impl Limoniter {
@@ -45,8 +55,55 @@ impl Limoniter {
         Cpu::for_language(&doc.language_name())
     }
 
+    /// The assembler a processor's source is built with: the project's, when it says, or else the settings'.
+    /// A project's names the assembler only; where it is on this computer comes from the settings, or from looking
+    /// where it's usually installed. One that can't be found has no path, so it can't be run, and nothing else is
+    /// used in its place.
     pub(super) fn assembler_for(&self, cpu: Cpu) -> Choice {
-        self.running.assemblers.iter().find(|(id, _)| id == cpu.id()).map_or(Choice::Own, |(_, setting)| Choice::from_setting(setting))
+        let chosen = self.running.assemblers.iter().find(|(id, _)| id == cpu.id()).map_or(Choice::Own, |(_, setting)| Choice::from_setting(setting));
+        let Some(id) = self.project.as_ref().and_then(|p| p.assembler(cpu.id())) else {
+            return chosen;
+        };
+        if id == assemblers::OWN {
+            return Choice::Own;
+        }
+        let Some(known) = assemblers::external(id) else {
+            return Choice::Own;
+        };
+        let remembered = self.running.assemblers.iter().find(|(k, _)| k.strip_prefix(WHERE) == Some(known.id)).map(|(_, setting)| Choice::from_setting(setting));
+        // Where it is: as the settings choose it for other source, or as they remember it for projects, or else
+        // wherever it's usually installed.
+        [Some(chosen), remembered]
+            .into_iter()
+            .flatten()
+            .find(|c| matches!(c, Choice::Program { id, .. } if *id == known.id))
+            .unwrap_or_else(|| Choice::Program { id: known.id, path: assemblers::installed(cpu).into_iter().find(|(e, _)| e.id == known.id).map(|(_, path)| path).unwrap_or_default() })
+    }
+
+    /// The assembler for the source in front: as chosen, unless it can't read the source's way of writing 68000
+    /// source, which is said rather than built wrongly. GNU as's source, with nothing chosen for it (Limoniter's own,
+    /// by the settings rather than a project), is built with GNU as when it's installed.
+    pub(super) fn assembler_for_source(&self, cpu: Cpu, language: &str) -> Result<Choice, String> {
+        let gnu = assemblers::is_gnu_source(language);
+        let mut choice = self.assembler_for(cpu);
+        let project_says = self.project.as_ref().and_then(|p| p.assembler(cpu.id())).is_some();
+        if gnu
+            && choice == Choice::Own
+            && !project_says
+            && let Some((found, path)) = assemblers::installed(cpu).into_iter().find(|(e, _)| e.id == assemblers::GNU_AS)
+        {
+            choice = Choice::Program { id: found.id, path };
+        }
+        if let Some(problem) = assemblers::wrong_dialect(&choice, gnu) {
+            return Err(problem);
+        }
+        if let Choice::Program { id, path } = &choice
+            && path.as_os_str().is_empty()
+        {
+            let name = assemblers::external(id).map_or(*id, |e| e.name);
+            return Err(crate::i18n::tf!("This project's {} source is built with {name}, which wasn't found on this computer. Install it, or point to it in File, Run on, Assemblers.", cpu.name()));
+        }
+        Ok(choice)
     }
 
     pub(super) fn set_assembler(&mut self, cpu: Cpu, choice: &Choice) {
@@ -130,6 +187,14 @@ impl Limoniter {
         {
             intel.amiga = crate::amiga_ndk::current();
         }
+        // Limoniter's own assembler reads Motorola's way of writing 68000 source, so GNU as's would only give it
+        // problems that aren't there: its hints are the NDK's alone.
+        if assemblers::is_gnu_source(&language) {
+            if let Some(code) = doc.text.code.as_mut() {
+                code.problems.clear();
+            }
+            return;
+        }
         let version = self.docs[index].text.version();
         let doc_id = self.docs[index].id;
         if self.docs[index].text.intel.as_ref().is_some_and(|i| i.assembly.is_some() && i.version == version) {
@@ -180,7 +245,7 @@ impl Limoniter {
     /// Assembles the source in front, reporting what came of it with `report`, and with `save`, saving the file
     /// a processor's programs are saved as rather than run (a 6809's, or a 68000's with an ORG).
     fn assemble_source(&mut self, cpu: Cpu, report: bool, save: bool) -> Result<Runnable, String> {
-        let choice = self.assembler_for(cpu);
+        let choice = self.assembler_for_source(cpu, &self.docs[self.active].language_name())?;
         let doc = &self.docs[self.active];
         let (doc_id, version) = (doc.id, doc.text.version());
         if let Some(cache) = &self.running.assembled
@@ -237,10 +302,12 @@ impl Limoniter {
         match &made {
             Ok(Made::Run(run)) if report => {
                 self.crunch_after_build(doc_id, &run.name, &run.bytes);
+                self.icon_after_build(doc_id, &run.name, &run.bytes, false);
                 self.c64_pack_after_build(doc_id, &run.name, &run.bytes);
             }
             Ok(Made::Saved { name, bytes }) if report => {
                 self.crunch_after_build(doc_id, name, bytes);
+                self.icon_after_build(doc_id, name, bytes, false);
                 self.c64_pack_after_build(doc_id, name, bytes);
             }
             _ => {}
@@ -465,7 +532,10 @@ impl Limoniter {
     /// Opens the box choosing assemblers, on the processor of the source in front, if it's assembler source.
     pub(super) fn open_assembler_box(&mut self) {
         let showing = self.doc_cpu(self.active).and_then(|cpu| Cpu::ALL.iter().position(|c| *c == cpu)).unwrap_or(0);
-        let rows = Cpu::ALL.iter().map(|cpu| AssemblerRow { cpu: *cpu, found: assemblers::installed(*cpu), chosen: self.assembler_for(*cpu) }).collect();
+        let rows = Cpu::ALL
+            .iter()
+            .map(|cpu| AssemblerRow { cpu: *cpu, found: assemblers::installed(*cpu), chosen: self.assembler_for(*cpu), for_project: self.project.as_ref().is_some_and(|p| p.assembler(cpu.id()).is_some()) })
+            .collect();
         self.dialog = Dialog::Assembler(Box::new(AssemblerBox { rows, showing, kickass: None, kickass_said: String::new() }));
     }
 
@@ -495,6 +565,7 @@ impl Limoniter {
         let mut keep = false;
         let mut browse = false;
         let mut fetch_kickass = false;
+        let project_name = self.project.as_ref().map(|p| p.name.clone());
         egui::Window::new(crate::i18n::tr("Assemblers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tr("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it."));
             ui.add_space(6.0);
@@ -547,6 +618,16 @@ impl Limoniter {
             if !state.kickass_said.is_empty() {
                 ui.colored_label(theme::text_dim(), &state.kickass_said);
             }
+            // A project can keep its own choice, so it's always built with the assembler its source is written for.
+            if let Some(name) = &project_name {
+                ui.add_space(4.0);
+                let row = &mut state.rows[state.showing];
+                ui.checkbox(&mut row.for_project, crate::i18n::tf!("Only for the project {name}, kept in its file"))
+                    .on_hover_text(crate::i18n::tr("The project's source is then always built with this assembler, wherever the project is opened, whatever is chosen for other source; if it isn't installed, nothing else is used instead."));
+            }
+            if row_is_gnu(&state.rows[state.showing].chosen) {
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("GNU as reads only 68000 source written its own way (Assembly 680x0 (GNU as)), and the others only Motorola's: source is never given to one that can't read it.")).color(theme::text_dim()).size(12.0)).wrap());
+            }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 browse = ui.button(crate::i18n::tr("Point to an assembler\u{2026}")).clicked();
@@ -581,9 +662,34 @@ impl Limoniter {
         }
         if keep {
             if let Dialog::Assembler(state) = std::mem::replace(&mut self.dialog, Dialog::None) {
+                let mut project_changed = false;
                 for row in &state.rows {
-                    self.set_assembler(row.cpu, &row.chosen);
+                    let id = match &row.chosen {
+                        Choice::Own => assemblers::OWN,
+                        Choice::Program { id, .. } => id,
+                    };
+                    let wanted = row.for_project.then_some(id);
+                    if let Some(project) = self.project.as_mut()
+                        && project.assembler(row.cpu.id()) != wanted
+                    {
+                        project.set_assembler(row.cpu.id(), wanted);
+                        project_changed = true;
+                    }
+                    if !row.for_project {
+                        self.set_assembler(row.cpu, &row.chosen);
+                    } else if let Choice::Program { id, .. } = &row.chosen {
+                        // The project's choice leaves the settings' for other source as it was, but where the program
+                        // is on this computer is remembered for it.
+                        let key = format!("{WHERE}{id}");
+                        self.running.assemblers.retain(|(k, _)| *k != key);
+                        self.running.assemblers.push((key, row.chosen.setting()));
+                        self.save_settings_if_changed();
+                    }
                 }
+                if project_changed {
+                    self.save_project();
+                }
+                self.running.assembled = None;
             }
             self.pending_focus = true;
         } else if close {

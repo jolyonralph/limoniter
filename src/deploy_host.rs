@@ -975,7 +975,9 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.label(crate::i18n::tr("Extra options:"));
                 ui.add(egui::TextEdit::singleline(options).hint_text(crate::i18n::tr("Added to its command line")).desired_width(320.0));
                 ui.end_row();
-                if let Some(known) = known.filter(|k| k.machines.contains(&crate::running::Machine::Amiga)) {
+                if known.is_some_and(|k| k.id == "vamos") {
+                    crate::amiga_vamos::settings_rows(ui, &hint);
+                } else if let Some(known) = known.filter(|k| k.machines.contains(&crate::running::Machine::Amiga)) {
                     crate::amiga_run::settings_rows(ui, &hint, known.id);
                 }
                 if known.is_some_and(|k| k.id == "hatari") {

@@ -59,7 +59,7 @@ impl Cpu {
             "Assembly Z80" => Some(Cpu::Z80),
             "Assembly 6502" => Some(Cpu::M6502),
             "Assembly 6809" => Some(Cpu::M6809),
-            "Assembly 680x0" => Some(Cpu::M68k),
+            "Assembly 680x0" | crate::highlight::ASM_680X0_GNU => Some(Cpu::M68k),
             "Assembly 80x86" => Some(Cpu::X86),
             "Assembly ARM (ARM2 and ARM3)" => Some(Cpu::Arm),
             crate::highlight::ASM_SM83 => Some(Cpu::Sm83),
@@ -99,6 +99,9 @@ pub enum Style {
     KickAss,
     /// 64tass: makes a Commodore program, and a listing of each line's address and bytes.
     Tass64,
+    /// GNU as for the Amiga (m68k-amigaos-as): makes an object file and a listing; its linker beside it makes the
+    /// Amiga program. It reads GNU as's own way of writing 68000 source, not Motorola's.
+    GnuAs,
 }
 
 /// An assembler of someone else's.
@@ -112,11 +115,12 @@ pub struct External {
     pub website: &'static str,
 }
 
-pub const KNOWN: [External; 7] = [
+pub const KNOWN: [External; 8] = [
     External { id: "sjasmplus", name: "sjasmplus", cpu: Cpu::Z80, programs: &["sjasmplus"], folder_hints: &["sjasmplus"], style: Style::Sjasmplus, website: "https://github.com/z00m128/sjasmplus" },
     External { id: "pasmo", name: "Pasmo", cpu: Cpu::Z80, programs: &["pasmo"], folder_hints: &["pasmo"], style: Style::Pasmo, website: "https://pasmo.speccy.org" },
     External { id: "lwasm", name: "lwasm (LWTOOLS)", cpu: Cpu::M6809, programs: &["lwasm"], folder_hints: &["lwtools", "lwasm"], style: Style::Lwasm, website: "http://www.lwtools.ca" },
     External { id: "vasm", name: "vasm", cpu: Cpu::M68k, programs: &["vasmm68k_mot"], folder_hints: &["vasm"], style: Style::Vasm, website: "http://sun.hasenbraten.de/vasm/" },
+    External { id: GNU_AS, name: "GNU as (m68k-amigaos-as)", cpu: Cpu::M68k, programs: &["m68k-amigaos-as"], folder_hints: &["amiga-gcc", "amiga"], style: Style::GnuAs, website: "https://codeberg.org/bebbo/amiga-gcc" },
     External { id: "acme", name: "ACME", cpu: Cpu::M6502, programs: &["acme"], folder_hints: &["acme"], style: Style::Acme, website: "https://sourceforge.net/projects/acme-crossass/" },
     External { id: "kickass", name: "KickAssembler", cpu: Cpu::M6502, programs: &["kickass"], folder_hints: &["kickass"], style: Style::KickAss, website: "http://theweb.dk/KickAssembler/" },
     External { id: "64tass", name: "64tass", cpu: Cpu::M6502, programs: &["64tass"], folder_hints: &["64tass", "tass64"], style: Style::Tass64, website: "https://sourceforge.net/projects/tass64/" },
@@ -124,6 +128,25 @@ pub const KNOWN: [External; 7] = [
 
 /// Limoniter's own assembler's name in the settings.
 pub const OWN: &str = "limoniter";
+/// GNU as's id, for the 68000 source written in its own way.
+pub const GNU_AS: &str = "gnu-as";
+
+/// Whether source in a highlighting language is 68000 source written as GNU as reads it, rather than as Motorola
+/// wrote it (as vasm, Devpac and Limoniter's own assembler read it).
+pub fn is_gnu_source(language: &str) -> bool {
+    language == crate::highlight::ASM_680X0_GNU
+}
+
+/// Why an assembler can't build source, when it reads the other way of writing 68000 source: GNU as reads only
+/// its own, and the others only Motorola's.
+pub fn wrong_dialect(choice: &Choice, gnu_source: bool) -> Option<String> {
+    let gnu_assembler = matches!(choice, Choice::Program { id, .. } if *id == GNU_AS);
+    match (gnu_source, gnu_assembler) {
+        (true, false) => Some(crate::i18n::tf!("This is 68000 source written for GNU as (m68k-amigaos-as), which {} can't read: it reads Motorola's way of writing (vasm's and Devpac's). Choose GNU as for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 as the language if it's really Motorola's.", choice.name())),
+        (false, true) => Some(crate::i18n::tr("This is 68000 source written Motorola's way (vasm's and Devpac's), which GNU as can't read. Choose another assembler for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 (GNU as) as the language if it's really GNU as's.").into()),
+        _ => None,
+    }
+}
 
 /// Which assembler a processor's source is assembled with: Limoniter's own, or a program.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -171,6 +194,8 @@ pub fn installed(cpu: Cpu) -> Vec<(&'static External, PathBuf)> {
         .filter_map(|e| match e.style {
             // KickAssembler is a .jar, run by Java.
             Style::KickAss => crate::c64_assemblers::find_kickass().map(|path| (e, path)),
+            // Bebbo's amiga-gcc is installed in /opt/amiga unless asked otherwise, which isn't on the path.
+            Style::GnuAs => crate::emulators::find_program(e.programs, e.folder_hints).or_else(crate::gnu_as::usual_place).map(|path| (e, path)),
             _ => crate::emulators::find_program(e.programs, e.folder_hints).map(|path| (e, path)),
         })
         .collect()
@@ -242,6 +267,7 @@ pub fn assemble_external(found: &External, program: &Path, source: &Path) -> Res
         Style::Vasm => vasm(program, source, &work),
         Style::KickAss => crate::c64_assemblers::kickass(program, source, &work),
         Style::Tass64 => crate::c64_assemblers::tass64(program, source, &work),
+        Style::GnuAs => crate::gnu_as::assemble(program, source, &work),
     };
     let _ = std::fs::remove_dir_all(&work);
     result
@@ -413,6 +439,10 @@ pub(crate) fn file_index(assembly: &mut Assembly, name: &str, source: &Path) -> 
 /// A problem as assemblers print it: "file.asm(12): error: what", "file.asm:12: what", or pasmo's
 /// "ERROR on line 12 of file file.asm".
 pub fn problem_line(line: &str) -> Option<(String, usize, String)> {
+    // GNU as: "prog.s:12: Error: unknown operator", and its warnings, which aren't problems.
+    if let Some((file, number, message, warning)) = crate::gnu_as::problem(line) {
+        return (!warning).then_some((file, number, message));
+    }
     // KickAssembler's and 64tass's ways.
     if let Some(found) = crate::c64_assemblers::problem_line(line) {
         return found;
@@ -634,6 +664,8 @@ mod tests {
         assert_eq!(problem_line("c.asm(3) : ERROR : Bad opcode"), Some(("c.asm".into(), 3, "Bad opcode".into())));
         assert_eq!(problem_line("Error - File a.asm, line 5 (Zone <untitled>): Syntax error."), Some(("a.asm".into(), 5, "Syntax error".into())));
         assert_eq!(problem_line("Warning - File a.asm, line 5 (Zone <untitled>): Label name not in leftmost column."), None);
+        assert_eq!(problem_line("demo.s:7: Error: unknown operand mode `(a0'"), Some(("demo.s".into(), 7, "unknown operand mode `(a0'".into())));
+        assert_eq!(problem_line("demo.s:9: Warning: value 0x1ff truncated to 0xff"), None);
     }
 
     #[test]
@@ -656,6 +688,24 @@ mod tests {
         assert_eq!(recognise(Cpu::M6502, Path::new("C:/c64/64tass-1.60/64tass.exe")), Some("64tass"));
         assert_eq!(recognise(Cpu::M6809, Path::new("lwasm.exe")), Some("lwasm"));
         assert_eq!(recognise(Cpu::M68k, Path::new("vasmm68k_mot_win32.exe")), Some("vasm"));
+        assert_eq!(recognise(Cpu::M68k, Path::new("/opt/amiga/bin/m68k-amigaos-as")), Some(GNU_AS));
+        assert_eq!(recognise(Cpu::M68k, Path::new("C:/amiga-gcc/bin/m68k-amigaos-as.exe")), Some(GNU_AS));
+        assert_eq!(recognise(Cpu::M68k, Path::new("/usr/bin/as68")), None, "two are known for the 68000 now");
+    }
+
+    #[test]
+    fn source_is_only_built_by_an_assembler_that_reads_its_way_of_writing() {
+        let gnu = Choice::Program { id: GNU_AS, path: PathBuf::from("/opt/amiga/bin/m68k-amigaos-as") };
+        let vasm = Choice::Program { id: "vasm", path: PathBuf::from("/usr/bin/vasmm68k_mot") };
+        assert!(is_gnu_source(crate::highlight::ASM_680X0_GNU));
+        assert!(!is_gnu_source("Assembly 680x0"));
+        assert_eq!(Cpu::for_language(crate::highlight::ASM_680X0_GNU), Some(Cpu::M68k), "still 68000 source, for its hints");
+        assert_eq!(wrong_dialect(&gnu, true), None);
+        assert_eq!(wrong_dialect(&vasm, false), None);
+        assert_eq!(wrong_dialect(&Choice::Own, false), None);
+        assert!(wrong_dialect(&Choice::Own, true).is_some_and(|w| w.contains("Limoniter's own")));
+        assert!(wrong_dialect(&vasm, true).is_some_and(|w| w.contains("vasm")));
+        assert!(wrong_dialect(&gnu, false).is_some());
     }
 
     /// With LIMONITER_SJASMPLUS and LIMONITER_PASMO naming the programs: both assemble a program and report

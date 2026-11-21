@@ -262,6 +262,10 @@ impl Limoniter {
 
     /// Run on machine (F9): runs the file in front where its kind of program runs, asking the first time.
     pub(super) fn run_on_machine(&mut self) {
+        // An AmigaShell script runs through vamos, with the Workbench's Execute.
+        if self.run_script_in_vamos() {
+            return;
+        }
         let runnable = match self.runnable() {
             Ok(Some(runnable)) => runnable,
             Ok(None) => {
@@ -390,6 +394,10 @@ impl Limoniter {
             return Err(crate::i18n::tr("It isn't an emulator.").into());
         };
         let emulator = emulators::by_id(emulator).ok_or(crate::i18n::tr("It isn't an emulator Limoniter knows."))?;
+        // vamos isn't a machine to start, but the program run here, its output in the Output panel.
+        if emulator.id == "vamos" {
+            return self.run_in_vamos(program, run);
+        }
         // Assembler source run on ZEsarUX is debugged there: its breakpoints set at their lines' addresses.
         let doc_id = self.docs[self.active].id;
         let kind = match emulator.link {

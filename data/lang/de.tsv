@@ -9133,3 +9133,272 @@ one more when taken	einer mehr, wenn gesprungen wird
 {name}.{ending} isn't on the disk.	{name}.{ending} ist nicht auf der Diskette.
 {text} cycles	{text} Zyklen
 {text} cycles in native mode	{text} Zyklen im nativen Modus
+Modern languages	Moderne Sprachen
+ZX Spectrum, ZX81 and Jupiter Ace	ZX Spectrum, ZX81 und Jupiter Ace
+Commodore	Commodore
+Atari	Atari
+Acorn and OpticOS	Acorn und OpticOS
+Nintendo	Nintendo
+Sega and ColecoVision	Sega und ColecoVision
+Dragon and Vectrex	Dragon und Vectrex
+PC	PC
+Any machine: assembler	Jede Maschine: Assembler
+C for older machines	C für ältere Rechner
+Your own	Eigene
+<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title></title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n  <script src="script.js"></script>\n</body>\n</html>\n	<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title></title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n  <script src="script.js"></script>\n</body>\n</html>\n
+<?php\n\n	<?php\n\n
+<?xml version="1.0" encoding="UTF-8"?>\n	<?xml version="1.0" encoding="UTF-8"?>\n
+@echo off\n	@echo off\n
+Lua	Lua
+PHP	PHP
+PowerShell script	PowerShell-Skript
+Ruby	Ruby
+TOML	TOML
+TypeScript	TypeScript
+Windows batch file	Windows-Batchdatei
+YAML	YAML
+bat	bat
+css	css
+html	html
+js	js
+json	json
+lua	lua
+php	php
+ps1	ps1
+rb	rb
+sql	sql
+toml	toml
+ts	ts
+xml	xml
+yaml	yaml
+(choose a folder)	(einen Ordner wählen)
+A folder with the program's C, its makefiles for amiga-gcc (Makefile.gcc), vbcc (Makefile.vbcc) and SAS/C (smakefile), and an icon for a Workbench program. Limoniter keeps the makefiles' lists of files up to date as files are added and taken away, and F9 builds and runs it.	Ein Ordner mit dem C-Code des Programms, seinen Makefiles für amiga-gcc (Makefile.gcc), vbcc (Makefile.vbcc) und SAS/C (smakefile) und einem Icon für ein Workbench-Programm. Limoniter hält die Dateilisten der Makefiles aktuell, wenn Dateien hinzukommen oder wegfallen, und F9 baut und startet es.
+A script needs the AmigaShell's own commands, which vamos doesn't have. Choose a copy of a Workbench's files (with its C, Libs and S folders) for vamos in File, Devices, then run it again.	Ein Skript braucht die eigenen Befehle der AmigaShell, die vamos nicht hat. Wählen Sie unter Datei, Geräte eine Kopie der Dateien einer Workbench (mit ihren Ordnern C, Libs und S) für vamos und führen Sie es dann erneut aus.
+A string in the icon is far too long: it isn't a Workbench icon, or it's damaged.	Ein String im Icon ist viel zu lang: Es ist kein Workbench-Icon oder es ist beschädigt.
+A string runs past the end of the catalog's strings.	Ein String reicht über das Ende der Strings des Katalogs hinaus.
+After F9 builds an Amiga program, make a Workbench icon for it	Nach dem Bauen eines Amiga-Programms mit F9 ein Workbench-Icon dafür anlegen
+AllocMem, MUIA_, exec	AllocMem, MUIA_, exec
+Amiga Workbench icon	Amiga-Workbench-Icon
+Any Workbench icon of yours: its pictures and tool types are used	Ein beliebiges Workbench-Icon von Ihnen: Seine Bilder und Tooltypes werden verwendet
+Arguments:	Argumente:
+As Workbench shows it, and selected (double-clicked):	So zeigt es die Workbench, und ausgewählt (doppelt angeklickt):
+AutoDoc reader	AutoDoc-Betrachter
+Bebbo's amiga-gcc builds the program with this: make -f Makefile.gcc	Bebbo's amiga-gcc baut das Programm damit: make -f Makefile.gcc
+Boriel's ZX Basic	Boriel's ZX Basic
+Boriel's ZX Basic couldn't be installed: {problem}	Boriel's ZX Basic konnte nicht installiert werden: {problem}
+Boriel's ZX Basic is being installed. The Output panel shows how it's going.	Boriel's ZX Basic wird installiert. Der Bereich Ausgabe zeigt, wie es läuft.
+Boriel's ZX Basic is installed ({version}), as {}. F9 compiles with it now.	Boriel's ZX Basic ist installiert ({version}), als {}. F9 kompiliert jetzt damit.
+Boriel's ZX Basic runs on Python 3, which wasn't found on this computer. Install Python from python.org (or with Homebrew on a Mac), then try again, or get Boriel's ZX Basic from its download page.	Boriel's ZX Basic läuft mit Python 3, das auf diesem Computer nicht gefunden wurde. Installieren Sie Python von python.org (auf dem Mac auch mit Homebrew) und versuchen Sie es dann erneut, oder holen Sie Boriel's ZX Basic von dessen Download-Seite.
+Bring the makefiles up to date	Die Makefiles aktualisieren
+Brought up to date with the files in {}: {}.	Aktualisiert mit den Dateien in {}: {}.
+Catalog translation	Katalogübersetzung
+Change the icon	Das Icon ändern
+Change the icon's tool types…	Die Tooltypes des Icons ändern…
+Changed in the file: save it (Ctrl+S) to keep the changes.	In der Datei geändert: Speichern Sie sie (Ctrl+S), um die Änderungen zu behalten.
+Check the catalog's translations	Die Übersetzungen des Katalogs prüfen
+Check the catalogs	Die Kataloge prüfen
+Checking {} ({} strings)…	{} wird geprüft ({} Strings)…
+Checking {} runs…	Prüfen, ob {} läuft…
+Default tool:	Standardwerkzeug:
+Disposing of the application disposes of its windows and everything in them.	Das Freigeben der Anwendung gibt auch ihre Fenster und alles darin frei.
+Disposing of the window object closes the window and disposes of everything in it.	Das Freigeben des Fensterobjekts schließt das Fenster und gibt alles darin frei.
+Downloading Boriel's ZX Basic {version} from {address}…	Boriel's ZX Basic {version} wird von {address} heruntergeladen…
+Errors: {errors}. Warnings: {warnings}. Translations checked: {}.	Fehler: {errors}. Warnungen: {warnings}. Geprüfte Übersetzungen: {}.
+F9 builds and runs it; Tasks has make -f Makefile.gcc and make -f Makefile.vbcc; the smakefile is for SAS/C on an Amiga	F9 baut und startet es; Aufgaben enthält make -f Makefile.gcc und make -f Makefile.vbcc; das smakefile ist für SAS/C auf einem Amiga
+F9 runs an Amiga program, or an AmigaShell script, here on this computer, its output in the Output panel. SAS/C projects are built with SAS/C itself when its folder is chosen.	F9 führt ein Amiga-Programm oder ein AmigaShell-Skript hier auf diesem Computer aus, die Ausgabe im Bereich Ausgabe. SAS/C-Projekte werden mit SAS/C selbst gebaut, wenn dessen Ordner gewählt ist.
+Filter:	Filter:
+FlexCat stopped with an error.	FlexCat wurde mit einem Fehler beendet.
+FlexCat wasn't found on this computer. Get it from github.com/adtools/flexcat (or Aminet's dev/misc), and put it on the PATH. Limoniter can make the catalogs itself without it.	FlexCat wurde auf diesem Computer nicht gefunden. Holen Sie es von github.com/adtools/flexcat (oder aus Aminets dev/misc) und legen Sie es in den PATH. Limoniter kann die Kataloge auch ohne es selbst erzeugen.
+FlexCat: the catalogs	FlexCat: die Kataloge
+Forget MUI's	MUIs vergessen
+From MUI's autodocs	Aus den Autodocs von MUI
+GNU as assembled it, but its linker (m68k-amigaos-ld) wasn't found beside {}, so no program could be made to run.	GNU as hat es assembliert, aber sein Linker (m68k-amigaos-ld) wurde neben {} nicht gefunden, daher konnte kein lauffähiges Programm erzeugt werden.
+GNU as reads only 68000 source written its own way (Assembly 680x0 (GNU as)), and the others only Motorola's: source is never given to one that can't read it.	GNU as liest nur 68000-Quelltext in seiner eigenen Schreibweise (Assembly 680x0 (GNU as)), die anderen nur den von Motorola: Quelltext wird nie an einen übergeben, der ihn nicht lesen kann.
+Give the program a name.	Geben Sie dem Programm einen Namen.
+Given to the program, as typed in the Shell	Wird dem Programm übergeben, wie in der Shell getippt
+GlowIcons (OS 3.5)	GlowIcons (OS 3.5)
+Hello, %s, from @NAME@!\\n	Hello, %s, from @NAME@!\\n
+Import an Amiga C project	Ein Amiga-C-Projekt importieren
+Import an Amiga C project…	Ein Amiga-C-Projekt importieren…
+Imported {} as a project.	{} wurde als Projekt importiert.
+Install Boriel ZX Basic	Boriel ZX Basic installieren
+Installing Boriel's ZX Basic…	Boriel's ZX Basic wird installiert…
+Installing zxbasic from PyPI with pip…	zxbasic wird mit pip von PyPI installiert…
+Installing…	Wird installiert…
+It's yours to change, apart from the lines Limoniter keeps up to date.	Sie können es ändern, außer den Zeilen, die Limoniter aktuell hält.
+Its kind, default tool, stack and tool types (Amiga, Workbench icon)	Art, Standardwerkzeug, Stack und Tooltypes (Amiga, Workbench-Icon)
+Jump to its explanation ({word})	Zur Erklärung springen ({word})
+Let Workbench place it	Von der Workbench platzieren lassen
+Limoniter downloads its latest ready-made build from boriel.com, its author's site, and keeps it in a folder beside its own settings. Nothing else on the computer is changed.	Limoniter lädt den neuesten fertigen Build von boriel.com, der Seite des Autors, herunter und legt ihn in einem Ordner neben seinen eigenen Einstellungen ab. Sonst wird auf dem Computer nichts verändert.
+Limoniter keeps the lines from here to limoniter-end up to date as files are added and taken away.	Limoniter hält die Zeilen von hier bis limoniter-end aktuell, wenn Dateien hinzukommen oder wegfallen.
+Limoniter makes a Python environment of its own, beside its settings, with Python {major}.{minor} ({}), and pip installs zxbasic in it from PyPI, the Python Package Index. Nothing else on the computer is changed.	Limoniter legt neben seinen Einstellungen eine eigene Python-Umgebung mit Python {major}.{minor} ({}) an, und pip installiert darin zxbasic von PyPI, dem Python Package Index. Sonst wird auf dem Computer nichts verändert.
+Limoniter's own icon	Limoniters eigenes Icon
+Looking for the latest build of Boriel's ZX Basic…	Die neueste Version von Boriel's ZX Basic wird gesucht…
+MUI	MUI
+MUI's Autodocs folder	Der Autodocs-Ordner von MUI
+MUI's autodocs…	Autodocs von MUI…
+Made by Limoniter from {stem}.cd, as CatComp makes its C header. Change {stem}.cd rather than this, which is made again from it.	Von Limoniter aus {stem}.cd erzeugt, so wie CatComp seinen C-Header erzeugt. Ändern Sie {stem}.cd statt dieser Datei, die daraus neu erzeugt wird.
+Made from:	Erzeugt aus:
+Made the Workbench icon {}.	Das Workbench-Icon {} wurde erzeugt.
+Made {} in {}: {}.	{} in {} erzeugt: {}.
+Make it in	Erzeugen in
+Make the catalogs	Die Kataloge erzeugen
+Make the catalogs and the strings' header	Die Kataloge und den Header der Strings erzeugen
+Make the catalogs with FlexCat	Die Kataloge mit FlexCat erzeugen
+Make the project	Das Projekt erstellen
+Makefiles	Makefiles
+Making a Python environment in {}…	Eine Python-Umgebung wird in {} angelegt…
+Making the catalogs for {}…	Die Kataloge für {} werden erzeugt…
+Memory (KiB):	Speicher (KiB):
+NDK	NDK
+NDK…	NDK…
+New Amiga C project	Neues Amiga-C-Projekt
+New Amiga C project…	Neues Amiga-C-Projekt…
+New translation	Neue Übersetzung
+New translation, or fill one in…	Neue Übersetzung oder eine ausfüllen…
+NewIcons	NewIcons
+Next →	Weiter →
+No catalog description (.cd) was found beside {} or in the folders above it.	Weder neben {} noch in den Ordnern darüber wurde eine Katalogbeschreibung (.cd) gefunden.
+No makefiles were written: it has them already, or no C to build.	Es wurden keine Makefiles geschrieben: Es hat sie schon, oder es gibt keinen C-Code zu bauen.
+One to a line, such as DONOTWAIT or PUBSCREEN=Workbench	Eine pro Zeile, z. B. DONOTWAIT oder PUBSCREEN=Workbench
+Only for the project {name}, kept in its file	Nur für das Projekt {name}, in dessen Datei gespeichert
+Open a catalog description (.cd) or translation (.ct) first, saved as a file.	Öffnen Sie zuerst eine Katalogbeschreibung (.cd) oder Übersetzung (.ct), als Datei gespeichert.
+Open its download page	Die Download-Seite öffnen
+Open the catalog description (.cd) to translate first, saved as a file.	Öffnen Sie zuerst die zu übersetzende Katalogbeschreibung (.cd), als Datei gespeichert.
+Original (planar)	Original (planar)
+Original (planar, Workbench 1.x colours)	Original (planar, Farben der Workbench 1.x)
+PNG (OS 4)	PNG (OS 4)
+Place:	Position:
+Placed by Workbench	Von der Workbench platziert
+Program's name	Name des Programms
+Put back	Zurücklegen
+Puts the changes into the file, to be saved as any change is; nothing else in it changes	Übernimmt die Änderungen in die Datei, die wie jede Änderung gespeichert werden muss; sonst ändert sich nichts darin
+Python couldn't make an environment, as its venv module isn't installed. On Debian or Ubuntu, install it with: sudo apt install python3-venv	Python konnte keine Umgebung anlegen, da sein Modul venv nicht installiert ist. Installieren Sie es unter Debian oder Ubuntu mit: sudo apt install python3-venv
+Running {name} in vamos	{name} läuft in vamos
+Running {what} in vamos, in {}…	{what} läuft in vamos, in {}…
+SAS/C 6 builds the program with this, on an Amiga: smake	SAS/C 6 baut das Programm damit, auf einem Amiga: smake
+Save the script first, so vamos can read it.	Speichern Sie zuerst das Skript, damit vamos es lesen kann.
+Stack (KiB):	Stack (KiB):
+Stack:	Stack:
+Started from the Workbench there's no Shell window to write in.	Von der Workbench gestartet gibt es kein Shell-Fenster zum Schreiben.
+Stops reading MUI's autodocs (the folder is left alone)	Beendet das Lesen der Autodocs von MUI (der Ordner bleibt unberührt)
+That folder has no c/sc in it, so it isn't SAS/C's.	In diesem Ordner ist kein c/sc, also gehört er nicht zu SAS/C.
+That isn't a catalog: a catalog starts FORM, then CTLG.	Das ist kein Katalog: Ein Katalog beginnt mit FORM, dann CTLG.
+The Amiga NDK, whose autodocs these are	Das Amiga-NDK, zu dem diese Autodocs gehören
+The Autodocs folder of the MUI SDK, from muidev or an MUI release: MUI's developer files aren't Limoniter's to include, so they're read from where you keep them	Der Autodocs-Ordner des MUI SDK, aus muidev oder einem MUI-Release: Die Entwicklerdateien von MUI darf Limoniter nicht mitliefern, daher werden sie von dort gelesen, wo Sie sie aufbewahren
+The German translation: each string's name, then its translation, then the English as a comment.	Die deutsche Übersetzung: der Name jedes Strings, dann seine Übersetzung, dann das Englische als Kommentar.
+The Italian translation: each string's name, then its translation, then the English as a comment.	Die italienische Übersetzung: der Name jedes Strings, dann seine Übersetzung, dann das Englische als Kommentar.
+The catalog ends partway through a chunk.	Der Katalog endet mitten in einem Chunk.
+The close gadget and Quit end the program; Hello comes back to the loop as its own number.	Das Schließgadget und Quit beenden das Programm; Hello kehrt als eigene Nummer zur Schleife zurück.
+The close gadget, or Escape.	Das Schließgadget oder Escape.
+The code set, {value}, isn't a number.	Der Zeichensatz, {value}, ist keine Zahl.
+The description has errors, so nothing was made.	Die Beschreibung enthält Fehler, daher wurde nichts erzeugt.
+The download didn't work ({problem}), so Python {major}.{minor} is tried instead.	Der Download hat nicht funktioniert ({problem}), daher wird stattdessen Python {major}.{minor} versucht.
+The download isn't a zip or a tar.gz, so it couldn't be unpacked.	Der Download ist weder ein Zip noch ein tar.gz, daher konnte er nicht entpackt werden.
+The download was unpacked, but zxbc wasn't in it.	Der Download wurde entpackt, aber zxbc war nicht darin.
+The folder to make the project in	Der Ordner, in dem das Projekt angelegt wird
+The icon ends before it should: it's damaged or cut short.	Das Icon endet zu früh: Es ist beschädigt oder abgeschnitten.
+The icon says it has more tool types than any could: it's damaged.	Das Icon behauptet, mehr Tooltypes zu haben, als überhaupt möglich sind: Es ist beschädigt.
+The icon to make programs' icons from	Das Icon, aus dem die Icons der Programme erzeugt werden
+The icon's picture has an impossible size: it isn't a Workbench icon, or it's damaged.	Das Bild des Icons hat eine unmögliche Größe: Es ist kein Workbench-Icon oder es ist beschädigt.
+The installation stopped unexpectedly.	Die Installation wurde unerwartet beendet.
+The linker couldn't make the program: {}	Der Linker konnte das Programm nicht erzeugen: {}
+The makefiles in {} are up to date.	Die Makefiles in {} sind aktuell.
+The name can be no more than 20 characters, so that its files' names fit the Amiga's 30.	Der Name darf höchstens 20 Zeichen lang sein, damit die Namen seiner Dateien in die 30 des Amiga passen.
+The name can have letters, digits, - and _, starting with a letter.	Der Name darf Buchstaben, Ziffern, - und _ enthalten und muss mit einem Buchstaben beginnen.
+The names of 1.3's flags: 2.0 renamed them (IDCMP_CLOSEWINDOW, WFLG_CLOSEGADGET), keeping these.	Die Namen der Flags von 1.3: 2.0 hat sie umbenannt (IDCMP_CLOSEWINDOW, WFLG_CLOSEGADGET), behält aber diese.
+The program a project opens with, such as SYS:Utilities/MultiView	Das Programm, mit dem sich ein Projekt öffnet, z. B. SYS:Utilities/MultiView
+The program is what make builds when it isn't asked for anything else.	Das Programm ist das, was make baut, wenn nichts anderes verlangt wird.
+The project's source is then always built with this assembler, wherever the project is opened, whatever is chosen for other source; if it isn't installed, nothing else is used instead.	Der Quelltext des Projekts wird dann immer mit diesem Assembler gebaut, wo auch immer das Projekt geöffnet wird und was auch immer für anderen Quelltext gewählt ist; ist er nicht installiert, wird kein anderer verwendet.
+The strings @NAME@ says: each a name, its number and its shortest and longest lengths in brackets,	Die Strings, die @NAME@ sagt: jeweils ein Name, seine Nummer und seine kürzeste und längste Länge in Klammern,
+The strings' C header: {}	Der C-Header der Strings: {}
+The translation: named after its language, such as deutsch.ct	Die Übersetzung: nach ihrer Sprache benannt, z. B. deutsch.ct
+The window's messages, or Ctrl-C from a Shell it was started from.	Die Meldungen des Fensters oder Ctrl-C von einer Shell, aus der es gestartet wurde.
+There are no autodocs in that folder: no .doc files with pages such as Area.mui/MUIA_Background. Choose the MUI SDK's Autodocs folder.	In diesem Ordner gibt es keine Autodocs: keine .doc-Dateien mit Seiten wie Area.mui/MUIA_Background. Wählen Sie den Autodocs-Ordner des MUI SDK.
+There are no autodocs to read yet. The Amiga's come with Hyperion's NDK: download it, or use one you have, with the NDK button. MUI's come with the MUI SDK: point to its Autodocs folder with MUI's autodocs.	Es gibt noch keine Autodocs zum Lesen. Die des Amiga gehören zu Hyperions NDK: Laden Sie es herunter oder verwenden Sie eines, das Sie haben, mit der Schaltfläche NDK. Die von MUI gehören zum MUI SDK: Verweisen Sie mit Autodocs von MUI auf dessen Autodocs-Ordner.
+There are no makefiles Limoniter keeps here. A project made with New Amiga C project, or imported, has them: Makefile.gcc, Makefile.vbcc and smakefile, with lines between # limoniter-begin and # limoniter-end.	Es gibt keine Makefiles, die Limoniter hier pflegt. Ein mit Neues Amiga-C-Projekt angelegtes oder importiertes Projekt hat sie: Makefile.gcc, Makefile.vbcc und smakefile, mit Zeilen zwischen # limoniter-begin und # limoniter-end.
+There are no translations (.ct) beside it or in the folders below it yet. Tools, Amiga, New translation makes one.	Es gibt noch keine Übersetzungen (.ct) daneben oder in den Ordnern darunter. Werkzeuge, Amiga, Neue Übersetzung legt eine an.
+There's no ## language line, so the catalog's language is taken from the file's name.	Es gibt keine Zeile ## language, daher wird die Sprache des Katalogs dem Dateinamen entnommen.
+There's no ## version line, such as ## version $VER: program.catalog 1.0 (20.11.2026), so the catalog has no version.	Es gibt keine Zeile ## version, z. B. ## version $VER: program.catalog 1.0 (20.11.2026), daher hat der Katalog keine Version.
+This AmigaShell script runs through vamos, which wasn't found. {}	Dieses AmigaShell-Skript läuft über vamos, das nicht gefunden wurde. {}
+This PNG isn't an OS 4 icon: it has no icOn chunk.	Dieses PNG ist kein OS-4-Icon: Es hat keinen icOn-Chunk.
+This file can't be changed here: open it from a folder, in hex, to change its icon.	Diese Datei lässt sich hier nicht ändern: Öffnen Sie sie aus einem Ordner, in Hex, um ihr Icon zu ändern.
+This icon has no picture.	Dieses Icon hat kein Bild.
+This is 68000 source written Motorola's way (vasm's and Devpac's), which GNU as can't read. Choose another assembler for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 (GNU as) as the language if it's really GNU as's.	Dies ist 68000-Quelltext in Motorolas Schreibweise (die von vasm und Devpac), den GNU as nicht lesen kann. Wählen Sie unter Datei, Ausführen auf, Assembler einen anderen Assembler für 68000-Quelltext oder wählen Sie Assembly 680x0 (GNU as) als Sprache, wenn es wirklich GNU as ist.
+This is 68000 source written for GNU as (m68k-amigaos-as), which {} can't read: it reads Motorola's way of writing (vasm's and Devpac's). Choose GNU as for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 as the language if it's really Motorola's.	Dies ist 68000-Quelltext für GNU as (m68k-amigaos-as), den {} nicht lesen kann: Es liest Motorolas Schreibweise (die von vasm und Devpac). Wählen Sie unter Datei, Ausführen auf, Assembler GNU as für 68000-Quelltext oder wählen Sie Assembly 680x0 als Sprache, wenn es wirklich Motorolas ist.
+This isn't a Workbench icon.	Das ist kein Workbench-Icon.
+This project's {} source is built with {name}, which wasn't found on this computer. Install it, or point to it in File, Run on, Assemblers.	Der {}-Quelltext dieses Projekts wird mit {name} gebaut, das auf diesem Computer nicht gefunden wurde. Installieren Sie es oder verweisen Sie unter Datei, Ausführen auf, Assembler darauf.
+Tool types:	Tooltypes:
+Undo the changes	Die Änderungen rückgängig machen
+Unpacking it ({} MB)…	Wird entpackt ({} MB)…
+Use Limoniter's own	Limoniters eigenes verwenden
+Version 33 is Kickstart 1.2; 1.3 is 34.	Version 33 ist Kickstart 1.2; 1.3 ist 34.
+Version 44 is ReAction as AmigaOS 3.5 brought it; 3.2's are newer still.	Version 44 ist ReAction, wie AmigaOS 3.5 es brachte; die von 3.2 sind noch neuer.
+Without locale.library (before 2.1), the program's own English strings are used.	Ohne locale.library (vor 2.1) werden die eigenen englischen Strings des Programms verwendet.
+Workbench icon…	Workbench-Icon…
+Written: {}. Limoniter keeps their lists of files up to date.	Geschrieben: {}. Limoniter hält ihre Dateilisten aktuell.
+Your icon couldn't be used, so Limoniter's own was: {problem}	Ihr Icon konnte nicht verwendet werden, daher wurde Limoniters eigenes verwendet: {problem}
+Your icon, {}, couldn't be read: {e}	Ihr Icon, {}, konnte nicht gelesen werden: {e}
+\\x needs a hexadecimal number after it, such as \\x9B.	\\x braucht danach eine Hexadezimalzahl, z. B. \\x9B.
+\\{value:o} is more than a byte can hold.	\\{value:o} ist mehr, als ein Byte fassen kann.
+amiga-gcc: build	amiga-gcc: Erstellen
+amiga-gcc: clean	amiga-gcc: Aufräumen
+and on the next line the string in English, the language built into the program.	und in der nächsten Zeile den String auf Englisch, der im Programm eingebauten Sprache.
+bytes, for the program started from it (4096 if none)	Bytes, für das daraus gestartete Programm (4096, wenn keine)
+cd	cd
+ct	ct
+i < argc; i++)	i < argc; i++)
+make -f Makefile.gcc	make -f Makefile.gcc
+make -f Makefile.gcc catalogs	make -f Makefile.gcc catalogs
+make -f Makefile.gcc clean	make -f Makefile.gcc clean
+make -f Makefile.vbcc	make -f Makefile.vbcc
+make -f Makefile.vbcc clean	make -f Makefile.vbcc clean
+pip installed zxbasic, but its zxbc wasn't found.	pip hat zxbasic installiert, aber dessen zxbc wurde nicht gefunden.
+vamos couldn't be started ({}): {e}	vamos konnte nicht gestartet werden ({}): {e}
+vamos finished: the program returned 0, all well.	vamos ist fertig: Das Programm lieferte 0, alles gut.
+vamos finished: the program returned {code} ({word}).	vamos ist fertig: Das Programm lieferte {code} ({word}).
+vamos was stopped ({}).	vamos wurde angehalten ({}).
+vbcc builds the program with this: make -f Makefile.vbcc	vbcc baut das Programm damit: make -f Makefile.vbcc
+vbcc: build	vbcc: Erstellen
+vbcc: clean	vbcc: Aufräumen
+{ARCHIVE_PAGE} has no build of Boriel's ZX Basic for this computer that Limoniter knows.	{ARCHIVE_PAGE} hat keinen Build von Boriel's ZX Basic für diesen Computer, den Limoniter kennt.
+{added} strings added to {} to translate.	{added} Strings zum Übersetzen zu {} hinzugefügt.
+{language}: {} ({held} translated strings in it)	{language}: {} ({held} übersetzte Strings darin)
+{name} has no string: the line after its name should be the string.	{name} hat keinen String: Die Zeile nach seinem Namen sollte der String sein.
+{name} has no string: the line after its name should be the translation.	{name} hat keinen String: Die Zeile nach seinem Namen sollte die Übersetzung sein.
+{name} has the id {id}, which {} already has.	{name} hat die ID {id}, die {} schon hat.
+{name} is already on line {}.	{name} steht schon in Zeile {}.
+{name} needs its id and lengths in brackets after it, such as (//) or (0/1/40).	{name} braucht danach seine ID und Längen in Klammern, z. B. (//) oder (0/1/40).
+{name}'s brackets need three parts, kept apart by two slashes: (id/shortest/longest), any of them left out.	Die Klammern von {name} brauchen drei Teile, durch zwei Schrägstriche getrennt: (id/shortest/longest), jeder davon darf fehlen.
+{name}'s id, {given}, isn't a number.	Die ID von {name}, {given}, ist keine Zahl.
+{name}'s id, {relative}, isn't a number.	Die ID von {name}, {relative}, ist keine Zahl.
+{name}'s {what} length, {given}, isn't a number.	Die {what}-Länge von {name}, {given}, ist keine Zahl.
+{pages} pages of MUI's autodocs read from {}.	{pages} Seiten der Autodocs von MUI aus {} gelesen.
+{x}, {y} in its window	{x}, {y} in seinem Fenster
+{} (line {}): {why}	{} (Zeile {}): {why}
+{} already has files in it. Choose another name or folder.	In {} sind schon Dateien. Wählen Sie einen anderen Namen oder Ordner.
+{} couldn't be renamed: {e}	{} konnte nicht umbenannt werden: {e}
+{} couldn't be saved for its icon: {e}	{} konnte nicht für sein Icon gespeichert werden: {e}
+{} has errors, so its catalog wasn't made.	{} hat Fehler, daher wurde sein Katalog nicht erzeugt.
+{} has {} formatting commands, but the original has {}.	{} hat {} Formatierungsbefehle, das Original aber {}.
+{} is {length} characters long, but it can be no more than {max}.	{} ist {length} Zeichen lang, darf aber höchstens {max} lang sein.
+{} is {length} characters long, but it should be at least {}.	{} ist {length} Zeichen lang, muss aber mindestens {} lang sein.
+{} isn't a Workbench icon Limoniter can read. {problem}	{} ist kein Workbench-Icon, das Limoniter lesen kann. {problem}
+{} isn't in the description.	{} steht nicht in der Beschreibung.
+{} isn't in the translation.	{} steht nicht in der Übersetzung.
+{} isn't translated yet.	{} ist noch nicht übersetzt.
+{} pages in {} books	{} Seiten in {} Büchern
+{} pages. Choose one on the left, or type a name and press Enter.	{} Seiten. Wählen Sie links eine aus oder tippen Sie einen Namen und drücken Sie Enter.
+{} was installed, but doesn't run:\n{said}	{} wurde installiert, läuft aber nicht:\n{said}
+{} {} didn't work.	{} {} hat nicht funktioniert.
+{} × {}, true colour	{} × {}, True Color
+{} × {}, {} colours	{} × {}, {} Farben
+{}: nothing takes argument {place}, which the original's {} takes.	{}: Nichts nimmt Argument {place} an, das {} im Original annimmt.
+{}: the original ends with “...”, but the translation doesn't.	{}: Das Original endet mit “...”, die Übersetzung aber nicht.
+{}: {written} isn't a formatting command CatComp knows.	{}: {written} ist kein Formatierungsbefehl, den CatComp kennt.
+{}: {} takes something different from the original's {}.	{}: {} nimmt etwas anderes an als {} im Original.
+“{c}” isn't in Latin 1 (ISO-8859-1), so a catalog can't hold it.	“{c}” ist nicht in Latin 1 (ISO-8859-1), daher kann ein Katalog es nicht enthalten.
+“{name}” isn't a string's name: a name is letters, digits and underscores, starting with a letter.	“{name}” ist kein Name eines Strings: Ein Name besteht aus Buchstaben, Ziffern und Unterstrichen und beginnt mit einem Buchstaben.
+… and more: type more of the name to see them.	… und mehr: Tippen Sie mehr vom Namen, um sie zu sehen.
+← Back	← Zurück
+# limoniter-end	# limoniter-end

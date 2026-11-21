@@ -26,7 +26,9 @@ pub fn comment_marks(language: &str) -> Option<CommentMarks> {
         "Batch File" => line("REM"),
         "VimL" => line("\""),
         "Visual Basic" | "VBScript" | "ASP" => line("'"),
-        "Lisp" | "Clojure" | "Scheme" | "Assembly x86_64" | "Assembly 80x86" | "Assembly 680x0" | "Assembly 6502" | "Assembly Z80" | "Assembly SM83 (Game Boy)" | "Assembly SPC700 (SNES sound)" | "INI" | "Racket" => line(";"),
+        "Lisp" | "Clojure" | "Scheme" | "Assembly x86_64" | "Assembly 80x86" | "Assembly 680x0" | "Assembly 6502" | "Assembly Z80" | "Assembly SM83 (Game Boy)" | "Assembly SPC700 (SNES sound)" | "INI" | "Racket" | crate::highlight::AMIGA_SHELL => line(";"),
+        // GNU as's 68000 source: ; is between statements there, and | starts a comment anywhere.
+        crate::highlight::ASM_680X0_GNU => Some(CommentMarks { line: Some("|"), block: C_BLOCK }),
         "LaTeX" | "TeX" | "MATLAB" | "Erlang" | "BibTeX" => line("%"),
         // A language a VS Code extension gives says its own.
         other => crate::vsix::comment_marks(other),
@@ -233,6 +235,8 @@ mod tests {
         for assembler in ["Assembly x86_64", "Assembly 80x86", "Assembly 680x0", "Assembly 6502", "Assembly Z80"] {
             assert_eq!(comment_marks(assembler).unwrap().line, Some(";"), "{assembler}");
         }
+        assert_eq!(comment_marks(crate::highlight::ASM_680X0_GNU).unwrap().line, Some("|"));
+        assert_eq!(comment_marks(crate::highlight::AMIGA_SHELL).unwrap().line, Some(";"));
         assert_eq!(comment_marks("Python").unwrap().line, Some("#"));
         assert_eq!(comment_marks("SQL").unwrap().line, Some("--"));
         assert_eq!(comment_marks("HTML").unwrap().block, Some(("<!--", "-->")));

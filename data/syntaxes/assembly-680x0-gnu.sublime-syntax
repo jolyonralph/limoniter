@@ -1,0 +1,80 @@
+%YAML 1.2
+---
+# 68000 source as GNU as reads it (m68k-amigaos-as, from Bebbo's amiga-gcc): its .directives, MIT syntax as well
+# as Motorola's (a0@(8), a0@+, %d0, sizes written onto the instruction as in movel), | comments anywhere and # or *
+# ones at the start of a line, /* C comments */, ; between statements, local labels (1: and 1b, 1f), and 0x numbers.
+# The instructions are those of the 68000 family, 68000 to 68060, with the 6888x's and the MMU's.
+name: Assembly 680x0 (GNU as)
+file_extensions: [gas68k]
+scope: source.assembly.m68k.gnu
+variables:
+  size: (?:\.?[bwlsdxpBWLSDXP])?
+  conditions: (?:cc|cs|eq|ge|gt|hi|hs|le|lo|ls|lt|mi|ne|pl|vc|vs|t|f)
+  fp_conditions: (?:eq|ne|gt|ge|lt|le|gl|gle|ngle|ngl|nle|nlt|nge|ngt|sf|seq|sneq|st|ogt|oge|olt|ole|ogl|or|un|ueq|ugt|uge|ult|ule|f|t)
+  branch: (?:b{{conditions}}|bra|bsr|db{{conditions}}|dbra|fb{{fp_conditions}}|fdb{{fp_conditions}}|jmp|jsr|rts|rte|rtr|rtd|rtm|trap|trapv|trap{{conditions}}|ftrap{{fp_conditions}}|callm|illegal|stop|bkpt|lpstop|jbsr|jbra|jra|j{{conditions}}|jb{{conditions}}|jfb{{fp_conditions}})
+  instruction: (?:abcd|adda|addi|addq|addx|add|andi|and|asl|asr|bchg|bclr|bfchg|bfclr|bfexts|bfextu|bfffo|bfins|bfset|bftst|bset|btst|cas2|cas|chk2|chk|clr|cmp2|cmpa|cmpi|cmpm|cmp|divsl|divs|divul|divu|eori|eor|exg|extb|ext|lea|link|lsl|lsr|move16|movea|movec|movem|movep|moveq|moves|move|muls|mulu|nbcd|negx|neg|nop|not|ori|or|pack|pea|reset|rol|ror|roxl|roxr|sbcd|s{{conditions}}|suba|subi|subq|subx|sub|swap|tas|tst|unlk|unpk|cinva|cinvl|cinvp|cpusha|cpushl|cpushp|pflusha|pflushan|pflushn|pflushr|pflushs|pflush|pload[rw]?|plpa[rw]|pmovefd|pmove|prestore|psave|ptest[rw]?|fabs|facos|fadd|fasin|fatanh|fatan|fcmp|fcosh|fcos|fdabs|fdadd|fddiv|fdiv|fdmove|fdmul|fdneg|fdsqrt|fdsub|fetoxm1|fetox|fgetexp|fgetman|fintrz|fint|flog10|flog2|flognp1|flogn|fmod|fmovecr|fmovem|fmove|fmul|fneg|fnop|frem|frestore|fsabs|fsadd|fsave|fscale|fsdiv|fsgldiv|fsglmul|fsincos|fsinh|fsin|fsmove|fsmul|fsneg|fsqrt|fssqrt|fssub|fsub|ftanh|ftan|ftentox|ftst|ftwotox|fs{{fp_conditions}})
+  register: (?:d[0-7]|a[0-7]|fp[0-7]|sp|fp|pc|zpc|za[0-7]|sr|ccr|usp|vbr|sfc|dfc|cacr|caar|msp|isp|itt[01]|dtt[01]|iacr[01]|dacr[01]|tc|mmusr|psr|urp|srp|crp|tt[01]|fpcr|fpsr|fpiar)
+contexts:
+  main:
+    - match: '^[#*].*$'
+      scope: comment.line.number-sign.m68k.gnu
+    - include: comment
+    - match: '^\s*(?:[A-Za-z_.$][\w.$]*|\d+):'
+      scope: entity.name.label.m68k.gnu
+    - match: ';'
+      scope: punctuation.separator.statement.m68k.gnu
+    - match: '(?<![\w.$])\.[A-Za-z_][\w]*'
+      scope: keyword.control.directive.m68k.gnu
+      push: operands
+    - match: '(?i)(?<![\w.$])(?:{{branch}}){{size}}(?![\w.$])'
+      scope: keyword.control.branch.m68k.gnu
+      push: operands
+    - match: '(?i)(?<![\w.$])(?:{{instruction}}){{size}}(?![\w.$])'
+      scope: support.function.instruction.m68k.gnu
+      push: operands
+    - match: '[A-Za-z_.$][\w.$]*(?=\s*=)'
+      scope: variable.other.constant.m68k.gnu
+    - match: '='
+      scope: keyword.operator.m68k.gnu
+      push: operands
+    - match: '[A-Za-z_][\w.$]*'
+      scope: variable.function.macro.m68k.gnu
+      push: operands
+  operands:
+    - match: '(?=\n|;)'
+      pop: true
+    - include: comment
+    - include: strings
+    - match: '(?i)(?<![\w.$])%?{{register}}(?:[.:][wlbWLB])?(?::[1248]|\*[1248])?(?![\w$])'
+      scope: variable.language.register.m68k.gnu
+    - match: '@[+-]?'
+      scope: keyword.operator.indirect.m68k.gnu
+    - include: numbers
+    # A local label's nearest one back or forward: 1b, 2f.
+    - match: '(?<![\w.$])\d+[bf](?![\w.$])'
+      scope: variable.other.label.m68k.gnu
+    - match: '[#+\-*/&^~<>=!%]'
+      scope: keyword.operator.m68k.gnu
+  comment:
+    - match: '\|.*$'
+      scope: comment.line.bar.m68k.gnu
+    - match: '/\*'
+      push:
+        - meta_scope: comment.block.m68k.gnu
+        - match: '\*/'
+          pop: true
+  strings:
+    - match: '"'
+      push:
+        - meta_scope: string.quoted.double.m68k.gnu
+        - match: '\\.'
+          scope: constant.character.escape.m68k.gnu
+        - match: '"'
+          pop: true
+        - match: '(?=\n)'
+          pop: true
+    - match: "'(?:\\\\.|[^\\\\\n])"
+      scope: constant.character.m68k.gnu
+  numbers:
+    - match: '(?<![\w.$])(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\$[0-9a-fA-F]+|\d+)(?![\w.$])'
+      scope: constant.numeric.m68k.gnu

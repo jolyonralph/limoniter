@@ -437,8 +437,19 @@ pub(super) const AMIGA: &[Entry] = &[
             Item("Bitplane, sprite and bob converter", Command::AmigaBitplanes),
             Item("Blitter minterms", Command::BlitterMinterms),
             Item("NDK (code hints)\u{2026}", Command::AmigaNdk),
+            Item("AutoDoc reader", Command::AutoDocs),
             Item("Crunchers and music\u{2026}", Command::AmigaTools),
+            Item("Workbench icon\u{2026}", Command::AmigaIcon),
             Item("Boot disk with no file system (trackmo)", Command::AmigaBootDisk),
+            Line,
+            Item("New Amiga C project\u{2026}", Command::AmigaNewProject),
+            Item("Import an Amiga C project\u{2026}", Command::AmigaImportProject),
+            Item("Bring the makefiles up to date", Command::AmigaMakefiles),
+            Line,
+            Item("Check the catalog's translations", Command::CatalogCheck),
+            Item("Make the catalogs and the strings' header", Command::CatalogMake),
+            Item("Make the catalogs with FlexCat", Command::CatalogFlexCat),
+            Item("New translation, or fill one in\u{2026}", Command::CatalogTranslation),
             Line,
             Item("How To Code: writing Amiga demos", Command::HowToCode),
             Item("Copy How To Code's examples to a folder\u{2026}", Command::HowToCodeExamples),
@@ -538,6 +549,8 @@ pub(super) const PROJECT: &[Entry] = &[
             Item("Open a folder as a project\u{2026}", Command::OpenFolder),
             Item("Open a remote folder as a project\u{2026}", Command::OpenRemoteFolder),
             Item("New project\u{2026}", Command::ProjectNew),
+            Item("New Amiga C project\u{2026}", Command::AmigaNewProject),
+            Item("Import an Amiga C project\u{2026}", Command::AmigaImportProject),
             Item("Open project\u{2026}", Command::ProjectOpen),
             Entry::Live("Open recent", Live::RecentProjects),
             Item("Close project", Command::ProjectClose),
@@ -1119,7 +1132,7 @@ impl Limoniter {
             Command::QuickFix => self.has_lsp(),
             Command::FormatDocument => self.has_lsp() || (text && crate::ext_formatters::chosen(&doc.language_name(), &self.formatter_choices).is_some()),
             Command::AssembleAndSave | Command::AssembleBinary => !no_file && self.doc_cpu(self.active).is_some(),
-            Command::StopRunning => !self.running.sessions.is_empty(),
+            Command::StopRunning => !self.running.sessions.is_empty() || !self.vamos_runs.is_empty(),
             Command::DebugStepBack => self.can_step_back(),
             Command::MachineMemory | Command::MachineScreen | Command::MachineBasicOut => self.reachable().is_some(),
             Command::MachineBasicIn => self.reachable().is_some() && doc.listing_of.is_some(),
@@ -1129,6 +1142,7 @@ impl Limoniter {
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
+            Command::AmigaIcon => doc.picture == Some(crate::pictures::Format::AmigaIcon),
             Command::SavePreviewAsPdf => !no_file && Self::pdf_preview_kind(doc).is_some(),
             Command::SaveDocumentAs(_) => doc.legacy.is_some(),
             Command::GraphMode | Command::UdgPictures => !no_file && self.is_spectrum_basic(self.active),
@@ -1256,7 +1270,11 @@ impl Limoniter {
             | Command::TimeSpent
             | Command::HowToCode
             | Command::HowToCodeExamples
+            | Command::AutoDocs
             | Command::AmigaBootDisk
+            | Command::AmigaNewProject
+            | Command::AmigaImportProject
+            | Command::AmigaMakefiles
             | Command::ToggleTerminal
             | Command::NewImage
             | Command::OpenUrl
@@ -1273,6 +1291,9 @@ impl Limoniter {
             // Tasks run in the project's folder, so need a project or a file in one.
             Command::BuildTask | Command::TestTask => has_project || !no_file,
             Command::EditTasks => has_project,
+            // Catalogs are worked on from their description or a translation.
+            Command::CatalogCheck | Command::CatalogMake | Command::CatalogFlexCat => doc.path.as_deref().is_some_and(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("cd") || e.eq_ignore_ascii_case("ct"))),
+            Command::CatalogTranslation => doc.path.as_deref().is_some_and(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("cd"))),
             _ => text,
         }
     }
@@ -1390,12 +1411,22 @@ impl Limoniter {
                 }
             }
             Live::NewAs => {
-                for (index, kind) in self.new_kinds.iter().enumerate() {
-                    let ending = if kind.ending.is_empty() { String::new() } else { format!(".{}", kind.ending) };
-                    if ui.add(Button::new(kind.name.as_str()).shortcut_text(RichText::new(ending).color(theme::text_faint()))).clicked() {
-                        picks.push(Pick::Command(Command::NewAs(index)));
-                        ui.close();
+                // A sub-menu for each kind of machine, and the modern languages, so the list stays short.
+                for group in super::new_kinds::GROUPS {
+                    let members: Vec<usize> = self.new_kinds.iter().enumerate().filter(|(_, kind)| kind.group() == group).map(|(index, _)| index).collect();
+                    if members.is_empty() {
+                        continue;
                     }
+                    ui.menu_button(crate::i18n::tr(group), |ui| {
+                        for index in members {
+                            let kind = &self.new_kinds[index];
+                            let ending = if kind.ending.is_empty() { String::new() } else { format!(".{}", kind.ending) };
+                            if ui.add(Button::new(kind.name.as_str()).shortcut_text(RichText::new(ending).color(theme::text_faint()))).clicked() {
+                                picks.push(Pick::Command(Command::NewAs(index)));
+                                ui.close();
+                            }
+                        }
+                    });
                 }
                 ui.separator();
                 if ui.button(crate::i18n::tr("Change this list\u{2026}")).clicked() {

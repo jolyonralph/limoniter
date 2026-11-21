@@ -1,0 +1,99 @@
+%YAML 1.2
+---
+# AmigaShell scripts (AmigaDOS scripts): the Startup-Sequence, User-Startup and the scripts Execute runs. Their
+# dot lines (.key with its template, .bra and .ket, .def, .dot, .dol), ; comments, IF, ELSE, ENDIF, SKIP, LAB and
+# the other words that steer a script, the commands of C: and the Shell's own, <arguments> as .key names them,
+# $variables, `commands in backquotes`, "strings" with their * escapes, redirection and volumes such as SYS:.
+name: AmigaShell script
+file_extensions: ["Startup-Sequence", "User-Startup", "Shell-Startup", "CLI-Startup", "Network-Startup", "Network-Shutdown", "amigados", "ados"]
+first_line_match: '^\.(?i:key|k|bra|ket|def|default|dot|dol|dollar)\b'
+scope: source.amigashell
+contexts:
+  main:
+    # A dot line: the script's template and the characters it uses, or a comment (a dot then a space).
+    - match: '^\s*(\.(?i:key|k))\b'
+      captures:
+        1: keyword.other.directive.amigashell
+      push: template
+    - match: '^\s*(\.(?i:bra|ket|def|default|dot|dol|dollar|\$))(?=\s|$)'
+      captures:
+        1: keyword.other.directive.amigashell
+    - match: '^\s*\.(\s.*)?$'
+      scope: comment.line.amigashell
+    - include: line
+  line:
+    - match: ';.*$'
+      scope: comment.line.amigashell
+    - match: '"'
+      push: string
+    - match: '`'
+      push: backquoted
+    # A label LAB names and SKIP looks for.
+    - match: '(?i)(?<![\w.:/-])lab(?![\w.:/-])'
+      scope: keyword.control.amigashell
+      push: label_name
+    - match: '(?i)(?<![\w.:/-])skip(?![\w.:/-])'
+      scope: keyword.control.amigashell
+      push: skipped_to
+    - match: '(?i)(?<![\w.:/-])(?:if|else|endif|endskip|quit|failat|back|not|eq|gt|ge|val|warn|error|fail|exists)(?![\w.:/-])'
+      scope: keyword.control.amigashell
+    - match: '<[A-Za-z_][\w]*(?:[$][^>\n]*)?>'
+      scope: variable.parameter.amigashell
+    - match: '\$\{?[A-Za-z_][\w.]*\}?'
+      scope: variable.other.amigashell
+    - match: '\*?>>?|<'
+      scope: keyword.operator.redirection.amigashell
+    - match: '(?i)(?<![\w./-])(?:addaudiomodes|adddatatypes|addbuffers|addnetinterface|alias|ask|assign|avail|binddrivers|break|cd|changetaskpri|conclip|copy|cpu|date|delete|dir|diskchange|echo|ed|edit|endcli|endshell|eval|execute|fault|filenote|format|get|getenv|iconx|info|install|iprefs|join|list|loadmonitors|loadresource|loadwb|lock|makedir|makelink|mount|newcli|newshell|path|prompt|protect|relabel|remrad|rename|requestchoice|requestfile|resident|run|search|set|setclock|setdate|setenv|setfont|setkeyboard|setpatch|sort|stack|status|type|unalias|unset|unsetenv|version|wait|which|why)(?![\w.:/-])'
+      scope: support.function.amigashell
+    # A volume, device or assign: SYS:, C:, DF0:, RAM:, ENV:.
+    - match: '(?<![\w.:/-])[A-Za-z][\w.-]*:'
+      scope: constant.other.volume.amigashell
+    - match: '(?<![\w.$:/-])(?:\$[0-9A-Fa-f]+|-?\d+)(?![\w.:/-])'
+      scope: constant.numeric.amigashell
+  label_name:
+    - match: '[^\s;]+'
+      scope: entity.name.label.amigashell
+      pop: true
+    - match: '(?=\n|;)'
+      pop: true
+  skipped_to:
+    # SKIP's label, or BACK to look for it from the start.
+    - match: '(?i)back(?![\w.:/-])'
+      scope: keyword.control.amigashell
+    - match: '[^\s;]+'
+      scope: variable.other.label.amigashell
+      pop: true
+    - match: '(?=\n|;)'
+      pop: true
+  template:
+    # .key's template: NAME/A,TO/K,QUIET/S, each argument's name and its kind after the slash.
+    - meta_scope: meta.template.amigashell
+    - match: '/[AaKkSsNnMmFfTt]'
+      scope: storage.modifier.amigashell
+    - match: '[A-Za-z_][\w]*'
+      scope: variable.parameter.amigashell
+    - match: ';.*$'
+      scope: comment.line.amigashell
+    - match: '$'
+      pop: true
+  string:
+    - meta_scope: string.quoted.double.amigashell
+    - match: '\*[NnEe"*]'
+      scope: constant.character.escape.amigashell
+    - match: '<[A-Za-z_][\w]*(?:[$][^>\n]*)?>'
+      scope: variable.parameter.amigashell
+    - match: '\$\{?[A-Za-z_][\w.]*\}?'
+      scope: variable.other.amigashell
+    - match: '`'
+      push: backquoted
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  backquoted:
+    - meta_scope: meta.interpolation.amigashell
+    - match: '`'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+    - include: line

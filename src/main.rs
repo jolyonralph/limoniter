@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod amiga_bootdisk;
+mod amiga_catalog;
+mod amiga_project;
 mod arm_disasm;
 mod arm_modern;
 mod amiga_bootdisk_ui;
@@ -10,7 +12,11 @@ mod asm_tests;
 mod raster_designer;
 mod amiga_debug;
 mod amiga_hw;
+mod amiga_icon;
+mod amiga_vamos;
 mod amiga_ndk;
+mod autodocs;
+mod gnu_as;
 mod amiga_run;
 mod st_run;
 mod amiga_palette_ui;
@@ -105,6 +111,7 @@ mod speaker;
 mod asm;
 mod assemblers;
 mod boriel;
+mod boriel_get;
 mod c_starters;
 mod compilers;
 mod sasc;

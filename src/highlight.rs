@@ -119,9 +119,10 @@ pub const SCHEMES: [EmbeddedThemeName; 29] = [
 ];
 
 /// Grammars written for Limoniter, added to the ones from two-face.
-const OWN_GRAMMARS: [(&str, &str); 43] = [
+const OWN_GRAMMARS: [(&str, &str); 46] = [
     (ASM_80X86, include_str!("../data/syntaxes/assembly-80x86.sublime-syntax")),
     (ASM_680X0, include_str!("../data/syntaxes/assembly-680x0.sublime-syntax")),
+    (ASM_680X0_GNU, include_str!("../data/syntaxes/assembly-680x0-gnu.sublime-syntax")),
     (ASM_6502, include_str!("../data/syntaxes/assembly-6502.sublime-syntax")),
     (ASM_Z80, include_str!("../data/syntaxes/assembly-z80.sublime-syntax")),
     (ASM_SM83, include_str!("../data/syntaxes/assembly-sm83.sublime-syntax")),
@@ -156,6 +157,8 @@ const OWN_GRAMMARS: [(&str, &str); 43] = [
     (BASIC_STOS, include_str!("../data/syntaxes/basic-stos.sublime-syntax")),
     (AMIGAGUIDE, include_str!("../data/syntaxes/amigaguide.sublime-syntax")),
     (AMIGA_INSTALLER, include_str!("../data/syntaxes/amiga-installer.sublime-syntax")),
+    (AMIGA_CATALOG, include_str!("../data/syntaxes/amiga-catalog.sublime-syntax")),
+    (AMIGA_SHELL, include_str!("../data/syntaxes/amiga-shell.sublime-syntax")),
     (CONFIG_SYS, include_str!("../data/syntaxes/config-sys.sublime-syntax")),
     (RTF, include_str!("../data/syntaxes/rtf.sublime-syntax")),
     (POSTSCRIPT, include_str!("../data/syntaxes/postscript.sublime-syntax")),
@@ -166,6 +169,8 @@ const OWN_GRAMMARS: [(&str, &str); 43] = [
 ];
 const AMIGA_E: &str = "Amiga E";
 const ASM_680X0: &str = "Assembly 680x0";
+/// 68000 source in GNU as's dialect, as m68k-amigaos-as reads it, rather than Motorola's (vasm's and Devpac's).
+pub const ASM_680X0_GNU: &str = "Assembly 680x0 (GNU as)";
 const ASM_6502: &str = "Assembly 6502";
 const ASM_Z80: &str = "Assembly Z80";
 pub const ASM_SM83: &str = "Assembly SM83 (Game Boy)";
@@ -196,6 +201,8 @@ const BASIC_BLITZ: &str = "BASIC (Blitz Basic)";
 pub const BASIC_STOS: &str = "BASIC (STOS)";
 const AMIGAGUIDE: &str = "AmigaGuide";
 const AMIGA_INSTALLER: &str = "Amiga Installer";
+pub const AMIGA_CATALOG: &str = "Amiga catalog (.cd and .ct)";
+pub const AMIGA_SHELL: &str = "AmigaShell script";
 const CONFIG_SYS: &str = "CONFIG.SYS (DOS)";
 const RTF: &str = "RTF";
 const POSTSCRIPT: &str = "PostScript";
@@ -244,10 +251,23 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     let mut sixty_four = false;
     // The Game Boy's own: LDH, SWAP, LDI and LDD with operands, [HL+], and RGBDS's sections and their memory.
     let mut sm83 = 0;
+    // GNU as's way with the 68000: its directives, MIT syntax (a0@+, %d0) and sizes run onto the instruction (movel),
+    // and the directives PDP-11 source shares with it, which then say nothing of the PDP-11.
+    let (mut gas, mut pdp11_from_gas) = (0, 0);
     for line in lines {
         let code = line.split(';').next().unwrap_or("").to_lowercase();
-        if code.trim_start().starts_with('*') {
+        if code.trim_start().starts_with(['*', '#', '|']) {
             continue;
+        }
+        let (gas_line, gas_68k) = gnu_68k_marks(&code);
+        if gas_line {
+            gas += 1;
+            if code.split_whitespace().take(2).any(|word| PDP11.contains(&word)) {
+                pdp11_from_gas += 1;
+            }
+        }
+        if gas_68k {
+            m68k += 1;
         }
         let words: Vec<&str> = code.split_whitespace().collect();
         let tokens: Vec<&str> = code.split(|c: char| !c.is_ascii_alphanumeric()).filter(|token| !token.is_empty()).collect();
@@ -292,6 +312,9 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
             m86 += 1;
         }
     }
+    if gas >= 2 {
+        others[4].0 = others[4].0.saturating_sub(pdp11_from_gas);
+    }
     // Code that uses 64-bit registers belongs with the newer x86-64 grammar, whatever else it does.
     if sixty_four {
         m86 = 0;
@@ -310,7 +333,36 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
     ranked.extend(others.iter().map(|(count, name, _)| (*count, *name)));
     let best = ranked.iter().max_by_key(|entry| entry.0)?;
     let next = ranked.iter().filter(|entry| entry.1 != best.1).map(|entry| entry.0).max().unwrap_or(0);
-    (best.0 >= MIN_ASM_EVIDENCE && best.0 > next * 2).then_some(best.1)
+    let found = (best.0 >= MIN_ASM_EVIDENCE && best.0 > next * 2).then_some(best.1)?;
+    Some(if found == ASM_680X0 && gas >= 2 { ASM_680X0_GNU } else { found })
+}
+
+/// What a line of 68000 source (in small letters) shows of GNU as: whether it's written as GNU as has it (one of
+/// its directives, MIT syntax's a0@ or a % before a register), and whether it's a 68000 instruction only GNU as
+/// writes that way (movel, addql, jbsr, jra), on a 68000 register so that the VAX's movl and tstl don't count.
+fn gnu_68k_marks(code: &str) -> (bool, bool) {
+    const DIRECTIVES: [&str; 30] = [
+        ".text", ".data", ".bss", ".globl", ".global", ".long", ".short", ".word", ".byte", ".ascii", ".asciz", ".string", ".even", ".align", ".balign", ".p2align", ".section", ".comm", ".lcomm", ".equ", ".set",
+        ".skip", ".space", ".type", ".size", ".file", ".extern", ".include", ".macro", ".endm",
+    ];
+    const SIZED: [&str; 40] = [
+        "movel", "movew", "moveb", "moveml", "movemw", "moveal", "moveaw", "moveql", "addql", "addqw", "subql", "subqw", "addl", "addw", "addb", "subl", "subw", "subb", "cmpl", "cmpw", "cmpb", "tstl", "tstw", "tstb", "clrl", "clrw",
+        "clrb", "lsll", "lsrl", "asll", "asrl", "andl", "andw", "orl", "orw", "eorl", "extl", "extw", "jbsr", "jra",
+    ];
+    let words: Vec<&str> = code.split_whitespace().collect();
+    // The instruction or directive is the first word, or the second after a label.
+    let first: Vec<&str> = words.iter().take(2).copied().filter(|w| !w.ends_with(':')).take(1).collect();
+    let compact: String = code.chars().filter(|c| !c.is_whitespace()).collect();
+    let registers = |prefix: &str| ["d", "a"].iter().any(|kind| (0..8).any(|n| compact.contains(&format!("{prefix}{kind}{n}"))));
+    let mit = registers("%") || ["sp@", "pc@", "fp@"].iter().any(|r| compact.contains(r)) || (0..8).any(|n| compact.contains(&format!("a{n}@")));
+    let directive = first.iter().any(|w| DIRECTIVES.contains(w));
+    let on_68k_register = {
+        let tokens: Vec<&str> = code.split(|c: char| !c.is_ascii_alphanumeric()).collect();
+        tokens.iter().any(|t| t.len() == 2 && matches!(t.as_bytes()[0], b'd' | b'a') && (b'0'..=b'7').contains(&t.as_bytes()[1]))
+    };
+    let sized = first.iter().any(|w| SIZED.contains(w) || (w.starts_with('j') && matches!(&w[1..], "eq" | "ne" | "cc" | "cs" | "mi" | "pl" | "ge" | "gt" | "le" | "lt" | "hi" | "ls" | "bra" | "beq" | "bne"))) && on_68k_register;
+    let jumped = first.iter().any(|w| matches!(*w, "jbsr" | "jra" | "jbra"));
+    (directive || mit || sized || jumped, sized || jumped || mit)
 }
 
 /// Which BASIC a `.bas` listing kept as text is in. A `.bas` is most often QBasic or GW-BASIC, so that's what it's
@@ -338,10 +390,25 @@ pub fn guess_basic(lines: &[std::sync::Arc<str>]) -> &'static str {
     }
 }
 
-/// Whether lines read as Inform 6: its story constants, its library includes or its [ routines.
 /// Whether lines read as an Amiga Installer script, whatever the file is called (Install-English, Install_HD, ...):
 /// lines that start with one of the Installer's own statements, or its variables. A shell script's "; $VER:" line
 /// alone doesn't say: AmigaDOS scripts start that way too.
+/// Whether text is HTML: a doctype or the usual tags near its top, and none of Svelte's own marks (its blocks,
+/// reactive lines, bindings and props), nor XML's declaration.
+fn looks_like_html(lines: &[std::sync::Arc<str>]) -> bool {
+    let text: String = lines.iter().take(60).map(|line| line.to_ascii_lowercase()).collect::<Vec<_>>().join("\n");
+    let first = text.trim_start();
+    if first.starts_with("<?xml") {
+        return false;
+    }
+    let svelte = ["{#if", "{#each", "{#await", "{#key", "{@html", "{@const", "$:", "<script context", "export let ", "on:click", "bind:", "<svelte:"];
+    if svelte.iter().any(|mark| text.contains(mark)) {
+        return false;
+    }
+    let html = ["<!doctype html", "<html", "<head", "<body", "<div", "<p>", "<p ", "<span", "<a href", "<table", "<ul", "<ol", "<h1", "<h2", "<section", "<nav", "<img ", "<br", "<form", "<meta ", "<title"];
+    first.starts_with('<') && html.iter().any(|tag| text.contains(tag))
+}
+
 fn looks_like_installer(lines: &[std::sync::Arc<str>]) -> bool {
     const STATEMENTS: [&str; 22] = [
         "(welcome", "(copyfiles", "(copylib", "(procedure", "(askchoice", "(askdir", "(askoptions", "(askbool", "(askfile", "(askstring", "(makedir", "(makeassign", "(startup",
@@ -357,6 +424,31 @@ fn looks_like_installer(lines: &[std::sync::Arc<str>]) -> bool {
     found >= 2
 }
 
+/// Whether lines read as an AmigaShell script: several start with the words that steer one (FailAt, If, EndIf, Skip,
+/// Lab, .key) or with commands only the Amiga has (SetPatch, LoadWB, Assign, a command run from C:), and at least
+/// one of those is the Amiga's alone, so a list of words that happens to start with If or Path isn't taken.
+fn looks_like_shell_script(lines: &[std::sync::Arc<str>]) -> bool {
+    const AMIGA_ONLY: [&str; 16] = ["failat", "endif", "endskip", "lab", "skip", ".key", ".k", ".bra", ".ket", "setpatch", "loadwb", "endcli", "endshell", "binddrivers", "addbuffers", "iprefs"];
+    const SHARED: [&str; 12] = ["if", "else", "assign", "resident", "mount", "path", "makedir", "echo", "copy", "delete", "run", "execute"];
+    let (mut amiga, mut shared) = (0, 0);
+    for line in lines {
+        let lower = line.trim_start().to_lowercase();
+        let Some(first) = lower.split_whitespace().next() else { continue };
+        if first.starts_with(';') {
+            continue;
+        }
+        // A command named with its volume: C:Assign, SYS:System/SetPatch.
+        let command = first.rsplit([':', '/']).next().unwrap_or(first);
+        if AMIGA_ONLY.contains(&first) || AMIGA_ONLY.contains(&command) || (first.starts_with("c:") && command.len() > 1) {
+            amiga += 1;
+        } else if SHARED.contains(&first) || SHARED.contains(&command) {
+            shared += 1;
+        }
+    }
+    amiga >= 1 && amiga + shared >= 3
+}
+
+/// Whether lines read as Inform 6: its story constants, its library includes or its [ routines.
 fn looks_like_inform(lines: &[std::sync::Arc<str>]) -> bool {
     lines.iter().any(|line| {
         let start = line.trim_start();
@@ -502,9 +594,18 @@ impl Engine {
             return self.syntaxes.syntaxes().iter().position(|s| s.name == name);
         }
         let first_line = format!("{}\n", sample.first().map_or("", |line| &**line));
+        // Plain HTML with no name to go by: Svelte's grammar claims many an HTML first line, so markup that shows
+        // nothing of Svelte's own is HTML.
+        if self.detect(path, "").is_none() && looks_like_html(sample) {
+            return self.syntaxes.syntaxes().iter().position(|s| s.name == "HTML");
+        }
         // A file the name says nothing of may be an Amiga Installer script, which has no first line of its own.
         if self.detect(path, "").is_none() && looks_like_installer(sample) {
             return self.syntaxes.syntaxes().iter().position(|s| s.name == "Amiga Installer");
+        }
+        // Or an AmigaShell script, which is often called anything at all (S:SPat, S:DPat, a game's Startup).
+        if self.detect(path, "").is_none() && looks_like_shell_script(sample) {
+            return self.syntaxes.syntaxes().iter().position(|s| s.name == AMIGA_SHELL);
         }
         self.detect(path, &first_line)
     }
@@ -824,6 +925,21 @@ mod tests {
         assert_eq!(found.map(|n| engine.name_of(n)), Some("Lua"));
     }
 
+    /// Plain HTML with no name to go by is HTML, not Svelte, whose grammar claims many HTML first lines; Svelte's
+    /// own marks still keep it from being called HTML.
+    #[test]
+    fn plain_html_with_no_name_is_html() {
+        let engine = test_engine();
+        let lines = |text: &str| text.lines().map(std::sync::Arc::from).collect::<Vec<std::sync::Arc<str>>>();
+        for html in ["<html>\n<body>\n<p>Hello</p>\n</body>\n</html>", "<!DOCTYPE html>\n<html lang=\"en\">\n<head><title>x</title></head>", "<div class=\"box\">\n  <h1>Title</h1>\n</div>"] {
+            let found = engine.detect_with_sample(None, &lines(html));
+            assert_eq!(found.map(|n| engine.name_of(n)), Some("HTML"), "{html}");
+        }
+        let svelte = "<script>\n  export let name;\n</script>\n<h1>Hello {name}</h1>\n{#if name}<p>hi</p>{/if}";
+        assert_ne!(engine.detect_with_sample(None, &lines(svelte)).map(|n| engine.name_of(n)), Some("HTML"));
+        assert!(!looks_like_html(&lines("<?xml version=\"1.0\"?>\n<root><p>x</p></root>")));
+    }
+
     fn syntax_for(file: &str) -> Option<usize> {
         test_engine().detect(Some(Path::new(file)), "")
     }
@@ -1014,10 +1130,92 @@ mod tests {
         assert_ne!(colour_of_word(&colours, &buffer, 2, "loop"), colour_of_word(&colours, &buffer, 3, "show"), "a label");
     }
 
+    /// Colours lines in a language chosen by its name.
+    fn colours_in(language: &str, lines: &[&str]) -> (LineColours, TextBuffer) {
+        let mut buffer = buffer_of(lines);
+        let mut colours = LineColours::default();
+        colours.set_syntax(test_engine().names().iter().find(|(name, _)| name == language).map(|(_, s)| *s));
+        colour_all(&mut colours, &mut buffer);
+        (colours, buffer)
+    }
+
+    #[test]
+    fn amigashell_scripts_are_found_by_name_or_what_they_say_and_coloured() {
+        let engine = test_engine();
+        for file in ["Startup-Sequence", "S/User-Startup", "startup-sequence", "Shell-Startup", "make.amigados"] {
+            assert_eq!(syntax_for(file).map(|s| engine.name_of(s)), Some(AMIGA_SHELL), "{file}");
+        }
+        let keyed = engine.detect(Some(Path::new("MakeDisk")), ".key DRIVE/A,QUIET/S\n").unwrap();
+        assert_eq!(engine.name_of(keyed), AMIGA_SHELL, "a .key line says what it is");
+        let script = arcs(&["; $VER: SPat 40.1", "FailAt 21", "If NOT EXISTS SYS:Prefs", "  Echo \"No Prefs\"", "EndIf", "C:Assign >NIL: FONTS: SYS:Fonts"]);
+        assert_eq!(engine.detect_with_sample(Some(Path::new("SPat")), &script).map(|s| engine.name_of(s)), Some(AMIGA_SHELL), "a script called anything");
+        let list = arcs(&["If you can read this", "Path of the ball", "Copy the notes", "Echo, echo"]);
+        assert_ne!(engine.detect_with_sample(Some(Path::new("NOTES")), &list).map(|s| engine.name_of(s)), Some(AMIGA_SHELL), "words that happen to start lines aren't enough");
+        let lines = [".key FILE/A,TO/K,QUIET/S", ".bra {", ".ket }", "; Copies a file", "FailAt 21", "If NOT EXISTS {FILE}", "  Skip done", "EndIf", "C:Copy <FILE> TO <TO$RAM:> >NIL: ; quietly", "Echo \"Done*N\" $Kickstart", "Lab done", "Run >NIL: `Which LoadWB`"];
+        let (colours, buffer) = colours_in(AMIGA_SHELL, &lines);
+        let comment = colour_of_word(&colours, &buffer, 3, "Copies");
+        assert_eq!(colour_of_word(&colours, &buffer, 8, "quietly"), comment, "a ; comment after a command");
+        assert_ne!(colour_of_word(&colours, &buffer, 0, ".key"), comment);
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "FILE"), colour_of_word(&colours, &buffer, 0, "/A"), "a template's names and their kinds");
+        assert_ne!(colour_of_word(&colours, &buffer, 4, "FailAt"), colour_of_word(&colours, &buffer, 4, "21"));
+        assert_eq!(colour_of_word(&colours, &buffer, 5, "If"), colour_of_word(&colours, &buffer, 7, "EndIf"));
+        assert_eq!(colour_of_word(&colours, &buffer, 5, "If"), colour_of_word(&colours, &buffer, 6, "Skip"));
+        assert_ne!(colour_of_word(&colours, &buffer, 8, "Copy"), colour_of_word(&colours, &buffer, 8, "TO "), "a command and its keyword");
+        assert_ne!(colour_of_word(&colours, &buffer, 8, "<FILE>"), colour_of_word(&colours, &buffer, 8, "TO "), "an argument as .key names it");
+        assert_ne!(colour_of_word(&colours, &buffer, 8, "NIL:"), colour_of_word(&colours, &buffer, 8, "Copy"), "a device");
+        assert_ne!(colour_of_word(&colours, &buffer, 9, "Done"), colour_of_word(&colours, &buffer, 9, "Echo"), "a string");
+        assert_ne!(colour_of_word(&colours, &buffer, 9, "*N"), colour_of_word(&colours, &buffer, 9, "Done"), "its escapes");
+        assert_ne!(colour_of_word(&colours, &buffer, 9, "$Kickstart"), colour_of_word(&colours, &buffer, 9, "Echo"), "a variable");
+        assert_ne!(colour_of_word(&colours, &buffer, 10, "done"), colour_of_word(&colours, &buffer, 10, "Lab"), "a label");
+        let labels = functions_in(AMIGA_SHELL, &lines);
+        assert_eq!(labels.iter().map(|(line, _)| *line).collect::<Vec<_>>(), [10], "LAB's labels are the outline's");
+    }
+
+    #[test]
+    fn gnu_as_68000_source_is_told_from_motorola_s_and_coloured() {
+        let gnu = arcs(&["\t.text", "\t.globl _start", "_start:\tmovel #0,d0", "\tlea data,a0", "1:\tmovel a0@+,d1", "\taddql #1,d0", "\tjne 1b", "\trts", "\t.data", "data:\t.long 0x12345678"]);
+        assert_eq!(guess_assembly(&gnu), Some(ASM_680X0_GNU));
+        let percent = arcs(&["\t.text", "start:\tmove.l %d0,%d1", "\tmove.l (%a0)+,%d2", "\tlea 8(%a1),%a2", "\trts"]);
+        assert_eq!(guess_assembly(&percent), Some(ASM_680X0_GNU), "Motorola's operands with GNU as's register prefix");
+        let motorola = arcs(&["\tsection code,code", "start:\tmove.l #0,d0", "\tlea data(pc),a0", "\tmove.l (a0)+,d1", "\taddq.l #1,d0", "\trts"]);
+        assert_eq!(guess_assembly(&motorola), Some(ASM_680X0), "vasm's and Devpac's stay as they were");
+        let pdp11 = arcs(&["\t.globl start", "start:\tmovb (r0)+,r1", "\tclrb r2", "\tswab r3", "\tsob r4,start", "\t.mcall .exit"]);
+        assert_eq!(guess_assembly(&pdp11), Some(ASM_PDP11), "GNU as's directives on PDP-11 code don't make it the 68000's");
+        let engine = test_engine();
+        assert_eq!(engine.detect_with_sample(Some(Path::new("crt0.s")), &gnu).map(|s| engine.name_of(s)), Some(ASM_680X0_GNU));
+        let lines = ["| set up", "\t.globl _main", "_main:\tmovel #0x10,%d0 | count", "1:\tmovew a0@(8,d1:w),d2; addql #1,d1", "\tjne 1b", "/* done */\trts", "msg:\t.asciz \"hi\\n\""];
+        let (colours, buffer) = colours_in(ASM_680X0_GNU, &lines);
+        let comment = colour_of_word(&colours, &buffer, 0, "set");
+        assert_eq!(colour_of_word(&colours, &buffer, 2, "count"), comment, "| starts a comment anywhere");
+        assert_eq!(colour_of_word(&colours, &buffer, 5, "done"), comment, "and /* */ is one too");
+        assert_ne!(colour_of_word(&colours, &buffer, 1, ".globl"), comment);
+        assert_ne!(colour_of_word(&colours, &buffer, 2, "movel"), colour_of_word(&colours, &buffer, 1, "_main"), "an instruction with its size run on");
+        assert_ne!(colour_of_word(&colours, &buffer, 2, "%d0"), colour_of_word(&colours, &buffer, 2, "0x10"));
+        assert_eq!(colour_of_word(&colours, &buffer, 3, "a0"), colour_of_word(&colours, &buffer, 2, "%d0"), "registers with and without %");
+        assert_eq!(colour_of_word(&colours, &buffer, 3, "addql"), colour_of_word(&colours, &buffer, 2, "movel"), "; is between statements, not a comment");
+        assert_ne!(colour_of_word(&colours, &buffer, 4, "jne"), colour_of_word(&colours, &buffer, 2, "movel"), "branches have their own colour");
+        assert_ne!(colour_of_word(&colours, &buffer, 6, "hi"), colour_of_word(&colours, &buffer, 6, ".asciz"));
+        let labels = functions_in(ASM_680X0_GNU, &lines);
+        assert_eq!(labels.iter().map(|(line, _)| *line).collect::<Vec<_>>(), [2, 3, 6]);
+    }
+
+    #[test]
+    fn amiga_catalogs_colour_names_strings_and_commands() {
+        let (colours, buffer) = assembler_colours("hello.cd", &["; a comment", "#language english", "MSG_HELLO (0/1/40)", ";not a comment but the string %ld\\n", "MSG_BYE (//)", "Bye"]);
+        let string = colour_of_word(&colours, &buffer, 5, "Bye");
+        assert_eq!(colour_of_word(&colours, &buffer, 3, "not"), string, "the line after a name is its string, even starting with ;");
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "comment"), string);
+        assert_ne!(colour_of_word(&colours, &buffer, 2, "MSG_HELLO"), string);
+        assert_ne!(colour_of_word(&colours, &buffer, 1, "language"), string);
+        assert_ne!(colour_of_word(&colours, &buffer, 3, "%ld"), string, "formatting commands stand out");
+        let (colours, buffer) = assembler_colours("deutsch.ct", &["## language deutsch", "MSG_BYE", "Tsch\u{fc}ss"]);
+        assert_ne!(colour_of_word(&colours, &buffer, 1, "MSG_BYE"), colour_of_word(&colours, &buffer, 2, "Tsch"));
+    }
+
     #[test]
     fn the_older_languages_are_found_by_their_file_names() {
         for (file, name) in [("words.fth", FORTH), ("Storage.mod", MODULA2), ("Storage.def", MODULA2), ("Kernel.st", SMALLTALK), ("family.pro", PROLOG), ("life.apl", APL), ("XUSER.mumps", MUMPS), ("invoice.prg", XBASE), ("std.ch", XBASE), ("flower.lgo", LOGO),
-                             ("payroll.pli", PLI), ("orders.rpgle", RPG), ("game.bi", BASIC_QBASIC), ("game.amos", BASIC_AMOS), ("shooter.bb2", BASIC_BLITZ), ("demo.stos", BASIC_STOS), ("help.guide", AMIGAGUIDE), ("Install", AMIGA_INSTALLER), ("CONFIG.SYS", CONFIG_SYS),
+                             ("payroll.pli", PLI), ("orders.rpgle", RPG), ("game.bi", BASIC_QBASIC), ("game.amos", BASIC_AMOS), ("shooter.bb2", BASIC_BLITZ), ("demo.stos", BASIC_STOS), ("help.guide", AMIGAGUIDE), ("Install", AMIGA_INSTALLER), ("hello.cd", AMIGA_CATALOG), ("deutsch.ct", AMIGA_CATALOG), ("CONFIG.SYS", CONFIG_SYS),
                              ("letter.rtf", RTF), ("page.ps", POSTSCRIPT), ("figure.eps", POSTSCRIPT), ("game.i6", INFORM6), ("zork1.zil", ZIL)] {
             assert_eq!(syntax_for(file).map(|s| test_engine().name_of(s)), Some(name), "{file}");
         }

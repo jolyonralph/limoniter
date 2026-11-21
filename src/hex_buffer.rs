@@ -451,6 +451,14 @@ impl HexBuffer {
         self.apply(self.caret, remove, bytes.to_vec(), self.caret + bytes.len(), 0, false);
     }
 
+    /// Every byte replaced with these, as one undoable action, the cursor kept where it was: for a tool that
+    /// rewrites a whole file it understands, such as a Workbench icon's details.
+    pub fn replace_everything(&mut self, bytes: Vec<u8>) {
+        let caret = self.caret.min(bytes.len());
+        self.merge_nibble = false;
+        self.apply(0, self.data.len(), bytes, caret, 0, false);
+    }
+
     pub fn delete_selection(&mut self) {
         if self.has_selection() {
             let start = self.caret.min(self.anchor);

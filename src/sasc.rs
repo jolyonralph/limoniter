@@ -517,7 +517,7 @@ mod tests {
         let source = base.join("hook.c");
         std::fs::write(&source, "#include \"hook.h\"\nLONG __asm F(register __d0 LONG x) { return x; }\n").unwrap();
         std::fs::write(base.join("hook.h"), "LONG __asm F(register __d0 LONG);\n").unwrap();
-        let job = Job { compiler: crate::compilers::by_id("amiga-gcc").unwrap(), program: PathBuf::from("gcc"), machine: crate::running::Machine::Amiga, main: source.clone(), sources: vec![source.clone()], folder: base.clone(), flags: Vec::new(), stem: "hook".into(), sasc: true };
+        let job = Job { compiler: crate::compilers::by_id("amiga-gcc").unwrap(), program: PathBuf::from("gcc"), machine: crate::running::Machine::Amiga, main: source.clone(), sources: vec![source.clone()], folder: base.clone(), flags: Vec::new(), libs: Vec::new(), stem: "hook".into(), sasc: true };
         let work = base.join("work");
         let (sources, _, folders) = prepare(&job, &work).unwrap();
         let copy = std::fs::read_to_string(&sources[0]).unwrap();

@@ -179,6 +179,10 @@ pub fn way(emulator: &Emulator) -> Way {
 }
 
 fn way_for(id: &str, windows: bool, mac: bool, apt: bool, homebrew: bool, linux_x86: bool) -> Way {
+    // vamos is part of amitools, a Python package, got with pip wherever Python is.
+    if id == "vamos" {
+        return Way::Command(if windows { "py -m pip install amitools" } else { "python3 -m pip install --user amitools" }.to_string());
+    }
     if windows && windows_release(id).is_some() {
         return Way::Download;
     }
@@ -218,7 +222,7 @@ pub fn folder() -> Option<PathBuf> {
     crate::settings::data_folder().map(|d| d.join("emulators"))
 }
 
-fn get(address: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn get(address: &str) -> Result<Vec<u8>, String> {
     let response = ureq::get(address).header("User-Agent", "Limoniter").call().map_err(|e| crate::i18n::tf!("{address} couldn't be reached: {e}"))?;
     let mut bytes = Vec::new();
     response.into_body().into_reader().take(MOST_DOWNLOAD).read_to_end(&mut bytes).map_err(|e| crate::i18n::tf!("The download stopped: {e}"))?;
@@ -251,7 +255,7 @@ fn pick_gitlab(release: &str, wanted: fn(&str) -> bool) -> Result<String, String
 
 /// Every link on a web page, made whole: one relative to the page (dl/xroar.zip) or to its server (/files/a.zip)
 /// is given the page's address before it.
-fn page_links(html: &str, page: &str) -> Vec<String> {
+pub(crate) fn page_links(html: &str, page: &str) -> Vec<String> {
     let server_end = page.find("://").map(|at| at + 3).and_then(|from| page[from..].find('/').map(|slash| from + slash)).unwrap_or(page.len());
     let folder = if page.len() > server_end { &page[..page.rfind('/').map_or(page.len(), |slash| slash + 1)] } else { page };
     let mut links = Vec::new();
@@ -284,7 +288,7 @@ fn pick_link(html: &str, page: &str, wanted: fn(&str) -> bool) -> Result<String,
     page_links(html, page).into_iter().find(|link| wanted(link)).ok_or_else(|| crate::i18n::tf!("{page} has no download for Windows that Limoniter knows."))
 }
 
-fn text(bytes: Vec<u8>, from: &str) -> Result<String, String> {
+pub(crate) fn text(bytes: Vec<u8>, from: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| crate::i18n::tf!("{from}'s answer wasn't text."))
 }
 
@@ -396,7 +400,7 @@ fn download_linux(emulator: &Emulator, (repo, program, tools): (&str, fn(&str) -
 }
 
 /// Lets a file be run, as a tar file says it can be (on Windows, everything can).
-fn make_runnable(path: &Path, mode: u32) {
+pub(crate) fn make_runnable(path: &Path, mode: u32) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -408,8 +412,10 @@ fn make_runnable(path: &Path, mode: u32) {
 
 /// Unpacks a tar file into a folder, the folder everything's in (as a release's is) left out: its files and
 /// folders, with the permission to run where a file has it. Nothing is let out of the folder.
-fn untar(tar: &[u8], target: &Path) -> Result<(), String> {
+pub(crate) fn untar(tar: &[u8], target: &Path) -> Result<(), String> {
     let mut at = 0;
+    // GNU tar gives a name longer than 100 characters an entry of its own (an L), just before the file's.
+    let mut long_name: Option<String> = None;
     while let Some(header) = tar.get(at..at + 512) {
         if header.iter().all(|b| *b == 0) {
             break;
@@ -418,12 +424,18 @@ fn untar(tar: &[u8], target: &Path) -> Result<(), String> {
         let octal = |range: std::ops::Range<usize>| u64::from_str_radix(text(range).trim(), 8).unwrap_or(0);
         let size = octal(124..136) as usize;
         let mode = octal(100..108) as u32;
-        // ustar puts the start of a long name in a prefix of its own.
-        let prefix = if &header[257..262] == b"ustar" { text(345..500) } else { String::new() };
-        let name = if prefix.is_empty() { text(0..100) } else { format!("{prefix}/{}", text(0..100)) };
+        // POSIX's ustar puts the start of a long name in a prefix of its own. GNU's ("ustar" and two spaces) keeps
+        // other things there, so it isn't read as a name.
+        let prefix = if &header[257..263] == b"ustar\0" { text(345..500) } else { String::new() };
+        let short = if prefix.is_empty() { text(0..100) } else { format!("{prefix}/{}", text(0..100)) };
         let kind = header[156];
         let body = tar.get(at + 512..at + 512 + size).ok_or(crate::i18n::tr("The tar file ends too soon."))?;
         at += 512 + size.div_ceil(512) * 512;
+        if kind == b'L' {
+            long_name = Some(String::from_utf8_lossy(body).trim_end_matches('\0').to_string());
+            continue;
+        }
+        let name = long_name.take().unwrap_or(short);
         let parts: Vec<&str> = name.split('/').filter(|p| !p.is_empty() && *p != ".").collect();
         if parts.iter().any(|p| *p == ".." || p.contains(['\\', ':'])) || parts.len() < 2 {
             continue;
@@ -445,7 +457,7 @@ fn untar(tar: &[u8], target: &Path) -> Result<(), String> {
 }
 
 /// Unpacks a zip into a folder. When everything in it is in one folder, that folder's contents go straight in.
-fn unzip(zip: Vec<u8>, target: &Path) -> Result<(), String> {
+pub(crate) fn unzip(zip: Vec<u8>, target: &Path) -> Result<(), String> {
     let volume = crate::media::open(std::sync::Arc::new(zip), "release.zip")?;
     let top = volume.list(None)?;
     let only = (top.len() == 1 && top[0].is_dir).then(|| top[0].clone());
@@ -470,7 +482,7 @@ fn write_folder(volume: &dyn crate::media::Volume, dir: Option<&crate::media::En
 }
 
 /// The emulator's program in what was unpacked, a few folders down at most, the first of its names found.
-fn find_program(folder: &Path, programs: &[&str]) -> Option<PathBuf> {
+pub(crate) fn find_program(folder: &Path, programs: &[&str]) -> Option<PathBuf> {
     let exe = |name: &str| if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
     let mut level = vec![folder.to_path_buf()];
     for _ in 0..4 {
@@ -508,6 +520,8 @@ mod tests {
         }
         assert_eq!(way_for("vice", false, false, true, false, true), Way::Command("sudo apt-get install vice".into()));
         assert_eq!(way_for("fuse", false, false, true, false, true), Way::Command("sudo apt-get install fuse-emulator-gtk".into()));
+        assert_eq!(way_for("vamos", true, false, false, false, false), Way::Command("py -m pip install amitools".into()), "vamos comes from pip");
+        assert_eq!(way_for("vamos", false, true, false, true, false), Way::Command("python3 -m pip install --user amitools".into()));
         assert_eq!(way_for("b2", false, false, true, false, true), Way::Page);
         assert_eq!(way_for("zesarux", false, true, false, true, false), Way::Page, "Homebrew switched its app off");
         assert_eq!(way_for("tic80", false, true, false, true, false), Way::Page, "Homebrew switched its app off");
@@ -704,6 +718,32 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(std::fs::metadata(folder.join("copperline-ctl")).unwrap().permissions().mode() & 0o777, 0o755);
         }
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn a_long_name_gnu_tar_gives_an_entry_of_its_own_is_used() {
+        let folder = std::env::temp_dir().join(format!("limoniter-untar-long-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        let long = format!("zxbasic/src/arch/{}/library-asm.asm", "z".repeat(120));
+        // GNU tar's own header for the name: "././@LongLink", kind L, the name as its body.
+        let mut header = [0u8; 512];
+        header[..13].copy_from_slice(b"././@LongLink");
+        header[124..135].copy_from_slice(format!("{:011o}", long.len() + 1).as_bytes());
+        header[156] = b'L';
+        header[257..265].copy_from_slice(b"ustar  \0");
+        let mut whole = header.to_vec();
+        whole.extend(long.as_bytes());
+        whole.push(0);
+        whole.resize(whole.len().div_ceil(512) * 512, 0);
+        // Then the file, its name cut to 100 characters, in GNU's format, whose other fields aren't a prefix.
+        let mut entry = tar(&[(&long[..100], 0o644, b"ld a, 1")]);
+        entry[257..265].copy_from_slice(b"ustar  \0");
+        entry[345..350].copy_from_slice(b"12345");
+        whole.extend(entry);
+        untar(&whole, &folder).unwrap();
+        let unpacked = folder.join("src").join("arch").join("z".repeat(120)).join("library-asm.asm");
+        assert_eq!(std::fs::read(&unpacked).unwrap(), b"ld a, 1");
         let _ = std::fs::remove_dir_all(&folder);
     }
 

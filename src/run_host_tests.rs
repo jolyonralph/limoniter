@@ -1064,3 +1064,46 @@ fn arm_source_is_known_and_saved_as_a_risc_os_application() {
     assert_eq!(&saved[..4], &0xE28F_000Cu32.to_le_bytes(), "ADR R0,message: 12 bytes on from PC");
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+/// GNU as's 68000 source is never given to an assembler that reads Motorola's, nor Motorola's to GNU as; a project
+/// can say which assembler builds its source, and then nothing else does, wherever it's opened.
+#[test]
+fn source_is_built_only_with_the_assembler_for_its_way_of_writing() {
+    use crate::assemblers::{Choice, Cpu, GNU_AS};
+    let (mut app, _ctx) = app_with("");
+    crate::highlight::load_now();
+    app.new_document();
+    app.doc().untitled = "demo.s".into();
+    app.doc().text.set_content(["\t.text", "\t.globl _start", "_start:\tmovel #0,d0", "1:\tmovel a0@+,d1", "\taddql #1,d0", "\trts"].iter().map(|l| l.to_string()).collect());
+    app.doc().update_syntax();
+    assert_eq!(app.doc().language_name(), highlight::ASM_680X0_GNU);
+    let installed = crate::assemblers::installed(Cpu::M68k).iter().any(|(e, _)| e.id == GNU_AS);
+    if !installed {
+        let refused = app.assemble_to_run(Cpu::M68k, false).unwrap_err();
+        assert!(refused.contains("GNU as"), "{refused}");
+    }
+    // The quiet assembling for hints leaves GNU as's source alone: Limoniter's own would only find problems in it.
+    app.assembly_tick();
+    assert!(app.doc().text.code.as_ref().is_none_or(|c| c.problems.is_empty()));
+    // A project that says GNU as builds its 68000 source with it, though the settings say vasm for other source.
+    app.set_assembler(Cpu::M68k, &Choice::Program { id: "vasm", path: "/usr/bin/vasmm68k_mot".into() });
+    let mut project = crate::project::Project::new(&std::env::temp_dir().join("limoniter-gnu-project").join("demo.limproj"));
+    project.set_assembler("68000", Some(GNU_AS));
+    app.project = Some(project);
+    app.running.assemblers.push(("where:gnu-as".into(), Choice::Program { id: GNU_AS, path: "/opt/x/bin/m68k-amigaos-as".into() }.setting()));
+    assert_eq!(app.assembler_for(Cpu::M68k), Choice::Program { id: GNU_AS, path: "/opt/x/bin/m68k-amigaos-as".into() }, "where it is, from the settings");
+    assert_eq!(app.assembler_for_source(Cpu::M68k, highlight::ASM_680X0_GNU), Ok(Choice::Program { id: GNU_AS, path: "/opt/x/bin/m68k-amigaos-as".into() }));
+    assert!(app.assembler_for_source(Cpu::M68k, "Assembly 680x0").is_err(), "Motorola's source isn't given to GNU as");
+    // Not found on this computer: said, and nothing else is used instead.
+    app.running.assemblers.retain(|(k, _)| k != "where:gnu-as");
+    if !installed {
+        let missing = app.assembler_for_source(Cpu::M68k, highlight::ASM_680X0_GNU).unwrap_err();
+        assert!(missing.contains("wasn't found"), "{missing}");
+    }
+    // A project that says Limoniter's own refuses GNU as's source rather than build it wrongly.
+    app.project.as_mut().unwrap().set_assembler("68000", Some(crate::assemblers::OWN));
+    assert_eq!(app.assembler_for(Cpu::M68k), Choice::Own);
+    assert!(app.assembler_for_source(Cpu::M68k, highlight::ASM_680X0_GNU).is_err());
+    app.project = None;
+    assert!(matches!(app.assembler_for(Cpu::M68k), Choice::Program { id: "vasm", .. }), "the settings' choice again");
+}

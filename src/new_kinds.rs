@@ -128,6 +128,29 @@ impl NewKind {
             Self::new("C for the Sega Mega Drive (SGDK)", "c", "utf-8", line, "C", Program::None, crate::c_starters::MEGA_DRIVE),
             Self::new("C for the Amiga (amiga-gcc or vbcc)", "c", "utf-8", line, "C", Program::None, crate::c_starters::AMIGA),
             Self::new("Markdown", "md", "utf-8", line, "Markdown", Program::None, ""),
+            Self::new("HTML page", "html", "utf-8", line, "", Program::None, "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title></title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n\n  <script src=\"script.js\"></script>\n</body>\n</html>\n"),
+            Self::new("CSS", "css", "utf-8", line, "", Program::None, ""),
+            Self::new("JavaScript", "js", "utf-8", line, "", Program::None, ""),
+            Self::new("TypeScript", "ts", "utf-8", line, "", Program::None, ""),
+            Self::new("JSON", "json", "utf-8", line, "", Program::None, "{\n}\n"),
+            Self::new("Python", "py", "utf-8", line, "", Program::None, "def main():\n    print(\"Hello\")\n\n\nif __name__ == \"__main__\":\n    main()\n"),
+            Self::new("C", "c", "utf-8", line, "", Program::None, "#include <stdio.h>\n\nint main(void)\n{\n    printf(\"Hello\\n\");\n    return 0;\n}\n"),
+            Self::new("C++", "cpp", "utf-8", line, "", Program::None, "#include <iostream>\n\nint main()\n{\n    std::cout << \"Hello\\n\";\n}\n"),
+            Self::new("Rust", "rs", "utf-8", line, "", Program::None, "fn main() {\n    println!(\"Hello\");\n}\n"),
+            Self::new("Go", "go", "utf-8", line, "", Program::None, "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello\")\n}\n"),
+            Self::new("Java", "java", "utf-8", line, "", Program::None, "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello\");\n    }\n}\n"),
+            Self::new("C#", "cs", "utf-8", line, "", Program::None, "Console.WriteLine(\"Hello\");\n"),
+            Self::new("PHP", "php", "utf-8", line, "", Program::None, "<?php\n\n"),
+            Self::new("Ruby", "rb", "utf-8", line, "", Program::None, ""),
+            Self::new("Lua", "lua", "utf-8", line, "", Program::None, ""),
+            Self::new("Shell script (sh)", "sh", "utf-8", line, "", Program::None, "#!/bin/sh\n\n"),
+            Self::new("PowerShell script", "ps1", "utf-8", line, "", Program::None, ""),
+            Self::new("Windows batch file", "bat", "utf-8", line, "", Program::None, "@echo off\n"),
+            Self::new("SQL", "sql", "utf-8", line, "", Program::None, ""),
+            Self::new("YAML", "yaml", "utf-8", line, "", Program::None, ""),
+            Self::new("TOML", "toml", "utf-8", line, "", Program::None, ""),
+            Self::new("XML", "xml", "utf-8", line, "", Program::None, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"),
+            Self::new("Plain text", "txt", "utf-8", line, "", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),
             Self::new("Amiga text", "txt", "amiga-text", Eol::Lf, "", Program::None, ""),
@@ -149,6 +172,61 @@ impl NewKind {
         let eol = EOLS.into_iter().find(|e| e.name() == eol).unwrap_or(Eol::CrLf);
         let program = Program::ALL.into_iter().find(|p| p.id() == program).unwrap_or_default();
         Some(Self::new(name, ending, encoding, eol, language, program, &starter.replace('\u{3}', "\n")))
+    }
+}
+
+/// The sub-menus of File, New as, in their order; a kind of one's own goes in the last.
+pub(super) const GROUPS: [&str; 14] = [
+    "Modern languages",
+    "Text",
+    "ZX Spectrum, ZX81 and Jupiter Ace",
+    "Commodore",
+    "Amiga",
+    "Atari",
+    "Acorn and OpticOS",
+    "Nintendo",
+    "Sega and ColecoVision",
+    "Dragon and Vectrex",
+    "PC",
+    "Any machine: assembler",
+    "C for older machines",
+    "Your own",
+];
+
+impl NewKind {
+    /// The sub-menu of File, New as this kind goes in: the usual kinds by name, any other in "Your own".
+    pub(super) fn group(&self) -> &'static str {
+        let name = self.name.as_str();
+        let starts = |p: &str| name.starts_with(p);
+        if starts("C for ") {
+            "C for older machines"
+        } else if ["Z80 assembler", "6502 assembler", "6809 assembler", "68000 assembler"].contains(&name) {
+            "Any machine: assembler"
+        } else if starts("Spectrum") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") {
+            "ZX Spectrum, ZX81 and Jupiter Ace"
+        } else if starts("Commodore 64") || starts("C64") {
+            "Commodore"
+        } else if starts("Amiga demo") || starts("Amiga copper") {
+            "Amiga"
+        } else if starts("Atari") {
+            "Atari"
+        } else if starts("BBC BASIC") || starts("OpticBASIC") {
+            "Acorn and OpticOS"
+        } else if starts("Game Boy") || starts("NES ") {
+            "Nintendo"
+        } else if starts("Sega") || starts("ColecoVision") {
+            "Sega and ColecoVision"
+        } else if starts("Dragon") || starts("Vectrex") {
+            "Dragon and Vectrex"
+        } else if starts("DOS program") || starts("PC boot") {
+            "PC"
+        } else if ["Markdown", "Plain text", "Commodore text (PETSCII)", "ZX Spectrum text", "Amiga text", "DOS text"].contains(&name) {
+            "Text"
+        } else if Self::usual().iter().any(|kind| kind.name == name) {
+            "Modern languages"
+        } else {
+            "Your own"
+        }
     }
 }
 

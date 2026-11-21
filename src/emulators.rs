@@ -163,6 +163,19 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://github.com/CopperlineHQ/Copperline",
     },
+    // vamos, from amitools: no emulated machine at all, but an Amiga program's code run here, what it asks of
+    // AmigaDOS done on this computer's files, and its output brought back (see `amiga_vamos`).
+    Emulator {
+        id: "vamos",
+        name: "vamos (AmigaShell programs here)",
+        programs: &["vamos"],
+        folder_hints: &["amitools"],
+        mac_apps: &[],
+        machines: &[Amiga],
+        formats: &[Hunk],
+        link: Link::None,
+        website: crate::amiga_vamos::WEBSITE,
+    },
     // The PC: DOSBox runs a .COM from its folder, made its C: drive, and boots a floppy; QEMU boots one.
     Emulator {
         id: "dosbox",
@@ -583,9 +596,9 @@ fn find(emulator: &Emulator) -> Option<PathBuf> {
     let mut path: Vec<PathBuf> = std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).collect()).unwrap_or_default();
     // Where package managers put programs, which a program started from the desktop may not have on its path:
     // Homebrew's folders on a Mac (an app opened from the Finder has only the system's), and the games folders
-    // Debian's and Ubuntu's packages use for emulators such as MAME.
+    // Debian's and Ubuntu's packages use for emulators such as MAME; and where pip puts programs, for vamos.
     let usual: &[&str] = if cfg!(target_os = "macos") { &["/opt/homebrew/bin", "/usr/local/bin"] } else if cfg!(windows) { &[] } else { &["/usr/games", "/usr/local/games"] };
-    for folder in usual.iter().map(PathBuf::from) {
+    for folder in usual.iter().map(PathBuf::from).chain(crate::amiga_vamos::python_folders()) {
         if !path.contains(&folder) {
             path.push(folder);
         }

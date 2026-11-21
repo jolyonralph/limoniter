@@ -19,6 +19,8 @@ pub enum Toolchain {
     Sgdk,
     Vbcc,
     AmigaGcc,
+    /// SAS/C itself, run through vamos (see `amiga_vamos`): found as vamos, with SAS/C's folder known.
+    SasC,
 }
 
 /// A compiler Limoniter knows: where it's usually installed and what it compiles for.
@@ -42,7 +44,7 @@ pub struct Compiler {
 const SPECTRUM: &[Machine] = &[Machine::Spectrum48];
 const COMMODORES: &[Machine] = &[Machine::C64, Machine::C128, Machine::Vic20, Machine::Plus4, Machine::Pet];
 
-pub const KNOWN: [Compiler; 8] = [
+pub const KNOWN: [Compiler; 9] = [
     Compiler { id: "zxbc", name: "Boriel's ZX Basic (zxbc)", toolchain: Toolchain::Zxbc, machines: SPECTRUM, programs: &["zxbc", "zxbc.py", "zxb", "zxb.py"], folder_hints: &["zxbasic", "zxbc", "boriel"], homes: &[], usual: &[], website: "https://github.com/boriel-basic/zxbasic" },
     Compiler { id: "cc65", name: "cc65", toolchain: Toolchain::Cc65, machines: COMMODORES, programs: &["cl65"], folder_hints: &["cc65"], homes: &["CC65_HOME"], usual: &["/usr/local/cc65/bin", "/opt/cc65/bin", "C:\\cc65\\bin"], website: "https://cc65.github.io" },
     Compiler { id: "llvm-mos", name: "llvm-mos", toolchain: Toolchain::LlvmMos, machines: &[Machine::C64, Machine::C128, Machine::Vic20, Machine::Pet, Machine::Atari2600], programs: &[], folder_hints: &["llvm-mos"], homes: &["LLVM_MOS_SDK"], usual: &["/opt/llvm-mos/bin", "/usr/local/llvm-mos/bin", "C:\\llvm-mos\\bin"], website: "https://www.llvm-mos.org" },
@@ -51,6 +53,7 @@ pub const KNOWN: [Compiler; 8] = [
     Compiler { id: "sgdk", name: "SGDK", toolchain: Toolchain::Sgdk, machines: &[Machine::MegaDrive], programs: &[], folder_hints: &["sgdk"], homes: &["GDK", "SGDK", "GDK_WIN"], usual: &["/opt/sgdk", "C:\\SGDK", "C:\\sgdk"], website: "https://github.com/Stephane-D/SGDK" },
     Compiler { id: "amiga-gcc", name: "amiga-gcc (Bebbo's)", toolchain: Toolchain::AmigaGcc, machines: &[Machine::Amiga], programs: &["m68k-amigaos-gcc"], folder_hints: &["amiga-gcc", "amiga"], homes: &[], usual: &["/opt/amiga/bin", "C:\\amiga-gcc\\bin"], website: "https://codeberg.org/bebbo/amiga-gcc" },
     Compiler { id: "vbcc", name: "vbcc", toolchain: Toolchain::Vbcc, machines: &[Machine::Amiga], programs: &["vc"], folder_hints: &["vbcc"], homes: &["VBCC"], usual: &["/opt/vbcc/bin", "C:\\vbcc\\bin"], website: "http://www.compilers.de/vbcc.html" },
+    Compiler { id: "sasc", name: "SAS/C (through vamos)", toolchain: Toolchain::SasC, machines: &[Machine::Amiga], programs: &["vamos"], folder_hints: &["amitools"], homes: &[], usual: &[], website: crate::amiga_vamos::WEBSITE },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Compiler> {
@@ -80,6 +83,10 @@ impl Compiler {
 
     /// Where it's installed, for a machine: its program, or for SGDK, its folder (the one with makefile.gen).
     pub fn find(&self, machine: Machine) -> Option<PathBuf> {
+        // SAS/C is there when both vamos and SAS/C's own folder are: its program is vamos.
+        if self.toolchain == Toolchain::SasC {
+            return crate::amiga_vamos::find_sasc(&crate::amiga_vamos::settings()).and_then(|_| crate::amiga_vamos::find());
+        }
         let homes: Vec<PathBuf> = self.homes.iter().filter_map(std::env::var_os).map(PathBuf::from).collect();
         // z88dk's documentation has ZCCCFG name its lib/config folder, two below where it's installed.
         let z88dk = (self.toolchain == Toolchain::Z88dk).then(|| std::env::var_os("ZCCCFG").map(PathBuf::from).and_then(|p| p.parent()?.parent().map(Path::to_path_buf))).flatten();
@@ -104,7 +111,8 @@ impl Compiler {
                 }
             }
         }
-        crate::emulators::find_program(programs, self.folder_hints)
+        // Then the one Limoniter installed itself, when asked to (see `boriel_get`).
+        crate::emulators::find_program(programs, self.folder_hints).or_else(|| if self.toolchain == Toolchain::Zxbc { crate::boriel_get::installed() } else { None })
     }
 }
 
@@ -130,6 +138,8 @@ pub struct Job {
     pub stem: String,
     /// SAS/C source, compiled through Limoniter's compatibility header (see `sasc`).
     pub sasc: bool,
+    /// Libraries linked after the files, from an Amiga project's makefile (see `amiga_project`).
+    pub libs: Vec<String>,
 }
 
 /// A problem a compiler printed: the file, the line (from 1; 0 if it didn't say), what's wrong, and whether it's
@@ -260,21 +270,38 @@ pub fn commands(job: &Job, work: &Path) -> Vec<(PathBuf, Vec<String>)> {
             let make = if cfg!(windows) { program.join("bin").join("make.exe") } else { PathBuf::from("make") };
             vec![(make, vec!["-f".into(), shown(&program.join("makefile.gen"))])]
         }
-        // vc +aos68k -c99 -o prog prog.c -lamiga: an AmigaOS program, with C99's // comments allowed.
+        // vc +aos68k -c99 -o prog prog.c -lamiga: an AmigaOS program, with C99's // comments allowed. A project's
+        // makefile may give another configuration (+kick13) and its libraries, which go after the files.
         Toolchain::Vbcc => {
-            let mut args = vec!["+aos68k".to_string(), "-c99".into(), "-O1".into()];
+            let config = flags.iter().any(|f| f.starts_with('+'));
+            let mut args = if config { Vec::new() } else { vec!["+aos68k".to_string()] };
+            args.extend(["-c99".to_string(), "-O1".into()]);
             args.extend(flags);
             args.extend(["-o".into(), shown(&work.join(stem))]);
             args.extend(sources);
-            args.push("-lamiga".into());
+            args.extend(job.libs.iter().cloned());
+            if !job.libs.iter().any(|l| l == "-lamiga") {
+                args.push("-lamiga".into());
+            }
             vec![(program, args)]
         }
-        // m68k-amigaos-gcc -Os hello.c -noixemul -o hello: with libnix, for Kickstart 2.0 and on.
+        // vamos running SAS/C's smake or sc in the project's folder (see `amiga_vamos::sasc_arguments`).
+        Toolchain::SasC => {
+            let settings = crate::amiga_vamos::settings();
+            let sasc = crate::amiga_vamos::find_sasc(&settings).unwrap_or_default();
+            vec![(program, crate::amiga_vamos::sasc_arguments(&settings, &sasc, &job.folder, &job.sources, stem))]
+        }
+        // m68k-amigaos-gcc -Os hello.c -noixemul -o hello: with libnix, for Kickstart 2.0 and on, unless a project's
+        // makefile chooses another C library (-mcrt=nix13 for 1.3).
         Toolchain::AmigaGcc => {
-            let mut args = vec!["-Os".to_string(), "-noixemul".into()];
+            let mut args = vec!["-Os".to_string()];
+            if !flags.iter().any(|f| f.starts_with("-mcrt=") || f == "-noixemul") {
+                args.push("-noixemul".into());
+            }
             args.extend(flags);
             args.extend(["-o".into(), shown(&work.join(stem))]);
             args.extend(sources);
+            args.extend(job.libs.iter().cloned());
             vec![(program, args)]
         }
     }
@@ -287,6 +314,10 @@ pub fn commands(job: &Job, work: &Path) -> Vec<(PathBuf, Vec<String>)> {
 /// - SDCC: `prog.c:6: error 20: Undefined identifier 'y'` and `prog.c:3: syntax error: token -> 'x' ; column 5`
 /// - vbcc: `error 82 in line 4 of "prog.c": unknown identifier <foo>`
 pub fn problem_in(line: &str) -> Option<Problem> {
+    // SAS/C, run through vamos: "hello.c 6 Error 57: Semi-colon expected".
+    if let Some(problem) = crate::amiga_vamos::sasc_problem(line) {
+        return Some(problem);
+    }
     let text = line.trim_end();
     // vbcc (and vasm): "error 82 in line 4 of "prog.c": unknown identifier <foo>".
     for (word, warning) in [("error ", false), ("warning ", true), ("fatal error ", false)] {
@@ -373,7 +404,7 @@ pub fn read_intel_hex(text: &str) -> Option<(u32, Vec<u8>)> {
 
 /// Runs a program in a folder with some variables set, giving up after `limit`: whether it succeeded, and what it
 /// printed.
-fn run(program: &Path, args: &[String], folder: &Path, env: &[(String, String)], limit: Duration) -> Result<(bool, Vec<String>), String> {
+pub(crate) fn run(program: &Path, args: &[String], folder: &Path, env: &[(String, String)], limit: Duration) -> Result<(bool, Vec<String>), String> {
     let mut command = std::process::Command::new(program);
     command.args(args).current_dir(folder).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     for (name, value) in env {
@@ -446,6 +477,9 @@ pub fn build(job: &Job, work: &Path) -> Result<Compiled, String> {
     if job.compiler.toolchain == Toolchain::Sgdk {
         env.push(("GDK".to_string(), shown(&job.program)));
     }
+    if job.compiler.toolchain == Toolchain::Zxbc {
+        env.extend(crate::boriel_get::environment());
+    }
     let limit = if job.compiler.toolchain == Toolchain::Sgdk { Duration::from_secs(600) } else { Duration::from_secs(120) };
     let mut ok = true;
     for (program, args) in commands(&job, work) {
@@ -504,6 +538,8 @@ fn made(job: &Job, work: &Path) -> Option<(String, Vec<u8>)> {
         }
         Toolchain::Sgdk => read(job.folder.join("out").join("rom.bin")).map(|b| (format!("{stem}.md"), b)),
         Toolchain::Vbcc | Toolchain::AmigaGcc => read(work.join(stem)).map(|b| (stem.clone(), b)),
+        // SAS/C leaves the program in the project's folder, as it would on the Amiga.
+        Toolchain::SasC => read(job.folder.join(stem)).map(|b| (stem.clone(), b)),
     }
 }
 
@@ -521,7 +557,7 @@ pub fn runnable(job: &Job, name: &str, bytes: Vec<u8>) -> Result<Runnable, Strin
             _ => Format::ColRom,
         },
         Toolchain::Sgdk => Format::MdRom,
-        Toolchain::Vbcc | Toolchain::AmigaGcc => Format::Hunk,
+        Toolchain::Vbcc | Toolchain::AmigaGcc | Toolchain::SasC => Format::Hunk,
     };
     let name = if format == Format::Hunk { format!("{name}.exe") } else { name.to_string() };
     if format == Format::Hunk && !bytes.starts_with(&[0, 0, 0x03, 0xF3]) {
@@ -647,6 +683,7 @@ mod tests {
             flags: Vec::new(),
             stem: "prog".into(),
             sasc: false,
+            libs: Vec::new(),
         }
     }
 
@@ -679,6 +716,15 @@ mod tests {
         assert_eq!(steps[0].1.iter().map(|a| a.replace('\\', "/")).collect::<Vec<_>>(), ["-f", "/opt/sgdk/makefile.gen"]);
         assert_eq!(line_of(&commands(&job("vbcc", Machine::Amiga, &["/src/a.c"]), work), 0), "vc +aos68k -c99 -O1 -o /w/prog /src/a.c -lamiga");
         assert_eq!(line_of(&commands(&job("amiga-gcc", Machine::Amiga, &["/src/a.c"]), work), 0), "m68k-amigaos-gcc -Os -noixemul -o /w/prog /src/a.c");
+        // An Amiga project's makefile chooses the configuration or C library, and the libraries go after the files.
+        let mut kick13 = job("vbcc", Machine::Amiga, &["/src/a.c"]);
+        kick13.flags = vec!["+kick13".into(), "-cpu=68000".into()];
+        kick13.libs = vec!["-lmieee".into(), "-lamiga".into()];
+        assert_eq!(line_of(&commands(&kick13, work), 0), "vc -c99 -O1 +kick13 -cpu=68000 -o /w/prog /src/a.c -lmieee -lamiga");
+        let mut nix13 = job("amiga-gcc", Machine::Amiga, &["/src/a.c"]);
+        nix13.flags = vec!["-mcrt=nix13".into(), "-m68000".into()];
+        nix13.libs = vec!["-lm".into(), "-lamiga".into()];
+        assert_eq!(line_of(&commands(&nix13, work), 0), "m68k-amigaos-gcc -Os -mcrt=nix13 -m68000 -o /w/prog /src/a.c -lm -lamiga");
     }
 
     /// Lines as each compiler prints them: cc65's from running it here, the others' from their documentation and
@@ -734,7 +780,7 @@ mod tests {
         assert_eq!(ids(Machine::C64, false), ["cc65", "llvm-mos"]);
         assert_eq!(ids(Machine::Spectrum48, false), ["z88dk", "sdcc"]);
         assert_eq!(ids(Machine::Spectrum48, true), ["zxbc"]);
-        assert_eq!(ids(Machine::Amiga, false), ["amiga-gcc", "vbcc"]);
+        assert_eq!(ids(Machine::Amiga, false), ["amiga-gcc", "vbcc", "sasc"], "SAS/C, through vamos, last but for SAS/C projects");
         assert_eq!(ids(Machine::MegaDrive, false), ["sgdk"]);
         let words = not_found(Machine::Amiga, false);
         assert!(words.contains("codeberg.org/bebbo/amiga-gcc") && words.contains("VBCC"), "{words}");

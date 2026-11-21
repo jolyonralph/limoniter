@@ -95,6 +95,7 @@
 "{}" isn't an address in hex, such as $0810.
 "{}" wasn't understood
 # Files Git leaves out. Lines can be added here at any time.
+# limoniter-end
 #pragma {what} is SAS/C's own, and is left out here.
 #pragma {what} is SAS/C's way of calling a library: include the library's <proto/...> header instead, which {} understands.
 #value,rotation is an 8-bit value and an even rotation up to 30
@@ -145,6 +146,7 @@ ${} is too large a number
 ($FF8265), and the words skipped at the end of each line ($FF820F). Press space to leave.
 (before the first label)
 (blank line)
+(choose a folder)
 (compiled procedure: its code can't be listed)
 (files at the top)
 (it starts with {})
@@ -411,7 +413,11 @@ ${} is too large a number
 ; {} bytes from offset ${:X}, as {}\n
 ; {} different places, the most alike made one
 < and >
+<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title></title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n  <script src="script.js"></script>\n</body>\n</html>\n
+<?php\n\n
+<?xml version="1.0" encoding="UTF-8"?>\n
 <dos.h> is SAS/C's own header (getreg, putreg and the like); the others don't have it.
+@echo off\n
 A ( isn't closed.
 A .COM program fits in 65,280 bytes, and this is {}.
 A .bootdisk file: the pieces, their sectors and addresses, and the boot block
@@ -577,6 +583,7 @@ A folder to assemble in couldn't be made: {e}
 A folder to compare
 A folder to compile in couldn't be made: {e}
 A folder to work in couldn't be made: {e}
+A folder with the program's C, its makefiles for amiga-gcc (Makefile.gcc), vbcc (Makefile.vbcc) and SAS/C (smakefile), and an icon for a Workbench program. Limoniter keeps the makefiles' lists of files up to date as files are added and taken away, and F9 builds and runs it.
 A folder's catalog record is too short, so the volume is damaged.
 A folder's hash chains loop, so the disk is damaged.
 A folder, or one file
@@ -656,6 +663,7 @@ A run of the disk image's sectors is past its end, so the image is damaged.
 A run of the disk image's sectors is stored shorter than it is, so the image is damaged.
 A sample bank that packs to less than half (decoded when LSP starts)
 A screen is 6912 bytes; {} is {}.
+A script needs the AmigaShell's own commands, which vamos doesn't have. Choose a copy of a Workbench's files (with its C, Libs and S folders) for vamos in File, Devices, then run it again.
 A search has no option called {other}. It can have match_case, whole_word, regex and backward.
 A sector map points to sector {sector}, which isn't on the disk, so the disk is damaged.
 A segment of an Atari binary load file, {} bytes at ${origin:04X}
@@ -675,7 +683,9 @@ A starting point for new files, or a way to reread this one. Not a promise about
 A state comes before the one it came from.
 A state has no lines.
 A state keeps more lines than it came from.
+A string in the icon is far too long: it isn't a Workbench icon, or it's damaged.
 A string of characters.
+A string runs past the end of the catalog's strings.
 A symbol comes before its hunk.
 A tag…
 A tape was made
@@ -821,6 +831,7 @@ Adds the emulators installed on this computer that aren't listed yet
 Advanced Art Studio…
 After F9 builds a C64 program, pack a copy with:
 After F9 builds an Amiga program, crunch a copy with:
+After F9 builds an Amiga program, make a Workbench icon for it
 After segment {}, the file has {} bytes that aren't a segment (they'd end at ${last:04X}, before they start at ${first:04X}); they're left out.
 Afterwards take {} bytes off the stack{}
 Align left
@@ -832,6 +843,7 @@ All eight sprites at an empty sprite.
 All files
 All of video memory cleared, then the colours, and the vertical scroll.
 All the conflicts here are settled.
+AllocMem, MUIA_, exec
 Allocation block
 Along the file, each {block} bytes:
 Also in Settings, Appearance. When it's off, the window is left empty.
@@ -863,6 +875,7 @@ Amiga Kickstart
 Amiga NDK
 Amiga NDK (code hints)…
 Amiga NDK…
+Amiga Workbench icon
 Amiga bitplane converter
 Amiga bitplanes
 Amiga boot disk (no file system)
@@ -955,6 +968,7 @@ Another terminal
 Another tip
 Answer telnet's questions and keep them out of what's shown: for telnet servers and BBSes, not for a plain socket
 Any BASIC (numbered, decimal)
+Any Workbench icon of yours: its pictures and tool types are used
 Any file
 Any other speed, in bits a second
 Appearance
@@ -980,11 +994,13 @@ Apply to {ready} file
 Apply to {ready} files
 Arabic
 Arguments
+Arguments:
 Around
 Arrows
 As .bmpload takes it (at 256×192)
 As .editorconfig's trim_trailing_whitespace does; a file's .editorconfig has the last word
 As BASIC (RUN)
+As Workbench shows it, and selected (double-clicked):
 As a CSV file…
 As a tile map (.ltm), or a CharPad project (.ctm) for the C64's modes
 As an RSID it expects a C64 just after reset, with the KERNAL and BASIC ROMs in and its interrupts
@@ -1081,6 +1097,7 @@ Audio channel {n}'s period: how fast it plays
 Audio channel {n}'s sample
 Audio channel {n}'s sample length in words
 Audio channel {n}'s volume
+AutoDoc reader
 Autosave is leaving this file for you to save: {why}.
 B shift
 BA low (writes only)
@@ -1164,6 +1181,7 @@ Bank {} (${:04X})
 Base64 decode
 Base64 encode
 Basic Latin
+Bebbo's amiga-gcc builds the program with this: make -f Makefile.gcc
 Beside the text
 Beside this source. Unpacked to the buffer below, which must hold the whole file.
 Best (--best: slower, smaller)
@@ -1217,8 +1235,13 @@ Boot sector code
 Boot sector:
 Border
 Border while loading
+Boriel's ZX Basic
 Boriel's ZX Basic and C for the older machines are compiled when they're run (F9), with the first compiler installed for their machine, and the program made is run there. C says its machine with a line such as // machine: c64 near its top (or by the machine's own header), and may ask for a compiler with // compiler: llvm-mos.
 Boriel's ZX Basic compiler (zxbc) wasn't found on this computer. Get it from {}: Limoniter looks for zxbc on the PATH{also} and in a folder named zxbasic in Program Files, Downloads or on the Desktop.
+Boriel's ZX Basic couldn't be installed: {problem}
+Boriel's ZX Basic is being installed. The Output panel shows how it's going.
+Boriel's ZX Basic is installed ({version}), as {}. F9 compiles with it now.
+Boriel's ZX Basic runs on Python 3, which wasn't found on this computer. Install Python from python.org (or with Homebrew on a Mac), then try again, or get Boriel's ZX Basic from its download page.
 Both are {} bytes
 Both players play 4-channel modules only.
 Both sides, how they're compared, the filters and rules, and the sync, kept by name to open again.
@@ -1240,8 +1263,10 @@ Brightness, contrast, saturation and gamma put back
 Bring back
 Bring in a picture
 Bring in a picture…
+Bring the makefiles up to date
 Bringing in a picture
 Brings in what's been pushed from elsewhere
+Brought up to date with the files in {}: {}.
 Browse…
 Browsing only
 Build
@@ -1366,6 +1391,7 @@ Carry on playing
 Cart's sprites, map and sounds
 Cartridge
 Cartridges
+Catalog translation
 Catalogue ID
 Cconis: is a key waiting?
 Cconws equ 9 and the rest, to push the numbers by name
@@ -1378,11 +1404,14 @@ Change a colour
 Change a register
 Change case
 Change it…
+Change the icon
+Change the icon's tool types…
 Change the list…
 Change this colour
 Change this list…
 Changed here and on the server since the last sync
 Changed here, and deleted from the server, since the last sync
+Changed in the file: save it (Ctrl+S) to keep the changes.
 Changed its line {}
 Changed its lines {} to {}
 Changed lines
@@ -1431,6 +1460,10 @@ Check every few seconds too
 Check for a newer Limoniter
 Check for a newer OpticOS ROM
 Check for changes by other programs
+Check the catalog's translations
+Check the catalogs
+Checking {} ({} strings)…
+Checking {} runs…
 Checksums
 Checksums and ROM headers
 Chip
@@ -1932,6 +1965,7 @@ Decimal: {value}\nHex: 0x{value:X}\nOctal: 0o{value:o}\nBinary: 0b{value:b}
 Decoded disk.{}
 Decrunched size
 Default editor for file types in Windows
+Default tool:
 Degas low
 Degas…
 Delete
@@ -1991,6 +2025,8 @@ Disks of more than 255 blocks (16-bit block numbers) aren't changed here yet.
 Display clip
 Display profile
 Display window and beam position
+Disposing of the application disposes of its windows and everything in them.
+Disposing of the window object closes the window and disposes of everything in it.
 Distinct from Windows-1252.
 Dithering
 Divider
@@ -2024,6 +2060,7 @@ Download its release from GitHub (Limoniter can do that, below), or b
 Downloaded and unpacked: {files} files, {count} functions.
 Downloaded to {}.
 Downloaded: {n} images.
+Downloading Boriel's ZX Basic {version} from {address}…
 Downloading from Aminet and unpacking…
 Downloading {id} from Open VSX…
 Downloading {}…
@@ -2186,6 +2223,7 @@ Erase to the end of the display
 Erase to the end of the line
 Erased.
 Error
+Errors: {errors}. Warnings: {warnings}. Translations checked: {}.
 Escape
 Even
 Event count mode counts the display's lines (its display-enable signal), so it only counts where the picture is; the first interrupt comes that many lines into the picture. Reload the count in the VBL handler each frame.
@@ -2237,9 +2275,11 @@ Extra options:
 F4SC (32K, Superchip)
 F6SC (16K, Superchip)
 F8SC (8K, Superchip)
+F9 builds and runs it; Tasks has make -f Makefile.gcc and make -f Makefile.vbcc; the smakefile is for SAS/C on an Amiga
 F9 builds the 4K cartridge and runs it in Stella or MAME.
 F9 plays each effect in turn on the built-in Spectrum, the border showing which.
 F9 puts it on a floppy that boots, in DOSBox or QEMU.
+F9 runs an Amiga program, or an AmigaShell script, here on this computer, its output in the Output panel. SAS/C projects are built with SAS/C itself when its folder is chosen.
 FA (12K, CBS RAM Plus)
 FASTCALL
 FE (8K, Activision)
@@ -2327,6 +2367,7 @@ Fills the pixels joined to the one clicked that are its colour
 Fills the pixels joined to the one clicked that are the same as it: the left button with INK, the right with PAPER
 Filter
 Filter on selection
+Filter:
 Final Writer
 Final Writer's fonts ({}) and sizes aren't carried over.
 Find
@@ -2378,6 +2419,9 @@ Fix…
 Flags
 Flash
 Flash a register while decrunching (-f):
+FlexCat stopped with an error.
+FlexCat wasn't found on this computer. Get it from github.com/adtools/flexcat (or Aminet's dev/misc), and put it on the PATH. Limoniter can make the catalogs itself without it.
+FlexCat: the catalogs
 Flip it top to bottom
 Flip left to right
 Flip the character chosen left to right
@@ -2426,6 +2470,7 @@ For the SID and the TIA
 For the menus, panels, boxes and the status bar. The text's own font and size are under View, Font, and Ctrl and + or -.
 For very old modules: Fxx above $20 isn't a tempo
 Forget
+Forget MUI's
 Forget it
 Forget the history
 Forget the kept password
@@ -2464,6 +2509,7 @@ Free for a player
 Frequency
 From
 From Limoniter's raster designer.
+From MUI's autodocs
 From SCOPTIONS: {}
 From a Dragon DOS disk
 From a cartridge…
@@ -2485,6 +2531,8 @@ GEM bit image
 GEMDOS
 GETKEY
 GETKEYSCANCODE
+GNU as assembled it, but its linker (m68k-amigaos-ld) wasn't found beside {}, so no program could be made to run.
+GNU as reads only 68000 source written its own way (Assembly 680x0 (GNU as)), and the others only Motorola's: source is never given to one that can't read it.
 GNU as: .byte, .short, .long
 GOSUB
 GOSUB label: calls the lines there, until RETURN.
@@ -2543,10 +2591,13 @@ Give the crunched file a name of its own.
 Give the file a name.
 Give the file a new name (F2)
 Give the packed file a name of its own.
+Give the program a name.
+Given to the program, as typed in the Shell
 Gives a type: DIM x AS UBYTE, FUNCTION f(a AS INTEGER) AS LONG.
 Gives cells the colours below, leaving their pixels as they are
 Gives each level of nested brackets its own color
 Gives this tile copies of its characters, so drawing on it changes no other tile
+GlowIcons (OS 3.5)
 Go To
 Go array
 Go back to looking where it's usually installed
@@ -2621,6 +2672,7 @@ Hear the effect again whenever it's changed
 Hebrew
 Height (lines)
 Hello 
+Hello, %s, from @NAME@!\\n
 Help
 Here the segments end with a line break, so there's nothing to put on separate lines or join up.
 Hex
@@ -2726,6 +2778,9 @@ Ignore the chip's ID
 Imago Orpheus
 Imploder
 Imploder (its decruncher in explode.library)
+Import an Amiga C project
+Import an Amiga C project…
+Imported {} as a project.
 Impulse Tracker
 Impulse Tracker module
 Impulse Tracker {}.{:02X}
@@ -2779,14 +2834,18 @@ Insert {} line(s)
 Inserts the bytes {shown}
 Inside
 Install
+Install Boriel ZX Basic
 Install a VS Code extension
 Install again
 Install from a file…
 Install it in a terminal
 Install this one
 Installed
+Installing Boriel's ZX Basic…
+Installing zxbasic from PyPI with pip…
 Installing {program} in the terminal. When it's finished:
 Installing {}…
+Installing…
 Installs one that isn't here: downloaded, or with this computer's own installer, or from its page
 Installs the extension with this id from Open VSX
 Instead of doing nothing
@@ -2911,6 +2970,7 @@ It's read when the program stops.
 It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top.
 It's still running.
 It's too short to be a recovery copy.
+It's yours to change, apart from the lines Limoniter keeps up to date.
 It's {} bytes, not the 16384 of a Spectrum ROM.
 Item {i} is the same as one before it; each should be different.
 Its 1 change can't be found, so it will be left as it is
@@ -2931,6 +2991,7 @@ Its header doesn't say how long it is: this runs to the next find or the file's 
 Its header says {count} hunks, but it has {}.
 Its hunks
 Its init address ${init:04X} is somewhere an RSID's mustn't be (below $07E8, in BASIC's ROM, or $D000 and up).
+Its kind, default tool, stack and tool types (Amiga, Workbench icon)
 Its latest release, from {}, unpacked beside Limoniter's settings
 Its manifest can't be read: {problem}
 Its manifest can't be unpacked: {problem}
@@ -2970,6 +3031,7 @@ Join each paragraph into one line
 Jolyon Ralph
 Joysticks, mice, pots and serial
 Jump
+Jump to its explanation ({word})
 Jupiter Ace
 Jupiter Ace Forth
 Jupiter Ace Forth, typed in
@@ -3130,6 +3192,7 @@ Legacy Western Windows
 Legacy encodings stay selectable.
 Length first (1 byte{order}{counting})
 Length first ({width} bytes{order}{counting})
+Let Workbench place it
 Let's start
 Lets go of every earlier state of this file. The text stays as it is
 Letterlike Symbols
@@ -3148,12 +3211,15 @@ Limoniter can't decode this sound ({e}).
 Limoniter couldn't do this here: {other:?}
 Limoniter didn't close normally last time. These unsaved edits were kept.
 Limoniter doesn't know that program, so it can't read what it prints or the program it makes. For {cpu} source it works with {}.
+Limoniter downloads its latest ready-made build from boriel.com, its author's site, and keeps it in a folder beside its own settings. Nothing else on the computer is changed.
 Limoniter gave an answer it shouldn't have: {other:?}
 Limoniter hasn't connected to {} before. Connect to it once with File, Open a remote file, to check its key and trust it, and keep its password if it needs one.
 Limoniter is free software under the Apache License 2.0.
 Limoniter is no longer registered with Windows. A type it was the default for will have Windows ask what to use.
 Limoniter is offered for text, code, data, BASIC, tape, disk and ANSI files. To make it the one they open in, choose it for each type in Windows' Default apps.
+Limoniter keeps the lines from here to limoniter-end up to date as files are added and taken away.
 Limoniter macro
+Limoniter makes a Python environment of its own, beside its settings, with Python {major}.{minor} ({}), and pip installs zxbasic in it from PyPI, the Python Package Index. Nothing else on the computer is changed.
 Limoniter project
 Limoniter ran into a problem and has to close.\n\nYour unsaved changes have been kept, and will be offered back the next time Limoniter starts.\n\nDetails are in {}
 Limoniter script
@@ -3169,6 +3235,7 @@ Limoniter's own
 Limoniter's own assembler (nothing to install)
 Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 68000 source. Also under File, Run on, Assemblers
 Limoniter's own badges
+Limoniter's own icon
 Limoniter's x86 assembler keeps a program in one piece, as it's written: SECTION {name} would move what follows elsewhere, as NASM does, so leave it out and put the data where it's to go
 Line
 Line ${:03X} is in {}{}.
@@ -3273,6 +3340,7 @@ Look through a file
 Look through the file in front, and the files inside it if it's a disk, tape or archive
 Look up
 Looking for music…
+Looking for the latest build of Boriel's ZX Basic…
 Looking on Open VSX for “{query}”…
 Looking through the project…
 Looks for Kickstarts where Amiga Forever, FS-UAE and WinUAE keep them, and chooses the best for each model
@@ -3283,6 +3351,7 @@ Loop
 Loops to
 Low resolution, on the new screen, from the next frame.
 Lower case
+Lua
 Lua table
 MAME. It sets up the VDP (the video chip), draws a box of tiles whose colour changes as it runs, and has the Z80
 MD001: a heading of level {hashes} straight after one of level {last_level}; headings go down one level at a time
@@ -3323,6 +3392,9 @@ MSX BASIC
 MSX cassette (CAS) · {} file(s)
 MSX text
 MSX, Amstrad CPC and other Z80s
+MUI
+MUI's Autodocs folder
+MUI's autodocs…
 MULTIKEYS
 Mac (CR)
 Mac OS 8.1 to 9.2.2
@@ -3343,10 +3415,14 @@ Macros
 Macros panel
 Macros record typing in text mode. Switch to text mode first.
 Made by
+Made by Limoniter from {stem}.cd, as CatComp makes its C header. Change {stem}.cd rather than this, which is made again from it.
 Made by Limoniter to run a program
 Made by Limoniter's Atari 2600 graphics editor. F9 builds the 4K cartridge and runs it in Stella or MAME.
+Made from:
+Made the Workbench icon {}.
 Made with
 Made {} ({} bytes) for the {}.
+Made {} in {}: {}.
 Mainframes and minicomputers
 Make a bootable ST floppy
 Make a bootable ST floppy…
@@ -3355,10 +3431,18 @@ Make a patch from the file in front (the original) to a changed copy of it:
 Make it
 Make it again
 Make it from a shape
+Make it in
 Make one side exactly like the other, which deletes what the other hasn't got
 Make selections
 Make the .crt
+Make the catalogs
+Make the catalogs and the strings' header
+Make the catalogs with FlexCat
+Make the project
 Make the rest from these
+Makefiles
+Making a Python environment in {}…
+Making the catalogs for {}…
 Manage add-ons…
 Manage devices…
 Map
@@ -3390,6 +3474,7 @@ Mega ST (68000, 8 MHz, blitter)
 Mega STE
 Mega STE (68000, 16 MHz)
 Memory
+Memory (KiB):
 Memory bank
 Memory banks
 Memory for the picture: 200 lines of 320 bytes (the address no longer needs to be a multiple of 256
@@ -3465,7 +3550,9 @@ My add-on
 My script
 MyDOS
 NDIF compression {code:#X}
+NDK
 NDK (code hints)…
+NDK…
 NEOchrome
 NEOchrome…
 NES
@@ -3504,6 +3591,8 @@ Never mind
 Never read cleanly
 New
 New      
+New Amiga C project
+New Amiga C project…
 New add-on…
 New as
 New as:
@@ -3527,8 +3616,11 @@ New name:
 New project
 New project…
 New script…
+New translation
+New translation, or fill one in…
 New window
 New...
+NewIcons
 Next
 Next Layer 2 painter
 Next change
@@ -3545,6 +3637,7 @@ Next sprites (16×16, 256 colours)
 Next statement
 Next tab
 Next time, the encoding is worked out from the file again
+Next →
 Next, {folder} (by .sync)
 No
 No C compiler for the {} was found on this computer. Install one of {}: Limoniter looks on the PATH{also} and where each usually goes, or in a folder named for it in Program Files, Downloads or on the Desktop.
@@ -3561,6 +3654,7 @@ No bad lines: the screen is off.
 No bookmarks yet.
 No byte order mark
 No calls found yet. Routines that call others (with CALL, JSR, BSR or BL) to a label are drawn here, each joined to those it calls.
+No catalog description (.cd) was found beside {} or in the folders above it.
 No change that's kept has touched these lines. Changes are listed here as they're made, wherever the lines move to.
 No command for the debugger.
 No command for the language server.
@@ -3587,6 +3681,7 @@ No leader of the KERNAL's short pulses was found, so no files could be read: it 
 No length or end marker
 No line endings
 No longer in the file
+No makefiles were written: it has them already, or no C to build.
 No matches.
 No more were found.
 No multi-byte sequences are defined for this profile.
@@ -3753,6 +3848,7 @@ One move.l, to BLTCON0 and BLTCON1 together
 One of the file's data blocks isn't a data block, so the disk is damaged.
 One of the files has been closed.
 One plane, after the picture
+One to a line, such as DONOTWAIT or PUBSCREEN=Workbench
 Only
 Only 140K DOS 3.3 disks are changed here.
 Only AGA shows this: its 24-bit palette is used.
@@ -3765,6 +3861,7 @@ Only a preview laid out as a document can be saved as a PDF: Markdown, a web pag
 Only disks of 512-byte sectors throughout are changed here; this one has copy protection or an odd format.
 Only files and folders are taken off here, not links.
 Only files matching these, separated by ; (* is any characters, ** any folders)
+Only for the project {name}, kept in its file
 Only new files have changed: press + beside each to put it in the commit.
 Only on the left
 Only on the lines changed
@@ -3799,6 +3896,7 @@ Open a Next screen
 Open a ProTracker module (.mod, or mod.name), or choose one in a disk image's browser, then come back here.
 Open a SID tune (.sid), or choose one in a disk image's browser, then come back here.
 Open a Spectrum screen
+Open a catalog description (.cd) or translation (.ct) first, saved as a file.
 Open a file
 Open a file first: these work on the file in front.
 Open a file from the web
@@ -3856,6 +3954,7 @@ Open in the screen designer
 Open it
 Open it in a tab to change it
 Open its code as a program
+Open its download page
 Open project
 Open project…
 Open raw ST planes
@@ -3870,6 +3969,7 @@ Open the ROM to write first: its file, or its bytes in the hex editor.
 Open the add-ons folder
 Open the binary, then come back here.
 Open the boot block's source
+Open the catalog description (.cd) to translate first, saved as a file.
 Open the download page
 Open the extensions folder
 Open the file to change it
@@ -3908,6 +4008,8 @@ Ordered (Bayer)
 Oric disk (Sedoric){label} · {} file(s)
 Oric tape (TAP) · {} file(s)
 Original (from the markers)
+Original (planar)
+Original (planar, Workbench 1.x colours)
 Other
 Other Mac encodings can be chosen under Reopen.
 Other Windows code pages can be chosen under Reopen.
@@ -3954,6 +4056,7 @@ PETSCII needs the shapes of the C64's characters: open a character ROM file (the
 PETSCII screen
 PETSCII, lower and upper case
 PETSCII, upper case and graphics
+PHP
 PHP array
 PI
 PI: 3.14159265...
@@ -3965,6 +4068,7 @@ PICO-8 and TIC-80 cart
 PLOT
 PLOT x, y: puts a dot there, 0 to 255 across and 0 to 191 up.
 PNG
+PNG (OS 4)
 PNG picture
 PNG, JPEG, IFF ILBM, or any older machine's picture Limoniter reads
 PNG…
@@ -4074,6 +4178,8 @@ Pixels and colours together
 Pixels down
 Pixels their true shape
 Place characters
+Place:
+Placed by Workbench
 Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does.
 Places after the point
 Plain text
@@ -4120,6 +4226,7 @@ Position {} of {playing} · pattern {} · row {}
 Power-up
 PowerPacker
 PowerPacker, encrypted
+PowerShell script
 Press Ctrl+F2 on a line, or click beside its number.
 Press Esc to go back to one selection first.
 Press Show the whole file first. A part's history is traced through the whole file.
@@ -4154,6 +4261,7 @@ Profile: {} T-states, {:.1} frames
 Profiled in Hatari
 Program
 Program to run
+Program's name
 Program:
 Programmable beam (ECS and AGA)
 Programmer
@@ -4181,6 +4289,7 @@ Put a note at the cursor
 Put all in
 Put aside
 Put aside ({})
+Put back
 Put back the suggested rules
 Put back the usual list
 Put back the usual rules
@@ -4224,10 +4333,12 @@ Put them in
 Put this change in the next commit
 Put this listing into it
 Put this part back as it was before it
+Puts the changes into the file, to be saved as any change is; nothing else in it changes
 Puts the pictures'
 Puts the pictures' addresses into the list's bitplane pointers: call it once, from your code section,
 Puts the rows of the file itself in order. Clicking a heading only changes how they're shown.
 Puts these changes, and the message, into the last commit instead of a new one. Best only before pushing it
+Python couldn't make an environment, as its venv module isn't installed. On Debian or Ubuntu, install it with: sudo apt install python3-venv
 Python is debugged with debugpy, which isn't installed. In a terminal (Ctrl+`):\n\n{install}
 Python list
 Python, C, C++ and Rust files can be debugged here, with debugpy, gdb or lldb-dap.
@@ -4409,6 +4520,7 @@ Routine
 Row {} and {} other row(s) aren't the width this format needs, which would shift everything after them.\n\nSave anyway?
 Rows
 Rows rounded to
+Ruby
 Ruler
 Rules for comparing files…
 Rules…
@@ -4425,6 +4537,8 @@ Run only this
 Run the program in front on its machine, in an emulator or the real thing.
 Run to cursor
 Running
+Running {name} in vamos
+Running {what} in vamos, in {}…
 Running {} on {name}
 Running {} on {}{more}
 Runs before the file is written. This one leaves it alone; trim_trailing would take spaces off line ends:
@@ -4445,6 +4559,7 @@ Rust array
 Rust's own Unicode handling
 S D | result
 SAM Coupé {dos} disk{label} ({format})
+SAS/C 6 builds the program with this, on an Amiga: smake
 SAS/C calls functions named _STI... as the program starts and _STD... as it ends; amiga-gcc doesn't: mark them __attribute__((constructor)) and ((destructor)).
 SAS/C calls functions named _STI... as the program starts and _STD... as it ends; vbcc's are named _INIT_ and _EXIT_.
 SAVE
@@ -4640,6 +4755,7 @@ Save the samples…
 Save the screen
 Save the screen as PNG
 Save the screen as a tape
+Save the script first, so vamos can read it.
 Save the selection
 Save the selection as
 Save the selection as…
@@ -5031,6 +5147,8 @@ Square, in
 Square, in and out
 Square, out
 Stable
+Stack (KiB):
+Stack:
 Start
 Start a new script, with notes on what scripts can do
 Start a search with the selected text
@@ -5043,6 +5161,7 @@ Start keeping history…
 Start keeping the history of a folder
 Start the copper list at the top of a frame, then DMA for the bitplane, the copper, the blitter and
 Start, with a first commit
+Started from the Workbench there's no Shell window to write in.
 Started {} for {language}, in {}
 Starting at
 Starting character set
@@ -5105,6 +5224,7 @@ Stopped sending {name}
 Stopped.
 Stops it where it is
 Stops it where it is (Esc). One Undo takes back what it had done
+Stops reading MUI's autodocs (the folder is left alone)
 Stops the program running, closing the emulator
 Stops using it, and deletes the downloaded copy (a folder you chose is left alone)
 Stored on line {} to:\n{}{}
@@ -5174,6 +5294,7 @@ TMS9918A, as in the MSX and the ColecoVision) in Graphics I mode, and draws a bo
 TO
 TODO notes
 TODO, FIXME, NOTE and the like, and comments beginning with ! or ?, in colours of their own
+TOML
 TOS ROM
 TOS ROM for the {}
 TOS calls
@@ -5284,6 +5405,7 @@ That file isn't open, and can't be found where it was.
 That file isn't there.
 That find has gone.
 That folder has a great many files, so only the first 20,000 were added.
+That folder has no c/sc in it, so it isn't SAS/C's.
 That font can't be read.
 That font can't be used: its characters aren't all the same width, or it can't be read.
 That has to be a whole number from {} to {}.
@@ -5291,6 +5413,7 @@ That isn't a Dragon DOS disk (a VDK file).
 That isn't a Kickstart Limoniter knows; the emulator may still take it.
 That isn't a TOS Limoniter knows; Hatari may still take it.
 That isn't a ZX81 ROM.
+That isn't a catalog: a catalog starts FORM, then CTLG.
 That isn't a number: write $0777, %0111 or 1911.
 That isn't a number: write $1b, %00011011 or 27.
 That isn't a number: write $5200, %0101001000000000 or 20992.
@@ -5359,10 +5482,12 @@ The 68000's vectors: the stack, where it starts, then its exceptions and interru
 The 6809 source in front, assembled as a Dragon DOS binary
 The 8SVX file has no BODY of samples.
 The AUTO folder couldn't be made.
+The Amiga NDK, whose autodocs these are
 The Amiga's 4096 colours: a block for each level of red, green down and blue across
 The Amiga's drive couldn't be made.\n\n{e}
 The Amiga's drive has no program to start.
 The Atari ST program couldn't be made.
+The Autodocs folder of the MUI SDK, from muidev or an MUI release: MUI's developer files aren't Limoniter's to include, so they're read from where you keep them
 The BASIC line: 10 SYS 2061, then the end of the program.
 The BASIC line: 10 SYS 2061.
 The BASIC program {name} breaks off before its end.
@@ -5383,10 +5508,12 @@ The DSK image ends partway through a track.
 The Dragon DOS binary F9 makes is loaded straight into memory by XRoar and started. Source can say otherwise near its top, with ; run from: disk.
 The EQU lines at the cursor
 The FAT boot sector's sizes don't add up.
+The German translation: each string's name, then its translation, then the English as a comment.
 The Git wizard: setting up, and what it all means
 The HFS wrapper doesn't say sensibly where its HFS+ volume is, so the disk is damaged.
 The HFS+ volume inside the HFS wrapper runs past the end of the image.
 The ImageDisk file ends partway through a track.
+The Italian translation: each string's name, then its translation, then the English as a comment.
 The JPEG couldn't be read: {e:?}
 The JPEG ended early.
 The JPEG has no size.
@@ -5518,6 +5645,7 @@ The card says it's {} banks ({}K), and the image is {}K.
 The card {label} can be taken out.
 The card “{label}” isn't plugged in.
 The cartridge starts at $8000 with its header. The video chip is a TI TMS9918A, as in the SG-1000 and the MSX;
+The catalog ends partway through a chunk.
 The catalog is full: DOS 3.3 holds 105 files.
 The catalog's chain of leaves leads to a node that isn't one, so the disk is damaged.
 The catalog's leaves loop back on themselves, so the disk is damaged.
@@ -5540,10 +5668,13 @@ The chip isn't blank: ${address:04X} holds ${chip:02X}.
 The chip's details are below.
 The choice couldn't be saved: {e}
 The chosen effect, made from this shape
+The close gadget and Quit end the program; Hello comes back to the loop as its own number.
+The close gadget, or Escape.
 The code goes past the top of the 64K the Next starts with.
 The code goes past the top of the 64K.
 The code goes past the top of the Spectrum's 64K.
 The code goes up to &{:04X}, past &7FFF, the top of the BBC Micro's memory.
+The code set, {value}, isn't a number.
 The code starts at ${low:04X}, in the ROM. Put it at $4000 or above (ORG $8000 is usual).
 The code starts at ${low:04X}, in the ROM. Put it at $4000 or above.
 The code starts at ${low:04X}, too close after BASIC's start at $0801 for a line to start it. Start it at $0801 with a BASIC line of its own, or at $0810 or above.
@@ -5583,6 +5714,7 @@ The data starts at ${:02X}, where a version {version} header ends at ${expected:
 The debug cable runs Z80 source assembled here; a file is sent with NextSync.
 The debugger stopped: {why}
 The debugger {program} couldn't be started: {e}
+The description has errors, so nothing was made.
 The directory is full.
 The directory is full: Atari DOS holds 64 files in each.
 The directory is full: RS-DOS holds 72 files.
@@ -5631,10 +5763,13 @@ The disk's root folder is full; put the file in a folder.
 The disk's specification gives sectors other than 512 bytes.
 The disk's type, &{other:02X}, isn't one TR-DOS has, so it isn't changed.
 The document's text in a new tab, its formatting codes taken out
+The download didn't work ({problem}), so Python {major}.{minor} is tried instead.
 The download had no EmuTOS images in it.
 The download has no KickAss.jar in it.
+The download isn't a zip or a tar.gz, so it couldn't be unpacked.
 The download of {} isn't a kind Limoniter can unpack: get it from {}.
 The download stopped: {e}
+The download was unpacked, but zxbc wasn't in it.
 The effect goes on for more than 10,000 frames without ending.
 The effect stops before its end ($D0 $20).
 The effect stops partway through a frame.
@@ -5734,6 +5869,7 @@ The folder has more than {} files: only that many are looked among.
 The folder has no blocks.
 The folder has no clusters.
 The folder to apply it to
+The folder to make the project in
 The folder {} can't be read: {problem}.
 The folder {} isn't on the disk.
 The folder's hash chain loops.
@@ -5768,6 +5904,10 @@ The header, at $100. F9 fills in its checksum and ROM end.
 The header: the copyright line the BIOS looks for, the tune played at the start, and the title.
 The high byte of voice {v}'s pitch.
 The history is for text. In hex mode, Undo and Redo work as a list.
+The icon ends before it should: it's damaged or cut short.
+The icon says it has more tool types than any could: it's damaged.
+The icon to make programs' icons from
+The icon's picture has an impossible size: it isn't a Workbench icon, or it's damaged.
 The image couldn't be read again: {e}
 The image couldn't be saved: {e}
 The image has no file to change.
@@ -5788,6 +5928,7 @@ The image stops {missing} tracks short of the {} its header gives, so it's cut s
 The image's checksum doesn't match its data, so some of it may be damaged.
 The image's comment: HP 150 test disk
 The image's comment: {}
+The installation stopped unexpectedly.
 The instruction reference is for assembler source: Z80, 6502, 6809, 68000, x86 or ARM. It follows the instruction the cursor is on.
 The interrupts. Timed loops must not cross a page, where a branch takes a cycle more.
 The key of {} isn't the one it had before, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new key.\n\nTrusted before: {expected}\nNow: {found}
@@ -5819,6 +5960,7 @@ The line with the cursor
 The lines above the =======
 The lines as they were before either side changed them
 The lines coming in, below it
+The linker couldn't make the program: {}
 The list doesn't end, so the copper would run on into what follows it.
 The list is empty. Add a kind, or put back the usual list.
 The list of everything Limoniter can do, as a page of its own
@@ -5830,6 +5972,7 @@ The low byte of voice {v}'s pulse width, for the pulse wave.
 The machine has stopped, so this is as it was last.
 The main loop: once a frame, until space is pressed.
 The main loop: once a frame, until the left mouse button is pressed.
+The makefiles in {} are up to date.
 The map gives this file less space than its length, so the disc is damaged.
 The map says the disc has {sectors} sectors, and the image holds {}.
 The map's lower half (rows 32 to 63) shares its memory with the sprite sheet's lower half.
@@ -5839,8 +5982,11 @@ The module's order is cut short.
 The most alike are made one until there are no more than this
 The music. A stand-in that plays nothing, at the addresses a tune made for $1000 has. To play a tune, take
 The music: a SID tune made for $1000 starts (init) at $1000 and is played once a frame at $1003. A stand-in
+The name can be no more than 20 characters, so that its files' names fit the Amiga's 30.
+The name can have letters, digits, - and _, starting with a letter.
 The name has no characters a Commodore disk can hold.
 The name it has on the image; it's made to fit the image's rules
+The names of 1.3's flags: 2.0 renamed them (IDCMP_CLOSEWINDOW, WFLG_CLOSEGADGET), keeping these.
 The number of bytes has to be a whole number above 0. Use 0x for hex.
 The number of tunes, "{digits}", isn't a number.
 The one plugged in
@@ -5897,6 +6043,7 @@ The printer system wouldn't take the pages.
 The printer wouldn't start the document.
 The profile couldn't be read: {e}
 The profile {path} couldn't be read: {e}
+The program a project opens with, such as SYS:Utilities/MultiView
 The program breaks off after line {last}, before the byte that ends it.
 The program built from the source, with its debugging information (a debug build)
 The program couldn't be made.
@@ -5921,6 +6068,7 @@ The program is put on a Dragon DOS disk made for the run, as NAME.BIN, and XRoar
 The program is too big for the machine's memory.
 The program is too large for the room the machine has.
 The program is too long for Applesoft's memory.
+The program is what make builds when it isn't asked for anything else.
 The program is {} bytes, more than fits in the ZX81's {}K.
 The program is {} bytes, over the 16K a normal cartridge holds.
 The program made nothing.
@@ -5937,6 +6085,7 @@ The program's load address was taken off first: put it back, or load the packed 
 The project
 The project and {host} are alike: there's nothing to sync.
 The project open isn't a folder on a server. Open one with File, Open a remote folder.
+The project's source is then always built with this assembler, wherever the project is opened, whatever is chosen for other source; if it isn't installed, nothing else is used instead.
 The project's tasks
 The raster interrupts: the first at line BARS_IRQ.
 The raster interrupts: the first at line FRAME_IRQ.
@@ -6012,6 +6161,8 @@ The sprites' colours (COLOR16 to 31), for the copper list.
 The start of this file would read:
 The step between words must be even and not 0, and the height at most 65536.
 The string explorer looks through the file's bytes, so it works in hex mode.
+The strings @NAME@ says: each a name, its number and its shortest and longest lengths in brackets,
+The strings' C header: {}
 The strip beside the line numbers that shows bookmarks
 The system has no program set to open this kind of file.
 The system variables at the start don't say where a ZX81 program and its screen are.
@@ -6047,6 +6198,7 @@ The top left corner's colour
 The top left pixel's colour
 The top of the frame: everything as it is above the first change.
 The transfer was stopped.
+The translation: named after its language, such as deutsch.ct
 The tune has no play routine to call: its init sets up its own interrupt, which plays it.
 The tune's bytes at its load address, as a .prg, to disassemble
 The tune's code
@@ -6066,6 +6218,7 @@ The whole screen
 The whole screen in the right colour
 The whole screen's size
 The width and height must be at least 1.
+The window's messages, or Ctrl-C from a Shell it was started from.
 The words, as screen codes.
 The {name}'s screen: typing goes to the {name} while it has the keyboard
 The {replaced} file replaced will be kept first, in {}.
@@ -6086,16 +6239,20 @@ Themes…
 Then click where its top left cell goes
 Then click where its top left goes
 There are no add-ons yet. New add-on makes one to start from.
+There are no autodocs in that folder: no .doc files with pages such as Area.mui/MUIA_Background. Choose the MUI SDK's Autodocs folder.
+There are no autodocs to read yet. The Amiga's come with Hyperion's NDK: download it, or use one you have, with the NDK button. MUI's come with the MUI SDK: point to its Autodocs folder with MUI's autodocs.
 There are no bytes after the cursor to delete.
 There are no changes to Git's files to write a message about.
 There are no conflict markers in this file.
 There are no effects.
 There are no files to read on this card.
 There are no lines to tokenise.
+There are no makefiles Limoniter keeps here. A project made with New Amiga C project, or imported, has them: Makefile.gcc, Makefile.vbcc and smakefile, with lines between # limoniter-begin and # limoniter-end.
 There are no other copies of that text.
 There are no rows yet. Insert row adds one.
 There are no rules, so every file is compared as usual.
 There are no tests in this source. Write one in a comment above the routine:\n\n; test: adds one\n; given: A=5\n; expect: A=6 flags: Z=0\n; within: 20 cycles\n\nor in a file beside it with .tests on the end of its name.
+There are no translations (.ct) beside it or in the folders below it yet. Tools, Amiga, New translation makes one.
 There are no unsaved edits waiting to be recovered.
 There are too many copies. It can select up to {MOST_SPOTS}.
 There are {total} sectors free, but not {wanted} in one piece: the disc needs compacting, as *COMPACT would.
@@ -6119,6 +6276,8 @@ There's already one called {name}.
 There's already something called {} there.
 There's an NDK in {}, but it couldn't be read.
 There's more after the = at the end.
+There's no ## language line, so the catalog's language is taken from the file's name.
+There's no ## version line, such as ## version $VER: program.catalog 1.0 (20.11.2026), so the catalog has no version.
 There's no BASIC program here.
 There's no BASIC program in this file.
 There's no BASIC program in {target}'s memory.
@@ -6185,6 +6344,7 @@ This Amiga hard disk image has a Rigid Disk Block but no partitions in it.
 This Amiga image has no AmigaDOS boot block: it's probably a game or demo that reads the disk its own way. It can still be shown in hex.
 This Amiga image is too short to hold a disk.
 This AmigaDOS volume is of a kind (DOS\\{}) Limoniter doesn't know.
+This AmigaShell script runs through vamos, which wasn't found. {}
 This Apple II disk has no DOS 3.3 catalog or ProDOS volume: it's probably a game or program that loads itself its own way. It can still be shown in hex.
 This Apple II image is cut short or isn't a whole number of blocks.
 This Atari binary load file has no segments in it.
@@ -6238,6 +6398,7 @@ This Mermaid diagram has nothing in it to draw.
 This Mermaid diagram is empty.
 This Oric disk isn't a Sedoric disk ({why}), and other Oric DOSes, such as OricDOS, Jasmin's FT-DOS, RANDOS, XL DOS and the Infocom games' own format, aren't read yet.
 This PBM picture has {planes} bits a pixel; PBM pictures have 8.
+This PNG isn't an OS 4 icon: it has no icOn chunk.
 This ProDOS volume's header doesn't fit the image, so it can't be changed safely.
 This SCL archive has been cut short in its list of files.
 This SCL file doesn't start with SINCLAIR.
@@ -6313,6 +6474,7 @@ This doesn't have an Atari BASIC program's header.
 This doesn't start with a FAT boot sector.
 This emulator can't change registers.
 This file
+This file can't be changed here: open it from a folder, in hex, to change its icon.
 This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from Edit, Colour tag, or by right-clicking.
 This file has no name yet. Use save_as to give it one.
 This file has {count} conflict(s) marked in it.
@@ -6378,6 +6540,9 @@ This folder can't be read.
 This folder is empty.
 This frame makes no sound
 This hard link's file isn't in the volume's hidden folder of linked files, so the disk is damaged.
+This icon has no picture.
+This is 68000 source written Motorola's way (vasm's and Devpac's), which GNU as can't read. Choose another assembler for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 (GNU as) as the language if it's really GNU as's.
+This is 68000 source written for GNU as (m68k-amigaos-as), which {} can't read: it reads Motorola's way of writing (vasm's and Devpac's). Choose GNU as for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 as the language if it's really Motorola's.
 This is Limoniter {}, from Flathub. Your software centre, or flatpak update, brings each new version.
 This is Limoniter {}, from the Microsoft Store, which brings each new version to it by itself.
 This is a Kickstart disk, holding the A1000's ROM, not files. It can still be shown in hex.
@@ -6433,6 +6598,7 @@ This isn't a TZX tape.
 This isn't a UDIF disk image: it has no trailer.
 This isn't a UEF tape image: it doesn't start with "UEF File!".
 This isn't a WOZ disk image: it doesn't start with "WOZ1" or "WOZ2".
+This isn't a Workbench icon.
 This isn't a YM file Limoniter can read.
 This isn't a YM file: it doesn't start with YM2!, YM3!, YM3b, YM5! or YM6!.
 This isn't a Z88 card: there's no oz or OZ at its very top.
@@ -6493,6 +6659,7 @@ This program was crunched with {name}, but it doesn't decrunch: it may be damage
 This program was saved protected (SAVE "name",P), so it's scrambled and can't be listed.
 This project has no backups yet.
 This project has no files yet.
+This project's {} source is built with {name}, which wasn't found on this computer. Install it, or point to it in File, Run on, Assemblers.
 This raw CD image's first sector is mode {mode}, which isn't a data sector.
 This replaces the files on disk. A backup of how they are now is taken first.
 This row has {} fields; the headings have {}.
@@ -6583,6 +6750,7 @@ Tokenised BASIC
 Tone
 Too many blocks went wrong, so the transfer was given up. A slower speed, or flow control, may help.
 Took away {}
+Tool types:
 Tools
 Tools > Commodore 64 has a raster line calculator and makes raster interrupt code like this; the cycle
 Tools › Add-ons › {} › {}
@@ -6649,6 +6817,7 @@ Type to search {name}.
 Type what the lines that start each part contain.
 Type what you want to do, such as “sort” or “wrap”
 Type {kind}, which Limoniter doesn't know
+TypeScript
 Types, properties and required fields, items, enums, limits on numbers and lengths, patterns, allOf, anyOf, oneOf, not, and $ref within the schema are checked.
 Typing goes to the Jupiter Ace: Shift is its SHIFT, Ctrl or Alt its SYMBOL SHIFT, Backspace deletes, the arrows move the cursor and Esc is BREAK. Click the text to type there again.
 Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.
@@ -6687,6 +6856,7 @@ Uncomment
 Underline mistakes
 Undo
 Undo the change at the cursor
+Undo the changes
 Undo this change
 Unfold everything
 Unix (LF)
@@ -6694,6 +6864,7 @@ Unix and Linux
 Unknown
 Unpacked backwards
 Unpacked on the ST by {file} ({terms}), {from}.
+Unpacking it ({} MB)…
 Untick all
 Until Limoniter is closed
 Untitled
@@ -6712,6 +6883,7 @@ Usage: limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]
 Use
 Use Limoniter for Git diff and merge
 Use Limoniter's example
+Use Limoniter's own
 Use a folder…
 Use a source of your own…
 Use as this listing's UDGs
@@ -6756,6 +6928,8 @@ Vary
 Vectrex
 Verified: the chip matches the file.
 Verify
+Version 33 is Kickstart 1.2; 1.3 is 34.
+Version 44 is ReAction as AmigaOS 3.5 brought it; 3.2's are newer still.
 Version 5 has no tile tags or names: they were left out.
 Version {}
 Vertical scroll
@@ -6867,6 +7041,7 @@ Window and document themes, and which documents get which. Also under View, Them
 Window font and size
 Window font and size…
 Window themes
+Windows batch file
 Windows couldn't make a font for printing.
 Windows couldn't move it to the Recycle Bin (error {result}).
 Windows couldn't show the print window (error {code:#x}). Is a printer installed?
@@ -6883,6 +7058,7 @@ Windows' own dictionary, so other programs know it too
 Windows' spell checker isn't available: {e}
 With Hyperion's Native Developer Kit for AmigaOS 3.2, resting the pointer on a system function in 68000 or C source shows its prototype, library, offset (_LVO), the registers its arguments go in, and its autodoc; typing _LVO offers the functions. Its headers' structure fields and flags (LN_NAME, MEMF_CHIP) are shown and offered too, and Limoniter's own 68000 assembler finds its headers and _LVO offsets.
 With the note
+Without locale.library (before 2.1), the program's own English strings are used.
 Word
 Word Count
 Word wrap
@@ -6899,6 +7075,7 @@ Work it out ({name})
 Work out the SID's notes and the CIA timers for a PAL machine (985248 Hz) rather than NTSC (1022727 Hz)
 Work to do each frame goes here.
 Workbench icon
+Workbench icon…
 Working on a folder of code
 Working… {seconds}s
 Works on {place} of {name}: select some to choose.
@@ -6923,6 +7100,7 @@ Written as {} files beside it, from {} to {}, as the file is now, with any unsav
 Written for Limoniter
 Written, and verified: the chip matches the file.
 Written.
+Written: {}. Limoniter keeps their lists of files up to date.
 Wrote {} ({} bytes).
 Wrote {}: the boot block uses {} of its 1024 bytes, and {used} sectors hold something.
 XBIOS
@@ -6940,6 +7118,7 @@ XRoar couldn't be reached to debug on port {port}: {e}
 XRoar couldn't be told: {e}
 XRoar stopped answering.
 XRoar stopped answering: {e}
+YAML
 YM music
 YM register {} = ${:02X}: {}
 YM register:
@@ -6958,6 +7137,8 @@ Yes: a BASIC program, RUN to start it
 Yes: it uses PlaySID's own extras, such as its samples
 You're helping someone in a text editor. They've chosen a part of {file} ({language}), {lines}.\n\n{}\n
 Your email:
+Your icon couldn't be used, so Limoniter's own was: {problem}
+Your icon, {}, couldn't be read: {e}
 Your name:
 Your own dictionary, kept by hunspell or aspell
 Your own highlighting grammars
@@ -7011,6 +7192,8 @@ Zone {zone} of the map is past the end of the image.
 Zoom
 [ and ]
 \\:' and \\a (zmakebas)
+\\x needs a hexadecimal number after it, such as \\x9B.
+\\{value:o} is more than a byte can hold.
 ^ and $ at each line
 __emit puts words into the code only SAS/C understands: write it as inline assembler.
 __oslibversion sets the version of the libraries SAS/C's start-up opens; check which version the libraries are opened at here.
@@ -7087,6 +7270,8 @@ already used on the disk written over
 always, or e.g. A=0 && [count]>3
 amiga-ansi
 amiga-gcc
+amiga-gcc: build
+amiga-gcc: clean
 amiga-plain
 amiga-text
 an IF has no ENDIF
@@ -7115,6 +7300,7 @@ and high
 and interrupts: level 6 and up
 and its BSS,
 and none waiting
+and on the next line the string in English, the language built into the program.
 and the KERNAL's timer interrupt
 and the basepage
 and the block depacker it includes, lz4_smallest.asm (or change its include to lz4_normal.asm or
@@ -7160,6 +7346,7 @@ bars on lines 20 to 47, in the top border
 bas
 bas, asm, txt...
 base in
+bat
 bbc-micro
 before the list is shown.
 before this
@@ -7190,6 +7377,7 @@ byte {byte:02X}, which has no character to carry over
 bytes a line of the picture: 640 pixels, twice the screen's
 bytes apart
 bytes, as 4E71 or 12 34
+bytes, for the program started from it (4096 if none)
 can't be made
 can't tell how this cartridge switches its banks.
 cargo build
@@ -7199,6 +7387,7 @@ cargo test
 catalog
 catalog (the list of files)
 cbw
+cd
 cdq
 center
 change {number} fits 1 line further down
@@ -7292,7 +7481,9 @@ cp850
 cpm
 cpuid
 csrlin.bas
+css
 csv_to_fixed
+ct
 curve
 cut
 cutoff ${:03X} (with the low bits 0): about {:.0} Hz on an 8580; a 6581's varies from chip to chip
@@ -7433,9 +7624,11 @@ how long to let it play
 how many lines of bars, from line 253
 how many waves
 how tall the raster bar is
+html
 https://example.com/file.txt
 https://github.com/someone/project.git
 https://github.com/you/project.git
+i < argc; i++)
 icebp
 image-picture
 in
@@ -7521,6 +7714,8 @@ its own
 its themes include each other round in a circle
 join_lines
 jp
+js
+json
 jsr
 jump
 jump at frame
@@ -7591,6 +7786,7 @@ low resolution: 320x200, 16 colours
 low word
 lower case
 lower_case
+lua
 lz4_fastest.asm, faster and bigger), from the same place.
 mac-roman
 macOS couldn't move it to the Trash.
@@ -7605,6 +7801,11 @@ machine: sms
 machine: zx81
 made stable (two interrupts, the second coming during NOPs) and draws raster bars in the bottom border, a
 make
+make -f Makefile.gcc
+make -f Makefile.gcc catalogs
+make -f Makefile.gcc clean
+make -f Makefile.vbcc
+make -f Makefile.vbcc clean
 make_selections
 markdown_view
 master volume {} dB
@@ -7741,11 +7942,13 @@ per-frame work in music_irq too, or move the raster line to suit your effects.
 perspective
 petscii, screen-c64, screen-vic20, screen-pet
 petscii-c64
+php
 physical screen
 pio device monitor
 pio run
 pio run -t upload
 pio test
+pip installed zxbasic, but its zxbc wasn't found.
 pixel {x}, line {y}: %{:08b} (${:02X}) · colour ${:02X}
 plain settings (no AGA modes or interlace left on), and waiting two frames lets it take effect.
 plain text
@@ -7789,6 +7992,7 @@ processor {} MHz, blitter {} MHz{}{}
 program was half-way through setting it would send the main program's bytes somewhere else.
 program {second} bytes, with variables {first}
 project.{}
+ps1
 pucrunch
 pucrunch -fbasic
 pulse width
@@ -7807,6 +8011,7 @@ ramp
 random
 raster interrupts on
 raster line {value} (or {} with $D011 bit 7)
+rb
 read
 read in line 18's last cycle, or line 19's first
 read in line 251's last cycle, or line 252's first
@@ -7919,6 +8124,7 @@ sprites (the sprites point at an empty one, so none shows).
 sprites shown, over the border too
 sprites {} pixels wide
 spurious interrupt
+sql
 start line ${:02X}, left edge ${:03X} (lowres, without its lowest bit)
 start line bits 10-8 = {vstart}, horizontal bit 8 {}; stop line bits 10-8 = {vstop}, horizontal bit 8 {}
 starting sign negative
@@ -8189,6 +8395,7 @@ toggle_hex
 toggle_preview
 toggle_read_only
 toggle_word_wrap
+toml
 tone 0's volume: fairly loud
 tone 0: the low 4 bits of its period
 tone and noise off on all three
@@ -8213,6 +8420,7 @@ trap #{n}: not one TOS uses for its calls (1 GEMDOS, 2 AES and VDI, 13 BIOS, 14 
 trim_leading
 trim_trailing
 true colour, 16 bits a pixel
+ts
 tune names'
 turns off the {line} for {what}
 turns on the {line} for {what}
@@ -8235,10 +8443,17 @@ utf-16le
 utf-32be
 utf-32le
 utf-8
+vamos couldn't be started ({}): {e}
+vamos finished: the program returned 0, all well.
+vamos finished: the program returned {code} ({word}).
+vamos was stopped ({}).
 vasmm68k_mot -Fhunkexe -kick1hunks -nosym -o copper copper.s
 vasmm68k_mot -Fhunkexe -kick1hunks -nosym -o demo demo.s
 vasmm68k_mot -Ftos -nosym -o demo.tos demo.s
 vbcc
+vbcc builds the program with this: make -f Makefile.vbcc
+vbcc: build
+vbcc: clean
 vcs-graphics
 vector (two bytes, low first)
 vectors ${:02X}-${:02X} (at ${:03X}-${:03X}), {} end of interrupt
@@ -8304,6 +8519,8 @@ x86, MASM and TASM: db, dw, dd (0FFh)
 x86, NASM: db, dw, dd
 xlat
 xlatb
+xml
+yaml
 yes
 yes, addresses go down
 zx
@@ -8312,9 +8529,11 @@ zx0 (ZX0)
 zx_notation
 {-1} and {A} (bas2tap, SGD, Taper)
 {0}; with Caps Shift, {1}
+{ARCHIVE_PAGE} has no build of Boriel's ZX Basic for this computer that Limoniter knows.
 {about} (high word; write both with one MOVE.L to {name}H)
 {across} by 1 line
 {across} by {h} lines
+{added} strings added to {} to translate.
 {address} couldn't be reached: {e}
 {address} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP
 {address} is {v}, which doesn't fit in 16 bits
@@ -8406,6 +8625,7 @@ zx_notation
 {kind}{chip} {} bytes
 {label} is defined twice
 {language} files can have a language server, {program}, which isn't installed. Install it?
+{language}: {} ({held} translated strings in it)
 {light} change(s) to light (grey) text are shown plain.
 {machine} tape (TAP version {version}) · 1 file
 {machine} tape (TAP version {version}) · {count} files
@@ -8449,9 +8669,13 @@ zx_notation
 {name} has no end block, so it may be cut short.
 {name} has no end-of-file mark, so it may be cut short.
 {name} has no folder {folder}.
+{name} has no string: the line after its name should be the string.
+{name} has no string: the line after its name should be the translation.
+{name} has the id {id}, which {} already has.
 {name} is DEFINEd twice
 {name} is a folder here, so a file can't replace it.
 {name} is a folder; add the files in it instead.
+{name} is already on line {}.
 {name} is in drive A.
 {name} is missing, and it's required.
 {name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.
@@ -8476,6 +8700,7 @@ zx_notation
 {name} needs a size: say WORD or DWORD
 {name} needs an operand after its registers
 {name} needs at least one register
+{name} needs its id and lengths in brackets after it, such as (//) or (0/1/40).
 {name} needs to be true or false.
 {name} needs to know its memory's size: say {}
 {name} needs to know the size it widens: say BYTE or WORD
@@ -8513,7 +8738,10 @@ zx_notation
 {name} widens a smaller value into a bigger register
 {name} would be outside the folder, so it's left alone.
 {name}'s block is too short to say where it loads.
+{name}'s brackets need three parts, kept apart by two slashes: (id/shortest/longest), any of them left out.
 {name}'s destination and first register are the same, which the ARM2 and ARM3 get wrong: swap the two registers it multiplies
+{name}'s id, {given}, isn't a number.
+{name}'s id, {relative}, isn't a number.
 {name}'s lines don't link up to an end, so all its block is kept.
 {name}'s name block fails its checksum, so what it says of the file may be wrong.
 {name}'s offset can be shifted by a number, not by a register
@@ -8523,6 +8751,7 @@ zx_notation
 {name}'s port is DX or a number up to 255
 {name}'s registers go in {{ }}
 {name}'s second operand is a register
+{name}'s {what} length, {given}, isn't a number.
 {name}, if a6 is exec
 {name}, line {}
 {name}, {size} bytes
@@ -8564,6 +8793,7 @@ zx_notation
 {other} isn't a SAVENEX command (OPEN, CORE, CFG, CFG3, BAR, PALETTE, SCREEN, COPPER, BANK, AUTO, CLOSE)
 {other} isn't a key that can be held down. Use Ctrl, Shift or Alt.
 {other} isn't a kind of memory: CHIP or FAST
+{pages} pages of MUI's autodocs read from {}.
 {page} has no download for Windows that Limoniter knows.
 {pair} ({pair}H and {pair}L) = {shown}\n{about}, written as one long word
 {path} couldn't be read from {}.
@@ -8717,6 +8947,7 @@ zx_notation
 {w}×{h}, {what}, average difference {error:.3} (Oklab){}
 {w}×{h}, {} values used, average difference {:.3} (Oklab){}
 {x} isn't an index register
+{x}, {y} in its window
 {{{inside}}} isn't a byte
 {{{inside}}} isn't a code this knows
 {{{inside}}} needs numbers from 0 to 255
@@ -8731,6 +8962,7 @@ zx_notation
 {}\nU+{value:04X}\nIn this file: {bytes}
 {}  (not plugged in)
 {} (decimal {byte}, hex {byte:02X})\nUnicode: {}\nType: {}\nIn {}
+{} (line {}): {why}
 {} (no longer there)
 {} (palette changes down the screen), so colours may be off
 {} (text with zero bytes)
@@ -8741,6 +8973,7 @@ zx_notation
 {} ({} files)
 {} Hz a sample (PAL)
 {} MHz
+{} already has files in it. Choose another name or folder.
 {} and {} both want sectors from {}.
 {} as it was
 {} at ${:04X}, line {} of {place}. Called from {callers} routines; calls {callees}.
@@ -8796,6 +9029,8 @@ zx_notation
 {} couldn't be read: {error}
 {} couldn't be read: {e}
 {} couldn't be removed: {e}
+{} couldn't be renamed: {e}
+{} couldn't be saved for its icon: {e}
 {} couldn't be saved: {e}
 {} couldn't be sent: {e}
 {} couldn't be started: {e}
@@ -8833,10 +9068,12 @@ zx_notation
 {} has been changed by another program since it was opened.\n\nOverwrite it?
 {} has been changed on the server since you opened it.\n\nReplace it with your version?
 {} has changed since these edits were made, so only the bytes that were typed or pasted in could be kept.
+{} has errors, so its catalog wasn't made.
 {} has no table
 {} has no tables of {what} in it (.byte lines{}).
 {} has things in it; take them out first.
 {} has unsaved changes.\n\nSave them first? Choosing No discards them.
+{} has {} formatting commands, but the original has {}.
 {} have unsaved edits, which won't be in the commit.\n\nCommit anyway?
 {} hunks
 {} in {}
@@ -8880,6 +9117,8 @@ zx_notation
 {} is too large to read as text in its encoding, so it's shown in hex. Text files in UTF-8 or a byte set can be any size.
 {} is working on {}… {seconds}s
 {} is writing the message…
+{} is {length} characters long, but it can be no more than {max}.
+{} is {length} characters long, but it should be at least {}.
 {} is {n} bytes: an Amiga disk image is 901,120 (880K) or 1,802,240 (1760K).
 {} is {value}, which doesn't fit in a byte
 {} is {v}, which doesn't fit in 16 bits
@@ -8887,6 +9126,7 @@ zx_notation
 {} is {} bytes: the C64's character ROM is 4096 (2048 for one set).
 {} is {} bytes; a TR-DOS file can be at most 65,280.
 {} isn't a SpritePad file Limoniter knows.
+{} isn't a Workbench icon Limoniter can read. {problem}
 {} isn't a condition
 {} isn't a directory.
 {} isn't a file that can be compared.
@@ -8901,6 +9141,8 @@ zx_notation
 {} isn't downloaded by Limoniter: get it from {}.
 {} isn't in a Git repository.
 {} isn't in the archive.
+{} isn't in the description.
+{} isn't in the translation.
 {} isn't in this directory.
 {} isn't in this folder.
 {} isn't installed
@@ -8908,6 +9150,7 @@ zx_notation
 {} isn't on the disk.
 {} isn't there after writing it.
 {} isn't there any more.
+{} isn't translated yet.
 {} kept beside them, ending in .bak.
 {} left as it was:
 {} lies outside the disk, so the catalogue is damaged.
@@ -8944,6 +9187,8 @@ zx_notation
 {} only on the right
 {} other command line(s) aren't carried over.
 {} other control sequence(s) aren't carried over.
+{} pages in {} books
+{} pages. Choose one on the left, or type a name and press Enter.
 {} places don't keep to the schema:
 {} programs don't run on a built-in machine.
 {} range(s) on; play it to see them cycle
@@ -8973,6 +9218,7 @@ zx_notation
 {} took too long to unpack, and was stopped.
 {} took too long, and was stopped.
 {} was assembled by SAS/C's asm, and isn't built here: assemble it with vasm (-Fhunk) and link it in, or rewrite it as C.
+{} was installed, but doesn't run:\n{said}
 {} was unpacked into {}, but its program wasn't found in it.
 {} wasn't found on this computer. Get it from {}, or take out the // compiler: line to use another.
 {} wasn't found.
@@ -8990,8 +9236,11 @@ zx_notation
 {} writes text as {}, which has no way to write {} character(s) here.\n\n{}\n\nChange them, or send to a device that takes the file as it is.
 {} writes text in another encoding on the way, and this file is too large to convert in memory. Send it to a device that takes it as it is.
 {} wrote the message: read it over, then Commit
+{} {} didn't work.
 {} {} isn't a Z80 instruction
 {} × {} on the left, {} × {} on the right
+{} × {}, true colour
+{} × {}, {} colours
 {}'s certificate isn't vouched for by an authority this computer trusts, as is usual for a server at home that made its own. Its fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.
 {}'s chain of sectors comes back on itself.
 {}'s data is {} bytes, where its header says {expected}.
@@ -9019,12 +9268,16 @@ zx_notation
 {}: empty
 {}: not made for the {}, so Hatari may change machine or not start.
 {}: not made for the {}, so it may not start.
+{}: nothing takes argument {place}, which the original's {} takes.
 {}: opened, it shows as it is; Disassemble shows it decrunched.
 {}: opened, it shows as what it holds.
+{}: the original ends with “...”, but the translation doesn't.
 {}: this isn't 68000 source for the Amiga: it has no SECTION, and uses no system calls or custom chips.
+{}: {written} isn't a formatting command CatComp knows.
 {}: {} bytes
 {}: {} bytes, as they'd be saved
 {}: {} channels, {} positions, {} patterns, {} samples.
+{}: {} takes something different from the original's {}.
 {}; its low 16 bits are used
 {}; its low byte is used
 {}; saved decrunched as {} ({} bytes).
@@ -9036,9 +9289,11 @@ zx_notation
 {}K, 80 tracks, {sides} side(s), 8 to 12 × 512-byte sectors
 {}×{} characters, average difference {:.3} (Oklab)
 “ and ”
+“{c}” isn't in Latin 1 (ISO-8859-1), so a catalog can't hold it.
 “{c}” isn't something AMOS can read here
 “{id}” isn't an extension's id, which is written publisher.name.
 “{line}” isn't written key = value.
+“{name}” isn't a string's name: a name is letters, digits and underscores, starting with a letter.
 “{other}” (character {}) isn't used in Base64.
 “{other}” isn't something an add-on can say. It can give name, about, command, on_open, on_save, on_send and on_run.
 “{path}” isn't a path inside the folder, so it was left alone.
@@ -9046,7 +9301,9 @@ zx_notation
 “{text}” isn't a pattern that can be used: {e}
 “{value}” isn't a function name: use letters, digits and _.
 “{}” has no frames.
+… and more: type more of the name to see them.
 ℹ Info
+← Back
 ↑ To the server
 ↑ Up
 ↑ frame

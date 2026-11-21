@@ -4,6 +4,7 @@
 //! saved beside the source and run where that machine's programs run.
 
 use super::*;
+use crate::boriel_get;
 use crate::compilers::{self, Compiled, Job, Toolchain};
 use crate::running::{Machine, Runnable};
 use super::run_host::Target;
@@ -18,6 +19,18 @@ pub(super) struct Compiling {
     job: Option<(u64, u64, Job, std::sync::mpsc::Receiver<Result<Compiled, String>>)>,
     /// Where it runs once it's built, if it was asked for somewhere (Run on); otherwise, as F9 does.
     pub(super) target: Option<Target>,
+    /// Boriel's ZX Basic being installed (see `boriel_get`): what's said as it goes, and how it ended.
+    installing: Option<std::sync::mpsc::Receiver<Installing>>,
+    /// How Boriel's ZX Basic can be installed here, worked out when a box offering it opens (on a Mac, that asks
+    /// the Pythons installed for their versions, which isn't done every frame).
+    zxbc_way: Option<boriel_get::Way>,
+}
+
+/// What comes back from installing Boriel's ZX Basic: a line on how it's going, or the end, with its zxbc and
+/// what zxbc --version said.
+enum Installing {
+    Said(String),
+    Done(Result<(PathBuf, String), String>),
 }
 
 impl Compiling {
@@ -67,7 +80,16 @@ impl Limoniter {
         if self.running.compiled.job.as_ref().is_some_and(|(id, v, ..)| *id == doc_id && *v == version) {
             return Err(String::new());
         }
-        let job = self.compile_job(index, kind)?;
+        let job = match self.compile_job(index, kind) {
+            Ok(job) => job,
+            // No zxbc: a box that offers to install it, rather than only saying where it's got.
+            Err(problem) if kind == Compiles::Boriel && problem == compilers::not_found(Machine::Spectrum48, true) => {
+                self.running.compiled.zxbc_way = Some(boriel_get::way());
+                self.dialog = Dialog::ZxbcMissing(problem);
+                return Err(String::new());
+            }
+            Err(problem) => return Err(problem),
+        };
         if self.docs[index].is_modified() {
             if !self.save(index) {
                 return Err(crate::i18n::tr("The file couldn't be saved, so it wasn't compiled.").into());
@@ -121,7 +143,14 @@ impl Limoniter {
                 Some(program) => (compiler, program),
                 None => return Err(crate::i18n::tf!("{} wasn't found on this computer. Get it from {}, or take out the // compiler: line to use another.", compiler.name, compiler.website)),
             },
-            None => compilers::for_machine(machine, basic).into_iter().find_map(|c| c.find(machine).map(|p| (c, p))).ok_or_else(|| compilers::not_found(machine, basic))?,
+            None => {
+                let mut candidates = compilers::for_machine(machine, basic);
+                // A SAS/C project is built by SAS/C itself, through vamos, when both are on this computer.
+                if machine == Machine::Amiga && doc.path.as_deref().and_then(Path::parent).is_some_and(|folder| crate::sasc::read_smakefile(folder).is_some() || folder.join("SCOPTIONS").is_file() || folder.join("scoptions").is_file()) || crate::sasc::looks_like_sasc(&text.join("\n")) {
+                    candidates.sort_by_key(|c| c.toolchain != Toolchain::SasC);
+                }
+                candidates.into_iter().find_map(|c| c.find(machine).map(|p| (c, p))).ok_or_else(|| compilers::not_found(machine, basic))?
+            }
         };
         let Some(main) = doc.path.clone() else {
             return Err(crate::i18n::tf!("Save the file first, so {} can read it.", compiler.name));
@@ -129,7 +158,7 @@ impl Limoniter {
         let main = std::path::absolute(&main).unwrap_or(main);
         let folder = main.parent().map(Path::to_path_buf).unwrap_or_default();
         let stem = main.file_stem().map_or_else(|| "program".to_string(), |s| s.to_string_lossy().into_owned());
-        let mut job = Job { compiler, program, machine, main: main.clone(), sources: vec![main.clone()], folder: folder.clone(), flags: Vec::new(), stem, sasc: false };
+        let mut job = Job { compiler, program, machine, main: main.clone(), sources: vec![main.clone()], folder: folder.clone(), flags: Vec::new(), libs: Vec::new(), stem, sasc: false };
         if basic {
             return Ok(job);
         }
@@ -138,13 +167,37 @@ impl Limoniter {
         if compiler.toolchain == Toolchain::Sgdk && folder.file_name().is_some_and(|n| n.eq_ignore_ascii_case("src")) {
             job.folder = folder.parent().map(Path::to_path_buf).unwrap_or(folder.clone());
         }
-        // SAS/C source: its smakefile's files, its SCOPTIONS' flags, through the compatibility header.
+        // SAS/C itself builds its project unchanged: only the program's name is wanted, from the smakefile or
+        // SCOPTIONS, to find what it made.
+        if compiler.toolchain == Toolchain::SasC {
+            if let Some(project) = crate::sasc::read_smakefile(&folder) {
+                job.sources = project.sources;
+                job.stem = project.name.unwrap_or(job.stem);
+            }
+            if let Some(name) = std::fs::read_to_string(folder.join("SCOPTIONS")).or_else(|_| std::fs::read_to_string(folder.join("scoptions"))).ok().and_then(|text| crate::sasc::read_scoptions(&text, compiler.toolchain, &folder).name) {
+                job.stem = name;
+            }
+            return Ok(job);
+        }
+        // An Amiga project Limoniter keeps makefiles for is built as they build it: its files, its program's name,
+        // its AmigaOS's configuration or C library, and its libraries.
+        let kept = if matches!(compiler.toolchain, Toolchain::AmigaGcc | Toolchain::Vbcc) { crate::amiga_project::f9_build(&main).filter(|b| b.sources.iter().any(|s| same_path(s, &main))) } else { None };
+        if let Some(build) = &kept {
+            job.sources = build.sources.clone();
+            job.stem = build.program.clone();
+            (job.flags, job.libs) = if compiler.toolchain == Toolchain::AmigaGcc { build.gcc.clone() } else { build.vbcc.clone() };
+            job.folder = build.folder.clone();
+        }
+        // SAS/C source: its smakefile's files, its SCOPTIONS' flags, through the compatibility header. An smakefile
+        // Limoniter writes isn't a sign of SAS/C source, but an imported SAS/C project's own is.
         if matches!(compiler.toolchain, Toolchain::AmigaGcc | Toolchain::Vbcc) {
             let scoptions = std::fs::read_to_string(folder.join("SCOPTIONS")).or_else(|_| std::fs::read_to_string(folder.join("scoptions"))).ok();
-            let project = crate::sasc::read_smakefile(&folder);
+            let project = crate::sasc::read_smakefile(&folder).filter(|_| !crate::amiga_project::smakefile_is_kept(&folder));
             if scoptions.is_some() || project.is_some() || crate::sasc::looks_like_sasc(&text.join("\n")) {
                 job.sasc = true;
-                if let Some(project) = project {
+                if let Some(project) = project
+                    && kept.is_none()
+                {
                     job.sources = project.sources;
                     if let Some(name) = project.name {
                         job.stem = name;
@@ -152,8 +205,10 @@ impl Limoniter {
                 }
                 if let Some(text) = scoptions {
                     let options = crate::sasc::read_scoptions(&text, compiler.toolchain, &folder);
-                    job.flags = options.flags;
-                    if let Some(name) = options.name {
+                    job.flags.extend(options.flags);
+                    if let Some(name) = options.name
+                        && kept.is_none()
+                    {
                         job.stem = name;
                     }
                 }
@@ -165,6 +220,7 @@ impl Limoniter {
     /// When a build finishes: what it said, its problems marked, the program saved beside the source, and run if
     /// that's what it was for.
     pub(super) fn compile_tick(&mut self, ctx: &Context) {
+        self.zxbc_install_tick(ctx);
         let Some((_, _, _, receive)) = &self.running.compiled.job else {
             return;
         };
@@ -253,7 +309,11 @@ impl Limoniter {
         let beside = job.main.parent().map(|f| f.join(&name));
         if let Some(path) = &beside {
             match crate::codec::write_file(path, &bytes) {
-                Ok(()) => self.script_print(crate::i18n::tf!("Made {} ({} bytes) for the {}.", path.display(), bytes.len(), job.machine.name()), false),
+                Ok(()) => {
+                    self.script_print(crate::i18n::tf!("Made {} ({} bytes) for the {}.", path.display(), bytes.len(), job.machine.name()), false);
+                    // An Amiga program gets its Workbench icon beside it, when that's asked for.
+                    self.icon_after_build(doc_id, &name, &bytes, true);
+                }
                 Err(e) => self.script_print(crate::i18n::tf!("{} couldn't be saved: {e}", path.display()), false),
             }
         }
@@ -264,14 +324,140 @@ impl Limoniter {
 impl Limoniter {
     /// Opens the box saying which compilers are installed, for which machines, and where to get the rest.
     pub(super) fn open_compilers_box(&mut self) {
-        let found = compilers::KNOWN.iter().map(|c| (c, c.machines.iter().find_map(|m| c.find(*m)))).collect();
+        let found: Vec<(&'static compilers::Compiler, Option<PathBuf>)> = compilers::KNOWN.iter().map(|c| (c, c.machines.iter().find_map(|m| c.find(*m)))).collect();
+        if found.iter().any(|(c, path)| c.toolchain == Toolchain::Zxbc && path.is_none()) {
+            self.running.compiled.zxbc_way = Some(boriel_get::way());
+        }
         self.dialog = Dialog::Compilers(found);
     }
 
+    /// Starts installing Boriel's ZX Basic in the background, the way worked out for this computer, saying how
+    /// it's going in the Output panel. With no way to install it, its download page is opened.
+    pub(super) fn install_zxbc(&mut self) {
+        if self.running.compiled.installing.is_some() {
+            return;
+        }
+        let way = self.running.compiled.zxbc_way.clone().unwrap_or_else(boriel_get::way);
+        if way == boriel_get::Way::Page {
+            if let Err(problem) = crate::platform::open_web_page(boriel_get::ARCHIVE_PAGE) {
+                warn(&problem);
+            }
+            return;
+        }
+        let Some(home) = boriel_get::folder() else {
+            return self.message("Boriel's ZX Basic", crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found.").into());
+        };
+        self.script_print(crate::i18n::tr("Installing Boriel's ZX Basic\u{2026}").into(), true);
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let said = send.clone();
+            let result = boriel_get::install(&way, &home, &|line| {
+                let _ = said.send(Installing::Said(line));
+            });
+            let _ = send.send(Installing::Done(result));
+        });
+        self.running.compiled.installing = Some(receive);
+    }
+
+    /// Whether Boriel's ZX Basic is being installed.
+    pub(super) fn installing_zxbc(&self) -> bool {
+        self.running.compiled.installing.is_some()
+    }
+
+    /// While Boriel's ZX Basic is being installed: what it says, in the Output panel, and when it's done, that it
+    /// is (F9 finds it from then on) or why not.
+    fn zxbc_install_tick(&mut self, ctx: &Context) {
+        let Some(receive) = &self.running.compiled.installing else {
+            return;
+        };
+        let mut said = Vec::new();
+        let mut done = None;
+        loop {
+            match receive.try_recv() {
+                Ok(Installing::Said(line)) => said.push(line),
+                Ok(Installing::Done(result)) => {
+                    done = Some(result);
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    done = Some(Err(crate::i18n::tr("The installation stopped unexpectedly.").into()));
+                    break;
+                }
+            }
+        }
+        for line in said {
+            self.script_print(line, false);
+        }
+        let Some(result) = done else {
+            ctx.request_repaint_after(Duration::from_millis(100));
+            return;
+        };
+        self.running.compiled.installing = None;
+        let words = match result {
+            Ok((program, version)) => crate::i18n::tf!("Boriel's ZX Basic is installed ({version}), as {}. F9 compiles with it now.", program.display()),
+            Err(problem) => crate::i18n::tf!("Boriel's ZX Basic couldn't be installed: {problem}"),
+        };
+        self.script_print(words.clone(), false);
+        // The Compilers box shows it found; otherwise it's said, unless another box is open.
+        match self.dialog {
+            Dialog::Compilers(_) => self.open_compilers_box(),
+            Dialog::None | Dialog::ZxbcMissing(_) => self.message("Boriel's ZX Basic", words),
+            _ => {}
+        }
+    }
+
+    /// The box F9 opens when zxbc isn't found: why, how it can be installed here, and a button that does it.
+    fn zxbc_missing_dialog(&mut self, ctx: &Context) -> bool {
+        let Dialog::ZxbcMissing(body) = &self.dialog else {
+            return false;
+        };
+        let installing = self.installing_zxbc();
+        let way = self.running.compiled.zxbc_way.clone().unwrap_or(boriel_get::Way::Page);
+        let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
+        let mut install = false;
+        egui::Window::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.set_max_width(520.0);
+            ui.label(body.as_str());
+            ui.add_space(6.0);
+            if installing {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(crate::i18n::tr("Boriel's ZX Basic is being installed. The Output panel shows how it's going."));
+                });
+            } else {
+                ui.add(egui::Label::new(RichText::new(boriel_get::explain(&way)).color(theme::text_dim()).size(12.0)).wrap());
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if !installing {
+                    let label = if way == boriel_get::Way::Page { crate::i18n::tr("Open its download page") } else { crate::i18n::tr("Install Boriel ZX Basic") };
+                    install = ui.button(label).clicked();
+                }
+                close |= ui.button(crate::i18n::tr("Close")).clicked();
+            });
+        });
+        if install {
+            self.install_zxbc();
+            close = true;
+        }
+        if close {
+            self.dialog = Dialog::None;
+            self.pending_focus = true;
+        }
+        true
+    }
+
     pub(super) fn compilers_dialog(&mut self, ctx: &Context) -> bool {
+        if matches!(self.dialog, Dialog::ZxbcMissing(_)) {
+            return self.zxbc_missing_dialog(ctx);
+        }
         let Dialog::Compilers(found) = &self.dialog else {
             return false;
         };
+        let installing = self.installing_zxbc();
+        let way = self.running.compiled.zxbc_way.clone().unwrap_or(boriel_get::Way::Page);
+        let mut install = false;
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         egui::Window::new(crate::i18n::tr("Compilers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(560.0);
@@ -283,9 +469,26 @@ impl Limoniter {
                     let machines: Vec<&str> = compiler.machines.iter().map(|m| m.name()).collect();
                     ui.label(RichText::new(machines.join(", ")).color(theme::text_dim()).size(12.0));
                     match path {
-                        Some(path) => ui.label(path.display().to_string()),
-                        None => ui.hyperlink_to(crate::i18n::tr("Not found: get it"), compiler.website).on_hover_text(compiler.website),
-                    };
+                        Some(path) => {
+                            ui.label(path.display().to_string());
+                        }
+                        // Boriel's ZX Basic, Limoniter can install itself.
+                        None if compiler.toolchain == Toolchain::Zxbc && installing => {
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                ui.label(crate::i18n::tr("Installing\u{2026}"));
+                            });
+                        }
+                        None if compiler.toolchain == Toolchain::Zxbc && way != boriel_get::Way::Page => {
+                            ui.horizontal(|ui| {
+                                install = ui.button(crate::i18n::tr("Install Boriel ZX Basic")).on_hover_text(boriel_get::explain(&way)).clicked();
+                                ui.hyperlink_to(crate::i18n::tr("Not found: get it"), compiler.website).on_hover_text(compiler.website);
+                            });
+                        }
+                        None => {
+                            ui.hyperlink_to(crate::i18n::tr("Not found: get it"), compiler.website).on_hover_text(compiler.website);
+                        }
+                    }
                     ui.end_row();
                 }
             });
@@ -294,6 +497,9 @@ impl Limoniter {
             ui.add_space(6.0);
             close |= ui.button(crate::i18n::tr("OK")).clicked();
         });
+        if install {
+            self.install_zxbc();
+        }
         if close {
             self.dialog = Dialog::None;
             self.pending_focus = true;
@@ -336,6 +542,50 @@ mod tests {
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| app.run(Command::Compilers, ui));
         let Dialog::Compilers(found) = &app.dialog else { panic!("it opens") };
         assert_eq!(found.len(), compilers::KNOWN.len());
+    }
+
+    /// F9 on Boriel's ZX Basic with no zxbc opens a box offering to install it; how the installing goes is said
+    /// in the Output panel, and its end in a box (or the Compilers box, if that's open, shows it found).
+    #[test]
+    fn f9_without_zxbc_offers_to_install_it_and_says_how_it_went() {
+        let mut app = app_with("game.bas", crate::boriel::STARTER);
+        if compilers::by_id("zxbc").unwrap().find(Machine::Spectrum48).is_none() {
+            assert_eq!(app.compiled_runnable(Compiles::Boriel, true).err(), Some(String::new()), "nothing more to say than the box");
+            let Dialog::ZxbcMissing(body) = &app.dialog else { panic!("the box offering to install it") };
+            assert!(body.contains("github.com/boriel-basic/zxbasic"), "{body}");
+            assert!(app.running.compiled.zxbc_way.is_some(), "worked out once, as the box opens");
+            let ctx = egui::Context::default();
+            let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+                assert!(app.compilers_dialog(ui.ctx()), "drawn");
+            });
+        }
+        // As the background thread tells it.
+        let (send, receive) = std::sync::mpsc::channel();
+        send.send(Installing::Said("Downloading Boriel's ZX Basic 1.19.0\u{2026}".into())).unwrap();
+        app.running.compiled.installing = Some(receive);
+        app.dialog = Dialog::None;
+        let ctx = egui::Context::default();
+        app.zxbc_install_tick(&ctx);
+        assert!(app.installing_zxbc(), "still going");
+        assert!(app.script_output.iter().any(|l| l.contains("Downloading Boriel's ZX Basic 1.19.0")), "{:?}", app.script_output);
+        send.send(Installing::Done(Ok((PathBuf::from("/c/zxbasic/zxbc"), "zxbc.py 1.19.0".into())))).unwrap();
+        app.zxbc_install_tick(&ctx);
+        assert!(!app.installing_zxbc());
+        assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("zxbc.py 1.19.0") && body.contains("F9")), "said when it's done");
+        // It went wrong, with the Compilers box open: that's said in the Output panel, and the box stays.
+        let (send, receive) = std::sync::mpsc::channel();
+        send.send(Installing::Done(Err("boriel.com couldn't be reached".into()))).unwrap();
+        app.running.compiled.installing = Some(receive);
+        app.open_compilers_box();
+        app.zxbc_install_tick(&ctx);
+        assert!(matches!(app.dialog, Dialog::Compilers(_)));
+        assert!(app.script_output.iter().any(|l| l.contains("couldn't be installed: boriel.com couldn't be reached")), "{:?}", app.script_output);
+        // The thread stopping without saying is an end too.
+        let (send, receive) = std::sync::mpsc::channel::<Installing>();
+        drop(send);
+        app.running.compiled.installing = Some(receive);
+        app.zxbc_install_tick(&ctx);
+        assert!(!app.installing_zxbc());
     }
 
     #[test]

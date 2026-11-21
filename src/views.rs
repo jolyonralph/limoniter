@@ -420,6 +420,9 @@ pub struct ViewState {
     pub completion_wanted: Option<(usize, usize)>,
     /// In a comparison: how each line differs from the other side's, drawn behind the text and in the margin.
     pub diff: Option<std::sync::Arc<crate::diff_engine::Marks>>,
+    /// The Amiga function (or MUI attribute or method) right-clicked in C or 68000 source, when the autodocs
+    /// explain it: the menu offers to jump to its page.
+    explain: Option<String>,
 }
 
 /// The list of words offered to finish the one being typed.
@@ -500,7 +503,7 @@ impl ViewState {
 }
 
 /// What a view asks the window to do through its right-click menu.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ContextCommand {
     Cut,
     Copy,
@@ -509,6 +512,8 @@ pub enum ContextCommand {
     Tag(u8),
     Untag,
     Assist,
+    /// Opens the AutoDoc reader at a function's page.
+    Explain(String),
 }
 
 /// A text cell made taller for line spacing, and how far down it the text then sits.
@@ -968,7 +973,23 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         buffer.select_word_at_caret();
     }
     let mut command = None;
-    response.context_menu(|ui| command = context_menu(ui, true));
+    // A right-click on an Amiga system function's name offers its autodoc.
+    if response.secondary_clicked() {
+        state.explain = None;
+        if let Some(p) = response.interact_pointer_pos()
+            && let Some(intel) = buffer.intel.as_ref().filter(|i| i.amiga.is_some() || i.cpu == Some(crate::assemblers::Cpu::M68k))
+            && p.x > view.min.x + gutter
+        {
+            let (line, col) = to_position(pos2(p.x - cell.x / 2.0, p.y));
+            if line < buffer.line_count()
+                && let Some((_, _, word)) = crate::code_intel::word_at(&buffer.line(line), col)
+                && crate::autodocs::shelf().find(&word, intel.amiga.as_deref()).is_some()
+            {
+                state.explain = Some(word);
+            }
+        }
+    }
+    response.context_menu(|ui| command = context_menu(ui, true, state.explain.as_deref()));
 
     let caret_on = caret_is_on(ui, state, focused);
     if let Some(engine) = highlight::engine() {
@@ -1559,8 +1580,14 @@ fn handle_text_key(b: &mut TextBuffer, key: Key, m: Modifiers, rows: isize, wrap
     }
 }
 
-fn context_menu(ui: &mut Ui, text: bool) -> Option<ContextCommand> {
+fn context_menu(ui: &mut Ui, text: bool, explain: Option<&str>) -> Option<ContextCommand> {
     let mut command = None;
+    if let Some(word) = explain {
+        if ui.button(crate::i18n::tf!("Jump to its explanation ({word})")).clicked() {
+            command = Some(ContextCommand::Explain(word.to_string()));
+        }
+        ui.separator();
+    }
     if ui.button(crate::i18n::tr("Cut")).clicked() {
         command = Some(ContextCommand::Cut);
     }
@@ -2435,7 +2462,7 @@ pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, form
         }
     }
     let mut command = None;
-    response.context_menu(|ui| command = context_menu(ui, false));
+    response.context_menu(|ui| command = context_menu(ui, false, None));
     let caret_on = caret_is_on(ui, state, focused);
     paint_hex(ui, buffer, view, top, left, rows, cell, header, caret_on, &font, format);
     command

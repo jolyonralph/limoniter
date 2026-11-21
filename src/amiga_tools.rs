@@ -228,6 +228,10 @@ pub struct Prefs {
     pub paths: Vec<(Tool, PathBuf)>,
     /// Crunch the Amiga program F9 builds, with this cruncher.
     pub after_build: Option<Tool>,
+    /// Make a Workbench icon for the Amiga program F9 builds, beside it, so it can be started from Workbench.
+    pub icon_after_build: bool,
+    /// The person's own icon to make it from (any kind of .info); without one, Limoniter's own.
+    pub default_icon: Option<PathBuf>,
     pub shrinkler: ShrinklerOptions,
     pub cranker: CrankerOptions,
     pub lsp: LspOptions,
@@ -288,6 +292,8 @@ impl Prefs {
         let value = json!({
             "paths": paths,
             "after_build": self.after_build.map_or("", Tool::id),
+            "icon_after_build": self.icon_after_build,
+            "default_icon": self.default_icon.as_ref().map(|p| p.display().to_string()).unwrap_or_default(),
             "shrinkler": { "data": s.data, "data_header": s.data_header, "hunk_merge": s.hunk_merge, "overlap": s.overlap, "mini": s.mini, "command_line": s.command_line, "bytes": s.bytes, "preset": s.preset, "iterations": s.iterations, "references": s.references, "text": s.text, "flash": s.flash },
             "cranker": { "data": c.data, "fast": c.fast, "merge": c.merge, "decranker": c.decranker, "text": c.text },
             "lsp": { "micro": l.micro, "insane": l.insane, "getpos": l.getpos, "setpos": l.setpos, "shrink": l.shrink, "adpcm": l.adpcm, "fixed50hz": l.fixed50hz, "nosettempo": l.nosettempo, "nosampleoptim": l.nosampleoptim, "preview_wav": l.preview_wav },
@@ -311,6 +317,8 @@ impl Prefs {
             }
         }
         prefs.after_build = value["after_build"].as_str().and_then(Tool::from_id).filter(|t| Tool::CRUNCHERS.contains(t));
+        prefs.icon_after_build = value["icon_after_build"].as_bool().unwrap_or(false);
+        prefs.default_icon = value["default_icon"].as_str().filter(|p| !p.is_empty()).map(PathBuf::from);
         prefs.shrinkler = ShrinklerOptions {
             data: flag("shrinkler", "data"),
             data_header: flag("shrinkler", "data_header"),
@@ -881,6 +889,8 @@ mod tests {
         prefs.shrinkler.iterations = Some(5);
         prefs.cranker.decranker = "cinema".into();
         prefs.lsp.micro = true;
+        prefs.icon_after_build = true;
+        prefs.default_icon = Some(PathBuf::from("/amiga/def_tool.info"));
         assert_eq!(Prefs::from_json(&prefs.to_json()), prefs);
         assert_eq!(Prefs::from_json("not json"), Prefs::default());
         // A cruncher that isn't one can't be chosen for after building.

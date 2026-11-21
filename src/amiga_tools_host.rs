@@ -303,6 +303,13 @@ impl Limoniter {
                     state.found = find_all(&state.prefs);
                 }
             }
+            Act::ChooseIcon => {
+                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("The icon to make programs' icons from")).add_filter(crate::i18n::tr("Workbench icon"), &["info"]).pick_file()
+                    && let Dialog::AmigaTools(state) = &mut self.dialog
+                {
+                    state.prefs.default_icon = Some(path);
+                }
+            }
             Act::Folder => {
                 if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
                     && let Dialog::AmigaTools(state) = &mut self.dialog
@@ -461,6 +468,7 @@ enum Act {
     Choose(Tool),
     Forget(Tool),
     Folder,
+    ChooseIcon,
 }
 
 fn note(ui: &mut egui::Ui, text: impl Into<String>) {
@@ -725,6 +733,20 @@ fn tools_page(ui: &mut egui::Ui, state: &mut AmigaToolsBox, action: &mut Option<
         });
     });
     note(ui, "The copy, crunched with the options on the Crunch page, goes beside the source as name_crunched, in the background; the program runs as built.");
+    ui.separator();
+    ui.checkbox(&mut state.prefs.icon_after_build, crate::i18n::tr("After F9 builds an Amiga program, make a Workbench icon for it"));
+    ui.horizontal(|ui| {
+        ui.label(crate::i18n::tr("Made from:"));
+        let shown = state.prefs.default_icon.as_ref().map_or_else(|| crate::i18n::tr("Limoniter's own icon").to_string(), |p| p.display().to_string());
+        ui.label(RichText::new(shown).color(theme::text_dim()));
+        if ui.small_button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Any Workbench icon of yours: its pictures and tool types are used")).clicked() {
+            *action = Some(Act::ChooseIcon);
+        }
+        if state.prefs.default_icon.is_some() && ui.small_button(crate::i18n::tr("Use Limoniter's own")).clicked() {
+            state.prefs.default_icon = None;
+        }
+    });
+    note(ui, "The icon (name.info) goes beside the program, so it can be started from Workbench: made a Tool, placed by Workbench, with a stack of 4096 bytes if it gave none. An assembled program is saved beside its source for it.");
 }
 
 #[cfg(test)]

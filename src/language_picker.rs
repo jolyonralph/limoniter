@@ -169,7 +169,7 @@ impl Group {
     /// The languages in it, by the highlighter's names. Everything else's are worked out from the rest.
     fn members(self) -> &'static [&'static str] {
         match self {
-            Group::Assembly => &["Assembly 6502", "Assembly 65816", "Assembly 6809", "Assembly 680x0", "Assembly 8080", "Assembly 80x86", "Assembly ARM (ARM2 and ARM3)", "Assembly AVR", "Assembly HLASM", "Assembly PDP-11 (MACRO-11)", "Assembly PIC (MPASM)", "Assembly SM83 (Game Boy)", "Assembly SPC700 (SNES sound)", "Assembly VAX MACRO", "Assembly x86_64", "Assembly Z80", "LLVM"],
+            Group::Assembly => &["Assembly 6502", "Assembly 65816", "Assembly 6809", "Assembly 680x0", "Assembly 680x0 (GNU as)", "Assembly 8080", "Assembly 80x86", "Assembly ARM (ARM2 and ARM3)", "Assembly AVR", "Assembly HLASM", "Assembly PDP-11 (MACRO-11)", "Assembly PIC (MPASM)", "Assembly SM83 (Game Boy)", "Assembly SPC700 (SNES sound)", "Assembly VAX MACRO", "Assembly x86_64", "Assembly Z80", "LLVM"],
             Group::Basic => &["BASIC (AMOS)", "BASIC (Blitz Basic)", "BASIC (Commodore)", "BASIC (QBasic, QuickBASIC and GW-BASIC)", "BASIC (Sinclair and Next)", "BASIC (STOS)", "xBase (dBase, Clipper, FoxPro)"],
             Group::Systems => &["Ada", "Amiga E", "C", "C++", "CMake C Header", "CMake C++ Header", "Crystal", "D", "Fortran (Fixed Form)", "Fortran (Modern)", "Go", "Modula-2", "Nim", "Objective-C", "Objective-C++", "Odin", "Pascal", "Rust", "Swift", "Zig", "Forth", "Logo"],
             Group::JvmNet => &["C#", "Clojure", "F#", "Groovy", "Java", "Kotlin", "Scala", "Dart"],
@@ -185,7 +185,7 @@ impl Group {
             Group::Spectrum => &["Assembly Z80", "BASIC (Sinclair and Next)"],
             Group::Commodore => &["Assembly 6502", "BASIC (Commodore)"],
             Group::Acorn => &["Assembly 6502", "Assembly ARM (ARM2 and ARM3)"],
-            Group::Amiga => &["Amiga E", "Assembly 680x0", "BASIC (AMOS)", "BASIC (Blitz Basic)", "AmigaGuide", "Amiga Installer", "REXX"],
+            Group::Amiga => &["Amiga E", "Assembly 680x0", "Assembly 680x0 (GNU as)", "BASIC (AMOS)", "BASIC (Blitz Basic)", "AmigaGuide", "Amiga Installer", "AmigaShell script", "REXX"],
             Group::AtariSt => &["Assembly 680x0", "BASIC (STOS)"],
             Group::Atari8 => &["Assembly 6502"],
             Group::Apple2 => &["Assembly 6502", "Assembly 65816", "AppleScript"],
