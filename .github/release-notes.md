@@ -1,13 +1,18 @@
-## What's new in 0.14.3
+## What's new in 0.14.4
 
-Limoniter 0.14.3 fixes boxes and menus that didn't fit the window, takes Limoniter's own assembler beyond the 68000, and gives the About box a demo screen.
+Limoniter 0.14.4 fixes the 68000 disassembler on real Amiga demos, and gives a project's Explorer filters, colours and a sense of what's being worked on.
 
-- **Boxes and menus fit any screen.** A box taller or wider than the window used to be cut off with no way to reach the rest; now it stays on the screen and scrolls, with its OK and Cancel buttons kept in sight below. Menus longer than the window, such as File › New as and its sub-menus, scroll too, and a menu from the menu bar opens below the bar. This applies to every box and menu in Limoniter, and new ones get it automatically.
-- **The 68008, 68010, 68020 and 68030 in Limoniter's own assembler and disassembler.** `MACHINE 68020` (or `MC68020`, `OPT P=68020`) in the source, or a setting, chooses the processor. The 68020/030's addressing modes (scaled indexes, memory indirect), bit fields, CAS, CHK2, 64-bit multiply and divide, PACK and the rest assemble to exactly vasm's bytes, and the disassembler reads them back for an A1200's or A4000's programs. An instruction a processor hasn't got is refused, naming the one that has it. The maths chips, the MMU and the 68040/060's own instructions come next.
-- **Cycle counts beside 68000 code**, as for the 6502, Z80 and 6809, and the Sinclair QL's 68008's counts.
-- **Four 68000 mistakes put right:** `bra.l`, `tst.w a0` and `cmp #n,x(pc)` are 68020 instructions and are now refused for a 68000 (as vasm refuses them) instead of being quietly assembled as something else; `move ccr,d0` now gives the right bytes; and a PC-relative offset out of reach is refused.
-- **The About box** opens with an 80s demo screen: the Limoniter logo over bouncing copper bars, and a sine scroller saying what Limoniter is.
-- A test that couldn't run on Windows (it needs a Unix shell) no longer stops Windows' checks.
+**The 68000 disassembler, put right on a real demo**
+- A demo such as SAE's MULater now comes back from its source exactly: the same program, with every relocation, through Limoniter's own assembler and through plain vasm. Before, `/*` inside one of a demo's tables was taken as the start of a comment in Limoniter's assembler, and the check that followed turned correct instructions into bytes and lost relocations, so the rebuilt program could crash.
+- Pointers to bitplanes, buffers and tables are no longer followed as code, so there are no more pages of `ori.b #0,d0`; tables of numbers are no longer shown as text.
+- Copper lists come out as `dc.w` pairs with the custom chips' register names, their WAITs and SKIPs explained; interrupt and exception vectors are named.
+- A big disassembly is much faster: MULater's takes 0.4 seconds instead of 18.
+
+**Projects**
+- **Hide what you don't need:** right-click a folder in the Explorer for Hide this folder, or a file for Hide .o files; hidden things also leave Go to file and searching, and come back from the project's settings or with Show hidden items. When you open a folder with build or dependency folders (`node_modules`, `target`, `build`…), Limoniter offers to hide them.
+- **Recently edited files stand out:** in the Explorer's A–Z list, a file edited lately has its name in bold with a dot whose colour says how lately (today, this week, this month), and folders holding them are marked too. It goes by Limoniter's saves and Git's history, so a fresh clone doesn't light up everything; choose the time span from the Explorer's menu.
+- **Colour this file:** right-click a tab to give a file a tint (blue, green, amber, red, rose, violet) or a theme of its own, so several files of the same kind are told apart at a glance; rules can colour a folder's files or a pattern (`admin/`, `config/production.php`). Kept with the project.
+- **Open recent, with Projects and Files apart:** File › Open recent and the start page show recent projects first, and a Files tab with files grouped by the project they belong to; a project's file opens its project too.
 
 ## Downloads
 
