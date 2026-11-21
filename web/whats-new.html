@@ -51,7 +51,7 @@
       </div>
       <nav class="contents" aria-label="Releases">
         <ul>
-<li><a href="#v0-14-1">0.14.1</a></li>
+<li><a href="#v0-14-2">0.14.2</a></li>
 <li><a href="#v0-14-0">0.14.0</a></li>
 <li><a href="#v0-13-0">0.13.0</a></li>
 <li><a href="#v0-12-0">0.12.0</a></li>
@@ -66,14 +66,23 @@
 <li><a href="#v0-5-0">0.5.0</a></li>
         </ul>
       </nav>
-<h2 id="v0-14-1">0.14.1</h2>
-<p class="released">Released 20 November 2026.</p>
-<p>Limoniter 0.14.1 installs more emulators for you and finds the ones you install yourself. It counts the 6809's and 6309's cycles, runs Dragon programs from a Dragon DOS disk, and remembers how each program is debugged.</p>
-<h3>Emulators</h3>
+<h2 id="v0-14-2">0.14.2</h2>
+<p class="released">Released 21 November 2026.</p>
+<p>Limoniter 0.14.2 is for Amiga programmers above all: new C projects with their makefiles kept up to date, locale catalogs, Workbench icons, the AutoDocs in a window, AmigaShell scripts, GNU as, and Shell programs run on your own computer with vamos. It also installs Boriel's ZX Basic for you, puts File, New as into sub-menus with the modern languages, and brings everything from 0.14.1, which was never published.</p>
+<h3>Amiga C</h3>
+<ul><li><strong>New Amiga C project</strong> (Tools, Amiga, or Project) makes a folder from a template: a Shell or Workbench program for AmigaOS 1.3 or 3, a ReAction program for 3.2, an MUI 5 program, or a multilingual program with its catalog. It comes with makefiles for amiga-gcc, vbcc and SAS/C, a Workbench icon and build tasks.</li><li><strong>Makefiles kept up to date:</strong> as you add, rename and delete C files, Limoniter rewrites only its own part of each makefile, choosing the maths library when you use floating point. F9 builds the way the makefiles do.</li><li><strong>Import an Amiga C project</strong> sorts a folder of sources, headers, guides, icons and SAS/C's files, and adds makefiles only where there are none.</li><li><strong>Locale catalogs:</strong> FlexCat's <code>.cd</code> and <code>.ct</code> files are coloured and checked against each other (missing strings, lengths, <code>%</code> commands, Latin 1), and Limoniter writes the <code>.catalog</code> files and the strings' header itself, or with FlexCat.</li></ul>
+<h3>Workbench icons and vamos</h3>
+<ul><li><strong><code>.info</code> files are shown as their pictures</strong>, normal and selected, whichever kind they are: the original icons, NewIcons, GlowIcons and OS 4's PNG icons. <strong>Workbench icon…</strong> changes the kind, default tool, stack, position and tool types, and an icon you don't change is saved byte for byte.</li><li><strong>An icon for every program F9 builds</strong>, if you want one, from Limoniter's own or one you choose.</li><li><strong>vamos</strong> (from amitools) runs AmigaShell programs and scripts on your own computer, with their output in the Output panel. Limoniter offers to install it, and SAS/C can build through it.</li></ul>
+<h3>Reading and writing Amiga code</h3>
+<ul><li><strong>AutoDoc reader</strong> (Tools, Amiga): the NDK's autodocs, and MUI's if you point to them, in a window beside your source. Right-click a function to jump to its explanation.</li><li><strong>AmigaShell scripts are coloured</strong> (the Startup-Sequence, <code>.key</code> and <code>.bra</code> lines, IF, SKIP and LAB), with their labels in the outline.</li><li><strong>GNU as's 68000 dialect</strong> (m68k-amigaos-as) is coloured and used to build. Source written for one assembler is never handed to another, and a project can choose its own.</li></ul>
+<h3>Also new</h3>
+<ul><li><strong>Boriel's ZX Basic installed for you:</strong> when zxbc isn't found, F9 and the Compilers box offer to install it: the ready-made build from boriel.com on Windows and Linux, or a private Python environment elsewhere.</li><li><strong>File, New as is in sub-menus</strong> by machine, with <strong>Modern languages</strong>: an HTML page, CSS, JavaScript, TypeScript, JSON, Python, C, C++, Rust, Go, Java, C#, PHP, Ruby, Lua, shell, PowerShell and batch scripts, SQL, YAML, TOML and XML.</li><li><strong>Plain HTML is recognised as HTML</strong> when a file has no name to go by, rather than as Svelte.</li></ul>
+<h3>From 0.14.1</h3>
+<p>*Emulators*</p>
 <ul><li><strong>Get an emulator</strong> now installs MAME on Windows, from its GitHub releases, along with Hatari, XRoar, WinUAE, BlastEm, Fuse, BGB, Gearsystem, Gearcoleco and TIC-80. On Linux it adds Mesen, TIC-80 and SameBoy, and on a Mac BlastEm, Gearsystem and FCEUX. The Mac commands for Stella, mGBA and ZEsarUX, which no longer worked, are put right.</li><li><strong>Emulators you unpack yourself are found:</strong> in a folder at the top of a drive (<code>C:\MAME</code>), and as a program straight inside Downloads or the Desktop, as MAME's own unpacker leaves it.</li><li>MAME's link now goes to its GitHub releases, as its website isn't answering.</li></ul>
-<h3>For 6809 and Dragon programmers</h3>
+<p>*For 6809 and Dragon programmers*</p>
 <ul><li><strong>Cycle counts beside 6809 and 6309 code</strong>, as for the 6502 and Z80: every opcode and indexed mode, from Motorola's and Hitachi's figures. The 6309's counts are given for its native mode or its 6809 mode, as the source sets with <code>PRAGMA 6309</code> or <code>LDMD</code>. They show in the status bar and on hover, and selected lines are added up.</li><li><strong>F9 to a Dragon DOS disk:</strong> with <code>; run from: disk</code>, or the choice in XRoar's settings, the program goes on a disk made for the run, and XRoar starts with it in drive 1 and <code>RUN"NAME.BIN"</code> typed. A <code>.vdk</code> disk you open runs with F9 too, and files on a Dragon DOS disk can be renamed.</li></ul>
-<h3>Also</h3>
+<p>*Also*</p>
 <ul><li><strong>Debug settings kept:</strong> the program, arguments, folder and debugger chosen for each file are kept for next time. A project's files keep them with the project, so they move with it; other files keep them in Limoniter's settings.</li><li><code>limoniter --version</code> (or <code>-V</code>) prints the version with no window. An option Limoniter doesn't know is now refused with the usage, rather than opened as a file.</li><li>F9 says "A program was made" for an Amiga program or another assembler's program, instead of calling it a tape. Its problem count is translated too.</li></ul>
 <h2 id="v0-14-0">0.14.0</h2>
 <p class="released">Released 20 November 2026.</p>

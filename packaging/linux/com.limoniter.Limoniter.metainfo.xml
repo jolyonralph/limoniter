@@ -68,8 +68,8 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
-    <release version="0.14.1" date="2026-11-20">
-      <url type="details">https://github.com/jolyonralph/limoniter/releases/tag/v0.14.1</url>
+    <release version="0.14.2" date="2026-11-21">
+      <url type="details">https://github.com/jolyonralph/limoniter/releases/tag/v0.14.2</url>
     </release>
     <release version="0.14.0" date="2026-11-20">
       <url type="details">https://github.com/jolyonralph/limoniter/releases/tag/v0.14.0</url>
