@@ -2,6 +2,19 @@
 
 Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.
 
+## 0.14.3
+
+Released 21 November 2026.
+
+Limoniter 0.14.3 fixes boxes and menus that didn't fit the window, takes Limoniter's own assembler beyond the 68000, and gives the About box a demo screen.
+
+- **Boxes and menus fit any screen.** A box taller or wider than the window used to be cut off with no way to reach the rest; now it stays on the screen and scrolls, with its OK and Cancel buttons kept in sight below. Menus longer than the window, such as File › New as and its sub-menus, scroll too, and a menu from the menu bar opens below the bar. This applies to every box and menu in Limoniter, and new ones get it automatically.
+- **The 68008, 68010, 68020 and 68030 in Limoniter's own assembler and disassembler.** `MACHINE 68020` (or `MC68020`, `OPT P=68020`) in the source, or a setting, chooses the processor. The 68020/030's addressing modes (scaled indexes, memory indirect), bit fields, CAS, CHK2, 64-bit multiply and divide, PACK and the rest assemble to exactly vasm's bytes, and the disassembler reads them back for an A1200's or A4000's programs. An instruction a processor hasn't got is refused, naming the one that has it. The maths chips, the MMU and the 68040/060's own instructions come next.
+- **Cycle counts beside 68000 code**, as for the 6502, Z80 and 6809, and the Sinclair QL's 68008's counts.
+- **Four 68000 mistakes put right:** `bra.l`, `tst.w a0` and `cmp #n,x(pc)` are 68020 instructions and are now refused for a 68000 (as vasm refuses them) instead of being quietly assembled as something else; `move ccr,d0` now gives the right bytes; and a PC-relative offset out of reach is refused.
+- **The About box** opens with an 80s demo screen: the Limoniter logo over bouncing copper bars, and a sine scroller saying what Limoniter is.
+- A test that couldn't run on Windows (it needs a Unix shell) no longer stops Windows' checks.
+
 ## 0.14.2
 
 Released 21 November 2026.

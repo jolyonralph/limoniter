@@ -51,6 +51,7 @@
       </div>
       <nav class="contents" aria-label="Releases">
         <ul>
+<li><a href="#v0-14-3">0.14.3</a></li>
 <li><a href="#v0-14-2">0.14.2</a></li>
 <li><a href="#v0-14-0">0.14.0</a></li>
 <li><a href="#v0-13-0">0.13.0</a></li>
@@ -66,6 +67,10 @@
 <li><a href="#v0-5-0">0.5.0</a></li>
         </ul>
       </nav>
+<h2 id="v0-14-3">0.14.3</h2>
+<p class="released">Released 21 November 2026.</p>
+<p>Limoniter 0.14.3 fixes boxes and menus that didn't fit the window, takes Limoniter's own assembler beyond the 68000, and gives the About box a demo screen.</p>
+<ul><li><strong>Boxes and menus fit any screen.</strong> A box taller or wider than the window used to be cut off with no way to reach the rest; now it stays on the screen and scrolls, with its OK and Cancel buttons kept in sight below. Menus longer than the window, such as File › New as and its sub-menus, scroll too, and a menu from the menu bar opens below the bar. This applies to every box and menu in Limoniter, and new ones get it automatically.</li><li><strong>The 68008, 68010, 68020 and 68030 in Limoniter's own assembler and disassembler.</strong> <code>MACHINE 68020</code> (or <code>MC68020</code>, <code>OPT P=68020</code>) in the source, or a setting, chooses the processor. The 68020/030's addressing modes (scaled indexes, memory indirect), bit fields, CAS, CHK2, 64-bit multiply and divide, PACK and the rest assemble to exactly vasm's bytes, and the disassembler reads them back for an A1200's or A4000's programs. An instruction a processor hasn't got is refused, naming the one that has it. The maths chips, the MMU and the 68040/060's own instructions come next.</li><li><strong>Cycle counts beside 68000 code</strong>, as for the 6502, Z80 and 6809, and the Sinclair QL's 68008's counts.</li><li><strong>Four 68000 mistakes put right:</strong> <code>bra.l</code>, <code>tst.w a0</code> and <code>cmp #n,x(pc)</code> are 68020 instructions and are now refused for a 68000 (as vasm refuses them) instead of being quietly assembled as something else; <code>move ccr,d0</code> now gives the right bytes; and a PC-relative offset out of reach is refused.</li><li><strong>The About box</strong> opens with an 80s demo screen: the Limoniter logo over bouncing copper bars, and a sine scroller saying what Limoniter is.</li><li>A test that couldn't run on Windows (it needs a Unix shell) no longer stops Windows' checks.</li></ul>
 <h2 id="v0-14-2">0.14.2</h2>
 <p class="released">Released 21 November 2026.</p>
 <p>Limoniter 0.14.2 is for Amiga programmers above all: new C projects with their makefiles kept up to date, locale catalogs, Workbench icons, the AutoDocs in a window, AmigaShell scripts, GNU as, and Shell programs run on your own computer with vamos. It also installs Boriel's ZX Basic for you, puts File, New as into sub-menus with the modern languages, and brings everything from 0.14.1, which was never published.</p>
@@ -132,14 +137,7 @@
 <h2 id="v0-11-0">0.11.0</h2>
 <p class="released">Released 16 November 2026.</p>
 <p>Music and sound play in the preview, there's a 68000 disassembler, and the Atari 2600 is supported from end to end: disassemble a cartridge, write your own, and run it in Stella or MAME.</p>
-<h3>Music and sound</h3>
-<ul><li><strong>Tracker modules play</strong>, with Limoniter's own player:<ul><li>ProTracker <code>.mod</code> files from the Amiga</li><li>the PC's Scream Tracker 3 (<code>.s3m</code>), FastTracker 2 (<code>.xm</code>) and Impulse Tracker (<code>.it</code>) modules</li><li>each with its own tracker's effects</li></ul></li><li><strong>The player</strong> has Play, Pause, Stop, Loop and a slider to move through the song. The pattern scrolls past as it plays, and clicking a channel's number switches it off or on. The music keeps playing while you work on other files.</li><li><strong>Sound files play</strong> too: MP3, WAV, FLAC, Ogg Vorbis and AIFF, and the Amiga's 8SVX samples, Creative VOC files and Sun and NeXT <code>.au</code> files. Their tags (title, artist, album) are shown beside them.</li></ul>
-<h3>The 68000</h3>
-<ul><li><strong>A 68000 disassembler</strong> (Tools, Disassemble) works out what a file is:<ul><li>Amiga programs come back as sections, with their relocations as labels, so they can be changed and rebuilt</li><li>Atari ST programs, with their symbols</li><li>Amiga boot blocks and Atari ST boot sectors</li><li>Mega Drive cartridges, followed from their vectors</li><li>Kickstart ROMs</li></ul></li><li><strong>What the code does is named beside it:</strong> the Amiga's library calls (<code>jsr -552(a6) ; exec OpenLibrary</code>) and custom chip registers, and the ST's hardware and GEMDOS, BIOS and XBIOS calls.</li><li><strong>The source always assembles back</strong> to exactly the same bytes, with Limoniter's own assembler or vasm.</li></ul>
-<h3>The Atari 2600</h3>
-<ul><li><strong>Cartridges</strong> (<code>.a26</code>) are recognised with their bank switching worked out: F8, F6, F4 and the Superchip's, FA, E0, E7, FE, 3F and DPC.</li><li><strong>Disassembled into DASM source</strong> that rebuilds the cartridge:<ul><li>code followed from bank to bank</li><li>the TIA's and RIOT's registers named</li><li>each instruction's cycles beside it</li><li>code that runs past a scanline's 76 cycles pointed out</li><li>graphics drawn as pixels</li></ul></li><li><strong>DASM source</strong> is made into a cartridge, and <strong>F9</strong> runs it in <strong>Stella</strong> or <strong>MAME</strong>.</li><li><strong>File, New as, Atari 2600</strong> starts a whole frame that runs straight away.</li><li><strong>Get an emulator</strong> now installs Stella and MAME.</li></ul>
-<h3>Also</h3>
-<ul><li><strong>The assembler</strong> reads DASM's <code>processor</code>, <code>seg.u</code>, <code>rorg</code> and <code>.w</code>, and the 68000's MOVEP.</li><li><strong>Amiga programs</strong> with debug hunks or Kickstart 2.0's short relocation tables are read.</li><li><strong>The website's home page</strong> shows what Limoniter does for writing new software for older machines, and its figures are up to date.</li></ul>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.11.0">All that was new in 0.11.0</a></p>
 <h2 id="v0-10-0">0.10.0</h2>
 <p class="released">Released 16 November 2026.</p>
 <p>Lots of everyday editing improvements, previews of web pages, pictures and old documents, a value inspector for hex, two new disassemblers, and support for the Cambridge Z88 and the Amstrad NC100, NC150 and NC200.</p>
