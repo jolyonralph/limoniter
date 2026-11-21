@@ -1,0 +1,190 @@
+# ELF executables, libraries and object files (Unix, Linux, the BSDs, and many consoles' and embedded systems'
+# toolchains): the file header, the program headers and the section headers with their names
+# (the System V ABI, and the Tool Interface Standard's ELF specification 1.2).
+name "ELF executable"
+magic str(0, 4) == "\x7FELF"
+order little
+
+enum Class : u8 {
+    ELF32 = 1 "32-bit"
+    ELF64 = 2 "64-bit"
+}
+
+enum Data : u8 {
+    little_endian = 1
+    big_endian = 2
+}
+
+enum OsAbi : u8 {
+    System_V = 0
+    HP_UX = 1
+    NetBSD = 2
+    Linux = 3
+    Solaris = 6
+    AIX = 7
+    IRIX = 8
+    FreeBSD = 9
+    OpenBSD = 12
+    ARM_EABI = 64
+    standalone = 255
+}
+
+enum FileType : u16 {
+    ET_NONE = 0
+    ET_REL = 1 "An object file, to be linked"
+    ET_EXEC = 2 "An executable"
+    ET_DYN = 3 "A shared library, or a position-independent executable"
+    ET_CORE = 4 "A core dump"
+}
+
+enum Machine : u16 {
+    none = 0
+    SPARC = 2
+    x86 = 3
+    m68k = 4
+    m88k = 5
+    i860 = 7
+    MIPS = 8
+    PA_RISC = 15
+    PowerPC = 20
+    PowerPC64 = 21
+    S390 = 22
+    ARM = 40
+    SuperH = 42
+    SPARCV9 = 43
+    IA_64 = 50
+    x86_64 = 62
+    VAX = 75
+    AVR = 83
+    MSP430 = 105
+    AArch64 = 183
+    RISC_V = 243
+    LoongArch = 258
+}
+
+enum SegmentType : u32 {
+    PT_NULL = 0
+    PT_LOAD = 1 "Loaded into memory"
+    PT_DYNAMIC = 2
+    PT_INTERP = 3 "The program that loads this one"
+    PT_NOTE = 4
+    PT_SHLIB = 5
+    PT_PHDR = 6
+    PT_TLS = 7
+    PT_GNU_EH_FRAME = 0x6474E550
+    PT_GNU_STACK = 0x6474E551
+    PT_GNU_RELRO = 0x6474E552
+    PT_GNU_PROPERTY = 0x6474E553
+}
+
+flags SegmentFlags : u32 {
+    X = 1 "Executable"
+    W = 2 "Writable"
+    R = 4 "Readable"
+}
+
+enum SectionType : u32 {
+    SHT_NULL = 0
+    SHT_PROGBITS = 1
+    SHT_SYMTAB = 2
+    SHT_STRTAB = 3
+    SHT_RELA = 4
+    SHT_HASH = 5
+    SHT_DYNAMIC = 6
+    SHT_NOTE = 7
+    SHT_NOBITS = 8 "Takes no room in the file, such as .bss"
+    SHT_REL = 9
+    SHT_DYNSYM = 11
+    SHT_INIT_ARRAY = 14
+    SHT_FINI_ARRAY = 15
+    SHT_GNU_HASH = 0x6FFFFFF6
+    SHT_GNU_verneed = 0x6FFFFFFE
+    SHT_GNU_versym = 0x6FFFFFFF
+}
+
+struct ProgramHeader {
+    SegmentType type
+    if wide {
+        SegmentFlags flags
+        u64 offset : hex
+        u64 virtual_address : hex
+        u64 physical_address : hex
+        u64 file_size_of_segment
+        u64 memory_size
+        u64 alignment : hex
+    } else {
+        u32 offset : hex
+        u32 virtual_address : hex
+        u32 physical_address : hex
+        u32 file_size_of_segment
+        u32 memory_size
+        SegmentFlags flags
+        u32 alignment : hex
+    }
+    label type
+}
+
+struct SectionHeader {
+    u32 name_offset "Where the name is in the section names"
+    calc section_name = names_at == 0 ? "" : cstr(names_at + name_offset)
+    SectionType type
+    if wide {
+        u64 flags : hex
+        u64 address : hex
+        u64 offset : hex
+        u64 size
+        u32 link
+        u32 info
+        u64 alignment
+        u64 entry_size
+    } else {
+        u32 flags : hex
+        u32 address : hex
+        u32 offset : hex
+        u32 size
+        u32 link
+        u32 info
+        u32 alignment
+        u32 entry_size
+    }
+    label section_name
+}
+
+u8 magic[4]
+Class class
+Data data
+u8 version
+OsAbi os_abi
+u8 abi_version
+u8 padding[7]
+if data == big_endian {
+    order big
+}
+let wide = class == ELF64
+FileType type
+Machine machine
+u32 elf_version
+if wide {
+    u64 entry : hex "Where the program starts"
+    u64 program_headers : hex
+    u64 section_headers : hex
+} else {
+    u32 entry : hex "Where the program starts"
+    u32 program_headers : hex
+    u32 section_headers : hex
+}
+u32 flags : hex
+u16 header_size
+u16 program_header_size
+u16 program_header_count
+u16 section_header_size
+u16 section_header_count
+u16 section_names_index "Which section holds the sections' names"
+let names_header = section_headers + section_names_index * section_header_size
+let names_at = section_headers == 0 || section_names_index >= section_header_count ? 0 : wide ? u64(names_header + 24) : u32(names_header + 16)
+if program_headers != 0 {
+    ProgramHeader segments[program_header_count] @ program_headers
+}
+if section_headers != 0 {
+    SectionHeader sections[section_header_count] @ section_headers
+}

@@ -1,8 +1,10 @@
 # 11. Input
 
+[‹ Chunky to planar](10-chunky-to-planar.md) · [Contents](README.md) · [Sound and music ›](12-sound-and-music.md)
+
 Most demos need very little input: the left mouse button to leave, perhaps a key to skip to the next part. A music disk wants a menu, an intro may have a hidden part behind a key, and a game written by a demo coder needs a joystick and maybe the keyboard. All of it is easy to read straight from the hardware, with one exception: the keyboard, which has a handshake that v7 warned people kept getting wrong. This chapter goes through each of them, both ways: taking the machine, and with the system left running.
 
-`examples/ch11_keyboard_joystick.s` shows all of them at once. A cell lights for each key held down (one cell for each of the 128 raw key codes, in code order), the joystick's directions and buttons light theirs, a sprite follows the mouse, and the registers are shown in hexadecimal. Esc or the left mouse button leaves.
+[`examples/ch11_keyboard_joystick.s`](examples/ch11_keyboard_joystick.s) shows all of them at once. A cell lights for each key held down (one cell for each of the 128 raw key codes, in code order), the joystick's directions and buttons light theirs, a sprite follows the mouse, and the registers are shown in hexadecimal. Esc or the left mouse button leaves.
 
 ![ch11_keyboard_joystick.s with the system running, on Kickstart 3.1: the A key, joystick up and left with fire, and the right mouse button, all held](images/ch11_keyboard_joystick.png)
 
@@ -345,3 +347,5 @@ Not tested:
 - **Taking the machine**, the keyboard is read with v8's own level 2 interrupt, put in through the startup's `ExitHook`. The other CIA-A events it consumes are handed back with `cia.resource`.
 - **With the system running**, v7's advice (an input handler, not `$BFExxx` peeking) stands, and v8's startup has one. A program that needs every key adds a second, as the example does.
 - **The mouse, the joystick and the buttons** are new: v7 didn't cover them. So are `POTGO`'s dangers and `potgo.resource`.
+
+[‹ Chunky to planar](10-chunky-to-planar.md) · [Contents](README.md) · [Sound and music ›](12-sound-and-music.md)

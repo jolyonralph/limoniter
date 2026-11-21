@@ -1,0 +1,26 @@
+%YAML 1.2
+---
+# Written for Limoniter from EDSAC's tape, as its Initial Orders read it (Richards's poster; Wilkes, Wheeler and
+# Gill): an order is its function letter, an address in figures, and a letter saying how long its operand is (S
+# or L, F or D) or, with Initial Orders 2, what is added to the address (theta, written @, and the others) or a
+# control combination (K, Z). Text in square brackets is a comment, as the Warwick simulator takes it.
+name: EDSAC (Initial Orders)
+file_extensions: [edsac]
+scope: source.edsac
+contexts:
+  main:
+    - match: '\['
+      scope: punctuation.definition.comment.begin.edsac
+      push: comment
+    - match: '([ABCEFGHILNORSTUVXYZPQWJKMD#*.@!&])\s*(\d*)\s*([SLFDK@!&#ZHNMQWEJRTYUIOPACVBXG*.])'
+      captures:
+        1: keyword.control.edsac
+        2: constant.numeric.edsac
+        3: storage.modifier.edsac
+    - match: '\d+'
+      scope: constant.numeric.edsac
+  comment:
+    - meta_scope: comment.block.edsac
+    - match: '\]'
+      scope: punctuation.definition.comment.end.edsac
+      pop: true

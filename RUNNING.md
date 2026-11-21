@@ -66,7 +66,12 @@ CPU accuracy as Hatari's options (`--machine`, `--memsize`, `--ttram`, `--monito
 found (told by its header: version at 2, country at $1C, date at $18, EmuTOS by "ETOS" at $2C), or a downloaded
 EmuTOS image for the machine's ROM size. It starts from the run's folder as GEMDOS drive C:, or from a 720K floppy
 made with the FAT writer (`media::write`), the program in AUTO and any boot sector code with the sector's words made
-to add up to $1234, booted with `--harddrive none`. Each processor's every instruction form is checked byte
+to add up to $1234, booted with `--harddrive none`. 68000 source for the Sinclair QL (`; machine: ql`, or for the 68008) becomes a QDOS
+executable (`src/ql_run.rs`): its bytes from 0, assembled a second time 64K on so any absolute address is refused on
+its line, with the XTcc trailer giving its data space (`src/ql.rs`), written beside the source as `name_exe`. sQLux is
+given the run's folder as drive WIN8 and `-b "EXEC win8_name_exe"`; MAME's QL (0.289 on) and Q-emuLator are given a
+microdrive cartridge (`src/media/ql.rs`, QLAY's .mdv) holding it and a BOOT that EXECs it, MAME with a script that
+presses F1 at the QL's first screen. Each processor's every instruction form is checked byte
 for byte against its reference assembler (`src/asm/testdata`).
 
 6502 source runs on a Commodore 64 (a `.prg`) or a BBC Micro (an `.ssd` that *RUNs it), and
@@ -75,6 +80,13 @@ for byte against its reference assembler (`src/asm/testdata`).
 (or both) is a C64's only if it starts below &1900, where a BBC disc can't load it. A line `; machine: c64` or
 `; machine: bbc` near the top of the source (`Micro6502::said_in`) comes before all that. When nothing says, F9 asks
 (`RunBox::Which6502`), and the answer is kept on the document (`machine_6502`) while it's open.
+
+Only a `; machine:` line makes 6502 source for the other machines: `atari8` an Atari DOS `.xex`
+(`src/atari8_run.rs`: a segment for each run of bytes, then RUNAD), `7800` an `.a78` with its A78 header
+(`src/atari7800.rs`), and `apple2` a 140K `.dsk` that boots into the program (`src/apple2_run.rs`: sector 0 is
+loaded by the Disk II's boot ROM with the next sectors after it, and copies the program to its address, so no DOS is
+needed). Z80 source with `; machine: cpc` goes on a CPC data format disk as an AMSDOS binary (`src/cpc_run.rs`),
+which CPCEC runs by itself, and Caprice32 and MAME are told to type RUN" and its name.
 
 Debugging maps breakpoints (clicked beside line numbers, `TextBuffer::code`) to addresses through the assembly, and
 the address stopped at back to a line:

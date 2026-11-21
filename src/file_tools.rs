@@ -268,9 +268,21 @@ pub(super) fn start_run(line: &str, folder: Option<&Path>, wake: impl Fn() + Sen
 
 impl RunJob {
     /// Ends the command, and anything it started.
-    fn stop(&self) {
+    pub(super) fn stop(&self) {
         self.stopped.store(true, Ordering::Relaxed);
         crate::platform::kill_tree(self.process);
+    }
+
+    /// What it has printed since last asked, and how it ended once it has, for a command followed apart from the
+    /// Output panel's own (PHP's web server).
+    pub(super) fn take_output(&mut self) -> (Vec<String>, Option<String>) {
+        let fresh = {
+            let lines = self.lines.lock().unwrap();
+            let fresh = lines[self.taken..].to_vec();
+            self.taken = lines.len();
+            fresh
+        };
+        (fresh, self.finished.lock().unwrap().take())
     }
 }
 
@@ -311,6 +323,7 @@ pub(super) fn tokenised<S: AsRef<str>>(lines: &[S], machine: basic::Machine, ste
         basic::Machine::OpticOs => crate::opticbasic::tokenise(lines).map(|program| crate::opticbasic::tape(&program, stem, None)),
         basic::Machine::Amos => crate::amos::tokenise(lines),
         basic::Machine::Stos => crate::stos::tokenise(lines),
+        basic::Machine::Zx80 => crate::zx80_program::program(lines),
         basic::Machine::Zx81 => crate::zx81_program::program(lines),
         basic::Machine::JupiterAce => Ok(crate::running::forth_text(lines)),
     }?;
@@ -571,13 +584,52 @@ impl Limoniter {
         }
     }
 
+    /// File, Make its tape sound: the file in front (a tape image, a program, or a BASIC listing as the program it
+    /// lists) as the sound its tape makes, opened as a WAV in a tab of its own, where it plays and saves as WAV.
+    pub(super) fn tape_sound(&mut self) {
+        let doc = &self.docs[self.active];
+        // A file opened out of an image is named for where it came from; its own name is the last part.
+        let whole = doc.path_or_name().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let mut name = whole.rsplit('\u{203A}').next().unwrap_or(&whole).trim().to_string();
+        let bytes = if let Some((machine, stem)) = doc.listing_of.clone().filter(|_| !doc.hex_mode) {
+            match tokenised(&doc.text.all_lines(), machine, &stem, None) {
+                Ok((bytes, ending, _)) => {
+                    name = format!("{stem}.{ending}");
+                    bytes
+                }
+                Err(problem) => return self.message("Tape sound", crate::i18n::tf!("This listing couldn't be tokenised, so there's no program to make the tape of.\n\n{problem}")),
+            }
+        } else if doc.browser.is_some() {
+            match doc.path.as_deref().map(std::fs::read) {
+                Some(Ok(bytes)) => bytes,
+                Some(Err(e)) => return self.message("Tape sound", crate::i18n::tf!("Couldn't read {name}.\n\n{e}")),
+                None => return,
+            }
+        } else {
+            self.document_bytes()
+        };
+        let made = match crate::media::tape_sound::make(&bytes, &name) {
+            Ok(made) => made,
+            Err(problem) => return self.message("Tape sound", problem),
+        };
+        let stem = Path::new(&name).file_stem().map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned());
+        let wav_name = format!("{stem}.wav");
+        self.open_bytes_as_new(&wav_name, made.signal.wav());
+        let view = self.opening_view(Some(Path::new(&wav_name)), true);
+        self.doc().preview_view = view;
+        self.print_status = crate::i18n::tf!("The sound of {name}'s tape, for the {}: {} long. Play it, or save it as a WAV.", made.machine, crate::sound::clock(made.signal.seconds()));
+        if !made.notes.is_empty() {
+            self.message("Tape sound", crate::i18n::tf!("Some of the tape couldn't be played, and is left out:\n\n{}", made.notes.join("\n")));
+        }
+    }
+
     /// Lists a tokenised BASIC program into a new document, coloured as BASIC, to read or edit and save back.
     pub(super) fn open_basic_listing(&mut self) {
         let doc = &self.docs[self.active];
         let extension = doc.path_or_name().extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
         let bytes = self.document_bytes();
         if !basic::is_program_file(&extension, Some(&bytes)) {
-            return self.message("BASIC listing", crate::i18n::tr("This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.").into());
+            return self.message("BASIC listing", crate::i18n::tr("This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX80 .o and ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.").into());
         }
         let listing = basic::list(&bytes, &extension, doc.text.format.charset);
         // Colouring is ready for the listing when it opens.

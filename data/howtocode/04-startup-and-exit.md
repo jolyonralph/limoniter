@@ -1,8 +1,10 @@
 # 4. Startup and exit
 
+[‹ General guidelines](03-general-guidelines.md) · [Contents](README.md) · [Interrupts ›](05-interrupts.md)
+
 How To Code began as an angry protest: new demos that refused to run on anything but the machine they were written on. Most of the time the effect itself was fine. What failed was the few dozen lines at the start and end: the part that takes the Amiga from its operating system and gives it back. Get those right once, and every demo you build on them starts from solid ground.
 
-v8's startup is in `examples/startup.i`. This chapter explains every part of it, and why each part is there. `examples/startup_demo.s` is the smallest whole demo built on it.
+v8's startup is in [`examples/startup.i`](examples/startup.i). This chapter explains every part of it, and why each part is there. [`examples/startup_demo.s`](examples/startup_demo.s) is the smallest whole demo built on it.
 
 ![The startup demo on an Amiga 500 with Kickstart 1.3, and the CLI it leaves behind](images/ch04_startup_demo.png)
 
@@ -255,3 +257,5 @@ Testing the startup this way found the two faults described above, both before a
 - **The blitter is waited for** before the processor uses its work.
 - **The input handler** that v7 promised "next time" is here.
 - **v7's fix for the V39 sprite resolution bug is left to the [AGA chapter](09-aga.md).** On AGA machines, Kickstart 3.0's `LoadView(0)` didn't reset the sprites' resolution, and v7's startup set it back through `VideoControl`. The v8 startup leaves sprites off, so only a demo that uses them on AGA needs it.
+
+[‹ General guidelines](03-general-guidelines.md) · [Contents](README.md) · [Interrupts ›](05-interrupts.md)

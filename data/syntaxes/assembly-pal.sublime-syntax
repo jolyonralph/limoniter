@@ -1,0 +1,34 @@
+%YAML 1.2
+---
+# Written for Limoniter from DEC's PAL-III and PAL8 for the PDP-8: its memory reference instructions, operate
+# microinstructions and the Teletype's IOTs, labels ending in a comma, *origins, octal numbers, "c characters,
+# TEXT /strings/ and the pseudo-ops. A slash starts a comment.
+name: PAL (PDP-8)
+file_extensions: [pal, pa, pal8]
+scope: source.assembly.pal
+contexts:
+  main:
+    - match: '/.*$'
+      scope: comment.line.pal
+    - match: '[A-Za-z][A-Za-z0-9]*,'
+      scope: entity.name.label.pal
+    - match: '^\s*\*'
+      scope: keyword.control.directive.pal
+    - match: '(?i)\b(TEXT)\b\s*((\S).*?(?:\3|$))'
+      captures:
+        1: keyword.control.directive.pal
+        2: string.quoted.other.pal
+    - match: '(?i)\b(?:JMP|JMS|ISZ|SKP|SNL|SZL|SZA|SNA|SMA|SPA|HLT)\b'
+      scope: keyword.control.branch.pal
+    - match: '(?i)\b(?:AND|TAD|DCA|ION|IOF|RSF|RRB|RFC|PSF|PCF|PPC|PLS|KSF|KCC|KRS|KRB|TSF|TCF|TPC|TLS|NOP|IAC|RAL|RTL|RAR|RTR|CML|CMA|CIA|CLL|STL|CLA|GLK|STA|OSR|LAS)\b'
+      scope: support.function.instruction.pal
+    - match: '(?i)\b(?:DECIMAL|OCTAL|PAGE|FIELD|ZBLOCK|EJECT|XLIST|NOPUNCH|ENPUNCH|PAUSE)\b|\$'
+      scope: keyword.control.directive.pal
+    - match: '\b[IZ]\b'
+      scope: storage.modifier.pal
+    - match: '".'
+      scope: string.quoted.double.pal
+    - match: '\b\d+\b'
+      scope: constant.numeric.pal
+    - match: '[+\-!&=.]'
+      scope: keyword.operator.pal

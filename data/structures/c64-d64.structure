@@ -1,0 +1,76 @@
+# Commodore 1541 disk images (.d64): 35 (or 40) tracks of 17 to 21 sectors. Track 18 holds the BAM, which says
+# which sectors are free, and the directory (the 1541 User's Guide, and Peter Schepers' D64 notes).
+name "Commodore 1541 disk image (D64)"
+endings d64
+magic file_size == 174848 || file_size == 175531 || file_size == 196608 || file_size == 197376
+order little
+
+enum FileType : u8 {
+    deleted = 0x00
+    SEQ = 0x01
+    PRG = 0x02
+    USR = 0x03
+    REL = 0x04
+    closed_DEL = 0x80
+    closed_SEQ = 0x81
+    closed_PRG = 0x82
+    closed_USR = 0x83
+    closed_REL = 0x84
+    locked_SEQ = 0xC1
+    locked_PRG = 0xC2
+    locked_USR = 0xC3
+    locked_REL = 0xC4
+}
+
+# Where a track and sector start in the image: tracks 1 to 17 have 21 sectors, 18 to 24 have 19, 25 to 30 have 18
+# and 31 on have 17.
+def sector_offset(t, s) = 256 * (s + (t <= 17 ? (t - 1) * 21 : t <= 24 ? 357 + (t - 18) * 19 : t <= 30 ? 490 + (t - 25) * 18 : 598 + (t - 31) * 17))
+
+struct TrackBam {
+    u8 free_sectors
+    u8 bitmap[3] : bin "A bit set for each free sector, sector 0 in bit 0 of the first byte"
+    label free_sectors
+}
+
+struct Bam {
+    u8 directory_track
+    u8 directory_sector
+    char dos_version "A, for a 1541"
+    u8 double_sided
+    TrackBam tracks[35]
+    char disk_name[16] "In PETSCII, padded with 0xA0"
+    u8 padding[2]
+    char disk_id[2]
+    u8 padding2
+    char dos_type[2]
+    u8 padding3[4]
+    label disk_name
+}
+
+struct Entry {
+    u8 next_track "In the first entry of a sector only: the next directory sector"
+    u8 next_sector
+    FileType type
+    u8 first_track
+    u8 first_sector
+    char name[16] "In PETSCII, padded with 0xA0"
+    u8 side_track "For a REL file only"
+    u8 side_sector
+    u8 record_length
+    u8 unused[6]
+    u16 blocks "The file's size in 254-byte blocks"
+    label name
+}
+
+struct DirectorySector {
+    Entry entries[8]
+    if entries[0].next_track != 0 && entries[0].next_track <= 40 {
+        DirectorySector next @ sector_offset(entries[0].next_track, entries[0].next_sector)
+    }
+}
+
+Bam bam @ sector_offset(18, 0)
+DirectorySector directory @ sector_offset(bam.directory_track, bam.directory_sector)
+if file_size == 175531 || file_size == 197376 {
+    u8 error_bytes[file_size / 257] @ file_size / 257 * 256 "One error code a sector, as the drive read it"
+}

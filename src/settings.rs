@@ -11,8 +11,12 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// The folder that settings, recovery copies, character sets and the rest are kept in: in %APPDATA% on Windows,
-/// Application Support on macOS, and the configuration folder (~/.config) on Linux.
+/// Application Support on macOS, and the configuration folder (~/.config) on Linux. A portable copy keeps them in
+/// a folder beside itself instead.
 pub fn data_folder() -> Option<PathBuf> {
+    if let Some(folder) = portable_folder() {
+        return Some(folder.to_path_buf());
+    }
     if cfg!(windows) {
         return Some(data_folder_in(&PathBuf::from(std::env::var_os("APPDATA")?)));
     }
@@ -26,6 +30,31 @@ pub fn data_folder() -> Option<PathBuf> {
 
 pub fn data_folder_in(appdata: &Path) -> PathBuf {
     appdata.join("Limoniter")
+}
+
+/// The file that, beside the program, makes it portable.
+pub const PORTABLE_FILE: &str = "portable";
+/// The folder a portable copy keeps everything in, beside the program.
+pub const PORTABLE_FOLDER: &str = "Limoniter data";
+
+/// Where a portable copy keeps everything: if there's a file named `portable` beside the program (as in the
+/// portable download for Windows), it's the `Limoniter data` folder beside it, so settings, recent files, layouts,
+/// downloaded emulators and the rest go with it on a USB stick and leave nothing on the computer. Worked out once.
+pub fn portable_folder() -> Option<&'static Path> {
+    static FOLDER: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    FOLDER
+        .get_or_init(|| {
+            if cfg!(test) {
+                return None;
+            }
+            portable_folder_beside(std::env::current_exe().ok()?.parent()?)
+        })
+        .as_deref()
+}
+
+/// The portable folder for a program in `program_folder`, if it's a portable copy.
+pub fn portable_folder_beside(program_folder: &Path) -> Option<PathBuf> {
+    program_folder.join(PORTABLE_FILE).is_file().then(|| program_folder.join(PORTABLE_FOLDER))
 }
 
 /// The rows hex mode can show per line.
@@ -96,10 +125,16 @@ pub struct Prefs {
     pub zx_notation: crate::zx_graphics::Notation,
     /// The 680x0 that 68000 source is assembled for, unless MACHINE in it says another.
     pub m68k_processor: crate::asm::m68k::Processor,
+    /// The maths coprocessor (FPU) beside it, unless MACHINE 68881 in the source chooses one.
+    pub m68k_fpu: crate::asm::m68k::Fpu,
+    /// The 68851 MMU beside it (for a 68020), unless MACHINE 68851 in the source chooses it.
+    pub m68k_mmu: crate::asm::m68k::Mmu,
     /// Once a day, a newer OpticOS ROM is looked for on GitHub and installed.
     pub opticos_updates: bool,
     /// Once a day, GitHub is asked whether there's a newer Limoniter.
     pub update_checks: bool,
+    /// A newer Limoniter the daily check finds is downloaded by itself, and offered once it's ready.
+    pub update_download: bool,
     /// The language the words are in, by its code (en, de, es, fr, it).
     pub language: &'static str,
 }
@@ -109,7 +144,7 @@ pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, opticos_updates: true, update_checks: true, language: "en" }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
     }
 }
 
@@ -117,7 +152,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -148,8 +183,11 @@ impl Prefs {
             self.backup_on_save,
             self.zx_notation.id(),
             self.m68k_processor.id(),
+            self.m68k_fpu.id(),
+            self.m68k_mmu.id(),
             self.opticos_updates,
             self.update_checks,
+            self.update_download,
             self.language
         )
     }
@@ -199,6 +237,14 @@ impl Prefs {
                     prefs.m68k_processor = value.parse().ok().and_then(crate::asm::m68k::Processor::from_id).unwrap_or_default();
                     continue;
                 }
+                "m68k_fpu" => {
+                    prefs.m68k_fpu = value.parse().ok().and_then(crate::asm::m68k::Fpu::from_id).unwrap_or_default();
+                    continue;
+                }
+                "m68k_mmu" => {
+                    prefs.m68k_mmu = value.parse().ok().and_then(crate::asm::m68k::Mmu::from_id).unwrap_or_default();
+                    continue;
+                }
                 // Before there was a choice, one switch said whether the preview was open.
                 "preview_open" => {
                     preview_was_open = flag == Some(true);
@@ -241,6 +287,7 @@ impl Prefs {
                 "backup_on_save" => &mut prefs.backup_on_save,
                 "opticos_updates" => &mut prefs.opticos_updates,
                 "update_checks" => &mut prefs.update_checks,
+                "update_download" => &mut prefs.update_download,
                 "find_from_selection" => &mut prefs.find_from_selection,
                 "find_in_file_folder" => &mut prefs.find_in_file_folder,
                 "watch_files" => &mut prefs.watch_files,
@@ -371,6 +418,8 @@ enum Special {
     MarkdownView,
     ZxNotation,
     M68kProcessor,
+    M68kFpu,
+    M68kMmu,
     Assemblers,
     AmigaNdk,
     AmigaTools,
@@ -461,9 +510,12 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
             Row::Special("68000 source is for", Special::M68kProcessor),
+            Row::Special("With the maths coprocessor (FPU)", Special::M68kFpu),
+            Row::Special("With the memory management unit (MMU)", Special::M68kMmu),
             Row::Special("Amiga code hints", Special::AmigaNdk),
             Row::Special("Amiga crunchers and music", Special::AmigaTools),
-            Row::Flag("Check for a newer Limoniter", "Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. Nothing is downloaded by itself. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once", |t| &mut t.prefs.update_checks),
+            Row::Flag("Check for a newer Limoniter", "Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once", |t| &mut t.prefs.update_checks),
+            Row::Flag("Download a newer Limoniter by itself", "When the daily check finds one, it's downloaded in the background and checked against its signature, and Limoniter says when it's ready to restart into. Off, it asks first. Nothing is installed without asking, and never while anything is unsaved", |t| &mut t.prefs.update_download),
             Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
             Row::Special("Language servers", Special::LanguageServers),
             Row::Special("Your own highlighting grammars", Special::OwnGrammars),
@@ -727,6 +779,34 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                     crate::asm::m68k::choose(target.prefs.m68k_processor);
                 }
             }
+            Special::M68kFpu => {
+                let before = target.prefs.m68k_fpu;
+                let shown = |fpu: crate::asm::m68k::Fpu| if fpu == crate::asm::m68k::Fpu::None { crate::i18n::tr("None").to_string() } else { fpu.name().to_string() };
+                egui::ComboBox::from_id_salt("m68k-fpu").width(260.0).selected_text(shown(target.prefs.m68k_fpu)).show_ui(ui, |ui| {
+                    for fpu in crate::asm::m68k::Fpu::ALL {
+                        ui.selectable_value(&mut target.prefs.m68k_fpu, fpu, shown(fpu));
+                    }
+                })
+                .response
+                .on_hover_text(crate::i18n::tr("The maths coprocessor Limoniter's own assembler takes 68000 source to have beside its processor, for FMOVE, FADD and the rest: a 68881 or 68882 as on an A2630, an A3000 or a Falcon with one fitted. The 68040 and 68060 have their own, so need none here. MACHINE 68881 (or FPU 1, OPT P=68020/68881) in the source chooses one for that file"));
+                if target.prefs.m68k_fpu != before {
+                    crate::asm::m68k::choose_fpu(target.prefs.m68k_fpu);
+                }
+            }
+            Special::M68kMmu => {
+                let before = target.prefs.m68k_mmu;
+                let shown = |mmu: crate::asm::m68k::Mmu| if mmu == crate::asm::m68k::Mmu::None { crate::i18n::tr("None").to_string() } else { mmu.name().to_string() };
+                egui::ComboBox::from_id_salt("m68k-mmu").width(260.0).selected_text(shown(target.prefs.m68k_mmu)).show_ui(ui, |ui| {
+                    for mmu in crate::asm::m68k::Mmu::ALL {
+                        ui.selectable_value(&mut target.prefs.m68k_mmu, mmu, shown(mmu));
+                    }
+                })
+                .response
+                .on_hover_text(crate::i18n::tr("The memory management unit Limoniter's own assembler takes a 68020 to have beside it, for PMOVE, PFLUSH, PTEST and the rest: the 68851, as on an A2620. The 68030, 68040 and 68060 have their own, so need none here. MACHINE 68851 (or PMMU, OPT P=68020/68851) in the source chooses it for that file"));
+                if target.prefs.m68k_mmu != before {
+                    crate::asm::m68k::choose_mmu(target.prefs.m68k_mmu);
+                }
+            }
             Special::ZxNotation => {
                 egui::ComboBox::from_id_salt("zx-notation").width(260.0).selected_text(crate::i18n::tr(target.prefs.zx_notation.label())).show_ui(ui, |ui| {
                     for notation in crate::zx_graphics::Notation::ALL {
@@ -834,6 +914,26 @@ mod tests {
 
     use eframe::egui::RawInput;
 
+    #[test]
+    fn a_portable_file_beside_the_program_keeps_everything_in_a_folder_beside_it() {
+        let program = std::env::temp_dir().join(format!("limoniter-portable-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&program);
+        std::fs::create_dir_all(&program).unwrap();
+        assert_eq!(portable_folder_beside(&program), None, "an ordinary copy keeps them in the usual place");
+        // A folder of that name isn't the file.
+        std::fs::create_dir_all(program.join(PORTABLE_FILE)).unwrap();
+        assert_eq!(portable_folder_beside(&program), None);
+        std::fs::remove_dir(program.join(PORTABLE_FILE)).unwrap();
+        // The file, whatever it says (the download's says what it's for).
+        std::fs::write(program.join(PORTABLE_FILE), "This file makes Limoniter portable.").unwrap();
+        let folder = portable_folder_beside(&program).unwrap();
+        assert_eq!(folder, program.join("Limoniter data"));
+        assert!(folder.starts_with(&program));
+        // The test program itself has no such file, and isn't taken for portable.
+        assert_eq!(portable_folder(), None);
+        let _ = std::fs::remove_dir_all(&program);
+    }
+
     fn all_rows() -> impl Iterator<Item = Row> {
         SECTIONS.iter().flat_map(|(_, rows)| rows.iter().copied())
     }
@@ -862,8 +962,11 @@ mod tests {
             backup_on_save: true,
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
             m68k_processor: crate::asm::m68k::Processor::M68008,
+            m68k_fpu: crate::asm::m68k::Fpu::M68882,
+            m68k_mmu: crate::asm::m68k::Mmu::M68851,
             opticos_updates: false,
             update_checks: false,
+            update_download: true,
             language: "fr",
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);

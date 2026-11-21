@@ -5,6 +5,7 @@
 use super::*;
 use crate::atari2600_machine::Atari2600;
 use run_host::{Session, SessionKind, BUILT_IN_2600_NAME};
+use crate::control_hints::{ControlKeys, Pad};
 use std::time::Instant;
 
 impl Limoniter {
@@ -41,6 +42,8 @@ impl Limoniter {
         };
         let mut debug: Option<crate::debug_panel::Action> = None;
         let ctx = ui.ctx().clone();
+        let (keys, hint, choosing) = (self.control_keys.clone(), self.control_keys.hint(Pad::Atari2600), self.choosing_a_control_key());
+        let mut open_controls = false;
         let session = &mut self.running.sessions[index];
         let title = format!("{}: {}", session.machine.name(), session.file);
         let SessionKind::Atari2600 { machine, texture, error, .. } = &mut session.kind else {
@@ -72,6 +75,7 @@ impl Limoniter {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     stop = crate::access::called(ui.add(Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Switch it off").on_hover_text(crate::i18n::tr("Switch it off")).clicked();
                     restart = ui.small_button(crate::i18n::tr("Restart")).on_hover_text(crate::i18n::tr("Runs the cartridge again from the start")).clicked();
+                    open_controls = ui.small_button(crate::i18n::tr("Controls\u{2026}")).on_hover_text(crate::i18n::tr("Which keys are its joysticks and switches, and changing them")).clicked();
                     let pause = if machine.paused { "Carry on" } else { "Pause" };
                     if ui.small_button(pause).clicked() {
                         if machine.paused {
@@ -133,9 +137,10 @@ impl Limoniter {
                     ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(2.0, theme::accent()), egui::StrokeKind::Outside);
                     ui.memory_mut(|m| m.set_focus_lock_filter(focus_id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true }));
                 }
+                control_hints_host::screen_hints(ui, &response, focused, &hint);
                 let words = match error {
                     Some(problem) => problem.clone(),
-                    None if focused => crate::i18n::tr("The arrow keys and Space are the left joystick; Y, G, H, J and F the right. Enter is Game Reset and Backspace Game Select. Click the text to type there again.").into(),
+                    None if focused => crate::i18n::tf!("{hint} Click the text to type there again."),
                     None => crate::i18n::tr("Click the screen to play with the keyboard.").into(),
                 };
                 ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
@@ -156,9 +161,9 @@ impl Limoniter {
                 }
             });
         });
-        if focused {
+        if focused && !choosing {
             let events = ctx.input(|i| i.events.clone());
-            joystick_keys(machine, &events);
+            joystick_keys(machine, &events, &keys);
         } else {
             machine.release_all();
         }
@@ -196,6 +201,9 @@ impl Limoniter {
                 doc.text.move_caret(line, 0, false);
             }
         }
+        if open_controls {
+            self.control_editor = Some(crate::control_hints::Editor::new(Pad::Atari2600));
+        }
         if restart {
             let SessionKind::Atari2600 { run, machine, .. } = &self.running.sessions[index].kind else {
                 return;
@@ -220,27 +228,31 @@ impl Limoniter {
 }
 
 /// Keys pressed on the computer, as the joysticks and the console's Reset and Select: the arrow keys and Space the
-/// left joystick, Y, G, H and J with F the right one, as Stella has them.
-fn joystick_keys(machine: &mut Atari2600, events: &[egui::Event]) {
+/// left joystick, Y, G, H and J with F the right one, as Stella has them, unless they've been moved (see
+/// `control_hints`).
+fn joystick_keys(machine: &mut Atari2600, events: &[egui::Event], keys: &ControlKeys) {
     for event in events {
         let egui::Event::Key { key, pressed, repeat: false, .. } = event else {
             continue;
         };
         let pressed = *pressed;
+        let Some(control) = keys.control_for(Pad::Atari2600, *key) else {
+            continue;
+        };
         let controls = machine.controls();
-        match key {
-            Key::ArrowUp => controls.sticks[0][0] = pressed,
-            Key::ArrowDown => controls.sticks[0][1] = pressed,
-            Key::ArrowLeft => controls.sticks[0][2] = pressed,
-            Key::ArrowRight => controls.sticks[0][3] = pressed,
-            Key::Y => controls.sticks[1][0] = pressed,
-            Key::H => controls.sticks[1][1] = pressed,
-            Key::G => controls.sticks[1][2] = pressed,
-            Key::J => controls.sticks[1][3] = pressed,
-            Key::Enter => controls.reset = pressed,
-            Key::Backspace => controls.select = pressed,
-            Key::Space => machine.set_fire(0, pressed),
-            Key::F => machine.set_fire(1, pressed),
+        match control {
+            "up" => controls.sticks[0][0] = pressed,
+            "down" => controls.sticks[0][1] = pressed,
+            "left" => controls.sticks[0][2] = pressed,
+            "right" => controls.sticks[0][3] = pressed,
+            "up2" => controls.sticks[1][0] = pressed,
+            "down2" => controls.sticks[1][1] = pressed,
+            "left2" => controls.sticks[1][2] = pressed,
+            "right2" => controls.sticks[1][3] = pressed,
+            "reset" => controls.reset = pressed,
+            "select" => controls.select = pressed,
+            "fire" => machine.set_fire(0, pressed),
+            "fire2" => machine.set_fire(1, pressed),
             _ => {}
         }
     }

@@ -717,7 +717,7 @@ pub struct Uef {
 }
 
 /// The cassette filing system's CRC: CCITT's polynomial, from zero, high bit first.
-fn tape_crc(bytes: &[u8]) -> u16 {
+pub(super) fn tape_crc(bytes: &[u8]) -> u16 {
     bytes.iter().fold(0u16, |crc, b| (0..8).fold(crc ^ (u16::from(*b) << 8), |c, _| if c & 0x8000 != 0 { (c << 1) ^ 0x1021 } else { c << 1 }))
 }
 

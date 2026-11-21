@@ -1,4 +1,6 @@
-# 18. Further reading
+# 19. Further reading
+
+[‹ Releasing](18-releasing.md) · [Contents](README.md)
 
 v7 ended with a list of books, and a note that the essential ones cost money and came from Commodore's developer support. Today almost everything you need is free and online. Every link here was checked when this chapter was written (November 2026). Sites move, so if one has gone, its name and the people behind it should find it again.
 
@@ -25,13 +27,22 @@ What [working with Limoniter](02-working-with-limoniter.md) uses, and the rest o
 - **amiga-debug** (<https://github.com/BartmanAbyss/vscode-amiga-debug>), by **Bartman / Abyss**: a Visual Studio Code extension to build, debug and profile Amiga programs (in C and C++), with its own WinUAE and FS-UAE, a frame profiler and a graphics debugger. Also on the Visual Studio Marketplace: <https://marketplace.visualstudio.com/items?itemName=BartmanAbyss.amiga-debug>.
 - **uae-dap** (<https://github.com/grahambates/uae-dap>), by **Graham Bates**: a debug adapter that lets an editor debug a program running in FS-UAE or WinUAE. Limoniter's Amiga debugging works with it.
 - **Amiga Assembly** (<https://github.com/prb28/vscode-amiga-assembly>), by prb28: a Visual Studio Code extension for 68000 assembly on the Amiga.
-- **Shrinkler** (<https://github.com/askeksa/Shrinkler>), by **Aske Simon Christensen (Blueberry)**: widely used for demos and intros today. See [releasing](17-releasing.md).
+- **Shrinkler** (<https://github.com/askeksa/Shrinkler>), by **Aske Simon Christensen (Blueberry)**: widely used for demos and intros today. See [releasing](18-releasing.md).
 - **Cranker** (<https://aminet.net/package/util/pack/cranker>), by **Timm S. Müller** (The Electronic Knights): a cruncher whose programs decrunch while they load, needing no extra memory.
 - **LightSpeedPlayer** (<https://github.com/arnaud-carre/LSPlayer>), by **Arnaud Carré (Leonard / Oxygene)**: a ProTracker module converter and replayer, and the fastest replayer there is on a 68000 by its own benchmarks. See [sound and music](12-sound-and-music.md).
 - **The Player 6.1** (<https://aminet.net/package/mus/misc/P6108>): Jarno Paananen's (Guru / Sahara Surfers) replayer and converter, in the version kept up by Photon and others.
 - **ptplayer** (<https://aminet.net/package/mus/play/ptplayer>), by **Frank Wille**: a ProTracker replayer with support for sound effects alongside the music.
 - **WHDLoad** (<https://www.whdload.de/>), by **Bert Jahn**: runs games and demos from a hard drive. Worth knowing how it treats a demo, as many people will run yours that way.
 - **Amiga Forever** (<https://www.amigaforever.com/>), by **Cloanto**: the licensed Kickstart ROMs (and Workbench) for emulators. Kickstart isn't free, and neither Limoniter nor v8 can include it.
+
+## Writing games
+
+What [writing games](17-writing-games.md) draws on.
+
+- **ScrollingTricks** (<https://aminet.net/package/dev/src/ScrollingTrick>), by **Georg Steger** (1999): every usual way of scrolling a tile map, for each direction and all eight, explained with pictures of the buffer, and demo programs in C. Its archive has its own terms for games made with it.
+- ***Xorshift RNGs***, by **George Marsaglia**, *Journal of Statistical Software*, 2003 (<https://www.jstatsoft.org/article/view/v008i14>): the random number generator in Gem Cave and `ch17_random.s`, in six pages.
+- **WHDLoad's programming documentation** (<https://www.whdload.de/docs/en/howto.html>): how an install patches a game, which is the best guide to making one that's easy to install.
+- **The CD32 pad**: AROS's `lowlevel.library` reads it (<https://github.com/aros-development-team/AROS/blob/master/arch/m68k-amiga/lowlevel/readjoyport.c>), and Gerd Kautzmann's description of its circuit is preserved at <https://www.mrdictionary.net/PSCD32/diary/sites/CD32Gamepad_gerdkautzmann_de.html>.
 
 ## People to ask
 
@@ -70,3 +81,5 @@ v7 recommended these books in 1993. Most are long out of print. They're kept her
 - ***680x0 Programming by Example***, by Stan Kelly-Bootle, Howard W. Sams (1988). "Excellent book on 68000 programming", covering the 68000 to the 68030.
 - ***Motorola's user's manuals*** for each processor: "worth gold when trying to estimate cycles". Free now: see bitsavers, above.
 - ***The Discworld series***, by Terry Pratchett. "Nothing to do with Amigas, but excellent books. If you need a break from programming, or just inspiration for impossible things to have in an impossible demo, read one of these!" Still true. Oook.
+
+[‹ Releasing](18-releasing.md) · [Contents](README.md)

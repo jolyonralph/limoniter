@@ -15,12 +15,13 @@ pub(super) enum Program {
     C64,
     Bbc,
     OpticOs,
+    Zx80,
     Zx81,
     JupiterAce,
 }
 
 impl Program {
-    pub const ALL: [Self; 8] = [Self::None, Self::Spectrum, Self::Next, Self::C64, Self::Bbc, Self::OpticOs, Self::Zx81, Self::JupiterAce];
+    pub const ALL: [Self; 9] = [Self::None, Self::Spectrum, Self::Next, Self::C64, Self::Bbc, Self::OpticOs, Self::Zx80, Self::Zx81, Self::JupiterAce];
 
     fn id(self) -> &'static str {
         match self {
@@ -30,6 +31,7 @@ impl Program {
             Self::C64 => "c64",
             Self::Bbc => "bbc",
             Self::OpticOs => "opticos",
+            Self::Zx80 => "zx80",
             Self::Zx81 => "zx81",
             Self::JupiterAce => "jupiterace",
         }
@@ -43,6 +45,7 @@ impl Program {
             Self::C64 => "A Commodore 64 program (.prg)",
             Self::Bbc => "A BBC BASIC program",
             Self::OpticOs => "An OpticOS program (.tap)",
+            Self::Zx80 => "A ZX80 program (.o)",
             Self::Zx81 => "A ZX81 program (.p)",
             Self::JupiterAce => "Jupiter Ace Forth, typed in",
         }
@@ -56,6 +59,7 @@ impl Program {
             Self::C64 => Some(basic::Machine::Commodore(basic::CbmMachine::C64)),
             Self::Bbc => Some(basic::Machine::Bbc),
             Self::OpticOs => Some(basic::Machine::OpticOs),
+            Self::Zx80 => Some(basic::Machine::Zx80),
             Self::Zx81 => Some(basic::Machine::Zx81),
             Self::JupiterAce => Some(basic::Machine::JupiterAce),
         }
@@ -95,10 +99,14 @@ impl NewKind {
             Self::new("Commodore 64 BASIC", "bas", "utf-8", line, highlight::BASIC_COMMODORE, Program::C64, "10 PRINT \"HELLO FROM LIMONITER\""),
             Self::new("BBC BASIC", "bas", "utf-8", line, "", Program::Bbc, "10 PRINT \"Hello from Limoniter\""),
             Self::new("Boriel ZX Basic (Spectrum)", "bas", "utf-8", line, highlight::BASIC_BORIEL, Program::None, crate::boriel::STARTER),
+            Self::new("RGC BASIC", "bas", "utf-8", line, highlight::BASIC_RGC, Program::None, crate::rgc_basic::STARTER),
+            Self::new("Turbo Rascal (TRSE)", "ras", "utf-8", line, highlight::TURBO_RASCAL, Program::None, crate::trse::STARTER),
             Self::new("OpticBASIC (OpticOS)", "bas", "utf-8", line, "", Program::OpticOs, "DEF PROC hello\n  PRINT \"Hello from Limoniter\"\nENDPROC\nhello"),
+            Self::new("ZX80 BASIC", "bas", "utf-8", line, "", Program::Zx80, "10 FOR I=1 TO 10\n20 PRINT \"HELLO FROM LIMONITER \";I\n30 NEXT I"),
             Self::new("ZX81 BASIC", "bas", "utf-8", line, "", Program::Zx81, "10 PRINT \"HELLO FROM LIMONITER\""),
             Self::new("ZX81 machine code (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::zx81_program::STARTER),
             Self::new("Jupiter Ace Forth", "fth", "utf-8", line, "Forth", Program::JupiterAce, ": HELLO\n  .\" HELLO FROM LIMONITER\" CR ;\nHELLO"),
+            Self::new("ZX Spectrum demo (Z80, How To Code)", "asm", "utf-8", line, "Assembly Z80", Program::None, &crate::howtocode_spectrum::single_file_demo()),
             Self::new("Z80 assembler", "asm", "utf-8", line, "Assembly Z80", Program::None, "        org 32768\nstart:  ld a,2\n        out (254),a         ; a red border\n        ret"),
             Self::new("6502 assembler", "a65", "utf-8", line, "Assembly 6502", Program::None, "        * = $c000\nstart:  lda #2\n        sta $d020           ; a red border\n        rts"),
             Self::new("6809 assembler", "asm", "utf-8", line, "Assembly 6809", Program::None, "        org $3000\nstart:  lda #1\n        rts\n        end start"),
@@ -120,7 +128,18 @@ impl NewKind {
             Self::new("ColecoVision (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::sega::COLECO_STARTER),
             Self::new("Game Boy program (SM83)", "asm", "utf-8", line, crate::highlight::ASM_SM83, Program::None, crate::gameboy::STARTER),
             Self::new("NES program (6502)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::nes::STARTER),
+            Self::new("Atari 8-bit program (6502, .xex)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::atari8_run::STARTER),
+            Self::new("Atari 7800 cartridge (6502)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::atari7800::STARTER),
+            Self::new("Apple II program (6502)", "asm", "utf-8", line, "Assembly 6502", Program::None, crate::apple2_run::STARTER),
+            Self::new("Amstrad CPC program (Z80)", "asm", "utf-8", line, "Assembly Z80", Program::None, crate::cpc_run::STARTER),
             Self::new("Dragon 32 program (6809)", "asm", "utf-8", line, "Assembly 6809", Program::None, crate::vectrex::DRAGON_STARTER),
+            Self::new("QL program (68008)", "asm", "utf-8", line, "Assembly 680x0", Program::None, crate::ql::STARTER),
+            Self::new("Manchester Baby (SSEM, 1948): Kilburn's first program", "ssem", "utf-8", line, highlight::SSEM, Program::None, crate::ssem::KILBURN),
+            Self::new("Manchester Baby (SSEM, 1948): a first program", "ssem", "utf-8", line, highlight::SSEM, Program::None, crate::ssem::COUNTDOWN),
+            Self::new("EDSAC (1949): Wilkes's table of squares", "edsac", "utf-8", line, highlight::EDSAC, Program::None, crate::edsac::SQUARES),
+            Self::new("EDSAC (1949): a first program (Initial Orders 2)", "edsac", "utf-8", line, highlight::EDSAC, Program::None, crate::edsac::HELLO),
+            Self::new("PDP-8 (1965): hello on the Teletype (PAL)", "pal", "utf-8", line, highlight::PAL8, Program::None, crate::pal8::HELLO),
+            Self::new("PDP-8 (1965): echo the keyboard (PAL)", "pal", "utf-8", line, highlight::PAL8, Program::None, crate::pal8::ECHO),
             Self::new("C for the Commodore 64 (cc65 or llvm-mos)", "c", "utf-8", line, "C", Program::None, crate::c_starters::C64),
             Self::new("C for the ZX Spectrum (z88dk)", "c", "utf-8", line, "C", Program::None, crate::c_starters::SPECTRUM),
             Self::new("C for the ZX Spectrum (SDCC)", "c", "utf-8", line, "C", Program::None, crate::c_starters::SPECTRUM_SDCC),
@@ -176,18 +195,22 @@ impl NewKind {
 }
 
 /// The sub-menus of File, New as, in their order; a kind of one's own goes in the last.
-pub(super) const GROUPS: [&str; 14] = [
+pub(super) const GROUPS: [&str; 18] = [
     "Modern languages",
     "Text",
-    "ZX Spectrum, ZX81 and Jupiter Ace",
+    "ZX Spectrum, ZX80, ZX81 and Jupiter Ace",
+    "Sinclair QL",
+    "Amstrad CPC",
     "Commodore",
     "Amiga",
     "Atari",
     "Acorn and OpticOS",
+    "Apple II",
     "Nintendo",
     "Sega and ColecoVision",
     "Dragon and Vectrex",
     "PC",
+    "Early computing",
     "Any machine: assembler",
     "C for older machines",
     "Your own",
@@ -200,10 +223,18 @@ impl NewKind {
         let starts = |p: &str| name.starts_with(p);
         if starts("C for ") {
             "C for older machines"
+        } else if starts("Manchester Baby") || starts("EDSAC") || starts("PDP-8") {
+            "Early computing"
         } else if ["Z80 assembler", "6502 assembler", "6809 assembler", "68000 assembler"].contains(&name) {
             "Any machine: assembler"
-        } else if starts("Spectrum") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") {
-            "ZX Spectrum, ZX81 and Jupiter Ace"
+        } else if starts("Spectrum") || starts("ZX80") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") {
+            "ZX Spectrum, ZX80, ZX81 and Jupiter Ace"
+        } else if starts("QL program") {
+            "Sinclair QL"
+        } else if starts("Amstrad CPC") {
+            "Amstrad CPC"
+        } else if starts("Apple II") {
+            "Apple II"
         } else if starts("Commodore 64") || starts("C64") {
             "Commodore"
         } else if starts("Amiga demo") || starts("Amiga copper") {
@@ -256,9 +287,20 @@ pub(super) struct NewKindsBox {
 impl Limoniter {
     /// A new file of a kind from the list.
     pub(super) fn new_of_kind(&mut self, index: usize) {
-        let Some(kind) = self.new_kinds.get(index).cloned() else {
-            return;
-        };
+        if let Some(kind) = self.new_kinds.get(index).cloned() {
+            self.new_from_kind(kind);
+        }
+    }
+
+    /// A new file from one of the usual kinds, by its name, as a menu other than New as offers it (Tools, Early
+    /// computing), whether or not the person's own New as list still has it.
+    pub(super) fn new_of_usual_kind(&mut self, name: &str) {
+        if let Some(kind) = NewKind::usual().into_iter().find(|kind| kind.name == name) {
+            self.new_from_kind(kind);
+        }
+    }
+
+    fn new_from_kind(&mut self, kind: NewKind) {
         if self.no_file() {
             self.docs.clear();
         }

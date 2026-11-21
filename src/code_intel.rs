@@ -43,10 +43,14 @@ pub struct CodeIntel {
     pub hardware: Option<Arc<crate::amiga_source::Source>>,
     /// For 68000 source: what it does with the Atari ST's hardware and which TOS functions it calls.
     pub atari: Option<Arc<crate::st_source::Source>>,
+    /// For 68000 source for the Sinclair QL: which QDOS traps and vectors it calls.
+    pub ql: Option<Arc<crate::ql_source::Source>>,
     /// For 6502 source: what it does with the Commodore 64's chips and which KERNAL routines it calls.
     pub c64: Option<Arc<crate::c64_source::Source>>,
     /// Boriel's ZX Basic: its words are described on hover, and its comments start with ' rather than ;.
     pub boriel: bool,
+    /// Turbo Rascal (TRSE): its built-ins are described on hover, and its comments start with //.
+    pub trse: bool,
 }
 
 impl PartialEq for CodeIntel {
@@ -164,6 +168,10 @@ impl CodeIntel {
         {
             return Some(words.clone());
         }
+        // TRSE's built-ins.
+        if self.trse {
+            return word_at(text, col).filter(|_| !crate::trse::in_comment_or_string(text, col)).and_then(|(_, _, word)| crate::trse::describe(&word));
+        }
         // Boriel's ZX Basic's words and its library's.
         if self.boriel {
             return word_at(text, col).filter(|_| !crate::boriel::in_comment_or_string(text, col)).and_then(|(_, _, word)| crate::boriel::describe(&word));
@@ -175,8 +183,16 @@ impl CodeIntel {
         {
             return Some(words);
         }
+        // QDOS's traps and vectors, for the QL's code, which gets nothing of the ST's or the Amiga's.
+        let ql = self.ql.as_ref().filter(|ql| ql.ql);
+        if let Some(ql) = ql
+            && !in_comment_or_string(text, col)
+            && let Some(words) = ql.describe(line, text, col)
+        {
+            return Some(words);
+        }
         // The Atari ST's hardware and TOS calls; ST code gets nothing of the Amiga's.
-        let atari = self.atari.as_ref().filter(|st| st.atari);
+        let atari = self.atari.as_ref().filter(|st| st.atari && ql.is_none());
         if let Some(st) = atari
             && !in_comment_or_string(text, col)
             && let Some(words) = st.describe(line, text, col)
@@ -185,7 +201,7 @@ impl CodeIntel {
         }
         // An Amiga system function, or a structure's field or a flag from the NDK's headers, unless the program
         // has a label of that name of its own (one it has from INCLUDEing the header is the NDK's).
-        if let Some(ndk) = self.amiga.as_ref().filter(|_| atari.is_none())
+        if let Some(ndk) = self.amiga.as_ref().filter(|_| atari.is_none() && ql.is_none())
             && !(self.cpu.is_some() && in_comment_or_string(text, col))
             && let Some((_, _, word)) = word_at(text, col)
             && (word.starts_with("_LVO") || self.assembly.as_ref().and_then(|a| a.symbols.get(&word)).is_none_or(|v| ndk.headers.get(&word).is_some_and(|n| n.value as i32 == *v as i32)))
@@ -194,7 +210,7 @@ impl CodeIntel {
             return Some(words);
         }
         // The Amiga's custom chips: a register, a value written to one, or a copper instruction.
-        if let Some(hardware) = self.hardware.as_ref().filter(|_| atari.is_none())
+        if let Some(hardware) = self.hardware.as_ref().filter(|_| atari.is_none() && ql.is_none())
             && !in_comment_or_string(text, col)
             && let Some(words) = hardware.describe(line, text, col)
         {
@@ -251,6 +267,7 @@ impl CodeIntel {
     pub fn completions(&self, line: usize, text: &str, col: usize) -> Vec<String> {
         // In ST code's comments, the TOS functions' names, to say which a call is.
         if self.atari.as_ref().is_some_and(|st| st.atari)
+            && !self.ql.as_ref().is_some_and(|ql| ql.ql)
             && in_comment_or_string(text, col)
             && let Some((_, prefix)) = prefix_at(text, col)
         {
@@ -260,8 +277,12 @@ impl CodeIntel {
         if self.boriel && crate::boriel::in_comment_or_string(text, col) {
             return Vec::new();
         }
+        // Turbo Rascal's comments start with //, and its semicolons end statements.
+        if self.trse && crate::trse::in_comment_or_string(text, col) {
+            return Vec::new();
+        }
         // C's semicolons end statements, not lines: only assembler and BASIC have comments that way.
-        if !self.boriel && (self.amiga.is_none() || self.cpu.is_some()) && in_comment_or_string(text, col) {
+        if !self.boriel && !self.trse && (self.amiga.is_none() || self.cpu.is_some()) && in_comment_or_string(text, col) {
             return Vec::new();
         }
         let Some((word_start, prefix)) = prefix_at(text, col) else {
@@ -372,6 +393,15 @@ fn words_for(cpu: Cpu) -> Vec<String> {
         ],
     };
     let mut words: Vec<String> = instructions.iter().chain(crate::asm::DIRECTIVES).map(|w| w.to_string()).collect();
+    // The 68881's and 68882's, and their own directives.
+    if cpu == Cpu::M68k {
+        words.extend(crate::asm::m68k::fpu::mnemonics());
+        words.extend(["fpu", "dc.s", "dc.d", "dc.x", "dc.p"].map(String::from));
+        // The MMUs', and the 68040's, 68060's and CPU32's own.
+        words.extend(crate::asm::m68k::mmu::mnemonics());
+        words.extend(crate::asm::m68k::later::mnemonics());
+        words.push("pmmu".into());
+    }
     words.sort();
     words.dedup();
     words

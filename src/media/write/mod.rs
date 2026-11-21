@@ -16,6 +16,7 @@ mod coco;
 mod fat;
 mod hfs;
 mod plus3;
+mod ql;
 mod sparta;
 mod tape;
 mod trdos;
@@ -131,6 +132,7 @@ pub fn writer(name: &str, bytes: Vec<u8>) -> Result<Box<dyn ImageWriter>, String
         Some(Format::TrDos) => Ok(Box::new(trdos::Trd::open(bytes)?)),
         Some(Format::Scl) => Ok(Box::new(trdos::Scl::open(bytes)?)),
         Some(Format::MacDisk | Format::MacDiskCopy) => Ok(Box::new(hfs::Hfs::open(bytes)?)),
+        Some(Format::QlMicrodrive) => Ok(Box::new(ql::Mdv::open(bytes)?)),
         Some(_) => Err(crate::i18n::tr("Limoniter can read this kind of image, but can't change it yet.").into()),
         None => Err(crate::i18n::tr("This isn't an image Limoniter can change.").into()),
     }
@@ -142,7 +144,7 @@ pub fn may_write(name: &str, head: &[u8], len: u64) -> bool {
     len <= MOST_WRITABLE_BYTES
         && matches!(
             super::detect(head, len, &ending),
-            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs | Format::TrDos | Format::Scl | Format::MacDisk | Format::MacDiskCopy)
+            Some(Format::ZxTape | Format::D64 | Format::D71 | Format::D81 | Format::Fat | Format::Adf | Format::Atari8 | Format::Coco | Format::Dsk | Format::Apple2 | Format::Dfs | Format::DoubleDfs | Format::Adfs | Format::TrDos | Format::Scl | Format::MacDisk | Format::MacDiskCopy | Format::QlMicrodrive)
         )
 }
 
@@ -181,10 +183,11 @@ pub enum Blank {
     Mac400,
     Mac800,
     Mac1440,
+    QlMicrodrive,
 }
 
 impl Blank {
-    pub const ALL: [Blank; 32] = [
+    pub const ALL: [Blank; 33] = [
         Blank::SpectrumTap,
         Blank::SpectrumTzx,
         Blank::Plus3,
@@ -217,6 +220,7 @@ impl Blank {
         Blank::Mac400,
         Blank::Mac800,
         Blank::Mac1440,
+        Blank::QlMicrodrive,
     ];
 
     /// What it is, for the New image box.
@@ -254,6 +258,7 @@ impl Blank {
             Blank::Mac400 => "Macintosh floppy, 400K, HFS (.dsk)",
             Blank::Mac800 => "Macintosh floppy, 800K, HFS (.dsk)",
             Blank::Mac1440 => "Macintosh floppy, 1.4MB, HFS (.dsk)",
+            Blank::QlMicrodrive => "Sinclair QL microdrive cartridge, 126K (.mdv)",
         }
     }
 
@@ -277,6 +282,7 @@ impl Blank {
             Blank::AdfsL => "adl",
             Blank::TrDos => "trd",
             Blank::Scl => "scl",
+            Blank::QlMicrodrive => "mdv",
         }
     }
 
@@ -315,6 +321,7 @@ impl Blank {
             Blank::Mac400 => hfs::blank(400, label),
             Blank::Mac800 => hfs::blank(800, label),
             Blank::Mac1440 => hfs::blank(1440, label),
+            Blank::QlMicrodrive => ql::blank(label),
         }
     }
 }

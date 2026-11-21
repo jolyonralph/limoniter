@@ -1,5 +1,10 @@
-# Makes a release: the Windows installer, the Mac app, and for Linux an AppImage and a .deb, built on GitHub's own
-# computers, and offered together on the repository's Releases page.
+# Makes a release: the Windows installer and portable .zip, the Mac app, and for Linux an AppImage and a .deb, built
+# on GitHub's own computers, and offered together on the repository's Releases page, with SHA256SUMS.txt listing
+# each one's SHA-256.
+#
+# Limoniter updates itself only from a release whose SHA256SUMS.txt is signed with the maker's key: the repository
+# secret LIMONITER_UPDATE_KEY, made once with tools/make-update-key.py (which says how). Without the secret, the
+# release is made unsigned, and Limoniter offers its download page instead of installing it.
 #
 # To release: change the version in Cargo.toml, then push a matching tag, such as v0.2.0. Running this by hand from
 # the Actions tab builds them all without releasing them, to try them first.
@@ -54,10 +59,21 @@ jobs:
         shell: pwsh
         run: ./installer/build-installer.ps1
 
+      - name: Build the portable download
+        shell: pwsh
+        run: ./installer/build-portable.ps1
+
       - uses: actions/upload-artifact@v7
         with:
           name: Limoniter-Windows
           path: target/installer/Limoniter-Setup-*.exe
+          if-no-files-found: error
+
+      # An artifact of its own: two folders in one would keep their folders, and the Releases page needs the files.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Limoniter-Windows-portable
+          path: target/portable/Limoniter-*-Windows-portable.zip
           if-no-files-found: error
 
       - name: Build the Microsoft Store package
@@ -166,6 +182,23 @@ jobs:
           path: built
           pattern: Limoniter-*
           merge-multiple: true
+
+      # Each download's SHA-256, and that list signed with the maker's key, which is what Limoniter checks before it
+      # installs an update. The key's public half must be the one built into this release (src/self_update.rs).
+      - name: List the downloads' fingerprints, and sign the list
+        env:
+          LIMONITER_UPDATE_KEY: ${{ secrets.LIMONITER_UPDATE_KEY }}
+        run: |
+          cd built
+          sha256sum -- * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          if [ -z "$LIMONITER_UPDATE_KEY" ]; then
+            echo "::warning::There's no LIMONITER_UPDATE_KEY secret, so the release isn't signed, and Limoniter won't update itself to it."
+            exit 0
+          fi
+          python3 -I ../tools/make-update-key.py check ../src/self_update.rs
+          python3 -I ../tools/make-update-key.py sign SHA256SUMS.txt
 
       - name: Put them on the Releases page
         env:

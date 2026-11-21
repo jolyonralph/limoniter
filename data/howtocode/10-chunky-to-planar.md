@@ -1,5 +1,7 @@
 # 10. Chunky to planar
 
+[‹ AGA](09-aga.md) · [Contents](README.md) · [Input ›](11-input.md)
+
 Texture mappers, rotozoomers, tunnels, voxel landscapes, the Doom-likes: the effects that made the A1200 years all work out the screen one pixel at a time. The Amiga's display isn't made for that. This chapter is about the answer everyone used: draw the picture in **chunky** form, a byte a pixel, and turn it into bitplanes once a frame. That's **chunky to planar**, C2P to its friends.
 
 It covers the three ways to do it:
@@ -10,9 +12,9 @@ It covers the three ways to do it:
 
 There are three examples, each a rotozoomer with a panel that gives the time each part took:
 
-- `examples/ch10_c2p_cpu.s` *(AGA)*: 8 bitplanes, 256 colours, 320 by 176 pixels, converted by the processor. Settings give the scrambled-chunky routine (`SCRAMBLE`) and 2x2 pixels (`DOUBLE`).
-- `examples/ch10_c2p_blitter.s` *(any Amiga)*: 4 bitplanes, 16 colours, 2x2 pixels, on a 68000, converted by the blitter, or by the 68000 for comparison (`BLITTER` set to 0).
-- `examples/ch10_c2p_akiko.s` *(AGA, made for the CD32)*: the first example's effect, converted by Akiko when there is one, and by the processor when there isn't. The panel says which.
+- [`examples/ch10_c2p_cpu.s`](examples/ch10_c2p_cpu.s) *(AGA)*: 8 bitplanes, 256 colours, 320 by 176 pixels, converted by the processor. Settings give the scrambled-chunky routine (`SCRAMBLE`) and 2x2 pixels (`DOUBLE`).
+- [`examples/ch10_c2p_blitter.s`](examples/ch10_c2p_blitter.s) *(any Amiga)*: 4 bitplanes, 16 colours, 2x2 pixels, on a 68000, converted by the blitter, or by the 68000 for comparison (`BLITTER` set to 0).
+- [`examples/ch10_c2p_akiko.s`](examples/ch10_c2p_akiko.s) *(AGA, made for the CD32)*: the first example's effect, converted by Akiko when there is one, and by the processor when there isn't. The panel says which.
 
 ![ch10_c2p_cpu.s on an emulated A1200 with fast RAM: a rotozoomer in 256 colours, and how long it took](images/ch10_c2p_cpu.png)
 
@@ -408,3 +410,5 @@ On the NTSC A1200 the times in frames were about a fifth higher, as an NTSC fram
 ## What changed from v7
 
 v7 had no chapter on chunky to planar: it was written in 1993, as the A1200 was new, and the techniques here grew up in the years after it. This chapter is new in v8. [The AGA chapter](09-aga.md#chunky-to-planar) introduces the idea; this one has the routines.
+
+[‹ AGA](09-aga.md) · [Contents](README.md) · [Input ›](11-input.md)

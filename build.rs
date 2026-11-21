@@ -1,11 +1,13 @@
-//! Puts the icon and the name people see in Windows into the program file, and How To Code v8 (the Amiga demo
-//! coder's guide, with its examples) into the program, as a list of its files.
+//! Puts the icon and the name people see in Windows into the program file, and the How To Code guides (v8 for the
+//! Amiga, and the ZX Spectrum's, each with its examples) into the program, as lists of their files.
 
 fn main() {
     println!("cargo:rerun-if-changed=data/limoniter.ico");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=data/howtocode");
-    guide();
+    println!("cargo:rerun-if-changed=data/howtocode-spectrum");
+    guide("howtocode", "howtocode_files.rs");
+    guide("howtocode-spectrum", "howtocode_spectrum_files.rs");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut resource = winresource::WindowsResource::new();
         resource.set_icon("data/limoniter.ico");
@@ -17,9 +19,9 @@ fn main() {
     }
 }
 
-/// How To Code's files, each by its path in the guide and its bytes, in OUT_DIR/howtocode_files.rs.
-fn guide() {
-    let root = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("data/howtocode");
+/// A guide's files (from data/FOLDER), each by its path in the guide and its bytes, in OUT_DIR/LIST.
+fn guide(folder: &str, list: &str) {
+    let root = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("data").join(folder);
     let mut files = Vec::new();
     let mut folders = vec![root.clone()];
     while let Some(folder) = folders.pop() {
@@ -41,5 +43,5 @@ fn guide() {
         out.push_str(&format!("    ({name:?}, include_bytes!({:?})),\n", path.display().to_string()));
     }
     out.push_str("];\n");
-    std::fs::write(std::path::Path::new(&std::env::var("OUT_DIR").unwrap()).join("howtocode_files.rs"), out).unwrap();
+    std::fs::write(std::path::Path::new(&std::env::var("OUT_DIR").unwrap()).join(list), out).unwrap();
 }

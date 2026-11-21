@@ -47,13 +47,31 @@ pub enum Machine {
     /// The fantasy consoles: PICO-8 and TIC-80, whose carts are kept as text.
     Pico8,
     Tic80,
+    /// RGC BASIC's desktop interpreter.
+    RgcBasic,
     /// The Game Boy (and the Game Boy Color, which runs its cartridges too).
     GameBoy,
     /// The Nintendo Entertainment System (the Famicom).
     Nes,
-    /// The Sinclair ZX81, and the Jupiter Ace, which Limoniter has built in (with the person's own ROMs).
+    /// The Sinclair ZX80 and ZX81, and the Jupiter Ace, which Limoniter has built in (with the person's own ROMs).
+    Zx80,
     Zx81,
     JupiterAce,
+    /// The machines built in for teaching: the Manchester Baby (1948), EDSAC (1949) and the PDP-8 (1965), whose
+    /// programs are their source, assembled (or read in by EDSAC's Initial Orders) when they're run.
+    Ssem,
+    Edsac,
+    Pdp8,
+    /// The Sinclair QL: a 68008 and QDOS, whose programs are executables EXEC starts as jobs.
+    Ql,
+    /// The Apple II (and the IIe), whose programs come on floppies that boot.
+    Apple2,
+    /// Atari's 8-bit computers: the 400, 800, XL and XE.
+    Atari8,
+    /// The Atari 7800, whose programs are its cartridges.
+    Atari7800,
+    /// Nintendo's Super NES (the Super Famicom): a 65816, whose programs are its cartridges.
+    Snes,
 }
 
 impl Machine {
@@ -88,10 +106,20 @@ impl Machine {
             Machine::ColecoVision => "ColecoVision",
             Machine::Pico8 => "PICO-8",
             Machine::Tic80 => "TIC-80",
+            Machine::RgcBasic => "RGC BASIC",
             Machine::GameBoy => "Game Boy",
             Machine::Nes => "NES",
+            Machine::Zx80 => "ZX80",
             Machine::Zx81 => "ZX81",
             Machine::JupiterAce => "Jupiter Ace",
+            Machine::Ssem => "Manchester Baby (SSEM)",
+            Machine::Edsac => "EDSAC",
+            Machine::Pdp8 => "PDP-8",
+            Machine::Ql => "Sinclair QL",
+            Machine::Apple2 => "Apple II",
+            Machine::Atari8 => "Atari 8-bit",
+            Machine::Atari7800 => "Atari 7800",
+            Machine::Snes => "SNES",
         }
     }
 
@@ -127,10 +155,20 @@ impl Machine {
             Machine::ColecoVision => "colecovision",
             Machine::Pico8 => "pico8",
             Machine::Tic80 => "tic80",
+            Machine::RgcBasic => "rgcbasic",
             Machine::GameBoy => "gameboy",
             Machine::Nes => "nes",
+            Machine::Zx80 => "zx80",
             Machine::Zx81 => "zx81",
             Machine::JupiterAce => "jupiterace",
+            Machine::Ssem => "ssem",
+            Machine::Edsac => "edsac",
+            Machine::Pdp8 => "pdp8",
+            Machine::Ql => "ql",
+            Machine::Apple2 => "apple2",
+            Machine::Atari8 => "atari8",
+            Machine::Atari7800 => "atari7800",
+            Machine::Snes => "snes",
         }
     }
 
@@ -199,6 +237,8 @@ pub enum Format {
     /// A TIC-80 cart as it's saved, and as text: its code (Lua) with its data in comments at the end.
     Tic,
     TicText,
+    /// An RGC BASIC program, as text.
+    RgcBas,
     /// A Game Boy cartridge, its ROM as it is, header and all.
     Gb,
     /// The same, for the Game Boy Color.
@@ -207,10 +247,40 @@ pub enum Format {
     Nes,
     /// A ZX81 program: its memory from &4009, as SAVE writes it.
     P,
+    /// A ZX80 program: its memory from &4000, as SAVE writes it.
+    O,
     /// Forth source, typed into a Jupiter Ace.
     Forth,
     /// A Dragon DOS disk, kept as a VDK file (PC-Dragon's, which XRoar reads).
     Vdk,
+    /// Source for the teaching machines: the Manchester Baby's, EDSAC's tape, and PAL for the PDP-8; and a PDP-8
+    /// paper tape in RIM format.
+    Ssem,
+    EdsacTape,
+    Pal,
+    Rim,
+    /// A QL program, kept with its QDOS header as QL emulators read it: the XTcc trailer after its bytes.
+    QdosExe,
+    /// A QL microdrive cartridge, in QLAY's format.
+    Mdv,
+    /// An Amstrad CPC tape: a TZX file under the CPC's own ending.
+    Cdt,
+    /// An Apple II floppy with its sectors in ProDOS's order (a .dsk, or .do, has them in DOS 3.3's), or a larger
+    /// ProDOS disk.
+    Po,
+    /// An Apple II floppy as its magnetic flux is, bit by bit (WOZ 1 or 2), copy protection and all.
+    Woz,
+    /// An Atari 8-bit program as DOS loads it: segments of bytes, each with where it goes.
+    Xex,
+    /// An Atari 8-bit floppy, sector by sector, with a 16-byte header.
+    Atr,
+    /// An Atari 8-bit cartridge with its 16-byte header saying which kind.
+    Car,
+    /// An Atari 7800 cartridge with its 128-byte A78 header.
+    A78,
+    /// A SNES cartridge, its ROM as it is (.sfc), or after a copier's 512-byte header (.smc).
+    Sfc,
+    Smc,
 }
 
 impl Format {
@@ -219,12 +289,16 @@ impl Format {
         match self {
             Format::Tap | Format::Tzx | Format::Cas | Format::T64 => Some("tape"),
             Format::Dsk | Format::Trd | Format::Scl | Format::D64 | Format::D71 | Format::D81 | Format::Ssd | Format::Dsd | Format::Adf | Format::St | Format::Msa | Format::Img | Format::Vdk => Some("disk"),
+            Format::Mdv => Some("cartridge"),
+            Format::Cdt => Some("tape"),
+            Format::Po | Format::Woz | Format::Atr => Some("disk"),
+            Format::Car | Format::A78 | Format::Sfc | Format::Smc => Some("cartridge"),
             Format::Crt | Format::Rom | Format::A26 | Format::VecCart | Format::MdRom | Format::SmsRom | Format::GgRom | Format::SgRom | Format::ColRom | Format::Gb | Format::Gbc | Format::Nes => Some("cartridge"),
             _ => None,
         }
     }
 
-    pub const ALL: [Format; 44] = [
+    pub const ALL: [Format; 61] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -263,12 +337,29 @@ impl Format {
         Format::P8,
         Format::Tic,
         Format::TicText,
+        Format::RgcBas,
         Format::Gb,
         Format::Gbc,
         Format::Nes,
         Format::P,
+        Format::O,
         Format::Forth,
         Format::Vdk,
+        Format::Ssem,
+        Format::EdsacTape,
+        Format::Pal,
+        Format::Rim,
+        Format::QdosExe,
+        Format::Mdv,
+        Format::Cdt,
+        Format::Po,
+        Format::Woz,
+        Format::Xex,
+        Format::Atr,
+        Format::Car,
+        Format::A78,
+        Format::Sfc,
+        Format::Smc,
     ];
 
     /// The file ending it's written with.
@@ -312,21 +403,41 @@ impl Format {
             Format::P8 => "p8",
             Format::Tic => "tic",
             Format::TicText => "lua",
+            Format::RgcBas => "bas",
             Format::Gb => "gb",
             Format::Gbc => "gbc",
             Format::Nes => "nes",
             Format::P => "p",
+            Format::O => "o",
             Format::Forth => "fth",
             Format::Vdk => "vdk",
+            Format::Ssem => "ssem",
+            Format::EdsacTape => "edsac",
+            Format::Pal => "pal",
+            Format::Rim => "rim",
+            // A QL program is named as the QL names them, hello_exe, with no ending of its own.
+            Format::QdosExe => "exe",
+            Format::Mdv => "mdv",
+            Format::Cdt => "cdt",
+            Format::Po => "po",
+            Format::Woz => "woz",
+            Format::Xex => "xex",
+            Format::Atr => "atr",
+            Format::Car => "car",
+            Format::A78 => "a78",
+            Format::Sfc => "sfc",
+            Format::Smc => "smc",
         }
     }
 
     pub fn from_ending(ending: &str) -> Option<Format> {
         let ending = ending.to_ascii_lowercase();
-        // A Mega Drive cartridge is as often .gen (for Genesis), and an SG-1000's .sc (for the SC-3000).
+        // A Mega Drive cartridge is as often .gen (for Genesis), and an SG-1000's .sc (for the SC-3000); an Apple II
+        // floppy in DOS 3.3's order is a .do as often as a .dsk.
         match ending.as_str() {
             "gen" => return Some(Format::MdRom),
             "sc" => return Some(Format::SgRom),
+            "do" => return Some(Format::Dsk),
             _ => {}
         }
         Format::ALL.into_iter().find(|format| format.ending() == ending)
@@ -351,6 +462,10 @@ impl Runnable {
             let tape = crate::opticbasic::tape(&bytes[crate::opticbasic::SIGNATURE.len()..], &stem, None);
             return Some(Runnable { machine: Machine::OpticOs, format: Format::Tap, name: format!("{stem}.tap"), bytes: Arc::new(tape) });
         }
+        // A QL program, kept with its header (XTcc after it, or Q-emuLator's before it), is known by that.
+        if crate::ql::is_program(&bytes) {
+            return Some(Runnable { machine: Machine::Ql, format: Format::QdosExe, name: name.to_string(), bytes: Arc::new(bytes) });
+        }
         // An Amiga program has no ending: it's known by how it starts.
         if !name.contains('.') && machine_for(Format::Hunk, &bytes).is_some() {
             return Some(Runnable { machine: Machine::Amiga, format: Format::Hunk, name: format!("{name}.exe"), bytes: Arc::new(bytes) });
@@ -359,9 +474,10 @@ impl Runnable {
         if matches!(ending.to_ascii_lowercase().as_str(), "prg" | "ttp" | "app" | "gtp") && is_atari_program(&bytes) {
             return Some(Runnable { machine: Machine::AtariSt, format: Format::Tos, name: name.to_string(), bytes: Arc::new(bytes) });
         }
-        // A ZX81 program is also a .81, or a .p81 with its name first.
+        // A ZX81 program is also a .81, or a .p81 with its name first; a ZX80 program is also a .80.
         let format = match ending.to_ascii_lowercase().as_str() {
             "81" | "p81" => Format::P,
+            "80" => Format::O,
             _ => Format::from_ending(ending)?,
         };
         let machine = machine_for(format, &bytes)?;
@@ -379,6 +495,7 @@ impl Runnable {
             basic::Machine::BbcZ80 => return Err(crate::i18n::tr("BBC BASIC (Z80) programs can be saved, for a Z88 or an NC100, but there's no emulator to run them in yet.").into()),
             basic::Machine::Amos => return Err(crate::i18n::tr("AMOS programs can be saved (Format, Tokenised BASIC, Save as an AMOS program) and loaded in AMOS, but Limoniter can't run them in an emulator yet.").into()),
             basic::Machine::Stos => return Err(crate::i18n::tr("STOS programs can be saved (Format, Tokenised BASIC, Save as a STOS program) and loaded in STOS, but Limoniter can't run them in an emulator yet.").into()),
+            basic::Machine::Zx80 => (Machine::Zx80, Format::O, crate::zx80_program::program(lines)?),
             basic::Machine::Zx81 => (Machine::Zx81, Format::P, crate::zx81_program::program(lines)?),
             basic::Machine::JupiterAce => (Machine::JupiterAce, Format::Forth, forth_text(lines)),
         };
@@ -421,14 +538,26 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         // .p is also Pascal and Prolog source: a ZX81 program's system variables say what it is.
         Format::P if crate::basic_extra::zx81_skip(bytes).is_ok() => Machine::Zx81,
         Format::P => return None,
+        // .o is also any compiler's object file: a ZX80 program's system variables say what it is.
+        Format::O if crate::basic_extra::zx80_length(bytes).is_ok() => Machine::Zx80,
+        Format::O => return None,
         Format::Forth if std::str::from_utf8(bytes).is_ok() => Machine::JupiterAce,
         Format::Forth => return None,
+        // The teaching machines' source is text; a RIM tape is frames of six bits, with leader.
+        Format::Ssem | Format::EdsacTape | Format::Pal if std::str::from_utf8(bytes).is_err() => return None,
+        Format::Ssem => Machine::Ssem,
+        Format::EdsacTape => Machine::Edsac,
+        Format::Pal => Machine::Pdp8,
+        Format::Rim if crate::pdp8::read_rim(bytes).is_ok() => Machine::Pdp8,
+        Format::Rim => return None,
         // A Dragon DOS disk: its directory's map says how many tracks it has, and the same again inverted.
         Format::Vdk if crate::dragon_dos::Disk::from_vdk(bytes).is_some() => Machine::Dragon32,
         Format::Vdk => return None,
         // .z80 is also assembler source: a snapshot's header has control codes, and text has none.
         Format::Z80 if !bytes.iter().take(30).any(|b| *b < 9 || (14..32).contains(b)) => return None,
         Format::Z80 => z80_machine(bytes),
+        // An Amstrad CPC snapshot says so at its start; the Spectrum's has no signature.
+        Format::Sna if bytes.starts_with(b"MV - SNA") => Machine::Cpc,
         Format::Sna => {
             if bytes.len() == 49179 {
                 Machine::Spectrum48
@@ -475,6 +604,9 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         // A .lua is a TIC-80 cart only when it says so at its top (-- script:), or carries the cart's data.
         Format::TicText if crate::fantasy_carts::console_of("cart.lua", &String::from_utf8_lossy(bytes)) == Some(crate::fantasy_carts::Console::Tic80) => Machine::Tic80,
         Format::TicText => return None,
+        // A .bas is RGC BASIC's only when it reads as it (see `highlight::looks_like_rgc_basic`).
+        Format::RgcBas if std::str::from_utf8(bytes).is_ok_and(|text| crate::highlight::looks_like_rgc_basic(&text.lines().map(std::sync::Arc::from).collect::<Vec<_>>())) => Machine::RgcBasic,
+        Format::RgcBas => return None,
         // A Game Boy cartridge has the logo its boot ROM checks; an NES one starts NES and $1A.
         Format::Gb | Format::Gbc if crate::gameboy::is_cartridge(bytes) => Machine::GameBoy,
         Format::Gb | Format::Gbc => return None,
@@ -519,6 +651,32 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         // A PC floppy that boots: 55 AA at the end of its first sector.
         Format::Img if PC_FLOPPIES.contains(&bytes.len()) && bytes.get(510..512) == Some(&[0x55, 0xAA][..]) => Machine::Pc,
         Format::Img => return None,
+        Format::QdosExe if crate::ql::is_program(bytes) => Machine::Ql,
+        Format::QdosExe => return None,
+        Format::Mdv if crate::media::ql::looks_like(bytes, bytes.len() as u64) => Machine::Ql,
+        Format::Mdv => return None,
+        // A CPC tape is a TZX, which starts ZXTape! and $1A.
+        Format::Cdt if bytes.starts_with(b"ZXTape!\x1A") => Machine::Cpc,
+        Format::Cdt => return None,
+        // .po is also gettext's translations, which are text: a ProDOS disk's volume directory, in block 2, starts
+        // with its storage type, $F, in the top of its fifth byte.
+        Format::Po if bytes.len() >= APPLE_FLOPPY && bytes.len().is_multiple_of(512) && bytes[0x404] >> 4 == 0x0F => Machine::Apple2,
+        Format::Po => return None,
+        Format::Woz if (bytes.starts_with(b"WOZ1") || bytes.starts_with(b"WOZ2")) && bytes.get(4..8) == Some(&[0xFF, 0x0A, 0x0D, 0x0A][..]) => Machine::Apple2,
+        Format::Woz => return None,
+        // An Atari DOS binary starts $FFFF, then its first segment's addresses.
+        Format::Xex if bytes.len() >= 6 && bytes.starts_with(&[0xFF, 0xFF]) => Machine::Atari8,
+        Format::Xex => return None,
+        // An ATR's header starts $0296, the sum of NICKATARI's letters.
+        Format::Atr if bytes.len() >= 16 && bytes.starts_with(&[0x96, 0x02]) => Machine::Atari8,
+        Format::Atr => return None,
+        Format::Car if bytes.len() > 16 && bytes.starts_with(b"CART") => Machine::Atari8,
+        Format::Car => return None,
+        Format::A78 if crate::atari7800::Header::read(bytes).is_some() => Machine::Atari7800,
+        Format::A78 => return None,
+        // A SNES cartridge is 32K banks; a copier put 512 bytes of its own before them.
+        Format::Sfc | Format::Smc if bytes.len() >= 0x8000 && matches!(bytes.len() % 0x8000, 0 | 512) => Machine::Snes,
+        Format::Sfc | Format::Smc => return None,
     })
 }
 
@@ -564,8 +722,15 @@ fn z80_machine(bytes: &[u8]) -> Machine {
     }
 }
 
+/// The size of an Apple II floppy: 35 tracks of sixteen 256-byte sectors.
+pub const APPLE_FLOPPY: usize = 143_360;
+
 /// A +3 disk and an Amstrad CPC disk share a container; the CPC numbers its sectors from &41 or &C1, the +3 from 1.
+/// An Apple II floppy is a .dsk too, its sectors one after another with no header at all.
 fn dsk_machine(bytes: &[u8]) -> Machine {
+    if bytes.len() == APPLE_FLOPPY && !bytes.starts_with(b"MV - CPC") && !bytes.starts_with(b"EXTENDED CPC DSK") {
+        return Machine::Apple2;
+    }
     // The first track's header follows the disk's own, and lists its sectors from byte 0x18, the number third.
     match bytes.get(0x100 + 0x18 + 2) {
         Some(0x41..=0x49 | 0xC1..=0xC9) => Machine::Cpc,
@@ -661,6 +826,39 @@ mod tests {
         program.resize(30, 0);
         assert_eq!(run("DEMO.PRG", program), Some((Machine::AtariSt, Format::Tos)));
         assert_eq!(run("game.prg", vec![0x60, 0x1A, 0xA9, 0]), Some((Machine::C64, Format::Prg)), "too short for an ST program");
+    }
+
+    #[test]
+    fn cpc_apple_atari_and_snes_files_say_which_machine_they_are_for() {
+        let run = |name: &str, bytes: Vec<u8>| Runnable::from_file(name, bytes).map(|r| (r.machine, r.format));
+        let mut cpc_sna = b"MV - SNA".to_vec();
+        cpc_sna.resize(0x100 + 65536, 0);
+        assert_eq!(run("game.sna", cpc_sna), Some((Machine::Cpc, Format::Sna)));
+        assert_eq!(run("game.sna", vec![0; 49179]).map(|r| r.0), Some(Machine::Spectrum48), "a Spectrum's has no signature");
+        assert_eq!(run("game.cdt", b"ZXTape!\x1A\x01\x14".to_vec()), Some((Machine::Cpc, Format::Cdt)));
+        assert_eq!(run("game.cdt", b"text".to_vec()), None);
+        // Apple II floppies: a .dsk (or .do) with no header at all, a ProDOS-ordered .po, and a WOZ.
+        assert_eq!(run("game.dsk", vec![0; APPLE_FLOPPY]), Some((Machine::Apple2, Format::Dsk)));
+        assert_eq!(run("GAME.DO", vec![0; APPLE_FLOPPY]), Some((Machine::Apple2, Format::Dsk)));
+        let prodos = crate::media::write::Blank::AppleProdos.make("TEST");
+        assert_eq!(run("game.po", prodos), Some((Machine::Apple2, Format::Po)));
+        assert_eq!(run("messages.po", b"msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_vec()), None, "gettext's translations");
+        assert_eq!(run("game.woz", b"WOZ2\xFF\x0A\x0D\x0Arest".to_vec()), Some((Machine::Apple2, Format::Woz)));
+        assert_eq!(run("game.woz", b"WOZ2 not one".to_vec()), None);
+        // The Atari 8-bits' program, disk and cartridge.
+        assert_eq!(run("game.xex", vec![0xFF, 0xFF, 0x00, 0x20, 0x00, 0x20, 0x60]), Some((Machine::Atari8, Format::Xex)));
+        assert_eq!(run("game.atr", crate::media::write::Blank::Atari90.make("")), Some((Machine::Atari8, Format::Atr)));
+        let mut car = b"CART\0\0\0\x01\0\0\0\0\0\0\0\0".to_vec();
+        car.resize(16 + 8192, 0);
+        assert_eq!(run("game.car", car), Some((Machine::Atari8, Format::Car)));
+        assert_eq!(run("game.car", vec![0; 100]), None);
+        // The SNES's cartridges, with and without a copier's header.
+        assert_eq!(run("game.sfc", vec![0; 0x8000]), Some((Machine::Snes, Format::Sfc)));
+        assert_eq!(run("game.smc", vec![0; 0x8000 + 512]), Some((Machine::Snes, Format::Smc)));
+        assert_eq!(run("game.sfc", vec![0; 1000]), None);
+        for format in [Format::Cdt, Format::Po, Format::Woz, Format::Xex, Format::Atr, Format::Car, Format::A78, Format::Sfc, Format::Smc] {
+            assert_eq!(Format::from_ending(&format.ending().to_uppercase()), Some(format));
+        }
     }
 
     #[test]

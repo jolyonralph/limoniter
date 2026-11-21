@@ -45,6 +45,29 @@ impl Compiling {
 pub(super) enum Compiles {
     Boriel,
     C,
+    /// Turbo Rascal, built by TRSE.
+    Trse,
+}
+
+/// What TRSE builds for a Turbo Rascal file: its project, and the machine the project is for.
+fn trse_job(path: Option<&Path>) -> Result<Job, String> {
+    let Some(main) = path else {
+        return Err(crate::i18n::tr("Save the file first, in a TRSE project's folder, so TRSE can build it.").into());
+    };
+    let main = std::path::absolute(main).unwrap_or_else(|_| main.to_path_buf());
+    let Some((project, system)) = crate::trse::project_of(&main) else {
+        return Err(crate::i18n::tr("TRSE builds a project, and there's no project file (.trse) in this file's folder or the two above it. Make one in TRSE (File, New project), and put this file in its folder.").into());
+    };
+    let Some(machine) = crate::trse::machine_of(&system) else {
+        return Err(crate::i18n::tf!("The project is for the {system}, and Limoniter only runs TRSE's programs for the Commodore 64, 128, VIC-20, Plus/4 and PET, the Atari 2600, the Vectrex, the NES and the Game Boy. Build it in TRSE itself."));
+    };
+    let compiler = compilers::by_id("trse").expect("TRSE is known");
+    let Some(program) = compiler.find(machine) else {
+        return Err(crate::i18n::tf!("TRSE wasn't found on this computer. It's free from {}: install it (or unzip it into a folder named trse, or put it on the PATH), start it once so it writes its settings, and F9 builds with it.", compilers::TRSE_WEBSITE));
+    };
+    let folder = project.parent().map(Path::to_path_buf).unwrap_or_default();
+    let stem = main.file_stem().map_or_else(|| "main".to_string(), |s| s.to_string_lossy().into_owned());
+    Ok(Job { compiler, program, machine, main: main.clone(), sources: vec![main], folder, flags: vec![project.display().to_string()], libs: Vec::new(), stem, sasc: false })
 }
 
 impl Limoniter {
@@ -59,6 +82,9 @@ impl Limoniter {
             return Some(Compiles::Boriel);
         }
         let name = doc.name().to_ascii_lowercase();
+        if language == highlight::TURBO_RASCAL || name.ends_with(".ras") {
+            return Some(Compiles::Trse);
+        }
         (name.ends_with(".c") || language == "C" && doc.path.is_none()).then_some(Compiles::C)
     }
 
@@ -130,6 +156,7 @@ impl Limoniter {
         let lines = doc.text.all_lines();
         let text: Vec<&str> = lines.iter().map(|l| l.as_ref()).collect();
         let (machine, basic) = match kind {
+            Compiles::Trse => return trse_job(doc.path.as_deref()),
             Compiles::Boriel => (Machine::Spectrum48, true),
             Compiles::C => match compilers::c_machine(text.iter().copied()) {
                 Some(machine) => (machine, false),

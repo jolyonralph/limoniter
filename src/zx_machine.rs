@@ -47,6 +47,9 @@ pub struct Breaks {
     /// what it stopped at.
     basic_at: std::collections::HashSet<u16>,
     at_basic: bool,
+    /// For the tests: an address, and the T-states into the frame when it was last reached.
+    #[cfg(test)]
+    pub timed: Option<(u16, Option<usize>)>,
 }
 
 impl rustzx_core::host::DebugInterface for Breaks {
@@ -69,6 +72,12 @@ impl rustzx_core::host::DebugInterface for Breaks {
     }
 
     fn instruction_done(&mut self, next: u16, clock: usize, frame: usize) {
+        #[cfg(test)]
+        if let Some((address, when)) = self.timed.as_mut()
+            && *address == next
+        {
+            *when = Some(clock);
+        }
         let Some(profile) = self.profile.as_mut().filter(|p| p.counting) else {
             return;
         };
@@ -298,6 +307,18 @@ impl BuiltIn {
         Self::start_inner(run, None, None)
     }
 
+    /// Starts a Spectrum running a program, making its sound (to go nowhere), so that `loudest` can be read.
+    #[cfg(test)]
+    pub fn start_heard(run: &Runnable) -> Result<BuiltIn, String> {
+        Self::start_inner(run, Some(44100), None)
+    }
+
+    /// How loud the loudest sound it's made has been, from 0 to 1.
+    #[cfg(test)]
+    pub fn loudest(&self) -> f32 {
+        self.loudest
+    }
+
     /// Starts a Spectrum running a program, its sound going to a speaker if one's given.
     pub fn start_with(run: &Runnable, speaker: Option<crate::speaker::Speaker>) -> Result<BuiltIn, String> {
         let rate = speaker.as_ref().map(|s| s.rate);
@@ -320,7 +341,9 @@ impl BuiltIn {
             machine: if machine == Machine::Spectrum128 { ZXMachine::Sinclair128K } else { ZXMachine::Sinclair48K },
             emulation_mode: EmulationMode::FrameCount(1),
             tape_fastload_enabled: true,
-            kempston_enabled: false,
+            // A Kempston joystick, for the keys given to it (see `control_hints`); a game that doesn't look for one
+            // reads its port as it always would.
+            kempston_enabled: true,
             mouse_enabled: false,
             // OpticOS has its own ROM, and its own LOAD "" typed, as the autoload snapshot is the Sinclair ROM's.
             load_default_rom: machine != Machine::OpticOs,
@@ -531,6 +554,20 @@ impl BuiltIn {
         Err(crate::i18n::tr("The program didn't start from its tape within a minute.").into())
     }
 
+    /// For the tests: the T-states into the frame at which an address is reached, from now on, read by `reached`.
+    #[cfg(test)]
+    pub fn time(&mut self, address: u16) {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.timed = Some((address, None));
+        }
+    }
+
+    /// When the address given to `time` was last reached, in T-states from the start of its frame.
+    #[cfg(test)]
+    pub fn reached(&mut self) -> Option<usize> {
+        self.emulator.debug_interface().and_then(|breaks| breaks.timed.and_then(|(_, when)| when))
+    }
+
     /// The addresses to stop at.
     pub fn set_breakpoints(&mut self, addresses: impl IntoIterator<Item = u16>) {
         if let Some(breaks) = self.emulator.debug_interface() {
@@ -711,6 +748,19 @@ impl BuiltIn {
         screen_text(|address| self.peek(address))
     }
 
+    /// The Kempston joystick moved or let go: up, down, left, right or fire.
+    pub fn kempston(&mut self, control: &str, pressed: bool) {
+        use rustzx_core::zx::joy::kempston::KempstonKey;
+        let key = match control {
+            "up" => KempstonKey::Up,
+            "down" => KempstonKey::Down,
+            "left" => KempstonKey::Left,
+            "right" => KempstonKey::Right,
+            _ => KempstonKey::Fire,
+        };
+        self.emulator.send_kempston_key(key, pressed);
+    }
+
     /// A key on the Spectrum's own keyboard pressed or let go, for game keys and the like.
     pub fn key(&mut self, key: ZXKey, pressed: bool) {
         if pressed {
@@ -822,6 +872,9 @@ impl BuiltIn {
     pub fn release_all(&mut self) {
         for key in std::mem::take(&mut self.held) {
             self.emulator.send_key(key, false);
+        }
+        for control in ["up", "down", "left", "right", "fire"] {
+            self.kempston(control, false);
         }
     }
 
@@ -1327,6 +1380,19 @@ mod tests {
         assert_eq!(machine.peek(at("count")), 1);
         assert_eq!(machine.stop_reason.as_deref(), Some(&*format!("Stopped after writing 1 ($01) to ${:04X}", at("count"))));
         assert_eq!(machine.peek(at("total")), 1, "total was written too, but isn't watched");
+    }
+
+    #[test]
+    fn the_alternate_hl_is_read_and_saved_as_itself() {
+        // rustzx-z80 0.16.0 read H'L' as HL, so snapshots handed to emulators lost what BASIC keeps there.
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), "  org 32768\nstart: exx\n  ld hl,$1234\n  exx\n  ld hl,$5678\nloop: jr loop\n", &|_| Err(crate::i18n::tr("no").into()));
+        let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
+        let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
+        let mut machine = BuiltIn::start(&run).unwrap();
+        machine.set_breakpoints([0x8008]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!((machine.quick_registers().hl2, machine.quick_registers().hl), (0x1234, 0x5678));
+        assert_eq!((machine.registers().hl2, machine.registers().hl), (0x1234, 0x5678), "in the snapshot too");
     }
 
     #[test]

@@ -75,9 +75,13 @@ enum Command {
     MarkdownTable,
     Formatters,
     ServeFolder,
+    /// Tools, PHP.
+    Php(php_host::PhpAction),
     TimeSpent,
     HowToCode,
     HowToCodeExamples,
+    HowToCodeSpectrum,
+    HowToCodeSpectrumExamples,
     New,
     Open,
     Save,
@@ -155,6 +159,7 @@ enum Command {
     DeleteBookmarked,
     DeleteUnbookmarked,
     CheckUpdates,
+    GoBackVersion,
     RestoreSettingsFile,
     ProjectOpen,
     ProjectNew,
@@ -267,6 +272,9 @@ enum Command {
     SaveRemote,
     /// A folder on a server, opened as the project.
     OpenRemoteFolder,
+    /// File, Open a ZIP as a project; Open a project from a web address.
+    OpenZipProject,
+    OpenWebProject,
     /// The project's server looked at for changes now, or a sync shown to be agreed to.
     RemoteProjectFetch,
     RemoteProjectSync,
@@ -274,6 +282,7 @@ enum Command {
     RunOnMachine,
     RunOnBuiltIn,
     RunOnBuiltIn2600,
+    RunOnBuiltInVectrex,
     RunOn(usize),
     StopRunning,
     ChooseAssembler,
@@ -283,6 +292,10 @@ enum Command {
     AssembleBinary,
     /// A new file of a kind from the New as list, by its place in it.
     NewAs(usize),
+    /// File, Quit: the window closed as its own close button closes it, asking about unsaved work first.
+    Quit,
+    /// A new file from one of the usual New as kinds, by its name (Tools, Early computing).
+    NewUsual(&'static str),
     EditNewKinds,
     /// For the label at the cursor in assembler source.
     GoToDefinition,
@@ -406,6 +419,7 @@ enum Command {
     UdgPictures,
     /// Saves the picture a file holds, such as an Amiga IFF or a Spectrum screen, as a PNG.
     SavePictureAsPng,
+    TapeSound,
     /// Saves the preview (Markdown, a web page, a converted document) as a PDF.
     SavePreviewAsPdf,
     /// Opens the list of everything Limoniter can do.
@@ -445,7 +459,9 @@ thread_local! {
 impl Command {
     /// Whether it still means something with no file open.
     fn works_without_file(self) -> bool {
-        matches!(
+        // The PHP tools that work on a whole project.
+        matches!(self, Command::Php(action) if action.works_without_file())
+            || matches!(
             self,
             Command::New
                 | Command::FoldRibbon
@@ -482,6 +498,8 @@ impl Command {
                 | Command::TimeSpent
                 | Command::HowToCode
                 | Command::HowToCodeExamples
+                | Command::HowToCodeSpectrum
+                | Command::HowToCodeSpectrumExamples
                 | Command::AmigaBootDisk
                 | Command::NewImage
                 | Command::OpenUrl
@@ -547,6 +565,7 @@ impl Command {
                 | Command::SaveLayout
                 | Command::GatherWindows
                 | Command::CheckUpdates
+                | Command::GoBackVersion
                 | Command::RestoreSettingsFile
                 | Command::ProjectOpen
                 | Command::ProjectNew
@@ -568,6 +587,8 @@ impl Command {
                 | Command::NewAddOn
                 | Command::OpenRemote
                 | Command::OpenRemoteFolder
+                | Command::OpenZipProject
+                | Command::OpenWebProject
                 | Command::RemoteProjectFetch
                 | Command::RemoteProjectSync
                 | Command::ManageDevices
@@ -816,6 +837,10 @@ struct HiddenWindow {
 
 /// One open file: a text view and a hex view of the same content.
 struct Document {
+    /// For a page of a How To Code guide, the pages it was reached from (the last the one before) and those gone
+    /// back from, as a browser keeps them: a link in a guide opens the page in the same tab.
+    guide_back: Vec<PathBuf>,
+    guide_forward: Vec<PathBuf>,
     text: TextBuffer,
     hex: HexBuffer,
     path: Option<PathBuf>,
@@ -950,6 +975,8 @@ impl Document {
         Self {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             preview_view: settings::PreviewView::Text,
+            guide_back: Vec::new(),
+            guide_forward: Vec::new(),
             picture: None,
             legacy: None,
             narrow: None,
@@ -1403,26 +1430,33 @@ struct FindState {
     keep_backups: bool,
 }
 
+/// Whether a file is a page of one of the How To Code guides Limoniter unpacks into its data folder.
+fn is_guide_page(path: &Path) -> bool {
+    let Some(data) = crate::settings::data_folder() else { return false };
+    path.extension().is_some_and(|ending| ending.eq_ignore_ascii_case("md")) && ["howtocode", "howtocode-spectrum"].iter().any(|guide| path.starts_with(data.join(guide)))
+}
+
 /// The About box. Returns whether OK was clicked, and whether the list of what Limoniter can do was asked for.
 fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
     let (mut ok, mut features) = (false, false);
     ui.set_width(560.0);
     ui.add_space(4.0);
     // An 80s demo screen: the logo, copper bars and a scroller saying what Limoniter is.
-    crate::about_demo::show(ui, crate::i18n::tr("A text and hex editor for files old and new, and an explorer for the disks, tapes and archives of classic computers."));
+    crate::about_demo::show(ui, crate::i18n::tr("A full IDE for today's code and yesterday's computers. Write, build and debug in Python, C, Rust and the rest, with language servers and Git. Assemble for the Amiga, the ZX Spectrum, the Commodore 64, the Atari ST and more, and run it on a built-in machine or an emulator Limoniter installs for you. Edit text and bytes of any size, and explore the disks, tapes and archives of classic computers."));
     ui.add_space(6.0);
     ui.vertical_centered(|ui| ui.label(RichText::new(crate::i18n::tf!("Version {}", env!("CARGO_PKG_VERSION"))).size(12.5).color(theme::text_dim())));
+    // A portable copy says where it keeps everything, since that's beside it rather than in the usual place.
+    if let Some(folder) = settings::portable_folder() {
+        ui.vertical_centered(|ui| ui.label(RichText::new(crate::i18n::tf!("Portable: everything is kept in {}", folder.display())).size(12.0).color(theme::text_dim())));
+    }
     ui.add_space(12.0);
     ui.separator();
     ui.add_space(6.0);
     ui.add(
         egui::Label::new(
-            RichText::new(
-                "Edit text and bytes of any size, in the character sets of machines from mainframes to home computers. Open the disk images, tapes and \
-                 archives of the Amiga, Commodore 64, ZX Spectrum, Acorn, Atari ST, Macintosh, CP/M machines and more: browse their files, list their \
-                 BASIC programs, convert their word processor documents and see their pictures, then save any of it in today's formats. Nothing is \
-                 ever written back to an image.",
-            )
+            RichText::new(crate::i18n::tr(
+                "Work on a folder of code as in VS Code, with language servers, debugging, Git and terminals; assemble Z80, 6502, 6809 and 680x0 code and run it on built-in machines or emulators, with How To Code v8 to learn the Amiga from. Edit text and bytes of any size, in the character sets of machines from mainframes to home computers, and open the disk images, tapes and archives of the Amiga, Commodore 64, ZX Spectrum, Acorn, Atari ST, Macintosh, CP/M machines and more: browse their files, list their BASIC programs and see their pictures, then save any of it in today's formats. Nothing is ever written back to an image.",
+            ))
             .size(13.5)
             .color(theme::text()),
         )
@@ -1523,8 +1557,8 @@ enum Dialog {
     SaveLayout { name: String, error: String },
     /// Edit, Surround with, A tag: what's typed, and what's wrong with it.
     SurroundTag { value: String, error: String },
-    /// A newer Limoniter is out: its version and the start of its notes.
-    Update { version: String, notes: String },
+    /// A newer Limoniter is out: its version, the start of its notes, and how far its update has got.
+    Update(Box<update_host::Offer>),
     /// The About box: what Limoniter is, who made it, and where the list of what it can do is. The notices file,
     /// when it's beside the program.
     About { notices: Option<PathBuf> },
@@ -1559,6 +1593,7 @@ enum Dialog {
     Disassemble(Box<disasm_host::DisasmBox>),
     NewImage(Box<image_browser::NewImageBox>),
     OpenUrl(Box<web_host::WebBox>),
+    WebProject(Box<project_import_host::WebProjectBox>),
     AmigaNdk(Box<ndk_host::NdkBox>),
     AmigaProject(Box<amiga_project_host::NewProjectBox>),
     AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
@@ -1581,7 +1616,9 @@ pub struct Limoniter {
     /// When open files were last looked at for changes by other programs.
     last_watch: Option<std::time::Instant>,
     /// A newer version found while something else was open, told about once that's closed.
-    update_waiting: Option<(String, String)>,
+    update_waiting: Option<update_host::Offer>,
+    /// A newer version being downloaded, to update to.
+    update_download: Option<update_host::Download>,
     opticos_started: bool,
     docs: Vec<Document>,
     active: usize,
@@ -1765,6 +1802,8 @@ pub struct Limoniter {
     /// Devices files are sent to, and sends under way.
     sends: deploy_host::Sends,
     running: run_host::Running,
+    /// The PHP tools: their preview, php -l on save, and PHP's web server.
+    php: php_host::PhpState,
     /// Programs F9 built being crunched in the background.
     amiga_jobs: Vec<amiga_tools_host::Job>,
     /// Programs and scripts running in vamos, their output coming into the Output panel.
@@ -1773,6 +1812,9 @@ pub struct Limoniter {
     git: git_host::GitState,
     /// The Amiga's pens for ANSI previews, and the table that changes them.
     amiga_palette: crate::ansi_art::AmigaPalette,
+    /// The keys the built-in machines' joysticks and buttons are on, and the window that changes them.
+    control_keys: crate::control_hints::ControlKeys,
+    control_editor: Option<crate::control_hints::Editor>,
     palette_editor: crate::amiga_palette_ui::PaletteEditor,
     /// A send waiting for the add-ons' on_send functions.
     send_pending: Option<deploy_host::PendingSend>,
@@ -1935,6 +1977,8 @@ impl Limoniter {
         let prefs = Prefs::from_settings(&settings);
         crate::i18n::set(prefs.language);
         crate::asm::m68k::choose(prefs.m68k_processor);
+        crate::asm::m68k::choose_fpu(prefs.m68k_fpu);
+        crate::asm::m68k::choose_mmu(prefs.m68k_mmu);
         text_buffer::set_tab_size(view.tab_size);
         text_buffer::set_source_view(view.source_view);
         let mut panels = Panels::default();
@@ -1976,11 +2020,14 @@ impl Limoniter {
             remote_project: None,
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
+            php: php_host::PhpState::from_settings(&settings),
             amiga_jobs: Vec::new(),
             vamos_runs: Vec::new(),
             c64_jobs: Vec::new(),
             git: git_host::GitState::from_settings(&settings),
             amiga_palette: crate::ansi_art::AmigaPalette::from_settings(&settings),
+            control_keys: crate::control_hints::ControlKeys::from_settings(&settings),
+            control_editor: None,
             palette_editor: Default::default(),
             themes: theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light),
             send_pending: None,
@@ -2081,6 +2128,7 @@ impl Limoniter {
             layouts: crate::layouts::from_settings(&settings),
             last_watch: None,
             update_waiting: None,
+            update_download: None,
             opticos_started: false,
             docs: Vec::new(),
             active: 0,
@@ -2704,6 +2752,7 @@ impl Limoniter {
         }
         self.keep_history(index, &bytes);
         self.amiga_saved(path);
+        self.php_saved(index, path);
         self.note_saved_in_project(path);
         true
     }
@@ -3162,6 +3211,7 @@ impl Limoniter {
         let running = self.check_run_tool();
         busy |= running;
         self.task_tick(running);
+        busy |= self.php_tick();
         busy |= self.check_split();
         busy |= self.check_assistant();
         self.spelling_tick();
@@ -4245,6 +4295,7 @@ impl Limoniter {
                 | Command::RunOnMachine
                 | Command::RunOnBuiltIn
                 | Command::RunOnBuiltIn2600
+                | Command::RunOnBuiltInVectrex
                 | Command::RunOn(_)
                 | Command::StopRunning
                 | Command::MachineMemory
@@ -4273,6 +4324,7 @@ impl Limoniter {
                 | Command::OpenWithDefault
                 | Command::OpenBasicListing
                 | Command::SavePictureAsPng
+                | Command::TapeSound
                 | Command::SavePreviewAsPdf
                 | Command::Features
                 | Command::SaveSpectrumTape
@@ -4359,6 +4411,8 @@ impl Limoniter {
             Command::Extensions => self.open_extensions(),
             Command::OpenRemote => self.open_remote_box(None),
             Command::OpenRemoteFolder => self.open_remote_folder_box(),
+            Command::OpenZipProject => self.open_zip_project(),
+            Command::OpenWebProject => self.open_web_project_box(),
             Command::RemoteProjectFetch => self.remote_project_refresh(false),
             Command::RemoteProjectSync => self.remote_project_refresh(true),
             Command::SaveRemote => {
@@ -4372,6 +4426,7 @@ impl Limoniter {
             Command::RunOnMachine => self.run_on_machine(),
             Command::RunOnBuiltIn => self.run_on_target(run_host::Target::BuiltIn),
             Command::RunOnBuiltIn2600 => self.run_on_target(run_host::Target::BuiltIn2600),
+            Command::RunOnBuiltInVectrex => self.run_on_target(run_host::Target::BuiltInVectrex),
             Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
             Command::StopRunning => {
                 self.stop_vamos();
@@ -4382,6 +4437,7 @@ impl Limoniter {
             Command::AssembleAndSave => self.assemble_and_save(),
             Command::AssembleBinary => self.assemble_binary(),
             Command::NewAs(index) => self.new_of_kind(index),
+            Command::NewUsual(name) => self.new_of_usual_kind(name),
             Command::GoToDefinition => self.go_to_definition(),
             Command::FindUses => self.find_uses(),
             Command::RenameLabel => self.open_rename_box(),
@@ -4408,6 +4464,7 @@ impl Limoniter {
             Command::C64Tools => self.open_c64_tools(),
             Command::CheckOpticos => self.check_opticos_now(),
             Command::CheckUpdates => self.check_updates_now(),
+            Command::GoBackVersion => self.go_back_version(ui.ctx()),
             Command::CleanRecent => panels::clean_recent(&mut self.panels.recent),
             Command::ClearRecent => self.panels.recent.clear(),
             Command::ToggleTerminal => self.toggle_terminal(),
@@ -4465,9 +4522,12 @@ impl Limoniter {
             Command::MarkdownToc => self.markdown_toc(),
             Command::MarkdownTable => self.markdown_table(),
             Command::ServeFolder => self.toggle_live_server(),
+            Command::Php(action) => self.php_command(action),
             Command::TimeSpent => self.time_spent_open = Some(7),
             Command::HowToCode => self.open_how_to_code(),
             Command::HowToCodeExamples => self.copy_how_to_code_examples(),
+            Command::HowToCodeSpectrum => self.open_how_to_code_spectrum(),
+            Command::HowToCodeSpectrumExamples => self.copy_how_to_code_spectrum_examples(),
             Command::Formatters => {
                 crate::ext_formatters::look_again();
                 self.formatters_open = true;
@@ -4653,6 +4713,7 @@ impl Limoniter {
             }
             Command::PreviousTab => self.step_tab(false),
             Command::NextTab => self.step_tab(true),
+            Command::Quit => ui.ctx().send_viewport_cmd(ViewportCommand::Close),
             Command::NewInstance => {
                 // From an AppImage, the program is inside it, there only while this copy runs: start the AppImage.
                 let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok);
@@ -4718,6 +4779,7 @@ impl Limoniter {
             Command::GraphMode => self.toggle_graph_mode(),
             Command::UdgPictures => self.choose_udg_pictures(),
             Command::SavePictureAsPng => self.save_picture_as_png(),
+            Command::TapeSound => self.tape_sound(),
             Command::SavePreviewAsPdf => self.save_preview_as_pdf(),
             Command::SaveDocumentAs(target) => self.save_document_as(target),
             Command::Features => self.open_features(),
@@ -4945,8 +5007,41 @@ impl Limoniter {
         doc.text.reveal = true;
     }
 
-    /// Back or forward to where the cursor was. A place in a document since closed is passed over.
+    /// Opens `path`, a page of How To Code, in place of the page in front (which is closed unless it has changes
+    /// or other windows), carrying the way back and forward with it.
+    fn turn_guide_page(&mut self, path: &Path, back: Vec<PathBuf>, forward: Vec<PathBuf>) {
+        let old = self.active;
+        let view = self.docs[old].preview_view;
+        let old_id = self.docs[old].id;
+        if !self.open_path(path) {
+            return;
+        }
+        let page = self.active;
+        self.docs[page].preview_view = view;
+        self.docs[page].guide_back = back;
+        self.docs[page].guide_forward = forward;
+        if page != old && !self.docs[old].is_modified() && self.docs[old].windows.is_empty() && self.docs[old].id == old_id {
+            self.remove_tab(old);
+        }
+    }
+
+    /// Back or forward to where the cursor was. A place in a document since closed is passed over. On a page of How
+    /// To Code, back and forward go through the pages read, as a browser's do.
     fn go_through_history(&mut self, back: bool) {
+        let doc = &self.docs[self.active];
+        if let Some(here) = doc.path.clone().filter(|path| is_guide_page(path)) {
+            let (mut behind, mut ahead) = (doc.guide_back.clone(), doc.guide_forward.clone());
+            let next = if back { behind.pop() } else { ahead.pop() };
+            if let Some(next) = next {
+                if back {
+                    ahead.push(here);
+                } else {
+                    behind.push(here);
+                }
+                self.turn_guide_page(&next, behind, ahead);
+                return;
+            }
+        }
         let doc = &self.docs[self.active];
         let mut now = Place { doc: doc.id, line: doc.text.caret_line, col: doc.text.caret_col };
         loop {
@@ -5060,6 +5155,10 @@ impl Limoniter {
             self.run(Command::SendAgain, ui);
         }
         let always = [
+            // Settings, as VS Code and every Mac program have it (Cmd+, there).
+            (ctrl, Key::Comma, Command::Settings),
+            // Quit, as on a Mac (Cmd+Q) and in most Linux programs.
+            (ctrl, Key::Q, Command::Quit),
             // Control and Tab on every system, a Mac too.
             (Modifiers::CTRL | Modifiers::SHIFT, Key::Tab, Command::UsedFileForward),
             (Modifiers::CTRL, Key::Tab, Command::UsedFileBack),
@@ -5216,7 +5315,7 @@ impl Limoniter {
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
             self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>(),
-            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.git.to_settings().as_str() + self.amiga_palette.to_setting().as_str() + self.themes.to_settings().as_str() + crate::vsix::to_settings().as_str(),
+            self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.php.to_settings().as_str() + self.git.to_settings().as_str() + self.amiga_palette.to_setting().as_str() + self.control_keys.to_settings().as_str() + self.themes.to_settings().as_str() + crate::vsix::to_settings().as_str(),
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
@@ -5359,6 +5458,7 @@ impl Limoniter {
         self.git = fresh.git;
         self.amiga_palette = fresh.amiga_palette;
         crate::ansi_art::set_amiga_palette(self.amiga_palette);
+        self.control_keys = fresh.control_keys;
         self.themes = fresh.themes;
         self.applied_window = None;
         self.snippets = fresh.snippets;
@@ -5594,6 +5694,40 @@ impl Limoniter {
                 self.music_bar(ui);
             }
         }
+        // A page of How To Code has a bar of its own, as a browser has: back, forward, the contents and close.
+        if let Some(page) = self.docs[self.active].path.clone().filter(|path| is_guide_page(path)) {
+            let (can_back, can_forward) = (!self.docs[self.active].guide_back.is_empty(), !self.docs[self.active].guide_forward.is_empty());
+            let mut picked = None;
+            ui.horizontal(|ui| {
+                if ui.add_enabled(can_back, Button::new(crate::i18n::tr("\u{2039} Back"))).on_hover_text(crate::i18n::tr("The page before (Alt+Left)")).clicked() {
+                    picked = Some(0);
+                }
+                if ui.add_enabled(can_forward, Button::new(crate::i18n::tr("Forward \u{203A}"))).on_hover_text(crate::i18n::tr("The page after (Alt+Right)")).clicked() {
+                    picked = Some(1);
+                }
+                let contents = page.with_file_name("README.md");
+                if ui.add_enabled(page != contents, Button::new(crate::i18n::tr("Contents"))).clicked() {
+                    picked = Some(2);
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(crate::i18n::tr("Close")).on_hover_text(crate::i18n::tr("Close the guide (Ctrl+W)")).clicked() {
+                        picked = Some(3);
+                    }
+                });
+            });
+            ui.separator();
+            match picked {
+                Some(0) => return self.go_through_history(true),
+                Some(1) => return self.go_through_history(false),
+                Some(2) => {
+                    let mut back = std::mem::take(&mut self.docs[self.active].guide_back);
+                    back.push(page.clone());
+                    return self.turn_guide_page(&page.with_file_name("README.md"), back, Vec::new());
+                }
+                Some(_) => return self.close_tab(self.active),
+                None => {}
+            }
+        }
         let folder = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
         match (&self.preview_screen, kind) {
             (Some(screen), Some(kind)) if kind.is_screen() => crate::screen::draw(ui, screen),
@@ -5605,7 +5739,13 @@ impl Limoniter {
         {
             let view = self.docs[self.active].preview_view;
             let path = folder.join(link);
-            if self.open_path(&path) && self.docs[self.active].path.as_deref().is_some_and(|p| same_path(p, &path)) {
+            // A link in How To Code turns the page in the same tab, as a browser does, keeping the way back.
+            let from = self.docs[self.active].path.clone().filter(|from| is_guide_page(from) && is_guide_page(&path));
+            if let Some(from) = from {
+                let mut back = std::mem::take(&mut self.docs[self.active].guide_back);
+                back.push(from);
+                self.turn_guide_page(&path, back, Vec::new());
+            } else if self.open_path(&path) && self.docs[self.active].path.as_deref().is_some_and(|p| same_path(p, &path)) {
                 self.docs[self.active].preview_view = view;
             }
         }
@@ -5764,7 +5904,8 @@ impl Limoniter {
             return None;
         }
         if doc.hex_mode {
-            views::hex_view(ui, &mut doc.hex, &mut doc.hex_state, &doc.text.format, view, input_on)
+            let fields = if self.panels.structure { self.panels.structure_panel.marks(doc.id, doc.hex.version()) } else { None };
+            views::hex_view(ui, &mut doc.hex, &mut doc.hex_state, &doc.text.format, view, input_on, fields)
         } else if let Some(split) = &mut doc.split {
             draw_split(ui, &mut doc.text, &mut doc.text_state, split, &mut self.clip, filter, folded, view, input_on)
         } else {
@@ -5832,6 +5973,7 @@ impl Limoniter {
                 }
             }
             Action::ViewHex => self.set_view(Some(false)),
+            Action::StructureHelp => self.open_page(crate::i18n::tr("Structure templates"), crate::structure_panel::help()),
             Action::GoToLine(line) => {
                 let doc = self.doc();
                 if !doc.hex_mode {
@@ -7253,7 +7395,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
         let mut close = false;
@@ -7275,7 +7417,6 @@ impl Limoniter {
             Dialog::ColumnNeedsNoWrap => crate::i18n::tr("Column mode").to_string(),
             Dialog::SaveLayout { .. } => crate::i18n::tr("Save this layout").to_string(),
             Dialog::SurroundTag { .. } => crate::i18n::tr("Surround with a tag").to_string(),
-            Dialog::Update { .. } => crate::i18n::tr("A newer Limoniter").to_string(),
             Dialog::About { .. } => crate::i18n::tr("About Limoniter").to_string(),
             _ => return,
         };
@@ -7383,23 +7524,6 @@ impl Limoniter {
                 ui.horizontal(|ui| {
                     column_without_wrap = ui.button(crate::i18n::tr("Turn off Word wrap")).on_hover_text(crate::i18n::tr("Turns Word wrap off, for every document, and Column mode on")).clicked() || enter;
                     close |= ui.button(crate::i18n::tr("Cancel")).clicked();
-                });
-            }
-            Dialog::Update { version, notes } => {
-                ui.label(crate::i18n::tf!("Limoniter {version} is out. This is {}.", crate::update_check::running()));
-                if !notes.is_empty() {
-                    ui.add_space(6.0);
-                    egui::ScrollArea::vertical().max_height(260.0).max_width(520.0).show(ui, |ui| ui.label(RichText::new(notes.as_str()).color(theme::text_dim())));
-                }
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button(crate::i18n::tr("Open the download page")).clicked() || enter {
-                        if let Err(problem) = crate::platform::open_web_page(crate::update_check::DOWNLOAD_PAGE) {
-                            warn(&problem);
-                        }
-                        close = true;
-                    }
-                    close |= ui.button(crate::i18n::tr("Not now")).clicked();
                 });
             }
             Dialog::About { notices } => {
@@ -7555,6 +7679,8 @@ impl Limoniter {
         if let Some((name, value)) = step.split_once(':') {
             match name {
                 "open-entry" => self.open_from_browser(self.active, value.parse().unwrap_or(0)),
+                // The newer-version window at a stage: offered, downloading, ready or failed.
+                "update" => self.update_screenshot_step(value),
                 // Debugging in Copperline (see `dap_host`): the program in front run there with a breakpoint, and
                 // then the Debug panel's memory, profile, warnings and Copperline's own windows.
                 "copperline-debug" | "debug-memory" | "debug-profile" | "debug-warnings" | "debug-fold" | "copperline-window" => self.copperline_screenshot_step(name, value),
@@ -7564,6 +7690,15 @@ impl Limoniter {
                 "play-music" => self.play_music_at(value.parse().unwrap_or(0.0)),
                 // File properties shown, as Info shows it beside an image.
                 "properties" => self.panels.file_properties = value != "off",
+                // The file in front in hex with the Structure panel open, the cursor at an offset.
+                "structure" => {
+                    if !self.docs[self.active].hex_mode {
+                        self.set_view(Some(false));
+                    }
+                    self.panels.structure = true;
+                    let at = crate::hex_buffer::parse_number(value).unwrap_or(0);
+                    self.doc().hex.move_caret(at, false);
+                }
                 // Files waiting to go on the image in front, as if dropped on it; semicolons between.
                 "extensions" | "icon-theme" => self.extensions_screenshot_step(name, value),
                 "image-add" => {
@@ -7778,6 +7913,17 @@ impl Limoniter {
                     if let Some(browser) = self.docs[self.active].browser.as_mut() {
                         browser.select(value.parse().unwrap_or(0));
                     }
+                }
+                "php" => {
+                    // A PHP tool's preview: tags, headers, arrays, upgrade or utf8.
+                    let action = match value {
+                        "tags" => php_host::PhpAction::LongTags,
+                        "headers" => php_host::PhpAction::HeadersSent,
+                        "upgrade" => php_host::PhpAction::Upgrade,
+                        "utf8" => php_host::PhpAction::Utf8,
+                        _ => php_host::PhpAction::ShortArrays,
+                    };
+                    self.php_command(action);
                 }
                 "regex-tester" => {
                     // The tester, with a pattern typed.
@@ -8004,19 +8150,64 @@ impl Limoniter {
                     self.run_until_stopped_for_screenshot();
                 }
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
+                // The controls window for a built-in machine (2600, vectrex, spectrum, zx80, zx81 or ace).
+                "controls" => {
+                    if let Some(pad) = crate::control_hints::Pad::ALL.into_iter().find(|p| p.id() == value) {
+                        self.control_editor = Some(crate::control_hints::Editor::new(pad));
+                    }
+                }
+                // File, Make its tape sound, on the file in front.
+                "tape-sound" => self.tape_sound(),
+                // A Vectrex cartridge, or source that builds one, run on the built-in Vectrex for a number of frames;
+                // nobios/frames runs it without the BIOS even when one has been chosen.
+                "run-vectrex" => {
+                    highlight::load_now();
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    let (how, frames) = value.split_once('/').unwrap_or(("", value));
+                    self.run_on_target(run_host::Target::BuiltInVectrex);
+                    if how == "nobios" {
+                        self.vectrex_without_bios();
+                    }
+                    self.run_frames_for_screenshot(frames.parse().unwrap_or(50));
+                }
+                // The file in front run on its built-in teaching machine (the Manchester Baby, EDSAC or the
+                // PDP-8): as fast as it goes for a number of frames (fast/frames), or at its own speed (own/frames),
+                // or until a line's breakpoint (line/N).
+                "run-teaching" => {
+                    highlight::load_now();
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    let (how, number) = value.split_once('/').unwrap_or(("fast", value));
+                    let number: usize = number.parse().unwrap_or(100);
+                    if how == "line"
+                        && let Some(code) = &mut self.doc().text.code
+                    {
+                        code.breakpoints.insert(number.saturating_sub(1));
+                    }
+                    self.run_on_machine();
+                    let frames = if how == "line" { 10_000 } else { number };
+                    self.run_teaching_for_screenshot(frames, how != "own");
+                }
                 "run-micro" => {
-                    // The file in front run on the built-in ZX81 or Jupiter Ace, as ZX81 BASIC or Ace Forth if it's
-                    // said to be (zx81/frames, ace/frames), and left running for a number of frames.
+                    // The file in front run on the built-in ZX80, ZX81 or Jupiter Ace, as ZX80 or ZX81 BASIC or Ace
+                    // Forth if it's said to be (zx80/frames, zx81/frames, ace/frames), and left running for a number
+                    // of frames.
                     let (kind, frames) = value.split_once('/').unwrap_or(("", value));
                     let stem = self.doc().name();
                     match kind {
+                        "zx80" => self.doc().listing_of = Some((basic::Machine::Zx80, stem)),
                         "zx81" => self.doc().listing_of = Some((basic::Machine::Zx81, stem)),
                         "ace" => self.doc().listing_of = Some((basic::Machine::JupiterAce, stem)),
                         _ => {}
                     }
                     self.assembly_tick();
                     if let Ok(Some(run)) = self.runnable() {
-                        let target = if run.machine == crate::running::Machine::Zx81 { run_host::Target::Zx81 } else { run_host::Target::Ace };
+                        let target = match run.machine {
+                            crate::running::Machine::Zx80 => run_host::Target::Zx80,
+                            crate::running::Machine::Zx81 => run_host::Target::Zx81,
+                            _ => run_host::Target::Ace,
+                        };
                         self.run_on(target, run);
                     }
                     self.run_frames_for_screenshot(frames.parse().unwrap_or(100));
@@ -8529,6 +8720,7 @@ impl eframe::App for Limoniter {
             listening.stop();
         }
         self.stop_tool();
+        self.php_stop_serving();
         self.stop_split();
         self.stop_assistant();
         if self.allow_close {
@@ -8558,8 +8750,9 @@ impl Limoniter {
         self.follow_extensions(&ctx);
         self.apply_themes(&ctx);
         self.poll_opticos_check();
-        self.poll_update_check();
+        self.poll_update_check(&ctx);
         self.music_housekeeping();
+        self.control_keys_window(&ctx);
         self.read_editor_config();
         let mut edit = self.prefs.edit;
         if let Some(spaces) = self.editor_config.as_ref().and_then(|(_, c)| c.spaces) {
@@ -8671,7 +8864,9 @@ impl Limoniter {
         self.assistant_panel(ui);
         self.machine_panel(ui);
         self.atari2600_panel(ui);
+        self.vectrex_panel(ui);
         self.micro_panel(ui);
+        self.teaching_panel(ui);
         self.remote_debug_panel(ui);
         self.st_profile_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
@@ -8790,6 +8985,7 @@ impl Limoniter {
         self.eprom_window(&ctx);
         self.formatters_window(&ctx);
         self.time_spent_window(&ctx);
+        self.php_window(&ctx);
         self.language_picker_window(&ctx);
         self.demo_tools_windows(&ctx);
         self.st_tools_windows(&ctx);
@@ -9544,6 +9740,8 @@ mod vsix_host;
 mod remote_host;
 #[path = "remote_project_host.rs"]
 mod remote_project_host;
+#[path = "project_import_host.rs"]
+mod project_import_host;
 #[path = "web_host.rs"]
 mod web_host;
 #[path = "clambers_host.rs"]
@@ -9580,12 +9778,18 @@ mod deploy_host;
 mod run_host;
 #[path = "micro_host.rs"]
 mod micro_host;
+#[path = "teaching_host.rs"]
+mod teaching_host;
 
 #[path = "asm_host.rs"]
 pub(crate) mod asm_host;
 
 #[path = "atari2600_run_host.rs"]
 mod atari2600_run_host;
+#[path = "control_hints_host.rs"]
+mod control_hints_host;
+#[path = "vectrex_run_host.rs"]
+mod vectrex_run_host;
 #[path = "compile_host.rs"]
 mod compile_host;
 
@@ -9669,6 +9873,9 @@ mod lsp_host;
 
 #[path = "tasks_host.rs"]
 mod tasks_host;
+
+#[path = "php_host.rs"]
+mod php_host;
 
 #[path = "live_host.rs"]
 mod live_host;
@@ -9825,8 +10032,7 @@ mod tests {
         let mut session = recovery::Session::start(&root).unwrap();
         session.write_now(&doc.snapshot()).unwrap();
         session.abandon();
-        recovery::wait_until_let_go(&root);
-        let (orphans, found) = recovery::find_orphans(&root);
+        let (orphans, found) = recovery::find_orphans_once_let_go(&root);
         let outcome = found.into_iter().next().unwrap().outcome.unwrap();
         drop(orphans);
         std::fs::remove_dir_all(&root).unwrap();
@@ -9889,6 +10095,34 @@ mod tests {
                 assert!(!endings[..i].contains(ending), "{name} lists {ending} twice");
             }
         }
+    }
+
+    /// How To Code reads like a book in one tab: a link turns the page in place, Back (Alt+Left) goes back through
+    /// the pages read, and Forward returns, without a tab left behind for each page.
+    #[test]
+    fn a_link_in_how_to_code_turns_the_page_in_the_same_tab() {
+        let (mut app, _ctx) = app_with("");
+        app.open_how_to_code();
+        let readme = app.docs[app.active].path.clone().expect("the guide opened");
+        assert!(is_guide_page(&readme), "{readme:?}");
+        let tabs = app.docs.len();
+        let folder = readme.parent().unwrap().to_path_buf();
+        let (one, two) = (folder.join("01-introduction.md"), folder.join("02-working-with-limoniter.md"));
+        let mut back = std::mem::take(&mut app.docs[app.active].guide_back);
+        back.push(readme.clone());
+        app.turn_guide_page(&one, back, Vec::new());
+        let mut back = std::mem::take(&mut app.docs[app.active].guide_back);
+        back.push(one.clone());
+        app.turn_guide_page(&two, back, Vec::new());
+        assert_eq!(app.docs.len(), tabs, "still one tab for the guide");
+        assert_eq!(app.docs[app.active].path.as_deref(), Some(two.as_path()));
+        app.go_through_history(true);
+        assert_eq!(app.docs[app.active].path.as_deref(), Some(one.as_path()));
+        app.go_through_history(true);
+        assert_eq!(app.docs[app.active].path.as_deref(), Some(readme.as_path()));
+        app.go_through_history(false);
+        assert_eq!(app.docs[app.active].path.as_deref(), Some(one.as_path()), "and forward again");
+        assert_eq!(app.docs.len(), tabs);
     }
 
     pub(super) fn app_with(settings: &str) -> (Limoniter, Context) {
@@ -10835,6 +11069,64 @@ mod tests {
         command(&mut app, &ctx, Command::ViewHex);
         draw(&mut app, &ctx, Vec::new());
         assert!(app.docs[app.active].hex_mode);
+    }
+
+    #[test]
+    fn the_structure_panel_takes_a_file_apart_and_follows_the_hex_cursor() {
+        let folder = std::env::temp_dir().join(format!("limoniter-structure-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let file = folder.join("program");
+        // A small Amiga program: the hunk header, one code hunk and its end.
+        let mut program = Vec::new();
+        for long in [0x3F3u32, 0, 1, 0, 0, 2, 0x3E9, 2, 0x4E75_4E75, 0x4E71_4E71, 0x3F2] {
+            program.extend(long.to_be_bytes());
+        }
+        std::fs::write(&file, &program).unwrap();
+        let (mut app, ctx) = app_with("structure_panel=true\n");
+        app.open_path(&file);
+        command(&mut app, &ctx, Command::ViewHex);
+        draw(&mut app, &ctx, Vec::new());
+        draw(&mut app, &ctx, Vec::new());
+        let doc = &app.docs[app.active];
+        let tree = app.panels.structure_panel.marks(doc.id, doc.hex.version()).expect("read with a template");
+        assert_eq!(tree.error, None);
+        let find = |tree: &crate::structure::Tree, path: &str| (1..tree.nodes.len()).find(|i| tree.path(*i) == path).unwrap();
+        // The hex cursor moved into a field chooses it in the tree.
+        app.doc().hex.move_caret(13, false);
+        draw(&mut app, &ctx, Vec::new());
+        let tree = app.panels.structure_panel.tree().unwrap();
+        assert_eq!(app.panels.structure_panel.selected(), Some(find(tree, "first_hunk")));
+        // A field chosen in the tree selects its bytes, and stays chosen though the cursor is in a field inside it.
+        let block = find(tree, "hunks[0]");
+        let mut action = app.panels.structure_panel.choose_node(block);
+        let mut frame = ctx.run_ui(input(Vec::new()), |ui| {
+            if let Some(action) = action.take() {
+                app.run_panel_action(action, ui);
+            }
+        });
+        frame.textures_delta.clear();
+        draw(&mut app, &ctx, Vec::new());
+        let hex = &app.docs[app.active].hex;
+        assert_eq!((hex.anchor.min(hex.caret), hex.anchor.max(hex.caret)), (24, 40));
+        assert_eq!(app.panels.structure_panel.selected(), Some(block));
+        // The hex view names the field under a byte.
+        let doc = &app.docs[app.active];
+        let tree = app.panels.structure_panel.marks(doc.id, doc.hex.version()).unwrap();
+        assert_eq!(tree.describe(33, &doc.hex).as_deref(), Some("hunks[0].contents[1]: 117 (0x75)"));
+        // An edit is read again at once.
+        app.doc().hex.move_caret(32, false);
+        app.doc().hex.type_byte(20);
+        draw(&mut app, &ctx, Vec::new());
+        let doc = &app.docs[app.active];
+        let tree = app.panels.structure_panel.marks(doc.id, doc.hex.version()).unwrap();
+        assert_eq!(tree.describe(32, &doc.hex).as_deref(), Some("hunks[0].contents[0]: 20 (0x14)"));
+        // A change that makes it another kind of file leaves it with no template.
+        app.doc().hex.move_caret(0, false);
+        app.doc().hex.type_byte(20);
+        draw(&mut app, &ctx, Vec::new());
+        let doc = &app.docs[app.active];
+        assert!(app.panels.structure_panel.marks(doc.id, doc.hex.version()).is_none());
+        let _ = std::fs::remove_dir_all(&folder);
     }
 
     #[test]
@@ -11932,7 +12224,7 @@ mod tests {
     }
 
     fn names_left_behind(root: &Path) -> Vec<String> {
-        let (orphans, found) = recovery::find_orphans(root);
+        let (orphans, found) = recovery::find_orphans_once_let_go(root);
         let names = found.into_iter().map(|item| item.outcome.unwrap().0.name).collect();
         recovery::tidy(orphans);
         names
@@ -11969,9 +12261,8 @@ mod tests {
         assert_ne!(docs[1].recovery_key, before);
         session.flush(Duration::from_secs(5));
         session.abandon();
-        recovery::wait_until_let_go(&root);
 
-        let (orphans, found) = recovery::find_orphans(&root);
+        let (orphans, found) = recovery::find_orphans_once_let_go(&root);
         assert_eq!(found.len(), 1);
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         recovery::tidy(orphans);
@@ -11996,8 +12287,7 @@ mod tests {
         // Nothing here waits: the copy has to be on the disk by the time this returns.
         session.abandon();
         assert_eq!(names_left_behind(&root), ["A"]);
-        recovery::wait_until_let_go(&root);
-        let (orphans, found) = recovery::find_orphans(&root);
+        let (orphans, found) = recovery::find_orphans_once_let_go(&root);
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         recovery::tidy(orphans);
         let back = Document::from_recovered(meta, body).unwrap();

@@ -1,5 +1,7 @@
 # 1. Introduction
 
+[Contents](README.md) · [Working with Limoniter ›](02-working-with-limoniter.md)
+
 How To Code is a guide to writing Amiga demos that work: on every Amiga they claim to run on, and leaving the machine as they found it. This is version 8. It keeps what version 7 got right in 1993, corrects what it got wrong, and swaps 1993's tools for today's.
 
 It's written for someone who can already program, perhaps in 68000 assembly, perhaps in something else, and wants to write demos for the Amiga's own chips: the copper, the blitter, bitplanes, sprites and sound. It's also for anyone coming back after thirty years, who remembers `$DFF180` but not which of their old habits broke on an A1200.
@@ -36,7 +38,7 @@ CC0 covers this guide and its examples. The tools and players it points to (Shri
 
 ## What has changed since 1993
 
-**The documentation is free.** In 1993 the V39 includes and Autodocs came only with a Commodore developer registration (£85 a year in the UK, v7 said), and v7 wasn't allowed to include them. Today the *Hardware Reference Manual* and the ROM Kernel Manuals can be read online, and Hyperion's NDK 3.2, the includes and Autodocs for AmigaOS 3.2, is a free download from Aminet. Its Autodocs say which version added each function. [Further reading](18-further-reading.md) has the links.
+**The documentation is free.** In 1993 the V39 includes and Autodocs came only with a Commodore developer registration (£85 a year in the UK, v7 said), and v7 wasn't allowed to include them. Today the *Hardware Reference Manual* and the ROM Kernel Manuals can be read online, and Hyperion's NDK 3.2, the includes and Autodocs for AmigaOS 3.2, is a free download from Aminet. Its Autodocs say which version added each function. [Further reading](19-further-reading.md) has the links.
 
 **The tools run on other computers.** Most Amiga demos are now written on a PC or a Mac and run in an emulator: an assembler such as vasm, a linker such as vlink, an editor, and FS-UAE or WinUAE to run the result in seconds. WinUAE's cycle-exact mode is close enough to a real A500 for timing an effect, and both emulators can be debugged through from an editor (Limoniter, or Bartman's extension for Visual Studio Code): see [debugging and testing](16-debugging-and-testing.md).
 
@@ -74,3 +76,5 @@ Each is also run on a **68020, 68040 and 68060 with fast RAM**. That is where de
 Before an example goes in, it's run both ways on emulated A500s with Kickstart 1.3 and 3.1, and on the faster processors, and must put the machine back as it found it. If you find one that doesn't, or anything else in v8 that's wrong, please report it. v7 promised: "I won't be angry if 100 people point out the same mistake. If no one does and everyone tells me later that they knew - then I will!" That still stands.
 
 As Comrade J put it in 1993: "I didn't write this for fun, I wrote it for you to use!"
+
+[Contents](README.md) · [Working with Limoniter ›](02-working-with-limoniter.md)

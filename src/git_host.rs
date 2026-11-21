@@ -920,6 +920,10 @@ impl Limoniter {
         if self.git.offered.contains(&folder) || self.git.never.iter().any(|never| folder.starts_with(never)) {
             return;
         }
+        // Limoniter's own files (How To Code's pages, its settings) aren't the person's to keep a history of.
+        if crate::settings::data_folder().is_some_and(|data| folder.starts_with(data)) {
+            return;
+        }
         let files = std::fs::read_dir(&folder).map(|entries| entries.flatten().filter(|e| e.path().is_file()).take(5).count()).unwrap_or(0);
         let home_or_root = folder.parent().is_none() || std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).is_some_and(|home| folder == Path::new(&home));
         if files >= 3 && !home_or_root {

@@ -84,11 +84,17 @@ pub enum Micro6502 {
     Atari2600,
     /// The NES: its cartridge, an .nes file.
     Nes,
+    /// Atari's 400, 800, XL and XE: a program DOS loads, an .xex file.
+    Atari8,
+    /// The Atari 7800: its cartridge, an .a78 file.
+    Atari7800,
+    /// The Apple II: a floppy that boots into the program.
+    Apple2,
 }
 
 impl Micro6502 {
-    /// What a `; machine:` line near the top of the source says, if one does: `c64` (or `commodore 64`) or `bbc`
-    /// (or `bbc micro`), after `;`, `//` or `*`, in any case.
+    /// What a `; machine:` line near the top of the source says, if one does: `c64` (or `commodore 64`), `bbc`
+    /// (or `bbc micro`), `2600`, `nes`, `atari8`, `7800` or `apple2`, after `;`, `//` or `*`, in any case.
     pub fn said_in<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Micro6502> {
         lines.into_iter().take(50).find_map(|line| {
             let line = line.trim_start();
@@ -100,6 +106,9 @@ impl Micro6502 {
                 "bbc" | "bbc micro" | "bbcmicro" => Some(Micro6502::Bbc),
                 "atari 2600" | "atari2600" | "2600" | "vcs" | "atari vcs" => Some(Micro6502::Atari2600),
                 "nes" | "famicom" | "nintendo" => Some(Micro6502::Nes),
+                "atari8" | "atari 8-bit" | "atari 800" | "atari800" | "atari xl" | "atari xe" | "atari 800xl" | "atari 400" => Some(Micro6502::Atari8),
+                "7800" | "atari 7800" | "atari7800" => Some(Micro6502::Atari7800),
+                "apple2" | "apple ii" | "apple 2" | "apple ][" | "apple iie" | "apple2e" => Some(Micro6502::Apple2),
                 _ => None,
             }
         })

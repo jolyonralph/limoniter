@@ -14,11 +14,11 @@ pub fn files() -> &'static [(&'static str, &'static [u8])] {
     bundled::FILES
 }
 
-/// What the program's copy is, so an old unpacked one is known to be old.
-fn stamp() -> String {
+/// What the program's copy of a guide is, so an old unpacked one is known to be old.
+fn stamp(files: &[(&str, &[u8])]) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    for (name, bytes) in files() {
+    for (name, bytes) in files {
         name.hash(&mut hasher);
         bytes.hash(&mut hasher);
     }
@@ -27,12 +27,18 @@ fn stamp() -> String {
 
 /// Unpacks the guide into a folder, unless the same copy is there already.
 pub fn unpack_to(folder: &Path) -> Result<(), String> {
+    unpack_files_to(files(), folder)
+}
+
+/// Unpacks a guide's files into a folder, unless the same copy is there already. The Spectrum's guide is unpacked
+/// this way too.
+pub fn unpack_files_to(files: &[(&str, &[u8])], folder: &Path) -> Result<(), String> {
     let mark = folder.join(".version");
-    let stamp = stamp();
+    let stamp = stamp(files);
     if std::fs::read_to_string(&mark).is_ok_and(|was| was == stamp) {
         return Ok(());
     }
-    for (name, bytes) in files() {
+    for (name, bytes) in files {
         let path = folder.join(name);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -52,9 +58,14 @@ pub fn unpacked() -> Result<PathBuf, String> {
 /// The examples, and the files they include, copied into a folder to start a demo from. Files already there are
 /// kept as they are. Returns how many were copied.
 pub fn copy_examples(to: &Path) -> Result<usize, String> {
+    copy_files_examples(files(), to)
+}
+
+/// A guide's examples copied into a folder, keeping files already there; how many were copied.
+pub fn copy_files_examples(files: &[(&str, &[u8])], to: &Path) -> Result<usize, String> {
     std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
     let mut copied = 0;
-    for (name, bytes) in files() {
+    for (name, bytes) in files {
         let Some(file) = name.strip_prefix("examples/") else { continue };
         let path = to.join(file);
         if path.exists() {
@@ -98,6 +109,31 @@ pub fn single_file_demo() -> String {
         }
     }
     out
+}
+
+/// Every link from one page of a guide to another, or to a picture or an example, finds its file; each chapter is
+/// in the README's contents, and starts as a chapter does. For the tests of both guides.
+#[cfg(test)]
+pub(crate) fn check_links(files: &[(&str, &[u8])]) {
+    let names: Vec<&str> = files.iter().map(|(name, _)| *name).collect();
+    let readme = files.iter().find(|(name, _)| *name == "README.md").map(|(_, bytes)| String::from_utf8_lossy(bytes)).unwrap();
+    for (name, bytes) in files {
+        let Some(chapter) = name.strip_suffix(".md") else { continue };
+        let text = String::from_utf8_lossy(bytes);
+        for (at, _) in text.match_indices("](") {
+            let target: String = text[at + 2..].chars().take_while(|&c| c != ')' && c != '#').collect();
+            if target.contains("://") || target.is_empty() || target.starts_with('<') {
+                continue;
+            }
+            assert!(names.contains(&target.as_str()), "{name} links to {target}, which isn't in the guide");
+        }
+        if let Some((number, _)) = chapter.split_once('-').filter(|(n, _)| n.len() == 2 && n.chars().all(|c| c.is_ascii_digit())) {
+            let number: u32 = number.parse().unwrap();
+            assert!(readme.contains(&format!("| {number} | [**")) && readme.contains(&format!("]({name})")), "{name} is in the README's contents, as a link to it");
+            assert!(text.contains("[Contents](README.md)"), "{name} has its Back / Contents / Next line");
+            assert!(text.starts_with(&format!("# {number}. ")), "{name} starts with its number");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -150,6 +186,13 @@ mod tests {
                 assert!(build_with(&path, &[("OS_FRIENDLY", mode)]).starts_with(&[0, 0, 3, 0xF3]), "{} is a hunk executable", path.display());
             }
         }
+    }
+
+    /// Every link from one page of the guide to another, or to a picture or an example, finds its file: a chapter
+    /// renumbered or renamed must take its links with it. Each chapter is in the README's table of contents, too.
+    #[test]
+    fn the_guide_links_to_files_that_are_there() {
+        check_links(files());
     }
 
     /// The single-file demo includes nothing, holds each of the startup's files whole, and builds both ways into

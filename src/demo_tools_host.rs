@@ -161,4 +161,14 @@ mod tests {
             assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M68k));
         }
     }
+
+    #[test]
+    fn the_spectrum_how_to_code_starter_is_on_new_as() {
+        let (mut app, _ctx) = app_with("");
+        let demo = crate::howtocode_spectrum::single_file_demo();
+        let index = app.new_kinds.iter().position(|k| k.name == "ZX Spectrum demo (Z80, How To Code)").unwrap();
+        app.new_of_kind(index);
+        assert_eq!(app.docs[app.active].text.all_lines().len(), demo.lines().count());
+        assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::Z80));
+    }
 }

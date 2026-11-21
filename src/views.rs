@@ -2403,7 +2403,10 @@ pub fn hex_pane_char(b: &HexBuffer, format: &TextFormat, value: u8) -> Option<ch
     format.charset.entry(format.state, value).filter(|entry| entry.kind == Kind::Printable).and_then(|entry| entry.unicode).or_else(|| (format.charset.holds_characters() && (32..127).contains(&value)).then_some(value as char))
 }
 
-pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, format: &TextFormat, options: ViewOptions, input_on: bool) -> Option<ContextCommand> {
+/// The hex view. `fields`, when the Structure panel is showing, colours each field's bytes and names the field under
+/// the pointer.
+#[allow(clippy::too_many_arguments)]
+pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, format: &TextFormat, options: ViewOptions, input_on: bool, fields: Option<&crate::structure::Tree>) -> Option<ContextCommand> {
     let font = FontId::monospace(options.font_size);
     let cell = cell_size(ui, &font);
     let header = cell.y + 4.0;
@@ -2461,10 +2464,23 @@ pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, form
             buffer.move_caret(hit.position, true);
         }
     }
+    if let Some(tree) = fields
+        && let Some(p) = response.hover_pos()
+        && !response.dragged()
+    {
+        let hit = hex_hit(p, view, top, left, cell, header, buffer.len());
+        if hit.position < buffer.len()
+            && let Some(words) = tree.describe(hit.position as u64, &*buffer)
+        {
+            response.clone().on_hover_ui_at_pointer(|ui| {
+                ui.label(egui::RichText::new(words).size(options.font_size * 0.9));
+            });
+        }
+    }
     let mut command = None;
     crate::fit::context_menu(&response, |ui| command = context_menu(ui, false, None));
     let caret_on = caret_is_on(ui, state, focused);
-    paint_hex(ui, buffer, view, top, left, rows, cell, header, caret_on, &font, format);
+    paint_hex(ui, buffer, view, top, left, rows, cell, header, caret_on, &font, format, fields);
     command
 }
 
@@ -2565,7 +2581,7 @@ fn handle_hex_key(b: &mut HexBuffer, key: Key, m: Modifiers, rows: isize) {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn paint_hex(ui: &Ui, b: &HexBuffer, view: Rect, top: usize, left: usize, rows: usize, cell: Vec2, header: f32, caret_on: bool, f: &FontId, format: &TextFormat) {
+fn paint_hex(ui: &Ui, b: &HexBuffer, view: Rect, top: usize, left: usize, rows: usize, cell: Vec2, header: f32, caret_on: bool, f: &FontId, format: &TextFormat, fields: Option<&crate::structure::Tree>) {
     let painter = ui.painter_at(view);
     painter.rect_filled(view, 0.0, theme::editor_back());
 
@@ -2590,6 +2606,9 @@ fn paint_hex(ui: &Ui, b: &HexBuffer, view: Rect, top: usize, left: usize, rows: 
             let (hx, ax) = (cell_x(hex_cell(i)), cell_x(ascii_cell(i)));
             let hex_rect = Rect::from_min_size(pos2(hx, y), vec2(cell.x * 2.0, cell.y));
             let ascii_rect = Rect::from_min_size(pos2(ax, y), vec2(cell.x, cell.y));
+            if let Some(tree) = fields {
+                crate::structure_panel::paint_byte(&painter, tree, p, hex_rect, ascii_rect);
+            }
             if p >= sel_start && p < sel_end {
                 painter.rect_filled(hex_rect, 0.0, theme::selection());
                 painter.rect_filled(ascii_rect, 0.0, theme::selection());

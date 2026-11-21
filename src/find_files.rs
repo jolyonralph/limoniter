@@ -231,7 +231,7 @@ pub struct ReplaceJob {
 }
 
 /// A name for a backup that isn't already in use, so that an earlier backup is never overwritten.
-fn free_backup_name(path: &Path) -> PathBuf {
+pub(crate) fn free_backup_name(path: &Path) -> PathBuf {
     let with = |tail: &str| {
         let mut name = path.as_os_str().to_owned();
         name.push(tail);

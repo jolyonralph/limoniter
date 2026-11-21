@@ -59,6 +59,14 @@ fn fitted<R>(ui: &mut Ui, room: Vec2, add: impl FnOnce(&mut Ui) -> R) -> R {
     // goes with it, for [`height_left`].
     let inside = UiBuilder::new().scope_id(body).ui_stack_info(egui::UiStackInfo::default().with_tag_value(ROOM_TAG, room));
     let (inner, needed) = if was.wide || was.tall {
+        // egui gives a menu's or box's contents only the size it had last time, so a scroll area inside could never
+        // grow when the window does: it's given the room there is now, the ways it scrolls.
+        if was.tall {
+            ui.set_max_height(room.y);
+        }
+        if was.wide {
+            ui.set_max_width(room.x);
+        }
         let shown = egui::ScrollArea::new([was.wide, was.tall]).id_salt("fit-scroll").auto_shrink([true, true]).max_width(room.x).max_height(room.y).show(ui, |ui| ui.scope_builder(inside, add).inner);
         (shown.inner, shown.content_size)
     } else {
@@ -428,5 +436,90 @@ mod tests {
         }
         assert!(menu_rect.is_positive(), "the menu was shown");
         assert!(ctx.content_rect().expand(0.5).contains_rect(menu_rect), "{menu_rect:?}");
+    }
+
+    /// The menu's rectangle after a few frames of it open on a screen `height` high, with `items` in it.
+    fn menu_after(ctx: &Context, height: f32, items: usize, frames: usize) -> egui::Rect {
+        let mut menu_rect = egui::Rect::NOTHING;
+        for _ in 0..frames {
+            let _ = ctx.run_ui(screen(600.0, height), |ui| {
+                ui.data_mut(|data| data.insert_temp(opened_menus_key(), vec!["Long".to_string()]));
+                let _ = menu_button(ui, "Long", |ui| {
+                    for row in 0..items {
+                        let _ = ui.button(format!("Item {row}"));
+                    }
+                });
+            });
+            menu_rect = ctx.memory(|memory| {
+                memory.areas().visible_layer_ids().into_iter().filter(|layer| layer.order == egui::Order::Foreground).filter_map(|layer| memory.area_rect(layer.id)).fold(egui::Rect::NOTHING, |all, rect| all.union(rect))
+            });
+        }
+        menu_rect
+    }
+
+    /// A menu that scrolled on a small window shows everything again, with no scroll bar, once the window is made
+    /// big enough, and scrolls again when it's made small: it follows the window, not the size it first had.
+    #[test]
+    fn a_menu_follows_the_window_as_it_grows_and_shrinks() {
+        let ctx = Context::default();
+        let small = menu_after(&ctx, 300.0, 30, 8);
+        assert!(small.height() <= 300.5, "scrolls on the small window: {small:?}");
+        let big = menu_after(&ctx, 1200.0, 30, 8);
+        assert!(big.height() > small.height() + 200.0, "grows to show every item: {small:?} {big:?}");
+        let again = menu_after(&ctx, 300.0, 30, 8);
+        assert!(again.height() <= 300.5, "and fits the small window again: {again:?}");
+    }
+
+    /// The same when the menu is closed while the window changes and opened again after, as people do: it's measured
+    /// afresh for the window it opens in, not drawn with the scroll bar it last needed.
+    #[test]
+    fn a_menu_opened_again_after_the_window_grows_shows_everything() {
+        let ctx = Context::default();
+        let small = menu_after(&ctx, 300.0, 30, 8);
+        assert!(small.height() <= 300.5);
+        egui::Popup::close_all(&ctx);
+        for _ in 0..3 {
+            let _ = ctx.run_ui(screen(600.0, 1200.0), |ui| {
+                ui.data_mut(|data| data.remove_temp::<Vec<String>>(opened_menus_key()));
+                let _ = menu_button(ui, "Long", |ui| {
+                    let _ = ui.button("Item");
+                });
+            });
+        }
+        let big = menu_after(&ctx, 1200.0, 30, 8);
+        assert!(big.height() > small.height() + 200.0, "shows every item when opened again: {small:?} {big:?}");
+    }
+
+    /// A sub-menu's rectangle after a few frames of it open (in "Top"), on a screen `height` high.
+    fn sub_menu_after(ctx: &Context, height: f32, frames: usize) -> egui::Rect {
+        let mut sub_rect = egui::Rect::NOTHING;
+        for _ in 0..frames {
+            let _ = ctx.run_ui(screen(600.0, height), |ui| {
+                ui.data_mut(|data| data.insert_temp(opened_menus_key(), vec!["Top".to_string(), "Sub".to_string()]));
+                let _ = menu_button(ui, "Top", |ui| {
+                    let _ = ui.button("First");
+                    let _ = menu_button(ui, "Sub", |ui| {
+                        for row in 0..30 {
+                            let _ = ui.button(format!("Item {row}"));
+                        }
+                    });
+                });
+            });
+            // The sub-menu is the tallest of the menus shown.
+            sub_rect = ctx.memory(|memory| {
+                memory.areas().visible_layer_ids().into_iter().filter(|layer| layer.order == egui::Order::Foreground).filter_map(|layer| memory.area_rect(layer.id)).max_by(|a, b| a.height().total_cmp(&b.height())).unwrap_or(egui::Rect::NOTHING)
+            });
+        }
+        sub_rect
+    }
+
+    /// A sub-menu follows the window too, growing to show everything when the window does.
+    #[test]
+    fn a_sub_menu_follows_the_window_as_it_grows() {
+        let ctx = Context::default();
+        let small = sub_menu_after(&ctx, 300.0, 10);
+        assert!(small.height() <= 300.5, "scrolls on the small window: {small:?}");
+        let big = sub_menu_after(&ctx, 1200.0, 10);
+        assert!(big.height() > small.height() + 200.0, "grows to show every item: {small:?} {big:?}");
     }
 }

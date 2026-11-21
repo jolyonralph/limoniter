@@ -907,6 +907,23 @@ fn a_dot_command_is_saved_and_f9_says_where_it_goes() {
 }
 
 #[test]
+fn the_68000_assemblers_warnings_are_in_the_output_and_beside_their_lines_without_stopping_it() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    app.new_document();
+    app.doc().untitled = "warn.s".into();
+    app.doc().text.set_content(vec!["start:\tmoveq #143,d7".into(), "\tmove.w d7,$dff180".into(), "\trts".into()]);
+    app.doc().update_syntax();
+    let made = app.assemble_to_run(crate::assemblers::Cpu::M68k, true);
+    assert!(made.is_ok(), "a warning doesn't stop the program being made: {:?}", made.map(|r| r.name));
+    let marked = app.doc().text.code.as_ref().map(|c| c.problems.clone()).unwrap_or_default();
+    assert_eq!(marked.len(), 1, "{marked:?}");
+    assert!(marked[0].0 == 0 && marked[0].1.starts_with("warning: ") && marked[0].1.contains("-113"), "{marked:?}");
+    assert!(app.script_output.iter().any(|l| l.contains("(1): warning: ") && l.contains("#143")), "{:?}", app.script_output);
+    assert_eq!(app.doc().text.caret_line, 0);
+}
+
+#[test]
 fn source_for_the_amiga_becomes_an_amiga_executable() {
     crate::highlight::load_now();
     let (mut app, _ctx) = app_with("");
@@ -1106,4 +1123,66 @@ fn source_is_built_only_with_the_assembler_for_its_way_of_writing() {
     assert!(app.assembler_for_source(Cpu::M68k, highlight::ASM_680X0_GNU).is_err());
     app.project = None;
     assert!(matches!(app.assembler_for(Cpu::M68k), Choice::Program { id: "vasm", .. }), "the settings' choice again");
+}
+
+/// Source for the teaching machines runs on F9 at once, beside the source, on the machine built in for it (there's
+/// nowhere else to ask about), and its breakpoints are set by line.
+#[test]
+fn f9_runs_the_teaching_machines_source_on_its_built_in_machine() {
+    let (mut app, _ctx) = app_with("");
+    crate::highlight::load_now();
+    for (name, source, machine) in [("first.ssem", crate::ssem::KILBURN, crate::running::Machine::Ssem), ("squares.edsac", crate::edsac::SQUARES, crate::running::Machine::Edsac), ("hello.pal", crate::pal8::HELLO, crate::running::Machine::Pdp8)] {
+        app.new_document();
+        app.doc().untitled = name.into();
+        app.doc().text.set_content(source.lines().map(str::to_string).collect());
+        app.doc().update_syntax();
+        app.assembly_tick();
+        assert!(app.doc().text.code.is_some(), "{name} has breakpoints");
+        let run = app.runnable().expect("it reads").expect("a program");
+        assert_eq!(run.machine, machine);
+        app.run_on_machine();
+        assert!(matches!(app.dialog, Dialog::None), "{name}: nothing to ask");
+        let id = app.docs[app.active].id;
+        assert!(app.running.sessions.iter().any(|s| matches!(s.kind, run_host::SessionKind::Teaching { doc_id, .. } if doc_id == id)), "{name} runs");
+    }
+    // A mistake is said, and marked at its line.
+    app.new_document();
+    app.doc().untitled = "wrong.pal".into();
+    app.doc().text.set_content(vec!["*200".into(), "TAD NOWHERE".into()]);
+    app.doc().update_syntax();
+    app.assembly_tick();
+    app.run_on_machine();
+    assert!(matches!(&app.dialog, Dialog::Message { body, .. } if body.contains("NOWHERE")));
+    assert_eq!(app.doc().text.code.as_ref().map(|c| c.problems.iter().map(|p| p.0).collect::<Vec<_>>()), Some(vec![1]));
+    app.stop_all_sessions();
+}
+
+/// QL source (the starter File, New as, QL program (68008) gives) becomes a QDOS executable: F9's program, saved
+/// beside the source with its header kept after it, which sQLux, Q-emuLator and MAME's QL can each run.
+#[test]
+fn ql_source_becomes_a_qdos_program_saved_beside_it() {
+    crate::highlight::load_now();
+    let (mut app, _ctx) = app_with("");
+    let folder = std::env::temp_dir().join(format!("limoniter-qlsave-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("hello.asm");
+    std::fs::write(&path, crate::ql::STARTER).unwrap();
+    assert!(app.open_path(&path));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M68k), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Ql, crate::running::Format::QdosExe, "hello_exe"));
+    app.assemble_and_save();
+    let saved = std::fs::read(folder.join("hello_exe")).expect("the program is saved beside the source");
+    assert_eq!(saved, *run.bytes);
+    assert_eq!(crate::ql::kept(&saved).map(|k| (k.kind, k.data_space)), Some((1, 4096)));
+    assert!(app.running.sessions.is_empty(), "nothing runs");
+    for id in ["sqlux", "qemulator", "mame"] {
+        assert!(crate::emulators::by_id(id).unwrap().runs(run.machine, run.format), "{id}");
+    }
+    // The starter is one of File, New as's kinds, in a group of its own.
+    let kind = super::new_kinds::NewKind::usual().into_iter().find(|k| k.name == "QL program (68008)").unwrap();
+    assert_eq!((kind.group(), kind.starter.as_str()), ("Sinclair QL", crate::ql::STARTER));
+    let _ = std::fs::remove_dir_all(&folder);
 }

@@ -1,5 +1,7 @@
 # 2. Working with Limoniter
 
+[‹ Introduction](01-introduction.md) · [Contents](README.md) · [General guidelines ›](03-general-guidelines.md)
+
 In 1993, v7's chapter on assemblers told you to avoid K-Seka, explained why Devpac 2's optimiser made broken code, and how to drive ArgAsm from CygnusEd with ARexx macros. Most of those tools are long gone, and so is the way of working: the source in RAM on the Amiga itself, one crash away from being lost.
 
 Today most Amiga demos are written on a PC or a Mac. The source is assembled there, and the program runs in an emulated Amiga a second later. This chapter is about doing that with Limoniter, the editor v8 ships in. Every example in v8 is plain Devpac/vasm syntax, so you can just as well use vasm and your own editor, and the chapter says how.
@@ -38,7 +40,7 @@ With the NDK, Limoniter explains system functions as you write (below), and its 
 
 ## Starting a project
 
-The quickest start is v8's own: copy `examples/startup.i`, `hardware.i`, `system.i` and `startup_demo.s` into a folder of your own, rename `startup_demo.s`, and open the folder with **File › Open folder…**. [Chapter 4](04-startup-and-exit.md) explains the startup; your demo is four things (`Init`, `Frame`, `VBlank` and `Copper`) and the startup does the rest, either taking the machine or keeping the system running, as `OS_FRIENDLY` says.
+The quickest start is v8's own: copy [`examples/startup.i`](examples/startup.i), `hardware.i`, `system.i` and `startup_demo.s` into a folder of your own, rename `startup_demo.s`, and open the folder with **File › Open folder…**. [Chapter 4](04-startup-and-exit.md) explains the startup; your demo is four things (`Init`, `Frame`, `VBlank` and `Copper`) and the startup does the rest, either taking the machine or keeping the system running, as `OS_FRIENDLY` says.
 
 Limoniter has starters of its own too: **File › New as › Amiga demo (68000)**, a complete program in one file (it takes the machine, shows a bitplane with a raster bar bouncing over it, and gives everything back when the left mouse button is pressed), and **Amiga copper only (68000)**, a smaller one with a copper gradient. They're good for trying something out. For a demo you mean to release, start from v8's startup: it also handles being started from an icon, finds the VBR, and can keep the system running.
 
@@ -48,7 +50,7 @@ Press **F9** (**File › Run on machine**). Limoniter assembles the source, and 
 
 The first time, F9 asks which emulator to run on; it remembers. **File › Run on › Stop running** closes the emulator. **File › Run on › Assemble and save** keeps the program, saved beside the source.
 
-Limoniter decides that 68000 source is for the Amiga when it has a `SECTION`, or uses the custom chips at `$DFF000`, or calls the system's libraries. An `.adf` disk image in front goes into the emulated floppy drive instead, so F9 boots a disk you've made (see [releasing](17-releasing.md)).
+Limoniter decides that 68000 source is for the Amiga when it has a `SECTION`, or uses the custom chips at `$DFF000`, or calls the system's libraries. An `.adf` disk image in front goes into the emulated floppy drive instead, so F9 boots a disk you've made (see [releasing](18-releasing.md)).
 
 ## Limoniter's assembler
 
@@ -133,9 +135,9 @@ Use it to look inside your own work (did the module really end up in the program
 
 ## Crunching, disks and real Amigas
 
-- **Crunching**: **File › Run on › Amiga crunchers and music…** runs Shrinkler or Cranker on a program, and can crunch a copy every time F9 builds. When and how, in [releasing](17-releasing.md).
+- **Crunching**: **File › Run on › Amiga crunchers and music…** runs Shrinkler or Cranker on a program, and can crunch a copy every time F9 builds. When and how, in [releasing](18-releasing.md).
 - **Music**: the same window converts a ProTracker module for LightSpeedPlayer, and writes the calls to its replay routine into your source ([chapter 12](12-sound-and-music.md)).
-- **Trackmo disks**: **Tools › Amiga › Boot disk with no file system (trackmo)** builds a disk with no AmigaDOS on it, the way many demos and games are made; see [releasing](17-releasing.md).
+- **Trackmo disks**: **Tools › Amiga › Boot disk with no file system (trackmo)** builds a disk with no AmigaDOS on it, the way many demos and games are made; see [releasing](18-releasing.md).
 - **A real Amiga**: **File › Send to device** copies a file to a Gotek's USB stick, a card, a shared folder, or an FTP server (an Amiga running one, say). See [chapter 16](16-debugging-and-testing.md).
 
 ## What changed from v7
@@ -143,3 +145,5 @@ Use it to look inside your own work (did the module really end up in the program
 - v7's tools (K-Seka, ArgAsm, CygnusEd and its ARexx macros) are gone. Devpac and ASM-One are still used on real Amigas; on other computers, vasm and vlink, or Limoniter's own assembler.
 - v7's Devpac advice (`opt o3-`, so the optimiser didn't turn relocatable addresses into short ones) isn't needed with Limoniter's assembler or with vasm's `-no-opt`, which don't optimise at all. If you turn an optimiser on, test what it makes.
 - v7 assumed you'd write and run on the same Amiga. Now the emulator is a second away, so test early and on every machine: that's [chapter 16](16-debugging-and-testing.md).
+
+[‹ Introduction](01-introduction.md) · [Contents](README.md) · [General guidelines ›](03-general-guidelines.md)

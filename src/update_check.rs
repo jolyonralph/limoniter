@@ -1,6 +1,6 @@
 //! Help, Check for a newer Limoniter, and the same once a day by itself while the setting's on: asks GitHub for
-//! Limoniter's latest release and says if it's newer than this one. Nothing is downloaded; the person is shown the
-//! download page.
+//! Limoniter's latest release and says if it's newer than this one. What's then done about it (the download page, or
+//! Limoniter updating itself) is in update_host.rs and self_update.rs.
 //!
 //! The Microsoft Store's Limoniter and the Flatpak are kept up to date by the Store and by Flathub, so they don't
 //! ask by themselves, and when asked they say where the update comes from.

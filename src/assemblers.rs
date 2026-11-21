@@ -224,7 +224,18 @@ pub struct Assembled {
 /// settings (MACHINE in the source wins over it).
 fn own_settings(cpu: Cpu) -> Vec<(&'static str, i64)> {
     match cpu {
-        Cpu::M68k => vec![(asm::m68k::SETTING, asm::m68k::chosen().id())],
+        Cpu::M68k => {
+            let mut settings = vec![(asm::m68k::SETTING, asm::m68k::chosen().id())];
+            // The maths coprocessor chosen beside it, as vasm's -m68881 chooses one.
+            if asm::m68k::chosen_fpu() != asm::m68k::Fpu::None {
+                settings.push((asm::m68k::FPU_SETTING, asm::m68k::chosen_fpu().id()));
+            }
+            // And the 68851 MMU, as vasm's -m68851 chooses it.
+            if asm::m68k::chosen_mmu() != asm::m68k::Mmu::None {
+                settings.push((asm::m68k::MMU_SETTING, asm::m68k::chosen_mmu().id()));
+            }
+            settings
+        }
         _ => Vec::new(),
     }
 }
@@ -518,6 +529,12 @@ fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
     let chosen = asm::m68k::chosen();
     if chosen != asm::m68k::Processor::M68000 {
         args.push(format!("-m{}", chosen.name().to_ascii_lowercase()));
+    }
+    if asm::m68k::chosen_fpu() != asm::m68k::Fpu::None {
+        args.push(format!("-m{}", asm::m68k::chosen_fpu().name()));
+    }
+    if asm::m68k::chosen_mmu() != asm::m68k::Mmu::None {
+        args.push(format!("-m{}", asm::m68k::chosen_mmu().name()));
     }
     // The NDK's headers, when there's one, for an Amiga program's INCLUDEs.
     if let Some(headers) = crate::amiga_ndk::current().and_then(|n| n.include_folder()) {

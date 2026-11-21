@@ -99,6 +99,9 @@
 #pragma {what} is SAS/C's own, and is left out here.
 #pragma {what} is SAS/C's way of calling a library: include the library's <proto/...> header instead, which {} understands.
 #value,rotation is an 8-bit value and an even rotation up to 30
+#{v} doesn't fit in 32 bits; its low 32 bits are used
+#{v} doesn't fit in a byte (-128 to 255); its low byte, ${:02X}, is used
+#{v} doesn't fit in a word (-32768 to 65535); its low 16 bits, ${:04X}, are used
 #{} is {v}, which doesn't fit in a byte
 $$ is the page being assembled into, which needs a DEVICE
 $1000: start song A
@@ -115,6 +118,7 @@ $D022 background 1
 $D023 background 2
 $D024 background 3
 $DD00:
+$FFF8 and $FFF9 tell the BIOS what the cartridge is: $FF, then where its ROM starts ($C000) and 7 for a 7800
 $SELECTION
 $ea
 ${:04X} is in the Game Boy's RAM, not its cartridge: only ROM ($0000 to $7FFF) can hold code and data. Use SECTION "name", WRAM0 and DS for variables.
@@ -127,9 +131,11 @@ ${address:08X}, outside the program
 ${address:X} is outside the device's 64K
 ${at:0digits$X} hasn't been read
 ${count:04X} ({count}): runs out {pal:.2} times a second on PAL, {ntsc:.2} on NTSC
+${key:02X} isn't a key Limoniter knows for it.
 ${load:X} (its ORG)
 ${logical:04X} isn't in {} (${start:04X} to ${:04X})
 ${v:04X}: low ${:02X}, high ${:02X}{note}
+${v:X}.W is sign-extended, so it's the address ${:X}; leave off the .W for ${v:X}
 ${value:02X}, stored on line {} to {} (${address:04X}), the {} byte of the {}
 ${word:04X}: not for the volume and tone chip (its address is %10 in bits 10-9)
 ${} is too large a number
@@ -142,6 +148,7 @@ ${} is too large a number
 '{c}' isn't in the Spectrum's character set
 '{c}' isn't understood there.
 '{other}' isn't a source: the blitter's are A, B and C (a, b and c for NOT).
+'{word}' can only be used outside a struct, at the start of a line.
 ( and )
 ($FF8265), and the words skipped at the end of each line ($FF820F). Press space to leave.
 (before the first label)
@@ -197,6 +204,11 @@ ${} is too large a number
 , {unreadable} couldn't be read
 , {} symbols
 -({inner}) needs an address register
+-23 to C      A = a
+-24 to C      A = -b1 (the first b to try)
+-25 to C      A = -remainder
+-26 to C      A = b
+-27 to C
 -3 Shrinkler's own default
 -adpcm
 -amigapreview
@@ -207,6 +219,7 @@ ${} is too large a number
 . This file has 
 . matches a line break too
 . takes line breaks
+...and {} more.
 ...but for a row of smileys across the middle, row 14.
 ...but for a row of smileys across the middle.
 .PI1-3, or .PC1-3 packed
@@ -216,6 +229,7 @@ ${} is too large a number
 .ocp
 .udg, .chr, a font, .spr, or any file of bytes
 .{end} files
+.{letter} takes a whole number, and {text} isn't one: .S, .D, .X and .P take floating-point numbers
 .{name} files are run by Windows, so an editor shouldn't take them over.
 // It starts at {entry:08x}.\n
 // a red border
@@ -246,6 +260,7 @@ ${} is too large a number
 1 open file
 1 problem.
 1 word ({pixels} pixels)
+10 FOR I=1 TO 10\n20 PRINT "HELLO FROM LIMONITER ";I\n30 NEXT I
 10 PRINT "HELLO FROM LIMONITER"
 10 PRINT "Hello from Limoniter"
 10: no line interrupt
@@ -281,6 +296,8 @@ ${} is too large a number
 2 bits a pixel, chunky
 2 for a two-line kernel
 2 more when either number is negative
+212; 0     / carriage return, line feed, and the end
+22 to Cl      back to line 5 (CI = 4)
 24-bit (AGA)
 25 rows
 256 bytes to port $5b
@@ -314,6 +331,7 @@ ${} is too large a number
 4 bits a pixel, Amiga bitplanes (one after another)
 4 bits a pixel, Master System and Game Gear (planes row by row)
 4 bits a pixel, chunky (Mega Drive, MSX2, Next tiles)
+40 columns
 40 columns, no scroll
 40 tracks, one side (180K)
 40 tracks, two sides (360K)
@@ -356,6 +374,8 @@ ${} is too large a number
 6809: fcb, fdb
 6: the sprites' patterns at $3800
 6: the sprites' tiles from $0000
+7800 mode, locked, the BIOS switched out
+7800, which checks no signature.
 7: a dark blue backdrop
 7: the background is colour 0
 7: the border is colour 0 of the sprites'
@@ -417,6 +437,9 @@ ${} is too large a number
 ; {} different places, the most alike made one
 < and >
 <!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title></title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n  <script src="script.js"></script>\n</body>\n</html>\n
+<? becomes <?php, which works whatever short_open_tag is set to. <?xml is left as it is.
+<?= to <?php echo too
+<?= works whatever the settings, so it's usually left as it is
 <?php\n\n
 <?xml version="1.0" encoding="UTF-8"?>\n
 <dos.h> is SAS/C's own header (getreg, putreg and the like); the others don't have it.
@@ -427,6 +450,11 @@ A .bootdisk file: the pieces, their sectors and addresses, and the boot block
 A .cue sheet only says how to read a .bin image beside it: open the .bin itself.
 A .tap that loads and shows it: LOAD ""
 A 48K snapshot, its 48K from $4000, saved at PC ${pc:04X}
+A 7800 cartridge with no bank switching starts at $F000, $E000, $C000, $8000, $6000 or $4000, but this starts at ${low:04X}.
+A = -count
+A = count
+A = count - 1
+A = {}   CI = {}   instructions done: {}
 A AND C
 A B-tree index node is empty, so the disk is damaged.
 A B-tree index record is cut short, so the disk is damaged.
@@ -493,6 +521,9 @@ A OR C
 A PAL frame with no bitplanes: COLOR00 where the beam was, and beside it each other colour set, line by line. {note}
 A PC boot sector: the BIOS loads these 512 bytes at 7C00h and jumps to them.
 A PNG of what's shown
+A QDOS job: F9 makes it an executable program (type 1, with its data space) and starts it with EXEC in sQLux,
+A QL microdrive image is {IMAGE_LEN} bytes, and this is {}.
+A QL program is loaded wherever QDOS finds room for it, and starts at its first byte, but this is put at ${low:04X}: leave out the ORG.
 A Raspberry Pi kernel image ({which}), loaded at &{at:X}
 A SID tune, loading at ${:04X}, init ${:04X}{}
 A Sega Game Gear cartridge. F9 writes its header (TMR SEGA, with the Game Gear's region) and checksum, and runs
@@ -513,9 +544,11 @@ A Vectrex cartridge holds 32K, and this is {} bytes.
 A Vectrex cartridge starts at address 0, but this starts at ${low:04X}: put ORG 0 at its top.
 A Vectrex cartridge starts with its copyright line, FCC "g GCE 1982" and FCB $80, or the Vectrex won't run it.
 A Vectrex cartridge, “{name}”: its code starts at ${code:04X}, after the header
-A Vectrex cartridge. F9 runs it in MAME (with the Vectrex's ROM) or ParaJVE.
+A Vectrex cartridge. F9 runs it on the built-in Vectrex (with the Vectrex's BIOS chosen), or in MAME or ParaJVE.
 A XOR C (line drawing)
 A Z88 card image is a whole number of 16K banks.
+A ZIP's address, or a Git repository's (GitHub, GitLab, Codeberg or any other):
+A ZX80 program (.o)
 A ZX81 program (.p)
 A backup or restore is still running.
 A blank character at the end
@@ -523,6 +556,7 @@ A blank disk instead
 A blank image, formatted as its machine would format it, to add files to.
 A blank tile after this one
 A block of the file is past the end of the card.
+A block of type &{id:02X} ({what}) was left out.
 A block of {} bytes at offset {offset} has no header before it{}.
 A boot sector ends with 55 AA at byte 510, or the PC won't boot it: end the source with TIMES 510-($-$$) DB 0 and DW 0AA55h.
 A bootable floppy
@@ -538,6 +572,7 @@ A cartridge is made from an 8K or 16K binary, or from a program that loads at $8
 A cartridge was made
 A chain of clusters loops back on itself.
 A chequerboard of 16 by 16 squares: rows of $FFFF0000, turned over every 16 rows.
+A chunk of type &{id:04X}, which isn't played, was left out.
 A code file from a tape, loading at ${at:04X}
 A command is still running. Stop it first, in the Output panel.
 A command is written as “command: Its title = function”, not “{value}”.
@@ -559,7 +594,11 @@ A disk image or archive to compare
 A disk image was made
 A faint line down each level of indentation
 A few letters of the file's name; @ for this file's functions and labels, # for the folder's
+A field's name
+A field's type, or a word such as if or let
+A field's type, or a word such as struct or if
 A file
+A file ending
 A file name can't have {bad} in it.
 A file name can't have “{}” in it.
 A file of a kind ProDOS 8 doesn't have is in the way, so it can't be changed safely.
@@ -574,6 +613,7 @@ A file's catalog record is too short, so the volume is damaged.
 A file's index points off the disk, so it can't be changed safely.
 A file's sector maps end before it does, so the disk is damaged.
 A file's sector maps loop, so the disk is damaged.
+A first program for the Manchester Baby, written for Limoniter.
 A fixed-point number, 16 bits each side of the point: faster than FLOAT.
 A floating-point number, as Sinclair BASIC's (5 bytes).
 A folded block shows as { … } on one line, the line with its closing bracket folded in with it
@@ -591,12 +631,16 @@ A folder with the program's C, its makefiles for amiga-gcc (Makefile.gcc), vbcc 
 A folder's catalog record is too short, so the volume is damaged.
 A folder's hash chains loop, so the disk is damaged.
 A folder, or one file
+A foreach loop
 A fork runs past the end of the volume, so the disk is damaged.
 A fork's extents give it less space than its length, so the disk is damaged.
 A fragmented file's extents should be in the extents overflow file, which the volume hasn't got.
 A frame of NTSC for the Atari 2600: rainbow bands that roll up the screen.
 A frame's work: moves the raster bar a line up or down, by rewriting the line numbers in its copper waits.
 A fresh shell
+A full IDE for today's code and yesterday's computers. Write, build and debug in Python, C, Rust and the rest, with language servers and Git. Assemble for the Amiga, the ZX Spectrum, the Commodore 64, the Atari ST and more, and run it on a built-in machine or an emulator Limoniter installs for you. Edit text and bytes of any size, and explore the disks, tapes and archives of classic computers.
+A function code is 0 to {most} here, and {v} isn't
+A function code is SFC, DFC, a data register or a number (#5), and {text} isn't one
 A function that returns the cheapest item
 A headerless block has no name to change.
 A hires sprite on each
@@ -604,6 +648,9 @@ A hunk of a kind not written here (${other:X}).
 A is 0
 A is 0: the picture on
 A is 0: the picture on, and this line black
+A is the mode: 0, 1 or 2
+A job can be loaded anywhere, so the code only uses addresses relative to the PC (lea name(pc),a1).
+A k-factor is -64 to 63, and {v} isn't
 A key to play it with
 A label is letters, digits and _, and doesn't start with a digit.
 A language server for {languages}, run with Node.js
@@ -621,6 +668,7 @@ A listing for
 A machine-code block can't be 64K or more.
 A merge is partway through. Settle each conflict below, press + beside it, then Commit.
 A mirror goes one way: choose which side is to be made like the other.
+A name
 A name can't have any of these in it: < > : " / \\ | ? *
 A name for the panels open now, such as Writing or Debugging:
 A new disk
@@ -632,8 +680,12 @@ A new {} file, with a starter to change
 A newer Limoniter
 A normal cartridge is 8,192 or 16,384 bytes; this is {n}.
 A note's value: Hz
+A number and some text can't be put together like that.
 A number for the game, 0 to 15 (wall, ladder and so on): CharPad's material
 A number for the game: CharPad's tile tag
+A number or a label is needed here.
+A number was wanted here.
+A number, a name or a bracket
 A palette (.nxp, 512 or 256 bytes)
 A partition's table of runs is cut short, so the image is damaged.
 A partition's table of runs isn't one a disk image has, so the image is damaged.
@@ -641,6 +693,7 @@ A patch can only be applied to a folder on this computer, and {} isn't one.
 A patch to apply
 A pattern, such as (\\w+)@(\\w+)\\.com
 A problem here
+A program file starts with where it loads, and this one is too short to have one.
 A program that decrunches itself as it starts
 A program that shows it: LOAD and RUN
 A program that unpacks and starts itself
@@ -658,6 +711,7 @@ A regular expression, such as one for a line with a date or time in it. Leave em
 A relative (REL) file's side sectors aren't followed here, so it isn't scratched.
 A relocation comes before its hunk.
 A remote file is written sftp://user@host/path, or ftp://user@host/path.
+A repository is cloned with Git; without Git, one on GitHub, GitLab or Codeberg is downloaded as a ZIP instead.
 A resource fork is named after its file: rename the file, and its resource fork goes with it.
 A row for each entry, for a spreadsheet
 A run of the disk image's sectors comes out shorter than it says, so the image is damaged.
@@ -693,15 +747,17 @@ A string runs past the end of the catalog's strings.
 A symbol comes before its hunk.
 A tag…
 A tape was made
+A template can't have '{c}' here.
+A template needs a name: a line such as name "IFF picture" at the top.
 A terminal couldn't be made: {e}
 A terminal in the window, in the file's folder.
-A text and hex editor for files old and new, and an explorer for the disks, tapes and archives of classic computers.
 A third picture: the left one in grey, with every pixel that differs in magenta
 A tile map (.ltm) or a CharPad project (.ctm, versions 5 to 9)
 A tile that's another turned or mirrored is kept once, the place's attribute saying how it's shown
 A to Z
 A trailing Ctrl-Z is kept as a byte.
 A vector list: how many lines, less one, then each as y, x.
+A way of showing it, such as hex
 A whole frame with no sprites gives the processor {best} cycles ({worst} at worst).
 A whole number from -128 to 127, in one byte.
 A whole number from -2147483648 to 2147483647, in four bytes.
@@ -766,6 +822,7 @@ ATASCII (Atari 8-bit)
 ATASCII EOL
 ATASCII EOL (0x9B)
 ATASCII EOL (0x9B) only
+ATASCII is ASCII for letters and digits; $9B ends a line.
 ATN
 ATN(x): the angle, in radians, whose tangent is x.
 ATTR
@@ -791,6 +848,7 @@ Across
 Across ($D01D)
 Across the top of each page
 Add
+Add 20 to Cl  not yet: back to line 6 (CI + -3)
 Add a bar
 Add a colour
 Add a device to send to: a card, a folder, a server, a Spectrum Next or an Ultimate 64.
@@ -912,10 +970,17 @@ An .nxi, .sl2, .slr or a BMP of a Next screen's size
 An .sl2 (or .slr), in the Next's own order, without the palette
 An AYFX bank (.afb), as AYFX Editor saves it
 An AYFX bank holds at most 255 effects.
+An American 7800's BIOS runs only cartridges signed with Atari's key: A7800, which needs no BIOS, runs it
 An Amiga boot block: its code from offset 12 (it's loaded wherever there's room)
 An Amiga program: {} ({})
+An Amstrad CPC program. F9 puts it on a disk (AMSDOS's data format) as a binary file, which RUN" and its name
 An Apple II hi-res screen is 8192 bytes.
+An Apple II program booted by Limoniter's disk is at most 3,840 bytes (fifteen sectors of track 0), and this is {}.
+An Apple II program. F9 puts it on a floppy (.dsk) that boots straight into it, and runs it in an emulator:
 An Atari 2600 cartridge: {}K, {}{what}
+An Atari 7800 cartridge ends at $FFFF, with the vectors: end the source with ORG $FFFA and .word nmi, reset, irq.
+An Atari 7800 cartridge. F9 makes the .a78 file (its A78 header says 16K of plain ROM, NTSC, a joystick in
+An Atari 8-bit program, for the 400, 800, XL and XE. F9 makes the .xex file DOS loads (its segments, then where
 An Atari ST boot sector: its code from the branch at the start
 An Atari ST program: text {} bytes, data {}, BSS {}{}
 An Atari binary load file, {} segments from ${low:04X} to ${high:04X}, run at ${run:04X}
@@ -942,6 +1007,7 @@ An Ultimate can run .prg and .crt files, play .sid and .mod files, and mount .d6
 An Ultimate doesn't run {}.
 An Ultimate set up in File, Send to device is offered here by name.
 An address or a label
+An anonymous function: function ($a) { ... }
 An effect goes on too long.
 An effect has no end.
 An effect is before the data's label.
@@ -951,6 +1017,10 @@ An effect is past the data's end.
 An empty column before this one
 An empty row below this one
 An end-of-tape marker is at offset {offset}.
+An entry of {} took up no bytes, so the list would never end.
+An entry's name
+An entry's value must be a number.
+An enum or flags type is stored as a whole number, such as u8 or u16be, not {base_name}.
 An expression to work out, while paused
 An image or archive is only read here, so nothing is saved over it. Save a copy takes a file out of it.
 An image or archive is only read here. Save a copy, in the browser, takes a file out of it.
@@ -979,6 +1049,7 @@ Any other speed, in bits a second
 Appearance
 Appended data
 Apple
+Apple II
 Apple II 3.5-inch disk, 800K, ProDOS (.po)
 Apple II ProDOS, /{name} ({size}, {order_name})
 Apple II and the SNES
@@ -988,6 +1059,7 @@ Apple II hi-res screen
 Apple II text
 Apple II {dos}, volume {volume} ({size}, {order_name})
 Apple disk image, {}
+AppleWin, or MAME's Apple IIe. The disk's first sector copies the program to where it's put here, so it can
 Applesoft BASIC
 Apply
 Apply a patch
@@ -1010,6 +1082,7 @@ As a CSV file…
 As a tile map (.ltm), or a CharPad project (.ctm) for the C64's modes
 As an RSID it expects a C64 just after reset, with the KERNAL and BASIC ROMs in and its interrupts
 As dc.w lines, inside a copper list before its END
+As fast as it goes
 As hex
 As hex, in EBCDIC
 As long as its header says
@@ -1055,6 +1128,7 @@ At a cell, as PRINT AT
 At a rate
 At each vertical blank: the background scrolled a pixel further.
 At its SYS
+At its own speed
 At least
 At most
 At most 128 effects.
@@ -1070,7 +1144,9 @@ Atari 2600 (PAL)
 Atari 2600 TIA
 Atari 2600 cartridge
 Atari 2600 graphics
+Atari 7800
 Atari 8-bit
+Atari 8-bit (400, 800, XL, XE)
 Atari 8-bit SpartaDOS disk, "{name}" ({size})
 Atari 8-bit and 2600
 Atari 8-bit binary load file, 1 segment · {run}
@@ -1104,7 +1180,11 @@ Audio channel {n}'s sample
 Audio channel {n}'s sample length in words
 Audio channel {n}'s volume
 AutoDoc reader
+Automatic, by the file's ending and contents
+Automatic: none fits
+Automatic: {}
 Autosave is leaving this file for you to save: {why}.
+B and C are the border's two colours (the same for no flashing)
 B shift
 BA low (writes only)
 BA low: the processor can only write
@@ -1135,6 +1215,7 @@ BBC Micro text
 BBC Mode 7
 BEEP
 BEEP duration, pitch: plays a note, as on the Spectrum.
+BGND takes no operands
 BIN
 BIN 01010101: a number written in binary.
 BIOS
@@ -1188,6 +1269,7 @@ Bank {} (${:04X})
 Base64 decode
 Base64 encode
 Basic Latin
+Beam at {}, {}
 Bebbo's amiga-gcc builds the program with this: make -f Makefile.gcc
 Beside the text
 Beside this source. Unpacked to the buffer below, which must hold the whole file.
@@ -1333,6 +1415,7 @@ CAST
 CAST(type, x): x converted to that type.
 CHR
 CHR(n) or CHR$(n): the character with that code. Several codes give a string of them.
+CIA
 CIA 1 (keyboard, joysticks, IRQ)
 CIA 1 timer (60 Hz unless the tune sets it)
 CIA 1 timer for every song
@@ -1340,11 +1423,16 @@ CIA 1 timer for {n} songs, every frame for the rest (see Songs)
 CIA 2 (VIC bank, serial bus, NMI)
 CIA-A ($BFE001)
 CIA-B ($BFD000)
+CIO, for every channel
 CIRCLE
 CIRCLE x, y, radius: draws a circle.
 CJK Symbols and Punctuation
+CLA
+CLL
 CLS
 CLS: clears the screen.
+CMA
+CML
 CODE
 CODE(s$): the code of the string's first character.
 COLOR00
@@ -1395,6 +1483,7 @@ Cancel
 Caps Shift: click, then a key, to press them together. With Symbol Shift, Extended mode.
 Caps Shift: click, then a key, to press them together: a capital, or the word on a number key. With Symbol Shift, Extended mode.
 Card ID {:02X} {:02X} {:02X} {:02X}; {}K free.
+Carries on working, and says when it's ready to restart into
 Carry on
 Carry on playing
 Cart's sprites, map and sounds
@@ -1418,6 +1507,7 @@ Change the icon's tool types…
 Change the list…
 Change this colour
 Change this list…
+Change this template…
 Changed here and on the server since the last sync
 Changed here, and deleted from the server, since the last sync
 Changed in the file: save it (Ctrl+S) to keep the changes.
@@ -1433,6 +1523,9 @@ Changed on the right and deleted from the right since the last sync
 Changed on the right since the last sync, and deleted from the left
 Changed on the server
 Changed on the server, and deleted here, since the last sync
+Changed {disk} file(s) on disk.
+Changed {open} open file(s), unsaved, and {disk} on disk.
+Changed {open} open file(s), unsaved: Undo takes it back.
 Changed {}, now {}
 Changes
 Changes ({})
@@ -1465,12 +1558,15 @@ Characters that won't fit
 Characters: {}
 Check
 Check JSON or YAML against a schema
+Check each PHP file as it's saved
 Check every few seconds too
 Check for a newer Limoniter
 Check for a newer OpticOS ROM
 Check for changes by other programs
 Check the catalog's translations
 Check the catalogs
+Check this file (php -l)
+Check with php -l
 Checking {} ({} strings)…
 Checking {} runs…
 Checksums
@@ -1494,10 +1590,12 @@ Choose a function.
 Choose a register.
 Choose a schema first.
 Choose a serial port first.
+Choose a template first.
 Choose a {} to change it.
 Choose an encoding that can hold everything
 Choose another file
 Choose or make one…
+Choose the BIOS file…
 Choose the ROM file…
 Choose the emulator's program: where it's installed.
 Choose the folder
@@ -1508,6 +1606,7 @@ Choose what to compare on both sides.
 Choose what to copy first.
 Choose where it's to be applied first.
 Choose where it's to be applied.
+Choose where, and open
 Choose which emulator it is.
 Choose...
 Choose…
@@ -1524,8 +1623,11 @@ Clear C where A is set (D = aC)
 Clear every bookmark
 Clear list
 Clear the list
+Clears the accumulator, the link and the flags, and runs from the program counter
 Clears the character chosen
 Click a cell to paint with its tile
+Click a control's key, then press the key it's to be on. Esc leaves it as it was.
+Click a dot to set or clear that bit, as the Baby's typewriter buttons did.
 Click a state to go to it. Right-click to compare it. Where you are now stays in the list.
 Click beside a line's number for a breakpoint.
 Click beside a line's number for a breakpoint; it stops there.
@@ -1533,6 +1635,7 @@ Click one to select it in the hex, with its length, end or padding.
 Click the screen to play with the keyboard.
 Click the screen to type on the Spectrum.
 Click the screen to type on the {name}.
+Click to go to the line
 Click to lock this file against changes, or unlock it
 Click to show the rows in order of this column; again for the other way; a third time as in the file.
 Click to show this tab's buttons; double-click, or Ctrl+F1, to keep the ribbon open
@@ -1556,12 +1659,14 @@ Clipboard {number}
 Clipboards
 Clock:
 Clone a Git repository…
+Cloned from {url} with Git.
 Close
 Close (it has unsaved changes)
 Close all
 Close every panel
 Close it, ending the shell
 Close project
+Close the guide (Ctrl+W)
 Cnecin: wait for a key
 Code
 Code as a picture
@@ -1707,10 +1812,14 @@ Connects this to a repository on GitHub or elsewhere
 Console
 Containers and the cloud
 Containing…
+Contents
+Continue
 Contrast
 Control
 Control characters as names
 Control sequences
+Controls of the {}
+Controls…
 Convert
 Convert ({})
 Convert Number
@@ -1744,6 +1853,7 @@ Copy
 Copy A (D = A)
 Copy B (D = B)
 Copy C (D = C)
+Copy How To Code's Spectrum examples to a folder…
 Copy How To Code's examples to a folder…
 Copy a project from online (clone)…
 Copy a project that's already online, from GitHub or elsewhere
@@ -1801,6 +1911,7 @@ Couldn't make the copy to run.\n\n{e}
 Couldn't make the copy to send.\n\n{e}
 Couldn't make the folder {part}.\n\n{text}
 Couldn't make the folder {}.\n\n{e}
+Couldn't make the folder {}: {e}
 Couldn't make {}.\n\n{e}
 Couldn't move it to the Trash: {e}
 Couldn't move it to the Trash: {}
@@ -1812,8 +1923,10 @@ Couldn't open {}.\n\n{e}
 Couldn't open {}.\n\n{problem}
 Couldn't reach {host} on port {port}: {e}
 Couldn't reach {} on port {}: {e}
+Couldn't read it: {e}
 Couldn't read the clipboard.\n\n{e}
 Couldn't read the file: {e}
+Couldn't read {name}.\n\n{e}
 Couldn't read {}.
 Couldn't read {}.\n\n{e}
 Couldn't read {}: {e}
@@ -1842,6 +1955,7 @@ Couldn't write .gitignore: {e}
 Couldn't write to {}: {e}
 Couldn't write {}.\n\n{e}
 Couldn't write {}.\n\n{problem}
+Couldn't write {}: {e}
 Count words
 Counts the T-states spent in each routine and line, from now; click again to stop counting, and what was counted stays to read
 Cranker
@@ -1860,6 +1974,7 @@ Crunchers and music…
 Crunching after building is on, but {} wasn't found, so the program wasn't crunched (Run on, Amiga crunchers and music).
 Crunching {name} with {}
 Ctrl
+Ctrl+,
 Ctrl+.
 Ctrl+A
 Ctrl+Alt+H
@@ -1878,6 +1993,7 @@ Ctrl+J
 Ctrl+N
 Ctrl+O
 Ctrl+P
+Ctrl+Q
 Ctrl+R
 Ctrl+S
 Ctrl+Shift+0
@@ -1925,6 +2041,7 @@ Cyrillic
 DASM source with .byte tables, as these are saved
 DATA
 DATA values: values for READ to take, in order.
+DCA
 DEC PDP-11 and VAX
 DECLARE
 DECLARE FUNCTION f(...) AS type: lets a FUNCTION be used before it's written.
@@ -1935,6 +2052,7 @@ DIM and READ into an array
 DIM name AS type, or DIM a(10) AS UBYTE for an array: declares a variable.
 DMA and floppy controller
 DMA and interrupts
+DMA on, 160 pixels across
 DMA only
 DMA sound and Microwire
 DO
@@ -1978,6 +2096,7 @@ Decoded disk.{}
 Decrunched size
 Default editor for file types in Windows
 Default tool:
+Defer
 Degas low
 Degas…
 Delete
@@ -2004,6 +2123,7 @@ Deleted here since the last sync
 Deletes the downloaded EmuTOS
 Delete…
 Delimiter:
+Deposit
 Descending
 Destination line bytes
 Destination x
@@ -2053,6 +2173,7 @@ Document themes
 Documents
 Documents and markup
 Documents no rule fits use:
+Does one instruction
 Don't erase first
 Don't save
 Done
@@ -2065,18 +2186,22 @@ Down ($D017)
 Down the left of the text
 Download
 Download KickAssembler from theweb.dk
+Download a newer Limoniter by itself
 Download again
 Download from Aminet
+Download in the background
 Download its release
 Download its release from GitHub (Limoniter can do that, below), or b
 Downloaded and unpacked: {files} files, {count} functions.
 Downloaded to {}.
 Downloaded: {n} images.
 Downloading Boriel's ZX Basic {version} from {address}…
+Downloading Limoniter {version}…
 Downloading from Aminet and unpacking…
 Downloading {id} from Open VSX…
 Downloading {}…
 Downloading…
+Downloads it, then restarts into it with your files open again
 Drag across cells, then copy, cut, flip or invert them
 Drag across the map, then copy, cut or clear the block
 Drag across the screen, then copy, cut, flip or recolour it
@@ -2118,6 +2243,9 @@ ECS
 EDI
 EDI, one segment to a line
 EDI, onto one line
+EDSAC
+EDSAC (1949): Wilkes's table of squares
+EDSAC (1949): a first program (Initial Orders 2)
 EFI system partition
 ELSE
 ELSEIF
@@ -2163,6 +2291,7 @@ Each line: wait for it
 Each line: wait for it (line, then $07 for the left edge; $fffe is the mask), then a colour.
 Each of your commits keeps its own message
 Each one is got the simplest way there is on this computer. Anything run in the Terminal panel can be seen there first.
+Each one on disk has a .bak copy of how it was.
 Each part as a file of its own, into a folder
 Each place shows its tile in one of these, of 15 colours (the 16th see-through)
 Each row's background (COLUBK)
@@ -2174,10 +2303,12 @@ Each tile is 16 bytes: the low bit of each pixel's colour, eight rows, then the 
 Each tile its own
 Each tile keeps the characters at its top left
 Each time the window comes back into focus
+Each trap is the QL Technical Guide's (section 18.14): the key in d0, the channel in a0.
 Each word is $8000, the register's number times $100, and its value.
 Earlier
 Earlier searches will be listed here.
 Earlier: a lower number
+Early computing
 Easing curve
 East Asian (multi-byte)
 Eat the keys pressed meanwhile, so the space doesn't reach the desktop.
@@ -2239,12 +2370,14 @@ Errors: {errors}. Warnings: {warnings}. Translations checked: {}.
 Escape
 Even
 Event count mode counts the display's lines (its display-enable signal), so it only counts where the picture is; the first interrupt comes that many lines into the picture. Reload the count in the VBL handler each frame.
+Every PHP file in {name}
 Every background this colour
 Every chipset
 Every colour as the Next has it at reset
 Every conflict is settled.
 Every copy of the selection
 Every entry…
+Every file is UTF-8 already (or plain ASCII).
 Every file on both sides is read
 Every folder called {name}
 Every frame (vertical blank) for every song
@@ -2273,7 +2406,9 @@ Everything in short, a section for each kind of work
 Everything it needs is defined here, so no include files are needed.
 Exact prefetch
 Exactly this byte. It may mean something else in this document's encoding
+Examine
 Exclusive
+Execute
 Exomizer
 Expanded
 Expansion bus
@@ -2301,10 +2436,18 @@ FLASH
 FLASH 1: prints flashing (FLASH 0 to stop).
 FLI (multicolour, colours each line)
 FLOAT
+FMOVE can't write .{letter} to {}
+FMOVECR's constants are numbered 0 to 127 ($7F), and {v} isn't one
+FMOVEM can only put FP registers at -(An) or an address that can be written, and {} isn't
+FMOVEM can only take FP registers from (An)+ or an address, and {} isn't
+FNOP takes no operands
 FOR
 FOR i = 1 TO 10 STEP 1 ... NEXT i: a counted loop.
 FOR i = a TO b STEP n: how much i changes each time round.
 FOR i = a TO b: where the loop ends.
+FPU takes the coprocessor's number, 1 to 7 (or 0 for none), and {id} isn't one
+FSINCOS from an FP register
+FTST of an FP register
 FUNCTION
 FUNCTION name(parameters) AS type ... END FUNCTION: a routine that gives back a value.
 FXSR: an extra read before each line
@@ -2360,6 +2503,7 @@ Files on this computer
 Files on this kind of image have no order to change.
 Files open here change in their windows, unsaved, and can be undone.
 Files open here with unsaved changes are left alone.
+Files that aren't UTF-8 are read as Windows-1252 (which holds all of Latin-1) and written out as UTF-8.
 Files to leave out, such as *.min.js
 Files to put on the disk
 Files to search, and to leave out
@@ -2422,6 +2566,9 @@ Fits what it mustn't (not).
 Fits {fitting} of the choices, and should fit exactly one (oneOf).
 Fitting
 Fix
+Fix the safe ones
+Fix “headers already sent”
+Fix “headers already sent”…
 Fixed Huffman
 Fixed columns to comma-separated…
 Fixed point: every value is multiplied by 2 to this power before rounding (14 makes 1.0 into 16384)
@@ -2504,6 +2651,7 @@ Forth
 Forth: create with c, or ,
 Fortran DATA
 Forward
+Forward ›
 Found from the picture
 Found {f}.
 Found, or EmuTOS
@@ -2545,6 +2693,7 @@ GEM bit image
 GEMDOS
 GETKEY
 GETKEYSCANCODE
+GLK
 GNU as assembled it, but its linker (m68k-amigaos-ld) wasn't found beside {}, so no program could be made to run.
 GNU as reads only 68000 source written its own way (Assembly 680x0 (GNU as)), and the others only Motorola's: source is never given to one that can't read it.
 GNU as: .byte, .short, .long
@@ -2582,10 +2731,12 @@ Getting started
 Git
 Git couldn't be started: {e}
 Git couldn't change its settings.
+Git couldn't clone {url}: {e}
 Git couldn't read its settings.
 Git is set to use another tool:\n\n{}\n\nUse Limoniter instead? What's set now is kept, and Stop using Limoniter for Git puts it back.
 Git is still busy with the last thing asked.
 Git isn't installed on this computer yet. It's free, and the wizard shows how to get it.
+Git isn't installed, so the repository was downloaded as a ZIP ({zip}) and unpacked; it isn't a clone.
 Git isn't set to use Limoniter, so there's nothing to put back.
 Git keeps every version you choose to, so you can always go back or compare. It's free, it stays on your computer unless you put it online, and the wizard explains each step.
 Git now uses Limoniter for git difftool and git mergetool, for every repository on this computer.
@@ -2614,7 +2765,9 @@ Gives this tile copies of its characters, so drawing on it changes no other tile
 GlowIcons (OS 3.5)
 Go To
 Go array
+Go back to Limoniter {version}? This version, {}, is kept in its place, so you can come back to it the same way.
 Go back to looking where it's usually installed
+Go back to the previous version
 Go there
 Go to
 Go to any file in the folder from a few letters of its name.
@@ -2648,6 +2801,7 @@ HEX
 HEX(n): a 32-bit number as eight hex digits.
 HEX16
 HEX16(n): a 16-bit number as four hex digits.
+HLT
 HOP {}: the source is {}
 HOP: what the source is
 HP LIF volume · {label}{made}
@@ -2656,6 +2810,8 @@ HTML
 HTML page
 Half-brite as
 Halfwidth and Fullwidth Forms
+Halt
+Halted (HLT). Continue carries on after it.
 Halves
 Handler
 Hard drive
@@ -2700,6 +2856,7 @@ Hex, typing hex digits
 Hi-res
 Hidden in the Explorer, Go to file and searching:
 Hidden in this project
+Hide
 Hide .{end} files
 Hide comments
 Hide lines
@@ -2730,6 +2887,7 @@ Holds files edited lately. {}
 Home
 Home always goes to the start of the line
 How To Code
+How To Code: the ZX Spectrum
 How To Code: writing Amiga demos
 How fast the frames play; 0 stops them
 How files are compared
@@ -2739,6 +2897,7 @@ How many are the same and how many differ, for the whole and each folder at the 
 How many of each byte, $00 to $FF:
 How many of the palette's 256 places the picture takes; the rest are left as the Next has them at reset, for sprites and the other layers
 How quickly voice {v} rises when gated, and falls to its sustain level.
+How templates are written
 How the text is read on screen. The bytes don't change.
 How they were before is kept in a backup ending in before-restore.
 How things work
@@ -2750,6 +2909,7 @@ HxC (HFE) bit cells
 Hz
 Hz to start
 I've installed it: look again
+IAC
 IBM PC (DOS)
 IBM PC and DOS
 IBM mainframes and IBM i
@@ -2784,8 +2944,11 @@ INT(x): x rounded down to a whole number.
 INTEGER
 INVERSE
 INVERSE 1: prints with ink and paper swapped (INVERSE 0 to stop).
+IOF
+ION
 IPS is the oldest and reaches 16 MB; BPS and UPS check the file they're applied to and what they make.
 IPS patches only reach the first 16 MB of a file; BPS or UPS can do larger ones.
+ISZ
 ITALIC
 ITALIC 1: prints slanted (ITALIC 0 to stop).
 Ignore case
@@ -2835,6 +2998,8 @@ Inclusive
 Indent
 Indentation guides
 Indentation guides coloured by depth
+Initial Orders 1
+Initial Orders 2
 Ink
 Insert
 Insert Number
@@ -2863,6 +3028,7 @@ Install a VS Code extension
 Install again
 Install from a file…
 Install it in a terminal
+Install now
 Install this one
 Installed
 Installing Boriel's ZX Basic…
@@ -2897,7 +3063,6 @@ Inverse letters and signs on the screen are shown plain.
 Invert
 Invert A (D = a)
 Invert C (D = c)
-Is this 6502 program for a Commodore 64, a BBC Micro, an Atari 2600 or an NES? Its code doesn't say.
 It also plays a second SID at ${second:04X}{}: a stock C64 has only the one at $D400.
 It can't be recovered. {problem} It stays in place until you discard it.
 It changed on the server.
@@ -2912,14 +3077,15 @@ It couldn't be renamed: {e}
 It couldn't be saved: {e}
 It couldn't be started: {e}
 It couldn't be started: {} {}
+It counts down from 5 to 0 in line 30, where you can watch the dots change,
 It decodes, but to bytes that aren't UTF-8 text, so it can't be put in the document. Save it to a file instead.
 It didn't finish: see what it printed above.
 It didn't succeed: what it printed is in the Output panel.
 It doesn't assemble: line {}, {}
 It doesn't give any commands or events, so it has nothing to add. See How things work for how to write one.
 It doesn't say where the text is.
-It doesn't say whether it's for a Commodore 64, a BBC Micro, an Atari 2600 or an NES. Put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top to say.
 It doesn't say which file it edits.
+It doesn't say which machine it's for. Put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top to say.
 It ends too soon.
 It failed unexpectedly.
 It gives NaN for some lists
@@ -2965,10 +3131,12 @@ It reads {}.
 It says it has {} songs, where the format allows 1 to 256.
 It sets no run address (RUNAD), so once it's loaded Atari DOS goes back to its menu unless an init routine has started it; many loaders start such a file at its first segment, ${first:04X}.
 It starts from Amiga Forever's own system {disk} ({version}), which isn't in the package.
+It stays ready: Help, Check for a newer Limoniter offers it again
 It still has files in it that weren't compared, so it was kept.
 It stopped unexpectedly.
 It stopped without an answer{}.{}
 It takes the machine over from the system politely, so it can be given back afterwards: it opens
+It took 52 minutes on the Baby. Choose "As fast as it goes" to see the answer at once:
 It tried to hold too much: {what}{place}
 It unpacks to more than a gigabyte, which is more than an extension should.
 It unpacks, but what it holds isn't SNDH music: there's no SNDH at byte 12.
@@ -2977,6 +3145,7 @@ It was made for a {} C64 and a {} SID.
 It was stopped before this file.
 It was stopped before this.
 It was stopped.
+It's TAP version {version}; only 0, 1 and 2 are known, so it was played as version 1.
 It's TAP version {version}; only 0, 1 and 2 are known, so it was read as version 1.
 It's a BASIC program (an RSID with the BASIC flag): load it and RUN it; it has no routine to call.
 It's a CharPad file of version {version}: Limoniter reads versions 5 to 9.
@@ -2985,13 +3154,14 @@ It's a file on one side and a folder on the other, so it's left for you to sort 
 It's been damaged.
 It's built for {} only, not for this computer ({platform}).
 It's connected to {url} (as {name}). ✔ Push, in the Source control panel, sends your commits there.
+It's downloaded from GitHub and checked against the release's signature before anything changes. The version you have now is kept, so you can go back to it from the Help menu.
 It's kept beside Limoniter's settings. Tools, Saved comparisons lists it.
 It's listed under Comparisons in the Project panel, and goes wherever the project goes
 It's neither JSON nor YAML that can be read: {e}
 It's no longer set up.
 It's open here with changes not saved yet.
 It's read when the program stops.
-It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top.
+It's remembered while the file is open. To say in the source, put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top.
 It's still running.
 It's too short to be a recovery copy.
 It's yours to change, apart from the lines Limoniter keeps up to date.
@@ -3023,6 +3193,7 @@ Its memory
 Its memory banks aren't kept when the listing is tokenised again: load them in AMOS, or keep this file.
 Its memory banks aren't kept when the listing is tokenised again: load them in STOS, or keep this file.
 Its name
+Its own
 Its own program (JavaScript) isn't run, so these aren't here: {}.
 Its package.json can't be read: {e}
 Its package.json doesn't give its publisher and name.
@@ -3033,6 +3204,8 @@ Its screen as text
 Its start song is {}, outside its {} songs, so players start with song {}.
 Its {key} can't be read.
 JAM: stops the processor
+JMP
+JMS
 JPEG picture
 JPEG, PNG, IFF ILBM, or any older machine's picture Limoniter reads
 JR can't use the condition {}
@@ -3065,11 +3238,15 @@ Justify
 Justify centre
 Justify left
 Justify right
+KCC
 KERNAL and BASIC out, I/O in
 KERNAL and vectors
 KERNAL files
 KERNAL in ($0314)
 KERNAL out ($FFFE)
+KRB
+KRS
+KSF
 Katakana
 Keep
 Keep a .bak copy of each file changed on disk
@@ -3102,12 +3279,14 @@ Kept open, written to ${at:04X}
 Kept with the project {}, for this file.
 Key file:
 Keyboard
+Keys as they started
 KickAssembler
 KickAssembler by Mads Nielsen, downloaded from {KICKASS_DOWNLOAD} when asked.\nNo licence is stated with it; see http://theweb.dk/KickAssembler/ for its terms.\n
 KickAssembler needs Java, which wasn't found: install it (from adoptium.net, or your system's packages), or set JAVA_HOME.
 Kickstart ROM
 Kickstart ROM for the {}
 Kickstart:
+Kilburn's highest factor routine (amended), as Geoff Tootill wrote it out in his
 Kind
 Kind of computer for new files…
 Kind:
@@ -3119,6 +3298,7 @@ Kodak Photo CD image
 Kotlin array
 KryoFlux stream (one track)
 KryoFlux stream files
+LAS
 LBOUND
 LBOUND(array, n): the lowest index of the array's nth dimension.
 LCASE
@@ -3133,12 +3313,15 @@ LF
 LHA archive · {} file(s)
 LIF ASCII
 LIF ASCII, as text
+LINK's value is signed, so #{v} is taken as {}: write #{} if that's meant
 LN
 LN(x): the natural logarithm of x.
 LOAD
 LOAD "name" CODE: loads bytes from tape, as on the Spectrum.
 LONG
 LOOP
+LPSTOP is .W
+LPSTOP's new status register is 16 bits, and {v} doesn't fit
 LSP doesn't write DMACON itself: it pokes the channels to start into the low byte of a copper
 LSP insane (generated player)
 LSP micro (for small intros)
@@ -3210,6 +3393,7 @@ Left difficulty
 Left empty for a USB programmer that needs none
 Left for right
 Left margin:
+Left out:
 Left:  {}\nRight: {}\n
 Left:  {}\nRight: {}\nCompared by {by}\n{}\n\n
 Left: {}\nRight: {}
@@ -3234,14 +3418,18 @@ Limoniter can now open 1 type. To finish, choose Limoniter for it on the Windows
 Limoniter can now open {count} types. To finish, choose Limoniter for each one on the Windows page that just opened.
 Limoniter can read this kind of image, but can't change it yet.
 Limoniter can't decode this sound ({e}).
+Limoniter can't update itself on this system.
 Limoniter couldn't do this here: {other:?}
 Limoniter didn't close normally last time. These unsaved edits were kept.
+Limoniter doesn't know how to make this file into tape sound.
 Limoniter doesn't know that program, so it can't read what it prints or the program it makes. For {cpu} source it works with {}.
 Limoniter downloads its latest ready-made build from boriel.com, its author's site, and keeps it in a folder beside its own settings. Nothing else on the computer is changed.
 Limoniter gave an answer it shouldn't have: {other:?}
 Limoniter hasn't connected to {} before. Connect to it once with File, Open a remote file, to check its key and trust it, and keep its password if it needs one.
+Limoniter is back to {to}. Help, Go back to the previous version returns to {from}.
 Limoniter is free software under the Apache License 2.0.
 Limoniter is no longer registered with Windows. A type it was the default for will have Windows ask what to use.
+Limoniter is now {to}, updated from {from}. Help, Go back to the previous version returns to {from}.
 Limoniter is offered for text, code, data, BASIC, tape, disk and ANSI files. To make it the one they open in, choose it for each type in Windows' Default apps.
 Limoniter keeps the lines from here to limoniter-end up to date as files are added and taken away.
 Limoniter macro
@@ -3254,6 +3442,8 @@ Limoniter theme
 Limoniter website
 Limoniter writes CharPad's versions 5 to 9, not {version}.
 Limoniter writes the table between the two marked lines each time the disk is written, from the disk's map.
+Limoniter {version} couldn't be installed: {problem}
+Limoniter {version} has been downloaded and checked, and is ready to restart into.
 Limoniter {version} is out. This is {}.
 Limoniter {} is the latest.
 Limoniter's example: it loads each piece the table lists and jumps to the one that starts.
@@ -3278,9 +3468,14 @@ Line endings differ: {} on the left, {} on the right.
 Line number:
 Line numbers
 Line spacing
+Line {at} of the store was already filled, by source line {}.
+Line {line} uses an absolute address (at ${at:04X} in the program), and a QL program has to run wherever QDOS loads it: use the PC-relative form, as lea name(pc),a0 does.
 Line {line}, cycle {cycle}
 Line {number} comes after line {}: the numbers have to go up.
+Line {number} has no NEWLINE at its end, so the listing stops there.
 Line {number} says it's longer than what's left of the program, so the listing stops there.
+Line {number}: the ZX80 has no {c} character.
+Line {number}: the ZX80's lines are numbered from 1 to 9999.
 Line {number}: the ZX81 has no {c} character.
 Line {number}: the ZX81's lines are numbered from 1 to 9999.
 Line {number}: {e}
@@ -3306,10 +3501,12 @@ Line {} of the plan isn't a setting: {line}
 Line {} of the program is damaged, so the listing stops there.
 Line {} of the text has no line number.
 Line {} or the {lead} before it is a bad line with the usual scroll (3): the timing won't hold there.
+Line {} still says the old encoding, to change by hand: {text}
 Line {}, Column {}
 Line {}, column {}: {}
 Line {}: line numbers have to go up, and {number} comes after {}.
 Line {}: {e}
+Line {}: {message}
 Line {}: {number} is past the last line number there can be, 32767.
 Line {}: {number} is past the last line number there can be, {most}.
 Line {}: {why}
@@ -3326,6 +3523,7 @@ Lines you bookmark (Ctrl+F2) will be listed here.
 Lines {} to {}
 Lines {} to {}: each value is padded to its column's widest.
 Lines {} to {}: the padding is removed from each value.
+Link, accumulator
 Linux / Unix
 List lines
 List of open files
@@ -3338,6 +3536,7 @@ LoRes on, the layers in the usual order
 LoRes's pixels: the top half at $4000, the bottom at $6000.
 LoRes: 128×96, 256 colours
 Load
+Load address
 Load macro
 Load script
 Load {:06X} · Exec {:06X}{}
@@ -3349,6 +3548,7 @@ Loaded into memory
 Loaded to
 Loading bar
 Loads at
+Loads the program again and starts it from the beginning
 Load…
 Log to a file
 Log to a file…
@@ -3357,6 +3557,7 @@ Logical OR: true when either side is.
 Logs and system files
 Long
 Long lines continue on the next row. Saved files aren't changed
+Long tank {tank}: words {} to {}, the first at the bottom
 Longest line:
 Look again
 Look for warnings
@@ -3379,8 +3580,11 @@ Low resolution, on the new screen, from the next frame.
 Lower case
 Lua
 Lua table
-MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060 or CPU32, and {name} isn't one
+MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881, 68882 or 68851, and {name} isn't one
 MAME. It sets up the VDP (the video chip), draws a box of tiles whose colour changes as it runs, and has the Z80
+MARIA is told where the list is in a vertical blank
+MARIA's DMA and display mode
+MARIA's background colour
 MD001: a heading of level {hashes} straight after one of level {last_level}; headings go down one level at a time
 MD009: spaces at the end of the line (two make a line break; others do nothing)
 MD010: a tab; use spaces
@@ -3413,9 +3617,11 @@ MOVE ${value:04X} to ${register:03X} (no register there)
 MOVE ${value:04X} to {}{danger}
 MOVE (set when the program runs) to {name}
 MOVE, not CLR: on a 68000, CLR reads the port first
+MOVE16 moves (Ax)+ to (Ay)+, or between (Ay)+ or (Ay) and a long address
 MOVEC copies a control register ({}) to or from a data or address register
 MOVEC takes two operands: a control register and a data or address register
 MOVEQ takes -128 to 127, and {v} isn't
+MOVEQ's value is a signed byte, so #{v} puts {signed} in D{r}, not {v}: write #{signed} if that's meant, or use MOVE.L #{v},D{r}
 MSX
 MSX BASIC
 MSX cassette (CAS) · {} file(s)
@@ -3461,6 +3667,7 @@ Make it
 Make it again
 Make it from a shape
 Make it in
+Make its tape sound (WAV)
 Make one side exactly like the other, which deletes what the other hasn't got
 Make selections
 Make the .crt
@@ -3469,11 +3676,15 @@ Make the catalogs and the strings' header
 Make the catalogs with FlexCat
 Make the project
 Make the rest from these
+Make these changes
 Makefiles
 Making a Python environment in {}…
 Making the catalogs for {}…
 Manage add-ons…
 Manage devices…
+Manchester Baby (SSEM)
+Manchester Baby (SSEM, 1948): Kilburn's first program
+Manchester Baby (SSEM, 1948): a first program
 Map
 Map as characters
 Map's colours
@@ -3496,6 +3707,7 @@ Match case
 Matches in the code alone count
 Materials
 Mathematical Operators
+Maths coprocessor
 Mega Drive
 Mega Drive / Genesis
 Mega ST
@@ -3504,12 +3716,15 @@ Mega STE
 Mega STE (68000, 16 MHz)
 Memory
 Memory (KiB):
+Memory address
 Memory bank
 Memory banks
+Memory buffer
 Memory for the picture: 200 lines of 320 bytes (the address no longer needs to be a multiple of 256
 Memory for the screen: 32000 bytes, starting on a multiple of 256 as the ST's video needs.
 Memory from 16384
 Memory indirect addressing, {text},
+Memory management unit
 Memory, cache and bus
 Memory:
 Memory: {} bytes of the program, {} bytes still free{gap}.
@@ -3576,6 +3791,7 @@ Music ({})
 Music for a replayer
 Music module
 Music, packers and YM2149…
+Mute
 My add-on
 My script
 MyDOS
@@ -3593,6 +3809,7 @@ NEXT i: ends a FOR loop.
 NEXT {}
 NFSR: no read for each line's last word
 NL
+NOP
 NOT
 NOT x: true when x is false.
 NTSC
@@ -3646,6 +3863,7 @@ New name:
 New project
 New project…
 New script…
+New template of your own
 New translation
 New translation, or fill one in…
 New window
@@ -3669,6 +3887,7 @@ Next tab
 Next time, the encoding is worked out from the file again
 Next →
 Next, {folder} (by .sync)
+Next: line {next}, {}   {}
 No
 No C compiler for the {} was found on this computer. Install one of {}: Limoniter looks on the PATH{also} and where each usually goes, or in a folder named for it in Program Files, Downloads or on the Desktop.
 No CP/M directory was found on this disk in any format Limoniter knows.
@@ -3706,6 +3925,8 @@ No files yet. Add some from Tools, Project.
 No folder chosen
 No form of it could be assembled here on its own.
 No key
+No key is put in d0 just before it here.
+No keys are its joystick: Controls… chooses some.
 No language has those letters.
 No leader of the KERNAL's short pulses was found, so no files could be read: it may be all in a turbo loader's format.
 No length or end marker
@@ -3723,7 +3944,9 @@ No part is being followed.
 No picture yet
 No piece is marked to start, so the boot block wouldn't know where to jump.
 No port from 5500 to 5599 is free to serve on.
+No port from 8000 to 8099 is free to serve on.
 No port was free for the emulator's debugger.
+No previous version of Limoniter has been kept.
 No programmer found yet.
 No programmer was found. Is it plugged in (and, on Linux, are minipro's udev rules installed)?
 No project
@@ -3744,6 +3967,8 @@ No spelling mistakes were found.
 No strings found.
 No suggestions.
 No tasks here: none of Cargo.toml, a Makefile, package.json, go.mod or CMakeLists.txt above the file, and no project tasks.
+No template fits this file. Choose one above, or write your own.
+No template is being used.
 No test results were found in what it printed: see the Output panel.
 No thanks
 No time was spent on the program's own source lines.
@@ -3804,6 +4029,7 @@ Note the system's view, take the blitter, and show nothing: LoadView(0) puts the
 Note with time
 Notes:
 Nothing
+Nothing called {name} has been read yet.
 Nothing counted for these days yet.
 Nothing found
 Nothing has been changed yet. Each change will be listed here, and undoing one and typing something else starts a new branch, with nothing lost.
@@ -3818,18 +4044,24 @@ Nothing matches that. Try another word.
 Nothing on Open VSX matches that.
 Nothing on the disk yet: add a program, assembled from its source, and any data it needs.
 Nothing set up runs {} programs yet. Find emulators, under Devices and emulators, adds any that are installed, and Get an emulator there installs one.{words}
+Nothing that newer PHP took away was found.
+Nothing to change.
 Nothing to do each frame: the copper does it all.
 Nothing was added, because that text has characters EBCDIC doesn't have.
 Nothing was assembled.
+Nothing was changed.
 Nothing was recorded, so there's no new macro.
 Nothing was restored, because a backup of how things are now couldn't be made first.\n\n{problem}
 Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.
 Nothing: just text
+Nothing: magic quotes are always off, so it's false
+Nothing: take the call out
 Now and then, a note of the shortcut for a command just chosen from a menu or the command box, to learn the keys by
 Nowhere
 Number of Words: {}\nNumber of Unwrapped Lines: {}\nNumber of characters (non-space): {}
 Number of bytes (use 0x for hex):
 Number of columns to {} on every line, starting at this line and column.
+NumberFormatter, from the intl extension
 Numbers are written from their stored values, without a ! or # to say their precision.
 Numbers are written from their stored values; a double-precision one has a # after it.
 Numbers down the left of the text
@@ -3840,6 +4072,7 @@ OK
 OP: what the destination becomes
 OR
 OS-9 disk{named}{within}
+OSR
 OUT
 OUT port, value: writes a byte to a Z80 port.
 OVER
@@ -3852,7 +4085,10 @@ Off
 Off, at any pixel
 Off, drawing changes only pixels, and each cell keeps the colours it has
 Offset (decimal, or 0x for hex):
+Offset {at} (0x{at:X}) is past the end of the file.
+Old Latin-1 and Windows-1252 files made UTF-8…
 Old NTSC (6567R56A)
+Old files made UTF-8
 Older version
 Omit
 On Open VSX
@@ -3865,7 +4101,7 @@ On the background
 On the sprite
 On their own
 Once a .hex file has been built, Tools, Tasks, Run has a task that flashes it, made with these.
-Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. Nothing is downloaded by itself. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once
+Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once
 Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once
 Once a frame, at the start of the vertical blank, scroll the background a pixel.
 Once a frame, from your copper or vertical blank interrupt, before the copper reaches copper_dmacon:
@@ -3888,9 +4124,13 @@ Only AGA shows this: its 24-bit palette is used.
 Only ATR images of Atari disks are changed here.
 Only Atari disks of 128 or 256-byte sectors, with short boot sectors, are changed here.
 Only DOS 3.3 and ProDOS disks are changed here; DOS 3.2's 13-sector disks are only read.
+Only FMOVE.P takes a k-factor ({{#k}} or {{Dn}}) after its destination
 Only JVC images of RS-DOS disks are changed here, not VDK.
+Only MSX cassettes can be made into tape sound, and this .cas isn't one: it doesn't start with an MSX block's marker.
 Only a UTF-8 file can be committed a change at a time. Press + beside it in Source control to put the whole file in.
+Only a list can be indexed with [ ].
 Only a preview laid out as a document can be saved as a PDF: Markdown, a web page, a converted document or a BASIC listing.
+Only a struct has fields, so .{name} can't be read here.
 Only disks of 512-byte sectors throughout are changed here; this one has copy protection or an odd format.
 Only files and folders are taken off here, not links.
 Only files matching these, separated by ; (* is any characters, ** any folders)
@@ -3904,6 +4144,7 @@ Only show lines with the selection
 Only side {head} holds a file system Limoniter knows, so the disk is laid out from that side alone.
 Only single-sided RS-DOS disks of 18 sectors a track are changed here.
 Only standard 880K and 1.76MB floppy images are changed here.
+Only the AppImage updates itself on Linux, and this Limoniter isn't one.
 Only the first {MOST_ROWS} rows are shown.
 Only the first {shown} of its {width} columns are drawn.
 Only the first {} are drawn.
@@ -3929,6 +4170,8 @@ Open a Next screen
 Open a ProTracker module (.mod, or mod.name), or choose one in a disk image's browser, then come back here.
 Open a SID tune (.sid), or choose one in a disk image's browser, then come back here.
 Open a Spectrum screen
+Open a ZIP as a project
+Open a ZIP as a project…
 Open a catalog description (.cd) or translation (.ct) first, saved as a file.
 Open a file
 Open a file first: these work on the file in front.
@@ -3954,6 +4197,8 @@ Open a picture…
 Open a plan…
 Open a project first.
 Open a project from Tools, Project first
+Open a project from a web address
+Open a project from a web address (a ZIP or Git)…
 Open a remote file (SFTP or FTP)…
 Open a remote file or folder…
 Open a remote folder
@@ -4019,10 +4264,12 @@ Open the source to put the line in, with the cursor on the line it goes after.
 Open the source to put them in, with the cursor where they go.
 Open the {} chosen
 Open this side in a tab of its own too
+Open your templates folder
 Open {folder} as a project
 Opened {}.
 Opening
 Opening Find puts one selected line in the find box
+Opens it to edit; a built-in one is copied to your templates folder first
 Open…
 OpticBASIC program (OpticOS)
 OpticOS
@@ -4038,6 +4285,7 @@ Or press Enter (Shift+Enter for a new line)
 Or press Enter, or double-click it
 Or right-click a folder in the Explorer, Colour this folder's files
 Orange
+Order: {} at {at}   A = {}   orders done: {}   time: {:.1} s
 Ordered (Bayer)
 Oric disk (Sedoric){label} · {} file(s)
 Oric tape (TAP) · {} file(s)
@@ -4079,8 +4327,15 @@ PC ANSI art
 PC floppy, 1.44MB, FAT12 (.img)
 PC floppy, 360K, FAT12 (.img)
 PC floppy, 720K, FAT12 (.img)
+PC {} ({})   next {}   AC {}   L {}
+PCF
 PCX picture
 PDF document
+PDP-8
+PDP-8 (1965): echo the keyboard (PAL)
+PDP-8 (1965): hello on the Teletype (PAL)
+PDP-8 BIN tapes
+PDP-8 paper tapes
 PEEK
 PEEK(address), or PEEK(type, address): the byte (or value of that type) in memory there.
 PET and CBM (BASIC 4.0)
@@ -4090,8 +4345,17 @@ PETSCII needs the shapes of the C64's characters: open a character ROM file (the
 PETSCII screen
 PETSCII, lower and upper case
 PETSCII, upper case and graphics
+PFLUSH's mask is 0 to {most} here, and {v} isn't
+PFLUSH's mask is a number (#3), and {text} isn't
+PFLUSHR's root pointer is .Q
 PHP
+PHP 7 and 8 upgrade check
+PHP 7 and 8 upgrade check…
 PHP array
+PHP couldn't be run: {e}
+PHP found a problem in {name}, on line {first}.
+PHP isn't installed, or isn't where Limoniter can find it. It's at php.net (windows.php.net for Windows); on a Mac, brew install php; on Debian or Ubuntu, sudo apt install php-cli. Then put it on the PATH.
+PHP's server stopped. {summary}
 PI
 PI: 3.14159265...
 PIC, with MPLAB IPE's ipecmd
@@ -4101,6 +4365,10 @@ PICO-8 and TIC-80
 PICO-8 and TIC-80 cart
 PLOT
 PLOT x, y: puts a dot there, 0 to 255 across and 0 to 191 up.
+PLS
+PMMU takes nothing after it
+PMOVE of {reg} is .{wanted}
+PMOVEFD moves into TC, SRP, CRP, TT0 or TT1 only, leaving the address translation cache as it is
 PNG
 PNG (OS 4)
 PNG picture
@@ -4113,6 +4381,7 @@ POKE address, value, or POKE type address, value: writes to memory.
 POP CS isn't an instruction: a far jump or return sets CS
 POS
 POS: the column PRINT will print in next.
+PPC
 PRINT
 PRINT AT row, column; puts the text there.
 PRINT TAB n; moves to column n.
@@ -4121,7 +4390,11 @@ PRINT42
 PRINT64
 PRINTAT42
 PRINTAT64
+PSF
 PSID version {}
+PTEST's level is 0 to 7, and {v} isn't
+PTEST's level is a number (#7), and {text} isn't
+PVALID compares with VAL or an address register, and {first} isn't one
 Pack
 Pack a program
 Pack with {}
@@ -4137,6 +4410,7 @@ Page break
 Page layout, rulers and fonts aren't carried over.
 Page settings (margins, page length, line spacing) aren't carried over.
 Page {number} of {count}
+Page {} is full: its literals and its code have met.
 Page {} of {total}
 PageDown
 PageUp
@@ -4256,6 +4530,7 @@ Point to an assembler…
 Points the copper list's plane pointers at the planes. Call it before starting the copper list.
 Port
 Port:
+Portable: everything is kept in {}
 Position {} of {playing} · pattern {} · row {}
 Power-up
 PowerPacker
@@ -4264,6 +4539,7 @@ PowerShell script
 Press Ctrl+F2 on a line, or click beside its number.
 Press Esc to go back to one selection first.
 Press Show the whole file first. A part's history is traced through the whole file.
+Press a key…
 Preview
 Preview, full screen
 Previous
@@ -4294,6 +4570,7 @@ Profile in Hatari
 Profile: {} T-states, {:.1} frames
 Profiled in Hatari
 Program
+Program counter
 Program to run
 Program's name
 Program:
@@ -4314,6 +4591,9 @@ Pterm0 (trap #2 with d0 = 0): ends the program, as GEMDOS's Pterm0 does
 Pterm0: back to the desktop
 Pull, putting mine after theirs
 Pulse
+Punch a BIN tape
+Punch a BIN tape…
+Punched to {}.
 Purple
 Push
 Put 6809 source in front first.
@@ -4377,16 +4657,20 @@ Python couldn't make an environment, as its venv module isn't installed. On Debi
 Python is debugged with debugpy, which isn't installed. In a terminal (Ctrl+`):\n\n{install}
 Python list
 Python, C, C++ and Rust files can be debugged here, with debugpy, gdb or lldb-dap.
+Q-emuLator or MAME's QL. It opens a console window, writes a message in it, waits for a key and removes itself.
 QBasic and QuickBASIC
 Quick fix
 Quick fix…
 Quick, packing less well (-q)
 Quick. Where a side keeps no times, as a Git revision doesn't, files of the same size are compared by contents
 Quiet
+Quit
 Quotes
+RAL
 RAM used
 RANDOMIZE
 RANDOMIZE, or RANDOMIZE n: starts RND's sequence somewhere new.
+RAR
 READ
 READ variables: takes the next values from DATA.
 REM
@@ -4396,6 +4680,8 @@ RESTORE label: READ starts again from the DATA there.
 RESTORE now does nothing
 RETURN
 RETURN: back from a GOSUB; RETURN value gives back a FUNCTION's value.
+RFC
+RGC BASIC
 RISC OS sprite file
 RISC OS sprites
 RND
@@ -4404,12 +4690,17 @@ ROM
 ROM patches: IPS, BPS, UPS
 ROMX's bank is 1 to 511, and this is {bank}
 ROR #0 isn't a shift: RRX is the one-bit rotate through carry
+RRB
+RSF
 RSID version {} (needs a real C64's environment)
 RST $08 to $30
 RST can't go to {n}
 RST goes to $00, $08, $10 and so on up to $38, and {n} isn't one
+RTD's value is signed, so #{v} is taken as {}: write #{} if that's meant
 RTF
 RTF…
+RTL
+RTR
 RTS/CTS (hardware)
 RUN starts it from a BASIC line. It switches the KERNAL and BASIC out, turns the CIAs' interrupts off and
 RUNAD: run at ${r:04X} once loaded
@@ -4432,6 +4723,10 @@ Raw rows of {width} cells, odd parity
 Raw screen…
 Raw sprites…
 Raw words…
+Read a paper tape
+Read a paper tape…
+Read as Latin-1 (ISO-8859-1)
+Read as Windows-1252
 Read as {} source: Limoniter's assembler knows its everyday forms; for the rest, choose {} in File, Run on, Assemblers.
 Read from disk as needed
 Read in the Atari ST's character set, which its accented letters suggest.
@@ -4446,6 +4741,7 @@ Reading the file failed unexpectedly.
 Reading the records… {:.0}%
 Reading {remote} failed: {e}
 Reads
+Reads a RIM or BIN tape into memory, as DEC's loaders did: your own, or FOCAL or BASIC if you have them
 Reads the numbers in the DB lines selected
 Reads the saved file, however large
 Ready to commit ({})
@@ -4531,6 +4827,7 @@ Resolve in merge
 Resolve in merge…
 Resource fork
 Restart
+Restart now
 Restarts at
 Restore
 Restore from a backup…
@@ -4561,8 +4858,10 @@ Ruler
 Rules for comparing files…
 Rules…
 Run
+Run PHP
 Run a command…
 Run again
+Run as a script
 Run before
 Run by {} with a copy of the file. {{file}} is the copy's full path, {{name}} its name and {{folder}} its folder. A program still running after five seconds, such as an emulator, is left to run.
 Run it
@@ -4572,13 +4871,17 @@ Run on machine
 Run only this
 Run the program in front on its machine, in an emulator or the real thing.
 Run to cursor
+Run without the BIOS
 Running
+Running without the BIOS: the cartridge starts where its header ends, and can't call the BIOS's routines.
 Running {name} in vamos
 Running {what} in vamos, in {}…
 Running {} on {name}
 Running {} on {}{more}
+Runs at the speed the machine itself ran, or as fast as this computer can
 Runs before the file is written. This one leaves it alone; trim_trailing would take spaces off line ends:
 Runs from line
+Runs on from here, until it stops or reaches a breakpoint
 Runs on until the line the cursor is on, or a breakpoint before it
 Runs on until the next breakpoint
 Runs one instruction, into a CALL
@@ -4631,14 +4934,19 @@ SID tune
 SIN
 SIN(x): the sine of x, in radians.
 SKIP the next instruction if past line {line_text}, x ${x:02X}
+SKP
 SLOT is a slot's number, 0 to {}, or the address it starts at
 SM83
 SM83 (Game Boy)
+SMA
+SNA
 SNDH and YM music
 SNDH music
 SNDH tune
 SNDH tune (Pack-Ice)
 SNES
+SNL
+SPA
 SPC700
 SPC700 (SNES sound)
 SQL
@@ -4648,6 +4956,7 @@ ST
 ST (512 colours)
 ST (68000, 8 MHz)
 ST: red {r}, green {g}, blue {b} (of 7)
+STA
 STDCALL
 STE
 STE (4096 colours)
@@ -4659,6 +4968,7 @@ STE: pixels the picture moves left, 0-15
 STE: red {r}, green {g}, blue {b} (of 15)
 STE: words skipped after each line
 STEP
+STL
 STOP
 STOP: stops the program.
 STOS
@@ -4676,6 +4986,8 @@ SWP is the ARM3's: the ARM2 doesn't have it (CPU ARM3)
 SWP takes a register, a register and [a register]
 SYMBOL SHIFT
 SYSTEM (machine code)
+SZA
+SZL
 Same
 Sample rate
 Sample {} has volume {}, above the 64 Paula plays at most.
@@ -4743,12 +5055,18 @@ Save here
 Save it as a WAV file, as it plays
 Save it as a WAV file, as it plays, without the channels switched off
 Save it as an .adf, with the boot block and every piece at its sectors
+Save its tape
+Save its tape…
+Save or close these first: {}
+Save or close {} first: Limoniter restarts to go back, and nothing unsaved is ever lost to it.
+Save or close {} first: Limoniter restarts to update, and nothing unsaved is ever lost to it.
 Save out…
 Save settings
 Save settings to a file
 Save settings to a file…
 Save source…
 Save the Dragon DOS disk
+Save the ZX80's tape
 Save the assembled bytes as
 Save the binary files into a folder
 Save the bob's source
@@ -4768,6 +5086,7 @@ Save the disk…
 Save the document as
 Save the example's source beside the plan and open it, to change as you like: it's used from then on
 Save the file first
+Save the file first, in a TRSE project's folder, so TRSE can build it.
 Save the file first, so {} can read it.
 Save the file first: a debugger runs it from the disk.
 Save the file first: its colour is kept with it
@@ -4835,6 +5154,7 @@ Saved comparisons…
 Saved sites
 Saved the plan as {}.
 Saved to {}.\n\nPasswords for servers aren't in it: they're kept in this computer's keychain.
+Saved {} ({} bytes), a QL program with its header kept after it (XTcc), for a QL emulator's drive.
 Saved {} ({} bytes), to load into an emulator.
 Saved {} ({} bytes).
 Saved {} ({}).
@@ -4847,6 +5167,8 @@ Saved {}, from {}.{lost}
 Saved {}.
 Saved {}: the program is AUTO\\{} on it, so TOS runs it as the floppy boots.{booting}
 Saved.
+Saves the assembled program as a BIN paper tape, for other PDP-8s and simulators
+Saves the program the ZX80's SAVE saved, as a .o file
 Save…
 Saving
 Saving as a WAV…
@@ -4977,7 +5299,10 @@ Serial port
 Serial port:
 Serial terminal
 Serial terminal and XMODEM/YMODEM…
+Serve the folder and open it in the browser
 Serve this folder in a browser (live server)
+Serve with PHP
+Serving {} at http://localhost:{port}/ on this computer only. Tools, PHP, Stop serving ends it.
 Set
 Set CTRLPF's bit 0 to mirror the right half.
 Set as default...
@@ -5011,6 +5336,8 @@ Shift+F2
 Shift+F3
 Shift+F4
 Short pulse
+Short tags made long
+Short tags made long…
 Shortest
 Should be a multiple of {step}.
 Should be at least {least} characters long.
@@ -5059,6 +5386,7 @@ Shows the Spectrum's keyboard under its screen, to click
 Shows the picture until the Next is reset
 Shows the picture: made from the source Save everything writes, which sjasmplus assembles the same
 Shows the picture; call it from user mode. The screen's address goes to the shifter, which on
+Shows the word at the program counter, which then moves on
 Shows them by name, rather than as one small cell
 Shows these values' fields below
 Shrinkler
@@ -5073,6 +5401,9 @@ Signed
 Signum!
 Signum!'s own bitmap fonts ({}) can't be kept; the text is in plain characters.
 Sinclair BASIC (ZX Spectrum)
+Sinclair QL
+Sinclair QL microdrive cartridge (MDV) · {} · {} sectors free
+Sinclair QL microdrive cartridge, 126K (.mdv)
 Sinclair ZX Spectrum BASIC
 Sine
 Sine, in
@@ -5104,6 +5435,8 @@ Some files continue from other volumes of a set; only this volume's part of them
 Some files were saved compressed by MasterDOS, and are given as they're stored.
 Some lines hold more after a NEWLINE byte, usually machine code in a REM, which LIST doesn't show.
 Some of the lines this changed have been changed again since. Take back the later change first, or put the part back as it was before this.
+Some of the tape couldn't be played, and is left out:\n\n{}
+Some text in quotes
 Some text isn't valid.
 Something has been put there since the comparison, so it was left alone. Compare again first.
 Something new, by chance
@@ -5120,6 +5453,7 @@ Sound
 Sound effects
 Sound effects: AY, SID, 2600, beeper
 Sound effects: {}
+Sound on
 Sounding
 Sounds
 Soundtracker (15 samples)
@@ -5182,6 +5516,7 @@ Sprites and playfield
 Sprites on the line
 Sprites: 16×16, cut from the picture
 Square
+Square brackets: $s[0]
 Square, in
 Square, in and out
 Square, out
@@ -5209,6 +5544,7 @@ Starts a block of Z80 assembler, ended by END ASM.
 Starts at
 Starts from
 Starts on {first}
+Starts the cartridge where its header ends, with nothing in the BIOS's place: for cartridges that drive the hardware themselves
 Starts with
 Status bar
 Step
@@ -5226,6 +5562,7 @@ StoneCracker 4.02
 StoneCracker 4.10
 StoneCracker 4.10 (its decruncher in stc.library)
 Stop
+Stop          no: b divides a exactly
 Stop at the next statement
 Stop bits
 Stop it
@@ -5235,7 +5572,9 @@ Stop recording
 Stop recording first. A macro can't play while another is being recorded.
 Stop running
 Stop sending. Nothing half-sent is left on a card or folder
+Stop serving
 Stop the colours, and show the picture as it was saved
+Stop the download
 Stop using Limoniter for Git
 Stop watching this
 Stop when written to
@@ -5249,6 +5588,7 @@ Stopped at ${pc:04X}
 Stopped at ${pc:04X}, in the ROM
 Stopped at ${pc:04X}, line {} of {name}
 Stopped at TRAP #7
+Stopped at a Z order: the program has finished, and the bell rang.
 Stopped at an illegal instruction
 Stopped at line {line}, statement {statement}
 Stopped at {}
@@ -5261,6 +5601,10 @@ Stopped by an exception (signal {other})
 Stopped reading ${address:04X}
 Stopped sending {name}
 Stopped.
+Stopped: the stop lamp is lit.
+Stopped: the tape ran out.
+Stopped: the word at {at} isn't an order.
+Stops it after the instruction it's doing
 Stops it where it is
 Stops it where it is (Esc). One Undo takes back what it had done
 Stops reading MUI's autodocs (the folder is left alone)
@@ -5272,7 +5616,13 @@ Strength
 Stretch to fit
 Strict 7-bit: bytes above 0x7F are flagged and kept. Line ending is yours to choose.
 String explorer
+Structs go more than {MOST_DEPTH} deep here; a struct may be inside itself for ever.
+Structure
+Structure templates
 Sub
+Sub 21        b - 1
+Sub 26        add b back: the remainder
+Sub 27        take b away
 Sum Selection
 Sum: {sum}\nNumbers added: {}
 Sun/NeXT audio (.au)
@@ -5291,6 +5641,7 @@ Swaps its set and clear pixels
 Swaps set and clear pixels (the colour's opposite for sprites)
 Swift array
 Switch it off
+Switch register
 Switch this channel back on
 Switch this channel off
 Switch to hex (Ctrl+H) to see the bytes at the cursor read as numbers.
@@ -5314,10 +5665,13 @@ System functions' prototypes, offsets, registers and autodocs for 68000 and C so
 System preset
 Systems and applications
 TAB
+TAD
 TAN
 TAN(x): the tangent of x, in radians.
 TAP version
+TCF
 TEST compares a register or memory with a register or a number
+TEXT needs its words between two of the same character, as TEXT /HELLO/.
 TFM moves R+,R+  R-,R-  R+,R  or R,R+
 TFM moves between D, X, Y, U and S
 TFM takes two registers, as TFM X+,Y+
@@ -5328,6 +5682,7 @@ TIMES needs a count and then what to repeat, as TIMES 4 NOP
 TIMES's count comes to {times}: what's before it is {over} bytes too long for the room it's given
 TL866A or TL866CS
 TL866II+
+TLS
 TLS on the connection for the file failed: {e}
 TMS9918A, as in the MSX and the ColecoVision) in Graphics I mode, and draws a box of characters whose colour
 TO
@@ -5339,15 +5694,25 @@ TOS ROM for the {}
 TOS calls
 TOS gives a program all the free memory. Keep only what the program needs, so Malloc has some to give.
 TOS:
+TPC
 TR-DOS archive (SCL)
 TR-DOS disk (TRD) · {}
+TRAP #1: QDOS's manager traps (jobs, memory, the clock), the key in d0.
+TRAP #2: QDOS's traps that open and close channels, the key in d0.
+TRAP #3: QDOS's input and output on the channel in a0, the key in d0 and the timeout in d3.
+TRAP #4: makes the next TRAP #2 or #3's addresses relative to a6, as SuperBASIC's procedures need.
+TRAP #{trap}: not one QDOS uses for its calls (1 the manager's, 2 opening channels, 3 input and output, 4 a6-relative).
 TRAP takes 0 to 15, and {n} isn't
 TRAPs and the rest
 TRS-80 cassette (CAS, {speeds}) · {} file(s)
 TRS-80 {dos} disk{named} ({cylinders} cylinders, {density}{sides})
+TRSE builds a project, and there's no project file (.trse) in this file's folder or the two above it. Make one in TRSE (File, New project), and put this file in its folder.
+TRSE stopped here with a fatal error.
+TRSE wasn't found on this computer. It's free from {}: install it (or unzip it into a folder named trse, or put it on the PATH), start it once so it writes its settings, and F9 builds with it.
 TR{n} isn't a register
 TSCrunch
 TSCrunch's self-unpacking programs start at an address, not with RUN: choose one.
+TSF
 TST.B can't take an address register: only .W and .L can
 TT
 TT (68030, 32 MHz)
@@ -5399,16 +5764,22 @@ Take theirs
 Take these
 Take {old} off the image?
 Takes away everything Limoniter registered
+Takes away what PHP sends before a page's headers without being asked: a byte order mark or blank lines before the first <?php, and a closing ?> at the end with anything after it.
 Takes back this change and every later one to this part, and nothing outside it
 Takes effect when saved, and can be undone
 Takes out characters no tile uses, and makes those just like another one
+Takes the key off this control
 Tandy Color Computer
+Tape sound
 Tapes, snapshots and UDG data
 Tasks
 Teletext
 Telnet
+Template
 Terminal
 Test
+Test          gone negative?
+Test          remainder above 0?
 Test disc
 Test the assembly routines (Z80, 6502)
 TestDisc
@@ -5430,9 +5801,12 @@ That assembler isn't known.
 That card isn't plugged in.
 That change is no longer listed.
 That chip isn't in the cartridge.
+That divides by nought.
 That drive isn't on the card.
 That file has been closed.
 That file is too large to insert. It can be up to 64 MB.
+That file is {} bytes; the Vectrex BIOS is 8,192.
+That file is {} bytes; the ZX80 ROM is 4,096.
 That file is {} bytes; the {} ROM is 8,192.
 That file isn't in the archive.
 That file isn't in the disk's directory.
@@ -5453,12 +5827,15 @@ That has to be a whole number from {} to {}.
 That isn't a Dragon DOS disk (a VDK file).
 That isn't a Kickstart Limoniter knows; the emulator may still take it.
 That isn't a TOS Limoniter knows; Hatari may still take it.
+That isn't a Vectrex BIOS.
+That isn't a ZX80 ROM.
 That isn't a ZX81 ROM.
 That isn't a catalog: a catalog starts FORM, then CTLG.
 That isn't a number: write $0777, %0111 or 1911.
 That isn't a number: write $1b, %00011011 or 27.
 That isn't a number: write $5200, %0101001000000000 or 20992.
 That isn't a partition Limoniter can read.
+That isn't a place in the file.
 That isn't a project file.
 That isn't a project file.\n\n{e}
 That isn't a unified diff: it names no files to change.
@@ -5472,9 +5849,12 @@ That isn't the Jupiter Ace ROM Limoniter knows (its CRC-32 is {crc:08X}).
 That isn't valid hex: use pairs of digits, like 4A 6F.
 That isn't well-formed XML, so it hasn't been changed.
 That isn't well-formed XML, so it hasn't been changed.\n\n{problem}
+That looks like a ZX80 ROM, but not one Limoniter knows (its CRC-32 is {crc:08X}), so it may be changed or damaged.
 That looks like a ZX81 ROM, but not one Limoniter knows (its CRC-32 is {crc:08X}), so it may be changed or damaged.
 That looks like a binary file rather than text, so it hasn't been inserted.
 That needs {wanted} sectors; the disc has {total} free.
+That needs {} more sectors, and the cartridge has {} free.
+That number is too big for one of the Baby's 32-bit words.
 That part isn't in the file.
 That partition isn't on the disk.
 That partition isn't one Limoniter reads.
@@ -5502,6 +5882,7 @@ That track isn't in the set.
 That value is too long.
 That would change more than 1 GB of text, which is too much to hold in memory until it's saved, so nothing has been changed.\n\nReplace in Files on the Find panel can do it, because it writes straight to disk. Save this file first, then close it, and choose it there.
 That would change {rows} lines, which is too many in a file this large. Select fewer lines (at most {MAX_ROWS_ON_DISK}).
+That would go back before the start of the file.
 That would leave the file in one piece, so nothing was written.
 That would make {} files. The most is {MOST_PARTS}.
 That's a folder.
@@ -5520,7 +5901,10 @@ The 2600's player counts frames in a byte: all the effects together can have at 
 The 6507 has jammed: the instruction at ${:04X} stops the processor.
 The 68000's order, highest byte first; off for the Z80, 6502 and PC
 The 68000's vectors: the stack, where it starts, then its exceptions and interrupts.
+The 6809 met ${:02X} at ${at:04X}, which isn't one of its instructions.
 The 6809 source in front, assembled as a Dragon DOS binary
+The 68851 beside a 68020, if there is one: PMOVE, PFLUSH and the MMU's other instructions are read only then (the 68030, 68040 and 68060 have their own), and the source says MACHINE 68851
+The 68881 or 68882 beside the processor, if there is one: FMOVE, FADD and the FPU's other instructions are read only then (the 68040 and 68060 have their own), and the source says MACHINE 68881
 The 8SVX file has no BODY of samples.
 The AUTO folder couldn't be made.
 The Amiga NDK, whose autodocs these are
@@ -5539,6 +5923,9 @@ The BMP's palette is cut short.
 The BMP's pixels are cut short.
 The BMP's pixels are missing.
 The BSS
+The Baby can only load a number negated (LDN), subtract (SUB) and store (STO),
+The Baby's store has lines 0 to 31; there's no line {head}.
+The Baby's store has lines 0 to 31; there's no line {word}.
 The Base64 is one letter too long or short: it can't end there.
 The C64's 4096-byte character ROM (chargen), as VICE and other emulators keep it
 The CharPad file ends too soon.
@@ -5549,6 +5936,7 @@ The DSK image ends partway through a track.
 The Dragon DOS binary F9 makes is loaded straight into memory by XRoar and started. Source can say otherwise near its top, with ; run from: disk.
 The EQU lines at the cursor
 The FAT boot sector's sizes don't add up.
+The FPU's control registers are moved as .L, and {upper} isn't
 The German translation: each string's name, then its translation, then the English as a comment.
 The Git wizard: setting up, and what it all means
 The HFS wrapper doesn't say sensibly where its HFS+ volume is, so the disk is damaged.
@@ -5601,6 +5989,7 @@ The SID's pulse and the beeper's width: 0.5 is square
 The SSH greeting with {} failed: {e}
 The SYSTEM file breaks off at byte {at} with &{mark:02X}, where a block should start.
 The SYSTEM file has no address to run from: the tape ends before it.
+The Structure panel takes a file's bytes apart with a template, so it works in hex mode.
 The T64 header is cut short.
 The TLS greeting with {host} failed: {problem}
 The TMSS: every console from the VA7 board on keeps the VDP locked until SEGA is written here.
@@ -5608,6 +5997,7 @@ The TOS ROM for the {}
 The TOS chosen for the {} isn't there: {}.\n\nChoose another in File, Devices, under Hatari.
 The TV type switch: colour, or black and white
 The Teledisk file ends partway through a track.
+The Teletype: click its paper to type on its keyboard
 The Ultimate 64 and Ultimate II+ take connections on the network: its modem (as a C64 terminal program sees it) on the port set in its Modem settings, 6400 unless changed; and its own menu over telnet, on port 23, once Telnet is turned on in its network settings.
 The Ultimate plays it as soon as it arrives
 The Unicode Standard
@@ -5615,6 +6005,7 @@ The VBL handler, at the start of each frame: Timer B is started counting lines a
 The VBL handler, at the start of each frame: Timer B is started counting lines afresh, the bars move on, and
 The VDP's registers, display off while the screen's made.
 The VOC file has no sound in a form Limoniter plays.
+The Vectrex BIOS
 The Vectrex BIOS's routines this calls, as VECTREX.I names them.
 The WHATWG Encoding Standard's tables, through the encoding_rs crate
 The YM file is too short.
@@ -5622,7 +6013,11 @@ The YM file stops in the middle of its header.
 The YM file's header is damaged: there's no LeOnArD! after its mark.
 The Z80 is given its program: its bus taken from it, the program copied in, then it's reset and let go.
 The Z80's program (its source is in Limoniter's tests): a note on the sound chip for about a second.
+The ZIP couldn't be unpacked: {e}
+The ZX80's ROM is 4K.
 The ZX81's ROM is 8K.
+The accumulator (71 bits), the multiplier (35), the sequence control and the order
+The accumulator (A), and the control: CI, then PI
 The active display profile
 The address the file puts the table at
 The address {text}
@@ -5633,7 +6028,6 @@ The archive ends in the middle of an entry's header.
 The archive is full: a TR-DOS disk holds 128 files.
 The archive's directory points somewhere that isn't a file.
 The area selected
-The arrow keys and Space are the left joystick; Y, G, H, J and F the right. Enter is Game Reset and Backspace Game Select. Click the text to type there again.
 The assembler program
 The assistant is still working on the last request.
 The assistant works on text, and on files small enough to be held in memory.
@@ -5670,12 +6064,20 @@ The boot sector code is {} bytes: it has to be a whole boot sector (512 bytes) o
 The boot sector code {} couldn't be read.\n\n{e}
 The boot sector is {} bytes: it has 512, the last two 55 AA (end it with TIMES 510-($-$$) DB 0 and DW 0AA55h).
 The built-in Atari 2600 {why}
+The built-in EDSAC runs its own tapes (.edsac).
 The built-in Jupiter Ace needs the Ace's own 8K ROM, and nobody is known to hold its rights since Jupiter Cantab closed, so it can't come with Limoniter. Jupiter Ace emulators come with it (ZEsarUX, for one, as ace.rom), or it can be read from an Ace's two ROM chips, put one after the other. Choose the file once, and it's kept.
 The built-in Jupiter Ace runs Ace tapes and Forth source.
+The built-in Manchester Baby runs its own source (.ssem).
+The built-in PDP-8 runs PAL source (.pal) and RIM tapes.
 The built-in Spectrum couldn't start: {e:?}
 The built-in Spectrum has been switched off.
 The built-in Spectrum stopped: {e:?}
 The built-in Spectrum {why}
+The built-in Vectrex needs the Vectrex's own 8K BIOS (its executive ROM, with Mine Storm), which belongs to Hasbro since Milton Bradley, so it can't come with Limoniter. Vectrex emulators are given it (MAME's vectrex set has it as exec_rom.bin), or it can be read from a Vectrex's ROM chip. Choose the file once, and it's kept. A cartridge that drives the hardware itself, calling nothing in the BIOS, runs without it.
+The built-in Vectrex runs Vectrex cartridges.
+The built-in Vectrex {why}
+The built-in ZX80 needs the ZX80's own 4K ROM, which belongs to Amstrad, whose permission for emulators covers only the Spectrums' ROMs, so it can't come with Limoniter. ZX80 emulators come with it (ZEsarUX, for one, as zx80.rom), or it can be read from a ZX80's ROM chip. Choose the file once, and it's kept.
+The built-in ZX80 runs ZX80 programs (.o files).
 The built-in ZX81 needs the ZX81's own 8K ROM, which belongs to Nine Tiles, who wrote it, so it can't come with Limoniter. ZX81 emulators come with it (ZEsarUX, for one, as zx81.rom), or it can be read from a ZX81's ROM chip. Choose the file once, and it's kept.
 The built-in ZX81 runs ZX81 programs (.p files and ZX81 tapes).
 The bytes shown, as DB lines
@@ -5686,6 +6088,7 @@ The card isn't a whole number of 256K drives; the last part is read as far as it
 The card says it's {} banks ({}K), and the image is {}K.
 The card {label} can be taken out.
 The card “{label}” isn't plugged in.
+The cartridge called the BIOS at ${pc:04X}{name}, which isn't here: choose the Vectrex's BIOS file to run it.
 The cartridge starts at $8000 with its header. The video chip is a TI TMS9918A, as in the SG-1000 and the MSX;
 The catalog ends partway through a chunk.
 The catalog is full: DOS 3.3 holds 105 files.
@@ -5712,6 +6115,7 @@ The choice couldn't be saved: {e}
 The chosen effect, made from this shape
 The close gadget and Quit end the program; Hello comes back to the loop as its own number.
 The close gadget, or Escape.
+The code at ${address:X} goes outside the Atari's 64K.
 The code goes past the top of the 64K the Next starts with.
 The code goes past the top of the 64K.
 The code goes past the top of the Spectrum's 64K.
@@ -5721,6 +6125,7 @@ The code starts at ${low:04X}, in the ROM. Put it at $4000 or above (ORG $8000 i
 The code starts at ${low:04X}, in the ROM. Put it at $4000 or above.
 The code starts at ${low:04X}, too close after BASIC's start at $0801 for a line to start it. Start it at $0801 with a BASIC line of its own, or at $0810 or above.
 The code starts at &{low:04X}, below &1900, where the disc system needs the memory to load it. Put it at &1900 or above (such as *=$1900 or ORG &2000).
+The code starts at &{low:04X}, in the firmware's memory: put it at &0040 or above (ORG &4000 is usual).
 The code starts at {low} (${low:04X}), below {LOWEST_FOR_TAPE}, where the BASIC loader and the system need the memory. Put ORG 32768 (or anywhere from {LOWEST_FOR_TAPE}) before it.
 The colours (Pepto's, then Colodore's): click one to use it.
 The colours swapped and the pixels inverted: it looks the same, kept the other way
@@ -5761,6 +6166,7 @@ The description has errors, so nothing was made.
 The directory is full.
 The directory is full: Atari DOS holds 64 files in each.
 The directory is full: RS-DOS holds 72 files.
+The directory is full: a cartridge holds {MOST_FILES} files.
 The directory is full: an ADFS directory holds 47 entries.
 The directory is past the end of the image.
 The directory leads back to a sector it has already used, so it's read only that far.
@@ -5796,6 +6202,7 @@ The disk ran out of sectors.
 The disk to write over is {} bytes, but a {} disk is {size}.
 The disk's GUID partition table can't be read.
 The disk's bitmap is marked out of date (it wasn't put away properly); let the Amiga validate it first.
+The disk's boot sector couldn't be made.
 The disk's catalog chain is broken, so it can't be changed safely.
 The disk's directory is full.
 The disk's extents give this file less space than its length, so the disk is damaged.
@@ -5805,13 +6212,17 @@ The disk's name can't be read: {problem}.
 The disk's root folder is full; put the file in a folder.
 The disk's specification gives sectors other than 512 bytes.
 The disk's type, &{other:02X}, isn't one TR-DOS has, so it isn't changed.
+The display list list: twenty zones of sixteen lines, enough for PAL's picture too, each with a display
 The document's text in a new tab, its formatting codes taken out
+The download carries on, and Limoniter says when it's ready
+The download couldn't be saved: {e}
 The download didn't work ({problem}), so Python {major}.{minor} is tried instead.
 The download had no EmuTOS images in it.
 The download has no KickAss.jar in it.
 The download isn't a zip or a tar.gz, so it couldn't be unpacked.
 The download of {} isn't a kind Limoniter can unpack: get it from {}.
 The download stopped: {e}
+The download was stopped.
 The download was unpacked, but zxbc wasn't in it.
 The effect goes on for more than 10,000 frames without ending.
 The effect stops before its end ($D0 $20).
@@ -5835,10 +6246,12 @@ The emulator's debugger couldn't be reached on port {port}: {e}
 The emulator's debugger didn't answer: the program never started, or this emulator has no GDB server.
 The emulator's program
 The emulator's registers weren't understood: {said}
+The end of the line
 The entry isn't in its folder's hash chain.
 The expression stops before it's finished.
 The extents overflow file gives a fragmented file less space than its length, so the disk is damaged.
 The fewest characters in a row that count as a string
+The field's name
 The file as it's saved
 The file at byte {marker} has no end to its name.
 The file clears the screen {clears} times; this is the picture after the last clear.
@@ -5869,6 +6282,7 @@ The file is read-only now.
 The file is still loading or saving. This will be available when it finishes.
 The file is too short to be a module.
 The file is too short to be a program.
+The file is too short to hold the ZX80's system variables.
 The file is too short to hold the ZX81's system variables.
 The file is written, but the card couldn't be ejected: {problem}
 The file is {have} bytes, but the chip holds only {room}.
@@ -5884,6 +6298,7 @@ The file stops before the program's screen.
 The file to apply it to
 The file unpacked to a different size than the archive says.
 The file unpacked, but its CRC doesn't match, so it's damaged: {e}
+The file was read into more than {MOST_NODES} fields, so only the first are shown.
 The file was saved, but couldn't be opened again: {e}
 The file wasn't saved, so the whole of it is showing again. Nothing has been lost.
 The file {} has changed since these edits were made, so only the edited lines could be kept.
@@ -5896,11 +6311,13 @@ The file's list of blocks loops, so the disk is damaged.
 The file's name can't be handed to macOS.
 The file's web address (http or https):
 The files stop making sense at byte &{at:X}, so the list stops there.
+The files you have open come back after it restarts. The version you have now is kept, so you can go back to it from the Help menu.
 The fill value has to be one byte in hex, such as 00 or 20.
 The first character's code: 32 is the space
 The first colour kept black, for the border and what's cleared
 The first rule that fits a document chooses its theme. Endings, languages and character sets can be listed with commas; a character set matches by the start of its name, so “teletext” matches every teletext set.
 The first time a file is saved in a session, the file as it was is kept beside it, with .bak added to its name
+The fixes:
 The floppy couldn't be made.\n\n{problem}
 The floppy's boot sector doesn't describe its tracks, so it can't be packed as MSA.
 The folder couldn't be made: {e}
@@ -5931,6 +6348,7 @@ The free space map's length isn't whole entries, so the disc is damaged.
 The function
 The function number for the trap that follows:\n{}
 The function or label scrolled past stays at the top of the text
+The function's name
 The grammar for {name}: {problem}
 The grammar for {} couldn't be loaded: {problem}
 The gzip file couldn't be unpacked: {e:?}
@@ -5975,6 +6393,8 @@ The image's comment: {}
 The installation stopped unexpectedly.
 The instruction reference is for assembler source: Z80, 6502, 6809, 68000, x86 or ARM. It follows the instruction the cursor is on.
 The interrupts. Timed loops must not cross a page, where a branch takes a cycle more.
+The job's header: a jump to its start, $4AFB six bytes in, and its name (Technical Guide, section 3.1).
+The key in d0 isn't known until it runs.
 The key of {} isn't the one it had before, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new key.\n\nTrusted before: {expected}\nNow: {found}
 The labels' prefix has to be a word of letters, digits and _.
 The language server ({name}) didn't answer in time. It may still be reading the project; try again in a moment.
@@ -6021,7 +6441,9 @@ The map gives this file less space than its length, so the disc is damaged.
 The map says the disc has {sectors} sectors, and the image holds {}.
 The map's lower half (rows 32 to 63) shares its memory with the sprite sheet's lower half.
 The marked bytes as frames of this height, in this frame's colours
+The maths coprocessor Limoniter's own assembler takes 68000 source to have beside its processor, for FMOVE, FADD and the rest: a 68881 or 68882 as on an A2630, an A3000 or a Falcon with one fitted. The 68040 and 68060 have their own, so need none here. MACHINE 68881 (or FPU 1, OPT P=68020/68881) in the source chooses one for that file
 The memory it says is free for a player (${:04X}-${:04X}) overlaps the tune's own.
+The memory management unit Limoniter's own assembler takes a 68020 to have beside it, for PMOVE, PFLUSH, PTEST and the rest: the 68851, as on an A2620. The 68030, 68040 and 68060 have their own, so need none here. MACHINE 68851 (or PMMU, OPT P=68020/68851) in the source chooses it for that file
 The module's order is cut short.
 The most alike are made one until there are no more than this
 The music. A stand-in that plays nothing, at the addresses a tune made for $1000 has. To play a tune, take
@@ -6030,7 +6452,11 @@ The name can be no more than 20 characters, so that its files' names fit the Ami
 The name can have letters, digits, - and _, starting with a letter.
 The name has no characters a Commodore disk can hold.
 The name it has on the image; it's made to fit the image's rules
+The name of a field was wanted here.
 The names of 1.3's flags: 2.0 renamed them (IDCMP_CLOSEWINDOW, WFLG_CLOSEGADGET), keeping these.
+The new Limoniter couldn't be started: {e}
+The next tank
+The number grew too large.
 The number of bytes has to be a whole number above 0. Use 0x for hex.
 The number of tunes, "{digits}", isn't a number.
 The one plugged in
@@ -6049,6 +6475,8 @@ The packed data's Huffman code is impossible, so it's damaged.
 The packed data's Huffman tree is impossible, so it's damaged.
 The packed data's code lengths run past the end, so it's damaged.
 The packet for bank {} at ${:04X} says it's {packet_length} bytes, where its {}-byte chip makes it {}.
+The page after (Alt+Right)
+The page before (Alt+Left)
 The palette alone (.nxp)
 The palette file's
 The palette, at $3F00 in the picture chip's memory: four colours for each of eight palettes.
@@ -6082,6 +6510,7 @@ The picture: columns of colours 1 to 15, 16 pixels wide, in a band across the mi
 The planes are interleaved: for each 16 pixels, a word of each plane.
 The pointers are its last 8 bytes
 The port's name, typed: a pseudo-terminal or a port not listed
+The previous version couldn't be put back: {e}
 The printer system said: {}
 The printer system wouldn't take the pages.
 The printer wouldn't start the document.
@@ -6097,7 +6526,10 @@ The program didn't build: {} (line {}).
 The program didn't start from its tape within a minute.
 The program ended, with code {code}.
 The program ends partway through a line's number and length.
+The program ends partway through a line's number.
 The program ends partway through a line.
+The program goes past the end of the memory it loads into.
+The program goes past the store's last line, 31.
 The program has code or data at $7FF0 to $7FFF, where the cartridge's header goes: move it, or leave those 16 bytes free.
 The program has ended.
 The program has no BASIC line with a SYS for TSCrunch to start at: give an address.
@@ -6107,6 +6539,8 @@ The program has to start at $0150 or after, past the cartridge's header, or at $
 The program in memory couldn't be listed.
 The program is bigger than a 48K Spectrum has room for.
 The program is damaged after line {last}: the next line's link doesn't lead to a line, so the listing stops there.
+The program is empty.
+The program is put at ${load:04X}, where the copy from $0900 would overwrite itself or reach $C000: put it at $0900, or from ${:04X} up to $BFFF.
 The program is put in a folder that's drive C: (Hatari's GEMDOS hard drive), which it can write files to, and started straight away.
 The program is put in the AUTO folder of a 720K floppy made for the run, which the Atari boots from, as a demo on a disk does. Boot sector code, if chosen, goes on it with its checksum made $1234, so TOS runs it first.
 The program is put on a Dragon DOS disk made for the run, as NAME.BIN, and XRoar starts with the DragonDOS cartridge (it needs its ROM) and types RUN"NAME.BIN" for it. Source can say otherwise near its top, with ; run from: binary.
@@ -6114,9 +6548,11 @@ The program is too big for the machine's memory.
 The program is too large for the room the machine has.
 The program is too long for Applesoft's memory.
 The program is what make builds when it isn't asked for anything else.
+The program is {} bytes, more than fits in a ZX80 with 16K.
 The program is {} bytes, more than fits in the ZX81's {}K.
 The program is {} bytes, over the 16K a normal cartridge holds.
 The program made nothing.
+The program reaches past &A67B, where AMSDOS keeps its workspace, so it can't be loaded from disk. Put it lower (it's at &{load:04X}).
 The program stops making sense at byte {at}, so the listing stops there.
 The program stops without its end marker.
 The program was saved after it had run, so some line numbers are only addresses.
@@ -6129,6 +6565,7 @@ The program's lines don't link up as an Oric program's do, from &0501, so it can
 The program's load address was taken off first: put it back, or load the packed data where you like.
 The project
 The project and {host} are alike: there's nothing to sync.
+The project is for the {system}, and Limoniter only runs TRSE's programs for the Commodore 64, 128, VIC-20, Plus/4 and PET, the Atari 2600, the Vectrex, the NES and the Game Boy. Build it in TRSE itself.
 The project open isn't a folder on a server. Open one with File, Open a remote folder.
 The project's source is then always built with this assembler, wherever the project is opened, whatever is chosen for other source; if it isn't installed, nothing else is used instead.
 The project's tasks
@@ -6139,9 +6576,11 @@ The recovery writer failed.
 The register holding $DFF000
 The registers should take {} bytes for {} frames, but {} are there.
 The registers take {body} bytes, which isn't a whole number of 14-register frames.
+The release has no signature, so it can't be checked: {e}
 The release has no version.
 The release has no {inside} in it.
 The release's ROM isn't among OpticOS's own downloads.
+The release's list of fingerprints doesn't have {name}.
 The replay calls were put into {name}, at the cursor.
 The report is saved in {}.
 The right one is newer
@@ -6173,6 +6612,7 @@ The second interrupt comes during these, a cycle late at most.
 The sectors that could be read
 The selected lines, or the function the cursor is in
 The selected text
+The selection
 The selection has 
 The serial port {port} couldn't be opened: {e}
 The server can't set a file's time.
@@ -6188,6 +6628,9 @@ The settings from {} are in use.{note}
 The shell couldn't be started: {e}
 The side panels come out when the pointer reaches the window's edge, and go again when it leaves them
 The side's free space can't be put in one run.
+The signature file isn't minisign's.
+The signature isn't one Limoniter checks: it should be made by tools/make-update-key.py.
+The signature's trusted comment has been changed, so the update wasn't installed.
 The small picture of the whole file on the right
 The smallest useful Amiga copper program: it takes the machine over from the system, shows a copper list
 The snapshot couldn't be loaded: {e:?}
@@ -6196,6 +6639,7 @@ The sound device can't be used ({e}).
 The sound device wants samples as {other}, which Limoniter doesn't make.
 The sound device wouldn't play ({e}).
 The sound device wouldn't start ({e}).
+The sound of {name}'s tape, for the {}: {} long. Play it, or save it as a WAV.
 The sound's track has gone.
 The source couldn't be read again to make the program movable.
 The source has no {top} folder.
@@ -6206,17 +6650,23 @@ The sprites can't be shown: {p}.
 The sprites' colours (COLOR16 to 31), for the copper list.
 The start of this file would read:
 The step between words must be even and not 0, and the height at most 65536.
+The store: 32 lines of 32 bits, a dash for a one, the least significant bit at the left
 The string explorer looks through the file's bytes, so it works in hex mode.
 The strings @NAME@ says: each a name, its number and its shortest and longest lengths in brackets,
 The strings' C header: {}
 The strip beside the line numbers that shows bookmarks
+The struct's name
+The switches into the program counter
+The switches into the word at the program counter, which then moves on
 The system has no program set to open this kind of file.
+The system variables at the start don't say where a ZX80 program and its variables are.
 The system variables at the start don't say where a ZX81 program and its screen are.
 The system's copper list, then its view.
 The tables one after another, for INCBIN
 The tables selected in the document
 The tag at byte 1080 isn't one a tracker writes.
 The tag, with any attributes (p, or div class="note"):
+The tank before
 The tape can't be changed safely: {problem}
 The tape couldn't be loaded: {e:?}
 The tape ends after {name}'s header, before its contents.
@@ -6226,11 +6676,15 @@ The tape ends partway through a block of the SYSTEM file.
 The tape ends partway through a block.
 The tape has a kind of block (0x{id:02X}) this doesn't read, so it stops there.
 The tape image is too long to be a real tape.
+The tape image is too short to have its header.
 The tape starts this file at block {}: the blocks before it are missing.
 The tape stops partway through a block.
 The tape's CODE block, {} bytes at ${start:04X}
 The tar file ends too soon.
+The teleprinter
+The template went round its lists too many times; it may never stop.
 The text and the preview side by side
+The text has no character {i}.
 The text runs to the end of the file without LIF's end mark.
 The theme for documents no rule picks another for
 The theme has no name.
@@ -6251,6 +6705,18 @@ The tune's code
 The tunes' lengths run past the header.
 The two are the same, so there's nothing to put in a patch.
 The two sides are already in step, so there's nothing to sync.
+The type it's stored as, such as u8
+The type's name
+The update couldn't be put in place: {e}
+The update couldn't be unpacked.
+The update couldn't be unpacked: {e}
+The update has no Limoniter.app in it, so nothing was changed.
+The update is signed with a different key from Limoniter's, so it wasn't installed.
+The update key isn't Base64.
+The update key isn't a minisign Ed25519 key.
+The update to {to} didn't finish, so this is still Limoniter {}.
+The update to {to} didn't finish, so this is still Limoniter {}: {problem}
+The update's signature doesn't match it, so it wasn't installed.
 The usual one
 The values divided by 2 to the fraction bits, with so many places
 The variable names have been overwritten, as an unlistable program's are.
@@ -6266,6 +6732,7 @@ The whole screen's size
 The width and height must be at least 1.
 The window's messages, or Ctrl-C from a Shell it was started from.
 The words, as screen codes.
+The {cpu_name}'s own FPU is always number 1
 The {name}'s screen: typing goes to the {name} while it has the keyboard
 The {replaced} file replaced will be kept first, in {}.
 The {replaced} files replaced will be kept first, in {}.
@@ -6315,6 +6782,7 @@ There's already a comparison called {new_name}.
 There's already a file called {name} there.
 There's already a label called {new}.
 There's already a theme called {new_name}.
+There's already a type called {name}.
 There's already a {name} on {}, not one sent from here.\n\nReplace it?
 There's already a {new_name}.{new_ending} on the disk.
 There's already a {} called {name}.
@@ -6339,9 +6807,12 @@ There's no column {column}. Columns are counted from 1.
 There's no command called {wanted}.
 There's no command to run. Put the usual one back under Commands.
 There's no comparison called {name}.
+There's no data folder to keep templates in.
 There's no difference there.
 There's no file in front to look through.
 There's no folder to keep Limoniter's files in.
+There's no function called {name}.
+There's no label called {t}.
 There's no line {line}. This file has {count} line, counted from 1.
 There's no line {line}. This file has {count} lines, counted from 1.
 There's no macro to play yet. Record one from Tools, Macros, or load one.
@@ -6349,6 +6820,7 @@ There's no module to convert.
 There's no note for this one yet; its forms are below.
 There's no place called {place} in this file.
 There's no preview for this kind of file yet. There are previews for Markdown, web pages, SVG drawings, PC ANSI art, PETSCII, Commodore screens, teletext, ZX Spectrum text, tokenised BASIC, tracker music modules (MOD, S3M, XM and IT), sound files (MP3, WAV, FLAC, Ogg, AIFF, 8SVX, VOC and AU), and pictures from the Amiga, Atari ST, Commodore 64, Mac, RISC OS, PC (PCX, GEM IMG), ZX Spectrum and Kodak Photo CD.
+There's no program on the cartridge to start, and no BOOT file.
 There's no program there yet: build it first (Ctrl+Shift+B).
 There's no settings folder to keep Git's settings in as they were.
 There's no sound device to play through.
@@ -6357,10 +6829,12 @@ There's no tag here to take away. Put the cursor in a tagged section first.
 There's no test task here.
 There's no text in those columns.
 There's no text on the clipboard to swap in.
+There's no type called {}.
 There's no {} release for this computer to download, and Limoniter doesn't build it. {}
 There's no {} release for this computer to download.
 There's nothing here to preview.
 There's nothing in this file to disassemble.
+There's nothing on this tape to make a sound of.
 There's nothing on this tape.
 There's nothing to crunch.
 There's nothing to preview yet.
@@ -6400,6 +6874,7 @@ This Atari disk has no Atari DOS directory: it may boot a program of its own. It
 This Atari disk is too small to have Atari DOS's directory.
 This Atari disk's size isn't one a DOS makes.
 This Atari image says its sectors are {sector_size} bytes, which isn't a size Atari disks have.
+This BIN tape's checksum is wrong (it says {}, and the tape adds up to {}).
 This BMP is packed in a way that isn't read (only RLE4 and RLE8 are).
 This BMP is {} bits a pixel, without a palette.
 This BPS patch is cut short or damaged.
@@ -6439,12 +6914,17 @@ This Koala picture's packed screen stops before its end, so the file is cut shor
 This LHA archive has more files than Limoniter lists.
 This LHA archive is damaged after its first {} file(s): {e}
 This LHA archive's first header can't be read: {e}
+This Limoniter has no key to check updates with yet, so it doesn't update itself.
+This Limoniter isn't the Mac app, so it can't update itself.
+This Limoniter was installed from the .deb, so it's updated as other software is: download the new .deb, or use your software centre.
+This Limoniter wasn't installed by its Setup, so it can't update itself.
 This MFS disk's volume information doesn't make sense, so it can't be read.
 This MacBinary file is shorter than its header says, so part of it is missing.
 This Mermaid diagram has nothing in it to draw.
 This Mermaid diagram is empty.
 This Oric disk isn't a Sedoric disk ({why}), and other Oric DOSes, such as OricDOS, Jasmin's FT-DOS, RANDOS, XL DOS and the Infocom games' own format, aren't read yet.
 This PBM picture has {planes} bits a pixel; PBM pictures have 8.
+This PDP-8 has one field of 4K words: only FIELD 0 can be used.
 This PNG isn't an OS 4 icon: it has no icOn chunk.
 This ProDOS volume's header doesn't fit the image, so it can't be changed safely.
 This SCL archive has been cut short in its list of files.
@@ -6477,6 +6957,7 @@ This Z80 snapshot is cut short.
 This Z80 snapshot is too short.
 This ZIP archive has no central directory at its end.
 This ZIP archive's directory isn't where it says it is.
+This build of Limoniter has no key to check updates with yet, so it doesn't update itself: download the new version from the page.
 This card has no ZCN drive on it. Cards the NC's own software keeps files on aren't read yet.
 This card holds a program the NC runs from its card, starting at &C210. Its bytes can be seen in hex.
 This cart has no sounds.
@@ -6521,6 +7002,7 @@ This doesn't have an Atari BASIC program's header.
 This doesn't start with a FAT boot sector.
 This emulator can't change registers.
 This file
+This file ({name})
 This file can't be changed here: open it from a folder, in hex, to change its icon.
 This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from Edit, Colour tag, or by right-clicking.
 This file has no name yet. Use save_as to give it one.
@@ -6588,6 +7070,7 @@ This folder is empty.
 This frame makes no sound
 This hard link's file isn't in the volume's hidden folder of linked files, so the disk is damaged.
 This icon has no picture.
+This instruction needs an address.
 This is 68000 source written Motorola's way (vasm's and Devpac's), which GNU as can't read. Choose another assembler for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 (GNU as) as the language if it's really GNU as's.
 This is 68000 source written for GNU as (m68k-amigaos-as), which {} can't read: it reads Motorola's way of writing (vasm's and Devpac's). Choose GNU as for 68000 source in File, Run on, Assemblers, or choose Assembly 680x0 as the language if it's really Motorola's.
 This is Limoniter {}, from Flathub. Your software centre, or flatpak update, brings each new version.
@@ -6607,6 +7090,7 @@ This is an application card: its applications are found by the Z88's own structu
 This is larger than any Z88 or NC memory card.
 This is put at $4009, as a whole ZX81 program, but it isn't one: {problem}
 This is the first time Limoniter has connected to {}. Its key's fingerprint is\n\n{print}\n\nIf that's what the server's owner says it should be, trust it and connect.
+This is the portable Limoniter, which doesn't change itself: download the new portable .zip and unpack it beside this one (its settings folder can be moved across).
 This is too short to be a MacPaint picture.
 This is where the part was cut from. Taking back where it was put in does the same.
 This isn't BinHex 4.0: its "(This file must be converted with BinHex" line or the ':' after it is missing.
@@ -6616,6 +7100,7 @@ This isn't SNDH or YM music.
 This isn't XML: {e}
 This isn't a .nex file: it has no "NextV1" header.
 This isn't a BASIC listing. Take its BASIC program, or open a program's listing, first.
+This isn't a BIN tape: its frames don't come in pairs between the leader and the trailer.
 This isn't a CPC or +3 DSK image.
 This isn't a CRT cartridge image: it doesn't start with a signature such as C64 CARTRIDGE.
 This isn't a Commodore 64 picture Limoniter knows.
@@ -6635,10 +7120,14 @@ This isn't a PCX picture of a kind Limoniter knows.
 This isn't a Photo CD image pack.
 This isn't a ProTracker module.
 This isn't a ProTracker module: there's no tag such as M.K. at byte 1080, and it isn't laid out as an older 15-sample Soundtracker module either.
+This isn't a QL program kept with its header.
+This isn't a RIM tape: each word should have its address before it.
 This isn't a RISC OS sprite file.
 This isn't a SID tune: it doesn't start with PSID or RSID.
 This isn't a STOS program: it starts “Lionpoulos”.
 This isn't a Scream Tracker 3 module: there's no SCRM at byte 44.
+This isn't a Spectrum tape: a block goes on past the end of the file.
+This isn't a Spectrum tape: it ends partway through a block's length.
 This isn't a Sun or NeXT sound file.
 This isn't a SuperCard Pro image.
 This isn't a TZX tape.
@@ -6660,7 +7149,8 @@ This isn't a picture Limoniter can read. Amiga IFF, Atari ST (Degas, NEOchrome),
 This isn't a picture Limoniter can show any more.
 This isn't a program Limoniter knows how to run. Run it as a listing for:
 This isn't a sound file Limoniter can play ({e}).
-This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.
+This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX80 .o and ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.
+This isn't a tokenised BBC BASIC program, so it can't be saved as a BBC tape.
 This isn't an ADFS disc: there's no root directory or disc record where ADFS keeps them.
 This isn't an AMOS program: it starts “AMOS Basic” or “AMOS Pro”.
 This isn't an Atari ST picture Limoniter knows.
@@ -6687,8 +7177,11 @@ This kind of image has no folders.
 This line: not committed yet
 This listing couldn't be tokenised, so it can't be run.\n\n{problem}
 This listing couldn't be tokenised, so nothing was sent.\n\n{problem}
+This listing couldn't be tokenised, so there's no program to make the tape of.\n\n{problem}
 This listing is for another kind of machine than {target}.
+This looks like a Jupiter Ace tape, whose sound Limoniter doesn't make yet.
 This looks like {name}-separated data.
+This microdrive image has no sector 0, where the cartridge's map is.
 This needs the whole file. Press Show the whole file first.
 This needs {} sectors; the disk has {} free.
 This only works on Windows.
@@ -6716,6 +7209,8 @@ This sprite file has no sprites in it.
 This stored file is shorter than its header says.
 This tab isn't a file that can be compared. Compare folders and Compare files are in the Tools menu.
 This tape starts with a Color Computer or Dragon leader, but no file in their standard format follows it: it may load with a loader of its own.
+This template has a mistake in it
+This text has no closing quote.
 This volume has run out of file numbers.
 This volume is locked, so it's left as it is.
 This volume uses {} rather than AmigaDOS's own file system, which Limoniter doesn't read yet.
@@ -6843,6 +7338,7 @@ Two bytes of RAM, for instance:
 Two devices have the same name.
 Two files on the disk overlap, so the catalogue is damaged.
 Two halves (asymmetric)
+Two words were put at {}.
 Two: the operating system's starting colours, light blue dots on blue
 Type
 Type a byte's value in hexadecimal
@@ -6866,9 +7362,6 @@ Type what you want to do, such as “sort” or “wrap”
 Type {kind}, which Limoniter doesn't know
 TypeScript
 Types, properties and required fields, items, enums, limits on numbers and lengths, patterns, allOf, anyOf, oneOf, not, and $ref within the schema are checked.
-Typing goes to the Jupiter Ace: Shift is its SHIFT, Ctrl or Alt its SYMBOL SHIFT, Backspace deletes, the arrows move the cursor and Esc is BREAK. Click the text to type there again.
-Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.
-Typing goes to the ZX81, whose keys type keywords as its own do: Shift is its SHIFT, Backspace rubs out, the arrows move the cursor, and Esc or Space is BREAK. Click the text to type there again.
 Typing the program in…
 U+{:04X}  In this file: {bytes}
 UBOUND
@@ -6910,6 +7403,7 @@ Unix (LF)
 Unix and Linux
 Unknown
 Unpacked backwards
+Unpacked from {url}.
 Unpacked on the ST by {file} ({terms}), {from}.
 Unpacking it ({} MB)…
 Untick all
@@ -6926,7 +7420,7 @@ Up to 64 sprites, in 256 colours
 Up to eight columns, between commas: 7, 72 and 80 for COBOL, 72 for commit messages
 Update
 Upper case and graphics
-Usage: limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]
+Usage: limoniter --assemble SOURCE OUTPUT [NAME=VALUE...] (OUTPUT ending .tap, .sna or .nex for Z80 source)
 Use
 Use Limoniter for Git diff and merge
 Use Limoniter's example
@@ -7027,6 +7521,7 @@ Web servers and browsers
 What Copperline saw the program do that the chips ignore or get wrong (a byte written to a word register, a read-only register written, a pointer past chip memory, a blit started over another) and code written after it ran
 What Limoniter can do
 What Limoniter can do…
+What PHP 7 and 8 took away that the code still uses, and what replaces each. The safe ones are fixed for you; the rest are listed to do by hand.
 What came in, as it came
 What follows byte {at} doesn't look like a BASIC line, so it isn't listed.
 What follows byte {} doesn't look like BASIC lines, so it isn't listed.
@@ -7050,6 +7545,7 @@ What's there stays at the top left
 When a file has no unsaved changes of yours. If you were at its end, you stay at the end, to follow a log as it grows
 When a file is opened from Explorer. When off, it opens as a tab in the Limoniter window already open
 When off, they open as text
+When the daily check finds one, it's downloaded in the background and checked against its signature, and Limoniter says when it's ready to restart into. Off, it asks first. Nothing is installed without asking, and never while anything is unsaved
 When the table is scrolled sideways
 Where 16 palette words are: 2 in a Degas picture, 4 in NEOchrome
 Where each effect starts among the frames, and how many it has.
@@ -7068,14 +7564,21 @@ Where the picture is
 Where the picture is see-through
 Where the sprites go in memory, on a 64-byte boundary: their pointers follow from it
 Where they differ
+Where to put it (a folder of its own is made in it)
 Where to put the samples
 Where to put what's made
+Where to unpack it (a folder of its own is made in it)
 Whether it's a light theme or a dark one
 Whether the boot block loads it: leave data your program loads itself unticked
 Which 680x0
 Which 680x0 the code is for: a 68010's, 68020's or 68030's own instructions and addresses are read only for one that has them (an A1200's or A4000's program, say), and the source starts with MACHINE
 Which documents get which theme
+Which keys are its Kempston joystick, and changing them
+Which keys are its joystick and buttons, and changing them
+Which keys are its joystick, and changing them
+Which keys are its joysticks and switches, and changing them
 Which machine is it for?
+Which machine is this 6502 program for? Its code doesn't say.
 Which machine is this C for? Put a line such as // machine: c64 near its top (c64, c128, vic20, plus4, pet, spectrum, sms, gamegear, coleco, megadrive, amiga or atari2600), or include the machine's own header, and F9 compiles it with the compiler installed for it.
 Which of this CIA's interrupts reach the processor's {irq} (written), and which have happened (read; reading clears them, so an interrupt routine reads it to say it's been seen).
 Which:
@@ -7109,6 +7612,8 @@ Windows wouldn't open its settings. Look for Default apps in Windows Settings.
 Windows' own dictionary, so other programs know it too
 Windows' spell checker isn't available: {e}
 With Hyperion's Native Developer Kit for AmigaOS 3.2, resting the pointer on a system function in 68000 or C source shows its prototype, library, offset (_LVO), the registers its arguments go in, and its autodoc; typing _LVO offers the functions. Its headers' structure fields and flags (LN_NAME, MEMF_CHIP) are shown and offered too, and Limoniter's own 68000 assembler finds its headers and _LVO offsets.
+With the maths coprocessor (FPU)
+With the memory management unit (MMU)
 With the note
 Without locale.library (before 2.1), the program's own English strings are used.
 Word
@@ -7209,6 +7714,7 @@ ZEsarUX said: {said}
 ZEsarUX stopped answering.
 ZEsarUX stopped answering: {e}
 ZEsarUX's registers weren't understood: {said}
+ZIP archive
 ZIP archive{} · {} file(s)
 ZX Microdrive cartridge (MDR) · {}
 ZX Spectrum
@@ -7235,6 +7741,9 @@ ZX Spectrum tape (.tzx)
 ZX Spectrum text
 ZX Spectrum, with attributes
 ZX0 version 1 (classic)
+ZX80
+ZX80 BASIC
+ZX80 program
 ZX81
 ZX81 BASIC
 ZX81 machine code goes in a REM from 16514 ($4082); this starts at {low} (${low:04X}). Put ORG 16514 at its top.
@@ -7245,6 +7754,7 @@ Zoom
 [ and ]
 \\:' and \\a (zmakebas)
 \\x needs a hexadecimal number after it, such as \\x9B.
+\\x needs two hex digits after it.
 \\{value:o} is more than a byte can hold.
 ^ and $ at each line
 __emit puts words into the code only SAS/C understands: write it as inline assembler.
@@ -7257,6 +7767,7 @@ a ( has no )
 a 16-bit address can't scale a register: that needs 32-bit registers (and a 386)
 a 16-bit address is BX or BP, with SI or DI, and a number: [bx+si+4]
 a 320 by 256 window, the usual PAL screen
+a CSW recording
 a Huffman table has a code longer than 16 bits
 a MOD b: the remainder when a is divided by b.
 a NEX file is already open
@@ -7274,15 +7785,20 @@ a bit is 0 to 7, not {value}
 a black border
 a block of {}×{}
 a byte
+a call of other blocks
 a cell
 a change every
 a change refers past the end
 a character value can only be one to four characters
+a choice of blocks
 a cycle more if it's still line 18: stable from here, cycle 4 of line 19
 a cycle more if it's still line 251: stable from here, cycle 4 of line 252
 a file of storage type {other}, which ProDOS 8 doesn't have
 a free channel, or else the one that's played longest
 a game, its product number and version
+a jump goes to the line after the number it finds here
+a jump to another block
+a kind it doesn't know
 a line. Colour c of a line shows from the first palette until pixel 10c+1 (10c-5 when c is odd),
 a long each (.l) or a word each (.w),
 a moment between them
@@ -7315,10 +7831,15 @@ a whole character: move the row along one
 aaa
 aas
 about-demo-logo
+about-demo-scroller
 about-logo
+address
+address or integer
 admin/ or *.inc
 after line {} of {}
 after this
+again. Its words in 1948 are in the comments.
+align( ) needs a size above 0.
 all bits clear
 all went well
 already used on the disk written over
@@ -7338,6 +7859,7 @@ an address needs a base register
 an empty character
 an interrupt every BAR_LINES lines
 an offset can't go with auto increment or decrement
+an old device
 an operand is missing
 analyzer
 and $ff: where the scroller's text has got to
@@ -7364,12 +7886,18 @@ and the pixels within the word
 and the system's own copper list
 and their colours
 and their volumes down
+and {} more
 andi
 another program changed it while it was being read
 apple-ii
 apple2
 apply_patch
+array() to []
+array() to []…
+array(...) becomes [...], nested ones too, as PHP 5.4 and later allow. Nothing in a string, heredoc or comment is touched.
+as it is; for MAME's a7800 (or a real 7800), sign it with 7800sign. Put ; tv: pal near the top for a European
 as robust: no vector to put in place (on a 68010 or later the vectors may not be at address 0, which an
+as then) by trying every b from a-1 downwards, dividing by taking b away again and
 asc.bas
 ascii
 ask for the Z80's bus
@@ -7390,6 +7918,7 @@ auto_indent
 automatic
 autosave
 autosave_seconds
+b (131072) in line 27, -b in line 26, and the remainder, 0, in line 25.
 bAND: bitwise AND of two integers.
 bNOT: every bit of an integer flipped.
 bOR: bitwise OR of two integers.
@@ -7404,11 +7933,14 @@ bas, asm, txt...
 base in
 bat
 bbc-micro
+be anywhere from $0900 (or above the copy, from $1800) to $BFFF, and up to 3,840 bytes long.
 before the list is shown.
 before this
+big or little
 binary
 bit 3 clear: 38 columns
 bit 6 is 0 while the left mouse button is down
+bit 7 is set during the vertical blank
 bit {n}, part of {} (bits {}): {}
 bit {n}: not used
 bitmap on
@@ -7421,6 +7953,7 @@ black again, from the next line
 black where nothing's shown
 block {number} is outside the volume
 block {x}, row {y} (lines {first} to {}): {half}{register} bit {bit} · colour ${:02X}, background ${:02X}
+blocks, which every CPC has at the same addresses, so it runs on the 464, 664 and 6128 alike.
 blog/2026-11-19.html
 blue
 blue behind, a yellow face, white, black
@@ -7434,6 +7967,15 @@ bytes a line of the picture: 640 pixels, twice the screen's
 bytes apart
 bytes, as 4E71 or 12 34
 bytes, for the program started from it (4096 if none)
+c to 25
+c to 26
+c to 26       line 26 = -b
+c to 27
+c to 27       line 27 = b
+call_user_func([$object, 'method'], ...)
+call_user_func_array([$object, 'method'], ...)
+call_user_method
+call_user_method_array
 can't be made
 can't tell how this cartridge switches its banks.
 cargo build
@@ -7453,6 +7995,8 @@ change {number} fits {lines} lines further up
 change {} can't be found
 changes. All the video chip's work after the start is done in the frame interrupt: the chip has one address for
 changing the background colour line by line (no bitplanes at all), waits for the left mouse button, and gives
+channel 0 (its number times 16)
+channel 0's command, its buffer's address and its length
 channel {channel} at volume {} of 15
 channel {channel} follows the envelope
 character pointers
@@ -7520,6 +8064,7 @@ compress_json
 compute_hash
 console
 contents
+convert_cyr_string
 convert_number
 copies of how they were
 copper kept to $80 and above
@@ -7536,6 +8081,7 @@ cp437
 cp850
 cpm
 cpuid
+create_function
 csrlin.bas
 css
 csv_to_fixed
@@ -7551,11 +8097,15 @@ daa
 dark
 das
 data
+data space {} bytes
+data space {} bytes, the job {job}
+data space: 4096
 days
 dc.w
 dc.w $FFFF,$FFFE
 debugger
 debuggers
+decimal
 default text colour
 delay mode, the 2.4576 MHz clock divided by {divider}
 delete
@@ -7573,6 +8123,7 @@ division by zero
 divsl
 divul
 doesn't switch banks the {} way yet: run it in Stella or MAME.
+doesn't switch banks yet, so it runs cartridges of up to 32K: run this one in MAME or ParaJVE.
 done: clear Timer B's in-service bit
 dos-us
 dos-western
@@ -7581,9 +8132,12 @@ dr
 dragon_start={}\n
 duplicate_line
 duplicate_window
+each
 each channel: where its effect has got to (0 when free), and how long it's played
+each frame starts a colour further on
 each place's tile and attribute
 each plane takes the next bit of the colour
+each port) and runs it in an emulator: A7800, or MAME. MARIA draws nothing but the background here: each
 ease
 echo "Devices: 7" >&2; exit 0 ;;
 echo "Pin test passed." >&2 ;;
@@ -7591,14 +8145,20 @@ editors of its own
 end of the list
 entry in the colour table is changed every eight frames.
 eori
+ereg
+ereg_replace
+eregi
+eregi_replace
 event count mode (Timer B: one a display line; Timer A: the parallel port's busy line)
 event count mode: every {} lines
 event count mode: it counts display lines
+ever run from a computer's own memory. It finds the highest factor of a (2^18 here,
 every bank is stored already
 every channel free
 every keyboard column: $DC01 then shows whether any key is down
 every language
 every sector in order, as a plain image
+every system
 everything back. A starting point for trying out copper lists.
 everything else happens in the NMI
 everything else happens in the interrupt
@@ -7611,11 +8171,14 @@ exit 1 ;;
 exomizer mem keeps the load address; raw packs the bytes alone
 exomizer sfx basic
 expand_all
+explode() for plain text, or preg_split() for a pattern
 extents
 extents tree
 extra-half-brite (unless BPLCON2 KILLEHB)
 few lines. Press space to leave.
 fewer when the quotient doesn't fit
+fgets() and strip_tags()
+fgetss
 file="$1"; mode=read ;;
 file="$1"; mode=verify ;;
 file="$1"; mode=write ;;
@@ -7624,11 +8187,13 @@ filled in by setup
 filter_selection
 find_from_selection
 find_in_file_folder
+fixed for you
 fixed_to_csv
 flags'
 for 80 lines
 for Japan, the USA and Europe
 for the tune's speed (if it doesn't, the KERNAL's 60 Hz stays), and the interrupt calls play.
+for this job
 format_json
 four times 256 bytes
 frames
@@ -7647,6 +8212,8 @@ from the second for 160 pixels after that, then from the third. A display routin
 fth
 fwait
 generate_guid
+get_magic_quotes_gpc
+get_magic_quotes_runtime
 getreg, putreg and geta4 read and set registers in SAS/C only.
 github.com/jolyonralph/limoniter
 go build
@@ -7663,6 +8230,7 @@ graphics.library, takes the blitter, empties the display with LoadView(0), stops
 green
 hard link to a folder
 header only: no data in the KERNAL's format
+hebrevc
 height, width, y, x
 hex
 hex.bas
@@ -7686,6 +8254,7 @@ how many waves
 how tall the raster bar is
 html
 https://example.com/file.txt
+https://github.com/owner/project
 https://github.com/someone/project.git
 https://github.com/you/project.git
 i < argc; i++)
@@ -7701,9 +8270,12 @@ in bank 0 ($0000, as at switching on): {}; or a bitmap at ${:04X}. Screen offset
 in case a blit is still going
 in line 1's REM, where ZX81 machine code is kept
 in zero page: how far the background has scrolled
+in zero page: the first line's colour this frame
 in {}
 indent
+index is only known inside a list.
 index.html
+ini_restore('include_path')
 input
 insb
 insd
@@ -7719,6 +8291,8 @@ installed
 insw
 int1
 int3
+integer
+integer or byte
 interrupt is enabled, so the loop waits for it and clears it. That's simpler than a level 3 interrupt, and
 interrupt would have to allow for) and nothing to undo. A frame's work that overruns just misses a frame.
 interrupts at the end of the line before each change, so the change shows from the start of its line.
@@ -7730,9 +8304,12 @@ iret
 iretd
 iretw
 is changed every eight frames.
+is count now below 0? (it went 0 -> -1)
 is done there: the chip has one address for reading and writing, and an NMI that used it while the main
 iso-8859-1
 it
+it changed after the preview
+it couldn't be opened
 it ends at &{end:04X}, before it starts at &{start:04X}.
 it has no descriptor.
 it in Emulicious, Gearsystem or MAME. Its screen is the middle 160 by 144 pixels of the Master System's 256 by
@@ -7741,10 +8318,17 @@ it isn't XML that can be read: {e}
 it isn't YAML that can be read: {e}
 it looks like a binary file
 it should be {length} bytes, but has only {count} sectors.
+it starts) and runs it in an emulator: Altirra or atari800. It prints a line through the screen editor, E:,
 it's empty
 it's in {}, which can't be changed a line at a time at this size
 it's marked read-only
+it's open and busy
+it's open and set to read-only
+it's open as {}, not Latin-1 or Windows-1252
+it's open in hex mode
 it's open with unsaved changes
+it's open, and too large to change in its window
+it's too large
 it's too late to store bank {bank}: they go in the order 5, 2, 0, 1, 3, 4, 6, 7, 8...
 iterations (-i)
 its
@@ -7780,6 +8364,7 @@ jsr
 jump
 jump at frame
 justify
+keep -count
 keep_undo_history
 kept when the bit was set
 keys.bas
@@ -7804,6 +8389,7 @@ left undefined
 left volume {} dB
 left, right (in 320 and 640 modes, in 2s and 4s),
 legacy-windows
+len( ) measures text.
 level 1 is $8 and level 15 is $F), and the picture is twice as wide as the screen, moved smoothly left and
 level 4: the horizontal blank
 level 5
@@ -7816,6 +8402,7 @@ light blue
 light grey
 line ${line:02X}
 line 0 to 255
+line WSYNC waits for, the program gives the background the next colour.
 line mode, octant {octant}, texture from bit {}
 line {line} (${line:03X})
 line {l}
@@ -7828,10 +8415,13 @@ lines in each part
 lines tall
 lines {} to {} of {}
 linux
+list that's empty (a header whose second byte is 0 ends one).
 loads at ${load:04X}, starts at ${exec:04X}
+loads at &4000 and starts, in an emulator: CPCEC, Caprice32 or MAME. It prints through the firmware's jump
 loads at &{load:04X}, runs at &{run:04X}
 lock
 lock_insert
+locks the 7800 into its own mode
 lodsb
 lodsd
 lodsw
@@ -7848,19 +8438,27 @@ lower case
 lower_case
 lua
 lz4_fastest.asm, faster and bigger), from the same place.
+m68k_fpu
+m68k_mmu
 m68k_processor
 mac-roman
 macOS couldn't move it to the Trash.
 macOS's file manager couldn't be reached.
+machine: 7800
 machine: NES
+machine: apple2
 machine: atari 2600
+machine: atari8
 machine: coleco
+machine: cpc
 machine: gamegear
 machine: megadrive
+machine: ql
 machine: sg1000
 machine: sms
 machine: zx81
 made stable (two interrupts, the second coming during NOPs) and draws raster bars in the bottom border, a
+magic_quotes_runtime
 make
 make -f Makefile.gcc
 make -f Makefile.gcc catalogs
@@ -7870,6 +8468,7 @@ make -f Makefile.vbcc clean
 make_selections
 markdown_view
 master volume {} dB
+mb_convert_encoding() or iconv()
 md
 medium resolution: 640x200, 4 colours
 middle byte
@@ -7886,6 +8485,7 @@ mirrored
 mirroring: horizontal
 modern-mac
 modern-windows
+money_format
 more than one piece
 move
 move to DMACON, which must come about 11 raster lines after the line the tick runs on, so
@@ -7899,20 +8499,24 @@ movsd
 movsw
 msx
 multicolour
+mysqli_* functions or PDO, with prepared statements
 n starts at
 narrow
 neither: it only writes
 new-branch
 new_file
 new_window_per_file
+nex
 next_bookmark
 next_change
 next_spelling_mistake
 next_tab
 next_tag
+nl2br(hebrev(...))
 nn is a byte of the operand: n a number, d a displacement, label a place to branch to. Each form is shown with one register where others would do.
 no
 no CIA 1 interrupts (the KERNAL's timer)
+no DMA while it's set up
 no DOS 3.3 VTOC
 no NMI yet
 no VIC interrupts
@@ -7920,6 +8524,7 @@ no battery-backed RAM
 no bitplanes, colour on: the background is all there is
 no bits set
 no boot sector
+no error
 no files
 no index pulse was seen
 no interrupts from samples
@@ -7935,6 +8540,7 @@ no scrolling
 no sprite
 no window
 no, addresses go up
+no: go round again (to line 1)
 noise period {} (about {} Hz)
 noise pitch
 noise slide
@@ -7950,6 +8556,7 @@ not changed
 not found
 not multicolour
 not scrolled
+notebook on 18 July 1948. The first version ran on 21 June 1948, the first program
 notebooks
 nothing optimised, for vasm
 nothing playing
@@ -7957,6 +8564,8 @@ nothing playing on it
 nothing waiting to be typed
 nothing was assembled
 nulls_open_in_hex
+number
+octal
 odd sprites {} too
 of channels 0-7, only the keyboard, so keys still come in
 of channels 8-15, only Timer B
@@ -7964,6 +8573,7 @@ of the line, before the picture starts, bad line or not.
 of {}
 off
 on
+on blue
 on the STE, but this keeps it simple).
 once a frame: line 250 comes round once
 once a frame: wait, and put the beam back in the middle
@@ -8034,6 +8644,12 @@ popf
 popfd
 popfw
 pos.bas
+preg_match() with the i modifier
+preg_match(), with the pattern between slashes
+preg_match(), with the pattern between slashes and i after
+preg_replace(), with the pattern between slashes
+preg_replace(), with the pattern between slashes and i after
+preg_split(), with the pattern between slashes and i after
 press doesn't know a key called {key}. It knows {}.
 preview_open
 previous_bookmark
@@ -8050,6 +8666,9 @@ printat42(row, column): where print42 prints next.
 printat64(row, column): where print64 prints next.
 printf 'Chip ID: 0x1E08  OK\\nReading Code...  0.43Sec  OK\\n' >&2; cp "$chip" "$file" ;;
 printf 'Erasing... 0.10Sec  OK\\n' >&2; head -c 32768 /dev/zero | tr '\\000' '\\377' > "$chip" ;;
+prints the character in A
+prints the character in A (with its top bit set, as the Apple's text has it)
+procedure
 processor
 processor {} MHz, blitter {} MHz{}{}
 program was half-way through setting it would send the main program's bytes somewhere else.
@@ -8095,6 +8714,7 @@ repeated
 reset it, so it starts from 0
 resolution each 16 pixels are four words, one a bitplane, and a pixel's colour is its bits in the four.
 resource
+restore_include_path
 right
 right by the STE's hardware scrolling: the screen's address to the word ($FF820D), the pixels within the word
 right volume {} dB
@@ -8110,6 +8730,7 @@ runs from line {first}
 runs from line {}
 runs it in Emulicious, Gearsystem or MAME. It sets up the VDP and draws a box of tiles whose colour changes.
 runs only Atari 2600 cartridges, not {} programs.
+runs only Vectrex cartridges, not {} programs.
 sahf
 salc
 salvador (ZX0)
@@ -8137,6 +8758,7 @@ sentence_case
 set
 set by the result
 set once the screen's made, so the NMI leaves the chip alone till then
+set_magic_quotes_runtime
 set_send_name only works in an add-on's on_send function.
 settings
 sftp://root@mister/media/fat/games
@@ -8156,9 +8778,12 @@ size and time
 sjasmplus didn't save the memory it assembled
 skip the next if the beam is past line ${line:02X}, x ${x:02X}
 slide
+sna
 snippets_box
+so adding is done by subtracting a negative number.
 software
 software end of interrupt: handlers clear their in-service bit
+some text
 something is missing at the end
 something went wrong reading it
 sort_ascending
@@ -8172,9 +8797,12 @@ spaces_for_tab
 spaces_to_tabs
 speed {}
 spelling
+spl_autoload_register()
+split
 split_file_box
 split_horizontal
 split_vertical
+spliti
 sprite "{name}" has a header that can't be right
 sprite "{name}" is in screen mode {mode}, which Limoniter doesn't know
 sprite "{name}" is of a type ({other}) Limoniter doesn't know
@@ -8189,6 +8817,7 @@ sprites shown, over the border too
 sprites {} pixels wide
 spurious interrupt
 sql
+sql_regcase
 start line ${:02X}, left edge ${:03X} (lowres, without its lowest bit)
 start line bits 10-8 = {vstart}, horizontal bit 8 {}; stop line bits 10-8 = {vstop}, horizontal bit 8 {}
 starting sign negative
@@ -8206,6 +8835,7 @@ stosb
 stosd
 stosw
 straight to the game ($AA,$55 shows the BIOS's title screen first)
+string
 string.bas
 strobe
 style {code} (not recognised, kept as it is)
@@ -8215,6 +8845,7 @@ sustain at {}/15, release {}
 swap_with_clipboard
 switch the same bits on again.
 tabs_to_spaces
+tap
 target; *.log
 teletext
 teletext, bbc-mode7
@@ -8234,9 +8865,11 @@ the BIOS's sprite tables, work area and controller map:
 the BIOS: wait for a key
 the BIOS: write a character
 the KERNAL and BASIC back
+the Monitor ROM: clears the text screen
 the NEX file already has its screen
 the NMI: the video chip's frame interrupt
 the P61 file's comment: set use to it and the player leaves out what the module doesn't need.
+the QL's processor, for its cycle counts
 the ROM prints the character in A
 the ROM's vector to print the character in A
 the S
@@ -8266,6 +8899,7 @@ the bitmap and its colours
 the board reported problem {other}
 the board's buffer overflowed while reading
 the boot block
+the border
 the border shows which
 the bottom border
 the bus error vector
@@ -8278,6 +8912,8 @@ the checksum, worked out when the disk is written
 the colour above the first change
 the colour shows which effect
 the colour table, at $2000
+the command to put characters
+the comments give each one's location.
 the console checks for SEGA here
 the console's version and region
 the cookie jar (0 before TOS 1.06: an ST)
@@ -8301,8 +8937,10 @@ the effect's offset
 the end
 the end of a row, take the extra bytes off the modulo.
 the end of the copper list
+the end of the line
 the end of the message
 the end of the overscan
+the end of the template
 the end: from the start again
 the end: wait for a line that never comes
 the envelope period's low 8 bits: ${value:02X}
@@ -8332,6 +8970,8 @@ the high word
 the illegal instruction vector
 the image couldn't be read
 the jar's end
+the jump back from line 19
+the jump back from line 8
 the last byte from the keyboard
 the last commit
 the left's are drawn and before the right's are (PF0 between 28 and 49, PF1 between 39 and 54, PF2 between 49
@@ -8363,6 +9003,7 @@ the odd
 the offset from PC {offset} doesn't fit in 16 bits (-32768 to 32767)
 the offset {d} doesn't fit in 8 bits (-128 to 127)
 the offset {value} is out of reach (-128 to 127)
+the offset {v} is signed, so it's taken as {}, before the address register rather than after it
 the other file
 the overscan but its last line, which Frame ends
 the packed data runs out too soon
@@ -8410,6 +9051,7 @@ the stack
 the stack as it is now, to come back to
 the stack, near the top of RAM
 the test bit: the oscillator from the start, and the gate off
+the text's background, copied to the GTIA every frame
 the tilemap's clip window, from its first value:
 the tilemap's first palette to be written
 the tiles at $4000
@@ -8429,12 +9071,13 @@ their
 them
 them never takes a cycle more.
 theme
-theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\n
 then back to no scroll, and the frame's work
 then echo "Code memory section is blank." >&2; else
 then echo "No programmer found." >&2; exit 1; fi
 then echo "Verification OK" >&2; else
 then printf 'Incorrect file size: %s (needed 32768, use -s/S to ignore)\\n' "$size" >&2; exit 1; fi
+then stops. Step through it with Step to see each instruction work.
 then the low word
 then the lowest blue bit
 there are no more pages to map into the slot
@@ -8447,6 +9090,8 @@ these three lines out and put it here instead: a .sid file's tune comes after it
 theweb.dk couldn't be reached: {e}
 they
 this computer's address
+this isn't a floating-point expression Limoniter can work out (it takes numbers, labels, + - * / and brackets)
+this job
 this one's done
 this program doesn't use the BIOS's routines
 those registers can't be used together
@@ -8461,6 +9106,7 @@ times
 title_case
 to
 to bits 0 and 3
+to do by hand
 to stay below $1000, where the tune goes.
 to the piece that starts, with A6 still ExecBase.
 to the square's corner
@@ -8490,7 +9136,13 @@ track {track} side {side} sector {id}
 track {} side {} sector {}
 trackdisk's IORequest, for each read
 trap
+trap #1: remove a job (-1 is this one)
+trap #2: open a channel
 trap #2: the AES (d0 = 200) or the VDI (d0 = 115), with d1 the address of the parameter block
+trap #3: clear the whole window
+trap #3: fetch a byte
+trap #3: send a string of bytes
+trap #3: set the window's border
 trap #{n}: not one TOS uses for its calls (1 GEMDOS, 2 AES and VDI, 13 BIOS, 14 XBIOS)
 trim_leading
 trim_trailing
@@ -8500,6 +9152,7 @@ tune names'
 turns off the {line} for {what}
 turns on the {line} for {what}
 two halves
+two pixels wide
 txt
 type
 uncomment
@@ -8508,9 +9161,11 @@ unlisted format worked out as {size}-byte sectors, {per_track} a track, 1 system
 unlisted format worked out as {size}-byte sectors, {per_track} a track, {boot} system tracks, {block_size}-byte blocks, {entries} directory entries, skew {skew}
 until space is let go of
 until the line starts
+until the vertical blank
 untouched; some RSID inits never return, and take the machine over.
 up to {} colours a line
 update_checks
+update_download
 upper_case
 us-ascii
 utf-16be
@@ -8542,12 +9197,17 @@ vsid (VICE's SID player)
 vsid is playing song {song}, in its own window.
 vsid plays tunes; it doesn't pack.
 wait
+wait as long as it takes
+wait for a key
 wait for line ${line:02X}, x ${x:02X}
 wait for line ${line:03X}, x $06
 wait for the VBL handler to count the next frame
 wait for the end of line 255: the next WAIT's line counts from 256
 wait for the frame interrupt
 wait for the next frame
+wait for the picture to start
+waits for a key
+warning: {}
 watch_files
 watch_often
 wbinvd
@@ -8562,8 +9222,10 @@ where it starts
 where its lines are
 where its lines are: all this in the overscan's first line
 where the ROM starts and ends
+where the display list list is
 where the piece is on the disk, in bytes: 0 ends the table
 which P61Con (an Amiga program) saves. P61Con shows a USE code for the module, and keeps it in
+which the operating system has open as channel 0, with CIO, the OS's way into every device.
 who, and when
 whole sectors
 whole_line_copy
@@ -8585,6 +9247,7 @@ write the colours, from colour 1
 write the vertical scroll memory, from 0
 write video memory, from 0
 writing anything here starts the copper list
+writing it waits for the end of the line
 x below 256
 x goes 0 to 320 and back with the frame count
 x {x}, y {y} · AT {},{} · INK {} PAPER {}{}{}\nbitmap byte {} · attribute {}
@@ -8599,6 +9262,7 @@ xml
 yaml
 yes
 yes, addresses go down
+yes: put 0 back
 zx
 zx-spectrum
 zx0 (ZX0)
@@ -8627,9 +9291,34 @@ zx_notation
 {at} is screen memory in MODEs 0 to 6: only MODE 7 leaves it free.
 {at} is under {}: it can't be loaded or run there as it is.
 {at} is under {}: it loads into the RAM beneath, but only runs there with the ROM switched out ($01).
+{at} isn't a place in the file.
 {bad} of {name}'s blocks fail their checksums, so some of its bytes are wrong.
+{bare} at level 0 searches only the address translation cache, so it can't give a descriptor's address in {a}
+{bare} between FP registers
+{bare} can't use {text}
+{bare} can't use {}
+{bare} can't write to {text}
+{bare} can't write to {}
+{bare} gives the descriptor's address in an address register, and {a} isn't one
+{bare} has no size
+{bare} is .B
+{bare} is .B, .W or .L
+{bare} is .W
+{bare} is .W or .L
+{bare} is a maths coprocessor's (an FPU's) instruction, and none is chosen for this {cpu_name}: MACHINE 68881 or MACHINE 68882 (or FPU 1, or OPT P=68020/68881) chooses one, as does the setting beside "68000 source is for"; the 68040 and 68060 have their own
+{bare} is a memory management unit's (an MMU's) instruction, and this {cpu_name} has none: MACHINE 68851 (or PMMU, or OPT P=68020/68851) gives it the 68851, as does the setting beside "68000 source is for"; the 68030, 68040 and 68060 have their own
+{bare} is the 68040's and 68060's own FPU's (the 68881 and 68882 haven't got it), and this is for the {cpu_name}: MACHINE 68040 (or 68060) chooses one
+{bare} looks up a table at an address such as (a0), and {table} isn't one
+{bare} names a cache, DC (data), IC (instruction), BC (both) or NC (none), and {text} isn't one
+{bare} of an FP register
+{bare} puts what it finds in a data register, and {result} isn't one
+{bare} takes an address register in brackets, such as (a0)
+{bare} takes no operands
+{bare} takes the line's or page's address in an address register in brackets, such as (a0)
+{bare} {operands} isn't a 68851 instruction
 {beyond} sector(s) on tracks past the 80th aren't part of an ADF and are left out.
 {bits}-bit x86 code, {} bytes at {origin:#X}
+{changes} change(s) in {} file(s).
 {chip}: {size} bytes
 {chip}: {size} bytes, going by its name
 {clock} MHz
@@ -8639,6 +9328,7 @@ zx_notation
 {comment} Limoniter sound effects for the {chip} on the {machine}: 1 effect.\n
 {comment} Limoniter sound effects for the {chip} on the {machine}: {count} effects.\n
 {conflicts} files have changed on both sides since the last sync. Tick each to choose that side's version.
+{copied} files copied. startup_demo.asm is the smallest whole demo: F9 builds it and runs it. Files that were there already were left as they were.
 {copied} files copied. startup_demo.s is the smallest whole demo: F9 builds it and runs it. Files that were there already were left as they were.
 {count} bytes is too many to leave
 {count} chips listed.
@@ -8647,6 +9337,7 @@ zx_notation
 {count} routines and {calls} calls. Click a routine to go to it.
 {cylinders} tracks, {sides}, {per_track} × {size}-byte sectors numbered from {first}
 {c} T-states
+{c} can't be punched on EDSAC's tape. It takes letters, figures, and # @ ! & * . for its other keys.
 {c} cycles
 {c} isn't a character OpticBASIC has
 {c} needs {} digits after it
@@ -8654,6 +9345,7 @@ zx_notation
 {decoys} sector ID(s) whose data never read on any track, as copy protection writes, aren't part of the disk here.
 {differing} bytes differ
 {digits} is past the last line number there can be, 32767
+{digits} isn't a number
 {emulation} ({native} native)
 {encrypted} locked procedures were decrypted to be listed.
 {errors} problems.
@@ -8663,6 +9355,7 @@ zx_notation
 {e} A truecolour picture can be brought in through the picture converter.
 {failed} of {} changes can't be found, so it will be left as it is
 {file_name} is already there. Replace it?
+{file}, line {line}: {message}
 {file}, line {}: {}
 {file}, line {}: {} (and {more} more problems)
 {flag} needs {names}.
@@ -8670,6 +9363,7 @@ zx_notation
 {folder} hasn't been listed.
 {folder} isn't being served any more.
 {found} (stopped at {})
+{found} thing(s) found in {} file(s); {changes} of them can be fixed for you.
 {found}, still searching…
 {framed} text frame(s) are put after the text, in the order they were saved.
 {free} of {} sectors free ({} KB). A column is a track; the boot block is the first two sectors. Click a free sector to put the selected piece there.
@@ -8677,6 +9371,9 @@ zx_notation
 {from} isn't there.
 {from}'s answer wasn't text.
 {gone} characters taken out.
+{hint} Click the text to type there again.
+{hint} Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.
+{hint} The picture goes while a program runs, as it did on the ZX80. Click the text to type there again.
 {host} couldn't be found.
 {host} couldn't be found: {e}
 {host} didn't answer as an Ultimate does.
@@ -8689,6 +9386,8 @@ zx_notation
 {host}: its menu over telnet, port 23
 {host}: its modem, port 6400
 {injections} grammars that only add to other languages' colouring are left out.
+{item} is {value}, too big for 16 bits; its low 16 bits are used
+{item} is {value}, too big for 32 bits; its low 32 bits are used
 {item} is {v}, too big for a byte; its low byte is used
 {kept} couldn't be written: {e}
 {keys} does {name} without the menu.
@@ -8751,6 +9450,7 @@ zx_notation
 {name} is a folder here, so a file can't replace it.
 {name} is a folder; add the files in it instead.
 {name} is already on line {}.
+{name} is defined twice.
 {name} is in drive A.
 {name} is missing, and it's required.
 {name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.
@@ -8761,12 +9461,15 @@ zx_notation
 {name} isn't a program Limoniter knows how to run.
 {name} isn't a program or disk Limoniter knows how to run.
 {name} isn't a register or a label
+{name} isn't a way of showing a value: use hex, dec, bin, oct, char, dosdate, dostime, unix, amigadays, or an enum or flags type.
 {name} isn't an ARM instruction Limoniter knows
 {name} isn't an x86 instruction Limoniter knows
 {name} isn't crunched with PowerPacker, Imploder, StoneCracker, CrunchMania or ByteKiller, as far as Limoniter can tell.
 {name} isn't defined
 {name} isn't defined anywhere Limoniter's assembler can see.
+{name} isn't on the cartridge.
 {name} isn't one of the fields allowed here.
+{name} isn't the file the release signed (its SHA-256 is different), so it wasn't installed.
 {name} jumps to a label
 {name} looks like a binary file, so it can't be merged as lines of text.
 {name} needs a register
@@ -8780,6 +9483,7 @@ zx_notation
 {name} needs to know its memory's size: say {}
 {name} needs to know the size it widens: say BYTE or WORD
 {name} needs where to go
+{name} needs {needed} sectors, and the cartridge has {free} free.
 {name} on {} has been changed since it was last sent from here.\n\nReplace it with this version?
 {name} only goes with a post-indexed address: [Rn],offset
 {name} puts its value in a register
@@ -8808,10 +9512,12 @@ zx_notation
 {name} tests a bit given by a register or a number
 {name} uses AL, AX or EAX
 {name} was crunched with {cruncher} ({} bytes): it's open as what it holds, {} bytes, read-only.
+{name} was left: {why}.
 {name} was stopped. One Undo takes back what it had done.
 {name} wasn't sent to {}.\n\n{problem}
 {name} widens a smaller value into a bigger register
 {name} would be outside the folder, so it's left alone.
+{name} would run past the end of the file (at offset {at}, 0x{at:X}).
 {name}'s block is too short to say where it loads.
 {name}'s brackets need three parts, kept apart by two slashes: (id/shortest/longest), any of them left out.
 {name}'s destination and first register are the same, which the ARM2 and ARM3 get wrong: swap the two registers it multiplies
@@ -8827,6 +9533,10 @@ zx_notation
 {name}'s registers go in {{ }}
 {name}'s second operand is a register
 {name}'s {what} length, {given}, isn't a number.
+{name}( ) calls itself too deeply.
+{name}( ) takes {n}.
+{name}( ) works on at most 64 MB.
+{name}({}): one of TRSE's built-ins, on {systems}
 {name}, if a6 is exec
 {name}, line {}
 {name}, {size} bytes
@@ -8835,6 +9545,7 @@ zx_notation
 {name}.{ending} isn't on the disk.
 {name}: click to bring it to the front
 {name}: click to change it
+{name}: no syntax errors now.
 {name}: offset {value} in {structure} ({kind}, 1 byte)
 {name}: offset {value} in {structure} ({kind}, {size} bytes)
 {name}: the size of {structure}, {value} bytes
@@ -8851,17 +9562,25 @@ zx_notation
 {number} is too big for a SWI's number (24 bits)
 {number} is too large a number
 {number} isn't a number AMOS can read
+{n} (0x{unsigned:X}), not one listed
 {n} bytes
+{n} entries
 {n} found, but none for these machines.
 {n} found, but none for these models.
 {n} is too many to reserve
+{n} isn't a place in the file.
 {n} matches:
 {operands} is too far away for a branch
+{operands} is too far away for {bare}.W: {bare}.L reaches it
 {operands} is {offset} bytes away, out of a short branch's reach; use L{upper}
 {operands} is {offset} bytes away, out of a short branch's reach; use {bare}.W
 {option} isn't an option Limoniter knows.
+{op} doesn't work on numbers with fractions.
+{op} doesn't work on text.
 {op} isn't a {} instruction or a directive
 {op} isn't an operator
+{op} isn't known.
+{op} works only on a number.
 {other} files are an early kind ST-Sound no longer plays; Limoniter only names it.
 {other} isn't a SAVENEX PALETTE kind (NONE, DEFAULT, MEM, BMP)
 {other} isn't a SAVENEX SCREEN kind (L2, L2_320, L2_640, LR, SCR, SHC, SHR, TILE, BMP)
@@ -8918,6 +9637,7 @@ zx_notation
 {rulers} ruler line(s), setting margins and tabs, aren't carried over.
 {running} of {range_chunks} range(s) on; play it to see them cycle
 {said} EmuTOS is a free TOS (GPL) from the EmuTOS team, used when there's no TOS of Atari's. Limoniter only fetches it from SourceForge when you ask (version {EMUTOS_VERSION}, about 9 MB, kept beside the settings), with the right image for each machine. {state}
+{said} It's in {}, open as a project.
 {said} The program is started straight from its folder, which the Amiga sees as RunProg: and can write files to. With copperline-ctl beside Copperline, it's debugged there: breakpoints, stepping (backwards too) and the registers, in the Debug panel.
 {said} The program runs from a folder that's the Amiga's hard drive, DH0:, which it can write files to.
 {scope}, as text:\n\nSHA-256: {hash}\n\nThe hash has been copied.
@@ -8938,15 +9658,20 @@ zx_notation
 {stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, General, Disassemble… turns it into 6502 source, starting from its init and play routines; File, Save as keeps it.
 {stem}_insane.asm (written by LSPConvert -insane, for this module only)
 {target} couldn't be replaced: {e}
+{target} is too far away for {bare}
 {target} isn't there.
 {temp} couldn't be made: {e}
 {term} can't be used in an address
+{term} isn't a {base} number.
+{term} isn't defined.
 {term}: a register is scaled by 1, 2, 4 or 8
 {text}\n\nTrust it, and send?
 {text}\n\nYour changes are saved on this computer. File, Save to a server can send them once it can connect.
 {text} cycles
 {text} cycles in native mode
 {text} cycles on the 68008
+{text} is too big for .P: its exponent can only be -999 to 999
+{text} is too big for .{letter}
 {text} is {offset} bytes away, out of JR's reach (-128 to 127); use JP
 {text} is {offset} bytes away, out of a branch's reach (-128 to 127)
 {text} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP
@@ -8961,9 +9686,11 @@ zx_notation
 {text} is {} bytes away, out of {name}'s reach of 128
 {text} isn't a coprocessor (P0 to P15)
 {text} isn't a coprocessor's register (C0 to C15)
+{text} isn't a floating-point expression Limoniter can work out (it takes numbers, labels, + - * / and brackets)
 {text} isn't a number
 {text} isn't an address the 680x0 has
 {text} isn't closed with ]
+{text} mixes microinstructions from group 1 and group 2, which can't be done in one word.
 {text} needs a bit field after it, such as {{0:8}} or {{d1:d2}}
 {times} is too many times to repeat
 {title} couldn't read back what it wrote.\n\n{e}
@@ -8976,6 +9703,9 @@ zx_notation
 {t}: a shift is by 0 to 31 (or 32 for LSR and ASR)
 {unknown} instructions come from extensions other than AMOS's own four, and are listed as Extension_slot_offset.
 {unread} part(s) of the tape are recorded as bits or in an unusual format, and aren't read here.
+{upper} can't move {text} into {}
+{upper} can't move {} to {text}
+{upper} can't take .{letter} from {}
 {upper} can't take an immediate value
 {upper} can't take {operands}
 {upper} can't take {}
@@ -8983,8 +9713,11 @@ zx_notation
 {upper} can't use {last_text} on the {cpu_name}: that's the 68020's (MACHINE 68020 chooses one)
 {upper} can't write to {last_text}
 {upper} can't write to {}
+{upper} doesn't use a store line.
+{upper} has no such size: the FPU's are .B, .W, .L, .S, .D, .X and .P
 {upper} is a 68020 instruction: the {only} has only {}.W (MACHINE 68020 chooses a 68020)
 {upper} is the 6309's, not the 6809's; PRAGMA 6309 takes the 6309's instructions
+{upper} needs a store line from 0 to 31.
 {upper} needs an address with a bit field
 {upper} needs an operand
 {upper} shifts 1 to 8 places at once, and {n} isn't
@@ -8997,34 +9730,49 @@ zx_notation
 {upper} takes two registers, as {upper} A,B
 {upper} works on CC, A or B
 {upper} {operands} isn't a {cpu_name} instruction
+{upper} {operands} isn't a {} instruction
+{upper} {operands} isn't an FPU instruction
+{upper} {operands} isn't an instruction of the {}'s MMU
 {upper} {text} needs an address in zero page ($00 to $FF)
 {upper}'s bit is 0 to 7, and this is {n}
 {upper}'s bit is in the first 8K ($0000 to $1FFF), bits 0 to 7
 {upper}'s indirect address has to be in zero page ($00 to $FF), and {} is ${v:X}
 {upper}'s target is {offset} bytes away, out of a branch's reach (-128 to 127)
+{url} looks like a Git repository, and Git isn't installed to clone it. Install Git, or give the address of a ZIP.
 {used} sprites drawn.
 {value}   (FOR to {limit}{by}, back to line {line}:{statement})
 {value} doesn't fit in {size}
 {value} is too big or too small for the Spectrum
 {value} is too big or too small for the ZX81
+{v} doesn't fit in .{letter}
 {waiting} files to sync with {host}
 {wanted} isn't one of the picture's files
 {what} first: a file this large switches between text and hex by reading it again from disk.
 {what} is a NEX V1.3 feature, and OPEN asked for V1.2
+{what} is always .X
 {what} is only the 68020's (the 68030 and later haven't got it), and this is for the {name}: MACHINE 68020 chooses it
+{what} is only the CPU32's, and this is for the {name}: MACHINE CPU32 chooses it
+{what} is the 68060's and the CPU32's, and this is for the {name}: MACHINE 68060 (or CPU32) chooses one
+{what} is the {them}'s, and this is for the {here}'s MMU: {choose} chooses one
+{what} is the {them}'s, and this is for the {here}: {choose} chooses one
 {what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another
 {what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another
 {what} needs a 68020 or later: the CPU32 hasn't got it
+{what} needs a 68040 or 68060, and this is for the {name}: MACHINE 68040 (or 68060) chooses one
+{what} was expected here, not {found}.
 {what} {v} doesn't fit in 16 bits
 {what} {} is {v}, which doesn't fit in a byte
 {what}, in the background…
 {what}: colour {c}, {}
 {what}CP/M disk, {} format
 {width}×{height}, a sheet of {} sprites
+{words} (yours)
 {word} is longer than the 31 characters a name can have
 {word} isn't a kind of section: CODE, DATA or BSS, with _C for chip memory or _F for fast
+{word} isn't one of the Baby's instructions (JMP, JRP, LDN, STO, SUB, CMP, STP) or NUM.
 {word}: {} place
 {word}: {} places
+{written} isn't a number
 {wrong} of the image's {} sectors have checksums that don't match, as some tools that made Oric disk images left them; their bytes are read as they are.
 {w} words ({pixels} pixels)
 {w}×{h}, {what}, average difference {error:.3} (Oklab){}
@@ -9042,6 +9790,7 @@ zx_notation
 {}\nNo function number is pushed just before it here.
 {}\nThe function's number comes from line {} ({what}), which isn't known until it runs.
 {}\nU+{value:04X}\nIn this file: {bytes}
+{}\n{}  at {} (0x{:X}), {size} bytes
 {}  (not plugged in)
 {} (decimal {byte}, hex {byte:02X})\nUnicode: {}\nType: {}\nIn {}
 {} (line {}): {why}
@@ -9054,6 +9803,7 @@ zx_notation
 {} ({} calls at {rate} Hz)
 {} ({} files)
 {} Hz a sample (PAL)
+{} MB
 {} MHz
 {} already has files in it. Choose another name or folder.
 {} and {} both want sectors from {}.
@@ -9066,7 +9816,9 @@ zx_notation
 {} bytes
 {} bytes a row, {} a plane, {} in all; modulo {}
 {} bytes after the last file aren't part of one.
+{} bytes after the last line aren't BASIC lines (usually machine code).
 {} bytes after the last line, before the screen, aren't BASIC lines (usually machine code).
+{} bytes after the program's end aren't part of it.
 {} bytes at offset {at} aren't a CHIP packet, so the rest wasn't read.
 {} bytes before the file at byte {marker} aren't part of a file.
 {} bytes from ${low:04X} to ${:04X}, starting at ${:04X}
@@ -9086,6 +9838,7 @@ zx_notation
 {} can't be read
 {} can't be read: {e}
 {} can't be read: {problem}
+{} can't have {n} entries.
 {} can't hold the replacement text
 {} changed in {} window, not saved yet.
 {} changed on both sides since the last sync. They're left alone unless you tick them.
@@ -9131,6 +9884,7 @@ zx_notation
 {} downloads
 {} file and folder
 {} file will be left as {} are, because not every change in {} can be found.
+{} file(s) to make UTF-8.
 {} file(s) waiting for .sync on the Next
 {} files were
 {} files will be left as {} are, because not every change in {} can be found.
@@ -9151,8 +9905,11 @@ zx_notation
 {} has been changed on the server since you opened it.\n\nReplace it with your version?
 {} has changed since these edits were made, so only the bytes that were typed or pasted in could be kept.
 {} has errors, so its catalog wasn't made.
+{} has no entry {i}.
+{} has no field called {name}.
 {} has no table
 {} has no tables of {what} in it (.byte lines{}).
+{} has no zero byte to end it in the first {MOST_STRING} bytes.
 {} has things in it; take them out first.
 {} has unsaved changes.\n\nSave them first? Choosing No discards them.
 {} has {} formatting commands, but the original has {}.
@@ -9179,6 +9936,7 @@ zx_notation
 {} is longer than the 65,535 bytes DOS 3.3 can say a program or binary is.
 {} is marked to start but isn't loaded by the boot block.
 {} is neither an Applesoft listing nor a tokenised Applesoft program.
+{} is neither on page zero nor on this page ({}), so it can't be reached directly. Put its address in a word on this page and refer to it with I, or use a literal: (address).
 {} is one of the 6502's undocumented instructions, which the {} hasn't got
 {} is open in hex mode, and too large to compare byte by byte here.
 {} is open with unsaved changes. Save or close it first, then merge again.
@@ -9195,8 +9953,11 @@ zx_notation
 {} is there, ready.
 {} is too big for a BASIC program.
 {} is too big for a tape block.
+{} is too far away for a branch
+{} is too far away for {bare}
 {} is too large for an Atari DOS file.
 {} is too large to read as text in its encoding, so it's shown in hex. Text files in UTF-8 or a byte set can be any size.
+{} is unpacked into {}, and open as a project.
 {} is working on {}… {seconds}s
 {} is writing the message…
 {} is {length} characters long, but it can be no more than {max}.
@@ -9263,6 +10024,7 @@ zx_notation
 {} needs {} sectors; the disk has {} free.
 {} of Base/16 to 16Base
 {} of the values didn't fit {}–{} and were held at the nearer end.
+{} of {} MB
 {} of {} slots used, {} bytes
 {} on {}
 {} only on the left
@@ -9273,7 +10035,9 @@ zx_notation
 {} pages. Choose one on the left, or type a name and press Enter.
 {} places don't keep to the schema:
 {} programs don't run on a built-in machine.
+{} programs don't run on a built-in teaching machine.
 {} range(s) on; play it to see them cycle
+{} reading the tape: {} of {} characters
 {} record(s) from record {}
 {} runs past the end of the archive, which has been cut short.
 {} runs past the end of the image, which has been cut short.
@@ -9311,6 +10075,7 @@ zx_notation
 {} words a row, {} bytes a copy, {} in all
 {} words a row; BLTSIZE ${size:04X}
 {} words a row; too big for one BLTSIZE
+{} words read from the tape into memory. Set the switches to where it starts, then Load address and Start.
 {} words skipped after each line
 {} works through its own program (JavaScript), which Limoniter doesn't run, and it gives nothing Limoniter can take in without it: no colour themes, grammars, snippets, file icons or language settings. So it wasn't installed.
 {} writes a message from the changes, for you to read over. It's in the Assistant's history
@@ -9347,6 +10112,7 @@ zx_notation
 {}, {columns} columns, scrolled right {}
 {}, {on}, {rows} rows, scrolled down {}, raster bit 8 = {}
 {}, {} bytes, ${:04X}-${:04X}, at offset {}
+{}: TRAP #{} with d0 = ${:02X}, to {}.
 {}: empty
 {}: not made for the {}, so Hatari may change machine or not start.
 {}: not made for the {}, so it may not start.
@@ -9354,12 +10120,15 @@ zx_notation
 {}: opened, it shows as it is; Disassemble shows it decrunched.
 {}: opened, it shows as what it holds.
 {}: the original ends with “...”, but the translation doesn't.
+{}: the routine whose address is the word at ${:X}, to {}. It's called as move.w {},a2 then jsr (a2).
 {}: this isn't 68000 source for the Amiga: it has no SECTION, and uses no system calls or custom chips.
+{}: this makes {}, not .{ending}.
 {}: {written} isn't a formatting command CatComp knows.
 {}: {} bytes
 {}: {} bytes, as they'd be saved
 {}: {} channels, {} positions, {} patterns, {} samples.
 {}: {} takes something different from the original's {}.
+{}: {}, gone in PHP {}. Instead: {}. ({fixed})
 {}; its low 16 bits are used
 {}; its low byte is used
 {}; saved decrunched as {} ({} bytes).
@@ -9384,6 +10153,7 @@ zx_notation
 “{value}” isn't a function name: use letters, digits and _.
 “{}” has no frames.
 … and more: type more of the name to see them.
+‹ Back
 ℹ Info
 ← Back
 ↑ To the server

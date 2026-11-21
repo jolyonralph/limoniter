@@ -1,0 +1,54 @@
+# Atari ST programs (GEMDOS executables: .prg, .tos, .ttp, .app, .acc): a 28-byte header, the text, data and
+# symbols, then the places to relocate (the Atari ST GEMDOS reference, Pexec).
+name "Atari ST program"
+endings prg tos ttp app acc gtp
+magic u16be(0) == 0x601A
+order big
+
+flags ProgramFlags : u32 {
+    FASTLOAD = 0x01 "Only the BSS is cleared, not the whole free memory"
+    TTRAMLOAD = 0x02 "May be loaded into TT fast RAM"
+    TTRAMMEM = 0x04 "May be given TT fast RAM by Malloc"
+    PRIVATE = 0x10
+    GLOBAL = 0x20
+    SUPERVISOR = 0x30
+    READABLE = 0x40
+    SHARED_TEXT = 0x800
+}
+
+struct Symbol {
+    char name[8]
+    u16 type : hex
+    u32 value : hex
+    label name
+}
+
+struct Header {
+    u16 branch : hex "0x601A: a BRA.S over the header"
+    u32 text_size
+    u32 data_size
+    u32 bss_size
+    u32 symbol_size
+    u32 reserved
+    ProgramFlags flags
+    u16 absolute "Not 0 when there's nothing to relocate"
+}
+
+Header header
+u8 text[header.text_size] "The program's code"
+u8 data[header.data_size]
+if header.symbol_size % 14 == 0 {
+    Symbol symbols[header.symbol_size / 14] "DRI symbols, 14 bytes each"
+} else {
+    u8 symbols[header.symbol_size] "Symbols in a form other than DRI's"
+}
+if header.absolute == 0 && here + 4 <= file_size {
+    u32 first_relocation : hex "The first longword to relocate, from the start of the text; 0 for none"
+    if first_relocation != 0 {
+        u8 relocations[while u8(here) != 0] "Each the distance to the next; 1 moves on 254 without relocating"
+        u8 end_of_relocations
+    }
+}
+if here < file_size {
+    u8 rest[] "After the program"
+}

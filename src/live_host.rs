@@ -75,8 +75,10 @@ impl Limoniter {
                 Link::Gdb | Link::None => None,
             },
             SessionKind::App { .. } | SessionKind::Atari2600 { .. } => None,
-            // The built-in ZX81 and Ace aren't reached by the Machine commands.
+            // The built-in ZX80, ZX81 and Ace aren't reached by the Machine commands.
             SessionKind::Micro { .. } => None,
+            SessionKind::Vectrex { .. } => None,
+            SessionKind::Teaching { .. } => None,
         };
         let own = self.running.sessions.iter().find(|s| matches!(s.kind, SessionKind::BuiltIn { doc_id: d, .. } if Some(d) == doc_id));
         own.into_iter().chain(self.running.sessions.iter().rev()).find_map(|session| reach(session).map(|r| (r, session.machine, session.target.clone())))

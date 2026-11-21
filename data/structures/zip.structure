@@ -1,0 +1,118 @@
+# ZIP archives (and the files built on them: .jar, .docx, .apk, .epub...): each file's local header and data,
+# then the central directory and its end record (PKWARE's APPNOTE.TXT).
+name "ZIP archive"
+magic u32le(0) == 0x04034B50 || u32le(0) == 0x06054B50
+order little
+
+enum Method : u16 {
+    stored = 0 "Not packed"
+    shrunk = 1
+    reduced1 = 2
+    reduced2 = 3
+    reduced3 = 4
+    reduced4 = 5
+    imploded = 6
+    deflated = 8
+    deflate64 = 9
+    bzip2 = 12
+    lzma = 14
+    zstandard = 93
+    xz = 95
+    ppmd = 98
+}
+
+flags ZipFlags : u16 {
+    ENCRYPTED = 0x0001
+    DATA_DESCRIPTOR = 0x0008 "The sizes and CRC follow the data instead"
+    STRONG_ENCRYPTION = 0x0040
+    UTF8_NAMES = 0x0800 "Names in UTF-8 rather than code page 437"
+}
+
+enum System : u8 {
+    MS_DOS = 0
+    Amiga = 1
+    OpenVMS = 2
+    Unix = 3
+    VM_CMS = 4
+    Atari_ST = 5
+    OS2_HPFS = 6
+    Macintosh = 7
+    Windows_NTFS = 10
+    Acorn_RISC_OS = 13
+    OS_X = 19
+}
+
+struct LocalFile {
+    u32 signature : hex "PK 3 4"
+    u16 version_needed
+    ZipFlags flags
+    Method method
+    u16 time : dostime
+    u16 date : dosdate
+    u32 crc : hex
+    u32 compressed_size
+    u32 uncompressed_size
+    u16 name_length
+    u16 extra_length
+    char name[name_length]
+    u8 extra[extra_length]
+    u8 data[min(compressed_size, file_size - here)]
+    if flags & DATA_DESCRIPTOR != 0 && compressed_size != 0 && u32(here) == 0x08074B50 {
+        u32 descriptor_signature : hex
+        u32 descriptor_crc : hex
+        u32 descriptor_compressed_size
+        u32 descriptor_uncompressed_size
+    }
+    label name
+}
+
+struct CentralEntry {
+    u32 signature : hex "PK 1 2"
+    u8 version_made_by
+    System made_on
+    u16 version_needed
+    ZipFlags flags
+    Method method
+    u16 time : dostime
+    u16 date : dosdate
+    u32 crc : hex
+    u32 compressed_size
+    u32 uncompressed_size
+    u16 name_length
+    u16 extra_length
+    u16 comment_length
+    u16 disk_number
+    u16 internal_attributes : hex
+    u32 external_attributes : hex "MS-DOS attributes in the low byte; Unix permissions in the top 16 bits"
+    u32 local_header : hex "Where this file's local header is"
+    char name[name_length]
+    u8 extra[extra_length]
+    char comment[comment_length]
+    label name
+}
+
+struct EndRecord {
+    u32 signature : hex "PK 5 6"
+    u16 disk_number
+    u16 directory_disk
+    u16 entries_on_disk
+    u16 entries
+    u32 directory_size
+    u32 directory_offset : hex
+    u16 comment_length
+    char comment[comment_length]
+}
+
+LocalFile files[while here + 30 <= file_size && u32(here) == 0x04034B50]
+# The end record is the last 22 bytes when the archive has no comment.
+if file_size >= 22 && u32(file_size - 22) == 0x06054B50 {
+    EndRecord end @ file_size - 22
+    if end.directory_offset + end.directory_size <= file_size {
+        CentralEntry directory[end.entries] @ end.directory_offset
+    }
+} else if here + 4 <= file_size && u32(here) == 0x02014B50 {
+    CentralEntry directory[while here + 46 <= file_size && u32(here) == 0x02014B50]
+    if here + 22 <= file_size && u32(here) == 0x06054B50 {
+        EndRecord end
+    }
+}

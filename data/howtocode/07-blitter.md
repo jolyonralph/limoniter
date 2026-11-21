@@ -1,5 +1,7 @@
 # 7. The blitter
 
+[‹ The copper](06-copper.md) · [Contents](README.md) · [The display ›](08-display.md)
+
 The blitter is the part of Agnus that moves memory about. It copies rectangles of words, combining up to three sources with any logical function on the way, shifting two of them by up to 15 pixels and masking the edges; it fills between lines; and it draws lines. It works at the same time as the processor, so while it clears a screen the processor can be working out the next frame. The Hardware Reference Manual puts its copying at about twice the speed of a 68000.
 
 It can only reach **chip RAM**. Point it at fast RAM or slow RAM and it reads and writes chip RAM somewhere else instead (the HRM warns it "may result in destruction of the contents of Chip memory"). Everything a blit touches - screens, bobs, masks, a scratch word - has to be in a `data_c` or `bss_c` section, or allocated with `MEMF_CHIP`.
@@ -580,3 +582,5 @@ All three run on the v8 startup, both ways (`OS_FRIENDLY` 0 and 1), and were run
 - v7 said `OwnBlitter()` keeps every register. Its autodoc doesn't say so: treat it as any library call.
 - v7's "the CPU clears faster than the blitter" (on an A1200) wasn't checked again. On a 68000 they're about equal, and doing both at once beats either.
 - New: the processor/blitter race, the blitter nasty, interleaved bitplanes, line mode and area fill, with the HRM's mistakes in them corrected.
+
+[‹ The copper](06-copper.md) · [Contents](README.md) · [The display ›](08-display.md)

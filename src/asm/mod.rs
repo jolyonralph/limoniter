@@ -1420,7 +1420,9 @@ impl<'a> Pass<'a> {
             self.struct_instance(&found, operands);
             return;
         }
-        if DIRECTIVES.contains(&directive.as_str()) && !(self.isa.is_instruction(&lower) && !lower.starts_with(['.', '!'])) {
+        // The 680x0's room for floating-point numbers: DS.S, DS.D, DS.X, DS.P.
+        let float_room = self.isa.name() == "68000" && matches!(directive.split_once('.'), Some(("ds" | "rs" | "blk", "s" | "d" | "x" | "p")));
+        if (DIRECTIVES.contains(&directive.as_str()) || float_room) && !(self.isa.is_instruction(&lower) && !lower.starts_with(['.', '!'])) {
             self.directive(&directive, operands);
             return;
         }
@@ -1481,11 +1483,17 @@ impl<'a> Pass<'a> {
         // Motorola's sizes: DC.B, DC.W, DC.L, DS.B and so on.
         let (directive, size) = match directive.split_once('.') {
             Some((name, size @ ("b" | "w" | "l" | "s"))) if matches!(name, "dc" | "ds" | "dcb" | "rs" | "blk") => (name, Some(size)),
+            // The 680x0's floating-point sizes, for room: single, double, extended and packed decimal.
+            Some((name, size @ ("d" | "x" | "p"))) if matches!(name, "ds" | "rs" | "blk") => (name, Some(size)),
             _ => (directive, None),
         };
+        let m68k = self.isa.name() == "68000";
         let unit = match size {
             Some("w") => 2,
             Some("l") => 4,
+            Some("s") if m68k => 4,
+            Some("d") => 8,
+            Some("x" | "p") => 12,
             _ => 1,
         };
         match (directive, size) {
@@ -1589,7 +1597,10 @@ impl<'a> Pass<'a> {
                         Some(text) => bytes.extend(text),
                         None => match self.eval(&item) {
                             Ok(v) => {
-                                if self.last && !(-256..=255).contains(&v) {
+                                // sjasmplus takes -256 to 255; vasm takes -128 to 255 (of its 32 bits, so
+                                // $FFFFFF80 is -128) and refuses the rest, which is warned of here.
+                                let fits = if self.isa.name() == "68000" { (-128..=255).contains(&wrap_32(v)) } else { (-256..=255).contains(&v) };
+                                if self.last && !fits {
                                     self.warn(crate::i18n::tf!("{item} is {v}, too big for a byte; its low byte is used"));
                                 }
                                 bytes.push(v as u8);
@@ -1616,6 +1627,15 @@ impl<'a> Pass<'a> {
                         self.problem(problem);
                         0
                     });
+                    // The 68000's DC.W and DC.L, as vasm takes them: a word from -32768 to 65535 (of 32 bits), a
+                    // long whatever 32 bits hold. More is cut to fit, and warned of.
+                    if self.last && self.isa.name() == "68000" {
+                        if size == 2 && !(-0x8000..=0xFFFF).contains(&wrap_32(value)) {
+                            self.warn(crate::i18n::tf!("{item} is {value}, too big for 16 bits; its low 16 bits are used"));
+                        } else if size == 4 && !fits_32(value) {
+                            self.warn(crate::i18n::tf!("{item} is {value}, too big for 32 bits; its low 32 bits are used"));
+                        }
+                    }
                     bytes.extend(self.word_bytes(value, size));
                 }
                 self.emit(bytes);
@@ -2661,6 +2681,16 @@ pub const DIRECTIVES: &[&str] = &[
 ];
 
 /// The line without its comment: from a ; or // that isn't in quotes. AF' isn't a quote.
+/// A value as 32 bits hold it, signed, as vasm keeps every value for the 68000: $FFFFFF80 is -128.
+pub fn wrap_32(value: i64) -> i64 {
+    value as i32 as i64
+}
+
+/// Whether a value fits in 32 bits, signed or not.
+pub fn fits_32(value: i64) -> bool {
+    (-0x8000_0000..=0xFFFF_FFFF).contains(&value)
+}
+
 pub fn strip_comment(line: &str) -> &str {
     let bytes = line.as_bytes();
     let mut quote: Option<u8> = None;

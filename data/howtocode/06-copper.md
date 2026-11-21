@@ -1,14 +1,16 @@
 # 6. The copper
 
+[‹ Interrupts](05-interrupts.md) · [Contents](README.md) · [The blitter ›](07-blitter.md)
+
 The copper is the Amiga's display coprocessor: a tiny processor in Agnus that reads a list of instructions from chip RAM, once a frame, in step with the video beam. It has only three instructions, and two of them are all most demos use: *wait until the beam gets here*, and *put this value in that register*. With those it changes colours, bitplane pointers, scroll values and screen modes at exact places on the screen, every frame, without the processor doing anything at all. v7 called it "probably the most wonderful part of the Amiga architecture", and it still is.
 
 This chapter covers the instructions, where a wait really happens on the screen, the line 255 problem, the danger bit, lists that jump, change and double-buffer, and the effects demos have always made with it: bars, gradients, colour cycling and split screens. There are five whole examples, each built both ways (with the machine taken and with the system running) like every v8 example:
 
-- `examples/ch06_waits.s`: where a `WAIT` lands. Colour changes after `$xx01` waits and after `$xx07` waits, and a ruler of horizontal positions.
-- `examples/ch06_gradient.s`: a colour on every one of 256 lines behind a city skyline, cycling through a palette.
-- `examples/ch06_bars.s`: six copper bars on a sine wave, built in one list while the copper shows another, with a jump through `COP2LC`.
-- `examples/ch06_split.s`: a low resolution top that wobbles (a scroll value for each line) and a high resolution bottom with its own bitplanes.
-- `examples/ch06_line255.s`: bars bouncing across line 255, in a list rebuilt each frame; two lists take turns through `COP1LC`.
+- [`examples/ch06_waits.s`](examples/ch06_waits.s): where a `WAIT` lands. Colour changes after `$xx01` waits and after `$xx07` waits, and a ruler of horizontal positions.
+- [`examples/ch06_gradient.s`](examples/ch06_gradient.s): a colour on every one of 256 lines behind a city skyline, cycling through a palette.
+- [`examples/ch06_bars.s`](examples/ch06_bars.s): six copper bars on a sine wave, built in one list while the copper shows another, with a jump through `COP2LC`.
+- [`examples/ch06_split.s`](examples/ch06_split.s): a low resolution top that wobbles (a scroll value for each line) and a high resolution bottom with its own bitplanes.
+- [`examples/ch06_line255.s`](examples/ch06_line255.s): bars bouncing across line 255, in a list rebuilt each frame; two lists take turns through `COP1LC`.
 
 ![ch06_gradient.s, ch06_bars.s, ch06_split.s and ch06_line255.s in FS-UAE (in the last, the grey line is line 256)](images/ch06_examples.png)
 
@@ -335,3 +337,5 @@ The five examples were built both ways (`OS_FRIENDLY=0` and `1`, with `AUTOEXIT=
 - an NTSC Amiga 500 with Kickstart 1.3, with the system running.
 
 Every run showed the effect, and then the CLI with "back in AmigaDOS, return code OK" after the demo had ended. Besides the examples, small test lists (not in `examples/`) checked what this chapter says about: the WAITs before line 256 (the table above); a MOVE to `BLTCON1` without `CDANG`; a copper-started blit with BFD set and clear; and the masked WAIT loop with SKIP. The screen positions given are FS-UAE's, measured from its screen captures; a real Amiga's picture may sit a pixel or two differently, and how much of the border a monitor shows is up to the monitor.
+
+[‹ Interrupts](05-interrupts.md) · [Contents](README.md) · [The blitter ›](07-blitter.md)

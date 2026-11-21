@@ -1,0 +1,28 @@
+%YAML 1.2
+---
+# Written for Limoniter from the Manchester Baby's seven instructions (JMP, JRP, LDN, STO, SUB, CMP, STP) and
+# NUM for a number, with store line numbers and labels before a colon, and 32-digit binary words written least
+# significant bit first. A semicolon starts a comment.
+name: Manchester Baby (SSEM)
+file_extensions: [ssem]
+scope: source.assembly.ssem
+contexts:
+  main:
+    - match: ';.*$'
+      scope: comment.line.ssem
+    - match: '^\s*\d+\s*:'
+      scope: constant.numeric.line-number.ssem
+    - match: '[A-Za-z_][\w]*\s*:'
+      scope: entity.name.label.ssem
+    - match: '(?i)\b(?:JMP|JRP|JPR)\b'
+      scope: keyword.control.branch.ssem
+    - match: '(?i)\b(?:LDN|STO|SUB|CMP|SKN|STP|HLT)\b'
+      scope: support.function.instruction.ssem
+    - match: '(?i)\bNUM\b'
+      scope: keyword.control.directive.ssem
+    - match: '\b[01]{32}\b'
+      scope: constant.numeric.binary.ssem
+    - match: '-?\b\d+\b'
+      scope: constant.numeric.ssem
+    - match: '[+\-]'
+      scope: keyword.operator.ssem

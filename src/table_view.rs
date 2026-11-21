@@ -183,6 +183,10 @@ impl Limoniter {
             return;
         }
         let ending = doc.path.as_deref().and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_string);
+        // The teaching machines' source has a comment on most lines, after a semicolon, which isn't a table.
+        if ending.as_deref().is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "ssem" | "edsac" | "pal" | "pa" | "pal8")) {
+            return;
+        }
         let sample: Vec<Arc<str>> = (0..doc.text.line_count().min(200)).map(|i| doc.text.line(i)).collect();
         doc.table_offer = table::sniff(&sample, ending.as_deref());
         // CSV and TSV files can open straight into a table, if that's been asked for.

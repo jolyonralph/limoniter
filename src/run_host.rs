@@ -16,15 +16,21 @@ pub(super) enum Target {
     BuiltIn,
     /// The Atari 2600 built into Limoniter, in a panel beside the source or cartridge.
     BuiltIn2600,
+    /// The Vectrex built into Limoniter, in a panel beside the source or cartridge.
+    BuiltInVectrex,
     /// A device or emulator, by its place in the list.
     Device(usize),
-    /// The ZX81 and the Jupiter Ace built into Limoniter.
+    /// The ZX80, the ZX81 and the Jupiter Ace built into Limoniter.
+    Zx80,
     Zx81,
     Ace,
+    /// The machines built in for teaching: the Manchester Baby, EDSAC and the PDP-8.
+    Teaching(Machine),
 }
 
 pub(super) const BUILT_IN_NAME: &str = "Built-in Spectrum";
 pub(super) const BUILT_IN_2600_NAME: &str = "Built-in Atari 2600";
+pub(super) const BUILT_IN_VECTREX_NAME: &str = "Built-in Vectrex";
 /// Where the status bar's Stop button leaves word that it was pressed.
 pub(super) const STOP_ASKED: &str = "stop-running-asked";
 
@@ -44,8 +50,12 @@ pub(super) enum SessionKind {
     BuiltIn { machine: Box<crate::zx_machine::BuiltIn>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
     /// The built-in Atari 2600, drawn in a panel beside the document it was run from.
     Atari2600 { machine: Box<crate::atari2600_machine::Atari2600>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
-    /// The built-in ZX81 or Jupiter Ace, in a panel beside the document it was run from.
+    /// The built-in Vectrex, drawn in a panel beside the document it was run from, or asking for its BIOS.
+    Vectrex { machine: Box<super::vectrex_run_host::VectrexRun>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
+    /// The built-in ZX80, ZX81 or Jupiter Ace, in a panel beside the document it was run from.
     Micro { machine: Box<super::micro_host::Micro>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
+    /// A built-in teaching machine (the Manchester Baby, EDSAC or the PDP-8), in a panel beside its source.
+    Teaching { machine: Box<super::teaching_host::Teaching>, doc_id: u64, run: Box<Runnable> },
 }
 
 /// A program from assembler source being debugged in an emulator: the document, the debugger, and the
@@ -119,11 +129,12 @@ pub(super) enum RunBox {
 }
 
 /// The machines a plain text can be run as the BASIC of.
-const LISTING_MACHINES: [(basic::Machine, &str); 6] = [
+const LISTING_MACHINES: [(basic::Machine, &str); 7] = [
     (basic::Machine::Spectrum, "ZX Spectrum 48K BASIC"),
     (basic::Machine::Next, "ZX Spectrum Next BASIC (NextBASIC)"),
     (basic::Machine::Commodore(basic::CbmMachine::C64), "Commodore 64 BASIC"),
     (basic::Machine::Bbc, "BBC BASIC"),
+    (basic::Machine::Zx80, "ZX80 BASIC"),
     (basic::Machine::Zx81, "ZX81 BASIC"),
     (basic::Machine::JupiterAce, "Jupiter Ace Forth"),
 ];
@@ -141,6 +152,9 @@ impl Limoniter {
     }
 
     fn runnable_reporting(&mut self, report: bool) -> Result<Option<Runnable>, String> {
+        if let Some(runnable) = self.teaching_runnable() {
+            return Ok(Some(runnable));
+        }
         if let Some(kind) = self.compiles(self.active) {
             return self.compiled_runnable(kind, report).map(Some);
         }
@@ -173,6 +187,13 @@ impl Limoniter {
         if !doc.hex_mode && doc.text.is_disk_backed() {
             return Err(crate::i18n::tr("This file is too large to run.").into());
         }
+        // RGC BASIC runs with its own interpreter, as the text it is.
+        if !doc.hex_mode && doc.browser.is_none() && doc.language_name() == highlight::BASIC_RGC {
+            let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| doc.name(), |s| s.to_string_lossy().into_owned());
+            let lines: Vec<String> = doc.text.all_lines().iter().map(|l| l.to_string()).collect();
+            let bytes = (lines.join("\n") + "\n").into_bytes();
+            return Ok(Some(Runnable { machine: Machine::RgcBasic, format: crate::running::Format::RgcBas, name: format!("{stem}.bas"), bytes: std::sync::Arc::new(bytes) }));
+        }
         // Forth source runs on the Jupiter Ace, typed in.
         if !doc.hex_mode && doc.browser.is_none() && doc.language_name() == "Forth" {
             let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| doc.name(), |s| s.to_string_lossy().into_owned());
@@ -195,8 +216,11 @@ impl Limoniter {
         match target {
             Target::BuiltIn => BUILT_IN_NAME.to_string(),
             Target::BuiltIn2600 => BUILT_IN_2600_NAME.to_string(),
+            Target::BuiltInVectrex => BUILT_IN_VECTREX_NAME.to_string(),
+            Target::Zx80 => super::micro_host::ZX80_NAME.to_string(),
             Target::Zx81 => super::micro_host::ZX81_NAME.to_string(),
             Target::Ace => super::micro_host::ACE_NAME.to_string(),
+            Target::Teaching(machine) => super::teaching_host::MACHINES.iter().find(|(m, _)| *m == machine).map_or_else(String::new, |(_, name)| name.to_string()),
             Target::Device(n) => self.sends.devices.get(n).map_or_else(String::new, |device| device.name.clone()),
         }
     }
@@ -208,11 +232,20 @@ impl Limoniter {
         if name == BUILT_IN_2600_NAME {
             return Some(Target::BuiltIn2600);
         }
+        if name == BUILT_IN_VECTREX_NAME {
+            return Some(Target::BuiltInVectrex);
+        }
+        if name == super::micro_host::ZX80_NAME {
+            return Some(Target::Zx80);
+        }
         if name == super::micro_host::ZX81_NAME {
             return Some(Target::Zx81);
         }
         if name == super::micro_host::ACE_NAME {
             return Some(Target::Ace);
+        }
+        if let Some((machine, _)) = super::teaching_host::MACHINES.iter().find(|(_, n)| *n == name) {
+            return Some(Target::Teaching(*machine));
         }
         self.sends.devices.iter().position(|device| device.name == name).map(Target::Device)
     }
@@ -222,8 +255,11 @@ impl Limoniter {
         match target {
             Target::BuiltIn => crate::zx_machine::BuiltIn::takes(run).map_err(|why| crate::i18n::tf!("The built-in Spectrum {why}")),
             Target::BuiltIn2600 => crate::atari2600_machine::Atari2600::takes(run).map_err(|why| crate::i18n::tf!("The built-in Atari 2600 {why}")),
+            Target::BuiltInVectrex => crate::vectrex_machine::Vectrex::takes(run).map_err(|why| crate::i18n::tf!("The built-in Vectrex {why}")),
+            Target::Zx80 => super::micro_host::takes(crate::micro_roms::Needs::Zx80, run),
             Target::Zx81 => super::micro_host::takes(crate::micro_roms::Needs::Zx81, run),
             Target::Ace => super::micro_host::takes(crate::micro_roms::Needs::Ace, run),
+            Target::Teaching(machine) => super::teaching_host::takes(machine, run),
             Target::Device(n) => {
                 let Some(device) = self.sends.devices.get(n) else {
                     return Err(crate::i18n::tr("It's no longer set up.").into());
@@ -250,10 +286,16 @@ impl Limoniter {
     /// Every target, with whether it can take this.
     pub(super) fn targets_for(&self, run: &Runnable) -> Vec<(Target, String, Result<(), String>)> {
         let mut all = vec![(Target::BuiltIn, BUILT_IN_NAME.to_string(), self.suits(Target::BuiltIn, run)), (Target::BuiltIn2600, BUILT_IN_2600_NAME.to_string(), self.suits(Target::BuiltIn2600, run))];
-        // The built-in ZX81 and Ace are offered for their own programs only.
-        for (target, machine) in [(Target::Zx81, Machine::Zx81), (Target::Ace, Machine::JupiterAce)] {
+        // The built-in ZX80, ZX81, Ace and Vectrex are offered for their own programs only, first.
+        for (target, machine) in [(Target::Zx80, Machine::Zx80), (Target::Zx81, Machine::Zx81), (Target::Ace, Machine::JupiterAce), (Target::BuiltInVectrex, Machine::Vectrex)] {
             if run.machine == machine {
                 all.insert(0, (target, self.target_name(target), self.suits(target, run)));
+            }
+        }
+        // The same for the teaching machines.
+        for (machine, name) in super::teaching_host::MACHINES {
+            if run.machine == machine {
+                all.insert(0, (Target::Teaching(machine), name.to_string(), self.suits(Target::Teaching(machine), run)));
             }
         }
         all.extend((0..self.sends.devices.len()).map(|n| (Target::Device(n), self.sends.devices[n].name.clone(), self.suits(Target::Device(n), run))));
@@ -264,6 +306,10 @@ impl Limoniter {
     pub(super) fn run_on_machine(&mut self) {
         // An AmigaShell script runs through vamos, with the Workbench's Execute.
         if self.run_script_in_vamos() {
+            return;
+        }
+        // PHP runs as a script, or a page is served and opened in the browser.
+        if self.php_run_on_f9() {
             return;
         }
         let runnable = match self.runnable() {
@@ -277,7 +323,9 @@ impl Limoniter {
             Err(problem) => return self.message("Run on machine", problem),
         };
         let chosen = self.running.default_for(runnable.machine).and_then(|name| self.target_named(name)).filter(|target| self.suits(*target, &runnable).is_ok());
-        match chosen {
+        // The teaching machines run only where they're built in, so there's nothing to ask.
+        let teaching = super::teaching_host::MACHINES.iter().any(|(m, _)| *m == runnable.machine).then_some(Target::Teaching(runnable.machine));
+        match chosen.or(teaching) {
             Some(target) => self.begin_run(target),
             None => self.dialog = Dialog::Run(Box::new(RunBox::Where { runnable: Box::new(runnable), remember: true, ready: false })),
         }
@@ -356,7 +404,9 @@ impl Limoniter {
         let outcome = match target {
             Target::BuiltIn => self.run_built_in(run.clone()),
             Target::BuiltIn2600 => self.run_built_in_2600(run.clone()),
-            Target::Zx81 | Target::Ace => self.run_micro(run.clone()),
+            Target::BuiltInVectrex => self.run_built_in_vectrex(run.clone()),
+            Target::Zx80 | Target::Zx81 | Target::Ace => self.run_micro(run.clone()),
+            Target::Teaching(_) => self.run_teaching(run.clone()),
             Target::Device(n) => {
                 let device = self.sends.devices[n].clone();
                 match &device.place {
@@ -431,6 +481,8 @@ impl Limoniter {
         let symbols = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id && run.format == crate::running::Format::Tos).map(|c| crate::st_run::symbols(&c.assembly));
         let st = if emulator.id == "hatari" { Some(crate::st_run::prepare(&folder, &file, run, &crate::st_run::settings(), Some(program.as_path()), profiling, symbols.as_deref())?) } else { None };
         let file = st.as_ref().map_or(file, |st| st.file.clone());
+        // A QL program goes where the emulator reads it: a folder made sQLux's drive, or a cartridge with a BOOT.
+        let (file, format) = if run.machine == Machine::Ql { crate::ql_run::prepare(emulator.id, &folder, &file, run)? } else { (file, run.format) };
         // An emulator already running, that can be reached, loads it where it is.
         if let Some(index) = self.running.sessions.iter().position(|s| s.target == device.name)
             && !debugging
@@ -446,7 +498,7 @@ impl Limoniter {
         self.stop_session(&device.name);
         let port = (emulator.link != Link::None).then(free_port).flatten();
         let program = emulator.program_for(program, run.machine);
-        let mut args = emulator.arguments(run.machine, run.format, &file, port, options);
+        let mut args = emulator.arguments(run.machine, format, &file, port, options);
         if let Some(st) = &st {
             let at = args.len().saturating_sub(1);
             args.splice(at..at, st.options.iter().cloned());
@@ -667,6 +719,8 @@ impl Limoniter {
             _ => Default::default(),
         };
         let ctx = ui.ctx().clone();
+        let (keys, hint, choosing) = (self.control_keys.clone(), self.control_keys.hint(crate::control_hints::Pad::Spectrum), self.choosing_a_control_key());
+        let mut open_controls = false;
         let session = &mut self.running.sessions[index];
         let title = format!("{}: {}", session.machine.name(), session.file);
         let SessionKind::BuiltIn { machine, texture, error, .. } = &mut session.kind else {
@@ -711,6 +765,7 @@ impl Limoniter {
                         keyboard = !keyboard;
                     }
                     restart = ui.small_button(crate::i18n::tr("Restart")).on_hover_text(crate::i18n::tr("Runs the program again from the start")).clicked();
+                    open_controls = ui.small_button(crate::i18n::tr("Controls\u{2026}")).on_hover_text(crate::i18n::tr("Which keys are its Kempston joystick, and changing them")).clicked();
                     let profiling = machine.profiling();
                     if ui.selectable_label(profiling, crate::i18n::tr("Profile")).on_hover_text(crate::i18n::tr("Counts the T-states spent in each routine and line, from now; click again to stop counting, and what was counted stays to read")).clicked() {
                         machine.set_profiling(!profiling);
@@ -752,9 +807,10 @@ impl Limoniter {
                 ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(2.0, theme::accent()), egui::StrokeKind::Outside);
                 ui.memory_mut(|m| m.set_focus_lock_filter(focus_id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true }));
             }
+            control_hints_host::screen_hints(ui, &response, focused, &hint);
             let words = match error {
                 Some(problem) => problem.clone(),
-                None if focused => crate::i18n::tr("Typing goes to the Spectrum. Ctrl is Symbol Shift, Esc is Break. Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.").into(),
+                None if focused => crate::i18n::tf!("{hint} Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode."),
                 None => crate::i18n::tr("Click the screen to type on the Spectrum.").into(),
             };
             ui.add(egui::Label::new(RichText::new(words).color(theme::text_faint()).size(12.0)).wrap());
@@ -839,10 +895,10 @@ impl Limoniter {
             // Typing carries on going to the Spectrum after a key's clicked.
             ctx.memory_mut(|m| m.request_focus(focus_id));
         }
-        if focused {
+        if focused && !choosing {
             let events = ctx.input(|i| i.events.clone());
             let ctrl = ctx.input(|i| i.modifiers.ctrl || i.modifiers.alt);
-            spectrum_keys(machine, &events, ctrl);
+            spectrum_keys(machine, &events, ctrl, &keys);
         } else {
             machine.release_all();
         }
@@ -852,6 +908,9 @@ impl Limoniter {
         if let (Some(i), Some(line)) = (doc_index, go_to_line) {
             self.docs[i].text.move_caret(line, 0, false);
             self.docs[i].text.reveal = true;
+        }
+        if open_controls {
+            self.control_editor = Some(crate::control_hints::Editor::new(crate::control_hints::Pad::Spectrum));
         }
         let SessionKind::BuiltIn { machine, error, .. } = &mut self.running.sessions[index].kind else {
             return;
@@ -964,6 +1023,16 @@ impl Limoniter {
             if let SessionKind::Atari2600 { machine, .. } = &mut session.kind {
                 for _ in 0..frames {
                     if machine.frame().is_err() {
+                        break;
+                    }
+                }
+            }
+            if let SessionKind::Vectrex { machine, error, .. } = &mut session.kind
+                && let super::vectrex_run_host::VectrexRun::Running(vectrex) = machine.as_mut()
+            {
+                for _ in 0..frames {
+                    if let Err(problem) = vectrex.frame() {
+                        *error = Some(problem);
                         break;
                     }
                 }
@@ -1151,7 +1220,7 @@ impl Limoniter {
                 });
             }
             None if which_6502 => {
-                ui.label(crate::i18n::tr("Is this 6502 program for a Commodore 64, a BBC Micro, an Atari 2600 or an NES? Its code doesn't say."));
+                ui.label(crate::i18n::tr("Which machine is this 6502 program for? Its code doesn't say."));
                 ui.add_space(6.0);
                 if ui.button(crate::i18n::tr("Commodore 64")).clicked() {
                     as_6502 = Some(Micro6502::C64);
@@ -1165,8 +1234,17 @@ impl Limoniter {
                 if ui.button(crate::i18n::tr("NES")).clicked() {
                     as_6502 = Some(Micro6502::Nes);
                 }
+                if ui.button(crate::i18n::tr("Atari 8-bit (400, 800, XL, XE)")).clicked() {
+                    as_6502 = Some(Micro6502::Atari8);
+                }
+                if ui.button(crate::i18n::tr("Atari 7800")).clicked() {
+                    as_6502 = Some(Micro6502::Atari7800);
+                }
+                if ui.button(crate::i18n::tr("Apple II")).clicked() {
+                    as_6502 = Some(Micro6502::Apple2);
+                }
                 ui.add_space(6.0);
-                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("It's remembered while the file is open. To say in the source, put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top.")).color(theme::text_dim())).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("It's remembered while the file is open. To say in the source, put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top.")).color(theme::text_dim())).wrap());
                 ui.add_space(6.0);
                 close |= ui.button(crate::i18n::tr("Cancel")).clicked();
             }
@@ -1282,11 +1360,19 @@ fn basic_debugger(ui: &mut Ui, line: u16, statement: u8, variables: &[crate::zx_
 
 /// Keys pressed on the computer, played on the Spectrum. Letters, digits, Space and Enter are held as long as
 /// they're held here, as games need; capitals and symbols are typed, with the shift the Spectrum needs for each.
-fn spectrum_keys(machine: &mut crate::zx_machine::BuiltIn, events: &[egui::Event], symbol_shift: bool) {
+/// A key given to the Kempston joystick (see `control_hints`) moves it instead, and doesn't type.
+fn spectrum_keys(machine: &mut crate::zx_machine::BuiltIn, events: &[egui::Event], symbol_shift: bool, controls: &crate::control_hints::ControlKeys) {
     use rustzx_core::zx::keys::{CompoundKey, ZXKey};
     machine.key(ZXKey::SymShift, symbol_shift);
+    let joystick: Vec<Key> = crate::control_hints::Pad::Spectrum.controls().iter().filter_map(|(id, ..)| controls.key(crate::control_hints::Pad::Spectrum, id)).collect();
     for event in events {
         match event {
+            egui::Event::Key { key, pressed, .. } if joystick.contains(key) => {
+                if let Some(control) = controls.control_for(crate::control_hints::Pad::Spectrum, *key) {
+                    machine.kempston(control, *pressed);
+                }
+            }
+            egui::Event::Text(text) if text.chars().count() == 1 && joystick.iter().any(|k| k.name().eq_ignore_ascii_case(text)) => {}
             egui::Event::Key { key, pressed, repeat: false, modifiers, .. } => {
                 let compound = match key {
                     Key::Backspace => Some(CompoundKey::Delete),

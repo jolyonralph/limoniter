@@ -13,7 +13,7 @@
 //! and any line that wouldn't give back its bytes becomes data, so it always assembles to what it came from.
 
 use crate::asm::hunk::{self, Kind, Memory};
-pub use crate::asm::m68k::Processor;
+pub use crate::asm::m68k::{Fpu, Mmu, Processor};
 use std::collections::{BTreeMap, BTreeSet};
 
 // ---------- What a program is ----------
@@ -91,6 +91,12 @@ pub struct Program {
     /// The processor it's for: the 68010's and 68020's instructions and addresses are read only for those that
     /// have them, and the source says MACHINE for any but the 68000.
     pub cpu: Processor,
+    /// The maths coprocessor beside it, whose instructions are read only when there's one (the 68040 and 68060
+    /// have their own).
+    pub fpu: Fpu,
+    /// The 68851 MMU beside it, whose instructions are read only when there's one (the 68030, 68040 and 68060 have
+    /// their own).
+    pub mmu: Mmu,
 }
 
 fn be16(b: &[u8], at: usize) -> Option<u16> {
@@ -127,6 +133,8 @@ pub fn raw(bytes: &[u8], origin: u32, starts: &[u32], machine: Machine) -> Progr
         pointers: BTreeSet::new(),
         what: crate::i18n::tf!("{} bytes of 68000 code at ${origin:X}", group(bytes.len() as u64)),
         cpu: Processor::M68000,
+        fpu: Fpu::None,
+        mmu: Mmu::None,
     }
 }
 
@@ -160,7 +168,7 @@ pub fn amiga_program(bytes: &[u8]) -> Result<Program, String> {
         .collect();
     let what = crate::i18n::tf!("An Amiga program: {} ({})", if sections.len() == 1 { "1 hunk".to_string() } else { format!("{} hunks", sections.len()) }, parts.join(", "));
     let starts = vec![sections[0].base];
-    Ok(Program { machine: Machine::Amiga, layout: Layout::Hunks, sections, starts, names, text_end: None, pointers: BTreeSet::new(), what, cpu: Processor::M68000 })
+    Ok(Program { machine: Machine::Amiga, layout: Layout::Hunks, sections, starts, names, text_end: None, pointers: BTreeSet::new(), what, cpu: Processor::M68000, fpu: Fpu::None, mmu: Mmu::None })
 }
 
 /// An Atari ST program: $601A, its parts' sizes, the text and data, the symbols, and the table of the longs TOS
@@ -204,7 +212,7 @@ pub fn tos_program(bytes: &[u8]) -> Result<Program, String> {
     }
     let what = crate::i18n::tf!("An Atari ST program: text {} bytes, data {}, BSS {}{}", group(text as u64), group(data as u64), group(bss as u64), if names.is_empty() { String::new() } else { format!(", {} symbols", names.len()) });
     let section = Section { kind: Kind::Code, memory: Memory::Any, base: 0, bytes: image, bss: bss as u32, relocations };
-    Ok(Program { machine: Machine::AtariSt, layout: Layout::Tos, sections: vec![section], starts: vec![0], names, text_end: Some(text as u32), pointers: BTreeSet::new(), what, cpu: Processor::M68000 })
+    Ok(Program { machine: Machine::AtariSt, layout: Layout::Tos, sections: vec![section], starts: vec![0], names, text_end: Some(text as u32), pointers: BTreeSet::new(), what, cpu: Processor::M68000, fpu: Fpu::None, mmu: Mmu::None })
 }
 
 /// What a file holds, when it says: an Amiga program, an Atari ST program, an Amiga boot block, an ST boot
@@ -386,8 +394,23 @@ pub enum Op {
     RegPair(u8, u8),
     /// MOVEC's control register, by its name.
     Control(&'static str),
-    /// A bit field: the address, then its offset and width as written ({4:8}, {d1:d2}).
+    /// A bit field: the address, then its offset and width as written ({4:8}, {d1:d2}); or FMOVE.P's address and
+    /// its k-factor ({#5}, {d2}).
     Field(Box<Op>, String),
+    /// An FP register.
+    Fp(u8),
+    /// FSINCOS's two FP registers, FPc:FPs.
+    FpPair(u8, u8),
+    /// FMOVEM's FP registers: bit n is FPn.
+    FpList(u8),
+    /// FMOVEM's control registers: FPCR 4, FPSR 2, FPIAR 1.
+    FpControls(u8),
+    /// A floating-point immediate, its bytes as they are.
+    Float(crate::asm::m68k::float::Format, Vec<u8>),
+    /// An immediate written as its bytes in hexadecimal: FMOVEM's for several control registers, a root pointer's.
+    Raw(Vec<u8>),
+    /// A register or cache written by its name: an MMU's (TC, BAD3), a function code's (SFC), a cache (DC).
+    Name(String),
 }
 
 impl Op {
@@ -429,6 +452,10 @@ struct Reader<'a> {
     pc: u32,
     length: u32,
     cpu: Processor,
+    /// Whether there's an FPU, the processor's own or one beside it.
+    fpu: bool,
+    /// The MMU there is, the processor's own or the 68851 beside it.
+    mmu: Option<crate::asm::m68k::mmu::Kind>,
 }
 
 impl Reader<'_> {
@@ -577,7 +604,17 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
 /// One instruction at `pc` for a processor of the family; None if they aren't one of its instructions, or are one
 /// that can't be written so that it assembles back to the same words.
 pub fn decode_for(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor) -> Option<Insn> {
-    let mut insn = decode_words(word, pc, cpu)?;
+    decode_with(word, pc, cpu, Fpu::None)
+}
+
+/// The same, with a maths coprocessor beside the processor (or none, but for the 68040's and 68060's own).
+pub fn decode_with(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor, fpu: Fpu) -> Option<Insn> {
+    decode_chips(word, pc, cpu, fpu, Mmu::None)
+}
+
+/// The same, with a 68851 MMU beside the processor too (or none, but for the 68030's, 68040's and 68060's own).
+pub fn decode_chips(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor, fpu: Fpu, mmu: Mmu) -> Option<Insn> {
+    let mut insn = decode_words(word, pc, cpu, fpu.with(cpu), crate::asm::m68k::mmu::kind(cpu, mmu))?;
     // A 68020's assembler widens a PC-relative displacement that doesn't fit, reckoning it from just after the
     // instruction's own words, as vasm does: one that only fits from where it really is is written with its size.
     if cpu.has_68020_or_cpu32() && !matches!(insn.mnemonic.as_str(), "jmp" | "jsr") {
@@ -613,6 +650,11 @@ fn opcode_words(base: &str, insn: &Insn) -> i64 {
         "movem" | "moves" | "cas" | "chk2" | "cmp2" | "callm" | "divsl" | "divul" | "bfchg" | "bfclr" | "bfexts" | "bfextu" | "bfffo" | "bfins" | "bfset" | "bftst" => 2,
         "btst" | "bchg" | "bclr" | "bset" if matches!(insn.ops.first(), Some(Op::Quick(_))) => 2,
         _ if long_multiply => 2,
+        // The FPU's and the MMU's: the opcode and the command word, but for FSAVE, FRESTORE, PSAVE, PRESTORE and the
+        // branches; the CPU32's table lookups have one too.
+        "fsave" | "frestore" | "psave" | "prestore" | "pea" | "pack" => 1,
+        _ if base.starts_with('f') && !base.starts_with("fb") => 2,
+        _ if (base.starts_with('p') && !base.starts_with("pb")) || base.starts_with("tbl") => 2,
         _ => 1,
     }
 }
@@ -641,8 +683,8 @@ fn field_text(w: u16) -> Option<String> {
     Some(format!("{{{offset}:{width}}}"))
 }
 
-fn decode_words(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor) -> Option<Insn> {
-    let mut r = Reader { word, pc, length: 0, cpu };
+fn decode_words(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor, fpu: bool, mmu: Option<crate::asm::m68k::mmu::Kind>) -> Option<Insn> {
+    let mut r = Reader { word, pc, length: 0, cpu, fpu, mmu };
     let op = r.next()?;
     let (mode, reg) = ((op >> 3) & 7, op & 7);
     let rx = ((op >> 9) & 7) as u8;
@@ -863,6 +905,8 @@ fn decode_words(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor) -> O
                     }
                     (named("tst", Some(size)), vec![dst])
                 }
+                // The CPU32's BGND, where TAS would be from PC, which can't be written.
+                0x4AFA if cpu == Processor::Cpu32 => ("bgnd".into(), vec![]),
                 _ if op & 0xFFC0 == 0x4AC0 => {
                     let dst = ea(&mut r, mode, reg, Size::B)?;
                     if !fits(&dst, Class::DataAlterable) {
@@ -1171,6 +1215,7 @@ fn decode_words(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor) -> O
                 (named(&name, Some(size)), vec![count, Op::D(reg as u8)])
             }
         }
+        0xF => later::decode(&mut r, op, &mut flow)?,
         _ => return None,
     };
     Some(Insn { mnemonic, ops, length: r.length, flow })
@@ -1305,6 +1350,13 @@ fn operand(op: &Op, names: &dyn Names) -> String {
         Op::RegPair(a, b) => format!("({}):({})", register(a & 7, *a >= 8).replace("sp", "a7"), register(b & 7, *b >= 8).replace("sp", "a7")),
         Op::Control(name) => (*name).into(),
         Op::Field(inner, field) => format!("{}{field}", operand(inner, names)),
+        Op::Fp(n) => format!("fp{n}"),
+        Op::FpPair(c, s) => format!("fp{c}:fp{s}"),
+        Op::FpList(mask) => fpu::list(*mask),
+        Op::FpControls(select) => fpu::controls(*select),
+        Op::Float(format, bytes) => format!("#{}", crate::asm::m68k::float::text(*format, bytes)),
+        Op::Raw(bytes) => format!("#${}", bytes.iter().map(|b| format!("{b:02X}")).collect::<String>()),
+        Op::Name(name) => name.clone(),
     }
 }
 
@@ -1441,7 +1493,7 @@ impl Work<'_> {
 
     fn decode(&self, address: u32) -> Option<Insn> {
         let word = |a: u32| self.word(a);
-        decode_for(&word, address, self.program.cpu)
+        decode_chips(&word, address, self.program.cpu, self.program.fpu, self.program.mmu)
     }
 
     fn trace(&mut self, starts: Vec<u32>) {
@@ -2060,6 +2112,14 @@ fn write(work: &Work) -> Vec<Line> {
     if program.cpu != Processor::M68000 {
         lines.push(Line { text: format!("        machine {}", program.cpu.name().to_ascii_lowercase()), range: None });
     }
+    // And the maths coprocessor beside it, which the 68040 and 68060 have built in.
+    if program.fpu != Fpu::None && !matches!(program.cpu, Processor::M68040 | Processor::M68060) {
+        lines.push(Line { text: format!("        machine {}", program.fpu.name()), range: None });
+    }
+    // And the 68851, which the 68030, 68040 and 68060 don't need.
+    if program.mmu != Mmu::None && !matches!(program.cpu, Processor::M68030 | Processor::M68040 | Processor::M68060) {
+        lines.push(Line { text: format!("        machine {}", program.mmu.name()), range: None });
+    }
     // vasm would otherwise make some instructions shorter (JSR to BSR.W, say), and the bytes wouldn't be the same.
     lines.push(Line { text: format!("{:<48}; {}", "        opt     o-", crate::i18n::tr("nothing optimised, for vasm")), range: None });
     if program.layout == Layout::Raw {
@@ -2325,6 +2385,10 @@ fn check(work: &Work, mut lines: Vec<Line>) -> Vec<Line> {
     }
     lines
 }
+
+mod fpu;
+mod later;
+mod mmu;
 
 #[cfg(test)]
 mod tests;

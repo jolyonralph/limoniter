@@ -1,0 +1,147 @@
+# Amiga hunk executables, libraries and object files, as the AmigaDOS loader reads them
+# (The AmigaDOS Manual, chapter 10, and dos/doshunks.h).
+name "Amiga hunk executable"
+magic u32be(0) == 0x3F3 || u32be(0) == 0x3E7
+order big
+
+enum HunkType : u32 {
+    HUNK_UNIT = 0x3E7 "The start of an object file"
+    HUNK_NAME = 0x3E8
+    HUNK_CODE = 0x3E9 "Machine code"
+    HUNK_DATA = 0x3EA "Initialised data"
+    HUNK_BSS = 0x3EB "Memory cleared to zero when loaded"
+    HUNK_RELOC32 = 0x3EC "32-bit places to relocate"
+    HUNK_RELOC16 = 0x3ED
+    HUNK_RELOC8 = 0x3EE
+    HUNK_EXT = 0x3EF "External symbols"
+    HUNK_SYMBOL = 0x3F0 "Symbols, for debuggers"
+    HUNK_DEBUG = 0x3F1 "Debugging information"
+    HUNK_END = 0x3F2 "The end of a hunk"
+    HUNK_HEADER = 0x3F3 "The start of a loadable file"
+    HUNK_OVERLAY = 0x3F5
+    HUNK_BREAK = 0x3F6
+    HUNK_DREL32 = 0x3F7
+    HUNK_DREL16 = 0x3F8
+    HUNK_DREL8 = 0x3F9
+    HUNK_LIB = 0x3FA
+    HUNK_INDEX = 0x3FB
+    HUNK_RELOC32SHORT = 0x3FC "32-bit places to relocate, in 16-bit words"
+    HUNK_RELRELOC32 = 0x3FD
+    HUNK_ABSRELOC16 = 0x3FE
+}
+
+flags Memory : u32 {
+    MEMF_CHIP = 0x40000000 "Loaded into chip memory"
+    MEMF_FAST = 0x80000000 "Loaded into fast memory"
+}
+
+enum ExtType : u8 {
+    EXT_SYMB = 0
+    EXT_DEF = 1 "A relocatable definition"
+    EXT_ABS = 2 "An absolute definition"
+    EXT_RES = 3
+    EXT_REF32 = 129 "32-bit references"
+    EXT_COMMON = 130
+    EXT_REF16 = 131
+    EXT_REF8 = 132
+    EXT_DEXT32 = 133
+    EXT_DEXT16 = 134
+    EXT_DEXT8 = 135
+    EXT_RELREF32 = 136
+    EXT_RELCOMMON = 137
+    EXT_ABSREF16 = 138
+    EXT_ABSREF8 = 139
+}
+
+struct Name {
+    u32 longs "The name's length, in 32-bit words"
+    char text[longs * 4]
+    label text
+}
+
+struct Reloc32 {
+    u32 count
+    u32 hunk "The hunk these places point into"
+    u32 offsets[count] : hex
+}
+
+struct Reloc16 {
+    u16 count
+    u16 hunk
+    u16 offsets[count] : hex
+}
+
+struct Symbol {
+    u32 longs
+    char name[longs * 4]
+    u32 value : hex
+    label name
+}
+
+struct External {
+    ExtType type
+    u24 longs "The name's length, in 32-bit words"
+    char name[longs * 4]
+    if type < 128 {
+        u32 value : hex
+    } else {
+        if type == EXT_COMMON || type == EXT_RELCOMMON {
+            u32 common_size
+        }
+        u32 count
+        u32 references[count] : hex
+    }
+    label name
+}
+
+struct Hunk {
+    u32 id : hex "The hunk's type, with its memory wishes in the top two bits"
+    let type = id & 0x3FFFFFFF
+    calc kind : HunkType = type
+    calc memory : Memory = id & 0xC0000000
+    label kind
+    if type == HUNK_CODE || type == HUNK_DATA || type == HUNK_DEBUG {
+        u32 longs "The length in 32-bit words"
+        u8 contents[longs * 4]
+    } else if type == HUNK_BSS {
+        u32 longs "The memory to clear, in 32-bit words"
+    } else if type == HUNK_NAME {
+        u32 longs
+        char name[longs * 4]
+    } else if type == HUNK_RELOC32 || type == HUNK_RELOC16 || type == HUNK_RELOC8 || type == HUNK_RELRELOC32 || type == HUNK_ABSRELOC16 {
+        Reloc32 groups[while u32(here) != 0]
+        u32 end
+    } else if type == HUNK_RELOC32SHORT || type == HUNK_DREL32 || type == HUNK_DREL16 || type == HUNK_DREL8 {
+        Reloc16 groups[while u16(here) != 0]
+        u16 end
+        if here % 4 != 0 {
+            u16 padding
+        }
+    } else if type == HUNK_SYMBOL {
+        Symbol symbols[while u32(here) != 0]
+        u32 end
+    } else if type == HUNK_EXT {
+        External externals[while u32(here) != 0]
+        u32 end
+    } else if type == HUNK_UNIT {
+        u32 longs
+        char name[longs * 4]
+    } else if type == HUNK_END || type == HUNK_BREAK {
+    } else {
+        stop "A hunk type this template doesn't know, so the rest isn't read"
+    }
+}
+
+u32 magic : HunkType
+if magic == HUNK_HEADER {
+    Name libraries[while u32(here) != 0]
+    u32 end_of_names
+    u32 table_size "How many hunks the program has"
+    u32 first_hunk
+    u32 last_hunk
+    u32 hunk_sizes[last_hunk - first_hunk + 1] : hex "Each hunk's length in 32-bit words, with its memory wishes in the top two bits"
+} else {
+    u32 longs
+    char unit_name[longs * 4]
+}
+Hunk hunks[]

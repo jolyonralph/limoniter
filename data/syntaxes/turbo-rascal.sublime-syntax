@@ -1,0 +1,54 @@
+%YAML 1.2
+---
+# Turbo Rascal (TRSE): a Pascal of its own for the 6502, Z80, 68000 and more. // and /* */ comments (and { } as
+# Pascal's), ' and " strings, $hex and %binary numbers, @ directives, its reserved words and its built-ins (from
+# resources/text/syntax.txt in TRSE).
+name: Turbo Rascal (TRSE)
+file_extensions: ["ras", "tru"]
+scope: source.turborascal
+contexts:
+  main:
+    - match: '//.*$'
+      scope: comment.line.double-slash.turborascal
+    - match: '/\*'
+      push: block_comment
+    - match: '\{'
+      push: brace_comment
+    - match: '"'
+      push: string_double
+    - match: "'"
+      push: string_single
+    - match: '(?i)@[a-z_]+'
+      scope: keyword.other.directive.turborascal
+    - match: '(?i)\b(procedure|function|interrupt)\s+([A-Za-z_]\w*)'
+      captures:
+        1: keyword.declaration.turborascal
+        2: entity.name.function.turborascal
+    - match: '(?i)(?<![A-Za-z0-9_])(?:setcompressionweights|export_parallax_data|ignoresystemheaders|compile_akg_music|addmonitorcommand|exportcompressed|addemulatorparam|exportblackwhite|vbmcompilechunk|donotprefixunit|projectsettings|exportsubregion|vicmemoryconfig|startassembler|vbmexportpixel|vbmexportcolor|vbmexportchunk|buildsinetable|spritecompiler|pure_variable|cpcexportpal|spritepacker|ignoremethod|endassembler|raisewarning|krillsloader|addcpmheader|donotremove|exportframe|sparklefile|pure_number|donotprefix|perlinnoise|requirefile|startblock|importchar|compressed|deletefile|raiseerror|buildtable|splitfile|vbmexport|assembler|pbmexport|interrupt|procedure|function|compress|absolute|endblock|volatile|endmacro|pathtool|copyfile|ppointer|userdata|lpointer|pixellab|setvalue|continue|integer|forward|address|offpage|program|cstring|chipmem|boolean|pointer|no_term|include|private|execute|aligned|invert|repend|export|record|return|incnsf|onpage|ifndef|signed|inline|unroll|incsid|length|sprram|incbin|repeat|global|define|string|public|sizeof|stack|begin|until|array|class|const|macro|ifdef|endif|break|while|wedge|error|long|else|then|bank|hram|type|fori|unit|wram|case|step|byte|pure|xor|end|asm|not|ram|use|for|shl|var|shr|and|at|to|or|do|if|of)(?![A-Za-z0-9_])'
+      scope: keyword.control.turborascal
+    - match: '(?i)(?<![A-Za-z0-9_])(?:togglebackgroundtableaddress|setcharsetandscreenlocation|togglespritetableaddress|vbminitscreenshiftright|initprojectallvertices|toggleborderbackground|vbminitscreenshiftleft|initp61playerinternal|setcolormemoryaddress|disableciainterrupts|initcustomcopperlist|initmatmulvecnormalz|waitforverticalblank|endcustomcopperlist|initprojecttoscreen|krillloadcompressed|memcpyunrollreverse|setregularcolormode|togglebordersprites|vbmclearspriteslice|vbmdrawspriteslicee|vbmresetdisplaymode|vbmscreenshiftright|copycharsetfromrom|copyimagecolordata|createaddresstable|init_cga_scanlines|initspritefromdata|installkeyboardirq|projectallvertices|setcharsetlocation|skipcoppercommands|vbmdrawspriteslice|vbmscreenshiftleft|vbmscrollfixbottom|decrunchfromindex|disableinterrupts|init_drawline_cga|init_keyboard_irq|ppubackgrounddump|setbitmaplocation|setdefaultpalette|setmulticolormode|setscreenlocation|setspritelocation|vbmclearsmalltext|vbmcopyfrombuffer|vbmdrawsmalltexte|vbmdrawsmalltexto|vbmsetdisplaymode|vbmtesttilepixel2|waitverticalblank|addcoppercommand|drawcirclefilled|drawcolortextbox|initprintdecimal|matmulvecnormalz|ppuattributedump|setveraincrement|startrasterchain|togglebackground|togglespritesize|vbmclearsprite16|vbmdrawsmallbcdo|vbmdrawsprite16e|vbmspriteshiftsl|vbmspriteshiftsr|vbmtesttilepixel|vgaclearscreen16|vgaclearscreen32|applycopperlist|disablevic20irq|enableinterrupt|enablerasterirq|initdrawtextbox|initeightbitmul|initprintstring|isoverlappingwh|matmulvecnormal|memcpyonhblank4|projecttoscreen|returninterrupt|setcopperlist32|setmemoryconfig|setveratilemode|strgetfromindex|togglegreyscale|togglevram32inc|transformcolors|vbmclearsprite2|vbmclearsprite8|vbmcleartilemap|vbmcopytobuffer|vbmdrawsmallbcd|vbmdrawsprite16|vbmdrawsprite2e|vbmdrawsprite8e|vbmdrawtilemape|vbmdrawtilemapo|vbmscrollfixtop|vbmsetposition1|vbmsetposition2|vbmsetposition4|vbmspriteshiftl|vbmspriteshiftr|vbmspritestitch|waitforkeypress|copydatatovera|copyfullscreen|copyhalfscreen|memcpyonhblank|memcpyunroll16|rasterirqwedge|set256charmode|vbmclearsprite|vbmdrawsprite2|vbmdrawsprite8|vbmdrawspritee|vbmdrawtilemap|vbmscrollright|waitforblitter|addbreakpoint|closeirqwedge|createinteger|createpointer|init_playnote|initmatmul3x3|initmatmulvec|initmodplayer|initp61module|initrandom256|initsinetable|isoverlapping|playp61module|ppudrawcolumn|resetfilelist|rightbitshift|setbitmapmode|setcgapalette|setscreenmode|startirqwedge|togglesprites|vbmclearblock|vbmclearcolor|vbmdrawsprite|vbmnextcolumn|vbmscrollleft|vbmtestpixel2|waitforhblank|waitforraster|addresstable|definescreen|enableallram|enablevblank|initgraphics|initjoystick|initmoveto80|leftbitshift|memcpyunroll|playvic20sid|printdecimal|readnextfile|setfrequency|setinterrupt|setnametable|setrotationx|setrotationy|setrotationz|setspriteloc|setvideomode|vbmclearblot|vbmcleartext|vbmcleartile|vbmdrawblote|vbmdrawtexte|vbmdrawtexto|vbmdrawtilee|vbmdrawtileo|vbmsetcolumn|vbmtestpixel|verapokedual|viarasterirq|waitforvsync|waitnoraster|blockmemcpy|clearbitmap|clearscreen|disassemble|drawlinecga|drawtextbox|enabletimer|go80columns|hideborderx|hidebordery|init16x8div|init16x8mul|loadpalette|printnumber|printstring|returnvalue|set1mhzmode|set2mhzmode|setidentity|setpixelcga|settextmode|settimerirq|setverabank|updatemusic|vbmcleardot|vbmdrawblot|vbmdrawdote|vbmdrawtext|vbmdrawtile|bcdcompare|bcdisequal|clearsound|init8x8div|initgetkey|initmoveto|initrandom|initsprite|initvblank|keypressed|memcpycont|memcpyfast|memcpyokvc|preventirq|setpalette|strtolower|strtoupper|vbmdrawbcd|vbmdrawdot|drawpixel|enableirq|getscreen|initatan2|initkrill|initmusic|inittimer|krillload|loadmusic|matmul3x3|matmulvec|playsound|ppupointi|ppusingle|printchar|rasterirq|readinput|screenoff|setmedres|setsprite|spritepos|togglebit|togglenmi|topointer|bankbyte|bcdprint|closeirq|decrange|decrunch|drawline|drawpoly|drawrect|fillfast|incrange|initjoy1|initjoy2|initline|initpoly|inputirq|joystick|loadfile|loadsong|memcpy16|memcpy32|moveto80|outportb|playnote|playsong|ppupoint|ppuwrite|readjoy1|readjoy2|screenon|sethires|setlores|setpixel|startirq|strsplit|vbmclear|vbmdebug|vdcwrite|verapoke|initbcd|initsid|initvbm|inportb|int2ptr|memcpy8|nosound|playmod|ppuread|print80|readkey|scrollx|scrolly|setbank|tocolor|vdcinit|bcdadd|bcdsub|fill80|genint|getbit|getkey|jammer|joypad|memcpy|moveto|nmiirq|peek16|poke16|poke32|random|scroll|setirq|strcmp|viairq|ablit|atan2|fblit|fillw|hline|mod16|peek8|poke8|pusha|sethi|setlo|split|vbirq|blit|call|fill|fmul|halt|loop|peek|poke|popa|push|rand|sqrt|swap|tile|wait|abs|dec|fld|inc|max|min|mod|nop|pop|ptr|hi|lo)(?![A-Za-z0-9_])'
+      scope: support.function.turborascal
+    - match: '(?<![\w.$])(?:\$[0-9A-Fa-f]+|%[01]+|\d+(?:\.\d+)?)'
+      scope: constant.numeric.turborascal
+    - match: ':=|[-+*/=<>]'
+      scope: keyword.operator.turborascal
+  block_comment:
+    - meta_scope: comment.block.turborascal
+    - match: '\*/'
+      pop: true
+  brace_comment:
+    - meta_scope: comment.block.turborascal
+    - match: '\}'
+      pop: true
+  string_double:
+    - meta_scope: string.quoted.double.turborascal
+    - match: '"'
+      pop: true
+    - match: '(?=\n)'
+      pop: true
+  string_single:
+    - meta_scope: string.quoted.single.turborascal
+    - match: "'"
+      pop: true
+    - match: '(?=\n)'
+      pop: true

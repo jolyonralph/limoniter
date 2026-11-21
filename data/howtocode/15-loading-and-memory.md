@@ -1,5 +1,7 @@
 # 15. Loading and memory
 
+[‹ The 68000 and later processors](14-processors.md) · [Contents](README.md) · [Debugging and testing ›](16-debugging-and-testing.md)
+
 A demo that fits in one file and runs from start to end with the machine taken needs to know little about memory, beyond putting the chips' data in chip RAM. Bigger productions need more: memory found at run time, files loaded while something is on the screen, parts loaded one after another, sometimes a disk with no file system at all. This chapter covers memory first (the kinds there are, how to ask for them, and why you never assume an address), then loading: with the system running, between parts, and with a trackloader.
 
 [General guidelines](03-general-guidelines.md) already covers the basics, and this chapter doesn't repeat them: sections, chip RAM for the chips, v7's mistake about slow RAM, memory on a boundary, and 32-bit addresses.
@@ -74,7 +76,7 @@ The one place it fits is a trackmo's boot code, with the system barely started, 
 
 ## Never assume an address
 
-The rule from [general guidelines](03-general-guidelines.md#allocate-everything-never-use-a-fixed-address) is worth seeing in numbers. `examples/ch15_memory_map.s` shows each region of memory exec knows about (its attributes, first address, the address after its end, and bytes free) and what `AvailMem` says is free. It works either way. These are its readings on emulated Amigas (FS-UAE):
+The rule from [general guidelines](03-general-guidelines.md#allocate-everything-never-use-a-fixed-address) is worth seeing in numbers. [`examples/ch15_memory_map.s`](examples/ch15_memory_map.s) shows each region of memory exec knows about (its attributes, first address, the address after its end, and bytes free) and what `AvailMem` says is free. It works either way. These are its readings on emulated Amigas (FS-UAE):
 
 | Machine | Regions, as exec lists them |
 |---|---|
@@ -121,7 +123,7 @@ A 68000 has 24 address lines: 16 MB of addresses, `$000000` to `$FFFFFF`, which 
 
 This is the way to load during a demo: on a hard drive, a CD or a floppy alike, with every file system and device, and with the effect still running. With v8's startup it's `OS_FRIENDLY 1`, and loading is ordinary `dos.library`: `Open`, `Read`, `Close`.
 
-`examples/ch15_load_picture.s` loads a 16-colour picture (`ch15_picture.raw`, 38432 bytes: 16 colours, then 240 lines of four interleaved bitplanes) a band at a time, while a copper bar bounces over it and the blitter draws a progress bar.
+[`examples/ch15_load_picture.s`](examples/ch15_load_picture.s) loads a 16-colour picture (`ch15_picture.raw`, 38432 bytes: 16 colours, then 240 lines of four interleaved bitplanes) a band at a time, while a copper bar bounces over it and the blitter draws a progress bar.
 
 ![ch15_load_picture.s on an A500 with Kickstart 1.3, loading from a floppy: the top of the picture has arrived, the progress bar is under a third full, and the copper bar keeps moving](images/ch15_load_picture.png)
 
@@ -215,7 +217,7 @@ Limoniter makes such disks itself: **Tools › Amiga › Boot disk with no file 
 - **Checks before writing.** The disk's map shows every sector, and points out pieces on the boot block, past the disk's end, over each other, or with no start or two.
 - **Writing and running.** It writes the disk as an `.adf` (880K or 1760K), and **Run it** boots it in the emulator. The plan is kept in a `.bootdisk` file, to build again after any change.
 
-[Working with Limoniter](02-working-with-limoniter.md) and [releasing](17-releasing.md) say more.
+[Working with Limoniter](02-working-with-limoniter.md) and [releasing](18-releasing.md) say more.
 
 Pieces load to fixed addresses: this is the one place in a demo where that's normal, because when the boot block runs there's no program loader to place things for you. Choose the addresses with the same care as everything else in this chapter:
 
@@ -293,3 +295,5 @@ v8 ran this in FS-UAE: `ColdReboot` on Kickstart 3.1, and the routine for 1.3 on
 - **Trackloaders**: v7's advice (CIA timers, not loops; better, use DOS) stands, with `trackdisk.device` as the middle way, and Limoniter's trackmo disks.
 - **Kickstart versions** brought up to 3.2, and v7's `move.l LIB_VERSION` corrected to a word.
 - **The reset routine** is v7's (Commodore's), tested, with `ColdReboot` first where it exists.
+
+[‹ The 68000 and later processors](14-processors.md) · [Contents](README.md) · [Debugging and testing ›](16-debugging-and-testing.md)

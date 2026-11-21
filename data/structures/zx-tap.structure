@@ -1,0 +1,52 @@
+# ZX Spectrum tape files (.tap): each block its length, a flag byte, its bytes and a checksum, as the ROM's
+# SAVE writes them. The headers say what each file is (Spectrum ROM disassembly, SA-BYTES and LD-BYTES).
+name "ZX Spectrum tape (TAP)"
+endings tap
+# Oric tapes are .tap too, but start with sync bytes of 0x16 rather than a block length.
+magic u16le(0) >= 2 && u16le(0) + 2 <= file_size && (u8(2) == 0 || u8(2) == 0xFF)
+order little
+
+enum BlockFlag : u8 {
+    header = 0x00 "A 17-byte header naming the file that follows"
+    data = 0xFF "The file's bytes"
+}
+
+enum FileType : u8 {
+    program = 0 "A BASIC program"
+    number_array = 1
+    character_array = 2
+    bytes = 3 "Machine code or a screen (CODE)"
+}
+
+struct Header {
+    FileType type
+    char filename[10]
+    u16 data_length
+    if type == program {
+        u16 autostart_line "32768 or more for no autostart"
+        u16 program_length "The program without its variables"
+    } else if type == bytes {
+        u16 start_address : hex
+        u16 unused
+    } else {
+        u8 unused
+        u8 variable_name
+        u16 unused2
+    }
+}
+
+struct Block {
+    u16 length "Counting the flag and checksum bytes"
+    BlockFlag flag
+    if flag == header && length == 19 {
+        Header header
+        label header.filename
+    } else {
+        u8 data[length - 2]
+        label length - 2
+    }
+    u8 checksum : hex "Every byte of the block, flag included, XORed together"
+    check xor(start_of(flag), length) == 0 "The checksum doesn't match the block's bytes"
+}
+
+Block blocks[]

@@ -30,6 +30,10 @@ pub(super) struct DisasmBox {
     pub machine: crate::m68k_disasm::Machine,
     /// The 680x0 it's for: the 68010's and 68020's instructions are read only for a processor that has them.
     pub m68k_cpu: crate::m68k_disasm::Processor,
+    /// The maths coprocessor beside it, whose instructions are read only when there's one.
+    pub m68k_fpu: crate::m68k_disasm::Fpu,
+    /// The 68851 MMU beside it, whose instructions are read only when there's one.
+    pub m68k_mmu: crate::m68k_disasm::Mmu,
     /// An Atari 2600 cartridge, disassembled bank by bank into DASM source.
     pub vcs: Option<crate::atari2600::Cartridge>,
     pub bytes: Vec<u8>,
@@ -216,7 +220,7 @@ impl Limoniter {
                 let mut program = crate::m68k_disasm::raw(&decrunched.bytes, load, &[start], crate::m68k_disasm::Machine::Amiga);
                 program.what = crate::i18n::tf!("{}; shown decrunched: {} bytes put at ${load:X} and started at ${start:X}", decrunched.said(), decrunched.bytes.len());
                 let found = program.what.clone();
-                self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: Some(program), machine: crate::m68k_disasm::Machine::Amiga, m68k_cpu: crate::asm::m68k::chosen(), vcs: None, bytes: decrunched.bytes, origin: format!("${load:X}"), starts: format!("${start:X}"), stem, found, error: String::new() }));
+                self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: Some(program), machine: crate::m68k_disasm::Machine::Amiga, m68k_cpu: crate::asm::m68k::chosen(), m68k_fpu: crate::asm::m68k::chosen_fpu(), m68k_mmu: crate::asm::m68k::chosen_mmu(), vcs: None, bytes: decrunched.bytes, origin: format!("${load:X}"), starts: format!("${start:X}"), stem, found, error: String::new() }));
                 return;
             }
             Some(Ok(decrunched)) => {
@@ -242,19 +246,19 @@ impl Limoniter {
         if let Some(program) = crate::arm_modern::recognise(&name, &bytes) {
             let found = program.what.clone();
             let origin = format!("${:X}", program.parts[0].0);
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: Some(program.mode), arm_program: Some(program), x86: false, x86_bits: 32, x86_program: None, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), vcs: None, bytes, origin, starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: Some(program.mode), arm_program: Some(program), x86: false, x86_bits: 32, x86_program: None, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), m68k_fpu: crate::asm::m68k::chosen_fpu(), m68k_mmu: crate::asm::m68k::chosen_mmu(), vcs: None, bytes, origin, starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // An x86 program (PE, ELF, MZ or .COM) is taken whole.
         if let Some(program) = crate::x86::recognise(&name, &bytes) {
             let found = program.what.clone();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::Z80, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: true, x86_bits: program.bits, x86_program: Some(program), z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), m68k_fpu: crate::asm::m68k::chosen_fpu(), m68k_mmu: crate::asm::m68k::chosen_mmu(), vcs: None, bytes, origin: "$0".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // An Atari 2600 cartridge: its banks, and how it switches them.
         if let Some(cart) = crate::atari2600::recognise(&name, &bytes) {
             let found = cart.describe();
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M6502, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), m68k_fpu: crate::asm::m68k::chosen_fpu(), m68k_mmu: crate::asm::m68k::chosen_mmu(), vcs: Some(cart), bytes, origin: "$F000".into(), starts: String::new(), stem, found, error: String::new() }));
             return;
         }
         // A 68000 program (Amiga, Atari ST, a boot block, a Mega Drive cartridge, a Kickstart ROM) says the rest.
@@ -263,12 +267,12 @@ impl Limoniter {
             let machine = program.machine;
             let origin = format!("${:X}", program.sections[0].base);
             let starts = program.starts.iter().map(|s| format!("${s:X}")).collect::<Vec<_>>().join(", ");
-            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: Some(program), machine, m68k_cpu: crate::asm::m68k::chosen(), vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
+            self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu: Cpu::M68k, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: Some(program), machine, m68k_cpu: crate::asm::m68k::chosen(), m68k_fpu: crate::asm::m68k::chosen_fpu(), m68k_mmu: crate::asm::m68k::chosen_mmu(), vcs: None, bytes, origin, starts, stem, found, error: String::new() }));
             return;
         }
         let (cpu, code, origin, starts, found) = guess(&name, &bytes, load_address);
         let starts = starts.iter().map(|s| format!("${s:04X}")).collect::<Vec<_>>().join(", ");
-        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
+        self.dialog = Dialog::Disassemble(Box::new(DisasmBox { cpu, icl2900: false, arm: false, arm_later: None, arm_program: None, x86: false, x86_program: None, x86_bits: 32, z88: false, variant: Default::default(), m68k_program: None, machine: crate::m68k_disasm::Machine::Plain, m68k_cpu: crate::asm::m68k::chosen(), m68k_fpu: crate::asm::m68k::chosen_fpu(), m68k_mmu: crate::asm::m68k::chosen_mmu(), vcs: None, bytes: code, origin: format!("${origin:04X}"), starts, stem, found, error: String::new() }));
     }
 
     pub(super) fn disassemble_dialog(&mut self, ctx: &Context) -> bool {
@@ -367,6 +371,34 @@ impl Limoniter {
                         })
                         .response
                         .on_hover_text(crate::i18n::tr("Which 680x0 the code is for: a 68010's, 68020's or 68030's own instructions and addresses are read only for one that has them (an A1200's or A4000's program, say), and the source starts with MACHINE"));
+                        ui.end_row();
+                        ui.label(crate::i18n::tr("Maths coprocessor"));
+                        let built_in = matches!(state.m68k_cpu, crate::m68k_disasm::Processor::M68040 | crate::m68k_disasm::Processor::M68060);
+                        let shown = |fpu: crate::m68k_disasm::Fpu| if fpu == crate::m68k_disasm::Fpu::None { crate::i18n::tr("None").to_string() } else { fpu.name().to_string() };
+                        let selected = if built_in { crate::i18n::tr("Its own").to_string() } else { shown(state.m68k_fpu) };
+                        ui.add_enabled_ui(!built_in, |ui| {
+                            egui::ComboBox::from_id_salt("m68k-disasm-fpu").selected_text(selected).show_ui(ui, |ui| {
+                                for fpu in crate::m68k_disasm::Fpu::ALL {
+                                    ui.selectable_value(&mut state.m68k_fpu, fpu, shown(fpu));
+                                }
+                            })
+                            .response
+                            .on_hover_text(crate::i18n::tr("The 68881 or 68882 beside the processor, if there is one: FMOVE, FADD and the FPU's other instructions are read only then (the 68040 and 68060 have their own), and the source says MACHINE 68881"));
+                        });
+                        ui.end_row();
+                        ui.label(crate::i18n::tr("Memory management unit"));
+                        let own_mmu = matches!(state.m68k_cpu, crate::m68k_disasm::Processor::M68030 | crate::m68k_disasm::Processor::M68040 | crate::m68k_disasm::Processor::M68060);
+                        let shown = |mmu: crate::m68k_disasm::Mmu| if mmu == crate::m68k_disasm::Mmu::None { crate::i18n::tr("None").to_string() } else { mmu.name().to_string() };
+                        let selected = if own_mmu { crate::i18n::tr("Its own").to_string() } else { shown(state.m68k_mmu) };
+                        ui.add_enabled_ui(!own_mmu, |ui| {
+                            egui::ComboBox::from_id_salt("m68k-disasm-mmu").selected_text(selected).show_ui(ui, |ui| {
+                                for mmu in crate::m68k_disasm::Mmu::ALL {
+                                    ui.selectable_value(&mut state.m68k_mmu, mmu, shown(mmu));
+                                }
+                            })
+                            .response
+                            .on_hover_text(crate::i18n::tr("The 68851 beside a 68020, if there is one: PMOVE, PFLUSH and the MMU's other instructions are read only then (the 68030, 68040 and 68060 have their own), and the source says MACHINE 68851"));
+                        });
                         ui.end_row();
                     }
                     // A program the file was found to be says its own mode, addresses and starts.
@@ -491,6 +523,8 @@ impl Limoniter {
                     }
                 };
                 program.cpu = state.m68k_cpu;
+                program.fpu = state.m68k_fpu;
+                program.mmu = state.m68k_mmu;
                 let stem = state.stem.clone();
                 self.dialog = Dialog::None;
                 let source = crate::m68k_disasm::disassemble(&program);

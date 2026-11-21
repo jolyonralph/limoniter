@@ -28,6 +28,7 @@ mod mac;
 mod macarc;
 mod nex;
 pub(crate) mod oric;
+pub(crate) mod ql;
 mod rp9;
 mod sam;
 mod sectors;
@@ -37,6 +38,7 @@ mod woz;
 pub(crate) mod xex;
 pub(crate) mod spectrum;
 mod stuffit;
+pub mod tape_sound;
 #[cfg(test)]
 mod sweep;
 mod zip;
@@ -194,8 +196,8 @@ pub struct InfoSection {
 pub const AMIGA_TEXT_PRESET: &str = "amiga-ansi";
 
 /// File endings that say a file is an image or archive this can open.
-pub const IMAGE_ENDINGS: [&str; 76] = [
-    "crt", "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad", "epr", "card",
+pub const IMAGE_ENDINGS: [&str; 77] = [
+    "crt", "mdv", "woz", "xex", "obx", "sit", "hqx", "macbin", "scp", "hfe", "raw", "iso", "dmg", "bin", "cue", "img", "ima", "vfd", "st", "msa", "dsk", "d64", "d71", "d81", "t64", "zip", "hdf", "vhd", "trd", "scl", "mdr", "tap", "tzx", "z80", "sna", "adf", "adz", "dms", "lha", "lzh", "ssd", "dsd", "adl", "ads", "adm", "uef", "image", "hfs", "dc42", "toast", "cdr", "imd", "td0", "lif", "hpi", "rp9", "cpm", "do", "po", "2mg", "2img", "hdv", "atr", "xfd", "dmk", "jv1", "jv3", "dis", "vdk", "jvc", "os9", "nex", "cas", "mgt", "sad", "epr", "card",
 ];
 
 /// Whether a file is an image to browse, going by its ending and, for the less certain endings, its first bytes.
@@ -216,7 +218,7 @@ pub fn is_image(name: &str, head: &[u8], len: u64) -> bool {
         "raw" => flux::detect(head, "raw").is_some(),
         // .crt is a certificate as often as a cartridge.
         "crt" => crt::looks_like(head),
-        "scp" | "hfe" | "cas" | "mgt" | "sad" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" | "card" => detect(head, len, &ending).is_some(),
+        "scp" | "hfe" | "cas" | "mgt" | "sad" | "sit" | "hqx" | "macbin" | "bin" | "img" | "dsk" | "cpm" | "vdk" | "jvc" | "os9" | "dmk" | "jv1" | "jv3" | "dis" | "atr" | "xfd" | "do" | "po" | "2mg" | "2img" | "hdv" | "ima" | "vhd" | "hdf" | "tap" | "trd" | "sna" | "z80" | "adf" | "adz" | "lha" | "lzh" | "uef" | "image" | "hfs" | "dc42" | "toast" | "cdr" | "imd" | "td0" | "lif" | "hpi" | "card" | "mdv" => detect(head, len, &ending).is_some(),
         "xex" | "obx" => detect(head, len, &ending).is_some(),
         _ => true,
     }
@@ -288,6 +290,8 @@ enum Format {
     Crt,
     /// A Commodore tape's pulses (C64-TAPE-RAW).
     C64Tap,
+    /// A Sinclair QL microdrive cartridge, in QLAY's format (.mdv).
+    QlMicrodrive,
 }
 
 /// Which format an image is in: its signature where it has one, its size for the Commodore disks, its ending last.
@@ -371,6 +375,7 @@ fn detect(head: &[u8], len: u64, ending: &str) -> Option<Format> {
         "tap" if !at(0, b"C64-TAPE-RAW") && head.len() >= 3 && usize::from(u16::from_le_bytes([head[0], head[1]])) >= 2 => return Some(Format::ZxTape),
         "trd" if head.get(0x8E7) == Some(&0x10) => return Some(Format::TrDos),
         "mdr" if len >= 543 => return Some(Format::Microdrive),
+        "mdv" if ql::looks_like(head, len) => return Some(Format::QlMicrodrive),
         // .z80 is also Z80 assembler source, which is text; a snapshot's registers and memory have control codes.
         "z80" if len >= 30 && head.iter().take(4096).any(|b| *b < 9 || (14..32).contains(b)) => return Some(Format::Z80),
         "sna" if len == 49_179 || len == 131_103 || len == 147_487 => return Some(Format::Sna),
@@ -516,6 +521,7 @@ pub fn open(source: Arc<dyn Source>, name: &str) -> Result<Box<dyn Volume>, Stri
         Some(Format::TrDos) => Ok(Box::new(spectrum::TrDos::open(source, false)?)),
         Some(Format::Scl) => Ok(Box::new(spectrum::TrDos::open(source, true)?)),
         Some(Format::Microdrive) => Ok(Box::new(spectrum::Microdrive::open(source)?)),
+        Some(Format::QlMicrodrive) => Ok(Box::new(ql::Microdrive::open(source)?)),
         Some(Format::ZxTape) => Ok(Box::new(spectrum::Tape::open(source)?)),
         Some(Format::Z80) => Ok(Box::new(spectrum::Snapshot::open(source, false)?)),
         Some(Format::Sna) => Ok(Box::new(spectrum::Snapshot::open(source, true)?)),

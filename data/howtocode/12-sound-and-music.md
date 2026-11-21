@@ -1,5 +1,7 @@
 # 12. Sound and music
 
+[‹ Input](11-input.md) · [Contents](README.md) · [3D vectors ›](13-vectors.md)
+
 The Amiga's sound comes from **Paula**, the chip that also looks after the interrupts, the disk and the serial port. It has four sound channels, each reading 8-bit samples from chip RAM by DMA and turning them into sound without the processor's help. A demo sets a channel going, and from then on the processor's work is only to say when to change something: a new note, a new volume.
 
 This chapter covers how to play a sound on Paula properly, the one timing problem that broke a generation of replayers on faster Amigas, and the replayers to use today. Everything here was checked against chapter 5 of the *Hardware Reference Manual* (HRM), its appendices on the CIAs, and the NDK 3.2. The examples were run on an emulated Amiga 500 with Kickstart 1.3 and 3.1, both ways, with a 68000, 68020 and 68040, and on an NTSC machine; and their sound was **recorded** from the emulator and checked note by note (how is in [the examples](#the-examples) below).
@@ -395,3 +397,5 @@ Each was run in FS-UAE on an Amiga 500 with Kickstart 1.3 and 3.1, both ways, wi
 - v7 said "No demo would be complete without a tracker module" and that tracker code "seems to be amongst the worst written I've seen". The replayers above are well written, and say what they need.
 - v7's archive had a ProTracker replayer by others (`protracker_replay.s`). It isn't in v8; v8 points to replayers whose terms are clear.
 - New: Paula's registers, playing and stopping a sample properly, allocating the channels from audio.device with the system running, periods for PAL and NTSC, the minimum period and why, volume, modulation, the audio interrupts, tempo from the vertical blank or a CIA timer, today's replayers, and using music you have the right to.
+
+[‹ Input](11-input.md) · [Contents](README.md) · [3D vectors ›](13-vectors.md)

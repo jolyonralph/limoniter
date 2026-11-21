@@ -1,13 +1,15 @@
 # 8. The display
 
+[‹ The blitter](07-blitter.md) · [Contents](README.md) · [AGA ›](09-aga.md)
+
 v7's chapter on video was about one thing: telling PAL from NTSC. This one covers that, and the rest of what a demo needs to set up its own display: the window and the fetch, the bitplanes and their control registers, modulos, scrolling, dual playfield, interlace, sprites, and the two special colour modes. Everything here is the original chip set's (OCS) and ECS's, which every Amiga has; AGA's additions are in [the AGA chapter](09-aga.md).
 
 There are four whole examples, each built both ways (with the machine taken and with the system running) like every v8 example:
 
-- `examples/ch08_scroll.s`: smooth horizontal scrolling across a landscape three screens wide.
-- `examples/ch08_dualpf.s`: dual playfield parallax: two playfields, each with its own bitplanes, modulo and scroll.
-- `examples/ch08_sprites.s`: 31 balls from the 8 hardware sprites, used several times each down the screen, and an attached pair of 15 colours.
-- `examples/ch08_interlace.s`: a 640 by 512 interlaced screen, from two copper lists.
+- [`examples/ch08_scroll.s`](examples/ch08_scroll.s): smooth horizontal scrolling across a landscape three screens wide.
+- [`examples/ch08_dualpf.s`](examples/ch08_dualpf.s): dual playfield parallax: two playfields, each with its own bitplanes, modulo and scroll.
+- [`examples/ch08_sprites.s`](examples/ch08_sprites.s): 31 balls from the 8 hardware sprites, used several times each down the screen, and an attached pair of 15 colours.
+- [`examples/ch08_interlace.s`](examples/ch08_interlace.s): a 640 by 512 interlaced screen, from two copper lists.
 
 ![ch08_scroll.s, ch08_dualpf.s, ch08_sprites.s and ch08_interlace.s in FS-UAE](images/ch08_examples.png)
 
@@ -345,3 +347,5 @@ The four examples were built both ways (`OS_FRIENDLY=0` and `1`, with `AUTOEXIT=
 - an NTSC Amiga 500 with Kickstart 1.3, with the system running.
 
 Every run showed the effect, and then the CLI with "back in AmigaDOS, return code OK" after the demo had ended. Besides the examples, small test programs (not in `examples/`) checked: where sprites line up with the playfield; which sprites an early `DDFSTRT` loses; the sprite priorities in a single playfield; the scroll position at fixed values of x; the interlaced rows both ways round; and `BEAMCON0` on an Amiga 500+ and an Amiga 500. The positions given are FS-UAE's, measured from its screen captures.
+
+[‹ The blitter](07-blitter.md) · [Contents](README.md) · [AGA ›](09-aga.md)

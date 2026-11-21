@@ -125,7 +125,9 @@ impl Limoniter {
         // Its language worked out first: a file just opened hasn't been coloured yet.
         let debugged = cpu.is_none() && !basic && {
             self.docs[self.active].update_syntax();
-            super::dap_host::debuggable(&self.docs[self.active].language_name())
+            let language = self.docs[self.active].language_name();
+            // The teaching machines' source too, on their built-in machines.
+            super::dap_host::debuggable(&language) || super::teaching_host::machine_for_language(&language).is_some()
         };
         let doc = &mut self.docs[self.active];
         match (cpu.is_some() || basic || debugged, doc.text.code.is_some()) {
@@ -151,6 +153,20 @@ impl Limoniter {
             if language == highlight::BASIC_BORIEL {
                 if doc.text.intel.as_ref().is_none_or(|i| !i.boriel) {
                     doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel { boriel: true, ..crate::code_intel::CodeIntel::keywords(crate::boriel::keywords()) }));
+                }
+                return;
+            }
+            // Turbo Rascal: its words and TRSE's built-ins, each described.
+            if language == highlight::TURBO_RASCAL {
+                if doc.text.intel.as_ref().is_none_or(|i| !i.trse) {
+                    doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel { trse: true, upper: false, ..crate::code_intel::CodeIntel::keywords(crate::trse::keywords()) }));
+                }
+                return;
+            }
+            // RGC BASIC: its keywords, for completion.
+            if language == highlight::BASIC_RGC {
+                if doc.text.intel.as_ref().is_none_or(|i| i.words.is_empty() || i.boriel || i.trse || i.cpu.is_some()) {
+                    doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel::keywords(crate::rgc_basic::keywords())));
                 }
                 return;
             }
@@ -223,11 +239,12 @@ impl Limoniter {
         let own = self.assembler_for(cpu) == Choice::Own;
         let doc = &mut self.docs[index];
         if own && let Some(code) = doc.text.code.as_mut() {
-            code.problems = assembly.problems.iter().filter(|p| p.file == 0).map(|p| (p.line, p.message.clone())).collect();
+            code.problems = marks(&assembly);
         }
         if let Some(intel) = doc.text.intel.as_mut() {
             intel.hardware = (cpu == Cpu::M68k).then(|| Arc::new(crate::amiga_source::Source::scan(&text, Some(&assembly))));
             intel.atari = (cpu == Cpu::M68k).then(|| Arc::new(crate::st_source::Source::scan(&text, Some(&assembly))));
+            intel.ql = (cpu == Cpu::M68k).then(|| Arc::new(crate::ql_source::Source::scan(&text, Some(&assembly))));
             intel.c64 = (cpu == Cpu::M6502).then(|| Arc::new(crate::c64_source::Source::scan(&text, Some(&assembly))));
             intel.assembly = Some(Arc::new(assembly));
             intel.version = version;
@@ -312,6 +329,10 @@ impl Limoniter {
             }
             _ => {}
         }
+        let ql_saved = match &made {
+            Ok(Made::Run(run)) if report => self.ql_after_build(doc_id, run),
+            _ => None,
+        };
         // A file to save is saved (only when asked to assemble, not for a menu), and nothing runs.
         let saved = match &made {
             Ok(Made::Saved { name, bytes }) if save => {
@@ -358,7 +379,7 @@ impl Limoniter {
         };
         if report {
             self.report_assembly(doc_id, choice, &assembled, &runnable);
-            if let Some(words) = saved {
+            if let Some(words) = saved.or(ql_saved) {
                 self.script_print(words, false);
             }
             for words in written {
@@ -368,6 +389,20 @@ impl Limoniter {
         let assembly = Arc::new(assembled.assembly);
         self.running.assembled = Some(AssembledCache { doc_id, version, choice: choice.setting(), runnable: runnable.clone(), assembly });
         runnable
+    }
+
+    /// A QL program is written beside its source each time it's made, with its header kept after it, for a QL
+    /// emulator's drive (or to put on a cartridge).
+    fn ql_after_build(&self, doc_id: u64, run: &Runnable) -> Option<String> {
+        if run.machine != Machine::Ql || run.format != Format::QdosExe {
+            return None;
+        }
+        let folder = self.docs.iter().find(|d| d.id == doc_id).and_then(|d| d.path.as_deref()).and_then(Path::parent)?;
+        let path = folder.join(&run.name);
+        Some(match crate::codec::write_file(&path, &run.bytes) {
+            Ok(()) => crate::i18n::tf!("Saved {} ({} bytes), a QL program with its header kept after it (XTcc), for a QL emulator's drive.", path.display(), run.bytes.len()),
+            Err(e) => crate::i18n::tf!("{} couldn't be saved: {e}", path.display()),
+        })
     }
 
     /// The problems in the Output panel and beside their lines; or, if there are none, what was made.
@@ -413,7 +448,7 @@ impl Limoniter {
                     self.memory_map = Some(map);
                 }
             }
-            Err(problem) if problem == ASK_6502 => lines.push(crate::i18n::tr("It doesn't say whether it's for a Commodore 64, a BBC Micro, an Atari 2600 or an NES. Put ; machine: c64, ; machine: bbc, ; machine: 2600 or ; machine: nes near the top to say.").into()),
+            Err(problem) if problem == ASK_6502 => lines.push(crate::i18n::tr("It doesn't say which machine it's for. Put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top to say.").into()),
             Err(problem) if !problem.is_empty() => lines.push(problem.clone()),
             Err(_) if assembly.ok() => {
                 let (low, high) = (assembly.lowest().unwrap_or(0), assembly.highest().unwrap_or(0));
@@ -430,8 +465,9 @@ impl Limoniter {
         let main_file = assembly.files.first().cloned();
         let doc = &mut self.docs[index];
         let code = doc.text.code.get_or_insert_with(Box::default);
-        code.problems = assembly.problems.iter().filter(|p| p.file == 0 && main_file.is_some()).map(|p| (p.line, p.message.clone())).collect();
-        if let Some((line, _)) = code.problems.first().cloned() {
+        code.problems = if main_file.is_some() { marks(assembly) } else { Vec::new() };
+        // The caret goes to the first error; a warning alone doesn't move it.
+        if let Some(line) = assembly.problems.iter().find(|p| p.file == 0 && main_file.is_some()).map(|p| p.line) {
             doc.text.move_caret(line, 0, false);
         }
     }
@@ -445,8 +481,11 @@ impl Limoniter {
         let Some(folder) = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf) else {
             return self.message("Assemble and save", crate::i18n::tr("Save the source first, so the program can be saved beside it.").into());
         };
-        // A 6809 or 68000 program is saved by assembling it; the others are made ready to run, and saved here.
-        if let Ok(run) = self.assemble_to_run(cpu, true) {
+        // A 6809 or 68000 program is saved by assembling it; the others are made ready to run, and saved here. A QL
+        // program is saved beside its source as it's assembled.
+        if let Ok(run) = self.assemble_to_run(cpu, true)
+            && run.machine != Machine::Ql
+        {
             let path = folder.join(&run.name);
             let words = match crate::codec::write_file(&path, &run.bytes) {
                 Ok(()) => crate::i18n::tf!("Saved {} ({} bytes).", path.display(), run.bytes.len()),
@@ -787,6 +826,8 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
         }
         // A cartridge for one of Sega's consoles, or the ColecoVision, as the source says or its header shows.
         Cpu::M68k | Cpu::Z80 if assembled.tape.is_none() && let Some(made) = console_cartridge(cpu, assembled, stem) => made.map(Made::Run),
+        // A QL program: an executable QDOS starts as a job, as the source says or the 68008 it's for shows.
+        Cpu::M68k if crate::ql_run::is_ql(assembled) => crate::ql_run::program(assembled, stem).map(Made::Run),
         // An Amiga executable, made by the assembler from source for the Amiga.
         Cpu::M68k if assembled.tape.is_some() => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
         // An Atari ST program, if it isn't put at an address of its own: else the bytes as they go in memory.
@@ -891,13 +932,17 @@ pub fn machine_6809<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Mach
 }
 
 /// The machine Z80 source names in a `; machine:` comment near its top, where it's one with a way of its own to run
-/// code: the ZX81.
+/// code: the ZX81, or the Amstrad CPC.
 pub fn machine_z80<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Machine> {
     lines.into_iter().take(50).find_map(|line| {
         let comment = line.trim_start().strip_prefix(';').or_else(|| line.trim_start().strip_prefix("//"))?;
         let comment = comment.trim_start_matches([';', '/', ' ', '\t']).to_ascii_lowercase();
         let value = comment.strip_prefix("machine")?.trim_start().strip_prefix(':')?.trim().replace(' ', "");
-        matches!(value.as_str(), "zx81" | "ts1000" | "timexsinclair1000").then_some(Machine::Zx81)
+        match value.as_str() {
+            "zx81" | "ts1000" | "timexsinclair1000" => Some(Machine::Zx81),
+            "cpc" | "amstrad" | "amstradcpc" | "cpc464" | "cpc664" | "cpc6128" => Some(Machine::Cpc),
+            _ => None,
+        }
     })
 }
 
@@ -992,6 +1037,21 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
                 let bytes = crate::nes::cartridge(assembly, assembled.source.as_deref())?;
                 Ok(Runnable { machine: Machine::Nes, format: Format::Nes, name: format!("{stem}.nes"), bytes: Arc::new(bytes) })
             }
+            // An Atari 8-bit program, as DOS loads it.
+            Some(Micro6502::Atari8) => {
+                let bytes = crate::atari8_run::xex(assembly)?;
+                Ok(Runnable { machine: Machine::Atari8, format: Format::Xex, name: format!("{stem}.xex"), bytes: Arc::new(bytes) })
+            }
+            // An Atari 7800 cartridge, with its A78 header.
+            Some(Micro6502::Atari7800) => {
+                let bytes = crate::atari7800::cartridge(assembly, stem, assembled.source.as_deref())?;
+                Ok(Runnable { machine: Machine::Atari7800, format: Format::A78, name: format!("{stem}.a78"), bytes: Arc::new(bytes) })
+            }
+            // An Apple II program, on a floppy that boots into it.
+            Some(Micro6502::Apple2) => {
+                let bytes = crate::apple2_run::program_disk(assembly)?;
+                Ok(Runnable { machine: Machine::Apple2, format: Format::Dsk, name: format!("{stem}.dsk"), bytes: Arc::new(bytes) })
+            }
             None => Err(ASK_6502.to_string()),
         };
     }
@@ -1011,6 +1071,18 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
             crate::zx81_program::machine_code(&image, u16::try_from(low).unwrap_or(0), u16::try_from(start).unwrap_or(0))?
         };
         return Ok(Runnable { machine: Machine::Zx81, format: Format::P, name: format!("{stem}.p"), bytes: Arc::new(bytes) });
+    }
+    // An Amstrad CPC's, as a binary on a disk, which RUN" loads and starts.
+    if said == Some(Machine::Cpc) {
+        let (Some(low), Some(high)) = (assembly.lowest(), assembly.highest()) else {
+            return Err(crate::i18n::tr("Nothing was assembled.").into());
+        };
+        if low < 0x0040 || high > 0x10000 {
+            return Err(crate::i18n::tf!("The code starts at &{low:04X}, in the firmware's memory: put it at &0040 or above (ORG &4000 is usual)."));
+        }
+        let start = assembly.start().unwrap_or(low);
+        let (name, bytes) = crate::cpc_run::disk_holding(stem, low as u16, start as u16, &assembly.image(low, high))?;
+        return Ok(Runnable { machine: Machine::Cpc, format: Format::Dsk, name, bytes: Arc::new(bytes) });
     }
     let device = assembly.device.clone().unwrap_or_default();
     if device.contains("NEXT") {
@@ -1035,6 +1107,18 @@ fn amiga_c_source(doc: &super::Document) -> bool {
     })
 }
 
+/// The marks beside the main file's lines: its errors, then its warnings (as "warning: …", as compilers write them)
+/// on lines with no error, so they're seen without stopping anything.
+fn marks(assembly: &crate::asm::Assembly) -> Vec<(usize, String)> {
+    let mut marks: Vec<(usize, String)> = assembly.problems.iter().filter(|p| p.file == 0).map(|p| (p.line, p.message.clone())).collect();
+    for warning in assembly.warnings.iter().filter(|w| w.file == 0) {
+        if !marks.iter().any(|(line, _)| *line == warning.line) {
+            marks.push((warning.line, crate::i18n::tf!("warning: {}", warning.message)));
+        }
+    }
+    marks
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1057,4 +1141,32 @@ mod tests {
         let Ok(Made::Run(nes)) = made(Cpu::M6502, unsaid) else { panic!("an NES cartridge") };
         assert_eq!(nes.machine, Machine::Nes);
     }
+
+    /// What F9 makes of the Atari 8-bit, 7800, Apple II and CPC starters: each the file its machine's emulators
+    /// take, which reads back as that machine's.
+    #[test]
+    fn f9_makes_atari_apple_and_cpc_programs() {
+        // As F9 has it: the `; machine:` line read from the document.
+        let made = |cpu: Cpu, text: &str| made_from(cpu, &assemble_own(cpu, Path::new("p.asm"), text), "hello", Micro { said: Micro6502::said_in(text.lines()), asked: None });
+        for (cpu, starter, machine, format, name) in [
+            (Cpu::M6502, crate::atari8_run::STARTER, Machine::Atari8, Format::Xex, "hello.xex"),
+            (Cpu::M6502, crate::atari7800::STARTER, Machine::Atari7800, Format::A78, "hello.a78"),
+            (Cpu::M6502, crate::apple2_run::STARTER, Machine::Apple2, Format::Dsk, "hello.dsk"),
+            (Cpu::Z80, crate::cpc_run::STARTER, Machine::Cpc, Format::Dsk, "hello.dsk"),
+        ] {
+            let Ok(Made::Run(run)) = made(cpu, starter) else { panic!("{name}: {:?}", made(cpu, starter).err()) };
+            assert_eq!((run.machine, run.format, run.name.as_str()), (machine, format, name));
+            let read = crate::running::Runnable::from_file(&run.name, run.bytes.to_vec()).unwrap();
+            assert_eq!((read.machine, read.format), (machine, format), "{name} reads back as its machine's");
+        }
+        // Said in the source, and only then: Z80 code with nothing said is still a Spectrum's tape.
+        assert_eq!(machine_z80(["; Machine: Amstrad CPC"]), Some(Machine::Cpc));
+        assert_eq!(Micro6502::said_in(["; machine: Apple ]["]), Some(Micro6502::Apple2));
+        assert_eq!(Micro6502::said_in(["* machine: atari 800xl"]), Some(Micro6502::Atari8));
+        let Ok(Made::Run(tape)) = made(Cpu::Z80, " org 32768\nstart: ret\n") else { panic!("a tape") };
+        assert_eq!(tape.format, Format::Tap);
+        // A CPC program put in the firmware's memory is refused.
+        assert!(made(Cpu::Z80, "; machine: cpc\n org 0\n ret\n").is_err());
+    }
 }
+

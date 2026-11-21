@@ -1,0 +1,45 @@
+# ZX Spectrum snapshots (.sna): the registers as the machine was stopped, then its memory
+# (the format Mirage Microdrive's snapshots first used; the 128K form adds the paging).
+name "ZX Spectrum snapshot (SNA)"
+endings sna
+magic file_size == 49179 || file_size == 131103 || file_size == 147487
+order little
+
+enum InterruptMode : u8 {
+    IM0 = 0
+    IM1 = 1
+    IM2 = 2
+}
+
+struct Registers {
+    u8 I : hex
+    u16 HL_ : hex "HL'"
+    u16 DE_ : hex "DE'"
+    u16 BC_ : hex "BC'"
+    u16 AF_ : hex "AF'"
+    u16 HL : hex
+    u16 DE : hex
+    u16 BC : hex
+    u16 IY : hex
+    u16 IX : hex
+    u8 interrupts : bin "Bit 2 is IFF2: whether interrupts were on"
+    u8 R : hex
+    u16 AF : hex
+    u16 SP : hex "On a 48K snapshot the program counter is on the stack, here"
+    InterruptMode interrupt_mode
+    u8 border "The border colour, 0 to 7"
+}
+
+Registers registers
+u8 screen[6912] "The screen: 6144 bytes of pixels, then 768 of colours"
+u8 ram[49152 - 6912]
+if file_size > 49179 {
+    u16 PC : hex
+    u8 port_7FFD : bin "The memory paging: bits 0 to 2 the bank at 0xC000, bit 3 the screen, bit 4 the ROM"
+    u8 trdos_paged "1 when the TR-DOS ROM was paged in"
+    u8 other_banks[file_size - here] "The remaining 16K banks, in order, leaving out 5, 2 and the one paged in"
+} else {
+    if registers.SP >= 0x4000 && registers.SP < 0xFFFF {
+        calc PC : hex = u16(registers.SP - 0x4000 + 27) "Taken from the stack, where the snapshot keeps it"
+    }
+}

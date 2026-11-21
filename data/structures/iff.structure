@@ -1,0 +1,104 @@
+# EA IFF 85 files: ILBM pictures (Deluxe Paint and nearly every Amiga paint program), and any other FORM, whose
+# chunks are listed with what's known of them (EA IFF 85, and the ILBM, 8SVX and ANIM documents).
+name "IFF file (ILBM, 8SVX, AIFF and more)"
+magic str(0, 4) == "FORM" || str(0, 4) == "LIST" || str(0, 4) == "CAT "
+order big
+
+enum Masking : u8 {
+    none = 0
+    has_mask = 1 "A mask plane after the bitplanes"
+    transparent_colour = 2
+    lasso = 3
+}
+
+enum Compression : u8 {
+    none = 0
+    byte_run1 = 1 "Packed with ByteRun1"
+    byte_run2 = 2 "Packed with ByteRun2 (Atari ST, vertical)"
+}
+
+flags ViewModes : u32 {
+    GENLOCK_VIDEO = 0x0002
+    LACE = 0x0004 "Interlaced"
+    DOUBLESCAN = 0x0008
+    SUPERHIRES = 0x0020
+    PFBA = 0x0040
+    EXTRA_HALFBRITE = 0x0080 "Extra half-brite: 64 colours"
+    GENLOCK_AUDIO = 0x0100
+    DUALPF = 0x0400 "Dual playfield"
+    HAM = 0x0800 "Hold and modify"
+    EXTENDED_MODE = 0x1000
+    VP_HIDE = 0x2000
+    SPRITES = 0x4000
+    HIRES = 0x8000
+}
+
+struct Colour {
+    u8 red
+    u8 green
+    u8 blue
+    label red * 65536 + green * 256 + blue
+}
+
+struct Chunk {
+    char id[4]
+    u32 size
+    label id
+    let body = here
+    if id == "FORM" || id == "LIST" || id == "CAT " || id == "PROP" {
+        char kind[4]
+        Chunk chunks[while here + 8 <= body + size && here + 8 <= file_size]
+    } else if id == "BMHD" {
+        u16 width
+        u16 height
+        s16 x
+        s16 y
+        u8 planes "Bitplanes: 2 to the power of this is the number of colours"
+        Masking masking
+        Compression compression
+        u8 pad
+        u16 transparent_colour
+        u8 x_aspect
+        u8 y_aspect
+        s16 page_width
+        s16 page_height
+    } else if id == "CMAP" {
+        Colour colours[size / 3]
+    } else if id == "CAMG" {
+        u32 view_modes : ViewModes
+    } else if id == "CRNG" {
+        s16 pad
+        s16 rate "Steps per second, as 16384 for 60"
+        s16 active
+        u8 low "The first colour that cycles"
+        u8 high
+    } else if id == "GRAB" {
+        s16 x
+        s16 y
+    } else if id == "DPPS" || id == "DPPV" {
+        u8 settings[size]
+    } else if id == "VHDR" {
+        u32 one_shot_samples
+        u32 repeat_samples
+        u32 samples_per_cycle
+        u16 sample_rate
+        u8 octaves
+        u8 compression
+        u32 volume : hex "Volume as a 16.16 fixed-point number: 0x10000 is full"
+    } else if id == "COMM" {
+        s16 channels
+        u32 frames
+        s16 bits
+        u8 sample_rate[10] "As an 80-bit IEEE number"
+    } else if id == "ANNO" || id == "AUTH" || id == "NAME" || id == "(c) " || id == "TEXT" || id == "CHRS" {
+        char text[size]
+    } else {
+        u8 data[min(size, file_size - here)]
+    }
+    goto body + size
+    if size % 2 == 1 && here < file_size {
+        u8 padding "Chunks start on even bytes"
+    }
+}
+
+Chunk form

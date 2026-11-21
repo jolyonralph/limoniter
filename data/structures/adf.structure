@@ -1,0 +1,73 @@
+# Amiga disk images (ADF): the boot block and the root block of an AmigaDOS (OFS or FFS) disk
+# (The AmigaDOS Manual, and Laurent Clevy's "The .ADF (Amiga Disk File) format FAQ").
+name "Amiga disk image (ADF)"
+endings adf adz hdf
+magic str(0, 3) == "DOS"
+order big
+
+flags DosFlags : u8 {
+    FFS = 1 "The Fast File System"
+    INTERNATIONAL = 2 "International mode: names compared without regard to accents"
+    DIRCACHE = 4 "Directory cache blocks"
+}
+
+enum BlockType : u32 {
+    T_HEADER = 2
+    T_DATA = 8
+    T_LIST = 16
+    T_DIRCACHE = 33
+}
+
+enum SecondaryType : s32 {
+    ST_ROOT = 1
+    ST_USERDIR = 2
+    ST_SOFTLINK = 3
+    ST_LINKDIR = 4
+    ST_FILE = -3
+    ST_LINKFILE = -4
+}
+
+struct Date {
+    u32 days : amigadays "Days since 1 January 1978"
+    u32 minutes "Minutes past midnight"
+    u32 ticks "Fiftieths of a second"
+}
+
+struct BootBlock {
+    char disk_type[3]
+    DosFlags flags
+    u32 checksum : hex "Adds up, with each carry added back in, to 0xFFFFFFFF over the boot block"
+    u32 root_block "Where the root block is, though AmigaDOS works it out from the disk's size"
+    u8 boot_code[1012] "Run when the disk is booted from, if the checksum is right"
+}
+
+struct RootBlock {
+    BlockType type
+    u32 header_key
+    u32 high_seq
+    u32 hash_table_size
+    u32 first_data
+    u32 checksum : hex
+    u32 hash_table[hash_table_size] "The first block of each file and directory, by the hash of its name"
+    s32 bitmap_valid "-1 when the bitmap is right"
+    u32 bitmap_pages[25]
+    u32 bitmap_extension
+    Date changed "When the root directory last changed"
+    pstring disk_name
+    u8 name_rest[30 - len(disk_name)]
+    u8 unused1
+    u32 unused2[2]
+    Date disk_changed "When anything on the disk last changed"
+    Date created "When the disk was formatted"
+    u32 next_hash
+    u32 parent
+    u32 extension
+    SecondaryType secondary_type
+    label disk_name
+}
+
+BootBlock boot
+# The root block is in the middle of the disk: block 880 on a double-density floppy.
+if file_size >= 1024 && u32(file_size / 1024 * 512) == T_HEADER {
+    RootBlock root @ file_size / 1024 * 512
+}

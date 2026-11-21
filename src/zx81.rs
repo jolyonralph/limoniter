@@ -13,6 +13,10 @@
 //! starts the vertical sync, and any OUT ends it. In FAST mode the generator is off and the screen is only drawn while
 //! the ROM waits for a key.
 //!
+//! The ZX80 (see `zx80`) is the same machine with the NMI generator taken away: its ULA makes a horizontal sync only
+//! when the processor acknowledges the line interrupt, so there are no syncs at all, and no picture, unless the ROM
+//! is drawing one, which it does only while it waits for a key.
+//!
 //! A `.p` file (memory from &4009, as SAVE writes it) is put into memory as the ROM's LOAD leaves it, and the ROM
 //! goes on from there, so a program saved as it ran starts again; LOAD from a program is caught and given the next
 //! program from the tape it came from.
@@ -86,11 +90,22 @@ pub fn keys_for(c: char) -> Option<Vec<Key>> {
     }
 }
 
-/// The ZX81's hardware: its memory, the ULA's counters and the keyboard.
+/// Which of the two machines the hardware is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Model {
+    /// The ZX80: no NMI generator, so no horizontal syncs but those the line interrupt brings.
+    Zx80,
+    Zx81,
+}
+
+/// The ZX81's hardware (and the ZX80's): its memory, the ULA's counters and the keyboard.
 pub struct Hw {
+    pub(crate) model: Model,
     rom: Vec<u8>,
-    ram: Vec<u8>,
+    pub(crate) ram: Vec<u8>,
     t: u64,
+    /// When the last picture was finished, for the ZX80's to be given up on when the ROM stops drawing.
+    last_picture: u64,
     /// T-states since the last horizontal sync, and until the one an acknowledged interrupt starts.
     line_t: u32,
     delayed: u32,
@@ -114,21 +129,25 @@ pub struct Hw {
     /// Pictures finished, for the tests.
     pub frames: u64,
     /// The programs on the tape the machine was started from, by name, and the next to give LOAD.
-    tape: Vec<(String, Vec<u8>)>,
-    next: usize,
+    pub(crate) tape: Vec<(String, Vec<u8>)>,
+    pub(crate) next: usize,
+    /// What the ZX80's SAVE has saved, each as a `.o` file's bytes.
+    pub saved: Vec<Vec<u8>>,
 }
 
 const PAPER: [u8; 4] = [0xF0, 0xF0, 0xE8, 0xFF];
 const INK: [u8; 4] = [0x10, 0x10, 0x10, 0xFF];
 
 impl Hw {
-    fn new(rom: Vec<u8>, ram_k: usize) -> Hw {
+    pub(crate) fn new(rom: Vec<u8>, ram_k: usize, model: Model) -> Hw {
         let mut rgba = vec![0; WIDTH * HEIGHT * 4];
         z80_micro::paint(&vec![0; WIDTH * HEIGHT], PAPER, INK, &mut rgba);
         Hw {
+            model,
             rom,
             ram: vec![0; ram_k.clamp(1, 16) * 1024],
             t: 0,
+            last_picture: 0,
             line_t: 0,
             delayed: 0,
             lcntr: 0,
@@ -147,6 +166,7 @@ impl Hw {
             frames: 0,
             tape: Vec::new(),
             next: 0,
+            saved: Vec::new(),
         }
     }
 
@@ -169,8 +189,16 @@ impl Hw {
             }
             if self.line_t >= LINE {
                 self.line_t -= LINE;
-                self.hsync(true);
+                // Only the ZX81's ULA counts lines out by itself.
+                if self.model == Model::Zx81 {
+                    self.hsync(true);
+                }
             }
+        }
+        // A ZX80 running a program makes no proper syncs (only, when it looks for BREAK, a vertical one that never
+        // ends), so the television has nothing to show: the picture goes blank until the ROM draws one again.
+        if self.model == Model::Zx80 && self.t - self.last_picture > u64::from(LINES_MOST * LINE) {
+            self.finish_picture();
         }
     }
 
@@ -190,6 +218,7 @@ impl Hw {
         self.pixels.fill(0);
         self.beam = 0;
         self.frames += 1;
+        self.last_picture = self.t;
     }
 
     /// A character the ULA shifts out: eight pixels of its pattern, where the beam is.
@@ -264,8 +293,10 @@ impl Z80Bus for Hw {
             self.vsync = Some(self.t);
             self.lcntr = 0;
         }
-        // Bit 6 set says it's a 50 Hz machine; bit 7 is the tape, silent.
-        (keys & 0x1F) | 0x60
+        // Bit 6 set says it's a 50 Hz machine; bit 7 is the tape, silent. The ZX80's LOAD waits for bit 7 to drop,
+        // so a ZX80 with no tape playing reads it high, and waits until BREAK (SPACE) is pressed.
+        let tape = if self.model == Model::Zx80 { 0x80 } else { 0 };
+        (keys & 0x1F) | 0x60 | tape
     }
 
     fn write_io(&mut self, port: u16, _data: u8) {
@@ -276,7 +307,8 @@ impl Z80Bus for Hw {
                 self.finish_picture();
             }
         }
-        if port & 1 == 0 {
+        // The ZX80 has no NMI generator to switch on.
+        if port & 1 == 0 && self.model == Model::Zx81 {
             self.nmi_on = true;
         }
         if port & 2 == 0 {
@@ -319,6 +351,9 @@ impl Hardware for Hw {
         self.iff1 = cpu.regs.get_iff1();
         self.i = cpu.regs.get_i();
         let pc = cpu.regs.get_pc();
+        if self.model == Model::Zx80 {
+            return crate::zx80::catch_tape(self, cpu, pc);
+        }
         // LOAD "name" (DE at the name; above 32K is LOAD with no name in a program) is given the tape's next program.
         if pc == LOAD_ROUTINE && self.next < self.tape.len() {
             let (_, program) = self.tape[self.next].clone();
@@ -384,8 +419,13 @@ impl Hardware for Hw {
 impl Hw {
     /// A program's memory from &4009 put in place, as LOAD leaves it.
     fn load(&mut self, program: &[u8]) {
+        self.load_at(FILE_START, program);
+    }
+
+    /// Bytes put in memory from `start`, as far as the RAM goes.
+    pub(crate) fn load_at(&mut self, start: u16, program: &[u8]) {
         for (i, b) in program.iter().enumerate() {
-            let address = usize::from(FILE_START) + i;
+            let address = usize::from(start) + i;
             if address >= 0x4000 + self.ram.len() {
                 break;
             }
@@ -409,7 +449,7 @@ impl Zx81 {
         if rom.len() != 8192 {
             return Err(crate::i18n::tr("The ZX81's ROM is 8K.").into());
         }
-        let mut machine = Zx81 { core: Core::new(Z80::default(), Hw::new(rom, ram_k)) };
+        let mut machine = Zx81 { core: Core::new(Z80::default(), Hw::new(rom, ram_k, Model::Zx81)) };
         for _ in 0..BOOT_FRAMES {
             machine.core.frame();
         }
@@ -613,7 +653,7 @@ dend:
 
     #[test]
     fn the_processor_draws_the_screen_from_the_display_file() {
-        let mut core = Core::new(Z80::default(), Hw::new(test_rom(), 1));
+        let mut core = Core::new(Z80::default(), Hw::new(test_rom(), 1, Model::Zx81));
         for _ in 0..10 {
             core.frame();
         }
@@ -647,7 +687,7 @@ dend:
 
     #[test]
     fn the_keyboard_is_read_by_rows() {
-        let mut core = Core::new(Z80::default(), Hw::new(test_rom(), 1));
+        let mut core = Core::new(Z80::default(), Hw::new(test_rom(), 1, Model::Zx81));
         core.hold(&[key("SPACE").unwrap(), key("M").unwrap()], true);
         core.frame();
         core.frame();
@@ -667,7 +707,7 @@ dend:
 
     #[test]
     fn memory_is_rom_below_16k_and_ram_above_mirrored() {
-        let mut hw = Hw::new(vec![0xAB; 8192], 1);
+        let mut hw = Hw::new(vec![0xAB; 8192], 1, Model::Zx81);
         hw.poke(0x4000, 7);
         assert_eq!(hw.peek(0x4400), 7, "1K is seen again every 1K");
         assert_eq!(hw.peek(0xC000), 7, "and above 48K");

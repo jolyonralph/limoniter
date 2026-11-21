@@ -254,7 +254,7 @@ pub fn name_bios_calls(source: &str) -> String {
 /// The starter cartridge: the header, then a loop that waits for the frame, sets the brightness and draws a
 /// square and a line of text, as Vectrex programs do.
 pub const STARTER: &str = r#"; machine:vectrex
-; A Vectrex cartridge. F9 runs it in MAME (with the Vectrex's ROM) or ParaJVE.
+; A Vectrex cartridge. F9 runs it on the built-in Vectrex (with the Vectrex's BIOS chosen), or in MAME or ParaJVE.
 ; The BIOS's routines, as VECTREX.I names them.
 Wait_Recal      equ $F192
 Intensity_5F    equ $F2A5

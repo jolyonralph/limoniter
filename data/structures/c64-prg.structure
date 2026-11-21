@@ -1,0 +1,32 @@
+# Commodore 64 (and VIC-20, PET, C128) program files: a load address, then the bytes loaded there. A BASIC
+# program is lines linked by the address of the next, each with its number and its tokenised text.
+name "Commodore program (PRG)"
+endings prg p00
+# Atari ST programs are .prg too: they start with 0x601A, which a Commodore load address never would be.
+magic u16be(0) != 0x601A
+order little
+
+struct Line {
+    u16 next : hex "Where the next line is in memory"
+    u16 number
+    cstring text "Keywords are kept as single bytes from 0x80, so they show as dots"
+    label number
+}
+
+let p00 = str(0, 7) == "C64File"
+if p00 {
+    # PC64's .p00 files add a header with the file's name on the Commodore disk.
+    char signature[8]
+    char original_name[17]
+    u8 record_size
+}
+u16 load_address : hex
+if load_address == 0x0801 || load_address == 0x1001 || load_address == 0x0401 || load_address == 0x1C01 {
+    Line lines[while here + 2 <= file_size && u16(here) != 0]
+    if here + 2 <= file_size {
+        u16 end_of_program "Two zero bytes"
+    }
+}
+if here < file_size {
+    u8 code[] "Machine code, or other data, loaded after the BASIC (if any)"
+}

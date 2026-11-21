@@ -1,0 +1,77 @@
+# ZX Spectrum snapshots (.z80), as Gerton Lunter's Z80 emulator writes them: version 1 has 30 bytes of registers
+# and the 48K of memory; versions 2 and 3 have more header and the memory in pages (the World of Spectrum
+# description of the format).
+name "ZX Spectrum snapshot (Z80)"
+endings z80
+order little
+
+struct Page {
+    u16 length "0xFFFF for 16384 bytes not packed"
+    u8 page "3 to 10: 8 is 0x4000, 4 is 0x8000 and 5 is 0xC000 on a 48K Spectrum"
+    if length == 0xFFFF {
+        u8 data[16384]
+    } else {
+        u8 data[length] "Packed: ED ED, a count, then the byte"
+    }
+    label page
+}
+
+u8 A : hex
+u8 F : bin
+u16 BC : hex
+u16 HL : hex
+u16 PC : hex "0 for a version 2 or 3 file, whose PC is in the extra header"
+u16 SP : hex
+u8 I : hex
+u8 R : hex "Bits 0 to 6 of R; bit 7 is in the next byte"
+u8 flags1 : bin "Bit 0: R's bit 7. Bits 1 to 3: the border. Bit 5: the memory is packed (version 1)"
+calc border = (flags1 == 255 ? 1 : flags1) >> 1 & 7
+u16 DE : hex
+u16 BC_ : hex "BC'"
+u16 DE_ : hex "DE'"
+u16 HL_ : hex "HL'"
+u8 A_ : hex "A'"
+u8 F_ : bin "F'"
+u16 IY : hex
+u16 IX : hex
+u8 IFF1
+u8 IFF2
+u8 flags2 : bin "Bits 0 and 1: the interrupt mode. Bits 6 and 7: the joystick"
+calc interrupt_mode = flags2 & 3
+if PC != 0 {
+    calc version = 1
+    if flags1 & 0x20 != 0 {
+        u8 memory[] "The 48K of memory, packed: ED ED, a count, then the byte; ending 00 ED ED 00"
+    } else {
+        u8 memory[49152]
+    }
+} else {
+    u16 extra_length "23 for version 2; 54 or 55 for version 3"
+    calc version = extra_length == 23 ? 2 : 3
+    u16 real_PC : hex
+    u8 hardware_mode "0 for a 48K Spectrum; 3 or 4 (by version) for a 128K"
+    u8 port_7FFD : bin "The 128K's paging, or for SamRam the bank state"
+    u8 interface1 "255 when Interface I's ROM was paged in"
+    u8 flags3 : bin "Bit 0: R emulation. Bit 1: LDIR emulation. Bit 2: AY sound in use"
+    u8 last_port_FFFD "The sound chip register last chosen"
+    u8 sound_registers[16]
+    if extra_length >= 54 {
+        u16 tstates_low
+        u8 tstates_high
+        u8 spectator_flag
+        u8 mgt_rom_paged
+        u8 multiface_rom_paged
+        u8 ram_0000 "255 if 0x0000 to 0x1FFF is RAM"
+        u8 ram_2000 "255 if 0x2000 to 0x3FFF is RAM"
+        u16 joystick_keys[5]
+        u16 joystick_ascii[5]
+        u8 mgt_type
+        u8 disciple_button
+        u8 disciple_flag
+        if extra_length == 55 {
+            u8 port_1FFD : bin "The +2A and +3's paging"
+        }
+    }
+    goto 32 + extra_length
+    Page pages[]
+}

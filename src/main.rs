@@ -82,6 +82,7 @@ mod merge3;
 mod byte_store;
 mod hex_buffer;
 mod howtocode;
+mod howtocode_spectrum;
 mod highlight;
 mod i18n;
 mod history_file;
@@ -101,6 +102,9 @@ mod preview;
 mod preview_pdf;
 mod print;
 mod protracker;
+mod ql;
+mod ql_run;
+mod ql_source;
 mod st_music;
 mod st_packers;
 mod amiga_crunch;
@@ -108,6 +112,7 @@ mod st_tools;
 mod sid;
 mod c64_tools;
 mod project;
+mod project_import;
 mod reformat;
 mod running;
 mod sound;
@@ -118,6 +123,7 @@ mod boriel;
 mod boriel_get;
 mod c_starters;
 mod compilers;
+mod control_hints;
 mod sasc;
 mod c64_assemblers;
 mod c64_hw;
@@ -133,6 +139,7 @@ mod icl2900;
 mod workspace;
 mod x86;
 mod live_server;
+mod php_tools;
 mod markdown_tools;
 mod mermaid;
 mod instruction_ref;
@@ -186,9 +193,17 @@ mod doc_comments;
 mod dragon_dos;
 mod dragon_run;
 mod vectrex;
+mod m6809_cpu;
+mod via6522;
+mod vectrex_machine;
+mod vectrex_screen;
 mod sega;
 mod gameboy;
 mod nes;
+mod apple2_run;
+mod atari7800;
+mod atari8_run;
+mod cpc_run;
 mod fantasy_carts;
 mod binary_tools;
 mod code_picture;
@@ -204,8 +219,14 @@ mod tasks;
 mod zx_machine;
 mod z80_micro;
 mod micro_roms;
+mod zx80;
+mod zx80_program;
 mod zx81;
 mod zx81_program;
+mod ssem;
+mod edsac;
+mod pdp8;
+mod pal8;
 mod jupiter_ace;
 mod machine_link;
 mod retro_screens;
@@ -218,6 +239,7 @@ mod ripper_ui;
 mod screen;
 mod settings;
 mod settings_file;
+mod self_update;
 mod update_check;
 mod trash;
 mod file_info;
@@ -226,6 +248,9 @@ mod layouts;
 mod emulator_get;
 mod spelling;
 mod strings_explorer;
+mod structure;
+mod structure_library;
+mod structure_panel;
 mod tabs;
 mod table;
 mod scripting;
@@ -236,6 +261,8 @@ mod stress_tests;
 mod theme;
 mod tools;
 mod tracker;
+mod trse;
+mod rgc_basic;
 mod m68k_disasm;
 mod m68k_timing;
 mod atari2600;
@@ -308,6 +335,7 @@ fn window_icon() -> Option<egui::IconData> {
 }
 
 fn main() -> eframe::Result {
+    self_update::take_updated_from_environment();
     report_crashes();
     // The uninstaller's last request of the program. There's no window, and nobody to tell if it can't be done.
     if std::env::args_os().any(|arg| arg == "--unregister-file-types") {
@@ -315,6 +343,10 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     let all: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    // On Windows, a copy of Limoniter finishing an update once the window has closed: no window of its own.
+    if all.first().is_some_and(|arg| arg == self_update::FINISH) {
+        std::process::exit(all.get(1).map_or(1, |plan| self_update::finish(std::path::Path::new(plan))));
+    }
     // 68000 source made into an Amiga program, with no window.
     if cli_assemble::wanted(&all) {
         std::process::exit(cli_assemble::run(&all));
@@ -371,6 +403,8 @@ fn main() -> eframe::Result {
     if screenshot.is_none()
         && launch.is_none()
         && !files.is_empty()
+        // Started by an update, as the old window closes: the files are this one's to open again.
+        && self_update::updated().is_none()
         && !settings::Prefs::from_settings(&app::read_settings_file()).new_window_per_file
         && let Some(folder) = app::settings_folder()
         && instance::hand_off(&folder, &files)

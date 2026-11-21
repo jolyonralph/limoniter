@@ -1,4 +1,6 @@
-# 17. Releasing
+# 18. Releasing
+
+[‹ Writing games](17-writing-games.md) · [Contents](README.md) · [Further reading ›](19-further-reading.md)
 
 The program you release is not the program you tested. It has been crunched, so a decruncher you didn't write runs first. It's on a disk, or in an archive, started from a disk or an icon. And it's going to machines you've never seen. This chapter is about the last steps: crunching, packaging, the small things a release needs, where to put it, and a checklist that ties it all back to the machines in [chapter 16](16-debugging-and-testing.md).
 
@@ -162,3 +164,5 @@ Before you upload, with the program exactly as it will be released (crunched, fr
 - **Crunchers**: Shrinkler and Cranker instead of PowerPacker, Imploder and Titanics Cruncher. v7's point that an archive is often enough still stands.
 - **Protection**: v7's advice against it stands, and the emulator has made it pointless as well as dangerous.
 - **New**: disk images (ADF, HDF), trackmo disks built in Limoniter, WHDLoad, and today's places to release: scene.org, Pouët, Demozoo and Aminet. In 1993, demos went out on disks by post and on BBSes.
+
+[‹ Writing games](17-writing-games.md) · [Contents](README.md) · [Further reading ›](19-further-reading.md)

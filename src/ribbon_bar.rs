@@ -442,7 +442,7 @@ const HEX: &[Group] = &[
             small("Entropy and byte counts", Icon::Text("123"), Command::Entropy),
         ],
     },
-    Group { name: "Panels", controls: &[tick("String explorer", Icon::Panel, Flag::Panel(PanelFlag::Strings)), tick("Value inspector", Icon::Panel, Flag::Panel(PanelFlag::Inspector))] },
+    Group { name: "Panels", controls: &[tick("String explorer", Icon::Panel, Flag::Panel(PanelFlag::Strings)), tick("Value inspector", Icon::Panel, Flag::Panel(PanelFlag::Inspector)), tick("Structure", Icon::Panel, Flag::Panel(PanelFlag::Structure))] },
 ];
 
 const TABLE: &[Group] = &[Group {

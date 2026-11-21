@@ -189,6 +189,8 @@ pub enum Action {
     ViewHex,
     /// Text to go either side of the selection.
     WrapTag(String, String),
+    /// Open the page on how structure templates are written.
+    StructureHelp,
 }
 
 /// A piece of text to put in, or to put either side of a selection.
@@ -288,6 +290,9 @@ pub struct Panels {
     pub strings: bool,
     /// The value inspector: the bytes at the hex cursor as numbers.
     pub inspector: bool,
+    /// The file's bytes taken apart with a structure template.
+    pub structure: bool,
+    pub structure_panel: crate::structure_panel::StructurePanel,
     /// An assembly program's call graph.
     pub call_graph: bool,
     /// The instruction reference for the processor in front.
@@ -323,7 +328,7 @@ impl Panels {
         flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 22] {
+    fn flags(&self) -> [(&'static str, bool); 23] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -345,6 +350,7 @@ impl Panels {
             ("todo_panel", self.todos),
             ("strings_panel", self.strings),
             ("inspector_panel", self.inspector),
+            ("structure_panel", self.structure),
             ("call_graph_panel", self.call_graph),
             ("instruction_panel", self.instructions),
         ]
@@ -381,6 +387,7 @@ impl Panels {
                 "encoding_preview" => self.encoding_preview = flag,
                 "strings_panel" => self.strings = flag,
                 "inspector_panel" => self.inspector = flag,
+                "structure_panel" => self.structure = flag,
                 "call_graph_panel" => self.call_graph = flag,
                 "instruction_panel" => self.instructions = flag,
                 "file_explorer" => self.file_explorer = flag,
@@ -420,12 +427,13 @@ impl Panels {
         self.todos = false;
         self.strings = false;
         self.inspector = false;
+        self.structure = false;
         self.call_graph = false;
         self.instructions = false;
     }
 
     fn right_count(&self) -> usize {
-        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector, self.call_graph, self.instructions]
+        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector, self.structure, self.call_graph, self.instructions]
             .iter()
             .filter(|on| **on)
             .count()
@@ -522,6 +530,12 @@ impl Panels {
         let share = |part: f32, least: f32, most: f32| (whole * part * squeeze).clamp(least, most);
         let (props_width, tree_width, ascii_width, plain_width) =
             (share(0.13, 215.0, 300.0), share(0.107, 120.0, 260.0), share(0.107, 200.0, 280.0), share(0.105, 110.0, 240.0));
+        if self.structure {
+            let mut open = true;
+            let panel = &mut self.structure_panel;
+            dock(ui, true, "structure-panel", "Structure", ascii_width.max(330.0), &mut open, |ui| panel.draw(ui, doc, actions));
+            self.structure = open;
+        }
         if self.inspector {
             let mut open = true;
             dock(ui, true, "inspector-panel", "Value inspector", ascii_width.max(250.0), &mut open, |ui| inspector_panel(ui, doc, actions));

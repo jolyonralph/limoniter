@@ -1,5 +1,7 @@
 # 3. General guidelines
 
+[‹ Working with Limoniter](02-working-with-limoniter.md) · [Contents](README.md) · [Startup and exit ›](04-startup-and-exit.md)
+
 The rules in this chapter are the ones that decide whether a demo runs on someone else's Amiga. Almost none of them costs an effect any speed. Most came from v7, which got them from Commodore's manuals and from a pile of demos that refused to run on the editor's A3000. Where v7 was wrong, or 1993 has gone, this chapter says so.
 
 The short version: **read the manuals; allocate everything; never assume.**
@@ -12,7 +14,7 @@ v7 said: read the Commodore manuals, all of them, borrow them from friends or th
 - The ***ROM Kernel Reference Manuals*** (*Libraries*, *Devices*, and *Includes and Autodocs*) describe the system: exec, graphics, dos and the rest.
 - The **NDK 3.2** (Native Developer Kit for AmigaOS 3.2, from Hyperion) has the assembler includes (`Include_I/`) and the Autodocs for every library, up to date. It's a free download from Aminet, and Limoniter fetches it for you when you ask. Each Autodoc says which version of the system added the function, as in "CacheClearU - User callable simple cache clearing (V37)".
 
-[Further reading](18-further-reading.md) has the links. Everything in v8 is checked against these, and when a forum post, a tutorial or this guide disagrees with them, believe the manuals and test on the machine.
+[Further reading](19-further-reading.md) has the links. Everything in v8 is checked against these, and when a forum post, a tutorial or this guide disagrees with them, believe the manuals and test on the machine.
 
 ## Allocate everything; never use a fixed address
 
@@ -167,11 +169,11 @@ ClearInstructionCache:
         rte
 ```
 
-`CacheClearU` works with the machine taken over, too: it's an ordinary exec call that needs neither multitasking nor interrupts. `examples/ch03_generated_code.s` writes its drawing routine (about 5.5K of unrolled `MOVE.L`s) from a loop of a few dozen bytes, clears the caches, and runs it every frame. It was run both ways on an A500 with Kickstart 1.3 and 3.1 (with the trapdoor's slow RAM and without), on Kickstart 1.3 with a 68020, and on Kickstart 3.1 with a 68020, 68040 and 68060.
+`CacheClearU` works with the machine taken over, too: it's an ordinary exec call that needs neither multitasking nor interrupts. [`examples/ch03_generated_code.s`](examples/ch03_generated_code.s) writes its drawing routine (about 5.5K of unrolled `MOVE.L`s) from a loop of a few dozen bytes, clears the caches, and runs it every frame. It was run both ways on an A500 with Kickstart 1.3 and 3.1 (with the trapdoor's slow RAM and without), on Kickstart 1.3 with a 68020, and on Kickstart 3.1 with a 68020, 68040 and 68060.
 
 ![ch03_generated_code.s on an emulated 68040 with Kickstart 3.1, and the CLI it leaves behind](images/ch03_generated_code.png)
 
-You don't need to clear anything after the system loads your program: `LoadSeg` does it. Nor for the chips' work in chip RAM: the system sets chip RAM so the data cache never holds it, so what the blitter writes is what the processor reads (the `CacheClearE` Autodoc says so). But a cruncher's decruncher, which writes the program it unpacks, must clear the caches before jumping to it: a reason to use one that's known to (see [releasing](17-releasing.md)).
+You don't need to clear anything after the system loads your program: `LoadSeg` does it. Nor for the chips' work in chip RAM: the system sets chip RAM so the data cache never holds it, so what the blitter writes is what the processor reads (the `CacheClearE` Autodoc says so). But a cruncher's decruncher, which writes the program it unpacks, must clear the caches before jumping to it: a reason to use one that's known to (see [releasing](18-releasing.md)).
 
 ## Open libraries properly
 
@@ -290,11 +292,11 @@ Put a version string in every program, and in its source:
 
 That's `$VER:`, the name, the version and revision, and the date as day.month.year, in brackets: the way the NDK's own files write theirs. AmigaOS's `Version` command finds it in the file (`Version mydemo`), as do many directory tools. v7 liked it for the demo compilations that renamed everything `1`, `2`, `3`: `Version 1` gives the real name.
 
-A crunched program hides its version string along with everything else. [Releasing](17-releasing.md) has more.
+A crunched program hides its version string along with everything else. [Releasing](18-releasing.md) has more.
 
 ## Crunching
 
-v7 advised against the crunchers of its day (Tetrapack, Bytekiller) and for others (PowerPacker, Imploder, Titanics Cruncher). They've all been overtaken. Today's demos are crunched with **Shrinkler**, by Aske Simon Christensen (Blueberry), which packs much smaller than 1993's crunchers did, or **Cranker**, by Timm S. Müller (The Electronic Knights), which decrunches as the program loads and needs no extra memory to do it. Limoniter runs both. [Releasing](17-releasing.md) covers how to choose, and how to test the crunched program, which is a different program from the one you tested.
+v7 advised against the crunchers of its day (Tetrapack, Bytekiller) and for others (PowerPacker, Imploder, Titanics Cruncher). They've all been overtaken. Today's demos are crunched with **Shrinkler**, by Aske Simon Christensen (Blueberry), which packs much smaller than 1993's crunchers did, or **Cranker**, by Timm S. Müller (The Electronic Knights), which decrunches as the program loads and needs no extra memory to do it. Limoniter runs both. [Releasing](18-releasing.md) covers how to choose, and how to test the crunched program, which is a different program from the one you tested.
 
 ## What changed from v7
 
@@ -304,5 +306,7 @@ v7 advised against the crunchers of its day (Tetrapack, Bytekiller) and for othe
 - **Never assume**, with a new case: Kickstart 3's `LoadView(0)` switches bitplane DMA off.
 - **No delay loops** and **the processor's own rules**, from the *Hardware Reference Manual*.
 - **Version strings** with four-digit years, as the NDK writes them.
-- **Crunchers**: Shrinkler and Cranker, in [releasing](17-releasing.md), in place of 1993's.
-- **Left out**: the list of 1993's manuals and where to buy them (now [further reading](18-further-reading.md)), and the advice for utility authors.
+- **Crunchers**: Shrinkler and Cranker, in [releasing](18-releasing.md), in place of 1993's.
+- **Left out**: the list of 1993's manuals and where to buy them (now [further reading](19-further-reading.md)), and the advice for utility authors.
+
+[‹ Working with Limoniter](02-working-with-limoniter.md) · [Contents](README.md) · [Startup and exit ›](04-startup-and-exit.md)

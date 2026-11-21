@@ -1,4 +1,4 @@
-//! Yet more tokenised BASICs, listed only: the TRS-80's, the ZX81's, the SAM Coupé's and the Oric's.
+//! Yet more tokenised BASICs, listed only: the TRS-80's, the ZX80's and ZX81's, the SAM Coupé's and the Oric's.
 //!
 //! - TRS-80 Level II BASIC, and Disk BASIC on the Model I and III: the tokens are the Level II ROM's, &80 to &FB,
 //!   as trs80-tool (github.com/lkesteloot/trs80) and the Level II reference manual list them. Numbers are kept as
@@ -12,6 +12,13 @@
 //!   first), a length, then the line in the ZX81's own character set, keywords &C0 to &FF; a number is its digits and
 //!   then &7E and its five-byte form, as on the Spectrum. The ROM disassembly (Logan and O'Hara's, and the annotated
 //!   one in github.com/Toysoft/ZX-81-ROMS) gives the keyword table and LIST's rules for spaces.
+//! - ZX80 BASIC: `.o` files (and EightyOne's `.80`), the ZX80's memory from &4000 to E_LINE as SAVE wrote it, so
+//!   the forty system variables come first and say where the program's variables, and so its end, are. Lines are
+//!   a line number (high byte first) and the line in the ZX80's own character set, ended by NEWLINE (&76), with no
+//!   length; keywords and some signs are tokens from &D4 to &FF, the functions are spelt out in letters, and
+//!   numbers are only their digits, as the ZX80's BASIC has whole numbers only. Strings are between two &01 bytes.
+//!   The token table (at &00BA) and LIST's rules for spaces (PO-TOKEN, at &0584) are from Geoff Wearmouth's
+//!   assembly listing of the ZX80's ROM.
 //! - SAM BASIC, with MasterDOS's and MasterBASIC's keywords: a file from a SAM disk, its 9-byte header first. Lines
 //!   are as the Spectrum's (number high byte first, a length, the line, &0D), keywords single bytes from &85 or &FF
 //!   and a second byte, and a number's five-byte form after &0E. The keyword table and how LIST spaces each keyword
@@ -30,6 +37,8 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
         None
     } else if is_zx81_ending(extension) {
         Some(list_zx81(data))
+    } else if is_zx80_file(extension, Some(data)) {
+        Some(list_zx80(data))
     } else if let Some((_, program)) = (extension == "tzx").then(|| crate::media::spectrum::zx81_programs(data).into_iter().next()).flatten().filter(|_| crate::basic::tape_blocks(data).0.is_empty()) {
         // A ZX81 tape in a TZX file, with no Spectrum blocks on it, lists its first program.
         Some(list_zx81(&program))
@@ -54,11 +63,16 @@ pub fn list_by_bytes(data: &[u8], extension: &str, set: &Charset) -> Option<List
 /// Whether a file ending (and its bytes, when there are some) names a program in one of these BASICs.
 pub fn is_program_file(extension: &str, data: Option<&[u8]>) -> bool {
     // A .p is also Pascal or Prolog source; a ZX81 program's system variables say what it is.
-    is_zx81_ending(extension) && data.is_none_or(|data| zx81_file(data).is_ok()) || extension == "bas" && data.is_some_and(|data| looks_like_sam_basic(data) || looks_like_oric(data))
+    is_zx81_ending(extension) && data.is_none_or(|data| zx81_file(data).is_ok()) || is_zx80_file(extension, data) || extension == "bas" && data.is_some_and(|data| looks_like_sam_basic(data) || looks_like_oric(data))
 }
 
 fn is_zx81_ending(extension: &str) -> bool {
     matches!(extension, "p" | "81" | "p81")
+}
+
+/// A `.o` is also any compiler's object file; a ZX80 program's system variables say what it is.
+fn is_zx80_file(extension: &str, data: Option<&[u8]>) -> bool {
+    matches!(extension, "o" | "80") && data.is_some_and(|data| zx80_length(data).is_ok())
 }
 
 // ---------- TRS-80 Level II and Disk BASIC ----------
@@ -524,6 +538,122 @@ pub fn list_zx81(data: &[u8]) -> Listing {
     }
     if !listing.screen.is_empty() && display.iter().any(|&b| (0x8B..0xC0).contains(&b)) {
         listing.notes.push(crate::i18n::tr("Inverse letters and signs on the screen are shown plain.").into());
+    }
+    listing
+}
+
+// ---------- ZX80 ----------
+
+/// The ZX80's tokens from &D4 to &FF, in the ROM's order (its table starts a place early, at &D3, with a ? that
+/// codes from &C0 to &D3 print as). &D4 is a quote, and the empty ones print as ?.
+pub(crate) const ZX80_TOKENS: [&str; 44] = [
+    "\"", "THEN", "TO", ";", ",", ")", "(", "NOT", "-", "+", "*", "/", "AND", "OR", "**", "=", ">", "<", "LIST", "RETURN", "CLS", "DIM", "SAVE", "FOR", "GO TO", "POKE",
+    "INPUT", "RANDOMISE", "LET", "?", "?", "NEXT", "PRINT", "?", "NEW", "RUN", "STOP", "CONTINUE", "IF", "GO SUB", "LOAD", "CLEAR", "REM", "?",
+];
+pub(crate) const ZX80_FIRST_TOKEN: u8 = 0xD4;
+/// The ZX80's memory, and a `.o` file, starts at &4000; the program's lines follow the forty system variables.
+const ZX80_FILE_START: usize = 0x4000;
+const ZX80_PROGRAM: usize = 0x4028;
+
+/// How much of a `.o` file is the program, from its system variables: VARS and E_LINE, which must be in order after
+/// the system variables and within the file, with the variables' end marker (&80) just before E_LINE.
+pub fn zx80_length(data: &[u8]) -> Result<usize, String> {
+    let word = |at: usize| data.get(at..at + 2).map(|b| usize::from(u16::from_le_bytes([b[0], b[1]])));
+    let (Some(vars), Some(e_line)) = (word(0x08), word(0x0A)) else {
+        return Err(crate::i18n::tr("The file is too short to hold the ZX80's system variables.").into());
+    };
+    if !(ZX80_PROGRAM <= vars && vars < e_line && e_line - ZX80_FILE_START <= data.len()) || data[e_line - ZX80_FILE_START - 1] != 0x80 {
+        return Err(crate::i18n::tr("The system variables at the start don't say where a ZX80 program and its variables are.").into());
+    }
+    Ok(e_line - ZX80_FILE_START)
+}
+
+/// How a ZX80 character is written in a listing: its character from the ZX80 set, an inverse one with % before it
+/// (as for the ZX81), an inverse graphic as the block graphic it looks like, and a code with no character as {$xx}.
+fn zx80_char(byte: u8, out: &mut String) {
+    let set = charset::known("zx80");
+    let graphic = byte == 0x80 || (0x82..=0x8B).contains(&byte);
+    match set.entry(0, byte).and_then(|e| e.unicode.map(|c| (c, e.inverse))) {
+        Some((c, true)) if !graphic => {
+            out.push('%');
+            out.push(c);
+        }
+        Some((c, _)) => out.push(c),
+        None => out.push_str(&format!("{{${byte:02x}}}")),
+    }
+}
+
+/// A ZX80 token's text: from the table from &D4, and ? below it.
+pub(crate) fn zx80_token(byte: u8) -> &'static str {
+    byte.checked_sub(ZX80_FIRST_TOKEN).map_or("?", |i| ZX80_TOKENS[usize::from(i)])
+}
+
+/// A ZX80 line as LIST shows it, following the ROM's own rules for spaces (PO-TOKEN): a token that starts with a
+/// letter or digit gets a space before it unless the last thing printed was a space or a token's trailing space,
+/// and a token that ends with a letter or digit gets a space after it. LIST stops at the line's NEWLINE.
+fn zx80_line(body: &[u8]) -> String {
+    let mut text = String::new();
+    // Set after a token's trailing space; LIST starts a line with it set, having put a space after the number.
+    let mut suppress = true;
+    for &byte in body {
+        if byte >= 0xC0 {
+            let word = zx80_token(byte);
+            let alphanumeric = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric());
+            if alphanumeric(word.chars().next()) && !suppress {
+                text.push(' ');
+            }
+            text.push_str(word);
+            suppress = false;
+            if alphanumeric(word.chars().last()) {
+                text.push(' ');
+                suppress = true;
+            }
+        } else {
+            zx80_char(byte, &mut text);
+            if byte != 0 {
+                suppress = false;
+            }
+        }
+    }
+    text
+}
+
+/// Lists a ZX80 program from a `.o` (or `.80`) file.
+pub fn list_zx80(data: &[u8]) -> Listing {
+    let mut listing = Listing { dialect: "ZX80 BASIC", ..Listing::default() };
+    let length = match zx80_length(data) {
+        Ok(length) => length,
+        Err(problem) => {
+            listing.notes.push(problem);
+            return listing;
+        }
+    };
+    let vars = usize::from(u16::from_le_bytes([data[8], data[9]])) - ZX80_FILE_START;
+    let program = &data[ZX80_PROGRAM - ZX80_FILE_START..vars];
+    let mut at = 0;
+    while at < program.len() {
+        // As the ROM's LINE-NO does, a line number with either of its top bits set is past the program's end.
+        if program[at] & 0xC0 != 0 {
+            listing.notes.push(crate::i18n::tf!("{} bytes after the last line aren't BASIC lines (usually machine code).", program.len() - at));
+            break;
+        }
+        let Some(head) = program.get(at..at + 2) else {
+            listing.notes.push(crate::i18n::tr("The program ends partway through a line's number.").into());
+            break;
+        };
+        let number = u16::from_be_bytes([head[0], head[1]]);
+        let Some(end) = program[at + 2..].iter().position(|&b| b == 0x76) else {
+            listing.notes.push(crate::i18n::tf!("Line {number} has no NEWLINE at its end, so the listing stops there."));
+            break;
+        };
+        listing.lines.push(format!("{number} {}", zx80_line(&program[at + 2..at + 2 + end]).trim_end()));
+        at += 2 + end + 1;
+    }
+    if length < data.len() {
+        listing.notes.push(crate::i18n::tf!("{} bytes after the program's end aren't part of it.", data.len() - length));
+    }
+    if listing.lines.iter().any(|line| line.contains('%')) {
+        listing.notes.push(crate::i18n::tr("Inverse characters are written with % before them.").into());
     }
     listing
 }

@@ -584,3 +584,69 @@ fn the_settings_processor_is_used_until_the_source_chooses() {
     let assembly = on("\tnop\n\tmachine 68008\n\tnop\n");
     assert_eq!(assembly.settings, [(0, m68k::SETTING, 68020), (1, m68k::SETTING, 68008)]);
 }
+
+/// Each line alone, for the 68000: its bytes, errors and warnings.
+fn m68k_line(line: &str) -> (Vec<u8>, Vec<String>, Vec<String>) {
+    let a = assemble(&m68k::M68k, Path::new("t.s"), &format!("\tmachine 68010\n{line}\n"), &no_files);
+    (a.chunks.iter().flat_map(|c| c.bytes.iter().copied()).collect(), a.problems.into_iter().map(|p| p.message).collect(), a.warnings.into_iter().map(|w| w.message).collect())
+}
+
+#[test]
+fn the_68000_warns_where_vasm_does_of_a_value_quietly_changed() {
+    // MOVEQ #143 puts -113 in D7, which made one of How To Code's examples hang. vasm 2.0f says "using signed
+    // operand as unsigned: 143 (valid: -128..127), -113 to fix", and makes the same bytes; so does Limoniter.
+    let (bytes, errors, warnings) = m68k_line("\tmoveq #143,d7");
+    assert_eq!((bytes, errors), (vec![0x7E, 0x8F], Vec::<String>::new()));
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("#143 puts -113 in D7") && warnings[0].contains("#-113"), "{warnings:?}");
+    for quiet in ["\tmoveq #127,d0", "\tmoveq #-128,d0", "\tmoveq.l #143,d7", "\tmoveq #$ffffff8f,d0"] {
+        let (_, errors, warnings) = m68k_line(quiet);
+        assert!(errors.is_empty() && warnings.is_empty(), "{quiet}: {errors:?} {warnings:?}");
+    }
+    // vasm takes every value as 32 bits, so MOVEQ #$FFFFFF8F is -113, as it is there.
+    assert_eq!(m68k_line("\tmoveq #$ffffff8f,d0").0, [0x70, 0x8F]);
+    assert!(!m68k_line("\tmoveq #$ff8f,d0").1.is_empty(), "still too big");
+    // RTD's is signed too.
+    let (bytes, _, warnings) = m68k_line("\trtd #40000");
+    assert_eq!(bytes, [0x4E, 0x74, 0x9C, 0x40]);
+    assert!(warnings.iter().any(|w| w.contains("taken as -25536")), "{warnings:?}");
+}
+
+#[test]
+fn the_68000_warns_of_what_vasm_refuses_but_still_makes_the_program() {
+    // vasm refuses each of these; Limoniter makes the bytes it always did, and says what was cut or changed.
+    let cases: [(&str, &[u8], &str); 14] = [
+        ("\tmove.b #300,d0", &[0x10, 0x3C, 0x00, 0x2C], "doesn't fit in a byte"),
+        ("\tmove.b #-129,d0", &[0x10, 0x3C, 0x00, 0x7F], "doesn't fit in a byte"),
+        ("\tmove.w #70000,d0", &[0x30, 0x3C, 0x11, 0x70], "doesn't fit in a word"),
+        ("\tand.w #~$8000,d0", &[0xC0, 0x7C, 0x7F, 0xFF], "doesn't fit in a word"),
+        ("\tmove.l #$123456789,d0", &[0x20, 0x3C, 0x23, 0x45, 0x67, 0x89], "doesn't fit in 32 bits"),
+        ("\tstop #$12345", &[0x4E, 0x72, 0x23, 0x45], "doesn't fit in a word"),
+        ("\tlink a6,#-40000", &[0x4E, 0x56, 0x63, 0xC0], "doesn't fit in a word"),
+        ("\tlink a6,#40000", &[0x4E, 0x56, 0x9C, 0x40], "taken as -25536"),
+        ("\tmove.w 40000(a0),d0", &[0x30, 0x28, 0x9C, 0x40], "taken as -25536"),
+        ("\tmove.w $9000.w,d0", &[0x30, 0x38, 0x90, 0x00], "$FFFF9000"),
+        ("\tdc.b -129", &[0x7F], "too big for a byte"),
+        ("\tdc.w 70000", &[0x11, 0x70], "too big for 16 bits"),
+        ("\tdc.w -32769", &[0x7F, 0xFF], "too big for 16 bits"),
+        ("\tdc.l $123456789", &[0x23, 0x45, 0x67, 0x89], "too big for 32 bits"),
+    ];
+    for (line, expected, warning) in cases {
+        let (bytes, errors, warnings) = m68k_line(line);
+        assert!(errors.is_empty(), "{line}: {errors:?}");
+        assert_eq!(bytes, expected, "{line}");
+        assert!(warnings.iter().any(|w| w.contains(warning)), "{line}: {warnings:?}");
+    }
+    // What vasm takes quietly, Limoniter does too: 32 bits' worth of sign, and the largest of each size.
+    for quiet in ["\tmove.b #255,d0", "\tmove.b #$ffffff80,d0", "\tmove.w #65535,d0", "\tmove.w #$ffff8000,d0", "\tmove.l #$ffffffff,d0", "\tand.w #~$0700,sr", "\tdc.b 255", "\tdc.b $ffffff80", "\tdc.w 65535", "\tdc.w $ffff8000", "\tdc.l -1", "\tmove.w 32767(a0),d0", "\tmove.w $ffff8000(a0),d0", "\tmove.w $7000.w,d0", "\tmove.w $ffff9000.w,d0", "\tlink a6,#-32768"] {
+        let (_, errors, warnings) = m68k_line(quiet);
+        assert!(errors.is_empty() && warnings.is_empty(), "{quiet}: {errors:?} {warnings:?}");
+    }
+    assert_eq!(m68k_line("\tmove.w $ffff8000(a0),d0").0, [0x30, 0x28, 0x80, 0x00]);
+    // A DBRA too far away is refused, as a branch is, rather than going somewhere else.
+    assert!(m68k_line("\tdbra d0,*+40000").1.iter().any(|p| p.contains("too far away")));
+    // Warnings don't stop the program being made.
+    let assembly = assemble(&m68k::M68k, Path::new("t.s"), "\tmoveq #143,d7\n\tmove.b #300,d0\n\trts\n", &no_files);
+    assert!(assembly.ok());
+    assert_eq!(assembly.warnings.iter().map(|w| w.line).collect::<Vec<_>>(), [0, 1]);
+}

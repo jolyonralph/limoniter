@@ -9495,3 +9495,799 @@ the level {level} interrupt vector	el vector de interrupción de nivel {level}
 the privilege violation vector	el vector de violación de privilegio
 the trace vector	el vector de traza
 wait for line ${line:02X}, x ${x:02X}	esperar a la línea ${line:02X}, x ${x:02X}
+If Limoniter is useful to you, a small donation helps cover them. $5 or $10 is plenty, once or now and then. Donations go through GitHub Sponsors, which takes no fee.	Si Limoniter te resulta útil, un pequeño donativo ayuda a cubrirlos. 5 o 10 $ es más que suficiente, una vez o de vez en cuando. Los donativos se hacen a través de GitHub Sponsors, que no cobra comisión.
+It does have some costs: above all the certificates that let Windows and macOS trust it, so they stop warning that it comes from an unknown developer, and the website.	Pero tiene algunos costes: sobre todo los certificados que hacen que Windows y macOS confíen en él y dejen de avisar de que viene de un desarrollador desconocido, y el sitio web.
+Limoniter is free, and always will be: every feature, for everyone. It's made as a hobby, in spare time.	Limoniter es gratuito y siempre lo será: todas las funciones, para todos. Se hace como afición, en el tiempo libre.
+Sponsor Limoniter on GitHub	Patrocinar Limoniter en GitHub
+Support Limoniter	Apoyar a Limoniter
+Support Limoniter…	Apoyar a Limoniter…
+Telling people about it, reporting problems and starring the project on GitHub help just as much.	Hablar de él, informar de problemas y dar una estrella al proyecto en GitHub ayudan igual.
+.{letter} takes a whole number, and {text} isn't one: .S, .D, .X and .P take floating-point numbers	.{letter} toma un número entero, y {text} no lo es: .S, .D, .X y .P toman números de coma flotante
+A k-factor is -64 to 63, and {v} isn't	Un factor k va de -64 a 63, y {v} no
+FMOVE can't write .{letter} to {}	FMOVE no puede escribir .{letter} en {}
+FMOVECR's constants are numbered 0 to 127 ($7F), and {v} isn't one	Las constantes de FMOVECR están numeradas de 0 a 127 ($7F), y {v} no es una
+FMOVEM can only put FP registers at -(An) or an address that can be written, and {} isn't	FMOVEM solo puede poner registros FP en -(An) o en una dirección en la que se pueda escribir, y {} no lo es
+FMOVEM can only take FP registers from (An)+ or an address, and {} isn't	FMOVEM solo puede tomar registros FP de (An)+ o de una dirección, y {} no lo es
+FNOP takes no operands	FNOP no toma operandos
+FPU takes the coprocessor's number, 1 to 7 (or 0 for none), and {id} isn't one	FPU toma el número del coprocesador, de 1 a 7 (o 0 para ninguno), y {id} no lo es
+FSINCOS from an FP register	FSINCOS desde un registro FP
+FTST of an FP register	FTST de un registro FP
+Its own	El suyo propio
+MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881 or 68882, and {name} isn't one	MACHINE toma 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881 o 68882, y {name} no es uno
+Maths coprocessor	Coprocesador matemático
+Only FMOVE.P takes a k-factor ({{#k}} or {{Dn}}) after its destination	Solo FMOVE.P toma un factor k ({{#k}} o {{Dn}}) después de su destino
+The 68881 or 68882 beside the processor, if there is one: FMOVE, FADD and the FPU's other instructions are read only then (the 68040 and 68060 have their own), and the source says MACHINE 68881	El 68881 o 68882 junto al procesador, si lo hay: FMOVE, FADD y las demás instrucciones de la FPU se leen solo entonces (el 68040 y el 68060 tienen la suya), y el código fuente dice MACHINE 68881
+The FPU's control registers are moved as .L, and {upper} isn't	Los registros de control de la FPU se mueven como .L, y {upper} no lo es
+The maths coprocessor Limoniter's own assembler takes 68000 source to have beside its processor, for FMOVE, FADD and the rest: a 68881 or 68882 as on an A2630, an A3000 or a Falcon with one fitted. The 68040 and 68060 have their own, so need none here. MACHINE 68881 (or FPU 1, OPT P=68020/68881) in the source chooses one for that file	El coprocesador matemático que el ensamblador propio de Limoniter supone junto al procesador en el código fuente 68000, para FMOVE, FADD y el resto: un 68881 o 68882 como en un A2630, un A3000 o un Falcon que lo lleve instalado. El 68040 y el 68060 tienen el suyo, así que aquí no necesitan ninguno. MACHINE 68881 (o FPU 1, OPT P=68020/68881) en el código fuente elige uno para ese archivo
+The {cpu_name}'s own FPU is always number 1	La FPU propia del {cpu_name} es siempre la número 1
+With the maths coprocessor (FPU)	Con el coprocesador matemático (FPU)
+m68k_fpu	m68k_fpu
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
+this isn't a floating-point expression Limoniter can work out (it takes numbers, labels, + - * / and brackets)	esto no es una expresión de coma flotante que Limoniter pueda calcular (admite números, etiquetas, + - * / y paréntesis)
+{bare} between FP registers	{bare} entre registros FP
+{bare} can't use {}	{bare} no puede usar {}
+{bare} can't write to {}	{bare} no puede escribir en {}
+{bare} is .B	{bare} es .B
+{bare} is .W	{bare} es .W
+{bare} is .W or .L	{bare} es .W o .L
+{bare} is a maths coprocessor's (an FPU's) instruction, and none is chosen for this {cpu_name}: MACHINE 68881 or MACHINE 68882 (or FPU 1, or OPT P=68020/68881) chooses one, as does the setting beside "68000 source is for"; the 68040 and 68060 have their own	{bare} es una instrucción de un coprocesador matemático (una FPU), y no hay ninguno elegido para este {cpu_name}: MACHINE 68881 o MACHINE 68882 (o FPU 1, u OPT P=68020/68881) elige uno, igual que el ajuste junto a «El código fuente 68000 es para»; el 68040 y el 68060 tienen el suyo
+{bare} of an FP register	{bare} de un registro FP
+{operands} is too far away for {bare}.W: {bare}.L reaches it	{operands} está demasiado lejos para {bare}.W: {bare}.L lo alcanza
+{text} is too big for .P: its exponent can only be -999 to 999	{text} es demasiado grande para .P: su exponente solo puede ir de -999 a 999
+{text} is too big for .{letter}	{text} es demasiado grande para .{letter}
+{text} isn't a floating-point expression Limoniter can work out (it takes numbers, labels, + - * / and brackets)	{text} no es una expresión de coma flotante que Limoniter pueda calcular (admite números, etiquetas, + - * / y paréntesis)
+{upper} can't move {text} into {}	{upper} no puede mover {text} a {}
+{upper} can't move {} to {text}	{upper} no puede mover {} a {text}
+{upper} can't take .{letter} from {}	{upper} no puede tomar .{letter} de {}
+{upper} has no such size: the FPU's are .B, .W, .L, .S, .D, .X and .P	{upper} no tiene ese tamaño: los de la FPU son .B, .W, .L, .S, .D, .X y .P
+{upper} {operands} isn't an FPU instruction	{upper} {operands} no es una instrucción de la FPU
+{what} is always .X	{what} es siempre .X
+{} is too far away for {bare}	{} está demasiado lejos para {bare}
+A function code is 0 to {most} here, and {v} isn't	Un código de función es de 0 a {most} aquí, y {v} no lo es
+A function code is SFC, DFC, a data register or a number (#5), and {text} isn't one	Un código de función es SFC, DFC, un registro de datos o un número (#5), y {text} no es ninguno
+BGND takes no operands	BGND no toma operandos
+LPSTOP is .W	LPSTOP es .W
+LPSTOP's new status register is 16 bits, and {v} doesn't fit	El nuevo registro de estado de LPSTOP es de 16 bits, y {v} no cabe
+MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881, 68882 or 68851, and {name} isn't one	MACHINE toma 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881, 68882 o 68851, y {name} no es uno
+MOVE16 moves (Ax)+ to (Ay)+, or between (Ay)+ or (Ay) and a long address	MOVE16 mueve (Ax)+ a (Ay)+, o entre (Ay)+ o (Ay) y una dirección larga
+Memory management unit	Unidad de gestión de memoria (MMU)
+PFLUSH's mask is 0 to {most} here, and {v} isn't	La máscara de PFLUSH es de 0 a {most} aquí, y {v} no lo es
+PFLUSH's mask is a number (#3), and {text} isn't	La máscara de PFLUSH es un número (#3), y {text} no lo es
+PFLUSHR's root pointer is .Q	El puntero raíz de PFLUSHR es .Q
+PMMU takes nothing after it	PMMU no toma nada después
+PMOVE of {reg} is .{wanted}	PMOVE de {reg} es .{wanted}
+PMOVEFD moves into TC, SRP, CRP, TT0 or TT1 only, leaving the address translation cache as it is	PMOVEFD solo mueve a TC, SRP, CRP, TT0 o TT1, dejando la caché de traducción de direcciones como está
+PTEST's level is 0 to 7, and {v} isn't	El nivel de PTEST es de 0 a 7, y {v} no lo es
+PTEST's level is a number (#7), and {text} isn't	El nivel de PTEST es un número (#7), y {text} no lo es
+PVALID compares with VAL or an address register, and {first} isn't one	PVALID compara con VAL o un registro de direcciones, y {first} no es ninguno
+The 68851 beside a 68020, if there is one: PMOVE, PFLUSH and the MMU's other instructions are read only then (the 68030, 68040 and 68060 have their own), and the source says MACHINE 68851	El 68851 junto a un 68020, si lo hay: PMOVE, PFLUSH y las demás instrucciones de la MMU se leen solo entonces (el 68030, el 68040 y el 68060 tienen la suya), y el código fuente dice MACHINE 68851
+The memory management unit Limoniter's own assembler takes a 68020 to have beside it, for PMOVE, PFLUSH, PTEST and the rest: the 68851, as on an A2620. The 68030, 68040 and 68060 have their own, so need none here. MACHINE 68851 (or PMMU, OPT P=68020/68851) in the source chooses it for that file	La unidad de gestión de memoria (MMU) que el ensamblador propio de Limoniter supone junto a un 68020, para PMOVE, PFLUSH, PTEST y el resto: el 68851, como en un A2620. El 68030, el 68040 y el 68060 tienen la suya, así que aquí no necesitan ninguna. MACHINE 68851 (o PMMU, OPT P=68020/68851) en el código fuente lo elige para ese archivo
+With the memory management unit (MMU)	Con la unidad de gestión de memoria (MMU)
+about-demo-scroller	about-demo-scroller
+m68k_mmu	m68k_mmu
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
+{bare} at level 0 searches only the address translation cache, so it can't give a descriptor's address in {a}	{bare} en el nivel 0 busca solo en la caché de traducción de direcciones, así que no puede dar la dirección de un descriptor en {a}
+{bare} can't use {text}	{bare} no puede usar {text}
+{bare} can't write to {text}	{bare} no puede escribir en {text}
+{bare} gives the descriptor's address in an address register, and {a} isn't one	{bare} da la dirección del descriptor en un registro de direcciones, y {a} no lo es
+{bare} has no size	{bare} no tiene tamaño
+{bare} is .B, .W or .L	{bare} es .B, .W o .L
+{bare} is a memory management unit's (an MMU's) instruction, and this {cpu_name} has none: MACHINE 68851 (or PMMU, or OPT P=68020/68851) gives it the 68851, as does the setting beside "68000 source is for"; the 68030, 68040 and 68060 have their own	{bare} es una instrucción de una unidad de gestión de memoria (una MMU), y este {cpu_name} no tiene ninguna: MACHINE 68851 (o PMMU, u OPT P=68020/68851) le da el 68851, igual que el ajuste junto a «El código fuente 68000 es para»; el 68030, el 68040 y el 68060 tienen la suya
+{bare} is the 68040's and 68060's own FPU's (the 68881 and 68882 haven't got it), and this is for the {cpu_name}: MACHINE 68040 (or 68060) chooses one	{bare} es de la FPU propia del 68040 y del 68060 (el 68881 y el 68882 no la tienen), y esto es para el {cpu_name}: MACHINE 68040 (o 68060) elige una
+{bare} looks up a table at an address such as (a0), and {table} isn't one	{bare} busca en una tabla en una dirección como (a0), y {table} no lo es
+{bare} names a cache, DC (data), IC (instruction), BC (both) or NC (none), and {text} isn't one	{bare} nombra una caché, DC (datos), IC (instrucciones), BC (ambas) o NC (ninguna), y {text} no lo es
+{bare} puts what it finds in a data register, and {result} isn't one	{bare} pone lo que encuentra en un registro de datos, y {result} no lo es
+{bare} takes an address register in brackets, such as (a0)	{bare} toma un registro de direcciones entre paréntesis, como (a0)
+{bare} takes no operands	{bare} no toma operandos
+{bare} takes the line's or page's address in an address register in brackets, such as (a0)	{bare} toma la dirección de la línea o de la página en un registro de direcciones entre paréntesis, como (a0)
+{bare} {operands} isn't a 68851 instruction	{bare} {operands} no es una instrucción del 68851
+{target} is too far away for {bare}	{target} está demasiado lejos para {bare}
+{upper} {operands} isn't a {} instruction	{upper} {operands} no es una instrucción de {}
+{upper} {operands} isn't an instruction of the {}'s MMU	{upper} {operands} no es una instrucción de la MMU del {}
+{v} doesn't fit in .{letter}	{v} no cabe en .{letter}
+{what} is only the CPU32's, and this is for the {name}: MACHINE CPU32 chooses it	{what} es solo del CPU32, y esto es para el {name}: MACHINE CPU32 lo elige
+{what} is the 68060's and the CPU32's, and this is for the {name}: MACHINE 68060 (or CPU32) chooses one	{what} es del 68060 y del CPU32, y esto es para el {name}: MACHINE 68060 (o CPU32) elige uno
+{what} is the {them}'s, and this is for the {here}'s MMU: {choose} chooses one	{what} es del {them}, y esto es para la MMU del {here}: {choose} elige una
+{what} is the {them}'s, and this is for the {here}: {choose} chooses one	{what} es del {them}, y esto es para el {here}: {choose} elige uno
+{what} needs a 68040 or 68060, and this is for the {name}: MACHINE 68040 (or 68060) chooses one	{what} necesita un 68040 o un 68060, y esto es para el {name}: MACHINE 68040 (o 68060) elige uno
+A full IDE for today's code and yesterday's computers. Write, build and debug in Python, C, Rust and the rest, with language servers and Git. Assemble for the Amiga, the ZX Spectrum, the Commodore 64, the Atari ST and more, and run it on a built-in machine or an emulator Limoniter installs for you. Edit text and bytes of any size, and explore the disks, tapes and archives of classic computers.	Un IDE completo para el código de hoy y los ordenadores de ayer. Escribe, compila y depura en Python, C, Rust y más, con servidores de lenguaje y Git. Ensambla para el Amiga, el ZX Spectrum, el Commodore 64, el Atari ST y otros, y ejecútalo en una máquina integrada o en un emulador que Limoniter instala por ti. Edita texto y bytes de cualquier tamaño y explora los discos, cintas y archivos de los ordenadores clásicos.
+Work on a folder of code as in VS Code, with language servers, debugging, Git and terminals; assemble Z80, 6502, 6809 and 680x0 code and run it on built-in machines or emulators, with How To Code v8 to learn the Amiga from. Edit text and bytes of any size, in the character sets of machines from mainframes to home computers, and open the disk images, tapes and archives of the Amiga, Commodore 64, ZX Spectrum, Acorn, Atari ST, Macintosh, CP/M machines and more: browse their files, list their BASIC programs and see their pictures, then save any of it in today's formats. Nothing is ever written back to an image.	Trabaja en una carpeta de código como en VS Code, con servidores de lenguaje, depuración, Git y terminales; ensambla código Z80, 6502, 6809 y 680x0 y ejecútalo en máquinas integradas o emuladores, con How To Code v8 para aprender el Amiga. Edita texto y bytes de cualquier tamaño, en los juegos de caracteres de máquinas desde los mainframes hasta los ordenadores domésticos, y abre las imágenes de disco, cintas y archivos del Amiga, Commodore 64, ZX Spectrum, Acorn, Atari ST, Macintosh, máquinas CP/M y más: explora sus archivos, lista sus programas BASIC y mira sus imágenes, y guarda cualquier cosa en los formatos de hoy. Nunca se escribe nada de vuelta en una imagen.
+10 FOR I=1 TO 10\n20 PRINT "HELLO FROM LIMONITER ";I\n30 NEXT I	10 FOR I=1 TO 10\n20 PRINT "HELLO FROM LIMONITER ";I\n30 NEXT I
+<? becomes <?php, which works whatever short_open_tag is set to. <?xml is left as it is.	<? se convierte en <?php, que funciona sea cual sea el valor de short_open_tag. <?xml se deja como está.
+<?= to <?php echo too	<?= a <?php echo también
+<?= works whatever the settings, so it's usually left as it is	<?= funciona con cualquier configuración, así que normalmente se deja como está
+A ZX80 program (.o)	Un programa de ZX80 (.o)
+A foreach loop	Un bucle foreach
+An anonymous function: function ($a) { ... }	Una función anónima: function ($a) { ... }
+Changed {disk} file(s) on disk.	Se cambiaron {disk} archivo(s) en el disco.
+Changed {open} open file(s), unsaved, and {disk} on disk.	Se cambiaron {open} archivo(s) abierto(s) sin guardar, y {disk} en el disco.
+Changed {open} open file(s), unsaved: Undo takes it back.	Se cambiaron {open} archivo(s) abierto(s) sin guardar: Deshacer lo revierte.
+Check each PHP file as it's saved	Comprobar cada archivo PHP al guardarlo
+Check this file (php -l)	Comprobar este archivo (php -l)
+Check with php -l	Comprobar con php -l
+Ctrl+,	Ctrl+,
+Each one on disk has a .bak copy of how it was.	Cada uno del disco tiene una copia .bak de cómo estaba.
+Every PHP file in {name}	Todos los archivos PHP de {name}
+Every file is UTF-8 already (or plain ASCII).	Todos los archivos ya son UTF-8 (o ASCII simple).
+Files that aren't UTF-8 are read as Windows-1252 (which holds all of Latin-1) and written out as UTF-8.	Los archivos que no son UTF-8 se leen como Windows-1252 (que contiene todo Latin-1) y se escriben como UTF-8.
+Fix the safe ones	Corregir los seguros
+Fix “headers already sent”	Corregir “headers already sent”
+Fix “headers already sent”…	Corregir “headers already sent”…
+Left out:	Omitidos:
+Line {number} has no NEWLINE at its end, so the listing stops there.	La línea {number} no tiene NEWLINE al final, así que el listado se detiene ahí.
+Line {number}: the ZX80 has no {c} character.	Línea {number}: el ZX80 no tiene el carácter {c}.
+Line {number}: the ZX80's lines are numbered from 1 to 9999.	Línea {number}: las líneas del ZX80 se numeran del 1 al 9999.
+Line {} still says the old encoding, to change by hand: {text}	La línea {} aún indica la codificación antigua, para cambiarla a mano: {text}
+Make these changes	Hacer estos cambios
+No port from 8000 to 8099 is free to serve on.	No hay ningún puerto libre del 8000 al 8099 para servir.
+Nothing that newer PHP took away was found.	No se encontró nada que las versiones nuevas de PHP hayan eliminado.
+Nothing to change.	Nada que cambiar.
+Nothing was changed.	No se cambió nada.
+Nothing: magic quotes are always off, so it's false	Nada: las comillas mágicas siempre están desactivadas, así que es false
+Nothing: take the call out	Nada: quitar la llamada
+NumberFormatter, from the intl extension	NumberFormatter, de la extensión intl
+Old Latin-1 and Windows-1252 files made UTF-8…	Archivos antiguos Latin-1 y Windows-1252 convertidos a UTF-8…
+Old files made UTF-8	Archivos antiguos convertidos a UTF-8
+PHP 7 and 8 upgrade check	Comprobación de actualización a PHP 7 y 8
+PHP 7 and 8 upgrade check…	Comprobación de actualización a PHP 7 y 8…
+PHP couldn't be run: {e}	No se pudo ejecutar PHP: {e}
+PHP found a problem in {name}, on line {first}.	PHP encontró un problema en {name}, en la línea {first}.
+PHP isn't installed, or isn't where Limoniter can find it. It's at php.net (windows.php.net for Windows); on a Mac, brew install php; on Debian or Ubuntu, sudo apt install php-cli. Then put it on the PATH.	PHP no está instalado, o no está donde Limoniter pueda encontrarlo. Está en php.net (windows.php.net para Windows); en un Mac, brew install php; en Debian o Ubuntu, sudo apt install php-cli. Después añádelo al PATH.
+PHP's server stopped. {summary}	El servidor de PHP se detuvo. {summary}
+Read as Latin-1 (ISO-8859-1)	Leer como Latin-1 (ISO-8859-1)
+Read as Windows-1252	Leer como Windows-1252
+Run PHP	Ejecutar PHP
+Run as a script	Ejecutar como script
+Save its tape	Guardar su cinta
+Save its tape…	Guardar su cinta…
+Save the ZX80's tape	Guardar la cinta del ZX80
+Saves the program the ZX80's SAVE saved, as a .o file	Guarda el programa que SAVE del ZX80 guardó, como archivo .o
+Serve the folder and open it in the browser	Servir la carpeta y abrirla en el navegador
+Serve with PHP	Servir con PHP
+Serving {} at http://localhost:{port}/ on this computer only. Tools, PHP, Stop serving ends it.	Sirviendo {} en http://localhost:{port}/ solo en este equipo. Herramientas, PHP, Dejar de servir lo termina.
+Short tags made long	Etiquetas cortas convertidas en largas
+Short tags made long…	Etiquetas cortas convertidas en largas…
+Square brackets: $s[0]	Corchetes: $s[0]
+Stop serving	Dejar de servir
+Takes away what PHP sends before a page's headers without being asked: a byte order mark or blank lines before the first <?php, and a closing ?> at the end with anything after it.	Quita lo que PHP envía sin que se le pida antes de las cabeceras de una página: una marca de orden de bytes o líneas en blanco antes del primer <?php, y un ?> de cierre al final con algo detrás.
+That file is {} bytes; the ZX80 ROM is 4,096.	Ese archivo tiene {} bytes; la ROM del ZX80 tiene 4.096.
+That isn't a ZX80 ROM.	Eso no es una ROM de ZX80.
+That looks like a ZX80 ROM, but not one Limoniter knows (its CRC-32 is {crc:08X}), so it may be changed or damaged.	Parece una ROM de ZX80, pero no una que Limoniter conozca (su CRC-32 es {crc:08X}), así que puede estar modificada o dañada.
+The ZX80's ROM is 4K.	La ROM del ZX80 es de 4K.
+The built-in ZX80 needs the ZX80's own 4K ROM, which belongs to Amstrad, whose permission for emulators covers only the Spectrums' ROMs, so it can't come with Limoniter. ZX80 emulators come with it (ZEsarUX, for one, as zx80.rom), or it can be read from a ZX80's ROM chip. Choose the file once, and it's kept.	El ZX80 integrado necesita la ROM de 4K propia del ZX80, que pertenece a Amstrad, cuyo permiso para emuladores cubre solo las ROM de los Spectrum, así que no puede venir con Limoniter. Los emuladores de ZX80 la incluyen (ZEsarUX, por ejemplo, como zx80.rom), o se puede leer del chip de ROM de un ZX80. Elige el archivo una vez y se conserva.
+The built-in ZX80 runs ZX80 programs (.o files).	El ZX80 integrado ejecuta programas de ZX80 (archivos .o).
+The file is too short to hold the ZX80's system variables.	El archivo es demasiado corto para contener las variables del sistema del ZX80.
+The fixes:	Las correcciones:
+The program ends partway through a line's number.	El programa termina a mitad del número de una línea.
+The program is {} bytes, more than fits in a ZX80 with 16K.	El programa tiene {} bytes, más de lo que cabe en un ZX80 con 16K.
+The selection	La selección
+The system variables at the start don't say where a ZX80 program and its variables are.	Las variables del sistema del principio no indican dónde están un programa de ZX80 y sus variables.
+This file ({name})	Este archivo ({name})
+This isn't a tokenised BASIC program. Commodore .prg and .p00 files, Spectrum .tap and .tzx tapes, +3DOS and Spectrum Next .bas files, ZX80 .o and ZX81 .p files, Oric .tap tapes, AMOS .AMOS files, and BBC, MSX, Atari, TRS-80, SAM and STOS BASIC programs can be listed.	Esto no es un programa BASIC tokenizado. Se pueden listar archivos .prg y .p00 de Commodore, cintas .tap y .tzx de Spectrum, archivos .bas de +3DOS y Spectrum Next, archivos .o de ZX80 y .p de ZX81, cintas .tap de Oric, archivos .AMOS de AMOS, y programas BASIC de BBC, MSX, Atari, TRS-80, SAM y STOS.
+Typing goes to the ZX80, whose keys type keywords as its own do: Shift is its SHIFT, Backspace rubs out, the arrows move the cursor, and Esc or Space is BREAK. The picture goes while a program runs, as it did on the ZX80. Click the text to type there again.	Lo que se escribe va al ZX80, cuyas teclas escriben palabras clave como las suyas: Mayús es su SHIFT, Retroceso borra, las flechas mueven el cursor, y Esc o Espacio es BREAK. La imagen desaparece mientras se ejecuta un programa, como en el ZX80. Haz clic en el texto para volver a escribir ahí.
+What PHP 7 and 8 took away that the code still uses, and what replaces each. The safe ones are fixed for you; the rest are listed to do by hand.	Lo que PHP 7 y 8 eliminaron y el código aún usa, y qué lo sustituye. Los seguros se corrigen por ti; el resto se lista para hacerlo a mano.
+ZX80	ZX80
+ZX80 BASIC	BASIC del ZX80
+ZX80 program	Programa de ZX80
+and {} more	y {} más
+array() to []	array() a []
+array() to []…	array() a []…
+array(...) becomes [...], nested ones too, as PHP 5.4 and later allow. Nothing in a string, heredoc or comment is touched.	array(...) se convierte en [...], también los anidados, como permite PHP 5.4 y posteriores. No se toca nada dentro de una cadena, heredoc o comentario.
+call_user_func([$object, 'method'], ...)	call_user_func([$object, 'method'], ...)
+call_user_func_array([$object, 'method'], ...)	call_user_func_array([$object, 'method'], ...)
+call_user_method	call_user_method
+call_user_method_array	call_user_method_array
+convert_cyr_string	convert_cyr_string
+create_function	create_function
+each	each
+ereg	ereg
+ereg_replace	ereg_replace
+eregi	eregi
+eregi_replace	eregi_replace
+explode() for plain text, or preg_split() for a pattern	explode() para texto simple, o preg_split() para un patrón
+fgets() and strip_tags()	fgets() y strip_tags()
+fgetss	fgetss
+fixed for you	corregido por ti
+get_magic_quotes_gpc	get_magic_quotes_gpc
+get_magic_quotes_runtime	get_magic_quotes_runtime
+hebrevc	hebrevc
+ini_restore('include_path')	ini_restore('include_path')
+it changed after the preview	cambió después de la vista previa
+it's open and busy	está abierto y ocupado
+it's open and set to read-only	está abierto y en solo lectura
+it's open as {}, not Latin-1 or Windows-1252	está abierto como {}, no como Latin-1 ni Windows-1252
+it's open in hex mode	está abierto en modo hexadecimal
+it's open, and too large to change in its window	está abierto y es demasiado grande para cambiarlo en su ventana
+it's too large	es demasiado grande
+magic_quotes_runtime	magic_quotes_runtime
+mb_convert_encoding() or iconv()	mb_convert_encoding() o iconv()
+money_format	money_format
+mysqli_* functions or PDO, with prepared statements	funciones mysqli_* o PDO, con sentencias preparadas
+nl2br(hebrev(...))	nl2br(hebrev(...))
+preg_match() with the i modifier	preg_match() con el modificador i
+preg_match(), with the pattern between slashes	preg_match(), con el patrón entre barras
+preg_match(), with the pattern between slashes and i after	preg_match(), con el patrón entre barras e i después
+preg_replace(), with the pattern between slashes	preg_replace(), con el patrón entre barras
+preg_replace(), with the pattern between slashes and i after	preg_replace(), con el patrón entre barras e i después
+preg_split(), with the pattern between slashes and i after	preg_split(), con el patrón entre barras e i después
+restore_include_path	restore_include_path
+set_magic_quotes_runtime	set_magic_quotes_runtime
+spl_autoload_register()	spl_autoload_register()
+split	split
+spliti	spliti
+sql_regcase	sql_regcase
+to do by hand	para hacer a mano
+{changes} change(s) in {} file(s).	{changes} cambio(s) en {} archivo(s).
+{found} thing(s) found in {} file(s); {changes} of them can be fixed for you.	{found} cosa(s) encontrada(s) en {} archivo(s); {changes} de ellas se pueden corregir por ti.
+{name} was left: {why}.	Se omitió {name}: {why}.
+{name}: no syntax errors now.	{name}: ya no hay errores de sintaxis.
+{} bytes after the last line aren't BASIC lines (usually machine code).	{} bytes después de la última línea no son líneas BASIC (normalmente código máquina).
+{} bytes after the program's end aren't part of it.	{} bytes después del final del programa no forman parte de él.
+{} file(s) to make UTF-8.	{} archivo(s) para convertir a UTF-8.
+{}: {}, gone in PHP {}. Instead: {}. ({fixed})	{}: {}, eliminado en PHP {}. En su lugar: {}. ({fixed})
+#{v} doesn't fit in 32 bits; its low 32 bits are used	#{v} no cabe en 32 bits; se usan sus 32 bits bajos
+#{v} doesn't fit in a byte (-128 to 255); its low byte, ${:02X}, is used	#{v} no cabe en un byte (-128 a 255); se usa su byte bajo, ${:02X}
+#{v} doesn't fit in a word (-32768 to 65535); its low 16 bits, ${:04X}, are used	#{v} no cabe en una palabra (-32768 a 65535); se usan sus 16 bits bajos, ${:04X}
+${v:X}.W is sign-extended, so it's the address ${:X}; leave off the .W for ${v:X}	${v:X}.W se extiende con signo, así que es la dirección ${:X}; quite el .W para ${v:X}
+-23 to C      A = a	-23 to C      A = a
+-24 to C      A = -b1 (the first b to try)	-24 to C      A = -b1 (el primer b que se prueba)
+-25 to C      A = -remainder	-25 to C      A = -resto
+-26 to C      A = b	-26 to C      A = b
+-27 to C	-27 to C
+...and {} more.	...y {} más.
+212; 0     / carriage return, line feed, and the end	212; 0     / retorno de carro, avance de línea y el final
+22 to Cl      back to line 5 (CI = 4)	22 to Cl      volver a la línea 5 (CI = 4)
+A = -count	A = -cuenta
+A = count	A = cuenta
+A = count - 1	A = cuenta - 1
+A = {}   CI = {}   instructions done: {}	A = {}   CI = {}   instrucciones ejecutadas: {}
+A first program for the Manchester Baby, written for Limoniter.	Un primer programa para el Manchester Baby, escrito para Limoniter.
+A number or a label is needed here.	Aquí hace falta un número o una etiqueta.
+Add 20 to Cl  not yet: back to line 6 (CI + -3)	Add 20 to Cl  todavía no: volver a la línea 6 (CI + -3)
+As fast as it goes	Lo más rápido posible
+At its own speed	A su propia velocidad
+CIA	CIA
+CLA	CLA
+CLL	CLL
+CMA	CMA
+CML	CML
+Carries on working, and says when it's ready to restart into	Sigue trabajando y avisa cuando esté listo para reiniciar en
+Clears the accumulator, the link and the flags, and runs from the program counter	Borra el acumulador, el enlace y los indicadores, y se ejecuta desde el contador de programa
+Click a dot to set or clear that bit, as the Baby's typewriter buttons did.	Haga clic en un punto para poner o quitar ese bit, como hacían los botones de la máquina de escribir del Baby.
+Continue	Continue
+DCA	DCA
+Defer	Aplazar
+Deposit	Deposit
+Does one instruction	Ejecuta una instrucción
+Download a newer Limoniter by itself	Descargar por sí mismo un Limoniter más reciente
+Download in the background	Descargar en segundo plano
+Downloading Limoniter {version}…	Descargando Limoniter {version}…
+Downloads it, then restarts into it with your files open again	Lo descarga y luego se reinicia en él con sus archivos abiertos de nuevo
+EDSAC	EDSAC
+EDSAC (1949): Wilkes's table of squares	EDSAC (1949): la tabla de cuadrados de Wilkes
+EDSAC (1949): a first program (Initial Orders 2)	EDSAC (1949): un primer programa (Initial Orders 2)
+Early computing	Primeros ordenadores
+Examine	Examine
+Execute	Ejecutar
+GLK	GLK
+Go back to Limoniter {version}? This version, {}, is kept in its place, so you can come back to it the same way.	¿Volver a Limoniter {version}? Esta versión, {}, se conserva en su lugar, así que puede volver a ella del mismo modo.
+Go back to the previous version	Volver a la versión anterior
+HLT	HLT
+Halt	Halt
+Halted (HLT). Continue carries on after it.	Detenido (HLT). Continue sigue a partir de ahí.
+Hide	Ocultar
+IAC	IAC
+IOF	IOF
+ION	ION
+ISZ	ISZ
+Initial Orders 1	Initial Orders 1
+Initial Orders 2	Initial Orders 2
+Install now	Instalar ahora
+It counts down from 5 to 0 in line 30, where you can watch the dots change,	Cuenta atrás de 5 a 0 en la línea 30, donde puede ver cambiar los puntos,
+It stays ready: Help, Check for a newer Limoniter offers it again	Sigue disponible: Ayuda, Buscar una versión más reciente de Limoniter lo ofrece de nuevo
+It took 52 minutes on the Baby. Choose "As fast as it goes" to see the answer at once:	En el Baby tardó 52 minutos. Elija «Lo más rápido posible» para ver la respuesta al instante:
+It's downloaded from GitHub and checked against the release's signature before anything changes. The version you have now is kept, so you can go back to it from the Help menu.	Se descarga de GitHub y se comprueba con la firma de la versión antes de cambiar nada. La versión que tiene ahora se conserva, así que puede volver a ella desde el menú Ayuda.
+JMP	JMP
+JMS	JMS
+KCC	KCC
+KRB	KRB
+KRS	KRS
+KSF	KSF
+Kilburn's highest factor routine (amended), as Geoff Tootill wrote it out in his	La rutina de Kilburn del mayor factor (modificada), tal como Geoff Tootill la anotó en su
+LAS	LAS
+LINK's value is signed, so #{v} is taken as {}: write #{} if that's meant	El valor de LINK tiene signo, así que #{v} se toma como {}: escriba #{} si es lo que quería
+Limoniter can't update itself on this system.	Limoniter no puede actualizarse a sí mismo en este sistema.
+Limoniter is back to {to}. Help, Go back to the previous version returns to {from}.	Limoniter ha vuelto a {to}. Ayuda, Volver a la versión anterior lleva de nuevo a {from}.
+Limoniter is now {to}, updated from {from}. Help, Go back to the previous version returns to {from}.	Limoniter es ahora {to}, actualizado desde {from}. Ayuda, Volver a la versión anterior lleva de nuevo a {from}.
+Limoniter {version} couldn't be installed: {problem}	No se pudo instalar Limoniter {version}: {problem}
+Limoniter {version} has been downloaded and checked, and is ready to restart into.	Limoniter {version} se ha descargado y comprobado, y está listo para reiniciar en él.
+Line {at} of the store was already filled, by source line {}.	La línea {at} de la memoria ya estaba ocupada, por la línea de código {}.
+Line {}: {message}	Línea {}: {message}
+Link, accumulator	Enlace, acumulador
+Load address	Load address
+Loads the program again and starts it from the beginning	Vuelve a cargar el programa y lo inicia desde el principio
+Long tank {tank}: words {} to {}, the first at the bottom	Tanque largo {tank}: palabras {} a {}, la primera abajo
+MOVEQ's value is a signed byte, so #{v} puts {signed} in D{r}, not {v}: write #{signed} if that's meant, or use MOVE.L #{v},D{r}	El valor de MOVEQ es un byte con signo, así que #{v} pone {signed} en D{r}, no {v}: escriba #{signed} si es lo que quería, o use MOVE.L #{v},D{r}
+Manchester Baby (SSEM)	Manchester Baby (SSEM)
+Manchester Baby (SSEM, 1948): Kilburn's first program	Manchester Baby (SSEM, 1948): el primer programa de Kilburn
+Manchester Baby (SSEM, 1948): a first program	Manchester Baby (SSEM, 1948): un primer programa
+Memory address	Dirección de memoria
+Memory buffer	Búfer de memoria
+NOP	NOP
+Next: line {next}, {}   {}	Siguiente: línea {next}, {}   {}
+No previous version of Limoniter has been kept.	No se ha conservado ninguna versión anterior de Limoniter.
+OSR	OSR
+Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once	Una vez al día, Limoniter pregunta a GitHub si hay una versión más reciente y lo avisa una vez por cada una. El Limoniter de la Store y el de Flatpak los actualizan la Store y Flathub. Ayuda, Buscar una versión más reciente de Limoniter pregunta al instante
+Only the AppImage updates itself on Linux, and this Limoniter isn't one.	Solo el AppImage se actualiza a sí mismo en Linux, y este Limoniter no lo es.
+Order: {} at {at}   A = {}   orders done: {}   time: {:.1} s	Orden: {} en {at}   A = {}   órdenes ejecutadas: {}   tiempo: {:.1} s
+PC {} ({})   next {}   AC {}   L {}	PC {} ({})   siguiente {}   AC {}   L {}
+PCF	PCF
+PDP-8	PDP-8
+PDP-8 (1965): echo the keyboard (PAL)	PDP-8 (1965): eco del teclado (PAL)
+PDP-8 (1965): hello on the Teletype (PAL)	PDP-8 (1965): hola en el Teletype (PAL)
+PDP-8 BIN tapes	Cintas BIN del PDP-8
+PDP-8 paper tapes	Cintas perforadas del PDP-8
+PLS	PLS
+PPC	PPC
+PSF	PSF
+Page {} is full: its literals and its code have met.	La página {} está llena: sus literales y su código se han encontrado.
+Portable: everything is kept in {}	Portátil: todo se guarda en {}
+Program counter	Contador de programa
+Punch a BIN tape	Perforar una cinta BIN
+Punch a BIN tape…	Perforar una cinta BIN…
+Punched to {}.	Perforada en {}.
+RAL	RAL
+RAR	RAR
+RFC	RFC
+RRB	RRB
+RSF	RSF
+RTD's value is signed, so #{v} is taken as {}: write #{} if that's meant	El valor de RTD tiene signo, así que #{v} se toma como {}: escriba #{} si es lo que quería
+RTL	RTL
+RTR	RTR
+Read a paper tape	Leer una cinta perforada
+Read a paper tape…	Leer una cinta perforada…
+Reads a RIM or BIN tape into memory, as DEC's loaders did: your own, or FOCAL or BASIC if you have them	Lee una cinta RIM o BIN en la memoria, como hacían los cargadores de DEC: la suya, o FOCAL o BASIC si los tiene
+Restart now	Reiniciar ahora
+Runs at the speed the machine itself ran, or as fast as this computer can	Funciona a la velocidad de la propia máquina, o tan rápido como pueda este ordenador
+Runs on from here, until it stops or reaches a breakpoint	Sigue desde aquí, hasta que se detiene o llega a un punto de interrupción
+SKP	SKP
+SMA	SMA
+SNA	SNA
+SNL	SNL
+SPA	SPA
+STA	STA
+STL	STL
+SZA	SZA
+SZL	SZL
+Save or close these first: {}	Guarde o cierre primero: {}
+Save or close {} first: Limoniter restarts to go back, and nothing unsaved is ever lost to it.	Guarde o cierre {} primero: Limoniter se reinicia para volver, y nada sin guardar se pierde por ello.
+Save or close {} first: Limoniter restarts to update, and nothing unsaved is ever lost to it.	Guarde o cierre {} primero: Limoniter se reinicia para actualizar, y nada sin guardar se pierde por ello.
+Saves the assembled program as a BIN paper tape, for other PDP-8s and simulators	Guarda el programa ensamblado como cinta perforada BIN, para otros PDP-8 y simuladores
+Shows the word at the program counter, which then moves on	Muestra la palabra del contador de programa, que luego avanza
+Stop          no: b divides a exactly	Stop          no: b divide a exactamente
+Stop the download	Detener la descarga
+Stopped at a Z order: the program has finished, and the bell rang.	Detenido en una orden Z: el programa ha terminado y ha sonado la campana.
+Stopped: the stop lamp is lit.	Detenido: la lámpara de parada está encendida.
+Stopped: the tape ran out.	Detenido: se acabó la cinta.
+Stopped: the word at {at} isn't an order.	Detenido: la palabra de {at} no es una orden.
+Stops it after the instruction it's doing	Lo detiene después de la instrucción que está ejecutando
+Sub 21        b - 1	Sub 21        b - 1
+Sub 26        add b back: the remainder	Sub 26        volver a sumar b: el resto
+Sub 27        take b away	Sub 27        quitar b
+Switch register	Switch register
+TAD	TAD
+TCF	TCF
+TEXT needs its words between two of the same character, as TEXT /HELLO/.	TEXT necesita sus palabras entre dos del mismo carácter, como TEXT /HELLO/.
+TLS	TLS
+TPC	TPC
+TSF	TSF
+Test          gone negative?	Test          ¿se ha vuelto negativo?
+Test          remainder above 0?	Test          ¿resto mayor que 0?
+That number is too big for one of the Baby's 32-bit words.	Ese número es demasiado grande para una de las palabras de 32 bits del Baby.
+The Baby can only load a number negated (LDN), subtract (SUB) and store (STO),	El Baby solo puede cargar un número negado (LDN), restar (SUB) y almacenar (STO),
+The Baby's store has lines 0 to 31; there's no line {head}.	La memoria del Baby tiene las líneas 0 a 31; no existe la línea {head}.
+The Baby's store has lines 0 to 31; there's no line {word}.	La memoria del Baby tiene las líneas 0 a 31; no existe la línea {word}.
+The Teletype: click its paper to type on its keyboard	El Teletype: haga clic en su papel para escribir con su teclado
+The accumulator (71 bits), the multiplier (35), the sequence control and the order	El acumulador (71 bits), el multiplicador (35), el control de secuencia y el registro de
+The accumulator (A), and the control: CI, then PI	El acumulador (A) y el control: CI, luego PI
+The built-in EDSAC runs its own tapes (.edsac).	El EDSAC integrado ejecuta sus propias cintas (.edsac).
+The built-in Manchester Baby runs its own source (.ssem).	El Manchester Baby integrado ejecuta su propio código fuente (.ssem).
+The built-in PDP-8 runs PAL source (.pal) and RIM tapes.	El PDP-8 integrado ejecuta código fuente PAL (.pal) y cintas RIM.
+The download carries on, and Limoniter says when it's ready	La descarga continúa y Limoniter avisa cuando esté lista
+The download couldn't be saved: {e}	No se pudo guardar la descarga: {e}
+The download was stopped.	La descarga se detuvo.
+The files you have open come back after it restarts. The version you have now is kept, so you can go back to it from the Help menu.	Los archivos que tiene abiertos vuelven después del reinicio. La versión que tiene ahora se conserva, así que puede volver a ella desde el menú Ayuda.
+The new Limoniter couldn't be started: {e}	No se pudo iniciar el nuevo Limoniter: {e}
+The next tank	El tanque siguiente
+The previous version couldn't be put back: {e}	No se pudo restaurar la versión anterior: {e}
+The program goes past the store's last line, 31.	El programa sobrepasa la última línea de la memoria, la 31.
+The release has no signature, so it can't be checked: {e}	La versión no tiene firma, así que no se puede comprobar: {e}
+The release's list of fingerprints doesn't have {name}.	La lista de huellas de la versión no incluye {name}.
+The signature file isn't minisign's.	El archivo de firma no es de minisign.
+The signature isn't one Limoniter checks: it should be made by tools/make-update-key.py.	La firma no es de las que Limoniter comprueba: debe hacerse con tools/make-update-key.py.
+The signature's trusted comment has been changed, so the update wasn't installed.	El comentario de confianza de la firma ha sido modificado, así que la actualización no se instaló.
+The store: 32 lines of 32 bits, a dash for a one, the least significant bit at the left	La memoria: 32 líneas de 32 bits, un guion para un uno, el bit menos significativo a la izquierda
+The switches into the program counter	Los interruptores al contador de programa
+The switches into the word at the program counter, which then moves on	Los interruptores a la palabra del contador de programa, que luego avanza
+The tank before	El tanque anterior
+The teleprinter	La teleimpresora
+The update couldn't be put in place: {e}	No se pudo colocar la actualización: {e}
+The update couldn't be unpacked.	No se pudo descomprimir la actualización.
+The update couldn't be unpacked: {e}	No se pudo descomprimir la actualización: {e}
+The update has no Limoniter.app in it, so nothing was changed.	La actualización no contiene Limoniter.app, así que no se cambió nada.
+The update is signed with a different key from Limoniter's, so it wasn't installed.	La actualización está firmada con una clave distinta de la de Limoniter, así que no se instaló.
+The update key isn't Base64.	La clave de actualización no está en Base64.
+The update key isn't a minisign Ed25519 key.	La clave de actualización no es una clave Ed25519 de minisign.
+The update to {to} didn't finish, so this is still Limoniter {}.	La actualización a {to} no terminó, así que esto sigue siendo Limoniter {}.
+The update to {to} didn't finish, so this is still Limoniter {}: {problem}	La actualización a {to} no terminó, así que esto sigue siendo Limoniter {}: {problem}
+The update's signature doesn't match it, so it wasn't installed.	La firma de la actualización no coincide con ella, así que no se instaló.
+There's no label called {t}.	No hay ninguna etiqueta llamada {t}.
+This BIN tape's checksum is wrong (it says {}, and the tape adds up to {}).	La suma de comprobación de esta cinta BIN es incorrecta (dice {}, y la cinta suma {}).
+This Limoniter has no key to check updates with yet, so it doesn't update itself.	Este Limoniter aún no tiene una clave para comprobar actualizaciones, así que no se actualiza solo.
+This Limoniter isn't the Mac app, so it can't update itself.	Este Limoniter no es la aplicación de Mac, así que no puede actualizarse a sí mismo.
+This Limoniter was installed from the .deb, so it's updated as other software is: download the new .deb, or use your software centre.	Este Limoniter se instaló desde el .deb, así que se actualiza como el resto del software: descargue el nuevo .deb o use su centro de software.
+This Limoniter wasn't installed by its Setup, so it can't update itself.	Este Limoniter no lo instaló su Setup, así que no puede actualizarse a sí mismo.
+This PDP-8 has one field of 4K words: only FIELD 0 can be used.	Este PDP-8 tiene un campo de 4K palabras: solo se puede usar FIELD 0.
+This build of Limoniter has no key to check updates with yet, so it doesn't update itself: download the new version from the page.	Esta compilación de Limoniter aún no tiene una clave para comprobar actualizaciones, así que no se actualiza sola: descargue la nueva versión desde la página.
+This instruction needs an address.	Esta instrucción necesita una dirección.
+This is the portable Limoniter, which doesn't change itself: download the new portable .zip and unpack it beside this one (its settings folder can be moved across).	Este es el Limoniter portátil, que no se modifica a sí mismo: descargue el nuevo .zip portátil y descomprímalo junto a este (su carpeta de configuración se puede mover).
+This isn't a BIN tape: its frames don't come in pairs between the leader and the trailer.	Esto no es una cinta BIN: sus tramas no vienen en pares entre el encabezado y el final.
+This isn't a RIM tape: each word should have its address before it.	Esto no es una cinta RIM: cada palabra debería ir precedida de su dirección.
+Two words were put at {}.	Se pusieron dos palabras en {}.
+When the daily check finds one, it's downloaded in the background and checked against its signature, and Limoniter says when it's ready to restart into. Off, it asks first. Nothing is installed without asking, and never while anything is unsaved	Cuando la comprobación diaria encuentra una, se descarga en segundo plano y se comprueba con su firma, y Limoniter avisa cuando está lista para reiniciar en ella. Desactivado, pregunta primero. No se instala nada sin preguntar, y nunca mientras haya algo sin guardar
+a jump goes to the line after the number it finds here	un salto va a la línea siguiente al número que encuentra aquí
+again. Its words in 1948 are in the comments.	otra vez. Sus palabras de 1948 están en los comentarios.
+as then) by trying every b from a-1 downwards, dividing by taking b away again and	como entonces) probando todos los b desde a-1 hacia abajo, dividiendo quitando b una y otra vez y
+b (131072) in line 27, -b in line 26, and the remainder, 0, in line 25.	b (131072) en la línea 27, -b en la línea 26 y el resto, 0, en la línea 25.
+c to 25	c to 25
+c to 26	c to 26
+c to 26       line 26 = -b	c to 26       línea 26 = -b
+c to 27	c to 27
+c to 27       line 27 = b	c to 27       línea 27 = b
+decimal	decimal
+ever run from a computer's own memory. It finds the highest factor of a (2^18 here,	ejecutado desde la memoria de un ordenador. Encuentra el mayor factor de a (aquí 2^18,
+is count now below 0? (it went 0 -> -1)	¿es cuenta ahora menor que 0? (pasó de 0 a -1)
+keep -count	conservar -cuenta
+no: go round again (to line 1)	no: dar otra vuelta (a la línea 1)
+notebook on 18 July 1948. The first version ran on 21 June 1948, the first program	cuaderno el 18 de julio de 1948. La primera versión se ejecutó el 21 de junio de 1948, el primer programa
+octal	octal
+so adding is done by subtracting a negative number.	así que sumar se hace restando un número negativo.
+the comments give each one's location.	los comentarios dan la ubicación de cada una.
+the jump back from line 19	el salto de vuelta desde la línea 19
+the jump back from line 8	el salto de vuelta desde la línea 8
+the offset {v} is signed, so it's taken as {}, before the address register rather than after it	el desplazamiento {v} tiene signo, así que se toma como {}, antes del registro de dirección y no después
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\n
+then stops. Step through it with Step to see each instruction work.	luego se detiene. Recórralo con Step para ver cada instrucción en acción.
+update_download	update_download
+warning: {}	advertencia: {}
+yes: put 0 back	sí: volver a poner 0
+{c} can't be punched on EDSAC's tape. It takes letters, figures, and # @ ! & * . for its other keys.	{c} no se puede perforar en la cinta del EDSAC. Admite letras, cifras y # @ ! & * . para sus otras teclas.
+{item} is {value}, too big for 16 bits; its low 16 bits are used	{item} es {value}, demasiado grande para 16 bits; se usan sus 16 bits bajos
+{item} is {value}, too big for 32 bits; its low 32 bits are used	{item} es {value}, demasiado grande para 32 bits; se usan sus 32 bits bajos
+{name} is defined twice.	{name} está definido dos veces.
+{name} isn't the file the release signed (its SHA-256 is different), so it wasn't installed.	{name} no es el archivo que firmó la versión (su SHA-256 es distinto), así que no se instaló.
+{term} isn't a {base} number.	{term} no es un número en base {base}.
+{term} isn't defined.	{term} no está definido.
+{text} mixes microinstructions from group 1 and group 2, which can't be done in one word.	{text} mezcla microinstrucciones del grupo 1 y del grupo 2, lo que no se puede hacer en una palabra.
+{upper} doesn't use a store line.	{upper} no usa una línea de la memoria.
+{upper} needs a store line from 0 to 31.	{upper} necesita una línea de la memoria de 0 a 31.
+{word} isn't one of the Baby's instructions (JMP, JRP, LDN, STO, SUB, CMP, STP) or NUM.	{word} no es una de las instrucciones del Baby (JMP, JRP, LDN, STO, SUB, CMP, STP) ni NUM.
+{} MB	{} MB
+{} is neither on page zero nor on this page ({}), so it can't be reached directly. Put its address in a word on this page and refer to it with I, or use a literal: (address).	{} no está ni en la página cero ni en esta página ({}), así que no se puede alcanzar directamente. Ponga su dirección en una palabra de esta página y refiérase a ella con I, o use un literal: (dirección).
+{} is too far away for a branch	{} está demasiado lejos para un salto
+{} of {} MB	{} de {} MB
+{} programs don't run on a built-in teaching machine.	Los programas {} no se ejecutan en una máquina didáctica integrada.
+{} reading the tape: {} of {} characters	{} leyendo la cinta: {} de {} caracteres
+{} words read from the tape into memory. Set the switches to where it starts, then Load address and Start.	{} palabras leídas de la cinta a la memoria. Ponga los interruptores donde empieza, y luego Load address y Start.
+$FFF8 and $FFF9 tell the BIOS what the cartridge is: $FF, then where its ROM starts ($C000) and 7 for a 7800	$FFF8 y $FFF9 le dicen a la BIOS qué es el cartucho: $FF, luego dónde empieza su ROM ($C000) y 7 para una 7800
+${key:02X} isn't a key Limoniter knows for it.	${key:02X} no es una tecla que Limoniter conozca para eso.
+'{word}' can only be used outside a struct, at the start of a line.	'{word}' solo se puede usar fuera de una estructura, al principio de una línea.
+40 columns	40 columnas
+7800 mode, locked, the BIOS switched out	modo 7800, bloqueado, con la BIOS desconectada
+7800, which checks no signature.	7800, que no comprueba ninguna firma.
+A 7800 cartridge with no bank switching starts at $F000, $E000, $C000, $8000, $6000 or $4000, but this starts at ${low:04X}.	Un cartucho de 7800 sin cambio de bancos empieza en $F000, $E000, $C000, $8000, $6000 o $4000, pero este empieza en ${low:04X}.
+A QDOS job: F9 makes it an executable program (type 1, with its data space) and starts it with EXEC in sQLux,	Un trabajo de QDOS: F9 lo convierte en un programa ejecutable (tipo 1, con su espacio de datos) y lo inicia con EXEC en sQLux,
+A QL microdrive image is {IMAGE_LEN} bytes, and this is {}.	Una imagen de microdrive de QL tiene {IMAGE_LEN} bytes, y esta tiene {}.
+A QL program is loaded wherever QDOS finds room for it, and starts at its first byte, but this is put at ${low:04X}: leave out the ORG.	Un programa de QL se carga donde QDOS encuentre sitio y empieza en su primer byte, pero este se coloca en ${low:04X}: quite el ORG.
+A Vectrex cartridge. F9 runs it on the built-in Vectrex (with the Vectrex's BIOS chosen), or in MAME or ParaJVE.	Un cartucho de Vectrex. F9 lo ejecuta en el Vectrex integrado (con la BIOS de Vectrex elegida), o en MAME o ParaJVE.
+A ZIP's address, or a Git repository's (GitHub, GitLab, Codeberg or any other):	La dirección de un ZIP o de un repositorio de Git (GitHub, GitLab, Codeberg u otro):
+A block of type &{id:02X} ({what}) was left out.	Se omitió un bloque de tipo &{id:02X} ({what}).
+A chunk of type &{id:04X}, which isn't played, was left out.	Se omitió un fragmento de tipo &{id:04X}, que no se reproduce.
+A field's name	El nombre de un campo
+A field's type, or a word such as if or let	El tipo de un campo, o una palabra como if o let
+A field's type, or a word such as struct or if	El tipo de un campo, o una palabra como struct o if
+A file ending	Una terminación de archivo
+A is the mode: 0, 1 or 2	A es el modo: 0, 1 o 2
+A job can be loaded anywhere, so the code only uses addresses relative to the PC (lea name(pc),a1).	Un trabajo se puede cargar en cualquier sitio, así que el código solo usa direcciones relativas al PC (lea name(pc),a1).
+A name	Un nombre
+A number and some text can't be put together like that.	Un número y un texto no se pueden juntar así.
+A number was wanted here.	Aquí se esperaba un número.
+A number, a name or a bracket	Un número, un nombre o un paréntesis
+A program file starts with where it loads, and this one is too short to have one.	Un archivo de programa empieza con la dirección donde se carga, y este es demasiado corto para tenerla.
+A repository is cloned with Git; without Git, one on GitHub, GitLab or Codeberg is downloaded as a ZIP instead.	Un repositorio se clona con Git; sin Git, uno de GitHub, GitLab o Codeberg se descarga como ZIP.
+A template can't have '{c}' here.	Una plantilla no puede tener '{c}' aquí.
+A template needs a name: a line such as name "IFF picture" at the top.	Una plantilla necesita un nombre: una línea como name "IFF picture" arriba.
+A way of showing it, such as hex	Una forma de mostrarlo, como hex
+ATASCII is ASCII for letters and digits; $9B ends a line.	ATASCII es ASCII para letras y dígitos; $9B termina una línea.
+An American 7800's BIOS runs only cartridges signed with Atari's key: A7800, which needs no BIOS, runs it	La BIOS de una 7800 americana solo ejecuta cartuchos firmados con la clave de Atari: A7800, que no necesita BIOS, lo ejecuta
+An Amstrad CPC program. F9 puts it on a disk (AMSDOS's data format) as a binary file, which RUN" and its name	Un programa de Amstrad CPC. F9 lo guarda en un disco (en el formato de datos de AMSDOS) como archivo binario, que RUN" y su nombre
+An Apple II program booted by Limoniter's disk is at most 3,840 bytes (fifteen sectors of track 0), and this is {}.	Un programa de Apple II arrancado por el disco de Limoniter tiene como máximo 3.840 bytes (quince sectores de la pista 0), y este tiene {}.
+An Apple II program. F9 puts it on a floppy (.dsk) that boots straight into it, and runs it in an emulator:	Un programa de Apple II. F9 lo guarda en un disquete (.dsk) que arranca directamente en él, y lo ejecuta en un emulador:
+An Atari 7800 cartridge ends at $FFFF, with the vectors: end the source with ORG $FFFA and .word nmi, reset, irq.	Un cartucho de Atari 7800 termina en $FFFF, con los vectores: termine el código fuente con ORG $FFFA y .word nmi, reset, irq.
+An Atari 7800 cartridge. F9 makes the .a78 file (its A78 header says 16K of plain ROM, NTSC, a joystick in	Un cartucho de Atari 7800. F9 crea el archivo .a78 (su cabecera A78 indica 16K de ROM simple, NTSC, un joystick en
+An Atari 8-bit program, for the 400, 800, XL and XE. F9 makes the .xex file DOS loads (its segments, then where	Un programa de Atari de 8 bits, para el 400, 800, XL y XE. F9 crea el archivo .xex que carga DOS (sus segmentos, luego dónde
+An entry of {} took up no bytes, so the list would never end.	Una entrada de {} no ocupó ningún byte, así que la lista nunca terminaría.
+An entry's name	El nombre de una entrada
+An entry's value must be a number.	El valor de una entrada debe ser un número.
+An enum or flags type is stored as a whole number, such as u8 or u16be, not {base_name}.	Un tipo enum o flags se guarda como un número entero, como u8 o u16be, no como {base_name}.
+Apple II	Apple II
+AppleWin, or MAME's Apple IIe. The disk's first sector copies the program to where it's put here, so it can	AppleWin, o el Apple IIe de MAME. El primer sector del disco copia el programa a donde se coloque aquí, para que pueda
+Atari 7800	Atari 7800
+Atari 8-bit (400, 800, XL, XE)	Atari de 8 bits (400, 800, XL, XE)
+Automatic, by the file's ending and contents	Automático, según la terminación y el contenido del archivo
+Automatic: none fits	Automático: ninguna encaja
+Automatic: {}	Automático: {}
+B and C are the border's two colours (the same for no flashing)	B y C son los dos colores del borde (iguales si no hay parpadeo)
+Beam at {}, {}	Haz en {}, {}
+CIO, for every channel	CIO, para cada canal
+Change this template…	Cambiar esta plantilla…
+Choose a template first.	Elija primero una plantilla.
+Choose the BIOS file…	Elegir el archivo de BIOS…
+Choose where, and open	Elegir dónde y abrir
+Click a control's key, then press the key it's to be on. Esc leaves it as it was.	Haga clic en la tecla de un control y luego pulse la tecla en la que debe estar. Esc lo deja como estaba.
+Click to go to the line	Clic para ir a la línea
+Cloned from {url} with Git.	Clonado desde {url} con Git.
+Controls of the {}	Controles del {}
+Controls…	Controles…
+Couldn't make the folder {}: {e}	No se pudo crear la carpeta {}: {e}
+Couldn't read it: {e}	No se pudo leer: {e}
+Couldn't read {name}.\n\n{e}	No se pudo leer {name}.\n\n{e}
+Couldn't write {}: {e}	No se pudo escribir {}: {e}
+DMA on, 160 pixels across	DMA activado, 160 píxeles de ancho
+Each trap is the QL Technical Guide's (section 18.14): the key in d0, the channel in a0.	Cada trap es el de la Technical Guide del QL (sección 18.14): la tecla en d0, el canal en a0.
+Git couldn't clone {url}: {e}	Git no pudo clonar {url}: {e}
+Git isn't installed, so the repository was downloaded as a ZIP ({zip}) and unpacked; it isn't a clone.	Git no está instalado, así que el repositorio se descargó como ZIP ({zip}) y se descomprimió; no es un clon.
+How templates are written	Cómo se escriben las plantillas
+It doesn't say which machine it's for. Put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top to say.	No dice para qué máquina es. Ponga ; machine: c64, bbc, 2600, nes, atari8, 7800 o apple2 cerca del principio para indicarlo.
+It's TAP version {version}; only 0, 1 and 2 are known, so it was played as version 1.	Es la versión {version} de TAP; solo se conocen la 0, la 1 y la 2, así que se reprodujo como versión 1.
+It's remembered while the file is open. To say in the source, put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top.	Se recuerda mientras el archivo esté abierto. Para indicarlo en el código fuente, ponga ; machine: c64, bbc, 2600, nes, atari8, 7800 o apple2 cerca del principio.
+Keys as they started	Teclas como al empezar
+Limoniter doesn't know how to make this file into tape sound.	Limoniter no sabe cómo convertir este archivo en sonido de cinta.
+Line {line} uses an absolute address (at ${at:04X} in the program), and a QL program has to run wherever QDOS loads it: use the PC-relative form, as lea name(pc),a0 does.	La línea {line} usa una dirección absoluta (en ${at:04X} del programa), y un programa de QL tiene que ejecutarse donde QDOS lo cargue: use la forma relativa al PC, como hace lea name(pc),a0.
+MARIA is told where the list is in a vertical blank	A MARIA se le indica dónde está la lista durante un borrado vertical
+MARIA's DMA and display mode	DMA y modo de pantalla de MARIA
+MARIA's background colour	Color de fondo de MARIA
+Make its tape sound (WAV)	Generar su sonido de cinta (WAV)
+Mute	Silenciar
+New template of your own	Plantilla nueva propia
+No key is put in d0 just before it here.	Justo antes no se pone ninguna tecla en d0 aquí.
+No keys are its joystick: Controls… chooses some.	Ninguna tecla es su joystick: Controles… elige algunas.
+No template fits this file. Choose one above, or write your own.	Ninguna plantilla encaja con este archivo. Elija una arriba o escriba la suya.
+No template is being used.	No se está usando ninguna plantilla.
+Nothing called {name} has been read yet.	Todavía no se ha leído nada llamado {name}.
+Offset {at} (0x{at:X}) is past the end of the file.	El desplazamiento {at} (0x{at:X}) está más allá del final del archivo.
+Only MSX cassettes can be made into tape sound, and this .cas isn't one: it doesn't start with an MSX block's marker.	Solo los casetes de MSX se pueden convertir en sonido de cinta, y este .cas no lo es: no empieza con la marca de un bloque MSX.
+Only a list can be indexed with [ ].	Solo una lista se puede indexar con [ ].
+Only a struct has fields, so .{name} can't be read here.	Solo una estructura tiene campos, así que aquí no se puede leer .{name}.
+Open a ZIP as a project	Abrir un ZIP como proyecto
+Open a ZIP as a project…	Abrir un ZIP como proyecto…
+Open a project from a web address	Abrir un proyecto desde una dirección web
+Open a project from a web address (a ZIP or Git)…	Abrir un proyecto desde una dirección web (un ZIP o Git)…
+Open your templates folder	Abrir su carpeta de plantillas
+Opens it to edit; a built-in one is copied to your templates folder first	Lo abre para editarlo; una incorporada se copia antes a su carpeta de plantillas
+Press a key…	Pulse una tecla…
+Q-emuLator or MAME's QL. It opens a console window, writes a message in it, waits for a key and removes itself.	Q-emuLator o el QL de MAME. Abre una ventana de consola, escribe un mensaje en ella, espera una tecla y se elimina a sí mismo.
+RGC BASIC	RGC BASIC
+Run without the BIOS	Ejecutar sin la BIOS
+Running without the BIOS: the cartridge starts where its header ends, and can't call the BIOS's routines.	Ejecución sin la BIOS: el cartucho empieza donde termina su cabecera y no puede llamar a las rutinas de la BIOS.
+Save the file first, in a TRSE project's folder, so TRSE can build it.	Guarde primero el archivo, en la carpeta de un proyecto de TRSE, para que TRSE pueda compilarlo.
+Saved {} ({} bytes), a QL program with its header kept after it (XTcc), for a QL emulator's drive.	Guardado {} ({} bytes), un programa de QL con su cabecera conservada detrás (XTcc), para la unidad de un emulador de QL.
+Sinclair QL	Sinclair QL
+Sinclair QL microdrive cartridge (MDV) · {} · {} sectors free	Cartucho de microdrive de Sinclair QL (MDV) · {} · {} sectores libres
+Sinclair QL microdrive cartridge, 126K (.mdv)	Cartucho de microdrive de Sinclair QL, 126K (.mdv)
+Some of the tape couldn't be played, and is left out:\n\n{}	Una parte de la cinta no se pudo reproducir y se omitió:\n\n{}
+Some text in quotes	Un texto entre comillas
+Sound on	Sonido activado
+Starts the cartridge where its header ends, with nothing in the BIOS's place: for cartridges that drive the hardware themselves	Inicia el cartucho donde termina su cabecera, sin nada en lugar de la BIOS: para cartuchos que manejan el hardware por sí mismos
+Structs go more than {MOST_DEPTH} deep here; a struct may be inside itself for ever.	Las estructuras llegan a más de {MOST_DEPTH} niveles aquí; una estructura puede estar dentro de sí misma para siempre.
+Structure	Estructura
+Structure templates	Plantillas de estructura
+TRAP #1: QDOS's manager traps (jobs, memory, the clock), the key in d0.	TRAP #1: los traps de gestión de QDOS (trabajos, memoria, el reloj), la tecla en d0.
+TRAP #2: QDOS's traps that open and close channels, the key in d0.	TRAP #2: los traps de QDOS que abren y cierran canales, la tecla en d0.
+TRAP #3: QDOS's input and output on the channel in a0, the key in d0 and the timeout in d3.	TRAP #3: entrada y salida de QDOS en el canal de a0, la tecla en d0 y el tiempo de espera en d3.
+TRAP #4: makes the next TRAP #2 or #3's addresses relative to a6, as SuperBASIC's procedures need.	TRAP #4: hace que las direcciones del siguiente TRAP #2 o #3 sean relativas a a6, como necesitan los procedimientos de SuperBASIC.
+TRAP #{trap}: not one QDOS uses for its calls (1 the manager's, 2 opening channels, 3 input and output, 4 a6-relative).	TRAP #{trap}: no es uno de los que QDOS usa para sus llamadas (1 el gestor, 2 abrir canales, 3 entrada y salida, 4 relativo a a6).
+TRSE builds a project, and there's no project file (.trse) in this file's folder or the two above it. Make one in TRSE (File, New project), and put this file in its folder.	TRSE compila un proyecto, y no hay archivo de proyecto (.trse) en la carpeta de este archivo ni en las dos de encima. Cree uno en TRSE (File, New project) y ponga este archivo en su carpeta.
+TRSE stopped here with a fatal error.	TRSE se detuvo aquí con un error fatal.
+TRSE wasn't found on this computer. It's free from {}: install it (or unzip it into a folder named trse, or put it on the PATH), start it once so it writes its settings, and F9 builds with it.	No se encontró TRSE en este ordenador. Es gratuito en {}: instálelo (o descomprímalo en una carpeta llamada trse, o póngalo en el PATH), ejecútelo una vez para que escriba su configuración, y F9 compilará con él.
+Takes the key off this control	Quita la tecla de este control
+Tape sound	Sonido de cinta
+Template	Plantilla
+That divides by nought.	Eso divide entre cero.
+That file is {} bytes; the Vectrex BIOS is 8,192.	Ese archivo tiene {} bytes; la BIOS de Vectrex tiene 8.192.
+That isn't a Vectrex BIOS.	Eso no es una BIOS de Vectrex.
+That isn't a place in the file.	Eso no es un lugar del archivo.
+That needs {} more sectors, and the cartridge has {} free.	Eso necesita {} sectores más, y el cartucho tiene {} libres.
+That would go back before the start of the file.	Eso iría antes del principio del archivo.
+The 6809 met ${:02X} at ${at:04X}, which isn't one of its instructions.	El 6809 encontró ${:02X} en ${at:04X}, que no es una de sus instrucciones.
+The Structure panel takes a file's bytes apart with a template, so it works in hex mode.	El panel Estructura descompone los bytes de un archivo con una plantilla, así que funciona en modo hexadecimal.
+The Vectrex BIOS	La BIOS de Vectrex
+The ZIP couldn't be unpacked: {e}	No se pudo descomprimir el ZIP: {e}
+The built-in Vectrex needs the Vectrex's own 8K BIOS (its executive ROM, with Mine Storm), which belongs to Hasbro since Milton Bradley, so it can't come with Limoniter. Vectrex emulators are given it (MAME's vectrex set has it as exec_rom.bin), or it can be read from a Vectrex's ROM chip. Choose the file once, and it's kept. A cartridge that drives the hardware itself, calling nothing in the BIOS, runs without it.	El Vectrex integrado necesita la BIOS de 8K propia del Vectrex (su ROM ejecutiva, con Mine Storm), que pertenece a Hasbro desde Milton Bradley, así que no puede venir con Limoniter. A los emuladores de Vectrex se les da (el conjunto vectrex de MAME la tiene como exec_rom.bin), o se puede leer del chip ROM de un Vectrex. Elija el archivo una vez y se conserva. Un cartucho que maneja el hardware por sí mismo, sin llamar a nada de la BIOS, se ejecuta sin ella.
+The built-in Vectrex runs Vectrex cartridges.	El Vectrex integrado ejecuta cartuchos de Vectrex.
+The built-in Vectrex {why}	El Vectrex integrado {why}
+The cartridge called the BIOS at ${pc:04X}{name}, which isn't here: choose the Vectrex's BIOS file to run it.	El cartucho llamó a la BIOS en ${pc:04X}{name}, que no está aquí: elija el archivo de BIOS del Vectrex para ejecutarlo.
+The code at ${address:X} goes outside the Atari's 64K.	El código en ${address:X} sale de los 64K del Atari.
+The code starts at &{low:04X}, in the firmware's memory: put it at &0040 or above (ORG &4000 is usual).	El código empieza en &{low:04X}, en la memoria del firmware: colóquelo en &0040 o más arriba (ORG &4000 es lo habitual).
+The directory is full: a cartridge holds {MOST_FILES} files.	El directorio está lleno: un cartucho admite {MOST_FILES} archivos.
+The disk's boot sector couldn't be made.	No se pudo crear el sector de arranque del disco.
+The display list list: twenty zones of sixteen lines, enough for PAL's picture too, each with a display	La lista de listas de visualización: veinte zonas de dieciséis líneas, suficiente también para la imagen PAL, cada una con una lista
+The end of the line	El final de la línea
+The field's name	El nombre del campo
+The file was read into more than {MOST_NODES} fields, so only the first are shown.	El archivo se leyó en más de {MOST_NODES} campos, así que solo se muestran los primeros.
+The function's name	El nombre de la función
+The job's header: a jump to its start, $4AFB six bytes in, and its name (Technical Guide, section 3.1).	La cabecera del trabajo: un salto a su inicio, $4AFB seis bytes después, y su nombre (Technical Guide, sección 3.1).
+The key in d0 isn't known until it runs.	La tecla en d0 no se conoce hasta que se ejecuta.
+The name of a field was wanted here.	Aquí se esperaba el nombre de un campo.
+The number grew too large.	El número creció demasiado.
+The program goes past the end of the memory it loads into.	El programa pasa del final de la memoria en la que se carga.
+The program is empty.	El programa está vacío.
+The program is put at ${load:04X}, where the copy from $0900 would overwrite itself or reach $C000: put it at $0900, or from ${:04X} up to $BFFF.	El programa se coloca en ${load:04X}, donde la copia desde $0900 se sobrescribiría a sí misma o llegaría a $C000: colóquelo en $0900, o desde ${:04X} hasta $BFFF.
+The program reaches past &A67B, where AMSDOS keeps its workspace, so it can't be loaded from disk. Put it lower (it's at &{load:04X}).	El programa pasa de &A67B, donde AMSDOS guarda su área de trabajo, así que no se puede cargar desde disco. Colóquelo más abajo (está en &{load:04X}).
+The project is for the {system}, and Limoniter only runs TRSE's programs for the Commodore 64, 128, VIC-20, Plus/4 and PET, the Atari 2600, the Vectrex, the NES and the Game Boy. Build it in TRSE itself.	El proyecto es para el {system}, y Limoniter solo ejecuta programas de TRSE para el Commodore 64, 128, VIC-20, Plus/4 y PET, el Atari 2600, el Vectrex, la NES y la Game Boy. Compílelo en el propio TRSE.
+The sound of {name}'s tape, for the {}: {} long. Play it, or save it as a WAV.	El sonido de la cinta de {name}, para el {}: {} de duración. Reprodúzcalo o guárdelo como WAV.
+The struct's name	El nombre de la estructura
+The tape image is too short to have its header.	La imagen de cinta es demasiado corta para tener su cabecera.
+The template went round its lists too many times; it may never stop.	La plantilla recorrió sus listas demasiadas veces; puede que nunca termine.
+The text has no character {i}.	El texto no tiene carácter {i}.
+The type it's stored as, such as u8	El tipo en que se guarda, como u8
+The type's name	El nombre del tipo
+There's already a type called {name}.	Ya hay un tipo llamado {name}.
+There's no data folder to keep templates in.	No hay carpeta de datos donde guardar plantillas.
+There's no function called {name}.	No hay ninguna función llamada {name}.
+There's no program on the cartridge to start, and no BOOT file.	No hay ningún programa que iniciar en el cartucho, ni archivo BOOT.
+There's no type called {}.	No hay ningún tipo llamado {}.
+There's nothing on this tape to make a sound of.	No hay nada en esta cinta de lo que hacer sonido.
+This isn't a QL program kept with its header.	Este no es un programa de QL guardado con su cabecera.
+This isn't a Spectrum tape: a block goes on past the end of the file.	Esta no es una cinta de Spectrum: un bloque continúa más allá del final del archivo.
+This isn't a Spectrum tape: it ends partway through a block's length.	Esta no es una cinta de Spectrum: termina a mitad de la longitud de un bloque.
+This isn't a tokenised BBC BASIC program, so it can't be saved as a BBC tape.	Este no es un programa de BBC BASIC tokenizado, así que no se puede guardar como cinta de BBC.
+This listing couldn't be tokenised, so there's no program to make the tape of.\n\n{problem}	Este listado no se pudo tokenizar, así que no hay programa del que hacer la cinta.\n\n{problem}
+This looks like a Jupiter Ace tape, whose sound Limoniter doesn't make yet.	Parece una cinta de Jupiter Ace, cuyo sonido Limoniter aún no genera.
+This microdrive image has no sector 0, where the cartridge's map is.	Esta imagen de microdrive no tiene sector 0, donde está el mapa del cartucho.
+This template has a mistake in it	Esta plantilla tiene un error
+This text has no closing quote.	A este texto le falta la comilla de cierre.
+Unpacked from {url}.	Descomprimido desde {url}.
+Where to put it (a folder of its own is made in it)	Dónde ponerlo (se crea en ella una carpeta propia)
+Where to unpack it (a folder of its own is made in it)	Dónde descomprimirlo (se crea en ella una carpeta propia)
+Which keys are its Kempston joystick, and changing them	Qué teclas son su joystick Kempston, y cambiarlas
+Which keys are its joystick and buttons, and changing them	Qué teclas son su joystick y sus botones, y cambiarlas
+Which keys are its joystick, and changing them	Qué teclas son su joystick, y cambiarlas
+Which keys are its joysticks and switches, and changing them	Qué teclas son sus joysticks e interruptores, y cambiarlas
+Which machine is this 6502 program for? Its code doesn't say.	¿Para qué máquina es este programa de 6502? Su código no lo dice.
+ZIP archive	Archivo ZIP
+\\x needs two hex digits after it.	\\x necesita dos dígitos hexadecimales después.
+a CSW recording	una grabación CSW
+a call of other blocks	una llamada a otros bloques
+a choice of blocks	una elección de bloques
+a jump to another block	un salto a otro bloque
+a kind it doesn't know	un tipo que no conoce
+address	dirección
+address or integer	dirección o entero
+align( ) needs a size above 0.	align( ) necesita un tamaño mayor que 0.
+an old device	un dispositivo antiguo
+as it is; for MAME's a7800 (or a real 7800), sign it with 7800sign. Put ; tv: pal near the top for a European	tal cual; para el a7800 de MAME (o una 7800 real), fírmelo con 7800sign. Ponga ; tv: pal cerca del principio para una
+be anywhere from $0900 (or above the copy, from $1800) to $BFFF, and up to 3,840 bytes long.	estar en cualquier sitio desde $0900 (o por encima de la copia, desde $1800) hasta $BFFF, y tener hasta 3.840 bytes.
+big or little	grande o pequeño
+bit 7 is set during the vertical blank	el bit 7 está activado durante el borrado vertical
+blocks, which every CPC has at the same addresses, so it runs on the 464, 664 and 6128 alike.	bloques, que todos los CPC tienen en las mismas direcciones, así que funciona igual en el 464, el 664 y el 6128.
+channel 0 (its number times 16)	canal 0 (su número por 16)
+channel 0's command, its buffer's address and its length	el comando del canal 0, la dirección de su búfer y su longitud
+data space {} bytes	espacio de datos de {} bytes
+data space {} bytes, the job {job}	espacio de datos de {} bytes, el trabajo {job}
+data space: 4096	espacio de datos: 4096
+doesn't switch banks yet, so it runs cartridges of up to 32K: run this one in MAME or ParaJVE.	aún no cambia de banco, así que ejecuta cartuchos de hasta 32K: ejecute este en MAME o ParaJVE.
+each frame starts a colour further on	cada fotograma empieza un color más allá
+each port) and runs it in an emulator: A7800, or MAME. MARIA draws nothing but the background here: each	cada puerto) y lo ejecuta en un emulador: A7800 o MAME. MARIA no dibuja nada más que el fondo aquí: cada
+every system	todos los sistemas
+for this job	para este trabajo
+https://github.com/owner/project	https://github.com/owner/project
+in zero page: the first line's colour this frame	en la página cero: el color de la primera línea en este fotograma
+index is only known inside a list.	el índice solo se conoce dentro de una lista.
+integer	entero
+integer or byte	entero o byte
+it couldn't be opened	no se pudo abrir
+it starts) and runs it in an emulator: Altirra or atari800. It prints a line through the screen editor, E:,	empieza) y lo ejecuta en un emulador: Altirra o atari800. Imprime una línea a través del editor de pantalla, E:,
+len( ) measures text.	len( ) mide texto.
+line WSYNC waits for, the program gives the background the next colour.	línea que espera WSYNC, el programa da al fondo el siguiente color.
+list that's empty (a header whose second byte is 0 ends one).	lista vacía (una cabecera cuyo segundo byte es 0 termina una).
+loads at &4000 and starts, in an emulator: CPCEC, Caprice32 or MAME. It prints through the firmware's jump	se carga en &4000 y se inicia, en un emulador: CPCEC, Caprice32 o MAME. Imprime mediante el salto del firmware
+locks the 7800 into its own mode	bloquea la 7800 en su propio modo
+machine: 7800	machine: 7800
+machine: apple2	machine: apple2
+machine: atari8	machine: atari8
+machine: cpc	machine: cpc
+machine: ql	machine: ql
+no DMA while it's set up	sin DMA mientras se configura
+no error	sin error
+number	número
+on blue	en azul
+prints the character in A	imprime el carácter de A
+prints the character in A (with its top bit set, as the Apple's text has it)	imprime el carácter de A (con su bit alto activado, como tiene el texto del Apple)
+procedure	procedimiento
+runs only Vectrex cartridges, not {} programs.	ejecuta solo cartuchos de Vectrex, no programas de {}.
+some text	un texto
+string	texto
+the Monitor ROM: clears the text screen	la ROM del Monitor: borra la pantalla de texto
+the QL's processor, for its cycle counts	el procesador del QL, para sus cuentas de ciclos
+the border	el borde
+the command to put characters	el comando para poner caracteres
+the end of the line	el final de la línea
+the end of the template	el final de la plantilla
+the text's background, copied to the GTIA every frame	el fondo del texto, copiado al GTIA en cada fotograma
+this job	este trabajo
+trap #1: remove a job (-1 is this one)	trap #1: eliminar un trabajo (-1 es este)
+trap #2: open a channel	trap #2: abrir un canal
+trap #3: clear the whole window	trap #3: borrar toda la ventana
+trap #3: fetch a byte	trap #3: obtener un byte
+trap #3: send a string of bytes	trap #3: enviar una cadena de bytes
+trap #3: set the window's border	trap #3: fijar el borde de la ventana
+two pixels wide	dos píxeles de ancho
+until the vertical blank	hasta el borrado vertical
+wait as long as it takes	esperar todo el tiempo que haga falta
+wait for a key	esperar una tecla
+wait for the picture to start	esperar a que empiece la imagen
+waits for a key	espera una tecla
+where the display list list is	dónde está la lista de listas de visualización
+which the operating system has open as channel 0, with CIO, the OS's way into every device.	que el sistema operativo tiene abierto como canal 0, con CIO, la vía del SO a cada dispositivo.
+writing it waits for the end of the line	al escribir en él espera al final de la línea
+{at} isn't a place in the file.	{at} no es un lugar del archivo.
+{digits} isn't a number	{digits} no es un número
+{file}, line {line}: {message}	{file}, línea {line}: {message}
+{hint} Click the text to type there again.	{hint} Haga clic en el texto para volver a escribir ahí.
+{hint} Click the text to type there again. On the keyboard below, click Caps Shift or Symbol Shift and then a key to press them together; both shifts is Extended mode.	{hint} Haga clic en el texto para volver a escribir ahí. En el teclado de abajo, haga clic en Caps Shift o Symbol Shift y luego en una tecla para pulsarlas juntas; las dos shifts son el modo Extended.
+{hint} The picture goes while a program runs, as it did on the ZX80. Click the text to type there again.	{hint} La imagen desaparece mientras se ejecuta un programa, como en el ZX80. Haga clic en el texto para volver a escribir ahí.
+{name} isn't a way of showing a value: use hex, dec, bin, oct, char, dosdate, dostime, unix, amigadays, or an enum or flags type.	{name} no es una forma de mostrar un valor: use hex, dec, bin, oct, char, dosdate, dostime, unix, amigadays, o un tipo enum o flags.
+{name} isn't on the cartridge.	{name} no está en el cartucho.
+{name} needs {needed} sectors, and the cartridge has {free} free.	{name} necesita {needed} sectores, y el cartucho tiene {free} libres.
+{name} would run past the end of the file (at offset {at}, 0x{at:X}).	{name} pasaría del final del archivo (en el desplazamiento {at}, 0x{at:X}).
+{name}( ) calls itself too deeply.	{name}( ) se llama a sí misma con demasiada profundidad.
+{name}( ) takes {n}.	{name}( ) toma {n}.
+{name}( ) works on at most 64 MB.	{name}( ) trabaja con 64 MB como máximo.
+{name}({}): one of TRSE's built-ins, on {systems}	{name}({}): una de las funciones integradas de TRSE, en {systems}
+{n} (0x{unsigned:X}), not one listed	{n} (0x{unsigned:X}), ninguno de los de la lista
+{n} entries	{n} entradas
+{n} isn't a place in the file.	{n} no es un lugar del archivo.
+{op} doesn't work on numbers with fractions.	{op} no funciona con números con fracciones.
+{op} doesn't work on text.	{op} no funciona con texto.
+{op} isn't known.	{op} no se conoce.
+{op} works only on a number.	{op} solo funciona con un número.
+{said} It's in {}, open as a project.	{said} Está en {}, abierto como proyecto.
+{url} looks like a Git repository, and Git isn't installed to clone it. Install Git, or give the address of a ZIP.	{url} parece un repositorio de Git, y Git no está instalado para clonarlo. Instale Git, o indique la dirección de un ZIP.
+{what} was expected here, not {found}.	Aquí se esperaba {what}, no {found}.
+{words} (yours)	{words} (suyas)
+{written} isn't a number	{written} no es un número
+{}\n{}  at {} (0x{:X}), {size} bytes	{}\n{}  en {} (0x{:X}), {size} bytes
+{} can't have {n} entries.	{} no puede tener {n} entradas.
+{} has no entry {i}.	{} no tiene la entrada {i}.
+{} has no field called {name}.	{} no tiene ningún campo llamado {name}.
+{} has no zero byte to end it in the first {MOST_STRING} bytes.	{} no tiene ningún byte cero que lo termine en los primeros {MOST_STRING} bytes.
+{} is unpacked into {}, and open as a project.	{} se descomprimió en {}, y está abierto como proyecto.
+{}: TRAP #{} with d0 = ${:02X}, to {}.	{}: TRAP #{} con d0 = ${:02X}, para {}.
+{}: the routine whose address is the word at ${:X}, to {}. It's called as move.w {},a2 then jsr (a2).	{}: la rutina cuya dirección es la palabra en ${:X}, para {}. Se llama como move.w {},a2 y luego jsr (a2).
+Copy How To Code's Spectrum examples to a folder…	Copiar los ejemplos de Spectrum de How To Code a una carpeta…
+How To Code: the ZX Spectrum	How To Code: el ZX Spectrum
+Usage: limoniter --assemble SOURCE OUTPUT [NAME=VALUE...] (OUTPUT ending .tap, .sna or .nex for Z80 source)	Uso: limoniter --assemble FUENTE SALIDA [NOMBRE=VALOR...] (SALIDA terminada en .tap, .sna o .nex para código Z80)
+nex	nex
+sna	sna
+tap	tap
+{copied} files copied. startup_demo.asm is the smallest whole demo: F9 builds it and runs it. Files that were there already were left as they were.	{copied} archivos copiados. startup_demo.asm es la demo completa más pequeña: F9 la construye y la ejecuta. Los archivos que ya estaban se dejaron como estaban.
+{}: this makes {}, not .{ending}.	{}: esto genera {}, no .{ending}.
+‹ Back	‹ Atrás
+Forward ›	Adelante ›
+Contents	Índice
+The page before (Alt+Left)	La página anterior (Alt+Izquierda)
+The page after (Alt+Right)	La página siguiente (Alt+Derecha)
+Close the guide (Ctrl+W)	Cerrar la guía (Ctrl+W)
+Quit	Salir
+Ctrl+Q	Ctrl+Q

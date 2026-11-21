@@ -1,11 +1,13 @@
 # 5. Interrupts
 
+[‹ Startup and exit](04-startup-and-exit.md) · [Contents](README.md) · [The copper ›](06-copper.md)
+
 An interrupt is the hardware tapping the processor on the shoulder: stop what you're doing, deal with this, then carry on. A demo uses them to know when a frame starts, to do something when the beam reaches a line, to play music at a steady rate, and to hear that the blitter has finished. This chapter covers how the Amiga's interrupts work, the four kinds a demo uses most, and how to install each one both ways: with the machine taken, and with the system still running.
 
 There are two whole examples, each built both ways like every v8 example:
 
-- `examples/ch05_copper_interrupt.s`: the copper raises an interrupt twice a frame, and the processor changes the background colour there. The copper marks the moment it asks with a white dash, so you can see how long the processor takes to answer.
-- `examples/ch05_cia_timer.s`: a CIA timer interrupt at 50 Hz, worked out from the machine's clock so it's 50 Hz on PAL and NTSC alike.
+- [`examples/ch05_copper_interrupt.s`](examples/ch05_copper_interrupt.s): the copper raises an interrupt twice a frame, and the processor changes the background colour there. The copper marks the moment it asks with a white dash, so you can see how long the processor takes to answer.
+- [`examples/ch05_cia_timer.s`](examples/ch05_cia_timer.s): a CIA timer interrupt at 50 Hz, worked out from the machine's clock so it's 50 Hz on PAL and NTSC alike.
 
 ## Levels
 
@@ -391,3 +393,5 @@ Both examples were built both ways (`OS_FRIENDLY=0` and `1`, with `AUTOEXIT=500`
 - `ch05_cia_timer.s` on an NTSC Amiga 500 too, with Kickstart 1.3 and 3.1, both ways.
 
 Every run showed the effect, and then the CLI with "back in AmigaDOS, return code OK" after the demo had ended. The NTSC runs showed the timer's bar growing at 5/6 the rate of the frame bar, as 50 ticks a second against 60 frames should. The latencies above were measured from the screen captures of the 68000 runs (the emulated 68020 and 68040 aren't cycle-exact, so their timings aren't given). Three more things were tried to check what this chapter says: which CIA timers `AddICRVector` could get; acknowledging `EXTER` before reading the ICR (each tick then came twice); and a copper interrupt acknowledged only once on a 68020, 68040 and 68060 (which FS-UAE didn't fault).
+
+[‹ Startup and exit](04-startup-and-exit.md) · [Contents](README.md) · [The copper ›](06-copper.md)

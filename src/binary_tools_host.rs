@@ -805,6 +805,36 @@ impl Limoniter {
         }
     }
 
+    /// How To Code for the ZX Spectrum: its contents page, shown as it reads.
+    pub(super) fn open_how_to_code_spectrum(&mut self) {
+        match crate::howtocode_spectrum::unpacked() {
+            Ok(folder) => {
+                let path = folder.join("README.md");
+                if self.open_path(&path) {
+                    self.docs[self.active].preview_view = settings::PreviewView::Full;
+                }
+            }
+            Err(problem) => self.message("How To Code", problem),
+        }
+    }
+
+    /// The Spectrum guide's examples, and the startup they include, copied into a folder chosen, which then opens
+    /// as a project.
+    pub(super) fn copy_how_to_code_spectrum_examples(&mut self) {
+        let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("A folder for the examples")).pick_folder() else { return };
+        match crate::howtocode_spectrum::copy_examples(&folder) {
+            Ok(copied) => {
+                self.open_folder(&folder);
+                let demo = folder.join("startup_demo.asm");
+                if demo.is_file() {
+                    self.open_path(&demo);
+                }
+                self.message("How To Code", crate::i18n::tf!("{copied} files copied. startup_demo.asm is the smallest whole demo: F9 builds it and runs it. Files that were there already were left as they were."));
+            }
+            Err(problem) => self.message("How To Code", problem),
+        }
+    }
+
     /// How To Code's examples, and what they include, copied into a folder chosen, which then opens as a project.
     pub(super) fn copy_how_to_code_examples(&mut self) {
         let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("A folder for the examples")).pick_folder() else { return };

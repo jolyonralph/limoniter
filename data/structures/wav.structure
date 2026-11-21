@@ -1,0 +1,63 @@
+# WAV sounds (RIFF WAVE): the chunks, with the format and the samples (Microsoft's RIFF specification, and the
+# WAVEFORMATEX and WAVEFORMATEXTENSIBLE structures).
+name "WAV sound"
+magic str(0, 4) == "RIFF" && str(8, 4) == "WAVE"
+order little
+
+enum Format : u16 {
+    PCM = 1
+    MS_ADPCM = 2
+    IEEE_float = 3
+    A_law = 6
+    mu_law = 7
+    IMA_ADPCM = 0x11
+    GSM610 = 0x31
+    MPEG = 0x50
+    MP3 = 0x55
+    extensible = 0xFFFE "The format is the GUID further on"
+}
+
+struct Chunk {
+    char id[4]
+    u32 size
+    label id
+    let body = here
+    if id == "fmt " {
+        Format format
+        u16 channels
+        u32 sample_rate
+        u32 bytes_per_second
+        u16 block_align
+        u16 bits_per_sample
+        if size >= 18 {
+            u16 extra_size
+            if format == extensible && extra_size >= 22 {
+                u16 valid_bits
+                u32 channel_mask : hex
+                u8 sub_format[16] "A GUID; its first two bytes are the format"
+            } else {
+                u8 extra[min(extra_size, size - 18)]
+            }
+        }
+    } else if id == "data" {
+        u8 samples[min(size, file_size - here)]
+    } else if id == "LIST" {
+        char list_type[4]
+        Chunk entries[while here + 8 <= min(body + size, file_size)]
+    } else if id == "fact" {
+        u32 sample_frames
+    } else if id == "INAM" || id == "IART" || id == "ICMT" || id == "ICOP" || id == "ICRD" || id == "ISFT" || id == "IGNR" || id == "IPRD" {
+        char text[size]
+    } else {
+        u8 data[min(size, file_size - here)]
+    }
+    goto min(body + size, file_size)
+    if size % 2 == 1 && here < file_size {
+        u8 padding
+    }
+}
+
+char riff[4]
+u32 size "The file's length less 8"
+char wave[4]
+Chunk chunks[while here + 8 <= file_size]

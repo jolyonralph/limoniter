@@ -119,3 +119,42 @@ fn a_long_menu_drops_below_its_bar_rather_than_over_it() {
     assert!(file.top() >= 20.0, "it begins below the menu bar: {file:?}");
     assert!(on_screen(*file), "{file:?}");
 }
+
+fn frame_sized(app: &mut Limoniter, ctx: &Context, size: egui::Vec2) {
+    let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), ..Default::default() };
+    let mut output = ctx.run_ui(input, |ui| app.draw_frame(ui));
+    output.textures_delta.clear();
+}
+
+fn tallest_menu(ctx: &Context) -> egui::Rect {
+    shown(ctx, egui::Order::Foreground).into_iter().map(|(_, rect)| rect).max_by(|a, b| a.height().total_cmp(&b.height())).unwrap_or(egui::Rect::NOTHING)
+}
+
+/// As the person found it: the window made small, Tools opened (it scrolls), the window made big again, and Tools
+/// opened again uses the room there is, both when it was left open and when it was closed and opened again.
+#[test]
+fn the_tools_menu_uses_the_room_after_the_window_grows() {
+    let big = egui::vec2(1400.0, 1000.0);
+    for close_between in [false, true] {
+        let (mut app, ctx) = app_with("");
+        ctx.data_mut(|data| data.insert_temp(crate::fit::opened_menus_key(), vec!["Tools".to_string()]));
+        for _ in 0..10 {
+            frame_sized(&mut app, &ctx, SMALL);
+        }
+        let small = tallest_menu(&ctx);
+        assert!(on_screen(small), "scrolls on the small window: {small:?}");
+        if close_between {
+            ctx.data_mut(|data| data.remove_temp::<Vec<String>>(crate::fit::opened_menus_key()));
+            egui::Popup::close_all(&ctx);
+            for _ in 0..5 {
+                frame_sized(&mut app, &ctx, big);
+            }
+            ctx.data_mut(|data| data.insert_temp(crate::fit::opened_menus_key(), vec!["Tools".to_string()]));
+        }
+        for _ in 0..10 {
+            frame_sized(&mut app, &ctx, big);
+        }
+        let grown = tallest_menu(&ctx);
+        assert!(grown.height() > small.height() + 150.0, "closed between: {close_between}; Tools should use the bigger window: {small:?} then {grown:?}");
+    }
+}

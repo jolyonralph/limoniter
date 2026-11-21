@@ -170,8 +170,8 @@ impl Group {
     fn members(self) -> &'static [&'static str] {
         match self {
             Group::Assembly => &["Assembly 6502", "Assembly 65816", "Assembly 6809", "Assembly 680x0", "Assembly 680x0 (GNU as)", "Assembly 8080", "Assembly 80x86", "Assembly ARM (ARM2 and ARM3)", "Assembly AVR", "Assembly HLASM", "Assembly PDP-11 (MACRO-11)", "Assembly PIC (MPASM)", "Assembly SM83 (Game Boy)", "Assembly SPC700 (SNES sound)", "Assembly VAX MACRO", "Assembly x86_64", "Assembly Z80", "LLVM"],
-            Group::Basic => &["BASIC (AMOS)", "BASIC (Blitz Basic)", "BASIC (Commodore)", "BASIC (QBasic, QuickBASIC and GW-BASIC)", "BASIC (Sinclair and Next)", "BASIC (STOS)", "xBase (dBase, Clipper, FoxPro)"],
-            Group::Systems => &["Ada", "Amiga E", "C", "C++", "CMake C Header", "CMake C++ Header", "Crystal", "D", "Fortran (Fixed Form)", "Fortran (Modern)", "Go", "Modula-2", "Nim", "Objective-C", "Objective-C++", "Odin", "Pascal", "Rust", "Swift", "Zig", "Forth", "Logo"],
+            Group::Basic => &["BASIC (AMOS)", "BASIC (Blitz Basic)", "BASIC (Commodore)", "BASIC (QBasic, QuickBASIC and GW-BASIC)", "BASIC (RGC BASIC)", "BASIC (Sinclair and Next)", "BASIC (STOS)", "xBase (dBase, Clipper, FoxPro)"],
+            Group::Systems => &["Ada", "Amiga E", "C", "C++", "CMake C Header", "CMake C++ Header", "Crystal", "D", "Fortran (Fixed Form)", "Fortran (Modern)", "Go", "Modula-2", "Nim", "Objective-C", "Objective-C++", "Odin", "Pascal", "Rust", "Turbo Rascal (TRSE)", "Swift", "Zig", "Forth", "Logo"],
             Group::JvmNet => &["C#", "Clojure", "F#", "Groovy", "Java", "Kotlin", "Scala", "Dart"],
             Group::Scripting => &["AppleScript", "AWK", "GDScript (Godot Engine)", "JQ", "Julia", "Lua", "MATLAB", "Perl", "PHP", "Python", "R", "REXX", "Ruby", "Tcl", "Regular Expression", "Robot Framework"],
             Group::Functional => &["APL", "camlp4", "Elixir", "Elm", "Erlang", "F#", "Haskell", "Idris", "Lean 4", "Lisp", "Literate Haskell", "Nix", "OCaml", "OCamllex", "OCamlyacc", "Prolog", "PureScript", "Racket", "Smalltalk", "SML"],
@@ -183,7 +183,7 @@ impl Group {
             Group::Mainframes => &["Assembly HLASM", "COBOL", "JCL", "PL/I", "REXX", "RPG (IBM i)", "MUMPS (M)", "Assembly PDP-11 (MACRO-11)", "Assembly VAX MACRO"],
             Group::Logs => &["Authorized Keys", "CpuInfo", "debsources", "Diff", "fstab", "Git Log", "group", "Highlight non-printables", "Known Hosts", "LaTeX Log", "log", "MemInfo", "passwd", "Private Key", "R Console", "resolv", "Strace", "syslog"],
             Group::Spectrum => &["Assembly Z80", "BASIC (Sinclair and Next)"],
-            Group::Commodore => &["Assembly 6502", "BASIC (Commodore)"],
+            Group::Commodore => &["Assembly 6502", "BASIC (Commodore)", "BASIC (RGC BASIC)", "Turbo Rascal (TRSE)"],
             Group::Acorn => &["Assembly 6502", "Assembly ARM (ARM2 and ARM3)"],
             Group::Amiga => &["Amiga E", "Assembly 680x0", "Assembly 680x0 (GNU as)", "BASIC (AMOS)", "BASIC (Blitz Basic)", "AmigaGuide", "Amiga Installer", "AmigaShell script", "REXX"],
             Group::AtariSt => &["Assembly 680x0", "BASIC (STOS)"],

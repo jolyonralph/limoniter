@@ -1,5 +1,7 @@
 # 16. Debugging and testing
 
+[‹ Loading and memory](15-loading-and-memory.md) · [Contents](README.md) · [Writing games ›](17-writing-games.md)
+
 v7 said a decent debugger was essential, and recommended MonAm (which came with Devpac) or ASM-One's built-in one. For the bugs a debugger can't see, it recommended Commodore's Enforcer, which needed a processor with an MMU, and a serial terminal (another Amiga, in Comrade J's case) to read what your code printed with `dprintf()` while it owned the display.
 
 That's all still the right idea, but the tools have moved. The emulator is now your debugger, your serial terminal and a room full of different Amigas. This chapter covers debugging at source level from Limoniter, the emulator's own debugger, the machines to test on, and how v8 tested its own examples.
@@ -224,3 +226,5 @@ Today the source is on another computer, and the emulator restarts in seconds, s
 - **The serial terminal** is replaced by the debugger's output window, and by the emulator, which lets you stop and look at everything.
 - **Testing** is a matrix of machines run in an emulator, every build, rather than on whichever Amigas your friends had.
 - **The never-ending-loop trick** is left out: stop the emulator and look, instead.
+
+[‹ Loading and memory](15-loading-and-memory.md) · [Contents](README.md) · [Writing games ›](17-writing-games.md)

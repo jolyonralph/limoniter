@@ -7,6 +7,7 @@ use super::*;
 use crate::conversions::Conversion;
 use crate::preview;
 use super::start_page::Guide;
+use super::php_host::PhpAction;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
 
 /// A switch that's simply on or off, toggled from a menu or the command box.
@@ -45,6 +46,8 @@ pub(super) enum Flag {
     CycleCounts,
     AssistantPanel,
     Ribbon,
+    /// php -l on each PHP file saved.
+    PhpLintOnSave,
     Panel(PanelFlag),
 }
 
@@ -69,6 +72,7 @@ pub(super) enum PanelFlag {
     Clipboard,
     Strings,
     Inspector,
+    Structure,
     CallGraph,
     Instructions,
 }
@@ -294,6 +298,7 @@ pub(super) const HEX: &[Entry] = &[
             Line,
             Check("String explorer", Flag::Panel(PanelFlag::Strings)),
             Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
+            Check("Structure", Flag::Panel(PanelFlag::Structure)),
         ];
 
 pub(super) const SPLIT: &[Entry] = &[Item("One above the other", Command::SplitHorizontal), Item("Side by side", Command::SplitVertical), Item("Another tab on this file", Command::DuplicateWindow), Keyed("Another file beside this one", Command::OpenBeside, "Ctrl+\\")];
@@ -321,6 +326,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Encoding preview", Flag::Panel(PanelFlag::EncodingPreview)),
             Check("String explorer", Flag::Panel(PanelFlag::Strings)),
             Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
+            Check("Structure", Flag::Panel(PanelFlag::Structure)),
             Check("Clipboard history", Flag::Panel(PanelFlag::Clipboard)),
             Line,
             Item("Close every panel", Command::HidePanels),
@@ -481,7 +487,16 @@ pub(super) const C64: &[Entry] = &[
 
 pub(super) const DRAGON: &[Entry] = &[Item("Dragon DOS disk\u{2026}", Command::DragonDisk)];
 
-pub(super) const SPECTRUM: &[Entry] = &[Item("Screen designer", Command::ScreenDesigner), Item("Next Layer 2 painter", Command::NextPainter)];
+/// The first computers, built in for teaching: each one's starters, run with F9 on the machine itself.
+pub(super) const EARLY: &[Entry] = &[Item("Manchester Baby (SSEM, 1948): Kilburn's first program", Command::NewUsual("Manchester Baby (SSEM, 1948): Kilburn's first program")), Item("Manchester Baby (SSEM, 1948): a first program", Command::NewUsual("Manchester Baby (SSEM, 1948): a first program")), Item("EDSAC (1949): Wilkes's table of squares", Command::NewUsual("EDSAC (1949): Wilkes's table of squares")), Item("EDSAC (1949): a first program (Initial Orders 2)", Command::NewUsual("EDSAC (1949): a first program (Initial Orders 2)")), Item("PDP-8 (1965): hello on the Teletype (PAL)", Command::NewUsual("PDP-8 (1965): hello on the Teletype (PAL)")), Item("PDP-8 (1965): echo the keyboard (PAL)", Command::NewUsual("PDP-8 (1965): echo the keyboard (PAL)"))];
+
+pub(super) const SPECTRUM: &[Entry] = &[
+            Item("Screen designer", Command::ScreenDesigner),
+            Item("Next Layer 2 painter", Command::NextPainter),
+            Line,
+            Item("How To Code: the ZX Spectrum", Command::HowToCodeSpectrum),
+            Item("Copy How To Code's Spectrum examples to a folder\u{2026}", Command::HowToCodeSpectrumExamples),
+        ];
 
 pub(super) const TASKS: &[Entry] = &[
             Entry::Live("Run", Live::Tasks),
@@ -531,6 +546,22 @@ pub(super) const RUN: &[Entry] = &[
             Check("Output panel", Flag::OutputWindow),
         ];
 
+/// The chores of keeping old PHP working, and checking and running it.
+pub(super) const PHP: &[Entry] = &[
+            Item("Short tags made long\u{2026}", Command::Php(PhpAction::LongTags)),
+            Item("Fix \u{201C}headers already sent\u{201D}\u{2026}", Command::Php(PhpAction::HeadersSent)),
+            Item("array() to []\u{2026}", Command::Php(PhpAction::ShortArrays)),
+            Item("PHP 7 and 8 upgrade check\u{2026}", Command::Php(PhpAction::Upgrade)),
+            Item("Old Latin-1 and Windows-1252 files made UTF-8\u{2026}", Command::Php(PhpAction::Utf8)),
+            Line,
+            Item("Check this file (php -l)", Command::Php(PhpAction::LintNow)),
+            Check("Check each PHP file as it's saved", Flag::PhpLintOnSave),
+            Line,
+            Item("Run as a script", Command::Php(PhpAction::RunScript)),
+            Item("Serve the folder and open it in the browser", Command::Php(PhpAction::Serve)),
+            Item("Stop serving", Command::Php(PhpAction::StopServing)),
+        ];
+
 pub(super) const MACROS: &[Entry] = &[
             Keyed("Record or stop", Command::RecordMacro, "Ctrl+Shift+R"),
             Keyed("Play", Command::PlayMacro, "Ctrl+Shift+P"),
@@ -548,6 +579,8 @@ pub(super) const ADD_ONS: &[Entry] = &[Entry::Live("Commands", Live::AddOns), Li
 pub(super) const PROJECT: &[Entry] = &[
             Item("Open a folder as a project\u{2026}", Command::OpenFolder),
             Item("Open a remote folder as a project\u{2026}", Command::OpenRemoteFolder),
+            Item("Open a ZIP as a project\u{2026}", Command::OpenZipProject),
+            Item("Open a project from a web address (a ZIP or Git)\u{2026}", Command::OpenWebProject),
             Item("New project\u{2026}", Command::ProjectNew),
             Item("New Amiga C project\u{2026}", Command::AmigaNewProject),
             Item("Import an Amiga C project\u{2026}", Command::AmigaImportProject),
@@ -613,6 +646,8 @@ pub(super) const FILE: &[Entry] = &[
     Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
     Item("Open a remote file (SFTP or FTP)\u{2026}", Command::OpenRemote),
     Item("Open a remote folder as a project (SFTP or FTP)\u{2026}", Command::OpenRemoteFolder),
+    Item("Open a ZIP as a project\u{2026}", Command::OpenZipProject),
+    Item("Open a project from a web address (a ZIP or Git)\u{2026}", Command::OpenWebProject),
     Line,
     Keyed("Save", Command::Save, "Ctrl+S"),
     Keyed("Save as\u{2026}", Command::SaveAs, "Ctrl+Shift+S"),
@@ -622,6 +657,7 @@ pub(super) const FILE: &[Entry] = &[
     Sub("Send to device", SEND_TO),
     Keyed("Run on machine", Command::RunOnMachine, "F9"),
     Sub("Run on", RUN_ON),
+    Item("Make its tape sound (WAV)", Command::TapeSound),
     Line,
     Sub("This file", THIS_FILE),
     Item("Reopen with another encoding\u{2026}", Command::ReopenAs),
@@ -630,6 +666,7 @@ pub(super) const FILE: &[Entry] = &[
     Keyed("Print\u{2026}", Command::Print, "Ctrl+P"),
     Line,
     Item("New window", Command::NewInstance),
+    Keyed("Quit", Command::Quit, "Ctrl+Q"),
 ];
 
 pub(super) const EDIT: &[Entry] = &[
@@ -771,19 +808,21 @@ pub(super) const TOOLS: &[Entry] = &[
     Sub("Commodore 64", C64),
     Sub("Dragon and Vectrex", DRAGON),
     Sub("ZX Spectrum and Next", SPECTRUM),
+    Sub("Early computing", EARLY),
     Line,
     Sub("Tasks", TASKS),
     Sub("Git", GIT),
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
     Sub("Assistant", ASSISTANT),
     Sub("Run", RUN),
+    Sub("PHP", PHP),
     Sub("Macros", MACROS),
     Sub("Scripts", SCRIPTS),
     Sub("Add-ons", ADD_ONS),
     Item("VS Code extensions\u{2026}", Command::Extensions),
     Sub("Project", PROJECT),
     Line,
-    Item("Settings\u{2026}", Command::Settings),
+    Keyed("Settings\u{2026}", Command::Settings, "Ctrl+,"),
     Item("Save settings to a file\u{2026}", Command::SaveSettingsFile),
     Item("Restore settings from a file\u{2026}", Command::RestoreSettingsFile),
 ];
@@ -801,7 +840,7 @@ pub(super) const WINDOW: &[Entry] = &[
     Item("New window", Command::NewInstance),
 ];
 
-pub(super) const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Sub("Guide", GUIDE), Item("What's new in this version", Command::WhatsNew), Item("What Limoniter can do", Command::Features), Item("How To Code: writing Amiga demos", Command::HowToCode), Item("Limoniter website", Command::Website), Item("Check for a newer Limoniter", Command::CheckUpdates), Item("Check for a newer OpticOS ROM", Command::CheckOpticos), Line, Item("About Limoniter", Command::About)];
+pub(super) const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command::CommandPalette, "F1"), Item("How things work", Command::Help), Sub("Guide", GUIDE), Item("What's new in this version", Command::WhatsNew), Item("What Limoniter can do", Command::Features), Item("How To Code: writing Amiga demos", Command::HowToCode), Item("How To Code: the ZX Spectrum", Command::HowToCodeSpectrum), Item("Limoniter website", Command::Website), Item("Check for a newer Limoniter", Command::CheckUpdates), Item("Go back to the previous version", Command::GoBackVersion), Item("Check for a newer OpticOS ROM", Command::CheckOpticos), Line, Item("About Limoniter", Command::About)];
 
 /// The guide's pages, each a short walk through one kind of work.
 pub(super) const GUIDE: &[Entry] = &[Item("Getting started", Command::Guide(Guide::GettingStarted)), Item("Working on a folder of code", Command::Guide(Guide::Folder)), Item("Assembling and running", Command::Guide(Guide::Assembling))];
@@ -964,6 +1003,7 @@ impl Limoniter {
             PanelFlag::Clipboard => p.clipboard_history,
             PanelFlag::Strings => p.strings,
             PanelFlag::Inspector => p.inspector,
+            PanelFlag::Structure => p.structure,
             PanelFlag::CallGraph => p.call_graph,
             PanelFlag::Instructions => p.instructions,
         }
@@ -991,6 +1031,7 @@ impl Limoniter {
             PanelFlag::Clipboard => &mut p.clipboard_history,
             PanelFlag::Strings => &mut p.strings,
             PanelFlag::Inspector => &mut p.inspector,
+            PanelFlag::Structure => &mut p.structure,
             PanelFlag::CallGraph => &mut p.call_graph,
             PanelFlag::Instructions => &mut p.instructions,
         }
@@ -1033,6 +1074,7 @@ impl Limoniter {
             Flag::CycleCounts => crate::m6502_timing::shown(),
             Flag::AssistantPanel => self.assist_panel.open,
             Flag::Ribbon => v.ribbon,
+            Flag::PhpLintOnSave => self.php.lint_on_save,
             Flag::Panel(panel) => self.panel_on(panel),
         }
     }
@@ -1066,6 +1108,10 @@ impl Limoniter {
             Flag::Ribbon => &mut v.ribbon,
             Flag::GitBlame => {
                 self.git.blame_on = !self.git.blame_on;
+                return;
+            }
+            Flag::PhpLintOnSave => {
+                self.php.lint_on_save = !self.php.lint_on_save;
                 return;
             }
             Flag::CycleCounts => {
@@ -1119,6 +1165,7 @@ impl Limoniter {
             Command::Undo => if hex { doc.hex.can_undo() } else { t.can_undo() },
             Command::Redo => if hex { doc.hex.can_redo() } else { t.can_redo() },
             Command::Copy | Command::Cut => selected,
+            Command::GoBackVersion => self.can_go_back(),
             Command::FindNext | Command::FindPrevious => !self.find.find.is_empty(),
             Command::NavBack => self.jumps.can_go_back(),
             Command::NavForward => self.jumps.can_go_forward(),
@@ -1127,7 +1174,7 @@ impl Limoniter {
             Command::CopyPath | Command::RenameFile | Command::ShowInExplorer | Command::OpenWithDefault => doc.path.is_some(),
             Command::SendTo(n) if matches!(self.sends.devices.get(n).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => !no_file,
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
-            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOnBuiltIn2600 | Command::RunOn(_) => !no_file,
+            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOnBuiltIn2600 | Command::RunOnBuiltInVectrex | Command::RunOn(_) => !no_file,
             Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
             Command::GoToDefinition | Command::PeekDefinition => !no_file,
             Command::QuickFix => self.has_lsp(),
@@ -1143,6 +1190,7 @@ impl Limoniter {
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
+            Command::TapeSound => !no_file && ((doc.listing_of.is_some() && !hex) || crate::media::tape_sound::may_make(&doc.path_or_name().to_string_lossy())),
             Command::AmigaIcon => doc.picture == Some(crate::pictures::Format::AmigaIcon),
             Command::SavePreviewAsPdf => !no_file && Self::pdf_preview_kind(doc).is_some(),
             Command::SaveDocumentAs(_) => doc.legacy.is_some(),
@@ -1234,6 +1282,8 @@ impl Limoniter {
             | Command::NewAddOn
             | Command::OpenRemote
             | Command::OpenRemoteFolder
+            | Command::OpenZipProject
+            | Command::OpenWebProject
             | Command::ManageDevices
             | Command::Themes
             | Command::Website
@@ -1271,6 +1321,8 @@ impl Limoniter {
             | Command::TimeSpent
             | Command::HowToCode
             | Command::HowToCodeExamples
+            | Command::HowToCodeSpectrum
+            | Command::HowToCodeSpectrumExamples
             | Command::AutoDocs
             | Command::AmigaBootDisk
             | Command::AmigaNewProject
@@ -1289,6 +1341,7 @@ impl Limoniter {
             | Command::SaveDecrunched
             | Command::RasterDesigner
             | Command::Toggle(_) => true,
+            Command::Php(action) => self.php_can(action),
             // Tasks run in the project's folder, so need a project or a file in one.
             Command::BuildTask | Command::TestTask => has_project || !no_file,
             Command::EditTasks => has_project,
@@ -1530,7 +1583,7 @@ impl Limoniter {
             Live::Machines => {
                 // What the file in front would run as, so each machine says whether it can take it.
                 let runnable = if self.no_file() { None } else { self.runnable_quietly().ok().flatten() };
-                let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None)), (super::run_host::Target::BuiltIn2600, super::run_host::BUILT_IN_2600_NAME.to_string(), Pick::Command(Command::RunOnBuiltIn2600))];
+                let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None)), (super::run_host::Target::BuiltIn2600, super::run_host::BUILT_IN_2600_NAME.to_string(), Pick::Command(Command::RunOnBuiltIn2600)), (super::run_host::Target::BuiltInVectrex, super::run_host::BUILT_IN_VECTREX_NAME.to_string(), Pick::Command(Command::RunOnBuiltInVectrex))];
                 targets.extend((0..self.sends.devices.len()).map(|n| (super::run_host::Target::Device(n), self.sends.devices[n].name.clone(), Pick::RunOn(Some(n)))));
                 for (target, name, pick) in targets {
                     let suits = runnable.as_ref().map(|run| self.suits(target, run));
@@ -1770,6 +1823,7 @@ impl Limoniter {
         all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: crate::i18n::tf!("File \u{203A} Send to device \u{203A} {}", device.name), shortcut: "", command: Command::SendTo(number) }));
         all.push(Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_NAME), shortcut: "", command: Command::RunOnBuiltIn });
         all.push(Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_2600_NAME), shortcut: "", command: Command::RunOnBuiltIn2600 });
+        all.push(Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", super::run_host::BUILT_IN_VECTREX_NAME), shortcut: "", command: Command::RunOnBuiltInVectrex });
         all.extend(self.sends.devices.iter().enumerate().map(|(number, device)| Found { path: crate::i18n::tf!("File \u{203A} Run on \u{203A} {}", device.name), shortcut: "", command: Command::RunOn(number) }));
         all.extend(self.addons.commands().into_iter().enumerate().map(|(number, listed)| Found { path: crate::i18n::tf!("Tools \u{203A} Add-ons \u{203A} {} \u{203A} {}", listed.addon, listed.title), shortcut: "", command: Command::AddOn(number) }));
         let mut found = hidden_commands(&query);

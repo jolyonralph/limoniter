@@ -1,0 +1,203 @@
+# MS-DOS executables (MZ) and the Windows programs and libraries built on them (PE): the DOS header and its
+# relocations, then for a Windows file the PE header, the optional header, its data directories and the section
+# table (Microsoft's PE Format specification; the MS-DOS Encyclopedia for MZ).
+name "MS-DOS or Windows executable (MZ, PE)"
+magic str(0, 2) == "MZ" || str(0, 2) == "ZM"
+order little
+
+enum Machine : u16 {
+    unknown = 0
+    i386 = 0x14C "Intel 386 and later"
+    R4000 = 0x166
+    Alpha = 0x184
+    SH3 = 0x1A2
+    ARM = 0x1C0
+    Thumb = 0x1C2
+    ARMv7 = 0x1C4
+    PowerPC = 0x1F0
+    IA64 = 0x200
+    MIPS16 = 0x266
+    Alpha64 = 0x284
+    AMD64 = 0x8664 "x86-64"
+    M32R = 0x9041
+    ARM64 = 0xAA64
+    RISCV64 = 0x5064
+}
+
+flags Characteristics : u16 {
+    RELOCS_STRIPPED = 0x0001
+    EXECUTABLE_IMAGE = 0x0002
+    LINE_NUMS_STRIPPED = 0x0004
+    LOCAL_SYMS_STRIPPED = 0x0008
+    LARGE_ADDRESS_AWARE = 0x0020
+    BYTES_REVERSED_LO = 0x0080
+    MACHINE_32BIT = 0x0100
+    DEBUG_STRIPPED = 0x0200
+    REMOVABLE_RUN_FROM_SWAP = 0x0400
+    NET_RUN_FROM_SWAP = 0x0800
+    SYSTEM = 0x1000
+    DLL = 0x2000 "A library"
+    UP_SYSTEM_ONLY = 0x4000
+}
+
+enum Subsystem : u16 {
+    unknown = 0
+    native = 1
+    windows_gui = 2 "A Windows program with windows"
+    windows_console = 3 "A Windows program for the command line"
+    os2_console = 5
+    posix_console = 7
+    windows_ce_gui = 9
+    efi_application = 10
+    efi_boot_driver = 11
+    efi_runtime_driver = 12
+    efi_rom = 13
+    xbox = 14
+    windows_boot_application = 16
+}
+
+flags DllCharacteristics : u16 {
+    HIGH_ENTROPY_VA = 0x0020
+    DYNAMIC_BASE = 0x0040 "Can be loaded anywhere (ASLR)"
+    FORCE_INTEGRITY = 0x0080
+    NX_COMPAT = 0x0100 "Works with data execution prevention"
+    NO_ISOLATION = 0x0200
+    NO_SEH = 0x0400
+    NO_BIND = 0x0800
+    APPCONTAINER = 0x1000
+    WDM_DRIVER = 0x2000
+    GUARD_CF = 0x4000
+    TERMINAL_SERVER_AWARE = 0x8000
+}
+
+flags SectionFlags : u32 {
+    CODE = 0x00000020
+    INITIALIZED_DATA = 0x00000040
+    UNINITIALIZED_DATA = 0x00000080
+    DISCARDABLE = 0x02000000
+    SHARED = 0x10000000
+    EXECUTE = 0x20000000
+    READ = 0x40000000
+    WRITE = 0x80000000
+}
+
+struct Relocation {
+    u16 offset : hex
+    u16 segment : hex
+}
+
+struct DataDirectory {
+    u32 address : hex
+    u32 size
+}
+
+struct Section {
+    char name[8]
+    u32 virtual_size
+    u32 virtual_address : hex
+    u32 raw_size
+    u32 raw_offset : hex "Where the section's bytes are in the file"
+    u32 relocations_offset : hex
+    u32 line_numbers_offset : hex
+    u16 relocation_count
+    u16 line_number_count
+    SectionFlags characteristics
+    label name
+}
+
+struct DosHeader {
+    char magic[2]
+    u16 last_page_bytes "Bytes used in the last 512-byte page"
+    u16 pages "The file's length in 512-byte pages, counting the last"
+    u16 relocation_count
+    u16 header_paragraphs "The header's length in 16-byte paragraphs"
+    u16 min_extra_paragraphs
+    u16 max_extra_paragraphs
+    u16 initial_SS : hex
+    u16 initial_SP : hex
+    u16 checksum : hex
+    u16 initial_IP : hex
+    u16 initial_CS : hex
+    u16 relocations_offset : hex
+    u16 overlay
+    if relocations_offset >= 0x40 && file_size >= 0x40 {
+        u16 reserved[4]
+        u16 oem_id
+        u16 oem_info
+        u16 reserved2[10]
+        u32 new_header : hex "Where a Windows, OS/2 or DOS-extender header is"
+    }
+}
+
+struct PeHeader {
+    char signature[4]
+    Machine machine
+    u16 section_count
+    u32 time_date_stamp : unix
+    u32 symbol_table : hex
+    u32 symbol_count
+    u16 optional_header_size
+    Characteristics characteristics
+    let optional_start = here
+    if optional_header_size >= 2 {
+        u16 magic : hex "0x10B for PE32, 0x20B for PE32+ (64-bit)"
+        let wide = magic == 0x20B
+        u8 linker_major
+        u8 linker_minor
+        u32 code_size
+        u32 initialized_data_size
+        u32 uninitialized_data_size
+        u32 entry_point : hex
+        u32 code_base : hex
+        if wide {
+            u64 image_base : hex
+        } else {
+            u32 data_base : hex
+            u32 image_base : hex
+        }
+        u32 section_alignment : hex
+        u32 file_alignment : hex
+        u16 os_major
+        u16 os_minor
+        u16 image_major
+        u16 image_minor
+        u16 subsystem_major
+        u16 subsystem_minor
+        u32 win32_version
+        u32 image_size
+        u32 headers_size
+        u32 checksum : hex
+        Subsystem subsystem
+        DllCharacteristics dll_characteristics
+        if wide {
+            u64 stack_reserve : hex
+            u64 stack_commit : hex
+            u64 heap_reserve : hex
+            u64 heap_commit : hex
+        } else {
+            u32 stack_reserve : hex
+            u32 stack_commit : hex
+            u32 heap_reserve : hex
+            u32 heap_commit : hex
+        }
+        u32 loader_flags
+        u32 directory_count
+        DataDirectory directories[min(directory_count, 16)] "Export, import, resource, exception, certificate, base relocation, debug, architecture, global pointer, TLS, load config, bound import, IAT, delay import, CLR and reserved"
+    }
+    goto optional_start + optional_header_size
+    Section sections[section_count]
+}
+
+DosHeader dos
+if dos.relocation_count > 0 && dos.relocations_offset + dos.relocation_count * 4 <= file_size {
+    Relocation relocations[dos.relocation_count] @ dos.relocations_offset
+}
+let code_start = dos.header_paragraphs * 16
+if exists(dos.new_header) && dos.new_header + 4 <= file_size && dos.new_header >= 0x40 && str(dos.new_header, 2) == "PE" {
+    u8 dos_stub[dos.new_header - here] "The MS-DOS program run when this is started from DOS"
+    PeHeader pe
+} else if exists(dos.new_header) && dos.new_header + 2 <= file_size && dos.new_header >= 0x40 && (str(dos.new_header, 2) == "NE" || str(dos.new_header, 2) == "LE" || str(dos.new_header, 2) == "LX") {
+    char new_signature[2] @ dos.new_header "NE: 16-bit Windows or OS/2 1.x. LE or LX: a VxD, OS/2 2 or a DOS extender"
+} else if code_start < file_size {
+    u8 code[min(file_size, dos.pages * 512 - (dos.last_page_bytes == 0 ? 0 : 512 - dos.last_page_bytes)) - code_start] @ code_start "The program's code and data, loaded after the header"
+}

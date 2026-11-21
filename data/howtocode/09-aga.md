@@ -1,5 +1,7 @@
 # 9. AGA
 
+[‹ The display](08-display.md) · [Contents](README.md) · [Chunky to planar ›](10-chunky-to-planar.md)
+
 > **AGA only.** Everything in this chapter needs an AGA machine: an Amiga 1200, an Amiga 4000 or a CD32. The examples check for AGA as they start, and on any other Amiga they show nothing and end at once.
 
 AGA came in 1992 with the A4000 and the A1200, and the CD32 used it the year after. Commodore called it AA; everyone else calls it AGA. Two of the three custom chips are new: **Alice** takes the place of Agnus (DMA, the copper, the blitter), and **Lisa** the place of Denise (the display). Paula, and so the sound, is the same as ever. What AGA adds is all about the display:
@@ -14,9 +16,9 @@ The blitter is the same 16-bit blitter, at the same speed. On an A1200 the proce
 
 There are three examples, each built both ways (taking the machine, and with the system running), like every v8 example:
 
-- `examples/ch09_256colours.s`: 8 bitplanes fetched 64 bits at a time, a picture in all 256 colours, and a 24-bit palette that cycles, set by the copper every frame. The picture is drawn in chunky form and turned into bitplanes once, at the start.
-- `examples/ch09_24bit_gradient.s`: a copper gradient set in 24-bit colour beside the same gradient in 12-bit colour, so the difference shows.
-- `examples/ch09_sprites.s`: four sprites 64 pixels wide, with their colours moved to 224-239 and set in 24 bits, bouncing in quarter-pixel steps.
+- [`examples/ch09_256colours.s`](examples/ch09_256colours.s): 8 bitplanes fetched 64 bits at a time, a picture in all 256 colours, and a 24-bit palette that cycles, set by the copper every frame. The picture is drawn in chunky form and turned into bitplanes once, at the start.
+- [`examples/ch09_24bit_gradient.s`](examples/ch09_24bit_gradient.s): a copper gradient set in 24-bit colour beside the same gradient in 12-bit colour, so the difference shows.
+- [`examples/ch09_sprites.s`](examples/ch09_sprites.s): four sprites 64 pixels wide, with their colours moved to 224-239 and set in 24 bits, bouncing in quarter-pixel steps.
 
 ![ch09_256colours.s on an emulated A1200: 256 colours, each of 24 bits](images/ch09_256colours.png)
 
@@ -439,3 +441,5 @@ Each showed its effect on every AGA machine, and on every machine then the CLI w
 - **The scroll range depends on the fetch mode**, and scrolling at 4x needs a 64-pixel block fetched early, with `DDFSTRT` at `$18`.
 - **The sprite resolution bug**: Kickstart 3.1's own copper list puts the resolution back; a demo that sets `BPLCON3` and `FMODE` in its copper list needn't care.
 - **New**: 24-bit copper gradients, `BPLAM`, the border blank bit, wide sprite data, chunky to planar and the CD32's Akiko.
+
+[‹ The display](08-display.md) · [Contents](README.md) · [Chunky to planar ›](10-chunky-to-planar.md)

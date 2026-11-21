@@ -1,0 +1,170 @@
+# TZX tape images of the ZX Spectrum, Amstrad CPC and ZX81: blocks, each with an ID byte saying what follows
+# (the TZX format specification, revision 1.20).
+name "ZX Spectrum tape (TZX)"
+magic str(0, 8) == "ZXTape!\x1A"
+order little
+
+enum BlockId : u8 {
+    standard_speed = 0x10 "Standard-speed data, as the ROM saves"
+    turbo_speed = 0x11
+    pure_tone = 0x12
+    pulse_sequence = 0x13
+    pure_data = 0x14
+    direct_recording = 0x15
+    csw_recording = 0x18
+    generalized_data = 0x19
+    pause = 0x20 "Pause, or stop the tape"
+    group_start = 0x21
+    group_end = 0x22
+    jump = 0x23
+    loop_start = 0x24
+    loop_end = 0x25
+    call_sequence = 0x26
+    return_from_sequence = 0x27
+    select = 0x28
+    stop_if_48k = 0x2A
+    set_signal_level = 0x2B
+    text_description = 0x30
+    message = 0x31
+    archive_info = 0x32
+    hardware_type = 0x33
+    custom_info = 0x35
+    glue = 0x5A
+}
+
+enum InfoId : u8 {
+    title = 0
+    publisher = 1
+    authors = 2
+    year = 3
+    language = 4
+    type = 5
+    price = 6
+    loader = 7
+    origin = 8
+    comment = 0xFF
+}
+
+enum TapFileType : u8 {
+    program = 0
+    number_array = 1
+    character_array = 2
+    bytes = 3
+}
+
+struct TapeHeader {
+    TapFileType type
+    char filename[10]
+    u16 data_length
+    u16 parameter1 "The autostart line for a program, the start address for bytes"
+    u16 parameter2
+}
+
+struct Info {
+    InfoId id
+    u8 length
+    char text[length]
+    label text
+}
+
+struct Block {
+    BlockId id
+    label id
+    if id == standard_speed {
+        u16 pause "Milliseconds after the block"
+        u16 length
+        if length == 19 && u8(here) == 0 {
+            u8 flag
+            TapeHeader header
+            u8 checksum : hex
+            label header.filename
+        } else {
+            u8 data[length]
+        }
+    } else if id == turbo_speed {
+        u16 pilot_pulse
+        u16 sync1_pulse
+        u16 sync2_pulse
+        u16 zero_pulse
+        u16 one_pulse
+        u16 pilot_pulses
+        u8 last_byte_bits
+        u16 pause
+        u24 length
+        u8 data[length]
+    } else if id == pure_tone {
+        u16 pulse_length
+        u16 pulses
+    } else if id == pulse_sequence {
+        u8 count
+        u16 pulse_lengths[count]
+    } else if id == pure_data {
+        u16 zero_pulse
+        u16 one_pulse
+        u8 last_byte_bits
+        u16 pause
+        u24 length
+        u8 data[length]
+    } else if id == direct_recording {
+        u16 tstates_per_sample
+        u16 pause
+        u8 last_byte_bits
+        u24 length
+        u8 samples[length]
+    } else if id == csw_recording || id == generalized_data {
+        u32 length
+        u8 data[length]
+    } else if id == pause {
+        u16 milliseconds "0 stops the tape"
+    } else if id == group_start {
+        u8 length
+        char group_name[length]
+        label group_name
+    } else if id == group_end || id == loop_end || id == return_from_sequence {
+    } else if id == jump {
+        s16 relative_jump
+    } else if id == loop_start {
+        u16 repetitions
+    } else if id == call_sequence {
+        u16 count
+        s16 offsets[count]
+    } else if id == select {
+        u16 length
+        u8 selections[length]
+    } else if id == stop_if_48k {
+        u32 length
+    } else if id == set_signal_level {
+        u32 length
+        u8 level
+    } else if id == text_description {
+        u8 length
+        char text[length]
+        label text
+    } else if id == message {
+        u8 seconds
+        u8 length
+        char text[length]
+    } else if id == archive_info {
+        u16 length
+        u8 count
+        Info entries[count]
+    } else if id == hardware_type {
+        u8 count
+        u8 entries[count * 3]
+    } else if id == custom_info {
+        char identification[10]
+        u32 length
+        u8 data[length]
+        label identification
+    } else if id == glue {
+        u8 rest[9]
+    } else {
+        stop "A block this template doesn't know, so the rest isn't read"
+    }
+}
+
+char signature[7]
+u8 end_of_text : hex
+u8 major_version
+u8 minor_version
+Block blocks[]

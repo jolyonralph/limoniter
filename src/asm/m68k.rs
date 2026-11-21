@@ -7,8 +7,17 @@
 //! in the source, which wins over the processor chosen in the settings; with neither, the 68000. Each instruction
 //! and addressing mode a processor hasn't got is refused, naming the processor that has it, so code for an A1200
 //! isn't quietly assembled for an A500 that would crash on it.
+//!
+//! The 68881 and 68882 maths coprocessors (and the 68040's and 68060's own FPUs) are in `fpu`, their numbers in
+//! `float`; the MMUs (the 68851 beside a 68020, and the 68030's, 68040's and 68060's own) in `mmu`; and the
+//! 68040's, 68060's and CPU32's own instructions (MOVE16, the caches', LPSTOP, the table lookups) in `later`.
 
-use super::{Isa, Line, split_operands};
+use super::{Isa, Line, fits_32, split_operands, wrap_32};
+
+pub mod float;
+pub mod fpu;
+pub mod later;
+pub mod mmu;
 
 pub struct M68k;
 
@@ -117,6 +126,125 @@ pub fn processor(line: &Line) -> Processor {
     line.setting(SETTING).and_then(Processor::from_id).unwrap_or_default()
 }
 
+/// The setting the maths coprocessor is kept in: 68881 or 68882 when one's chosen, 0 when none is (the 68040's and
+/// 68060's own still count), and -1 when FPU 0 has turned even those off.
+pub const FPU_SETTING: &str = "68k-fpu";
+
+/// The setting FPU's coprocessor number is kept in (1 unless FPU 2 or more says otherwise).
+pub const FPU_ID_SETTING: &str = "68k-fpu-id";
+
+/// A maths coprocessor (FPU) beside the processor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum Fpu {
+    #[default]
+    None,
+    M68881,
+    M68882,
+}
+
+impl Fpu {
+    pub const ALL: [Fpu; 3] = [Fpu::None, Fpu::M68881, Fpu::M68882];
+
+    /// Its name; "None" is to be translated where it's shown.
+    pub fn name(self) -> &'static str {
+        match self {
+            Fpu::None => "None",
+            Fpu::M68881 => "68881",
+            Fpu::M68882 => "68882",
+        }
+    }
+
+    pub fn id(self) -> i64 {
+        match self {
+            Fpu::None => 0,
+            Fpu::M68881 => 68881,
+            Fpu::M68882 => 68882,
+        }
+    }
+
+    pub fn from_id(id: i64) -> Option<Fpu> {
+        Fpu::ALL.into_iter().find(|f| f.id() == id)
+    }
+
+    /// From a name as MACHINE and OPT P= take it: 68881, MC68882.
+    pub fn from_name(name: &str) -> Option<Fpu> {
+        match name.trim().to_ascii_lowercase().trim_start_matches("mc") {
+            "68881" => Some(Fpu::M68881),
+            "68882" => Some(Fpu::M68882),
+            _ => None,
+        }
+    }
+
+    /// Whether code for this processor has FPU instructions with this chosen beside it: the 68040 and 68060 have
+    /// their own.
+    pub fn with(self, cpu: Processor) -> bool {
+        self != Fpu::None || matches!(cpu, Processor::M68040 | Processor::M68060)
+    }
+}
+
+/// The maths coprocessor chosen in the settings for 680x0 source, which MACHINE 68881 in the source adds to.
+static CHOSEN_FPU: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+pub fn chosen_fpu() -> Fpu {
+    Fpu::from_id(CHOSEN_FPU.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or_default()
+}
+
+pub fn choose_fpu(fpu: Fpu) {
+    CHOSEN_FPU.store(fpu.id(), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The setting the 68851 is kept in: 68851 when it's chosen, 0 when it isn't (the 68030's, 68040's and 68060's own
+/// MMUs still count).
+pub const MMU_SETTING: &str = "68k-mmu";
+
+/// A memory management unit (MMU) beside the processor: the 68851 PMMU, which a 68020 may have. The 68030, 68040
+/// and 68060 have their own, so it's chosen only for the others.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum Mmu {
+    #[default]
+    None,
+    M68851,
+}
+
+impl Mmu {
+    pub const ALL: [Mmu; 2] = [Mmu::None, Mmu::M68851];
+
+    /// Its name; "None" is to be translated where it's shown.
+    pub fn name(self) -> &'static str {
+        match self {
+            Mmu::None => "None",
+            Mmu::M68851 => "68851",
+        }
+    }
+
+    pub fn id(self) -> i64 {
+        match self {
+            Mmu::None => 0,
+            Mmu::M68851 => 68851,
+        }
+    }
+
+    pub fn from_id(id: i64) -> Option<Mmu> {
+        Mmu::ALL.into_iter().find(|m| m.id() == id)
+    }
+
+    /// From a name as MACHINE and OPT P= take it: 68851, MC68851.
+    pub fn from_name(name: &str) -> Option<Mmu> {
+        (name.trim().to_ascii_lowercase().trim_start_matches("mc") == "68851").then_some(Mmu::M68851)
+    }
+}
+
+/// The MMU chosen in the settings for 680x0 source, which MACHINE 68851 in the source adds to.
+static CHOSEN_MMU: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+pub fn chosen_mmu() -> Mmu {
+    Mmu::from_id(CHOSEN_MMU.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or_default()
+}
+
+pub fn choose_mmu(mmu: Mmu) {
+    CHOSEN_MMU.store(mmu.id(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// What a processor needs to have for an instruction or addressing mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Need {
@@ -128,6 +256,12 @@ enum Need {
     M68020NotCpu32,
     /// The 68020 alone: CALLM and RTM, which the 68030 dropped.
     Only68020,
+    /// A 68040 or 68060: MOVE16, CINV and CPUSH.
+    M68040,
+    /// A 68060 or a CPU32: LPSTOP.
+    M68060OrCpu32,
+    /// The CPU32 alone: its table lookups and BGND.
+    Cpu32,
 }
 
 /// Refuses `what` (an instruction, or an address) unless the processor has it, saying which processor does.
@@ -137,6 +271,9 @@ fn needs(cpu: Processor, need: Need, what: &str) -> Result<(), String> {
         Need::M68020 => cpu.has_68020_or_cpu32(),
         Need::M68020NotCpu32 => cpu.has_68020(),
         Need::Only68020 => cpu == Processor::M68020,
+        Need::M68040 => matches!(cpu, Processor::M68040 | Processor::M68060),
+        Need::M68060OrCpu32 => matches!(cpu, Processor::M68060 | Processor::Cpu32),
+        Need::Cpu32 => cpu == Processor::Cpu32,
     };
     if has {
         return Ok(());
@@ -148,6 +285,9 @@ fn needs(cpu: Processor, need: Need, what: &str) -> Result<(), String> {
         Need::M68020NotCpu32 if cpu == Processor::Cpu32 => crate::i18n::tf!("{what} needs a 68020 or later: the CPU32 hasn't got it"),
         Need::M68020NotCpu32 => crate::i18n::tf!("{what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another"),
         Need::Only68020 => crate::i18n::tf!("{what} is only the 68020's (the 68030 and later haven't got it), and this is for the {name}: MACHINE 68020 chooses it"),
+        Need::M68040 => crate::i18n::tf!("{what} needs a 68040 or 68060, and this is for the {name}: MACHINE 68040 (or 68060) chooses one"),
+        Need::M68060OrCpu32 => crate::i18n::tf!("{what} is the 68060's and the CPU32's, and this is for the {name}: MACHINE 68060 (or CPU32) chooses one"),
+        Need::Cpu32 => crate::i18n::tf!("{what} is only the CPU32's, and this is for the {name}: MACHINE CPU32 chooses it"),
     })
 }
 
@@ -698,6 +838,21 @@ fn settle(ea: Ea, text: &str, line: &mut Line, cpc: i64, cpu: Processor) -> Resu
     Ok(ea)
 }
 
+/// An immediate as 32 bits hold it (as vasm takes it, so $FFFFFF80 is -128), and anything that doesn't fit its
+/// size warned of and cut to fit: vasm refuses such a value, and quietly using only part of it is a surprise.
+fn cut(v: i64, size: Size, line: &mut Line) -> i64 {
+    if !fits_32(v) {
+        line.warn(crate::i18n::tf!("#{v} doesn't fit in 32 bits; its low 32 bits are used"));
+    }
+    let v = wrap_32(v);
+    match size {
+        Size::Byte if !(-0x80..=0xFF).contains(&v) => line.warn(crate::i18n::tf!("#{v} doesn't fit in a byte (-128 to 255); its low byte, ${:02X}, is used", v as u8)),
+        Size::Word if !(-0x8000..=0xFFFF).contains(&v) => line.warn(crate::i18n::tf!("#{v} doesn't fit in a word (-32768 to 65535); its low 16 bits, ${:04X}, are used", v as u16)),
+        _ => {}
+    }
+    v
+}
+
 /// The extension words an address needs. `at` is where the first of them goes, for PC relative ones.
 fn extension(ea: &Ea, size: Size, line: &mut Line, at: i64) -> Result<Vec<u16>, String> {
     let checking = line.checking();
@@ -728,11 +883,23 @@ fn extension(ea: &Ea, size: Size, line: &mut Line, at: i64) -> Result<Vec<u16>, 
         })
     };
     Ok(match ea {
-        Ea::Displacement(_, d, _) => vec![word(line.eval(d)?, "the offset")?],
+        // The offset is signed: 40000(a0) is 25536 bytes before A0, which vasm refuses and is warned of here.
+        Ea::Displacement(_, d, _) => {
+            let v = line.eval(d)?;
+            let v = if fits_32(v) { wrap_32(v) } else { v };
+            if (0x8000..=0xFFFF).contains(&v) {
+                line.warn(crate::i18n::tf!("the offset {v} is signed, so it's taken as {}, before the address register rather than after it", v - 0x1_0000));
+            }
+            vec![word(v, "the offset")?]
+        }
         Ea::Indexed(_, d, x, _) => vec![brief(x, line.eval(d)?)?],
         // A short address is sign-extended, so $FFFF8240.W is the Atari ST's $FF8240, as vasm takes it.
         Ea::AbsoluteWord(a) => {
             let v = line.eval(a)?;
+            // $8000 to $FFFF are sign-extended too, so $9000.W is $FFFF9000: vasm refuses them.
+            if (0x8000..=0xFFFF).contains(&v) {
+                line.warn(crate::i18n::tf!("${v:X}.W is sign-extended, so it's the address ${:X}; leave off the .W for ${v:X}", v + 0xFFFF_0000));
+            }
             vec![word(if (0xFFFF_8000..=0xFFFF_FFFF).contains(&v) { v - 0x1_0000_0000 } else { v }, "the address")?]
         }
         Ea::AbsoluteLong(a) => {
@@ -757,6 +924,7 @@ fn extension(ea: &Ea, size: Size, line: &mut Line, at: i64) -> Result<Vec<u16>, 
         }
         Ea::Immediate(v) => {
             let v = line.eval(v)?;
+            let v = cut(v, size, line);
             match size {
                 Size::Byte => vec![v as u8 as u16],
                 Size::Word => vec![v as u16],
@@ -798,12 +966,37 @@ const OTHERS: [&str; 65] = [
 /// The 68010's instructions, and the 68020's and 68030's (but for the conditional traps, told by their names).
 const LATER: [&str; 23] = ["movec", "moves", "rtd", "bkpt", "bfchg", "bfclr", "bfexts", "bfextu", "bfffo", "bfins", "bfset", "bftst", "cas", "cas2", "chk2", "cmp2", "divsl", "divul", "extb", "pack", "unpk", "rtm", "callm"];
 
-/// MOVEC's control registers: the code, and which processors have the register (the 68040's and 68060's own
-/// come with their MMUs, later).
-const CONTROL: [(&str, u16, &[Processor]); 8] = {
+/// MOVEC's control registers: the code, and which processors have the register. The 68040's and 68060's MMU
+/// registers are here (their MMUs have no PMOVE); IACR0, IACR1, DACR0 and DACR1 are the 68EC040's names for the
+/// transparent translation registers, which vasm takes too, after the names that are written.
+const CONTROL: [(&str, u16, &[Processor]); 22] = {
     use Processor::*;
     const ALL: &[Processor] = &[M68010, M68020, M68030, M68040, M68060, Cpu32];
-    [("sfc", 0x000, ALL), ("dfc", 0x001, ALL), ("usp", 0x800, ALL), ("vbr", 0x801, ALL), ("cacr", 0x002, &[M68020, M68030, M68040, M68060]), ("caar", 0x802, &[M68020, M68030]), ("msp", 0x803, &[M68020, M68030, M68040]), ("isp", 0x804, &[M68020, M68030, M68040])]
+    const LATE: &[Processor] = &[M68040, M68060];
+    [
+        ("sfc", 0x000, ALL),
+        ("dfc", 0x001, ALL),
+        ("usp", 0x800, ALL),
+        ("vbr", 0x801, ALL),
+        ("cacr", 0x002, &[M68020, M68030, M68040, M68060]),
+        ("caar", 0x802, &[M68020, M68030]),
+        ("msp", 0x803, &[M68020, M68030, M68040]),
+        ("isp", 0x804, &[M68020, M68030, M68040]),
+        ("tc", 0x003, LATE),
+        ("itt0", 0x004, LATE),
+        ("itt1", 0x005, LATE),
+        ("dtt0", 0x006, LATE),
+        ("dtt1", 0x007, LATE),
+        ("buscr", 0x008, &[M68060]),
+        ("mmusr", 0x805, &[M68040]),
+        ("urp", 0x806, LATE),
+        ("srp", 0x807, LATE),
+        ("pcr", 0x808, &[M68060]),
+        ("iacr0", 0x004, LATE),
+        ("iacr1", 0x005, LATE),
+        ("dacr0", 0x006, LATE),
+        ("dacr1", 0x007, LATE),
+    ]
 };
 
 /// A control register's name, from its code in MOVEC, if the processor has it.
@@ -853,12 +1046,17 @@ impl Isa for M68k {
     }
 
     fn is_instruction(&self, word: &str) -> bool {
+        let base = word.rsplit_once('.').map_or(word, |(name, _)| name);
+        if fpu::is_instruction(base) || mmu::is_instruction(base) || later::is_instruction(base) {
+            return true;
+        }
         let (name, _) = split_size(word);
         PLAIN.iter().any(|(n, _)| *n == name) || OTHERS.contains(&name) || LATER.contains(&name) || is_branch(name) || is_dbcc(name) || is_scc(name) || trap_condition(name).is_some()
     }
 
     fn is_directive(&self, word: &str) -> bool {
-        word == "machine" || word == "cpu32" || word.strip_prefix("mc").and_then(Processor::from_name).is_some()
+        word == "machine" || word == "cpu32" || word == "fpu" || word == "pmmu" || word.strip_prefix("mc").is_some_and(|n| Processor::from_name(n).is_some() || Fpu::from_name(n).is_some() || Mmu::from_name(n).is_some()) || float_directive(word).is_some()
+            || word.split_once('.').is_some_and(|(name, size)| matches!(name, "ds" | "rs" | "blk") && matches!(size, "s" | "d" | "x" | "p"))
     }
 
     /// MACHINE 68020, MC68020 and CPU32, as vasm takes them, and Devpac's OPT P=68020.
@@ -866,29 +1064,60 @@ impl Isa for M68k {
         let chosen = match word {
             "machine" => {
                 let name = operands.trim();
-                // The maths chips and the 68851 MMU are chosen beside the processor, and change nothing here yet.
-                if matches!(name.to_ascii_lowercase().trim_start_matches("mc"), "68881" | "68882" | "68851") {
+                // The maths chips and the 68851 MMU are chosen beside the processor.
+                if let Some(fpu) = Fpu::from_name(name) {
+                    line.set_setting(FPU_SETTING, fpu.id());
+                    return Some(Ok(Vec::new()));
+                }
+                if let Some(mmu) = Mmu::from_name(name) {
+                    line.set_setting(MMU_SETTING, mmu.id());
                     return Some(Ok(Vec::new()));
                 }
                 match Processor::from_name(name) {
                     Some(p) => p,
-                    None => return Some(Err(crate::i18n::tf!("MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060 or CPU32, and {name} isn't one"))),
+                    None => return Some(Err(crate::i18n::tf!("MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881, 68882 or 68851, and {name} isn't one"))),
                 }
             }
             "cpu32" => Processor::Cpu32,
+            // vasm's FPU 1: the coprocessor's number (1 to 7, always 1 for the 68040's and 68060's own); FPU 0
+            // turns it off.
+            "fpu" => return Some(fpu_directive(operands, line)),
+            // PhxAss's PMMU: the 68851's instructions, for a 68020.
+            "pmmu" => {
+                if !operands.trim().is_empty() {
+                    return Some(Err(crate::i18n::tr("PMMU takes nothing after it").into()));
+                }
+                line.set_setting(MMU_SETTING, Mmu::M68851.id());
+                return Some(Ok(Vec::new()));
+            }
             "opt" => {
                 // OPT P=68020 (or P=68020/68881); the rest of the line is the assembler's.
                 for option in operands.split([',', ' ', '\t']) {
-                    if let Some(name) = option.trim().to_ascii_lowercase().strip_prefix("p=")
-                        && let Some(p) = name.split('/').find_map(Processor::from_name)
-                    {
-                        line.set_setting(SETTING, p.id());
+                    if let Some(name) = option.trim().to_ascii_lowercase().strip_prefix("p=") {
+                        if let Some(p) = name.split('/').find_map(Processor::from_name) {
+                            line.set_setting(SETTING, p.id());
+                        }
+                        if let Some(fpu) = name.split('/').find_map(Fpu::from_name) {
+                            line.set_setting(FPU_SETTING, fpu.id());
+                        }
+                        if let Some(mmu) = name.split('/').find_map(Mmu::from_name) {
+                            line.set_setting(MMU_SETTING, mmu.id());
+                        }
                     }
                 }
                 return None;
             }
-            _ => match word.strip_prefix("mc").and_then(Processor::from_name) {
-                Some(p) if operands.trim().is_empty() => p,
+            _ if float_directive(word).is_some() => return Some(float_data(word, operands, line)),
+            _ => match word.strip_prefix("mc") {
+                Some(name) if operands.trim().is_empty() && Fpu::from_name(name).is_some() => {
+                    line.set_setting(FPU_SETTING, Fpu::from_name(name).unwrap_or_default().id());
+                    return Some(Ok(Vec::new()));
+                }
+                Some(name) if operands.trim().is_empty() && Mmu::from_name(name).is_some() => {
+                    line.set_setting(MMU_SETTING, Mmu::M68851.id());
+                    return Some(Ok(Vec::new()));
+                }
+                Some(name) if operands.trim().is_empty() && Processor::from_name(name).is_some() => Processor::from_name(name).unwrap_or_default(),
                 _ => return None,
             },
         };
@@ -937,6 +1166,16 @@ fn bit_field(text: &str, line: &mut Line) -> Result<(String, u16), String> {
 }
 
 fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, String> {
+    let base = mnemonic.rsplit_once('.').map_or(mnemonic, |(name, _)| name);
+    if fpu::is_instruction(base) {
+        return fpu::encode(mnemonic, operands, line);
+    }
+    if mmu::is_instruction(base) {
+        return mmu::encode(mnemonic, operands, line);
+    }
+    if later::is_instruction(base) {
+        return later::encode(mnemonic, operands, line);
+    }
     let (name, size) = split_size(mnemonic);
     let upper = mnemonic.to_ascii_uppercase();
     let here = line.here();
@@ -1046,6 +1285,9 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         let cc = if name == "dbra" { 1 } else { condition(&name[2..]).unwrap_or(1) };
         let [Ea::D(r), _] = ops.as_slice() else { return wrong() };
         let offset = line.eval(&texts[1])? - (here + 2);
+        if line.checking() && !(-32768..=32767).contains(&offset) {
+            return Err(crate::i18n::tf!("{} is too far away for a branch", texts[1]));
+        }
         return Ok(vec![0x50C8 | cc << 8 | r, offset as u16]);
     }
     if is_scc(name) {
@@ -1065,8 +1307,16 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
     match (name, ops.as_slice()) {
         ("moveq", [Ea::Immediate(v), Ea::D(r)]) => {
             let v = line.eval(v)?;
+            // Of 32 bits, as vasm takes it: $FFFFFF8F is -113.
+            let v = if fits_32(v) { wrap_32(v) } else { v };
             if line.checking() && !(-128..=255).contains(&v) {
                 return Err(crate::i18n::tf!("MOVEQ takes -128 to 127, and {v} isn't"));
+            }
+            // Its byte is signed, filling all 32 bits: MOVEQ #143 puts -113 there, which vasm warns of too.
+            // MOVEQ.L says it's meant, as vasm takes it.
+            if v > 127 && size != Some(Size::Long) {
+                let signed = v - 256;
+                line.warn(crate::i18n::tf!("MOVEQ's value is a signed byte, so #{v} puts {signed} in D{r}, not {v}: write #{signed} if that's meant, or use MOVE.L #{v},D{r}"));
             }
             Ok(vec![0x7000 | r << 9 | (v as u8 as u16)])
         }
@@ -1247,7 +1497,10 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         }
         ("jmp", [ea]) => with(0x4EC0 | ea.bits(), &[(ea, Size::Long)], line),
         ("jsr", [ea]) => with(0x4E80 | ea.bits(), &[(ea, Size::Long)], line),
-        ("stop", [Ea::Immediate(v)]) => Ok(vec![0x4E72, line.eval(v)? as u16]),
+        ("stop", [Ea::Immediate(v)]) => {
+            let v = line.eval(v)?;
+            Ok(vec![0x4E72, cut(v, Size::Word, line) as u16])
+        }
         ("trap", [Ea::Immediate(v)]) => {
             let n = line.eval(v)?;
             if line.checking() && !(0..16).contains(&n) {
@@ -1260,7 +1513,13 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
             let v = line.eval(v)?;
             Ok(vec![0x4808 | r, (v >> 16) as u16, v as u16])
         }
-        ("link", [Ea::A(r), Ea::Immediate(v)]) => Ok(vec![0x4E50 | r, line.eval(v)? as u16]),
+        ("link", [Ea::A(r), Ea::Immediate(v)]) => {
+            let v = cut(line.eval(v)?, Size::Word, line);
+            if (0x8000..=0xFFFF).contains(&v) {
+                line.warn(crate::i18n::tf!("LINK's value is signed, so #{v} is taken as {}: write #{} if that's meant", v - 0x1_0000, v - 0x1_0000));
+            }
+            Ok(vec![0x4E50 | r, v as u16])
+        }
         ("unlk", [Ea::A(r)]) => Ok(vec![0x4E58 | r]),
         ("swap", [Ea::D(r)]) => Ok(vec![0x4840 | r]),
         ("ext", [Ea::D(r)]) => Ok(vec![if sz == Size::Long { 0x48C0 } else { 0x4880 } | r]),
@@ -1290,7 +1549,11 @@ fn encode(mnemonic: &str, operands: &str, line: &mut Line) -> Result<Vec<u16>, S
         }
         ("rtd", [Ea::Immediate(v)]) => {
             needs(cpu, Need::M68010, "RTD")?;
-            Ok(vec![0x4E74, line.eval(v)? as u16])
+            let v = cut(line.eval(v)?, Size::Word, line);
+            if (0x8000..=0xFFFF).contains(&v) {
+                line.warn(crate::i18n::tf!("RTD's value is signed, so #{v} is taken as {}: write #{} if that's meant", v - 0x1_0000, v - 0x1_0000));
+            }
+            Ok(vec![0x4E74, v as u16])
         }
         ("bkpt", [Ea::Immediate(v)]) => {
             needs(cpu, Need::M68010, "BKPT")?;
@@ -1427,4 +1690,50 @@ fn immediate(name: &str, sz: Size, src: &Ea, dst: &Ea, with: &With, line: &mut L
         _ => 0x0C00,
     };
     with(base | sz.bits() << 6 | dst.bits(), &[(src, sz), (dst, sz)], line)
+}
+
+/// FPU 1 to 7: the maths coprocessor's number, 68881 if none's chosen yet. FPU 0 turns it off.
+fn fpu_directive(operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
+    let id = line.eval(operands)?;
+    let cpu = processor(line);
+    if id == 0 {
+        line.set_setting(FPU_SETTING, -1);
+        return Ok(Vec::new());
+    }
+    if !(1..=7).contains(&id) {
+        return Err(crate::i18n::tf!("FPU takes the coprocessor's number, 1 to 7 (or 0 for none), and {id} isn't one"));
+    }
+    if id != 1 && matches!(cpu, Processor::M68040 | Processor::M68060) {
+        let cpu_name = cpu.name();
+        return Err(crate::i18n::tf!("The {cpu_name}'s own FPU is always number 1"));
+    }
+    if line.setting(FPU_SETTING).unwrap_or(0) <= 0 {
+        line.set_setting(FPU_SETTING, Fpu::M68881.id());
+    }
+    line.set_setting(FPU_ID_SETTING, id);
+    Ok(Vec::new())
+}
+
+/// DC.S, DC.D, DC.X and DC.P (and DCB's) for floating-point numbers: the format.
+fn float_directive(word: &str) -> Option<float::Format> {
+    let (name, size) = word.split_once('.')?;
+    let format = float::Format::from_letter(size).filter(|f| f.is_float())?;
+    matches!(name, "dc" | "dcb").then_some(format)
+}
+
+/// What DC.S, DC.D, DC.X or DC.P makes of numbers, or DCB of one repeated; DS's room is the assembler's own.
+fn float_data(word: &str, operands: &str, line: &mut Line) -> Result<Vec<u8>, String> {
+    let format = float_directive(word).unwrap_or(float::Format::Single);
+    let items = split_operands(operands);
+    let mut eval = |t: &str| line.eval(t);
+    if word.starts_with("dcb") {
+        let count = eval(items.first().map(String::as_str).unwrap_or("0"))?.clamp(0, 0x100_0000);
+        let one = float::constant(items.get(1).map(String::as_str).unwrap_or("0"), format, &mut eval)?;
+        return Ok(one.repeat(count as usize));
+    }
+    let mut bytes = Vec::new();
+    for item in &items {
+        bytes.extend(float::constant(item, format, &mut eval)?);
+    }
+    Ok(bytes)
 }

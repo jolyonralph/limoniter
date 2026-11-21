@@ -119,7 +119,7 @@ pub const SCHEMES: [EmbeddedThemeName; 29] = [
 ];
 
 /// Grammars written for Limoniter, added to the ones from two-face.
-const OWN_GRAMMARS: [(&str, &str); 46] = [
+const OWN_GRAMMARS: [(&str, &str); 51] = [
     (ASM_80X86, include_str!("../data/syntaxes/assembly-80x86.sublime-syntax")),
     (ASM_680X0, include_str!("../data/syntaxes/assembly-680x0.sublime-syntax")),
     (ASM_680X0_GNU, include_str!("../data/syntaxes/assembly-680x0-gnu.sublime-syntax")),
@@ -166,7 +166,20 @@ const OWN_GRAMMARS: [(&str, &str); 46] = [
     (ZIL, include_str!("../data/syntaxes/zil.sublime-syntax")),
     (AMIGA_E, include_str!("../data/syntaxes/amiga-e.sublime-syntax")),
     (BASIC_BORIEL, include_str!("../data/syntaxes/basic-boriel.sublime-syntax")),
+    (SSEM, include_str!("../data/syntaxes/assembly-ssem.sublime-syntax")),
+    (EDSAC, include_str!("../data/syntaxes/edsac.sublime-syntax")),
+    (PAL8, include_str!("../data/syntaxes/assembly-pal.sublime-syntax")),
+    (TURBO_RASCAL, include_str!("../data/syntaxes/turbo-rascal.sublime-syntax")),
+    (BASIC_RGC, include_str!("../data/syntaxes/basic-rgc.sublime-syntax")),
 ];
+/// TRSE's language, Turbo Rascal, which F9 builds with TRSE (see `compilers`).
+pub const TURBO_RASCAL: &str = "Turbo Rascal (TRSE)";
+/// Retro Game Coders' RGC BASIC, which F9 runs with its own interpreter.
+pub const BASIC_RGC: &str = "BASIC (RGC BASIC)";
+/// The teaching machines' languages: the Manchester Baby's instructions, EDSAC's tape, and PAL for the PDP-8.
+pub const SSEM: &str = "Manchester Baby (SSEM)";
+pub const EDSAC: &str = "EDSAC (Initial Orders)";
+pub const PAL8: &str = "PAL (PDP-8)";
 const AMIGA_E: &str = "Amiga E";
 const ASM_680X0: &str = "Assembly 680x0";
 /// 68000 source in GNU as's dialect, as m68k-amigaos-as reads it, rather than Motorola's (vasm's and Devpac's).
@@ -278,6 +291,10 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
         if names.iter().any(|(name, size)| M68K.contains(name) || (matches!(*size, "b" | "w" | "l") && !name.is_empty())) {
             m68k += 1;
         }
+        // MACHINE 68008 (or MC68020 and the rest), which only 680x0 source has, says it outright.
+        if words.iter().take(places).position(|w| *w == "machine").is_some_and(|at| words.get(at + 1).is_some_and(|p| p.trim_start_matches("mc").starts_with("680"))) {
+            m68k += MIN_ASM_EVIDENCE;
+        }
         if names.iter().any(|(name, _)| M6502.contains(name)) {
             m6502 += 1;
         }
@@ -300,8 +317,10 @@ pub fn guess_assembly(lines: &[std::sync::Arc<str>]) -> Option<&'static str> {
         if names.iter().any(|(name, _)| HLASM.contains(name)) {
             hlasm += 1;
         }
-        for (count, _, mnemonics) in &mut others {
-            if words.iter().take(places).any(|word| mnemonics.contains(word)) {
+        // MOVEQ is the 68000's as well as a conditional ARM move: on the 68000's registers, it's the 68000's.
+        let on_68k_registers = tokens.iter().any(|t| t.len() == 2 && matches!(t.as_bytes(), [b'a' | b'd', b'0'..=b'7']));
+        for (count, name, mnemonics) in &mut others {
+            if words.iter().take(places).any(|word| mnemonics.contains(word) && !(*name == ASM_ARM && *word == "moveq" && on_68k_registers)) {
                 *count += 1;
             }
         }
@@ -373,6 +392,9 @@ pub fn guess_basic(lines: &[std::sync::Arc<str>]) -> &'static str {
     if crate::boriel::looks_like_boriel(lines) {
         return BASIC_BORIEL;
     }
+    if looks_like_rgc_basic(lines) {
+        return BASIC_RGC;
+    }
     const SINCLAIR: [&str; 14] = ["GO TO", "GO SUB", "BORDER ", "PAPER ", "INK ", "BRIGHT ", "RANDOMIZE", "{INK", "{AT ", "{UDG-", "DEFPROC", "LAYER ", "ENDPROC", "DEF FN "];
     const COMMODORE: [&str; 12] = ["{clr}", "{home}", "{rvon}", "{rvof}", "{down}", "{rght}", "{wht}", "{red}", "{blu}", "POKE53280", "POKE 53280", "{cyn}"];
     let (mut sinclair, mut commodore) = (0, 0);
@@ -388,6 +410,24 @@ pub fn guess_basic(lines: &[std::sync::Arc<str>]) -> &'static str {
     } else {
         BASIC_QBASIC
     }
+}
+
+/// Whether lines read as RGC BASIC: two or more of the words only it has, for its sprites, sound, screen and
+/// structured blocks, or the comment its File, New starter begins with.
+pub fn looks_like_rgc_basic(lines: &[std::sync::Arc<str>]) -> bool {
+    const OWN: [&str; 22] = ["LOADSPRITE", "DRAWSPRITE", "SPRITE STAMP", "SPRITECOLLIDE", "LOADSOUND", "PLAYSOUND", "LOADMUSIC", "PLAYMUSIC", "DOUBLEBUFFER", "SCREEN BUFFER", "SCREEN SWAP", "FILLRECT", "FILLCIRCLE", "DRAWTEXT", "TEXTAT", "KEYDOWN(", "KEYPRESS(", "PLATFORM$", "END FUNCTION", "FOREACH ", "TILEMAP DRAW", "IMAGE NEW"];
+    let mut found = 0;
+    for line in lines.iter().take(400) {
+        let upper = line.to_uppercase();
+        if upper.contains("RGC BASIC") {
+            return true;
+        }
+        found += OWN.iter().filter(|word| upper.contains(*word)).count();
+        if found >= 2 {
+            return true;
+        }
+    }
+    false
 }
 
 /// Whether lines read as an Amiga Installer script, whatever the file is called (Install-English, Install_HD, ...):
@@ -588,6 +628,10 @@ impl Engine {
         // A PICO-8 cart is mostly its Lua code (its data, after, is plain hex either way).
         if extension.as_deref() == Some("p8") {
             return self.syntaxes.syntaxes().iter().position(|s| s.name == "Lua");
+        }
+        // A TRSE project is a settings file of name = value lines.
+        if extension.as_deref() == Some("trse") {
+            return self.syntaxes.syntaxes().iter().position(|s| s.name == "INI");
         }
         if extension.as_deref() == Some("bas") {
             let name = guess_basic(sample);
@@ -1053,6 +1097,28 @@ mod tests {
         }
     }
 
+    /// The teaching machines' source: the Baby's, EDSAC's tape and PAL each know their comments from their
+    /// instructions and numbers.
+    #[test]
+    fn the_teaching_machines_sources_are_coloured() {
+        let engine = test_engine();
+        for (file, name) in [("first.ssem", SSEM), ("squares.edsac", EDSAC), ("hello.pal", PAL8), ("FOCAL.PA", PAL8)] {
+            assert_eq!(syntax_for(&file.to_lowercase()).map(|s| engine.name_of(s)), Some(name), "{file}");
+        }
+        let (colours, buffer) = assembler_colours("first.ssem", &["01: LDN 24     ; -24 to C", "20: NUM -3"]);
+        let comment = colour_of_word(&colours, &buffer, 0, "to C");
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "LDN"), comment);
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "LDN"), colour_of_word(&colours, &buffer, 0, "24 "));
+        let (colours, buffer) = assembler_colours("squares.edsac", &["T123S [the first word]", "E84S"]);
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "T123"), colour_of_word(&colours, &buffer, 0, "first"));
+        assert_ne!(colour_of_word(&colours, &buffer, 1, "E"), colour_of_word(&colours, &buffer, 1, "84"));
+        let (colours, buffer) = assembler_colours("hello.pal", &["START,  CLA CLL         / clear them", "        TAD I 10"]);
+        let comment = colour_of_word(&colours, &buffer, 0, "clear them");
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "CLA"), comment);
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "START"), colour_of_word(&colours, &buffer, 0, "CLA"));
+        assert_ne!(colour_of_word(&colours, &buffer, 1, "TAD"), colour_of_word(&colours, &buffer, 1, "10"));
+    }
+
     #[test]
     fn every_grammar_written_here_loads_under_its_own_name() {
         for (name, text) in OWN_GRAMMARS {
@@ -1118,6 +1184,9 @@ mod tests {
         assert_eq!(guess(&["       movl r0,r1", "       pushl #1", "       calls #1,foo", "       addl2 r1,r2", "       brb loop"]), Some(ASM_VAX));
         assert_eq!(guess(&["       ldi r16,0xff", "       out DDRB,r16", "       rjmp loop", "       sbi PORTB,0", "       rcall delay"]), Some(ASM_AVR));
         assert_eq!(guess(&["       movlw 0xff", "       movwf TRISB", "       bsf STATUS,RP0", "       btfss PORTA,0", "       decfsz count,f"]), Some(ASM_PIC));
+        // The QL's starter: its many MOVEQs are the 68000's (on d0 to d7), not ARM's, and MACHINE says so.
+        assert_eq!(guess_assembly(&crate::ql::STARTER.lines().map(std::sync::Arc::from).collect::<Vec<_>>()), Some(ASM_680X0));
+        assert_eq!(guess(&["       moveq r0,#1", "       ldr r1,[r2]", "       str r1,[r3]", "       bl  print"]), Some(ASM_ARM), "ARM's MOVEQ is still ARM's");
         let (colours, buffer) = assembler_colours("blink.avr", &["; set up", "main:   ldi r16, 0xFF   ; all out", "        rjmp main"]);
         let comment = colour_of_word(&colours, &buffer, 0, "set");
         assert_eq!(colour_of_word(&colours, &buffer, 1, "all"), comment);

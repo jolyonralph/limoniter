@@ -1,0 +1,78 @@
+# Windows and OS/2 bitmaps (.bmp): the file header, the information header, the palette and the pixels
+# (Microsoft's BITMAPFILEHEADER, BITMAPINFOHEADER, BITMAPV4HEADER and BITMAPV5HEADER).
+name "Windows bitmap (BMP)"
+endings bmp dib rle
+magic str(0, 2) == "BM"
+order little
+
+enum Compression : u32 {
+    BI_RGB = 0 "Not packed"
+    BI_RLE8 = 1
+    BI_RLE4 = 2
+    BI_BITFIELDS = 3 "Each pixel's colours picked out by masks"
+    BI_JPEG = 4
+    BI_PNG = 5
+    BI_ALPHABITFIELDS = 6
+}
+
+struct Colour {
+    u8 blue
+    u8 green
+    u8 red
+    if palette_entry == 4 {
+        u8 reserved
+    }
+    label red * 65536 + green * 256 + blue
+}
+
+char signature[2]
+u32 file_size_given "The file's size, as the header gives it"
+u16 reserved1
+u16 reserved2
+u32 pixels_offset : hex "Where the pixels start"
+u32 header_size "12 for OS/2 1.x, 40 for Windows 3, 108 for V4, 124 for V5"
+if header_size == 12 {
+    u16 width
+    u16 height
+    u16 planes
+    u16 bits_per_pixel
+    let colours_used = 0
+    let palette_entry = 3
+    let compression = BI_RGB
+} else {
+    s32 width
+    s32 height "Below 0 for a picture stored from the top down"
+    u16 planes
+    u16 bits_per_pixel
+    Compression compression
+    u32 image_size
+    s32 x_pixels_per_metre
+    s32 y_pixels_per_metre
+    u32 colours_used "0 for all that the bits per pixel allow"
+    u32 colours_important
+    let palette_entry = 4
+    if header_size >= 52 || compression == BI_BITFIELDS {
+        u32 red_mask : hex
+        u32 green_mask : hex
+        u32 blue_mask : hex
+    }
+    if header_size >= 56 {
+        u32 alpha_mask : hex
+    }
+    if header_size >= 108 {
+        char colour_space[4]
+        s32 endpoints[9]
+        u32 gamma[3]
+    }
+    if header_size >= 124 {
+        u32 intent
+        u32 profile_data
+        u32 profile_size
+        u32 reserved
+    }
+    goto 14 + header_size + (header_size == 40 && compression == BI_BITFIELDS ? 12 : 0)
+}
+if bits_per_pixel <= 8 {
+    Colour palette[min(colours_used == 0 ? 1 << bits_per_pixel : colours_used, (pixels_offset - here) / palette_entry)]
+}
+u8 pixels[file_size - pixels_offset] @ pixels_offset "Rows from the bottom up, each padded to four bytes"

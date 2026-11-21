@@ -43,10 +43,23 @@ pub const KNOWN: &[Emulator] = &[
         programs: &["zesarux"],
         folder_hints: &["zesarux"],
         mac_apps: &[("ZEsarUX.app", "zesarux")],
-        machines: &[Spectrum48, Spectrum128, SpectrumPlus3, Pentagon, Next, Zx81, JupiterAce],
-        formats: &[Tap, Tzx, Z80, Sna, Nex, Dsk, Trd, Scl, P],
+        machines: &[Spectrum48, Spectrum128, SpectrumPlus3, Pentagon, Next, Zx80, Zx81, JupiterAce],
+        formats: &[Tap, Tzx, Z80, Sna, Nex, Dsk, Trd, Scl, P, O],
         link: Link::Zrcp,
         website: "https://github.com/chernandezba/zesarux",
+    },
+    // EightyOne, the ZX80 and ZX81 emulator for Windows, puts a file given on its command line in its tape player
+    // (main_.cpp in its source, version 1.41); the machine is the one chosen in it last, and LOAD is typed there.
+    Emulator {
+        id: "eightyone",
+        name: "EightyOne",
+        programs: &["EightyOne"],
+        folder_hints: &["eightyone"],
+        mac_apps: &[],
+        machines: &[Zx80, Zx81],
+        formats: &[O, P, Tzx],
+        link: Link::None,
+        website: "https://sourceforge.net/projects/eightyone-sinclair-emulator/",
     },
     Emulator {
         id: "fuse",
@@ -255,15 +268,15 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://bgb.bircd.org",
     },
-    // The NES's: Mesen (which runs the Game Boy too), FCEUX and Nestopia.
+    // The NES's: Mesen (which runs the Game Boy and the SNES too, each given the cartridge), FCEUX and Nestopia.
     Emulator {
         id: "mesen",
         name: "Mesen",
         programs: &["Mesen", "mesen"],
         folder_hints: &["mesen"],
         mac_apps: &[("Mesen.app", "Mesen")],
-        machines: &[Machine::Nes, GameBoy],
-        formats: &[Format::Nes, Gb, Gbc],
+        machines: &[Machine::Nes, GameBoy, Snes],
+        formats: &[Format::Nes, Gb, Gbc, Sfc, Smc],
         link: Link::None,
         website: "https://www.mesen.ca",
     },
@@ -291,15 +304,16 @@ pub const KNOWN: &[Emulator] = &[
     },
     // MAME's Atari 2600, NES, Mega Drive and SG-1000 need no ROMs of their own: the cartridge is all there is. Its
     // Master System is the Mark III, which has no BIOS either; its Vectrex, Game Gear and ColecoVision need theirs,
-    // and its Game Boy the Game Boy's boot ROM.
+    // and its Game Boy the Game Boy's boot ROM. The Amstrad CPC, Apple IIe, Atari 7800 and SNES need theirs too
+    // (cpc6128.zip, apple2e.zip, a7800.zip and snes.zip), as -listroms says.
     Emulator {
         id: "mame",
         name: "MAME",
         programs: &["mame", "mame64"],
         folder_hints: &["mame"],
         mac_apps: &[],
-        machines: &[Atari2600, Vectrex, MegaDrive, MasterSystem, GameGear, Sg1000, ColecoVision, Machine::Nes, GameBoy],
-        formats: &[A26, VecCart, MdRom, SmsRom, GgRom, SgRom, ColRom, Format::Nes, Gb, Gbc],
+        machines: &[Atari2600, Vectrex, MegaDrive, MasterSystem, GameGear, Sg1000, ColecoVision, Machine::Nes, GameBoy, Ql, Cpc, Apple2, Atari7800, Snes],
+        formats: &[A26, VecCart, MdRom, SmsRom, GgRom, SgRom, ColRom, Format::Nes, Gb, Gbc, QdosExe, Mdv, Dsk, Sna, Po, Woz, A78, Sfc],
         link: Link::None,
         // mamedev.org doesn't always answer; its releases on GitHub are the same files.
         website: "https://github.com/mamedev/mame/releases/latest",
@@ -375,6 +389,44 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://tic80.com",
     },
+    // The Sinclair QL: sQLux runs a program from a folder made one of its drives, and a cartridge's files copied
+    // into one; Q-emuLator (Windows and macOS) and MAME's QL (from 0.289) are given a cartridge, whose BOOT starts
+    // it. See `ql_run`.
+    Emulator {
+        id: "sqlux",
+        name: "sQLux",
+        programs: &["sqlux", "sQLux"],
+        folder_hints: &["sqlux"],
+        mac_apps: &[],
+        machines: &[Ql],
+        formats: &[QdosExe, Mdv],
+        link: Link::None,
+        website: "https://github.com/SinclairQL/sQLux",
+    },
+    Emulator {
+        id: "qemulator",
+        name: "Q-emuLator",
+        programs: &["Q-emuLator", "QemuLator", "qemulator"],
+        folder_hints: &["q-emulator", "qemulator"],
+        mac_apps: &[("Q-emuLator.app", "Q-emuLator")],
+        machines: &[Ql],
+        formats: &[QdosExe, Mdv],
+        link: Link::None,
+        website: "https://www.terdina.net/ql/q-emulator.html",
+    },
+    // RGC BASIC's desktop interpreter, given the program to run: basic-gfx (its window, with graphics and sound),
+    // or basic (in a terminal) if that's all there is.
+    Emulator {
+        id: "rgc-basic",
+        name: "RGC BASIC",
+        programs: &["basic-gfx", "basic"],
+        folder_hints: &["rgc-basic", "rgcbasic", "basic-windows", "basic-linux"],
+        mac_apps: &[],
+        machines: &[RgcBasic],
+        formats: &[RgcBas],
+        link: Link::None,
+        website: "https://github.com/omiq/rgc-basic",
+    },
     // ParaJVE, the Vectrex in Java, given the cartridge to load.
     Emulator {
         id: "parajve",
@@ -386,6 +438,83 @@ pub const KNOWN: &[Emulator] = &[
         formats: &[VecCart],
         link: Link::None,
         website: "http://www.vectrex.fr/ParaJVE/",
+    },
+    // The Amstrad CPC: CPCEC runs what it's given (its CPCEC.TXT: "the emulator will try opening and running the
+    // specified files"), typing RUN" and a disk's first program itself; Caprice32 is told what to type (its man
+    // page, cap32.6: -a, --autocmd). Both come with the CPC's ROMs. MAME needs cpc6128.zip.
+    Emulator {
+        id: "cpcec",
+        name: "CPCEC",
+        programs: &["CPCEC", "cpcec"],
+        folder_hints: &["cpcec"],
+        mac_apps: &[],
+        machines: &[Cpc],
+        formats: &[Dsk, Sna, Cdt],
+        link: Link::None,
+        website: "http://cngsoft.no-ip.org/cpcec.htm",
+    },
+    Emulator {
+        id: "caprice32",
+        name: "Caprice32",
+        programs: &["cap32", "caprice32"],
+        folder_hints: &["cap32", "caprice"],
+        mac_apps: &[("Caprice32.app", "cap32")],
+        machines: &[Cpc],
+        formats: &[Dsk, Sna, Cdt],
+        link: Link::None,
+        website: "https://github.com/ColinPitrat/caprice32",
+    },
+    // The Apple II: AppleWin (Windows), with its ROMs built in, boots a floppy from slot 6 (its help's Command
+    // line page: -d1, and -s7 empty so a hard disk card in slot 7 doesn't boot first), or a larger ProDOS disk as
+    // its hard disk (-h1). MAME's Apple IIe needs apple2e.zip.
+    Emulator {
+        id: "applewin",
+        name: "AppleWin",
+        programs: &["AppleWin", "Applewin"],
+        folder_hints: &["applewin"],
+        mac_apps: &[],
+        machines: &[Apple2],
+        formats: &[Dsk, Po, Woz],
+        link: Link::None,
+        website: "https://github.com/AppleWin/AppleWin",
+    },
+    // The Atari 8-bit computers: Altirra (Windows) runs a program, mounts a disk or plugs in a cartridge (its
+    // /? help: /run, /disk, /cart); atari800 the same (its man page: -run, -cart, and disks as they are), with
+    // Altirra's own free ROMs built in when the Atari's aren't there.
+    Emulator {
+        id: "altirra",
+        name: "Altirra",
+        programs: &["Altirra64", "AltirraARM64", "Altirra"],
+        folder_hints: &["altirra"],
+        mac_apps: &[],
+        machines: &[Atari8],
+        formats: &[Xex, Atr, Car],
+        link: Link::None,
+        website: "https://www.virtualdub.org/altirra.html",
+    },
+    Emulator {
+        id: "atari800",
+        name: "atari800",
+        programs: &["atari800"],
+        folder_hints: &["atari800"],
+        mac_apps: &[],
+        machines: &[Atari8],
+        formats: &[Xex, Atr, Car],
+        link: Link::None,
+        website: "https://atari800.github.io",
+    },
+    // The Atari 7800: A7800, MAME's 7800 made exact, which needs no BIOS and keeps MAME's command line (its
+    // README), given the system and the cartridge.
+    Emulator {
+        id: "a7800",
+        name: "A7800",
+        programs: &["a7800"],
+        folder_hints: &["a7800"],
+        mac_apps: &[],
+        machines: &[Atari7800],
+        formats: &[A78],
+        link: Link::None,
+        website: "https://github.com/7800-devtools/a7800",
     },
 ];
 
@@ -443,6 +572,7 @@ impl Emulator {
                     SpectrumPlus3 => "P341",
                     Pentagon => "Pentagon",
                     Next => "TBBlue",
+                    Zx80 => "ZX80",
                     Zx81 => "ZX81",
                     JupiterAce => "ACE",
                     _ => "48k",
@@ -515,6 +645,30 @@ impl Emulator {
                 }
                 args.push(file);
             }
+            // The CPC: a disk in its first drive, with RUN" and its program typed once it's started, or a snapshot.
+            "mame" if machine == Cpc => args.extend(crate::cpc_run::mame_arguments(Path::new(&file), format)),
+            // The Apple IIe boots the floppy in its first drive, from the Disk II card in slot 6.
+            "mame" if machine == Apple2 => args.extend(["apple2e".into(), "-flop1".into(), file, "-skip_gameinfo".into()]),
+            // The American 7800, or the European one for a cartridge whose header says PAL.
+            "mame" | "a7800" if machine == Atari7800 => {
+                let system = crate::atari7800::mame_system(&std::fs::read(&file).unwrap_or_default());
+                args.extend([system.into(), "-cart".into(), file, "-skip_gameinfo".into()]);
+            }
+            "mame" if machine == Snes => args.extend(["snes".into(), "-cart".into(), file, "-skip_gameinfo".into()]),
+            "cpcec" => args.push(file),
+            "caprice32" => args.extend(crate::cpc_run::caprice_arguments(Path::new(&file), format)),
+            // A floppy boots from slot 6; a ProDOS disk larger than a floppy is the hard disk in slot 7.
+            "applewin" if format == Po && std::fs::metadata(&file).is_ok_and(|m| m.len() > crate::running::APPLE_FLOPPY as u64) => args.extend(["-h1".into(), file]),
+            "applewin" => args.extend(["-d1".into(), file, "-s7".into(), "empty".into()]),
+            "altirra" => args.extend([match format { Car => "/cart", Atr => "/disk", _ => "/run" }.into(), file]),
+            "atari800" if format == Xex => args.extend(["-run".into(), file]),
+            "atari800" if format == Car => args.extend(["-cart".into(), file]),
+            "atari800" => args.push(file),
+            // The QL needs its ROMs (ql.zip); the cartridge goes in the first microdrive, and a script beside it
+            // presses F1 at the QL's first screen so it boots (see `ql_run`).
+            "mame" if format == Mdv => args.extend(crate::ql_run::mame_arguments(Path::new(&file))),
+            // The run's folder is made sQLux's drive WIN8, and the program EXECed from it.
+            "sqlux" => args.extend(crate::ql_run::sqlux_arguments(Path::new(&file))),
             // The Vectrex needs its BIOS ROM (vectrex.zip) in MAME's ROM folder; the 2600 needs none.
             "mame" => {
                 let system = match format {
@@ -717,6 +871,10 @@ mod tests {
         let file = Path::new("/tmp/game.tap");
         let zesarux = by_id("zesarux").unwrap();
         assert_eq!(zesarux.arguments(Spectrum128, Tap, file, Some(10000), ""), ["--machine", "128k", "--enable-remoteprotocol", "--remoteprotocol-port", "10000", "/tmp/game.tap"]);
+        assert_eq!(zesarux.arguments(Zx80, O, Path::new("/tmp/a.o"), None, ""), ["--machine", "ZX80", "/tmp/a.o"]);
+        let eightyone = by_id("eightyone").unwrap();
+        assert!(eightyone.runs(Zx80, O) && eightyone.runs(Zx81, P) && !eightyone.runs(Spectrum48, Tap));
+        assert_eq!(eightyone.arguments(Zx80, O, Path::new("C:\\run\\a.o"), None, ""), ["C:\\run\\a.o"]);
         assert_eq!(by_id("fuse").unwrap().arguments(SpectrumPlus3, Dsk, Path::new("/tmp/d.dsk"), None, "--full-screen"), ["--full-screen", "--machine", "plus3", "--auto-load", "/tmp/d.dsk"]);
         let vice = by_id("vice").unwrap();
         assert_eq!(vice.arguments(C64, Prg, Path::new("/tmp/a.prg"), Some(6502), "-default"), ["-default", "-binarymonitor", "-binarymonitoraddress", "ip4://127.0.0.1:6502", "-autostartprgmode", "1", "-autostart", "/tmp/a.prg"], "-default can't switch the monitor off");
@@ -744,6 +902,74 @@ mod tests {
         let mame = by_id("mame").unwrap();
         assert_eq!(mame.arguments(GameBoy, Gbc, Path::new("/tmp/a.gbc"), None, ""), ["gbcolor", "-cart", "/tmp/a.gbc", "-skip_gameinfo"]);
         assert_eq!(mame.arguments(Atari2600, A26, Path::new("/tmp/a.a26"), None, ""), ["a2600", "-cart", "/tmp/a.a26", "-skip_gameinfo"]);
+        // The QL: MAME's cartridge in its first microdrive, with the script that presses F1; sQLux's folder made its
+        // drive WIN8, and the program EXECed from it. The person's own options still come first.
+        assert!(mame.runs(Ql, Mdv) && mame.runs(Ql, QdosExe));
+        assert_eq!(slashes(mame.arguments(Ql, Mdv, Path::new("/tmp/run/hello.mdv"), None, "")), ["ql", "-microtape1", "/tmp/run/hello.mdv", "-skip_gameinfo", "-autoboot_delay", "5", "-autoboot_script", "/tmp/run/ql_boot.lua"]);
+        let sqlux = by_id("sqlux").unwrap();
+        assert!(sqlux.runs(Ql, QdosExe) && sqlux.runs(Ql, Mdv) && !sqlux.runs(AtariSt, Tos));
+        assert_eq!(slashes(sqlux.arguments(Ql, QdosExe, Path::new("/tmp/run/hello_exe"), None, "-w 2x")), ["-w", "2x", "--device", "WIN8,/tmp/run/,qdos-like", "-b", "EXEC win8_hello_exe"]);
+        assert_eq!(slashes(sqlux.arguments(Ql, QdosExe, Path::new("/tmp/run/BOOT"), None, ""))[3], "LRUN win8_BOOT");
+        assert_eq!(by_id("qemulator").unwrap().arguments(Ql, Mdv, Path::new("C:\\run\\hello.mdv"), None, ""), ["C:\\run\\hello.mdv"]);
+    }
+
+    #[test]
+    fn the_cpc_apple_ii_atari_and_snes_emulators_are_started_as_their_documents_say() {
+        let base = std::env::temp_dir().join(format!("limoniter-machines-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
+        let slashes = |args: Vec<String>| args.into_iter().map(|a| a.replace('\\', "/")).collect::<Vec<_>>();
+        // The CPC: CPCEC is given the file; Caprice32 and MAME are told what to type for a disk.
+        let (_, disk) = crate::cpc_run::disk_holding("game", 0x4000, 0x4000, &[0xC9]).unwrap();
+        let dsk = base.join("game.dsk");
+        std::fs::write(&dsk, &disk).unwrap();
+        let named = dsk.display().to_string();
+        for id in ["cpcec", "caprice32", "mame"] {
+            let emulator = by_id(id).unwrap();
+            assert!(emulator.runs(Cpc, Dsk) && emulator.runs(Cpc, Sna), "{id}");
+        }
+        assert!(by_id("cpcec").unwrap().runs(Cpc, Cdt) && !by_id("mame").unwrap().runs(Cpc, Cdt), "MAME's CPC tape needs PLAY pressed in its menu");
+        assert_eq!(by_id("cpcec").unwrap().arguments(Cpc, Dsk, &dsk, None, "-m2"), ["-m2", &named]);
+        assert_eq!(by_id("caprice32").unwrap().arguments(Cpc, Dsk, &dsk, None, ""), ["-a", "run\"GAME", &named]);
+        let mame = by_id("mame").unwrap();
+        assert_eq!(mame.arguments(Cpc, Dsk, &dsk, None, ""), ["cpc6128", "-flop1", &named, "-skip_gameinfo", "-autoboot_delay", "2", "-autoboot_command", "run\"GAME\\n"]);
+        // An Apple II floppy: AppleWin boots it from slot 6; a larger ProDOS disk is its hard disk. MAME's IIe.
+        let applewin = by_id("applewin").unwrap();
+        assert!(applewin.runs(Apple2, Dsk) && applewin.runs(Apple2, Po) && applewin.runs(Apple2, Woz));
+        assert_eq!(slashes(applewin.arguments(Apple2, Dsk, Path::new("C:\\run\\a.dsk"), None, "")), ["-d1", "C:/run/a.dsk", "-s7", "empty"]);
+        let big = base.join("big.po");
+        std::fs::write(&big, vec![0u8; 819_200]).unwrap();
+        assert_eq!(applewin.arguments(Apple2, Po, &big, None, ""), ["-h1", &big.display().to_string()]);
+        assert_eq!(mame.arguments(Apple2, Woz, Path::new("/tmp/a.woz"), None, ""), ["apple2e", "-flop1", "/tmp/a.woz", "-skip_gameinfo"]);
+        // The Atari 8-bits: a program run, a disk booted, a cartridge plugged in.
+        let altirra = by_id("altirra").unwrap();
+        assert_eq!(altirra.arguments(Atari8, Xex, Path::new("/tmp/a.xex"), None, ""), ["/run", "/tmp/a.xex"]);
+        assert_eq!(altirra.arguments(Atari8, Atr, Path::new("/tmp/a.atr"), None, "/portable"), ["/portable", "/disk", "/tmp/a.atr"]);
+        assert_eq!(altirra.arguments(Atari8, Car, Path::new("/tmp/a.car"), None, ""), ["/cart", "/tmp/a.car"]);
+        let atari800 = by_id("atari800").unwrap();
+        assert_eq!(atari800.arguments(Atari8, Xex, Path::new("/tmp/a.xex"), None, "-xl"), ["-xl", "-run", "/tmp/a.xex"]);
+        assert_eq!(atari800.arguments(Atari8, Car, Path::new("/tmp/a.car"), None, ""), ["-cart", "/tmp/a.car"]);
+        assert_eq!(atari800.arguments(Atari8, Atr, Path::new("/tmp/a.atr"), None, ""), ["/tmp/a.atr"]);
+        // The 7800: the American system, or the European one when the cartridge's header says PAL.
+        let mut header = crate::atari7800::Header { version: 3, title: "x".into(), rom_size: 0x1000, cart_type: 0, pal: false }.write().to_vec();
+        header.resize(128 + 0x1000, 0);
+        let ntsc = base.join("ntsc.a78");
+        std::fs::write(&ntsc, &header).unwrap();
+        header[57] = 1;
+        let pal = base.join("pal.a78");
+        std::fs::write(&pal, &header).unwrap();
+        for id in ["a7800", "mame"] {
+            let emulator = by_id(id).unwrap();
+            assert!(emulator.runs(Atari7800, A78), "{id}");
+            assert_eq!(emulator.arguments(Atari7800, A78, &ntsc, None, ""), ["a7800", "-cart", &ntsc.display().to_string(), "-skip_gameinfo"], "{id}");
+            assert_eq!(emulator.arguments(Atari7800, A78, &pal, None, "")[0], "a7800p", "{id}");
+        }
+        // The SNES: Mesen is given the cartridge, either kind; MAME takes an .sfc.
+        let mesen = by_id("mesen").unwrap();
+        assert!(mesen.runs(Snes, Sfc) && mesen.runs(Snes, Smc));
+        assert_eq!(mesen.arguments(Snes, Smc, Path::new("/tmp/a.smc"), None, ""), ["/tmp/a.smc"]);
+        assert_eq!(mame.arguments(Snes, Sfc, Path::new("/tmp/a.sfc"), None, ""), ["snes", "-cart", "/tmp/a.sfc", "-skip_gameinfo"]);
+        assert!(!mame.runs(Snes, Smc));
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

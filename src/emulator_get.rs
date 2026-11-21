@@ -2,17 +2,17 @@
 //!
 //! - Windows: the emulator's latest release, unpacked into Limoniter's emulators folder beside its settings, where
 //!   Find emulators then finds it. Most come from their GitHub pages (ZEsarUX, b2, openMSX, FS-UAE, VICE, Stella,
-//!   DOSBox Staging, SameBoy, Mesen, FCEUX, Nestopia, Copperline, Gearsystem, Gearcoleco, TIC-80 and MAME); Hatari
-//!   from its Framagit page; XRoar, WinUAE, BlastEm and Fuse from the link on their own download pages; and BGB from
-//!   the address it's always at. Each is a zip, except MAME's, which is a 7-Zip archive that unpacks itself.
+//!   DOSBox Staging, SameBoy, Mesen, FCEUX, Nestopia, Copperline, Gearsystem, Gearcoleco, TIC-80, sQLux, Caprice32,
+//!   AppleWin, atari800, A7800 and MAME); Hatari from its Framagit page; XRoar, WinUAE, BlastEm, Fuse, CPCEC and
+//!   Altirra from the link on their own download pages; and BGB from the address it's always at. Each is a zip, except MAME's, which is a 7-Zip archive that unpacks itself.
 //!   Installers are never run: an emulator offered only as one has its page opened instead.
 //! - Linux: Debian's and Ubuntu's own packages (Fuse, VICE, Hatari, openMSX, FS-UAE, Stella, MAME, BlastEm, DOSBox,
-//!   QEMU, mGBA, FCEUX, Nestopia, SameBoy), installed with apt in the Terminal panel, where the command can be seen
-//!   and the password typed. Copperline, which has no package, is downloaded from GitHub as its AppImage and its
-//!   command-line tools, side by side; Mesen and TIC-80, which haven't either, as the one program their Linux
-//!   zips hold.
+//!   QEMU, mGBA, FCEUX, Nestopia, SameBoy, atari800), installed with apt in the Terminal panel, where the command can
+//!   be seen and the password typed. Copperline, which has no package, is downloaded from GitHub as its AppImage
+//!   and its command-line tools, side by side; Mesen, TIC-80 and sQLux, which haven't either, as the program their
+//!   Linux zips hold (sQLux's with its ROMs beside it); A7800 as its Linux tar file, unpacked.
 //! - A Mac: Homebrew (VICE, Hatari, openMSX, FS-UAE, XRoar, Stella, MAME, DOSBox Staging, QEMU, mGBA, FCEUX,
-//!   BlastEm, Copperline from its own tap, and SameBoy's and Gearsystem's apps), in the Terminal panel the same way,
+//!   BlastEm, atari800, Copperline from its own tap, and SameBoy's and Gearsystem's apps), in the Terminal panel the same way,
 //!   when Homebrew is installed.
 //! - Anything else: the emulator's own download page.
 
@@ -82,7 +82,10 @@ fn windows_release(id: &str) -> Option<Release> {
         "gearsystem" => GitHub("drhelius/Gearsystem", |n| n.starts_with("Gearsystem-") && n.ends_with(if arm() { "-desktop-windows-arm64.zip" } else { "-desktop-windows-x64.zip" })),
         "gearcoleco" => GitHub("drhelius/Gearcoleco", |n| n.starts_with("Gearcoleco-") && n.ends_with(if arm() { "-desktop-windows-arm64.zip" } else { "-desktop-windows-x64.zip" })),
         "tic80" => GitHub("nesbox/TIC-80", |n| n.starts_with("tic80-") && n.ends_with("-win.zip")),
+        "rgc-basic" => GitHub("omiq/rgc-basic", |n| n == "basic-windows.zip"),
         "mame" => GitHub("mamedev/mame", |n| mame_file(n, arm())),
+        // sQLux's 64-bit build, with its ROMs and a sqlux.ini beside it (sqlux-x86_64-mingw64-latest.zip).
+        "sqlux" => GitHub("SinclairQL/sQLux", |n| n.starts_with("sqlux-") && n.contains("x86_64-mingw64") && n.ends_with(".zip")),
         // Hatari's releases are on Framagit, a GitLab, with the Windows build linked from each.
         "hatari" => GitLab("https://framagit.org/api/v4/projects/hatari%2Fhatari/releases/permalink/latest", |n| n.starts_with("hatari-") && n.ends_with("_windows64.zip")),
         // These link the latest release's zip from their download pages, beside its installer.
@@ -92,6 +95,15 @@ fn windows_release(id: &str) -> Option<Release> {
         // SourceForge's address for a file, which passes it on to a mirror.
         "fuse" => Linked("https://fuse-emulator.sourceforge.net/", |link| link.contains("/fuse-") && link.ends_with("-win32.zip/download")),
         "bgb" => Fixed("https://bgb.bircd.org/bgbw64.zip"),
+        // The CPC's: Caprice32's 64-bit zip on GitHub; CPCEC's, with its ROMs, linked from its page, newest first.
+        "caprice32" => GitHub("ColinPitrat/caprice32", |n| n == "cap32-win64.zip"),
+        "cpcec" => Linked("http://cngsoft.no-ip.org/cpcec.htm", |link| link.contains("/cpcec-") && link.ends_with(".zip")),
+        // AppleWin's zip, with Applewin.exe in it.
+        "applewin" => GitHub("AppleWin/AppleWin", |n| n.starts_with("AppleWin") && n.ends_with(".zip")),
+        // Altirra's latest, linked from its page before the older ones and the source (a .7z).
+        "altirra" => Linked("https://www.virtualdub.org/altirra.html", |link| link.contains("/downloads/Altirra-") && link.ends_with(".zip") && !link.contains("-src") && link.contains("-ARM64") == arm()),
+        "atari800" => GitHub("atari800/atari800", |n| n.starts_with("atari800-") && n.ends_with("-win64.zip")),
+        "a7800" => GitHub("7800-devtools/a7800", |n| n.starts_with("a7800-win-") && n.ends_with(".zip")),
         _ => return None,
     })
 }
@@ -114,6 +126,8 @@ fn apt_package(id: &str) -> Option<&'static str> {
         "nestopia" => "nestopia",
         // From Ubuntu 26.04 and Debian 14; on an older one, apt says there's no such package.
         "sameboy" => "sameboy",
+        // In Debian's contrib and Ubuntu's multiverse, which have to be switched on for apt to find it.
+        "atari800" => "atari800",
         _ => return None,
     })
 }
@@ -138,6 +152,7 @@ fn brew_package(id: &str) -> Option<(&'static str, bool)> {
         "fceux" => ("fceux", false),
         "blastem" => ("blastem", false),
         "gearsystem" => ("gearsystem", true),
+        "atari800" => ("atari800", false),
         _ => return None,
     })
 }
@@ -151,6 +166,12 @@ fn linux_github(id: &str) -> Option<(&'static str, fn(&str) -> bool, fn(&str) ->
         // Mesen needs SDL2, which a Linux desktop almost always has.
         "mesen" => ("SourMesen/Mesen2", |n| n.starts_with("Mesen_") && n.ends_with("_Linux_x64.zip"), |_| false),
         "tic80" => ("nesbox/TIC-80", |n| n.starts_with("tic80-") && n.ends_with("-linux.zip"), |_| false),
+        // sQLux for Linux on a PC: the program with its ROMs and sqlux.ini, in a folder of the zip.
+        "sqlux" => ("SinclairQL/sQLux", |n| n.starts_with("sqlux-") && n.contains("x86_64-ubuntu") && n.ends_with(".zip"), |_| false),
+        // A7800's Linux build, a gzipped tar of the program and the files it reads, in a folder.
+        "a7800" => ("7800-devtools/a7800", |n| n.starts_with("a7800-linux-") && n.ends_with(".tgz"), |_| false),
+        // A tar of its folder: both interpreters and the examples.
+        "rgc-basic" => ("omiq/rgc-basic", |n| n == "basic-linux.tar.gz", |_| false),
         _ => return None,
     })
 }
@@ -259,9 +280,13 @@ pub(crate) fn page_links(html: &str, page: &str) -> Vec<String> {
     let server_end = page.find("://").map(|at| at + 3).and_then(|from| page[from..].find('/').map(|slash| from + slash)).unwrap_or(page.len());
     let folder = if page.len() > server_end { &page[..page.rfind('/').map_or(page.len(), |slash| slash + 1)] } else { page };
     let mut links = Vec::new();
-    let mut rest = html;
-    while let Some(at) = rest.find("href=") {
-        rest = &rest[at + 5..];
+    // HREF in capitals is as good (CPCEC's page has it): it's looked for in a copy made small, whose places are the
+    // same, as only ASCII letters change.
+    let small = html.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(at) = small[from..].find("href=") {
+        from += at + 5;
+        let rest = &html[from..];
         let Some(quote) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') else {
             continue;
         };
@@ -269,7 +294,7 @@ pub(crate) fn page_links(html: &str, page: &str) -> Vec<String> {
             break;
         };
         let link = rest[1..1 + end].replace("&amp;", "&");
-        rest = &rest[1 + end..];
+        from += 1 + end;
         links.push(if link.contains("://") {
             link
         } else if let Some(path) = link.strip_prefix('/') {
@@ -383,8 +408,12 @@ fn download_linux(emulator: &Emulator, (repo, program, tools): (&str, fn(&str) -
     let (_, image) = pick_asset(&release, program).map_err(|_| crate::i18n::tf!("The latest release of {} has no download for Linux that Limoniter knows.", emulator.name))?;
     let target = home.join(emulator.id);
     let _ = std::fs::remove_dir_all(&target);
-    if image.ends_with(".zip") {
-        unzip(get(&image)?, &target)?;
+    if image.ends_with(".zip") || image.ends_with(".tgz") || image.ends_with(".tar.gz") {
+        if image.ends_with(".tgz") || image.ends_with(".tar.gz") {
+            untar(&crate::media::gunzip_bytes(&get(&image)?)?, &target)?;
+        } else {
+            unzip(get(&image)?, &target)?;
+        }
         let path = find_program(&target, emulator.programs).ok_or_else(|| crate::i18n::tf!("{} was unpacked into {}, but its program wasn't found in it.", emulator.name, target.display()))?;
         make_runnable(&path, 0o755);
         return Ok(path);
@@ -532,6 +561,11 @@ mod tests {
         // On Linux, Mesen and TIC-80 have no package, so their own Linux builds are downloaded.
         assert_eq!(way_for("mesen", false, false, true, false, true), Way::Download);
         assert_eq!(way_for("tic80", false, false, true, false, true), Way::Download);
+        // sQLux: its own builds, on Windows and on a PC's Linux; its page on a Mac.
+        assert_eq!(way_for("sqlux", true, false, false, false, false), Way::Download);
+        assert_eq!(way_for("sqlux", false, false, true, false, true), Way::Download);
+        assert_eq!(way_for("sqlux", false, true, false, true, false), Way::Page);
+        assert_eq!(way_for("qemulator", true, false, false, false, false), Way::Page, "only an installer");
         assert_eq!(way_for("mame", false, false, true, false, true), Way::Command("sudo apt-get install mame".into()));
         assert_eq!(way_for("fuse", false, true, false, true, false), Way::Page, "Homebrew's fuse is something else");
         assert_eq!(way_for("hatari", false, true, false, false, false), Way::Page, "no Homebrew");
@@ -543,6 +577,16 @@ mod tests {
         assert!(tap.starts_with("brew tap copperlinehq/copperline https://github.com/CopperlineHQ/Copperline") && tap.ends_with("brew install copperline"), "{tap}");
         assert_eq!(button(&Way::Command(tap)), "Install with Homebrew");
         assert_eq!(button(&Way::Command("brew install vice".into())), "Install with Homebrew");
+        // The CPC's, the Apple II's, the Atari 8-bits' and the 7800's.
+        for id in ["caprice32", "cpcec", "applewin", "altirra", "atari800", "a7800"] {
+            assert_eq!(way_for(id, true, false, false, false, false), Way::Download, "{id}");
+        }
+        assert_eq!(way_for("atari800", false, false, true, false, true), Way::Command("sudo apt-get install atari800".into()));
+        assert_eq!(way_for("atari800", false, true, false, true, false), Way::Command("brew install atari800".into()));
+        assert_eq!(way_for("a7800", false, false, true, false, true), Way::Download, "its Linux tar file");
+        for id in ["caprice32", "cpcec", "applewin", "altirra"] {
+            assert_eq!(way_for(id, false, false, true, false, true), Way::Page, "{id}");
+        }
     }
 
     #[test]
@@ -558,6 +602,11 @@ mod tests {
         assert_eq!(pick("vice", &["GTK3VICE-3.10-win64.7z", "GTK3VICE-3.10-win64.zip", "SDL2VICE-3.10-win64.zip"]).unwrap(), "GTK3VICE-3.10-win64.zip");
         assert_eq!(pick("fs-uae", &["FS-UAE_3.2.35_Windows_x86-64.exe", "FS-UAE_3.2.35_Windows_x86-64.zip"]).unwrap(), "FS-UAE_3.2.35_Windows_x86-64.zip");
         assert_eq!(pick("b2", &["symbols.b2-windows-1.7z", "b2-windows-1.zip"]).unwrap(), "b2-windows-1.zip");
+        // sQLux's release as it was on 21 November 2026.
+        let sqlux = ["sqlux-aarch64-macos-latest.zip", "sqlux-aarch64-ubuntu-latest.zip", "sqlux-i686-mingw32-latest.zip", "sqlux-latest.pdf", "sqlux-source-latest.zip", "sqlux-x86_64-mingw64-latest.zip", "sqlux-x86_64-ubuntu-latest.zip"];
+        assert_eq!(pick("sqlux", &sqlux).unwrap(), "sqlux-x86_64-mingw64-latest.zip");
+        let (_, linux, _) = linux_github("sqlux").unwrap();
+        assert_eq!(pick_asset(&release(&sqlux), linux).unwrap().1.rsplit('/').next(), Some("sqlux-x86_64-ubuntu-latest.zip"));
         assert!(pick("b2", &["b2-macos.dmg"]).is_err());
         // As their latest releases name them (November 2026).
         assert_eq!(pick("sameboy", &["sameboy_cocoa_v1.0.5.zip", "sameboy_winsdl_v1.0.5.zip", "SHA2-256SUMS"]).unwrap(), "sameboy_winsdl_v1.0.5.zip");
@@ -583,6 +632,10 @@ mod tests {
         }
         let linux = |id: &str, names: &[&str]| pick_asset(&release(names), linux_github(id).unwrap().1).map(|(_, url)| url.rsplit('/').next().unwrap().to_string());
         assert_eq!(linux("tic80", &tic80).unwrap(), "tic80-v1.4-linux.zip", "not the ARM one");
+        // RGC BASIC's, as its v2.1.1 release names them (21 November 2026).
+        let rgc = ["basic-linux.tar.gz", "basic-macos.tar.gz", "basic-windows.zip", "rgc-basic-wasm.tar.gz"];
+        assert_eq!(pick("rgc-basic", &rgc).unwrap(), "basic-windows.zip");
+        assert_eq!(linux("rgc-basic", &rgc).unwrap(), "basic-linux.tar.gz");
         assert_eq!(linux("mesen", &["Mesen_2.1.1_Linux_ARM64.zip", "Mesen_2.1.1_Linux_x64.zip", "Mesen_2.1.1_Windows.zip"]).unwrap(), "Mesen_2.1.1_Linux_x64.zip");
         assert_eq!(way_for("mgba", false, false, true, false, true), Way::Command("sudo apt-get install mgba-qt".into()));
         assert_eq!(way_for("sameboy", false, true, false, true, false), Way::Command("brew install --cask sameboy".into()));
@@ -591,6 +644,14 @@ mod tests {
         if !arm() {
             assert_eq!(pick("copperline", &copperline).unwrap(), "Copperline-1.1.0-win-x64.zip");
         }
+        // As the CPC's, Apple II's and Atari's emulators name theirs (21 November 2026).
+        assert_eq!(pick("caprice32", &["cap32-macos.zip", "cap32-win64.zip", "Caprice32.dmg"]).unwrap(), "cap32-win64.zip");
+        assert_eq!(pick("applewin", &["AppleWin1.32.1.0.zip"]).unwrap(), "AppleWin1.32.1.0.zip");
+        let atari800 = ["atari800-7.2.1-falcon_and_firebee.zip", "Atari800-7.2.1-i386.AppImage", "atari800-7.2.1-src.tgz", "atari800-7.2.1-win32-no-network.exe", "atari800-7.2.1-win32-no-network.zip", "atari800-7.2.1-win64.exe", "atari800-7.2.1-win64.zip", "Atari800-7.2.1-x86_64.AppImage"];
+        assert_eq!(pick("atari800", &atari800).unwrap(), "atari800-7.2.1-win64.zip");
+        let a7800 = ["a7800-linux-v5.2.tgz", "a7800-osx-v5.2.tgz", "a7800-win-v5.2.zip"];
+        assert_eq!(pick("a7800", &a7800).unwrap(), "a7800-win-v5.2.zip");
+        assert_eq!(linux("a7800", &a7800).unwrap(), "a7800-linux-v5.2.tgz");
         let (_, image, tools) = linux_github("copperline").unwrap();
         let named = |wanted: fn(&str) -> bool| pick_asset(&release(&copperline), wanted).map(|(_, url)| url.rsplit('/').next().unwrap().to_string());
         assert_eq!(named(image).unwrap(), "Copperline-1.1.0-x86_64.AppImage");
@@ -618,6 +679,13 @@ mod tests {
         let fuse = r#"<a href="https://sourceforge.net/projects/fuse-emulator/files/fuse/1.10.1/fuse-1.10.1-win32-setup.exe/download">installer</a> <a href="https://sourceforge.net/projects/fuse-emulator/files/fuse/1.10.1/fuse-1.10.1-win32.zip/download">zip</a> <a href="https://sourceforge.net/projects/fuse-emulator/files/fuse-utils/1.5.1/fuse-utils-1.5.1-win32.zip/download">utils</a>"#;
         assert_eq!(linked("fuse", fuse).unwrap(), "https://sourceforge.net/projects/fuse-emulator/files/fuse/1.10.1/fuse-1.10.1-win32.zip/download");
         assert!(linked("xroar", "<a href='dl/xroar-1.13.1.tar.gz'>source</a>").is_err());
+        // CPCEC's page links each release in capitals, newest first, beside pictures; Altirra's has ARM64 builds
+        // and the source beside each.
+        let cpcec = r#"<A HREF="cpcec-20240101-abadia.png">x</A> <A HREF="cpcec-20261030.zip">20261030</A> <A HREF="cpcec-20260303.zip">20260303</A>"#;
+        assert_eq!(linked("cpcec", cpcec).unwrap(), "http://cngsoft.no-ip.org/cpcec-20261030.zip");
+        let altirra = r#"<a href="/downloads/Altirra-4.40-src.7z">src</a> <a href="/downloads/Altirra-4.40.zip">x64</a> <a href="/downloads/Altirra-4.40-ARM64.zip">ARM64</a> <a href="/downloads/Altirra-4.31.zip">old</a>"#;
+        let wanted = if arm() { "https://www.virtualdub.org/downloads/Altirra-4.40-ARM64.zip" } else { "https://www.virtualdub.org/downloads/Altirra-4.40.zip" };
+        assert_eq!(linked("altirra", altirra).unwrap(), wanted);
         // Links relative to the server, with &amp; in them, and on a page with no path.
         assert_eq!(page_links(r#"<a href="/files/a.zip?x=1&amp;y=2">a</a>"#, "https://example.org/emu/get.html"), ["https://example.org/files/a.zip?x=1&y=2"]);
         assert_eq!(page_links(r#"<a href="b.zip">b</a>"#, "https://example.org"), ["https://example.org/b.zip"]);

@@ -1,5 +1,7 @@
 # 14. The 68000 and later processors
 
+[‹ 3D vectors](13-vectors.md) · [Contents](README.md) · [Loading and memory ›](15-loading-and-memory.md)
+
 Every Amiga has a processor from Motorola's 68000 family, but not the same one. The Amiga 500 has a 68000 at 7 MHz; the A1200 a 68020 at 14 MHz; accelerator boards bring 68030s, 68040s and 68060s, and today FPGA processors that are faster still. A demo is usually written for the first and has to survive the rest.
 
 This chapter is about both halves of that. First, how fast things really are on the A500's 68000: what each instruction costs, why the same code runs at different speeds in different memory, and which of v7's optimisation tips still hold. Then what changes on each later processor, and what breaks. Throughout, it measures rather than guesses, with the oldest tool there is: the raster bar.
@@ -380,3 +382,5 @@ How far to trust the figures: FS-UAE's 68000 and 68020 are cycle-exact (its log 
 - **The 68040 and 68060**: copyback caches, the processor outrunning the chips, `MOVE16`, and the instructions the 68060 doesn't have. **The 68080** gets a mention.
 - **v7's 68020 notes from Chris Green are kept**, and the A1200's blitter-against-processor figure checked again: two and a half times, against v7's "almost three".
 - **Measuring with raster bars** is shown, as a whole example.
+
+[‹ 3D vectors](13-vectors.md) · [Contents](README.md) · [Loading and memory ›](15-loading-and-memory.md)

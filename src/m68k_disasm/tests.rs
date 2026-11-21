@@ -548,3 +548,388 @@ fn a_real_demo_comes_back_the_same() {
         }
     }
 }
+
+// ---------- The 68881's and 68882's ----------
+
+/// Decodes every instruction in `bytes` (at $1000) for a 68020 with a 68881, writes it, and assembles what's written:
+/// it has to give back the same bytes. The lines written, and how many instructions there were.
+fn read_back_fpu(bytes: &[u8]) -> (Vec<String>, usize) {
+    let word = |a: u32| be16(bytes, (a - 0x1000) as usize);
+    let mut pc = 0x1000u32;
+    let mut lines = vec!["\tmachine 68020".to_string(), "\tmachine 68881".to_string(), "\torg $1000".to_string()];
+    let mut count = 0;
+    while ((pc - 0x1000) as usize) < bytes.len() {
+        let insn = decode_with(&word, pc, Processor::M68020, Fpu::M68881).unwrap_or_else(|| panic!("${pc:X}: {:04X} {:04X} isn't decoded", word(pc).unwrap(), word(pc + 2).unwrap_or(0)));
+        lines.push(format!("\t{}", text(&insn, &Plain)));
+        pc += insn.length;
+        count += 1;
+    }
+    let again = assemble(&(lines.join("\n") + "\n"));
+    assert!(again.ok(), "{:?}", again.problems.first().map(|p| (&p.message, &lines[p.line])));
+    let made = again.image(0x1000, 0x1000 + bytes.len() as i64);
+    if made != bytes {
+        let at = made.iter().zip(bytes.iter()).position(|(a, b)| a != b).unwrap_or(0) & !1;
+        let line = again.lines.iter().find(|l| l.address as usize <= 0x1000 + at && l.address as usize + l.bytes.len() > 0x1000 + at).map(|l| lines[l.line].clone());
+        panic!("differs at ${:X}: {line:?}", 0x1000 + at);
+    }
+    (lines, count)
+}
+
+/// Every FPU instruction vasm assembled in m68k_fpu_all is read back for a 68020 with a 68881, and written so that
+/// it assembles to vasm's bytes again.
+#[test]
+fn every_fpu_form_vasm_makes_is_read_back() {
+    let (_, count) = read_back_fpu(include_bytes!("../asm/testdata/m68k_fpu_all.bin"));
+    assert!(count > 2000, "{count}");
+}
+
+/// The same written source assembled by vasm, where it's been built: vasm takes it to the same bytes too, floats
+/// and all.
+#[test]
+fn vasm_assembles_the_fpus_the_same() {
+    let vasm = std::env::var_os("LIMONITER_VASM").map(std::path::PathBuf::from).unwrap_or_else(|| "/root/asmref/vasm/vasmm68k_mot".into());
+    if !vasm.exists() {
+        return;
+    }
+    let bytes = include_bytes!("../asm/testdata/m68k_fpu_all.bin");
+    let (lines, _) = read_back_fpu(bytes);
+    let folder = std::env::temp_dir().join(format!("limoniter-vasmfpu-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
+    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    assert!(status.success());
+    assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
+    let _ = std::fs::remove_dir_all(folder);
+}
+
+/// The FPU's instructions are read only where there's an FPU: one beside the processor, or the 68040's or
+/// 68060's own; and only coprocessor number 1's.
+#[test]
+fn fpu_instructions_are_read_only_with_an_fpu() {
+    let read = |words: &[u16], cpu: Processor, fpu: Fpu| {
+        let word = |a: u32| words.get(((a - 0x1000) / 2) as usize).copied();
+        decode_with(&word, 0x1000, cpu, fpu).map(|i| text(&i, &Plain))
+    };
+    let fadd = [0xF200, 0x00A2];
+    let fmove = [0xF23C, 0x4400, 0x3FC0, 0x0000];
+    assert_eq!(read(&fadd, Processor::M68020, Fpu::None), None);
+    assert_eq!(read(&fadd, Processor::M68020, Fpu::M68881).as_deref(), Some("fadd.x  fp0,fp1"));
+    assert_eq!(read(&fadd, Processor::M68040, Fpu::None).as_deref(), Some("fadd.x  fp0,fp1"));
+    assert_eq!(read(&fmove, Processor::M68030, Fpu::M68882).as_deref(), Some("fmove.s #1.5,fp0"));
+    assert_eq!(read(&[0xF400, 0x00A2], Processor::M68020, Fpu::M68881), None, "coprocessor 2");
+    assert_eq!(read(&[0xF280, 0x0000], Processor::M68060, Fpu::None).as_deref(), Some("fnop"));
+    // A NaN and an extended number past a double's precision are written as their bits.
+    assert_eq!(read(&[0xF23C, 0x4400, 0x7FC0, 0x0000], Processor::M68020, Fpu::M68881).as_deref(), Some("fmove.s #$7FC00000,fp0"));
+    assert_eq!(read(&[0xF23C, 0x4800, 0x3FFB, 0, 0xCCCC, 0xCCCC, 0xCCCC, 0xCCCD], Processor::M68020, Fpu::M68881).as_deref(), Some("fmove.x #$3FFB0000CCCCCCCCCCCCCCCD,fp0"));
+    assert_eq!(read(&[0xF210, 0x6C85], Processor::M68020, Fpu::M68881).as_deref(), Some("fmove.p fp1,(a0){#5}"));
+}
+
+/// Every FPU opcode word with every command word, and the extension words of each kind of address after them
+/// (immediates of every format among them): whatever is read is written so that it assembles back to those words.
+#[test]
+fn every_fpu_opcode_decoded_is_written_so_it_assembles_back() {
+    const AFTERS: [[u16; 8]; 2] = [[0x3FFF, 0x0000, 0xC000, 0x0000, 0x0000, 0x0000, 0x1234, 0x5678], [0x1A12, 0x4567, 0x8000, 0x1299, 0x0078, 0x009A, 0x00BC, 0x00DE]];
+    // D1, A1, (A2), (A3)+, -(A4), d16(A5), d8(A6,Xn), abs.W, abs.L, d16(PC), d8(PC,Xn), #.
+    const PLACES: [u16; 13] = [0o00, 0o01, 0o11, 0o12, 0o23, 0o34, 0o55, 0o66, 0o70, 0o71, 0o72, 0o73, 0o74];
+    let mut decoded = 0;
+    let check = |firsts: &[(u16, u16)], after: &[u16; 8], decoded: &mut usize| {
+        let mut lines = vec!["\tmachine 68020".to_string(), "\tmachine 68881".to_string()];
+        let mut wanted: Vec<(u32, Vec<u8>, String)> = Vec::new();
+        for (i, &(op, command)) in firsts.iter().enumerate() {
+            let pc = 0x10_0000 + i as u32 * 32;
+            let word = |a: u32| match (a - pc) / 2 {
+                0 => Some(op),
+                1 => Some(command),
+                n => after.get(n as usize - 2).copied(),
+            };
+            let Some(insn) = decode_with(&word, pc, Processor::M68020, Fpu::M68881) else { continue };
+            let text = text(&insn, &Plain);
+            let bytes: Vec<u8> = (0..insn.length / 2).flat_map(|i| word(pc + i * 2).unwrap().to_be_bytes()).collect();
+            lines.push(format!("\torg ${pc:X}\n\t{text}"));
+            wanted.push((pc, bytes, text));
+            *decoded += 1;
+        }
+        let assembly = assemble(&(lines.join("\n") + "\n"));
+        if let Some(p) = assembly.problems.first() {
+            let at = (p.line - 2) / 2 + 2;
+            panic!("{} on line {}: {}", p.message, p.line, lines.get(at).cloned().unwrap_or_default());
+        }
+        for (pc, bytes, text) in wanted {
+            let made = assembly.image(i64::from(pc), i64::from(pc) + bytes.len() as i64);
+            assert_eq!(made, bytes, "{text} at ${pc:X}");
+        }
+    };
+    for after in &AFTERS {
+        // The general instructions: each command word, from each kind of address.
+        for place in PLACES {
+            for class in 0..8u16 {
+                let firsts: Vec<(u16, u16)> = (0..0x2000u16).map(|low| (0xF200 | place, class << 13 | low)).collect();
+                check(&firsts, after, &mut decoded);
+            }
+        }
+        // The others (FScc, FDBcc, FTRAPcc, FBcc, FSAVE, FRESTORE): every opcode word, with each condition.
+        for kind in 1..8u16 {
+            let firsts: Vec<(u16, u16)> = (0..64u16).flat_map(|low| (0..66u16).map(move |cc| (0xF200 | kind << 6 | low, cc))).collect();
+            check(&firsts, after, &mut decoded);
+        }
+    }
+    assert!(decoded > 50_000, "{decoded}");
+}
+
+/// A program for a 68030 with a 68882, disassembled as a whole: it says so, and comes back as its bytes.
+#[test]
+fn a_program_with_an_fpu_is_disassembled_for_it() {
+    let bytes = [
+        0xF2, 0x3C, 0x44, 0x00, 0x3F, 0xC0, 0x00, 0x00, // fmove.s #1.5,fp0
+        0xF2, 0x00, 0x00, 0xA2, // fadd.x fp0,fp1
+        0xF2, 0x81, 0x00, 0x04, // fbeq.w to the RTS
+        0xF2, 0x27, 0xE0, 0x0F, // fmovem.x fp0-fp3,-(sp)
+        0x4E, 0x75, // rts
+    ];
+    let mut program = raw(&bytes, 0x1000, &[0x1000], Machine::Plain);
+    program.cpu = Processor::M68030;
+    program.fpu = Fpu::M68882;
+    let out = disassemble(&program);
+    assert!(out.contains("machine 68030") && out.contains("machine 68882") && out.contains("fmove.s #1.5,fp0") && out.contains("fbeq.w") && !out.contains('?'), "{out}");
+    assert_eq!(assemble(&out).image(0x1000, 0x1000 + bytes.len() as i64), bytes);
+    // Without the FPU, the same bytes are data.
+    program.fpu = Fpu::None;
+    let plain = disassemble(&program);
+    assert!(!plain.contains("fadd") && !plain.contains("68882"), "{plain}");
+}
+
+// ---------- The MMUs, and the 68040's, 68060's and CPU32's own ----------
+
+/// The processor and MMU each instruction in m68k_mmu_all is for, as its MACHINE lines say: where it is, its bytes,
+/// the processor and whether the 68851 is beside it.
+fn mmu_corpus() -> Vec<(u32, Vec<u8>, Processor, Mmu)> {
+    let source = include_str!("../asm/testdata/m68k_mmu_all.asm");
+    let assembly = assemble(source);
+    assert!(assembly.ok(), "{:?}", assembly.problems.first());
+    let mut cpu = Processor::M68000;
+    let mut mmu = Mmu::None;
+    let mut at_line = Vec::new();
+    for text in source.lines() {
+        if let Some(name) = text.trim().strip_prefix("machine ") {
+            match Mmu::from_name(name) {
+                Some(m) => mmu = m,
+                None => cpu = Processor::from_name(name).unwrap(),
+            }
+        }
+        at_line.push((cpu, mmu));
+    }
+    assembly.lines.iter().filter(|p| !p.bytes.is_empty()).map(|p| (p.address as u32, p.bytes.clone(), at_line[p.line].0, at_line[p.line].1)).collect()
+}
+
+/// Every instruction in m68k_mmu_all, read back for the processor (and MMU) it's for and written, MACHINE lines
+/// and all: the lines, and how many instructions there were.
+fn read_back_mmu() -> (Vec<String>, usize) {
+    let bytes = include_bytes!("../asm/testdata/m68k_mmu_all.bin");
+    let word = |a: u32| be16(bytes, (a - 0x1000) as usize);
+    let mut lines = vec!["\torg $1000".to_string()];
+    let mut chosen = (Processor::M68000, Mmu::None);
+    for (pc, placed, cpu, mmu) in mmu_corpus() {
+        if (cpu, mmu) != chosen {
+            lines.push(format!("\tmachine {}", cpu.name().to_ascii_lowercase()));
+            if mmu != Mmu::None {
+                lines.push(format!("\tmachine {}", mmu.name()));
+            }
+            chosen = (cpu, mmu);
+        }
+        let insn = decode_chips(&word, pc, cpu, Fpu::None, mmu).unwrap_or_else(|| panic!("${pc:X} for the {}: {:04X} {:04X} isn't decoded", cpu.name(), word(pc).unwrap(), word(pc + 2).unwrap_or(0)));
+        assert_eq!(insn.length as usize, placed.len(), "${pc:X}: {}", text(&insn, &Plain));
+        lines.push(format!("\t{}", text(&insn, &Plain)));
+    }
+    let count = lines.len();
+    let again = assemble(&(lines.join("\n") + "\n"));
+    assert!(again.ok(), "{:?}", again.problems.first().map(|p| (&p.message, &lines[p.line])));
+    let made = again.image(0x1000, 0x1000 + bytes.len() as i64);
+    if made != bytes {
+        let at = made.iter().zip(bytes.iter()).position(|(a, b)| a != b).unwrap_or(0) & !1;
+        let line = again.lines.iter().find(|l| l.address as usize <= 0x1000 + at && l.address as usize + l.bytes.len() > 0x1000 + at).map(|l| lines[l.line].clone());
+        panic!("differs at ${:X}: {line:?}", 0x1000 + at);
+    }
+    (lines, count)
+}
+
+/// Every MMU instruction vasm assembled in m68k_mmu_all (and the 68040's, 68060's and CPU32's own) is read back for
+/// the processor it's for, and written so that it assembles to vasm's bytes again.
+#[test]
+fn every_mmu_form_vasm_makes_is_read_back() {
+    let (_, count) = read_back_mmu();
+    assert!(count > 2500, "{count}");
+}
+
+/// The same written source assembled by vasm, where it's been built: vasm takes it to the same bytes too.
+#[test]
+fn vasm_assembles_the_mmus_the_same() {
+    let vasm = std::env::var_os("LIMONITER_VASM").map(std::path::PathBuf::from).unwrap_or_else(|| "/root/asmref/vasm/vasmm68k_mot".into());
+    if !vasm.exists() {
+        return;
+    }
+    let bytes = include_bytes!("../asm/testdata/m68k_mmu_all.bin");
+    let (lines, _) = read_back_mmu();
+    let folder = std::env::temp_dir().join(format!("limoniter-vasmmmu-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
+    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    assert!(status.success());
+    assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
+    let _ = std::fs::remove_dir_all(folder);
+}
+
+/// Instructions, each its words and the extension words of an address after them, decoded for a processor (and
+/// MMU): whatever is read is written so that it assembles back to those words. How many were read.
+fn check_read_back(cpu: Processor, mmu: Mmu, firsts: &[Vec<u16>], after: &[u16]) -> usize {
+    let mut lines = vec![format!("\tmachine {}", cpu.name().to_ascii_lowercase())];
+    if mmu != Mmu::None {
+        lines.push(format!("\tmachine {}", mmu.name()));
+    }
+    let header = lines.len();
+    let mut wanted: Vec<(u32, Vec<u8>, String)> = Vec::new();
+    for (i, first) in firsts.iter().enumerate() {
+        let pc = 0x10_0000 + i as u32 * 32;
+        let word = |a: u32| {
+            let n = ((a - pc) / 2) as usize;
+            first.get(n).or_else(|| after.get(n - first.len())).copied()
+        };
+        let Some(insn) = decode_chips(&word, pc, cpu, Fpu::None, mmu) else { continue };
+        let text = text(&insn, &Plain);
+        let bytes: Vec<u8> = (0..insn.length / 2).flat_map(|i| word(pc + i * 2).unwrap().to_be_bytes()).collect();
+        lines.push(format!("\torg ${pc:X}\n\t{text}"));
+        wanted.push((pc, bytes, text));
+    }
+    let assembly = assemble(&(lines.join("\n") + "\n"));
+    if let Some(p) = assembly.problems.first() {
+        let at = (p.line - header) / 2 + header;
+        panic!("{} on line {}: {}", p.message, p.line, lines.get(at).cloned().unwrap_or_default());
+    }
+    for (pc, bytes, text) in &wanted {
+        let made = assembly.image(i64::from(*pc), i64::from(*pc) + bytes.len() as i64);
+        assert_eq!(&made, bytes, "{text} at ${pc:X} for the {}", cpu.name());
+    }
+    wanted.len()
+}
+
+/// Every opcode word the MMUs, caches, MOVE16, LPSTOP and the table lookups have, with every command word (and the
+/// extension words of each kind of address after them), for each processor and MMU: whatever is read is written so
+/// that it assembles back to those words.
+#[test]
+fn every_mmu_opcode_decoded_is_written_so_it_assembles_back() {
+    const AFTERS: [[u16; 6]; 2] = [[0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0012, 0x0034], [0x1A12, 0x0034, 0x8056, 0x0078, 0x009A, 0x00BC]];
+    // D1, A1, (A2), (A3)+, -(A4), d16(A5), d8(A6,Xn), abs.W, abs.L, d16(PC), d8(PC,Xn), #.
+    const PLACES: [u16; 13] = [0o00, 0o01, 0o11, 0o12, 0o23, 0o34, 0o55, 0o66, 0o70, 0o71, 0o72, 0o73, 0o74];
+    let mut decoded = 0;
+    for after in &AFTERS {
+        // The 68030's and 68851's instructions with a command word: each command word, from each kind of address.
+        for (cpu, mmu) in [(Processor::M68030, Mmu::None), (Processor::M68020, Mmu::M68851)] {
+            for place in PLACES {
+                for class in 0..8u16 {
+                    let firsts: Vec<Vec<u16>> = (0..0x2000u16).map(|low| vec![0xF000 | place, class << 13 | low]).collect();
+                    decoded += check_read_back(cpu, mmu, &firsts, after);
+                }
+            }
+        }
+        // The 68851's others (PScc, PDBcc, PTRAPcc, PBcc, PSAVE, PRESTORE): every opcode word, with each condition.
+        let firsts: Vec<Vec<u16>> = (0x40..0x180u16).flat_map(|low| (0..18u16).map(move |cc| vec![0xF000 | low, cc])).collect();
+        decoded += check_read_back(Processor::M68020, Mmu::M68851, &firsts, after);
+        // The 68040's, 68060's and CPU32's: every opcode word of coprocessors 2 to 4, with the words MOVE16, LPSTOP
+        // and the table lookups take.
+        let seconds: Vec<u16> = (0..8).map(|y| 0x8000 | y << 12).chain([0x01C0, 0x8000, 0x0000]).collect();
+        for cpu in [Processor::M68040, Processor::M68060, Processor::Cpu32, Processor::M68030] {
+            let firsts: Vec<Vec<u16>> = (0xF400..0xFA00u16).flat_map(|op| seconds.iter().map(move |w| vec![op, *w])).collect();
+            decoded += check_read_back(cpu, Mmu::None, &firsts, after);
+        }
+        // The table lookups' every second word.
+        for op in [0xF800u16, 0xF805, 0xF810, 0xF829, 0xF83A, 0xF83B] {
+            let firsts: Vec<Vec<u16>> = (0..=0xFFFFu16).map(|w| vec![op, w]).collect();
+            decoded += check_read_back(Processor::Cpu32, Mmu::None, &firsts, after);
+        }
+        // And the rounding FPU instructions, with every command word.
+        for place in [0o00, 0o12, 0o74] {
+            let firsts: Vec<Vec<u16>> = (0..0x8000u16).map(|w| vec![0xF200 | place, w]).collect();
+            decoded += check_read_back(Processor::M68040, Mmu::None, &firsts, after);
+        }
+    }
+    assert!(decoded > 20_000, "{decoded}");
+}
+
+/// The MMUs' instructions are read only where there's an MMU that has them: the 68851 beside a processor, or the
+/// 68030's, 68040's and 68060's own; the 68040's and 68060's own instructions only for them, and the CPU32's for it.
+#[test]
+fn mmu_instructions_are_read_only_where_they_are() {
+    let read = |words: &[u16], cpu: Processor, mmu: Mmu| {
+        let word = |a: u32| words.get(((a - 0x1000) / 2) as usize).copied();
+        decode_chips(&word, 0x1000, cpu, Fpu::None, mmu).map(|i| text(&i, &Plain))
+    };
+    let pmove_tc = [0xF010, 0x4200];
+    let pmove_cal = [0xF010, 0x5000];
+    let pmove_tt0 = [0xF010, 0x0800];
+    let pflush_an = [0xF508];
+    let ptestr_an = [0xF568];
+    let plpar = [0xF5C8];
+    let move16 = [0xF620, 0x9000];
+    let lpstop = [0xF800, 0x01C0, 0x2700];
+    let tblu = [0xF810, 0x0100];
+    let fsadd = [0xF200, 0x00E2];
+    assert_eq!(read(&pmove_tc, Processor::M68020, Mmu::None), None);
+    assert_eq!(read(&pmove_tc, Processor::M68020, Mmu::M68851).as_deref(), Some("pmove   tc,(a0)"));
+    assert_eq!(read(&pmove_tc, Processor::M68030, Mmu::None).as_deref(), Some("pmove   tc,(a0)"));
+    assert_eq!(read(&pmove_tc, Processor::M68040, Mmu::None), None, "the 68040 has no PMOVE");
+    assert_eq!(read(&pmove_cal, Processor::M68030, Mmu::M68851), None, "CAL is only the 68851's");
+    assert_eq!(read(&pmove_cal, Processor::M68020, Mmu::M68851).as_deref(), Some("pmove   (a0),cal"));
+    assert_eq!(read(&pmove_tt0, Processor::M68020, Mmu::M68851), None, "TT0 is only the 68030's");
+    assert_eq!(read(&pflush_an, Processor::M68030, Mmu::None), None);
+    assert_eq!(read(&pflush_an, Processor::M68060, Mmu::None).as_deref(), Some("pflush  (a0)"));
+    assert_eq!(read(&ptestr_an, Processor::M68060, Mmu::None), None, "the 68060 has no PTEST");
+    assert_eq!(read(&ptestr_an, Processor::M68040, Mmu::None).as_deref(), Some("ptestr  (a0)"));
+    assert_eq!(read(&plpar, Processor::M68040, Mmu::None), None);
+    assert_eq!(read(&plpar, Processor::M68060, Mmu::None).as_deref(), Some("plpar   (a0)"));
+    assert_eq!(read(&move16, Processor::M68030, Mmu::None), None);
+    assert_eq!(read(&move16, Processor::M68040, Mmu::None).as_deref(), Some("move16  (a0)+,(a1)+"));
+    assert_eq!(read(&lpstop, Processor::M68040, Mmu::None), None);
+    assert_eq!(read(&lpstop, Processor::Cpu32, Mmu::None).as_deref(), Some("lpstop  #$2700"));
+    assert_eq!(read(&lpstop, Processor::M68060, Mmu::None).as_deref(), Some("lpstop  #$2700"));
+    assert_eq!(read(&tblu, Processor::M68060, Mmu::None), None);
+    assert_eq!(read(&tblu, Processor::Cpu32, Mmu::None).as_deref(), Some("tblu.b  (a0),d0"));
+    assert_eq!(read(&[0x4AFA], Processor::Cpu32, Mmu::None).as_deref(), Some("bgnd"));
+    assert_eq!(read(&[0x4AFA], Processor::M68020, Mmu::None), None);
+    let fpu = |words: &[u16], cpu: Processor, fpu: Fpu| {
+        let word = |a: u32| words.get(((a - 0x1000) / 2) as usize).copied();
+        decode_with(&word, 0x1000, cpu, fpu).map(|i| text(&i, &Plain))
+    };
+    assert_eq!(fpu(&fsadd, Processor::M68030, Fpu::M68882), None, "the 68882 has no FSADD");
+    assert_eq!(fpu(&fsadd, Processor::M68040, Fpu::None).as_deref(), Some("fsadd.x fp0,fp1"));
+    // The 68040's MOVEC registers by their names.
+    assert_eq!(read(&[0x4E7A, 0x0003], Processor::M68040, Mmu::None).as_deref(), Some("movec   tc,d0"));
+    assert_eq!(read(&[0x4E7A, 0x0004], Processor::M68040, Mmu::None).as_deref(), Some("movec   itt0,d0"));
+    assert_eq!(read(&[0x4E7A, 0x0808], Processor::M68040, Mmu::None), None, "PCR is the 68060's");
+    assert_eq!(read(&[0x4E7A, 0x0808], Processor::M68060, Mmu::None).as_deref(), Some("movec   pcr,d0"));
+}
+
+/// A program for a 68020 with a 68851, disassembled as a whole: it says so, and comes back as its bytes.
+#[test]
+fn a_program_with_a_68851_is_disassembled_for_it() {
+    let bytes = [
+        0xF0, 0x10, 0x42, 0x00, // pmove tc,(a0)
+        0xF0, 0x00, 0x24, 0x00, // pflusha
+        0xF0, 0x81, 0x00, 0x02, // pbbc.w to the RTS
+        0x4E, 0x75, // rts
+    ];
+    let mut program = raw(&bytes, 0x1000, &[0x1000], Machine::Plain);
+    program.cpu = Processor::M68020;
+    program.mmu = Mmu::M68851;
+    let out = disassemble(&program);
+    assert!(out.contains("machine 68020") && out.contains("machine 68851") && out.contains("pmove   tc,(a0)") && out.contains("pbbc.w") && !out.contains('?'), "{out}");
+    assert_eq!(assemble(&out).image(0x1000, 0x1000 + bytes.len() as i64), bytes);
+    // Without the 68851, the same bytes are data; with a 68030, its own MMU reads PMOVE and PFLUSHA, and no MACHINE
+    // 68851 is written.
+    program.mmu = Mmu::None;
+    let plain = disassemble(&program);
+    assert!(!plain.contains("pmove") && !plain.contains("68851"), "{plain}");
+    program.cpu = Processor::M68030;
+    program.mmu = Mmu::M68851;
+    let own = disassemble(&program);
+    assert!(own.contains("pmove   tc,(a0)") && own.contains("pflusha") && !own.contains("68851") && !own.contains("pbbc"), "{own}");
+    assert_eq!(assemble(&own).image(0x1000, 0x1000 + bytes.len() as i64), bytes);
+}

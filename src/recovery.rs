@@ -658,15 +658,23 @@ fn read_copy(path: &Path) -> Result<(Meta, Body), String> {
 
 /// Finds what earlier runs left. A folder in use by a running Limoniter is left alone, and empty ones are tidied up.
 pub fn find_orphans(root: &Path) -> (Vec<Orphan>, Vec<Found>) {
+    let (orphans, found, _) = look_for_orphans(root);
+    (orphans, found)
+}
+
+/// The search itself, which also counts the folders it left alone because their lock was held.
+fn look_for_orphans(root: &Path) -> (Vec<Orphan>, Vec<Found>, usize) {
     let mut orphans = Vec::new();
     let mut found = Vec::new();
+    let mut in_use = 0;
     let Ok(entries) = fs::read_dir(root) else {
-        return (orphans, found);
+        return (orphans, found, in_use);
     };
     let mut dirs: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).filter(|path| path.is_dir()).collect();
     dirs.sort();
     for dir in dirs {
         let Ok(lock) = take_lock(&dir.join(LOCK_NAME)) else {
+            in_use += 1;
             continue;
         };
         let mut copies: Vec<PathBuf> = fs::read_dir(&dir).map_or_else(|_| Vec::new(), |list| list.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "rec")).collect());
@@ -697,7 +705,7 @@ pub fn find_orphans(root: &Path) -> (Vec<Orphan>, Vec<Found>) {
         }
         orphans.push(Orphan { dir, _lock: lock });
     }
-    (orphans, found)
+    (orphans, found, in_use)
 }
 
 /// The files that recovery copies, in every session, running or not, read their untouched lines from.
@@ -746,17 +754,23 @@ pub fn tidy(orphans: Vec<Orphan>) {
     }
 }
 
-/// For tests: waits for every session under a folder to be let go of. Another test starting a program shares this
-/// process's open files with it for a moment, and a lock on one of them is held until that program has started.
+/// For tests, where no session under the folder is still running: finds what they left, looking again for as long as
+/// any lock is held. A lock is held for a moment by more than its own session: a program another test starts (in the
+/// same process) is given a share of every file open at that instant, the locks included, until it has started. That
+/// can catch the lock a session had, or one this search itself took a moment ago, so a single wait followed by a single
+/// search isn't enough: the search has to be the one that finds every lock free.
 #[cfg(test)]
-pub fn wait_until_let_go(root: &Path) {
+pub fn find_orphans_once_let_go(root: &Path) -> (Vec<Orphan>, Vec<Found>) {
     let began = std::time::Instant::now();
-    let dirs: Vec<PathBuf> = fs::read_dir(root).unwrap().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
-    for dir in dirs {
-        while take_lock(&dir.join(LOCK_NAME)).is_err() {
-            assert!(began.elapsed() < std::time::Duration::from_secs(10), "the session's lock was never let go");
-            std::thread::sleep(std::time::Duration::from_millis(10));
+    loop {
+        let (orphans, found, in_use) = look_for_orphans(root);
+        if in_use == 0 {
+            return (orphans, found);
         }
+        // Lets go of the ones it did take, so that a folder isn't half searched, and tries again.
+        drop((orphans, found));
+        assert!(began.elapsed() < std::time::Duration::from_secs(20), "a session's lock was never let go");
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
@@ -840,15 +854,40 @@ mod tests {
         assert!(orphans.is_empty() && found.is_empty(), "this one is still running");
 
         running.abandon();
-        wait_until_let_go(&root);
-        let (orphans, found) = find_orphans(&root);
+        let (orphans, found) = find_orphans_once_let_go(&root);
         assert_eq!((orphans.len(), found.len()), (1, 1));
         let (second_look, _) = find_orphans(&root);
         assert!(second_look.is_empty(), "another window can't offer the same ones at the same time");
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         assert_eq!(bytes_after_recovery(&meta, body), expected);
         tidy(orphans);
-        assert_eq!(find_orphans(&root).1.len(), 1, "undecided copies stay for next time");
+        // Searched for until every lock is free: a program another test started while this test held the lock can
+        // keep a share of it for a moment after tidy lets go, and a plain search would then see a running session.
+        assert_eq!(find_orphans_once_let_go(&root).1.len(), 1, "undecided copies stay for next time");
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// What a program started by another test does to a lock, made to happen on purpose: a second handle on the same
+    /// open file, as a starting program is given, keeps the lock held after the search that took it lets go.
+    #[test]
+    fn a_lock_shared_for_a_moment_is_waited_for_not_taken_as_a_running_session() {
+        let root = temp_root("shared-lock");
+        let mut session = Session::start(&root).unwrap();
+        let (one, _) = snapshot_of(9, b"kept\n", "utf-8", |_| {});
+        session.offer(one);
+        assert!(session.flush(Duration::from_secs(5)));
+        session.abandon();
+        let (orphans, found) = find_orphans_once_let_go(&root);
+        assert_eq!(found.len(), 1);
+        let share = orphans[0]._lock.try_clone().unwrap();
+        tidy(orphans);
+        assert!(find_orphans(&root).1.is_empty(), "while the share is held, the folder looks to be in use");
+        let letting_go = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(200));
+            drop(share);
+        });
+        assert_eq!(find_orphans_once_let_go(&root).1.len(), 1, "found once the share is let go");
+        letting_go.join().unwrap();
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -863,7 +902,6 @@ mod tests {
         let copy = copy_path(session.dir(), 3);
         let dir = session.dir().to_path_buf();
         session.abandon();
-        wait_until_let_go(&root);
         let read = |path: &Path| {
             let (meta, body) = read_copy(path).unwrap();
             bytes_after_recovery(&meta, body)
@@ -874,17 +912,14 @@ mod tests {
         let mut data = fs::read(&copy).unwrap();
         data[40] ^= 1;
         fs::write(&copy, &data).unwrap();
-        wait_until_let_go(&root);
-        let (orphans, found) = find_orphans(&root);
+        let (orphans, found) = find_orphans_once_let_go(&root);
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         assert_eq!(bytes_after_recovery(&meta, body), b"second\n");
         drop(orphans);
-        // A program another test is starting can hold the lock for a moment as it starts.
-        wait_until_let_go(&root);
 
         // A crash between the two renames leaves only the previous copy.
         fs::remove_file(&copy).unwrap();
-        let (orphans, found) = find_orphans(&root);
+        let (orphans, found) = find_orphans_once_let_go(&root);
         assert_eq!(found.len(), 1);
         assert!(found[0].outcome.is_ok());
         drop(orphans);
@@ -898,8 +933,7 @@ mod tests {
         let session = Session::start(&root).unwrap();
         fs::write(session.dir().join("doc-1.tmpThreadId3"), b"half a copy").unwrap();
         session.abandon();
-        wait_until_let_go(&root);
-        let (orphans, found) = find_orphans(&root);
+        let (orphans, found) = find_orphans_once_let_go(&root);
         assert!(found.is_empty());
         assert!(orphans.is_empty(), "with no copies in it, the folder is tidied away");
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
@@ -974,8 +1008,7 @@ mod tests {
     }
 
     fn recovered_bytes(root: &Path) -> Vec<u8> {
-        wait_until_let_go(root);
-        let (orphans, found) = find_orphans(root);
+        let (orphans, found) = find_orphans_once_let_go(root);
         assert_eq!(found.len(), 1, "one document to offer");
         let (meta, body) = found.into_iter().next().unwrap().outcome.unwrap();
         drop(orphans);

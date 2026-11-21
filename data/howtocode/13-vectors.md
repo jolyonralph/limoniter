@@ -1,5 +1,7 @@
 # 13. 3D vectors
 
+[‹ Sound and music](12-sound-and-music.md) · [Contents](README.md) · [The 68000 and later processors ›](14-processors.md)
+
 "Vectors", in a demo, are objects worked out in three dimensions and drawn flat on the screen: dots, lines, filled faces, balls. This chapter goes through the maths and the drawing, from a turning cloud of dots to a solid cube, lit and in perspective, at 50 frames a second on an Amiga 500.
 
 The maths is **Carl-Henrik Skårstedt**'s (Asterix of Movement), v7's co-editor, who wrote v7's Vectors chapter over his Easter holidays in 1993: fixed point, the sine table, the rotation matrix worked out once a frame so each point takes nine multiplies, the back-face test and the sorting. v7 also carried a shorter way into rotation matrices by **Michael Vissers**, which is kept here too. The text and code are new: every routine in this chapter is in one of the two examples, each assembled with Limoniter and run on an emulated Amiga 500 with Kickstart 1.3 and 3.1, both ways (taking the machine and keeping the system running), and with a 68020 and a 68040. The fixed-point maths was checked separately against a model in Python.
@@ -345,3 +347,5 @@ Both run on the v8 startup, both ways (`OS_FRIENDLY` 0 and 1), and were run on K
 - The line drawer is chapter 7's, not v7's K-Seka routine; v7's way of dropping a fill line's top end (flipping the first dot with the processor) is described, and was tested.
 - New: the cost of each step on a 68000, measured; drawing several colours with one edge list (the exclusive or of the faces' colours); double buffering with the swap at the vertical blank, and the system-running trap; clearing and filling only the box the object is in; rubbing out dots from a list.
 - Left out: the AmigaBASIC program and the MacLaurin series for making sine tables (a script or the table generator does it now), the introduction to vectors (any linear algebra book has it), and glenz vectors, which v7 also left out ("they are amazingly depressive").
+
+[‹ Sound and music](12-sound-and-music.md) · [Contents](README.md) · [The 68000 and later processors ›](14-processors.md)

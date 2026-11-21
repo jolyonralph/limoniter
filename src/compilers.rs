@@ -21,6 +21,8 @@ pub enum Toolchain {
     AmigaGcc,
     /// SAS/C itself, run through vamos (see `amiga_vamos`): found as vamos, with SAS/C's folder known.
     SasC,
+    /// TRSE, building a Turbo Rascal project (see `trse`).
+    Trse,
 }
 
 /// A compiler Limoniter knows: where it's usually installed and what it compiles for.
@@ -43,8 +45,11 @@ pub struct Compiler {
 
 const SPECTRUM: &[Machine] = &[Machine::Spectrum48];
 const COMMODORES: &[Machine] = &[Machine::C64, Machine::C128, Machine::Vic20, Machine::Plus4, Machine::Pet];
+/// The machines TRSE builds for whose programs Limoniter runs (see `trse::machine_of`).
+const TRSE_MACHINES: &[Machine] = &[Machine::C64, Machine::C128, Machine::Vic20, Machine::Plus4, Machine::Pet, Machine::Atari2600, Machine::Vectrex, Machine::Nes, Machine::GameBoy];
+pub const TRSE_WEBSITE: &str = "https://lemonspawn.com/turbo-rascal-syntax-error-expected-but-begin/";
 
-pub const KNOWN: [Compiler; 9] = [
+pub const KNOWN: [Compiler; 10] = [
     Compiler { id: "zxbc", name: "Boriel's ZX Basic (zxbc)", toolchain: Toolchain::Zxbc, machines: SPECTRUM, programs: &["zxbc", "zxbc.py", "zxb", "zxb.py"], folder_hints: &["zxbasic", "zxbc", "boriel"], homes: &[], usual: &[], website: "https://github.com/boriel-basic/zxbasic" },
     Compiler { id: "cc65", name: "cc65", toolchain: Toolchain::Cc65, machines: COMMODORES, programs: &["cl65"], folder_hints: &["cc65"], homes: &["CC65_HOME"], usual: &["/usr/local/cc65/bin", "/opt/cc65/bin", "C:\\cc65\\bin"], website: "https://cc65.github.io" },
     Compiler { id: "llvm-mos", name: "llvm-mos", toolchain: Toolchain::LlvmMos, machines: &[Machine::C64, Machine::C128, Machine::Vic20, Machine::Pet, Machine::Atari2600], programs: &[], folder_hints: &["llvm-mos"], homes: &["LLVM_MOS_SDK"], usual: &["/opt/llvm-mos/bin", "/usr/local/llvm-mos/bin", "C:\\llvm-mos\\bin"], website: "https://www.llvm-mos.org" },
@@ -53,6 +58,7 @@ pub const KNOWN: [Compiler; 9] = [
     Compiler { id: "sgdk", name: "SGDK", toolchain: Toolchain::Sgdk, machines: &[Machine::MegaDrive], programs: &[], folder_hints: &["sgdk"], homes: &["GDK", "SGDK", "GDK_WIN"], usual: &["/opt/sgdk", "C:\\SGDK", "C:\\sgdk"], website: "https://github.com/Stephane-D/SGDK" },
     Compiler { id: "amiga-gcc", name: "amiga-gcc (Bebbo's)", toolchain: Toolchain::AmigaGcc, machines: &[Machine::Amiga], programs: &["m68k-amigaos-gcc"], folder_hints: &["amiga-gcc", "amiga"], homes: &[], usual: &["/opt/amiga/bin", "C:\\amiga-gcc\\bin"], website: "https://codeberg.org/bebbo/amiga-gcc" },
     Compiler { id: "vbcc", name: "vbcc", toolchain: Toolchain::Vbcc, machines: &[Machine::Amiga], programs: &["vc"], folder_hints: &["vbcc"], homes: &["VBCC"], usual: &["/opt/vbcc/bin", "C:\\vbcc\\bin"], website: "http://www.compilers.de/vbcc.html" },
+    Compiler { id: "trse", name: "TRSE (Turbo Rascal)", toolchain: Toolchain::Trse, machines: TRSE_MACHINES, programs: &["trse", "TRSE"], folder_hints: &["trse"], homes: &["TRSE"], usual: &["/usr/local/trse", "/opt/trse", "/usr/local/trse/bin", "C:\\TRSE", "/Applications/trse.app/Contents/MacOS"], website: TRSE_WEBSITE },
     Compiler { id: "sasc", name: "SAS/C (through vamos)", toolchain: Toolchain::SasC, machines: &[Machine::Amiga], programs: &["vamos"], folder_hints: &["amitools"], homes: &[], usual: &[], website: crate::amiga_vamos::WEBSITE },
 ];
 
@@ -118,7 +124,8 @@ impl Compiler {
 
 /// The compilers for a machine's C (or, for the Spectrum, Boriel's BASIC too), in the order they're tried.
 pub fn for_machine(machine: Machine, basic: bool) -> Vec<&'static Compiler> {
-    KNOWN.iter().filter(|c| c.machines.contains(&machine) && (c.toolchain == Toolchain::Zxbc) == basic).collect()
+    // TRSE builds Turbo Rascal only, so it's never a choice for C or BASIC.
+    KNOWN.iter().filter(|c| c.machines.contains(&machine) && (c.toolchain == Toolchain::Zxbc) == basic && c.toolchain != Toolchain::Trse).collect()
 }
 
 /// What to compile: the compiler, where it is, the machine, the files and where the result goes.
@@ -285,6 +292,12 @@ pub fn commands(job: &Job, work: &Path) -> Vec<(PathBuf, Vec<String>)> {
             }
             vec![(program, args)]
         }
+        // trse -cli op=project project=game.trse input_file=main.ras, in the project's folder; the project's file
+        // is the one flag.
+        Toolchain::Trse => {
+            let project = flags.first().map(PathBuf::from).unwrap_or_default();
+            vec![(program, crate::trse::arguments(&project, &job.main))]
+        }
         // vamos running SAS/C's smake or sc in the project's folder (see `amiga_vamos::sasc_arguments`).
         Toolchain::SasC => {
             let settings = crate::amiga_vamos::settings();
@@ -314,6 +327,10 @@ pub fn commands(job: &Job, work: &Path) -> Vec<(PathBuf, Vec<String>)> {
 /// - SDCC: `prog.c:6: error 20: Undefined identifier 'y'` and `prog.c:3: syntax error: token -> 'x' ; column 5`
 /// - vbcc: `error 82 in line 4 of "prog.c": unknown identifier <foo>`
 pub fn problem_in(line: &str) -> Option<Problem> {
+    // TRSE's own: "Fatal error  on line: 12", "Warning at line 7 in file 'x': ...".
+    if let Some(problem) = crate::trse::problem_in(line) {
+        return Some(problem);
+    }
     // SAS/C, run through vamos: "hello.c 6 Error 57: Semi-colon expected".
     if let Some(problem) = crate::amiga_vamos::sasc_problem(line) {
         return Some(problem);
@@ -498,6 +515,10 @@ pub fn build(job: &Job, work: &Path) -> Result<Compiled, String> {
             {
                 problem.file = shown(&original.join(name));
             }
+            // TRSE doesn't always say which file: the one built.
+            if problem.file.is_empty() {
+                problem.file = shown(&job.main);
+            }
             if !compiled.problems.contains(&problem) {
                 compiled.problems.push(problem);
             }
@@ -540,6 +561,11 @@ fn made(job: &Job, work: &Path) -> Option<(String, Vec<u8>)> {
         Toolchain::Vbcc | Toolchain::AmigaGcc => read(work.join(stem)).map(|b| (stem.clone(), b)),
         // SAS/C leaves the program in the project's folder, as it would on the Amiga.
         Toolchain::SasC => read(job.folder.join(stem)).map(|b| (stem.clone(), b)),
+        // TRSE leaves it beside the source, named for it.
+        Toolchain::Trse => {
+            let name = format!("{stem}.{}", crate::trse::ending(job.machine));
+            read(job.main.with_file_name(&name)).map(|b| (name, b))
+        }
     }
 }
 
@@ -558,6 +584,13 @@ pub fn runnable(job: &Job, name: &str, bytes: Vec<u8>) -> Result<Runnable, Strin
         },
         Toolchain::Sgdk => Format::MdRom,
         Toolchain::Vbcc | Toolchain::AmigaGcc | Toolchain::SasC => Format::Hunk,
+        Toolchain::Trse => match job.machine {
+            Machine::Atari2600 => Format::A26,
+            Machine::Vectrex => Format::VecCart,
+            Machine::Nes => Format::Nes,
+            Machine::GameBoy => Format::Gb,
+            _ => Format::Prg,
+        },
     };
     let name = if format == Format::Hunk { format!("{name}.exe") } else { name.to_string() };
     if format == Format::Hunk && !bytes.starts_with(&[0, 0, 0x03, 0xF3]) {
@@ -798,6 +831,47 @@ mod tests {
         unsafe { std::env::set_var("LIMONITER_TEST_GDK", base.join("sgdk")) };
         assert_eq!(compiler.find(Machine::MegaDrive), Some(base.join("sgdk")));
         unsafe { std::env::remove_var("LIMONITER_TEST_GDK") };
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// TRSE's command line run in the project's folder, the program it leaves beside the source taken, and what it
+    /// prints read for problems, with a stand-in for TRSE that does as it does.
+    #[cfg(unix)]
+    #[test]
+    fn trse_builds_a_project_and_what_it_says_is_read() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = std::env::temp_dir().join(format!("limoniter-trse-build-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("project")).unwrap();
+        let project = base.join("project/game.trse");
+        std::fs::write(&project, "system = VIC20\n").unwrap();
+        let main = base.join("project/main.ras");
+        std::fs::write(&main, "program Main;\nbegin\nend.\n").unwrap();
+        let script = |name: &str, body: &str| {
+            let path = base.join(name);
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        };
+        let good = script("trse", r#"for a in "$@"; do case "$a" in input_file=*) f="${a#input_file=}";; project=*) p="${a#project=}";; esac; done
+[ "$1" = "-cli" ] && [ "$2" = "op=project" ] && [ -f "$p" ] || exit 2
+[ "$(pwd)" = "$(dirname "$p")" ] || exit 3
+printf '\001\020\251' > "${f%.ras}.prg"
+echo "Compiling '$f' for system: VIC20""#);
+        let job = Job { compiler: by_id("trse").unwrap(), program: good, machine: Machine::Vic20, main: main.clone(), sources: vec![main.clone()], folder: base.join("project"), flags: vec![project.display().to_string()], libs: Vec::new(), stem: "main".into(), sasc: false };
+        // A program just written can be busy for a moment while another test starts one of its own.
+        let built = (0..20).find_map(|_| build(&job, &base.join("work")).ok().filter(|c| c.ok()).or_else(|| { std::thread::sleep(Duration::from_millis(50)); None })).expect("built");
+        let (name, bytes) = built.made.clone().unwrap();
+        assert_eq!((name.as_str(), bytes.as_slice()), ("main.prg", &[0x01, 0x10, 0xA9][..]));
+        let run = runnable(&job, &name, bytes).unwrap();
+        assert_eq!((run.machine, run.format), (Machine::Vic20, Format::Prg));
+        let bad = script("trse-bad", "echo \"Warning at line 2: Unused variables : x\"\necho \"Unknown identifier 'y' Fatal error  on line: 3\"\nexit 1");
+        let job = Job { program: bad, ..job };
+        let failed = (0..20).find_map(|_| build(&job, &base.join("work")).ok().filter(|c| !c.problems.is_empty()).or_else(|| { std::thread::sleep(Duration::from_millis(50)); None })).expect("ran");
+        assert!(!failed.ok());
+        let lines: Vec<(usize, bool, &str)> = failed.problems.iter().map(|p| (p.line, p.warning, p.file.as_str())).collect();
+        let file = shown(&main);
+        assert_eq!(lines, [(2, true, file.as_str()), (3, false, file.as_str())], "each marked on the file built");
         let _ = std::fs::remove_dir_all(&base);
     }
 
