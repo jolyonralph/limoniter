@@ -525,6 +525,43 @@ pub fn log(root: &Path, relative: Option<&str>, most: usize) -> Result<Vec<Commi
         .collect())
 }
 
+/// Every file Git keeps in the repository, as it names them.
+pub fn tracked(root: &Path) -> Result<std::collections::HashSet<String>, String> {
+    let output = run_bytes(root, &["ls-files", "-z"])?;
+    Ok(output.stdout.split(|&b| b == 0).filter(|name| !name.is_empty()).map(|name| String::from_utf8_lossy(name).into_owned()).collect())
+}
+
+/// When each file was last changed in the commits made over the last few days, in seconds since 1970: one look at
+/// the whole repository's history, rather than one for each file. It's when the change was written (the author's
+/// date), so commits moved about by a rebase don't make their files look newly edited.
+pub fn last_changes(root: &Path, days: u32) -> Result<std::collections::HashMap<String, u64>, String> {
+    let since = format!("--since={days}.days.ago");
+    match run(root, &["log", &since, "--format=%x01%at", "--name-only"]) {
+        Ok(said) => Ok(parse_last_changes(&said)),
+        // A repository with no commits yet has no history.
+        Err(problem) if problem.contains("does not have any commits") => Ok(Default::default()),
+        Err(problem) => Err(problem),
+    }
+}
+
+/// Reads `git log --format=%x01%at --name-only`: each commit's time, then the files it changed. The latest time
+/// each file was changed is kept.
+pub fn parse_last_changes(said: &str) -> std::collections::HashMap<String, u64> {
+    let mut changes = std::collections::HashMap::new();
+    let mut when = None;
+    for line in said.lines() {
+        if let Some(time) = line.strip_prefix('\u{1}') {
+            when = time.trim().parse::<u64>().ok();
+        } else if let Some(when) = when
+            && !line.is_empty()
+        {
+            let latest: &mut u64 = changes.entry(line.to_string()).or_insert(when);
+            *latest = (*latest).max(when);
+        }
+    }
+    changes
+}
+
 /// A file's bytes at a commit ("HEAD", a hash), or as staged with "". None if it wasn't there.
 pub fn file_at(root: &Path, revision: &str, relative: &str) -> Option<Vec<u8>> {
     run_bytes(root, &["show", &format!("{revision}:{relative}")]).ok().map(|output| output.stdout)

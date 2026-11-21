@@ -1506,7 +1506,8 @@ enum Dialog {
     ComparePick(Vec<(usize, String)>),
     WrapColumn { value: String, error: String, focus: bool },
     ParagraphSetup { width: String, left: String, first: String, align: Align, error: String },
-    ProjectSettings { name: String, notes: String },
+    /// A folder project's settings hold what's hidden in its Explorer, to take things back.
+    ProjectSettings { name: String, notes: String, hidden: Option<Vec<crate::explorer_kept::Hide>>, colours: Vec<crate::file_colours::Rule> },
     RestorePick { backups: Vec<project::Backup>, chosen: usize },
     Fill { value: String, skip_last: bool },
     /// Before saving a BASIC listing as a program: which Commodore machine, or which line a Spectrum program runs from.
@@ -1664,6 +1665,10 @@ pub struct Limoniter {
     ribbon: ribbon_bar::RibbonState,
     /// What the start page has open and remembers while it's shown.
     start: start_page::StartState,
+    /// The recent lists' tabs, and the names of the recent projects.
+    recent_lists: recent::RecentLists,
+    /// Which project each recent file was last opened or saved in. Kept in the settings beside the recent files.
+    recent_in: recent::FileProjects,
     /// Chosen in the command box, to be done in the next frame.
     pending_command: Option<Command>,
     /// Drawing a menu laid open, rather than one opened by a click.
@@ -2131,6 +2136,8 @@ impl Limoniter {
             pending_command: None,
             ribbon: ribbon_bar::RibbonState::default(),
             start: start_page::StartState::default(),
+            recent_lists: recent::RecentLists::default(),
+            recent_in: recent::FileProjects::from_settings(&settings),
             drawing_open: false,
             view,
             show_file_tabs: setting_flag(&settings, "file_tabs", true),
@@ -2420,7 +2427,7 @@ impl Limoniter {
         if let Some(i) = self.docs.iter().position(|d| d.path.as_deref().is_some_and(|p| same_path(p, &full))) {
             self.active = i;
             self.pending_focus = true;
-            panels::note_recent(&mut self.panels.recent, &full);
+            self.note_recent_file(&full);
             return true;
         }
         // Disk, tape and CD images and archives open in a browser, unless it turns out they can't be read as one.
@@ -2435,7 +2442,7 @@ impl Limoniter {
         }
         match Document::open(&full, self.encoding_prefs.get(&full)) {
             Ok(mut doc) => {
-                panels::note_recent(&mut self.panels.recent, &full);
+                self.note_recent_file(&full);
                 // A file Windows has marked read-only opens locked; the switch on the Edit tab unlocks it.
                 if std::fs::metadata(&full).is_ok_and(|meta| meta.permissions().readonly()) {
                     doc.set_read_only(true);
@@ -2485,7 +2492,7 @@ impl Limoniter {
         self.print_status = crate::i18n::tf!("{name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.", unpacked.packer.name(), unpacked.packed_size, unpacked.bytes.len());
         let mut doc = Document::from_image_file(format!("{} \u{203A} {name}", unpacked.packer.name()), unpacked.bytes, None);
         doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound | preview::Kind::Document)) || Self::amos_or_stos(&doc));
-        panels::note_recent(&mut self.panels.recent, path);
+        self.note_recent_file(path);
         if self.docs.len() == 1 && self.docs[0].is_blank() {
             self.docs.clear();
         }
@@ -2522,7 +2529,7 @@ impl Limoniter {
         self.print_status = crate::i18n::tf!("{name} was crunched with {cruncher} ({} bytes): it's open as what it holds, {} bytes, read-only.", bytes.len(), decrunched.bytes.len());
         let mut doc = Document::from_image_file(format!("{cruncher} \u{203A} {name}"), decrunched.bytes, None);
         doc.preview_view = self.opening_view(Some(Path::new(&name)), doc.picture.is_some() || matches!(Self::preview_kind(&doc), Some(preview::Kind::Module | preview::Kind::Sound | preview::Kind::Document)) || Self::amos_or_stos(&doc));
-        panels::note_recent(&mut self.panels.recent, path);
+        self.note_recent_file(path);
         if self.docs.len() == 1 && self.docs[0].is_blank() {
             self.docs.clear();
         }
@@ -2683,7 +2690,7 @@ impl Limoniter {
             warn(&crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
             return false;
         }
-        panels::note_recent(&mut self.panels.recent, path);
+        self.note_recent_file(path);
         let doc = &mut self.docs[index];
         note_saved_to(doc, path);
         doc.path = Some(path.to_path_buf());
@@ -2697,6 +2704,7 @@ impl Limoniter {
         }
         self.keep_history(index, &bytes);
         self.amiga_saved(path);
+        self.note_saved_in_project(path);
         true
     }
 
@@ -2951,6 +2959,7 @@ impl Limoniter {
 
     fn note_recent_project(&mut self, path: &Path) {
         const MOST_RECENT: usize = 15;
+        self.recent_lists.forget(path);
         self.recent_projects.retain(|known| !same_path(known, path));
         self.recent_projects.insert(0, path.to_path_buf());
         self.recent_projects.truncate(MOST_RECENT);
@@ -2958,6 +2967,10 @@ impl Limoniter {
 
     /// Keeps the project's file up to date. Not being able to is worth saying.
     fn save_project(&mut self) {
+        // Its name, as the recent lists show it, may have changed.
+        if let Some(project) = &self.project {
+            self.recent_lists.forget(&project.path);
+        }
         if let Some(problem) = self.project.as_ref().and_then(|project| project.save().err().map(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", project.path.display()))) {
             self.message("Project", problem);
         }
@@ -2986,6 +2999,7 @@ impl Limoniter {
                 for file in files {
                     self.open_path(&file);
                 }
+                self.offer_to_hide_build_folders();
                 self.index_project();
             }
             Err(problem) => {
@@ -4526,11 +4540,7 @@ impl Limoniter {
                 }
             }
             Command::ProjectClose => self.close_project(),
-            Command::ProjectSettings => {
-                if let Some(project) = &self.project {
-                    self.dialog = Dialog::ProjectSettings { name: project.name.clone(), notes: project.notes.clone() };
-                }
-            }
+            Command::ProjectSettings => self.open_project_settings(),
             Command::ProjectAddActive => {
                 if let Some(path) = self.docs[self.active].path.clone() {
                     self.add_to_project([path]);
@@ -5201,7 +5211,7 @@ impl Limoniter {
             self.show_status,
             self.new_file_preset.id,
             self.font_file.iter().map(|path| format!("font_file={}\n", path.display())).collect::<String>(),
-            self.panels.recent.iter().map(|path| format!("recent_file={}\n", path.display())).collect::<String>(),
+            self.panels.recent.iter().map(|path| format!("recent_file={}\n", path.display())).collect::<String>() + self.recent_in.to_settings(&self.panels.recent).as_str(),
             self.find.history.iter().map(|text| format!("find_history={text}\n")).collect::<String>(),
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
@@ -5330,6 +5340,7 @@ impl Limoniter {
         self.panels.custom_tags.clear();
         self.panels.read_settings(&fresh.saved_settings);
         self.panels.recent = fresh.panels.recent;
+        self.recent_in = fresh.recent_in;
         self.show_file_tabs = fresh.show_file_tabs;
         self.show_status = fresh.show_status;
         self.new_file_preset = fresh.new_file_preset;
@@ -5674,6 +5685,13 @@ impl Limoniter {
 
     /// The tab beside the one in front: its text, as it is, to read and scroll; anything else, by its name.
     fn draw_beside(&mut self, ui: &mut Ui, index: usize, view: ViewOptions) {
+        // In its own colours, which are put back for the one in front after.
+        theme::set_document(self.document_theme_of(index));
+        self.draw_beside_in_its_colours(ui, index, view);
+        theme::set_document(self.document_theme_of(self.active));
+    }
+
+    fn draw_beside_in_its_colours(&mut self, ui: &mut Ui, index: usize, view: ViewOptions) {
         let doc = &mut self.docs[index];
         let plain = !doc.hex_mode && !doc.placeholder && doc.browser.is_none() && doc.game.is_none() && doc.compare.is_none() && doc.merge.is_none() && doc.table.is_none();
         if plain {
@@ -6226,7 +6244,7 @@ impl Limoniter {
                     }
                 }
             }
-            Dialog::ProjectSettings { name, notes } => {
+            Dialog::ProjectSettings { name, notes, hidden, colours } => {
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
                 let mut ok = false;
                 crate::fit::Dialog::new(crate::i18n::tr("Project settings")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
@@ -6235,6 +6253,10 @@ impl Limoniter {
                     ui.add_space(4.0);
                     ui.label(crate::i18n::tr("Notes:"));
                     ui.add(egui::TextEdit::multiline(notes).desired_rows(5));
+                    if let Some(hidden) = hidden {
+                        workspace_host::hidden_list(ui, hidden);
+                    }
+                    file_colours_host::rules_list(ui, colours);
                     let (okay, cancel) = ok_cancel(ui);
                     ok = okay;
                     cancelled |= cancel;
@@ -6247,8 +6269,13 @@ impl Limoniter {
                             project.name = name.trim().to_string();
                         }
                         project.notes.clone_from(notes);
+                        if let Some(hidden) = hidden.take() {
+                            project.explorer.hidden = hidden;
+                        }
+                        project.colours.rules = file_colours_host::tidy_rules(colours);
                     }
                     self.save_project();
+                    self.index_project();
                     if matches!(self.dialog, Dialog::ProjectSettings { .. }) {
                         self.close_dialog();
                     }
@@ -6718,6 +6745,7 @@ impl Limoniter {
 
     fn tab_strip(&mut self, ui: &mut Ui) {
         let mut close = None;
+        let mut pick = None;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 2.0);
             for i in 0..if self.no_file() { 0 } else { self.docs.len() } {
@@ -6727,7 +6755,14 @@ impl Limoniter {
                     let doc = &self.docs[i];
                     let name = if several { format!("{}:{number}", doc.name()) } else { doc.name() };
                     let name = if doc.merge.is_some() { format!("Merge: {name}") } else { name };
-                    let (chosen, closing) = tabs::file_tab(ui, &name, &doc.name(), doc.is_modified(), i == self.active && number == doc.window_number);
+                    let (file_name, modified, selected) = (doc.name(), doc.is_modified(), i == self.active && number == doc.window_number);
+                    let stripe = self.doc_look(i).tint.map(crate::file_colours::Tint::mark);
+                    let (chosen, closing, response) = tabs::file_tab(ui, &name, &file_name, modified, selected, stripe);
+                    crate::fit::context_menu(&response, |ui| {
+                        if let Some(choice) = self.tab_menu(ui, i) {
+                            pick = Some((i, choice));
+                        }
+                    });
                     if chosen {
                         self.active = i;
                         self.docs[i].switch_window(number);
@@ -6739,6 +6774,9 @@ impl Limoniter {
                 }
             }
         });
+        if let Some((i, choice)) = pick {
+            self.tab_pick(i, choice);
+        }
         if let Some((i, number)) = close {
             if self.docs[i].windows.is_empty() {
                 self.close_tab(i);
@@ -7621,7 +7659,10 @@ impl Limoniter {
                     if let Some(project) = &mut self.project
                         && let Some(root) = project.root.clone()
                     {
-                        project.files = crate::workspace::index(&root).0;
+                        project.files = crate::workspace::index(&root, &project.explorer.hidden).0;
+                        // And the files edited lately found now too.
+                        let times = crate::explorer_kept::outside_times(&root, &project.files, project.explorer.recent_days);
+                        self.panels.project_panel.explorer.set_outside_times(&root, times);
                     }
                     if !letters.is_empty() {
                         self.open_go_to_file();
@@ -7679,6 +7720,10 @@ impl Limoniter {
                     self.shown_menu = index.parse().ok().map(|i| (i, out));
                 }
                 // Menus opened as a click opens them, by the names on them, a sub-menu after its menu ("File>New as>Amiga").
+                // File, Open recent and the start page opening on their Files tab ("files") rather than Projects.
+                "recent-tab" => {
+                    self.recent_lists.opens_on = if value == "files" { recent::Tab::Files } else { recent::Tab::Projects };
+                }
                 "open-menu" => {
                     let names: Vec<String> = value.split('>').map(str::to_string).collect();
                     if let Some(ctx) = self.waker.as_ref() {
@@ -7799,6 +7844,27 @@ impl Limoniter {
                     self.open_language_picker();
                     if let Some(picker) = self.language_picker.as_mut() {
                         picker.query = letters.to_string();
+                    }
+                }
+                // The file in front given a colour ("rose", or "none"), or a theme of its own; and a tab brought to
+                // the front, by its place along the bar from 0.
+                "file-colour" => {
+                    if let Some(path) = self.docs[self.active].path.clone() {
+                        self.set_file_tint(&path, crate::file_colours::Tint::from_id(value));
+                    }
+                }
+                "file-theme" => self.set_file_theme(self.active, Some(value.to_string()).filter(|v| !v.is_empty())),
+                // A rule colouring the open project's files ("admin/=rose").
+                "colour-rule" => {
+                    if let (Some(project), Some((pattern, tint))) = (self.project.as_mut(), value.split_once('=')) {
+                        project.colours.rules.extend(crate::file_colours::Tint::from_id(tint).map(|tint| crate::file_colours::Rule::new(pattern, tint)));
+                    }
+                }
+                "tab" => {
+                    if let Ok(index) = value.parse::<usize>()
+                        && index < self.docs.len()
+                    {
+                        self.active = index;
                     }
                 }
                 "beside" => {
@@ -9532,6 +9598,8 @@ mod new_kinds;
 mod ribbon_bar;
 #[path = "start_page.rs"]
 mod start_page;
+#[path = "recent.rs"]
+mod recent;
 
 #[path = "intel_host.rs"]
 mod intel_host;
@@ -9636,6 +9704,9 @@ mod table_view;
 
 #[path = "theme_host.rs"]
 mod theme_host;
+
+#[path = "file_colours_host.rs"]
+mod file_colours_host;
 
 #[cfg(test)]
 #[path = "large_file_tests.rs"]
@@ -11743,7 +11814,7 @@ mod tests {
         command(&mut app, &ctx, Command::ProjectSettings);
         assert!(matches!(&app.dialog, Dialog::ProjectSettings { name, .. } if name == "p"));
         draw(&mut app, &ctx, Vec::new());
-        app.dialog = Dialog::ProjectSettings { name: "  ".into(), notes: "a note".into() };
+        app.dialog = Dialog::ProjectSettings { name: "  ".into(), notes: "a note".into(), hidden: None, colours: Vec::new() };
         draw(&mut app, &ctx, Vec::new());
         let saved = |app: &mut Limoniter, name: &str, notes: &str| {
             if let Some(project) = &mut app.project {

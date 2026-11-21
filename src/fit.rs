@@ -3,7 +3,7 @@
 //! screen, and when what's in one doesn't fit there, it scrolls.
 //!
 //! Every box is made with [`Dialog::new`] in place of `egui::Window::new`, and every menu with [`menu_button`],
-//! [`context_menu`] or [`popup_menu`] in place of egui's own. `clippy.toml` refuses egui's plain ones, so a new box or
+//! [`context_menu`] or [`popup_menu`] (or their kept-open kinds) in place of egui's own. `clippy.toml` refuses egui's plain ones, so a new box or
 //! menu can't miss out.
 //!
 //! How it works: egui already keeps a window's size within the screen, but what's in it isn't kept within the
@@ -243,11 +243,28 @@ fn note_anchor(button: &Response) {
 
 /// A menu's button, as `ui.menu_button` (a sub-menu's when it's in a menu), whose menu scrolls when it's too long.
 pub fn menu_button<'a, R>(ui: &mut Ui, title: impl IntoAtoms<'a>, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<Option<R>> {
+    menu_button_as(ui, title, false, add)
+}
+
+/// A menu's button, as [`menu_button`], whose menu stays open when something in it is clicked, such as a tab at
+/// its top that changes what it lists. Whatever in it is picked must close it with `ui.close()`.
+pub fn menu_button_kept_open<'a, R>(ui: &mut Ui, title: impl IntoAtoms<'a>, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<Option<R>> {
+    menu_button_as(ui, title, true, add)
+}
+
+fn menu_button_as<'a, R>(ui: &mut Ui, title: impl IntoAtoms<'a>, kept_open: bool, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<Option<R>> {
     let title = title.into_atoms();
     let name = title.text().map(|text| text.into_owned());
     let in_menu = menu::is_in_menu(ui);
-    #[allow(clippy::disallowed_methods, reason = "this is the one place a menu button is made")]
-    let shown = ui.menu_button(title, |ui| menu_body(ui, add));
+    let shown = if kept_open {
+        let mut config = menu::MenuConfig::find(ui);
+        config.close_behavior = egui::PopupCloseBehavior::CloseOnClickOutside;
+        let (response, inner) = if in_menu { menu::SubMenuButton::new(title).config(config).ui(ui, |ui| menu_body(ui, add)) } else { menu::MenuButton::new(title).config(config).ui(ui, |ui| menu_body(ui, add)) };
+        InnerResponse::new(inner.map(|shown| shown.inner), response)
+    } else {
+        #[allow(clippy::disallowed_methods, reason = "this is the one place a menu button is made")]
+        ui.menu_button(title, |ui| menu_body(ui, add))
+    };
     if !in_menu {
         note_anchor(&shown.response);
     }
@@ -277,9 +294,20 @@ pub fn context_menu(response: &Response, add: impl FnOnce(&mut Ui)) -> Option<In
 /// A menu dropping from `button` (such as a drop-down list), as `egui::Popup::menu(button).show`, which scrolls when
 /// it's too long for the screen.
 pub fn popup_menu<R>(button: &Response, add: impl FnOnce(&mut Ui) -> R) -> Option<InnerResponse<R>> {
+    popup_menu_as(button, false, add)
+}
+
+/// A menu dropping from `button`, as [`popup_menu`], which stays open when something in it is clicked, as
+/// [`menu_button_kept_open`]'s does.
+pub fn popup_menu_kept_open<R>(button: &Response, add: impl FnOnce(&mut Ui) -> R) -> Option<InnerResponse<R>> {
+    popup_menu_as(button, true, add)
+}
+
+fn popup_menu_as<R>(button: &Response, kept_open: bool, add: impl FnOnce(&mut Ui) -> R) -> Option<InnerResponse<R>> {
     note_anchor(button);
+    let closing = if kept_open { egui::PopupCloseBehavior::CloseOnClickOutside } else { egui::PopupCloseBehavior::CloseOnClick };
     #[allow(clippy::disallowed_methods, reason = "this is the one place a drop-down menu is shown")]
-    egui::Popup::menu(button).show(|ui| menu_body(ui, add))
+    egui::Popup::menu(button).close_behavior(closing).show(|ui| menu_body(ui, add))
 }
 
 #[cfg(test)]

@@ -45,10 +45,15 @@ fn the_index_leaves_out_what_git_would_and_never_goes_into_dot_git() {
     write(&root, "lib/a.tmp", "");
     write(&root, "lib/a.s", "");
     write(&root, "a.tmp", "");
-    let (files, more) = index(&root);
+    let (files, more) = index(&root, &[]);
     let names: Vec<String> = files.iter().map(|f| f.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/")).collect();
     assert!(!more);
     assert_eq!(names, [".gitignore", "a.tmp", "lib/.gitignore", "lib/a.s", "src/build/still.c", "src/keep.o", "src/main.c"]);
+    // What the project's Explorer hides is left out too: a folder, and a kind of file.
+    use crate::explorer_kept::Hide;
+    let (files, _) = index(&root, &[Hide::Folder("lib".into()), Hide::Kind("tmp".into())]);
+    let names: Vec<String> = files.iter().map(|f| f.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/")).collect();
+    assert_eq!(names, [".gitignore", "src/build/still.c", "src/keep.o", "src/main.c"]);
     let _ = std::fs::remove_dir_all(&root);
 }
 

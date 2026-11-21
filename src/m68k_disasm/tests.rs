@@ -367,3 +367,184 @@ fn a_68020_program_is_disassembled_for_the_68020() {
     let plain = disassemble(&raw(&bytes, 0x1000, &[0x1000], Machine::Plain));
     assert!(!plain.contains("bfextu") && !plain.contains("machine"), "{plain}");
 }
+
+/// An Amiga program assembled by Limoniter's own assembler, from source.
+fn amiga(source: &str) -> (Program, Vec<u8>) {
+    let file = reassembled_amiga(source);
+    (recognise("x", &file).unwrap(), file)
+}
+
+/// What a source assembles to, hunk by hunk: the bytes and the sorted relocations.
+fn hunks_of(file: &[u8]) -> Vec<(Vec<u8>, Vec<(u32, u32)>)> {
+    hunk::read_executable(file)
+        .unwrap()
+        .into_iter()
+        .map(|h| {
+            let mut r = h.relocations.clone();
+            r.sort();
+            (h.bytes, r)
+        })
+        .collect()
+}
+
+/// The source written for a program, checked from a source that's been changed, as if lines hadn't come back.
+fn checked_after(program: &Program, change: impl Fn(&mut Vec<Line>)) -> String {
+    let work = analyse(program);
+    let mut lines = write(&work);
+    change(&mut lines);
+    let lines = check(&work, lines);
+    lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n") + "\n"
+}
+
+/// A line made data by check() keeps its relocated long as a label, even one inside an instruction (label+2),
+/// so the program still has every relocation: none is written as a number with the section's start added.
+#[test]
+fn a_relocated_long_is_never_made_a_number() {
+    let source = "\tsection code,code\nstart:\tmove.l #$12345678,d0\n\tlea start+2,a0\n\tmove.l (a0),d1\n\trts\n\tsection data,data\nptr:\tdc.l start+2\n\tdc.l ptr\n";
+    let (program, file) = amiga(source);
+    let out = checked_after(&program, |lines| {
+        // The LEA written as if it gave back other bytes: it's mended as data.
+        let n = lines.iter().position(|l| l.text.contains("lea ")).unwrap();
+        lines[n].text = lines[n].text.replace(",a0", ",a1");
+    });
+    assert!(out.contains("; lea     L0_000000+2,a1?") && out.contains("dc.l    L0_000000+2"), "{out}");
+    assert!(!out.contains("dc.l    $"), "{out}");
+    assert_eq!(hunks_of(&reassembled_amiga(&out)), hunks_of(&file), "{out}");
+}
+
+/// When a line doesn't assemble, or comes to another length, only it is mended, and the lines after it, wrong
+/// only because their labels moved, are left as instructions.
+#[test]
+fn only_the_lines_that_went_wrong_are_made_data() {
+    let source = "\tsection code,code\nstart:\tmoveq #0,d0\n\tbsr.w sub\n\tlea table,a0\n\tmove.w (a0),d1\n\tbsr.w sub\n\tjsr sub\n\trts\nsub:\taddq.w #1,d0\n\trts\n\tsection data,data\ntable:\tdc.w 1,2,3\n\tdcb.b 20,0\n";
+    let (program, file) = amiga(source);
+    for (wrong, by) in [("bsr.w", "bsr.s"), ("moveq ", "bogus ")] {
+        let out = checked_after(&program, |lines| {
+            let n = lines.iter().position(|l| l.text.contains(wrong)).unwrap();
+            lines[n].text = lines[n].text.replace(wrong, by);
+        });
+        assert_eq!(out.matches("?\n").count(), 1, "{wrong}: {out}");
+        assert_eq!(hunks_of(&reassembled_amiga(&out)), hunks_of(&file), "{out}");
+    }
+    // A run of zeros that didn't come back is data, written byte by byte, not an instruction gone wrong.
+    let out = checked_after(&program, |lines| {
+        let n = lines.iter().position(|l| l.text.contains("dcb.b")).unwrap();
+        lines[n].text = lines[n].text.replace(",0", ",1");
+    });
+    assert!(!out.contains('?') && !out.contains("dcb.b") && out.contains("dc.b    $00,$00"), "{out}");
+}
+
+/// A place jumped to inside an instruction (code that overlaps itself) is named from the instruction's start,
+/// as label+2, so the label is one the source defines.
+#[test]
+fn a_place_inside_an_instruction_is_written_from_its_label() {
+    let source = "\tsection code,code\nstart:\tmove.w #$4E75,d1\n\tjsr start+2\n\tmove.l #start+2,a1\n\tjmp (a1)\n";
+    let (program, file) = amiga(source);
+    let out = disassemble(&program);
+    assert!(out.contains("jsr     L000000+2") && out.contains("movea.l #L000000+2,a1"), "{out}");
+    assert!(!out.contains("L000002") && !out.contains('?'), "{out}");
+    assert_eq!(hunks_of(&reassembled_amiga(&out)), hunks_of(&file), "{out}");
+}
+
+/// An immediate address is only followed as code where it's put in an exception vector or jumped to through a
+/// register. Put in a custom chip register, a data register or (a6), it's data, with a label.
+#[test]
+fn immediates_are_only_followed_as_code_where_they_are_run() {
+    let source = "\tsection code,code\nstart:\tmove.l #handler,$6c.w\n\tmove.l #buffer,$dff054\n\tmove.l #table,d0\n\tmove.l #more,(a6)\n\tlea routine,a0\n\tjsr (a0)\n\trts\nhandler:\tmove.w #$20,$dff09c\n\trte\nroutine:\tmoveq #1,d0\n\trts\ntable:\tdc.w $3001,$3001,$4E75\nmore:\tdc.w $7001,$4E75\nbuffer:\tdcb.b 64,0\n";
+    let (program, file) = amiga(source);
+    let out = disassemble(&program);
+    assert!(out.contains("rte") && out.contains("moveq   #1,d0"), "the handler and the routine are code:\n{out}");
+    assert!(out.contains("; the level 3 interrupt vector"), "{out}");
+    assert_eq!(out.matches("moveq   #1,d0").count(), 1, "{out}");
+    assert!(out.contains("dc.b    $30,$01,$30,$01,$4E,$75") && out.contains("dc.b    $70,$01,$4E,$75") && out.contains("dcb.b   64,0"), "{out}");
+    assert!(!out.contains("ori.b"), "{out}");
+    assert_eq!(hunks_of(&reassembled_amiga(&out)), hunks_of(&file), "{out}");
+}
+
+/// Text is only written as text when it reads as text; a table of symbols is numbers.
+#[test]
+fn only_text_that_reads_as_text_is_a_string() {
+    let source = "\tsection data,data\nwords:\tdc.b \"Copyright (c) 1989 Scoopex.\",0\ntable:\tdc.b \"!&)**+,/11/*%!!#\",0\nname:\tdc.b \"dos.library\",0\n";
+    let (program, file) = amiga(source);
+    let out = disassemble(&program);
+    assert!(out.contains("dc.b    \"Copyright (c) 1989 Scoopex.\"") && out.contains("dc.b    \"dos.library\""), "{out}");
+    assert!(!out.contains("\"!&)") && out.contains("$21,$26,$29,$2A,$2A,$2B"), "{out}");
+    assert_eq!(hunks_of(&reassembled_amiga(&out)), hunks_of(&file), "{out}");
+}
+
+/// Copper lists, put in COP1LC, in graphics.library's LOFlist, or found by their end, are dc.w pairs with their
+/// registers named (and defined), and their WAITs and end said; code writing into one names its place from the
+/// pair's start.
+#[test]
+fn copper_lists_are_written_as_copper_instructions() {
+    let source = "\tsection code,code\nstart:\tlea $dff000,a5\n\tmove.l #list,$80(a5)\n\tmove.w d0,list+6\n\tlea third,a0\n\tmove.l 4.w,a6\n\tlea gfxname,a1\n\tjsr -552(a6)\n\tmove.l d0,gfxbase\n\tmove.l gfxbase,a6\n\tadda.l #$32,a6\n\tmove.l #second,(a6)\n\trts\n\
+\tsection data,data_c\nlist:\tdc.w $0100,$0200,$0180,$0000,$2c07,$fffe,$2c07,$ffff,$ffff,$fffe\nsecond:\tdc.w $0182,$0fff,$4001,$ff00\n\tdc.w 0,0\nthird:\tdc.w $0180,$0f00,$ffff,$fffe\nnotalist:\tdc.w $0180,$0f00,$1234,$5678\ngfxname:\tdc.b \"graphics.library\",0\n\teven\ngfxbase:\tdc.l 0\n";
+    let (program, file) = amiga(source);
+    let out = disassemble(&program);
+    for said in ["dc.w    BPLCON0,$0200", "dc.w    COLOR00,$0000", "BPLCON0         equ     $100", "COLOR01         equ     $182", "; wait for line $2C, x $06", "; skip the next if the beam is past line $2C, x $06", "; the end of the copper list", "move.w  d0,L1_000004+2", "dc.w    COLOR01,$0FFF", "dc.w    COLOR00,$0F00"] {
+        assert!(out.contains(said), "{said}:\n{out}");
+    }
+    // The list given only by its LOFlist ends where its copper instructions do, before the zeros.
+    assert!(out.contains("dc.w    $4001,$FF00") && !out.contains("dc.w    $0000,$0000"), "{out}");
+    // What only looks a little like one, with no end, is data.
+    assert_eq!(out.matches("dc.w    COLOR00,$0F00").count(), 1, "{out}");
+    assert_eq!(hunks_of(&reassembled_amiga(&out)), hunks_of(&file), "{out}");
+}
+
+/// Where vasm has been built, plain vasm (nothing asked of it but the format) makes the same program from what's
+/// written: the source says OPT O- so that vasm doesn't make instructions shorter.
+#[test]
+fn plain_vasm_makes_the_same_program() {
+    let vasm = std::env::var_os("LIMONITER_VASM").map(std::path::PathBuf::from).unwrap_or_else(|| "/root/asmref/vasm/vasmm68k_mot".into());
+    if !vasm.exists() {
+        return;
+    }
+    let folder = std::env::temp_dir().join(format!("limoniter-vasm-hunks-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).unwrap();
+    let ours = "\tsection code,code\nstart:\tjsr sub\n\tlea table,a0\n\tmove.l #0,d0\n\tmove.l table,d1\n\tbra.w sub\nsub:\tadd.l #1,d0\n\trts\n\tsection data,data\ntable:\tdc.l start\n";
+    for (name, file) in [("amiga_demo", include_bytes!("../asm/testdata/amiga_demo.exe").to_vec()), ("amiga_hello", include_bytes!("../asm/testdata/amiga_hello.exe").to_vec()), ("ours", reassembled_amiga(ours))] {
+        let program = recognise(name, &file).unwrap();
+        let source = disassemble(&program);
+        assert!(source.contains("        opt     o-"), "{source}");
+        std::fs::write(folder.join("t.s"), &source).unwrap();
+        let status = std::process::Command::new(&vasm).args(["-quiet", "-Fhunkexe", "-o"]).arg(folder.join("t.exe")).arg(folder.join("t.s")).status().unwrap();
+        assert!(status.success(), "{source}");
+        assert_eq!(hunks_of(&std::fs::read(folder.join("t.exe")).unwrap()), hunks_of(&file), "{name}:\n{source}");
+    }
+    let _ = std::fs::remove_dir_all(folder);
+}
+
+/// SAE-MULater (Scoopex, 1989), a PowerPacked demo whose one Chip hunk holds code, copper lists, tables, music
+/// and bitplanes together, from the test media beside the source where it's there (LIMONITER_TESTMEDIA names
+/// another folder). Decrunched and disassembled, it assembles with Limoniter's own assembler, and with plain
+/// vasm where it's been built, to the same hunk and all 363 of its relocations: no line has been made data for
+/// not coming back, no label is undefined, and the zeroed bitplanes and buffers aren't read as ORI.B #0,D0.
+#[test]
+fn a_real_demo_comes_back_the_same() {
+    let folder = std::env::var_os("LIMONITER_TESTMEDIA").map(std::path::PathBuf::from).unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../testmedia"));
+    let Ok(crunched) = std::fs::read(folder.join("amiga-demos/SAE-MULater")) else { return };
+    let file = crate::amiga_crunch::decrunch(&crunched).expect("PowerPacker").expect("decrunched").bytes;
+    let original = hunks_of(&file);
+    assert_eq!(original[0].1.len(), 363);
+    for cpu in [Processor::M68000, Processor::M68020] {
+        let mut program = recognise("SAE-MULater", &file).unwrap();
+        program.cpu = cpu;
+        let source = disassemble(&program);
+        let flattened = source.lines().filter(|l| l.ends_with('?')).count();
+        let zeros = source.matches("ori.b   #0,d0").count();
+        assert_eq!(flattened, 0, "{cpu:?}: lines made data");
+        assert!(zeros < 10, "{cpu:?}: {zeros} ORI.B #0,D0");
+        assert!(source.contains("dc.w    $FFFF,$FFFE") && source.contains("dc.w    BPLCON0,"), "{cpu:?}: copper lists");
+        assert_eq!(hunks_of(&reassembled_amiga(&source)), original, "{cpu:?}");
+        let vasm = std::env::var_os("LIMONITER_VASM").map(std::path::PathBuf::from).unwrap_or_else(|| "/root/asmref/vasm/vasmm68k_mot".into());
+        if vasm.exists() {
+            let out = std::env::temp_dir().join(format!("limoniter-mulater-{}", std::process::id()));
+            std::fs::create_dir_all(&out).unwrap();
+            std::fs::write(out.join("t.s"), &source).unwrap();
+            let status = std::process::Command::new(&vasm).args(["-quiet", "-Fhunkexe", "-o"]).arg(out.join("t.exe")).arg(out.join("t.s")).status().unwrap();
+            assert!(status.success(), "{cpu:?}: vasm");
+            assert_eq!(hunks_of(&std::fs::read(out.join("t.exe")).unwrap()), original, "{cpu:?}: vasm");
+            let _ = std::fs::remove_dir_all(out);
+        }
+    }
+}

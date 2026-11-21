@@ -8,7 +8,6 @@
 use super::*;
 use crate::ribbon_icons::{self, Icon};
 use egui::{Rect, Sense, Stroke, pos2, vec2};
-use std::collections::HashMap;
 
 /// A page of the guide.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,14 +142,17 @@ pub(super) struct StartState {
     pub more: bool,
     /// The tip shown, counting on from today's; None until the page is first drawn.
     pub tip: Option<usize>,
-    /// Each recent project's name and, for a folder, the folder, read from its file once.
-    folders: HashMap<PathBuf, Option<(String, Option<PathBuf>)>>,
+    /// Which of the recent lists is shown: Projects each time the page is shown afresh.
+    tab: super::recent::Tab,
+    /// The pass the page was last drawn in, to tell when it's shown afresh.
+    drawn: Option<u64>,
 }
 
 /// What a click on the start page asks for, done once it's drawn.
 enum Asked {
     Command(Command),
-    File(PathBuf),
+    /// A recent file, and the project it was in, to be opened first.
+    File(PathBuf, Option<PathBuf>),
     Project(PathBuf),
     Remote(String),
 }
@@ -267,11 +269,6 @@ impl Limoniter {
         }
     }
 
-    /// A recent project's name, and its folder if it's a folder opened as a project, read once from its file.
-    fn recent_project(&mut self, path: &Path) -> Option<(String, Option<PathBuf>)> {
-        self.start.folders.entry(path.to_path_buf()).or_insert_with(|| crate::project::Project::load(path).ok().map(|p| (p.name, p.root))).clone()
-    }
-
     /// Draws the start page in the middle of the window, and does what's clicked.
     pub(super) fn start_page(&mut self, ui: &mut Ui) {
         let full = ui.max_rect();
@@ -323,7 +320,7 @@ impl Limoniter {
         }
         match asked {
             Some(Asked::Command(command)) => self.pending_command = Some(command),
-            Some(Asked::File(path)) => self.open_request = Some(path),
+            Some(Asked::File(path, project)) => self.open_recent_file(path, project),
             Some(Asked::Project(path)) => self.open_project(&path),
             Some(Asked::Remote(address)) => {
                 self.open_sftp_address(&address);
@@ -416,9 +413,14 @@ impl Limoniter {
 
     fn recent_section(&mut self, ui: &mut Ui, asked: &mut Option<Asked>) {
         heading(ui, crate::i18n::tr("Recent"));
+        // Projects each time the page is shown afresh, as File, Open recent does.
+        let pass = ui.ctx().cumulative_pass_nr();
+        if self.start.drawn.is_none_or(|drawn| drawn + 1 < pass) {
+            self.start.tab = self.recent_lists.opens_on;
+        }
+        self.start.drawn = Some(pass);
         let more = self.start.more;
-        let files: Vec<PathBuf> = self.panels.recent.iter().take(if more { usize::MAX } else { FEW_FILES }).cloned().collect();
-        let projects: Vec<PathBuf> = self.recent_projects.iter().take(if more { usize::MAX } else { FEW_OTHERS }).cloned().collect();
+        let few = |count: usize| if more { usize::MAX } else { count };
         let mut remote: Vec<String> = self.remote_recent.clone();
         for site in &self.remote_sites {
             let url = site.site.url("");
@@ -426,36 +428,53 @@ impl Limoniter {
                 remote.push(url);
             }
         }
-        let cut = files.len() < self.panels.recent.len() || projects.len() < self.recent_projects.len() || remote.len() > FEW_OTHERS;
-        remote.truncate(if more { usize::MAX } else { FEW_OTHERS });
-        if files.is_empty() && projects.is_empty() && remote.is_empty() {
+        if self.panels.recent.is_empty() && self.recent_projects.is_empty() && remote.is_empty() {
             ui.label(RichText::new(crate::i18n::tr("Files, folders and projects you open will be listed here, each a click away.")).color(theme::text_faint()));
             return;
         }
+        ui.horizontal(|ui| {
+            for (tab, words) in [(super::recent::Tab::Projects, crate::i18n::tr("Projects")), (super::recent::Tab::Files, crate::i18n::tr("Files"))] {
+                ui.selectable_value(&mut self.start.tab, tab, RichText::new(words).size(13.5));
+            }
+        });
         let name_of = |path: &Path| path.file_name().map_or_else(|| path.display().to_string(), |name| name.to_string_lossy().into_owned());
-        if !files.is_empty() {
-            subheading(ui, crate::i18n::tr("Files"));
-            for path in files {
-                let place = path.parent().map_or_else(String::new, |p| p.display().to_string());
-                let name = name_of(&path);
-                if recent_link(ui, &name, &place, Some(&name), Icon::New).clicked() {
-                    *asked = Some(Asked::File(path));
+        let empty = |ui: &mut Ui, words: &str| {
+            ui.add_space(4.0);
+            ui.label(RichText::new(words).color(theme::text_faint()));
+        };
+        let cut = match self.start.tab {
+            super::recent::Tab::Projects => {
+                let projects: Vec<PathBuf> = self.recent_projects.iter().take(few(FEW_OTHERS)).cloned().collect();
+                if projects.is_empty() {
+                    empty(ui, crate::i18n::tr("Projects you open will be listed here."));
                 }
-            }
-        }
-        if !projects.is_empty() {
-            subheading(ui, crate::i18n::tr("Folders and projects"));
-            for path in projects {
-                let (name, place, icon) = match self.recent_project(&path) {
-                    Some((_, Some(root))) => (name_of(&root), root.display().to_string(), Icon::Open),
-                    Some((name, None)) => (if name.is_empty() { name_of(&path) } else { name }, path.display().to_string(), Icon::Book),
-                    None => (name_of(&path), path.display().to_string(), Icon::Book),
-                };
-                if recent_link(ui, &name, &place, None, icon).clicked() {
-                    *asked = Some(Asked::Project(path));
+                for path in &projects {
+                    let (name, place, folder) = self.recent_lists.shown_as(path);
+                    if recent_link(ui, &name, &place, None, if folder { Icon::Open } else { Icon::Book }).clicked() {
+                        *asked = Some(Asked::Project(path.clone()));
+                    }
                 }
+                projects.len() < self.recent_projects.len()
             }
-        }
+            super::recent::Tab::Files => {
+                let shown = self.panels.recent.len().min(few(FEW_FILES));
+                if shown == 0 {
+                    empty(ui, crate::i18n::tr("Files you open will be listed here."));
+                }
+                for group in super::recent::grouped(&self.panels.recent[..shown], &self.recent_in) {
+                    subheading(ui, &self.recent_lists.group_name(&group));
+                    for path in group.files {
+                        let place = path.parent().map_or_else(String::new, |p| p.display().to_string());
+                        let name = name_of(&path);
+                        if recent_link(ui, &name, &place, Some(&name), Icon::New).clicked() {
+                            *asked = Some(Asked::File(path, group.project.clone()));
+                        }
+                    }
+                }
+                shown < self.panels.recent.len()
+            }
+        } || remote.len() > FEW_OTHERS;
+        remote.truncate(few(FEW_OTHERS));
         if !remote.is_empty() {
             subheading(ui, crate::i18n::tr("Remote"));
             for address in remote {
@@ -561,15 +580,54 @@ mod tests {
         let (mut app, ctx) = start_page_app();
         draw(&mut app, &ctx, Vec::new());
         let output = nodes(&draw(&mut app, &ctx, Vec::new()));
-        for name in ["New file", "Open a file\u{2026}", "Open a folder\u{2026}", "Open a remote file or folder\u{2026}", "Clone a Git repository\u{2026}", "Open from the web\u{2026}", "New disk or tape image\u{2026}", "Getting started", "Working on a folder of code", "Assembling and running", "main.asm", "notes.md", "index.html"] {
+        for name in ["New file", "Open a file\u{2026}", "Open a folder\u{2026}", "Open a remote file or folder\u{2026}", "Clone a Git repository\u{2026}", "Open from the web\u{2026}", "New disk or tape image\u{2026}", "Getting started", "Working on a folder of code", "Assembling and running", "index.html"] {
             let found = find(&output, Role::Link, name);
             assert!(found.is_some(), "no link named {name}: {}", listing(&output));
         }
         assert!(find(&output, Role::Heading, "Recent").is_some(), "{}", listing(&output));
+        // The recent projects are shown first; the files are on the other tab.
+        assert!(find(&output, Role::Link, "main.asm").is_none(), "{}", listing(&output));
+        app.start.tab = super::super::recent::Tab::Files;
+        let output = nodes(&draw(&mut app, &ctx, Vec::new()));
+        for name in ["main.asm", "notes.md", "index.html"] {
+            assert!(find(&output, Role::Link, name).is_some(), "no link named {name}: {}", listing(&output));
+        }
         // Turned off, the window is empty, as it used to be.
         app.view.start_page = false;
         let output = nodes(&draw(&mut app, &ctx, Vec::new()));
         assert!(find(&output, Role::Link, "New file").is_none());
+    }
+
+    #[test]
+    fn the_start_page_shows_projects_first_and_the_files_grouped_by_project() {
+        let (mut app, ctx) = start_page_app();
+        let dir = std::env::temp_dir().join(format!("limoniter-start-recent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut project = crate::project::Project::new(&dir.join("game.limproj"));
+        project.name = "Space game".into();
+        project.save().unwrap();
+        app.recent_projects = vec![project.path.clone()];
+        app.recent_in.note(Path::new("/work/game/main.asm"), Some(&project.path));
+        draw(&mut app, &ctx, Vec::new());
+        let output = nodes(&draw(&mut app, &ctx, Vec::new()));
+        assert!(find(&output, Role::Link, "Space game").is_some(), "the project, by its name: {}", listing(&output));
+        assert!(find(&output, Role::Link, "main.asm").is_none());
+        // On the Files tab, the project's file is under its name, newest group first, and the other on its own.
+        app.start.tab = super::super::recent::Tab::Files;
+        let output = nodes(&draw(&mut app, &ctx, Vec::new()));
+        let mut order: Vec<(f64, String)> = output.iter().filter_map(|(_, node)| Some((node.bounds()?.y0, node.label().or(node.value())?.to_string()))).filter(|(_, name)| ["Space game", "main.asm", "On their own", "notes.md"].contains(&name.as_str())).collect();
+        order.sort_by(|a, b| a.0.total_cmp(&b.0));
+        order.dedup_by(|a, b| a.1 == b.1);
+        assert_eq!(order.into_iter().map(|(_, name)| name).collect::<Vec<_>>(), ["Space game", "main.asm", "On their own", "notes.md"], "{}", listing(&output));
+        // Shown afresh, it's back on Projects.
+        app.new_document();
+        draw(&mut app, &ctx, Vec::new());
+        app.close_tab(app.active);
+        draw(&mut app, &ctx, Vec::new());
+        assert_eq!(app.start.tab, super::super::recent::Tab::Projects);
+        drop(app);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

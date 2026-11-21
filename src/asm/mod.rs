@@ -2761,10 +2761,9 @@ fn without_block_comments(text: &str) -> std::borrow::Cow<'_, str> {
                     }
                 }
             } else {
-                // Only outside a line comment and quotes.
-                let code = strip_comment(rest);
-                match code.find("/*") {
-                    Some(at) if !code[..at].ends_with('/') => {
+                // Only outside a line comment and quotes: dc.b "a/*b" is text, as vasm and sjasmplus take it.
+                match block_comment_start(rest) {
+                    Some(at) => {
                         out.push_str(&rest[..at]);
                         inside = 1;
                         rest = &rest[at + 2..];
@@ -2778,6 +2777,31 @@ fn without_block_comments(text: &str) -> std::borrow::Cow<'_, str> {
         }
     }
     std::borrow::Cow::Owned(out)
+}
+
+/// Where a /* starts a block comment on a line: not in quotes, and not after a ; or // that has made the rest of
+/// the line a comment already. Quotes are found as `strip_comment` finds them.
+fn block_comment_start(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let mut quote: Option<u8> = None;
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        match quote {
+            Some(b'"') if c == b'\\' => i += 1,
+            Some(q) if c == q => quote = None,
+            Some(_) => {}
+            None => match c {
+                b';' => return None,
+                b'/' if bytes.get(i + 1) == Some(&b'/') => return None,
+                b'/' if bytes.get(i + 1) == Some(&b'*') => return Some(i),
+                b'"' | b'\'' if is_quote(bytes, i) => quote = Some(c),
+                _ => {}
+            },
+        }
+        i += 1;
+    }
+    None
 }
 
 /// The first two words of a line, in lower case and without dots, to see if it opens or closes a block.

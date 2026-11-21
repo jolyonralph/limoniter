@@ -3,9 +3,10 @@
 use crate::theme;
 use eframe::egui::{self, Align2, CornerRadius, FontId, Sense, Stroke, Ui, pos2, vec2};
 
-/// One open file's tab. Returns (chosen, close asked for). Unsaved changes show as a dot, which becomes the close
-/// button when the pointer is over the tab.
-pub fn file_tab(ui: &mut Ui, title: &str, file_name: &str, modified: bool, selected: bool) -> (bool, bool) {
+/// One open file's tab. Returns (chosen, close asked for, the tab, for its right-click menu). Unsaved changes show
+/// as a dot, which becomes the close button when the pointer is over the tab. A file given a colour has a stripe of
+/// it along the top.
+pub fn file_tab(ui: &mut Ui, title: &str, file_name: &str, modified: bool, selected: bool, stripe: Option<egui::Color32>) -> (bool, bool, egui::Response) {
     let font = FontId::proportional(13.0);
     let text_colour = if selected { theme::text() } else { theme::text_dim() };
     let galley = ui.painter().layout_no_wrap(title.to_string(), font, text_colour);
@@ -21,6 +22,10 @@ pub fn file_tab(ui: &mut Ui, title: &str, file_name: &str, modified: bool, selec
         ui.painter().rect_filled(line, 1.0, theme::accent());
     } else if hovered {
         ui.painter().rect_filled(rect.shrink2(vec2(0.0, 2.0)), 7.0, theme::hover());
+    }
+    if let Some(colour) = stripe {
+        let band = egui::Rect::from_min_max(pos2(rect.min.x + 6.0, rect.min.y + 1.0), pos2(rect.max.x - 6.0, rect.min.y + 4.0));
+        ui.painter().rect_filled(band, 1.5, colour);
     }
     crate::file_icons::paint(ui.painter(), egui::Rect::from_min_size(pos2(rect.min.x + 11.0, rect.min.y), vec2(icon, rect.height())), file_name, 13.0);
     ui.painter().galley(pos2(rect.min.x + 11.0 + icon, rect.center().y - galley.size().y / 2.0), galley, text_colour);
@@ -45,5 +50,5 @@ pub fn file_tab(ui: &mut Ui, title: &str, file_name: &str, modified: bool, selec
     crate::access::chosen(&response, egui::Role::Tab, selected, &name);
     let response = if modified { response.on_hover_text(name) } else { response };
     let _ = Align2::CENTER_CENTER;
-    (response.clicked() && !closing, closing)
+    (response.clicked() && !closing, closing, response)
 }

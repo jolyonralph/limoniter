@@ -37,7 +37,7 @@ fn the_search_panel_finds_in_the_folder_and_replaces() {
     std::fs::write(root.join("c.rs"), "// count_up here too\n").unwrap();
     app.open_folder(&root);
     if let Some(project) = app.project.as_mut() {
-        project.files = crate::workspace::index(&root).0;
+        project.files = crate::workspace::index(&root, &[]).0;
     }
     app.open_search_panel();
     assert!(app.search.open);

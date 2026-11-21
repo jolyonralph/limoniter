@@ -18,6 +18,8 @@ const MOST_SHOWN: usize = 60;
 pub(super) struct Indexing {
     job: Option<Receiver<(Vec<PathBuf>, bool)>>,
     done: Option<Instant>,
+    /// When the files were last changed other than by Limoniter, for the Explorer's recently edited files.
+    recent: Option<Receiver<(PathBuf, HashMap<PathBuf, std::time::SystemTime>)>>,
     /// Whether the last index stopped at its most files.
     pub more: bool,
 }
@@ -109,6 +111,30 @@ fn folder_key(root: &Path) -> String {
     format!("{name}-{:08x}", hash as u32)
 }
 
+/// What's hidden in a folder project's Explorer, in its settings, each with a button to show it again.
+pub(super) fn hidden_list(ui: &mut Ui, hidden: &mut Vec<crate::explorer_kept::Hide>) {
+    ui.add_space(4.0);
+    ui.label(crate::i18n::tr("Hidden in the Explorer, Go to file and searching:"));
+    if hidden.is_empty() {
+        ui.label(RichText::new(crate::i18n::tr("Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.")).color(theme::text_faint()).size(12.5));
+        return;
+    }
+    let mut back = None;
+    egui::ScrollArea::vertical().id_salt("project-hidden").max_height(140.0).show(ui, |ui| {
+        for (at, rule) in hidden.iter().enumerate() {
+            ui.horizontal(|ui| {
+                if ui.small_button(crate::i18n::tr("Show again")).clicked() {
+                    back = Some(at);
+                }
+                ui.label(rule.describe());
+            });
+        }
+    });
+    if let Some(at) = back {
+        hidden.remove(at);
+    }
+}
+
 impl Limoniter {
     pub(super) fn choose_folder_to_open(&mut self) {
         if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a folder")).pick_folder() {
@@ -137,17 +163,92 @@ impl Limoniter {
         self.project = Some(Project::of_folder(&kept, &root));
         self.panels.project = true;
         self.save_project();
+        self.offer_to_hide_build_folders();
         self.index_project();
+    }
+
+    /// When a folder is opened, its build and dependency folders are offered for hiding, in a bar in the
+    /// Explorer: once for each folder, whatever the answer.
+    pub(super) fn offer_to_hide_build_folders(&mut self) {
+        let Some(project) = self.project.as_ref().filter(|p| p.root.is_some() && !p.explorer.offered) else { return };
+        let root = project.folder();
+        let names = crate::explorer_kept::build_folders(&root, &project.explorer.hidden);
+        self.panels.project_panel.explorer.offer_to_hide(&root, names);
+    }
+
+    /// Keeps when Limoniter saved a file of a folder project, so the Explorer can show it was edited lately.
+    pub(super) fn note_saved_in_project(&mut self, path: &Path) {
+        let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+        let Some(project) = self.project.as_mut().filter(|p| p.root.as_deref().is_some_and(|root| path.starts_with(root))) else { return };
+        project.explorer.note_saved(&path, std::time::SystemTime::now());
+        self.save_project();
+    }
+
+    /// Opens the project's settings: its name and notes, and for a folder, what's hidden in its Explorer.
+    pub(super) fn open_project_settings(&mut self) {
+        if let Some(project) = &self.project {
+            self.dialog = Dialog::ProjectSettings { name: project.name.clone(), notes: project.notes.clone(), hidden: project.root.is_some().then(|| project.explorer.hidden.clone()), colours: project.colours.rules.clone() };
+        }
+    }
+
+    /// Something about the Explorer kept with the project changed there: hiding, showing again, or how lately.
+    fn explorer_setting(&mut self, act: crate::explorer::Act) {
+        use crate::explorer::Act;
+        let Some(project) = self.project.as_mut() else { return };
+        let root = project.folder();
+        let kept = &mut project.explorer;
+        let mut index = true;
+        match act {
+            Act::Hide(rule) => kept.hide(rule),
+            Act::ShowAgain { path, folder } => {
+                kept.show_again(&root, &path, folder);
+            }
+            Act::ShowHidden(show) => {
+                kept.show_hidden = show;
+                index = false;
+            }
+            Act::RecentDays(days) => {
+                kept.recent_days = days;
+                index = false;
+            }
+            Act::HideBuildFolders(names) => {
+                kept.offered = true;
+                for name in names {
+                    kept.hide(crate::explorer_kept::Hide::Named(name));
+                }
+            }
+            _ => return,
+        }
+        self.save_project();
+        // Go to file and searching leave out what's hidden as soon as it is.
+        if index {
+            self.index_project();
+        } else {
+            self.find_recent();
+        }
     }
 
     /// Starts making the folder project's index of files, in the background.
     pub(super) fn index_project(&mut self) {
-        let Some(root) = self.project.as_ref().and_then(|p| p.root.clone()) else { return };
+        let Some((root, hidden)) = self.project.as_ref().and_then(|p| Some((p.root.clone()?, p.explorer.hidden.clone()))) else { return };
         let (send, receive) = channel();
         std::thread::spawn(move || {
-            let _ = send.send(crate::workspace::index(&root));
+            let _ = send.send(crate::workspace::index(&root, &hidden));
         });
         self.indexing.job = Some(receive);
+    }
+
+    /// Starts working out, in the background, when the folder's files were last changed other than by Limoniter:
+    /// one look at Git's history, and the disk's dates of the files Git doesn't vouch for.
+    fn find_recent(&mut self) {
+        let Some(project) = self.project.as_ref().filter(|p| p.root.is_some() && p.explorer.recent_days > 0) else { return };
+        let (root, files, days) = (project.folder(), project.files.clone(), project.explorer.recent_days);
+        let (send, receive) = channel();
+        std::thread::spawn(move || {
+            let times = crate::explorer_kept::outside_times(&root, &files, days);
+            let _ = send.send((root, times));
+        });
+        self.indexing.recent = Some(receive);
     }
 
     /// Starts finding the folder's symbols again, in the background: only files changed since are read.
@@ -180,14 +281,23 @@ impl Limoniter {
         {
             self.symbols = Symbols { found: Arc::new(found), job: None };
         }
+        if let Some(job) = &self.indexing.recent
+            && let Ok((root, times)) = job.try_recv()
+        {
+            self.indexing.recent = None;
+            self.panels.project_panel.explorer.set_outside_times(&root, times);
+        }
         if let Some(job) = &self.indexing.job {
             if let Ok((files, more)) = job.try_recv() {
                 if let Some(project) = self.project.as_mut().filter(|p| p.root.is_some()) {
                     project.files = files;
                 }
-                self.indexing = Indexing { job: None, done: Some(Instant::now()), more };
+                self.indexing = Indexing { job: None, done: Some(Instant::now()), more, recent: self.indexing.recent.take() };
                 if self.symbols.job.is_none() {
                     self.find_symbols();
+                }
+                if self.indexing.recent.is_none() {
+                    self.find_recent();
                 }
             } else {
                 ctx.request_repaint_after(Duration::from_millis(200));
@@ -236,6 +346,7 @@ impl Limoniter {
                 }
                 match std::fs::rename(&from, &to) {
                     Ok(()) => {
+                        self.colours_renamed(&from, &to);
                         // Open files go with it: the file itself, or everything in a folder renamed.
                         for doc in &mut self.docs {
                             if let Some(path) = &doc.path
@@ -286,6 +397,22 @@ impl Limoniter {
                 false
             }
             Act::CompareWith(_) | Act::CompareFolder(_) | Act::CompareWithHead(_) => false,
+            Act::WhatsHidden => {
+                self.open_project_settings();
+                false
+            }
+            Act::ColourFile { path, tint } => {
+                self.set_file_tint(&path, tint);
+                false
+            }
+            Act::ColourFolder { folder, tint } => {
+                self.colour_folder(&folder, tint);
+                false
+            }
+            Act::Hide(_) | Act::ShowAgain { .. } | Act::ShowHidden(_) | Act::RecentDays(_) | Act::HideBuildFolders(_) => {
+                self.explorer_setting(act);
+                false
+            }
         };
         if changed {
             self.remote_project_explorer(&done);
@@ -369,6 +496,8 @@ impl Limoniter {
         } else {
             crate::workspace::find(&state.query, files.iter().map(|p| (p.as_path(), shown(p))), MOST_SHOWN).into_iter().map(|(p, s, m)| (p.to_path_buf(), None, s, m)).collect()
         };
+        // Each file's colour, shown as a small square at the end of its row.
+        let tints: Vec<Option<crate::file_colours::Tint>> = found.iter().map(|(path, line, ..)| if line.is_none() { self.file_look(path).tint } else { None }).collect();
         let (mut open, mut close, mut beside) = (None, false, false);
         ctx.input_mut(|i| {
             if i.consume_key(egui::Modifiers::NONE, Key::ArrowDown) {
@@ -429,6 +558,10 @@ impl Limoniter {
                         crate::file_icons::paint(ui.painter(), egui::Rect::from_min_size(rect.min + egui::vec2(5.0, 0.0), egui::vec2(icon, rect.height())), &name, 13.0);
                     }
                     ui.painter().galley(rect.min + egui::vec2(6.0 + icon, 3.0), galley, theme::text());
+                    if let Some(tint) = tints[n] {
+                        let square = egui::Rect::from_center_size(egui::pos2(rect.max.x - 10.0, rect.center().y), egui::vec2(9.0, 9.0));
+                        crate::file_colours::swatch(ui, square, tint);
+                    }
                     if n == state.chosen {
                         response.scroll_to_me(None);
                     }
@@ -499,6 +632,93 @@ impl Limoniter {
 mod tests {
     use super::super::tests::app_with;
     use super::*;
+
+    /// Takes in the folder project's index as soon as it's made, after something's changed.
+    fn index_now(app: &mut Limoniter, ctx: &Context) {
+        app.index_project();
+        for _ in 0..500 {
+            app.project_index_tick(ctx);
+            if app.indexing.job.is_none() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("the index never came");
+    }
+
+    #[test]
+    fn hidden_folders_and_kinds_of_file_leave_go_to_file_and_find_in_files_and_stay_with_the_project() {
+        let (mut app, ctx) = app_with("");
+        let root = std::env::temp_dir().join(format!("limoniter-folder-hidden-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for file in ["src/main.s", "src/main.o", "build/out.s", "web/node_modules/x/index.js", "notes.txt"] {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), "needle\n").unwrap();
+        }
+        let root = std::path::absolute(&root).unwrap();
+        app.open_folder(&root);
+        // Its build and dependency folders are offered for hiding, once.
+        assert_eq!(app.panels.project_panel.explorer.offering(&root), Some(["node_modules".to_string(), "build".to_string()].as_slice()));
+        index_now(&mut app, &ctx);
+        assert_eq!(app.project.as_ref().unwrap().files.len(), 5);
+        let ui_ctx = ctx.clone();
+        let act = |app: &mut Limoniter, act: crate::explorer::Act| {
+            let _ = ui_ctx.run_ui(Default::default(), |ui| app.explorer_act(act.clone(), ui));
+        };
+        act(&mut app, crate::explorer::Act::HideBuildFolders(vec!["node_modules".into()]));
+        act(&mut app, crate::explorer::Act::Hide(crate::explorer_kept::Hide::Folder("build".into())));
+        act(&mut app, crate::explorer::Act::Hide(crate::explorer_kept::Hide::Kind("o".into())));
+        index_now(&mut app, &ctx);
+        let names = |app: &Limoniter| app.project.as_ref().unwrap().files.iter().map(|f| crate::explorer::relative(&root, f)).collect::<Vec<_>>();
+        assert_eq!(names(&app), ["notes.txt", "src/main.s"]);
+        // Go to file looks only among those.
+        let (_, candidates) = app.go_to_file_candidates();
+        assert_eq!(candidates.len(), 2);
+        // And so does Find in files, in the project's files.
+        app.find.find = "needle".into();
+        app.find.scope = FileScope::Project;
+        app.start_find_in_files(false);
+        let job = app.job.clone().unwrap();
+        while !job.finished.load(std::sync::atomic::Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let mut found: Vec<String> = job.hits.lock().unwrap().iter().map(|hit| crate::explorer::relative(&root, &hit.path)).collect();
+        found.sort();
+        assert_eq!(found, ["notes.txt", "src/main.s"]);
+        // Kept with the project: opened again, the same things are hidden, and the offer isn't made again.
+        app.close_project();
+        let kept = app.recent_projects[0].clone();
+        assert!(std::fs::read_to_string(&kept).unwrap().contains("**/node_modules/"));
+        app.panels.project_panel.explorer = crate::explorer::Explorer::default();
+        app.open_folder(&root);
+        assert_eq!(app.project.as_ref().unwrap().explorer.hidden.len(), 3);
+        assert_eq!(app.panels.project_panel.explorer.offering(&root), None, "asked once for each folder");
+        // Taken back from the Explorer, or in the project's settings, they're found again.
+        act(&mut app, crate::explorer::Act::ShowAgain { path: root.join("build/out.s"), folder: false });
+        assert_eq!(app.project.as_ref().unwrap().explorer.hidden.len(), 2, "what hid it, its folder, is taken back");
+        app.open_project_settings();
+        let Dialog::ProjectSettings { hidden: Some(hidden), .. } = &mut app.dialog else { panic!("a folder project's settings list what's hidden") };
+        assert_eq!(hidden.iter().map(crate::explorer_kept::Hide::describe).collect::<Vec<_>>(), ["Every folder called node_modules", ".o files"]);
+        hidden.retain(|rule| *rule != crate::explorer_kept::Hide::Kind("o".into()));
+        // As OK does.
+        if let (Some(project), Dialog::ProjectSettings { hidden: Some(hidden), .. }) = (&mut app.project, &app.dialog) {
+            project.explorer.hidden.clone_from(hidden);
+        }
+        app.dialog = Dialog::None;
+        index_now(&mut app, &ctx);
+        assert_eq!(names(&app), ["build/out.s", "notes.txt", "src/main.o", "src/main.s"]);
+        // Saving a file in the folder keeps when, with the project, for the Explorer's recently edited files.
+        assert!(app.open_path(&root.join("notes.txt")));
+        let index = app.active;
+        assert!(app.write_to(index, &root.join("notes.txt")));
+        let saved = app.project.as_ref().unwrap().explorer.saved_at(&root.join("notes.txt"));
+        assert!(saved.is_some_and(|when| when.elapsed().unwrap_or_default() < Duration::from_secs(60)));
+        let kept = app.project.as_ref().unwrap().path.clone();
+        assert_eq!(Project::load(&kept).unwrap().explorer.saved_at(&root.join("notes.txt")), saved);
+        app.close_project();
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_file(kept);
+    }
 
     #[test]
     fn a_folder_opens_as_a_project_with_its_files_found_and_kept_in_step() {

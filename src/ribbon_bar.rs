@@ -1041,7 +1041,12 @@ impl Limoniter {
             What::Tick(flag) if response.clicked() => Some(Command::Toggle(flag)),
             What::Drop(entries) => {
                 let mut chosen = None;
-                crate::fit::popup_menu(&response, |ui| chosen = self.drop_down_list(ui, entries));
+                // Open recent's tabs change what it lists without closing it.
+                if matches!(entries, [Entry::Live(_, Live::RecentFiles)]) {
+                    crate::fit::popup_menu_kept_open(&response, |ui| chosen = self.drop_down_list(ui, entries));
+                } else {
+                    crate::fit::popup_menu(&response, |ui| chosen = self.drop_down_list(ui, entries));
+                }
                 chosen
             }
             _ => None,

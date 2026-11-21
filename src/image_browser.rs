@@ -448,7 +448,7 @@ impl Limoniter {
         }
         self.docs.push(doc);
         self.active = self.docs.len() - 1;
-        panels::note_recent(&mut self.panels.recent, path);
+        self.note_recent_file(path);
         true
     }
 

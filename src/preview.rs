@@ -24,6 +24,11 @@ pub fn add_bold_font(fonts: &mut egui::FontDefinitions) {
     HAS_BOLD.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// The bold font, where there is one, for other places that show bold.
+pub fn bold_family() -> Option<FontFamily> {
+    HAS_BOLD.load(std::sync::atomic::Ordering::Relaxed).then(|| FontFamily::Name(BOLD_FAMILY.into()))
+}
+
 /// The most text a preview will lay out. It's redone as you type, so a huge file would make typing slow.
 pub const MOST_PREVIEW_BYTES: usize = 4 * 1024 * 1024;
 /// Music and sound can be larger: modules with many samples run to tens of megabytes, and sound files more.

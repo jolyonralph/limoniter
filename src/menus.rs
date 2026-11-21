@@ -856,7 +856,8 @@ pub(super) fn mac_shortcut(shortcut: &str) -> String {
 /// Something chosen from a list that changes.
 enum Pick {
     Command(Command),
-    File(PathBuf),
+    /// A recent file, and the project it was in, to be opened first.
+    RecentFile(PathBuf, Option<PathBuf>),
     Project(PathBuf),
     Play(PathBuf),
     AddOn(usize),
@@ -1340,6 +1341,13 @@ impl Limoniter {
                 Entry::Live(label, _) if self.drawing_open => {
                     ui.add(Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(crate::i18n::tr("\u{203A}")).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
                 }
+                // The recent files' menu has tabs at its top, which change what it lists without closing it.
+                Entry::Live(label, live @ Live::RecentFiles) => {
+                    crate::fit::menu_button_kept_open(ui, crate::i18n::tr(label), |ui| {
+                        ui.set_min_width(MENU_WIDTH);
+                        self.live_entries(ui, *live, label, chosen, picks);
+                    });
+                }
                 Entry::Live(label, live) => {
                     crate::fit::menu_button(ui, crate::i18n::tr(label), |ui| {
                         ui.set_min_width(MENU_WIDTH);
@@ -1374,13 +1382,33 @@ impl Limoniter {
         let name_of = |path: &Path| path.file_name().map_or_else(|| path.display().to_string(), |name| name.to_string_lossy().into_owned());
         match live {
             Live::RecentFiles => {
+                // Two tabs: the recent projects, shown first each time the menu opens, and the recent files, grouped
+                // by the project each was in.
+                let mut tab = self.recent_lists.menu_tab(ui.ctx().cumulative_pass_nr());
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut tab, super::recent::Tab::Projects, crate::i18n::tr("Projects"));
+                    ui.selectable_value(&mut tab, super::recent::Tab::Files, crate::i18n::tr("Files"));
+                });
+                self.recent_lists.choose_menu_tab(tab);
+                ui.separator();
+                if tab == super::recent::Tab::Projects {
+                    self.recent_project_entries(ui, picks);
+                    return;
+                }
                 if self.panels.recent.is_empty() {
                     empty(ui, crate::i18n::tr("Files you open will be listed here."));
                 }
-                for path in self.panels.recent.iter().take(15) {
-                    if ui.button(name_of(path)).on_hover_text(path.display().to_string()).clicked() {
-                        picks.push(Pick::File(path.clone()));
-                        ui.close();
+                let groups = super::recent::grouped(&self.panels.recent[..self.panels.recent.len().min(super::recent::MENU_FILES)], &self.recent_in);
+                for group in &groups {
+                    let heading = self.recent_lists.group_name(group);
+                    ui.label(RichText::new(heading).size(11.5).color(theme::text_faint()));
+                    for path in &group.files {
+                        let folder = path.parent().and_then(Path::file_name).map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+                        let button = Button::new(name_of(path)).shortcut_text(RichText::new(folder).color(theme::text_faint()));
+                        if ui.add(button).on_hover_text(path.display().to_string()).clicked() {
+                            picks.push(Pick::RecentFile(path.clone(), group.project.clone()));
+                            ui.close();
+                        }
                     }
                 }
                 if !self.panels.recent.is_empty() {
@@ -1434,17 +1462,7 @@ impl Limoniter {
                     ui.close();
                 }
             }
-            Live::RecentProjects => {
-                if self.recent_projects.is_empty() {
-                    empty(ui, crate::i18n::tr("Projects you open will be listed here."));
-                }
-                for path in &self.recent_projects {
-                    if ui.button(name_of(path)).on_hover_text(path.display().to_string()).clicked() {
-                        picks.push(Pick::Project(path.clone()));
-                        ui.close();
-                    }
-                }
-            }
+            Live::RecentProjects => self.recent_project_entries(ui, picks),
             Live::Macros | Live::Scripts => {
                 self.library.refresh_if_stale();
                 let items = if live == Live::Macros { &self.library.macros } else { &self.library.scripts };
@@ -1481,7 +1499,7 @@ impl Limoniter {
             }
             Live::ThisDocumentTheme => {
                 let usable = !self.no_file();
-                let own = self.docs[self.active].theme_override.clone();
+                let own = self.own_theme(self.active);
                 if ui.add_enabled(usable, egui::RadioButton::new(own.is_none(), "As the rules say")).clicked() {
                     picks.push(Pick::ThisDocumentTheme(None));
                     ui.close();
@@ -1629,10 +1647,25 @@ impl Limoniter {
         let _ = chosen;
     }
 
+    /// The recent projects, each by its name, with a folder opened as a project showing its folder faintly.
+    fn recent_project_entries(&mut self, ui: &mut Ui, picks: &mut Vec<Pick>) {
+        if self.recent_projects.is_empty() {
+            ui.label(RichText::new(crate::i18n::tr("Projects you open will be listed here.")).color(theme::text_faint()));
+        }
+        for path in self.recent_projects.clone() {
+            let (name, place, folder) = self.recent_lists.shown_as(&path);
+            let faint = if folder { super::recent::shortened(&place, 40) } else { String::new() };
+            if ui.add(Button::new(name).shortcut_text(RichText::new(faint).color(theme::text_faint()))).on_hover_text(place).clicked() {
+                picks.push(Pick::Project(path));
+                ui.close();
+            }
+        }
+    }
+
     fn carry_out(&mut self, picks: Vec<Pick>) {
         for pick in picks {
             match pick {
-                Pick::File(path) => self.open_request = Some(path),
+                Pick::RecentFile(path, project) => self.open_recent_file(path, project),
                 Pick::Project(path) => self.open_project(&path),
                 Pick::Snippet(index) => self.insert_snippet(index),
                 Pick::UseLayout(index) => self.apply_layout(index),
@@ -1660,7 +1693,7 @@ impl Limoniter {
                     self.themes.document = name;
                     self.save_settings_if_changed();
                 }
-                Pick::ThisDocumentTheme(name) => self.doc().theme_override = name,
+                Pick::ThisDocumentTheme(name) => self.set_file_theme(self.active, name),
                 Pick::Play(path) => {
                     if self.library.macros.iter().any(|item| item.path == path) {
                         self.current_macro = Some(script_host::CurrentMacro { name: path.file_stem().map_or_else(String::new, |n| n.to_string_lossy().into_owned()), path: Some(path.clone()), source: String::new() });

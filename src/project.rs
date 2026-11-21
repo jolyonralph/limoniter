@@ -38,6 +38,11 @@ pub struct Project {
     /// "68000", "gnu-as"), so it's never built with another, whichever is chosen for other source. Where the
     /// program is on this computer comes from the settings, as that differs from one computer to the next.
     pub assemblers: Vec<(String, String)>,
+    /// A folder project's Explorer: what's hidden from it (and from Go to file and searching), how lately a file
+    /// has to have been edited to stand out, and when Limoniter last saved each file.
+    pub explorer: crate::explorer_kept::Kept,
+    /// The colours of the project's files, by their places in it, and the rules that colour folders and patterns.
+    pub colours: crate::file_colours::Colours,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -125,6 +130,12 @@ impl Project {
         if !self.assemblers.is_empty() {
             value["assemblers"] = Value::Object(self.assemblers.iter().map(|(cpu, id)| (cpu.clone(), json!(id))).collect());
         }
+        if !self.explorer.is_default() {
+            value["explorer"] = self.explorer.to_json(&base);
+        }
+        if !self.colours.is_empty() {
+            value["colours"] = self.colours.to_json();
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -144,7 +155,9 @@ impl Project {
         let remote = value.get("remote").and_then(crate::remote_project::Origin::from_json);
         let debug = crate::dap::kept_from_json(value.get("debug"), Some(&base));
         let assemblers = value.get("assemblers").and_then(Value::as_object).map_or_else(Vec::new, |map| map.iter().filter_map(|(cpu, id)| Some((cpu.clone(), id.as_str()?.to_string()))).collect());
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers };
+        let explorer = crate::explorer_kept::Kept::from_json(value.get("explorer"), &base);
+        let colours = crate::file_colours::Colours::from_json(value.get("colours"));
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -396,11 +409,19 @@ pub fn tree_of(project: &Project, filter: &str) -> TreeFolder {
     root
 }
 
-fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active: Option<&Path>, actions: &mut Vec<PanelAction>, open_all: bool) {
+/// What marks a file in the project's tree: being the one in front, and its colour, found by its place in the project.
+struct Marks<'a> {
+    active: Option<&'a Path>,
+    base: &'a Path,
+    colours: &'a crate::file_colours::Colours,
+}
+
+fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, marks: &Marks<'_>, actions: &mut Vec<PanelAction>, open_all: bool) {
+    let active = marks.active;
     for (name, inner) in &folder.folders {
         let id = format!("{salt}/{name}");
         let here = place.join(name);
-        let shown = egui::CollapsingHeader::new(RichText::new(name).size(12.5)).id_salt(&id).default_open(true).open(open_all.then_some(true)).show(ui, |ui| draw_tree(ui, inner, &id, &here, active, actions, open_all));
+        let shown = egui::CollapsingHeader::new(RichText::new(name).size(12.5)).id_salt(&id).default_open(true).open(open_all.then_some(true)).show(ui, |ui| draw_tree(ui, inner, &id, &here, marks, actions, open_all));
         crate::fit::context_menu(&shown.header_response, |ui| {
             if ui.button(crate::i18n::tr("Compare folders\u{2026}")).on_hover_text(crate::i18n::tr("Compare this folder with another, side by side")).clicked() {
                 actions.push(PanelAction::CompareFolder(here.clone()));
@@ -418,6 +439,10 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
         let text = RichText::new(name).size(12.5).color(if missing { theme::text_disabled() } else { theme::text() });
         let button = egui::Button::selectable(here, text).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate);
         let response = ui.add(button).on_hover_text(if missing { format!("{} (not found)", path.display()) } else { path.display().to_string() });
+        // The file's colour, as a bar at the left of its row.
+        if let Some(tint) = marks.colours.look(&stored(marks.base, path)).tint {
+            ui.painter().rect_filled(egui::Rect::from_min_size(response.rect.min + egui::vec2(0.0, 2.0), egui::vec2(3.0, response.rect.height() - 4.0)), 1.0, tint.mark());
+        }
         if response.clicked() && !missing {
             actions.push(PanelAction::Open(path.clone()));
         }
@@ -449,7 +474,7 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
         ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Find a file by its name (Ctrl+E)")).desired_width(f32::INFINITY));
         ui.add_space(2.0);
         comparisons(ui, project, &mut actions);
-        let acts = if state.filter.trim().is_empty() { state.explorer.draw(ui, root, active) } else { crate::explorer::filtered(ui, root, &project.files, &state.filter, active) };
+        let acts = if state.filter.trim().is_empty() { state.explorer.draw(ui, root, active, &project.explorer, &project.colours) } else { crate::explorer::filtered(ui, root, &project.files, &state.filter, active, &project.colours) };
         for act in acts {
             actions.push(match act {
                 crate::explorer::Act::Open(path) => PanelAction::Open(path),
@@ -471,7 +496,7 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
     }
     let tree = tree_of(project, &state.filter);
     let base = project.folder();
-    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", &base, active, &mut actions, !state.filter.trim().is_empty()));
+    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", &base, &Marks { active, base: &base, colours: &project.colours }, &mut actions, !state.filter.trim().is_empty()));
     actions
 }
 

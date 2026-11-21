@@ -9442,3 +9442,56 @@ theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nw
 {what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another	{what} braucht einen 68010 oder neuer, und dies ist für den {name}: MACHINE 68010 (oder ein späterer) wählt einen anderen
 {what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another	{what} braucht einen 68020 oder neuer, und dies ist für den {name}: MACHINE 68020 (oder ein späterer) wählt einen anderen
 {what} needs a 68020 or later: the CPU32 hasn't got it	{what} braucht einen 68020 oder neuer: der CPU32 hat es nicht
+.{end} files	.{end}-Dateien
+Every folder called {name}	Jeder Ordner namens {name}
+Files edited lately stand out:	Kürzlich bearbeitete Dateien hervorheben:
+From the Explorer, Go to file and searching; taken back in the project's settings	Aus dem Explorer, Gehe zu Datei und der Suche; in den Projekteinstellungen zurückzuholen
+Hidden in the Explorer, Go to file and searching:	Ausgeblendet im Explorer, bei Gehe zu Datei und der Suche:
+Hidden in this project	In diesem Projekt ausgeblendet
+Hide .{end} files	.{end}-Dateien ausblenden
+Hide the build and dependency folders ({})?	Die Build- und Abhängigkeitsordner ausblenden ({})?
+Hide them	Ausblenden
+Holds files edited lately. {}	Enthält kürzlich bearbeitete Dateien. {}
+In the last	In den letzten
+In the last day	Am letzten Tag
+In the last month	Im letzten Monat
+In the last week	In der letzten Woche
+Last edited today at {}	Zuletzt bearbeitet heute um {}
+Last edited {} ({days} days ago)	Zuletzt bearbeitet {} (vor {days} Tagen)
+Not at all	Gar nicht
+Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.	Nichts. Klicke im Explorer mit der rechten Maustaste auf einen Ordner oder eine Datei, um sie oder ihre Dateiart auszublenden.
+Show again	Wieder zeigen
+Show hidden items	Ausgeblendete Einträge zeigen
+Sort by, sizes and dates, what's hidden, and files edited lately	Sortierung, Größen und Daten, Ausgeblendetes und kürzlich bearbeitete Dateien
+The folder {folder}	Der Ordner {folder}
+What's hidden is shown faintly, to be found and shown again	Ausgeblendetes wird blass gezeigt, um es zu finden und wieder einzublenden
+What's hidden…	Was ausgeblendet ist…
+days	Tagen
+A folder ends with / (admin/); a name or a place in the project can have * in it (*.inc, config/production.php). The first that fits colours a file, unless it has a colour of its own from its tab.	Ein Ordner endet mit / (admin/); ein Name oder ein Ort im Projekt darf * enthalten (*.inc, config/production.php). Die erste passende Regel färbt eine Datei, außer sie hat über ihren Reiter eine eigene Farbe.
+Amber	Bernstein
+As the rules say	Wie die Regeln sagen
+Colour this file	Diese Datei einfärben
+Colour this folder's files	Die Dateien dieses Ordners einfärben
+Colours for files:	Farben für Dateien:
+Or right-click a folder in the Explorer, Colour this folder's files	Oder im Explorer mit der rechten Maustaste auf einen Ordner klicken, Die Dateien dieses Ordners einfärben
+Rose	Rosa
+Save the file first: its colour is kept with it	Speichere die Datei zuerst: ihre Farbe wird mit ihr aufbewahrt
+Take away	Entfernen
+Theme for this file	Design für diese Datei
+Violet	Violett
+admin/ or *.inc	admin/ oder *.inc
+Projects	Projekte
+On their own	Für sich
+; The custom chips' registers the copper lists set, from $DFF000.	; Die Register der Custom-Chips, die die Copperlisten setzen, ab $DFF000.
+nothing optimised, for vasm	nichts optimiert, für vasm
+skip the next if the beam is past line ${line:02X}, x ${x:02X}	den nächsten überspringen, wenn der Strahl hinter Zeile ${line:02X}, x ${x:02X} ist
+the TRAP #{number} vector	der Vektor von TRAP #{number}
+the address error vector	der Vektor für Adressfehler
+the bus error vector	der Vektor für Busfehler
+the division by zero vector	der Vektor für Division durch null
+the end of the copper list	das Ende der Copperliste
+the illegal instruction vector	der Vektor für ungültige Befehle
+the level {level} interrupt vector	der Vektor für Interrupts der Stufe {level}
+the privilege violation vector	der Vektor für Privilegverletzungen
+the trace vector	der Trace-Vektor
+wait for line ${line:02X}, x ${x:02X}	auf Zeile ${line:02X}, x ${x:02X} warten

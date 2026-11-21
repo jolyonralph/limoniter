@@ -91,6 +91,19 @@ fn sjasmplus_ways_of_writing() {
     assert_eq!(assembly.line_at(0xC000), Some((0, 5)), "the debugger finds code by where it runs");
 }
 
+/// A /* or */ inside quotes is text, as vasm takes it, not a block comment that hides the lines after it.
+#[test]
+fn a_block_comments_marks_in_quotes_are_text() {
+    let source = "  org $1000\n  dc.b \"ab/*cd\"\n  dc.b 1,2\n  dc.b \"x*/y\"\n  dc.b '/*'\n  dc.b 3 ; /* in a comment\n  dc.b 4\n";
+    let assembly = assemble(&m68k::M68k, Path::new("t.s"), source, &no_files);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.image(0x1000, 0x1010), b"ab/*cd\x01\x02x*/y/*\x03\x04".to_vec());
+    // Outside quotes it's still a comment, over lines.
+    let assembly = assemble(&m68k::M68k, Path::new("t.s"), "  org $1000\n  dc.b 1 /* \"a\n  dc.b 2 */ dc.b 3\n", &no_files);
+    assert!(assembly.ok(), "{:?}", assembly.problems);
+    assert_eq!(assembly.image(0x1000, 0x1002), vec![1, 3]);
+}
+
 #[test]
 fn includes_are_read_beside_the_file() {
     let read = |path: &Path| -> Result<Vec<u8>, String> {

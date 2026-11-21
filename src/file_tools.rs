@@ -638,7 +638,7 @@ impl Limoniter {
         }
         if let Some(path) = picker.save_file() {
             match codec::write_file(&path, &bytes) {
-                Ok(()) => panels::note_recent(&mut self.panels.recent, &path),
+                Ok(()) => self.note_recent_file(&path),
                 Err(e) => self.message("Tokenise BASIC", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display())),
             }
         }
@@ -646,7 +646,7 @@ impl Limoniter {
 
     pub(super) fn write_selection(&mut self, path: &Path, bytes: &[u8]) {
         match codec::write_file(path, bytes) {
-            Ok(()) => panels::note_recent(&mut self.panels.recent, path),
+            Ok(()) => self.note_recent_file(path),
             Err(e) => self.message("Save the selection", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display())),
         }
     }
@@ -741,7 +741,7 @@ impl Limoniter {
             return Err(crate::i18n::tf!("There's already a file called {name} there."));
         }
         std::fs::rename(&old, &new).map_err(|e| crate::i18n::tf!("Couldn't rename it.\n\n{e}"))?;
-        panels::note_recent(&mut self.panels.recent, &new);
+        self.note_recent_file(&new);
         self.panels.recent.retain(|path| !same_path(path, &old) || same_path(path, &new));
         let doc = self.doc();
         doc.path = Some(new.clone());

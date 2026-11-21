@@ -9442,3 +9442,56 @@ theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nw
 {what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another	{what} richiede un 68010 o successivo, e questo è per il {name}: MACHINE 68010 (o uno successivo) ne sceglie un altro
 {what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another	{what} richiede un 68020 o successivo, e questo è per il {name}: MACHINE 68020 (o uno successivo) ne sceglie un altro
 {what} needs a 68020 or later: the CPU32 hasn't got it	{what} richiede un 68020 o successivo: il CPU32 non lo ha
+.{end} files	File .{end}
+Every folder called {name}	Ogni cartella chiamata {name}
+Files edited lately stand out:	Evidenzia i file modificati di recente:
+From the Explorer, Go to file and searching; taken back in the project's settings	Da Esplora risorse, Vai al file e dalle ricerche; si ripristina nelle impostazioni del progetto
+Hidden in the Explorer, Go to file and searching:	Nascosto in Esplora risorse, Vai al file e nelle ricerche:
+Hidden in this project	Nascosto in questo progetto
+Hide .{end} files	Nascondi i file .{end}
+Hide the build and dependency folders ({})?	Nascondere le cartelle di compilazione e delle dipendenze ({})?
+Hide them	Nascondile
+Holds files edited lately. {}	Contiene file modificati di recente. {}
+In the last	Negli ultimi
+In the last day	Nell'ultimo giorno
+In the last month	Nell'ultimo mese
+In the last week	Nell'ultima settimana
+Last edited today at {}	Ultima modifica oggi alle {}
+Last edited {} ({days} days ago)	Ultima modifica {} ({days} giorni fa)
+Not at all	Mai
+Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.	Niente. Fai clic destro su una cartella o un file in Esplora risorse per nasconderlo, o il suo tipo di file.
+Show again	Mostra di nuovo
+Show hidden items	Mostra gli elementi nascosti
+Sort by, sizes and dates, what's hidden, and files edited lately	Ordinamento, dimensioni e date, elementi nascosti e file modificati di recente
+The folder {folder}	La cartella {folder}
+What's hidden is shown faintly, to be found and shown again	Gli elementi nascosti sono mostrati sbiaditi, per ritrovarli e mostrarli di nuovo
+What's hidden…	Cosa è nascosto…
+days	giorni
+A folder ends with / (admin/); a name or a place in the project can have * in it (*.inc, config/production.php). The first that fits colours a file, unless it has a colour of its own from its tab.	Una cartella termina con / (admin/); un nome o un percorso del progetto può contenere * (*.inc, config/production.php). La prima regola che corrisponde colora il file, a meno che non abbia un colore proprio dalla sua scheda.
+Amber	Ambra
+As the rules say	Secondo le regole
+Colour this file	Colora questo file
+Colour this folder's files	Colora i file di questa cartella
+Colours for files:	Colori dei file:
+Or right-click a folder in the Explorer, Colour this folder's files	Oppure fai clic destro su una cartella in Esplora risorse, Colora i file di questa cartella
+Rose	Rosa
+Save the file first: its colour is kept with it	Salva prima il file: il suo colore viene conservato con esso
+Take away	Togli
+Theme for this file	Tema per questo file
+Violet	Viola
+admin/ or *.inc	admin/ o *.inc
+Projects	Progetti
+On their own	A sé
+; The custom chips' registers the copper lists set, from $DFF000.	; I registri dei chip custom impostati dalle liste copper, da $DFF000.
+nothing optimised, for vasm	niente ottimizzato, per vasm
+skip the next if the beam is past line ${line:02X}, x ${x:02X}	salta il successivo se il fascio ha superato la riga ${line:02X}, x ${x:02X}
+the TRAP #{number} vector	il vettore di TRAP #{number}
+the address error vector	il vettore di errore di indirizzo
+the bus error vector	il vettore di errore di bus
+the division by zero vector	il vettore di divisione per zero
+the end of the copper list	la fine della lista copper
+the illegal instruction vector	il vettore di istruzione illegale
+the level {level} interrupt vector	il vettore di interrupt di livello {level}
+the privilege violation vector	il vettore di violazione di privilegio
+the trace vector	il vettore di trace
+wait for line ${line:02X}, x ${x:02X}	attendi la riga ${line:02X}, x ${x:02X}

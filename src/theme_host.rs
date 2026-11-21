@@ -109,6 +109,8 @@ pub(super) struct Themes {
     pub rules: Vec<Rule>,
     /// The names of the themes VS Code extensions give, which come and go with them and aren't saved.
     pub from_extensions: Vec<String>,
+    /// The colours (and themes) of files outside any project, by their whole paths.
+    pub loose: crate::file_colours::Colours,
 }
 
 impl Themes {
@@ -138,7 +140,7 @@ impl Themes {
             .collect();
         // Rules that have been looked at are kept as they are, even none at all.
         let rules = if settings.lines().any(|l| l.starts_with("theme_rules_set=")) { saved } else { suggested_rules() };
-        let mut themes = Themes { windows, documents, window: String::new(), document: String::new(), rules, from_extensions: Vec::new() };
+        let mut themes = Themes { windows, documents, window: String::new(), document: String::new(), rules, from_extensions: Vec::new(), loose: crate::file_colours::Colours::from_settings(&list_setting(settings, "file_colour")) };
         themes.take_extensions();
         themes.window = list_setting(settings, "window_theme").into_iter().next().filter(|n| themes.windows.iter().any(|t| &t.name == n)).unwrap_or_else(|| usual.into());
         themes.document = list_setting(settings, "document_theme").into_iter().next().filter(|n| themes.documents.iter().any(|t| &t.name == n)).unwrap_or_else(|| usual.into());
@@ -178,6 +180,7 @@ impl Themes {
         for theme in self.documents.iter().filter(|t| !self.is_built_in_document(&t.name)) {
             out += &format!("custom_theme={}\n", theme.to_text().trim_end().replace('\n', "\u{1}"));
         }
+        out += &self.loose.to_settings();
         out
     }
 
@@ -244,12 +247,12 @@ pub(super) struct ThemeBox {
 
 impl Limoniter {
     pub(super) fn open_theme_box(&mut self, page: ThemePage) {
-        let document = self.themes.document_for(&self.docs[self.active]).name.clone();
+        let document = self.document_theme_of(self.active).name.clone();
         self.dialog = Dialog::Themes(Box::new(ThemeBox { page, document, window: self.themes.window.clone(), ..ThemeBox::default() }));
     }
 
     /// Sets the window and document themes for this frame: the window's when it changes, and the document's for the
-    /// document in front.
+    /// document in front, in its own theme and with its file's tint if it has them.
     pub(super) fn apply_themes(&mut self, ctx: &Context) {
         let window = self.themes.window_theme();
         if self.applied_window.as_ref() != Some(&window) {
@@ -258,18 +261,21 @@ impl Limoniter {
             self.prefs.light = window.light;
             self.applied_window = Some(window);
         }
-        theme::set_document(self.themes.document_for(&self.docs[self.active]));
+        theme::set_document(self.document_theme_of(self.active));
     }
 
     /// The themes box: document themes, window themes, and the rules that choose a document's theme.
     pub(super) fn theme_dialog(&mut self, ctx: &Context) -> bool {
+        if !matches!(self.dialog, Dialog::Themes(_)) {
+            return false;
+        }
+        let in_front = self.document_theme_of(self.active).name.clone();
         let Dialog::Themes(state) = &mut self.dialog else {
             return false;
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut changed = false;
         let themes = &mut self.themes;
-        let in_front = themes.document_for(&self.docs[self.active]).name.clone();
         let most = (ctx.content_rect().height() - 80.0).max(300.0);
         crate::fit::Dialog::new(crate::i18n::tr("Themes")).collapsible(false).resizable(true).default_width(860.0).max_height(most).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {

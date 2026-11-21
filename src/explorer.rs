@@ -1,8 +1,11 @@
 //! The Explorer: a folder opened as a project, shown as VS Code shows one. Its tree is read from the disk a folder at
 //! a time, as each is opened, and read again when it changes, so files made, renamed or deleted elsewhere show at
 //! once. Folders come first; what Git leaves out is shown fainter; .git and its kind aren't shown. The file being
-//! edited is found in the tree. New files and folders, and renaming, are typed in the tree itself.
+//! edited is found in the tree. New files and folders, and renaming, are typed in the tree itself. Folders and kinds
+//! of file can be hidden, kept with the project; files edited lately stand out, with a dot coloured by how lately.
 
+use crate::explorer_kept::{self as kept, Hide, Kept};
+use crate::file_colours::{Colours, Tint};
 use crate::git::Change;
 use crate::workspace::{self, Ignores};
 use eframe::egui::{self, RichText, Sense, Ui, vec2};
@@ -19,6 +22,8 @@ struct Entry {
     path: PathBuf,
     folder: bool,
     ignored: bool,
+    /// Hidden in the project: only listed while hidden things are shown, faintly.
+    hidden: bool,
     size: u64,
     changed: Option<SystemTime>,
 }
@@ -165,6 +170,21 @@ pub enum Act {
     CompareWith(PathBuf),
     CompareFolder(PathBuf),
     CompareWithHead(PathBuf),
+    /// Hide a folder, or a kind of file, in the project.
+    Hide(Hide),
+    /// Take back whatever hides this.
+    ShowAgain { path: PathBuf, folder: bool },
+    ShowHidden(bool),
+    /// How many days back an edited file stands out; 0 for not at all.
+    RecentDays(u32),
+    /// The answer to the offer to hide the folder's build and dependency folders: these to hide, or none.
+    HideBuildFolders(Vec<String>),
+    /// The list of what's hidden, in the project's settings.
+    WhatsHidden,
+    /// A file given a colour of its own, or (with None) left to the rules.
+    ColourFile { path: PathBuf, tint: Option<Tint> },
+    /// Every file in a folder coloured by a rule for the folder; or with None, the folder's rule taken away.
+    ColourFolder { folder: PathBuf, tint: Option<Tint> },
 }
 
 #[derive(Default)]
@@ -185,7 +205,24 @@ pub struct Explorer {
     git_from: Option<(PathBuf, Vec<crate::git::Entry>)>,
     /// How the lists are sorted, and whether sizes and dates are shown.
     pub order: Order,
+    /// What the project hides, and whether it's shown faintly, as the listings were read with.
+    hidden: Vec<Hide>,
+    show_hidden: bool,
+    /// The build and dependency folders found when the folder was opened, offered for hiding.
+    offer: Option<(PathBuf, Vec<String>)>,
+    /// When each of the folder's files was last changed other than by Limoniter, from the background, for those
+    /// changed lately; and how many times that's come in.
+    outside: Option<(PathBuf, HashMap<PathBuf, SystemTime>)>,
+    outside_count: u64,
+    /// The files and folders edited lately, and when; and what that was worked out from, and when.
+    recent_files: HashMap<PathBuf, SystemTime>,
+    recent_folders: HashMap<PathBuf, SystemTime>,
+    recent_from: Option<(u32, usize, Option<u64>, u64, usize)>,
+    recent_made: Option<Instant>,
 }
+
+/// How often what counts as recent is worked out again, as time passes.
+const RECENT_AGAIN: Duration = Duration::from_secs(60);
 
 /// How a file's Git status is shown: its letter, and its colour.
 fn git_mark(change: Change) -> (&'static str, egui::Color32) {
@@ -224,11 +261,15 @@ impl Explorer {
                     let path = entry.path();
                     // A link to a folder is shown as one, and opened as one.
                     let folder = path.is_dir();
+                    let hidden = self.root.as_deref().is_some_and(|root| kept::hidden_by(&self.hidden, root, &path, folder));
+                    if hidden && !self.show_hidden {
+                        continue;
+                    }
                     let ignored = self.ignores.as_mut().is_some_and(|i| i.ignored(&path, folder));
                     let meta = std::fs::metadata(&path).ok();
                     let size = meta.as_ref().filter(|_| !folder).map_or(0, std::fs::Metadata::len);
                     let changed = meta.and_then(|m| m.modified().ok());
-                    entries.push(Entry { name, path, folder, ignored, size, changed });
+                    entries.push(Entry { name, path, folder, ignored, hidden, size, changed });
                 }
             }
             sort_entries(&mut entries, self.order);
@@ -272,6 +313,54 @@ impl Explorer {
         self.selected = Some(file.to_path_buf());
     }
 
+    /// Offers to hide the build and dependency folders found in a folder just opened, in a bar at the top.
+    pub fn offer_to_hide(&mut self, root: &Path, names: Vec<String>) {
+        self.offer = (!names.is_empty()).then(|| (root.to_path_buf(), names));
+    }
+
+    /// The build and dependency folders being offered for hiding in a folder, if they are.
+    #[cfg(test)]
+    pub fn offering(&self, root: &Path) -> Option<&[String]> {
+        self.offer.as_ref().filter(|(at, _)| at == root).map(|(_, names)| names.as_slice())
+    }
+
+    /// Takes in when each of a folder's files was last changed other than by Limoniter, worked out in the
+    /// background.
+    pub fn set_outside_times(&mut self, root: &Path, times: HashMap<PathBuf, SystemTime>) {
+        self.outside = Some((root.to_path_buf(), times));
+        self.outside_count += 1;
+    }
+
+    /// Works out again which files and folders were edited lately, when what that comes from has changed, or a
+    /// minute has gone by.
+    fn update_recent(&mut self, root: &Path, kept: &Kept) {
+        let from = (kept.recent_days, kept.saved.len(), kept.saved.values().max().copied(), self.outside_count, kept.hidden.len());
+        if self.recent_from == Some(from) && self.recent_made.is_some_and(|made| made.elapsed() < RECENT_AGAIN) {
+            return;
+        }
+        self.recent_from = Some(from);
+        self.recent_made = Some(Instant::now());
+        self.recent_files.clear();
+        self.recent_folders.clear();
+        let now = SystemTime::now();
+        let outside = self.outside.as_ref().filter(|(at, _)| at == root).map(|(_, times)| times);
+        let paths: HashSet<&PathBuf> = outside.into_iter().flat_map(HashMap::keys).chain(kept.saved.keys().filter(|path| path.starts_with(root))).collect();
+        for path in paths {
+            let Some(when) = kept::last_edited(kept.saved_at(path), outside.and_then(|times| times.get(path).copied())) else { continue };
+            if !kept::within(when, now, kept.recent_days) || kept.hides(root, path, false) {
+                continue;
+            }
+            self.recent_files.insert(path.clone(), when);
+            // The folders it's in get its dot too, so it's found with them folded.
+            let mut folder = path.parent();
+            while let Some(here) = folder.filter(|f| f.starts_with(root) && *f != root) {
+                let latest = self.recent_folders.entry(here.to_path_buf()).or_insert(when);
+                *latest = (*latest).max(when);
+                folder = here.parent();
+            }
+        }
+    }
+
     /// The tree of a folder, with the file being edited (if it's in it) found and shown.
     /// Takes in what Git says has changed, in the repository at `repo`, when that's changed.
     pub fn set_git(&mut self, repo: Option<&Path>, entries: &[crate::git::Entry]) {
@@ -298,12 +387,21 @@ impl Explorer {
         self.git_from = now;
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, root: &Path, active: Option<&Path>) -> Vec<Act> {
+    pub fn draw(&mut self, ui: &mut Ui, root: &Path, active: Option<&Path>, kept: &Kept, colours: &Colours) -> Vec<Act> {
         let mut acts = Vec::new();
         if self.root.as_deref() != Some(root) {
-            *self = Explorer { root: Some(root.to_path_buf()), ignores: Some(Ignores::new(root)), order: self.order, ..Explorer::default() };
+            // What came in for this folder before it was first drawn stays.
+            let offer = self.offer.take().filter(|(at, _)| at == root);
+            let outside = self.outside.take().filter(|(at, _)| at == root);
+            *self = Explorer { root: Some(root.to_path_buf()), ignores: Some(Ignores::new(root)), order: self.order, offer, outside, outside_count: self.outside_count, ..Explorer::default() };
             self.expanded.insert(root.to_path_buf());
         }
+        if self.hidden != kept.hidden || self.show_hidden != kept.show_hidden {
+            self.hidden.clone_from(&kept.hidden);
+            self.show_hidden = kept.show_hidden;
+            self.listings.clear();
+        }
+        self.update_recent(root, kept);
         if let Some(active) = active
             && self.revealed.as_deref() != Some(active)
         {
@@ -330,9 +428,33 @@ impl Explorer {
                     ui.separator();
                     ui.checkbox(&mut self.order.folders_first, crate::i18n::tr("Folders first"));
                     ui.checkbox(&mut self.order.details, crate::i18n::tr("Sizes and dates"));
+                    ui.separator();
+                    let mut show = kept.show_hidden;
+                    ui.add_enabled(!kept.hidden.is_empty(), egui::Checkbox::new(&mut show, crate::i18n::tr("Show hidden items"))).on_hover_text(crate::i18n::tr("What's hidden is shown faintly, to be found and shown again"));
+                    if show != kept.show_hidden {
+                        acts.push(Act::ShowHidden(show));
+                    }
+                    if ui.add_enabled(!kept.hidden.is_empty(), egui::Button::new(crate::i18n::tr("What's hidden\u{2026}"))).clicked() {
+                        acts.push(Act::WhatsHidden);
+                        ui.close();
+                    }
+                    ui.separator();
+                    ui.label(crate::i18n::tr("Files edited lately stand out:"));
+                    let mut days = kept.recent_days;
+                    for (choice, label) in [(0, "Not at all"), (1, "In the last day"), (7, "In the last week"), (30, "In the last month")] {
+                        ui.radio_value(&mut days, choice, crate::i18n::tr(label));
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label(crate::i18n::tr("In the last"));
+                        ui.add(egui::DragValue::new(&mut days).range(0..=kept::MOST_RECENT_DAYS));
+                        ui.label(crate::i18n::tr("days"));
+                    });
+                    if days != kept.recent_days {
+                        acts.push(Act::RecentDays(days));
+                    }
                 })
                 .response
-                .on_hover_text(crate::i18n::tr("Sort by, and sizes and dates"));
+                .on_hover_text(crate::i18n::tr("Sort by, sizes and dates, what's hidden, and files edited lately"));
                 if self.order != before {
                     self.listings.clear();
                 }
@@ -345,14 +467,15 @@ impl Explorer {
                 }
             });
         });
+        self.offer_bar(ui, root, &mut acts);
         egui::ScrollArea::both().id_salt("explorer-tree").auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
-            self.folder_rows(ui, root, root, 0, active, &mut acts);
+            self.folder_rows(ui, root, root, 0, active, colours, &mut acts);
         });
         acts
     }
 
-    fn folder_rows(&mut self, ui: &mut Ui, root: &Path, folder: &Path, depth: usize, active: Option<&Path>, acts: &mut Vec<Act>) {
+    fn folder_rows(&mut self, ui: &mut Ui, root: &Path, folder: &Path, depth: usize, active: Option<&Path>, colours: &Colours, acts: &mut Vec<Act>) {
         // A new file or folder being named goes at the top of its folder.
         if let Some(Editing::New { folder: at, is_folder, .. }) = &self.editing
             && at == folder
@@ -372,16 +495,24 @@ impl Explorer {
             let chevron = if entry.folder { if open { "\u{25BE} " } else { "\u{25B8} " } } else { "" };
             let change = self.git.get(&entry.path).copied();
             let colour = match change {
+                _ if entry.hidden => crate::theme::text_disabled(),
                 _ if entry.ignored => crate::theme::text_faint(),
                 Some(change) => git_mark(change).1,
                 None => crate::theme::text(),
             };
+            // Edited lately: a file's name in bold, and a dot beside it (a folder's too) as hot as how lately.
+            let recent = if entry.folder { self.recent_folders.get(&entry.path) } else { self.recent_files.get(&entry.path) }.copied();
+            let bold = recent.is_some() && !entry.folder;
             // A row the panel's width, as VS Code's are: the file being edited in the selection's colour.
-            let font = egui::FontId::proportional(12.5);
+            let font = match crate::preview::bold_family().filter(|_| bold) {
+                Some(family) => egui::FontId::new(12.5, family),
+                None => egui::FontId::proportional(12.5),
+            };
             let galley = ui.painter().layout_no_wrap(format!("{chevron}{}", entry.name), font, colour);
             // A file's badge goes where a folder's arrow is.
             let icon = if entry.folder { 0.0 } else { crate::file_icons::width(12.5) + 3.0 };
-            let width = (depth as f32 * 12.0 + icon + galley.size().x + 8.0).max(ui.available_width());
+            let dot_room = if recent.is_some() { 12.0 } else { 0.0 };
+            let width = (depth as f32 * 12.0 + icon + galley.size().x + dot_room + 8.0).max(ui.available_width());
             let (rect, response) = ui.allocate_exact_size(vec2(width, galley.size().y + 4.0), Sense::click_and_drag());
             // Dragged onto another folder (or a file in one), it's moved there.
             response.dnd_set_drag_payload(entry.path.clone());
@@ -399,15 +530,36 @@ impl Explorer {
             } else {
                 None
             };
+            // A file's colour (or a folder's, from a rule for it) tints its row, with a bar of it at the left: kept
+            // apart from the dot of a file edited lately.
+            let place = relative(root, &entry.path);
+            let tint = if entry.folder { colours.folder_tint(&place) } else { colours.look(&place).tint };
+            if let Some(tint) = tint.filter(|_| fill.is_none()) {
+                ui.painter().rect_filled(rect, 2.0, tint.mark().gamma_multiply(0.16));
+            }
             if let Some(fill) = fill {
                 ui.painter().rect_filled(rect, 2.0, fill);
+            }
+            if let Some(tint) = tint {
+                ui.painter().rect_filled(egui::Rect::from_min_size(rect.min + vec2(0.0, 2.0), vec2(3.0, rect.height() - 4.0)), 1.0, tint.mark());
             }
             let galley_width = galley.size().x + icon;
             if !entry.folder {
                 let at = egui::Rect::from_min_size(rect.min + vec2(4.0 + depth as f32 * 12.0, 0.0), vec2(icon, rect.height()));
                 crate::file_icons::paint(ui.painter(), at, &entry.name, 12.5);
             }
-            ui.painter().galley(rect.min + vec2(4.0 + depth as f32 * 12.0 + icon, 2.0), galley, colour);
+            let name_at = rect.min + vec2(4.0 + depth as f32 * 12.0 + icon, 2.0);
+            // Without a bold font, bold is drawn twice, a little apart.
+            if bold && crate::preview::bold_family().is_none() {
+                ui.painter().galley(name_at + vec2(0.6, 0.0), galley.clone(), colour);
+            }
+            let name_width = galley.size().x;
+            ui.painter().galley(name_at, galley, colour);
+            let now = SystemTime::now();
+            if let Some(when) = recent {
+                ui.painter().circle_filled(egui::pos2(name_at.x + name_width + 7.0, rect.center().y), 3.0, kept::Heat::of(when, now).colour());
+            }
+            let galley_width = galley_width + dot_room;
             // Git's letter at the right, or a dot on a folder with changes in it.
             let right = ui.clip_rect().max.x.min(rect.max.x) - 8.0;
             // Each file's size and date before it, faint, where the name leaves room.
@@ -437,7 +589,13 @@ impl Explorer {
             } else if entry.folder && self.git_folders.contains(&entry.path) {
                 ui.painter().circle_filled(egui::pos2(right - 3.0, rect.center().y), 3.0, crate::theme::git_changed());
             }
-            let response = response.on_hover_text(entry.path.display().to_string());
+            let hover = match recent {
+                Some(when) if entry.folder => format!("{}\n{}", entry.path.display(), crate::i18n::tf!("Holds files edited lately. {}", kept::when_said(when, now))),
+                Some(when) => format!("{}\n{}", entry.path.display(), kept::when_said(when, now)),
+                None if entry.hidden => format!("{}\n{}", entry.path.display(), crate::i18n::tr("Hidden in this project")),
+                None => entry.path.display().to_string(),
+            };
+            let response = response.on_hover_text(hover);
             if self.scroll_to.as_deref() == Some(entry.path.as_path()) {
                 response.scroll_to_me(Some(egui::Align::Center));
                 self.scroll_to = None;
@@ -454,14 +612,39 @@ impl Explorer {
                     acts.push(Act::Open(entry.path.clone()));
                 }
             }
-            crate::fit::context_menu(&response, |ui| self.menu(ui, root, &entry, acts));
+            crate::fit::context_menu(&response, |ui| self.menu(ui, root, &entry, colours, acts));
             if open {
-                self.folder_rows(ui, root, &entry.path, depth + 1, active, acts);
+                self.folder_rows(ui, root, &entry.path, depth + 1, active, colours, acts);
             }
         }
     }
 
-    fn menu(&mut self, ui: &mut Ui, root: &Path, entry: &Entry, acts: &mut Vec<Act>) {
+    /// The offer to hide a folder's build and dependency folders, made once when it's opened: a bar at the top of
+    /// the Explorer, out of the way, that goes when it's answered.
+    fn offer_bar(&mut self, ui: &mut Ui, root: &Path, acts: &mut Vec<Act>) {
+        let Some((_, names)) = self.offer.as_ref().filter(|(at, _)| at == root) else { return };
+        let names = names.clone();
+        let mut answered = None;
+        egui::Frame::new().fill(ui.visuals().faint_bg_color).corner_radius(3.0).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let words = crate::i18n::tf!("Hide the build and dependency folders ({})?", names.join(", "));
+            ui.add(egui::Label::new(RichText::new(words).size(12.0)).wrap());
+            ui.horizontal(|ui| {
+                if ui.small_button(crate::i18n::tr("Hide them")).on_hover_text(crate::i18n::tr("From the Explorer, Go to file and searching; taken back in the project's settings")).clicked() {
+                    answered = Some(names.clone());
+                }
+                if ui.small_button(crate::i18n::tr("Not now")).clicked() {
+                    answered = Some(Vec::new());
+                }
+            });
+        });
+        if let Some(hide) = answered {
+            self.offer = None;
+            acts.push(Act::HideBuildFolders(hide));
+        }
+    }
+
+    fn menu(&mut self, ui: &mut Ui, root: &Path, entry: &Entry, colours: &Colours, acts: &mut Vec<Act>) {
         let path = entry.path.clone();
         let folder = if entry.folder { path.clone() } else { path.parent().map_or_else(|| root.to_path_buf(), Path::to_path_buf) };
         let mut item = |ui: &mut Ui, label: &str, act: Act| {
@@ -496,11 +679,38 @@ impl Explorer {
         }
         item(ui, "Compare with the last commit", Act::CompareWithHead(path.clone()));
         ui.separator();
+        // Hidden from the Explorer, Go to file and searching, kept with the project.
+        if entry.hidden {
+            item(ui, "Show this again", Act::ShowAgain { path: path.clone(), folder: entry.folder });
+        } else if entry.folder {
+            item(ui, "Hide this folder", Act::Hide(Hide::Folder(relative(root, &path))));
+        } else if let Some(end) = kept::ending(&entry.name) {
+            // Already in the words wanted, which are their own translation.
+            item(ui, &crate::i18n::tf!("Hide .{end} files"), Act::Hide(Hide::Kind(end)));
+        }
+        // Coloured, kept with the project: a file alone, or every file in a folder by a rule for it.
+        let place = relative(root, &path);
+        let mut coloured = None;
+        if entry.folder {
+            crate::fit::menu_button(ui, crate::i18n::tr("Colour this folder's files"), |ui| {
+                if let Some(tint) = crate::file_colours::tint_menu(ui, colours.folder_rule(&place)) {
+                    coloured = Some(Act::ColourFolder { folder: path.clone(), tint });
+                }
+            });
+        } else {
+            crate::fit::menu_button(ui, crate::i18n::tr("Colour this file"), |ui| {
+                if let Some(tint) = crate::file_colours::tint_menu(ui, colours.files.get(&place).and_then(|look| look.tint)) {
+                    coloured = Some(Act::ColourFile { path: path.clone(), tint });
+                }
+            });
+        }
+        ui.separator();
         if ui.button(crate::i18n::tr("Rename\u{2026}")).clicked() {
             self.start_rename(&path);
             ui.close();
         }
         item(ui, "Move to the Recycle Bin", Act::Delete(path));
+        acts.extend(coloured);
     }
 
     /// The box a name is typed in: Enter makes it, Escape leaves it.
@@ -547,7 +757,7 @@ pub fn relative(root: &Path, path: &Path) -> String {
 }
 
 /// The files a few letters find, shown in place of the tree while the Explorer's filter is typed in.
-pub fn filtered(ui: &mut Ui, root: &Path, files: &[PathBuf], filter: &str, active: Option<&Path>) -> Vec<Act> {
+pub fn filtered(ui: &mut Ui, root: &Path, files: &[PathBuf], filter: &str, active: Option<&Path>, colours: &Colours) -> Vec<Act> {
     let mut acts = Vec::new();
     let found = workspace::find(filter, files.iter().map(|p| (p.as_path(), relative(root, p))), 300);
     if found.is_empty() {
@@ -568,6 +778,9 @@ pub fn filtered(ui: &mut Ui, root: &Path, files: &[PathBuf], filter: &str, activ
             }
             let galley = ui.painter().layout_job(job);
             ui.painter().galley(rect.min + vec2(4.0, 1.0), galley, crate::theme::text());
+            if let Some(tint) = colours.look(&relative(root, path)).tint {
+                crate::file_colours::swatch(ui, egui::Rect::from_center_size(egui::pos2(rect.max.x - 9.0, rect.center().y), vec2(8.0, 8.0)), tint);
+            }
             if response.clicked() {
                 acts.push(Act::Open(path.to_path_buf()));
             }
@@ -583,7 +796,7 @@ mod tests {
     #[test]
     fn the_lists_are_sorted_as_chosen() {
         let at = |seconds: u64| Some(SystemTime::UNIX_EPOCH + Duration::from_secs(seconds));
-        let entry = |name: &str, folder: bool, size: u64, changed: u64| Entry { name: name.into(), path: PathBuf::from(name), folder, ignored: false, size, changed: at(changed) };
+        let entry = |name: &str, folder: bool, size: u64, changed: u64| Entry { name: name.into(), path: PathBuf::from(name), folder, ignored: false, hidden: false, size, changed: at(changed) };
         let all = vec![entry("b.c", false, 300, 2), entry("src", true, 0, 1), entry("A.h", false, 10, 3), entry("c.c", false, 20, 4)];
         let sorted = |order: Order| {
             let mut entries = all.clone();
@@ -613,6 +826,61 @@ mod tests {
         assert_eq!(drop_target(p("/w/src/a.s"), p("/w/lib/b.s"), false), Some(PathBuf::from("/w/lib/a.s")), "onto a file: into its folder");
         assert_eq!(drop_target(p("/w/src/a.s"), p("/w/src/b.s"), false), None, "where it is already");
         assert_eq!(drop_target(p("/w/src"), p("/w/src/inner"), true), None, "not into itself");
+    }
+
+    #[test]
+    fn hidden_things_leave_the_tree_or_show_faintly() {
+        let root = std::env::temp_dir().join(format!("limoniter-explorer-hidden-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for file in ["src/main.c", "src/main.o", "build/out.bin", "notes.txt"] {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), "x").unwrap();
+        }
+        let mut explorer = Explorer { root: Some(root.clone()), ..Explorer::default() };
+        let names = |explorer: &mut Explorer, folder: &Path| explorer.listing(folder).iter().map(|e| (e.name.clone(), e.hidden)).collect::<Vec<_>>();
+        assert_eq!(names(&mut explorer, &root), [("build".into(), false), ("src".into(), false), ("notes.txt".into(), false)]);
+        explorer.hidden = vec![Hide::Folder("build".into()), Hide::Kind("o".into())];
+        explorer.refresh();
+        assert_eq!(names(&mut explorer, &root), [("src".into(), false), ("notes.txt".into(), false)]);
+        assert_eq!(names(&mut explorer, &root.join("src")), [("main.c".into(), false)]);
+        // Shown faintly, to be found and taken back.
+        explorer.show_hidden = true;
+        explorer.refresh();
+        assert_eq!(names(&mut explorer, &root), [("build".into(), true), ("src".into(), false), ("notes.txt".into(), false)]);
+        assert_eq!(names(&mut explorer, &root.join("build")), [("out.bin".into(), true)], "what's in a hidden folder is hidden too");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn files_edited_lately_and_the_folders_holding_them_stand_out() {
+        let root = PathBuf::from("/w");
+        let now = SystemTime::now();
+        let ago = |hours: u64| now - Duration::from_secs(hours * 3600);
+        let mut explorer = Explorer::default();
+        // From Git and the disk: one changed two days ago, one long ago.
+        explorer.set_outside_times(&root, [(root.join("src/gfx/a.s"), ago(48)), (root.join("old.s"), ago(24 * 40))].into());
+        let mut kept = Kept::default();
+        // Saved here: one an hour ago that Git last changed long ago, one only saved here, and a hidden one.
+        kept.note_saved(&root.join("old.s"), ago(1));
+        kept.note_saved(&root.join("lib/b.s"), ago(24 * 3));
+        kept.note_saved(&root.join("lib/b.o"), ago(1));
+        kept.note_saved(Path::new("/elsewhere/c.s"), ago(1));
+        kept.hide(Hide::Kind("o".into()));
+        explorer.update_recent(&root, &kept);
+        let mut files: Vec<_> = explorer.recent_files.keys().map(|p| relative(&root, p)).collect();
+        files.sort();
+        assert_eq!(files, ["lib/b.s", "old.s", "src/gfx/a.s"]);
+        let secs = |when: SystemTime| when.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        assert_eq!(secs(explorer.recent_files[&root.join("old.s")]), secs(ago(1)), "Limoniter's save is later than Git's change");
+        assert_eq!(explorer.recent_folders.get(&root.join("src")), Some(&ago(48)), "folded, the folder has the dot");
+        assert!(explorer.recent_folders.contains_key(&root.join("src/gfx")) && !explorer.recent_folders.contains_key(&root));
+        // Two days back, only today's and yesterday's; and none when it's off.
+        kept.recent_days = 2;
+        explorer.update_recent(&root, &kept);
+        assert_eq!(explorer.recent_files.len(), 1);
+        kept.recent_days = 0;
+        explorer.update_recent(&root, &kept);
+        assert!(explorer.recent_files.is_empty() && explorer.recent_folders.is_empty());
     }
 
     #[test]

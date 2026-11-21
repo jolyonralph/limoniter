@@ -9442,3 +9442,56 @@ theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nw
 {what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another	{what} necesita un 68010 o posterior, y esto es para el {name}: MACHINE 68010 (u otro posterior) elige otro
 {what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another	{what} necesita un 68020 o posterior, y esto es para el {name}: MACHINE 68020 (u otro posterior) elige otro
 {what} needs a 68020 or later: the CPU32 hasn't got it	{what} necesita un 68020 o posterior: el CPU32 no lo tiene
+.{end} files	Archivos .{end}
+Every folder called {name}	Cada carpeta llamada {name}
+Files edited lately stand out:	Destacar los archivos editados hace poco:
+From the Explorer, Go to file and searching; taken back in the project's settings	Del Explorador, Ir a archivo y las búsquedas; se recupera en la configuración del proyecto
+Hidden in the Explorer, Go to file and searching:	Oculto en el Explorador, Ir a archivo y las búsquedas:
+Hidden in this project	Oculto en este proyecto
+Hide .{end} files	Ocultar los archivos .{end}
+Hide the build and dependency folders ({})?	¿Ocultar las carpetas de compilación y dependencias ({})?
+Hide them	Ocultarlas
+Holds files edited lately. {}	Contiene archivos editados hace poco. {}
+In the last	En los últimos
+In the last day	En el último día
+In the last month	En el último mes
+In the last week	En la última semana
+Last edited today at {}	Editado por última vez hoy a las {}
+Last edited {} ({days} days ago)	Editado por última vez el {} (hace {days} días)
+Not at all	Nunca
+Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.	Nada. Haz clic derecho en una carpeta o un archivo del Explorador para ocultarlo, o su tipo de archivo.
+Show again	Volver a mostrar
+Show hidden items	Mostrar los elementos ocultos
+Sort by, sizes and dates, what's hidden, and files edited lately	Orden, tamaños y fechas, lo oculto y los archivos editados hace poco
+The folder {folder}	La carpeta {folder}
+What's hidden is shown faintly, to be found and shown again	Lo oculto se muestra tenue, para encontrarlo y volver a mostrarlo
+What's hidden…	Lo que está oculto…
+days	días
+A folder ends with / (admin/); a name or a place in the project can have * in it (*.inc, config/production.php). The first that fits colours a file, unless it has a colour of its own from its tab.	Una carpeta termina en / (admin/); un nombre o un lugar del proyecto puede llevar * (*.inc, config/production.php). La primera que encaja colorea el archivo, salvo que tenga un color propio desde su pestaña.
+Amber	Ámbar
+As the rules say	Según las reglas
+Colour this file	Colorear este archivo
+Colour this folder's files	Colorear los archivos de esta carpeta
+Colours for files:	Colores de los archivos:
+Or right-click a folder in the Explorer, Colour this folder's files	O haz clic derecho en una carpeta del Explorador, Colorear los archivos de esta carpeta
+Rose	Rosa
+Save the file first: its colour is kept with it	Guarda primero el archivo: su color se guarda con él
+Take away	Quitar
+Theme for this file	Tema para este archivo
+Violet	Violeta
+admin/ or *.inc	admin/ o *.inc
+Projects	Proyectos
+On their own	Por separado
+; The custom chips' registers the copper lists set, from $DFF000.	; Los registros de los chips custom que fijan las listas del copper, desde $DFF000.
+nothing optimised, for vasm	nada optimizado, para vasm
+skip the next if the beam is past line ${line:02X}, x ${x:02X}	saltar el siguiente si el haz ha pasado la línea ${line:02X}, x ${x:02X}
+the TRAP #{number} vector	el vector de TRAP #{number}
+the address error vector	el vector de error de dirección
+the bus error vector	el vector de error de bus
+the division by zero vector	el vector de división por cero
+the end of the copper list	el final de la lista del copper
+the illegal instruction vector	el vector de instrucción ilegal
+the level {level} interrupt vector	el vector de interrupción de nivel {level}
+the privilege violation vector	el vector de violación de privilegio
+the trace vector	el vector de traza
+wait for line ${line:02X}, x ${x:02X}	esperar a la línea ${line:02X}, x ${x:02X}

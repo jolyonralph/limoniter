@@ -215,6 +215,7 @@ ${} is too large a number
 .bin, .prg (its load address first), .spd for sprites, or any file of bytes
 .ocp
 .udg, .chr, a font, .spr, or any file of bytes
+.{end} files
 .{name} files are run by Windows, so an editor shouldn't take them over.
 // It starts at {entry:08x}.\n
 // a red border
@@ -397,6 +398,7 @@ ${} is too large a number
 ; ProTracker's Amiga periods (finetune 0), C-1 to B-3: Paula's clock / (sample rate)
 ; Song {song} of {}. Written by Limoniter from {file_name}'s header: the tune's code and data load at
 ; The TIA and the RIOT, as vcs.h names them
+; The custom chips' registers the copper lists set, from $DFF000.
 ; The tune, at its load address, without the file's {}-byte header{}:
 ; To keep it in your own program, load it at ${:04X} as BASIC would, put the song (from 0) in $030C, and RUN it.
 ; YM2149 envelope: shape {shape}, {}; period {period}: {hz:.2} Hz{cycle}\n
@@ -576,6 +578,7 @@ A fixed-point number, 16 bits each side of the point: faster than FLOAT.
 A floating-point number, as Sinclair BASIC's (5 bytes).
 A folded block shows as { … } on one line, the line with its closing bracket folded in with it
 A folder as drive C:
+A folder ends with / (admin/); a name or a place in the project can have * in it (*.inc, config/production.php). The first that fits colours a file, unless it has a colour of its own from its tab.
 A folder for the examples
 A folder isn't in its parent directory, so the disk is damaged.
 A folder named after the project is made inside the one chosen
@@ -862,6 +865,7 @@ Always leave out
 Always on top
 Always open .csv and .tsv files as tables
 Always run {} programs there (F9)
+Amber
 Amiga
 Amiga (AGA)
 Amiga (OCS, ECS)
@@ -1015,6 +1019,7 @@ As the Next has it at reset: nothing to set up, and the sprite editor draws in i
 As the TV shows it ({})
 As the file asks ({} at {} Hz)
 As the picture is
+As the rules say
 As wide as the panel
 Ask
 Ask about it…
@@ -1588,6 +1593,8 @@ Colour tag
 Colour tags
 Colour themes, as document and window themes: {}
 Colour themes, grammars, snippets, file icons and language settings from VS Code extensions, and the language servers they start. An extension's own program (JavaScript) isn't run here: one that's nothing but its program can't be installed, and one that has a program says what's left behind.
+Colour this file
+Colour this folder's files
 Colour {index}: {:03b} {:03b} {:03b} (${:03X}); {} pixels
 Colour {i}: #{:02X}{:02X}{:02X} ({word})
 Colour {i}: {:03b} {:03b} {:03b} (red, green, blue)
@@ -1602,6 +1609,7 @@ Colouring for {name}
 Colours
 Colours and planes from the screen picture, for a bob drawn on it
 Colours are 0000 BBB0 GGG0 RRR0.
+Colours for files:
 Colours from the screen picture, for a sprite drawn on it
 Colours given
 Colours shown where they're written
@@ -2238,6 +2246,7 @@ Every conflict is settled.
 Every copy of the selection
 Every entry…
 Every file on both sides is read
+Every folder called {name}
 Every frame (vertical blank) for every song
 Every frame, from the VBL: the top of the frame as it is above the first change, and Timer B started again.
 Every interrupt and every kind of DMA off: the machine is ours.
@@ -2343,6 +2352,7 @@ Files and folders matching these are left out
 Files can't be copied into {} from a comparison. Each kind of disk image has its own rules for names and kinds of file, and an archive is only read here; open the image in a tab of its own to add files to it, choosing how each one goes on.
 Files can't be copied into {}.
 Files changed on both sides since then are shown as conflicts, and left alone unless you tick them
+Files edited lately stand out:
 Files ending .csv, .tsv, .tab or .psv go straight into table view
 Files in a folder
 Files marked "password" are protected on CP/M 3, but their contents aren't hidden, so they read as any other.
@@ -2447,7 +2457,6 @@ Folder on a server
 Folder on it:
 Folder on the Next:
 Folder:
-Folders and projects
 Folders first
 Folder…
 Folding
@@ -2519,6 +2528,7 @@ From a Dragon DOS disk
 From a cartridge…
 From line
 From offset {from} on, {} pulses aren't in the KERNAL's format: most likely a turbo loader's, which isn't decoded (its commonest pulses are {} long, in units of 8 cycles).
+From the Explorer, Go to file and searching; taken back in the project's settings
 From the extension {from}. In VS Code it's typed as {}.
 From the file ending
 From the library: #include <{file}>
@@ -2688,10 +2698,15 @@ Hex, EBCDIC
 Hex, typing characters
 Hex, typing hex digits
 Hi-res
+Hidden in the Explorer, Go to file and searching:
+Hidden in this project
+Hide .{end} files
 Hide comments
 Hide lines
+Hide the build and dependency folders ({})?
 Hide the cursor
 Hide the selected lines
+Hide them
 Hide what's the same
 High density, 1760K
 High-bit ASCII as DOS 3.3 keeps text, with CR line endings. ProDOS text is usually plain ASCII.
@@ -2711,6 +2726,7 @@ History of {}
 History…
 Hit
 Hog mode
+Holds files edited lately. {}
 Home
 Home always goes to the start of the line
 How To Code
@@ -2804,6 +2820,10 @@ In the file in front, as one change that Undo takes back
 In the folder
 In the form chosen, at the cursor
 In the form chosen, to the clipboard
+In the last
+In the last day
+In the last month
+In the last week
 In the menus: {}
 In the vertical blank: the frame's work, then the bars' interrupt.
 In the window
@@ -3143,6 +3163,8 @@ Larger
 Larger text
 Laser
 Last character has its top bit set
+Last edited today at {}
+Last edited {} ({days} days ago)
 Last file used
 Last mounted by
 Last saved {}
@@ -3750,6 +3772,7 @@ None: the emulator's own
 None: the text colour for everything
 Not a number
 Not assembled yet.
+Not at all
 Not available
 Not available in a file this large.
 Not compiled yet: F9 compiles it.
@@ -3800,6 +3823,7 @@ Nothing was added, because that text has characters EBCDIC doesn't have.
 Nothing was assembled.
 Nothing was recorded, so there's no new macro.
 Nothing was restored, because a backup of how things are now couldn't be made first.\n\n{problem}
+Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.
 Nothing: just text
 Now and then, a note of the shortcut for a command just chosen from a menu or the command box, to learn the keys by
 Nowhere
@@ -3839,6 +3863,7 @@ On an ST
 On an STE
 On the background
 On the sprite
+On their own
 Once a .hex file has been built, Tools, Tasks, Run has a task that flashes it, made with these.
 Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. Nothing is downloaded by itself. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once
 Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once
@@ -4011,6 +4036,7 @@ Or double-click a row
 Or edit the result by hand.
 Or press Enter (Shift+Enter for a new line)
 Or press Enter, or double-click it
+Or right-click a folder in the Explorer, Colour this folder's files
 Orange
 Ordered (Bayer)
 Oric disk (Sedoric){label} · {} file(s)
@@ -4279,6 +4305,7 @@ Project
 Project files
 Project panel
 Project settings
+Projects
 Projects you open will be listed here.
 Protext
 Protext (CPC)
@@ -4523,6 +4550,7 @@ Right
 Right difficulty
 Ripper
 Ripper: music and graphics in any file
+Rose
 Rounded to the nearest whole number, halves away from zero.
 Routine
 Row {} and {} other row(s) aren't the width this format needs, which would shift everything after them.\n\nSave anyway?
@@ -4742,6 +4770,7 @@ Save the example's source beside the plan and open it, to change as you like: it
 Save the file first
 Save the file first, so {} can read it.
 Save the file first: a debugger runs it from the disk.
+Save the file first: its colour is kept with it
 Save the file in front first, so the plan can keep where it is.
 Save the file received
 Save the font…
@@ -4997,10 +5026,12 @@ Should have at least {least} items.
 Should have at most {most} items.
 Should match the pattern {pattern}.
 Show
+Show again
 Show as hex
 Show as text
 Show control characters as tokens
 Show everything the image says about itself, and about the chosen file, in File properties
+Show hidden items
 Show in the file manager
 Show it as a table
 Show line endings
@@ -5082,7 +5113,7 @@ Song order
 Song:
 Sort A to Z
 Sort Z to A
-Sort by, and sizes and dates
+Sort by, sizes and dates, what's hidden, and files edited lately
 Sort the file by this column
 Sort the file by this column does. Rows with the wrong number of fields are marked by their number.
 Sound
@@ -5348,6 +5379,7 @@ Tagged this commit {name}
 Tags
 Take a value apart
 Take apart below
+Take away
 Take back just this change
 Take both (mine first)
 Take both (theirs first)
@@ -5881,6 +5913,7 @@ The folder has no blocks.
 The folder has no clusters.
 The folder to apply it to
 The folder to make the project in
+The folder {folder}
 The folder {} can't be read: {problem}.
 The folder {} isn't on the disk.
 The folder's hash chain loops.
@@ -6245,6 +6278,7 @@ The {} table runs past the header.
 The {} tree {what}, so the volume is damaged; let the Mac check it first.
 Theirs, then mine
 Theme
+Theme for this file
 Themes
 Themes and rules…
 Themes that come with Limoniter can't be changed. Make a copy to change it.
@@ -6950,6 +6984,7 @@ Video (Shifter, GLUE and MMU)
 Video memory is written from where d1 says: the VDP takes the address in two halves, the top two bits last.
 View
 Viewer (.prg)…
+Violet
 Voice {voice}: this byte alone is {hz:.2} Hz on {}
 Voice {v} attack and decay
 Voice {v} control
@@ -7005,6 +7040,8 @@ What to put back at the end: the resolution, the two screens and the palette.
 What was recorded
 What would make the project and {host} alike. Nothing is done until you say. Each file replaced or deleted is kept first, in the project's backups.
 What {} has
+What's hidden is shown faintly, to be found and shown again
+What's hidden…
 What's made goes in {}
 What's new in Limoniter {}
 What's new in this version
@@ -7279,6 +7316,7 @@ aaa
 aas
 about-demo-logo
 about-logo
+admin/ or *.inc
 after line {} of {}
 after this
 all bits clear
@@ -7513,6 +7551,7 @@ daa
 dark
 das
 data
+days
 dc.w
 dc.w $FFFF,$FFFE
 debugger
@@ -7912,6 +7951,7 @@ not found
 not multicolour
 not scrolled
 notebooks
+nothing optimised, for vasm
 nothing playing
 nothing playing on it
 nothing waiting to be typed
@@ -8114,6 +8154,7 @@ sine
 size and modified time
 size and time
 sjasmplus didn't save the memory it assembled
+skip the next if the beam is past line ${line:02X}, x ${x:02X}
 slide
 snippets_box
 software
@@ -8200,6 +8241,7 @@ the ROM prints the character in A
 the ROM's vector to print the character in A
 the S
 the TIA and RAM cleared
+the TRAP #{number} vector
 the U
 the ULA off: the tiles and map are where its screen is
 the ULA's first palette (LoRes's) to be written
@@ -8210,6 +8252,7 @@ the VDP's registers: each value, then $80 and the register's number
 the VIC-II reads a character pointer
 the VIC-II reads sprite {n}'s data
 the Z80's 8K, as the 68000 sees it
+the address error vector
 the background on, in the leftmost column too
 the background's four shades
 the background's scroll
@@ -8225,6 +8268,7 @@ the board's buffer overflowed while reading
 the boot block
 the border shows which
 the bottom border
+the bus error vector
 the changes in {}
 the channel's two bits in the mixer
 the channel: 0, 1, 2
@@ -8250,11 +8294,13 @@ the displacement {v} doesn't fit in 16 bits
 the display on, with the frame interrupt
 the display on, with the vertical blank interrupt
 the display window
+the division by zero vector
 the effect
 the effect's next frame
 the effect's offset
 the end
 the end of a row, take the extra bytes off the modulo.
+the end of the copper list
 the end of the message
 the end of the overscan
 the end: from the start again
@@ -8283,12 +8329,14 @@ the grammar has no scopeName
 the header ends
 the header: filled in when the cartridge is made
 the high word
+the illegal instruction vector
 the image couldn't be read
 the jar's end
 the last byte from the keyboard
 the last commit
 the left's are drawn and before the right's are (PF0 between 28 and 49, PF1 between 39 and 54, PF2 between 49
 the length of its code,
+the level {level} interrupt vector
 the line being drawn: 144 to 153 is the vertical blank
 the line is too long
 the line is too long for AMOS, which keeps 510 bytes a line
@@ -8327,6 +8375,7 @@ the picture off
 the picture off for 30 lines of overscan
 the picture runs past the start
 the place after line {}
+the privilege violation vector
 the program's basepage
 the property list is empty
 the register's number
@@ -8369,6 +8418,7 @@ the top 4 bits of channel {}'s period: {} (period ${:X}00 and up)
 the top border
 the top byte, the middle, then the low
 the top line's colours ready
+the trace vector
 the tune's first song
 the value
 the volume
@@ -8492,6 +8542,7 @@ vsid (VICE's SID player)
 vsid is playing song {song}, in its own window.
 vsid plays tunes; it doesn't pack.
 wait
+wait for line ${line:02X}, x ${x:02X}
 wait for line ${line:03X}, x $06
 wait for the VBL handler to count the next frame
 wait for the end of line 255: the next WAIT's line counts from 256

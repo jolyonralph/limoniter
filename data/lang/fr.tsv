@@ -9442,3 +9442,56 @@ theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nw
 {what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another	{what} nécessite un 68010 ou ultérieur, et ceci est pour le {name} : MACHINE 68010 (ou un ultérieur) en choisit un autre
 {what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another	{what} nécessite un 68020 ou ultérieur, et ceci est pour le {name} : MACHINE 68020 (ou un ultérieur) en choisit un autre
 {what} needs a 68020 or later: the CPU32 hasn't got it	{what} nécessite un 68020 ou ultérieur : le CPU32 ne l'a pas
+.{end} files	Fichiers .{end}
+Every folder called {name}	Chaque dossier nommé {name}
+Files edited lately stand out:	Faire ressortir les fichiers modifiés récemment :
+From the Explorer, Go to file and searching; taken back in the project's settings	De l'Explorateur, d'Aller au fichier et des recherches ; à rétablir dans les réglages du projet
+Hidden in the Explorer, Go to file and searching:	Masqué dans l'Explorateur, Aller au fichier et les recherches :
+Hidden in this project	Masqué dans ce projet
+Hide .{end} files	Masquer les fichiers .{end}
+Hide the build and dependency folders ({})?	Masquer les dossiers de compilation et de dépendances ({}) ?
+Hide them	Les masquer
+Holds files edited lately. {}	Contient des fichiers modifiés récemment. {}
+In the last	Dans les derniers
+In the last day	Dans la dernière journée
+In the last month	Dans le dernier mois
+In the last week	Dans la dernière semaine
+Last edited today at {}	Modifié pour la dernière fois aujourd'hui à {}
+Last edited {} ({days} days ago)	Modifié pour la dernière fois le {} (il y a {days} jours)
+Not at all	Jamais
+Nothing. Right-click a folder or a file in the Explorer to hide it, or its kind of file.	Rien. Faites un clic droit sur un dossier ou un fichier dans l'Explorateur pour le masquer, ou son type de fichier.
+Show again	Afficher à nouveau
+Show hidden items	Afficher les éléments masqués
+Sort by, sizes and dates, what's hidden, and files edited lately	Tri, tailles et dates, éléments masqués et fichiers modifiés récemment
+The folder {folder}	Le dossier {folder}
+What's hidden is shown faintly, to be found and shown again	Les éléments masqués sont affichés en grisé, pour les retrouver et les afficher à nouveau
+What's hidden…	Ce qui est masqué…
+days	jours
+A folder ends with / (admin/); a name or a place in the project can have * in it (*.inc, config/production.php). The first that fits colours a file, unless it has a colour of its own from its tab.	Un dossier se termine par / (admin/) ; un nom ou un emplacement du projet peut contenir * (*.inc, config/production.php). La première règle qui convient colore le fichier, sauf s'il a sa propre couleur depuis son onglet.
+Amber	Ambre
+As the rules say	Selon les règles
+Colour this file	Colorer ce fichier
+Colour this folder's files	Colorer les fichiers de ce dossier
+Colours for files:	Couleurs des fichiers :
+Or right-click a folder in the Explorer, Colour this folder's files	Ou faites un clic droit sur un dossier dans l'Explorateur, Colorer les fichiers de ce dossier
+Rose	Rose
+Save the file first: its colour is kept with it	Enregistrez d'abord le fichier : sa couleur est conservée avec lui
+Take away	Retirer
+Theme for this file	Thème pour ce fichier
+Violet	Violet
+admin/ or *.inc	admin/ ou *.inc
+Projects	Projets
+On their own	Seuls
+; The custom chips' registers the copper lists set, from $DFF000.	; Les registres des puces custom que fixent les listes copper, à partir de $DFF000.
+nothing optimised, for vasm	rien d'optimisé, pour vasm
+skip the next if the beam is past line ${line:02X}, x ${x:02X}	sauter le suivant si le faisceau a passé la ligne ${line:02X}, x ${x:02X}
+the TRAP #{number} vector	le vecteur de TRAP #{number}
+the address error vector	le vecteur d'erreur d'adresse
+the bus error vector	le vecteur d'erreur de bus
+the division by zero vector	le vecteur de division par zéro
+the end of the copper list	la fin de la liste copper
+the illegal instruction vector	le vecteur d'instruction illégale
+the level {level} interrupt vector	le vecteur d'interruption de niveau {level}
+the privilege violation vector	le vecteur de violation de privilège
+the trace vector	le vecteur de trace
+wait for line ${line:02X}, x ${x:02X}	attendre la ligne ${line:02X}, x ${x:02X}

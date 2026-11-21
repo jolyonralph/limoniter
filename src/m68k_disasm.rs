@@ -1386,6 +1386,11 @@ struct Work<'a> {
     labels: BTreeSet<u32>,
     /// Places called, which start a routine: what's followed is forgotten there.
     entries: BTreeSet<u32>,
+    /// Data that can't be split by a label, by where each piece starts and its length: relocated longs, and
+    /// copper instructions. A place inside one is named from its start, as one inside an instruction is.
+    units: BTreeMap<u32, u32>,
+    /// The copper instructions found, by where each starts: written as dc.w pairs.
+    copper: BTreeSet<u32>,
 }
 
 impl Work<'_> {
@@ -1442,7 +1447,15 @@ impl Work<'_> {
     fn trace(&mut self, starts: Vec<u32>) {
         let mut queue = starts;
         while let Some(mut pc) = queue.pop() {
+            // The address registers known to hold a place in the program along this run of code, for JSR (An).
+            let mut held: [Option<u32>; 8] = [None; 8];
             while self.code_at(pc) && self.seen.get(&pc).is_none_or(|s| *s == Seen::Data) {
+                // A zero long is ORI.B #0,D0, which no program runs: it's data reached as if it were code (a
+                // cleared buffer or bitplane), and the code stops before it. Only a start that's given is taken
+                // as it is.
+                if self.word(pc) == Some(0) && self.word(pc + 2) == Some(0) && !self.program.starts.contains(&pc) {
+                    break;
+                }
                 let Some(insn) = self.decode(pc) else { break };
                 let length = insn.length;
                 // In a program that's moved when it's loaded, nothing relative to PC can leave its own section.
@@ -1467,15 +1480,20 @@ impl Work<'_> {
                 for i in (2..length).step_by(2) {
                     self.seen.insert(pc + i, Seen::Inside);
                 }
+                let jumps = matches!(insn.flow, Flow::Jump | Flow::Call);
                 let mut follow = Vec::new();
                 for op in &insn.ops {
                     let target = match op {
                         Op::Target(t) => Some(*t),
-                        Op::Pc(t) | Op::PcW(t) if matches!(insn.flow, Flow::Jump | Flow::Call) => Some(*t),
-                        Op::AbsL(v, at) if matches!(insn.flow, Flow::Jump | Flow::Call) => self.address_in(*v, *at),
-                        Op::AbsW(v) if matches!(insn.flow, Flow::Jump | Flow::Call) && self.program.layout == Layout::Raw => self.section(*v).map(|_| *v),
-                        // An address put in a long as an immediate, in a code hunk: an interrupt handler, say.
-                        Op::Imm(v, Size::L, at) if self.program.layout != Layout::Raw => self.address_in(*v, *at).filter(|a| self.code_at(*a) && self.program.layout == Layout::Hunks),
+                        Op::Pc(t) | Op::PcW(t) if jumps => Some(*t),
+                        Op::AbsL(v, at) if jumps => self.address_in(*v, *at),
+                        Op::AbsW(v) if jumps && self.program.layout == Layout::Raw => self.section(*v).map(|_| *v),
+                        // A place jumped to through the address register it was put in.
+                        Op::Ind(n) if jumps => held[usize::from(*n)],
+                        // An address put in a long as an immediate is only code when it's put in an exception
+                        // vector, as an interrupt handler's is: put anywhere else (a custom chip register, a
+                        // data register, a library's structure) it's usually data, a copper list or a bitplane.
+                        Op::Imm(v, Size::L, at) if self.is_vector_store(&insn) => self.address_in(*v, *at),
                         _ => None,
                     };
                     if let Some(t) = target.filter(|t| self.code_at(*t)) {
@@ -1489,6 +1507,7 @@ impl Work<'_> {
                     self.labels.insert(t);
                     queue.push(t);
                 }
+                self.hold(&insn, &mut held);
                 let carries_on = matches!(insn.flow, Flow::Next | Flow::Branch | Flow::Call);
                 self.decoded.insert(pc, insn);
                 if !carries_on {
@@ -1499,20 +1518,209 @@ impl Work<'_> {
         }
     }
 
-    /// The instruction an address is inside, if it's inside one past its first word.
+    /// Whether an instruction puts a long in one of the exception vectors in low memory: MOVE.L #handler,$6C.W.
+    fn is_vector_store(&self, insn: &Insn) -> bool {
+        let vector = |a: u32| (8..0x400).contains(&a) && a.is_multiple_of(4);
+        insn.mnemonic == "move.l"
+            && match insn.ops.get(1) {
+                Some(Op::AbsW(a)) => vector(*a),
+                Some(Op::AbsL(a, at)) => self.relocation(*at).is_none() && vector(*a),
+                _ => false,
+            }
+    }
+
+    /// What an instruction leaves in the address registers, for a JSR (An) or JMP (An) after it: a place put
+    /// there by LEA or MOVE.L #, or nothing known once it's changed any other way.
+    fn hold(&self, insn: &Insn, held: &mut [Option<u32>; 8]) {
+        let base = insn.mnemonic.split('.').next().unwrap_or("");
+        let place = match insn.ops.first() {
+            Some(Op::AbsL(v, at)) if base == "lea" => self.address_in(*v, *at),
+            Some(Op::Pc(t)) if base == "lea" => Some(*t),
+            Some(Op::Imm(v, Size::L, at)) if matches!(insn.mnemonic.as_str(), "move.l" | "movea.l") => self.address_in(*v, *at),
+            _ => None,
+        };
+        if insn.flow == Flow::Call || matches!(insn.ops.last(), Some(Op::List(_))) {
+            *held = [None; 8];
+        }
+        for op in &insn.ops {
+            if let Op::Post(n) | Op::Pre(n) = op {
+                held[usize::from(*n)] = None;
+            }
+        }
+        if base == "exg"
+            && let Some(Op::A(n)) = insn.ops.first()
+        {
+            held[usize::from(*n)] = None;
+        }
+        if let Some(Op::A(n)) = insn.ops.last() {
+            held[usize::from(*n)] = place;
+        }
+    }
+
+    /// The copper lists, found where they can be told with confidence: a place put in COP1LC or COP2LC, or in
+    /// graphics.library's copper list pointers (as a list is shown through the system), and any labelled data
+    /// that reads as copper instructions all the way to the list's end, $FFFF,$FFFE.
+    fn find_copper(&mut self) {
+        if self.program.machine != Machine::Amiga {
+            return;
+        }
+        for place in self.copper_installed() {
+            self.take_copper(place, false);
+        }
+        let labelled: Vec<u32> = self.labels.iter().copied().collect();
+        for place in labelled {
+            self.take_copper(place, true);
+        }
+    }
+
+    /// Copper instructions from a place, taken as a list if they are one. A MOVE has to be to a register the
+    /// copper can set ($020 to $1FE), and the list stops at code, a relocated long or another list. One found
+    /// only by how it reads (`strict`) has to name only known registers and end with $FFFF,$FFFE.
+    fn take_copper(&mut self, from: u32, strict: bool) {
+        let Some((_, s)) = self.section(from) else { return };
+        let end = s.base + s.bytes.len() as u32;
+        if !from.is_multiple_of(2) {
+            return;
+        }
+        let mut at = from;
+        let (mut pairs, mut moves, mut ended) = (Vec::new(), 0, false);
+        while at + 4 <= end && pairs.len() < 8192 {
+            let taken = (at..at + 4).any(|a| self.seen.contains_key(&a)) || (at.saturating_sub(3)..at + 4).any(|a| self.relocation(a).is_some()) || (at.saturating_sub(2)..at + 4).any(|a| self.copper.contains(&a));
+            let (Some(first), Some(second)) = (self.word(at), self.word(at + 2)) else { break };
+            if taken {
+                break;
+            }
+            if first & 1 == 0 {
+                if !(0x20..=0x1FE).contains(&first) || strict && crate::amiga_hw::custom(u32::from(first)).is_none() {
+                    break;
+                }
+                moves += 1;
+            }
+            pairs.push(at);
+            at += 4;
+            if (first, second) == (0xFFFF, 0xFFFE) {
+                ended = true;
+                break;
+            }
+        }
+        if pairs.is_empty() || strict && (!ended || moves == 0) {
+            return;
+        }
+        for p in pairs {
+            self.copper.insert(p);
+            self.units.insert(p, 4);
+        }
+    }
+
+    /// The places the code puts in the copper's list pointers: COP1LC and COP2LC, by their address or from a
+    /// register set to the custom chips' base, and graphics.library's copinit, LOFlist and SHFlist ($26, $32 and
+    /// $36 from its base); put there as an immediate, or from a register just loaded with one.
+    fn copper_installed(&self) -> Vec<u32> {
+        #[derive(Clone, Copy)]
+        enum Base {
+            Custom(i64),
+            Graphics(i64),
+        }
+        let pointer = |offset: i64, base: Option<Base>| match base {
+            Some(Base::Custom(o)) => matches!(o + offset, 0x80 | 0x84),
+            Some(Base::Graphics(o)) => matches!(o + offset, 0x26 | 0x32 | 0x36),
+            None => false,
+        };
+        let mut found = Vec::new();
+        let mut follow = Follow::default();
+        let mut bases: [Option<Base>; 8] = [None; 8];
+        // The places held in D0-D7 and A0-A7.
+        let mut places: [Option<u32>; 16] = [None; 16];
+        for (&pc, insn) in &self.decoded {
+            if self.entries.contains(&pc) {
+                follow = Follow::default();
+                bases = [None; 8];
+                places = [None; 16];
+            }
+            // What's followed for the comments says which library's base is in a6.
+            let _ = comment(self, insn, &mut follow);
+            let base = insn.mnemonic.split('.').next().unwrap_or("");
+            if insn.mnemonic == "move.l"
+                && let [from, to] = insn.ops.as_slice()
+            {
+                let stored = match to {
+                    Op::AbsL(a, at) => self.relocation(*at).is_none() && matches!(a & 0xFF_FFFF, 0xDF_F080 | 0xDF_F084),
+                    Op::Disp(r, d) => pointer(i64::from(*d), bases[usize::from(*r)]),
+                    Op::Ind(r) => pointer(0, bases[usize::from(*r)]),
+                    _ => false,
+                };
+                let place = match from {
+                    Op::Imm(v, Size::L, at) => self.address_in(*v, *at),
+                    Op::D(n) => places[usize::from(*n)],
+                    Op::A(n) => places[8 + usize::from(*n)],
+                    _ => None,
+                };
+                if stored && let Some(place) = place {
+                    found.push(place);
+                }
+            }
+            // What the registers hold after it.
+            let custom = matches!(insn.ops.first(), Some(Op::AbsL(0xDF_F000, at) | Op::Imm(0xDF_F000, Size::L, at)) if self.relocation(*at).is_none());
+            let place = match insn.ops.first() {
+                Some(Op::AbsL(v, at)) if base == "lea" => self.address_in(*v, *at),
+                Some(Op::Pc(t)) if base == "lea" => Some(*t),
+                Some(Op::Imm(v, Size::L, at)) if matches!(base, "move" | "movea") => self.address_in(*v, *at),
+                _ => None,
+            };
+            let step = match (base, insn.ops.as_slice()) {
+                ("adda" | "add", [Op::Imm(v, Size::L, at), Op::A(_)]) if self.relocation(*at).is_none() => Some(i64::from(*v as i32)),
+                ("adda" | "add", [Op::Imm(v, Size::W, _), Op::A(_)]) => Some(i64::from(*v as u16 as i16)),
+                ("addq", [Op::Quick(n), Op::A(_)]) => Some(i64::from(*n)),
+                ("lea", [Op::Disp(r, d), Op::A(n)]) if r == n => Some(i64::from(*d)),
+                _ => None,
+            };
+            match insn.ops.last() {
+                Some(Op::A(n)) => {
+                    let n = usize::from(*n);
+                    bases[n] = match step {
+                        Some(by) => bases[n].map(|b| match b {
+                            Base::Custom(o) => Base::Custom(o + by),
+                            Base::Graphics(o) => Base::Graphics(o + by),
+                        }),
+                        None if custom && matches!(base, "lea" | "move" | "movea") => Some(Base::Custom(0)),
+                        None if n == 6 && matches!(base, "move" | "movea") && follow.a6.as_deref() == Some("graphics.library") => Some(Base::Graphics(0)),
+                        None => None,
+                    };
+                    places[8 + n] = place;
+                }
+                Some(Op::D(n)) => places[usize::from(*n)] = place,
+                Some(Op::List(_)) => places = [None; 16],
+                _ => {}
+            }
+            if insn.flow == Flow::Call {
+                places = [None; 16];
+            }
+        }
+        found
+    }
+
+    /// The instruction an address is inside, if it's inside one past its first word; or the relocated long or
+    /// copper instruction it's inside.
     fn start_of(&self, address: u32) -> u32 {
         let mut back = address & !1;
         while back > 0 && self.seen.get(&back) == Some(&Seen::Inside) {
             back -= 2;
         }
-        if self.seen.get(&back) == Some(&Seen::Start) && address > back { back } else { address }
+        if self.seen.get(&back) == Some(&Seen::Start) && address > back {
+            return back;
+        }
+        match self.units.range(..address).next_back() {
+            Some((&start, &length)) if address < start + length => start,
+            _ => address,
+        }
     }
 }
 
 /// Disassembles a program into source that assembles back to it.
 pub fn disassemble(program: &Program) -> String {
-    let lines = write(program);
-    let lines = check(program, lines);
+    let work = analyse(program);
+    let lines = write(&work);
+    let lines = check(&work, lines);
     lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n") + "\n"
 }
 
@@ -1556,8 +1764,16 @@ impl Namer<'_> {
 
 impl Names for Namer<'_> {
     fn long(&self, value: u32, at: u32) -> String {
-        match self.work.address_in(value, at) {
-            Some(address) if self.work.labels.contains(&address) || self.work.labels.contains(&self.work.start_of(address)) => self.label(address),
+        let work = self.work;
+        match work.address_in(value, at) {
+            Some(address) if work.labels.contains(&address) || work.labels.contains(&work.start_of(address)) => self.label(address),
+            // A relocated long is never written as a number, or it wouldn't be moved when the program's loaded:
+            // one pointing outside its section is counted from the section's start.
+            Some(_) if work.program.layout != Layout::Raw => {
+                let target = work.relocation(at).and_then(|t| work.program.sections.get(t)).expect("a relocated long");
+                let offset = value as i32;
+                format!("{}{}{}", label_name(work.program, target.base), if offset < 0 { "-" } else { "+" }, hex(offset.unsigned_abs()))
+            }
             _ => format!("${value:X}"),
         }
     }
@@ -1583,6 +1799,31 @@ fn hardware(machine: Machine, address: u32) -> Option<String> {
     }
 }
 
+/// The exception vector at an address in low memory, on the Amiga and ST: $6C is the level 3 interrupt's.
+fn vector(machine: Machine, address: u32) -> Option<String> {
+    if !matches!(machine, Machine::Amiga | Machine::AtariSt) || !address.is_multiple_of(4) {
+        return None;
+    }
+    let said: String = match address {
+        0x08 => crate::i18n::tr("the bus error vector").into(),
+        0x0C => crate::i18n::tr("the address error vector").into(),
+        0x10 => crate::i18n::tr("the illegal instruction vector").into(),
+        0x14 => crate::i18n::tr("the division by zero vector").into(),
+        0x20 => crate::i18n::tr("the privilege violation vector").into(),
+        0x24 => crate::i18n::tr("the trace vector").into(),
+        0x64..=0x7C => {
+            let level = (address - 0x60) / 4;
+            crate::i18n::tf!("the level {level} interrupt vector")
+        }
+        0x80..=0xBC => {
+            let number = (address - 0x80) / 4;
+            crate::i18n::tf!("the TRAP #{number} vector")
+        }
+        _ => return None,
+    };
+    Some(said)
+}
+
 /// A comment for an instruction: the hardware it touches, the system call it makes. `follow` is moved on.
 fn comment(work: &Work, insn: &Insn, follow: &mut Follow) -> Option<String> {
     let machine = work.program.machine;
@@ -1595,7 +1836,7 @@ fn comment(work: &Work, insn: &Insn, follow: &mut Follow) -> Option<String> {
     let named_ops = if matches!(base, "lea" | "pea") { &insn.ops[..0] } else { &insn.ops[..] };
     for op in named_ops {
         match op {
-            Op::AbsW(a) => said.extend(hardware(machine, *a)),
+            Op::AbsW(a) => said.extend(hardware(machine, *a).or_else(|| vector(machine, *a))),
             Op::AbsL(a, at) if work.address_in(*a, *at).is_none() || work.program.layout == Layout::Raw => said.extend(hardware(machine, *a)),
             Op::Disp(r, d) if machine == Machine::Amiga && follow.custom[usize::from(*r)] && (0..0x200).contains(d) => said.extend(crate::amiga_hw::custom(*d as u32).map(|r| r.name.clone())),
             _ => {}
@@ -1689,9 +1930,10 @@ fn stored_at(work: &Work, place: &Op) -> Option<u32> {
     }
 }
 
-fn write(program: &Program) -> Vec<Line> {
+/// Follows the code from where it starts, finds the copper lists, and gives a label to every place that's used.
+fn analyse(program: &Program) -> Work<'_> {
     BASES.with(|b| b.borrow_mut().clear());
-    let mut work = Work { program, seen: BTreeMap::new(), decoded: BTreeMap::new(), labels: BTreeSet::new(), entries: BTreeSet::new() };
+    let mut work = Work { program, seen: BTreeMap::new(), decoded: BTreeMap::new(), labels: BTreeSet::new(), entries: BTreeSet::new(), units: BTreeMap::new(), copper: BTreeSet::new() };
     let starts: Vec<u32> = program.starts.iter().copied().chain(program.names.keys().copied().filter(|a| work.code_at(*a) && program.layout != Layout::Tos)).collect();
     for s in &starts {
         work.labels.insert(*s);
@@ -1777,15 +2019,55 @@ fn write(program: &Program) -> Vec<Line> {
             work.labels.insert(*address);
         }
     }
-    let namer = Namer { work: &work };
+    work.find_copper();
+    // A relocated long in data is written whole, as a label: a place inside it is named from its start.
+    for s in &program.sections {
+        for &offset in s.relocations.keys() {
+            let at = s.base + offset;
+            if !(at..at + 4).any(|a| work.seen.contains_key(&a)) && work.units.range(at.saturating_sub(3)..at + 4).next().is_none() {
+                work.units.insert(at, 4);
+            }
+        }
+    }
+    // A label can only be written where a line starts: one inside an instruction, a relocated long or a copper
+    // instruction is its start's, and the place is named from there (L0026F4+2).
+    let inside: Vec<u32> = work.labels.iter().copied().filter(|&l| work.start_of(l) != l).collect();
+    for l in inside {
+        work.labels.remove(&l);
+        let start = work.start_of(l);
+        work.labels.insert(start);
+    }
+    // A relocated long pointing outside its section is counted from the section's start, which needs a label.
+    for s in &program.sections {
+        for (&offset, &target) in &s.relocations {
+            if let (Some(value), Some(t)) = (be32(&s.bytes, offset as usize), program.sections.get(target)) {
+                let address = t.base.wrapping_add(value);
+                if !work.labels.contains(&address) && !work.labels.contains(&work.start_of(address)) {
+                    work.labels.insert(t.base);
+                }
+            }
+        }
+    }
+    work
+}
+
+fn write(work: &Work) -> Vec<Line> {
+    BASES.with(|b| b.borrow_mut().clear());
+    let program = work.program;
+    let namer = Namer { work };
     let mut lines = vec![Line { text: format!("; {}.", program.what), range: None }, Line { text: crate::i18n::tr("; Disassembled by Limoniter: it assembles with Limoniter's own assembler or vasm (Motorola syntax) to the same bytes.").into(), range: None }, Line { text: String::new(), range: None }];
     // Any processor but the 68000 is chosen as vasm and Devpac choose it.
     if program.cpu != Processor::M68000 {
         lines.push(Line { text: format!("        machine {}", program.cpu.name().to_ascii_lowercase()), range: None });
     }
+    // vasm would otherwise make some instructions shorter (JSR to BSR.W, say), and the bytes wouldn't be the same.
+    lines.push(Line { text: format!("{:<48}; {}", "        opt     o-", crate::i18n::tr("nothing optimised, for vasm")), range: None });
     if program.layout == Layout::Raw {
         lines.push(Line { text: format!("        org     ${:X}", program.sections[0].base), range: None });
     }
+    // The custom chips' registers the copper lists set are named, and defined here once they're known.
+    let equates_at = lines.len();
+    let mut equates: BTreeMap<String, u16> = BTreeMap::new();
     let mut follow = Follow::default();
     for (i, s) in program.sections.iter().enumerate() {
         if program.layout == Layout::Hunks {
@@ -1817,19 +2099,24 @@ fn write(program: &Program) -> Vec<Line> {
             }
             if let Some(insn) = work.decoded.get(&at) {
                 let mut text = format!("        {}", text(insn, &namer));
-                if let Some(said) = comment(&work, insn, &mut follow) {
+                if let Some(said) = comment(work, insn, &mut follow) {
                     text = format!("{text:<48}; {said}");
                 }
                 lines.push(Line { text, range: Some((at, insn.length)) });
                 at += insn.length;
                 continue;
             }
-            // Data, up to the next label, instruction, relocated long, or the TOS data's start.
+            if work.copper.contains(&at) {
+                lines.push(Line { text: copper_text(work, at, &mut equates), range: Some((at, 4)) });
+                at += 4;
+                continue;
+            }
+            // Data, up to the next label, instruction, copper list, or the TOS data's start.
             let mut stop = at + 1;
-            while stop < end && !work.labels.contains(&stop) && !work.decoded.contains_key(&stop) && Some(stop) != program.text_end {
+            while stop < end && !work.labels.contains(&stop) && !work.decoded.contains_key(&stop) && !work.copper.contains(&stop) && Some(stop) != program.text_end {
                 stop += 1;
             }
-            lines.extend(data_lines(&work, &namer, at, stop, true));
+            lines.extend(data_lines(work, &namer, at, stop, Style::Text));
             at = stop;
         }
         // BSS: room, with any labels in it.
@@ -1851,15 +2138,72 @@ fn write(program: &Program) -> Vec<Line> {
             lines.push(Line { text: format!("{}:", label_name(program, s.end())), range: None });
         }
     }
+    if !equates.is_empty() {
+        let mut named = vec![Line { text: crate::i18n::tr("; The custom chips' registers the copper lists set, from $DFF000.").into(), range: None }];
+        named.extend(equates.iter().map(|(name, offset)| Line { text: format!("{name:<16}equ     ${offset:03X}"), range: None }));
+        lines.splice(equates_at..equates_at, named);
+    }
     lines
 }
 
+/// A copper instruction as its two words: a MOVE with its register's name, a WAIT or SKIP with where the beam is
+/// waited for, and the list's end.
+fn copper_text(work: &Work, at: u32, equates: &mut BTreeMap<String, u16>) -> String {
+    let (first, second) = (work.word(at).unwrap_or(0), work.word(at + 2).unwrap_or(0));
+    let words = |said: String| format!("{:<48}; {said}", format!("        dc.w    ${first:04X},${second:04X}"));
+    match crate::amiga_hw::Copper::decode(first, second) {
+        crate::amiga_hw::Copper::Move { register, value } => {
+            // A name the program gives a place of its own is left as a number.
+            let name = crate::amiga_hw::custom(u32::from(register)).map(|r| r.name.clone()).filter(|n| n.bytes().all(|b| b.is_ascii_alphanumeric()) && !work.program.names.values().any(|m| m == n));
+            match name {
+                Some(name) => {
+                    let text = format!("        dc.w    {name},${value:04X}");
+                    equates.insert(name, register);
+                    text
+                }
+                None => format!("        dc.w    ${first:04X},${second:04X}"),
+            }
+        }
+        crate::amiga_hw::Copper::Wait { line, x, skip: false, .. } => words(crate::i18n::tf!("wait for line ${line:02X}, x ${x:02X}")),
+        crate::amiga_hw::Copper::Wait { line, x, skip: true, .. } => words(crate::i18n::tf!("skip the next if the beam is past line ${line:02X}, x ${x:02X}")),
+        crate::amiga_hw::Copper::End => words(crate::i18n::tr("the end of the copper list").into()),
+    }
+}
+
+/// How data is written: with text and runs of zeros, without text (for an instruction that didn't assemble back),
+/// or every byte as a number (for data that didn't).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Style {
+    Text,
+    NoText,
+    Bytes,
+}
+
+/// Whether a byte can be written in a string as it is.
+fn printable(b: u8) -> bool {
+    (0x20..0x7F).contains(&b) && b != b'"' && b != b'\\' && b != b';' && b != b'\''
+}
+
+/// How long the text at a place is, if it's text: four or more printable characters, at least half of them letters
+/// and spaces, and all but one in twenty letters, digits, spaces and the punctuation text uses. A table's bytes are often
+/// printable too, but they're mostly symbols ("!&)**+,/11/*%!!#"), and those are written as numbers.
+fn text_at(work: &Work, at: u32, stop: u32) -> u32 {
+    let bytes: Vec<u8> = (at..stop).map_while(|a| work.byte(a).filter(|b| printable(*b))).take(60).collect();
+    if bytes.len() < 4 {
+        return 0;
+    }
+    let letters = bytes.iter().filter(|b| b.is_ascii_alphabetic() || **b == b' ').count();
+    let texty = bytes.iter().filter(|b| b.is_ascii_alphanumeric() || b" .,!?:-()".contains(b)).count();
+    if letters * 2 >= bytes.len() && texty * 20 >= bytes.len() * 19 { bytes.len() as u32 } else { 0 }
+}
+
 /// Data from `from` up to `to`: relocated longs as dc.l and their label, text as text, zeros as dcb.b, the rest
-/// eight bytes a line. With `strings` off, no text: for a line that didn't assemble back as it was.
-fn data_lines(work: &Work, namer: &Namer, from: u32, to: u32, strings: bool) -> Vec<Line> {
+/// eight bytes a line.
+fn data_lines(work: &Work, namer: &Namer, from: u32, to: u32, style: Style) -> Vec<Line> {
     let mut lines = Vec::new();
     let mut at = from;
-    let printable = |b: u8| (0x20..0x7F).contains(&b) && b != b'"' && b != b'\\' && b != b';' && b != b'\'';
+    let strings = style == Style::Text;
+    let zero_runs = style != Style::Bytes;
     while at < to {
         let relocated = work.relocation(at).is_some() || work.program.pointers.contains(&at);
         if relocated && at + 4 <= to {
@@ -1869,31 +2213,31 @@ fn data_lines(work: &Work, namer: &Namer, from: u32, to: u32, strings: bool) -> 
             at += 4;
             continue;
         }
-        let next_relocation = (at + 1..to).find(|a| work.relocation(*a).is_some() || work.program.pointers.contains(a)).unwrap_or(to);
-        let stop = next_relocation.min(to);
+        // Up to the next relocated long, looked up rather than searched for: data can run for hundreds of K.
+        let relocation = work.section(at).and_then(|(_, s)| s.relocations.range(at + 1 - s.base..).next().map(|(&o, _)| s.base + o));
+        let pointer = work.program.pointers.range(at + 1..).next().copied();
+        let stop = [relocation, pointer].into_iter().flatten().fold(to, u32::min);
         // A run of zeros.
         let zeros = (at..stop).take_while(|a| work.byte(*a) == Some(0)).count() as u32;
-        if zeros >= 16 {
+        if zero_runs && zeros >= 16 {
             lines.push(Line { text: format!("        dcb.b   {zeros},0"), range: Some((at, zeros)) });
             at += zeros;
             continue;
         }
-        // Text: four or more printable characters.
-        let text_length = (at..stop).take_while(|a| work.byte(*a).is_some_and(printable)).count() as u32;
-        if strings && text_length >= 4 {
-            let length = text_length.min(60);
-            let text: String = (at..at + length).filter_map(|a| work.byte(a)).map(|b| b as char).collect();
-            lines.push(Line { text: format!("        dc.b    \"{text}\""), range: Some((at, length)) });
-            at += length;
+        let text_length = if strings { text_at(work, at, stop) } else { 0 };
+        if text_length > 0 {
+            let text: String = (at..at + text_length).filter_map(|a| work.byte(a)).map(|b| b as char).collect();
+            lines.push(Line { text: format!("        dc.b    \"{text}\""), range: Some((at, text_length)) });
+            at += text_length;
             continue;
         }
         let mut length = 0;
         while at + length < stop && length < 8 {
             let a = at + length;
-            if length > 0 && strings && (a..stop).take_while(|x| work.byte(*x).is_some_and(printable)).count() >= 4 {
+            if length > 0 && strings && text_at(work, a, stop) > 0 {
                 break;
             }
-            if length > 0 && (a..stop).take_while(|x| work.byte(*x) == Some(0)).count() >= 16 {
+            if length > 0 && zero_runs && (a..stop).take_while(|x| work.byte(*x) == Some(0)).count() >= 16 {
                 break;
             }
             length += 1;
@@ -1905,20 +2249,16 @@ fn data_lines(work: &Work, namer: &Namer, from: u32, to: u32, strings: bool) -> 
     lines
 }
 
-/// Assembles the source again, and makes any line that doesn't give back its bytes data, until it all does.
-fn check(program: &Program, mut lines: Vec<Line>) -> Vec<Line> {
-    let mut work = Work { program, seen: BTreeMap::new(), decoded: BTreeMap::new(), labels: BTreeSet::new(), entries: BTreeSet::new() };
-    // The labels the source defines, so data written in place of a line can still name them.
-    for line in &lines {
-        if let Some(name) = line.text.strip_suffix(':')
-            && let Some(address) = parse_label(program, name)
-        {
-            work.labels.insert(address);
-        }
-    }
+/// Assembles the source again, and makes any line that doesn't give back its bytes data, until it all does. What
+/// made lines wrong is mended first, and the source assembled again: a line that doesn't assemble, or comes to a
+/// different length, moves every label after it, and the lines using those are only wrong because of it. A
+/// relocated long is never made a number.
+fn check(work: &Work, mut lines: Vec<Line>) -> Vec<Line> {
+    let program = work.program;
+    let namer = Namer { work };
     let path = std::path::Path::new("disassembly.s");
     let isa = &crate::asm::m68k::M68k;
-    for _ in 0..8 {
+    for _ in 0..16 {
         let text = lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n") + "\n";
         let assembly = match program.layout {
             Layout::Hunks => crate::asm::assemble_sections(isa, path, &text, &|_| Err(crate::i18n::tr("no").into()), 0, &crate::asm::Options { folders: Vec::new(), values: None, ..Default::default() }),
@@ -1950,61 +2290,40 @@ fn check(program: &Program, mut lines: Vec<Line>) -> Vec<Line> {
             }
         }
         let problem_lines: BTreeSet<usize> = assembly.problems.iter().map(|p| p.line).collect();
-        let mut wrong: Vec<usize> = Vec::new();
+        // The lines that didn't assemble, those that came to the wrong length, and those with the wrong bytes.
+        let mut wrong: [Vec<usize>; 3] = Default::default();
         for (n, line) in lines.iter().enumerate() {
             let Some((start, length)) = line.range else { continue };
-            let got = placed.get(&n).cloned().unwrap_or_default();
-            if problem_lines.contains(&n) || got != expected(start, length) {
-                wrong.push(n);
+            let got = placed.get(&n).map_or(&[][..], Vec::as_slice);
+            if problem_lines.contains(&n) {
+                wrong[0].push(n);
+            } else if got.len() != length as usize {
+                wrong[1].push(n);
+            } else if got != expected(start, length).as_slice() {
+                wrong[2].push(n);
             }
         }
-        if wrong.is_empty() {
-            break;
-        }
-        let namer = Namer { work: &work };
-        for n in wrong.into_iter().rev() {
+        // Each line mended: an instruction as data, data as numbers; a line that's numbers already stays.
+        let mended = |n: usize| -> Option<Vec<Line>> {
             let (start, length) = lines[n].range.expect("a line with bytes");
-            let was_data = lines[n].text.trim_start().starts_with("dc.");
-            let mut replacement = data_lines(&work, &namer, start, start + length, !was_data);
+            let trimmed = lines[n].text.trim_start();
+            let was_data = trimmed.starts_with("dc.") || trimmed.starts_with("dcb.");
+            let mut replacement = data_lines(work, &namer, start, start + length, if was_data { Style::Bytes } else { Style::NoText });
             if replacement.len() == 1 && replacement[0].text == lines[n].text {
-                // Data that still doesn't come back is written byte by byte, with no labels.
-                let items: Vec<String> = expected(start, length).iter().map(|b| format!("${b:02X}")).collect();
-                replacement = vec![Line { text: format!("        dc.b    {}", items.join(",")), range: None }];
+                return None;
             }
             if !was_data && let Some(first) = replacement.first_mut() {
                 let was = lines[n].text.trim().split(';').next().unwrap_or("").trim().to_string();
                 first.text = format!("{:<48}; {was}?", first.text);
             }
+            Some(replacement)
+        };
+        let Some(mends) = wrong.iter().map(|ns| ns.iter().filter_map(|&n| mended(n).map(|r| (n, r))).collect::<Vec<_>>()).find(|m| !m.is_empty()) else { break };
+        for (n, replacement) in mends.into_iter().rev() {
             lines.splice(n..=n, replacement);
-        }
-        work.labels.clear();
-        for line in &lines {
-            if let Some(name) = line.text.strip_suffix(':')
-                && let Some(address) = parse_label(program, name)
-            {
-                work.labels.insert(address);
-            }
         }
     }
     lines
-}
-
-/// The address a label made here names.
-fn parse_label(program: &Program, name: &str) -> Option<u32> {
-    if let Some((address, _)) = program.names.iter().find(|(_, n)| *n == name) {
-        return Some(*address);
-    }
-    let rest = name.strip_prefix('L')?;
-    match rest.split_once('_') {
-        Some((hunk, offset)) => {
-            let s = program.sections.get(hunk.parse::<usize>().ok()?)?;
-            Some(s.base + u32::from_str_radix(offset, 16).ok()?)
-        }
-        None => {
-            let n = u32::from_str_radix(rest, 16).ok()?;
-            Some(if program.layout == Layout::Hunks { program.sections[0].base + n } else { n })
-        }
-    }
 }
 
 #[cfg(test)]

@@ -295,3 +295,32 @@ fn diverged_branches_are_rebased_and_a_conflict_partway_can_be_aborted_or_settle
         let _ = std::fs::remove_dir_all(folder);
     }
 }
+
+#[test]
+fn files_are_dated_by_their_last_change_in_git_not_by_the_clone() {
+    let dir = repository("last-changes");
+    write(&dir, "old.c", "old\n");
+    write(&dir, "src/kept.c", "kept\n");
+    stage(&dir, &["old.c".into(), "src/kept.c".into()]).unwrap();
+    run(&dir, &["commit", "--quiet", "-m", "Long ago", "--date=2020-01-02T03:04:05Z"]).unwrap();
+    write(&dir, "fresh.c", "fresh\n");
+    stage(&dir, &["fresh.c".into()]).unwrap();
+    commit(&dir, "Just now", false).unwrap();
+    // The history, read once for the whole repository.
+    let changes = last_changes(&dir, 7).unwrap();
+    assert_eq!(changes.get("old.c"), Some(&1_577_934_245), "the author's date: {changes:?}");
+    assert!(changes.get("fresh.c").is_some_and(|&t| t > 1_700_000_000));
+    assert_eq!(tracked(&dir).unwrap(), ["old.c", "src/kept.c", "fresh.c"].map(String::from).into());
+    let said = "\u{1}200\nb.c\n\n\u{1}300\na.c\nb.c\n\u{1}100\na.c\n";
+    assert_eq!(parse_last_changes(said), [("a.c".to_string(), 300), ("b.c".to_string(), 300)].into(), "the latest change of each");
+    // Every file's disk date is now, as after a clone; only those Git says changed lately, or that Git doesn't
+    // keep or that have changed since, are recent.
+    write(&dir, "src/kept.c", "edited\n");
+    write(&dir, "new.c", "new\n");
+    let files: Vec<PathBuf> = ["old.c", "src/kept.c", "fresh.c", "new.c"].iter().map(|f| dir.join(f)).collect();
+    let recent = crate::explorer_kept::outside_times(&dir, &files, 7);
+    let mut names: Vec<String> = recent.keys().map(|p| p.strip_prefix(&dir).unwrap().to_string_lossy().replace('\\', "/")).collect();
+    names.sort();
+    assert_eq!(names, ["fresh.c", "new.c", "src/kept.c"]);
+    let _ = std::fs::remove_dir_all(&dir);
+}

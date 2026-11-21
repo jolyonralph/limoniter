@@ -148,10 +148,11 @@ pub fn hidden(name: &str) -> bool {
     HIDDEN.contains(&name)
 }
 
-/// Every file under a folder that Git wouldn't leave out, sorted; and whether there were more than `MOST_FILES`.
-/// Links aren't followed.
-pub fn index(root: &Path) -> (Vec<PathBuf>, bool) {
+/// Every file under a folder that Git wouldn't leave out, nor the project's Explorer hides (so Go to file and
+/// searching don't find it), sorted; and whether there were more than `MOST_FILES`. Links aren't followed.
+pub fn index(root: &Path, rules: &[crate::explorer_kept::Hide]) -> (Vec<PathBuf>, bool) {
     let mut ignores = Ignores::new(root);
+    let hides = |path: &Path, is_folder: bool| crate::explorer_kept::hidden_by(rules, root, path, is_folder);
     let mut files = Vec::new();
     let mut waiting = vec![root.to_path_buf()];
     while let Some(folder) = waiting.pop() {
@@ -164,10 +165,10 @@ pub fn index(root: &Path) -> (Vec<PathBuf>, bool) {
             let Ok(kind) = entry.file_type() else { continue };
             let path = entry.path();
             if kind.is_dir() {
-                if !ignores.ignored(&path, true) {
+                if !ignores.ignored(&path, true) && !hides(&path, true) {
                     waiting.push(path);
                 }
-            } else if kind.is_file() && !ignores.ignored(&path, false) {
+            } else if kind.is_file() && !ignores.ignored(&path, false) && !hides(&path, false) {
                 if files.len() >= MOST_FILES {
                     files.sort_by_key(|p: &PathBuf| p.to_string_lossy().to_lowercase());
                     return (files, true);

@@ -287,7 +287,7 @@ impl Limoniter {
                     }
                     // In the ordinary recent files as its address, rather than its copy here, to open again from there.
                     self.panels.recent.retain(|p| !same_path(p, &local));
-                    panels::note_recent(&mut self.panels.recent, &PathBuf::from(site.url(&path)));
+                    self.note_recent_file(&PathBuf::from(site.url(&path)));
                 }
             }
             (Purpose::Watch(id), Outcome::Looked { stamp: Some(now) }) => {
