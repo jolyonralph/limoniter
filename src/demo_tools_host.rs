@@ -69,7 +69,7 @@ impl Limoniter {
         if let Some(mut blitter) = self.demo_tools.blitter.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("Blitter minterms")).open(&mut open).resizable(false).default_pos([220.0, 90.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Blitter minterms")).open(&mut open).resizable(false).default_pos([220.0, 90.0]).show(ctx, |ui| {
                 asked = blitter.draw(ui);
             });
             if let Some(crate::blitter::Asked::Insert(text)) = asked {
@@ -82,7 +82,7 @@ impl Limoniter {
         if let Some(mut designer) = self.demo_tools.raster.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("Raster and copper designer")).open(&mut open).resizable(false).default_pos([120.0, 60.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Raster and copper designer")).open(&mut open).resizable(false).default_pos([120.0, 60.0]).show(ctx, |ui| {
                 asked = designer.draw(ui);
             });
             match asked {
@@ -105,7 +105,7 @@ impl Limoniter {
         if let Some(mut generator) = self.demo_tools.tables.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("Table generator")).open(&mut open).resizable(false).default_pos([260.0, 110.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Table generator")).open(&mut open).resizable(false).default_pos([260.0, 110.0]).show(ctx, |ui| {
                 asked = generator.draw(ui);
             });
             match asked {

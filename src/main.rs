@@ -1,6 +1,7 @@
 // A window with no console behind it, in the version people actually run.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod about_demo;
 mod amiga_bootdisk;
 mod amiga_catalog;
 mod amiga_project;
@@ -69,6 +70,7 @@ mod encoding_ui;
 #[cfg(test)]
 mod fold_multi_tests;
 mod find_files;
+mod fit;
 mod ext_formatters;
 mod file_icons;
 mod formatters;
@@ -233,6 +235,7 @@ mod theme;
 mod tools;
 mod tracker;
 mod m68k_disasm;
+mod m68k_timing;
 mod atari2600;
 mod atari2600_gfx;
 mod atari2600_painter;

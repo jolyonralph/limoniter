@@ -276,7 +276,7 @@ impl ImageBrowser {
                 }
             }
             if let (Some(i), Some(kind)) = (chosen, document) {
-                ui.menu_button(crate::i18n::tf!("Convert ({})", kind.name()), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tf!("Convert ({})", kind.name()), |ui| {
                     if ui.button(crate::i18n::tr("Open as text")).on_hover_text(crate::i18n::tr("The document's text in a new tab, its formatting codes taken out")).clicked() {
                         action = Some(BrowserAction::Convert(i, None));
                         ui.close();

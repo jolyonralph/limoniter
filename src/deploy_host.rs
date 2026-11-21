@@ -490,53 +490,57 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut send = false;
         let name_problem = deploy::name_problem(&state.name);
-        egui::Window::new(crate::i18n::tf!("Send to {}", device.name)).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(RichText::new(device.place.describe()).color(theme::text_faint()));
-            if let Some(kind) = listing_kind {
-                ui.label(RichText::new(crate::i18n::tf!("Sent as a {kind}, tokenised from this listing")).color(theme::text_faint()));
-            } else if let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) {
-                ui.label(RichText::new(crate::i18n::tf!("Written as {}", preset.name)).color(theme::text_faint()));
-            }
-            if card_missing {
-                ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("That card isn't plugged in."));
-            }
-            ui.add_space(4.0);
-            egui::Grid::new("send-box").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                ui.label(crate::i18n::tr("File name:"));
-                let field = ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(300.0));
-                if std::mem::take(&mut state.focus) {
-                    field.request_focus();
+        crate::fit::Dialog::new(crate::i18n::tf!("Send to {}", device.name)).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.label(RichText::new(device.place.describe()).color(theme::text_faint()));
+                if let Some(kind) = listing_kind {
+                    ui.label(RichText::new(crate::i18n::tf!("Sent as a {kind}, tokenised from this listing")).color(theme::text_faint()));
+                } else if let Some(preset) = device.preset.as_deref().and_then(codec::preset_by_id) {
+                    ui.label(RichText::new(crate::i18n::tf!("Written as {}", preset.name)).color(theme::text_faint()));
                 }
-                send |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                ui.end_row();
-                let sftp_key = matches!(&device.place, Place::Sftp { key_file, .. } if !key_file.trim().is_empty());
-                if state.ask_password {
-                    ui.label(if sftp_key { crate::i18n::tr("Passphrase:") } else { crate::i18n::tr("Password:") });
-                    ui.horizontal(|ui| {
-                        let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).desired_width(200.0));
-                        send |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                        if !sftp_key {
-                            ui.checkbox(&mut state.remember, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
-                        }
-                    });
+                if card_missing {
+                    ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("That card isn't plugged in."));
+                }
+                ui.add_space(4.0);
+                egui::Grid::new("send-box").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                    ui.label(crate::i18n::tr("File name:"));
+                    let field = ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(300.0));
+                    if std::mem::take(&mut state.focus) {
+                        field.request_focus();
+                    }
+                    send |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                     ui.end_row();
-                }
-            });
-            if let Some(problem) = &name_problem {
-                ui.colored_label(theme::rainbow_mistake(), problem);
+                    let sftp_key = matches!(&device.place, Place::Sftp { key_file, .. } if !key_file.trim().is_empty());
+                    if state.ask_password {
+                        ui.label(if sftp_key { crate::i18n::tr("Passphrase:") } else { crate::i18n::tr("Password:") });
+                        ui.horizontal(|ui| {
+                            let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).desired_width(200.0));
+                            send |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+                            if !sftp_key {
+                                ui.checkbox(&mut state.remember, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
+                            }
+                        });
+                        ui.end_row();
+                    }
+                });
             }
-            if !state.problem.is_empty() {
-                ui.colored_label(theme::rainbow_mistake(), &state.problem);
+            crate::fit::Part::Buttons => {
+                if let Some(problem) = &name_problem {
+                    ui.colored_label(theme::rainbow_mistake(), problem);
+                }
+                if !state.problem.is_empty() {
+                    ui.colored_label(theme::rainbow_mistake(), &state.problem);
+                }
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(name_problem.is_none() && !card_missing, egui::Button::new(crate::i18n::tr("Send"))).clicked() {
+                        send = true;
+                    }
+                    if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                        close = true;
+                    }
+                });
             }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(name_problem.is_none() && !card_missing, egui::Button::new(crate::i18n::tr("Send"))).clicked() {
-                    send = true;
-                }
-                if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                    close = true;
-                }
-            });
         });
         if send && name_problem.is_none() && !card_missing {
             let (doc_id, name, password, remember, ask) = (state.doc_id, state.name.trim().to_string(), std::mem::take(&mut state.password), state.remember, state.ask_password);
@@ -615,130 +619,134 @@ impl Limoniter {
         }
         let names_clash = state.devices.iter().enumerate().any(|(i, a)| state.devices.iter().skip(i + 1).any(|b| b.name.trim().eq_ignore_ascii_case(a.name.trim())));
         let first_problem = state.devices.iter().find_map(|device| device.problem().map(|p| format!("{}: {p}", if device.name.trim().is_empty() { "A device" } else { device.name.as_str() })));
-        egui::Window::new(crate::i18n::tr("Devices")).collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(crate::i18n::tr("Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does."));
-            ui.separator();
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(190.0);
-                    egui::ScrollArea::vertical().id_salt("device-list").max_height(330.0).auto_shrink([false, true]).show(ui, |ui| {
-                        for (n, device) in state.devices.iter().enumerate() {
-                            let label = if device.name.trim().is_empty() { crate::i18n::tr("(no name)").to_string() } else { device.name.clone() };
-                            if ui.selectable_label(n == state.selected, crate::i18n::tr(&label)).on_hover_text(device.place.describe()).clicked() && n != state.selected {
-                                state.selected = n;
-                                state.password.clear();
-                                state.told.clear();
-                            }
-                        }
-                    });
-                    if ui.button(crate::i18n::tr("Find emulators")).on_hover_text(crate::i18n::tr("Adds the emulators installed on this computer that aren't listed yet")).clicked() {
-                        let mut added = 0;
-                        for (emulator, program) in crate::emulators::find_installed() {
-                            let listed = state.devices.iter().any(|d| matches!(&d.place, Place::Emulator { emulator: id, .. } if id == emulator.id));
-                            if !listed {
-                                let mut name = emulator.name.to_string();
-                                while state.devices.iter().any(|d| d.name.eq_ignore_ascii_case(&name)) {
-                                    name.push_str(" (2)");
-                                }
-                                state.devices.push(Device { name, place: Place::Emulator { emulator: emulator.id.into(), program, options: String::new() }, preset: None, eject: false });
-                                added += 1;
-                            }
-                        }
-                        state.found = Some(added);
-                        if added > 0 {
-                            state.selected = state.devices.len() - 1;
-                        }
-                    }
-                    if ui.button(crate::i18n::tr("Get an emulator\u{2026}")).on_hover_text(crate::i18n::tr("Installs one that isn't here: downloaded, or with this computer's own installer, or from its page")).clicked() {
-                        state.getting = if state.getting.is_some() {
-                            None
-                        } else {
-                            let installed = crate::emulators::find_installed();
-                            Some(crate::emulators::KNOWN.iter().filter(|e| !e.programs.is_empty()).map(|e| (e, installed.iter().find(|(f, _)| f.id == e.id).map(|(_, p)| p.clone()))).collect())
-                        };
-                    }
-                    if let Some(added) = state.found {
-                        ui.label(RichText::new(match added {
-                            0 => crate::i18n::tr("No more were found.").to_string(),
-                            1 => "1 added.".to_string(),
-                            n => format!("{n} added."),
-                        }).color(theme::text_faint()));
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.button(crate::i18n::tr("Add")).clicked() {
-                            let n = state.devices.len() + 1;
-                            state.devices.push(Device { name: format!("Device {n}"), place: Place::blank(0), preset: None, eject: false });
-                            state.selected = state.devices.len() - 1;
-                            state.password.clear();
-                        }
-                        if ui.add_enabled(!state.devices.is_empty(), egui::Button::new(crate::i18n::tr("Remove"))).clicked() {
-                            state.devices.remove(state.selected);
-                            state.selected = state.selected.min(state.devices.len().saturating_sub(1));
-                            state.password.clear();
-                        }
-                    });
-                });
-                ui.add_space(16.0);
-                ui.vertical(|ui| {
-                    let Some(device) = state.devices.get_mut(state.selected) else {
-                        ui.label(crate::i18n::tr("Add a device to send to: a card, a folder, a server, a Spectrum Next or an Ultimate 64."));
-                        return;
-                    };
-                    device_editor(ui, device, &drives, &mut state.password, &mut state.keep, &mut forget, &mut state.told);
-                });
-            });
-            if let Some(list) = &state.getting {
+        crate::fit::Dialog::new(crate::i18n::tr("Devices")).collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.label(crate::i18n::tr("Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does."));
                 ui.separator();
-                ui.label(RichText::new(crate::i18n::tr("Each one is got the simplest way there is on this computer. Anything run in the Terminal panel can be seen there first.")).color(theme::text_faint()).size(12.0));
-                egui::Grid::new("get-emulators").num_columns(3).spacing([12.0, 4.0]).show(ui, |ui| {
-                    for (emulator, installed) in list {
-                        let machines: Vec<&str> = emulator.machines.iter().map(|m| m.name()).collect();
-                        ui.label(emulator.name).on_hover_text(machines.join(", "));
-                        match installed {
-                            Some(path) => {
-                                ui.label(RichText::new(crate::i18n::tr("Installed")).color(theme::text_dim())).on_hover_text(path.display().to_string());
-                                ui.label(crate::i18n::tr(""));
-                            }
-                            None => {
-                                let way = crate::emulator_get::way(emulator);
-                                ui.label(RichText::new(crate::i18n::tr("Not installed")).color(theme::text_faint()));
-                                let busy = state.download.is_some();
-                                if ui.add_enabled(!busy || way != crate::emulator_get::Way::Download, egui::Button::new(crate::emulator_get::button(&way))).on_hover_text(match &way {
-                                    crate::emulator_get::Way::Download => crate::i18n::tf!("Its latest release, from {}, unpacked beside Limoniter's settings", emulator.website),
-                                    crate::emulator_get::Way::Command(command) => crate::i18n::tf!("Runs {command} in the Terminal panel"),
-                                    crate::emulator_get::Way::Page => emulator.website.to_string(),
-                                }).clicked() {
-                                    get_wanted = Some((*emulator, way));
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(190.0);
+                        egui::ScrollArea::vertical().id_salt("device-list").max_height(330.0).auto_shrink([false, true]).show(ui, |ui| {
+                            for (n, device) in state.devices.iter().enumerate() {
+                                let label = if device.name.trim().is_empty() { crate::i18n::tr("(no name)").to_string() } else { device.name.clone() };
+                                if ui.selectable_label(n == state.selected, crate::i18n::tr(&label)).on_hover_text(device.place.describe()).clicked() && n != state.selected {
+                                    state.selected = n;
+                                    state.password.clear();
+                                    state.told.clear();
                                 }
                             }
+                        });
+                        if ui.button(crate::i18n::tr("Find emulators")).on_hover_text(crate::i18n::tr("Adds the emulators installed on this computer that aren't listed yet")).clicked() {
+                            let mut added = 0;
+                            for (emulator, program) in crate::emulators::find_installed() {
+                                let listed = state.devices.iter().any(|d| matches!(&d.place, Place::Emulator { emulator: id, .. } if id == emulator.id));
+                                if !listed {
+                                    let mut name = emulator.name.to_string();
+                                    while state.devices.iter().any(|d| d.name.eq_ignore_ascii_case(&name)) {
+                                        name.push_str(" (2)");
+                                    }
+                                    state.devices.push(Device { name, place: Place::Emulator { emulator: emulator.id.into(), program, options: String::new() }, preset: None, eject: false });
+                                    added += 1;
+                                }
+                            }
+                            state.found = Some(added);
+                            if added > 0 {
+                                state.selected = state.devices.len() - 1;
+                            }
                         }
-                        ui.end_row();
+                        if ui.button(crate::i18n::tr("Get an emulator\u{2026}")).on_hover_text(crate::i18n::tr("Installs one that isn't here: downloaded, or with this computer's own installer, or from its page")).clicked() {
+                            state.getting = if state.getting.is_some() {
+                                None
+                            } else {
+                                let installed = crate::emulators::find_installed();
+                                Some(crate::emulators::KNOWN.iter().filter(|e| !e.programs.is_empty()).map(|e| (e, installed.iter().find(|(f, _)| f.id == e.id).map(|(_, p)| p.clone()))).collect())
+                            };
+                        }
+                        if let Some(added) = state.found {
+                            ui.label(RichText::new(match added {
+                                0 => crate::i18n::tr("No more were found.").to_string(),
+                                1 => "1 added.".to_string(),
+                                n => format!("{n} added."),
+                            }).color(theme::text_faint()));
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.button(crate::i18n::tr("Add")).clicked() {
+                                let n = state.devices.len() + 1;
+                                state.devices.push(Device { name: format!("Device {n}"), place: Place::blank(0), preset: None, eject: false });
+                                state.selected = state.devices.len() - 1;
+                                state.password.clear();
+                            }
+                            if ui.add_enabled(!state.devices.is_empty(), egui::Button::new(crate::i18n::tr("Remove"))).clicked() {
+                                state.devices.remove(state.selected);
+                                state.selected = state.selected.min(state.devices.len().saturating_sub(1));
+                                state.password.clear();
+                            }
+                        });
+                    });
+                    ui.add_space(16.0);
+                    ui.vertical(|ui| {
+                        let Some(device) = state.devices.get_mut(state.selected) else {
+                            ui.label(crate::i18n::tr("Add a device to send to: a card, a folder, a server, a Spectrum Next or an Ultimate 64."));
+                            return;
+                        };
+                        device_editor(ui, device, &drives, &mut state.password, &mut state.keep, &mut forget, &mut state.told);
+                    });
+                });
+                if let Some(list) = &state.getting {
+                    ui.separator();
+                    ui.label(RichText::new(crate::i18n::tr("Each one is got the simplest way there is on this computer. Anything run in the Terminal panel can be seen there first.")).color(theme::text_faint()).size(12.0));
+                    egui::Grid::new("get-emulators").num_columns(3).spacing([12.0, 4.0]).show(ui, |ui| {
+                        for (emulator, installed) in list {
+                            let machines: Vec<&str> = emulator.machines.iter().map(|m| m.name()).collect();
+                            ui.label(emulator.name).on_hover_text(machines.join(", "));
+                            match installed {
+                                Some(path) => {
+                                    ui.label(RichText::new(crate::i18n::tr("Installed")).color(theme::text_dim())).on_hover_text(path.display().to_string());
+                                    ui.label(crate::i18n::tr(""));
+                                }
+                                None => {
+                                    let way = crate::emulator_get::way(emulator);
+                                    ui.label(RichText::new(crate::i18n::tr("Not installed")).color(theme::text_faint()));
+                                    let busy = state.download.is_some();
+                                    if ui.add_enabled(!busy || way != crate::emulator_get::Way::Download, egui::Button::new(crate::emulator_get::button(&way))).on_hover_text(match &way {
+                                        crate::emulator_get::Way::Download => crate::i18n::tf!("Its latest release, from {}, unpacked beside Limoniter's settings", emulator.website),
+                                        crate::emulator_get::Way::Command(command) => crate::i18n::tf!("Runs {command} in the Terminal panel"),
+                                        crate::emulator_get::Way::Page => emulator.website.to_string(),
+                                    }).clicked() {
+                                        get_wanted = Some((*emulator, way));
+                                    }
+                                }
+                            }
+                            ui.end_row();
+                        }
+                    });
+                    if let Some((emulator, _)) = &state.download {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(crate::i18n::tf!("Downloading {}\u{2026}", emulator.name));
+                        });
+                    }
+                    if !state.get_note.is_empty() {
+                        ui.label(RichText::new(&state.get_note).color(theme::text_dim()));
+                    }
+                }
+            }
+            crate::fit::Part::Buttons => {
+                ui.separator();
+                if names_clash {
+                    ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("Two devices have the same name."));
+                } else if let Some(problem) = &first_problem {
+                    ui.colored_label(theme::rainbow_mistake(), problem);
+                }
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(!names_clash && first_problem.is_none(), egui::Button::new(crate::i18n::tr("Done"))).clicked() {
+                        done = true;
+                    }
+                    if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                        close = true;
                     }
                 });
-                if let Some((emulator, _)) = &state.download {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(crate::i18n::tf!("Downloading {}\u{2026}", emulator.name));
-                    });
-                }
-                if !state.get_note.is_empty() {
-                    ui.label(RichText::new(&state.get_note).color(theme::text_dim()));
-                }
             }
-            ui.separator();
-            if names_clash {
-                ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("Two devices have the same name."));
-            } else if let Some(problem) = &first_problem {
-                ui.colored_label(theme::rainbow_mistake(), problem);
-            }
-            ui.horizontal(|ui| {
-                if ui.add_enabled(!names_clash && first_problem.is_none(), egui::Button::new(crate::i18n::tr("Done"))).clicked() {
-                    done = true;
-                }
-                if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                    close = true;
-                }
-            });
         });
         if let Some((emulator, way)) = get_wanted {
             match way {

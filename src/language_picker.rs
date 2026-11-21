@@ -341,7 +341,7 @@ impl Limoniter {
             }
         });
         let recent: Vec<(String, usize)> = self.recent_languages.iter().filter_map(|r| names.iter().find(|(n, _)| n == r)).cloned().collect();
-        egui::Window::new(crate::i18n::tr("Colour as")).collapsible(false).resizable(true).default_width(780.0).default_height(520.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Colour as")).collapsible(false).resizable(true).default_width(780.0).default_height(520.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("Type to find a language, such as 6502 or rust")).desired_width(340.0));
                 if state.focus {
@@ -383,7 +383,8 @@ impl Limoniter {
                 }
             });
             ui.separator();
-            let height = ui.available_height().max(300.0) - 8.0;
+            // At least 300 high, unless the screen hasn't room for that.
+            let height = ui.available_height().max(300.0_f32.min(crate::fit::height_left(ui))) - 8.0;
             ui.horizontal_top(|ui| {
                 // The groups, down the left, unless searching or A to Z.
                 if !searching && state.view != View::All {

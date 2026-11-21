@@ -664,7 +664,7 @@ impl Limoniter {
                 take = Some(chosen);
             }
         });
-        egui::Window::new(crate::i18n::tr("Quick fix")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_TOP, [0.0, 80.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Quick fix")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_TOP, [0.0, 80.0]).show(ctx, |ui| {
             ui.set_min_width(360.0);
             for (n, (title, _)) in fixes.iter().enumerate() {
                 if ui.selectable_label(n == chosen, title.as_str()).clicked() {
@@ -772,7 +772,7 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
-        egui::Window::new(crate::i18n::tr("Language servers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Language servers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tr("Each language, as the highlighter names it (Format, Colour as), and the command that starts its server. A server is started for a file in that language, in its project's folder."));
             ui.add_space(6.0);
             let mut gone = None;

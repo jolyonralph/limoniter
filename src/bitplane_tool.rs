@@ -344,7 +344,7 @@ impl Converter {
                 ui.add(egui::DragValue::new(&mut s.width).range(16..=1280)).on_hover_text(crate::i18n::tr("Pixels across"));
                 ui.label(crate::i18n::tr("\u{D7}"));
                 ui.add(egui::DragValue::new(&mut s.height).range(1..=1024)).on_hover_text(crate::i18n::tr("Pixels down"));
-                ui.menu_button(crate::i18n::tr("\u{25BE}"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("\u{25BE}"), |ui| {
                     for (w, h, resolution, laced) in [(320, 256, Resolution::Lores, false), (320, 200, Resolution::Lores, false), (640, 256, Resolution::Hires, false), (640, 512, Resolution::Hires, true), (320, 512, Resolution::Lores, true), (1280, 512, Resolution::SuperHires, true)] {
                         let label = format!("{w}\u{D7}{h} {}{}", resolution.name(), if laced { ", interlaced" } else { "" });
                         if ui.button(crate::i18n::tr(&label)).clicked() {
@@ -431,7 +431,7 @@ impl Converter {
                 if ui.button(crate::i18n::tr("Planes\u{2026}")).clicked() {
                     *asked = Some(Asked::SavePlanes);
                 }
-                ui.menu_button(crate::i18n::tr("Palette"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("Palette"), |ui| {
                     for (label, kind) in [("Raw words\u{2026}", PaletteKind::Words), ("Red, green, blue bytes\u{2026}", PaletteKind::Rgb), ("Copper moves (dc.w)\u{2026}", PaletteKind::Copper), ("C array\u{2026}", PaletteKind::C)] {
                         if ui.button(crate::i18n::tr(label)).clicked() {
                             *asked = Some(Asked::SavePalette(kind));

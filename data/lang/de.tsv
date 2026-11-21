@@ -9402,3 +9402,43 @@ vbcc: clean	vbcc: Aufräumen
 … and more: type more of the name to see them.	… und mehr: Tippen Sie mehr vom Namen, um sie zu sehen.
 ← Back	← Zurück
 # limoniter-end	# limoniter-end
+about-demo-logo	about-demo-logo
+68000 source is for	68000-Quelltext ist für
+BKPT takes 0 to 7, and {n} isn't	BKPT nimmt 0 bis 7, und {n} ist es nicht
+CALLM passes 0 to 255 bytes of arguments, and {n} isn't	CALLM übergibt 0 bis 255 Bytes an Argumenten, und {n} ist es nicht
+CPU32	CPU32
+Cycle counts beside 6502, Z80, 6809 and 68000 code	Taktzyklen neben 6502-, Z80-, 6809- und 68000-Code
+MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060 or CPU32, and {name} isn't one	MACHINE nimmt 68000, 68008, 68010, 68020, 68030, 68040, 68060 oder CPU32, und {name} gehört nicht dazu
+MOVEC copies a control register ({}) to or from a data or address register	MOVEC kopiert ein Steuerregister ({}) in ein oder aus einem Daten- oder Adressregister
+MOVEC takes two operands: a control register and a data or address register	MOVEC nimmt zwei Operanden: ein Steuerregister und ein Daten- oder Adressregister
+Memory indirect addressing, {text},	Speicherindirekte Adressierung, {text},
+TST.B can't take an address register: only .W and .L can	TST.B kann kein Adressregister nehmen: nur .W und .L können das
+The address {text}	Die Adresse {text}
+The control register {upper} is the {}'s, and this is for the {cpu_name}	Das Steuerregister {upper} gehört zum {}, und dies ist für den {cpu_name}
+The processor Limoniter's own assembler takes 68000 source to be for, and its cycle counts are for: the 68008 is the Sinclair QL's, the 68020 the A1200's, the 68030 the A4000/030's and the Falcon's. MACHINE 68020 (or MC68020, CPU32, OPT P=68020) in the source chooses for that file	Der Prozessor, für den Limoniters eigener Assembler 68000-Quelltext hält und für den seine Taktzyklen gelten: der 68008 ist der des Sinclair QL, der 68020 der des A1200, der 68030 der des A4000/030 und des Falcon. MACHINE 68020 (oder MC68020, CPU32, OPT P=68020) im Quelltext wählt für diese Datei
+The scaled index in {text}	Der skalierte Index in {text}
+Which 680x0	Welcher 680x0
+Which 680x0 the code is for: a 68010's, 68020's or 68030's own instructions and addresses are read only for one that has them (an A1200's or A4000's program, say), and the source starts with MACHINE	Für welchen 680x0 der Code ist: die eigenen Befehle und Adressen eines 68010, 68020 oder 68030 werden nur für einen gelesen, der sie hat (etwa ein Programm für den A1200 oder A4000), und der Quelltext beginnt mit MACHINE
+a bit field's offset is 0 to 31 and its width 1 to 32, and {v} doesn't fit	der Offset eines Bitfelds ist 0 bis 31 und seine Breite 1 bis 32, und {v} passt nicht
+andi	andi
+divsl	divsl
+divul	divul
+eori	eori
+m68k_processor	m68k_processor
+ori	ori
+the displacement {v} doesn't fit in 16 bits	die Verschiebung {v} passt nicht in 16 Bit
+the offset from PC {offset} doesn't fit in 16 bits (-32768 to 32767)	der Abstand vom PC {offset} passt nicht in 16 Bit (-32768 bis 32767)
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
+{operands} is {offset} bytes away, out of a short branch's reach; use {bare}.W	{operands} ist {offset} Bytes entfernt, außer Reichweite eines kurzen Sprungs; nimm {bare}.W
+{text} cycles on the 68008	{text} Taktzyklen auf dem 68008
+{text} isn't an address the 680x0 has	{text} ist keine Adressierungsart, die der 680x0 hat
+{text} needs a bit field after it, such as {{0:8}} or {{d1:d2}}	{text} braucht danach ein Bitfeld, etwa {{0:8}} oder {{d1:d2}}
+{upper} can't use {last_text} on the {cpu_name}: that's the 68020's (MACHINE 68020 chooses one)	{upper} kann {last_text} auf dem {cpu_name} nicht verwenden: das gibt es erst beim 68020 (MACHINE 68020 wählt ihn)
+{upper} can't write to {last_text}	{upper} kann nicht nach {last_text} schreiben
+{upper} is a 68020 instruction: the {only} has only {}.W (MACHINE 68020 chooses a 68020)	{upper} ist ein 68020-Befehl: der {only} hat nur {}.W (MACHINE 68020 wählt einen 68020)
+{upper} needs an address with a bit field	{upper} braucht eine Adresse mit einem Bitfeld
+{upper} {operands} isn't a {cpu_name} instruction	{upper} {operands} ist kein Befehl des {cpu_name}
+{what} is only the 68020's (the 68030 and later haven't got it), and this is for the {name}: MACHINE 68020 chooses it	{what} gibt es nur beim 68020 (der 68030 und spätere haben es nicht), und dies ist für den {name}: MACHINE 68020 wählt ihn
+{what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another	{what} braucht einen 68010 oder neuer, und dies ist für den {name}: MACHINE 68010 (oder ein späterer) wählt einen anderen
+{what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another	{what} braucht einen 68020 oder neuer, und dies ist für den {name}: MACHINE 68020 (oder ein späterer) wählt einen anderen
+{what} needs a 68020 or later: the CPU32 hasn't got it	{what} braucht einen 68020 oder neuer: der CPU32 hat es nicht

@@ -657,7 +657,7 @@ impl Limoniter {
         };
         let Some((path, config)) = self.debug_setup.as_mut() else { return };
         let (mut go, mut close) = (false, ctx.input(|i| i.key_pressed(Key::Escape)));
-        egui::Window::new(crate::i18n::tr("Debug")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Debug")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tf!("How {} is debugged, with {}:", path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), config.kind.adapter_name()));
             ui.add_space(4.0);
             egui::Grid::new("debug-setup").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {

@@ -496,7 +496,7 @@ mod tests {
         let program = "\tinclude \"exec/types.i\"\n\tinclude \"exec/memory.i\"\n\tinclude \"exec/execbase.i\"\n\tinclude \"intuition/intuition.i\"\n\tinclude \"dos/dosextens.i\"\nstart:\tmove.l\t4.w,a6\n\tmove.l\tThisTask(a6),a0\n\tmove.l\tLN_NAME(a0),d2\n\tmove.l\t#wd_SIZEOF,d0\n\tmove.l\t#MEMF_CHIP!MEMF_CLEAR,d1\n\tjsr\t_LVOAllocMem(a6)\n\tmove.l\td0,a1\n\tmove.w\t#pr_MsgPort+MP_SIGBIT,d0\n\tjsr\t_LVOFreeMem(a6)\n\tjsr\t_LVOOpenLibrary(a6)\n\trts\n";
         let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
         let lvo = |name: &str| index.lvo(name);
-        let options = crate::asm::Options { folders: vec![headers.clone()], values: Some(&lvo) };
+        let options = crate::asm::Options { folders: vec![headers.clone()], values: Some(&lvo), ..Default::default() };
         let started = std::time::Instant::now();
         let ours = crate::asm::assemble_with(&crate::asm::m68k::M68k, Path::new("/nowhere/t.s"), program, &read, 0, &options);
         println!("assembled in {:?}, {} files", started.elapsed(), ours.files.len());
@@ -521,7 +521,7 @@ mod tests {
         let Ok(folder) = std::env::var("LIMONITER_NDK") else { return };
         let headers = Path::new(&folder).join("Include_I");
         let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
-        let options = crate::asm::Options { folders: vec![headers.clone()], values: None };
+        let options = crate::asm::Options { folders: vec![headers.clone()], values: None, ..Default::default() };
         let mut names: Vec<String> = Vec::new();
         for dir in std::fs::read_dir(&headers).unwrap().flatten().filter(|e| e.path().is_dir()) {
             for file in std::fs::read_dir(dir.path()).unwrap().flatten() {

@@ -58,7 +58,7 @@ pub fn status_menu(ui: &mut Ui, label: String, tip: &str, add: impl FnOnce(&mut 
     crate::access::describe(&shown, tip);
     let shown = shown.on_hover_text(crate::i18n::tr(tip));
     let mut action = None;
-    egui::Popup::menu(&shown).show(|ui| action = add(ui));
+    crate::fit::popup_menu(&shown, |ui| action = add(ui));
     action
 }
 
@@ -112,7 +112,7 @@ pub fn eol_menu(ui: &mut Ui, counts: &EolCounts, insert: Eol, format: &TextForma
     ui.set_min_width(260.0);
     ui.label(RichText::new(if counts.is_mixed() { crate::i18n::tr("Mixed line endings") } else { crate::i18n::tr("Line endings") }).strong());
     ui.label(RichText::new(counts.describe()).size(12.0).color(theme::text_dim()));
-    ui.menu_button(crate::i18n::tf!("Recognise: {}", format.newline.name()), |ui| {
+    crate::fit::menu_button(ui, crate::i18n::tf!("Recognise: {}", format.newline.name()), |ui| {
         for policy in NewlinePolicy::CHOICES {
             if ui.add(egui::Button::selectable(format.newline == policy, policy.name())).on_hover_text(crate::i18n::tr("Rereads the file's bytes; the file isn't changed")).clicked() {
                 chosen = Some(MenuAction::SetPolicy(policy));
@@ -133,7 +133,7 @@ pub fn eol_menu(ui: &mut Ui, counts: &EolCounts, insert: Eol, format: &TextForma
     }
     ui.separator();
     ui.add_enabled_ui(can_edit && !on_disk, |ui| {
-        ui.menu_button(crate::i18n::tr("Convert all line endings to"), |ui| {
+        crate::fit::menu_button(ui, crate::i18n::tr("Convert all line endings to"), |ui| {
             for &eol in eols {
                 if ui.button(eol.long_name()).clicked() {
                     chosen = Some(MenuAction::ConvertEols(eol));
@@ -225,74 +225,78 @@ fn preview(picker: &Picker, current: &TextFormat) -> Vec<String> {
 
 pub fn picker_window(ctx: &Context, picker: &mut Picker, current: &TextFormat) -> Outcome {
     let mut outcome = Outcome::Open;
-    egui::Window::new(picker.purpose.title()).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.set_width(640.0);
-        ui.label(RichText::new(picker.purpose.explanation()).size(12.5).color(theme::text_dim()));
-        ui.add_space(4.0);
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(270.0);
-                ui.add(egui::TextEdit::singleline(&mut picker.filter).hint_text(crate::i18n::tr("Search encodings")).desired_width(262.0));
-                let needle = picker.filter.to_lowercase();
-                egui::ScrollArea::vertical().id_salt("picker-list").max_height(340.0).auto_shrink([false, false]).show(ui, |ui| {
-                    for group in charset::groups() {
-                        let sets: Vec<&'static Charset> = charset::all().iter().copied().filter(|set| set.group == group && (needle.is_empty() || set.name.to_lowercase().contains(&needle) || set.id.contains(&needle))).collect();
-                        if sets.is_empty() {
-                            continue;
-                        }
-                        ui.label(RichText::new(group).size(11.5).color(theme::text_dim()));
-                        for set in sets {
-                            if ui.add(egui::Button::selectable(picker.charset.id == set.id, &set.name).truncate()).clicked() {
-                                picker.charset = set;
+    crate::fit::Dialog::new(picker.purpose.title()).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+        crate::fit::Part::Body => {
+            ui.set_width(640.0);
+            ui.label(RichText::new(picker.purpose.explanation()).size(12.5).color(theme::text_dim()));
+            ui.add_space(4.0);
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width(270.0);
+                    ui.add(egui::TextEdit::singleline(&mut picker.filter).hint_text(crate::i18n::tr("Search encodings")).desired_width(262.0));
+                    let needle = picker.filter.to_lowercase();
+                    egui::ScrollArea::vertical().id_salt("picker-list").max_height(340.0).auto_shrink([false, false]).show(ui, |ui| {
+                        for group in charset::groups() {
+                            let sets: Vec<&'static Charset> = charset::all().iter().copied().filter(|set| set.group == group && (needle.is_empty() || set.name.to_lowercase().contains(&needle) || set.id.contains(&needle))).collect();
+                            if sets.is_empty() {
+                                continue;
+                            }
+                            ui.label(RichText::new(group).size(11.5).color(theme::text_dim()));
+                            for set in sets {
+                                if ui.add(egui::Button::selectable(picker.charset.id == set.id, &set.name).truncate()).clicked() {
+                                    picker.charset = set;
+                                }
                             }
                         }
+                    });
+                });
+                ui.vertical(|ui| {
+                    ui.set_width(350.0);
+                    ui.label(RichText::new(&picker.charset.name).strong());
+                    ui.label(RichText::new(&picker.charset.scope).size(12.0));
+                    ui.label(RichText::new(crate::i18n::tf!("Mapping: {} ({})", picker.charset.source, picker.charset.version)).size(11.0).color(theme::text_faint()));
+                    ui.add_space(6.0);
+                    if picker.charset.bom().is_some() {
+                        ui.add_enabled_ui(picker.purpose != Purpose::Reopen, |ui| {
+                            ui.checkbox(&mut picker.bom, crate::i18n::tr("Byte order mark"));
+                        });
+                    }
+                    if picker.purpose == Purpose::Reopen {
+                        egui::ComboBox::from_label("Line endings").selected_text(picker.policy.name()).width(200.0).show_ui(ui, |ui| {
+                            for policy in NewlinePolicy::CHOICES {
+                                ui.selectable_value(&mut picker.policy, policy, policy.name());
+                            }
+                        });
+                        egui::ComboBox::from_label("Display").selected_text(crate::i18n::tr(picker.display.name())).width(200.0).show_ui(ui, |ui| {
+                            for display in Display::ALL {
+                                ui.selectable_value(&mut picker.display, display, crate::i18n::tr(display.name()));
+                            }
+                        });
+                    }
+                    if !picker.sample.is_empty() {
+                        ui.add_space(6.0);
+                        ui.label(RichText::new(crate::i18n::tr("The start of this file would read:")).size(12.0).color(theme::text_dim()));
+                        egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
+                            ui.set_width(340.0);
+                            for line in preview(picker, current) {
+                                ui.add(egui::Label::new(RichText::new(line).monospace().size(12.0)).truncate());
+                            }
+                        });
                     }
                 });
             });
-            ui.vertical(|ui| {
-                ui.set_width(350.0);
-                ui.label(RichText::new(&picker.charset.name).strong());
-                ui.label(RichText::new(&picker.charset.scope).size(12.0));
-                ui.label(RichText::new(crate::i18n::tf!("Mapping: {} ({})", picker.charset.source, picker.charset.version)).size(11.0).color(theme::text_faint()));
-                ui.add_space(6.0);
-                if picker.charset.bom().is_some() {
-                    ui.add_enabled_ui(picker.purpose != Purpose::Reopen, |ui| {
-                        ui.checkbox(&mut picker.bom, crate::i18n::tr("Byte order mark"));
-                    });
+        }
+        crate::fit::Part::Buttons => {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.button(crate::i18n::tr("OK")).clicked() {
+                    outcome = Outcome::Accept;
                 }
-                if picker.purpose == Purpose::Reopen {
-                    egui::ComboBox::from_label("Line endings").selected_text(picker.policy.name()).width(200.0).show_ui(ui, |ui| {
-                        for policy in NewlinePolicy::CHOICES {
-                            ui.selectable_value(&mut picker.policy, policy, policy.name());
-                        }
-                    });
-                    egui::ComboBox::from_label("Display").selected_text(crate::i18n::tr(picker.display.name())).width(200.0).show_ui(ui, |ui| {
-                        for display in Display::ALL {
-                            ui.selectable_value(&mut picker.display, display, crate::i18n::tr(display.name()));
-                        }
-                    });
-                }
-                if !picker.sample.is_empty() {
-                    ui.add_space(6.0);
-                    ui.label(RichText::new(crate::i18n::tr("The start of this file would read:")).size(12.0).color(theme::text_dim()));
-                    egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
-                        ui.set_width(340.0);
-                        for line in preview(picker, current) {
-                            ui.add(egui::Label::new(RichText::new(line).monospace().size(12.0)).truncate());
-                        }
-                    });
+                if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                    outcome = Outcome::Cancel;
                 }
             });
-        });
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.button(crate::i18n::tr("OK")).clicked() {
-                outcome = Outcome::Accept;
-            }
-            if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                outcome = Outcome::Cancel;
-            }
-        });
+        }
     });
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         outcome = Outcome::Cancel;
@@ -308,50 +312,54 @@ pub struct PresetPicker {
 /// Fills in several settings at once; each can still be changed afterwards.
 pub fn preset_window(ctx: &Context, picker: &mut PresetPicker) -> Outcome {
     let mut outcome = Outcome::Open;
-    egui::Window::new(crate::i18n::tr("System preset")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.set_width(560.0);
-        ui.label(RichText::new(crate::i18n::tr("A starting point for new files, or a way to reread this one. Not a promise about any existing file.")).size(12.5).color(theme::text_dim()));
-        ui.add_space(4.0);
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(250.0);
-                egui::ScrollArea::vertical().id_salt("preset-list").max_height(340.0).auto_shrink([false, false]).show(ui, |ui| {
-                    for (index, preset) in PRESETS.iter().enumerate() {
-                        if ui.add(egui::Button::selectable(picker.selected == index, preset.name)).clicked() {
-                            picker.selected = index;
+    crate::fit::Dialog::new(crate::i18n::tr("System preset")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+        crate::fit::Part::Body => {
+            ui.set_width(560.0);
+            ui.label(RichText::new(crate::i18n::tr("A starting point for new files, or a way to reread this one. Not a promise about any existing file.")).size(12.5).color(theme::text_dim()));
+            ui.add_space(4.0);
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width(250.0);
+                    egui::ScrollArea::vertical().id_salt("preset-list").max_height(340.0).auto_shrink([false, false]).show(ui, |ui| {
+                        for (index, preset) in PRESETS.iter().enumerate() {
+                            if ui.add(egui::Button::selectable(picker.selected == index, preset.name)).clicked() {
+                                picker.selected = index;
+                            }
                         }
-                    }
+                    });
+                });
+                ui.vertical(|ui| {
+                    ui.set_width(290.0);
+                    let preset: &'static Preset = &PRESETS[picker.selected];
+                    let set = charset::known(preset.charset);
+                    ui.label(RichText::new(preset.name).strong());
+                    egui::Grid::new("preset-grid").num_columns(2).show(ui, |ui| {
+                        for (label, value) in [("Encoding", set.name.clone()), ("New lines", preset.eol.long_name().to_string()), ("Recognises", preset.newline.name()), ("Display", preset.display.name().to_string())] {
+                            ui.label(RichText::new(label).size(12.0).color(theme::text_dim()));
+                            ui.label(RichText::new(value).size(12.0));
+                            ui.end_row();
+                        }
+                    });
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(preset.notes).size(12.0));
+                    ui.add_space(2.0);
+                    ui.label(RichText::new(&set.scope).size(11.5).color(theme::text_dim()));
+                    ui.add_space(6.0);
+                    ui.checkbox(&mut picker.for_new_files, crate::i18n::tr("Use for new files, and leave this document alone"));
                 });
             });
-            ui.vertical(|ui| {
-                ui.set_width(290.0);
-                let preset: &'static Preset = &PRESETS[picker.selected];
-                let set = charset::known(preset.charset);
-                ui.label(RichText::new(preset.name).strong());
-                egui::Grid::new("preset-grid").num_columns(2).show(ui, |ui| {
-                    for (label, value) in [("Encoding", set.name.clone()), ("New lines", preset.eol.long_name().to_string()), ("Recognises", preset.newline.name()), ("Display", preset.display.name().to_string())] {
-                        ui.label(RichText::new(label).size(12.0).color(theme::text_dim()));
-                        ui.label(RichText::new(value).size(12.0));
-                        ui.end_row();
-                    }
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new(preset.notes).size(12.0));
-                ui.add_space(2.0);
-                ui.label(RichText::new(&set.scope).size(11.5).color(theme::text_dim()));
-                ui.add_space(6.0);
-                ui.checkbox(&mut picker.for_new_files, crate::i18n::tr("Use for new files, and leave this document alone"));
+        }
+        crate::fit::Part::Buttons => {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.button(crate::i18n::tr("OK")).clicked() {
+                    outcome = Outcome::Accept;
+                }
+                if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                    outcome = Outcome::Cancel;
+                }
             });
-        });
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.button(crate::i18n::tr("OK")).clicked() {
-                outcome = Outcome::Accept;
-            }
-            if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                outcome = Outcome::Cancel;
-            }
-        });
+        }
     });
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         outcome = Outcome::Cancel;
@@ -395,48 +403,52 @@ pub fn lossy_window(ctx: &Context, report: &LossyReport) -> LossyChoice {
         LossyPurpose::Convert => crate::i18n::tf!("Can't convert: {} character(s) won't fit in {}", report.problems.total, report.target_name),
         LossyPurpose::Export => crate::i18n::tf!("{} character(s) won't fit in {}", report.problems.total, report.target_name),
     };
-    egui::Window::new(crate::i18n::tr("Characters that won't fit")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.set_width(560.0);
-        ui.label(RichText::new(heading).strong());
-        ui.label(RichText::new(crate::i18n::tr("Nothing has been changed.")).size(12.5).color(theme::text_dim()));
-        ui.add_space(4.0);
-        egui::ScrollArea::vertical().id_salt("lossy-list").max_height(280.0).auto_shrink([false, true]).show(ui, |ui| {
-            for problem in &report.problems.listed {
-                let label = crate::i18n::tf!("Line {}, column {}: {}", problem.line + 1, problem.column + 1, describe_character(problem.ch));
-                if ui.add(Button::new(RichText::new(label).size(12.5)).frame(false)).on_hover_text(crate::i18n::tr("Go there")).clicked() {
-                    choice = LossyChoice::GoTo(problem.line, problem.column);
-                }
-            }
-            if report.problems.total > report.problems.listed.len() {
-                ui.label(RichText::new(crate::i18n::tf!("And {} more.", report.problems.total - report.problems.listed.len())).color(theme::text_dim()));
-            }
-        });
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                choice = LossyChoice::Cancel;
-            }
-            match report.purpose {
-                LossyPurpose::Save => {
-                    if ui.button(crate::i18n::tr("Save a copy another way...")).on_hover_text(crate::i18n::tr("Choose an encoding that can hold everything")).clicked() {
-                        choice = LossyChoice::SaveCopyInstead;
+    crate::fit::Dialog::new(crate::i18n::tr("Characters that won't fit")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+        crate::fit::Part::Body => {
+            ui.set_width(560.0);
+            ui.label(RichText::new(heading.as_str()).strong());
+            ui.label(RichText::new(crate::i18n::tr("Nothing has been changed.")).size(12.5).color(theme::text_dim()));
+            ui.add_space(4.0);
+            egui::ScrollArea::vertical().id_salt("lossy-list").max_height(280.0).auto_shrink([false, true]).show(ui, |ui| {
+                for problem in &report.problems.listed {
+                    let label = crate::i18n::tf!("Line {}, column {}: {}", problem.line + 1, problem.column + 1, describe_character(problem.ch));
+                    if ui.add(Button::new(RichText::new(label).size(12.5)).frame(false)).on_hover_text(crate::i18n::tr("Go there")).clicked() {
+                        choice = LossyChoice::GoTo(problem.line, problem.column);
                     }
                 }
-                LossyPurpose::Convert => {}
-                LossyPurpose::Export => {
-                    ui.separator();
-                    if ui.button(crate::i18n::tr("Replace with ?")).clicked() {
-                        choice = LossyChoice::Export(Lossy::Replace);
+                if report.problems.total > report.problems.listed.len() {
+                    ui.label(RichText::new(crate::i18n::tf!("And {} more.", report.problems.total - report.problems.listed.len())).color(theme::text_dim()));
+                }
+            });
+        }
+        crate::fit::Part::Buttons => {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                    choice = LossyChoice::Cancel;
+                }
+                match report.purpose {
+                    LossyPurpose::Save => {
+                        if ui.button(crate::i18n::tr("Save a copy another way...")).on_hover_text(crate::i18n::tr("Choose an encoding that can hold everything")).clicked() {
+                            choice = LossyChoice::SaveCopyInstead;
+                        }
                     }
-                    if ui.button(crate::i18n::tr("Transliterate")).on_hover_text(crate::i18n::tr("Nearest plain letters where there are any, otherwise ?")).clicked() {
-                        choice = LossyChoice::Export(Lossy::Transliterate);
-                    }
-                    if ui.button(crate::i18n::tr("Omit")).clicked() {
-                        choice = LossyChoice::Export(Lossy::Omit);
+                    LossyPurpose::Convert => {}
+                    LossyPurpose::Export => {
+                        ui.separator();
+                        if ui.button(crate::i18n::tr("Replace with ?")).clicked() {
+                            choice = LossyChoice::Export(Lossy::Replace);
+                        }
+                        if ui.button(crate::i18n::tr("Transliterate")).on_hover_text(crate::i18n::tr("Nearest plain letters where there are any, otherwise ?")).clicked() {
+                            choice = LossyChoice::Export(Lossy::Transliterate);
+                        }
+                        if ui.button(crate::i18n::tr("Omit")).clicked() {
+                            choice = LossyChoice::Export(Lossy::Omit);
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
     });
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         choice = LossyChoice::Cancel;

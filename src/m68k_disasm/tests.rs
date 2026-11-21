@@ -87,7 +87,7 @@ fn every_opcode_decoded_is_written_so_it_assembles_back() {
 fn reassembled_tos(source: &str) -> Vec<u8> {
     let normal = assemble(source);
     assert!(normal.ok(), "{:?}", normal.problems.first());
-    let moved = crate::asm::assemble_with(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()), 0x10_0000, &crate::asm::Options { folders: Vec::new(), values: None });
+    let moved = crate::asm::assemble_with(&crate::asm::m68k::M68k, Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()), 0x10_0000, &crate::asm::Options { folders: Vec::new(), values: None, ..Default::default() });
     crate::asm::output::atari_program(&normal, &moved, 0x10_0000).unwrap()
 }
 
@@ -103,7 +103,7 @@ fn an_atari_st_program_comes_back_the_same_with_its_calls_named() {
 }
 
 fn reassembled_amiga(source: &str) -> Vec<u8> {
-    let (assembly, file) = crate::asm::hunk::assemble_executable(Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()), false, &crate::asm::Options { folders: Vec::new(), values: None });
+    let (assembly, file) = crate::asm::hunk::assemble_executable(Path::new("t.s"), source, &|_| Err(crate::i18n::tr("no").into()), false, &crate::asm::Options { folders: Vec::new(), values: None, ..Default::default() });
     assert!(assembly.ok(), "{:?}\n{source}", assembly.problems.first().map(|p| (&p.message, source.lines().nth(p.line))));
     file.unwrap()
 }
@@ -211,4 +211,159 @@ fn vasm_assembles_it_the_same() {
     assert!(status.success());
     assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
     let _ = std::fs::remove_dir_all(folder);
+}
+
+/// Decodes every instruction in `bytes` (at $1000) for a processor, writes it, and assembles what's written for
+/// that processor: it has to give back the same bytes.
+fn read_back(bytes: &[u8], cpu: Processor) -> usize {
+    let word = |a: u32| be16(bytes, (a - 0x1000) as usize);
+    let mut pc = 0x1000u32;
+    let mut lines = vec![format!("\tmachine {}", cpu.name()), "\torg $1000".to_string()];
+    let mut count = 0;
+    while ((pc - 0x1000) as usize) < bytes.len() {
+        let insn = decode_for(&word, pc, cpu).unwrap_or_else(|| panic!("${pc:X}: {:04X} {:04X} isn't decoded", word(pc).unwrap(), word(pc + 2).unwrap_or(0)));
+        lines.push(format!("\t{}", text(&insn, &Plain)));
+        pc += insn.length;
+        count += 1;
+    }
+    let again = assemble(&(lines.join("\n") + "\n"));
+    assert!(again.ok(), "{:?}", again.problems.first().map(|p| (&p.message, &lines[p.line])));
+    let made = again.image(0x1000, 0x1000 + bytes.len() as i64);
+    if made != bytes {
+        let at = made.iter().zip(bytes.iter()).position(|(a, b)| a != b).unwrap_or(0) & !1;
+        let line = again.lines.iter().find(|l| l.address as usize <= 0x1000 + at && l.address as usize + l.bytes.len() > 0x1000 + at).map(|l| lines[l.line].clone());
+        panic!("differs at ${:X}: {line:?}", 0x1000 + at);
+    }
+    count
+}
+
+/// Every 68010, 68020 and 68030 instruction vasm assembled in m68k_020_all is read back for the 68020 (which has
+/// them all, CALLM and RTM too) and written so that it assembles to vasm's bytes again.
+#[test]
+fn every_68020_form_vasm_makes_is_read_back() {
+    let count = read_back(include_bytes!("../asm/testdata/m68k_020_all.bin"), Processor::M68020);
+    assert!(count > 1400, "{count}");
+    // The 68000's own come back the same when read as a 68020's, though a 68020's assembler takes them.
+    read_back(include_bytes!("../asm/testdata/m68k_all.bin"), Processor::M68020);
+}
+
+/// What a processor hasn't got isn't read as an instruction for it: the 68020's on a 68000 or 68010, memory
+/// indirect addressing on a CPU32, CALLM after the 68020.
+#[test]
+fn only_a_processors_own_instructions_are_read_for_it() {
+    let read = |words: &[u16], cpu: Processor| {
+        let word = |a: u32| words.get(((a - 0x1000) / 2) as usize).copied();
+        decode_for(&word, 0x1000, cpu).map(|i| text(&i, &Plain))
+    };
+    // MOVEC VBR,D0; BFEXTU D1{4:8},D0; MOVE.L ([A0]),D0; CALLM #5,(A0); MULU.L D1,D2; a scaled index.
+    let movec = [0x4E7A, 0x0801];
+    let bfextu = [0xE9C1, 0x0108];
+    let indirect = [0x2030, 0x0151];
+    let callm = [0x06D0, 0x0005];
+    let mulu = [0x4C01, 0x2002];
+    let scaled = [0x2030, 0x1A00];
+    assert_eq!(read(&movec, Processor::M68000), None);
+    assert_eq!(read(&movec, Processor::M68010).as_deref(), Some("movec   vbr,d0"));
+    assert_eq!(read(&bfextu, Processor::M68010), None);
+    assert_eq!(read(&bfextu, Processor::M68030).as_deref(), Some("bfextu  d1{4:8},d0"));
+    assert_eq!(read(&bfextu, Processor::Cpu32), None, "the CPU32 has no bit fields");
+    assert_eq!(read(&indirect, Processor::Cpu32), None, "nor memory indirect addressing");
+    assert_eq!(read(&indirect, Processor::M68020).as_deref(), Some("move.l  ([a0]),d0"));
+    assert_eq!(read(&callm, Processor::M68020).as_deref(), Some("callm   #5,(a0)"));
+    assert_eq!(read(&callm, Processor::M68030), None, "CALLM is only the 68020's");
+    assert_eq!(read(&mulu, Processor::M68000), None);
+    assert_eq!(read(&mulu, Processor::Cpu32).as_deref(), Some("mulu.l  d1,d2"));
+    assert_eq!(read(&scaled, Processor::M68000), None);
+    assert_eq!(read(&scaled, Processor::M68020).as_deref(), Some("move.l  0(a0,d1.l*2),d0"));
+}
+
+/// Every opcode word there is, with 68020 extension words after it (brief ones with scales, and full ones with
+/// each displacement and indirection): whatever a 68020 reads is written so that it assembles back to those words.
+#[test]
+fn every_68020_opcode_decoded_is_written_so_it_assembles_back() {
+    const AFTERS: [[u16; 6]; 4] = [
+        [0x1A12, 0x0034, 0x8056, 0x0078, 0x009A, 0x00BC],
+        [0x1D26, 0x0034, 0x8056, 0x0078, 0x009A, 0x00BC],
+        [0x91B3, 0x0012, 0x3456, 0x0078, 0x9ABC, 0x00DE],
+        [0x0161, 0xFFF0, 0x8056, 0x0178, 0x009A, 0x00BC],
+    ];
+    let mut decoded = 0;
+    for after in AFTERS {
+        for chunk in 0..16u32 {
+            let mut lines = vec!["\tmachine 68020".to_string()];
+            let mut wanted: Vec<(u32, Vec<u8>, String)> = Vec::new();
+            for low in 0..0x1000u32 {
+                let op = (chunk << 12 | low) as u16;
+                let pc = 0x10_0000 + low * 32;
+                let word = |a: u32| match (a - pc) / 2 {
+                    0 => Some(op),
+                    n => after.get(n as usize - 1).copied(),
+                };
+                let Some(insn) = decode_for(&word, pc, Processor::M68020) else { continue };
+                let text = text(&insn, &Plain);
+                let bytes: Vec<u8> = (0..insn.length / 2).flat_map(|i| word(pc + i * 2).unwrap().to_be_bytes()).collect();
+                lines.push(format!("\torg ${pc:X}\n\t{text}"));
+                wanted.push((pc, bytes, text));
+                decoded += 1;
+            }
+            let assembly = assemble(&(lines.join("\n") + "\n"));
+            if let Some(p) = assembly.problems.first() {
+                let at = p.line.saturating_sub(1) / 2 + 1;
+                panic!("{} on line {}: {}", p.message, p.line, lines.get(at).cloned().unwrap_or_default());
+            }
+            for (pc, bytes, text) in wanted {
+                let made = assembly.image(i64::from(pc), i64::from(pc) + bytes.len() as i64);
+                assert_eq!(made, bytes, "{text} at ${pc:X}");
+            }
+        }
+    }
+    assert!(decoded > 170_000, "{decoded}");
+}
+
+/// The 68020's forms as Limoniter writes them, assembled by vasm where it's been built (LIMONITER_VASM names it):
+/// vasm takes them to the same bytes too.
+#[test]
+fn vasm_assembles_the_68020s_the_same() {
+    let vasm = std::env::var_os("LIMONITER_VASM").map(std::path::PathBuf::from).unwrap_or_else(|| "/root/asmref/vasm/vasmm68k_mot".into());
+    if !vasm.exists() {
+        return;
+    }
+    let bytes = include_bytes!("../asm/testdata/m68k_020_all.bin");
+    let word = |a: u32| be16(bytes, (a - 0x1000) as usize);
+    let mut pc = 0x1000;
+    let mut lines = vec!["\tmachine 68020".to_string(), "\torg $1000".to_string()];
+    while ((pc - 0x1000) as usize) < bytes.len() {
+        let insn = decode_for(&word, pc, Processor::M68020).unwrap();
+        lines.push(format!("\t{}", text(&insn, &Plain)));
+        pc += insn.length;
+    }
+    let folder = std::env::temp_dir().join(format!("limoniter-vasm020-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
+    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    assert!(status.success());
+    assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
+    let _ = std::fs::remove_dir_all(folder);
+}
+
+/// A 68020's code disassembled as a whole, followed from its start: it says MACHINE 68020, and every line comes
+/// back as the bytes it came from, none of them made data for not doing so.
+#[test]
+fn a_68020_program_is_disassembled_for_the_68020() {
+    let bytes = [
+        0x20, 0x30, 0x01, 0x51, // move.l ([a0]),d0
+        0xE9, 0xC1, 0x01, 0x08, // bfextu d1{4:8},d0
+        0x4C, 0x01, 0x24, 0x03, // mulu.l d1,d3:d2
+        0x67, 0xFF, 0x00, 0x00, 0x00, 0x08, // beq.l to the RTS
+        0x4E, 0x7A, 0x08, 0x01, // movec vbr,d0
+        0x4E, 0x75, // rts
+    ];
+    let mut program = raw(&bytes, 0x1000, &[0x1000], Machine::Plain);
+    program.cpu = Processor::M68020;
+    let out = disassemble(&program);
+    assert!(out.contains("machine 68020") && out.contains("bfextu  d1{4:8},d0") && out.contains("beq.l") && !out.contains('?'), "{out}");
+    assert_eq!(assemble(&out).image(0x1000, 0x1000 + bytes.len() as i64), bytes);
+    // Read for a 68000, the same bytes are data.
+    let plain = disassemble(&raw(&bytes, 0x1000, &[0x1000], Machine::Plain));
+    assert!(!plain.contains("bfextu") && !plain.contains("machine"), "{plain}");
 }

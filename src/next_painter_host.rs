@@ -31,7 +31,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(false).default_pos([150.0, 70.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(false).default_pos([150.0, 70.0]).show(ctx, |ui| {
             asked = painter.draw(ui);
         });
         if !open || asked == Some(Asked::Close) {

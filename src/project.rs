@@ -401,7 +401,7 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
         let id = format!("{salt}/{name}");
         let here = place.join(name);
         let shown = egui::CollapsingHeader::new(RichText::new(name).size(12.5)).id_salt(&id).default_open(true).open(open_all.then_some(true)).show(ui, |ui| draw_tree(ui, inner, &id, &here, active, actions, open_all));
-        shown.header_response.context_menu(|ui| {
+        crate::fit::context_menu(&shown.header_response, |ui| {
             if ui.button(crate::i18n::tr("Compare folders\u{2026}")).on_hover_text(crate::i18n::tr("Compare this folder with another, side by side")).clicked() {
                 actions.push(PanelAction::CompareFolder(here.clone()));
                 ui.close();
@@ -421,7 +421,7 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, active:
         if response.clicked() && !missing {
             actions.push(PanelAction::Open(path.clone()));
         }
-        response.context_menu(|ui| {
+        crate::fit::context_menu(&response, |ui| {
             if !missing && ui.button(crate::i18n::tr("Compare with\u{2026}")).on_hover_text(crate::i18n::tr("Compare this file with another, side by side")).clicked() {
                 actions.push(PanelAction::CompareWith(path.clone()));
                 ui.close();
@@ -485,7 +485,7 @@ fn comparisons(ui: &mut Ui, project: &Project, actions: &mut Vec<PanelAction>) {
                 if response.clicked() {
                     actions.push(PanelAction::OpenComparison(session.name.clone()));
                 }
-                response.context_menu(|ui| {
+                crate::fit::context_menu(&response, |ui| {
                     if ui.button(crate::i18n::tr("Open")).clicked() {
                         actions.push(PanelAction::OpenComparison(session.name.clone()));
                         ui.close();

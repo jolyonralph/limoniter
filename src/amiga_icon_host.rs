@@ -64,81 +64,85 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut apply = false;
         let changed = state.edited() != state.saved;
-        egui::Window::new(crate::i18n::tr("Workbench icon")).collapsible(false).resizable(true).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.set_max_width(640.0);
-            egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-                ui.label(RichText::new(crate::i18n::tr("As Workbench shows it, and selected (double-clicked):")).color(theme::text_dim()).size(12.5));
-                for (label, normal, selected, size) in &state.pictures {
-                    ui.add_space(4.0);
-                    ui.label(RichText::new(label).size(12.5));
-                    // As large as fits in whole steps, up to four times.
-                    let scale = (200.0 / size.x.max(size.y)).clamp(1.0, 4.0).floor();
-                    ui.horizontal(|ui| {
-                        ui.add(egui::Image::new(normal).maintain_aspect_ratio(false).fit_to_exact_size(*size * scale));
-                        if let Some(selected) = selected {
-                            ui.add_space(12.0);
-                            ui.add(egui::Image::new(selected).maintain_aspect_ratio(false).fit_to_exact_size(*size * scale));
-                        }
-                    });
-                }
-                ui.separator();
-                ui.add_enabled_ui(!state.read_only, |ui| {
-                    egui::Grid::new("icon-details").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
-                        ui.label(crate::i18n::tr("Kind:"));
-                        egui::ComboBox::from_id_salt("icon-kind").selected_text(crate::i18n::tr(icon::type_name(state.details.kind))).show_ui(ui, |ui| {
-                            for kind in icon::TYPES {
-                                ui.selectable_value(&mut state.details.kind, kind, crate::i18n::tr(icon::type_name(kind)));
-                            }
-                        });
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Default tool:"));
-                        ui.add(egui::TextEdit::singleline(&mut state.details.default_tool).hint_text(crate::i18n::tr("The program a project opens with, such as SYS:Utilities/MultiView")).desired_width(360.0));
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Stack:"));
+        crate::fit::Dialog::new(crate::i18n::tr("Workbench icon")).collapsible(false).resizable(true).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.set_max_width(640.0);
+                egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
+                    ui.label(RichText::new(crate::i18n::tr("As Workbench shows it, and selected (double-clicked):")).color(theme::text_dim()).size(12.5));
+                    for (label, normal, selected, size) in &state.pictures {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(label).size(12.5));
+                        // As large as fits in whole steps, up to four times.
+                        let scale = (200.0 / size.x.max(size.y)).clamp(1.0, 4.0).floor();
                         ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut state.details.stack).range(0..=16 * 1024 * 1024).speed(64.0));
-                            ui.label(RichText::new(crate::i18n::tr("bytes, for the program started from it (4096 if none)")).color(theme::text_dim()).size(12.0));
-                        });
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Place:"));
-                        ui.horizontal(|ui| match state.details.position {
-                            Some((x, y)) => {
-                                ui.label(crate::i18n::tf!("{x}, {y} in its window"));
-                                if ui.small_button(crate::i18n::tr("Let Workbench place it")).clicked() {
-                                    state.details.position = None;
-                                }
-                            }
-                            None => {
-                                ui.label(crate::i18n::tr("Placed by Workbench"));
-                                if let Some(at) = state.saved.position
-                                    && ui.small_button(crate::i18n::tr("Put back")).clicked()
-                                {
-                                    state.details.position = Some(at);
-                                }
+                            ui.add(egui::Image::new(normal).maintain_aspect_ratio(false).fit_to_exact_size(*size * scale));
+                            if let Some(selected) = selected {
+                                ui.add_space(12.0);
+                                ui.add(egui::Image::new(selected).maintain_aspect_ratio(false).fit_to_exact_size(*size * scale));
                             }
                         });
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Tool types:"));
-                        ui.add(egui::TextEdit::multiline(&mut state.tool_types).hint_text(crate::i18n::tr("One to a line, such as DONOTWAIT or PUBSCREEN=Workbench")).desired_rows(6).desired_width(360.0).font(egui::TextStyle::Monospace));
-                        ui.end_row();
+                    }
+                    ui.separator();
+                    ui.add_enabled_ui(!state.read_only, |ui| {
+                        egui::Grid::new("icon-details").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+                            ui.label(crate::i18n::tr("Kind:"));
+                            egui::ComboBox::from_id_salt("icon-kind").selected_text(crate::i18n::tr(icon::type_name(state.details.kind))).show_ui(ui, |ui| {
+                                for kind in icon::TYPES {
+                                    ui.selectable_value(&mut state.details.kind, kind, crate::i18n::tr(icon::type_name(kind)));
+                                }
+                            });
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Default tool:"));
+                            ui.add(egui::TextEdit::singleline(&mut state.details.default_tool).hint_text(crate::i18n::tr("The program a project opens with, such as SYS:Utilities/MultiView")).desired_width(360.0));
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Stack:"));
+                            ui.horizontal(|ui| {
+                                ui.add(egui::DragValue::new(&mut state.details.stack).range(0..=16 * 1024 * 1024).speed(64.0));
+                                ui.label(RichText::new(crate::i18n::tr("bytes, for the program started from it (4096 if none)")).color(theme::text_dim()).size(12.0));
+                            });
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Place:"));
+                            ui.horizontal(|ui| match state.details.position {
+                                Some((x, y)) => {
+                                    ui.label(crate::i18n::tf!("{x}, {y} in its window"));
+                                    if ui.small_button(crate::i18n::tr("Let Workbench place it")).clicked() {
+                                        state.details.position = None;
+                                    }
+                                }
+                                None => {
+                                    ui.label(crate::i18n::tr("Placed by Workbench"));
+                                    if let Some(at) = state.saved.position
+                                        && ui.small_button(crate::i18n::tr("Put back")).clicked()
+                                    {
+                                        state.details.position = Some(at);
+                                    }
+                                }
+                            });
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Tool types:"));
+                            ui.add(egui::TextEdit::multiline(&mut state.tool_types).hint_text(crate::i18n::tr("One to a line, such as DONOTWAIT or PUBSCREEN=Workbench")).desired_rows(6).desired_width(360.0).font(egui::TextStyle::Monospace));
+                            ui.end_row();
+                        });
                     });
                 });
-            });
-            ui.separator();
-            if state.read_only {
-                ui.label(RichText::new(crate::i18n::tr("This file can't be changed here: open it from a folder, in hex, to change its icon.")).color(theme::text_dim()));
             }
-            if !state.status.is_empty() {
-                ui.colored_label(theme::change_saved(), &state.status);
-            }
-            ui.horizontal(|ui| {
-                apply = ui.add_enabled(changed && !state.read_only, Button::new(crate::i18n::tr("Change the icon"))).on_hover_text(crate::i18n::tr("Puts the changes into the file, to be saved as any change is; nothing else in it changes")).clicked();
-                if ui.add_enabled(changed, Button::new(crate::i18n::tr("Undo the changes"))).clicked() {
-                    state.details = state.saved.clone();
-                    state.tool_types = state.saved.tool_types.join("\n");
+            crate::fit::Part::Buttons => {
+                ui.separator();
+                if state.read_only {
+                    ui.label(RichText::new(crate::i18n::tr("This file can't be changed here: open it from a folder, in hex, to change its icon.")).color(theme::text_dim()));
                 }
-                close |= ui.button(crate::i18n::tr("Close")).clicked();
-            });
+                if !state.status.is_empty() {
+                    ui.colored_label(theme::change_saved(), &state.status);
+                }
+                ui.horizontal(|ui| {
+                    apply = ui.add_enabled(changed && !state.read_only, Button::new(crate::i18n::tr("Change the icon"))).on_hover_text(crate::i18n::tr("Puts the changes into the file, to be saved as any change is; nothing else in it changes")).clicked();
+                    if ui.add_enabled(changed, Button::new(crate::i18n::tr("Undo the changes"))).clicked() {
+                        state.details = state.saved.clone();
+                        state.tool_types = state.saved.tool_types.join("\n");
+                    }
+                    close |= ui.button(crate::i18n::tr("Close")).clicked();
+                });
+            }
         });
         if apply {
             let doc_id = state.doc_id;

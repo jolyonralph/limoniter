@@ -49,7 +49,7 @@ impl Limoniter {
         }
         let mut open = true;
         let mut go_to = None;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).default_pos([600.0, 80.0]).default_size([440.0, 480.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).default_pos([600.0, 80.0]).default_size([440.0, 480.0]).show(ctx, |ui| {
             go_to = view.draw(ui);
         });
         if let Some(line) = go_to {

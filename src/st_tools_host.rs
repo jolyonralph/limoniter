@@ -204,7 +204,7 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut action: Option<Act> = None;
         let busy = state.job.is_some();
-        egui::Window::new(crate::i18n::tr("Atari ST music and packers")).collapsible(false).resizable(true).default_width(620.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Atari ST music and packers")).collapsible(false).resizable(true).default_width(620.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(660.0);
             ui.horizontal(|ui| {
                 for (page, label) in [(Page::Music, "SNDH and YM music"), (Page::Pack, "Pack"), (Page::Chip, "YM2149 notes and envelopes"), (Page::Tools, "Tools")] {

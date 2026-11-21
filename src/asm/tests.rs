@@ -455,7 +455,7 @@ fn values_given_from_outside_are_used_only_when_the_source_has_none() {
         "_LVOFreeMem" => Some(-210),
         _ => None,
     };
-    let options = Options { folders: Vec::new(), values: Some(&lvo) };
+    let options = Options { folders: Vec::new(), values: Some(&lvo), ..Default::default() };
     let source = "\tjsr _LVOAllocMem(a6)\n\tjsr _LVOFreeMem(a6)\n_LVOFreeMem equ -6\n";
     let assembly = assemble_with(&m68k::M68k, Path::new("t.s"), source, &no_files, 0, &options);
     assert!(assembly.ok(), "{:?}", assembly.problems);
@@ -469,7 +469,7 @@ fn include_looks_in_the_folders_given_after_the_source_s_own() {
     std::fs::create_dir_all(folder.join("exec")).unwrap();
     std::fs::write(folder.join("exec/answer.i"), "ANSWER equ 42\n").unwrap();
     let read = |p: &Path| std::fs::read(p).map_err(|e| e.to_string());
-    let options = Options { folders: vec![folder.clone()], values: None };
+    let options = Options { folders: vec![folder.clone()], values: None, ..Default::default() };
     let assembly = assemble_with(&m68k::M68k, Path::new("/nowhere/t.s"), "\tinclude \"exec/answer.i\"\n\tdc.b ANSWER\n", &read, 0, &options);
     let _ = std::fs::remove_dir_all(&folder);
     assert!(assembly.ok(), "{:?}", assembly.problems);
@@ -486,4 +486,88 @@ fn acme_aligns_by_and_and_equal() {
     want.extend([0x11; 10]);
     want.push(4);
     assert_eq!(a.image(0x1001, 0x1011), want);
+}
+
+/// Every 68010, 68020 and 68030 integer instruction in its addressing modes (and what the CPU32 has of them), as
+/// vasm 1.9 assembles them with -no-opt, choosing the processor with MACHINE as the source goes.
+#[test]
+fn every_68020_instruction_is_assembled_as_vasm_does() {
+    let source = include_str!("testdata/m68k_020_all.asm");
+    let assembly = assemble(&m68k::M68k, Path::new("test.asm"), source, &no_files);
+    assert!(assembly.ok(), "{:?}", assembly.problems.iter().take(5).map(|p| (p.line + 1, &p.message)).collect::<Vec<_>>());
+    let expected = include_bytes!("testdata/m68k_020_all.bin");
+    for placed in &assembly.lines {
+        let at = (placed.address - 0x1000) as usize;
+        assert_eq!(Some(&placed.bytes[..]), expected.get(at..at + placed.bytes.len()), "line {}: {}", placed.line + 1, source.lines().nth(placed.line).unwrap_or(""));
+    }
+    assert_eq!(assembly.image(0x1000, 0x1000 + expected.len() as i64), expected);
+}
+
+/// Each instruction and addressing mode is refused on a processor that hasn't got it, naming the one that has.
+#[test]
+fn each_processor_refuses_what_it_has_not_got_naming_the_one_that_has() {
+    let try_on = |machine: &str, line: &str| {
+        let source = format!("\t{machine}\n\torg $1000\nx:\t{line}\n");
+        let assembly = assemble(&m68k::M68k, Path::new("t.s"), &source, &no_files);
+        assembly.problems.first().map(|p| p.message.clone())
+    };
+    for (machine, line, needs) in [
+        ("mc68000", "movec vbr,d0", "68010"),
+        ("machine 68008", "rtd #4", "68010"),
+        ("machine 68000", "move.w ccr,d0", "68010"),
+        ("machine 68000", "bkpt #1", "68010"),
+        ("machine 68000", "moves.l (a0),d0", "68010"),
+        ("machine 68010", "bfextu d0{1:2},d1", "68020"),
+        ("machine 68010", "move.l ([a0]),d0", "68020"),
+        ("machine 68010", "move.l (a0,d1.w*4),d0", "68020"),
+        ("machine 68010", "extb.l d0", "68020"),
+        ("machine 68010", "bra.l x", "68020"),
+        ("machine 68000", "mulu.l d0,d1", "68020"),
+        ("machine 68010", "divsl.l d0,d1:d2", "68020"),
+        ("machine 68010", "link.l a6,#-8", "68020"),
+        ("machine 68010", "trapeq", "68020"),
+        ("machine 68010", "cas.w d0,d1,(a0)", "68020"),
+        ("machine 68010", "tst.w a0", "68020"),
+        ("machine 68010", "cmpi.w #1,x(pc)", "68020"),
+        ("machine 68010", "movec cacr,d0", "68020"),
+        ("machine cpu32", "bfextu d0{1:2},d1", "CPU32"),
+        ("machine cpu32", "move.l ([a0]),d0", "CPU32"),
+        ("machine cpu32", "cas2.w d0:d1,d2:d3,(a0):(a1)", "CPU32"),
+        ("machine cpu32", "chk.l d0,d1", "CPU32"),
+        ("machine 68030", "callm #1,(a0)", "68020"),
+        ("machine 68040", "rtm d0", "68020"),
+        ("machine 68040", "movec caar,d0", "68020"),
+        ("machine 68060", "movec msp,d0", "68040"),
+    ] {
+        let message = try_on(machine, line).unwrap_or_else(|| panic!("{line} should be refused after {machine}"));
+        assert!(message.contains(needs), "{line} after {machine}: {message}");
+    }
+    for (machine, line) in [
+        ("machine 68010", "movec vbr,d0"),
+        ("machine cpu32", "move.l (8,a0,d1.l*4),d0"),
+        ("machine cpu32", "chk2.w (a0),d1"),
+        ("machine 68040", "move.l ([a0]),d0"),
+        ("machine 68060", "bfextu d0{1:2},d1"),
+        ("opt p=68030", "cas.l d0,d1,(a0)"),
+        ("mc68020", "callm #1,(a0)"),
+        ("machine mc68010", "rtd #4"),
+    ] {
+        assert_eq!(try_on(machine, line), None, "{line} after {machine}");
+    }
+    // An unknown processor is a problem, and so is a 68000's TST.B of an address register on any processor.
+    assert!(try_on("machine 68021", "nop").is_some_and(|m| m.contains("MACHINE takes")));
+    assert!(try_on("machine 68020", "tst.b a0").is_some());
+    // JMP and JSR aren't widened to the full extension word, as vasm doesn't widen them.
+    assert!(try_on("machine 68020", "jmp x+$10000(pc)").is_some());
+}
+
+/// The processor chosen in the settings comes in through the options, and MACHINE in the source wins over it.
+#[test]
+fn the_settings_processor_is_used_until_the_source_chooses() {
+    let options = Options { settings: vec![(m68k::SETTING, 68020)], ..Default::default() };
+    let on = |source: &str| assemble_with(&m68k::M68k, Path::new("t.s"), source, &no_files, 0, &options);
+    assert!(on("\textb.l d0\n").ok());
+    assert!(!on("\tmachine 68000\n\textb.l d0\n").ok());
+    let assembly = on("\tnop\n\tmachine 68008\n\tnop\n");
+    assert_eq!(assembly.settings, [(0, m68k::SETTING, 68020), (1, m68k::SETTING, 68008)]);
 }

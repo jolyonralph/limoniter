@@ -389,7 +389,7 @@ impl Limoniter {
                 beside = true;
             }
         });
-        egui::Window::new(crate::i18n::tr("Go to file")).title_bar(false).resizable(false).anchor(egui::Align2::CENTER_TOP, [0.0, 40.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Go to file")).title_bar(false).resizable(false).anchor(egui::Align2::CENTER_TOP, [0.0, 40.0]).show(ctx, |ui| {
             ui.set_width(620.0);
             let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("A few letters of the file's name; @ for this file's functions and labels, # for the folder's")).desired_width(f32::INFINITY));
             if std::mem::take(&mut state.focus) {

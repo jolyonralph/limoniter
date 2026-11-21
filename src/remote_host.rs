@@ -361,201 +361,205 @@ impl Limoniter {
         let mut open_project = None;
         let sites = self.remote_sites.clone();
         let recent = self.remote_recent.clone();
-        egui::Window::new(title).collapsible(false).resizable(true).default_size([640.0, 520.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            egui::Grid::new("remote-sign-in").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                ui.label(crate::i18n::tr("Address:"));
-                ui.horizontal(|ui| {
-                    let field = ui.add(egui::TextEdit::singleline(&mut state.address).hint_text(crate::i18n::tr("sftp://user@host:port/folder, or ftp://, ftpes://, ftps://")).desired_width(380.0));
-                    connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                    if !sites.is_empty() || !recent.is_empty() || !state.ssh_hosts.is_empty() {
-                        egui::ComboBox::from_id_salt("remote-sites").selected_text(crate::i18n::tr("Recent")).width(90.0).show_ui(ui, |ui| {
-                            for saved in &sites {
-                                if ui.selectable_label(false, saved.site.url("")).clicked() {
-                                    state.address = saved.site.url("");
-                                    state.key_file = saved.site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string());
-                                }
-                            }
-                            for url in &recent {
-                                if ui.selectable_label(false, url).clicked() {
-                                    state.address.clone_from(url);
-                                }
-                            }
-                            if !state.ssh_hosts.is_empty() {
-                                ui.separator();
-                                ui.label(RichText::new(crate::i18n::tr("From ~/.ssh/config")).small().color(theme::text_dim()));
-                                for (name, site) in state.ssh_hosts.clone() {
-                                    if ui.selectable_label(false, &name).on_hover_text(site.url("")).clicked() {
-                                        state.address = site.url("");
-                                        state.key_file = site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string());
+        crate::fit::Dialog::new(title).collapsible(false).resizable(true).default_size([640.0, 520.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                egui::Grid::new("remote-sign-in").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                    ui.label(crate::i18n::tr("Address:"));
+                    ui.horizontal(|ui| {
+                        let field = ui.add(egui::TextEdit::singleline(&mut state.address).hint_text(crate::i18n::tr("sftp://user@host:port/folder, or ftp://, ftpes://, ftps://")).desired_width(380.0));
+                        connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+                        if !sites.is_empty() || !recent.is_empty() || !state.ssh_hosts.is_empty() {
+                            egui::ComboBox::from_id_salt("remote-sites").selected_text(crate::i18n::tr("Recent")).width(90.0).show_ui(ui, |ui| {
+                                for saved in &sites {
+                                    if ui.selectable_label(false, saved.site.url("")).clicked() {
+                                        state.address = saved.site.url("");
+                                        state.key_file = saved.site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string());
                                     }
                                 }
-                            }
-                        });
-                    }
-                });
-                ui.end_row();
-                if ftp {
-                    state.key_file.clear();
-                } else {
-                    ui.label(crate::i18n::tr("Key file:"));
-                    ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(380.0));
-                        if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
-                            && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
-                        {
-                            state.key_file = file.display().to_string();
+                                for url in &recent {
+                                    if ui.selectable_label(false, url).clicked() {
+                                        state.address.clone_from(url);
+                                    }
+                                }
+                                if !state.ssh_hosts.is_empty() {
+                                    ui.separator();
+                                    ui.label(RichText::new(crate::i18n::tr("From ~/.ssh/config")).small().color(theme::text_dim()));
+                                    for (name, site) in state.ssh_hosts.clone() {
+                                        if ui.selectable_label(false, &name).on_hover_text(site.url("")).clicked() {
+                                            state.address = site.url("");
+                                            state.key_file = site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string());
+                                        }
+                                    }
+                                }
+                            });
                         }
                     });
                     ui.end_row();
-                }
-                ui.label(if state.key_file.trim().is_empty() { crate::i18n::tr("Password:") } else { crate::i18n::tr("Passphrase:") });
-                ui.horizontal(|ui| {
-                    let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).hint_text(crate::i18n::tr("Asked for only if needed")).desired_width(240.0));
-                    connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                    if state.key_file.trim().is_empty() {
-                        ui.checkbox(&mut state.remember, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
+                    if ftp {
+                        state.key_file.clear();
+                    } else {
+                        ui.label(crate::i18n::tr("Key file:"));
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(380.0));
+                            if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
+                                && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
+                            {
+                                state.key_file = file.display().to_string();
+                            }
+                        });
+                        ui.end_row();
                     }
-                });
-                ui.end_row();
-            });
-            ui.horizontal(|ui| {
-                if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tr("Connect"))).clicked() {
-                    connect = true;
-                }
-                if ui.small_button(crate::i18n::tr("Forget the kept password")).clicked() {
-                    forget_password = true;
-                }
-                if busy {
-                    ui.spinner();
-                }
-                if let Some(share) = fetching {
-                    ui.label(crate::i18n::tf!("Fetching: {:.0}%", share * 100.0));
-                }
-            });
-            if !state.status.is_empty() {
-                ui.label(&state.status);
-            }
-            if let Some(print) = &state.trust {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(print).monospace());
-                    if ui.button(crate::i18n::tr("Trust it and connect")).clicked() {
-                        trust = true;
-                    }
-                });
-            }
-            if state.changed_key && ui.button(crate::i18n::tr("Forget the old key")).on_hover_text(crate::i18n::tr("Only once you're sure the new key is right")).clicked() {
-                forget_key = true;
-            }
-            ui.separator();
-            if let Some(folder) = state.folder.clone() {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(&folder).strong());
-                    if folder != "/" && ui.small_button(crate::i18n::tr("Up")).clicked() {
-                        go_to = Some(remote::parent(&folder));
-                    }
-                    if ui.small_button(crate::i18n::tr("New folder")).clicked() {
-                        state.new_folder = Some(String::new());
-                    }
-                });
-                // A new folder or a new name being typed.
-                if let Some(name) = &mut state.new_folder {
+                    ui.label(if state.key_file.trim().is_empty() { crate::i18n::tr("Password:") } else { crate::i18n::tr("Passphrase:") });
                     ui.horizontal(|ui| {
-                        ui.label(crate::i18n::tr("New folder:"));
-                        let field = ui.add(egui::TextEdit::singleline(name).desired_width(240.0));
-                        field.request_focus();
-                        let ok = !name.trim().is_empty() && !name.contains('/');
-                        if ui.add_enabled(ok, egui::Button::new(crate::i18n::tr("Make it"))).clicked() || (ok && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
-                            change = Some(Change::MakeFolder(remote::join(&folder, name.trim())));
+                        let field = ui.add(egui::TextEdit::singleline(&mut state.password).password(true).hint_text(crate::i18n::tr("Asked for only if needed")).desired_width(240.0));
+                        connect |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+                        if state.key_file.trim().is_empty() {
+                            ui.checkbox(&mut state.remember, crate::i18n::tr("Remember it")).on_hover_text(crate::i18n::tf!("Kept in {}, not in Limoniter's settings", crate::platform::CREDENTIAL_STORE));
                         }
-                        if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                            change_cancelled = true;
+                    });
+                    ui.end_row();
+                });
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tr("Connect"))).clicked() {
+                        connect = true;
+                    }
+                    if ui.small_button(crate::i18n::tr("Forget the kept password")).clicked() {
+                        forget_password = true;
+                    }
+                    if busy {
+                        ui.spinner();
+                    }
+                    if let Some(share) = fetching {
+                        ui.label(crate::i18n::tf!("Fetching: {:.0}%", share * 100.0));
+                    }
+                });
+                if !state.status.is_empty() {
+                    ui.label(&state.status);
+                }
+                if let Some(print) = &state.trust {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(print).monospace());
+                        if ui.button(crate::i18n::tr("Trust it and connect")).clicked() {
+                            trust = true;
                         }
                     });
                 }
-                if let Some((old, name)) = &mut state.renaming {
-                    ui.horizontal(|ui| {
-                        ui.label(crate::i18n::tf!("Rename {old} to:"));
-                        let field = ui.add(egui::TextEdit::singleline(name).desired_width(240.0));
-                        let ok = !name.trim().is_empty() && !name.contains('/') && name.trim() != old.as_str();
-                        if ui.add_enabled(ok, egui::Button::new(crate::i18n::tr("Rename"))).clicked() || (ok && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
-                            change = Some(Change::Rename { from: remote::join(&folder, old), to: remote::join(&folder, name.trim()) });
-                        }
-                        if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                            change_cancelled = true;
-                        }
-                    });
+                if state.changed_key && ui.button(crate::i18n::tr("Forget the old key")).on_hover_text(crate::i18n::tr("Only once you're sure the new key is right")).clicked() {
+                    forget_key = true;
                 }
-                egui::ScrollArea::vertical().max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
-                    for entry in &state.entries {
-                        let label = if entry.folder { format!("\u{1F4C1} {}", entry.name) } else { format!("    {}", entry.name) };
-                        let size = if entry.folder { String::new() } else { short_size(entry.size) };
-                        let response = ui.horizontal(|ui| {
-                            let picked = !entry.folder && (entry.name == state.file_name || state.chosen.contains(&entry.name));
-                            let response = ui.selectable_label(picked, crate::i18n::tr(&label));
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(size).color(theme::text_faint())));
-                            response
-                        });
-                        let response = response.inner;
-                        let with_ctrl = ui.input(|i| i.modifiers.command);
-                        if entry.folder && response.clicked() {
-                            go_to = Some(remote::join(&folder, &entry.name));
-                        } else if response.clicked() && with_ctrl && state.saving.is_none() {
-                            // Ctrl chooses several to open together.
-                            if !state.chosen.remove(&entry.name) {
-                                state.chosen.insert(entry.name.clone());
-                            }
-                        } else if response.clicked() {
-                            state.chosen.clear();
-                            state.file_name.clone_from(&entry.name);
-                        }
-                        response.context_menu(|ui| {
-                            if ui.button(crate::i18n::tr("Rename\u{2026}")).clicked() {
-                                state.renaming = Some((entry.name.clone(), entry.name.clone()));
-                                ui.close();
-                            }
-                            if ui.button(crate::i18n::tr("Delete")).clicked() {
-                                deleting = Some((remote::join(&folder, &entry.name), entry.folder));
-                                ui.close();
-                            }
-                        });
-                        if !entry.folder && response.double_clicked() && state.saving.is_none() && !state.project {
-                            open = Some(remote::join(&folder, &entry.name));
-                        }
-                    }
-                });
                 ui.separator();
-                if state.project {
+                if let Some(folder) = state.folder.clone() {
                     ui.horizontal(|ui| {
-                        if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open {folder} as a project"))).on_hover_text(crate::i18n::tr("Its files are fetched into a folder on this computer, and each save is sent back")).clicked() {
-                            open_project = Some(folder.clone());
+                        ui.label(RichText::new(&folder).strong());
+                        if folder != "/" && ui.small_button(crate::i18n::tr("Up")).clicked() {
+                            go_to = Some(remote::parent(&folder));
+                        }
+                        if ui.small_button(crate::i18n::tr("New folder")).clicked() {
+                            state.new_folder = Some(String::new());
+                        }
+                    });
+                    // A new folder or a new name being typed.
+                    if let Some(name) = &mut state.new_folder {
+                        ui.horizontal(|ui| {
+                            ui.label(crate::i18n::tr("New folder:"));
+                            let field = ui.add(egui::TextEdit::singleline(name).desired_width(240.0));
+                            field.request_focus();
+                            let ok = !name.trim().is_empty() && !name.contains('/');
+                            if ui.add_enabled(ok, egui::Button::new(crate::i18n::tr("Make it"))).clicked() || (ok && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
+                                change = Some(Change::MakeFolder(remote::join(&folder, name.trim())));
+                            }
+                            if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                                change_cancelled = true;
+                            }
+                        });
+                    }
+                    if let Some((old, name)) = &mut state.renaming {
+                        ui.horizontal(|ui| {
+                            ui.label(crate::i18n::tf!("Rename {old} to:"));
+                            let field = ui.add(egui::TextEdit::singleline(name).desired_width(240.0));
+                            let ok = !name.trim().is_empty() && !name.contains('/') && name.trim() != old.as_str();
+                            if ui.add_enabled(ok, egui::Button::new(crate::i18n::tr("Rename"))).clicked() || (ok && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
+                                change = Some(Change::Rename { from: remote::join(&folder, old), to: remote::join(&folder, name.trim()) });
+                            }
+                            if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                                change_cancelled = true;
+                            }
+                        });
+                    }
+                    egui::ScrollArea::vertical().max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
+                        for entry in &state.entries {
+                            let label = if entry.folder { format!("\u{1F4C1} {}", entry.name) } else { format!("    {}", entry.name) };
+                            let size = if entry.folder { String::new() } else { short_size(entry.size) };
+                            let response = ui.horizontal(|ui| {
+                                let picked = !entry.folder && (entry.name == state.file_name || state.chosen.contains(&entry.name));
+                                let response = ui.selectable_label(picked, crate::i18n::tr(&label));
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(size).color(theme::text_faint())));
+                                response
+                            });
+                            let response = response.inner;
+                            let with_ctrl = ui.input(|i| i.modifiers.command);
+                            if entry.folder && response.clicked() {
+                                go_to = Some(remote::join(&folder, &entry.name));
+                            } else if response.clicked() && with_ctrl && state.saving.is_none() {
+                                // Ctrl chooses several to open together.
+                                if !state.chosen.remove(&entry.name) {
+                                    state.chosen.insert(entry.name.clone());
+                                }
+                            } else if response.clicked() {
+                                state.chosen.clear();
+                                state.file_name.clone_from(&entry.name);
+                            }
+                            crate::fit::context_menu(&response, |ui| {
+                                if ui.button(crate::i18n::tr("Rename\u{2026}")).clicked() {
+                                    state.renaming = Some((entry.name.clone(), entry.name.clone()));
+                                    ui.close();
+                                }
+                                if ui.button(crate::i18n::tr("Delete")).clicked() {
+                                    deleting = Some((remote::join(&folder, &entry.name), entry.folder));
+                                    ui.close();
+                                }
+                            });
+                            if !entry.folder && response.double_clicked() && state.saving.is_none() && !state.project {
+                                open = Some(remote::join(&folder, &entry.name));
+                            }
+                        }
+                    });
+                    ui.separator();
+                    if state.project {
+                        ui.horizontal(|ui| {
+                            if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open {folder} as a project"))).on_hover_text(crate::i18n::tr("Its files are fetched into a folder on this computer, and each save is sent back")).clicked() {
+                                open_project = Some(folder.clone());
+                            }
+                        });
+                    }
+                    ui.horizontal(|ui| {
+                        if state.project {
+                            return;
+                        }
+                        ui.label(crate::i18n::tr("File name:"));
+                        ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(300.0));
+                        let name_ok = !state.file_name.trim().is_empty() && !state.file_name.contains('/');
+                        if state.saving.is_some() {
+                            if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Save here"))).clicked() {
+                                save_here = true;
+                            }
+                        } else if !state.chosen.is_empty() {
+                            if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open the {} chosen", state.chosen.len()))).clicked() {
+                                open_many = state.chosen.iter().map(|name| remote::join(&folder, name)).collect();
+                            }
+                        } else if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Open"))).clicked() {
+                            open = Some(remote::join(&folder, state.file_name.trim()));
                         }
                     });
                 }
-                ui.horizontal(|ui| {
-                    if state.project {
-                        return;
-                    }
-                    ui.label(crate::i18n::tr("File name:"));
-                    ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(300.0));
-                    let name_ok = !state.file_name.trim().is_empty() && !state.file_name.contains('/');
-                    if state.saving.is_some() {
-                        if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Save here"))).clicked() {
-                            save_here = true;
-                        }
-                    } else if !state.chosen.is_empty() {
-                        if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open the {} chosen", state.chosen.len()))).clicked() {
-                            open_many = state.chosen.iter().map(|name| remote::join(&folder, name)).collect();
-                        }
-                    } else if ui.add_enabled(name_ok && !busy, egui::Button::new(crate::i18n::tr("Open"))).clicked() {
-                        open = Some(remote::join(&folder, state.file_name.trim()));
+            }
+            crate::fit::Part::Buttons => {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(crate::i18n::tr("Close")).clicked() {
+                        close = true;
                     }
                 });
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(crate::i18n::tr("Close")).clicked() {
-                    close = true;
-                }
-            });
         });
         let site = state.site().ok().map(|(site, _)| site);
         let folder = state.folder.clone();

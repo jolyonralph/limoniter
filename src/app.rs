@@ -1408,19 +1408,10 @@ fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
     let (mut ok, mut features) = (false, false);
     ui.set_width(560.0);
     ui.add_space(4.0);
-    ui.horizontal_top(|ui| {
-        if let Some(logo) = about_logo(ui.ctx()) {
-            ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(124.0, 124.0)));
-            ui.add_space(14.0);
-        }
-        ui.vertical(|ui| {
-            ui.add_space(10.0);
-            ui.label(RichText::new(crate::i18n::tr("Limoniter")).size(36.0).strong().color(theme::accent()));
-            ui.label(RichText::new(crate::i18n::tf!("Version {}", env!("CARGO_PKG_VERSION"))).size(12.5).color(theme::text_dim()));
-            ui.add_space(8.0);
-            ui.add(egui::Label::new(RichText::new(crate::i18n::tr("A text and hex editor for files old and new, and an explorer for the disks, tapes and archives of classic computers.")).size(15.0).color(theme::strong_text())).wrap());
-        });
-    });
+    // An 80s demo screen: the logo, copper bars and a scroller saying what Limoniter is.
+    crate::about_demo::show(ui, crate::i18n::tr("A text and hex editor for files old and new, and an explorer for the disks, tapes and archives of classic computers."));
+    ui.add_space(6.0);
+    ui.vertical_centered(|ui| ui.label(RichText::new(crate::i18n::tf!("Version {}", env!("CARGO_PKG_VERSION"))).size(12.5).color(theme::text_dim())));
     ui.add_space(12.0);
     ui.separator();
     ui.add_space(6.0);
@@ -1938,6 +1929,7 @@ impl Limoniter {
         }
         let prefs = Prefs::from_settings(&settings);
         crate::i18n::set(prefs.language);
+        crate::asm::m68k::choose(prefs.m68k_processor);
         text_buffer::set_tab_size(view.tab_size);
         text_buffer::set_source_view(view.source_view);
         let mut panels = Panels::default();
@@ -2241,7 +2233,7 @@ impl Limoniter {
             return false;
         };
         let (mut recover, mut later, mut discard) = (false, false, false);
-        egui::Window::new(crate::i18n::tr("Recover unsaved edits")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Recover unsaved edits")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_width(620.0);
             ui.label(crate::i18n::tr("Limoniter didn't close normally last time. These unsaved edits were kept."));
             ui.label(RichText::new(crate::i18n::tr("Recovering opens them as unsaved changes. The files on disk aren't touched until you save.")).size(12.5).color(theme::text_dim()));
@@ -6140,7 +6132,7 @@ impl Limoniter {
             Dialog::InsertByte { value, error } => {
                 let mut chosen = None;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Insert byte")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Insert byte")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tr("Byte value in hexadecimal, such as 9B or 1B 5B:"));
                     ui.text_edit_singleline(value).request_focus();
                     if !error.is_empty() {
@@ -6171,7 +6163,7 @@ impl Limoniter {
             Dialog::WrapColumn { value, error, focus } => {
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Wrap to line ends")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Wrap to line ends")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tr("Break long lines at a space, so they end by this column:"));
                     let field = ui.text_edit_singleline(value);
                     if *focus {
@@ -6200,7 +6192,7 @@ impl Limoniter {
             Dialog::ParagraphSetup { width, left, first, align, error } => {
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Paragraph setup")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Paragraph setup")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     egui::Grid::new("paragraph-grid").num_columns(2).show(ui, |ui| {
                         for (label, field) in [("Lines end by column:", &mut *width), ("Left margin:", &mut *left), ("First line indent:", &mut *first)] {
                             ui.label(crate::i18n::tr(label));
@@ -6237,7 +6229,7 @@ impl Limoniter {
             Dialog::ProjectSettings { name, notes } => {
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
                 let mut ok = false;
-                egui::Window::new(crate::i18n::tr("Project settings")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Project settings")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tr("Name:"));
                     ui.text_edit_singleline(name);
                     ui.add_space(4.0);
@@ -6265,7 +6257,7 @@ impl Limoniter {
             Dialog::RestorePick { backups, chosen } => {
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
                 let mut go = false;
-                egui::Window::new(crate::i18n::tr("Restore project")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Restore project")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tr("Put the files back from this backup:"));
                     egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
                         for (place, backup) in backups.iter().enumerate() {
@@ -6292,7 +6284,7 @@ impl Limoniter {
             Dialog::ComparePick(others) => {
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
                 let (mut open_file, mut from_disk) = (None, false);
-                egui::Window::new(crate::i18n::tr("Compare")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Compare")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tf!("Compare {} with:", self.docs[index].name()));
                     ui.add_space(4.0);
                     for (other, name) in others.iter() {
@@ -6322,7 +6314,7 @@ impl Limoniter {
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
                 if let Some(plan) = &self.replace_plan {
-                    egui::Window::new(crate::i18n::tr("Replace in Files")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                    crate::fit::Dialog::new(crate::i18n::tr("Replace in Files")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                         ui.set_max_width(460.0);
                         ui.label(crate::i18n::tf!("Replace \"{}\" with \"{}\"?", plan.options.pattern, plan.options.replacement));
                         ui.label(if *matches == 1 { if files.len() == 1 { crate::i18n::tf!("{matches} match in {} file.", files.len()) } else { crate::i18n::tf!("{matches} match in {} files.", files.len()) } } else { if files.len() == 1 { crate::i18n::tf!("{matches} matches in {} file.", files.len()) } else { crate::i18n::tf!("{matches} matches in {} files.", files.len()) } });
@@ -6390,7 +6382,7 @@ impl Limoniter {
                 let cut = *cut;
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(if cut { "Cut columns" } else { "Delete columns" }).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(if cut { "Cut columns" } else { "Delete columns" }).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tf!("Number of columns to {} on every line, starting at this line and column.", if cut { "cut" } else { "delete" }));
                     ui.label(crate::i18n::tr("Leave it at 0 to use the highlighted columns instead."));
                     ui.add_space(4.0);
@@ -6432,7 +6424,7 @@ impl Limoniter {
             Dialog::CsvToFixed { rows, delimiter, error } => {
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Convert to fixed width")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Convert to fixed width")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tf!("Lines {} to {}: each value is padded to its column's widest.", rows.0 + 1, rows.1 + 1));
                     ui.add_space(4.0);
                     delimiter_choice(ui, delimiter);
@@ -6460,7 +6452,7 @@ impl Limoniter {
             Dialog::FixedToCsv { rows, delimiter, starts, error, focus } => {
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Convert fixed width to CSV")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Convert fixed width to CSV")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tf!("Lines {} to {}: the padding is removed from each value.", rows.0 + 1, rows.1 + 1));
                     ui.add_space(4.0);
                     ui.label(crate::i18n::tr("Columns start at (change these if a value got split):"));
@@ -6496,7 +6488,7 @@ impl Limoniter {
             Dialog::HexInsertDelete { count, delete, fill, error, focus } => {
                 let mut go = false;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Hex insert/delete")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Hex insert/delete")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.horizontal(|ui| {
                         ui.radio_value(delete, false, crate::i18n::tr("Insert"));
                         ui.radio_value(delete, true, crate::i18n::tr("Delete"));
@@ -6556,7 +6548,7 @@ impl Limoniter {
                 let fits = placed.filter(|c| if current.charset.holds_characters() { codec::fits(*c, current.charset) } else { charset::raw_byte(*c).is_some() || current.charset.table(current.state).is_some_and(|t| t.byte_of(*c).is_some()) });
                 let mut text = None;
                 let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Insert from another encoding")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Insert from another encoding")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.label(crate::i18n::tf!("Byte {byte:02X} in {} goes into a document in {}.", set.name, current.charset.name));
                     ui.add_space(4.0);
                     let label = meant.map_or_else(|| crate::i18n::tr("It has no character to convert").to_string(), |c| crate::i18n::tf!("Insert the character \"{c}\" ({})", charset::char_name(c)));
@@ -6582,7 +6574,7 @@ impl Limoniter {
                 let mut browse = false;
                 let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
                 let current = self.font_file.clone();
-                egui::Window::new(crate::i18n::tr("Editor font")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Editor font")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.set_width(320.0);
                     ui.label(RichText::new(crate::i18n::tr("Columns depend on every character being the same width, so only fonts like that can be used.")).size(12.5).color(theme::text_dim()));
                     ui.add_space(4.0);
@@ -6630,7 +6622,7 @@ impl Limoniter {
                 let (mut chosen, mut browse, mut usual) = (None, false, false);
                 let current = WINDOW_FONT.lock().ok().and_then(|f| f.clone());
                 let mut scale = self.window_scale;
-                egui::Window::new(crate::i18n::tr("Window font and size")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Window font and size")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.set_width(340.0);
                     ui.label(RichText::new(crate::i18n::tr("For the menus, panels, boxes and the status bar. The text's own font and size are under View, Font, and Ctrl and + or -.")).size(12.5).color(theme::text_dim()));
                     ui.add_space(6.0);
@@ -6690,7 +6682,7 @@ impl Limoniter {
             Dialog::Color { rgb, form } => {
                 let mut insert = None;
                 let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
-                egui::Window::new(crate::i18n::tr("Insert color")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+                crate::fit::Dialog::new(crate::i18n::tr("Insert color")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.horizontal(|ui| {
                         egui::color_picker::color_edit_button_srgb(ui, rgb);
                         ui.label(RichText::new(tools::color_text(*rgb, *form)).monospace());
@@ -6977,134 +6969,137 @@ impl Limoniter {
                     }
                 }
             });
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.label(crate::i18n::tr("Find what:"));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| find_lists(ui, &mut self.find));
-            });
-            let find_box = ui.add(egui::TextEdit::singleline(&mut self.find.find).desired_width(f32::INFINITY));
-            if self.find.focus_box {
-                find_box.request_focus();
-                self.find.focus_box = false;
-            }
-            let entered = find_box.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-            if entered {
-                find_box.request_focus();
-            }
-            ui.add_space(6.0);
-            let in_files_tab = matches!(self.find.tab, FindTab::InFiles | FindTab::ReplaceInFiles);
-            if matches!(self.find.tab, FindTab::Replace | FindTab::ReplaceInFiles) {
-                ui.label(crate::i18n::tr("Replace with:"));
-                ui.add(egui::TextEdit::singleline(&mut self.find.replace).desired_width(f32::INFINITY));
-                ui.add_space(6.0);
-            }
-            if in_files_tab {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.label(crate::i18n::tr("In:"));
-                    ui.radio_value(&mut self.find.scope, FileScope::Folder, crate::i18n::tr("Files in a folder"));
-                    ui.radio_value(&mut self.find.scope, FileScope::OpenFiles, crate::i18n::tr("Open files"));
-                    ui.radio_value(&mut self.find.scope, FileScope::Favorites, crate::i18n::tr("Favorite files"));
-                    let has_project = self.project.is_some();
-                    if !has_project && self.find.scope == FileScope::Project {
-                        self.find.scope = FileScope::Folder;
-                    }
-                    ui.add_enabled_ui(has_project, |ui| ui.radio_value(&mut self.find.scope, FileScope::Project, crate::i18n::tr("Project files"))).response.on_disabled_hover_text(crate::i18n::tr("Open a project from Tools, Project first"));
+            // The rest scrolls when the window is too short for it all.
+            egui::ScrollArea::vertical().id_salt("find-panel-scroll").auto_shrink([false, true]).show(ui, |ui| {
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.label(crate::i18n::tr("Find what:"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| find_lists(ui, &mut self.find));
                 });
+                let find_box = ui.add(egui::TextEdit::singleline(&mut self.find.find).desired_width(f32::INFINITY));
+                if self.find.focus_box {
+                    find_box.request_focus();
+                    self.find.focus_box = false;
+                }
+                let entered = find_box.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+                if entered {
+                    find_box.request_focus();
+                }
                 ui.add_space(6.0);
-                if self.find.scope == FileScope::Favorites {
-                    let mut gone = None;
-                    if self.find.favorite_files.is_empty() {
-                        ui.label(RichText::new(crate::i18n::tr("No favorite files yet.")).color(theme::text_dim()));
-                    }
-                    for (place, path) in self.find.favorite_files.iter().enumerate() {
-                        ui.horizontal(|ui| {
-                            if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Take off the list").on_hover_text(crate::i18n::tr("Take off the list")).clicked() {
-                                gone = Some(place);
-                            }
-                            let name = path.file_name().map_or_else(|| path.display().to_string(), |name| name.to_string_lossy().into_owned());
-                            ui.label(crate::i18n::tr(&name)).on_hover_text(path.display().to_string());
-                        });
-                    }
-                    if let Some(place) = gone {
-                        self.find.favorite_files.remove(place);
-                    }
-                    ui.horizontal(|ui| {
-                        let this_file = self.docs[self.active].path.clone();
-                        if ui.add_enabled(this_file.is_some(), Button::new(crate::i18n::tr("Add this file"))).clicked()
-                            && let Some(path) = this_file
-                            && !self.find.favorite_files.contains(&path)
-                        {
-                            self.find.favorite_files.push(path);
+                let in_files_tab = matches!(self.find.tab, FindTab::InFiles | FindTab::ReplaceInFiles);
+                if matches!(self.find.tab, FindTab::Replace | FindTab::ReplaceInFiles) {
+                    ui.label(crate::i18n::tr("Replace with:"));
+                    ui.add(egui::TextEdit::singleline(&mut self.find.replace).desired_width(f32::INFINITY));
+                    ui.add_space(6.0);
+                }
+                if in_files_tab {
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.label(crate::i18n::tr("In:"));
+                        ui.radio_value(&mut self.find.scope, FileScope::Folder, crate::i18n::tr("Files in a folder"));
+                        ui.radio_value(&mut self.find.scope, FileScope::OpenFiles, crate::i18n::tr("Open files"));
+                        ui.radio_value(&mut self.find.scope, FileScope::Favorites, crate::i18n::tr("Favorite files"));
+                        let has_project = self.project.is_some();
+                        if !has_project && self.find.scope == FileScope::Project {
+                            self.find.scope = FileScope::Folder;
                         }
-                        if ui.button(crate::i18n::tr("Add files...")).clicked()
-                            && let Some(paths) = rfd::FileDialog::new().set_title(crate::i18n::tr("Add favorite files")).pick_files()
-                        {
-                            for path in paths {
-                                if !self.find.favorite_files.contains(&path) {
-                                    self.find.favorite_files.push(path);
+                        ui.add_enabled_ui(has_project, |ui| ui.radio_value(&mut self.find.scope, FileScope::Project, crate::i18n::tr("Project files"))).response.on_disabled_hover_text(crate::i18n::tr("Open a project from Tools, Project first"));
+                    });
+                    ui.add_space(6.0);
+                    if self.find.scope == FileScope::Favorites {
+                        let mut gone = None;
+                        if self.find.favorite_files.is_empty() {
+                            ui.label(RichText::new(crate::i18n::tr("No favorite files yet.")).color(theme::text_dim()));
+                        }
+                        for (place, path) in self.find.favorite_files.iter().enumerate() {
+                            ui.horizontal(|ui| {
+                                if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Take off the list").on_hover_text(crate::i18n::tr("Take off the list")).clicked() {
+                                    gone = Some(place);
+                                }
+                                let name = path.file_name().map_or_else(|| path.display().to_string(), |name| name.to_string_lossy().into_owned());
+                                ui.label(crate::i18n::tr(&name)).on_hover_text(path.display().to_string());
+                            });
+                        }
+                        if let Some(place) = gone {
+                            self.find.favorite_files.remove(place);
+                        }
+                        ui.horizontal(|ui| {
+                            let this_file = self.docs[self.active].path.clone();
+                            if ui.add_enabled(this_file.is_some(), Button::new(crate::i18n::tr("Add this file"))).clicked()
+                                && let Some(path) = this_file
+                                && !self.find.favorite_files.contains(&path)
+                            {
+                                self.find.favorite_files.push(path);
+                            }
+                            if ui.button(crate::i18n::tr("Add files...")).clicked()
+                                && let Some(paths) = rfd::FileDialog::new().set_title(crate::i18n::tr("Add favorite files")).pick_files()
+                            {
+                                for path in paths {
+                                    if !self.find.favorite_files.contains(&path) {
+                                        self.find.favorite_files.push(path);
+                                    }
                                 }
                             }
-                        }
-                    });
-                    ui.add_space(4.0);
+                        });
+                        ui.add_space(4.0);
+                    }
+                    if self.find.scope == FileScope::Folder {
+                        ui.label(crate::i18n::tr("In files/types:"));
+                        ui.add(egui::TextEdit::singleline(&mut self.find.file_types).desired_width(f32::INFINITY).hint_text(crate::i18n::tr("*.txt; *.log")));
+                        ui.add_space(4.0);
+                        ui.label(crate::i18n::tr("Directory:"));
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut self.find.folder).desired_width(ui.available_width() - 34.0));
+                            if ui.button(crate::i18n::tr("...")).on_hover_text(crate::i18n::tr("Choose a folder")).clicked()
+                                && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Search in folder")).pick_folder()
+                            {
+                                self.find.folder = folder.display().to_string();
+                            }
+                        });
+                        ui.checkbox(&mut self.find.recursive, crate::i18n::tr("Include subfolders"));
+                        ui.add_space(4.0);
+                    }
                 }
-                if self.find.scope == FileScope::Folder {
-                    ui.label(crate::i18n::tr("In files/types:"));
-                    ui.add(egui::TextEdit::singleline(&mut self.find.file_types).desired_width(f32::INFINITY).hint_text(crate::i18n::tr("*.txt; *.log")));
-                    ui.add_space(4.0);
-                    ui.label(crate::i18n::tr("Directory:"));
-                    ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut self.find.folder).desired_width(ui.available_width() - 34.0));
-                        if ui.button(crate::i18n::tr("...")).on_hover_text(crate::i18n::tr("Choose a folder")).clicked()
-                            && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Search in folder")).pick_folder()
-                        {
-                            self.find.folder = folder.display().to_string();
-                        }
-                    });
-                    ui.checkbox(&mut self.find.recursive, crate::i18n::tr("Include subfolders"));
-                    ui.add_space(4.0);
+                ui.checkbox(&mut self.find.match_case, crate::i18n::tr("Match case"));
+                if hex && !in_files_tab {
+                    ui.checkbox(&mut self.find.hex_bytes, crate::i18n::tr("Hex bytes"));
+                } else {
+                    ui.checkbox(&mut self.find.whole_word, crate::i18n::tr("Whole word"));
+                    ui.checkbox(&mut self.find.regex, crate::i18n::tr("Regular expression"));
+                    if !in_files_tab {
+                        let known = crate::tools::comment_marks(&self.docs[self.active].language_name()).is_some();
+                        ui.add_enabled(known, egui::Checkbox::new(&mut self.find.code_only, crate::i18n::tr("Not in comments or strings")))
+                            .on_hover_text(crate::i18n::tr("Matches in the code alone count"))
+                            .on_disabled_hover_text(crate::i18n::tr("The comments of this file's language aren't known"));
+                    }
                 }
-            }
-            ui.checkbox(&mut self.find.match_case, crate::i18n::tr("Match case"));
-            if hex && !in_files_tab {
-                ui.checkbox(&mut self.find.hex_bytes, crate::i18n::tr("Hex bytes"));
-            } else {
-                ui.checkbox(&mut self.find.whole_word, crate::i18n::tr("Whole word"));
-                ui.checkbox(&mut self.find.regex, crate::i18n::tr("Regular expression"));
-                if !in_files_tab {
-                    let known = crate::tools::comment_marks(&self.docs[self.active].language_name()).is_some();
-                    ui.add_enabled(known, egui::Checkbox::new(&mut self.find.code_only, crate::i18n::tr("Not in comments or strings")))
-                        .on_hover_text(crate::i18n::tr("Matches in the code alone count"))
-                        .on_disabled_hover_text(crate::i18n::tr("The comments of this file's language aren't known"));
+                if self.find.tab == FindTab::ReplaceInFiles {
+                    ui.checkbox(&mut self.find.keep_backups, crate::i18n::tr("Keep a .bak copy of each file changed on disk"));
                 }
-            }
-            if self.find.tab == FindTab::ReplaceInFiles {
-                ui.checkbox(&mut self.find.keep_backups, crate::i18n::tr("Keep a .bak copy of each file changed on disk"));
-            }
-            ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| match self.find.tab {
-                FindTab::Find => {
-                    next = ui.button(crate::i18n::tr("Find Next")).clicked() || entered;
-                    previous = ui.button(crate::i18n::tr("Find Previous")).clicked();
-                    list_lines = ui.add_enabled(!hex, Button::new(crate::i18n::tr("List lines"))).on_hover_text(crate::i18n::tr("Lists each line containing the find string, in the results below")).clicked();
-                }
-                FindTab::Replace => {
-                    next = ui.button(crate::i18n::tr("Find Next")).clicked() || entered;
-                    replace = ui.button(crate::i18n::tr("Replace")).clicked();
-                    replace_all = ui.button(crate::i18n::tr("Replace All")).clicked();
-                }
-                FindTab::InFiles => {
-                    in_files = ui.button(crate::i18n::tr("Find")).clicked() || entered;
-                }
-                FindTab::ReplaceInFiles => {
-                    preview = ui.button(crate::i18n::tr("Preview")).on_hover_text(crate::i18n::tr("Lists every match. Nothing changes until you go ahead from the results")).clicked() || entered;
+                ui.add_space(8.0);
+                ui.horizontal_wrapped(|ui| match self.find.tab {
+                    FindTab::Find => {
+                        next = ui.button(crate::i18n::tr("Find Next")).clicked() || entered;
+                        previous = ui.button(crate::i18n::tr("Find Previous")).clicked();
+                        list_lines = ui.add_enabled(!hex, Button::new(crate::i18n::tr("List lines"))).on_hover_text(crate::i18n::tr("Lists each line containing the find string, in the results below")).clicked();
+                    }
+                    FindTab::Replace => {
+                        next = ui.button(crate::i18n::tr("Find Next")).clicked() || entered;
+                        replace = ui.button(crate::i18n::tr("Replace")).clicked();
+                        replace_all = ui.button(crate::i18n::tr("Replace All")).clicked();
+                    }
+                    FindTab::InFiles => {
+                        in_files = ui.button(crate::i18n::tr("Find")).clicked() || entered;
+                    }
+                    FindTab::ReplaceInFiles => {
+                        preview = ui.button(crate::i18n::tr("Preview")).on_hover_text(crate::i18n::tr("Lists every match. Nothing changes until you go ahead from the results")).clicked() || entered;
+                    }
+                });
+                if !self.find.status.is_empty() {
+                    ui.add_space(6.0);
+                    ui.label(&self.find.status);
                 }
             });
-            if !self.find.status.is_empty() {
-                ui.add_space(6.0);
-                ui.label(&self.find.status);
-            }
         });
         if next {
             self.run_find(false);
@@ -7251,7 +7246,7 @@ impl Limoniter {
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             close = true;
         }
-        egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &mut self.dialog {
+        crate::fit::Dialog::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &mut self.dialog {
             Dialog::None => {}
             Dialog::GoTo { value, error } => {
                 ui.label(if hex { crate::i18n::tr("Offset (decimal, or 0x for hex):") } else { crate::i18n::tr("Line number:") });
@@ -7682,6 +7677,24 @@ impl Limoniter {
                     // A menu laid open, by its place along the bar ("5" is Tools); "5+" opens its sub-menus out too.
                     let (index, out) = value.strip_suffix('+').map_or((value, false), |v| (v, true));
                     self.shown_menu = index.parse().ok().map(|i| (i, out));
+                }
+                // Menus opened as a click opens them, by the names on them, a sub-menu after its menu ("File>New as>Amiga").
+                "open-menu" => {
+                    let names: Vec<String> = value.split('>').map(str::to_string).collect();
+                    if let Some(ctx) = self.waker.as_ref() {
+                        ctx.data_mut(|d| d.insert_temp(crate::fit::opened_menus_key(), names));
+                    }
+                }
+                // Any command, by its name in the menus ("Find in files", or with its menu, "Search › Find in files").
+                "command" => {
+                    let wanted = value.trim_end_matches('\u{2026}');
+                    let found = menus::every_command().into_iter().find(|found| {
+                        let path = found.path.trim_end_matches('\u{2026}');
+                        path.eq_ignore_ascii_case(wanted) || path.rsplit(" \u{203A} ").next().is_some_and(|name| name.eq_ignore_ascii_case(wanted))
+                    });
+                    if let Some(found) = found {
+                        self.pending_command = Some(found.command);
+                    }
                 }
                 // The window made another size, to see how it looks there ("1024x480").
                 "window-size" => {
@@ -8560,7 +8573,7 @@ impl Limoniter {
             // A right-click where nothing else takes it chooses what the status bar shows.
             let mut layout_changed = false;
             // Clicked, but not a stop for Tab: the whole bar taking the keyboard would keep Tab from going on past it.
-            status.response.interact(egui::Sense::CLICK).context_menu(|ui| layout_changed = self.status_layout.menu(ui));
+            crate::fit::context_menu(&status.response.interact(egui::Sense::CLICK), |ui| layout_changed = self.status_layout.menu(ui));
             if layout_changed {
                 self.save_settings_if_changed();
             }
@@ -9011,7 +9024,7 @@ fn recovery_root() -> Option<PathBuf> {
 
 /// The history and favourites menus beside the find box.
 fn find_lists(ui: &mut Ui, find: &mut FindState) {
-    ui.menu_button(crate::i18n::tr("Favourites"), |ui| {
+    crate::fit::menu_button(ui, crate::i18n::tr("Favourites"), |ui| {
         ui.set_min_width(220.0);
         if ui.add_enabled(!find.find.is_empty(), Button::new(crate::i18n::tr("Add this search")).frame_when_inactive(false)).clicked() {
             note_search(&mut find.favourites, &find.find.clone());
@@ -9034,7 +9047,7 @@ fn find_lists(ui: &mut Ui, find: &mut FindState) {
             find.favourites.remove(index);
         }
     });
-    ui.menu_button(crate::i18n::tr("History"), |ui| {
+    crate::fit::menu_button(ui, crate::i18n::tr("History"), |ui| {
         ui.set_min_width(220.0);
         if find.history.is_empty() {
             ui.label(RichText::new(crate::i18n::tr("Earlier searches will be listed here.")).color(theme::text_dim()));
@@ -9704,6 +9717,10 @@ impl Limoniter {
 #[cfg(test)]
 #[path = "file_tools_tests.rs"]
 mod file_tools_tests;
+
+#[cfg(test)]
+#[path = "fit_tests.rs"]
+mod fit_tests;
 
 #[path = "image_browser.rs"]
 mod image_browser;

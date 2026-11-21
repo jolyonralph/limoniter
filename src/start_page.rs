@@ -370,7 +370,7 @@ impl Limoniter {
                         }
                     }
                 }
-                let more = ui.menu_button(RichText::new(crate::i18n::tr("Every kind\u{2026}")).color(theme::accent()), |ui| {
+                let more = crate::fit::menu_button(ui, RichText::new(crate::i18n::tr("Every kind\u{2026}")).color(theme::accent()), |ui| {
                     if let Some(command) = self.drop_down_list(ui, &[menus::Entry::Live("New as", menus::Live::NewAs)]) {
                         *asked = Some(Asked::Command(command));
                     }

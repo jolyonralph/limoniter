@@ -48,11 +48,11 @@ impl Limoniter {
         let (mut remove, mut save_out, mut renamed) = (None, None, None);
         let files = state.disk.files();
         let free = (0..state.disk.sector_count()).filter(|l| state.disk.is_free(*l)).count();
-        egui::Window::new(crate::i18n::tr("Dragon DOS disk")).collapsible(false).resizable(true).default_width(520.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Dragon DOS disk")).collapsible(false).resizable(true).default_width(520.0).show(ctx, |ui| {
             let name = state.path.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| crate::i18n::tr("A new disk").to_string());
             ui.label(RichText::new(crate::i18n::tf!("{name}: {} tracks, {} sides, {} KB free", state.disk.tracks, state.disk.sides, free * crate::dragon_dos::SECTOR / 1024)).strong());
             ui.horizontal_wrapped(|ui| {
-                ui.menu_button(crate::i18n::tr("New disk"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("New disk"), |ui| {
                     for (tracks, sides, words) in [(40, 1, "40 tracks, one side (180K)"), (40, 2, "40 tracks, two sides (360K)"), (80, 1, "80 tracks, one side (360K)"), (80, 2, "80 tracks, two sides (720K)")] {
                         if ui.button(crate::i18n::tr(words)).clicked() {
                             fresh = Some((tracks, sides));

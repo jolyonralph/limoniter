@@ -436,7 +436,7 @@ impl Converter {
                 *asked = Some(Asked::SaveScreen);
             }
             if c.screen != Screen::FalconTrue {
-                ui.menu_button(crate::i18n::tr("Palette"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("Palette"), |ui| {
                     for (label, kind) in [("Raw words\u{2026}", PaletteKind::Raw), ("Assembler (dc.w)\u{2026}", PaletteKind::Asm), ("C array\u{2026}", PaletteKind::C)] {
                         if ui.button(crate::i18n::tr(label)).clicked() {
                             *asked = Some(Asked::SavePalette(kind));

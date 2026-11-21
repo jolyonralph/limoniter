@@ -476,7 +476,7 @@ pub(super) const C64: &[Entry] = &[
             Item("Raster line calculator", Command::C64RasterLines),
             Item("Raster interrupts (stable, chained)", Command::C64RasterIrqs),
             Item("SID music and packers\u{2026}", Command::C64Tools),
-            Check("Cycle counts beside 6502, Z80 and 6809 code", Flag::CycleCounts),
+            Check("Cycle counts beside 6502, Z80, 6809 and 68000 code", Flag::CycleCounts),
         ];
 
 pub(super) const DRAGON: &[Entry] = &[Item("Dragon DOS disk\u{2026}", Command::DragonDisk)];
@@ -1331,7 +1331,7 @@ impl Limoniter {
                     ui.add(Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(crate::i18n::tr("\u{203A}")).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
                 }
                 Sub(label, inner) => {
-                    ui.menu_button(crate::i18n::tr(label), |ui| {
+                    crate::fit::menu_button(ui, crate::i18n::tr(label), |ui| {
                         ui.set_min_width(MENU_WIDTH);
                         self.draw_entries(ui, inner, false, chosen, picks);
                     });
@@ -1341,7 +1341,7 @@ impl Limoniter {
                     ui.add(Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(crate::i18n::tr("\u{203A}")).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
                 }
                 Entry::Live(label, live) => {
-                    ui.menu_button(crate::i18n::tr(label), |ui| {
+                    crate::fit::menu_button(ui, crate::i18n::tr(label), |ui| {
                         ui.set_min_width(MENU_WIDTH);
                         self.live_entries(ui, *live, label, chosen, picks);
                     });
@@ -1417,7 +1417,7 @@ impl Limoniter {
                     if members.is_empty() {
                         continue;
                     }
-                    ui.menu_button(crate::i18n::tr(group), |ui| {
+                    crate::fit::menu_button(ui, crate::i18n::tr(group), |ui| {
                         for index in members {
                             let kind = &self.new_kinds[index];
                             let ending = if kind.ending.is_empty() { String::new() } else { format!(".{}", kind.ending) };
@@ -1685,7 +1685,7 @@ impl Limoniter {
                 self.ribbon_tab_bar(ui, &mut chosen);
             } else {
                 for (number, (title, entries)) in MENUS.iter().enumerate() {
-                    let menu = ui.menu_button(crate::i18n::tr(title), |ui| {
+                    let menu = crate::fit::menu_button(ui, crate::i18n::tr(title), |ui| {
                         ui.set_min_width(MENU_WIDTH);
                         self.draw_entries(ui, entries, false, &mut chosen, &mut picks);
                     });
@@ -1715,7 +1715,7 @@ impl Limoniter {
                     ui.style_mut().visuals.button_frame = false;
                     ui.set_min_width(MENU_WIDTH);
                     self.drawing_open = true;
-                    self.draw_entries(ui, entries, opened_out, &mut chosen, &mut picks);
+                    crate::fit::menu_body(ui, |ui| self.draw_entries(ui, entries, opened_out, &mut chosen, &mut picks));
                     self.drawing_open = false;
                 });
             });
@@ -1756,7 +1756,7 @@ impl Limoniter {
         let mut run = None;
         // As wide as it was last left: its right and left edges drag to widen it.
         let width = self.palette_width.clamp(MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH);
-        let shown = egui::Window::new(crate::i18n::tr("Find a command")).title_bar(false).collapsible(false).resizable([true, false]).default_width(width).min_width(MIN_PALETTE_WIDTH).max_width(MAX_PALETTE_WIDTH).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
+        let shown = crate::fit::Dialog::new(crate::i18n::tr("Find a command")).title_bar(false).collapsible(false).resizable([true, false]).default_width(width).min_width(MIN_PALETTE_WIDTH).max_width(MAX_PALETTE_WIDTH).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
             let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("Type what you want to do, such as \u{201C}sort\u{201D} or \u{201C}wrap\u{201D}")).desired_width(f32::INFINITY).margin(egui::vec2(10.0, 8.0)).font(egui::FontId::proportional(16.0)));
             if state.focus {
                 field.request_focus();

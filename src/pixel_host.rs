@@ -41,7 +41,7 @@ impl Limoniter {
         let spectrum_basic = !self.no_file() && self.docs[self.active].text.zx.is_some();
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr("Characters and sprites")).open(&mut open).resizable(false).default_pos([200.0, 120.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Characters and sprites")).open(&mut open).resizable(false).default_pos([200.0, 120.0]).show(ctx, |ui| {
             asked = editor.draw(ui, spectrum_basic);
         });
         if !open {
@@ -125,7 +125,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr("Spectrum screen")).open(&mut open).resizable(false).default_pos([160.0, 80.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Spectrum screen")).open(&mut open).resizable(false).default_pos([160.0, 80.0]).show(ctx, |ui| {
             asked = designer.draw(ui);
         });
         if !open {

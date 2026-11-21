@@ -349,6 +349,7 @@ ${} is too large a number
 6510 port (memory setup)
 6581 or 8580
 68000 source
+68000 source is for
 68000: dc.b, dc.w, dc.l
 6809 assembler
 6809: fcb, fdb
@@ -1133,6 +1134,7 @@ BIN
 BIN 01010101: a number written in binary.
 BIOS
 BITS is 16 or 32 for the 8086 to the 386, not {other}
+BKPT takes 0 to 7, and {n} isn't
 BLTCON0
 BLTCON0 ${con0:04X}    BLTCON1 ${con1:04X}
 BLTCON0 and BLTCON1
@@ -1319,6 +1321,7 @@ C64 raster interrupts
 C64 raster lines
 C64 sprites
 C64 sprites (24×21)
+CALLM passes 0 to 255 bytes of arguments, and {n} isn't
 CAPS SHIFT
 CARGO_PKG_VERSION
 CAST
@@ -1355,6 +1358,7 @@ CP/M text
 CP437 with ANSI.SYS colour and cursor sequences, as BBS art was made. The preview draws it, using the SAUCE record if there is one.
 CPU {other} isn't one Limoniter's ARM assembler knows: ARM2 or ARM3
 CPU {other} isn't one Limoniter's x86 assembler knows: 8086, 186, 286, 386, 486, 586 (Pentium), 686 (Pentium Pro) or ANY
+CPU32
 CR
 CR LF
 CR only
@@ -1904,7 +1908,7 @@ Cut
 Cut columns…
 Cut from line {}
 Cut the bookmarked lines
-Cycle counts beside 6502, Z80 and 6809 code
+Cycle counts beside 6502, Z80, 6809 and 68000 code
 Cycle {}: {what}
 Cycle-exact
 Cycles
@@ -3353,6 +3357,7 @@ Low resolution, on the new screen, from the next frame.
 Lower case
 Lua
 Lua table
+MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060 or CPU32, and {name} isn't one
 MAME. It sets up the VDP (the video chip), draws a box of tiles whose colour changes as it runs, and has the Z80
 MD001: a heading of level {hashes} straight after one of level {last_level}; headings go down one level at a time
 MD009: spaces at the end of the line (two make a line break; others do nothing)
@@ -3386,6 +3391,8 @@ MOVE ${value:04X} to ${register:03X} (no register there)
 MOVE ${value:04X} to {}{danger}
 MOVE (set when the program runs) to {name}
 MOVE, not CLR: on a 68000, CLR reads the port first
+MOVEC copies a control register ({}) to or from a data or address register
+MOVEC takes two operands: a control register and a data or address register
 MOVEQ takes -128 to 127, and {v} isn't
 MSX
 MSX BASIC
@@ -3480,6 +3487,7 @@ Memory banks
 Memory for the picture: 200 lines of 320 bytes (the address no longer needs to be a multiple of 256
 Memory for the screen: 32000 bytes, starting on a multiple of 256 as the ST's video needs.
 Memory from 16384
+Memory indirect addressing, {text},
 Memory, cache and bus
 Memory:
 Memory: {} bytes of the program, {} bytes still free{gap}.
@@ -5309,6 +5317,7 @@ TRS-80 {dos} disk{named} ({cylinders} cylinders, {density}{sides})
 TR{n} isn't a register
 TSCrunch
 TSCrunch's self-unpacking programs start at an address, not with RUN: choose one.
+TST.B can't take an address register: only .W and .L can
 TT
 TT (68030, 32 MHz)
 TT colour {}: {} red {r}, green {g}, blue {b}
@@ -5584,6 +5593,7 @@ The Z80's program (its source is in Limoniter's tests): a note on the sound chip
 The ZX81's ROM is 8K.
 The active display profile
 The address the file puts the table at
+The address {text}
 The answer about the latest release wasn't what was expected.
 The archive ended before that file.
 The archive ends before this file's packed data does, so it's damaged or cut short.
@@ -5701,6 +5711,7 @@ The connection failed: {e}
 The connection to the Next was lost.\n\n{e}
 The console's Game Reset switch, held while the button is (or Enter, while the screen has the keyboard)
 The console's Game Select switch, held while the button is (or Backspace, while the screen has the keyboard)
+The control register {upper} is the {}'s, and this is for the {cpu_name}
 The copper list and the empty sprite, in chip memory, where the chips can read them.
 The copper stops on line ${line:03X}.
 The counts only…
@@ -6041,6 +6052,7 @@ The port's name, typed: a pseudo-terminal or a port not listed
 The printer system said: {}
 The printer system wouldn't take the pages.
 The printer wouldn't start the document.
+The processor Limoniter's own assembler takes 68000 source to be for, and its cycle counts are for: the 68008 is the Sinclair QL's, the 68020 the A1200's, the 68030 the A4000/030's and the Falcon's. MACHINE 68020 (or MC68020, CPU32, OPT P=68020) in the source chooses for that file
 The profile couldn't be read: {e}
 The profile {path} couldn't be read: {e}
 The program a project opens with, such as SYS:Utilities/MultiView
@@ -6108,6 +6120,7 @@ The same colours as VsetRGB takes them: $00RRGGBB.
 The same everywhere
 The same seed always gives the same table
 The saved comparisons couldn't be kept in {}.\n\n{e}
+The scaled index in {text}
 The schema isn't JSON that can be read: {e}
 The schema's $ref {reference} can't be found; only references within the schema are followed.
 The schema's pattern {pattern} isn't one that can be read.
@@ -7022,6 +7035,8 @@ Where to put the samples
 Where to put what's made
 Whether it's a light theme or a dark one
 Whether the boot block loads it: leave data your program loads itself unticked
+Which 680x0
+Which 680x0 the code is for: a 68010's, 68020's or 68030's own instructions and addresses are read only for one that has them (an A1200's or A4000's program, say), and the source starts with MACHINE
 Which documents get which theme
 Which machine is it for?
 Which machine is this C for? Put a line such as // machine: c64 near its top (c64, c128, vic20, plus4, pet, spectrum, sms, gamegear, coleco, megadrive, amiga or atari2600), or include the machine's own header, and F9 compiles it with the compiler installed for it.
@@ -7217,6 +7232,7 @@ a bank was already stored (store the copper code first)
 a bank was already stored (store the screen first)
 a binary number is missing its digits
 a binary number is too long
+a bit field's offset is 0 to 31 and its width 1 to 32, and {v} doesn't fit
 a bit is 0 to 7, not {value}
 a black border
 a block of {}×{}
@@ -7261,6 +7277,7 @@ a value is missing
 a whole character: move the row along one
 aaa
 aas
+about-demo-logo
 about-logo
 after line {} of {}
 after this
@@ -7309,6 +7326,7 @@ and the pixels within the word
 and the system's own copper list
 and their colours
 and their volumes down
+andi
 another program changed it while it was being read
 apple-ii
 apple2
@@ -7513,6 +7531,8 @@ divide
 divide by {}: {rate:.3} Hz ({error:+.3}%)
 division by 0
 division by zero
+divsl
+divul
 doesn't switch banks the {} way yet: run it in Stella or MAME.
 done: clear Timer B's in-service bit
 dos-us
@@ -7531,6 +7551,7 @@ echo "Pin test passed." >&2 ;;
 editors of its own
 end of the list
 entry in the colour table is changed every eight frames.
+eori
 event count mode (Timer B: one a display line; Timer A: the parallel port's busy line)
 event count mode: every {} lines
 event count mode: it counts display lines
@@ -7788,6 +7809,7 @@ lower case
 lower_case
 lua
 lz4_fastest.asm, faster and bigger), from the same place.
+m68k_processor
 mac-roman
 macOS couldn't move it to the Trash.
 macOS's file manager couldn't be reached.
@@ -7917,6 +7939,7 @@ open_tables
 opticos_updates
 or 1
 or click beside a line's number for a breakpoint
+ori
 out of reset, or the bus is never handed over
 outdent
 output
@@ -8223,6 +8246,7 @@ the custom chips, kept in a5
 the destination only
 the disk boots
 the disk boots and runs the code after the header, with A1 pointing at trackdisk.device's IORequest and A6
+the displacement {v} doesn't fit in 16 bits
 the display on, with the frame interrupt
 the display on, with the vertical blank interrupt
 the display window
@@ -8288,6 +8312,7 @@ the next plane
 the noise's next bit, into carry
 the noise's shift register
 the odd
+the offset from PC {offset} doesn't fit in 16 bits (-32768 to 32767)
 the offset {d} doesn't fit in 8 bits (-128 to 127)
 the offset {value} is out of reach (-128 to 127)
 the other file
@@ -8354,7 +8379,7 @@ their
 them
 them never takes a cycle more.
 theme
-theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
 then back to no scroll, and the frame's work
 then echo "Code memory section is blank." >&2; else
 then echo "No programmer found." >&2; exit 1; fi
@@ -8552,7 +8577,6 @@ zx_notation
 {at} is under {}: it can't be loaded or run there as it is.
 {at} is under {}: it loads into the RAM beneath, but only runs there with the ROM switched out ($01).
 {bad} of {name}'s blocks fail their checksums, so some of its bytes are wrong.
-{base} isn't an address register
 {beyond} sector(s) on tracks past the 80th aren't part of an ADF and are left out.
 {bits}-bit x86 code, {} bytes at {origin:#X}
 {chip}: {size} bytes
@@ -8783,7 +8807,7 @@ zx_notation
 {n} matches:
 {operands} is too far away for a branch
 {operands} is {offset} bytes away, out of a short branch's reach; use L{upper}
-{operands} is {offset} bytes away, out of a short branch's reach; use {}.W
+{operands} is {offset} bytes away, out of a short branch's reach; use {bare}.W
 {option} isn't an option Limoniter knows.
 {op} isn't a {} instruction or a directive
 {op} isn't an operator
@@ -8871,6 +8895,7 @@ zx_notation
 {text}\n\nYour changes are saved on this computer. File, Save to a server can send them once it can connect.
 {text} cycles
 {text} cycles in native mode
+{text} cycles on the 68008
 {text} is {offset} bytes away, out of JR's reach (-128 to 127); use JP
 {text} is {offset} bytes away, out of a branch's reach (-128 to 127)
 {text} is {offset} bytes away, out of a branch's reach (-128 to 127); branch round a JMP
@@ -8886,8 +8911,9 @@ zx_notation
 {text} isn't a coprocessor (P0 to P15)
 {text} isn't a coprocessor's register (C0 to C15)
 {text} isn't a number
-{text} isn't an address the 68000 has
+{text} isn't an address the 680x0 has
 {text} isn't closed with ]
+{text} needs a bit field after it, such as {{0:8}} or {{d1:d2}}
 {times} is too many times to repeat
 {title} couldn't read back what it wrote.\n\n{e}
 {title} finished: {matches} in {files}
@@ -8903,10 +8929,12 @@ zx_notation
 {upper} can't take {operands}
 {upper} can't take {}
 {upper} can't take {} operands
-{upper} can't use {} on a 68000: a PC-relative operand here is the 68020's
+{upper} can't use {last_text} on the {cpu_name}: that's the 68020's (MACHINE 68020 chooses one)
+{upper} can't write to {last_text}
 {upper} can't write to {}
-{upper} is a 68020 instruction: the 68000 has only {}.W
+{upper} is a 68020 instruction: the {only} has only {}.W (MACHINE 68020 chooses a 68020)
 {upper} is the 6309's, not the 6809's; PRAGMA 6309 takes the 6309's instructions
+{upper} needs an address with a bit field
 {upper} needs an operand
 {upper} shifts 1 to 8 places at once, and {n} isn't
 {upper} takes # and a value
@@ -8917,7 +8945,7 @@ zx_notation
 {upper} takes two registers
 {upper} takes two registers, as {upper} A,B
 {upper} works on CC, A or B
-{upper} {operands} isn't a 68000 instruction
+{upper} {operands} isn't a {cpu_name} instruction
 {upper} {text} needs an address in zero page ($00 to $FF)
 {upper}'s bit is 0 to 7, and this is {n}
 {upper}'s bit is in the first 8K ($0000 to $1FFF), bits 0 to 7
@@ -8932,6 +8960,10 @@ zx_notation
 {wanted} isn't one of the picture's files
 {what} first: a file this large switches between text and hex by reading it again from disk.
 {what} is a NEX V1.3 feature, and OPEN asked for V1.2
+{what} is only the 68020's (the 68030 and later haven't got it), and this is for the {name}: MACHINE 68020 chooses it
+{what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another
+{what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another
+{what} needs a 68020 or later: the CPU32 hasn't got it
 {what} {v} doesn't fit in 16 bits
 {what} {} is {v}, which doesn't fit in a byte
 {what}, in the background…
@@ -8946,7 +8978,6 @@ zx_notation
 {w} words ({pixels} pixels)
 {w}×{h}, {what}, average difference {error:.3} (Oklab){}
 {w}×{h}, {} values used, average difference {:.3} (Oklab){}
-{x} isn't an index register
 {x}, {y} in its window
 {{{inside}}} isn't a byte
 {{{inside}}} isn't a code this knows

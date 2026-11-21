@@ -416,7 +416,7 @@ impl Limoniter {
         let way = self.running.compiled.zxbc_way.clone().unwrap_or(boriel_get::Way::Page);
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut install = false;
-        egui::Window::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.set_max_width(520.0);
             ui.label(body.as_str());
             ui.add_space(6.0);
@@ -459,43 +459,47 @@ impl Limoniter {
         let way = self.running.compiled.zxbc_way.clone().unwrap_or(boriel_get::Way::Page);
         let mut install = false;
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
-        egui::Window::new(crate::i18n::tr("Compilers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.set_max_width(560.0);
-            ui.label(crate::i18n::tr("Boriel's ZX Basic and C for the older machines are compiled when they're run (F9), with the first compiler installed for their machine, and the program made is run there. C says its machine with a line such as // machine: c64 near its top (or by the machine's own header), and may ask for a compiler with // compiler: llvm-mos."));
-            ui.add_space(6.0);
-            egui::Grid::new("compilers-found").num_columns(3).spacing([12.0, 6.0]).show(ui, |ui| {
-                for (compiler, path) in found {
-                    ui.strong(compiler.name);
-                    let machines: Vec<&str> = compiler.machines.iter().map(|m| m.name()).collect();
-                    ui.label(RichText::new(machines.join(", ")).color(theme::text_dim()).size(12.0));
-                    match path {
-                        Some(path) => {
-                            ui.label(path.display().to_string());
-                        }
-                        // Boriel's ZX Basic, Limoniter can install itself.
-                        None if compiler.toolchain == Toolchain::Zxbc && installing => {
-                            ui.horizontal(|ui| {
-                                ui.spinner();
-                                ui.label(crate::i18n::tr("Installing\u{2026}"));
-                            });
-                        }
-                        None if compiler.toolchain == Toolchain::Zxbc && way != boriel_get::Way::Page => {
-                            ui.horizontal(|ui| {
-                                install = ui.button(crate::i18n::tr("Install Boriel ZX Basic")).on_hover_text(boriel_get::explain(&way)).clicked();
+        crate::fit::Dialog::new(crate::i18n::tr("Compilers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.set_max_width(560.0);
+                ui.label(crate::i18n::tr("Boriel's ZX Basic and C for the older machines are compiled when they're run (F9), with the first compiler installed for their machine, and the program made is run there. C says its machine with a line such as // machine: c64 near its top (or by the machine's own header), and may ask for a compiler with // compiler: llvm-mos."));
+                ui.add_space(6.0);
+                egui::Grid::new("compilers-found").num_columns(3).spacing([12.0, 6.0]).show(ui, |ui| {
+                    for (compiler, path) in found {
+                        ui.strong(compiler.name);
+                        let machines: Vec<&str> = compiler.machines.iter().map(|m| m.name()).collect();
+                        ui.label(RichText::new(machines.join(", ")).color(theme::text_dim()).size(12.0));
+                        match path {
+                            Some(path) => {
+                                ui.label(path.display().to_string());
+                            }
+                            // Boriel's ZX Basic, Limoniter can install itself.
+                            None if compiler.toolchain == Toolchain::Zxbc && installing => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label(crate::i18n::tr("Installing\u{2026}"));
+                                });
+                            }
+                            None if compiler.toolchain == Toolchain::Zxbc && way != boriel_get::Way::Page => {
+                                ui.horizontal(|ui| {
+                                    install = ui.button(crate::i18n::tr("Install Boriel ZX Basic")).on_hover_text(boriel_get::explain(&way)).clicked();
+                                    ui.hyperlink_to(crate::i18n::tr("Not found: get it"), compiler.website).on_hover_text(compiler.website);
+                                });
+                            }
+                            None => {
                                 ui.hyperlink_to(crate::i18n::tr("Not found: get it"), compiler.website).on_hover_text(compiler.website);
-                            });
+                            }
                         }
-                        None => {
-                            ui.hyperlink_to(crate::i18n::tr("Not found: get it"), compiler.website).on_hover_text(compiler.website);
-                        }
+                        ui.end_row();
                     }
-                    ui.end_row();
-                }
-            });
-            ui.add_space(6.0);
-            ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Each is looked for on the PATH, in the folder its own variable names (CC65_HOME, Z88DK, GDK, VBCC), where its installer puts it, and in a folder named for it in Program Files, Downloads or on the Desktop.")).color(theme::text_dim()).size(12.0)).wrap());
-            ui.add_space(6.0);
-            close |= ui.button(crate::i18n::tr("OK")).clicked();
+                });
+                ui.add_space(6.0);
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Each is looked for on the PATH, in the folder its own variable names (CC65_HOME, Z88DK, GDK, VBCC), where its installer puts it, and in a folder named for it in Program Files, Downloads or on the Desktop.")).color(theme::text_dim()).size(12.0)).wrap());
+            }
+            crate::fit::Part::Buttons => {
+                ui.add_space(6.0);
+                close |= ui.button(crate::i18n::tr("OK")).clicked();
+            }
         });
         if install {
             self.install_zxbc();

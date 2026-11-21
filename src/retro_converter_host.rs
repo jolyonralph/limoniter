@@ -45,7 +45,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_pos([180.0, 90.0]).default_width(900.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_pos([180.0, 90.0]).default_width(900.0).show(ctx, |ui| {
             asked = converter.draw(ui);
         });
         if !open {

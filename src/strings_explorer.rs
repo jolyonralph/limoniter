@@ -536,7 +536,7 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, doc: &DocView<'_>, actions: &m
                 state.selected = Some(index);
                 actions.push(Action::SelectBytes { start: f.start, end: f.end });
             }
-            response.context_menu(|ui| {
+            crate::fit::context_menu(&response, |ui| {
                 if ui.button(crate::i18n::tr("Copy the text")).clicked() {
                     actions.push(Action::CopyText(f.text.clone()));
                     ui.close();

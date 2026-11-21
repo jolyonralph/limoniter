@@ -43,50 +43,54 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut make = false;
-        egui::Window::new(crate::i18n::tr("New Amiga C project")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.set_max_width(560.0);
-            ui.label(crate::i18n::tr("A folder with the program's C, its makefiles for amiga-gcc (Makefile.gcc), vbcc (Makefile.vbcc) and SAS/C (smakefile), and an icon for a Workbench program. Limoniter keeps the makefiles' lists of files up to date as files are added and taken away, and F9 builds and runs it."));
-            ui.add_space(6.0);
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(250.0);
-                    for (index, template) in amiga::TEMPLATES.iter().enumerate() {
-                        ui.radio_value(&mut state.template, index, crate::i18n::tr(template.name));
-                    }
+        crate::fit::Dialog::new(crate::i18n::tr("New Amiga C project")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.set_max_width(560.0);
+                ui.label(crate::i18n::tr("A folder with the program's C, its makefiles for amiga-gcc (Makefile.gcc), vbcc (Makefile.vbcc) and SAS/C (smakefile), and an icon for a Workbench program. Limoniter keeps the makefiles' lists of files up to date as files are added and taken away, and F9 builds and runs it."));
+                ui.add_space(6.0);
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(250.0);
+                        for (index, template) in amiga::TEMPLATES.iter().enumerate() {
+                            ui.radio_value(&mut state.template, index, crate::i18n::tr(template.name));
+                        }
+                    });
+                    ui.add_space(8.0);
+                    ui.vertical(|ui| {
+                        ui.set_width(280.0);
+                        ui.label(RichText::new(crate::i18n::tr(amiga::TEMPLATES[state.template].about)).color(theme::text_dim()));
+                    });
                 });
                 ui.add_space(8.0);
-                ui.vertical(|ui| {
-                    ui.set_width(280.0);
-                    ui.label(RichText::new(crate::i18n::tr(amiga::TEMPLATES[state.template].about)).color(theme::text_dim()));
+                egui::Grid::new("amiga-project").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                    ui.label(crate::i18n::tr("Program's name"));
+                    ui.text_edit_singleline(&mut state.name);
+                    ui.end_row();
+                    ui.label(crate::i18n::tr("Make it in"));
+                    ui.horizontal(|ui| {
+                        let shown = state.folder.as_ref().map_or_else(|| crate::i18n::tr("(choose a folder)").to_string(), |f| f.join(&state.name).display().to_string());
+                        ui.label(shown);
+                        if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked()
+                            && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("The folder to make the project in")).pick_folder()
+                        {
+                            state.folder = Some(folder);
+                        }
+                    });
+                    ui.end_row();
                 });
-            });
-            ui.add_space(8.0);
-            egui::Grid::new("amiga-project").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                ui.label(crate::i18n::tr("Program's name"));
-                ui.text_edit_singleline(&mut state.name);
-                ui.end_row();
-                ui.label(crate::i18n::tr("Make it in"));
-                ui.horizontal(|ui| {
-                    let shown = state.folder.as_ref().map_or_else(|| crate::i18n::tr("(choose a folder)").to_string(), |f| f.join(&state.name).display().to_string());
-                    ui.label(shown);
-                    if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked()
-                        && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("The folder to make the project in")).pick_folder()
-                    {
-                        state.folder = Some(folder);
-                    }
-                });
-                ui.end_row();
-            });
-            if let Some(problem) = amiga::name_problem(&state.name) {
-                ui.colored_label(theme::change_unsaved(), problem);
-            } else if !state.problem.is_empty() {
-                ui.colored_label(theme::change_unsaved(), &state.problem);
             }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                make = ui.add_enabled(state.folder.is_some() && amiga::name_problem(&state.name).is_none(), egui::Button::new(crate::i18n::tr("Make the project"))).clicked();
-                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
-            });
+            crate::fit::Part::Buttons => {
+                if let Some(problem) = amiga::name_problem(&state.name) {
+                    ui.colored_label(theme::change_unsaved(), problem);
+                } else if !state.problem.is_empty() {
+                    ui.colored_label(theme::change_unsaved(), &state.problem);
+                }
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    make = ui.add_enabled(state.folder.is_some() && amiga::name_problem(&state.name).is_none(), egui::Button::new(crate::i18n::tr("Make the project"))).clicked();
+                    close |= ui.button(crate::i18n::tr("Cancel")).clicked();
+                });
+            }
         });
         if make {
             let (template, name, folder) = (amiga::TEMPLATES[state.template], state.name.clone(), state.folder.clone().unwrap_or_default());

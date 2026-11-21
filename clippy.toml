@@ -1,0 +1,7 @@
+# Boxes and menus are made through src/fit.rs, which keeps them on the screen and scrolls what doesn't fit there.
+disallowed-methods = [
+    { path = "egui::Window::new", reason = "make a box with crate::fit::Dialog::new, which keeps it on the screen" },
+    { path = "egui::Ui::menu_button", reason = "use crate::fit::menu_button, whose menu scrolls when it's too long" },
+    { path = "egui::Response::context_menu", reason = "use crate::fit::context_menu, which scrolls when it's too long" },
+    { path = "egui::Popup::show", reason = "use crate::fit::popup, which scrolls when it's too long" },
+]

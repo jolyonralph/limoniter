@@ -146,7 +146,7 @@ impl Limoniter {
         let Some(peek) = &self.peek else { return };
         let (mut close, mut open) = (ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)), false);
         let title = format!("{} \u{2014} {}:{}", peek.name, peek.file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), peek.line + 1);
-        egui::Window::new(title).id(egui::Id::unique("peek-definition")).collapsible(false).resizable(true).default_width(640.0).anchor(egui::Align2::CENTER_TOP, [0.0, 120.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(title).id(egui::Id::unique("peek-definition")).collapsible(false).resizable(true).default_width(640.0).anchor(egui::Align2::CENTER_TOP, [0.0, 120.0]).show(ctx, |ui| {
             let font = egui::FontId::monospace(self.view.font_size * 0.9);
             egui::ScrollArea::both().max_height(320.0).show(ui, |ui| {
                 for (n, text) in peek.lines.iter().enumerate() {
@@ -252,7 +252,7 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go = false;
-        egui::Window::new(crate::i18n::tr("Rename")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Rename")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tf!("Rename {} everywhere it's defined and used, in every file the source includes:", state.written));
             let field = ui.text_edit_singleline(&mut state.new);
             field.request_focus();

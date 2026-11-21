@@ -1548,7 +1548,7 @@ mod tests {
             for chosen in [Some(Chosen::Bar(0)), Some(Chosen::Split(0)), None] {
                 designer.chosen = chosen;
                 let _ = ctx.run_ui(Default::default(), |ui| {
-                    egui::Window::new("t").show(ui.ctx(), |ui| designer.draw(ui));
+                    crate::fit::Dialog::new("t").show(ui.ctx(), |ui| designer.draw(ui));
                 });
             }
         }

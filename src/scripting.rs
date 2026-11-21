@@ -772,7 +772,7 @@ pub fn panel(ui: &mut Ui, kind: Kind, state: &mut PanelState, library: &Library,
                 actions.push(LibraryAction::PlayTimes(path.clone()));
             }
             let held = library.key_of(&path);
-            ui.menu_button(held.map_or_else(|| "Key".to_string(), |digit| format!("Ctrl+Alt+{digit}")), |ui| {
+            crate::fit::menu_button(ui, held.map_or_else(|| "Key".to_string(), |digit| format!("Ctrl+Alt+{digit}")), |ui| {
                 if ui.button(crate::i18n::tr("No key")).clicked() {
                     actions.push(LibraryAction::SetKey(path.clone(), None));
                     ui.close();

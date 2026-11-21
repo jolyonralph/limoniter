@@ -153,7 +153,7 @@ impl Limoniter {
         let ultimates: Vec<String> = self.sends.devices.iter().filter_map(|d| if let crate::deploy::Place::Ultimate { host } = &d.place { Some(host.clone()) } else { None }).collect();
         let mut asked = Vec::new();
         let mut open = true;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_size([820.0, 560.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_size([820.0, 560.0]).show(ctx, |ui| {
             draw_serial(ui, &mut window, &mut prefs, &ultimates, &mut asked);
         });
         for asked in asked {
@@ -316,7 +316,7 @@ fn draw_connection(ui: &mut Ui, window: &mut SerialWindow, prefs: &mut link::Pre
                 ui.label(crate::i18n::tr("Port"));
                 ui.add(egui::DragValue::new(&mut prefs.tcp_port).range(1..=65535));
                 ui.checkbox(&mut prefs.telnet, crate::i18n::tr("Telnet")).on_hover_text(crate::i18n::tr("Answer telnet's questions and keep them out of what's shown: for telnet servers and BBSes, not for a plain socket"));
-                ui.menu_button(crate::i18n::tr("Ultimate 64\u{2026}"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("Ultimate 64\u{2026}"), |ui| {
                     ui.label(crate::i18n::tr("The Ultimate 64 and Ultimate II+ take connections on the network: its modem (as a C64 terminal program sees it) on the port set in its Modem settings, 6400 unless changed; and its own menu over telnet, on port 23, once Telnet is turned on in its network settings."));
                     let hosts: Vec<String> = if ultimates.is_empty() { vec![prefs.host.clone()] } else { ultimates.to_vec() };
                     for host in hosts.iter().filter(|h| !h.trim().is_empty()) {

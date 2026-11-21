@@ -9402,3 +9402,43 @@ vbcc: clean	vbcc: pulisci
 … and more: type more of the name to see them.	… e altro: digitare più del nome per vederli.
 ← Back	← Indietro
 # limoniter-end	# limoniter-end
+about-demo-logo	about-demo-logo
+68000 source is for	Il sorgente 68000 è per
+BKPT takes 0 to 7, and {n} isn't	BKPT accetta da 0 a 7, e {n} non lo è
+CALLM passes 0 to 255 bytes of arguments, and {n} isn't	CALLM passa da 0 a 255 byte di argomenti, e {n} non lo è
+CPU32	CPU32
+Cycle counts beside 6502, Z80, 6809 and 68000 code	Cicli accanto al codice 6502, Z80, 6809 e 68000
+MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060 or CPU32, and {name} isn't one	MACHINE accetta 68000, 68008, 68010, 68020, 68030, 68040, 68060 o CPU32, e {name} non è tra questi
+MOVEC copies a control register ({}) to or from a data or address register	MOVEC copia un registro di controllo ({}) verso o da un registro dati o indirizzi
+MOVEC takes two operands: a control register and a data or address register	MOVEC accetta due operandi: un registro di controllo e un registro dati o indirizzi
+Memory indirect addressing, {text},	L'indirizzamento indiretto in memoria, {text},
+TST.B can't take an address register: only .W and .L can	TST.B non accetta un registro indirizzi: solo .W e .L
+The address {text}	L'indirizzo {text}
+The control register {upper} is the {}'s, and this is for the {cpu_name}	Il registro di controllo {upper} è del {}, e questo è per il {cpu_name}
+The processor Limoniter's own assembler takes 68000 source to be for, and its cycle counts are for: the 68008 is the Sinclair QL's, the 68020 the A1200's, the 68030 the A4000/030's and the Falcon's. MACHINE 68020 (or MC68020, CPU32, OPT P=68020) in the source chooses for that file	Il processore per cui l'assembler di Limoniter considera il sorgente 68000, e a cui si riferiscono i suoi cicli: il 68008 è quello del Sinclair QL, il 68020 quello dell'A1200, il 68030 quello dell'A4000/030 e del Falcon. MACHINE 68020 (o MC68020, CPU32, OPT P=68020) nel sorgente sceglie per quel file
+The scaled index in {text}	L'indice scalato in {text}
+Which 680x0	Quale 680x0
+Which 680x0 the code is for: a 68010's, 68020's or 68030's own instructions and addresses are read only for one that has them (an A1200's or A4000's program, say), and the source starts with MACHINE	Per quale 680x0 è il codice: le istruzioni e gli indirizzi propri di un 68010, 68020 o 68030 vengono letti solo per uno che li ha (un programma per A1200 o A4000, per esempio), e il sorgente inizia con MACHINE
+a bit field's offset is 0 to 31 and its width 1 to 32, and {v} doesn't fit	l'offset di un campo di bit va da 0 a 31 e la sua larghezza da 1 a 32, e {v} non rientra
+andi	andi
+divsl	divsl
+divul	divul
+eori	eori
+m68k_processor	m68k_processor
+ori	ori
+the displacement {v} doesn't fit in 16 bits	lo spostamento {v} non sta in 16 bit
+the offset from PC {offset} doesn't fit in 16 bits (-32768 to 32767)	l'offset dal PC {offset} non sta in 16 bit (da -32768 a 32767)
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n
+{operands} is {offset} bytes away, out of a short branch's reach; use {bare}.W	{operands} è a {offset} byte, fuori dalla portata di un salto corto; usa {bare}.W
+{text} cycles on the 68008	{text} cicli sul 68008
+{text} isn't an address the 680x0 has	{text} non è un indirizzo che il 680x0 conosca
+{text} needs a bit field after it, such as {{0:8}} or {{d1:d2}}	{text} deve essere seguito da un campo di bit, come {{0:8}} o {{d1:d2}}
+{upper} can't use {last_text} on the {cpu_name}: that's the 68020's (MACHINE 68020 chooses one)	{upper} non può usare {last_text} sul {cpu_name}: è del 68020 (MACHINE 68020 lo sceglie)
+{upper} can't write to {last_text}	{upper} non può scrivere in {last_text}
+{upper} is a 68020 instruction: the {only} has only {}.W (MACHINE 68020 chooses a 68020)	{upper} è un'istruzione del 68020: il {only} ha solo {}.W (MACHINE 68020 sceglie un 68020)
+{upper} needs an address with a bit field	{upper} richiede un indirizzo con un campo di bit
+{upper} {operands} isn't a {cpu_name} instruction	{upper} {operands} non è un'istruzione del {cpu_name}
+{what} is only the 68020's (the 68030 and later haven't got it), and this is for the {name}: MACHINE 68020 chooses it	{what} esiste solo sul 68020 (il 68030 e successivi non lo hanno), e questo è per il {name}: MACHINE 68020 lo sceglie
+{what} needs a 68010 or later, and this is for the {name}: MACHINE 68010 (or a later one) chooses another	{what} richiede un 68010 o successivo, e questo è per il {name}: MACHINE 68010 (o uno successivo) ne sceglie un altro
+{what} needs a 68020 or later, and this is for the {name}: MACHINE 68020 (or a later one) chooses another	{what} richiede un 68020 o successivo, e questo è per il {name}: MACHINE 68020 (o uno successivo) ne sceglie un altro
+{what} needs a 68020 or later: the CPU32 hasn't got it	{what} richiede un 68020 o successivo: il CPU32 non lo ha

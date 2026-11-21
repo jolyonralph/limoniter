@@ -212,11 +212,14 @@ pub fn assemble_at(isa: &dyn Isa, path: &Path, text: &str, read: &dyn Fn(&Path) 
 }
 
 /// What else a program can draw on, beyond its own files: folders INCLUDE and INCBIN look in after the source's
-/// own, and values for labels it uses but never defines (an Amiga's _LVO offsets, from the NDK).
+/// own, and values for labels it uses but never defines (an Amiga's _LVO offsets, from the NDK); and the
+/// processor's settings it starts with (the 680x0 chosen in the settings), which the source's own directives
+/// (MACHINE 68020) change.
 #[derive(Default)]
 pub struct Options<'a> {
     pub folders: Vec<PathBuf>,
     pub values: Option<&'a dyn Fn(&str) -> Option<i64>>,
+    pub settings: Vec<(&'static str, i64)>,
 }
 
 /// Assembles a program as `assemble_at` does, with more to draw on.
@@ -289,6 +292,7 @@ fn assemble_relocating<'a>(isa: &'a dyn Isa, path: &Path, text: &str, read: &'a 
     for _ in 0..12 {
         let mut state = Pass::new(isa, read, previous.clone(), false);
         state.options = Some(options);
+        state.settings.extend(options.settings.iter().copied());
         state.base = base;
         state.pc = base;
         state.section_start = base;
@@ -314,6 +318,8 @@ fn assemble_relocating<'a>(isa: &'a dyn Isa, path: &Path, text: &str, read: &'a 
     // The last pass, saying what's wrong.
     let mut state = Pass::new(isa, read, previous, true);
     state.options = Some(options);
+    state.settings.extend(options.settings.iter().copied());
+    state.out.settings.extend(options.settings.iter().map(|(key, value)| (0, *key, *value)));
     state.base = base;
     state.pc = base;
     state.section_start = base;

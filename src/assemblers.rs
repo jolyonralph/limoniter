@@ -220,6 +220,15 @@ pub struct Assembled {
     pub printed: Vec<String>,
 }
 
+/// What Limoniter's own assembler starts with for a processor: for 680x0 source, the processor chosen in the
+/// settings (MACHINE in the source wins over it).
+fn own_settings(cpu: Cpu) -> Vec<(&'static str, i64)> {
+    match cpu {
+        Cpu::M68k => vec![(asm::m68k::SETTING, asm::m68k::chosen().id())],
+        _ => Vec::new(),
+    }
+}
+
 /// Assembles with Limoniter's own assembler. `text` is the source as it is in the editor.
 pub fn assemble_own(cpu: Cpu, path: &Path, text: &str) -> Assembled {
     let assembly = assemble_own_at(cpu, path, text, 0);
@@ -235,7 +244,7 @@ pub fn assemble_own_to_run(cpu: Cpu, path: &Path, text: &str) -> Assembled {
         // The NDK's headers and _LVO offsets, as for any 68000 source.
         let ndk = crate::amiga_ndk::current();
         let lvo = |name: &str| ndk.as_ref().and_then(|n| n.lvo(name));
-        let options = asm::Options { folders: ndk.as_ref().and_then(|n| n.include_folder()).into_iter().collect(), values: ndk.as_ref().map(|_| &lvo as &dyn Fn(&str) -> Option<i64>) };
+        let options = asm::Options { folders: ndk.as_ref().and_then(|n| n.include_folder()).into_iter().collect(), values: ndk.as_ref().map(|_| &lvo as &dyn Fn(&str) -> Option<i64>), settings: own_settings(cpu) };
         let (assembly, file) = asm::hunk::assemble_executable(path, text, &read, true, &options);
         return Assembled { assembly, source: Some(text.to_string()), tape: file.map(|bytes| (crate::running::Format::Hunk, bytes)), printed: Vec::new() };
     }
@@ -250,7 +259,7 @@ pub fn assemble_own_at(cpu: Cpu, path: &Path, text: &str, base: i64) -> Assembly
     let read = |p: &Path| files.borrow_mut().entry(p.to_path_buf()).or_insert_with(|| std::fs::read(p).map_err(|e| e.to_string())).clone();
     let ndk = if cpu == Cpu::M68k { crate::amiga_ndk::current() } else { None };
     let lvo = |name: &str| ndk.as_ref().and_then(|n| n.lvo(name));
-    let options = asm::Options { folders: ndk.as_ref().and_then(|n| n.include_folder()).into_iter().collect(), values: ndk.as_ref().map(|_| &lvo as &dyn Fn(&str) -> Option<i64>) };
+    let options = asm::Options { folders: ndk.as_ref().and_then(|n| n.include_folder()).into_iter().collect(), values: ndk.as_ref().map(|_| &lvo as &dyn Fn(&str) -> Option<i64>), settings: own_settings(cpu) };
     asm::assemble_with(cpu.isa(), path, text, &read, base, &options)
 }
 
@@ -505,6 +514,11 @@ fn vasm(program: &Path, source: &Path, work: &Path) -> Result<Assembled, String>
     let format: &[&str] = if amiga { &["-Fhunkexe", "-kick1hunks"] } else { &["-Fbin"] };
     let mut args: Vec<String> = format.iter().map(|f| f.to_string()).collect();
     args.extend(["-no-opt".to_string(), "-quiet".into(), "-o".into(), out.display().to_string(), "-L".into(), listing.display().to_string()]);
+    // The processor chosen in the settings, as Limoniter's own assembler takes it (MACHINE in the source wins).
+    let chosen = asm::m68k::chosen();
+    if chosen != asm::m68k::Processor::M68000 {
+        args.push(format!("-m{}", chosen.name().to_ascii_lowercase()));
+    }
     // The NDK's headers, when there's one, for an Amiga program's INCLUDEs.
     if let Some(headers) = crate::amiga_ndk::current().and_then(|n| n.include_folder()) {
         args.push(format!("-I{}", headers.display()));

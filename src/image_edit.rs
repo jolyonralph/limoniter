@@ -435,7 +435,7 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go = false;
-        egui::Window::new(crate::i18n::tr("New disk or tape image")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("New disk or tape image")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(RichText::new(crate::i18n::tr("A blank image, formatted as its machine would format it, to add files to.")).color(theme::text_dim()));
             ui.add_space(6.0);
             // The kinds scroll in a short window, leaving room for the name and the buttons below them.

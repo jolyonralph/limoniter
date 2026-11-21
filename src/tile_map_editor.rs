@@ -1029,7 +1029,7 @@ mod tests {
                 editor.project.add_layer();
                 for _ in 0..2 {
                     let _ = ctx.run_ui(Default::default(), |ui| {
-                        egui::Window::new("t").show(ui.ctx(), |ui| editor.draw(ui));
+                        crate::fit::Dialog::new("t").show(ui.ctx(), |ui| editor.draw(ui));
                     });
                 }
                 assert!(editor.pictures.is_some(), "{mode:?}");

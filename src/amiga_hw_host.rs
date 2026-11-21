@@ -224,7 +224,7 @@ impl Limoniter {
         let caret = if self.no_file() { 0 } else { self.docs[self.active].text.caret_line };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr("Amiga hardware")).open(&mut open).default_pos([140.0, 90.0]).default_width(760.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Amiga hardware")).open(&mut open).default_pos([140.0, 90.0]).default_width(760.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut window.tab, Tab::Registers, crate::i18n::tr("Registers"));
                 ui.selectable_value(&mut window.tab, Tab::Copper, crate::i18n::tr("Copper list"));

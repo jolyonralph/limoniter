@@ -155,7 +155,7 @@ fn history_panel(ui: &mut Ui, rows: &[crate::undo_tree::Row], hex: bool, actions
             if response.clicked() {
                 actions.push(HistoryAction::Jump(id));
             }
-            response.context_menu(|ui| {
+            crate::fit::context_menu(&response, |ui| {
                 if ui.button(crate::i18n::tr("Go to this state")).clicked() {
                     actions.push(HistoryAction::Jump(id));
                     ui.close();

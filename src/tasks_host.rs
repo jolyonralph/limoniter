@@ -251,7 +251,7 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
-        egui::Window::new(crate::i18n::tr("The project's tasks")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("The project's tasks")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tr("Commands run in the project's folder, from Tools, Tasks. Ctrl+Shift+B runs the first build task; a test task's results are listed test by test."));
             ui.add_space(6.0);
             let mut gone = None;

@@ -280,7 +280,7 @@ fn error_line(ui: &mut Ui, error: &str) {
 }
 
 fn script_box(title: &str, ctx: &Context, content: impl FnOnce(&mut Ui)) {
-    egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, content);
+    crate::fit::Dialog::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, content);
 }
 
 impl Limoniter {
@@ -1042,7 +1042,7 @@ impl Limoniter {
         }
         let name = run.run.name.clone();
         let mut stop = ctx.input(|i| i.key_pressed(Key::Escape));
-        egui::Window::new(crate::i18n::tr("Playing")).collapsible(false).resizable(false).max_width(280.0).anchor(egui::Align2::RIGHT_BOTTOM, [-20.0, -36.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Playing")).collapsible(false).resizable(false).max_width(280.0).anchor(egui::Align2::RIGHT_BOTTOM, [-20.0, -36.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tf!("{name}: {} seconds so far", waited.as_secs()));
             ui.add_space(4.0);
             stop |= ui.button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Stops it where it is (Esc). One Undo takes back what it had done")).clicked();

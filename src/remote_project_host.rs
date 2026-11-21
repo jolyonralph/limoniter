@@ -451,48 +451,52 @@ impl Limoniter {
         let host = project.origin.site.host.clone();
         let (mut close, mut go) = (ctx.input(|i| i.key_pressed(Key::Escape)), false);
         let mut open = true;
-        egui::Window::new(crate::i18n::tr("Sync with the server")).id(egui::Id::unique("remote-sync")).open(&mut open).collapsible(false).resizable(true).default_size([620.0, 420.0]).pivot(egui::Align2::CENTER_CENTER).default_pos(ctx.content_rect().center()).show(ctx, |ui| {
-            let conflicts = window.plan.items.iter().filter(|item| item.conflict).count();
-            ui.label(crate::i18n::tf!("What would make the project and {host} alike. Nothing is done until you say. Each file replaced or deleted is kept first, in the project's backups."));
-            if conflicts > 0 {
-                ui.colored_label(theme::rainbow_mistake(), if conflicts == 1 { crate::i18n::tr("1 file has changed on both sides since the last sync. Tick it to choose that side's version.").to_string() } else { crate::i18n::tf!("{conflicts} files have changed on both sides since the last sync. Tick each to choose that side's version.") });
+        crate::fit::Dialog::new(crate::i18n::tr("Sync with the server")).id(egui::Id::unique("remote-sync")).open(&mut open).collapsible(false).resizable(true).default_size([620.0, 420.0]).pivot(egui::Align2::CENTER_CENTER).default_pos(ctx.content_rect().center()).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                let conflicts = window.plan.items.iter().filter(|item| item.conflict).count();
+                ui.label(crate::i18n::tf!("What would make the project and {host} alike. Nothing is done until you say. Each file replaced or deleted is kept first, in the project's backups."));
+                if conflicts > 0 {
+                    ui.colored_label(theme::rainbow_mistake(), if conflicts == 1 { crate::i18n::tr("1 file has changed on both sides since the last sync. Tick it to choose that side's version.").to_string() } else { crate::i18n::tf!("{conflicts} files have changed on both sides since the last sync. Tick each to choose that side's version.") });
+                }
+                ui.separator();
+                egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
+                    egui::Grid::new("remote-sync-items").num_columns(4).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
+                        for item in window.plan.items.iter_mut() {
+                            ui.checkbox(&mut item.ticked, "");
+                            ui.label(if item.to_right { crate::i18n::tr("\u{2191} To the server") } else { crate::i18n::tr("\u{2193} From the server") });
+                            ui.label(crate::i18n::tr(item.act.words()));
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(&item.path).monospace());
+                                if let Some(note) = &item.note {
+                                    let text = RichText::new(note).small();
+                                    ui.label(if item.conflict { text.color(theme::rainbow_mistake()) } else { text.color(theme::text_dim()) });
+                                }
+                                // A file changed on both sides can go either way.
+                                if item.conflict && item.act == Act::Replace && ui.small_button(crate::i18n::tr("The other way")).on_hover_text(crate::i18n::tr("Keep the other side's version instead")).clicked() {
+                                    let target = item.expected;
+                                    item.expected = Some(crate::diff_engine::Meta { is_dir: false, size: item.size, modified: item.modified });
+                                    item.size = target.map_or(0, |meta| meta.size);
+                                    item.modified = target.and_then(|meta| meta.modified);
+                                    item.to_right = !item.to_right;
+                                }
+                            });
+                            ui.end_row();
+                        }
+                    });
+                });
             }
-            ui.separator();
-            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
-                egui::Grid::new("remote-sync-items").num_columns(4).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
-                    for item in window.plan.items.iter_mut() {
-                        ui.checkbox(&mut item.ticked, "");
-                        ui.label(if item.to_right { crate::i18n::tr("\u{2191} To the server") } else { crate::i18n::tr("\u{2193} From the server") });
-                        ui.label(crate::i18n::tr(item.act.words()));
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(&item.path).monospace());
-                            if let Some(note) = &item.note {
-                                let text = RichText::new(note).small();
-                                ui.label(if item.conflict { text.color(theme::rainbow_mistake()) } else { text.color(theme::text_dim()) });
-                            }
-                            // A file changed on both sides can go either way.
-                            if item.conflict && item.act == Act::Replace && ui.small_button(crate::i18n::tr("The other way")).on_hover_text(crate::i18n::tr("Keep the other side's version instead")).clicked() {
-                                let target = item.expected;
-                                item.expected = Some(crate::diff_engine::Meta { is_dir: false, size: item.size, modified: item.modified });
-                                item.size = target.map_or(0, |meta| meta.size);
-                                item.modified = target.and_then(|meta| meta.modified);
-                                item.to_right = !item.to_right;
-                            }
-                        });
-                        ui.end_row();
+            crate::fit::Part::Buttons => {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    let ticked = window.plan.ticked();
+                    if ui.add_enabled(ticked > 0, egui::Button::new(crate::i18n::tf!("Do the {ticked} ticked"))).clicked() {
+                        go = true;
+                    }
+                    if ui.button(crate::i18n::tr("Close")).clicked() {
+                        close = true;
                     }
                 });
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                let ticked = window.plan.ticked();
-                if ui.add_enabled(ticked > 0, egui::Button::new(crate::i18n::tf!("Do the {ticked} ticked"))).clicked() {
-                    go = true;
-                }
-                if ui.button(crate::i18n::tr("Close")).clicked() {
-                    close = true;
-                }
-            });
+            }
         });
         if go && let Some(window) = project.window.take() {
             let mut plan = window.plan;

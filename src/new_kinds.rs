@@ -305,103 +305,107 @@ impl Limoniter {
         let mut keep = false;
         highlight::load_now();
         let languages: Vec<String> = highlight::engine().map(|engine| engine.names().iter().map(|(name, _)| name.clone()).collect()).unwrap_or_default();
-        egui::Window::new(crate::i18n::tr("Kinds of new file")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(crate::i18n::tr("File, New as lists these. Each is a file ending, an encoding, line endings, colouring, and text to start with."));
-            ui.add_space(6.0);
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(220.0);
-                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
-                        for (index, kind) in state.kinds.iter().enumerate() {
-                            let name = if kind.name.is_empty() { "(no name)" } else { kind.name.as_str() };
-                            if ui.selectable_label(state.selected == index, crate::i18n::tr(name)).clicked() {
-                                state.selected = index;
+        crate::fit::Dialog::new(crate::i18n::tr("Kinds of new file")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.label(crate::i18n::tr("File, New as lists these. Each is a file ending, an encoding, line endings, colouring, and text to start with."));
+                ui.add_space(6.0);
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(220.0);
+                        egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                            for (index, kind) in state.kinds.iter().enumerate() {
+                                let name = if kind.name.is_empty() { "(no name)" } else { kind.name.as_str() };
+                                if ui.selectable_label(state.selected == index, crate::i18n::tr(name)).clicked() {
+                                    state.selected = index;
+                                }
                             }
-                        }
+                        });
+                        ui.add_space(4.0);
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button(crate::i18n::tr("Add")).clicked() {
+                                let at = (state.selected + 1).min(state.kinds.len());
+                                let mut kind = state.kinds.get(state.selected).cloned().unwrap_or_else(|| NewKind::new("", "txt", "utf-8", Eol::CrLf, "", Program::None, ""));
+                                kind.name = crate::i18n::tr("New kind").into();
+                                state.kinds.insert(at, kind);
+                                state.selected = at;
+                            }
+                            if ui.add_enabled(!state.kinds.is_empty(), egui::Button::new(crate::i18n::tr("Remove"))).clicked() {
+                                state.kinds.remove(state.selected);
+                                state.selected = state.selected.min(state.kinds.len().saturating_sub(1));
+                            }
+                            if ui.add_enabled(state.selected > 0, egui::Button::new(crate::i18n::tr("Up"))).clicked() {
+                                state.kinds.swap(state.selected, state.selected - 1);
+                                state.selected -= 1;
+                            }
+                            if ui.add_enabled(state.selected + 1 < state.kinds.len(), egui::Button::new(crate::i18n::tr("Down"))).clicked() {
+                                state.kinds.swap(state.selected, state.selected + 1);
+                                state.selected += 1;
+                            }
+                            if ui.button(crate::i18n::tr("Put back the usual list")).clicked() {
+                                state.kinds = NewKind::usual();
+                                state.selected = 0;
+                            }
+                        });
                     });
-                    ui.add_space(4.0);
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.button(crate::i18n::tr("Add")).clicked() {
-                            let at = (state.selected + 1).min(state.kinds.len());
-                            let mut kind = state.kinds.get(state.selected).cloned().unwrap_or_else(|| NewKind::new("", "txt", "utf-8", Eol::CrLf, "", Program::None, ""));
-                            kind.name = crate::i18n::tr("New kind").into();
-                            state.kinds.insert(at, kind);
-                            state.selected = at;
-                        }
-                        if ui.add_enabled(!state.kinds.is_empty(), egui::Button::new(crate::i18n::tr("Remove"))).clicked() {
-                            state.kinds.remove(state.selected);
-                            state.selected = state.selected.min(state.kinds.len().saturating_sub(1));
-                        }
-                        if ui.add_enabled(state.selected > 0, egui::Button::new(crate::i18n::tr("Up"))).clicked() {
-                            state.kinds.swap(state.selected, state.selected - 1);
-                            state.selected -= 1;
-                        }
-                        if ui.add_enabled(state.selected + 1 < state.kinds.len(), egui::Button::new(crate::i18n::tr("Down"))).clicked() {
-                            state.kinds.swap(state.selected, state.selected + 1);
-                            state.selected += 1;
-                        }
-                        if ui.button(crate::i18n::tr("Put back the usual list")).clicked() {
-                            state.kinds = NewKind::usual();
-                            state.selected = 0;
-                        }
+                    ui.add_space(16.0);
+                    let Some(kind) = state.kinds.get_mut(state.selected) else {
+                        ui.label(RichText::new(crate::i18n::tr("The list is empty. Add a kind, or put back the usual list.")).color(theme::text_dim()));
+                        return;
+                    };
+                    ui.vertical(|ui| {
+                        ui.set_width(380.0);
+                        egui::Grid::new("new-kind").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                            ui.label(crate::i18n::tr("Name"));
+                            ui.text_edit_singleline(&mut kind.name);
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("File ending"));
+                            ui.add(egui::TextEdit::singleline(&mut kind.ending).hint_text(crate::i18n::tr("bas, asm, txt...")));
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Encoding"));
+                            let shown = charset::by_id(&kind.encoding).map_or_else(|| kind.encoding.clone(), |set| set.name.clone());
+                            egui::ComboBox::from_id_salt("new-kind-encoding").width(260.0).selected_text(shown).show_ui(ui, |ui| {
+                                for set in charset::all() {
+                                    ui.selectable_value(&mut kind.encoding, set.id.clone(), &set.name);
+                                }
+                            });
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Line endings"));
+                            egui::ComboBox::from_id_salt("new-kind-eol").width(260.0).selected_text(kind.eol.long_name()).show_ui(ui, |ui| {
+                                for eol in EOLS {
+                                    ui.selectable_value(&mut kind.eol, eol, eol.long_name());
+                                }
+                            });
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Colouring"));
+                            let shown = if kind.language.is_empty() { crate::i18n::tr("From the file ending").to_string() } else { kind.language.clone() };
+                            egui::ComboBox::from_id_salt("new-kind-language").width(260.0).selected_text(shown).show_ui(ui, |ui| {
+                                ui.selectable_value(&mut kind.language, String::new(), "From the file ending");
+                                for name in &languages {
+                                    ui.selectable_value(&mut kind.language, name.clone(), name);
+                                }
+                            });
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("A listing for"));
+                            egui::ComboBox::from_id_salt("new-kind-program").width(260.0).selected_text(crate::i18n::tr(kind.program.label())).show_ui(ui, |ui| {
+                                for program in Program::ALL {
+                                    ui.selectable_value(&mut kind.program, program, crate::i18n::tr(program.label()));
+                                }
+                            });
+                            ui.end_row();
+                        });
+                        ui.add_space(4.0);
+                        ui.label(crate::i18n::tr("Starts with"));
+                        ui.add(egui::TextEdit::multiline(&mut kind.starter).font(egui::TextStyle::Monospace).desired_rows(6).desired_width(f32::INFINITY));
                     });
                 });
-                ui.add_space(16.0);
-                let Some(kind) = state.kinds.get_mut(state.selected) else {
-                    ui.label(RichText::new(crate::i18n::tr("The list is empty. Add a kind, or put back the usual list.")).color(theme::text_dim()));
-                    return;
-                };
-                ui.vertical(|ui| {
-                    ui.set_width(380.0);
-                    egui::Grid::new("new-kind").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                        ui.label(crate::i18n::tr("Name"));
-                        ui.text_edit_singleline(&mut kind.name);
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("File ending"));
-                        ui.add(egui::TextEdit::singleline(&mut kind.ending).hint_text(crate::i18n::tr("bas, asm, txt...")));
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Encoding"));
-                        let shown = charset::by_id(&kind.encoding).map_or_else(|| kind.encoding.clone(), |set| set.name.clone());
-                        egui::ComboBox::from_id_salt("new-kind-encoding").width(260.0).selected_text(shown).show_ui(ui, |ui| {
-                            for set in charset::all() {
-                                ui.selectable_value(&mut kind.encoding, set.id.clone(), &set.name);
-                            }
-                        });
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Line endings"));
-                        egui::ComboBox::from_id_salt("new-kind-eol").width(260.0).selected_text(kind.eol.long_name()).show_ui(ui, |ui| {
-                            for eol in EOLS {
-                                ui.selectable_value(&mut kind.eol, eol, eol.long_name());
-                            }
-                        });
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Colouring"));
-                        let shown = if kind.language.is_empty() { crate::i18n::tr("From the file ending").to_string() } else { kind.language.clone() };
-                        egui::ComboBox::from_id_salt("new-kind-language").width(260.0).selected_text(shown).show_ui(ui, |ui| {
-                            ui.selectable_value(&mut kind.language, String::new(), "From the file ending");
-                            for name in &languages {
-                                ui.selectable_value(&mut kind.language, name.clone(), name);
-                            }
-                        });
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("A listing for"));
-                        egui::ComboBox::from_id_salt("new-kind-program").width(260.0).selected_text(crate::i18n::tr(kind.program.label())).show_ui(ui, |ui| {
-                            for program in Program::ALL {
-                                ui.selectable_value(&mut kind.program, program, crate::i18n::tr(program.label()));
-                            }
-                        });
-                        ui.end_row();
-                    });
-                    ui.add_space(4.0);
-                    ui.label(crate::i18n::tr("Starts with"));
-                    ui.add(egui::TextEdit::multiline(&mut kind.starter).font(egui::TextStyle::Monospace).desired_rows(6).desired_width(f32::INFINITY));
+            }
+            crate::fit::Part::Buttons => {
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    keep = ui.button(crate::i18n::tr("OK")).clicked();
+                    close |= ui.button(crate::i18n::tr("Cancel")).clicked();
                 });
-            });
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                keep = ui.button(crate::i18n::tr("OK")).clicked();
-                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
-            });
+            }
         });
         if keep {
             if let Dialog::NewKinds(state) = std::mem::replace(&mut self.dialog, Dialog::None) {

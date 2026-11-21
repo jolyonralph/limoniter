@@ -234,7 +234,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = Asked::Nothing;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).default_pos([180.0, 70.0]).default_size([900.0, 560.0]).resizable(true).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).default_pos([180.0, 70.0]).default_size([900.0, 560.0]).resizable(true).show(ctx, |ui| {
             asked = reader.draw(ui);
         });
         match asked {

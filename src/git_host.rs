@@ -707,7 +707,7 @@ impl Limoniter {
         };
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let (mut compare, mut open) = (false, false);
-        egui::Window::new(crate::i18n::tf!("History of {}", state.relative)).collapsible(false).resizable(true).default_size([560.0, 420.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tf!("History of {}", state.relative)).collapsible(false).resizable(true).default_size([560.0, 420.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
                 for (n, commit) in state.commits.iter().enumerate() {
                     let label = format!("{}  {}  {}", commit.when, commit.author, commit.subject);

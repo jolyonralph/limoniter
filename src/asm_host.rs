@@ -566,74 +566,78 @@ impl Limoniter {
         let mut browse = false;
         let mut fetch_kickass = false;
         let project_name = self.project.as_ref().map(|p| p.name.clone());
-        egui::Window::new(crate::i18n::tr("Assemblers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(crate::i18n::tr("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it."));
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                for (index, row) in state.rows.iter().enumerate() {
-                    let own = if row.chosen == Choice::Own { crate::i18n::tr("Limoniter's own").to_string() } else { assemblers::external(match &row.chosen { Choice::Program { id, .. } => id, Choice::Own => "" }).map_or_else(String::new, |e| e.name.to_string()) };
-                    if ui.selectable_label(state.showing == index, crate::i18n::tr(row.cpu.name())).on_hover_text(own).clicked() {
-                        state.showing = index;
-                    }
-                }
-            });
-            ui.separator();
-            let row = &mut state.rows[state.showing];
-            ui.label(crate::i18n::tf!("{} source is assembled with:", row.cpu.name()));
-            ui.add_space(4.0);
-            ui.radio_value(&mut row.chosen, Choice::Own, crate::i18n::tr("Limoniter's own assembler (nothing to install)"));
-            for (found, path) in &row.found {
-                let choice = Choice::Program { id: found.id, path: path.clone() };
-                ui.radio_value(&mut row.chosen, choice, crate::i18n::tf!("{}  ({})", found.name, path.display()));
-            }
-            if let Choice::Program { id, path } = row.chosen.clone()
-                && !row.found.iter().any(|(f, p)| f.id == id && *p == path)
-            {
-                let label = format!("{}  ({})", assemblers::external(id).map_or(id, |e| e.name), path.display());
-                let choice = row.chosen.clone();
-                ui.radio_value(&mut row.chosen, choice, crate::i18n::tr(&label));
-            }
-            ui.add_space(4.0);
-            let others: Vec<&assemblers::External> = assemblers::KNOWN.iter().filter(|e| e.cpu == row.cpu && !row.found.iter().any(|(f, _)| f.id == e.id)).collect();
-            if !others.is_empty() {
-                let words: Vec<String> = others.iter().map(|e| format!("{} ({})", e.name, e.website)).collect();
-                ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("Not found on this computer: {}. Once installed, they appear here; or point to one.", words.join(", "))).color(theme::text_dim()).size(12.0)).wrap());
-            }
-            // KickAssembler can be fetched from its author's website, on request, with a plain word about its terms.
-            if row.cpu == Cpu::M6502 && others.iter().any(|e| e.id == "kickass") {
-                ui.add_space(4.0);
-                ui.add(egui::Label::new(RichText::new(crate::c64_assemblers::KICKASS_NOTE).size(12.0)).wrap());
+        crate::fit::Dialog::new(crate::i18n::tr("Assemblers")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.label(crate::i18n::tr("Source for each processor is assembled, when it's run (F9) or saved, with the assembler chosen for it."));
+                ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    if state.kickass.is_some() {
-                        ui.spinner();
-                        ui.label(crate::i18n::tr("Downloading\u{2026}"));
-                    } else {
-                        fetch_kickass = ui.button(crate::i18n::tr("Download KickAssembler from theweb.dk")).on_hover_text(crate::c64_assemblers::KICKASS_DOWNLOAD).clicked();
+                    for (index, row) in state.rows.iter().enumerate() {
+                        let own = if row.chosen == Choice::Own { crate::i18n::tr("Limoniter's own").to_string() } else { assemblers::external(match &row.chosen { Choice::Program { id, .. } => id, Choice::Own => "" }).map_or_else(String::new, |e| e.name.to_string()) };
+                        if ui.selectable_label(state.showing == index, crate::i18n::tr(row.cpu.name())).on_hover_text(own).clicked() {
+                            state.showing = index;
+                        }
                     }
                 });
-                if crate::c64_assemblers::find_java().is_none() {
-                    ui.colored_label(theme::change_unsaved(), crate::i18n::tr("Java wasn't found on this computer; KickAssembler needs it to run."));
+                ui.separator();
+                let row = &mut state.rows[state.showing];
+                ui.label(crate::i18n::tf!("{} source is assembled with:", row.cpu.name()));
+                ui.add_space(4.0);
+                ui.radio_value(&mut row.chosen, Choice::Own, crate::i18n::tr("Limoniter's own assembler (nothing to install)"));
+                for (found, path) in &row.found {
+                    let choice = Choice::Program { id: found.id, path: path.clone() };
+                    ui.radio_value(&mut row.chosen, choice, crate::i18n::tf!("{}  ({})", found.name, path.display()));
+                }
+                if let Choice::Program { id, path } = row.chosen.clone()
+                    && !row.found.iter().any(|(f, p)| f.id == id && *p == path)
+                {
+                    let label = format!("{}  ({})", assemblers::external(id).map_or(id, |e| e.name), path.display());
+                    let choice = row.chosen.clone();
+                    ui.radio_value(&mut row.chosen, choice, crate::i18n::tr(&label));
+                }
+                ui.add_space(4.0);
+                let others: Vec<&assemblers::External> = assemblers::KNOWN.iter().filter(|e| e.cpu == row.cpu && !row.found.iter().any(|(f, _)| f.id == e.id)).collect();
+                if !others.is_empty() {
+                    let words: Vec<String> = others.iter().map(|e| format!("{} ({})", e.name, e.website)).collect();
+                    ui.add(egui::Label::new(RichText::new(crate::i18n::tf!("Not found on this computer: {}. Once installed, they appear here; or point to one.", words.join(", "))).color(theme::text_dim()).size(12.0)).wrap());
+                }
+                // KickAssembler can be fetched from its author's website, on request, with a plain word about its terms.
+                if row.cpu == Cpu::M6502 && others.iter().any(|e| e.id == "kickass") {
+                    ui.add_space(4.0);
+                    ui.add(egui::Label::new(RichText::new(crate::c64_assemblers::KICKASS_NOTE).size(12.0)).wrap());
+                    ui.horizontal(|ui| {
+                        if state.kickass.is_some() {
+                            ui.spinner();
+                            ui.label(crate::i18n::tr("Downloading\u{2026}"));
+                        } else {
+                            fetch_kickass = ui.button(crate::i18n::tr("Download KickAssembler from theweb.dk")).on_hover_text(crate::c64_assemblers::KICKASS_DOWNLOAD).clicked();
+                        }
+                    });
+                    if crate::c64_assemblers::find_java().is_none() {
+                        ui.colored_label(theme::change_unsaved(), crate::i18n::tr("Java wasn't found on this computer; KickAssembler needs it to run."));
+                    }
+                }
+                if !state.kickass_said.is_empty() {
+                    ui.colored_label(theme::text_dim(), &state.kickass_said);
+                }
+                // A project can keep its own choice, so it's always built with the assembler its source is written for.
+                if let Some(name) = &project_name {
+                    ui.add_space(4.0);
+                    let row = &mut state.rows[state.showing];
+                    ui.checkbox(&mut row.for_project, crate::i18n::tf!("Only for the project {name}, kept in its file"))
+                        .on_hover_text(crate::i18n::tr("The project's source is then always built with this assembler, wherever the project is opened, whatever is chosen for other source; if it isn't installed, nothing else is used instead."));
+                }
+                if row_is_gnu(&state.rows[state.showing].chosen) {
+                    ui.add(egui::Label::new(RichText::new(crate::i18n::tr("GNU as reads only 68000 source written its own way (Assembly 680x0 (GNU as)), and the others only Motorola's: source is never given to one that can't read it.")).color(theme::text_dim()).size(12.0)).wrap());
                 }
             }
-            if !state.kickass_said.is_empty() {
-                ui.colored_label(theme::text_dim(), &state.kickass_said);
+            crate::fit::Part::Buttons => {
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    browse = ui.button(crate::i18n::tr("Point to an assembler\u{2026}")).clicked();
+                    keep = ui.button(crate::i18n::tr("OK")).clicked();
+                    close |= ui.button(crate::i18n::tr("Cancel")).clicked();
+                });
             }
-            // A project can keep its own choice, so it's always built with the assembler its source is written for.
-            if let Some(name) = &project_name {
-                ui.add_space(4.0);
-                let row = &mut state.rows[state.showing];
-                ui.checkbox(&mut row.for_project, crate::i18n::tf!("Only for the project {name}, kept in its file"))
-                    .on_hover_text(crate::i18n::tr("The project's source is then always built with this assembler, wherever the project is opened, whatever is chosen for other source; if it isn't installed, nothing else is used instead."));
-            }
-            if row_is_gnu(&state.rows[state.showing].chosen) {
-                ui.add(egui::Label::new(RichText::new(crate::i18n::tr("GNU as reads only 68000 source written its own way (Assembly 680x0 (GNU as)), and the others only Motorola's: source is never given to one that can't read it.")).color(theme::text_dim()).size(12.0)).wrap());
-            }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                browse = ui.button(crate::i18n::tr("Point to an assembler\u{2026}")).clicked();
-                keep = ui.button(crate::i18n::tr("OK")).clicked();
-                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
-            });
         });
         if fetch_kickass
             && let Dialog::Assembler(state) = &mut self.dialog
@@ -716,6 +720,9 @@ impl Limoniter {
         let timing = if cpu == Cpu::M6809 {
             // The 6309's native mode is told from the source, so the whole program is looked at.
             crate::m6809_timing::line(&cache.assembly, 0, line).map(|(_, mode, t)| format!(", {}", crate::m6809_timing::words(t, mode))).unwrap_or_default()
+        } else if cpu == Cpu::M68k {
+            // So is the 680x0 it's for (MACHINE 68008), and only the 68000's and 68008's times are given.
+            crate::m68k_timing::line(&cache.assembly, 0, line).map(|(_, chosen, t)| format!(", {}", crate::m68k_timing::words(t, chosen))).unwrap_or_default()
         } else {
             cpu.isa().cycles_at(&placed.bytes, address).filter(|_| placed.bytes.len() <= 4).map(|t| format!(", {t} {unit}")).unwrap_or_default()
         };

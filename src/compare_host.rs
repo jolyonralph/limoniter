@@ -959,7 +959,7 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
             }
             ui.separator();
             ui.add_enabled_ui(has_result, |ui| {
-                ui.menu_button(crate::i18n::tr("Save a report \u{25BE}"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("Save a report \u{25BE}"), |ui| {
                     if ui.button(crate::i18n::tr("Every entry\u{2026}")).on_hover_text(crate::i18n::tr("An HTML page or plain text, by the ending you give the name")).clicked() {
                         acts.push(FolderAct::ExportReport(ReportKind::Full));
                         ui.close();
@@ -978,7 +978,7 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                 acts.push(FolderAct::ExportPatch);
             }
             ui.add_enabled_ui(!busy, |ui| {
-                ui.menu_button(crate::i18n::tr("Apply a patch \u{25BE}"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("Apply a patch \u{25BE}"), |ui| {
                     if ui.button(crate::i18n::tr("To the left\u{2026}")).clicked() {
                         acts.push(FolderAct::ApplyPatch(true));
                         ui.close();
@@ -1152,7 +1152,7 @@ fn draw_folder_compare(ui: &mut Ui, fc: &mut FolderCompare, input_on: bool, site
                     clicked = Some((i, true));
                 }
             }
-            response.context_menu(|ui| {
+            crate::fit::context_menu(&response, |ui| {
                 if !fc.selected.contains(&row.path) {
                     fc.selected = HashSet::from([row.path.clone()]);
                     fc.anchor = Some(row.path.clone());
@@ -1223,7 +1223,7 @@ fn copy_preview_window(ctx: &Context, preview: &CopyPreview) -> Option<bool> {
     let plan = &preview.plan;
     let mut answer = ctx.input(|i| i.key_pressed(Key::Escape)).then_some(false);
     let title = if plan.direction.goes_right() { "Copy to the right" } else { "Copy to the left" };
-    egui::Window::new(title).collapsible(false).resizable(true).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+    crate::fit::Dialog::new(title).collapsible(false).resizable(true).default_width(560.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
         ui.label(crate::i18n::tf!("Into {}:", plan.target));
         ui.add_space(4.0);
         egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {

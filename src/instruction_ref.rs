@@ -447,6 +447,8 @@ fn templates(cpu: Cpu) -> &'static [&'static str] {
             "", "d0", "a0", "(a0)", "(a0)+", "-(a0)", "{w}(a0)", "{d}(a0,d1.w)", "{a}.w", "{a}", "{w}(pc)", "#{i}", "d0,d1", "d0,a1", "a0,d1", "a0,a1", "(a0),d1", "(a0)+,d1", "-(a0),d1", "{w}(a0),d1", "{d}(a0,d2.w),d1", "{a}.w,d1", "{a},d1", "{w}(pc),d1",
             "#{i},d1", "#{i},a1", "d1,(a0)", "d1,(a0)+", "d1,-(a0)", "d1,{w}(a0)", "d1,{a}", "#{i},(a0)", "#1,d1", "#1,(a0)", "(a0),a1", "{w}(a0),a1", "{a},a1", "{w}(pc),a1",
             "(a0)+,(a1)+", "-(a0),-(a1)", "d0,{e}", "{e}", "d0-d7/a0-a6,-(sp)", "(sp)+,d0-d7/a0-a6", "#{n},ccr", "#{w},sr", "sr,d0", "usp,a0", "a0,usp", "a6,#{w}", "a6", "#{t}",
+            // The 68010's and 68020's own, shown when the 68000 hasn't the instruction.
+            "ccr,d0", "vbr,d0", "d0,vbr", "(a0),d1:d2", "d0,d1:d2", "d0{4:8}", "(a0){4:8}", "(a0){4:8},d1", "d1,(a0){4:8}", "d0,d1,(a0)", "d0:d1,d2:d3,(a0):(a1)", "d0,d1,#{w}", "-(a0),-(a1),#{w}",
         ],
         Cpu::X86 => &[
             "", "al", "ax", "eax", "bx", "al,bl", "ax,bx", "eax,ebx", "al,{n}", "ax,{w}", "eax,{l}", "bx,{w}", "byte [bx]", "word [bx]", "dword [bx]", "[bx],al", "[bx],ax", "al,[bx]", "ax,[bx]", "byte [bx],{n}", "word [bx],{w}", "ax,[{w}]", "[{w}],ax",
@@ -537,18 +539,38 @@ const ORIGIN: i64 = 0x1000;
 /// An instruction's bytes, assembled at ORIGIN on its own; None if the assembler won't take it as it is.
 fn assemble_one(cpu: Cpu, mnemonic: &str, operands: &str) -> Option<Vec<u8>> {
     let origin = if cpu == Cpu::X86 { "0x1000" } else { "$1000" };
-    let text = format!("  org {origin}\n  {mnemonic} {operands}\n");
+    // A 68010's or 68020's own instruction is assembled for the 68020 (see `forms`).
+    let machine = if cpu == Cpu::M68k && LATER_68K.with(std::cell::Cell::get) { "  machine 68020\n" } else { "" };
+    let text = format!("{machine}  org {origin}\n  {mnemonic} {operands}\n");
     let read = |_: &Path| -> Result<Vec<u8>, String> { Err(String::new()) };
     let assembly = crate::asm::assemble(cpu.isa(), Path::new("reference.asm"), &text, &read);
     if !assembly.problems.is_empty() || !assembly.warnings.is_empty() {
         return None;
     }
-    let bytes: Vec<u8> = assembly.lines.iter().filter(|p| p.line == 1).flat_map(|p| p.bytes.clone()).collect();
+    let line = if machine.is_empty() { 1 } else { 2 };
+    let bytes: Vec<u8> = assembly.lines.iter().filter(|p| p.line == line).flat_map(|p| p.bytes.clone()).collect();
     (!bytes.is_empty()).then_some(bytes)
 }
 
-/// The forms an instruction has, with its bytes.
+thread_local! {
+    /// Whether 680x0 forms are being assembled for the 68020, for an instruction the 68000 hasn't got.
+    static LATER_68K: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The forms an instruction has, with its bytes: a 680x0 instruction the 68000 hasn't got (MOVEC, BFEXTU) in its
+/// 68020 forms, with no cycles, since those processors' times can't be given as one figure.
 fn forms(cpu: Cpu, mnemonic: &str) -> Vec<Form> {
+    let plain = forms_here(cpu, mnemonic);
+    if !plain.is_empty() || cpu != Cpu::M68k {
+        return plain;
+    }
+    LATER_68K.with(|later| later.set(true));
+    let later = forms_here(cpu, mnemonic).into_iter().map(|f| Form { cycles: None, ..f }).collect();
+    LATER_68K.with(|later| later.set(false));
+    later
+}
+
+fn forms_here(cpu: Cpu, mnemonic: &str) -> Vec<Form> {
     let isa = cpu.isa();
     // A 68000 instruction with sizes is shown in each; one without, as it is.
     let mut sizes: Vec<String> = Vec::new();

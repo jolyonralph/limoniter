@@ -989,7 +989,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             }
         }
     }
-    response.context_menu(|ui| command = context_menu(ui, true, state.explain.as_deref()));
+    crate::fit::context_menu(&response, |ui| command = context_menu(ui, true, state.explain.as_deref()));
 
     let caret_on = caret_is_on(ui, state, focused);
     if let Some(engine) = highlight::engine() {
@@ -1603,7 +1603,7 @@ fn context_menu(ui: &mut Ui, text: bool, explain: Option<&str>) -> Option<Contex
     }
     if text {
         ui.separator();
-        ui.menu_button(crate::i18n::tr("Colour tag"), |ui| {
+        crate::fit::menu_button(ui, crate::i18n::tr("Colour tag"), |ui| {
             for (index, name) in theme::TAG_NAMES.iter().enumerate() {
                 let swatch = egui::RichText::new(crate::i18n::tr("\u{25A0} ")).color(theme::tag_colour(index as u8));
                 let mut job = egui::text::LayoutJob::default();
@@ -2246,7 +2246,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         }
     }
 
-    // In 6502, Z80 and 6809 source, each line's cycles at the right, where the line leaves room.
+    // In 6502, Z80, 6809 and 68000 source, each line's cycles at the right, where the line leaves room.
     if let (Some(intel), Some(top), Some(bottom)) = (b.intel.as_deref(), l.slots.first(), l.slots.last()) {
         let notes = crate::m6502_timing::line_notes(intel, b.version(), top.line, bottom.line);
         let small = FontId::monospace((f.size * 0.85).round());
@@ -2462,7 +2462,7 @@ pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, form
         }
     }
     let mut command = None;
-    response.context_menu(|ui| command = context_menu(ui, false, None));
+    crate::fit::context_menu(&response, |ui| command = context_menu(ui, false, None));
     let caret_on = caret_is_on(ui, state, focused);
     paint_hex(ui, buffer, view, top, left, rows, cell, header, caret_on, &font, format);
     command

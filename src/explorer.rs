@@ -323,7 +323,7 @@ impl Explorer {
                 }
                 // How the lists are sorted, and whether sizes and dates show.
                 let before = self.order;
-                ui.menu_button(crate::i18n::tr("\u{21C5}"), |ui| {
+                crate::fit::menu_button(ui, crate::i18n::tr("\u{21C5}"), |ui| {
                     for by in SortBy::ALL {
                         ui.radio_value(&mut self.order.by, by, crate::i18n::tr(by.label()));
                     }
@@ -454,7 +454,7 @@ impl Explorer {
                     acts.push(Act::Open(entry.path.clone()));
                 }
             }
-            response.context_menu(|ui| self.menu(ui, root, &entry, acts));
+            crate::fit::context_menu(&response, |ui| self.menu(ui, root, &entry, acts));
             if open {
                 self.folder_rows(ui, root, &entry.path, depth + 1, active, acts);
             }

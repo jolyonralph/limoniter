@@ -324,7 +324,7 @@ impl Limoniter {
         if let Some(mut window) = self.c64_hw.hardware.take() {
             let mut open = true;
             let mut insert = None;
-            egui::Window::new(crate::i18n::tr("Commodore 64 hardware")).open(&mut open).default_pos([160.0, 110.0]).default_width(770.0).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Commodore 64 hardware")).open(&mut open).default_pos([160.0, 110.0]).default_width(770.0).show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut window.tab, Tab::Registers, crate::i18n::tr("Registers and KERNAL"));
                     ui.selectable_value(&mut window.tab, Tab::Memory, crate::i18n::tr("VIC memory"));

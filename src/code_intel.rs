@@ -231,6 +231,8 @@ impl CodeIntel {
         let time = match six309 {
             Some((_, mode, timing)) => format!(", {}", crate::m6809_timing::words(timing, mode)),
             None if self.cpu == Some(Cpu::M6809) => String::new(),
+            // The 68000's and 68008's, for the processor the source is for; none for the 68010 and later.
+            None if self.cpu == Some(Cpu::M68k) => crate::m68k_timing::line(assembly, self.file, line).map(|(_, cpu, t)| format!(", {}", crate::m68k_timing::words(t, cpu))).unwrap_or_default(),
             None => time,
         };
         // On the 6502, what may add a cycle: an index crossing a page, a branch taken.
@@ -347,6 +349,8 @@ fn words_for(cpu: Cpu) -> Vec<String> {
         ],
         Cpu::M68k => &[
             "abcd", "add", "adda", "addi", "addq", "addx", "and", "andi", "asl", "asr", "bcc", "bchg", "bclr", "bcs", "beq", "bge", "bgt", "bhi", "ble", "bls", "blt", "bmi", "bne", "bpl", "bra", "bset", "bsr", "btst", "bvc", "bvs", "chk", "clr", "cmp", "cmpa", "cmpi", "cmpm", "dbf", "dbra", "dbeq", "dbne", "divs", "divu", "eor", "eori", "exg", "ext", "illegal", "jmp", "jsr", "lea", "link", "lsl", "lsr", "move", "movea", "movem", "moveq", "muls", "mulu", "nbcd", "neg", "negx", "nop", "not", "or", "ori", "pea", "reset", "rol", "ror", "roxl", "roxr", "rte", "rtr", "rts", "sbcd", "seq", "sne", "stop", "sub", "suba", "subi", "subq", "subx", "swap", "tas", "trap", "trapv", "tst", "unlk",
+            // The 68010's and 68020's.
+            "movec", "moves", "rtd", "bkpt", "bfchg", "bfclr", "bfexts", "bfextu", "bfffo", "bfins", "bfset", "bftst", "cas", "cas2", "chk2", "cmp2", "divsl", "divul", "extb", "pack", "unpk", "rtm", "callm", "trapeq", "trapne", "trapcc", "trapcs", "machine",
         ],
         Cpu::X86 => &[
             "aaa", "aad", "aam", "aas", "adc", "add", "and", "bound", "bsf", "bsr", "bswap", "bt", "btc", "btr", "bts", "call", "cbw", "cdq", "clc", "cld", "cli", "cmc", "cmp", "cmpsb", "cmpsw", "cmpsd", "cmpxchg", "cpuid", "cwd", "cwde", "daa", "das", "dec", "div", "enter", "hlt", "idiv", "imul", "in", "inc", "insb", "insw", "int", "into", "iret", "ja", "jae", "jb", "jbe", "jc", "jcxz", "je", "jecxz", "jg", "jge", "jl", "jle", "jmp", "jna", "jnc", "jne", "jnz", "jo", "jno", "jp", "jpe", "jpo", "js", "jns", "jz", "lahf", "lds", "lea", "leave", "les", "lfs", "lgs", "lodsb", "lodsw", "lodsd", "loop", "loope", "loopne", "lss", "mov", "movsb", "movsw", "movsd", "movsx", "movzx", "mul", "neg", "nop", "not", "or", "out", "outsb", "outsw", "pop", "popa", "popad", "popf", "push", "pusha", "pushad", "pushf", "rcl", "rcr", "rep", "repe", "repne", "ret", "retf", "rol", "ror", "sahf", "sal", "sar", "sbb", "scasb", "scasw", "scasd", "sete", "setne", "shl", "shld", "shr", "shrd", "stc", "std", "sti", "stosb", "stosw", "stosd", "sub", "test", "xchg", "xlatb", "xor",

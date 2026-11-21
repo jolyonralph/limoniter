@@ -920,76 +920,80 @@ impl Limoniter {
         }
         let (mut insert, mut close, mut add, mut from_selection, mut remove) = (None, escape, false, false, false);
         let mut filter_has_focus = false;
-        egui::Window::new(crate::i18n::tr("Snippets")).collapsible(false).resizable(false).fixed_size(egui::vec2(640.0, 0.0)).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
-            let field = ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Find a snippet")).desired_width(f32::INFINITY).margin(egui::vec2(10.0, 7.0)));
-            if state.focus {
-                field.request_focus();
-                state.focus = false;
-            }
-            filter_has_focus = field.has_focus();
-            ui.add_space(6.0);
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(200.0);
-                    egui::ScrollArea::vertical().id_salt("snippet-list").min_scrolled_height(260.0).max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
-                        if shown.is_empty() {
-                            ui.label(RichText::new(if self.snippets.is_empty() && extra.is_empty() { crate::i18n::tr("No snippets yet. Press New to make one.") } else { crate::i18n::tr("Nothing matches that.") }).color(theme::text_faint()));
-                        }
-                        for at in &shown {
-                            let here = state.chosen == Some(*at);
-                            let name = match at.checked_sub(own) {
-                                None => RichText::new(self.snippets[*at].name.as_str()),
-                                Some(e) => RichText::new(if extra[e].prefix.is_empty() { extra[e].name.clone() } else { format!("{}  \u{2039}{}\u{203A}", extra[e].name, extra[e].prefix) }).italics(),
-                            };
-                            let label = ui.add_sized([200.0, 24.0], egui::Button::selectable(here, name));
-                            if label.clicked() {
-                                state.chosen = Some(*at);
+        crate::fit::Dialog::new(crate::i18n::tr("Snippets")).collapsible(false).resizable(false).fixed_size(egui::vec2(640.0, 0.0)).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                let field = ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Find a snippet")).desired_width(f32::INFINITY).margin(egui::vec2(10.0, 7.0)));
+                if state.focus {
+                    field.request_focus();
+                    state.focus = false;
+                }
+                filter_has_focus = field.has_focus();
+                ui.add_space(6.0);
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(200.0);
+                        egui::ScrollArea::vertical().id_salt("snippet-list").min_scrolled_height(260.0).max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
+                            if shown.is_empty() {
+                                ui.label(RichText::new(if self.snippets.is_empty() && extra.is_empty() { crate::i18n::tr("No snippets yet. Press New to make one.") } else { crate::i18n::tr("Nothing matches that.") }).color(theme::text_faint()));
                             }
-                            if label.double_clicked() && can_insert {
-                                insert = Some(*at);
+                            for at in &shown {
+                                let here = state.chosen == Some(*at);
+                                let name = match at.checked_sub(own) {
+                                    None => RichText::new(self.snippets[*at].name.as_str()),
+                                    Some(e) => RichText::new(if extra[e].prefix.is_empty() { extra[e].name.clone() } else { format!("{}  \u{2039}{}\u{203A}", extra[e].name, extra[e].prefix) }).italics(),
+                                };
+                                let label = ui.add_sized([200.0, 24.0], egui::Button::selectable(here, name));
+                                if label.clicked() {
+                                    state.chosen = Some(*at);
+                                }
+                                if label.double_clicked() && can_insert {
+                                    insert = Some(*at);
+                                }
                             }
+                        });
+                    });
+                    ui.separator();
+                    ui.vertical(|ui| {
+                        if let Some(snippet) = state.chosen.and_then(|at| at.checked_sub(own)).and_then(|e| extra.get(e)) {
+                            // An extension's, to look at and put in, not to change.
+                            ui.label(RichText::new(snippet.name.as_str()).strong());
+                            let from = crate::vsix::current().extensions.iter().find(|x| x.manifest.id == snippet.extension).map_or_else(|| snippet.extension.clone(), |x| x.manifest.name.clone());
+                            ui.label(RichText::new(crate::i18n::tf!("From the extension {from}. In VS Code it's typed as {}.", snippet.prefix)).color(theme::text_faint()).size(11.5));
+                            if !snippet.description.is_empty() {
+                                ui.label(snippet.description.as_str());
+                            }
+                            ui.add_space(4.0);
+                            let mut body = snippet.body.clone();
+                            ui.add(egui::TextEdit::multiline(&mut body).code_editor().desired_rows(7).desired_width(f32::INFINITY).interactive(false));
+                        } else if let Some(snippet) = state.chosen.and_then(|at| self.snippets.get_mut(at)) {
+                            ui.horizontal(|ui| {
+                                ui.label(crate::i18n::tr("Name"));
+                                ui.add(egui::TextEdit::singleline(&mut snippet.name).desired_width(f32::INFINITY));
+                            });
+                            ui.add_space(4.0);
+                            ui.add(egui::TextEdit::multiline(&mut snippet.body).code_editor().desired_rows(9).desired_width(f32::INFINITY));
+                        } else {
+                            ui.add_space(40.0);
                         }
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(crate::i18n::tr("$CURSOR is where the cursor goes. $SELECTION is what was selected. $DATE, $TIME and $FILE are filled in.")).color(theme::text_faint()).size(11.5));
                     });
                 });
-                ui.separator();
-                ui.vertical(|ui| {
-                    if let Some(snippet) = state.chosen.and_then(|at| at.checked_sub(own)).and_then(|e| extra.get(e)) {
-                        // An extension's, to look at and put in, not to change.
-                        ui.label(RichText::new(snippet.name.as_str()).strong());
-                        let from = crate::vsix::current().extensions.iter().find(|x| x.manifest.id == snippet.extension).map_or_else(|| snippet.extension.clone(), |x| x.manifest.name.clone());
-                        ui.label(RichText::new(crate::i18n::tf!("From the extension {from}. In VS Code it's typed as {}.", snippet.prefix)).color(theme::text_faint()).size(11.5));
-                        if !snippet.description.is_empty() {
-                            ui.label(snippet.description.as_str());
-                        }
-                        ui.add_space(4.0);
-                        let mut body = snippet.body.clone();
-                        ui.add(egui::TextEdit::multiline(&mut body).code_editor().desired_rows(7).desired_width(f32::INFINITY).interactive(false));
-                    } else if let Some(snippet) = state.chosen.and_then(|at| self.snippets.get_mut(at)) {
-                        ui.horizontal(|ui| {
-                            ui.label(crate::i18n::tr("Name"));
-                            ui.add(egui::TextEdit::singleline(&mut snippet.name).desired_width(f32::INFINITY));
-                        });
-                        ui.add_space(4.0);
-                        ui.add(egui::TextEdit::multiline(&mut snippet.body).code_editor().desired_rows(9).desired_width(f32::INFINITY));
-                    } else {
-                        ui.add_space(40.0);
+            }
+            crate::fit::Part::Buttons => {
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(can_insert && state.chosen.is_some(), Button::new(crate::i18n::tr("Insert"))).on_hover_text(crate::i18n::tr("Or press Enter, or double-click it")).clicked() {
+                        insert = state.chosen;
                     }
-                    ui.add_space(4.0);
-                    ui.label(RichText::new(crate::i18n::tr("$CURSOR is where the cursor goes. $SELECTION is what was selected. $DATE, $TIME and $FILE are filled in.")).color(theme::text_faint()).size(11.5));
+                    add = ui.button(crate::i18n::tr("New")).clicked();
+                    from_selection = ui.add_enabled(has_selection, Button::new(crate::i18n::tr("New from the selection"))).clicked();
+                    remove = ui.add_enabled(state.chosen.is_some_and(|at| at < own), Button::new(crate::i18n::tr("Delete"))).clicked();
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        close |= ui.button(crate::i18n::tr("Close")).clicked();
+                    });
                 });
-            });
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(can_insert && state.chosen.is_some(), Button::new(crate::i18n::tr("Insert"))).on_hover_text(crate::i18n::tr("Or press Enter, or double-click it")).clicked() {
-                    insert = state.chosen;
-                }
-                add = ui.button(crate::i18n::tr("New")).clicked();
-                from_selection = ui.add_enabled(has_selection, Button::new(crate::i18n::tr("New from the selection"))).clicked();
-                remove = ui.add_enabled(state.chosen.is_some_and(|at| at < own), Button::new(crate::i18n::tr("Delete"))).clicked();
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close |= ui.button(crate::i18n::tr("Close")).clicked();
-                });
-            });
+            }
         });
         if enter && filter_has_focus && can_insert {
             insert = insert.or(state.chosen);
@@ -1188,7 +1192,7 @@ impl Limoniter {
         };
         let escape = ctx.input(|i| i.key_pressed(Key::Escape));
         let (mut change, mut ignore, mut add, mut skip, mut close) = (false, false, false, false, escape);
-        egui::Window::new(crate::i18n::tr("Spelling")).collapsible(false).resizable(false).fixed_size(egui::vec2(380.0, 0.0)).anchor(egui::Align2::RIGHT_TOP, [-40.0, 90.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Spelling")).collapsible(false).resizable(false).fixed_size(egui::vec2(380.0, 0.0)).anchor(egui::Align2::RIGHT_TOP, [-40.0, 90.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(crate::i18n::tr("Not in the dictionary:"));
                 ui.label(RichText::new(found.word.as_str()).strong().color(theme::rainbow_mistake()));
@@ -1320,7 +1324,7 @@ impl Limoniter {
         let mut split = None;
         let mut run = None;
         let history = self.run_history.clone();
-        egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &mut self.dialog {
+        crate::fit::Dialog::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &mut self.dialog {
             Dialog::Rename { name, error, focus } => {
                 ui.label(crate::i18n::tr("New name, in the same folder:"));
                 let field = ui.add(egui::TextEdit::singleline(name).desired_width(340.0));

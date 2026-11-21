@@ -197,7 +197,7 @@ impl Limoniter {
         let mut asked = None;
         let mut open = true;
         let prefs = &mut self.eprom_prefs;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_width(620.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(true).default_width(620.0).show(ctx, |ui| {
             asked = draw_eprom(ui, &mut window, prefs, front.as_deref());
         });
         if let Some(asked) = asked {

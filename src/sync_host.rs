@@ -141,74 +141,80 @@ pub(super) fn sync_preview_window(ctx: &Context, preview: &mut SyncPreview) -> O
     let mut answer = ctx.input(|i| i.key_pressed(Key::Escape)).then_some(false);
     let mirror = preview.plan.kind == SyncKind::Mirror;
     let title = if mirror { "Mirror" } else { "Update" };
-    egui::Window::new(title).collapsible(false).resizable(true).default_width(700.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.label(crate::i18n::tf!("Left: {}\nRight: {}", preview.left, preview.right));
-        ui.add_space(4.0);
-        let counts = preview.plan.counts();
-        if preview.confirming {
-            let deletions = preview.plan.deletions();
-            let side = if preview.plan.way == SyncWay::LeftToRight { "right" } else { "left" };
-            ui.label(RichText::new(if deletions == 1 { crate::i18n::tf!("This deletes {deletions} file and folder from the {side}.") } else { crate::i18n::tf!("This deletes {deletions} files and folders from the {side}.") }).strong().color(theme::mistake()));
-            ui.label(crate::i18n::tf!("Each file deleted or replaced is kept first in {}.", preview.backups.display()));
-            ui.add_space(6.0);
+    crate::fit::Dialog::new(title).collapsible(false).resizable(true).default_width(700.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+        crate::fit::Part::Body => {
+            ui.label(crate::i18n::tf!("Left: {}\nRight: {}", preview.left, preview.right));
+            ui.add_space(4.0);
+            let counts = preview.plan.counts();
+            if preview.confirming {
+                let deletions = preview.plan.deletions();
+                let side = if preview.plan.way == SyncWay::LeftToRight { "right" } else { "left" };
+                ui.label(RichText::new(if deletions == 1 { crate::i18n::tf!("This deletes {deletions} file and folder from the {side}.") } else { crate::i18n::tf!("This deletes {deletions} files and folders from the {side}.") }).strong().color(theme::mistake()));
+                ui.label(crate::i18n::tf!("Each file deleted or replaced is kept first in {}.", preview.backups.display()));
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.button(crate::i18n::tf!("Delete {deletions} and sync")).clicked() {
+                        answer = Some(true);
+                    }
+                    if ui.button(crate::i18n::tr("Back to the list")).clicked() {
+                        preview.confirming = false;
+                    }
+                    if ui.button(crate::i18n::tr("Cancel")).clicked() {
+                        answer = Some(false);
+                    }
+                });
+                return;
+            }
+            ui.label(RichText::new(counts.describe()).strong());
+            if counts.conflicts > 0 {
+                ui.label(RichText::new(crate::i18n::tf!("{} changed on both sides since the last sync. They're left alone unless you tick them.", if counts.conflicts == 1 { crate::i18n::tr("One file was").to_string() } else { format!("{} files were", counts.conflicts) })).color(theme::mistake()));
+            }
             ui.horizontal(|ui| {
-                if ui.button(crate::i18n::tf!("Delete {deletions} and sync")).clicked() {
-                    answer = Some(true);
+                if ui.small_button(crate::i18n::tr("Tick all")).clicked() {
+                    preview.plan.items.iter_mut().for_each(|item| item.ticked = true);
                 }
-                if ui.button(crate::i18n::tr("Back to the list")).clicked() {
-                    preview.confirming = false;
+                if ui.small_button(crate::i18n::tr("Untick all")).clicked() {
+                    preview.plan.items.iter_mut().for_each(|item| item.ticked = false);
+                }
+            });
+            let row_height = 20.0;
+            egui::ScrollArea::vertical().max_height(340.0).auto_shrink([false, true]).show_rows(ui, row_height, preview.plan.items.len(), |ui, range| {
+                for item in &mut preview.plan.items[range] {
+                    ui.horizontal(|ui| {
+                        let arrow = if item.to_right { "\u{25B6} right" } else { "\u{25C0} left" };
+                        let words = format!("{:<13} {arrow}   {}{}", item.act.words(), item.path, if matches!(item.act, Act::MakeFolder | Act::RemoveFolder) { "/".to_string() } else { format!("  ({})", short_size(item.size)) });
+                        let text = if item.conflict { RichText::new(words).color(theme::mistake()) } else if matches!(item.act, Act::Delete | Act::RemoveFolder) { RichText::new(words).strong() } else { RichText::new(words) };
+                        ui.checkbox(&mut item.ticked, text);
+                        if let Some(note) = &item.note {
+                            ui.label(RichText::new(note).color(theme::text_dim()).size(12.0));
+                        }
+                    });
+                }
+            });
+            for (path, why) in preview.plan.skipped.iter().take(40) {
+                ui.label(RichText::new(crate::i18n::tf!("Left alone    {path}: {why}")).color(theme::text_dim()).size(12.5));
+            }
+            ui.add_space(6.0);
+            if counts.replace + counts.delete > 0 {
+                ui.label(crate::i18n::tf!("Each file replaced or deleted is kept first in {}.", preview.backups.display()));
+            }
+            if !mirror {
+                ui.label(RichText::new(crate::i18n::tr("An update deletes nothing.")).color(theme::text_dim()));
+            }
+        }
+        // Asking again before deleting has its own buttons, above.
+        crate::fit::Part::Buttons if preview.confirming => {}
+        crate::fit::Part::Buttons => {
+            ui.horizontal(|ui| {
+                let ticked = preview.plan.ticked();
+                if ui.add_enabled(ticked > 0, Button::new(if ticked == 1 { crate::i18n::tf!("Sync {ticked} item") } else { crate::i18n::tf!("Sync {ticked} items") })).clicked() {
+                    answer = sync_pressed(preview);
                 }
                 if ui.button(crate::i18n::tr("Cancel")).clicked() {
                     answer = Some(false);
                 }
             });
-            return;
         }
-        ui.label(RichText::new(counts.describe()).strong());
-        if counts.conflicts > 0 {
-            ui.label(RichText::new(crate::i18n::tf!("{} changed on both sides since the last sync. They're left alone unless you tick them.", if counts.conflicts == 1 { crate::i18n::tr("One file was").to_string() } else { format!("{} files were", counts.conflicts) })).color(theme::mistake()));
-        }
-        ui.horizontal(|ui| {
-            if ui.small_button(crate::i18n::tr("Tick all")).clicked() {
-                preview.plan.items.iter_mut().for_each(|item| item.ticked = true);
-            }
-            if ui.small_button(crate::i18n::tr("Untick all")).clicked() {
-                preview.plan.items.iter_mut().for_each(|item| item.ticked = false);
-            }
-        });
-        let row_height = 20.0;
-        egui::ScrollArea::vertical().max_height(340.0).auto_shrink([false, true]).show_rows(ui, row_height, preview.plan.items.len(), |ui, range| {
-            for item in &mut preview.plan.items[range] {
-                ui.horizontal(|ui| {
-                    let arrow = if item.to_right { "\u{25B6} right" } else { "\u{25C0} left" };
-                    let words = format!("{:<13} {arrow}   {}{}", item.act.words(), item.path, if matches!(item.act, Act::MakeFolder | Act::RemoveFolder) { "/".to_string() } else { format!("  ({})", short_size(item.size)) });
-                    let text = if item.conflict { RichText::new(words).color(theme::mistake()) } else if matches!(item.act, Act::Delete | Act::RemoveFolder) { RichText::new(words).strong() } else { RichText::new(words) };
-                    ui.checkbox(&mut item.ticked, text);
-                    if let Some(note) = &item.note {
-                        ui.label(RichText::new(note).color(theme::text_dim()).size(12.0));
-                    }
-                });
-            }
-        });
-        for (path, why) in preview.plan.skipped.iter().take(40) {
-            ui.label(RichText::new(crate::i18n::tf!("Left alone    {path}: {why}")).color(theme::text_dim()).size(12.5));
-        }
-        ui.add_space(6.0);
-        if counts.replace + counts.delete > 0 {
-            ui.label(crate::i18n::tf!("Each file replaced or deleted is kept first in {}.", preview.backups.display()));
-        }
-        if !mirror {
-            ui.label(RichText::new(crate::i18n::tr("An update deletes nothing.")).color(theme::text_dim()));
-        }
-        ui.horizontal(|ui| {
-            let ticked = preview.plan.ticked();
-            if ui.add_enabled(ticked > 0, Button::new(if ticked == 1 { crate::i18n::tf!("Sync {ticked} item") } else { crate::i18n::tf!("Sync {ticked} items") })).clicked() {
-                answer = sync_pressed(preview);
-            }
-            if ui.button(crate::i18n::tr("Cancel")).clicked() {
-                answer = Some(false);
-            }
-        });
     });
     answer
 }
@@ -508,7 +514,7 @@ impl Limoniter {
         }
         let mut wanted = None;
         if let Some(doc_id) = state.saving {
-            egui::Window::new(crate::i18n::tr("Save this comparison")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Save this comparison")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                 ui.label(crate::i18n::tr("Both sides, how they're compared, the filters and rules, and the sync, kept by name to open again."));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
@@ -537,7 +543,7 @@ impl Limoniter {
                 });
             });
         } else {
-            egui::Window::new(crate::i18n::tr("Saved comparisons")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Saved comparisons")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                 if all.is_empty() {
                     ui.label(crate::i18n::tr("None yet. In a folder comparison, Save this comparison keeps one by name."));
                 }
@@ -633,95 +639,99 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut keep = false;
         let title = if state.tab.is_some() { "Rules for this comparison" } else { "Rules for comparing files" };
-        egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(crate::i18n::tr("How files are compared, by name. The first rule that matches a file decides; one no rule matches is compared as usual."));
-            ui.add_space(6.0);
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(250.0);
-                    egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                        for (index, rule) in state.rules.list.iter().enumerate() {
-                            let patterns = if rule.patterns.trim().is_empty() { "(no files)" } else { rule.patterns.as_str() };
-                            if ui.selectable_label(state.selected == index, crate::i18n::tf!("{}\n{}", rule.describe(), patterns)).clicked() {
-                                state.selected = index;
-                            }
-                        }
-                    });
-                    ui.add_space(4.0);
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.button(crate::i18n::tr("Add")).clicked() {
-                            let at = (state.selected + 1).min(state.rules.list.len());
-                            state.rules.list.insert(at, Rule::new(RuleKind::Text, "*.txt"));
-                            state.selected = at;
-                        }
-                        if ui.add_enabled(!state.rules.list.is_empty(), Button::new(crate::i18n::tr("Remove"))).clicked() {
-                            state.rules.list.remove(state.selected);
-                            state.selected = state.selected.min(state.rules.list.len().saturating_sub(1));
-                        }
-                        if ui.add_enabled(state.selected > 0, Button::new(crate::i18n::tr("Up"))).clicked() {
-                            state.rules.list.swap(state.selected, state.selected - 1);
-                            state.selected -= 1;
-                        }
-                        if ui.add_enabled(state.selected + 1 < state.rules.list.len(), Button::new(crate::i18n::tr("Down"))).clicked() {
-                            state.rules.list.swap(state.selected, state.selected + 1);
-                            state.selected += 1;
-                        }
-                        if ui.button(crate::i18n::tr("Put back the usual rules")).clicked() {
-                            state.rules = Rules::usual();
-                            state.selected = 0;
-                        }
-                        if state.tab.is_some() && ui.button(crate::i18n::tr("Use those in Settings")).clicked() {
-                            state.rules = usual.clone();
-                            state.selected = 0;
-                        }
-                    });
-                });
-                ui.add_space(16.0);
-                let Some(rule) = state.rules.list.get_mut(state.selected) else {
-                    ui.label(RichText::new(crate::i18n::tr("There are no rules, so every file is compared as usual.")).color(theme::text_dim()));
-                    return;
-                };
-                ui.vertical(|ui| {
-                    ui.set_width(380.0);
-                    egui::Grid::new("compare-rule").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                        ui.label(crate::i18n::tr("Files"));
-                        ui.add(egui::TextEdit::singleline(&mut rule.patterns).hint_text(crate::i18n::tr("*.log; build/; docs/*.txt")).desired_width(260.0)).on_hover_text(crate::i18n::tr("Separated by ; or commas. One ending / is for folders only; one with a / inside is matched against the path from the top"));
-                        ui.end_row();
-                        ui.label(crate::i18n::tr("Compared"));
-                        egui::ComboBox::from_id_salt("compare-rule-kind").width(260.0).selected_text(crate::i18n::tr(rule.kind.words())).show_ui(ui, |ui| {
-                            for kind in RuleKind::ALL {
-                                ui.selectable_value(&mut rule.kind, kind, crate::i18n::tr(kind.words()));
+        crate::fit::Dialog::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.label(crate::i18n::tr("How files are compared, by name. The first rule that matches a file decides; one no rule matches is compared as usual."));
+                ui.add_space(6.0);
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(250.0);
+                        egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                            for (index, rule) in state.rules.list.iter().enumerate() {
+                                let patterns = if rule.patterns.trim().is_empty() { "(no files)" } else { rule.patterns.as_str() };
+                                if ui.selectable_label(state.selected == index, crate::i18n::tf!("{}\n{}", rule.describe(), patterns)).clicked() {
+                                    state.selected = index;
+                                }
                             }
                         });
-                        ui.end_row();
-                    });
-                    if rule.kind == RuleKind::Text {
                         ui.add_space(4.0);
-                        ui.checkbox(&mut rule.text.ignore_whitespace, crate::i18n::tr("Ignore spaces and tabs"));
-                        ui.checkbox(&mut rule.text.ignore_case, crate::i18n::tr("Ignore case"));
-                        ui.checkbox(&mut rule.text.ignore_line_endings, crate::i18n::tr("Ignore line endings"));
-                        ui.label(crate::i18n::tr("Lines matching this count as the same as each other:"));
-                        ui.add(egui::TextEdit::singleline(&mut rule.ignore_lines).hint_text(r"^// Built on \d+").font(egui::TextStyle::Monospace).desired_width(360.0)).on_hover_text(crate::i18n::tr("A regular expression, such as one for a line with a date or time in it. Leave empty for none"));
-                    }
-                    let about = match rule.kind {
-                        RuleKind::Text => "Compared line by line, with what's ticked left out. Opened side by side with the same left out.",
-                        RuleKind::Binary => "Compared byte by byte, and opened to show the bytes that differ.",
-                        RuleKind::Picture => "Two files showing the same pixels are the same, whatever their bytes. Opened side by side as pictures.",
-                        RuleKind::SizeAndTime => "Never read: the same size and modified time are the same file, even when comparing by contents.",
-                        RuleKind::Skip => "Left out of every comparison, and so never synced.",
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button(crate::i18n::tr("Add")).clicked() {
+                                let at = (state.selected + 1).min(state.rules.list.len());
+                                state.rules.list.insert(at, Rule::new(RuleKind::Text, "*.txt"));
+                                state.selected = at;
+                            }
+                            if ui.add_enabled(!state.rules.list.is_empty(), Button::new(crate::i18n::tr("Remove"))).clicked() {
+                                state.rules.list.remove(state.selected);
+                                state.selected = state.selected.min(state.rules.list.len().saturating_sub(1));
+                            }
+                            if ui.add_enabled(state.selected > 0, Button::new(crate::i18n::tr("Up"))).clicked() {
+                                state.rules.list.swap(state.selected, state.selected - 1);
+                                state.selected -= 1;
+                            }
+                            if ui.add_enabled(state.selected + 1 < state.rules.list.len(), Button::new(crate::i18n::tr("Down"))).clicked() {
+                                state.rules.list.swap(state.selected, state.selected + 1);
+                                state.selected += 1;
+                            }
+                            if ui.button(crate::i18n::tr("Put back the usual rules")).clicked() {
+                                state.rules = Rules::usual();
+                                state.selected = 0;
+                            }
+                            if state.tab.is_some() && ui.button(crate::i18n::tr("Use those in Settings")).clicked() {
+                                state.rules = usual.clone();
+                                state.selected = 0;
+                            }
+                        });
+                    });
+                    ui.add_space(16.0);
+                    let Some(rule) = state.rules.list.get_mut(state.selected) else {
+                        ui.label(RichText::new(crate::i18n::tr("There are no rules, so every file is compared as usual.")).color(theme::text_dim()));
+                        return;
                     };
-                    ui.add_space(4.0);
-                    ui.label(RichText::new(about).color(theme::text_dim()).size(12.5));
+                    ui.vertical(|ui| {
+                        ui.set_width(380.0);
+                        egui::Grid::new("compare-rule").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                            ui.label(crate::i18n::tr("Files"));
+                            ui.add(egui::TextEdit::singleline(&mut rule.patterns).hint_text(crate::i18n::tr("*.log; build/; docs/*.txt")).desired_width(260.0)).on_hover_text(crate::i18n::tr("Separated by ; or commas. One ending / is for folders only; one with a / inside is matched against the path from the top"));
+                            ui.end_row();
+                            ui.label(crate::i18n::tr("Compared"));
+                            egui::ComboBox::from_id_salt("compare-rule-kind").width(260.0).selected_text(crate::i18n::tr(rule.kind.words())).show_ui(ui, |ui| {
+                                for kind in RuleKind::ALL {
+                                    ui.selectable_value(&mut rule.kind, kind, crate::i18n::tr(kind.words()));
+                                }
+                            });
+                            ui.end_row();
+                        });
+                        if rule.kind == RuleKind::Text {
+                            ui.add_space(4.0);
+                            ui.checkbox(&mut rule.text.ignore_whitespace, crate::i18n::tr("Ignore spaces and tabs"));
+                            ui.checkbox(&mut rule.text.ignore_case, crate::i18n::tr("Ignore case"));
+                            ui.checkbox(&mut rule.text.ignore_line_endings, crate::i18n::tr("Ignore line endings"));
+                            ui.label(crate::i18n::tr("Lines matching this count as the same as each other:"));
+                            ui.add(egui::TextEdit::singleline(&mut rule.ignore_lines).hint_text(r"^// Built on \d+").font(egui::TextStyle::Monospace).desired_width(360.0)).on_hover_text(crate::i18n::tr("A regular expression, such as one for a line with a date or time in it. Leave empty for none"));
+                        }
+                        let about = match rule.kind {
+                            RuleKind::Text => "Compared line by line, with what's ticked left out. Opened side by side with the same left out.",
+                            RuleKind::Binary => "Compared byte by byte, and opened to show the bytes that differ.",
+                            RuleKind::Picture => "Two files showing the same pixels are the same, whatever their bytes. Opened side by side as pictures.",
+                            RuleKind::SizeAndTime => "Never read: the same size and modified time are the same file, even when comparing by contents.",
+                            RuleKind::Skip => "Left out of every comparison, and so never synced.",
+                        };
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(about).color(theme::text_dim()).size(12.5));
+                    });
                 });
-            });
-            if !state.problem.is_empty() {
-                ui.label(RichText::new(&state.problem).color(theme::mistake()));
             }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                keep = ui.button(crate::i18n::tr("OK")).clicked();
-                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
-            });
+            crate::fit::Part::Buttons => {
+                if !state.problem.is_empty() {
+                    ui.label(RichText::new(&state.problem).color(theme::mistake()));
+                }
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    keep = ui.button(crate::i18n::tr("OK")).clicked();
+                    close |= ui.button(crate::i18n::tr("Cancel")).clicked();
+                });
+            }
         });
         if keep {
             if let Some(problem) = state.rules.problem() {
@@ -764,72 +774,76 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut apply = false;
         let mut browse: Option<bool> = None;
-        egui::Window::new(crate::i18n::tr("Apply a patch")).collapsible(false).resizable(true).default_width(620.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(crate::i18n::tf!("The patch: {}", state.patch_file.display()));
-            ui.horizontal(|ui| {
-                ui.label(crate::i18n::tr("Apply it to"));
-                let edit = ui.add(egui::TextEdit::singleline(&mut state.target).desired_width(300.0).hint_text(crate::i18n::tr("A folder, or one file")));
-                if edit.lost_focus() {
-                    check_patch(state);
-                }
-                if ui.button(crate::i18n::tr("Folder\u{2026}")).clicked() {
-                    browse = Some(true);
-                }
-                if ui.button(crate::i18n::tr("File\u{2026}")).clicked() {
-                    browse = Some(false);
-                }
-            });
-            ui.add_space(4.0);
-            match &state.checks {
-                None => {
-                    ui.label(RichText::new(crate::i18n::tr("Choose where it's to be applied.")).color(theme::text_dim()));
-                }
-                Some(Err(problem)) => {
-                    ui.label(RichText::new(problem).color(theme::mistake()));
-                }
-                Some(Ok(checks)) => {
-                    egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
-                        for check in checks {
-                            let colour = if check.ready() { theme::text() } else { theme::mistake() };
-                            ui.label(RichText::new(crate::i18n::tf!("{}    {}", check.name, check.describe())).color(colour));
-                            let shown: Vec<String> = check
-                                .fits
-                                .iter()
-                                .enumerate()
-                                .map(|(n, fit)| match fit {
-                                    Fit::Exact => format!("change {} fits", n + 1),
-                                    Fit::Moved(by) => {
-                                        let (number, lines) = (n + 1, by.unsigned_abs());
-                                        match (lines == 1, *by > 0) {
-                                            (true, true) => crate::i18n::tf!("change {number} fits 1 line further down"),
-                                            (true, false) => crate::i18n::tf!("change {number} fits 1 line further up"),
-                                            (false, true) => crate::i18n::tf!("change {number} fits {lines} lines further down"),
-                                            (false, false) => crate::i18n::tf!("change {number} fits {lines} lines further up"),
-                                        }
-                                    },
-                                    Fit::Fails => crate::i18n::tf!("change {} can't be found", n + 1),
-                                })
-                                .collect();
-                            if !shown.is_empty() {
-                                ui.label(RichText::new(crate::i18n::tf!("      {}", shown.join(", "))).color(theme::text_dim()).size(12.0));
-                            }
-                        }
-                    });
-                    let ready = checks.iter().filter(|check| check.ready()).count();
-                    if ready < checks.len() {
-                        ui.label(RichText::new(if checks.len() - ready == 1 { crate::i18n::tf!("{} file will be left as {} are, because not every change in {} can be found.", checks.len() - ready, if checks.len() - ready == 1 { "it" } else { "they" }, if checks.len() - ready == 1 { "it" } else { "them" }) } else { crate::i18n::tf!("{} files will be left as {} are, because not every change in {} can be found.", checks.len() - ready, if checks.len() - ready == 1 { "it" } else { "they" }, if checks.len() - ready == 1 { "it" } else { "them" }) }).color(theme::text_dim()));
+        crate::fit::Dialog::new(crate::i18n::tr("Apply a patch")).collapsible(false).resizable(true).default_width(620.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.label(crate::i18n::tf!("The patch: {}", state.patch_file.display()));
+                ui.horizontal(|ui| {
+                    ui.label(crate::i18n::tr("Apply it to"));
+                    let edit = ui.add(egui::TextEdit::singleline(&mut state.target).desired_width(300.0).hint_text(crate::i18n::tr("A folder, or one file")));
+                    if edit.lost_focus() {
+                        check_patch(state);
                     }
-                    ui.label(RichText::new(crate::i18n::tr("Each file is kept as it was first, in the compare backups folder.")).color(theme::text_dim()));
+                    if ui.button(crate::i18n::tr("Folder\u{2026}")).clicked() {
+                        browse = Some(true);
+                    }
+                    if ui.button(crate::i18n::tr("File\u{2026}")).clicked() {
+                        browse = Some(false);
+                    }
+                });
+                ui.add_space(4.0);
+                match &state.checks {
+                    None => {
+                        ui.label(RichText::new(crate::i18n::tr("Choose where it's to be applied.")).color(theme::text_dim()));
+                    }
+                    Some(Err(problem)) => {
+                        ui.label(RichText::new(problem).color(theme::mistake()));
+                    }
+                    Some(Ok(checks)) => {
+                        egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+                            for check in checks {
+                                let colour = if check.ready() { theme::text() } else { theme::mistake() };
+                                ui.label(RichText::new(crate::i18n::tf!("{}    {}", check.name, check.describe())).color(colour));
+                                let shown: Vec<String> = check
+                                    .fits
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(n, fit)| match fit {
+                                        Fit::Exact => format!("change {} fits", n + 1),
+                                        Fit::Moved(by) => {
+                                            let (number, lines) = (n + 1, by.unsigned_abs());
+                                            match (lines == 1, *by > 0) {
+                                                (true, true) => crate::i18n::tf!("change {number} fits 1 line further down"),
+                                                (true, false) => crate::i18n::tf!("change {number} fits 1 line further up"),
+                                                (false, true) => crate::i18n::tf!("change {number} fits {lines} lines further down"),
+                                                (false, false) => crate::i18n::tf!("change {number} fits {lines} lines further up"),
+                                            }
+                                        },
+                                        Fit::Fails => crate::i18n::tf!("change {} can't be found", n + 1),
+                                    })
+                                    .collect();
+                                if !shown.is_empty() {
+                                    ui.label(RichText::new(crate::i18n::tf!("      {}", shown.join(", "))).color(theme::text_dim()).size(12.0));
+                                }
+                            }
+                        });
+                        let ready = checks.iter().filter(|check| check.ready()).count();
+                        if ready < checks.len() {
+                            ui.label(RichText::new(if checks.len() - ready == 1 { crate::i18n::tf!("{} file will be left as {} are, because not every change in {} can be found.", checks.len() - ready, if checks.len() - ready == 1 { "it" } else { "they" }, if checks.len() - ready == 1 { "it" } else { "them" }) } else { crate::i18n::tf!("{} files will be left as {} are, because not every change in {} can be found.", checks.len() - ready, if checks.len() - ready == 1 { "it" } else { "they" }, if checks.len() - ready == 1 { "it" } else { "them" }) }).color(theme::text_dim()));
+                        }
+                        ui.label(RichText::new(crate::i18n::tr("Each file is kept as it was first, in the compare backups folder.")).color(theme::text_dim()));
+                    }
                 }
             }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                let ready = state.checks.as_ref().and_then(|checks| checks.as_ref().ok()).map_or(0, |checks| checks.iter().filter(|check| check.ready()).count());
-                if ui.add_enabled(ready > 0, Button::new(if ready == 1 { crate::i18n::tf!("Apply to {ready} file") } else { crate::i18n::tf!("Apply to {ready} files") })).clicked() {
-                    apply = true;
-                }
-                close |= ui.button(crate::i18n::tr("Cancel")).clicked();
-            });
+            crate::fit::Part::Buttons => {
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    let ready = state.checks.as_ref().and_then(|checks| checks.as_ref().ok()).map_or(0, |checks| checks.iter().filter(|check| check.ready()).count());
+                    if ui.add_enabled(ready > 0, Button::new(if ready == 1 { crate::i18n::tf!("Apply to {ready} file") } else { crate::i18n::tf!("Apply to {ready} files") })).clicked() {
+                        apply = true;
+                    }
+                    close |= ui.button(crate::i18n::tr("Cancel")).clicked();
+                });
+            }
         });
         if let Some(folder) = browse {
             let picked = if folder { rfd::FileDialog::new().set_title(crate::i18n::tr("The folder to apply it to")).pick_folder() } else { rfd::FileDialog::new().set_title(crate::i18n::tr("The file to apply it to")).pick_file() };

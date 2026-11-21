@@ -609,7 +609,7 @@ impl Limoniter {
         let (mut accept, mut copy, mut close) = (false, false, escape);
         let rows = diff_rows(&review.old, &review.new);
         let changed = rows.iter().any(|(mark, _)| *mark != ' ');
-        egui::Window::new(crate::i18n::tf!("{} suggests", review.tool.name())).collapsible(false).resizable(true).default_size(egui::vec2(760.0, 480.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tf!("{} suggests", review.tool.name())).collapsible(false).resizable(true).default_size(egui::vec2(760.0, 480.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             let place = if review.old.is_empty() { crate::i18n::tf!("New code after line {}", review.range.start) } else { crate::i18n::tf!("Lines {} to {}", review.range.start + 1, review.range.end) };
             ui.label(RichText::new(if changed { place } else { crate::i18n::tf!("{place}: it suggests no change") }).color(theme::text_dim()));
             ui.add_space(4.0);

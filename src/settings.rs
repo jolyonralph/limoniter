@@ -94,6 +94,8 @@ pub struct Prefs {
     pub backup_on_save: bool,
     /// How Spectrum BASIC listings write block graphics and UDGs.
     pub zx_notation: crate::zx_graphics::Notation,
+    /// The 680x0 that 68000 source is assembled for, unless MACHINE in it says another.
+    pub m68k_processor: crate::asm::m68k::Processor,
     /// Once a day, a newer OpticOS ROM is looked for on GitHub and installed.
     pub opticos_updates: bool,
     /// Once a day, GitHub is asked whether there's a newer Limoniter.
@@ -107,7 +109,7 @@ pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, opticos_updates: true, update_checks: true, language: "en" }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, opticos_updates: true, update_checks: true, language: "en" }
     }
 }
 
@@ -115,7 +117,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nopticos_updates={}\nupdate_checks={}\nlanguage={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -145,6 +147,7 @@ impl Prefs {
             self.autosave_seconds,
             self.backup_on_save,
             self.zx_notation.id(),
+            self.m68k_processor.id(),
             self.opticos_updates,
             self.update_checks,
             self.language
@@ -190,6 +193,10 @@ impl Prefs {
                 }
                 "zx_notation" => {
                     prefs.zx_notation = crate::zx_graphics::Notation::from_id(value).unwrap_or_default();
+                    continue;
+                }
+                "m68k_processor" => {
+                    prefs.m68k_processor = value.parse().ok().and_then(crate::asm::m68k::Processor::from_id).unwrap_or_default();
                     continue;
                 }
                 // Before there was a choice, one switch said whether the preview was open.
@@ -363,6 +370,7 @@ enum Special {
     ClearRecent,
     MarkdownView,
     ZxNotation,
+    M68kProcessor,
     Assemblers,
     AmigaNdk,
     AmigaTools,
@@ -452,6 +460,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Copy before paste", "Pasting over selected text swaps them: what was selected goes on the clipboard, ready to paste somewhere else", |t| &mut t.prefs.edit.copy_before_paste),
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
+            Row::Special("68000 source is for", Special::M68kProcessor),
             Row::Special("Amiga code hints", Special::AmigaNdk),
             Row::Special("Amiga crunchers and music", Special::AmigaTools),
             Row::Flag("Check for a newer Limoniter", "Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. Nothing is downloaded by itself. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once", |t| &mut t.prefs.update_checks),
@@ -705,6 +714,19 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                     *outcome = Some(Outcome::AmigaTools);
                 }
             }
+            Special::M68kProcessor => {
+                let before = target.prefs.m68k_processor;
+                egui::ComboBox::from_id_salt("m68k-processor").width(260.0).selected_text(target.prefs.m68k_processor.name()).show_ui(ui, |ui| {
+                    for processor in crate::asm::m68k::Processor::ALL {
+                        ui.selectable_value(&mut target.prefs.m68k_processor, processor, processor.name());
+                    }
+                })
+                .response
+                .on_hover_text(crate::i18n::tr("The processor Limoniter's own assembler takes 68000 source to be for, and its cycle counts are for: the 68008 is the Sinclair QL's, the 68020 the A1200's, the 68030 the A4000/030's and the Falcon's. MACHINE 68020 (or MC68020, CPU32, OPT P=68020) in the source chooses for that file"));
+                if target.prefs.m68k_processor != before {
+                    crate::asm::m68k::choose(target.prefs.m68k_processor);
+                }
+            }
             Special::ZxNotation => {
                 egui::ComboBox::from_id_salt("zx-notation").width(260.0).selected_text(crate::i18n::tr(target.prefs.zx_notation.label())).show_ui(ui, |ui| {
                     for notation in crate::zx_graphics::Notation::ALL {
@@ -740,63 +762,68 @@ fn draw_row(ui: &mut Ui, row: Row, target: &mut Target<'_>, types: &mut FileType
 /// Draws the window. Changes apply straight away, so there's only Close.
 pub fn window(ctx: &Context, state: &mut WindowState, target: &mut Target<'_>) -> Option<Outcome> {
     let mut outcome = ctx.input(|i| i.key_pressed(egui::Key::Escape)).then_some(Outcome::Close);
-    egui::Window::new(crate::i18n::tr("Settings")).collapsible(false).resizable(false).fixed_size(vec2(680.0, 470.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(150.0);
-                let field = ui.add(egui::TextEdit::singleline(&mut state.find).hint_text(crate::i18n::tr("Find a setting")).desired_width(150.0));
-                if state.focus {
-                    field.request_focus();
-                    state.focus = false;
-                }
-                ui.add_space(6.0);
-                for (place, (name, _)) in SECTIONS.iter().enumerate() {
-                    let on = state.find.is_empty() && state.section == place;
-                    if ui.add(Button::selectable(on, crate::i18n::tr(name)).frame_when_inactive(false).min_size(vec2(150.0, 0.0))).clicked() {
-                        state.section = place;
-                        state.find.clear();
+    crate::fit::Dialog::new(crate::i18n::tr("Settings")).collapsible(false).resizable(false).fixed_size(vec2(680.0, 470.0)).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+        crate::fit::Part::Body => {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width(150.0);
+                    let field = ui.add(egui::TextEdit::singleline(&mut state.find).hint_text(crate::i18n::tr("Find a setting")).desired_width(150.0));
+                    if state.focus {
+                        field.request_focus();
+                        state.focus = false;
                     }
-                }
-            });
-            ui.separator();
-            ui.vertical(|ui| {
-                ui.set_width(490.0);
-                ui.set_height(430.0);
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                    let find = state.find.trim().to_lowercase();
-                    if find.is_empty() {
-                        for row in SECTIONS[state.section].1 {
-                            draw_row(ui, *row, target, &mut state.file_types, &mut outcome);
+                    ui.add_space(6.0);
+                    for (place, (name, _)) in SECTIONS.iter().enumerate() {
+                        let on = state.find.is_empty() && state.section == place;
+                        if ui.add(Button::selectable(on, crate::i18n::tr(name)).frame_when_inactive(false).min_size(vec2(150.0, 0.0))).clicked() {
+                            state.section = place;
+                            state.find.clear();
                         }
-                        return;
                     }
-                    let mut any = false;
-                    for (name, rows) in SECTIONS {
-                        let found: Vec<Row> = rows.iter().copied().filter(|row| row.matches(&find)).collect();
-                        if !found.is_empty() {
-                            any = true;
-                            ui.add_space(4.0);
-                            ui.label(RichText::new(crate::i18n::tr(name)).color(theme::text_dim()));
-                            for row in found {
-                                draw_row(ui, row, target, &mut state.file_types, &mut outcome);
+                });
+                ui.separator();
+                ui.vertical(|ui| {
+                    ui.set_width(490.0);
+                    // No taller than the screen has room for, so the list scrolls on its own rather than the whole box.
+                    ui.set_height(430.0_f32.min(crate::fit::height_left(ui)));
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        let find = state.find.trim().to_lowercase();
+                        if find.is_empty() {
+                            for row in SECTIONS[state.section].1 {
+                                draw_row(ui, *row, target, &mut state.file_types, &mut outcome);
+                            }
+                            return;
+                        }
+                        let mut any = false;
+                        for (name, rows) in SECTIONS {
+                            let found: Vec<Row> = rows.iter().copied().filter(|row| row.matches(&find)).collect();
+                            if !found.is_empty() {
+                                any = true;
+                                ui.add_space(4.0);
+                                ui.label(RichText::new(crate::i18n::tr(name)).color(theme::text_dim()));
+                                for row in found {
+                                    draw_row(ui, row, target, &mut state.file_types, &mut outcome);
+                                }
                             }
                         }
-                    }
-                    if !any {
-                        ui.label(RichText::new(crate::i18n::tr("No setting matches that.")).color(theme::text_dim()));
+                        if !any {
+                            ui.label(RichText::new(crate::i18n::tr("No setting matches that.")).color(theme::text_dim()));
+                        }
+                    });
+                });
+            });
+        }
+        crate::fit::Part::Buttons => {
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(crate::i18n::tr("Changes apply straight away.")).color(theme::text_faint()));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(crate::i18n::tr("Close")).clicked() {
+                        outcome = Some(Outcome::Close);
                     }
                 });
             });
-        });
-        ui.separator();
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(crate::i18n::tr("Changes apply straight away.")).color(theme::text_faint()));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(crate::i18n::tr("Close")).clicked() {
-                    outcome = Some(Outcome::Close);
-                }
-            });
-        });
+        }
     });
     outcome
 }
@@ -834,6 +861,7 @@ mod tests {
             autosave_seconds: 300,
             backup_on_save: true,
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
+            m68k_processor: crate::asm::m68k::Processor::M68008,
             opticos_updates: false,
             update_checks: false,
             language: "fr",

@@ -53,7 +53,7 @@ fn folder_menu(ui: &mut Ui, folder: &Path, open: &mut Option<PathBuf>) {
     egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
         for (is_folder, name, path) in entries.into_iter().take(MOST_LISTED) {
             if is_folder {
-                ui.menu_button(format!("\u{1F4C1} {name}"), |ui| folder_menu(ui, &path, open));
+                crate::fit::menu_button(ui, format!("\u{1F4C1} {name}"), |ui| folder_menu(ui, &path, open));
             } else if ui.button(name).clicked() {
                 *open = Some(path);
                 ui.close();
@@ -165,11 +165,11 @@ impl Limoniter {
                     let name = place.file_name().map_or_else(|| place.display().to_string(), |n| n.to_string_lossy().into_owned());
                     // The file's own crumb lists what's beside it; a folder's, what's in it.
                     let folder = if *place == path { place.parent().map(Path::to_path_buf).unwrap_or_default() } else { place.clone() };
-                    ui.menu_button(small(name), |ui| folder_menu(ui, &folder, &mut open)).response.on_hover_text(place.display().to_string());
+                    crate::fit::menu_button(ui, small(name), |ui| folder_menu(ui, &folder, &mut open)).response.on_hover_text(place.display().to_string());
                 }
                 if let Some((_, name)) = &here {
                     ui.label(small("\u{203A}".into()));
-                    ui.menu_button(small(name.clone()), |ui| {
+                    crate::fit::menu_button(ui, small(name.clone()), |ui| {
                         egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
                             for (line, symbol) in &symbols {
                                 if ui.button(RichText::new(symbol).monospace()).on_hover_text(crate::i18n::tf!("Line {}", line + 1)).clicked() {

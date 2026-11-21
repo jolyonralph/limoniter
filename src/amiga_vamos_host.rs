@@ -102,7 +102,10 @@ impl Limoniter {
 
 #[cfg(test)]
 mod tests {
+    // The tests need sh for their stand-in vamos, so on Windows there are none to use these.
+    #[cfg(unix)]
     use super::*;
+    #[cfg(unix)]
     use crate::app::tests::{app_with, draw};
 
     /// With a stand-in for vamos in the Devices list, F9 on a script runs it through vamos, and its output comes

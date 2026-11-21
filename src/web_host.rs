@@ -83,7 +83,7 @@ impl Limoniter {
         }
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut go = false;
-        egui::Window::new(crate::i18n::tr("Open a file from the web")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Open a file from the web")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(crate::i18n::tr("The file's web address (http or https):"));
             let field = ui.add(egui::TextEdit::singleline(&mut state.address).desired_width(460.0).hint_text(crate::i18n::tr("https://example.com/file.txt")));
             if state.status.is_empty() && state.fetching.is_none() {

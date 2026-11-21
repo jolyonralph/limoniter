@@ -63,7 +63,7 @@ impl Limoniter {
             self.binary_figures(&mut tools);
         }
         let (mut close, mut fix, mut make, mut apply, mut copy) = (false, false, None, false, None);
-        egui::Window::new(crate::i18n::tr("Binary tools")).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Binary tools")).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut tools.tab, Tab::Checksums, crate::i18n::tr("Checksums"));
                 ui.selectable_value(&mut tools.tab, Tab::Patches, crate::i18n::tr("Patches"));
@@ -306,7 +306,7 @@ impl Limoniter {
         let Some(mut tester) = self.regex_tester.take() else { return };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr("Pattern and schema tester")).open(&mut open).collapsible(false).resizable(true).default_width(600.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Pattern and schema tester")).open(&mut open).collapsible(false).resizable(true).default_width(600.0).show(ctx, |ui| {
             asked = tester.draw(ui);
         });
         match asked {
@@ -359,7 +359,7 @@ impl Limoniter {
         let mut open = true;
         let before = self.flashing.clone();
         let f = &mut self.flashing;
-        egui::Window::new(crate::i18n::tr("Microcontroller flashing")).open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Microcontroller flashing")).open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
             ui.label(crate::i18n::tr("Once a .hex file has been built, Tools, Tasks, Run has a task that flashes it, made with these."));
             ui.add_space(4.0);
             ui.label(RichText::new(crate::i18n::tr("AVR, with avrdude")).strong());
@@ -493,7 +493,7 @@ impl Limoniter {
         }
         let mut open = true;
         let (mut save, mut copy) = (false, false);
-        egui::Window::new(crate::i18n::tr("Code as a picture")).open(&mut open).collapsible(false).resizable(true).default_width(640.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Code as a picture")).open(&mut open).collapsible(false).resizable(true).default_width(640.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut state.line_numbers, crate::i18n::tr("Line numbers"));
                 ui.label(crate::i18n::tr("Margin"));
@@ -683,7 +683,7 @@ impl Limoniter {
         languages.sort_unstable();
         languages.dedup();
         let choices = &mut self.formatter_choices;
-        egui::Window::new(crate::i18n::tr("Formatters")).open(&mut open).collapsible(false).resizable(true).default_height(420.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Formatters")).open(&mut open).collapsible(false).resizable(true).default_height(420.0).show(ctx, |ui| {
             ui.label(crate::i18n::tr("Format document uses these where no language server formats the file. Only those installed can be chosen."));
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("formatters").num_columns(2).striped(true).show(ui, |ui| {
@@ -746,7 +746,7 @@ impl Limoniter {
         let mut open = true;
         let mut tracking = self.view.track_time;
         let tracker = &self.time_spent;
-        egui::Window::new(crate::i18n::tr("Time spent")).open(&mut open).collapsible(false).resizable(true).default_width(520.0).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Time spent")).open(&mut open).collapsible(false).resizable(true).default_width(520.0).show(ctx, |ui| {
             ui.checkbox(&mut tracking, crate::i18n::tr("Keep count of the time spent working")).on_hover_text(crate::i18n::tr("Kept in time-spent.tsv beside the settings, on this computer only, and sent nowhere. A pause of over two minutes isn't counted."));
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut days, 1, crate::i18n::tr("Today"));

@@ -38,7 +38,7 @@ impl Limoniter {
         };
         let mut open = true;
         let mut asked = None;
-        egui::Window::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(false).default_pos([100.0, 60.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr(TITLE)).open(&mut open).resizable(false).default_pos([100.0, 60.0]).show(ctx, |ui| {
             asked = ripper.draw(ui);
         });
         if !open || asked == Some(Asked::Close) {

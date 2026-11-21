@@ -271,7 +271,7 @@ impl Limoniter {
         let themes = &mut self.themes;
         let in_front = themes.document_for(&self.docs[self.active]).name.clone();
         let most = (ctx.content_rect().height() - 80.0).max(300.0);
-        egui::Window::new(crate::i18n::tr("Themes")).collapsible(false).resizable(true).default_width(860.0).max_height(most).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        crate::fit::Dialog::new(crate::i18n::tr("Themes")).collapsible(false).resizable(true).default_width(860.0).max_height(most).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut state.page, ThemePage::Documents, crate::i18n::tr("Document themes"));
                 ui.selectable_value(&mut state.page, ThemePage::Window, crate::i18n::tr("Window themes"));

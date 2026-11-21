@@ -36,7 +36,7 @@ impl Limoniter {
         if let Some(mut calculator) = self.c64_tools.raster.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("C64 raster lines")).open(&mut open).resizable(false).default_pos([240.0, 100.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("C64 raster lines")).open(&mut open).resizable(false).default_pos([240.0, 100.0]).show(ctx, |ui| {
                 asked = calculator.draw(ui);
             });
             if let Some(crate::c64_raster::Asked::Insert(text)) = asked {
@@ -49,7 +49,7 @@ impl Limoniter {
         if let Some(mut helper) = self.c64_tools.irqs.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("C64 raster interrupts")).open(&mut open).resizable(false).default_pos([280.0, 120.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("C64 raster interrupts")).open(&mut open).resizable(false).default_pos([280.0, 120.0]).show(ctx, |ui| {
                 asked = helper.draw(ui);
             });
             if let Some(crate::c64_irq::Asked::Insert(text)) = asked {

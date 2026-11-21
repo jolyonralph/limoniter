@@ -184,53 +184,57 @@ impl Limoniter {
         let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
         let mut action: Option<Act> = None;
         let busy = state.job.is_some();
-        egui::Window::new(crate::i18n::tr("Commodore 64: SID music and packers")).collapsible(false).resizable(true).default_width(600.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.set_max_width(640.0);
-            ui.horizontal(|ui| {
-                for (page, label) in [(Page::Music, "SID music"), (Page::Pack, "Pack a program"), (Page::Cartridge, "Cartridge"), (Page::Tools, "Tools")] {
-                    if ui.selectable_label(state.page == page, crate::i18n::tr(label)).clicked() {
-                        state.page = page;
-                    }
-                }
-            });
-            ui.separator();
-            egui::ScrollArea::vertical().max_height(520.0).show(ui, |ui| match state.page {
-                Page::Music => music_page(ui, state, target.as_deref(), &ultimates, &mut action),
-                Page::Pack => pack_page(ui, state, &mut action),
-                Page::Cartridge => cartridge_page(ui, state, &mut action),
-                Page::Tools => tools_page(ui, state, &mut action),
-            });
-            ui.separator();
-            if let Some(job) = &state.job {
+        crate::fit::Dialog::new(crate::i18n::tr("Commodore 64: SID music and packers")).collapsible(false).resizable(true).default_width(600.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
+            crate::fit::Part::Body => {
+                ui.set_max_width(640.0);
                 ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(crate::i18n::tf!("{}\u{2026}", job.what));
-                    if ui.button(crate::i18n::tr("Stop")).clicked() {
-                        job.stop.store(true, Ordering::Relaxed);
+                    for (page, label) in [(Page::Music, "SID music"), (Page::Pack, "Pack a program"), (Page::Cartridge, "Cartridge"), (Page::Tools, "Tools")] {
+                        if ui.selectable_label(state.page == page, crate::i18n::tr(label)).clicked() {
+                            state.page = page;
+                        }
                     }
                 });
-            } else if let Some(result) = &state.result {
-                match result {
-                    Ok(outcome) if outcome.ok => {
-                        let sizes = outcome.sizes();
-                        let made: Vec<String> = outcome.made.iter().filter_map(|(p, _)| p.file_name()).map(|n| n.to_string_lossy().into_owned()).collect();
-                        let words = if sizes.is_empty() { format!("Made {}.", made.join(", ")) } else { format!("Done: {sizes}.") };
-                        ui.colored_label(theme::change_saved(), words);
-                    }
-                    Ok(_) => {
-                        ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("It didn't succeed: what it printed is in the Output panel."));
-                    }
-                    Err(problem) => {
-                        ui.colored_label(theme::rainbow_mistake(), problem);
+                ui.separator();
+                egui::ScrollArea::vertical().max_height(520.0).show(ui, |ui| match state.page {
+                    Page::Music => music_page(ui, state, target.as_deref(), &ultimates, &mut action),
+                    Page::Pack => pack_page(ui, state, &mut action),
+                    Page::Cartridge => cartridge_page(ui, state, &mut action),
+                    Page::Tools => tools_page(ui, state, &mut action),
+                });
+                ui.separator();
+                if let Some(job) = &state.job {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(crate::i18n::tf!("{}\u{2026}", job.what));
+                        if ui.button(crate::i18n::tr("Stop")).clicked() {
+                            job.stop.store(true, Ordering::Relaxed);
+                        }
+                    });
+                } else if let Some(result) = &state.result {
+                    match result {
+                        Ok(outcome) if outcome.ok => {
+                            let sizes = outcome.sizes();
+                            let made: Vec<String> = outcome.made.iter().filter_map(|(p, _)| p.file_name()).map(|n| n.to_string_lossy().into_owned()).collect();
+                            let words = if sizes.is_empty() { format!("Made {}.", made.join(", ")) } else { format!("Done: {sizes}.") };
+                            ui.colored_label(theme::change_saved(), words);
+                        }
+                        Ok(_) => {
+                            ui.colored_label(theme::rainbow_mistake(), crate::i18n::tr("It didn't succeed: what it printed is in the Output panel."));
+                        }
+                        Err(problem) => {
+                            ui.colored_label(theme::rainbow_mistake(), problem);
+                        }
                     }
                 }
             }
-            if !state.status.is_empty() {
-                ui.label(RichText::new(&state.status).color(theme::text_dim()));
+            crate::fit::Part::Buttons => {
+                if !state.status.is_empty() {
+                    ui.label(RichText::new(&state.status).color(theme::text_dim()));
+                }
+                ui.horizontal(|ui| {
+                    close |= ui.add_enabled(!busy, Button::new(crate::i18n::tr("Close"))).clicked();
+                });
             }
-            ui.horizontal(|ui| {
-                close |= ui.add_enabled(!busy, Button::new(crate::i18n::tr("Close"))).clicked();
-            });
         });
         if let Some(act) = action {
             self.c64_tools_act(ctx, act);

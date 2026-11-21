@@ -1120,7 +1120,7 @@ impl Limoniter {
         let mut as_listing: Option<basic::Machine> = None;
         let mut manage = false;
         let mut keep = shown.as_ref().is_some_and(|(.., remember)| *remember);
-        egui::Window::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &shown {
+        crate::fit::Dialog::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &shown {
             Some((file, machine, targets, _)) => {
                 ui.label(crate::i18n::tf!("Where should {file} run? It's a {} program.", machine.name()));
                 ui.add_space(6.0);

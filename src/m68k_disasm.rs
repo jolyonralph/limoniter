@@ -13,6 +13,7 @@
 //! and any line that wouldn't give back its bytes becomes data, so it always assembles to what it came from.
 
 use crate::asm::hunk::{self, Kind, Memory};
+pub use crate::asm::m68k::Processor;
 use std::collections::{BTreeMap, BTreeSet};
 
 // ---------- What a program is ----------
@@ -87,6 +88,9 @@ pub struct Program {
     pub pointers: BTreeSet<u32>,
     /// What it was found to be, to say.
     pub what: String,
+    /// The processor it's for: the 68010's and 68020's instructions and addresses are read only for those that
+    /// have them, and the source says MACHINE for any but the 68000.
+    pub cpu: Processor,
 }
 
 fn be16(b: &[u8], at: usize) -> Option<u16> {
@@ -122,6 +126,7 @@ pub fn raw(bytes: &[u8], origin: u32, starts: &[u32], machine: Machine) -> Progr
         text_end: None,
         pointers: BTreeSet::new(),
         what: crate::i18n::tf!("{} bytes of 68000 code at ${origin:X}", group(bytes.len() as u64)),
+        cpu: Processor::M68000,
     }
 }
 
@@ -155,7 +160,7 @@ pub fn amiga_program(bytes: &[u8]) -> Result<Program, String> {
         .collect();
     let what = crate::i18n::tf!("An Amiga program: {} ({})", if sections.len() == 1 { "1 hunk".to_string() } else { format!("{} hunks", sections.len()) }, parts.join(", "));
     let starts = vec![sections[0].base];
-    Ok(Program { machine: Machine::Amiga, layout: Layout::Hunks, sections, starts, names, text_end: None, pointers: BTreeSet::new(), what })
+    Ok(Program { machine: Machine::Amiga, layout: Layout::Hunks, sections, starts, names, text_end: None, pointers: BTreeSet::new(), what, cpu: Processor::M68000 })
 }
 
 /// An Atari ST program: $601A, its parts' sizes, the text and data, the symbols, and the table of the longs TOS
@@ -199,7 +204,7 @@ pub fn tos_program(bytes: &[u8]) -> Result<Program, String> {
     }
     let what = crate::i18n::tf!("An Atari ST program: text {} bytes, data {}, BSS {}{}", group(text as u64), group(data as u64), group(bss as u64), if names.is_empty() { String::new() } else { format!(", {} symbols", names.len()) });
     let section = Section { kind: Kind::Code, memory: Memory::Any, base: 0, bytes: image, bss: bss as u32, relocations };
-    Ok(Program { machine: Machine::AtariSt, layout: Layout::Tos, sections: vec![section], starts: vec![0], names, text_end: Some(text as u32), pointers: BTreeSet::new(), what })
+    Ok(Program { machine: Machine::AtariSt, layout: Layout::Tos, sections: vec![section], starts: vec![0], names, text_end: Some(text as u32), pointers: BTreeSet::new(), what, cpu: Processor::M68000 })
 }
 
 /// What a file holds, when it says: an Amiga program, an Atari ST program, an Amiga boot block, an ST boot
@@ -286,12 +291,60 @@ impl Size {
     }
 }
 
-/// An index register: its number, whether it's an address register, and whether all 32 bits count.
+/// An index register: its number, whether it's an address register, whether all 32 bits count, and its scale (0
+/// to 3, ×1 to ×8: the 68020's).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Xn {
     pub reg: u8,
     pub address: bool,
     pub long: bool,
+    pub scale: u8,
+}
+
+impl Xn {
+    fn from_word(w: u16) -> Xn {
+        Xn { reg: (w >> 12 & 7) as u8, address: w & 0x8000 != 0, long: w & 0x0800 != 0, scale: (w >> 9 & 3) as u8 }
+    }
+}
+
+/// A displacement in a 68020 full extension word: none, a word, or a long and where it is (it may be relocated).
+/// From PC, the address it comes to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Disp {
+    Null,
+    Word(i64),
+    Long(i64, u32),
+}
+
+/// Whether a 68020 address reads a pointer from memory, and whether its index is added before or after.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Indirect {
+    No,
+    Pre,
+    Post,
+}
+
+/// A 68020 address with a full extension word.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FullEa {
+    /// The base: An's number, or None for PC.
+    pub base: Option<u8>,
+    pub base_suppressed: bool,
+    pub index: Xn,
+    pub index_suppressed: bool,
+    pub bd: Disp,
+    pub indirect: Indirect,
+    pub od: Disp,
+}
+
+impl FullEa {
+    /// Where it points, if it's from PC (and PC isn't suppressed).
+    fn target(&self) -> Option<u32> {
+        match (self.base, self.base_suppressed, self.bd) {
+            (None, false, Disp::Word(t) | Disp::Long(t, _)) => Some(t as u32),
+            _ => None,
+        }
+    }
 }
 
 /// An operand.
@@ -311,6 +364,11 @@ pub enum Op {
     /// An address relative to PC, as the address it comes to.
     Pc(u32),
     PcIndex(u32, Xn),
+    /// The same, written with their sizes (.W, .B), where a 68020's assembler would otherwise widen them.
+    PcW(u32),
+    PcIndexB(u32, Xn),
+    /// A 68020 address with a full extension word.
+    Full(Box<FullEa>),
     /// An immediate value, its size, and where it is.
     Imm(u32, Size, u32),
     /// A number in the instruction itself: ADDQ's, a shift's count, TRAP's, MOVEQ's, a bit number.
@@ -322,6 +380,26 @@ pub enum Op {
     List(u16),
     /// Where a branch goes.
     Target(u32),
+    /// Two data registers, Dh:Dl.
+    Pair(u8, u8),
+    /// CAS2's two registers in brackets: 0 to 7 for D0 to D7, 8 to 15 for A0 to A7.
+    RegPair(u8, u8),
+    /// MOVEC's control register, by its name.
+    Control(&'static str),
+    /// A bit field: the address, then its offset and width as written ({4:8}, {d1:d2}).
+    Field(Box<Op>, String),
+}
+
+impl Op {
+    /// The address an operand relative to PC points at.
+    fn pc_target(&self) -> Option<u32> {
+        match self {
+            Op::Pc(t) | Op::PcIndex(t, _) | Op::PcW(t) | Op::PcIndexB(t, _) => Some(*t),
+            Op::Full(f) => f.target(),
+            Op::Field(inner, _) => inner.pc_target(),
+            _ => None,
+        }
+    }
 }
 
 /// What an instruction does to where the code goes next.
@@ -350,6 +428,7 @@ struct Reader<'a> {
     word: &'a dyn Fn(u32) -> Option<u16>,
     pc: u32,
     length: u32,
+    cpu: Processor,
 }
 
 impl Reader<'_> {
@@ -362,11 +441,69 @@ impl Reader<'_> {
     fn here(&self) -> u32 {
         self.pc.wrapping_add(self.length)
     }
+
+    fn long(&mut self) -> Option<u32> {
+        Some(u32::from(self.next()?) << 16 | u32::from(self.next()?))
+    }
 }
 
-/// The 68000's brief extension word, refusing the 68020's scale and full format.
-fn brief(w: u16) -> Option<Xn> {
-    (w & 0x0700 == 0).then_some(Xn { reg: (w >> 12 & 7) as u8, address: w & 0x8000 != 0, long: w & 0x0800 != 0 })
+/// An indexed address's extension: the 68000's brief word (with the 68020's scale on a 68020 or CPU32), or the
+/// 68020's full one. `base` is An's number, or None for PC; `at` is where the extension word is.
+fn indexed(r: &mut Reader, base: Option<u8>) -> Option<Op> {
+    let at = r.here();
+    let w = r.next()?;
+    let wide = r.cpu.has_68020_or_cpu32();
+    if w & 0x0100 == 0 {
+        if w & 0x0600 != 0 && !wide {
+            return None;
+        }
+        let x = Xn::from_word(w);
+        let d = w as u8 as i8;
+        return Some(match base {
+            Some(n) => Op::Index(n, d, x),
+            None => Op::PcIndex(at.wrapping_add(d as i32 as u32), x),
+        });
+    }
+    if !wide || w & 0x0008 != 0 {
+        return None;
+    }
+    let base_suppressed = w & 0x0080 != 0;
+    let index_suppressed = w & 0x0040 != 0;
+    let indirect_bits = w & 7;
+    let indirect = match (index_suppressed, indirect_bits) {
+        (_, 0) => Indirect::No,
+        (_, 1..=3) => Indirect::Pre,
+        (false, 5..=7) => Indirect::Post,
+        _ => return None,
+    };
+    // The CPU32 has the full format, but not memory indirect addressing.
+    if indirect != Indirect::No && !r.cpu.has_68020() {
+        return None;
+    }
+    let pc = base.is_none();
+    let displacement = |bits: u16, from_pc: bool, r: &mut Reader| -> Option<Disp> {
+        let place = r.here();
+        Some(match bits {
+            1 => Disp::Null,
+            2 => {
+                let v = i64::from(r.next()? as i16);
+                Disp::Word(if from_pc { i64::from(at) + v } else { v })
+            }
+            3 => {
+                let v = i64::from(r.long()? as i32);
+                Disp::Long(if from_pc { i64::from(at.wrapping_add(v as u32)) } else { v }, place)
+            }
+            _ => return None,
+        })
+    };
+    let bd = displacement(w >> 4 & 3, pc, r)?;
+    let od = if indirect == Indirect::No { Disp::Null } else { displacement(indirect_bits & 3, false, r)? };
+    // With its base and index both there and no displacement or memory indirection, it can only be written as the
+    // brief word's (An,Xn).
+    if indirect == Indirect::No && !base_suppressed && !index_suppressed && bd == Disp::Null {
+        return None;
+    }
+    Some(Op::Full(Box::new(FullEa { base, base_suppressed, index: Xn::from_word(w), index_suppressed, bd, indirect, od })))
 }
 
 fn ea(r: &mut Reader, mode: u16, reg: u16, size: Size) -> Option<Op> {
@@ -378,34 +515,26 @@ fn ea(r: &mut Reader, mode: u16, reg: u16, size: Size) -> Option<Op> {
         3 => Op::Post(n),
         4 => Op::Pre(n),
         5 => Op::Disp(n, r.next()? as i16),
-        6 => {
-            let w = r.next()?;
-            Op::Index(n, w as u8 as i8, brief(w)?)
-        }
+        6 => indexed(r, Some(n))?,
         _ => match reg {
             0 => Op::AbsW(r.next()? as i16 as i32 as u32),
             1 => {
                 let at = r.here();
-                let (hi, lo) = (r.next()?, r.next()?);
-                Op::AbsL(u32::from(hi) << 16 | u32::from(lo), at)
+                Op::AbsL(r.long()?, at)
             }
             2 => {
                 let at = r.here();
                 let d = r.next()? as i16;
                 Op::Pc(at.wrapping_add(d as i32 as u32))
             }
-            3 => {
-                let at = r.here();
-                let w = r.next()?;
-                Op::PcIndex(at.wrapping_add(w as u8 as i8 as i32 as u32), brief(w)?)
-            }
+            3 => indexed(r, None)?,
             4 => {
                 let at = r.here();
                 let value = match size {
                     // A byte's word must have nothing in its top half, or it wouldn't be written again the same.
                     Size::B => u32::from(r.next().filter(|w| *w <= 0xFF)?),
                     Size::W => u32::from(r.next()?),
-                    Size::L => u32::from(r.next()?) << 16 | u32::from(r.next()?),
+                    Size::L => r.long()?,
                 };
                 Op::Imm(value, size, at)
             }
@@ -426,9 +555,9 @@ enum Class {
 
 fn fits(op: &Op, class: Class) -> bool {
     let (an, dn) = (matches!(op, Op::A(_)), matches!(op, Op::D(_)));
-    let pc = matches!(op, Op::Pc(_) | Op::PcIndex(..));
+    let pc = op.pc_target().is_some() || matches!(op, Op::Full(f) if f.base.is_none());
     let imm = matches!(op, Op::Imm(..));
-    let control = matches!(op, Op::Ind(_) | Op::Disp(..) | Op::Index(..) | Op::AbsW(_) | Op::AbsL(..) | Op::Pc(_) | Op::PcIndex(..));
+    let control = matches!(op, Op::Ind(_) | Op::Disp(..) | Op::Index(..) | Op::AbsW(_) | Op::AbsL(..) | Op::Full(_)) || pc;
     let alterable = !pc && !imm;
     match class {
         Class::Data => !an,
@@ -442,12 +571,85 @@ fn fits(op: &Op, class: Class) -> bool {
 
 /// One instruction at `pc`, from its words; None if they aren't a 68000 instruction.
 pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
-    let mut r = Reader { word, pc, length: 0 };
+    decode_for(word, pc, Processor::M68000)
+}
+
+/// One instruction at `pc` for a processor of the family; None if they aren't one of its instructions, or are one
+/// that can't be written so that it assembles back to the same words.
+pub fn decode_for(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor) -> Option<Insn> {
+    let mut insn = decode_words(word, pc, cpu)?;
+    // A 68020's assembler widens a PC-relative displacement that doesn't fit, reckoning it from just after the
+    // instruction's own words, as vasm does: one that only fits from where it really is is written with its size.
+    if cpu.has_68020_or_cpu32() && !matches!(insn.mnemonic.as_str(), "jmp" | "jsr") {
+        let base = insn.mnemonic.split('.').next().unwrap_or("").to_string();
+        let words = opcode_words(&base, &insn);
+        let cpc = i64::from(pc) + 2 * words;
+        for op in &mut insn.ops {
+            let sized = match op {
+                Op::Pc(t) if !(-0x8000..=0x7FFF).contains(&(i64::from(*t) - cpc)) => Some(Op::PcW(*t)),
+                Op::PcIndex(t, x) if !(-0x80..=0x7F).contains(&(i64::from(*t) - cpc)) => Some(Op::PcIndexB(*t, *x)),
+                _ => None,
+            };
+            if let Some(sized) = sized {
+                *op = sized;
+            }
+            if let Op::Field(inner, _) = op {
+                match inner.as_ref() {
+                    Op::Pc(t) if !(-0x8000..=0x7FFF).contains(&(i64::from(*t) - cpc)) => **inner = Op::PcW(*t),
+                    Op::PcIndex(t, x) if !(-0x80..=0x7F).contains(&(i64::from(*t) - cpc)) => **inner = Op::PcIndexB(*t, *x),
+                    _ => {}
+                }
+            }
+        }
+    }
+    Some(insn)
+}
+
+/// How many words an instruction has before its addresses' extension words, as the assembler counts them.
+fn opcode_words(base: &str, insn: &Insn) -> i64 {
+    let long_multiply = insn.mnemonic.ends_with(".l") && matches!(base, "mulu" | "muls" | "divu" | "divs");
+    match base {
+        "cas2" => 3,
+        "movem" | "moves" | "cas" | "chk2" | "cmp2" | "callm" | "divsl" | "divul" | "bfchg" | "bfclr" | "bfexts" | "bfextu" | "bfffo" | "bfins" | "bfset" | "bftst" => 2,
+        "btst" | "bchg" | "bclr" | "bset" if matches!(insn.ops.first(), Some(Op::Quick(_))) => 2,
+        _ if long_multiply => 2,
+        _ => 1,
+    }
+}
+
+/// A bit field's offset and width as written: {4:8}, {d1:d2}, {0:32}.
+fn field_text(w: u16) -> Option<String> {
+    let offset = if w & 0x0800 != 0 {
+        if w & 0x0600 != 0 {
+            return None;
+        }
+        format!("d{}", w >> 6 & 7)
+    } else {
+        (w >> 6 & 31).to_string()
+    };
+    let width = if w & 0x0020 != 0 {
+        if w & 0x0018 != 0 {
+            return None;
+        }
+        format!("d{}", w & 7)
+    } else {
+        match w & 31 {
+            0 => "32".to_string(),
+            n => n.to_string(),
+        }
+    };
+    Some(format!("{{{offset}:{width}}}"))
+}
+
+fn decode_words(word: &dyn Fn(u32) -> Option<u16>, pc: u32, cpu: Processor) -> Option<Insn> {
+    let mut r = Reader { word, pc, length: 0, cpu };
     let op = r.next()?;
     let (mode, reg) = ((op >> 3) & 7, op & 7);
     let rx = ((op >> 9) & 7) as u8;
     let size_bits = (op >> 6) & 3;
     let named = |name: &str, size: Option<Size>| format!("{name}{}", size.map_or("", Size::suffix));
+    let (m68010, m68020, wide) = (cpu.has_68010(), cpu.has_68020(), cpu.has_68020_or_cpu32());
+    let general = |w: u16| if w & 0x8000 != 0 { Op::A((w >> 12 & 7) as u8) } else { Op::D((w >> 12 & 7) as u8) };
     let mut flow = Flow::Next;
     let (mnemonic, ops): (String, Vec<Op>) = match op >> 12 {
         0x0 => {
@@ -465,6 +667,49 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                         return None;
                     }
                     (["btst", "bchg", "bclr", "bset"][kind].to_string(), vec![Op::D(rx), dst])
+                }
+            } else if size_bits == 3 && rx != 4 {
+                // The 68020's CHK2, CMP2, CALLM, RTM, CAS and CAS2.
+                match rx {
+                    0..=2 if wide && mode >= 2 => {
+                        let w = r.next().filter(|w| w & 0x07FF == 0)?;
+                        let size = Size::from_bits(u16::from(rx))?;
+                        let src = ea(&mut r, mode, reg, size)?;
+                        if !fits(&src, Class::Control) {
+                            return None;
+                        }
+                        (named(if w & 0x0800 != 0 { "chk2" } else { "cmp2" }, Some(size)), vec![src, general(w)])
+                    }
+                    3 if cpu == Processor::M68020 && mode <= 1 => ("rtm".into(), vec![if mode == 1 { Op::A(reg as u8) } else { Op::D(reg as u8) }]),
+                    3 if cpu == Processor::M68020 => {
+                        let n = r.next().filter(|n| *n <= 0xFF)?;
+                        let target = ea(&mut r, mode, reg, Size::L)?;
+                        if !fits(&target, Class::Control) {
+                            return None;
+                        }
+                        // Its address is a module's descriptor, not code to follow.
+                        ("callm".into(), vec![Op::Quick(i32::from(n)), target])
+                    }
+                    6 | 7 if m68020 && op & 0x3F == 0x3C => {
+                        let (a, b) = (r.next()?, r.next()?);
+                        if (a | b) & 0x0E38 != 0 {
+                            return None;
+                        }
+                        let size = if rx == 7 { Size::L } else { Size::W };
+                        let parts = |w: u16| ((w & 7) as u8, (w >> 6 & 7) as u8, (w >> 12) as u8);
+                        let ((c1, u1, r1), (c2, u2, r2)) = (parts(a), parts(b));
+                        (named("cas2", Some(size)), vec![Op::Pair(c1, c2), Op::Pair(u1, u2), Op::RegPair(r1, r2)])
+                    }
+                    5..=7 if m68020 => {
+                        let w = r.next().filter(|w| w & 0xFE38 == 0)?;
+                        let size = Size::from_bits(u16::from(rx) - 5)?;
+                        let dst = ea(&mut r, mode, reg, size)?;
+                        if !fits(&dst, Class::MemoryAlterable) {
+                            return None;
+                        }
+                        (named("cas", Some(size)), vec![Op::D((w & 7) as u8), Op::D((w >> 6 & 7) as u8), dst])
+                    }
+                    _ => return None,
                 }
             } else {
                 match rx {
@@ -492,11 +737,24 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                             let size = Size::from_bits(size_bits)?;
                             let src = ea(&mut r, 7, 4, size)?;
                             let dst = ea(&mut r, mode, reg, size)?;
-                            if !fits(&dst, Class::DataAlterable) {
+                            // The 68020's CMPI may compare with PC-relative data.
+                            let ok = fits(&dst, Class::DataAlterable) || (rx == 6 && wide && fits(&dst, Class::Data) && !matches!(dst, Op::Imm(..)));
+                            if !ok {
                                 return None;
                             }
                             (named(name, Some(size)), vec![src, dst])
                         }
+                    }
+                    // The 68010's MOVES.
+                    7 if m68010 => {
+                        let size = Size::from_bits(size_bits)?;
+                        let w = r.next().filter(|w| w & 0x07FF == 0)?;
+                        let place = ea(&mut r, mode, reg, size)?;
+                        if !fits(&place, Class::MemoryAlterable) {
+                            return None;
+                        }
+                        let ops = if w & 0x0800 != 0 { vec![general(w), place] } else { vec![place, general(w)] };
+                        (named("moves", Some(size)), ops)
                     }
                     _ => return None,
                 }
@@ -542,9 +800,23 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                     flow = Flow::Return;
                     ([("rte"), ("rts"), ("rtr")][usize::from((op & 7) / 2 - 1).min(2)].to_string(), vec![])
                 }
+                0x4E74 if m68010 => {
+                    flow = Flow::Return;
+                    // Its displacement is signed: RTD #-2.
+                    ("rtd".into(), vec![Op::Quick(i32::from(r.next()? as i16))])
+                }
                 0x4E76 => ("trapv".into(), vec![]),
+                0x4E7A | 0x4E7B if m68010 => {
+                    let w = r.next()?;
+                    let name = crate::asm::m68k::control_register(w & 0x0FFF, cpu)?;
+                    let ops = if op & 1 == 0 { vec![Op::Control(name), general(w)] } else { vec![general(w), Op::Control(name)] };
+                    ("movec".into(), ops)
+                }
                 _ if op & 0xFFF0 == 0x4E40 => ("trap".into(), vec![Op::Quick(i32::from(op & 15))]),
                 _ if op & 0xFFF8 == 0x4E50 => ("link".into(), vec![Op::A(reg as u8), Op::Quick(i32::from(r.next()? as i16))]),
+                _ if op & 0xFFF8 == 0x4808 && wide => ("link.l".into(), vec![Op::A(reg as u8), Op::Quick(r.long()? as i32)]),
+                _ if op & 0xFFF8 == 0x4848 && m68010 => ("bkpt".into(), vec![Op::Quick(i32::from(reg))]),
+                _ if op & 0xFFF8 == 0x49C0 && wide => ("extb.l".into(), vec![Op::D(reg as u8)]),
                 _ if op & 0xFFF8 == 0x4E58 => ("unlk".into(), vec![Op::A(reg as u8)]),
                 _ if op & 0xFFF8 == 0x4E60 => ("move.l".into(), vec![Op::A(reg as u8), Op::Usp]),
                 _ if op & 0xFFF8 == 0x4E68 => ("move.l".into(), vec![Op::Usp, Op::A(reg as u8)]),
@@ -557,12 +829,12 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                     flow = if jsr { Flow::Call } else { Flow::Jump };
                     ((if jsr { "jsr" } else { "jmp" }).to_string(), vec![target])
                 }
-                _ if op & 0xFFC0 == 0x40C0 => {
+                _ if op & 0xFFC0 == 0x40C0 || (op & 0xFFC0 == 0x42C0 && m68010) => {
                     let dst = ea(&mut r, mode, reg, Size::W)?;
                     if !fits(&dst, Class::DataAlterable) {
                         return None;
                     }
-                    ("move.w".into(), vec![Op::Sr, dst])
+                    ("move.w".into(), vec![if op & 0x0200 == 0 { Op::Sr } else { Op::Ccr }, dst])
                 }
                 _ if op & 0xFFC0 == 0x44C0 || op & 0xFFC0 == 0x46C0 => {
                     let src = ea(&mut r, mode, reg, Size::W)?;
@@ -584,7 +856,9 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                 _ if op & 0xFF00 == 0x4A00 && size_bits != 3 => {
                     let size = Size::from_bits(size_bits)?;
                     let dst = ea(&mut r, mode, reg, size)?;
-                    if !fits(&dst, Class::DataAlterable) {
+                    // The 68020 may test an address register (.W or .L), PC-relative data or a number.
+                    let ok = fits(&dst, Class::DataAlterable) || (wide && (fits(&dst, Class::Data) || (matches!(dst, Op::A(_)) && size != Size::B)));
+                    if !ok {
                         return None;
                     }
                     (named("tst", Some(size)), vec![dst])
@@ -630,6 +904,31 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                         return None;
                     }
                 }
+                // The 68020's long multiplies and divides.
+                _ if op & 0xFF80 == 0x4C00 && wide => {
+                    let w = r.next().filter(|w| w & 0x83F8 == 0)?;
+                    let src = ea(&mut r, mode, reg, Size::L)?;
+                    if !fits(&src, Class::Data) {
+                        return None;
+                    }
+                    let signed = w & 0x0800 != 0;
+                    let (low, high) = ((w >> 12 & 7) as u8, (w & 7) as u8);
+                    let wide64 = w & 0x0400 != 0;
+                    let (name, dst) = if op & 0x40 == 0 {
+                        match (wide64, low == high) {
+                            (true, _) => (if signed { "muls.l" } else { "mulu.l" }, Op::Pair(high, low)),
+                            (false, true) => (if signed { "muls.l" } else { "mulu.l" }, Op::D(low)),
+                            (false, false) => return None,
+                        }
+                    } else {
+                        match (wide64, low == high) {
+                            (true, _) => (if signed { "divs.l" } else { "divu.l" }, Op::Pair(high, low)),
+                            (false, true) => (if signed { "divs.l" } else { "divu.l" }, Op::D(low)),
+                            (false, false) => (if signed { "divsl.l" } else { "divul.l" }, Op::Pair(high, low)),
+                        }
+                    };
+                    (name.to_string(), vec![src, dst])
+                }
                 _ if op & 0xF1C0 == 0x41C0 => {
                     let src = ea(&mut r, mode, reg, Size::L)?;
                     if !fits(&src, Class::Control) {
@@ -637,12 +936,13 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                     }
                     ("lea".into(), vec![src, Op::A(rx)])
                 }
-                _ if op & 0xF1C0 == 0x4180 => {
-                    let src = ea(&mut r, mode, reg, Size::W)?;
+                _ if op & 0xF1C0 == 0x4180 || (op & 0xF1C0 == 0x4100 && m68020) => {
+                    let size = if op & 0x0080 != 0 { Size::W } else { Size::L };
+                    let src = ea(&mut r, mode, reg, size)?;
                     if !fits(&src, Class::Data) {
                         return None;
                     }
-                    ("chk.w".into(), vec![src, Op::D(rx)])
+                    (named("chk", Some(size)), vec![src, Op::D(rx)])
                 }
                 _ => return None,
             }
@@ -659,6 +959,17 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                     }
                     flow = Flow::Branch;
                     (if cc == 1 { "dbra".to_string() } else { format!("db{}", CONDITIONS[cc]) }, vec![Op::D(reg as u8), Op::Target(target)])
+                } else if mode == 7 && (2..=4).contains(&reg) {
+                    // The 68020's TRAPcc, with a word or a long the handler may read, or none.
+                    if !wide {
+                        return None;
+                    }
+                    let at = r.here();
+                    match reg {
+                        2 => (format!("trap{}.w", CONDITIONS[cc]), vec![Op::Imm(u32::from(r.next()?), Size::W, at)]),
+                        3 => (format!("trap{}.l", CONDITIONS[cc]), vec![Op::Imm(r.long()?, Size::L, at)]),
+                        _ => (format!("trap{}", CONDITIONS[cc]), vec![]),
+                    }
                 } else {
                     let dst = ea(&mut r, mode, reg, Size::B)?;
                     if !fits(&dst, Class::DataAlterable) {
@@ -681,6 +992,7 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
             let at = pc.wrapping_add(2);
             let (target, size) = match op as u8 {
                 0 => (at.wrapping_add(r.next()? as i16 as i32 as u32), ".w"),
+                0xFF if wide => (at.wrapping_add(r.long()?), ".l"),
                 0xFF => return None,
                 d => (at.wrapping_add(d as i8 as i32 as u32), ".s"),
             };
@@ -726,6 +1038,15 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
                     let name = if or { "sbcd" } else { "abcd" };
                     let ops = if mode == 0 { vec![Op::D(reg as u8), Op::D(rx)] } else { vec![Op::Pre(reg as u8), Op::Pre(rx)] };
                     (name.to_string(), ops)
+                }
+                // The 68020's PACK and UNPK.
+                5 | 6 if or && mode <= 1 && m68020 => {
+                    let at = r.here();
+                    let adjust = r.next()?;
+                    let ops = if mode == 0 { vec![Op::D(reg as u8), Op::D(rx)] } else { vec![Op::Pre(reg as u8), Op::Pre(rx)] };
+                    let mut ops = ops;
+                    ops.push(Op::Imm(u32::from(adjust), Size::W, at));
+                    ((if opmode == 5 { "pack" } else { "unpk" }).to_string(), ops)
                 }
                 5 if !or && mode == 0 => ("exg".into(), vec![Op::D(rx), Op::D(reg as u8)]),
                 5 if !or && mode == 1 => ("exg".into(), vec![Op::A(rx), Op::A(reg as u8)]),
@@ -810,7 +1131,30 @@ pub fn decode(word: &dyn Fn(u32) -> Option<u16>, pc: u32) -> Option<Insn> {
         0xE => {
             const KINDS: [&str; 4] = ["as", "ls", "rox", "ro"];
             let left = op & 0x100 != 0;
-            if size_bits == 3 {
+            if size_bits == 3 && op & 0x0800 != 0 {
+                // The 68020's bit fields.
+                if !m68020 {
+                    return None;
+                }
+                const FIELDS: [&str; 8] = ["bftst", "bfextu", "bfchg", "bfexts", "bfclr", "bfffo", "bfset", "bfins"];
+                let kind = usize::from(op >> 8 & 7);
+                let w = r.next().filter(|w| w & 0x8000 == 0)?;
+                let field = field_text(w)?;
+                let place = ea(&mut r, mode, reg, Size::B)?;
+                let writes = matches!(kind, 2 | 4 | 6 | 7);
+                let ok = matches!(place, Op::D(_)) || fits(&place, if writes { Class::ControlAlterable } else { Class::Control });
+                let register = Op::D((w >> 12 & 7) as u8);
+                if !ok || (matches!(kind, 0 | 2 | 4 | 6) && w & 0x7000 != 0) {
+                    return None;
+                }
+                let place = Op::Field(Box::new(place), field);
+                let ops = match kind {
+                    1 | 3 | 5 => vec![place, register],
+                    7 => vec![register, place],
+                    _ => vec![place],
+                };
+                (FIELDS[kind].to_string(), ops)
+            } else if size_bits == 3 {
                 if op & 0x0800 != 0 {
                     return None;
                 }
@@ -855,7 +1199,8 @@ fn register(n: u8, address: bool) -> String {
 }
 
 fn index(x: &Xn) -> String {
-    format!("{}.{}", register(x.reg, x.address), if x.long { 'l' } else { 'w' })
+    let scale = if x.scale == 0 { String::new() } else { format!("*{}", 1 << x.scale) };
+    format!("{}.{}{scale}", register(x.reg, x.address), if x.long { 'l' } else { 'w' })
 }
 
 /// MOVEM's list as d0-d3/a0/a5-a6.
@@ -890,6 +1235,46 @@ trait Names {
     fn short(&self, address: u32) -> String;
 }
 
+/// A 68020 address with a full extension word, written with every size given, so that it assembles back to the
+/// same words: ([bd.w,a0,d1.l*4],od.l) and the rest.
+fn full_text(f: &FullEa, names: &dyn Names) -> String {
+    let pc = f.base.is_none();
+    let displacement = |d: &Disp, from_pc: bool| -> Option<String> {
+        match *d {
+            Disp::Null => None,
+            Disp::Word(v) if from_pc => Some(format!("{}.w", names.place(v as u32))),
+            Disp::Word(v) => Some(format!("{}.w", signed(v as i32))),
+            Disp::Long(v, _) if from_pc => Some(format!("{}.l", names.place(v as u32))),
+            Disp::Long(v, at) => {
+                let name = names.long(v as u32, at);
+                Some(format!("{}.l", if name.starts_with('$') { signed(v as i32) } else { name }))
+            }
+        }
+    };
+    let base = match (f.base, f.base_suppressed) {
+        (Some(n), false) => register(n, true),
+        (Some(n), true) => format!("za{n}"),
+        (None, false) => "pc".into(),
+        (None, true) => "zpc".into(),
+    };
+    // A suppressed index is written when it isn't ZD0.W, or when nothing else would make it the full word's.
+    let plain = Xn { reg: 0, address: false, long: false, scale: 0 };
+    let forced = f.indirect == Indirect::No && !f.base_suppressed;
+    let x = if f.index_suppressed {
+        (f.index != plain || forced).then(|| format!("z{}", index(&f.index).replace("sp.", "a7.")))
+    } else {
+        Some(index(&f.index))
+    };
+    let bd = displacement(&f.bd, pc);
+    let od = displacement(&f.od, false);
+    let join = |parts: Vec<Option<String>>| parts.into_iter().flatten().collect::<Vec<_>>().join(",");
+    match f.indirect {
+        Indirect::No => format!("({})", join(vec![bd, Some(base), x])),
+        Indirect::Pre => format!("([{}]{})", join(vec![bd, Some(base), x]), od.map(|o| format!(",{o}")).unwrap_or_default()),
+        Indirect::Post => format!("([{}],{})", join(vec![bd, Some(base)]), join(vec![x, od])),
+    }
+}
+
 fn operand(op: &Op, names: &dyn Names) -> String {
     match op {
         Op::D(n) => register(*n, false),
@@ -905,6 +1290,9 @@ fn operand(op: &Op, names: &dyn Names) -> String {
         Op::AbsL(a, at) => names.long(*a, *at),
         Op::Pc(t) => format!("{}(pc)", names.place(*t)),
         Op::PcIndex(t, x) => format!("{}(pc,{})", names.place(*t), index(x)),
+        Op::PcW(t) => format!("({}.w,pc)", names.place(*t)),
+        Op::PcIndexB(t, x) => format!("({}.b,pc,{})", names.place(*t), index(x)),
+        Op::Full(f) => full_text(f, names),
         Op::Imm(v, Size::L, at) => format!("#{}", names.long(*v, *at)),
         Op::Imm(v, _, _) => format!("#{}", hex(*v)),
         Op::Quick(n) => format!("#{}", signed(*n)),
@@ -913,12 +1301,20 @@ fn operand(op: &Op, names: &dyn Names) -> String {
         Op::Usp => "usp".into(),
         Op::List(mask) => list(*mask),
         Op::Target(t) => names.place(*t),
+        Op::Pair(high, low) => format!("d{high}:d{low}"),
+        Op::RegPair(a, b) => format!("({}):({})", register(a & 7, *a >= 8).replace("sp", "a7"), register(b & 7, *b >= 8).replace("sp", "a7")),
+        Op::Control(name) => (*name).into(),
+        Op::Field(inner, field) => format!("{}{field}", operand(inner, names)),
     }
 }
 
 fn text(insn: &Insn, names: &dyn Names) -> String {
     let operands: Vec<String> = insn.ops.iter().map(|o| operand(o, names)).collect();
-    if operands.is_empty() { insn.mnemonic.clone() } else { format!("{:<8}{}", insn.mnemonic, operands.join(",")) }
+    match (operands.is_empty(), insn.mnemonic.len() >= 8) {
+        (true, _) => insn.mnemonic.clone(),
+        (false, false) => format!("{:<8}{}", insn.mnemonic, operands.join(",")),
+        (false, true) => format!("{} {}", insn.mnemonic, operands.join(",")),
+    }
 }
 
 // ---------- The system's calls ----------
@@ -1040,7 +1436,7 @@ impl Work<'_> {
 
     fn decode(&self, address: u32) -> Option<Insn> {
         let word = |a: u32| self.word(a);
-        decode(&word, address)
+        decode_for(&word, address, self.program.cpu)
     }
 
     fn trace(&mut self, starts: Vec<u32>) {
@@ -1053,8 +1449,8 @@ impl Work<'_> {
                 if self.program.layout != Layout::Raw {
                     let (index, _) = self.section(pc).expect("code is in a section");
                     let away = insn.ops.iter().any(|op| match op {
-                        Op::Target(t) | Op::Pc(t) | Op::PcIndex(t, _) => self.section(*t).is_none_or(|(i, _)| i != index),
-                        _ => false,
+                        Op::Target(t) => self.section(*t).is_none_or(|(i, _)| i != index),
+                        _ => op.pc_target().is_some_and(|t| self.section(t).is_none_or(|(i, _)| i != index)),
                     });
                     if away {
                         break;
@@ -1075,7 +1471,7 @@ impl Work<'_> {
                 for op in &insn.ops {
                     let target = match op {
                         Op::Target(t) => Some(*t),
-                        Op::Pc(t) if matches!(insn.flow, Flow::Jump | Flow::Call) => Some(*t),
+                        Op::Pc(t) | Op::PcW(t) if matches!(insn.flow, Flow::Jump | Flow::Call) => Some(*t),
                         Op::AbsL(v, at) if matches!(insn.flow, Flow::Jump | Flow::Call) => self.address_in(*v, *at),
                         Op::AbsW(v) if matches!(insn.flow, Flow::Jump | Flow::Call) && self.program.layout == Layout::Raw => self.section(*v).map(|_| *v),
                         // An address put in a long as an immediate, in a code hunk: an interrupt handler, say.
@@ -1349,7 +1745,8 @@ fn write(program: &Program) -> Vec<Line> {
     for insn in work.decoded.values() {
         for op in &insn.ops {
             match op {
-                Op::Target(t) | Op::Pc(t) | Op::PcIndex(t, _) => used.push(*t),
+                Op::Target(t) => used.push(*t),
+                _ if op.pc_target().is_some() => used.extend(op.pc_target()),
                 Op::AbsL(v, at) | Op::Imm(v, Size::L, at) => used.extend(work.address_in(*v, *at).filter(|_| program.layout != Layout::Raw || matches!(op, Op::AbsL(..)))),
                 Op::AbsW(v) if program.layout == Layout::Raw => used.extend(work.section(*v).map(|_| *v)),
                 _ => {}
@@ -1382,6 +1779,10 @@ fn write(program: &Program) -> Vec<Line> {
     }
     let namer = Namer { work: &work };
     let mut lines = vec![Line { text: format!("; {}.", program.what), range: None }, Line { text: crate::i18n::tr("; Disassembled by Limoniter: it assembles with Limoniter's own assembler or vasm (Motorola syntax) to the same bytes.").into(), range: None }, Line { text: String::new(), range: None }];
+    // Any processor but the 68000 is chosen as vasm and Devpac choose it.
+    if program.cpu != Processor::M68000 {
+        lines.push(Line { text: format!("        machine {}", program.cpu.name().to_ascii_lowercase()), range: None });
+    }
     if program.layout == Layout::Raw {
         lines.push(Line { text: format!("        org     ${:X}", program.sections[0].base), range: None });
     }
@@ -1520,7 +1921,7 @@ fn check(program: &Program, mut lines: Vec<Line>) -> Vec<Line> {
     for _ in 0..8 {
         let text = lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n") + "\n";
         let assembly = match program.layout {
-            Layout::Hunks => crate::asm::assemble_sections(isa, path, &text, &|_| Err(crate::i18n::tr("no").into()), 0, &crate::asm::Options { folders: Vec::new(), values: None }),
+            Layout::Hunks => crate::asm::assemble_sections(isa, path, &text, &|_| Err(crate::i18n::tr("no").into()), 0, &crate::asm::Options { folders: Vec::new(), values: None, ..Default::default() }),
             _ => crate::asm::assemble(isa, path, &text, &|_| Err(crate::i18n::tr("no").into())),
         };
         // Where the assembler put each hunk, for the relocated longs' values.

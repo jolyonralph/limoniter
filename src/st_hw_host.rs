@@ -324,7 +324,7 @@ impl Limoniter {
         if let Some(mut window) = self.st_tools.hardware.take() {
             let mut open = true;
             let mut insert = None;
-            egui::Window::new(crate::i18n::tr("Atari ST hardware")).open(&mut open).default_pos([150.0, 100.0]).default_width(770.0).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("Atari ST hardware")).open(&mut open).default_pos([150.0, 100.0]).default_width(770.0).show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut window.tab, Tab::Registers, crate::i18n::tr("Registers"));
                     ui.selectable_value(&mut window.tab, Tab::Calls, crate::i18n::tr("TOS calls"));
@@ -345,7 +345,7 @@ impl Limoniter {
         if let Some(mut blitter) = self.st_tools.blitter.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("STE blitter")).open(&mut open).resizable(false).default_pos([230.0, 100.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("STE blitter")).open(&mut open).resizable(false).default_pos([230.0, 100.0]).show(ctx, |ui| {
                 asked = blitter.draw(ui);
             });
             if let Some(crate::st_blitter::Asked::Insert(text)) = asked {
@@ -358,7 +358,7 @@ impl Limoniter {
         if let Some(mut timers) = self.st_tools.timers.take() {
             let mut open = true;
             let mut asked = None;
-            egui::Window::new(crate::i18n::tr("MFP timers")).open(&mut open).resizable(false).default_pos([270.0, 120.0]).show(ctx, |ui| {
+            crate::fit::Dialog::new(crate::i18n::tr("MFP timers")).open(&mut open).resizable(false).default_pos([270.0, 120.0]).show(ctx, |ui| {
                 asked = timers.draw(ui);
             });
             if let Some(crate::mfp_timer::Asked::Insert(text)) = asked {
