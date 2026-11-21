@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>9. Input · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="The Spectrum&#x27;s keyboard is read straight from the ULA, a few keys at a time, with no buffer and no interrupt of its own; joysticks were add-ons, and came in two kinds that work completely differently.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/09-input.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/09-input.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="9. Input · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="The Spectrum&#x27;s keyboard is read straight from the ULA, a few keys at a time, with no buffer and no interrupt of its own; joysticks were add-ons, and came in two kinds that work completely differently.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/09-input.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html" aria-current="page">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>9. Input</h1>
+        <div class="article-lead">
+<p>The Spectrum's keyboard is read straight from the ULA, a few keys at a time, with no buffer and no interrupt of its own; joysticks were add-ons, and came in two kinds that work completely differently. This chapter reads all of them, and <a href="examples/ch09_input.asm"><code>examples/ch09_input.asm</code></a> shows each key and each joystick direction light up as it's pressed.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-keyboard-s-half-rows">The keyboard's half-rows</a></li>
+<li><a href="#joysticks">Joysticks</a></li>
+<li><a href="#reading-every-control-the-same-way">Reading every control the same way</a></li>
+</ul>
+</nav>
+<h2 id="the-keyboard-s-half-rows">The keyboard's half-rows</h2>
+<p>The 40 keys are wired as eight <strong>half-rows</strong> of five. Reading port <code>$FE</code> reads them, and the high byte of the port's address chooses which: each of its bits, when 0, selects one half-row. Bits 0 to 4 of the byte read are that half-row's five keys, <strong>0 when pressed</strong>: "The bit is 0 if the key is pressed, 1 if it is not" (the 48K manual, chapter 23, &lt;https://worldofspectrum.org/ZXBasicManual/zxmanchap23.html&gt;). The half-rows, from World of Spectrum's 48K reference (&lt;https://worldofspectrum.org/faq/reference/48kreference.htm&gt;), bit 0 first:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Port</th>
+<th scope="col">Bit 0</th>
+<th scope="col">Bit 1</th>
+<th scope="col">Bit 2</th>
+<th scope="col">Bit 3</th>
+<th scope="col">Bit 4</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>$FEFE</code></th>
+<td>CAPS SHIFT</td>
+<td>Z</td>
+<td>X</td>
+<td>C</td>
+<td>V</td>
+</tr>
+<tr>
+<th scope="row"><code>$FDFE</code></th>
+<td>A</td>
+<td>S</td>
+<td>D</td>
+<td>F</td>
+<td>G</td>
+</tr>
+<tr>
+<th scope="row"><code>$FBFE</code></th>
+<td>Q</td>
+<td>W</td>
+<td>E</td>
+<td>R</td>
+<td>T</td>
+</tr>
+<tr>
+<th scope="row"><code>$F7FE</code></th>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+</tr>
+<tr>
+<th scope="row"><code>$EFFE</code></th>
+<td>0</td>
+<td>9</td>
+<td>8</td>
+<td>7</td>
+<td>6</td>
+</tr>
+<tr>
+<th scope="row"><code>$DFFE</code></th>
+<td>P</td>
+<td>O</td>
+<td>I</td>
+<td>U</td>
+<td>Y</td>
+</tr>
+<tr>
+<th scope="row"><code>$BFFE</code></th>
+<td>ENTER</td>
+<td>L</td>
+<td>K</td>
+<td>J</td>
+<td>H</td>
+</tr>
+<tr>
+<th scope="row"><code>$7FFE</code></th>
+<td>SPACE</td>
+<td>SYMBOL SHIFT</td>
+<td>M</td>
+<td>N</td>
+<td>B</td>
+</tr>
+</tbody></table></div>
+<p>The order is the keyboard's, from the outside in: on the left half of the keyboard bit 0 is the leftmost key, on the right half the rightmost. That's why the number row reads 1 2 3 4 5 and then 0 9 8 7 6.</p>
+<p><code>IN A,($FE)</code> puts <code>A</code> on the port's high byte, so:</p>
+<div class="code-block"><pre><code>        ld      a,$7F                   ; the half-row SPACE, SYM SHIFT, M, N, B
+        in      a,($FE)
+        rra                             ; SPACE into the carry
+        jr      nc,SpacePressed         ; 0: pressed</code></pre></div>
+<p>Selecting several half-rows at once (more than one 0 bit in the high byte) reads them ANDed together: <code>XOR A</code> then <code>IN A,($FE)</code> reads all eight, and any 0 in bits 0 to 4 means some key is down: the quickest "press any key".</p>
+<p>Bits 5 to 7 of the byte aren't keys. Bit 6 is the tape input: "Bit 6 of IN-Port 0xfe is the EAR input bit" (48K reference); mask it off, as it can be either. Bits 5 and 7 are best ignored.</p>
+<p>The same read is how the startup's main loop looks for SPACE (<a href="04-startup-and-interrupts.html">chapter 4</a>), and why SPACE always leaves the examples.</p>
+<h3 id="ghosting">Ghosting</h3>
+<p>A keyboard wired as a matrix has a weakness: with three keys held down at three corners of a rectangle in the matrix, the fourth corner can read as pressed too. Two keys together are always read right; it's the third that can bring in a ghost. Games that need three keys at once (two directions and fire) choose them with that in mind, or use a joystick.</p>
+<h2 id="joysticks">Joysticks</h2>
+<h3 id="kempston">Kempston</h3>
+<p>The <strong>Kempston</strong> interface is read from port <code>$1F</code>: "0x1F ... Kempston joy 1" (the Next's port list, which keeps the Kempston's mapping: &lt;https://gitlab.com/SpectrumNext/ZX_Spectrum_Next_FPGA/-/raw/master/cores/zxnext/ports.txt&gt;). Its bits are the other way round from the keyboard's, <strong>1 when pressed</strong>:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Bit</th>
+<th scope="col">0</th>
+<th scope="col">1</th>
+<th scope="col">2</th>
+<th scope="col">3</th>
+<th scope="col">4</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Kempston</th>
+<td>right</td>
+<td>left</td>
+<td>down</td>
+<td>up</td>
+<td>fire</td>
+</tr>
+</tbody></table></div>
+<div class="code-block"><pre><code>        in      a,($1F)
+        and     %00011111
+        bit     4,a                     ; fire
+        jr      nz,Fire</code></pre></div>
+<p>With no Kempston plugged in, port <code>$1F</code> isn't answered, and reads whatever is on the bus: <code>$FF</code> in the border's time on a 48K or 128K, or a byte of the screen while the ULA is fetching (<a href="03-the-machine.html">chapter 3</a>). A program that reads it without checking sees phantom movement. A reliable test: no joystick can push left and right at once, so a value with both bits 0 and 1 set means no Kempston. The example reads it just after the interrupt, in the top border, and uses that test.</p>
+<h3 id="sinclair-and-cursor-joysticks">Sinclair and cursor joysticks</h3>
+<p>The <strong>Sinclair</strong> joysticks (two, as on Sinclair's Interface 2) and <strong>cursor</strong> joysticks don't have ports of their own: they press keys. A program reads them as the keyboard. By Fuse's joystick mappings (&lt;https://sources.debian.org/src/fuse-emulator/1.5.7%2Bdfsg1-4/peripherals/joystick.c&gt;):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">left</th>
+<th scope="col">right</th>
+<th scope="col">up</th>
+<th scope="col">down</th>
+<th scope="col">fire</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Sinclair 1</th>
+<td>6</td>
+<td>7</td>
+<td>9</td>
+<td>8</td>
+<td>0</td>
+</tr>
+<tr>
+<th scope="row">Sinclair 2</th>
+<td>1</td>
+<td>2</td>
+<td>4</td>
+<td>3</td>
+<td>5</td>
+</tr>
+<tr>
+<th scope="row">Cursor</th>
+<td>5</td>
+<td>8</td>
+<td>7</td>
+<td>6</td>
+<td>0</td>
+</tr>
+</tbody></table></div>
+<p>So Sinclair 1 is the half-row <code>$EFFE</code> alone (6, 7, 8, 9, 0 are its bits 4 to 0), and Sinclair 2 the half-row <code>$F7FE</code> alone, each a single read. Cursor keys are split over two half-rows (5 is in <code>$F7FE</code>, the rest in <code>$EFFE</code>).</p>
+<h2 id="reading-every-control-the-same-way">Reading every control the same way</h2>
+<p>A game should let the player use whatever they have. The usual way is a routine that reads every control and returns one byte of directions and fire, the same whatever pressed them, as <a href="12-games-and-demos.html">chapter 12</a>'s game does:</p>
+<div class="code-block"><pre><code>; ReadControls: A's bits 0 to 2 set for left, right and fire, from the keys (O, P, ENTER), Sinclair joystick 1
+; (6, 7, 0) and a Kempston joystick, whichever is used.</code></pre></div>
+<p>Let the player redefine the keys, too: keep a table of the port's high byte and the bit for each control, and read through it, rather than writing the keys into the code.</p>
+<figure class="guide-shot"><img src="images/ch09_input.png" alt="Each half-row read: the keys held down light up, and the Kempston&#x27;s directions below" loading="lazy"></figure>
+<p>The test suite presses Q on the built-in Spectrum and checks that Q's place lights up.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="08-the-128k-and-later-models.html"><span>Back</span>8. The 128K and later models</a>
+<a class="pager-next" href="10-speed.html"><span>Next</span>10. Speed</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

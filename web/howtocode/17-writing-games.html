@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>17. Writing games · How To Code v8</title>
+  <meta name="description" content="Most people writing for the Amiga today write games, not demos, and a game needs things a demo never does.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/17-writing-games.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/17-writing-games.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="17. Writing games · How To Code v8">
+  <meta property="og:description" content="Most people writing for the Amiga today write games, not demos, and a game needs things a demo never does.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/17-writing-games.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-writing-games.html" aria-current="page">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>17. Writing games</h1>
+        <div class="article-lead">
+<p>Most people writing for the Amiga today write games, not demos, and a game needs things a demo never does. A demo plays the same way every time; a game has to answer the player, every frame, however busy the screen gets. Its world is bigger than the screen. Things in it bump into each other. It has a title screen, a pause and a game over, and has to go from one to the next cleanly. It plays sound effects over its music, loads its levels and saves its high scores. And people will play it on every Amiga there is, and from a hard drive through WHDLoad, for hours at a time.</p>
+<p>v7 had no chapter on any of this. Everything in it builds on the chapters before: the startup (<a href="04-startup-and-exit.html">chapter 4</a>), the copper and blitter (<a href="06-copper.html">6</a> and <a href="07-blitter.html">7</a>), scrolling and sprites (<a href="08-display.html">8</a>), the joystick (<a href="11-input.html">11</a>), sound (<a href="12-sound-and-music.html">12</a>) and loading (<a href="15-loading-and-memory.html">15</a>). This chapter is about putting them together, and about the techniques that only games need.</p>
+<p>The examples, all on v8's startup and all working both ways (<code>OS_FRIENDLY</code> 0 and 1):</p>
+<ul><li><code>ch17_game.s</code>: <strong>Gem Cave</strong>, a small but whole game. A cave of 48 by 40 tiles scrolls in eight directions, three bats fly about, and the player collects the gems. Title screen, pause and game over, a score and lives, sound effects.</li><li><code>ch17_game_loop.s</code>: a fixed-step game loop, with frames that run late, beside the mistake it fixes.</li><li><code>ch17_bobs.s</code>: bobs that save what they cover and put it back, double-buffered.</li><li><code>ch17_multiplex.s</code>: 24 balls on the eight sprite channels, each channel reused down the screen.</li><li><code>ch17_cd32_pad.s</code>: the CD32's pad, all seven buttons.</li><li><code>ch17_random.s</code>: random numbers, done well and badly, and fixed-point maths.</li></ul>
+<p>The tiles, sprites, font and sound effects are drawn by a Python script, <code>ch17_make_graphics.py</code>, into <code>ch17_graphics.raw</code>, so they're CC0 like everything else here: no one else's graphics or music.</p>
+<figure class="guide-shot"><img src="images/ch17_game.png" alt="Gem Cave, on an A3000 with Kickstart 2.04: the player, a bat and the gems, with the panel underneath" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#gem-cave-how-a-game-is-put-together">Gem Cave: how a game is put together</a></li>
+<li><a href="#the-game-loop">The game loop</a></li>
+<li><a href="#states-title-game-pause-game-over">States: title, game, pause, game over</a></li>
+<li><a href="#scrolling-in-eight-directions">Scrolling in eight directions</a></li>
+<li><a href="#bobs-that-put-back-what-they-cover">Bobs that put back what they cover</a></li>
+<li><a href="#sprites-in-a-game">Sprites in a game</a></li>
+<li><a href="#collisions">Collisions</a></li>
+<li><a href="#the-controls">The controls</a></li>
+<li><a href="#sound-effects">Sound effects</a></li>
+<li><a href="#numbers">Numbers</a></li>
+<li><a href="#loading-levels-and-saving-high-scores">Loading levels and saving high scores</a></li>
+<li><a href="#friendly-to-every-amiga">Friendly to every Amiga</a></li>
+<li><a href="#the-examples">The examples</a></li>
+<li><a href="#how-it-was-tested">How it was tested</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="gem-cave-how-a-game-is-put-together">Gem Cave: how a game is put together</h2>
+<p>Gem Cave is the startup's four routines like any demo, with a game inside <code>Frame</code>:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Routine</th>
+<th scope="col">What it does</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>Init</code></th>
+<td>PAL or NTSC, the panel cleared, the cave made from its map, the first copper list</td>
+</tr>
+<tr>
+<th scope="row"><code>Frame</code></th>
+<td>works out how many steps the game is due, runs them, then makes the screen match: new tiles, the copper list, the sprites, the panel</td>
+</tr>
+<tr>
+<th scope="row"><code>VBlank</code></th>
+<td>the sound effects (three short steps, below)</td>
+</tr>
+<tr>
+<th scope="row"><code>ExitHook</code></th>
+<td>stops the sound effects before the startup stops the sound</td>
+</tr>
+</tbody></table></div>
+<p>The game's own work happens in <code>Tick</code>, one step of the game: read the joystick, then do whatever the current state does. Everything that moves, moves in <code>Tick</code>; everything that draws, draws in <code>Render</code>, once a frame. Keeping the two apart is the most useful habit in this chapter. The rest of it follows from there.</p>
+<p>Play it with the joystick in the second port (FS-UAE's keyboard joystick: the cursor keys and right Ctrl for fire). Fire starts the game and pauses it; the left mouse button leaves, as in every v8 example.</p>
+<h2 id="the-game-loop">The game loop</h2>
+<h3 id="the-mistake-moving-once-a-frame">The mistake: moving once a frame</h3>
+<p>The obvious way to move something is to add its speed to its position every frame. That's how demos do it, and it's fine for a demo, which can be made to fit in a frame. A game can't always fit. The screen fills up, ten bobs become twenty, and one frame in a few takes longer than a fiftieth of a second. Then the next <code>Frame</code> comes a frame late, and everything that moves "once a frame" has lost a step. The game slows down exactly when it's most exciting. Worse, on an NTSC Amiga there are 60 frames a second, not 50, so everything runs 20% faster, and the game is harder.</p>
+<p>The other old mistake is to run the whole game in the vertical blank interrupt. It's never late, until the game takes longer than a frame. Then the next vertical blank can't interrupt it (the processor holds off interrupts of the same level until it returns), so a frame is lost all the same, and everything else in that interrupt (the music, say) is late with it, while the main program gets no time at all. Keep the interrupt short (<a href="05-interrupts.html">chapter 5</a>), and the game in the main loop.</p>
+<h3 id="fixed-steps">Fixed steps</h3>
+<p>The fix: decide that the game moves in <strong>steps</strong> of a fixed length of time (Gem Cave's is 1/50 of a second), and each frame, run as many steps as the time since the last frame asks for. Usually that's one. After a late frame it's two. The drawing happens once, after the steps, however many there were. The game's speed then depends only on the clock, never on how long the drawing took.</p>
+<p>The clock is the startup's <code>Frames</code>, counted by the vertical blank interrupt. From <code>ch17_game.s</code>:</p>
+<div class="code-block"><pre><code>Frame:
+        move.l  Frames,d0
+        move.l  d0,d1
+        sub.l   LastFrames,d0           ; frames since the last time
+        move.l  d1,LastFrames
+        cmp.l   #MAXTICKS,d0
+        bls.s   .few
+        moveq   #MAXTICKS,d0
+.few:
+        mulu    #TICKRATE,d0
+        add.w   TickClock,d0            ; 50 for each frame...
+        moveq   #0,d7
+.count:
+        cmp.w   FrameRate,d0            ; ...and a step for each 50 or 60 of them
+        blo.s   .counted
+        sub.w   FrameRate,d0
+        addq.w  #1,d7
+        bra.s   .count</code></pre></div>
+<p>Each frame that has passed puts 50 into <code>TickClock</code>, and each 50 (PAL) or 60 (NTSC) taken out of it is a step. On PAL that's exactly a step a frame. On NTSC it's five steps in every six frames, so the game moves at the same speed on both, and what's left over waits in <code>TickClock</code> for the next frame. <code>FrameRate</code> comes from the startup's <code>PalDisplay</code>, which asks graphics.library on Kickstart 2 and later (<a href="08-display.html">chapter 8</a>).</p>
+<h3 id="when-a-frame-runs-late">When a frame runs late</h3>
+<p>There's a limit, <code>MAXTICKS</code> (4 in Gem Cave). Without one, a game that takes too long to draw falls into a trap: the late frame means more steps next time, which take longer, which makes the next frame later still. Capped, the game slows down rather than stopping, and catches up when the screen calms down.</p>
+<p><code>ch17_game_loop.s</code> shows the difference. Three blocks run along three rails at 100 pixels a second. The top one (white) is put where it should be from the time alone. The middle one (green) moves in fixed steps. The bottom one (red) moves once for each frame drawn. Every fourth frame the program keeps the processor busy for a frame and a half, with the background red while it does. The green block stays with the white one. The red one falls further behind with every late frame.</p>
+<figure class="guide-shot"><img src="images/ch17_game_loop.png" alt="ch17_game_loop.s on an A3000: the white and green blocks together, the red one left behind, and the red band of a late frame, the processor still busy from the frame before" loading="lazy"></figure>
+<h3 id="pal-and-ntsc">PAL and NTSC</h3>
+<p>Five steps in six frames has a cost: on NTSC, one frame in six shows nothing moving, which a sharp eye sees as a slight judder in smooth scrolling. The alternative is to step once a frame on both, and scale every speed by 50/60 on NTSC. That's smoother, but every speed, timer and animation in the game then has two values, and the two versions of the game drift apart: a jump is a pixel shorter on one than the other. For most games, fixed steps are worth the judder. Whichever you choose, choose it at the start: changing later means retuning everything.</p>
+<p>Fixed steps have one more advantage: the game does the same thing from the same input, whatever the machine. That makes a bug that happened once happen again, and a recording of the player's moves, played back with the same random seed, gives exactly the same game.</p>
+<h2 id="states-title-game-pause-game-over">States: title, game, pause, game over</h2>
+<p>A game is in one of a few <strong>states</strong>, and each reads the controls and moves things in its own way. Gem Cave has four, and <code>Tick</code> jumps to the current one's routine through a table:</p>
+<div class="code-block"><pre><code>Tick:
+        addq.w  #1,TickCount
+        bsr     ReadJoystick
+        move.w  State,d0                ; 0, 4, 8 or 12
+        jmp     .states(pc,d0.w)
+.states:
+        bra.w   TitleTick
+        bra.w   PlayTick
+        bra.w   PauseTick
+        bra.w   OverTick</code></pre></div>
+<p>Changing state is a write to <code>State</code> and nothing else, and every state knows exactly what it does. The alternative, flags tested all over the game (<code>tst.b Paused</code> in every routine that moves something), is how a pause comes to stop the player but not the bats.</p>
+<figure class="guide-shot"><img src="images/ch17_game_states.png" alt="Gem Cave&#x27;s four states: the title screen (the camera wanders the cave), the game, paused, and game over (this one from a test build that starts with one life and a bat beside the player)" loading="lazy"></figure>
+<h3 id="pressed-not-held">Pressed, not held</h3>
+<p>The classic mistake with states: fire starts the game from the title screen, and in the game fire pauses it. The player presses fire once. The title screen sees it and starts the game; the next step, the game sees fire (still held: a press lasts several steps) and pauses. The game seems not to start at all.</p>
+<p>What a state wants to know is that fire <strong>went down</strong>, not that it <strong>is down</strong>. Keep last step's reading and compare:</p>
+<div class="code-block"><pre><code>        move.b  Fire,d1                 ; held last step
+        btst    #CIAB_GAMEPORT1,CIAA+CIAPRA
+        seq     d0                      ; held now (the bit is 0 while it's pressed)
+        move.b  d0,Fire
+        not.b   d1
+        and.b   d1,d0                   ; held now and not before
+        move.b  d0,FirePressed</code></pre></div>
+<p>Movement wants the opposite: the player walks for as long as the stick is held, so <code>JoyX</code> and <code>JoyY</code> are read as they are. The joystick's directions are decoded as in <a href="11-input.html">chapter 11</a>.</p>
+<h2 id="scrolling-in-eight-directions">Scrolling in eight directions</h2>
+<p>Gem Cave's cave is 768 by 640 pixels. As a bitmap in 4 bitplanes, it would take 240K of chip RAM, nearly half of an A500's, and a game with bigger levels couldn't do it at all. The way games do it is to keep the level as a <strong>tile map</strong> (here 48 by 40 bytes, one for each 16 by 16 tile) and a screen buffer only a little bigger than the screen, and to draw each row or column of tiles into the buffer just before it comes into view. Gem Cave's buffer is 51K.</p>
+<p>Two things make that work: the bitplane pointers can start anywhere in memory, and the copper can change them part of the way down the screen.</p>
+<h3 id="down-and-up-the-buffer-wraps-round">Down and up: the buffer wraps round</h3>
+<p>The buffer holds 17 rows of tiles (272 lines). The screen shows 14 or 15 of them, depending on how the scroll falls; the other two are the rows just above and below, drawn ready before they come into view. Row <code>r</code> of the cave always goes in the buffer's slot <code>r mod 17</code>.</p>
+<p>So as the screen scrolls down, the buffer's line at the top of the screen goes down too, and when it gets near the end of the buffer, the screen has to carry on from the buffer's first line. That's the copper's job. At the top of the frame it points the bitplanes at the buffer's line for the top of the screen, and on the screen's line that shows the end of the buffer, it points them back at the buffer's start:</p>
+<div class="code-block"><pre><code>        ; The bitplanes at the top of the screen.
+        move.w  BufferTop,d0
+        mulu    #LINEBYTES,d0
+        add.l   #Buffer,d0
+        ...
+        bsr     CopperPlanes
+
+        ; Where the buffer runs out, back to its first line, if that's on the screen.
+        move.w  #BUFLINES,d0
+        sub.w   BufferTop,d0            ; the screen's line that shows the buffer's line 0
+        cmp.w   PlayLines,d0
+        bhs.s   .nowrap
+        bsr     CopperWait
+        move.l  #Buffer,d0
+        ...
+        bsr     CopperPlanes</code></pre></div>
+<p>That copper wait moves every frame, and can be anywhere on the screen, including past line 255. A copper <code>WAIT</code> compares only the low 8 bits of the line (the HRM: "The line number will never be greater than $FF"), so a line past 255 needs a wait for the end of line 255 first, <code>$FFDF</code>, and then a wait for the line less 256 (<a href="06-copper.html">chapter 6</a>). There must be only one <code>$FFDF</code> in a list: a second one, once the beam is past line 255, waits for a line that won't come until the next frame. Gem Cave's <code>CopperWait</code> notes whether it has written one:</p>
+<div class="code-block"><pre><code>CopperWait:
+        add.w   #$2c,d0                 ; the screen's line, as the beam counts
+        cmp.w   #$100,d0
+        blo.s   .low
+        tst.w   d6                      ; past 255 already?
+        bne.s   .low
+        move.l  #$ffdffffe,(a0)+
+        moveq   #1,d6
+.low:
+        lsl.w   #8,d0
+        or.w    #$07,d0                 ; at the left edge, before the line's fetch starts
+        move.w  d0,(a0)+
+        move.w  #$fffe,(a0)+
+        rts</code></pre></div>
+<p>It waits for the start of the line, and the four bitplanes' pointers (eight copper moves) follow straight after, so they're set before the line's fetch begins at <code>DDFSTRT</code>.</p>
+<h3 id="left-and-right-a-ribbon">Left and right: a ribbon</h3>
+<p>Sideways, there's a neater trick. The screen fetches 21 words a line (20 shown and one for the fine scroll, <a href="08-display.html">chapter 8</a>), and after each line the modulo takes it to the start of the next. Make each line of the buffer 24 words wide, and scroll right by adding 2 to the bitplane pointers for each 16 pixels. The screen then reads further and further into each line: past its end, into the start of the next line. Nothing is wrapped and nothing is copied. The buffer is a long <strong>ribbon</strong>, each line following on from the one before, and the screen slides along it.</p>
+<p>The words that come into view on the right of a line are simply the next words of the ribbon, which until then held the left-hand column of the line below, now out of view; the new tile is drawn over them. Gem Cave keeps it simple: tile column <code>c</code> of the cave is always at byte <code>2 × (c + 1)</code> of a line, row slot <code>s</code> at line <code>16 × s</code>, so a tile's place in the buffer is always</p>
+<div class="code-block"><pre><code>Buffer + (row mod 17) × 16 × LINEBYTES + 2 × (column + 1)</code></pre></div>
+<p>and the display, the tiles and the blitter all agree on it. The cost is memory at the end of the buffer: the screen slides 2 bytes along for each 16 pixels it scrolls right, so the buffer needs <code>2 × MAPW</code> bytes more than its lines (96 bytes, for a cave 48 tiles wide). A cave a thousand tiles wide would need 2,000 bytes more: nothing.</p>
+<p>Why 24 words, not 22? The screen shows parts of 21 columns. Scrolling right, the column after them (number 22) must be drawn before it shows; scrolling left, the column before them. With lines 22 words long, the column one past the right of a line is the same words as the column one before the left of the next line, and the two can't both be ready. With 24, they're different words, so the buffer always holds both, and the scroll can change direction at any moment. (24 words is also a multiple of 64 pixels, which the AGA chips' fastest fetch mode needs; see <a href="09-aga.html">chapter 9</a>.)</p>
+<p>The fine scroll, 0 to 15 pixels, is <code>BPLCON1</code>'s delay, worked out as in <a href="08-display.html">chapter 8</a>; the game keeps the screen at least 16 pixels in from the cave's left edge, so the column being drawn on the left is never seen.</p>
+<h3 id="drawing-the-tiles-in">Drawing the tiles in</h3>
+<p>Each frame, <code>Scroll</code> works out which tile column and row are at the top left of the screen, and compares them with the ones the buffer was drawn for:</p>
+<ul><li>a column further right: draw the column past the right edge (17 tiles, one for each slot);</li><li>a column further left: the one past the left edge;</li><li>then a row further down: the row below the bottom one (23 tiles: the 21 columns and one each side); further up, the row above the top.</li></ul>
+<p>The column is drawn first, for the rows as they were; the row after, as wide as the new columns. That way the corner tile is right when the screen moves diagonally. The camera moves less than a tile a frame (up to 8 pixels, after four late steps), so there's never more than one of each. Anything more (a new game, a new cave) draws all 17 rows.</p>
+<p>Each tile is one blit: the tiles in <code>ch17_graphics.raw</code> are interleaved like the buffer, so a tile is 64 rows of one word, A to D, with D's modulo the rest of the buffer's line. 40 tiles (a column and a row together, the worst case) are 2,560 words copied, A to D: at 4 ticks a word (<a href="07-blitter.html#how-fast">chapter 7</a>), about 1.4 milliseconds, a fourteenth of a frame.</p>
+<p>A gem that's taken changes the cave: the map's byte becomes floor, and if the buffer holds that tile, it's drawn again (<code>RedrawTile</code>). The map is the truth; the buffer is only ever a picture of it.</p>
+<p>Georg Steger's <strong>ScrollingTricks</strong> (&lt;https://aminet.net/package/dev/src/ScrollingTrick&gt;, 1999) explains these and other ways of scrolling a tile map, for each direction and for all eight, with pictures of what happens in the buffer, and demo programs in C. His <em>XLimited</em> and <em>XYLimited</em> ways are the ribbon and the wrap-round used here, though his are tighter: 22 words a line, not 24, and the new column drawn a tile at a time as the screen scrolls the 16 pixels that bring it in, rather than all at once. Gem Cave draws its 17 or 23 tiles in one go for clarity. Note his archive's own terms: he asks to be told about (or sent) a game made with his documentation or code.</p>
+<h3 id="a-copper-list-made-each-frame">A copper list made each frame</h3>
+<p>Gem Cave doesn't patch its copper list: it makes a new one every frame (<code>MakeCopper</code>), because the wrap-round wait moves and sometimes isn't needed at all. It makes it in a second list that isn't being shown, then writes that list's address to <code>COP1LC</code> at the end of <code>Frame</code>. The copper reloads <code>COP1LC</code> at the start of every frame, so the new list is used from the next frame, and never half-written. The sprites the list points at are double-buffered in the same way, so the processor never changes a sprite's control words while they're being read (the HRM warns that a sprite moved "at the same time that the system is using that data" can show a glitch).</p>
+<p>There's no need to time the write: if <code>Frame</code> runs late and writes <code>COP1LC</code> in the middle of a frame, the list is simply used from the frame after, and until then the old one, whole and unchanged, carries on.</p>
+<h3 id="a-panel">A panel</h3>
+<p>Under the playfield is a panel for the score, lives and messages. It's a copper split: on the panel's first line, the copper points bitplane 1 at the panel's own bitmap, sets one bitplane, no scroll, a modulo of 0 and the panel's colours. The panel is 32 lines on PAL and NTSC alike; the playfield is 224 lines on PAL and 168 on NTSC, and the copper's waits, the camera and the sprites' clipping all use <code>PlayLines</code>, set in <code>Init</code>.</p>
+<p>The panel's colour 0 is also the border's: outside the display window, the screen shows colour 0 of whatever line it's on. That's why Gem Cave's playfield colour 0 is the same deep blue as the panel's. The playfield's tiles never use it, so the whole screen has one border.</p>
+<h2 id="bobs-that-put-back-what-they-cover">Bobs that put back what they cover</h2>
+<p>A scrolling game can't keep a clean copy of its background to put back behind its bobs, as <code>ch07_bobs.s</code> does: the background is the scroll buffer, and it changes. So each bob first <strong>saves</strong> the rectangle it's about to cover, and is taken off again by putting that back. <a href="07-blitter.html#putting-the-background-back">Chapter 7</a> gave the rule; <code>ch17_bobs.s</code> shows it. Eight balls bounce over a wall of tiles, in four bitplanes, with no spare copy of the screen: that alone saves 40K of chip RAM.</p>
+<figure class="guide-shot"><img src="images/ch17_bobs.png" alt="ch17_bobs.s on an A3000: eight balls, overlapping, over a wall of tiles" loading="lazy"></figure>
+<p>Each frame, in the screen that isn't shown:</p>
+<ol class="steps"><li><strong>Off</strong>, in reverse order: each bob's saved rectangle back where it came from, the last bob drawn first.</li><li><strong>Move</strong> them.</li><li>For each bob in order: <strong>save</strong> the rectangle it will cover (A to D, from the screen to its own save area), then <strong>draw</strong> it (the cookie-cut, D = AB + aC).</li></ol>
+<p>The mistake is in step 1. Taking the bobs off in the order they were drawn works perfectly until two of them overlap. Then the second bob's save holds part of the first bob (it was drawn there first). Put the first one's save back, then the second's, and that piece of the first bob comes back with it, and stays on the screen as a smear that grows. Reverse order undoes the drawing exactly: the second bob's save goes back first, then the first's, which was taken from the clean background.</p>
+<div class="code-block"><pre><code>.restore:
+        move.l  -(a2),d0                ; where it was: the list, read backwards
+        add.l   DrawScreen,d0
+        sub.w   #SAVEBYTES,a3           ; its save, also backwards
+        jsr     WaitBlitter
+        move.l  a3,BLTAPTH(a5)
+        move.l  d0,BLTDPTH(a5)
+        move.w  #BOBSIZE,BLTSIZE(a5)
+        dbf     d7,.restore</code></pre></div>
+<p>The save area is three words by 128 rows for each bob (a 32-pixel bob shifted across three words, in four bitplanes): 768 bytes, so eight bobs in two screens take 12K, against 40K for a third screen.</p>
+<h3 id="double-and-triple-buffering">Double and triple buffering</h3>
+<p>Each screen has its own list of where its bobs were, because the screen being drawn was last drawn two frames ago (<a href="07-blitter.html#double-buffering">chapter 7</a>). In a scrolling game, each buffer also has its own copy of the scroll: the new tiles have to be drawn into both, a frame apart.</p>
+<p>With two screens, the program can't start drawing the next frame until the one it just finished is on show: the other screen is still being shown until the next vertical blank. When drawing takes nearly a frame, that wait costs a whole frame every time it misses. A <strong>third</strong> screen lets drawing start at once, in the screen that's neither on show nor waiting to be shown, which makes the frame rate steadier when drawing takes close to a frame. It costs a third screen of chip RAM, and the steps above need a third list of bobs. Most A500 games double-buffer, and keep their drawing comfortably inside a frame.</p>
+<p>How many bobs fit? <a href="07-blitter.html#cookie-cut-bobs">Chapter 7</a> worked out about 5 lines of a PAL frame for a 32 by 32 bob in three bitplanes; in four, with its save and its restore, it's about 14 lines. Sprites cost nothing at all.</p>
+<h2 id="sprites-in-a-game">Sprites in a game</h2>
+<p>Gem Cave's player and bats are hardware sprites, not bobs: they're drawn by the display, over the playfield, with nothing to save or restore, and they don't scroll with it. The player is sprite 0; the bats are sprites 2, 4 and 6, each with its own colour registers (sprites share colours in pairs). Sprite 7 isn't there to use: the HRM says of starting the fetch at <code>$30</code> for scrolling, "Incidentally, this will disable sprite 7."</p>
+<p>Each frame, <code>MakeSprite</code> writes a sprite's control words and copies its 16 lines in, <strong>clipped</strong> to the playfield. The HRM: sprites "will be partially or totally clipped if they pass across or beyond the boundaries of the display window". But the panel is inside the display window, so a bat going off the bottom of the playfield would be drawn over the panel. So the lines that would be below the playfield aren't copied in, and the sprite's stop line is moved up to match; the same at the top.</p>
+<h3 id="more-objects-than-sprites-a-multiplexer">More objects than sprites: a multiplexer</h3>
+<p>Eight sprites aren't many, but each can be used again further down the screen (<a href="08-display.html#reusing-sprites-down-the-screen">chapter 8</a>). A game with many small objects can show far more than eight, as long as no more than eight are on any one line. Sorting that out every frame is a <strong>multiplexer</strong>. <code>ch17_multiplex.s</code> shows 24 balls on the eight channels:</p>
+<ol class="steps"><li>Sort the objects by height, top first.</li><li>For each, in that order, find a channel that's free by its top line: one whose last object ended at least a line above. The HRM: "at least one video line must separate the bottom of one usage of a sprite from the starting point of the next usage". The channel needs that line to fetch the next control words.</li><li>Add the object to that channel's list; the channel is free again a line after the object's last line.</li><li>End each list with two words of 0.</li></ol>
+<figure class="guide-shot"><img src="images/ch17_multiplex.png" alt="ch17_multiplex.s: 24 balls on eight sprite channels, coloured by channel pair" loading="lazy"></figure>
+<p>The sort is an insertion sort, which looks slow (it compares each object with those before it) but isn't here: objects move a few lines a frame, so last frame's order is almost right, and on a list that's almost in order insertion sort does almost nothing. Keep the order from frame to frame, rather than sorting from scratch.</p>
+<p>When a ninth object shares a line with eight others, it gets no channel. The example just doesn't show it that frame. A game usually prefers <strong>flicker</strong>: give the objects that missed out priority next frame, so each is shown every other frame rather than one vanishing. Most players will take flicker over an invisible enemy. And keep the number of objects that can be level with each other low in the first place: that's a game design question as much as a coding one.</p>
+<p>With no bitplanes switched on at all (<code>BPLCON0</code> = <code>$0200</code>), FS-UAE showed no sprites; with one bitplane, they appeared. The example has one bitplane, of faint lines. (Not checked on a real Amiga.)</p>
+<h2 id="collisions">Collisions</h2>
+<h3 id="with-the-map">With the map</h3>
+<p>Walls are in the tile map, so whether something can move somewhere is a question for the map, not the screen. A box no bigger than a tile can only touch the tiles under its four corners:</p>
+<div class="code-block"><pre><code>; The tile at the cave's pixel (d2, d3): a0 points at it in MapTiles.
+TileAt:
+        move.w  d3,d4
+        asr.w   #4,d4                   ; the row...
+        mulu    #MAPW,d4
+        move.w  d2,d5
+        asr.w   #4,d5                   ; ...and the column
+        add.w   d5,d4
+        lea     MapTiles,a0
+        add.w   d4,a0
+        rts</code></pre></div>
+<p>Each object has a <strong>box</strong> smaller than its picture (the player's is 8 pixels wide inside its 16), so it can squeeze through a one-tile gap without being lined up to the pixel.</p>
+<p>The mistake is moving both ways at once, testing, and undoing both if there's a wall. Then the player pushing up and right along a wall stops dead, because the move "up" hits the wall, and "right" is undone with it. Move across first, test, undo only that; then down, test, undo only that. The player slides along walls, as players expect:</p>
+<div class="code-block"><pre><code>MovePlayer:
+        move.w  JoyX,d0
+        muls    #SPEED,d0
+        add.w   PlayerX,d0              ; across...
+        move.w  PlayerY,d1
+        lea     PlayerBox(pc),a1
+        bsr     HitsWall
+        bne.s   .noacross
+        move.w  d0,PlayerX
+.noacross:
+        move.w  JoyY,d1
+        muls    #SPEED,d1
+        add.w   PlayerY,d1              ; ...then down, from where across left it
+        move.w  PlayerX,d0
+        lea     PlayerBox(pc),a1
+        bsr     HitsWall
+        bne.s   .nodown
+        move.w  d1,PlayerY
+.nodown:</code></pre></div>
+<p>The bats use the same test, turning back when they meet a wall. Gems are the tile under the middle of the player.</p>
+<h3 id="between-objects-boxes">Between objects: boxes</h3>
+<p>Two objects touch when their boxes overlap: each one's left edge is left of the other's right edge, and the same for top and bottom. Four comparisons, no multiplication:</p>
+<div class="code-block"><pre><code>; Do box A (d0-d3: left, top, right, bottom) and box B (d4-d7) overlap? Z clear (bne) if so.
+Overlap:
+        cmp.w   d6,d0                   ; A's left past B's right?
+        bgt.s   .no
+        cmp.w   d4,d2                   ; A's right before B's left?
+        blt.s   .no
+        cmp.w   d7,d1                   ; and the same down
+        bgt.s   .no
+        cmp.w   d5,d3
+        blt.s   .no
+        moveq   #1,d0                   ; Z clear
+        rts
+.no:
+        moveq   #0,d0                   ; Z set
+        rts</code></pre></div>
+<p>Boxes are rough: two round things touch at their corners before they really do. Make the boxes smaller than the pictures, and players will feel the game is fair. (This routine isn't in an example; Gem Cave uses the hardware instead.)</p>
+<h3 id="clxdat-the-hardware-s-collisions">CLXDAT: the hardware's collisions</h3>
+<p>The Amiga can tell you which sprites touched which, to the pixel, for nothing. As the display draws each pixel, it notes when two objects' non-transparent pixels are in the same place, in <code>CLXDAT</code> (<code>$DFF00E</code>). From the HRM's table, the bits for sprites:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Bit</th>
+<th scope="col">Collision</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">9</th>
+<td>sprite 0 (or 1) with sprite 2 (or 3)</td>
+</tr>
+<tr>
+<th scope="row">10</th>
+<td>sprite 0 (or 1) with sprite 4 (or 5)</td>
+</tr>
+<tr>
+<th scope="row">11</th>
+<td>sprite 0 (or 1) with sprite 6 (or 7)</td>
+</tr>
+<tr>
+<th scope="row">12 to 14</th>
+<td>2 with 4, 2 with 6, 4 with 6 (each with its pair)</td>
+</tr>
+<tr>
+<th scope="row">1 to 8</th>
+<td>the odd or even bitplanes with each sprite pair</td>
+</tr>
+</tbody></table></div>
+<p>It's read-only and "automatically cleared to 0 after it is read", so it holds every collision since the last read. Gem Cave reads it once a frame, in <code>Frame</code>:</p>
+<div class="code-block"><pre><code>        move.w  CLXDAT(a5),d0           ; reading it clears it
+        cmp.w   #PLAY_STATE,State
+        bne.s   .nobite
+        and.w   #$0e00,d0               ; bits 9 to 11: sprite 0 met sprite 2, 4 or 6
+        beq.s   .nobite
+        tst.w   Safe                    ; just bitten: two seconds' grace
+        bne.s   .nobite
+        bsr     Bitten</code></pre></div>
+<p>The odd sprites only count if <code>CLXCON</code> (<code>$DFF098</code>) says so: "The even-numbered sprites always are included". Gem Cave puts its bats on even sprites only, and leaves the odd ones empty, so it needn't touch <code>CLXCON</code> at all. That matters because <code>CLXCON</code> is write-only: there's no reading what the system had in it, to put it back.</p>
+<p>What <code>CLXDAT</code> can't do: it only sees what was shown. An object off the screen, or not shown this frame (a multiplexed sprite that lost its channel, a flashing player), never collides. It tells you which pair of sprites met, not which of many bobs in a bitplane. And it's about the frame just shown, so it's a frame behind the game. For the player against enemies, that's ideal: pixel-perfect and free. For bullets against twenty enemies, it's boxes in software.</p>
+<h3 id="pixel-masks-in-software">Pixel masks in software</h3>
+<p>Between boxes and <code>CLXDAT</code> there's the exact test in software: two objects collide if their masks (the same masks the blitter's cookie-cut uses) have a set bit in common, once they're lined up. For each line the two share, shift one mask's line by the difference in their x positions and AND it with the other's; any bit left set is a collision. Test the boxes first, and only do this for the few that overlap: it's a loop over every shared line. (Not in an example.)</p>
+<h2 id="the-controls">The controls</h2>
+<p>The joystick and its fire button are <a href="11-input.html">chapter 11</a>'s, with the rule above: a state wants presses, movement wants what's held. The joystick's <strong>second button</strong> is pin 9, read in <code>POTGOR</code>, and it needs the pin set up first; chapter 11 does it through potgo.resource, the only safe way.</p>
+<h3 id="the-cd32-pad">The CD32 pad</h3>
+<p>The CD32's pad has seven buttons: red, blue, green and yellow, two on its shoulders, and play. It plugs into the same ports, and to a program that knows nothing of it, it's a two-button joystick: red is fire, blue is the second button. The other five are read through a <strong>shift register</strong> in the pad. From AROS's <code>lowlevel.library</code> (&lt;https://github.com/aros-development-team/AROS/blob/master/arch/m68k-amiga/lowlevel/readjoyport.c&gt;), and the pad's circuit as documented on Gerd Kautzmann's page (preserved at &lt;https://www.mrdictionary.net/PSCD32/diary/sites/CD32Gamepad_gerdkautzmann_de.html&gt;):</p>
+<ul><li><strong>Pin 5</strong> (<code>POTGO</code>'s <code>OUTRX</code>/<code>DATRX</code> for port 1) driven <strong>low</strong> puts the pad in shift mode, with the first button on pin 9. Driven high, the pad loads its buttons and acts as a joystick.</li><li><strong>Pin 6</strong> (the fire pin) is the clock. The Amiga drives it, as an output of CIA-A, and each rising edge moves the next button onto pin 9.</li><li><strong>Pin 9</strong> is read in <code>POTGOR</code> (bit 14 for port 1). 0 is a button held, as for every Amiga button.</li></ul>
+<p>The buttons come out in the order blue, red, yellow, green, forward (the right shoulder), reverse (the left one), play, and then two more bits that read 1 and then 0. Those two are how to tell a pad from a joystick: a two-button joystick, with nothing driving pin 9, reads the same every time. <code>ch17_cd32_pad.s</code>:</p>
+<div class="code-block"><pre><code>        ; The fire pin an output, low; then pin 5 low, for shift mode, with pin 9 an input.
+        bclr    #CIAB_FIRE1,CIAA+CIAPRA
+        bset    #CIAB_FIRE1,CIAA+CIADDRA
+        move.l  PotgoBase,a6
+        move.l  #OUTRX,d0               ; pin 5: an output, low; pin 9: an input
+        move.l  #PORT1BITS,d1
+        jsr     _LVOWritePotgo(a6)
+
+        moveq   #0,d2
+        moveq   #9-1,d3
+.bit:
+        tst.b   CIAA+CIAPRA             ; (six of these: a little time for the pad)
+        ...
+        add.w   d2,d2
+        move.w  POTGOR(a5),d0
+        btst    #14,d0                  ; pin 9
+        bne.s   .up
+        addq.w  #1,d2                   ; low: held
+.up:
+        bset    #CIAB_FIRE1,CIAA+CIAPRA ; the clock up, and down: the next bit onto pin 9
+        bclr    #CIAB_FIRE1,CIAA+CIAPRA
+        dbf     d3,.bit
+
+        ; The fire pin an input again, and the pad back in its ordinary mode.
+        bclr    #CIAB_FIRE1,CIAA+CIADDRA
+        bsr     Idle                    ; pins 5 and 9 outputs, high</code></pre></div>
+<p>The <code>tst.b</code> reads of the CIA are a delay that doesn't depend on the processor: an access to a CIA waits for the CIAs' own slow clock (it counts at a tenth of the 68000's 7 MHz, the HRM says of their timers), so they take the same time on a 68060 as on a 68000. A plain loop would be over in no time on a fast processor, before the pad's output had settled. The reader in the WHDLoad developer package (<code>Src/sources/whdload/jotd/ReadJoypad.s</code>, "original code by asman with timing fix by wepl", with JOTD's detection of pad or joystick) waits the same way.</p>
+<figure class="guide-shot"><img src="images/ch17_cd32_pad.png" alt="ch17_cd32_pad.s on an A3000 with FS-UAE&#x27;s CD32 pad: up, left, blue, green and play held, and the pad detected" loading="lazy"></figure>
+<p>Two warnings. The first is from that source's comments: a plain two-button joystick held down on its second button pulls pin 9 low throughout, so a reader that doesn't check the two last bits sees every button held at once, and a game that quits on the shoulder buttons quits. Check them. The second: the pins are shared. Pins 5 and 9 are <code>POTGO</code>'s, so the example asks potgo.resource for them and writes them with <code>WritePotgo</code>, as chapter 11 explains; and the fire pin's direction is the system's (<code>CIAADDRA</code>), so it's made an output only for the read, and an input straight after.</p>
+<p>With the system running on Kickstart 3.1 (V40) or later, <code>lowlevel.library</code>'s <code>ReadJoyPort()</code> reads the pad for you, and tells a pad from a joystick and a mouse. It's on the CD32 in ROM, and on other Amigas in <code>LIBS:</code>.</p>
+<h2 id="sound-effects">Sound effects</h2>
+<h3 id="on-a-channel-of-their-own">On a channel of their own</h3>
+<p>Gem Cave plays its two sound effects on channel 3, and nothing else uses it. Starting a sample on a channel that's playing needs a wait after switching its DMA off, and another after switching it on (<a href="12-sound-and-music.html#starting-a-new-note-the-wait">chapter 12</a>). A game can't spend ten lines waiting each time a gem is taken, and doesn't need to: it does the three steps a frame apart, in the vertical blank, and the waits pass by themselves:</p>
+<ol class="steps"><li>switch the channel off (it may still be playing the last effect);</li><li>a frame later: the new sample's address, length, period and volume, and the channel on;</li><li>a frame later: the address and length pointed at a word of silence, so the sample plays once.</li></ol>
+<div class="code-block"><pre><code>PlaySound:
+        move.w  d0,SoundLength
+        move.l  a0,SoundNext            ; last: a long is written in one go, so the interrupt sees both or neither
+        rts</code></pre></div>
+<p>The sound starts 20 to 40 milliseconds after it's asked for, which no one can hear. With the system running, the startup allocates channel 3 from audio.device (<code>AUDIO_CHANNELS equ %1000</code>), so no other program cuts in. And <code>ExitHook</code> stops the interrupt's steps before the startup silences the channels, so the last effect can't be started again after the sound has been stopped (chapter 12 explains why the order matters).</p>
+<h3 id="over-music">Over music</h3>
+<p>Most games play music too, and four channels have to be shared. The usual ways:</p>
+<ul><li><strong>Give the effects a channel of their own</strong>, and write the music for three. Simple, and the music never loses a note, but it's only three channels of music.</li><li><strong>Take a channel from the music for each effect</strong>, and give it back when the effect has finished. The music loses that channel's notes for a moment, which, if the player chooses well, no one notices.</li></ul>
+<p><strong>ptplayer</strong>, Frank Wille's ProTracker player (&lt;https://aminet.net/package/mus/play/ptplayer&gt;, public domain), was written for exactly this, for his games Sqrxz and Solid Gold. In its readme's words, <code>_mt_playfx</code> plays an effect "either on a fixed channel or on the most unused one", with a priority: "When multiple samples are assigned to the same channel the lower priority sample will be replaced." While an effect plays, "The chosen channel is blocked for music until the effect has completely been replayed", and then the music has it back. <code>_mt_musicmask</code> reserves channels for music only, <code>_mt_loopfx</code> and <code>_mt_stopfx</code> play and stop an effect that repeats (an engine), and the master volume changes the music without touching the effects. Its one rule: "always make sure the first two bytes of your sound effect sample are zero!", which is why <code>ch17_make_graphics.py</code> starts each effect with a word of 0.</p>
+<p><strong>LightSpeedPlayer</strong> (Arnaud Carré's, <a href="12-sound-and-music.html">chapter 12</a>) is a music player only: its readme (v1.33) mentions no sound effects, and it writes all four channels and <code>DMACON</code> itself. With LSP, write the music for three channels and play the effects on the fourth yourself, as Gem Cave does.</p>
+<h2 id="numbers">Numbers</h2>
+<h3 id="fixed-point">Fixed point</h3>
+<p>Games need fractions: a speed of 1.5 pixels a frame, gravity of 0.04 pixels a frame every frame, a bat that drifts slowly. The 68000 has no floating point, and division is slow (a <code>DIVU</code> takes up to 140 cycles). The answer is <strong>fixed point</strong>: keep the number multiplied by a power of two, so the fraction is whole numbers in the low bits.</p>
+<p><strong>16.16</strong> suits the 68000 well: a long, with the whole pixels in the top word and the fraction in the bottom word. Adding and subtracting are ordinary <code>ADD.L</code> and <code>SUB.L</code>. The pixel is the top word, and <code>SWAP</code> gets it in one instruction. From <code>ch17_random.s</code>'s fireworks:</p>
+<div class="code-block"><pre><code>        movem.l (a0),d0-d3              ; x, y, x speed, y speed: all 16.16
+        add.l   #GRAVITY,d3             ; 2600: 0.04 of a pixel, as 2600/65536
+        move.l  d2,d4
+        asr.l   #6,d4
+        sub.l   d4,d2                   ; the air: 1/64 of the speed lost each frame
+        ...
+        add.l   d2,d0
+        add.l   d3,d1
+        movem.l d0-d3,(a0)
+        swap    d0                      ; the pixel
+        swap    d1                      ; the line</code></pre></div>
+<p>Multiplying two 16.16 numbers needs a 64-bit result, which the 68000 doesn't have (the 68020's <code>MULS.L</code> does). Usually one of the two is small: drop it to 8.8 (shift it down 8) and multiply by a word, or keep speeds in 8.8 from the start. Choose the split for the job: 8.8 in a word is enough for a speed; 16.16 for a position on a map bigger than 256 pixels.</p>
+<figure class="guide-shot"><img src="images/ch17_random.png" alt="ch17_random.s: fireworks in 16.16 fixed point; below, dots placed by the beam&#x27;s position (left) and by xorshift (right)" loading="lazy"></figure>
+<h3 id="random-numbers">Random numbers</h3>
+<p>A game needs random numbers: where a bat turns, which way a firework bursts. The usual mistake on the Amiga is to read the beam's position, <code>VHPOSR</code>, and call it random. Read once, at a moment the player chose, it is. Read again and again in a loop, it isn't: each read is a fixed time after the last, so the numbers step along together. <code>ch17_random.s</code> places dots with <code>VHPOSR</code> on the left (x from one read, y from the next), and they fall into diagonal lines. Taken from a proper generator, on the right, they fill the box evenly.</p>
+<p>The generator is <strong>xorshift</strong>, from George Marsaglia's paper <em>Xorshift RNGs</em> (Journal of Statistical Software, 2003: &lt;https://www.jstatsoft.org/article/view/v008i14&gt;). Three shifts and three exclusive-ORs, with the shifts 13, 17 and 5 that the paper calls "one of my favorite choices", go through every 32-bit number except 0 before repeating:</p>
+<div class="code-block"><pre><code>Random:
+        move.l  Seed,d0
+        move.l  d0,d1
+        moveq   #13,d2
+        lsl.l   d2,d1
+        eor.l   d1,d0                   ; x ^= x &lt;&lt; 13
+        move.l  d0,d1
+        moveq   #17,d2
+        lsr.l   d2,d1
+        eor.l   d1,d0                   ; x ^= x &gt;&gt; 17
+        move.l  d0,d1
+        lsl.l   #5,d1
+        eor.l   d1,d0                   ; x ^= x &lt;&lt; 5
+        move.l  d0,Seed
+        rts</code></pre></div>
+<p>Three things to get right:</p>
+<ul><li><strong>The seed must never be 0</strong>, or it stays 0 for ever.</li><li><strong>Seed it from the player.</strong> The same seed gives the same game every time, which is what you want while testing, and not afterwards. Gem Cave mixes in the beam's position and its step count at the moment fire starts the game: no one presses fire at the same moment twice. (That one read of <code>VHPOSR</code> is fine: it's random because a person chose when.)</li><li><strong>Ranges.</strong> For a number from 0 to 55, the mistake is <code>AND #63</code> and then wrapping anything over 55 back round: 0 to 7 then come up twice as often as the rest. Instead, <code>AND #63</code> and try again if it's over 55 (exactly even, and <code>ch17_random.s</code>'s way); or <code>MULU</code> a random word by 56 and keep the top word of the result (even to within a part in a thousand, and no loop). <code>DIVU</code> by 56 for the remainder is as even, and much slower.</li></ul>
+<h3 id="the-score-in-bcd">The score in BCD</h3>
+<p>A score is shown in decimal, and turning a binary number into decimal digits takes a division for each digit. Games often keep the score in <strong>BCD</strong> instead (binary-coded decimal, two digits to a byte), which the 68000 adds with <code>ABCD</code>, a byte at a time, carrying in the X flag. Printing it then needs no division at all: each 4 bits is a digit.</p>
+<div class="code-block"><pre><code>AddScore:
+        lea     Score+3,a1              ; from the end: the lowest digits first
+        addq.l  #3,a0                   ; a0: the points, in BCD too
+        sub.b   d0,d0                   ; X clear (SUB sets X as it sets C: no borrow)
+        abcd    -(a0),-(a1)
+        abcd    -(a0),-(a1)
+        abcd    -(a0),-(a1)</code></pre></div>
+<p><code>ABCD</code> adds X as well, so X must be clear before the first. <code>MOVEQ</code> and <code>CLR</code> don't touch X; <code>SUB</code> does.</p>
+<h2 id="loading-levels-and-saving-high-scores">Loading levels and saving high scores</h2>
+<h3 id="loading-while-the-game-runs">Loading while the game runs</h3>
+<p>A game bigger than memory loads its levels as it goes. <a href="15-loading-and-memory.html">Chapter 15</a> covers loading with the system running (<code>OS_FRIENDLY</code> 1: <code>Open</code>, <code>Read</code>, <code>Close</code> from the program's own process, with the blitter shared), and by taking the machine and giving it back to load. For a game, the simplest is to load between levels, behind a "get ready" screen: the player expects a pause there. Loading while the game plays is possible with the system running, as the system's tasks run whenever the game waits for the next frame; but the floppy is slow (a 100K level takes several seconds), so start early.</p>
+<p>A trackloader, reading the disk with the hardware (chapter 15), loads faster and needs no system, but the game then only runs from its floppy. Whichever you choose, put every load through <strong>one routine</strong> of your own. Then changing how the game loads (from a trackloader to files, for a hard drive version) is one change, and anyone making a WHDLoad install of it (below) has one place to patch.</p>
+<h3 id="saving-high-scores-safely">Saving high scores safely</h3>
+<p>A high score table saved to disk is the one time a game writes, and writing is where things go wrong: the disk is write-protected, or full, or the machine is switched off halfway through. A game that writes straight over its high score file loses the whole table if it's interrupted. So:</p>
+<ol class="steps"><li><strong>Write a new file</strong> alongside the old one (<code>hiscores.new</code>), and check every <code>Write</code>: a short write means a full disk.</li><li><strong>Then swap them</strong>: <code>DeleteFile</code> the old file, and <code>Rename</code> the new one to its name. (<code>Rename</code> won't replace a file: its Autodoc says "If the file or directory 'newName' exists, Rename() fails and returns an error.")</li><li><strong>When loading</strong>, if the table is missing or the wrong length, look for <code>hiscores.new</code> before giving up, and start with a default table if there's neither.</li></ol>
+<p>A disk that's write-protected makes <code>Open</code> fail, with <code>IoErr()</code> returning 214 (<code>ERROR_DISK_WRITE_PROTECTED</code> in <code>dos/dos.i</code>). Many people play from write-protected disks on purpose, to keep them safe. So if saving fails, say so in a word on the screen and carry on: never stop the game, and never ask the player to remove the write protection from an original.</p>
+<p>Don't write high scores to a disk with a trackloader. A write that goes wrong on a disk with no file system can destroy the game itself. If a trackloaded game must save, ask for a separate disk, and check it's the right one before writing.</p>
+<h2 id="friendly-to-every-amiga">Friendly to every Amiga</h2>
+<h3 id="pal-and-ntsc">PAL and NTSC</h3>
+<p>A game is played in both, so test it in both (<a href="08-display.html#pal-and-ntsc">chapter 8</a>). The screen is shorter on NTSC: Gem Cave's playfield is 168 lines there, not 224, and its panel moves up with it. The timing is the game loop's job, above. And a game that switches an NTSC Amiga to PAL with <code>BEAMCON0</code> to get the taller screen has to work on the monitors people really have: chapter 8 says when that's safe.</p>
+<h3 id="ocs-to-aga">OCS to AGA</h3>
+<p>A game for an A500 should also work on an A1200 and a CD32: AGA runs OCS programs, as long as they leave AGA's own registers as the system expects. v8's copper lists write <code>FMODE</code> as 0 and <code>BPLCON3</code> as <code>$0C00</code> in every frame (<a href="09-aga.html">chapter 9</a>): a game started from an AGA Workbench may otherwise find the sprites at a different width or resolution, or the bitplanes fetched in a different mode. The startup puts <code>BPLCON4</code> back as it ends.</p>
+<h3 id="whdload">WHDLoad</h3>
+<p><strong>WHDLoad</strong>, by Bert Jahn (&lt;https://www.whdload.de/&gt;), runs games that take the machine from a hard drive, by patching each one: for each game, someone writes a small <strong>slave</strong> that loads the game and "patches the main executable (so that the program will load his data via the Slave, to fix compatibility problems, to enable an exit from the program)", in the words of its programming documentation (&lt;https://www.whdload.de/docs/en/howto.html&gt;). Many people will only ever play your game that way. A few things make it much easier to install:</p>
+<ul><li><strong>Load through one routine</strong> (above). The slave's author has to find the game's loader and replace it; their documentation describes searching the game's code for it.</li><li><strong>Load files, not tracks</strong>, if you can: a game that loads files through the system (<code>OS_FRIENDLY</code> 1) can simply be copied to a hard drive, and may need no slave at all.</li><li><strong>Leave the processor's control registers alone.</strong> WHDLoad's guidelines for slave writers say not to touch the <code>VBR</code> or the <code>CACR</code> directly, and to change the caches only through WHDLoad, because it manages both for the game. A game that only <em>reads</em> the <code>VBR</code> (as v8's startup does, through <code>Supervisor()</code>) and changes the caches only through the system is easy to install; one that writes them has to be patched.</li><li><strong>Don't count on what's in memory.</strong> No fixed addresses, no reading the system's private structures, nothing assumed about where the game was loaded or what's around it (<a href="03-general-guidelines.html">chapter 3</a>).</li><li><strong>Give a way out.</strong> WHDLoad quits with a key of its own, but a game that already ends cleanly (as every v8 example does, with everything given back) is one less thing to patch.</li></ul>
+<p>None of this costs the game anything, and it's the same list that makes a game work on every Amiga in the first place.</p>
+<h2 id="the-examples">The examples</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Example</th>
+<th scope="col">What it shows</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>ch17_game.s</code></th>
+<td>Gem Cave: every section of this chapter in one small game</td>
+</tr>
+<tr>
+<th scope="row"><code>ch17_game_loop.s</code></th>
+<td>fixed steps against moving once a frame, with late frames, on PAL and NTSC</td>
+</tr>
+<tr>
+<th scope="row"><code>ch17_bobs.s</code></th>
+<td>bobs that save and put back what they cover, in reverse order, double-buffered</td>
+</tr>
+<tr>
+<th scope="row"><code>ch17_multiplex.s</code></th>
+<td>24 objects on eight sprite channels: sorted, and given channels a line apart</td>
+</tr>
+<tr>
+<th scope="row"><code>ch17_cd32_pad.s</code></th>
+<td>the CD32 pad's seven buttons, through its shift register, and telling a pad from a joystick</td>
+</tr>
+<tr>
+<th scope="row"><code>ch17_random.s</code></th>
+<td>xorshift against the beam's position, and fireworks in 16.16 fixed point</td>
+</tr>
+<tr>
+<th scope="row"><code>ch17_make_graphics.py</code></th>
+<td>makes <code>ch17_graphics.raw</code>: the tiles, sprites, bob, font and sound effects</td>
+</tr>
+</tbody></table></div>
+<h2 id="how-it-was-tested">How it was tested</h2>
+<p>Every example was built with <code>limoniter --assemble</code>, both ways, ending by itself (<code>AUTOEXIT</code>), and run in FS-UAE as <a href="16-debugging-and-testing.html">chapter 16</a> describes: booted into the example, then <code>back</code>, with the screen taken while the example ran and after it ended. Every run showed the example working, and then the CLI with <code>back</code>'s line. Each of the six examples ran both ways on each of these:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Machine</th>
+<th scope="col">Kickstart</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">A500: 68000, OCS, 512K of chip RAM and 512K of slow RAM</th>
+<td>1.3 and 3.1</td>
+</tr>
+<tr>
+<th scope="row">A500 with no slow RAM: a plain 512K machine</th>
+<td>1.3 and 3.1</td>
+</tr>
+<tr>
+<th scope="row">A500 with a 68020 and 8 MB of fast RAM</th>
+<td>3.1</td>
+</tr>
+<tr>
+<th scope="row">A500 with a 68040 and 8 MB of fast RAM</th>
+<td>1.3 and 3.1</td>
+</tr>
+<tr>
+<th scope="row">A1200: AGA, 68020</th>
+<td>3.1</td>
+</tr>
+<tr>
+<th scope="row">CD32, with its own Kickstart and extended ROM, the examples on a hard drive</th>
+<td>3.1 (40.60)</td>
+</tr>
+<tr>
+<th scope="row">A3000: 68030, and with a 68040; ECS, fast RAM</th>
+<td>2.04</td>
+</tr>
+<tr>
+<th scope="row">A500 (with and without slow RAM, and NTSC), A500 with a 68020, A1200</th>
+<td>AROS (FS-UAE's built-in replacement)</td>
+</tr>
+</tbody></table></div>
+<p>The controls were pressed in the emulator, through the X server's XTEST extension, as in chapter 11:</p>
+<ul><li><strong>Gem Cave</strong>: on every machine, fire started the game and the joystick walked the player. On the A3000, a gem was taken (score 10, 32 left), fire paused and played on, and a bat's bite took a life; the game went back to the title after game over and after the cave was cleared, each checked with a test build (one that starts with one life and a bat beside the player, and one with a single gem). On the CD32 it was played with the pad: red is fire.</li><li><strong>The CD32 pad</strong>: FS-UAE's CD32 pad, its buttons on keys, on every machine above. The buttons held lit their boxes and nothing else; on the A3000 each of the seven buttons and four directions was tried, and with an ordinary joystick in the port, the bar said there was no pad.</li><li><strong>The game loop</strong>: on PAL and on NTSC, the green block kept with the white one and the red one fell behind.</li></ul>
+<p>Not tested: real Amigas and a real CD32 pad; and the sound effects as sound (the test machine has no sound device: the samples were checked as data).</p>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<p>v7 had no chapter on games: everything here is new. Its parts that games rest on (the copper, the blitter, sprites, input, the tracker) are covered in the chapters before, corrected where v7 was wrong.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="16-debugging-and-testing.html"><span>Back</span>16. Debugging and testing</a>
+<a class="pager-next" href="18-releasing.html"><span>Next</span>18. Releasing</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

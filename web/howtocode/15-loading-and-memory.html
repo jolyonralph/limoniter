@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html" aria-current="page">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -160,7 +161,7 @@
 <ul><li><strong>The address you want is usually taken.</strong> The system's own structures, the program's own sections and other programs live at addresses that differ from machine to machine and boot to boot. "It's free on my A500" is the assumption v7 spent pages arguing against.</li><li><strong>It doesn't check what kind of memory is there.</strong> An address that's chip RAM on one Amiga is slow RAM, or nothing, on another.</li><li><strong>The block's edges aren't yours.</strong> The Autodoc: "The 8 bytes past the end of an AllocAbs will be changed by Exec relinking the next block of memory. Generally you can't trust the first 8 bytes of anything you AllocAbs."</li><li><strong>There's always a better way.</strong> For a boundary, allocate a little more and round up, as <a href="03-general-guidelines.html#memory-on-a-boundary">general guidelines</a> shows. For an old demo assembled with <code>ORG</code> at a fixed address, make it relocatable: assemble it as an ordinary program.</li></ul>
 <p>The one place it fits is a trackmo's boot code, with the system barely started, loading parts to fixed addresses (see <a href="#trackloaders">trackloaders</a> below). There, <code>AllocAbs</code> on each address before loading is a cheap check that the memory exists and nothing is using it.</p>
 <h2 id="never-assume-an-address">Never assume an address</h2>
-<p>The rule from <a href="03-general-guidelines.html#allocate-everything-never-use-a-fixed-address">general guidelines</a> is worth seeing in numbers. <code>examples/ch15_memory_map.s</code> shows each region of memory exec knows about (its attributes, first address, the address after its end, and bytes free) and what <code>AvailMem</code> says is free. It works either way. These are its readings on emulated Amigas (FS-UAE):</p>
+<p>The rule from <a href="03-general-guidelines.html#allocate-everything-never-use-a-fixed-address">general guidelines</a> is worth seeing in numbers. <a href="examples/ch15_memory_map.s"><code>examples/ch15_memory_map.s</code></a> shows each region of memory exec knows about (its attributes, first address, the address after its end, and bytes free) and what <code>AvailMem</code> says is free. It works either way. These are its readings on emulated Amigas (FS-UAE):</p>
 <div class="table-scroll" tabindex="0"><table class="compare">
 <thead><tr>
 <th scope="col">Machine</th>
@@ -245,7 +246,7 @@
 <ul><li><strong>Keep whole 32-bit addresses.</strong> A word or a 24-bit value isn't enough to hold the address of something in fast RAM.</li><li><strong>The chips only reach chip RAM.</strong> Copying a picture from fast RAM to the screen is the processor's job, not the blitter's.</li></ul>
 <h2 id="loading-with-the-system-running">Loading with the system running</h2>
 <p>This is the way to load during a demo: on a hard drive, a CD or a floppy alike, with every file system and device, and with the effect still running. With v8's startup it's <code>OS_FRIENDLY 1</code>, and loading is ordinary <code>dos.library</code>: <code>Open</code>, <code>Read</code>, <code>Close</code>.</p>
-<p><code>examples/ch15_load_picture.s</code> loads a 16-colour picture (<code>ch15_picture.raw</code>, 38432 bytes: 16 colours, then 240 lines of four interleaved bitplanes) a band at a time, while a copper bar bounces over it and the blitter draws a progress bar.</p>
+<p><a href="examples/ch15_load_picture.s"><code>examples/ch15_load_picture.s</code></a> loads a 16-colour picture (<code>ch15_picture.raw</code>, 38432 bytes: 16 colours, then 240 lines of four interleaved bitplanes) a band at a time, while a copper bar bounces over it and the blitter draws a progress bar.</p>
 <figure class="guide-shot"><img src="images/ch15_load_picture.png" alt="ch15_load_picture.s on an A500 with Kickstart 1.3, loading from a floppy: the top of the picture has arrived, the progress bar is under a third full, and the copper bar keeps moving" loading="lazy"></figure>
 <h3 id="open-read-close">Open, Read, Close</h3>
 <div class="code-block"><pre><code>MODE_OLDFILE    equ     1005            ; dos/dos.i: a file that's there already
@@ -298,7 +299,7 @@
 <h3 id="trackmos-with-limoniter">Trackmos with Limoniter</h3>
 <p>Limoniter makes such disks itself: <strong>Tools › Amiga › Boot disk with no file system (trackmo)</strong>.</p>
 <ul><li><strong>Pieces.</strong> Each piece is an assembler source (assembled by Limoniter's 68000 assembler at its <code>ORG</code>, or at the address given) or any other file (graphics, music, packed data). Each is put at a <strong>first sector</strong> of your choosing and loaded to an <strong>address</strong>. One piece is marked to <strong>start</strong>. A piece can be left unloaded, for a program that loads it itself later.</li><li><strong>The boot block.</strong> Limoniter's example reads each piece from its sectors <strong>with <code>trackdisk.device</code></strong>, turns the drive's motor off, and jumps to the start, with <code>a6</code> still ExecBase. <strong>Change it</strong> saves the example's source beside the plan and opens it, to make it your own (a fade, a loader that unpacks). However it's written, Limoniter assembles it, checks it fits in 1024 bytes, gives it "DOS", and works out its checksum as Kickstart checks it.</li><li><strong>Checks before writing.</strong> The disk's map shows every sector, and points out pieces on the boot block, past the disk's end, over each other, or with no start or two.</li><li><strong>Writing and running.</strong> It writes the disk as an <code>.adf</code> (880K or 1760K), and <strong>Run it</strong> boots it in the emulator. The plan is kept in a <code>.bootdisk</code> file, to build again after any change.</li></ul>
-<p><a href="02-working-with-limoniter.html">Working with Limoniter</a> and <a href="17-releasing.html">releasing</a> say more.</p>
+<p><a href="02-working-with-limoniter.html">Working with Limoniter</a> and <a href="18-releasing.html">releasing</a> say more.</p>
 <p>Pieces load to fixed addresses: this is the one place in a demo where that's normal, because when the boot block runs there's no program loader to place things for you. Choose the addresses with the same care as everything else in this chapter:</p>
 <ul><li><strong>Only chip RAM is certain</strong>, and only 512K of it. Everything above <code>$80000</code> may not exist.</li><li><strong>Chip RAM is the system's while it runs.</strong> The vectors, exec's base, the boot block's own buffers, and (on Kickstart 1.3 with nothing but chip RAM, as the table above shows) the system stack at the top of chip RAM are all in use.</li><li><strong>Before loading, the boot code can ask exec</strong> with <code>AllocAbs</code> whether each region is free, and refuse to start rather than overwrite something.</li></ul>
 <h3 id="clear-the-caches-after-loading-code">Clear the caches after loading code</h3>

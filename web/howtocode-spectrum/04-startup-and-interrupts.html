@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4. Startup and interrupts · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="Every Spectrum example in this guide is built on one small startup, examples/startup.asm.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/04-startup-and-interrupts.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/04-startup-and-interrupts.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="4. Startup and interrupts · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="Every Spectrum example in this guide is built on one small startup, examples/startup.asm.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/04-startup-and-interrupts.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html" aria-current="page">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>4. Startup and interrupts</h1>
+        <div class="article-lead">
+<p>Every Spectrum example in this guide is built on one small startup, <a href="examples/startup.asm"><code>examples/startup.asm</code></a>. It takes the machine from BASIC, runs your program once a frame with its own interrupt routine, and gives the machine back to BASIC when you press SPACE, so that BASIC says <code>0 OK</code> and the Spectrum carries on as if nothing had happened. This chapter explains every part, and the interrupts it's built on.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#interrupts-on-the-spectrum">Interrupts on the Spectrum</a></li>
+<li><a href="#the-startup">The startup</a></li>
+<li><a href="#helpers">Helpers</a></li>
+<li><a href="#without-the-startup">Without the startup</a></li>
+</ul>
+</nav>
+<h2 id="interrupts-on-the-spectrum">Interrupts on the Spectrum</h2>
+<p>The ULA interrupts the Z80 once a frame, 50 times a second, at the start of the frame (<a href="03-the-machine.html">chapter 3</a>). It's the only interrupt a standard Spectrum has. What the Z80 does with it depends on its <strong>interrupt mode</strong>:</p>
+<ul><li><strong>IM 1</strong>, which the ROM uses: "the processor simply executes an RST 38 instruction" (&lt;https://worldofspectrum.org/faq/reference/z80reference.htm&gt;), calling the ROM's routine at <code>$0038</code>. That routine counts the frame in the system variable <code>FRAMES</code> (<code>$5C78</code>) and reads the keyboard: "The real time clock is incremented and the keyboard scanned whenever a maskable interrupt occurs" (&lt;https://skoolkid.github.io/rom/asm/0038.html&gt;). It does it with <code>INC (IY+$40)</code>, so it relies on <code>IY</code> holding <code>$5C3A</code>, which "is initialised to 5C3A by the routine at NEW" (&lt;https://skoolkid.github.io/rom/asm/5C3A.html&gt;). A program that uses <code>IY</code> with interrupts on in IM 1 has the ROM write a byte 64 past wherever <code>IY</code> points, 50 times a second.</li><li><strong>IM 2</strong>: the Z80 makes an address from the <code>I</code> register (the high byte) and a byte read from the data bus (the low byte), reads a word from there, and calls it. That's how a program gets its own interrupt routine.</li><li><strong>IM 0</strong> reads an instruction from the bus. On a Spectrum nothing puts one there.</li></ul>
+<h3 id="im-2-and-the-vector-table">IM 2 and the vector table</h3>
+<p>Which byte is on the bus when the Z80 asks? "The normal Spectrum contains no hardware to place a byte on the bus, and the bus will therefore always read FF", but "some not-so-neat hardware devices put things on the data bus when they shouldn't" (Z80 reference). So the usual way, and the startup's, is to make the answer not matter: a table of <strong>257 bytes, all the same</strong>, starting at <code>I</code> × 256. Whatever byte comes off the bus, the word read from the table has the same high and low byte, here <code>$BFBF</code>, and at <code>$BFBF</code> the startup puts a <code>JP</code> to its routine.</p>
+<p>Where the table goes matters:</p>
+<ul><li><strong>Not in contended memory</strong> (<code>$4000</code>–<code>$7FFF</code>), because <code>I</code> would then be <code>$40</code>–<code>$7F</code>, and that makes "snow" on a 48K and can crash a 128K (<a href="03-the-machine.html">chapter 3</a>).</li><li><strong>Not where a 128K pages banks</strong> (<code>$C000</code> up), or it vanishes when another bank is paged in.</li></ul>
+<p>So the startup keeps it at <code>$BE00</code>–<code>$BF00</code>, with the jump at <code>$BFBF</code> and its stack below at <code>$BC00</code>–<code>$BDFF</code>, all in the top of bank 2, which is at <code>$8000</code> on every model (in the usual paging: the +2A and +3 have others, <a href="08-the-128k-and-later-models.html">chapter 8</a>).</p>
+<h2 id="the-startup">The startup</h2>
+<div class="code-block"><pre><code>AUTOEXIT        equ     0               ; frames before going back to BASIC: 0 for never (SPACE goes back too)
+
+        device  zxspectrum48
+        include "startup.asm"
+
+Init:                                   ; once, interrupts off
+        ...
+Frame:                                  ; once a frame, after the interrupt, in the main loop
+        ...
+Interrupt:                              ; in the interrupt itself, at the same time every frame
+        ...</code></pre></div>
+<p>Your program defines three routines, and may change any register in them but <code>SP</code> and <code>I</code>. The startup's code starts at <code>$8000</code>, so the tape's loader calls it there. In order, it:</p>
+<ol class="steps"><li><strong>Disables interrupts and keeps what BASIC needs back</strong>: its stack pointer, and <code>H'L'</code>, the alternate <code>HL</code>. BASIC called your code from inside the ROM's calculator, which keeps its place in <code>H'L'</code> ("This saves the pointer to the first literal", &lt;https://skoolkid.github.io/rom/asm/335B.html&gt;), so a program that returns to BASIC with <code>H'L'</code> changed returns into a lost calculator.</li><li><strong>Moves the stack</strong> to <code>$BE00</code>, out of contended RAM (BASIC's stack is just below <code>RAMTOP</code>, at <code>$7FFF</code> or so).</li><li><strong>Finds out what it's running on</strong> (<code>FindMachine</code>): writes a mark at <code>$C000</code>, pages in another bank through port <code>$7FFD</code>, writes a second mark, pages the first bank back, and looks. On a 128K the first mark is still there; on a 48K, which has nothing at port <code>$7FFD</code>, both went to the same byte. It sets <code>Is128</code>, and <code>LineTime</code> to 224 or 228 T-states (<a href="08-the-128k-and-later-models.html">chapter 8</a> has more on telling the models apart).</li><li><strong>Builds the vector table</strong> with <code>LDIR</code>, writes <code>JP IntHandler</code> at <code>$BFBF</code>, sets <code>I</code> to <code>$BE</code>, and selects <code>IM 2</code>.</li><li><strong>Calls <code>Init</code></strong>, enables interrupts, and enters the <strong>main loop</strong>:</li></ol>
+<div class="code-block"><pre><code>MainLoop:
+        halt                            ; wait for the next frame's interrupt
+        call    Frame
+        ld      a,$7F                   ; the half-row SPACE, SYM SHIFT, M, N, B
+        in      a,($FE)
+        rra                             ; SPACE is bit 0, 0 when it's pressed
+        jr      nc,Exit
+        ...                             ; and AUTOEXIT, if it's set
+        jr      MainLoop</code></pre></div>
+<p><code>HALT</code> stops the Z80 until an interrupt; when the interrupt routine returns, <code>Frame</code> runs. If <code>Frame</code> takes longer than a frame, the next <code>HALT</code> waits for the interrupt after, and the program runs at 25 frames a second rather than crashing: the frame rate halves, nothing else changes.</p>
+<p>The interrupt routine saves every register (both sets, and <code>IX</code> and <code>IY</code>), calls your <code>Interrupt</code>, adds one to <code>Frames</code>, restores them, and returns with <code>EI</code> and <code>RETI</code>.</p>
+<h3 id="when-interrupt-starts">When Interrupt starts</h3>
+<p><code>Interrupt</code> is called at the same point in every frame, which is what <a href="05-the-screen.html">beam racing</a> needs. On Limoniter's built-in Spectrum it starts 173 to 176 T-states after the interrupt: the Z80 takes 19 T-states to answer an IM 2 interrupt (Zilog's <em>Z80 User Manual</em>), then come the <code>JP</code> (10), the routine's ten pushes, two exchanges and the <code>CALL</code> (17). The range is because of <code>HALT</code>: while halted, the Z80 runs <code>NOP</code>s, 4 T-states each, and only notices the interrupt at the end of one, so where the <code>HALT</code> began, which depends on how long <code>Frame</code> took, moves the start by up to 3 T-states. The test suite checks this: <code>cargo test howtocode</code> measures <code>Interrupt</code>'s start in ten frames on a 48K and a 128K.</p>
+<p>Three T-states is 6 pixels. That doesn't matter for effects that change colours where the beam can't be seen, like <a href="05-the-screen.html">chapter 5</a>'s border bars and multicolour, which make their changes in the border with time to spare; an effect that needs better, one that splits a line exactly, either keeps the main loop the same length every frame or finds the beam with the floating bus (<a href="03-the-machine.html">chapter 3</a>).</p>
+<h3 id="giving-the-machine-back">Giving the machine back</h3>
+<p><code>Exit</code> undoes everything, in the reverse order:</p>
+<div class="code-block"><pre><code>Exit:
+        di
+        ld      a,(Is128)               ; a 128K's paging as BASIC left it
+        or      a
+        jr      z,.paged
+        ld      a,(BANKM)
+        ld      bc,$7FFD
+        out     (c),a
+.paged:
+        ld      a,$3F                   ; I as the ROM sets it
+        ld      i,a
+        im      1
+        ld      iy,$5C3A                ; for the ROM's interrupt routine
+        exx
+        ld      hl,(BasicHl)            ; for its calculator
+        exx
+        ld      a,(BORDCR)              ; BASIC's border colour
+        rrca
+        rrca
+        rrca
+        and     7
+        out     ($FE),a
+        ld      sp,(BasicSp)
+        ei
+        ret</code></pre></div>
+<p><code>IY</code> comes back before <code>EI</code>, because the ROM's interrupt routine may run the moment interrupts are on, before the <code>RET</code>. On a 128K, <code>BANKM</code> (<code>$5B5C</code>) is the ROM's copy of what was last written to port <code>$7FFD</code> (<a href="08-the-128k-and-later-models.html">chapter 8</a>), and writing it back puts back BASIC's bank, ROM and screen, whatever the program paged in.</p>
+<p>Every example is tested this way: the test suite runs it with <code>AUTOEXIT</code> set, and checks that BASIC prints <code>0 OK</code> afterwards, on a 48K and a 128K.</p>
+<figure class="guide-shot"><img src="images/ch04_startup_demo.png" alt="startup_demo.asm: a title, a band of colour rolling along it, the border flashing" loading="lazy"></figure>
+<p><a href="examples/startup_demo.asm"><code>examples/startup_demo.asm</code></a>, the smallest program on the startup: <code>Init</code> prints a title, <code>Frame</code> rolls a band of colour along it, and <code>Interrupt</code> flashes the border.</p>
+<h2 id="helpers">Helpers</h2>
+<p>The startup has a few routines your program can call, each explained where it's first used:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Routine</th>
+<th scope="col">Does</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>ClearScreen</code></th>
+<td>clears the pixels, and makes every attribute A</td>
+</tr>
+<tr>
+<th scope="row"><code>PixelAddress</code></th>
+<td>B = y, C = x: HL = the byte holding that pixel, A = its bit (<a href="05-the-screen.html">chapter 5</a>)</td>
+</tr>
+<tr>
+<th scope="row"><code>PrintAt</code></th>
+<td>prints the text at HL (ending with 0) at row B, column C, in the ROM's font</td>
+</tr>
+<tr>
+<th scope="row"><code>PrintChar</code></th>
+<td>prints the character A at row B, column C</td>
+</tr>
+<tr>
+<th scope="row"><code>PrintNumber</code></th>
+<td>prints HL as five digits at row B, column C</td>
+</tr>
+</tbody></table></div>
+<p>And its variables: <code>Frames</code> (a word, counted by the interrupt), <code>Is128</code>, and <code>LineTime</code>.</p>
+<h2 id="without-the-startup">Without the startup</h2>
+<p>A program that never goes back to BASIC (most games, and a demo that ends with a reset) can do less: <code>DI</code>, its own stack, its table and <code>IM 2</code>, and never think of BASIC again. It can then use all the memory from <code>$5B00</code> up, since BASIC's system variables don't matter any more. The guide's startup keeps BASIC alive because being able to go back is what lets you test a program fifty times an hour, and because a program that leaves the machine working is a polite one.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="03-the-machine.html"><span>Back</span>3. The machine</a>
+<a class="pager-next" href="05-the-screen.html"><span>Next</span>5. The screen</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

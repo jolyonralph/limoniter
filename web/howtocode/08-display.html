@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -74,7 +75,7 @@
         <div class="article-lead">
 <p>v7's chapter on video was about one thing: telling PAL from NTSC. This one covers that, and the rest of what a demo needs to set up its own display: the window and the fetch, the bitplanes and their control registers, modulos, scrolling, dual playfield, interlace, sprites, and the two special colour modes. Everything here is the original chip set's (OCS) and ECS's, which every Amiga has; AGA's additions are in <a href="09-aga.html">the AGA chapter</a>.</p>
 <p>There are four whole examples, each built both ways (with the machine taken and with the system running) like every v8 example:</p>
-<ul><li><code>examples/ch08_scroll.s</code>: smooth horizontal scrolling across a landscape three screens wide.</li><li><code>examples/ch08_dualpf.s</code>: dual playfield parallax: two playfields, each with its own bitplanes, modulo and scroll.</li><li><code>examples/ch08_sprites.s</code>: 31 balls from the 8 hardware sprites, used several times each down the screen, and an attached pair of 15 colours.</li><li><code>examples/ch08_interlace.s</code>: a 640 by 512 interlaced screen, from two copper lists.</li></ul>
+<ul><li><a href="examples/ch08_scroll.s"><code>examples/ch08_scroll.s</code></a>: smooth horizontal scrolling across a landscape three screens wide.</li><li><a href="examples/ch08_dualpf.s"><code>examples/ch08_dualpf.s</code></a>: dual playfield parallax: two playfields, each with its own bitplanes, modulo and scroll.</li><li><a href="examples/ch08_sprites.s"><code>examples/ch08_sprites.s</code></a>: 31 balls from the 8 hardware sprites, used several times each down the screen, and an attached pair of 15 colours.</li><li><a href="examples/ch08_interlace.s"><code>examples/ch08_interlace.s</code></a>: a 640 by 512 interlaced screen, from two copper lists.</li></ul>
 <figure class="guide-shot"><img src="images/ch08_examples.png" alt="ch08_scroll.s, ch08_dualpf.s, ch08_sprites.s and ch08_interlace.s in FS-UAE" loading="lazy"></figure>
         </div>
 <nav class="contents" aria-label="On this page">

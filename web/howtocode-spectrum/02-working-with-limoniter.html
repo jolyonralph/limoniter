@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2. Working with Limoniter · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="In the 1980s a Spectrum program was written on the Spectrum: an assembler such as Hisoft&#x27;s GENS in the same 48K as the program, the source saved to tape, and a crash costing an afternoon.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/02-working-with-limoniter.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/02-working-with-limoniter.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="2. Working with Limoniter · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="In the 1980s a Spectrum program was written on the Spectrum: an assembler such as Hisoft&#x27;s GENS in the same 48K as the program, the source saved to tape, and a crash costing an afternoon.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/02-working-with-limoniter.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html" aria-current="page">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>2. Working with Limoniter</h1>
+        <div class="article-lead">
+<p>In the 1980s a Spectrum program was written on the Spectrum: an assembler such as Hisoft's GENS in the same 48K as the program, the source saved to tape, and a crash costing an afternoon. Today most Spectrum code is written on a PC or a Mac, assembled there, and run in an emulator a second later. This chapter is about doing that with Limoniter, which has a Z80 assembler and a Spectrum of its own, so there's nothing else to install.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#starting">Starting</a></li>
+<li><a href="#build-and-run-f9">Build and run: F9</a></li>
+<li><a href="#limoniter-s-z80-assembler">Limoniter's Z80 assembler</a></li>
+<li><a href="#debugging">Debugging</a></li>
+<li><a href="#the-profiler">The profiler</a></li>
+<li><a href="#tapes-snapshots-and-nex-files">Tapes, snapshots and .nex files</a></li>
+<li><a href="#sending-to-a-real-machine">Sending to a real machine</a></li>
+</ul>
+</nav>
+<h2 id="starting">Starting</h2>
+<p>Copy the examples into a folder of your own with <strong>Tools › ZX Spectrum and Next › Copy How To Code's Spectrum examples to a folder…</strong>. The folder opens as a project, with <code>startup_demo.asm</code> open: the smallest whole program on the guide's startup (<a href="04-startup-and-interrupts.html">chapter 4</a>). Or choose <strong>File › New as › ZX Spectrum demo (Z80, How To Code)</strong>, which starts a new file with the same program and the startup put inside it, so it needs nothing beside it.</p>
+<p><strong>Help › How To Code: the ZX Spectrum</strong> opens this guide.</p>
+<h2 id="build-and-run-f9">Build and run: F9</h2>
+<p>Press <strong>F9</strong> (<strong>File › Run on machine</strong>). Limoniter assembles the source, and if there's a problem, marks the line and stops there. Otherwise it makes the program into something a Spectrum can load, and runs it:</p>
+<ul><li>Source for a <strong>48K or 128K</strong> goes on a tape (<code>.tap</code>) with a one-line BASIC loader: <code>CLEAR</code> to just below the code, <code>LOAD "" CODE</code>, and <code>RANDOMIZE USR</code> to start it. Which machine it's for comes from the source's <code>DEVICE</code> line: <code>DEVICE ZXSPECTRUM128</code> is a 128K's, anything else a 48K's.</li><li>Source that says <strong><code>DEVICE ZXSPECTRUMNEXT</code></strong> becomes a <code>.nex</code>, the Next's own program file (<a href="11-the-next.html">chapter 11</a>).</li><li>Source that saves its own tape, snapshot or <code>.nex</code> (with sjasmplus's <code>SAVETAP</code>, <code>SAVESNA</code> or <code>SAVENEX</code>) runs that instead, as it was meant to: <a href="13-releasing.html">chapter 13</a>'s example makes its own tape, with a loading screen.</li></ul>
+<p>The code has to start at 24000 or above for the BASIC loader to fit below it; the guide's examples start at <code>$8000</code> (32768), clear of the screen and of the memory the ULA holds up (<a href="03-the-machine.html">chapter 3</a>).</p>
+<p>The first time, F9 asks where to run it; it remembers. <strong>File › Run on</strong> lists everywhere that can, and <strong>File › Run on › Stop running</strong> stops it.</p>
+<h3 id="the-built-in-spectrum">The built-in Spectrum</h3>
+<p>Limoniter has a <strong>48K and 128K built in</strong> (it's rustzx, an emulator written in Rust, with Amstrad's ROMs, which Amstrad allows emulators to include). A program runs in a panel beside its source, with sound from the beeper and the 128K's AY. Click its screen to type on it (Ctrl is Symbol Shift, Esc is Break), or click the keyboard drawn under it. It's the quickest way to try something, and the only one with the profiler (below).</p>
+<p>It emulates contended memory and the floating bus, and every example in this guide runs on it. For the last T-state of a border or multicolour effect, though, check in Fuse or ZEsarUX too: they're the emulators whose timing has been measured against real machines most.</p>
+<h3 id="emulators">Emulators</h3>
+<p><strong>File › Run on › Devices and emulators…</strong>, then <strong>Find emulators</strong>, adds the ones installed. For the Spectrum:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Emulator</th>
+<th scope="col">For</th>
+<th scope="col">Where</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><strong>Fuse</strong></th>
+<td>48K, 128K, +2, +2A, +3, Pentagon and more; very accurate timing</td>
+<td>&lt;https://fuse-emulator.sourceforge.net/&gt;</td>
+</tr>
+<tr>
+<th scope="row"><strong>ZEsarUX</strong></th>
+<td>all of those and the Next; Limoniter debugs through it</td>
+<td>&lt;https://github.com/chernandezba/zesarux&gt;</td>
+</tr>
+<tr>
+<th scope="row"><strong>CSpect</strong></th>
+<td>the Next</td>
+<td>&lt;https://mdf200.itch.io/cspect&gt;</td>
+</tr>
+</tbody></table></div>
+<p>Fuse comes with the Spectrum ROMs (Amstrad's permission again), so it needs nothing of yours. (Some Linux distributions leave them out of their Fuse package, and put them in a separate one.)</p>
+<h2 id="limoniter-s-z80-assembler">Limoniter's Z80 assembler</h2>
+<p>Limoniter's own Z80 assembler takes the syntax of <strong>sjasmplus</strong>, the assembler most Spectrum and Next coders use today: <code>org</code>, <code>db</code>/<code>dw</code>/<code>ds</code>, <code>equ</code>, <code>include</code>, <code>incbin</code>, <code>align</code>, <code>rept</code>/<code>endr</code>, <code>macro</code>, <code>if</code>/<code>ifdef</code>/<code>ifndef</code>, local labels (<code>.loop</code>, belonging to the label before), and sjasmplus's devices: <code>DEVICE ZXSPECTRUM48</code> (or <code>128</code>, or <code>NEXT</code>) gives it the machine's memory, and <code>SAVETAP</code>, <code>SAVESNA</code> and <code>SAVENEX</code> write files from it. It knows the Z80's undocumented instructions (the halves of IX and IY, <code>SLL</code>, <code>OUT (C),0</code>) and <strong>the Next's Z80N instructions</strong>: <code>NEXTREG</code>, <code>MUL D,E</code>, <code>LDIRX</code>, <code>PIXELAD</code>, <code>OUTINB</code> and the rest (<a href="11-the-next.html">chapter 11</a>).</p>
+<p>If you have sjasmplus itself, Limoniter can use it instead (in <strong>Devices and emulators</strong>, or the assembler's own settings), and a project made for sjasmplus builds as sjasmplus builds it.</p>
+<p>While you type:</p>
+<ul><li><strong>The status bar</strong> shows the line's address, its bytes, and <strong>how many T-states</strong> its instruction takes. Counting T-states is how everything in <a href="05-the-screen.html">chapter 5</a>'s timed effects is done, and this is the quickest way.</li><li><strong>The memory map</strong>: after a build, a bar over the Output panel shows where the program sits in the Spectrum's memory, among the ROM, the screen and BASIC's system variables, and warns if code lands somewhere it can't go.</li><li><strong>Tools › ZX Spectrum and Next › Screen designer</strong> draws a Spectrum screen and saves it as a <code>.scr</code>; <strong>Tools › General › Character and sprite editor</strong> draws UDGs, fonts and the Next's sprites and puts them in your source as <code>db</code> lines; <strong>Tools › General › Sound effects</strong> makes AY and beeper effects.</li></ul>
+<h3 id="from-the-command-line">From the command line</h3>
+<p><code>limoniter --assemble SOURCE OUTPUT</code> assembles as F9 does, without opening a window. The ending of OUTPUT says what to make: <code>.tap</code> (the tape F9 runs), <code>.sna</code> (that tape loaded on the built-in Spectrum and stopped at the program's first instruction: a snapshot any emulator loads), or <code>.nex</code>. <code>NAME=VALUE</code> after it sets a value the source gives with <code>NAME equ</code>:</p>
+<p>limoniter --assemble ch05_plot.asm ch05_plot.tap AUTOEXIT=500</p>
+<p>That's how this guide's examples are built for testing (<a href="WRITING.md">Writing</a>).</p>
+<h2 id="debugging">Debugging</h2>
+<p>Click beside a line's number to put a <strong>breakpoint</strong> there, and press F9. When the program reaches it, it stops, the line is marked, and the registers and flags are shown beside the source. <strong>Step</strong> runs one instruction (into a <code>CALL</code>), <strong>Step over</strong> runs a whole <code>CALL</code>, <code>DJNZ</code> or <code>LDIR</code>, and <strong>Carry on</strong> runs to the next breakpoint. While it's stopped you can see the <strong>call stack</strong> (from the return addresses on the stack), <strong>watches</strong> (any expression: <code>HL</code>, <code>[Frames]</code>, <code>word[$5C78]</code>), and <strong>memory</strong>, with what's changed since the last stop picked out.</p>
+<p>A breakpoint can stop <strong>only when</strong> something's true (<code>B=2 &amp;&amp; [count]&gt;3</code>), and <strong>Stop when written to</strong> stops after any instruction that writes to an address or a range: the way to catch whatever is overwriting your table.</p>
+<p>This works on the built-in Spectrum and in <strong>ZEsarUX</strong>, which Limoniter drives through its remote protocol (so it can debug Next programs too). A Spectrum program for ZEsarUX is loaded from its tape in Limoniter first and handed over as a snapshot, so ZEsarUX can stop even at its first instruction.</p>
+<h2 id="the-profiler">The profiler</h2>
+<p>On the built-in Spectrum, <strong>Profile</strong> counts the T-states spent at every address while the program runs, contended memory and interrupts included. Click it, let the program run through the part you care about, and click it again: you get the time in each routine (each label and what follows it), its share, and how often it was entered, and the busiest source lines. Click one to go there.</p>
+<p>That's the first thing to do when a frame takes too long: measure, then optimise the routine that's actually slow (<a href="10-speed.html">chapter 10</a>).</p>
+<h2 id="tapes-snapshots-and-nex-files">Tapes, snapshots and .nex files</h2>
+<p>Limoniter opens all the Spectrum's usual files, to look at and to run:</p>
+<ul><li><strong><code>.tap</code></strong>: a tape's blocks one after another, each with a two-byte length. The ROM's own format, nothing more (<a href="13-releasing.html">chapter 13</a>).</li><li><strong><code>.tzx</code></strong>: a tape as it really was, with turbo loaders and copy protection: every block's timing kept. The built-in Spectrum loads its standard blocks.</li><li><strong><code>.sna</code></strong> and <strong><code>.z80</code></strong>: snapshots, the whole machine's memory and registers at a moment. A <code>.sna</code> is the simplest (27 bytes of registers, then the RAM); <code>.z80</code> is compressed, and its later versions hold 128K machines.</li><li><strong><code>.nex</code></strong>: the Next's program file (<a href="11-the-next.html">chapter 11</a>).</li></ul>
+<p>A tape's BASIC is listed as text, its pictures shown, and its code disassembled with <strong>Tools › General › Disassemble…</strong>, into source that assembles back to the same bytes.</p>
+<h2 id="sending-to-a-real-machine">Sending to a real machine</h2>
+<p><strong>File › Run on › Devices and emulators…</strong> also sets up real machines: a <strong>Spectrum Next</strong> over Wi-Fi (with NextSync's <code>.sync</code> on the Next) or a debug cable, and cards for a divMMC or an SD-based interface. A real 48K or 128K needs a way to load: a tape played from the computer's sound output (save the <code>.tap</code> as audio with a tool such as <code>tape2wav</code> from Fuse's utilities), or a divMMC.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="01-introduction.html"><span>Back</span>1. Introduction</a>
+<a class="pager-next" href="03-the-machine.html"><span>Next</span>3. The machine</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

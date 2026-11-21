@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>11. The Next · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="The ZX Spectrum Next is a Spectrum built in an FPGA: it runs 48K, 128K and +3 software as they were, and adds a faster Z80 with new instructions (the Z80N), up to 28 MHz, 8K memory paging over a megabyte or two, a 256-colour bitmap screen (Layer 2), 128 hardware sprites, a tilemap, a copper, and DMA.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/11-the-next.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/11-the-next.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="11. The Next · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="The ZX Spectrum Next is a Spectrum built in an FPGA: it runs 48K, 128K and +3 software as they were, and adds a faster Z80 with new instructions (the Z80N), up to 28 MHz, 8K memory paging over a megabyte or two, a 256-colour bitmap screen (Layer 2), 128 hardware sprites, a tilemap, a copper, and DMA.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/11-the-next.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html" aria-current="page">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>11. The Next</h1>
+        <div class="article-lead">
+<p>The ZX Spectrum Next is a Spectrum built in an FPGA: it runs 48K, 128K and +3 software as they were, and adds a faster Z80 with new instructions (the <strong>Z80N</strong>), up to 28 MHz, 8K memory paging over a megabyte or two, a 256-colour bitmap screen (<strong>Layer 2</strong>), 128 hardware <strong>sprites</strong>, a <strong>tilemap</strong>, a <strong>copper</strong>, and <strong>DMA</strong>. All of it is controlled through one set of registers, the <strong>nextregs</strong>. This chapter goes through them, and three examples put Layer 2, the copper and the sprites to work.</p>
+<p>Everything here is from the Next's own documentation: the register list and port list from its FPGA core (<code>nextreg.txt</code> and <code>ports.txt</code>, &lt;https://gitlab.com/SpectrumNext/ZX_Spectrum_Next_FPGA/-/raw/master/cores/zxnext/nextreg.txt&gt; and &lt;https://gitlab.com/SpectrumNext/ZX_Spectrum_Next_FPGA/-/raw/master/cores/zxnext/ports.txt&gt;), and the wiki at &lt;https://wiki.specnext.dev&gt;.</p>
+<p><strong>Tested where</strong>: the three examples were run in ZEsarUX 13.0's emulated Next (its "TBBlue" machine), loaded from their <code>.nex</code> files. They haven't been run on a real Next, nor in CSpect; please report what you find there.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#nextregs">Nextregs</a></li>
+<li><a href="#speed">Speed</a></li>
+<li><a href="#the-z80n-s-new-instructions">The Z80N's new instructions</a></li>
+<li><a href="#memory">Memory</a></li>
+<li><a href="#layer-2">Layer 2</a></li>
+<li><a href="#sprites">Sprites</a></li>
+<li><a href="#the-copper">The copper</a></li>
+<li><a href="#the-tilemap">The tilemap</a></li>
+<li><a href="#dma">DMA</a></li>
+<li><a href="#nex-files">.nex files</a></li>
+</ul>
+</nav>
+<h2 id="nextregs">Nextregs</h2>
+<p>A nextreg is written by selecting it on port <code>$243B</code> and writing its value to <code>$253B</code>: "0x243B NEXTREG register select", "0x253B NEXTREG data ... Reads or writes data to the selected register" (<code>ports.txt</code>). The Z80N does both at once:</p>
+<div class="code-block"><pre><code>        nextreg $07,3                   ; ED 91 07 03: 20 T-states
+        nextreg $16,a                   ; ED 92 16: register $16 = A, 17 T-states</code></pre></div>
+<p>Reading one still needs the ports:</p>
+<div class="code-block"><pre><code>        ld      bc,$243B
+        ld      a,$12                   ; Layer 2's bank
+        out     (c),a
+        inc     b                       ; $253B
+        in      a,(c)</code></pre></div>
+<h2 id="speed">Speed</h2>
+<p>Nextreg <code>$07</code> sets the Z80's speed: "00 = 3.5 MHz", "01 = 7 MHz", "10 = 14 MHz", "11 = 28 MHz", and reading it gives the speed it's actually running at in bits 5 and 4 (<code>nextreg.txt</code>). "28MHz (works since core 3.0)" (&lt;https://wiki.specnext.dev/CPU_Speed_Register&gt;). The examples set 28 MHz. Anything timed in T-states, like <a href="05-the-screen.html">chapter 5</a>'s border bars, needs 3.5 MHz, or its own timing for the faster speed.</p>
+<h2 id="the-z80n-s-new-instructions">The Z80N's new instructions</h2>
+<p>The wiki's table (&lt;https://wiki.specnext.dev/Extended_Z80_instruction_set&gt;), whose timings it says are "based on limited testing and may not be accurate":</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Instruction</th>
+<th scope="col">Does</th>
+<th scope="col">Opcode</th>
+<th scope="col">T-states</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>SWAPNIB</code></th>
+<td>swaps A's two nibbles</td>
+<td>ED 23</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>MIRROR A</code></th>
+<td>reverses A's bits</td>
+<td>ED 24</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>TEST n</code></th>
+<td>A AND n, flags only</td>
+<td>ED 27 n</td>
+<td>11</td>
+</tr>
+<tr>
+<th scope="row"><code>BSLA DE,B</code> and <code>BSRA</code>, <code>BSRL</code>, <code>BSRF</code>, <code>BRLC</code></th>
+<td>shift DE by B bits</td>
+<td>ED 28 to ED 2C</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>MUL D,E</code></th>
+<td>DE = D × E</td>
+<td>ED 30</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>ADD HL,A</code> (and <code>DE</code>, <code>BC</code>)</th>
+<td>adds A, unsigned</td>
+<td>ED 31 to ED 33</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>ADD HL,nn</code> (and <code>DE</code>, <code>BC</code>)</th>
+<td>adds a 16-bit number</td>
+<td>ED 34 to ED 36</td>
+<td>16</td>
+</tr>
+<tr>
+<th scope="row"><code>PUSH nn</code></th>
+<td>pushes a number</td>
+<td>ED 8A hi lo</td>
+<td>23</td>
+</tr>
+<tr>
+<th scope="row"><code>OUTINB</code></th>
+<td><code>OUT (C),(HL)</code>, <code>INC HL</code>, B unchanged</td>
+<td>ED 90</td>
+<td>16</td>
+</tr>
+<tr>
+<th scope="row"><code>NEXTREG n,n</code> / <code>NEXTREG n,A</code></th>
+<td>writes a nextreg</td>
+<td>ED 91 / ED 92</td>
+<td>20 / 17</td>
+</tr>
+<tr>
+<th scope="row"><code>PIXELDN</code></th>
+<td>HL down a line of the ULA screen</td>
+<td>ED 93</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>PIXELAD</code></th>
+<td>HL = the ULA screen address of x = E, y = D</td>
+<td>ED 94</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>SETAE</code></th>
+<td>A = the pixel's bit, from E</td>
+<td>ED 95</td>
+<td>8</td>
+</tr>
+<tr>
+<th scope="row"><code>JP (C)</code></th>
+<td>jumps within the current 16K, to 64 × a byte read from port C</td>
+<td>ED 98</td>
+<td>13</td>
+</tr>
+<tr>
+<th scope="row"><code>LDIX</code>, <code>LDDX</code>, <code>LDIRX</code>, <code>LDDRX</code>, <code>LDPIRX</code></th>
+<td><code>LDI</code> and friends that skip bytes equal to A</td>
+<td>ED A4 ...</td>
+<td>16, or 21/16</td>
+</tr>
+<tr>
+<th scope="row"><code>LDWS</code></th>
+<td>copies (HL) to (DE), then <code>INC L</code> and <code>INC D</code></td>
+<td>ED A5</td>
+<td>14</td>
+</tr>
+</tbody></table></div>
+<p><code>PUSH nn</code> is "the only operand encoded as big-endian". The barrel shifts need core 2 or later. <code>PIXELAD</code> and <code>PIXELDN</code> are <a href="05-the-screen.html">chapter 5</a>'s <code>PixelAddress</code> and <code>LineDown</code> in 8 T-states each. Limoniter's assembler knows them all (<a href="02-working-with-limoniter.html">chapter 2</a>).</p>
+<p><code>OUTINB</code> is the one the copper example uses: <code>OTIR</code> can't send a run of bytes to a nextreg, because it counts in <code>B</code>, and <code>B</code> is also the port's high byte (<code>$25</code>). <code>OUTINB</code> leaves <code>B</code> alone.</p>
+<h2 id="memory">Memory</h2>
+<p>The Next's 64K is eight <strong>slots</strong> of 8K, and nextregs <code>$50</code> to <code>$57</code> choose which 8K <strong>page</strong> of RAM is in each (<code>nextreg.txt</code>). They start as the 128K's memory: slots 0 and 1 the ROM (255), then pages 10 and 11 (16K bank 5), 4 and 5 (bank 2), and 0 and 1 (bank 0). Page n is 16K bank n / 2. So <code>nextreg $56,a</code> puts page A at <code>$C000</code>–<code>$DFFF</code>, and port <code>$7FFD</code> still works as on a 128K.</p>
+<h2 id="layer-2">Layer 2</h2>
+<p>Layer 2 is a bitmap screen of a byte a pixel: "256x192 256 colours, 320x256 256 colours or 640x256 16 colours", the 256 × 192 one "in English reading order with no ULA-style interlacing" (&lt;https://wiki.specnext.dev/Layer_2&gt;): pixel (x, y) is byte 256y + x. That's 48K, six 8K pages, starting at the 16K bank nextreg <code>$12</code> gives ("Starting 16K RAM bank (soft reset = 8)"; the wiki notes NextZXOS uses bank 9, so read it, don't assume).</p>
+<ul><li>Port <code>$123B</code> bit 1 shows it: "bit 1 = 1 to enable layer 2 display" (<code>ports.txt</code>). The same port can map Layer 2 over the bottom 16K for writing (bit 0), an older way than the MMU.</li><li>Each byte is a colour from <strong>Layer 2's palette</strong>. Palettes are written by nextreg <code>$43</code> (which palette: bits 6 to 4 = 001 for Layer 2's first), <code>$40</code> (the index) and <code>$41</code> (the colour, 8-bit RRRGGGBB; the index moves on after each write), or <code>$44</code> for 9-bit colour in two writes.</li><li>Colour <code>$E3</code> is see-through by default: nextreg <code>$14</code>, "Transparency colour value (soft reset = 0xe3)", so the ULA's screen shows through.</li><li>Nextregs <code>$16</code> and <code>$17</code> scroll it: X 0 to 255, Y 0 to 191, by hardware, for nothing.</li><li>Nextreg <code>$15</code> orders the layers: sprites, Layer 2 and the ULA, "000 - S L U" by default (sprites on top).</li></ul>
+<p><a href="examples/ch11_next_layer2.asm"><code>examples/ch11_next_layer2.asm</code></a> fills Layer 2's palette so colour n is RRRGGGBB n, pages each of its six 8K pages in at <code>$C000</code> with <code>nextreg $56</code> and draws x XOR y into it, turns it on, and scrolls it a pixel a frame each way:</p>
+<figure class="guide-shot"><img src="images/ch11_next_layer2.png" alt="Layer 2: x XOR y in 256 colours, scrolled by hardware (ZEsarUX&#x27;s Next)" loading="lazy"></figure>
+<p>The few black specks are pixels whose colour came out as <code>$E3</code>: see-through, so the ULA's black screen shows.</p>
+<h3 id="waiting-for-a-frame">Waiting for a frame</h3>
+<p>The Next examples don't use the startup (which goes back to BASIC), and don't use interrupts at all. They wait for a frame by reading the line the video is on, nextregs <code>$1E</code> and <code>$1F</code> ("Active Video Line"), until it's 192, just below the picture:</p>
+<div class="code-block"><pre><code>WaitFrame:
+        ld      bc,$243B
+        ld      a,$1F
+        out     (c),a
+        inc     b
+.wait:
+        in      a,(c)
+        cp      192
+        jr      nz,.wait
+.leave:
+        in      a,(c)                   ; at 28 MHz the line lasts long enough to be seen twice
+        cp      192
+        jr      z,.leave
+        ret</code></pre></div>
+<p>The Next can also interrupt on any line (nextregs <code>$22</code> and <code>$23</code>), and has a hardware IM 2 mode (nextreg <code>$C0</code>) in which it supplies its own vector for each kind of interrupt.</p>
+<h2 id="sprites">Sprites</h2>
+<p>The Next has "Total of 128 sprites", each 16 × 16, from "A 16K pattern memory" (&lt;https://wiki.specnext.dev/Sprites&gt;): 64 patterns of 256 bytes (a byte a pixel, from the sprites' palette), or twice as many of 4 bits a pixel. Three ports drive them (<code>ports.txt</code>):</p>
+<ul><li><code>$303B</code>: which sprite (and pattern) the next writes are for.</li><li><code>$5B</code>: pattern bytes, the address moving on by itself, so one <code>OTIR</code> sends a whole pattern.</li><li><code>$57</code>: a sprite's attributes, 4 or 5 bytes each: X's low 8 bits; Y's low 8 bits; palette offset, mirroring, rotation and X's ninth bit; and visible (bit 7), a fifth byte to follow (bit 6) and the pattern number.</li></ul>
+<p>Sprite coordinates run over a 320 × 256 area whose (32, 32) is the top left of the 256 × 192 screen, so a sprite can sit partly or wholly in the border. Nextreg <code>$15</code> bit 0 shows them; bit 1 lets them over the border. Colour <code>$E3</code> is see-through for sprites too (nextreg <code>$4B</code>).</p>
+<p><a href="examples/ch11_next_sprites.asm"><code>examples/ch11_next_sprites.asm</code></a> sends one pattern, a ball, and places 32 sprites on a turning circle each frame, four bytes each:</p>
+<figure class="guide-shot"><img src="images/ch11_next_sprites.png" alt="32 hardware sprites on a circle (ZEsarUX&#x27;s Next)" loading="lazy"></figure>
+<h2 id="the-copper">The copper</h2>
+<p>The copper is a small coprocessor with two instructions (&lt;https://wiki.specnext.dev/Copper&gt;): <strong>WAIT</strong> for a place on the screen (<code>%1hhhhhhv %vvvvvvvv</code>: "Wait for raster line v (0-311) and horizontal position h\*8"), and <strong>MOVE</strong> a value into a nextreg (<code>%0rrrrrrr %vvvvvvvv</code>). Its list holds "exactly 1024 instructions", and runs in step with the beam while the Z80 does something else. Line 0 is the screen's first line ("Normally the ula's pixel row 0 aligns with vertical line count 0", <code>nextreg.txt</code>); the border above it comes at the end of the count.</p>
+<p>It's loaded through nextregs: <code>$61</code> and <code>$62</code> set the address (2K, 0 to <code>$7FF</code>), <code>$60</code> takes the bytes one at a time (the address moving on), and <code>$62</code>'s top two bits start it: "11 = Copper start, execute the list from index 0, and restart the list when the raster reaches position (0,0)". Writing <code>$62</code> with the start bits it already has doesn't restart it, so a running list can be rewritten in place.</p>
+<p><a href="examples/ch11_next_copper.asm"><code>examples/ch11_next_copper.asm</code></a> makes a list that, on every one of 312 lines, waits for the line's start and changes palette entry 16 (PAPER 0, which the border uses when it's black) with two MOVEs: 936 instructions. Each frame it makes the list again a line further on, and sends it with <code>OUTINB</code> while the copper runs:</p>
+<figure class="guide-shot"><img src="images/ch11_next_copper.png" alt="The copper changing the border and paper colour every line (ZEsarUX&#x27;s Next)" loading="lazy"></figure>
+<p>In ZEsarUX, the top border stays one colour. Reading ZEsarUX's source, it seems to restart the copper's list at the start of its frame, before the top border, rather than at line 0 as <code>nextreg.txt</code> describes, so the list is already waiting for line 0 when the top border's lines (the end of the count) go by. On a real Next, by the documentation, the whole border should change; this hasn't been checked on one. A first version stopped the copper and restarted it every frame to load the list, and showed nothing at all in ZEsarUX: loading it while it runs is what works.</p>
+<h2 id="the-tilemap">The tilemap</h2>
+<p>The tilemap is a layer of 8 × 8 tiles, 40 × 32 of them or 80 × 32 ("bit 6 = 0 for 40x32, 1 for 80x32", nextreg <code>$6B</code>), each tile 4 bits a pixel (32 bytes), from a map of two bytes a tile (tile number, and an attribute of palette offset, mirroring and rotation), or one byte a tile with nextreg <code>$6B</code> bit 5 (&lt;https://wiki.specnext.dev/Tilemap&gt;). Nextreg <code>$6E</code> and <code>$6F</code> say where the map and the tiles are in bank 5 or 7 (by default <code>$6C00</code> and <code>$4C00</code>), and <code>$6C</code> is the attribute to use for a map of one byte a tile. It's the Next's answer to the ULA's text screen, and to scrolling backgrounds. <strong>Thin</strong>: there's no example of it yet.</p>
+<h2 id="dma">DMA</h2>
+<p>The Next's <strong>zxnDMA</strong> copies memory to memory, or memory to a port, without the Z80: "The zxnDMA is mapped to a single Read/Write IO Port 0x6B" (&lt;https://wiki.specnext.dev/DMA&gt;). It's programmed by sending it a short program of bytes, in the order of Zilog's Z80 DMA: disable it, set the source and length (WR0), the source's and destination's addressing (WR1, WR2), the destination and the mode (WR4: "continuous" runs to the end with the Z80 stopped; "burst" lets the Z80 run between bytes), then load and enable. The wiki's page has a complete program to copy memory, sent with <code>OTIR</code> to port <code>$6B</code>. Its rate can be slowed by a prescaler, which is how it plays samples. <strong>Thin</strong>: there's no example of it yet.</p>
+<h2 id="nex-files">.nex files</h2>
+<p>A <code>.nex</code> is the Next's program file: "official Distro supported version is the V1.2" (&lt;https://wiki.specnext.dev/NEX_file_format&gt;). A 512-byte header ("Next", the version, the RAM it needs, how many 16K banks follow, a loading screen's kind, the border, SP, PC, and a byte for each of 112 banks saying whether it's in the file), then the banks themselves, in the order "5,2,0,1,3,4,6,7,8,9,10,...,111", then any loading screen. The Next's browser runs one when it's chosen.</p>
+<p>Limoniter's F9 makes a version 1.2 <code>.nex</code> of source that says <code>DEVICE ZXSPECTRUMNEXT</code>: banks 5, 2 and 0 (the 64K the program sees), started at its first byte with the stack below <code>$FFFE</code>. For more (more banks, a loading screen, a different stack), use sjasmplus's <code>SAVENEX</code>, which Limoniter's assembler does too.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="10-speed.html"><span>Back</span>10. Speed</a>
+<a class="pager-next" href="12-games-and-demos.html"><span>Next</span>12. Games and demos</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

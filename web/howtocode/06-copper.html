@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -74,7 +75,7 @@
         <div class="article-lead">
 <p>The copper is the Amiga's display coprocessor: a tiny processor in Agnus that reads a list of instructions from chip RAM, once a frame, in step with the video beam. It has only three instructions, and two of them are all most demos use: <em>wait until the beam gets here</em>, and <em>put this value in that register</em>. With those it changes colours, bitplane pointers, scroll values and screen modes at exact places on the screen, every frame, without the processor doing anything at all. v7 called it "probably the most wonderful part of the Amiga architecture", and it still is.</p>
 <p>This chapter covers the instructions, where a wait really happens on the screen, the line 255 problem, the danger bit, lists that jump, change and double-buffer, and the effects demos have always made with it: bars, gradients, colour cycling and split screens. There are five whole examples, each built both ways (with the machine taken and with the system running) like every v8 example:</p>
-<ul><li><code>examples/ch06_waits.s</code>: where a <code>WAIT</code> lands. Colour changes after <code>$xx01</code> waits and after <code>$xx07</code> waits, and a ruler of horizontal positions.</li><li><code>examples/ch06_gradient.s</code>: a colour on every one of 256 lines behind a city skyline, cycling through a palette.</li><li><code>examples/ch06_bars.s</code>: six copper bars on a sine wave, built in one list while the copper shows another, with a jump through <code>COP2LC</code>.</li><li><code>examples/ch06_split.s</code>: a low resolution top that wobbles (a scroll value for each line) and a high resolution bottom with its own bitplanes.</li><li><code>examples/ch06_line255.s</code>: bars bouncing across line 255, in a list rebuilt each frame; two lists take turns through <code>COP1LC</code>.</li></ul>
+<ul><li><a href="examples/ch06_waits.s"><code>examples/ch06_waits.s</code></a>: where a <code>WAIT</code> lands. Colour changes after <code>$xx01</code> waits and after <code>$xx07</code> waits, and a ruler of horizontal positions.</li><li><a href="examples/ch06_gradient.s"><code>examples/ch06_gradient.s</code></a>: a colour on every one of 256 lines behind a city skyline, cycling through a palette.</li><li><a href="examples/ch06_bars.s"><code>examples/ch06_bars.s</code></a>: six copper bars on a sine wave, built in one list while the copper shows another, with a jump through <code>COP2LC</code>.</li><li><a href="examples/ch06_split.s"><code>examples/ch06_split.s</code></a>: a low resolution top that wobbles (a scroll value for each line) and a high resolution bottom with its own bitplanes.</li><li><a href="examples/ch06_line255.s"><code>examples/ch06_line255.s</code></a>: bars bouncing across line 255, in a list rebuilt each frame; two lists take turns through <code>COP1LC</code>.</li></ul>
 <figure class="guide-shot"><img src="images/ch06_examples.png" alt="ch06_gradient.s, ch06_bars.s, ch06_split.s and ch06_line255.s in FS-UAE (in the last, the grey line is line 256)" loading="lazy"></figure>
         </div>
 <nav class="contents" aria-label="On this page">

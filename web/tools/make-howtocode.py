@@ -1,5 +1,6 @@
-"""Makes How To Code v8 for the website, web/howtocode/*.html, from the guide in data/howtocode/, inside the user
-guide's template (tools/guide-template.html), with its pictures and examples copied beside the pages.
+"""Makes the How To Code guides for the website, inside the user guide's template (tools/guide-template.html), with
+their pictures and examples copied beside the pages: How To Code v8 (the Amiga), web/howtocode/*.html from
+data/howtocode/, and How To Code: the ZX Spectrum, web/howtocode-spectrum/*.html from data/howtocode-spectrum/.
 
     python web/tools/make-howtocode.py
 
@@ -16,8 +17,8 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[2]
 WEB = APP / "web"
-SOURCE = APP / "data" / "howtocode"
-OUT = WEB / "howtocode"
+# Each guide: its folder in data/ and on the site, and its name.
+GUIDES = [("howtocode", "How To Code v8"), ("howtocode-spectrum", "How To Code: the ZX Spectrum")]
 
 
 def borrow_from_make_guide():
@@ -33,9 +34,9 @@ def borrow_from_make_guide():
 GUIDE = borrow_from_make_guide()
 
 
-def chapters():
+def chapters(source):
     """The chapters, in their order: NN-name.md."""
-    return sorted(p.stem for p in SOURCE.glob("[0-9][0-9]-*.md"))
+    return sorted(p.stem for p in source.glob("[0-9][0-9]-*.md"))
 
 
 FIGURES = []
@@ -47,6 +48,10 @@ def prepare(markdown):
     their pages."""
     out = []
     for line in markdown.splitlines():
+        # The Back / Contents / Next line at a chapter's top and bottom is for reading it in Limoniter; the website
+        # has its own.
+        if re.match(r"\[(‹|Contents\])", line):
+            continue
         picture = re.match(r"!\[([^\]]*)\]\((images/[\w.-]+\.png)\)\s*$", line)
         if picture:
             alt, src = html.escape(picture.group(1)), picture.group(2)
@@ -93,30 +98,33 @@ def first_sentence(lead_html):
     return (text.split(". ")[0] + ".") if text else ""
 
 
-def template():
-    """The user guide's template, made How To Code's: its address, its name, and its licence."""
+def template(folder, name):
+    """The user guide's template, made the guide's: its address, its name, and its licence."""
     text = (WEB / "tools" / "guide-template.html").read_text(encoding="utf-8")
-    text = text.replace("https://limoniter.com/guide/", "https://limoniter.com/howtocode/")
+    text = text.replace("https://limoniter.com/guide/", f"https://limoniter.com/{folder}/")
     text = text.replace("by tools/make-guide.py", "by tools/make-howtocode.py")
-    text = text.replace('<p class="guide-pages-title">In this guide</p>', '<p class="guide-pages-title">How To Code v8</p>')
+    text = text.replace('<p class="guide-pages-title">In this guide</p>', f'<p class="guide-pages-title">{html.escape(name)}</p>')
     text = text.replace(
         "Limoniter is free software under the",
-        'How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the',
+        f'{html.escape(name)} is CC0: copy it, change it, use it for anything. Limoniter is free software under the',
     )
     return text
 
 
-def main():
-    OUT.mkdir(exist_ok=True)
-    order = ["README"] + chapters()
-    pages = {name: convert((SOURCE / f"{name}.md").read_text(encoding="utf-8")) for name in order}
-    files = {name: ("index" if name == "README" else name) for name in order}
-    page_template = template()
-    for n, name in enumerate(order):
-        description, title, lead, body, sections = pages[name]
+def make(folder, name):
+    """One guide's pages, pictures and examples."""
+    source = APP / "data" / folder
+    out = WEB / folder
+    out.mkdir(exist_ok=True)
+    order = ["README"] + chapters(source)
+    pages = {page: convert((source / f"{page}.md").read_text(encoding="utf-8")) for page in order}
+    files = {page: ("index" if page == "README" else page) for page in order}
+    page_template = template(folder, name)
+    for n, page in enumerate(order):
+        description, title, lead, body, sections = pages[page]
         description = description or first_sentence(lead) or title
         sidebar = "\n".join(
-            f'<li><a href="{files[other]}.html"{" aria-current=" + chr(34) + "page" + chr(34) if other == name else ""}>{html.escape(pages[other][1])}</a></li>'
+            f'<li><a href="{files[other]}.html"{" aria-current=" + chr(34) + "page" + chr(34) if other == page else ""}>{html.escape(pages[other][1])}</a></li>'
             for other in order
         )
         pager = []
@@ -126,14 +134,14 @@ def main():
         if n + 1 < len(order):
             on = order[n + 1]
             pager.append(f'<a class="pager-next" href="{files[on]}.html"><span>Next</span>{html.escape(pages[on][1])}</a>')
-        page_title = "How To Code v8" if name == "README" else f"{title} · How To Code v8"
+        page_title = name if page == "README" else f"{title} · {name}"
         text = page_template
         for key, value in {
             "{{page_title}}": html.escape(page_title),
             "{{title}}": html.escape(title),
             "{{description}}": html.escape(description),
-            "{{file}}": f"{files[name]}.html",
-            "{{source}}": f"data/howtocode/{name}.md",
+            "{{file}}": f"{files[page]}.html",
+            "{{source}}": f"data/{folder}/{page}.md",
             "{{lead}}": lead,
             "{{contents}}": GUIDE["contents"](sections),
             "{{body}}": body,
@@ -141,15 +149,20 @@ def main():
             "{{pager}}": "\n".join(pager),
         }.items():
             text = text.replace(key, value)
-        (OUT / f"{files[name]}.html").write_text(text, encoding="utf-8", newline="\n")
-        print(f"Wrote web/howtocode/{files[name]}.html")
+        (out / f"{files[page]}.html").write_text(text, encoding="utf-8", newline="\n")
+        print(f"Wrote web/{folder}/{files[page]}.html")
     # The pictures and the examples, as they are.
-    for folder in ["images", "examples"]:
-        target = OUT / folder
+    for sub in ["images", "examples"]:
+        target = out / sub
         if target.exists():
             shutil.rmtree(target)
-        shutil.copytree(SOURCE / folder, target)
-        print(f"Copied {folder} to web/howtocode/{folder}")
+        shutil.copytree(source / sub, target)
+        print(f"Copied {sub} to web/{folder}/{sub}")
+
+
+def main():
+    for folder, name in GUIDES:
+        make(folder, name)
 
 
 main()

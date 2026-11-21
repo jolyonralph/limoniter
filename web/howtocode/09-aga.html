@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -77,7 +78,7 @@
 <ul><li><strong>256 colour registers of 24 bits each</strong>, where OCS and ECS have 32 of 12 bits.</li><li><strong>8 bitplanes</strong>: 256 colours on screen at once, and <strong>HAM8</strong>.</li><li><strong>Wider fetches</strong> from chip RAM, 32 or 64 bits at a time instead of 16, so the display takes less of the bus.</li><li><strong>Sprites 32 or 64 pixels wide</strong>, at any resolution, with their colours from any 16 of the 256.</li><li><strong>Finer scrolling</strong>, in quarter-pixel steps, over 64 pixels instead of 16.</li></ul>
 <p>The blitter is the same 16-bit blitter, at the same speed. On an A1200 the processor (a 68020) is usually the better choice for drawing; <a href="14-processors.html">the processors chapter</a> measures it.</p>
 <p>There are three examples, each built both ways (taking the machine, and with the system running), like every v8 example:</p>
-<ul><li><code>examples/ch09_256colours.s</code>: 8 bitplanes fetched 64 bits at a time, a picture in all 256 colours, and a 24-bit palette that cycles, set by the copper every frame. The picture is drawn in chunky form and turned into bitplanes once, at the start.</li><li><code>examples/ch09_24bit_gradient.s</code>: a copper gradient set in 24-bit colour beside the same gradient in 12-bit colour, so the difference shows.</li><li><code>examples/ch09_sprites.s</code>: four sprites 64 pixels wide, with their colours moved to 224-239 and set in 24 bits, bouncing in quarter-pixel steps.</li></ul>
+<ul><li><a href="examples/ch09_256colours.s"><code>examples/ch09_256colours.s</code></a>: 8 bitplanes fetched 64 bits at a time, a picture in all 256 colours, and a 24-bit palette that cycles, set by the copper every frame. The picture is drawn in chunky form and turned into bitplanes once, at the start.</li><li><a href="examples/ch09_24bit_gradient.s"><code>examples/ch09_24bit_gradient.s</code></a>: a copper gradient set in 24-bit colour beside the same gradient in 12-bit colour, so the difference shows.</li><li><a href="examples/ch09_sprites.s"><code>examples/ch09_sprites.s</code></a>: four sprites 64 pixels wide, with their colours moved to 224-239 and set in 24 bits, bouncing in quarter-pixel steps.</li></ul>
 <figure class="guide-shot"><img src="images/ch09_256colours.png" alt="ch09_256colours.s on an emulated A1200: 256 colours, each of 24 bits" loading="lazy"></figure>
         </div>
 <nav class="contents" aria-label="On this page">

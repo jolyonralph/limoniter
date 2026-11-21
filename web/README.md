@@ -21,6 +21,8 @@ The promotional site for https://limoniter.com, in plain HTML, CSS and JavaScrip
   `../data/howtocode/` by `tools/make-howtocode.py` inside the user guide's template, with its pictures and examples
   copied beside the pages. It's CC0, and its pages say so. Publishing makes them afresh; to see a change before then,
   run `python web/tools/make-howtocode.py` from the app folder. Don't edit the pages themselves.
+- `howtocode-spectrum/`: How To Code: the ZX Spectrum, the guide to the 48K, 128K and Next built into Limoniter,
+  made from `../data/howtocode-spectrum/` by the same script in the same way.
 - `images/`: made by `tools/make-images.py SCREENSHOTS_FOLDER` from full-size screenshots: each as a whole window
   (`NAME.webp`) and a readable part of it (`NAME-close.webp`), the themes collage, and `social.png` for shared links.
 - `images/`: the icon and screenshots.

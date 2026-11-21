@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -74,7 +75,7 @@
         <div class="article-lead">
 <p>An interrupt is the hardware tapping the processor on the shoulder: stop what you're doing, deal with this, then carry on. A demo uses them to know when a frame starts, to do something when the beam reaches a line, to play music at a steady rate, and to hear that the blitter has finished. This chapter covers how the Amiga's interrupts work, the four kinds a demo uses most, and how to install each one both ways: with the machine taken, and with the system still running.</p>
 <p>There are two whole examples, each built both ways like every v8 example:</p>
-<ul><li><code>examples/ch05_copper_interrupt.s</code>: the copper raises an interrupt twice a frame, and the processor changes the background colour there. The copper marks the moment it asks with a white dash, so you can see how long the processor takes to answer.</li><li><code>examples/ch05_cia_timer.s</code>: a CIA timer interrupt at 50 Hz, worked out from the machine's clock so it's 50 Hz on PAL and NTSC alike.</li></ul>
+<ul><li><a href="examples/ch05_copper_interrupt.s"><code>examples/ch05_copper_interrupt.s</code></a>: the copper raises an interrupt twice a frame, and the processor changes the background colour there. The copper marks the moment it asks with a white dash, so you can see how long the processor takes to answer.</li><li><a href="examples/ch05_cia_timer.s"><code>examples/ch05_cia_timer.s</code></a>: a CIA timer interrupt at 50 Hz, worked out from the machine's clock so it's 50 Hz on PAL and NTSC alike.</li></ul>
         </div>
 <nav class="contents" aria-label="On this page">
 <ul>

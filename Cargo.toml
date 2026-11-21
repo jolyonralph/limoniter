@@ -1,6 +1,6 @@
 [package]
 name = "limoniter"
-version = "0.14.4"
+version = "0.15.0"
 edition = "2024"
 description = "A text and hex editor"
 license = "Apache-2.0"
@@ -36,6 +36,8 @@ yaml-rust = "0.4"
 # SVG drawn for the preview; without the decoders for GIF, WebP and JPEG pictures inside one (PNG still works).
 resvg = { version = "0.49", default-features = false, features = ["svgz", "text", "system-fonts", "memmap-fonts"] }
 sha2 = "0.10"
+# Ed25519, to check the signature on an update before Limoniter installs it (already here for rustls).
+ring = "0.17"
 ssh2 = "0.9"
 # FTPS: TLS for FTP's connections, with the same ring cryptography and list of authorities that ureq already uses.
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "logging", "std", "tls12"] }
@@ -94,3 +96,5 @@ enum_variant_names = "allow"
 # rustzx-core with one addition: a hook on memory writes, for the debugger's watchpoints. MIT, as the original.
 [patch.crates-io]
 rustzx-core = { path = "vendor/rustzx-core" }
+# rustzx-z80 with its H'L' read back as H'L' (see vendor/rustzx-z80/LIMONITER.md). MIT, as the original.
+rustzx-z80 = { path = "vendor/rustzx-z80" }

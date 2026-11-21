@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>6. Sprites · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="The Spectrum has no hardware sprites: a sprite is bytes the Z80 writes into the screen, and rubs out again before it moves.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/06-sprites.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/06-sprites.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="6. Sprites · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="The Spectrum has no hardware sprites: a sprite is bytes the Z80 writes into the screen, and rubs out again before it moves.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/06-sprites.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html" aria-current="page">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>6. Sprites</h1>
+        <div class="article-lead">
+<p>The Spectrum has no hardware sprites: a sprite is bytes the Z80 writes into the screen, and rubs out again before it moves. Every game's sprite routine is a trade between how it looks (does the background show round it? does it flicker?) and how many T-states it costs. This chapter goes through the usual ways, from the cheapest up, and <a href="examples/ch06_sprites.asm"><code>examples/ch06_sprites.asm</code></a> puts the best-looking one to work.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#xor">XOR</a></li>
+<li><a href="#masked-sprites">Masked sprites</a></li>
+<li><a href="#pre-shifting">Pre-shifting</a></li>
+<li><a href="#flicker-and-racing-the-beam">Flicker, and racing the beam</a></li>
+<li><a href="#drawing-with-the-stack">Drawing with the stack</a></li>
+<li><a href="#colour">Colour</a></li>
+</ul>
+</nav>
+<h2 id="xor">XOR</h2>
+<p>The simplest sprite is drawn with <code>XOR</code>: each byte of the sprite XORed into the screen. Drawing it again in the same place rubs it out exactly, whatever was under it, so there's nothing to save:</p>
+<div class="code-block"><pre><code>        ld      a,(de)                  ; a byte of the sprite
+        xor     (hl)                    ; with the screen's
+        ld      (hl),a</code></pre></div>
+<p>It's fast, and it's how <a href="05-the-screen.html">chapter 5</a>'s dots are drawn. But where a sprite crosses the background, both are inverted, and the sprite turns into a mess of the two; and where two sprites overlap, they cancel. Fine for a cursor, a bullet or a starfield; not for a hero.</p>
+<h2 id="masked-sprites">Masked sprites</h2>
+<p>A <strong>masked</strong> sprite has two pictures: the sprite, and a <strong>mask</strong>, 0 where the sprite is (usually with a pixel's outline round it) and 1 where the background should show. Each byte is drawn with <code>AND</code> and <code>OR</code>:</p>
+<div class="code-block"><pre><code>        ld      a,(de)                  ; the mask
+        and     (hl)                    ; keeps the background where the mask is 1, clears it where it's 0
+        inc     de
+        ld      c,a
+        ld      a,(de)                  ; the sprite
+        or      c                       ; and puts the sprite in the hole
+        ld      (hl),a</code></pre></div>
+<p>The background shows round the sprite, and a black outline (the mask a pixel bigger than the sprite) keeps it readable over anything. It costs twice the reads of XOR, and the sprite can't be rubbed out by drawing it again: what it covered has to be <strong>saved</strong> before it's drawn and <strong>put back</strong> before it moves.</p>
+<p>The order matters when sprites overlap: put back what they covered in the reverse of the order they were drawn, so where two overlap, the background that comes back last is the real one. <a href="examples/ch06_sprites.asm"><code>examples/ch06_sprites.asm</code></a> does exactly this each frame: every sprite's background put back, last first; then each moved, its new background saved, and it drawn.</p>
+<h2 id="pre-shifting">Pre-shifting</h2>
+<p>A sprite 16 pixels wide at any x covers 3 bytes, not 2: at x = 3, its first byte's pixels are split across two screen bytes. Shifting it into place as it's drawn costs a shift per byte per pixel of offset, up to seven. So it's done <strong>once, at the start</strong>: eight copies of the sprite (and its mask), each three bytes wide, shifted right 0 to 7 pixels, and the one for (x AND 7) used each time. The example's <code>PreShift</code> makes them with <code>RR</code> through three bytes, a 1 shifted into the mask (so the background shows) and a 0 into the picture:</p>
+<div class="code-block"><pre><code>.shift:
+        scf                             ; a 1 into the mask
+        rr      (ix+0)
+        rr      (ix+1)
+        rr      (ix+2)
+        or      a                       ; a 0 into the picture
+        rr      (ix+3)
+        rr      (ix+4)
+        rr      (ix+5)
+        djnz    .shift</code></pre></div>
+<p>Eight copies of a 16 × 16 masked sprite, three bytes wide, are 8 × 16 × 6 = 768 bytes. That's the usual trade on the Spectrum: memory for speed. The example keeps mask and picture interleaved, a byte of each in turn, so one pointer walks through both.</p>
+<figure class="guide-shot"><img src="images/ch06_sprites.png" alt="Three masked, pre-shifted balls over a patterned background" loading="lazy"></figure>
+<p>Counting its instructions, each ball here costs roughly 7,500 T-states a frame: about 2,000 to put its background back, 2,000 to save the new one, and 3,500 to draw it, most of it the <code>CALL</code> to <code>LineDown</code> and the pushing and popping round it on each of 16 lines. Three are a third of a frame. A game with more sprites unrolls the 16 lines, and keeps the screen address in a table rather than calling a routine for it.</p>
+<h2 id="flicker-and-racing-the-beam">Flicker, and racing the beam</h2>
+<p>If the beam draws a sprite's lines while the program is halfway through rubbing it out and drawing it again, that frame shows it half there: <strong>flicker</strong>, or tearing. The cures, in order of cost:</p>
+<ul><li><strong>Draw while the beam is elsewhere.</strong> After the interrupt, the beam spends 64 lines (14,336 T-states on a 48K) in the top border before it reaches the screen. Sprites drawn in that time are never caught. More than that, and the ones near the top of the screen start to be.</li><li><strong>Draw in the order the beam goes</strong>: sort the sprites by y, and draw the ones nearest the top first, so the program stays ahead of the beam down the screen.</li><li><strong>Double buffer</strong>: draw a whole frame off screen and show it at once. The 128K's shadow screen does that in hardware (<a href="05-the-screen.html">chapter 5</a>); on a 48K, a buffer in uncontended RAM copied to the screen costs a copy (the stack is fastest, below).</li></ul>
+<h2 id="drawing-with-the-stack">Drawing with the stack</h2>
+<p><code>POP</code> reads two bytes in 10 T-states and moves on, faster than any other way the Z80 has to read memory; <code>PUSH</code> writes two in 11. With interrupts off, the stack pointer can be pointed at anything. So the fastest copies on the Spectrum use it: point <code>SP</code> at the sprite's data, <code>POP</code> it into registers, and write them to the screen; or the other way, point <code>SP</code> at the screen and <code>PUSH</code> registers into it.</p>
+<div class="code-block"><pre><code>        di
+        ld      (SavedSp),sp
+        ld      sp,SpriteLine           ; the sprite's bytes for this line
+        pop     de                      ; 10: two bytes of it
+        pop     bc                      ; 10: two more
+        ld      (hl),e                  ; 7 each, to the screen
+        inc     l
+        ld      (hl),d
+        ...
+        ld      sp,(SavedSp)
+        ei</code></pre></div>
+<p>Unmasked sprites, and copies of a whole buffer to the screen, are where this pays most: <a href="10-speed.html">chapter 10</a> measures it filling memory at 5.5 T-states a byte, against <code>LDIR</code>'s 21. Two cautions: an interrupt while <code>SP</code> points at the screen pushes its return address into the picture (so interrupts are off, or the interrupt routine copes), and <code>PUSH</code> writes downwards, so a buffer is copied from its end.</p>
+<h2 id="colour">Colour</h2>
+<p>Sprites drawn in pixels take the colours of the cells they're in. The cheap and common answers: make the sprites the background's ink colour (monochrome games, coloured by area), or set the cells under a sprite to its colour as it's drawn, and back as it's put back, accepting that whatever else is in those cells changes too. Multicolour (<a href="05-the-screen.html">chapter 5</a>) is what demos do instead.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="05-the-screen.html"><span>Back</span>5. The screen</a>
+<a class="pager-next" href="07-sound.html"><span>Next</span>7. Sound</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

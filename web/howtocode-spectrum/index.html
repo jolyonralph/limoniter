@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How To Code: the ZX Spectrum</title>
+  <meta name="description" content="How to write Spectrum demos and games that work: the 48K, the 128K and its family, and the Next.
+By Comrade J and Mnemonic of Share and Enjoy, made as How To Code v8 was for the Amiga, and released under CC0: use any of it, for anything.
+Fourteen chapters, and nineteen example programs with the startup they&#x27;re built on.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/index.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/index.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="How To Code: the ZX Spectrum">
+  <meta property="og:description" content="How to write Spectrum demos and games that work: the 48K, the 128K and its family, and the Next.
+By Comrade J and Mnemonic of Share and Enjoy, made as How To Code v8 was for the Amiga, and released under CC0: use any of it, for anything.
+Fourteen chapters, and nineteen example programs with the startup they&#x27;re built on.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/README.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html" aria-current="page">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>How To Code: the ZX Spectrum</h1>
+        <div class="article-lead">
+<p><em>How to write Spectrum demos and games that work: the 48K, the 128K and its family, and the Next.</em></p>
+<p>By Comrade J and Mnemonic of Share and Enjoy, made as How To Code v8 was for the Amiga, and released under <strong>CC0</strong>: use any of it, for anything.</p>
+<div class="note"><p>Fourteen chapters, and nineteen example programs with the startup they're built on. Every example assembles with Limoniter's own assembler, and the Spectrum ones run on Limoniter's built-in 48K and 128K, in Fuse and in ZEsarUX before they go in; the Next ones run in ZEsarUX's Next. Chapter 1 says what's been tested where, and what hasn't. Click a chapter to read it.</p></div>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#targets">Targets</a></li>
+<li><a href="#chapters">Chapters</a></li>
+<li><a href="#examples">Examples</a></li>
+</ul>
+</nav>
+<h2 id="targets">Targets</h2>
+<p>The examples are written for the <strong>48K Spectrum</strong> first: a Z80 at 3.5 MHz, 16K of ROM, 48K of RAM, and the ULA. Every 48K example runs on the 128K, +2, +2A and +3 too, and finds out which it's on. Chapters about the 128K's extra memory, its shadow screen and its AY sound chip say so, as do the Next's.</p>
+<h2 id="chapters">Chapters</h2>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">Chapter</th>
+<th scope="col">What's in it</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">1</th>
+<td><a href="01-introduction.html"><strong>Introduction</strong></a>: what this guide is, who it's for, how it was checked, CC0</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row">2</th>
+<td><a href="02-working-with-limoniter.html"><strong>Working with Limoniter</strong></a>: F9 to the built-in Spectrum or Fuse and ZEsarUX, the debugger and the T-state profiler, tapes, snapshots and .nex files</td>
+<td></td>
+</tr>
+<tr>
+<th scope="row">3</th>
+<td><a href="03-the-machine.html"><strong>The machine</strong></a>: the memory map, the ULA, T-states, contended memory, the floating bus</td>
+<td>2 examples</td>
+</tr>
+<tr>
+<th scope="row">4</th>
+<td><a href="04-startup-and-interrupts.html"><strong>Startup and interrupts</strong></a>: the startup every example uses, IM 1 and IM 2 with a vector table, giving the machine back to BASIC</td>
+<td>startup</td>
+</tr>
+<tr>
+<th scope="row">5</th>
+<td><a href="05-the-screen.html"><strong>The screen</strong></a>: its odd layout, attributes, plotting with tables, scrolling, the 128K's shadow screen, border bars and multicolour to the T-state</td>
+<td>5 examples</td>
+</tr>
+<tr>
+<th scope="row">6</th>
+<td><a href="06-sprites.html"><strong>Sprites</strong></a>: masked and pre-shifted, XOR, saving the background, drawing with the stack</td>
+<td>1 example</td>
+</tr>
+<tr>
+<th scope="row">7</th>
+<td><a href="07-sound.html"><strong>Sound</strong></a>: the beeper and a two-voice 1-bit engine, the 128K's AY and a small player</td>
+<td>2 examples</td>
+</tr>
+<tr>
+<th scope="row">8</th>
+<td><a href="08-the-128k-and-later-models.html"><strong>The 128K and later models</strong></a>: paging, banks, contention by bank, the +2A and +3, the Pentagon</td>
+<td>1 example</td>
+</tr>
+<tr>
+<th scope="row">9</th>
+<td><a href="09-input.html"><strong>Input</strong></a>: the keyboard's half-rows, Kempston and Sinclair joysticks</td>
+<td>1 example</td>
+</tr>
+<tr>
+<th scope="row">10</th>
+<td><a href="10-speed.html"><strong>Speed</strong></a>: counting T-states, unrolling, self-modifying code, the stack</td>
+<td>1 example</td>
+</tr>
+<tr>
+<th scope="row">11</th>
+<td><a href="11-the-next.html"><strong>The Next</strong></a>: nextreg, the Z80N's new instructions, Layer 2, sprites, the copper, the tilemap, DMA, memory and .nex files</td>
+<td>3 examples</td>
+</tr>
+<tr>
+<th scope="row">12</th>
+<td><a href="12-games-and-demos.html"><strong>Games and demos</strong></a>: the frame loop, states, controls, random numbers, and a small whole game</td>
+<td>1 example</td>
+</tr>
+<tr>
+<th scope="row">13</th>
+<td><a href="13-releasing.html"><strong>Releasing</strong></a>: TAP, TZX, loaders and loading screens, turbo loaders, snapshots, the Next</td>
+<td>1 example</td>
+</tr>
+<tr>
+<th scope="row">14</th>
+<td><a href="14-further-reading.html"><strong>Further reading</strong></a></td>
+<td></td>
+</tr>
+</tbody></table></div>
+<h2 id="examples">Examples</h2>
+<p>In <code>examples/</code>. Each is a whole program in sjasmplus syntax that assembles with Limoniter's own assembler and runs with F9. All but the Next's are built on one small startup, <a href="examples/startup.asm"><code>startup.asm</code></a>, which takes the machine from BASIC and gives it back; <a href="examples/startup_demo.asm"><code>startup_demo.asm</code></a> is the smallest program on it. <strong>Tools › ZX Spectrum and Next › Copy How To Code's Spectrum examples to a folder…</strong> copies them all to a folder of your own, and <strong>File › New as › ZX Spectrum demo (Z80, How To Code)</strong> starts a new file with the startup already in it.</p>
+<p><a href="WRITING.md">WRITING.md</a> says how the guide is written and its examples tested.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-next" href="01-introduction.html"><span>Next</span>1. Introduction</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5. The screen · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="The Spectrum&#x27;s screen is 256 × 192 pixels, one bit each, with a byte of colour for every 8 × 8 cell, and a border round it in one colour.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/05-the-screen.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/05-the-screen.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="5. The screen · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="The Spectrum&#x27;s screen is 256 × 192 pixels, one bit each, with a byte of colour for every 8 × 8 cell, and a border round it in one colour.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/05-the-screen.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html" aria-current="page">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>5. The screen</h1>
+        <div class="article-lead">
+<p>The Spectrum's screen is 256 × 192 pixels, one bit each, with a byte of colour for every 8 × 8 cell, and a border round it in one colour. That's all: no hardware scrolling, no sprites, no palette. It's also laid out in memory in an order that looks strange until you see why. This chapter is about drawing on it fast, and then about the tricks that get round its limits by timing: changing the border, and the colours, as the beam goes by.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-display-file">The display file</a></li>
+<li><a href="#attributes">Attributes</a></li>
+<li><a href="#plotting-fast-lookup-tables">Plotting fast: lookup tables</a></li>
+<li><a href="#scrolling">Scrolling</a></li>
+<li><a href="#the-128k-s-shadow-screen">The 128K's shadow screen</a></li>
+<li><a href="#racing-the-beam-border-bars">Racing the beam: border bars</a></li>
+<li><a href="#multicolour">Multicolour</a></li>
+</ul>
+</nav>
+<h2 id="the-display-file">The display file</h2>
+<p>The pixels are at <code>$4000</code>–<code>$57FF</code>, 32 bytes a line, each byte 8 pixels with bit 7 on the left. But the lines aren't in order. As the Spectrum's manual says, "First come the top scans of lines 0 to 7, then the next scans of lines 0 to 7", and so on: the screen is three <strong>thirds</strong> of 64 lines, and within each third, the first line of each of its 8 character rows comes first, then their second lines, and so on (&lt;https://worldofspectrum.org/ZXBasicManual/zxmanchap24.html&gt;).</p>
+<p>In bits, a pixel at (x, y), with y from 0 at the top, is at:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">15</th>
+<th scope="col">14</th>
+<th scope="col">13</th>
+<th scope="col">12</th>
+<th scope="col">11</th>
+<th scope="col">10</th>
+<th scope="col">9</th>
+<th scope="col">8</th>
+<th scope="col">7</th>
+<th scope="col">6</th>
+<th scope="col">5</th>
+<th scope="col">4</th>
+<th scope="col">3</th>
+<th scope="col">2</th>
+<th scope="col">1</th>
+<th scope="col">0</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">address</th>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>y7</td>
+<td>y6</td>
+<td>y2</td>
+<td>y1</td>
+<td>y0</td>
+<td>y5</td>
+<td>y4</td>
+<td>y3</td>
+<td>x7</td>
+<td>x6</td>
+<td>x5</td>
+<td>x4</td>
+<td>x3</td>
+</tr>
+</tbody></table></div>
+<p>and its bit in the byte is 7 − (x AND 7). The ROM's own <code>PIXEL-ADD</code> routine says the same: its comments end "Finally 010b7b6b2b1b0" for the high byte and "Finally b5b4b3c7c6c5c4c3" for the low (&lt;https://skoolkid.github.io/rom/asm/22AA.html&gt;; the ROM counts y from the bottom, so it works with 175 − y first).</p>
+<p>The order was chosen for the hardware, and it's handy for text: the 8 lines of a character are 256 bytes apart, so moving down a pixel line within a character is <code>INC H</code>. The startup's <code>PixelAddress</code> works the address out from the bits; the most useful routine on the Spectrum, though, is the one that moves an address <strong>down one line</strong>:</p>
+<div class="code-block"><pre><code>; LineDown: HL, an address on the screen, moved down one pixel line.
+LineDown:
+        inc     h                       ; the next line of a character: 256 bytes on
+        ld      a,h
+        and     7
+        ret     nz
+        ld      a,l                     ; past a character's last line: the next row, 32 bytes on,
+        add     a,32                    ; back at its first line
+        ld      l,a
+        ret     c                       ; into the next third: H has moved on 8 already
+        ld      a,h
+        sub     8
+        ld      h,a
+        ret</code></pre></div>
+<h2 id="attributes">Attributes</h2>
+<p>The attributes are at <code>$5800</code>–<code>$5AFF</code>, 32 a row, 24 rows, in plain order: the cell at row r, column c is at <code>$5800</code> + 32r + c. Each is a byte: "128 if flashing + 64 if bright + 8×paper + ink" (chapter 16 of the manual, &lt;https://worldofspectrum.org/ZXBasicManual/zxmanchap16.html&gt;):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">bit 7</th>
+<th scope="col">bit 6</th>
+<th scope="col">bits 5–3</th>
+<th scope="col">bits 2–0</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">FLASH</th>
+<td>BRIGHT</td>
+<td>PAPER</td>
+<td>INK</td>
+</tr>
+</tbody></table></div>
+<p>A pixel that's 1 is the ink colour, 0 the paper. The colours are 0 black, 1 blue, 2 red, 3 magenta, 4 green, 5 cyan, 6 yellow, 7 white, each normal or bright (bright black is still black). FLASH swaps ink and paper: "Every 16 frames, the ink and paper of all flashing bytes is swapped" (48K reference, &lt;https://worldofspectrum.org/faq/reference/48kreference.htm&gt;).</p>
+<p>Two colours a cell is the Spectrum's famous limit: where a sprite of one colour crosses a background of another, the cell takes the sprite's ink and the background's pixels turn that colour too (<strong>attribute clash</strong>). Games live with it by drawing in one colour over a black background, colouring the play area in big blocks, or changing attributes only where sprites are. Demos beat it with multicolour, at the end of this chapter.</p>
+<p>The <strong>border</strong> is set by bits 0 to 2 of <code>OUT ($FE)</code>: "The lowest three bits specify the border colour" (48K reference). The same port's bit 4 is the beeper (<a href="07-sound.html">chapter 7</a>) and bit 3 the tape's MIC output; a write to <code>$FE</code> sets all three, so keep them as you want them each time. BASIC keeps its border colour in the system variable <code>BORDCR</code> (<code>$5C48</code>), in bits 3 to 5.</p>
+<h2 id="plotting-fast-lookup-tables">Plotting fast: lookup tables</h2>
+<p><code>PixelAddress</code> takes about 150 T-states. For a lot of dots, look the answer up instead: a table of the 192 lines' addresses, made once at the start with <code>LineDown</code>, turns y into an address with two loads. <a href="examples/ch05_plot.asm"><code>examples/ch05_plot.asm</code></a> plots 64 dots on a Lissajous curve each frame:</p>
+<div class="code-block"><pre><code>; Plot: the pixel at x = C, y = B XORed onto the screen.
+Plot:
+        ld      h,LineLow/256           ; the table's low bytes are in one 256-byte page,
+        ld      l,b                     ; so (HL) with L = y is the line's low byte
+        ld      a,c
+        rrca
+        rrca
+        rrca
+        and     31                      ; x / 8, the column
+        or      (hl)                    ; the line's low byte has 0 in its column bits
+        inc     h                       ; and its high bytes in the next page
+        ld      h,(hl)
+        ld      l,a
+        ld      a,c
+        and     7                       ; the bit: from a table of eight, $80 to $01
+        ...
+        xor     (hl)
+        ld      (hl),a</code></pre></div>
+<p>Splitting the table into a page of low bytes and a page of high bytes (each aligned to 256 with <code>align 256</code>) means <code>H</code> is the page and <code>L</code> is y: no adding, no shifting. The same trick serves the sine tables the curve is drawn from: 256 entries, a page each, <code>L</code> the angle.</p>
+<p>The dots are drawn with <code>XOR</code>, so drawing the same dot again rubs it out: each frame the last frame's dots are XORed away, from a list the plotting keeps, and the new ones drawn.</p>
+<figure class="guide-shot"><img src="images/ch05_plot.png" alt="64 dots on a Lissajous curve, plotted with lookup tables" loading="lazy"></figure>
+<h2 id="scrolling">Scrolling</h2>
+<p>There's no hardware scrolling: to move the screen, the Z80 moves the bytes. Moving by a whole character (8 pixels) is copying bytes; moving by a pixel is shifting every byte. <a href="examples/ch05_scroller.asm"><code>examples/ch05_scroller.asm</code></a> scrolls one character row left a pixel each frame, with <code>RL (HL)</code> through each line's 32 bytes, right to left, so the bit that falls off the left of one byte goes in at the right of the next. The new column at the right comes from the ROM's font, a bit at a time:</p>
+<div class="code-block"><pre><code>        ld      c,l                     ; the right-hand end, to go back to
+        rl      (hl)                    ; 15 T-states
+        dec     l                       ; 4: DEC doesn't change the carry
+        rl      (hl)
+        dec     l
+        ...                             ; 32 times, unrolled</code></pre></div>
+<p>That's 19 T-states a byte, 608 a line, under 5,000 for the row's 8 lines. A whole screen this way would be 117,000 T-states, nearly two frames, which is why big Spectrum scrollers move a byte at a time (8 pixels, smoother looking if it's fast), scroll a band, or use <a href="10-speed.html">the stack</a>.</p>
+<figure class="guide-shot"><img src="images/ch05_scroller.png" alt="A scrolling message, a pixel a frame" loading="lazy"></figure>
+<h2 id="the-128k-s-shadow-screen">The 128K's shadow screen</h2>
+<p>The 128K has a second screen. The ULA shows bank 5's screen (at <code>$4000</code>) normally, and bank 7's when bit 3 of port <code>$7FFD</code> is set: "Select normal (0) or shadow (1) screen" (&lt;https://worldofspectrum.org/faq/reference/128kreference.htm&gt;). That's <strong>double buffering</strong>: draw on the screen that isn't shown, and when it's finished, show it, by one <code>OUT</code>. Nothing half-drawn is ever seen.</p>
+<p><a href="examples/ch05_shadow_screen.asm"><code>examples/ch05_shadow_screen.asm</code></a> pages bank 7 in at <code>$C000</code> for the whole run, so both screens can be written (bank 5's at <code>$4000</code>, bank 7's at <code>$C000</code>, the same layout, only the high byte differs). Each frame it clears the middle third of the hidden screen and draws a bar on it, then sets a flag; the next <code>Interrupt</code>, at the top of the frame before the ULA reaches the screen, swaps them. Clearing and redrawing like that on a single screen would flicker as the beam caught it half done.</p>
+<figure class="guide-shot"><img src="images/ch05_shadow_screen.png" alt="Double buffering on the 128K&#x27;s shadow screen: a bar moving across the middle third" loading="lazy"></figure>
+<p>128K only (and +2, +2A and +3): bank 7 is contended, so drawing there is a little slower than in bank 0 (<a href="08-the-128k-and-later-models.html">chapter 8</a>).</p>
+<h2 id="racing-the-beam-border-bars">Racing the beam: border bars</h2>
+<p>The border's colour can be changed at any moment, and the change shows from wherever the beam is. Change it once a scan line, at the same point in every line, and the border fills with horizontal bars of colour: the oldest Spectrum demo effect. The whole trick is a loop that takes <strong>exactly one scan line</strong>: 224 T-states on a 48K, 228 on a 128K.</p>
+<p><a href="examples/ch05_border_bars.asm"><code>examples/ch05_border_bars.asm</code></a> does it in <code>Interrupt</code>, which starts at the same time every frame (<a href="04-startup-and-interrupts.html">chapter 4</a>):</p>
+<div class="code-block"><pre><code>BarLine:
+        ld      a,(hl)                  ; 7: this line's colour
+        out     (c),a                   ; 12: the border changes near the end of this
+        inc     hl                      ; 6
+        ld      b,13                    ; 7
+.delay:
+        djnz    .delay                  ; 13 x 12 + 8 = 164
+        nop                             ; 4
+Slot:
+        nop                             ; 8 on a 48K (two NOPs), 12 on a 128K (JR $+2)
+        nop
+        dec     e                       ; 4
+        jr      nz,BarLine              ; 12: 224 or 228 in all</code></pre></div>
+<p>Add them up: 7 + 12 + 6 + 7 + 164 + 4 + 8 + 4 + 12 = 224. For a 128K the loop needs 4 more, and <code>Init</code> puts them in: the two bytes at <code>Slot</code> are two <code>NOP</code>s (8 T-states) on a 48K, and <code>JR $+2</code> (a jump to the next instruction, 12) on a 128K. That's self-modifying code (<a href="10-speed.html">chapter 10</a>) doing what a second copy of the loop would.</p>
+<p><code>OUT (C),A</code>, with <code>C</code> = <code>$FE</code> and <code>B</code> = 0 as <code>DJNZ</code> leaves it, is used rather than <code>OUT ($FE),A</code> (11 T-states) because it makes the sum come out to 224 with a whole number of <code>DJNZ</code>s. Counting a loop like this is what the status bar's T-states are for (<a href="02-working-with-limoniter.html">chapter 2</a>).</p>
+<p><strong>Where in the line</strong> the change happens matters too. The example waits until each <code>OUT</code> falls in the horizontal retrace, when the beam is flying back and nothing is drawn, so every line is one colour from edge to edge. The wait is worked out from when <code>Interrupt</code> starts (about 174 T-states into the frame, <a href="04-startup-and-interrupts.html">chapter 4</a>): on a 48K, 341 times round a 26 T-state wait loop puts the first <code>OUT</code>'s write about 9,139 T-states into the frame, which is line 40, 179 T-states after the line's first pixel would be (40 × 224 = 8,960). By Fuse's model a 48K line is screen (T-states 0–127 from its first pixel), right border (128–151), retrace (152–199), left border (200–223), so 179 is in the retrace, with 25 T-states to spare either side. The 128K's wait is worked out the same way for its 228 T-state lines.</p>
+<p>The <code>OUT</code> is also safe from contention there. Port <code>$FE</code> is contended while the ULA is fetching the screen (<a href="03-the-machine.html">chapter 3</a>), and an <code>OUT</code> held up by a varying amount on the screen's lines would make those lines longer, and the bars below drift. In the retrace the ULA isn't fetching, so the loop is exactly 224 every time.</p>
+<figure class="guide-shot"><img src="images/ch05_border_bars.png" alt="Raster bars in the border, a new colour every scan line" loading="lazy"></figure>
+<p>The bars move up a line a frame, because the colour table is read from <code>Frames</code> on. 240 lines of it take 53,760 T-states, three quarters of the frame, all in the interrupt: an effect like this owns the machine while it runs.</p>
+<h2 id="multicolour">Multicolour</h2>
+<p>The ULA reads a cell's attribute again for <strong>every one of its 8 lines</strong>. So a program that changes an attribute after the ULA has read it for one line, and before it reads it for the next, gives that line its own colours: up to 8 colours down a cell, two on each line. That's <strong>multicolour</strong> (or "8 × 1 attributes", or rainbow processing), and it's the Spectrum's best-known demo effect.</p>
+<p>The difficulty is time. The ULA reads a line's 32 attributes in the first 128 T-states of the line, two cells every 8 T-states; to change them for the next line the program has the rest of the line, and writing to the attributes during the 128 T-states of fetching would be held up by contention, by an amount that depends on exactly when. So the program writes them <strong>in the border and retrace</strong>, the 96 T-states (on a 48K) of each line when the ULA isn't fetching and contended memory is free, with <code>PUSH</code>, which writes two bytes in 11 T-states, the fastest way the Z80 has.</p>
+<p><a href="examples/ch05_multicolour.asm"><code>examples/ch05_multicolour.asm</code></a> gives 12 cells of 8 character rows a new colour every line, in a loop of exactly a line:</p>
+<div class="code-block"><pre><code>ColourLine:
+        ld      a,(de)                  ; 7: this line's colour
+        inc     e                       ; 4
+        ld      h,a                     ; 4
+        ld      l,a                     ; 4
+        ld      sp,ix                   ; 10: the stack at the right-hand end of the row's 12 cells
+        push    hl                      ; 11 x 6: twelve attributes, right to left
+        push    hl
+        push    hl
+        push    hl
+        push    hl
+        push    hl
+        ld      c,(iy+0)                ; 19: 0, or 32 to the next row every eighth line
+        inc     iy                      ; 10
+        add     ix,bc                   ; 15
+        ...                             ; a wait, the 48K/128K slot, and the count: 224 or 228 in all</code></pre></div>
+<p>The <code>PUSH</code>es run from 29 to 95 T-states after the loop starts, and the loop starts about 100 T-states after each line's first pixel, on the line before the one they're for: so they fall between about 133 and 197, after the ULA's 128 T-states of fetching and before the next line's. With interrupts off and the stack pointed at the attributes, <code>PUSH</code> writes downwards, so <code>SP</code> starts just past the right-hand cell. (An interrupt now would push its return address into the attributes: the code runs in <code>Interrupt</code>, where interrupts are off, and puts <code>SP</code> back when it's done.)</p>
+<figure class="guide-shot"><img src="images/ch05_multicolour.png" alt="Twelve cells of eight rows, a new colour every scan line" loading="lazy"></figure>
+<p>Twelve cells is what 6 <code>PUSH</code>es in the border's time allow. Demos that colour the whole width do it with far more preparation: registers loaded with several colours before the line, <code>PUSH</code>es split across the left and right borders, and the code that changes the right half of a line racing the beam along the left half, with every T-state counted and the contention it meets worked out exactly. That's the same idea, taken as far as the machine goes.</p>
+<p>On the <strong>+2A and +3</strong>, contention follows a different pattern (<a href="08-the-128k-and-later-models.html">chapter 8</a>), but writes in the border's time aren't contended on any model, so this example works on all of them. On the <strong>Pentagon</strong>, whose lines split their 224 T-states differently (36 of left border, 128 of screen, 28 of right border and 32 of retrace, by Fuse's timings), its timing would need working out again.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="04-startup-and-interrupts.html"><span>Back</span>4. Startup and interrupts</a>
+<a class="pager-next" href="06-sprites.html"><span>Next</span>6. Sprites</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

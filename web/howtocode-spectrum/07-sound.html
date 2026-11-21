@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>7. Sound · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="The 48K&#x27;s sound is one bit: a speaker that the program pushes out or pulls in, by writing to port $FE.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/07-sound.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/07-sound.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="7. Sound · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="The 48K&#x27;s sound is one bit: a speaker that the program pushes out or pulls in, by writing to port $FE.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/07-sound.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html" aria-current="page">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>7. Sound</h1>
+        <div class="article-lead">
+<p>The 48K's sound is one bit: a speaker that the program pushes out or pulls in, by writing to port <code>$FE</code>. There's no volume, no second voice, and no timer to keep the pitch: every note is the Z80 toggling the bit at the right moments, and doing nothing else meanwhile. The 128K added a real sound chip, the AY-3-8912, with three voices, noise and volume, that plays by itself. This chapter does both, with a small engine and a small player written here.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-beeper">The beeper</a></li>
+<li><a href="#two-voices-from-one-bit">Two voices from one bit</a></li>
+<li><a href="#the-ay-3-8912">The AY-3-8912</a></li>
+<li><a href="#a-small-ay-player">A small AY player</a></li>
+<li><a href="#sound-effects-over-music">Sound effects over music</a></li>
+</ul>
+</nav>
+<h2 id="the-beeper">The beeper</h2>
+<p>Bit 4 of <code>OUT ($FE)</code> is the beeper: "a one in bit 4 activates the EAR output and the internal speaker", and "a zero in bit 3 activates the MIC output" (&lt;https://worldofspectrum.org/faq/reference/48kreference.htm&gt;). Bits 0 to 2 are the border (<a href="05-the-screen.html">chapter 5</a>). So a sound routine writes the border colour too, every time; and it sets bit 3, to keep the MIC (tape) output quiet.</p>
+<p>A square wave is the bit flipped at a steady rate. A loop of n T-states that flips it each time round makes a note of 3,500,000 / (2n) Hz on a 48K:</p>
+<div class="code-block"><pre><code>Tone:                                   ; B: half-waves; C: the pitch
+        ld      a,%00001000             ; MIC off, border black, speaker in
+.half:
+        xor     %00010000               ; 7: the speaker out, or in
+        out     ($FE),a                 ; 11
+        ld      e,c                     ; 4
+.wait:
+        dec     e                       ; 4
+        jr      nz,.wait                ; 12 (7 the last time)
+        djnz    .half                   ; 13</code></pre></div>
+<p>That's what the ROM's <code>BEEP</code> does, more carefully. The catch is the word "nothing else": while it plays, the program can't draw. Games of the 1980s mostly played their music on the title screen only, and sound effects as short bursts.</p>
+<p>The 128K's Z80 is a little faster (3.5469 MHz), so the same loop plays about 1.3% sharp there.</p>
+<h2 id="two-voices-from-one-bit">Two voices from one bit</h2>
+<p>There are several ways to get more than one voice out of the beeper, all of them by doing something faster than the speaker can follow. <a href="examples/ch07_beeper.asm"><code>examples/ch07_beeper.asm</code></a> uses <strong>pulse interleaving</strong>: two voices, each a square wave, given to the speaker in turn, many thousand times a second. Each voice is a 16-bit counter that has its note's step added to it each time round; its top bit is its square wave:</p>
+<div class="code-block"><pre><code>.sample:
+        add     hl,de                   ; 11: voice 1 moves on
+        ld      a,h                     ; 4
+        and     %10000000               ; 7: its top bit
+        rrca                            ; 4: to bit 4, the beeper
+        rrca                            ; 4
+        rrca                            ; 4
+        or      %00001000               ; 7: MIC off, the border black
+        out     ($FE),a                 ; 11: voice 1 is heard for the next 60 T-states
+        exx                             ; 4
+        add     hl,de                   ; 11: voice 2, in the other register set
+        ld      a,h                     ; 4
+        exx                             ; 4
+        and     %10000000               ; 7
+        rrca                            ; 4
+        rrca                            ; 4
+        rrca                            ; 4
+        or      %00001000               ; 7
+        out     ($FE),a                 ; 11: and voice 2 for the next 65
+        djnz    .sample                 ; 13: 125 T-states a sample</code></pre></div>
+<p>The speaker hears each voice for half of every 125 T-states (28,000 times a second), and smooths them into the two notes together. A note's step is its frequency × 65,536 ÷ the samples a second.</p>
+<p>The first version of this example mixed the voices by XORing their top bits, a single <code>OUT</code> a sample. It sounded wrong, and measuring it showed why: XOR of two square waves is their <em>product</em>, which has their sum and difference frequencies and neither note. Interleaved, ZEsarUX's recording shows both notes.</p>
+<p>The example plays 530 samples a frame and stops before the next interrupt, so the startup's main loop goes on as usual. That leaves a gap of about 3,600 T-states a frame when the voices stand still, and the first version's notes were 5% flat because of it (measured: 624 Hz for an E of 659). Its steps are now worked out from 530 samples × 50.08 frames a second, and the same recording measures 655 Hz for the E, 585 for the D (587) and 523 for the C. The gap is still there as a faint 50 Hz buzz: serious beeper engines run with interrupts off, and do their drawing, if any, between notes.</p>
+<h2 id="the-ay-3-8912">The AY-3-8912</h2>
+<p>The 128K, +2, +2A and +3 have a General Instrument AY-3-8912: three square-wave voices (A, B and C), a noise generator, a volume for each voice, and an envelope generator. It's written through two ports: "OUT (0xfffd) - Select a register 0-14", "OUT (0xbffd) - Write to the selected register", and "IN (0xfffd) - Read the value of the selected register" (&lt;https://worldofspectrum.org/faq/reference/128kreference.htm&gt;). Its registers, as the +3 manual lists them (&lt;https://worldofspectrum.org/ZXSpectrum128+3Manual/chapter8pt30.html&gt;):</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col">Register</th>
+<th scope="col">What</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">R0, R1</th>
+<td>voice A's tone period: 8 bits fine, 4 bits coarse (12 bits)</td>
+</tr>
+<tr>
+<th scope="row">R2, R3</th>
+<td>voice B's</td>
+</tr>
+<tr>
+<th scope="row">R4, R5</th>
+<td>voice C's</td>
+</tr>
+<tr>
+<th scope="row">R6</th>
+<td>the noise period, bits 4 to 0</td>
+</tr>
+<tr>
+<th scope="row">R7</th>
+<td>the mixer: bits 0–2 tone A, B, C; bits 3–5 noise A, B, C; "A zero in a mix bit indicates that the function is enabled"</td>
+</tr>
+<tr>
+<th scope="row">R8, R9, R10</th>
+<td>voices A, B and C's volume, 0 to 15; bit 4 set: "use envelope generator" instead</td>
+</tr>
+<tr>
+<th scope="row">R11, R12</th>
+<td>the envelope's period, 16 bits</td>
+</tr>
+<tr>
+<th scope="row">R13</th>
+<td>the envelope's shape: bits 3 to 0 continue, attack, alternate, hold</td>
+</tr>
+</tbody></table></div>
+<p>The AY's clock on the 128K is 1.7734 MHz: "The basic unit of tone is the clock frequency divided by 16 (ie 110.83KHz)" (+3 manual). So a note of frequency f needs a period of 1,773,400 ÷ (16 × f): 252 for the A at 440 Hz. (Fuse's timings give the same clock, 1,773,400 Hz; the Pentagon's AY runs at 1,792,000.)</p>
+<p>The AY plays by itself once set: the program only has to change the registers when the music changes, once a frame at most. That's why 128K music players are called from the interrupt.</p>
+<h2 id="a-small-ay-player">A small AY player</h2>
+<p><a href="examples/ch07_ay_player.asm"><code>examples/ch07_ay_player.asm</code></a> is a whole player in about a hundred lines. Its tune is rows of three bytes (voice A's note, voice B's note, and a drum on C), one row every six frames; a note is a number into a table of periods worked out with the sum above. Between rows, each voice gets a step quieter each frame, so the notes fade like plucked strings. The drum is voice C's noise, turned on in the mixer for as long as it's loud:</p>
+<div class="code-block"><pre><code>MIXER_TONES     equ     %00111000       ; R7: tones on A, B and C (0 is on), noise off
+MIXER_DRUM      equ     %00011100       ; tones on A and B, noise on C and its tone off</code></pre></div>
+<p>Every register it uses lives in memory, and all eleven are written to the AY together once a frame, from <code>Interrupt</code>:</p>
+<div class="code-block"><pre><code>Write:
+        ld      hl,Regs
+        ld      e,0
+.register:
+        ld      bc,$FFFD                ; select register E
+        out     (c),e
+        ld      a,(hl)
+        ld      b,$BF                   ; $BFFD: write it (C is $FD for both)
+        out     (c),a
+        inc     hl
+        inc     e
+        ld      a,e
+        cp      11
+        jr      nz,.register</code></pre></div>
+<p>Keeping a copy and writing it all is simpler than working out which registers changed, and costs a few hundred T-states a frame.</p>
+<p>Recorded in ZEsarUX on a 128K and measured, the first rows play 434 Hz and 107 Hz (an A at 440 over an A at 110, as near as the measurement's 8 Hz steps can tell), then 518–533 Hz (the C at 523) and 655 Hz (the E at 659), with the drum's noise between.</p>
+<figure class="guide-shot"><img src="images/ch07_ay_player.png" alt="The AY player playing (the music is the point; the screen only says so)" loading="lazy"></figure>
+<p>128K and later only: a 48K has no AY of its own.</p>
+<h2 id="sound-effects-over-music">Sound effects over music</h2>
+<p>A game's sound effects usually borrow a voice: the player leaves voice C alone while an effect plays on it, and takes it back after. <strong>Tools › General › Sound effects</strong> in Limoniter makes effects for the AY and the beeper, and saves them as AYFX banks, the format the Spectrum's AYFX players use.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="06-sprites.html"><span>Back</span>6. Sprites</a>
+<a class="pager-next" href="08-the-128k-and-later-models.html"><span>Next</span>8. The 128K and later models</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

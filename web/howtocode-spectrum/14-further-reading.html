@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>14. Further reading · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="Everything this guide says rests on the documents below; they say much more.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/14-further-reading.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/14-further-reading.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="14. Further reading · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="Everything this guide says rests on the documents below; they say much more.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/14-further-reading.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html" aria-current="page">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>14. Further reading</h1>
+        <div class="article-lead">
+<p>Everything this guide says rests on the documents below; they say much more. Every link was fetched when the guide was written.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-spectrum">The Spectrum</a></li>
+<li><a href="#the-z80">The Z80</a></li>
+<li><a href="#the-next">The Next</a></li>
+<li><a href="#tools">Tools</a></li>
+<li><a href="#the-scene">The scene</a></li>
+</ul>
+</nav>
+<h2 id="the-spectrum">The Spectrum</h2>
+<ul><li><strong>World of Spectrum's technical FAQ</strong>, the reference for timing and ports: the 48K (&lt;https://worldofspectrum.org/faq/reference/48kreference.htm&gt;), the 128K, +2, +2A and +3 (&lt;https://worldofspectrum.org/faq/reference/128kreference.htm&gt;), the Z80 as the Spectrum uses it, interrupts included (&lt;https://worldofspectrum.org/faq/reference/z80reference.htm&gt;), ports (&lt;https://worldofspectrum.org/faq/reference/ports.htm&gt;), and file formats (&lt;https://worldofspectrum.org/faq/reference/formats.htm&gt;, &lt;https://worldofspectrum.org/faq/reference/z80format.htm&gt;).</li><li><strong>The ROM</strong>, disassembled: Ian Logan and Frank O'Hara's <em>The Complete Spectrum ROM Disassembly</em>, annotated and linked by SkoolKit (&lt;https://skoolkid.github.io/rom/&gt;). Every routine and system variable, with what calls what.</li><li><strong>Sinclair's 48K BASIC manual</strong> (&lt;https://worldofspectrum.org/ZXBasicManual/zxmanchap24.html&gt; is its chapter on memory) and <strong>Amstrad's +3 manual</strong>, whose chapter 8 is a technical reference for the 128K family (&lt;https://worldofspectrum.org/ZXSpectrum128+3Manual/chapter8pt24.html&gt; for paging, &lt;https://worldofspectrum.org/ZXSpectrum128+3Manual/chapter8pt30.html&gt; for the AY).</li><li><strong>Fuse's timings</strong>, machine by machine, in libspectrum's <code>timings.c</code> (&lt;https://sourceforge.net/p/fuse-emulator/libspectrum/ci/master/tree/timings.c&gt;).</li><li><strong>The floating bus</strong>: Ramsoft's <em>Floating bus technical guide</em> (&lt;https://k1.spdns.de/Develop/Projects/zxsp/Info/Floating%20bus%20technical%20guide.html&gt;), and the +2A and +3's, found later (&lt;https://github.com/redcode/ZXSpectrum/wiki/2A-3-Floating-Bus-Test&gt;).</li><li><strong>The TZX format</strong> (&lt;https://worldofspectrum.net/TZXformat.html&gt;): every block type, and the ROM loader's timings.</li></ul>
+<h2 id="the-z80">The Z80</h2>
+<ul><li>Zilog's *<strong>Z80 CPU User Manual</strong>*: every instruction, its flags and its T-states (Zilog's document UM0080, from Zilog's site).</li><li>Rodnay Zaks, *<strong>Programming the Z80</strong>* (Sybex): the classic book, still the best introduction to the processor.</li></ul>
+<h2 id="the-next">The Next</h2>
+<ul><li>The Next's <strong>register and port lists</strong>, from its FPGA core: &lt;https://gitlab.com/SpectrumNext/ZX_Spectrum_Next_FPGA/-/raw/master/cores/zxnext/nextreg.txt&gt; and &lt;https://gitlab.com/SpectrumNext/ZX_Spectrum_Next_FPGA/-/raw/master/cores/zxnext/ports.txt&gt;.</li><li><strong>The Next's wiki</strong> (&lt;https://wiki.specnext.dev&gt;): the Z80N's instructions (&lt;https://wiki.specnext.dev/Extended_Z80_instruction_set&gt;), Layer 2 (&lt;https://wiki.specnext.dev/Layer_2&gt;), sprites (&lt;https://wiki.specnext.dev/Sprites&gt;), the copper (&lt;https://wiki.specnext.dev/Copper&gt;), the tilemap (&lt;https://wiki.specnext.dev/Tilemap&gt;), DMA (&lt;https://wiki.specnext.dev/DMA&gt;) and the <code>.nex</code> format (&lt;https://wiki.specnext.dev/NEX_file_format&gt;).</li></ul>
+<h2 id="tools">Tools</h2>
+<ul><li><strong>Fuse</strong>, the Free Unix Spectrum Emulator: &lt;https://fuse-emulator.sourceforge.net/&gt;.</li><li><strong>ZEsarUX</strong>, which emulates the Next too: &lt;https://github.com/chernandezba/zesarux&gt;.</li><li><strong>CSpect</strong>, Mike Dailly's Next emulator: &lt;https://mdf200.itch.io/cspect&gt;.</li><li><strong>sjasmplus</strong>, the assembler whose syntax the examples use: &lt;https://github.com/z00m128/sjasmplus&gt;.</li></ul>
+<h2 id="the-scene">The scene</h2>
+<ul><li><strong>Spectrum Computing</strong> (&lt;https://spectrumcomputing.co.uk/&gt;): the archive and database of Spectrum software, and its forums, where people who know these machines best answer questions.</li><li><strong>Pouët</strong> (&lt;https://www.pouet.net/&gt;) and <strong>Demozoo</strong> (&lt;https://demozoo.org/&gt;): the demos, to watch and learn from.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="13-releasing.html"><span>Back</span>13. Releasing</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

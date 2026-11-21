@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -76,7 +77,7 @@
 <p>It covers the three ways to do it:</p>
 <ul><li><strong>the processor</strong>, merging bits between registers (the way on the A1200 and anything faster);</li><li><strong>the blitter</strong>, doing the merges while the processor draws (the way on the A500);</li><li><strong>Akiko</strong>, the CD32's chip that does it in hardware.</li></ul>
 <p>There are three examples, each a rotozoomer with a panel that gives the time each part took:</p>
-<ul><li><code>examples/ch10_c2p_cpu.s</code> <em>(AGA)</em>: 8 bitplanes, 256 colours, 320 by 176 pixels, converted by the processor. Settings give the scrambled-chunky routine (<code>SCRAMBLE</code>) and 2x2 pixels (<code>DOUBLE</code>).</li><li><code>examples/ch10_c2p_blitter.s</code> <em>(any Amiga)</em>: 4 bitplanes, 16 colours, 2x2 pixels, on a 68000, converted by the blitter, or by the 68000 for comparison (<code>BLITTER</code> set to 0).</li><li><code>examples/ch10_c2p_akiko.s</code> <em>(AGA, made for the CD32)</em>: the first example's effect, converted by Akiko when there is one, and by the processor when there isn't. The panel says which.</li></ul>
+<ul><li><a href="examples/ch10_c2p_cpu.s"><code>examples/ch10_c2p_cpu.s</code></a> <em>(AGA)</em>: 8 bitplanes, 256 colours, 320 by 176 pixels, converted by the processor. Settings give the scrambled-chunky routine (<code>SCRAMBLE</code>) and 2x2 pixels (<code>DOUBLE</code>).</li><li><a href="examples/ch10_c2p_blitter.s"><code>examples/ch10_c2p_blitter.s</code></a> <em>(any Amiga)</em>: 4 bitplanes, 16 colours, 2x2 pixels, on a 68000, converted by the blitter, or by the 68000 for comparison (<code>BLITTER</code> set to 0).</li><li><a href="examples/ch10_c2p_akiko.s"><code>examples/ch10_c2p_akiko.s</code></a> <em>(AGA, made for the CD32)</em>: the first example's effect, converted by Akiko when there is one, and by the processor when there isn't. The panel says which.</li></ul>
 <figure class="guide-shot"><img src="images/ch10_c2p_cpu.png" alt="ch10_c2p_cpu.s on an emulated A1200 with fast RAM: a rotozoomer in 256 colours, and how long it took" loading="lazy"></figure>
         </div>
 <nav class="contents" aria-label="On this page">

@@ -64,8 +64,9 @@
 <li><a href="14-processors.html">14. The 68000 and later processors</a></li>
 <li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
 <li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
-<li><a href="17-releasing.html">17. Releasing</a></li>
-<li><a href="18-further-reading.html">18. Further reading</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
         </ol>
       </nav>
       <div class="guide-page">
@@ -73,7 +74,7 @@
         <h1>11. Input</h1>
         <div class="article-lead">
 <p>Most demos need very little input: the left mouse button to leave, perhaps a key to skip to the next part. A music disk wants a menu, an intro may have a hidden part behind a key, and a game written by a demo coder needs a joystick and maybe the keyboard. All of it is easy to read straight from the hardware, with one exception: the keyboard, which has a handshake that v7 warned people kept getting wrong. This chapter goes through each of them, both ways: taking the machine, and with the system left running.</p>
-<p><code>examples/ch11_keyboard_joystick.s</code> shows all of them at once. A cell lights for each key held down (one cell for each of the 128 raw key codes, in code order), the joystick's directions and buttons light theirs, a sprite follows the mouse, and the registers are shown in hexadecimal. Esc or the left mouse button leaves.</p>
+<p><a href="examples/ch11_keyboard_joystick.s"><code>examples/ch11_keyboard_joystick.s</code></a> shows all of them at once. A cell lights for each key held down (one cell for each of the 128 raw key codes, in code order), the joystick's directions and buttons light theirs, a sprite follows the mouse, and the registers are shown in hexadecimal. Esc or the left mouse button leaves.</p>
 <figure class="guide-shot"><img src="images/ch11_keyboard_joystick.png" alt="ch11_keyboard_joystick.s with the system running, on Kickstart 3.1: the A key, joystick up and left with fire, and the right mouse button, all held" loading="lazy"></figure>
 <p>The numbers, top to bottom, are <code>JOY0DAT</code> (the mouse), <code>JOY1DAT</code> (the joystick), <code>POTGOR</code> (the second buttons), the last raw key code, and the character that key types, from the keymap (only with the system running on Kickstart 2 or later; <code>--</code> otherwise).</p>
         </div>

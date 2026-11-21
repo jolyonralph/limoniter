@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>1. Introduction · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="How To Code: the ZX Spectrum is a guide to writing programs for the Spectrum that work: demos and games for the 48K, the 128K and its family, and the Spectrum Next, that run on every machine they claim to, and that hand the machine back as they found it.
+It&#x27;s by Comrade J and Mnemonic of Share and Enjoy, and it&#x27;s made as How To Code v8 was for the Amiga: a practical reference, every fact checked against the machines&#x27; own documentation, and every example a whole program that&#x27;s been run.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/01-introduction.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/01-introduction.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="1. Introduction · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="How To Code: the ZX Spectrum is a guide to writing programs for the Spectrum that work: demos and games for the 48K, the 128K and its family, and the Spectrum Next, that run on every machine they claim to, and that hand the machine back as they found it.
+It&#x27;s by Comrade J and Mnemonic of Share and Enjoy, and it&#x27;s made as How To Code v8 was for the Amiga: a practical reference, every fact checked against the machines&#x27; own documentation, and every example a whole program that&#x27;s been run.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/01-introduction.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html" aria-current="page">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>1. Introduction</h1>
+        <div class="article-lead">
+<p>How To Code: the ZX Spectrum is a guide to writing programs for the Spectrum that work: demos and games for the 48K, the 128K and its family, and the Spectrum Next, that run on every machine they claim to, and that hand the machine back as they found it.</p>
+<p>It's by <strong>Comrade J and Mnemonic of Share and Enjoy</strong>, and it's made as How To Code v8 was for the Amiga: a practical reference, every fact checked against the machines' own documentation, and every example a whole program that's been run. It ships inside <strong>Limoniter</strong>, a text and hex editor with its own Z80 assembler and a Spectrum built in, so F9 runs any example on a 48K or 128K at once. You don't need Limoniter to use it, though: the examples are plain sjasmplus syntax.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#who-it-s-for">Who it's for</a></li>
+<li><a href="#what-it-covers">What it covers</a></li>
+<li><a href="#how-it-was-checked">How it was checked</a></li>
+<li><a href="#free-to-use-cc0">Free to use: CC0</a></li>
+<li><a href="#how-to-read-it">How to read it</a></li>
+</ul>
+</nav>
+<h2 id="who-it-s-for">Who it's for</h2>
+<p>Someone who can already program, perhaps in Z80, perhaps in something else, and wants to write for the Spectrum's own hardware: the ULA and its screen, the beeper, the 128K's banks and AY chip, and the Next's Layer 2, sprites and copper. It's also for anyone coming back after thirty years, who remembers <code>RANDOMIZE USR 32768</code> but not why their old border effects only worked on a 48K.</p>
+<p>It isn't a Z80 tutorial. Rodnay Zaks's <em>Programming the Z80</em> and the Z80's own manual (see <a href="14-further-reading.html">further reading</a>) explain the instructions; this guide explains the machine around them.</p>
+<h2 id="what-it-covers">What it covers</h2>
+<p>The 48K first, because everything else is built on it, and every 48K example here runs on the later models too. Then what the 128K adds (paging, the shadow screen, the AY), what changed on Amstrad's +2A and +3, and the Pentagon, a Russian clone with different timing that many demos are written for. Then the Next: its Z80N processor's new instructions, nextreg, Layer 2, sprites, the copper, the tilemap and DMA.</p>
+<h2 id="how-it-was-checked">How it was checked</h2>
+<p>Every hardware fact is checked against a primary source, and the source is named where the fact is used: World of Spectrum's technical FAQ, Logan and O'Hara's ROM disassembly (as SkoolKit annotates it), Sinclair's and Amstrad's manuals, Fuse's documented timings, and the Next's own register and port lists from its FPGA core. Where sources disagree, both are given. <a href="WRITING.md">Writing</a> has the list, and the rules.</p>
+<p>Every example was assembled by Limoniter's command line, and run:</p>
+<ul><li>on Limoniter's <strong>built-in 48K and 128K</strong>, by the test suite, which loads each from its tape, checks it reaches its main loop, and that it goes back to BASIC with <code>0 OK</code> when its time is up;</li><li>in <strong>Fuse</strong> 1.6, from a snapshot, on a 48K and a 128K, with a screenshot looked at (most of the pictures in this guide are those screenshots; the rest are ZEsarUX's);</li><li>in <strong>ZEsarUX</strong> 13.0, loaded from tape as a person would, on a 48K, a 128K and a +2A, and for the Next examples on its emulated Next. The sound examples' sound was recorded there and its notes measured.</li></ul>
+<p>What hasn't been checked, said plainly:</p>
+<ul><li><strong>Nothing here has been run on a real Spectrum.</strong> The emulators are good (Fuse's and ZEsarUX's timings are well tested against real machines), but the exact T-state of a border effect can differ by one between real 48Ks (<a href="03-the-machine.html">chapter 3</a> says why).</li><li><strong>The Next examples have been run only in ZEsarUX</strong>, not on a real Next, nor in CSpect. One thing differs there already: ZEsarUX restarts the copper at the top of the frame, not at the screen's first line (<a href="11-the-next.html">chapter 11</a>).</li><li><strong>The Pentagon</strong> is described from Fuse's timings, and the examples were run on Fuse's Pentagon only by accident (<a href="08-the-128k-and-later-models.html">chapter 8</a> says what happened); they're written for the 48K and 128K.</li></ul>
+<p>If you find something wrong, please report it. As How To Code v7 promised in 1993: "I won't be angry if 100 people point out the same mistake. If no one does and everyone tells me later that they knew - then I will!"</p>
+<h2 id="free-to-use-cc0">Free to use: CC0</h2>
+<p>This guide and its examples are released under <strong>CC0 1.0</strong> (&lt;https://creativecommons.org/publicdomain/zero/1.0/&gt;): given to the public domain, as far as the law allows. Copy it, change it, use the startup and the examples in your own programs, with or without a credit. (A greeting in your scroller is always welcome.)</p>
+<p>CC0 covers this guide and its examples. The Spectrum's ROMs are Amstrad's: Amstrad allows them to be given away with emulators, keeping the copyright, which is why Fuse, ZEsarUX and Limoniter can include them. The tools the guide points to belong to their authors.</p>
+<h2 id="how-to-read-it">How to read it</h2>
+<p>Read <a href="02-working-with-limoniter.html">chapter 2</a> if you're new to Limoniter, then <a href="03-the-machine.html">chapter 3</a>, the machine everything else depends on, and <a href="04-startup-and-interrupts.html">chapter 4</a>, the startup every example is built on. After that, read in any order.</p>
+<p>Every example is a whole program in <code>examples/</code>, named for its chapter (<code>ch05_plot.asm</code>). Copy them to a folder with <strong>Tools › ZX Spectrum and Next › Copy How To Code's Spectrum examples to a folder…</strong>, open one, and press F9. Each starts with a line that the tests change:</p>
+<div class="code-block"><pre><code>AUTOEXIT        equ     0               ; frames before going back to BASIC: 0 for never (SPACE goes back too)</code></pre></div>
+<p>A few words used throughout:</p>
+<ul><li><strong>T-state</strong>: one tick of the Z80's clock, 1/3,500,000 of a second on a 48K. Every instruction takes a known number of them (<code>NOP</code> 4, <code>LD A,(HL)</code> 7, <code>PUSH HL</code> 11), and all the timing in this guide is counted in them.</li><li><strong>The ULA</strong>: the Spectrum's one custom chip, which makes the picture, reads the keyboard, drives the beeper and the border, and shares the lower 16K of RAM with the Z80.</li><li><strong>Contended memory</strong>: RAM the ULA reads the screen from. While it's drawing, the Z80 has to wait its turn to get at it (<a href="03-the-machine.html">chapter 3</a>).</li><li><strong>Bank</strong>: a 16K piece of a 128K's RAM, paged in at <code>$C000</code> (<a href="08-the-128k-and-later-models.html">chapter 8</a>).</li><li>Hexadecimal is written <code>$4000</code>, as sjasmplus and most Spectrum assemblers write it.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="index.html"><span>Back</span>How To Code: the ZX Spectrum</a>
+<a class="pager-next" href="02-working-with-limoniter.html"><span>Next</span>2. Working with Limoniter</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

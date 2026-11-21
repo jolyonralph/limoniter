@@ -255,6 +255,7 @@ h3 { font-size: 1.12rem; margin: 0 0 8px; }
 .platform { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; display: flex; flex-direction: column; }
 .platform p { color: var(--text-dim); font-size: 0.97rem; flex: 1; margin: 0 0 18px; }
 .platform .button { align-self: flex-start; }
+.platform .button + .button { margin-top: 8px; }
 
 .build { margin-top: 44px; max-width: 720px; }
 .code-block { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>12. Games and demos · How To Code: the ZX Spectrum</title>
+  <meta name="description" content="The chapters so far are pieces: a screen, sprites, sound, controls.">
+  <link rel="canonical" href="https://limoniter.com/howtocode-spectrum/12-games-and-demos.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode-spectrum/12-games-and-demos.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="12. Games and demos · How To Code: the ZX Spectrum">
+  <meta property="og:description" content="The chapters so far are pieces: a screen, sprites, sound, controls.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode-spectrum/12-games-and-demos.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code: the ZX Spectrum</p>
+        <ol>
+<li><a href="index.html">How To Code: the ZX Spectrum</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-the-machine.html">3. The machine</a></li>
+<li><a href="04-startup-and-interrupts.html">4. Startup and interrupts</a></li>
+<li><a href="05-the-screen.html">5. The screen</a></li>
+<li><a href="06-sprites.html">6. Sprites</a></li>
+<li><a href="07-sound.html">7. Sound</a></li>
+<li><a href="08-the-128k-and-later-models.html">8. The 128K and later models</a></li>
+<li><a href="09-input.html">9. Input</a></li>
+<li><a href="10-speed.html">10. Speed</a></li>
+<li><a href="11-the-next.html">11. The Next</a></li>
+<li><a href="12-games-and-demos.html" aria-current="page">12. Games and demos</a></li>
+<li><a href="13-releasing.html">13. Releasing</a></li>
+<li><a href="14-further-reading.html">14. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>12. Games and demos</h1>
+        <div class="article-lead">
+<p>The chapters so far are pieces: a screen, sprites, sound, controls. This one puts them together, the way a game or a demo is put together, and <a href="examples/ch12_game.asm"><code>examples/ch12_game.asm</code></a> is a small whole game: <strong>Catch</strong>. Stars fall; move the paddle along the bottom to catch them.</p>
+<figure class="guide-shot"><img src="images/ch12_game.png" alt="Catch: stars falling, the paddle at the bottom, the score at the top" loading="lazy"></figure>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#the-frame-loop">The frame loop</a></li>
+<li><a href="#states">States</a></li>
+<li><a href="#moving-things-on-a-timer">Moving things on a timer</a></li>
+<li><a href="#controls">Controls</a></li>
+<li><a href="#random-numbers">Random numbers</a></li>
+<li><a href="#sound-in-a-game">Sound in a game</a></li>
+<li><a href="#a-demo">A demo</a></li>
+<li><a href="#testing">Testing</a></li>
+</ul>
+</nav>
+<h2 id="the-frame-loop">The frame loop</h2>
+<p>A Spectrum game is a loop that runs once a frame: read the controls, move everything, draw what changed, play the sound, and wait for the next frame. The guide's startup (<a href="04-startup-and-interrupts.html">chapter 4</a>) is that loop: <code>HALT</code> waits for the interrupt, then <code>Frame</code> runs. Two rules keep it smooth:</p>
+<ul><li><strong>Fit in a frame.</strong> If <code>Frame</code> takes longer than 69,888 T-states (less the interrupt's time), the game runs at 25 frames a second, and everything moves half as fast or jerks. The profiler (<a href="02-working-with-limoniter.html">chapter 2</a>) says where the time goes, and <a href="10-speed.html">chapter 10</a> how to get it back.</li><li><strong>Move by the frame, not by the loop.</strong> Speeds are in pixels (or cells) a frame, so the game runs the same on every Spectrum. A 128K's frame is 1.5% longer than a 48K's (70,908 T-states against 69,888, <a href="03-the-machine.html">chapter 3</a>), but both are 50 a second, so a game counted in frames plays the same on both.</li></ul>
+<p>Catch draws only with <strong>attributes</strong>: each star, the paddle and the ground are character cells coloured by their paper, so drawing a star is writing one byte, and rubbing it out another. That's the cheapest graphics a Spectrum has (and there's no attribute clash, since nothing else shares the cells). Most of its frame is spent waiting.</p>
+<h2 id="states">States</h2>
+<p>A game is in one of a few <strong>states</strong>: a title screen, playing, a life lost, game over. Each has its own frame routine, and the main one only chooses between them:</p>
+<div class="code-block"><pre><code>Frame:
+        ld      a,(State)
+        or      a
+        jr      nz,Over
+Playing:
+        call    MovePaddle
+        call    MoveStars
+        jp      ShowScore
+
+; Game over: the stars stop; ENTER or fire starts again.
+Over:
+        call    ReadControls
+        and     FIRE
+        ret     z
+NewGame:
+        ...</code></pre></div>
+<p>Keeping states apart, each with a clear start (<code>NewGame</code> sets up everything a game needs, every time), is what stops the bugs that only happen on the second game.</p>
+<h2 id="moving-things-on-a-timer">Moving things on a timer</h2>
+<p>Each star in Catch has three bytes: its row, its column, and a count of frames until it next moves. Each frame the count goes down; at 0 the star falls a row and the count starts again from <code>Speed</code>, which gets smaller as the score goes up. The same pattern (a counter per object, reloaded when it runs out) gives every object its own speed with no multiplication.</p>
+<h2 id="controls">Controls</h2>
+<p><code>ReadControls</code> reads the keys (O and P, and ENTER), Sinclair joystick 1 (6, 7 and 0) and a Kempston joystick, and returns one byte of left, right and fire, so the rest of the game never knows which was used (<a href="09-input.html">chapter 9</a>). It checks the Kempston isn't a phantom (left and right at once means nothing's there).</p>
+<h2 id="random-numbers">Random numbers</h2>
+<p>Where each star starts is random. The Spectrum has nothing that makes random numbers, so programs make them: Catch uses an 8-bit <strong>xorshift</strong>, which goes through all 255 values from 1 to 255 before repeating:</p>
+<div class="code-block"><pre><code>; Random: the next of 255 numbers from 1 to 255 (an 8-bit xorshift: x ^= x &lt;&lt; 1, x ^= x &gt;&gt; 1, x ^= x &lt;&lt; 2).
+Random:
+        ld      a,(Seed)
+        ld      b,a
+        add     a,a
+        xor     b
+        ld      b,a
+        srl     a
+        xor     b
+        ld      b,a
+        add     a,a
+        add     a,a
+        xor     b
+        ld      (Seed),a
+        ret</code></pre></div>
+<p>The seed must never be 0 (xorshift stays at 0 forever), so Catch takes it from <code>Frames</code> with bit 0 set, at the start. (<code>LD A,R</code> is often used instead; the refresh register counts with every instruction, so it's only as random as the code before it is irregular.) Other common sources: the ROM's bytes as a table of "random" numbers, or a 16-bit xorshift for longer runs.</p>
+<h2 id="sound-in-a-game">Sound in a game</h2>
+<p>Catch clicks the beeper when a star is caught: 32 changes of the speaker bit, a few thousand T-states, short enough to fit in the frame. That's how most 48K games did effects: short bursts, never long enough to hold the game up. On a 128K, effects go on the AY, on a voice the music leaves free (<a href="07-sound.html">chapter 7</a>).</p>
+<h2 id="a-demo">A demo</h2>
+<p>A demo is put together the same way, with <strong>parts</strong> in place of states: each part has its own <code>Init</code> and <code>Frame</code>, and the main loop moves to the next part after so many frames, or when the music says. The guide's examples are each one part: the border bars (<a href="05-the-screen.html">chapter 5</a>), a scroller, multicolour, the AY player (<a href="07-sound.html">chapter 7</a>). A demo runs the music from the interrupt, so it plays on across parts, and puts each part's set-up (tables, pre-shifted graphics) in the time while the last part is still running, or behind a fade.</p>
+<p>On a 128K the parts can sit in different banks, each paged in when it runs (<a href="08-the-128k-and-later-models.html">chapter 8</a>), and the music in another; a 48K demo usually loads each part from tape, or depacks it from a cruncher's packed data, between parts.</p>
+<h2 id="testing">Testing</h2>
+<p>Run it on every machine it claims to support: a 48K, a 128K and a +2A at least (<a href="08-the-128k-and-later-models.html">chapter 8</a> has what differs), in two emulators. Play it to the end, game over and a new game included. The guide's own test suite runs Catch to its main loop on a 48K and a 128K, and checks it goes back to BASIC cleanly.</p>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="11-the-next.html"><span>Back</span>11. The Next</a>
+<a class="pager-next" href="13-releasing.html"><span>Next</span>13. Releasing</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code: the ZX Spectrum is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>

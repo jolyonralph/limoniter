@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>18. Releasing · How To Code v8</title>
+  <meta name="description" content="The program you release is not the program you tested.">
+  <link rel="canonical" href="https://limoniter.com/howtocode/18-releasing.html">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://limoniter.com/howtocode/18-releasing.html">
+  <meta property="og:site_name" content="Limoniter">
+  <meta property="og:title" content="18. Releasing · How To Code v8">
+  <meta property="og:description" content="The program you release is not the program you tested.">
+  <meta property="og:image" content="https://limoniter.com/images/social.png">
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/main.js" defer></script>
+</head>
+<body>
+  <!-- Made from data/howtocode/18-releasing.md by tools/make-howtocode.py. Change that file, not this one. -->
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="../index.html">
+        <img src="../images/icon.png" alt="" width="32" height="32">
+        <span>Limoniter</span>
+      </a>
+      <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav">
+        <a href="../index.html#ide">IDE</a>
+        <a href="../index.html#features">Everyday work</a>
+        <a href="../index.html#retro">Older computers</a>
+        <a href="../index.html#machines">Machines</a>
+        <a href="../index.html#send">Send to device</a>
+        <a href="../index.html#screens">Screenshots</a>
+        <a href="../index.html#get">Download</a>
+        <a href="../whats-new.html">What's new</a>
+        <a href="index.html">Guide</a>
+        <a href="https://github.com/jolyonralph/limoniter" class="nav-github">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="section article guide">
+    <div class="wrap guide-layout">
+      <nav class="guide-pages" aria-label="The guide">
+        <p class="guide-pages-title">How To Code v8</p>
+        <ol>
+<li><a href="index.html">How To Code v8</a></li>
+<li><a href="01-introduction.html">1. Introduction</a></li>
+<li><a href="02-working-with-limoniter.html">2. Working with Limoniter</a></li>
+<li><a href="03-general-guidelines.html">3. General guidelines</a></li>
+<li><a href="04-startup-and-exit.html">4. Startup and exit</a></li>
+<li><a href="05-interrupts.html">5. Interrupts</a></li>
+<li><a href="06-copper.html">6. The copper</a></li>
+<li><a href="07-blitter.html">7. The blitter</a></li>
+<li><a href="08-display.html">8. The display</a></li>
+<li><a href="09-aga.html">9. AGA</a></li>
+<li><a href="10-chunky-to-planar.html">10. Chunky to planar</a></li>
+<li><a href="11-input.html">11. Input</a></li>
+<li><a href="12-sound-and-music.html">12. Sound and music</a></li>
+<li><a href="13-vectors.html">13. 3D vectors</a></li>
+<li><a href="14-processors.html">14. The 68000 and later processors</a></li>
+<li><a href="15-loading-and-memory.html">15. Loading and memory</a></li>
+<li><a href="16-debugging-and-testing.html">16. Debugging and testing</a></li>
+<li><a href="17-writing-games.html">17. Writing games</a></li>
+<li><a href="18-releasing.html" aria-current="page">18. Releasing</a></li>
+<li><a href="19-further-reading.html">19. Further reading</a></li>
+        </ol>
+      </nav>
+      <div class="guide-page">
+        <p class="back"><a href="../index.html">‹ Limoniter</a></p>
+        <h1>18. Releasing</h1>
+        <div class="article-lead">
+<p>The program you release is not the program you tested. It has been crunched, so a decruncher you didn't write runs first. It's on a disk, or in an archive, started from a disk or an icon. And it's going to machines you've never seen. This chapter is about the last steps: crunching, packaging, the small things a release needs, where to put it, and a checklist that ties it all back to the machines in <a href="16-debugging-and-testing.html">chapter 16</a>.</p>
+        </div>
+<nav class="contents" aria-label="On this page">
+<ul>
+<li><a href="#to-crunch-or-not">To crunch or not</a></li>
+<li><a href="#don-t-protect-it">Don't protect it</a></li>
+<li><a href="#packaging">Packaging</a></li>
+<li><a href="#the-finishing-touches">The finishing touches</a></li>
+<li><a href="#where-to-release">Where to release</a></li>
+<li><a href="#the-release-checklist">The release checklist</a></li>
+<li><a href="#what-changed-from-v7">What changed from v7</a></li>
+</ul>
+</nav>
+<h2 id="to-crunch-or-not">To crunch or not</h2>
+<p>A <strong>cruncher</strong> packs a program into a smaller program that unpacks (decrunches) itself in memory and then runs. v7 pointed out that if you spread your demo electronically, an archive (LhA in 1993) makes the download as small as most crunchers would, so you may not need one. That's still true. Crunch when the size of the program itself matters:</p>
+<ul><li><strong>Size-limited competitions</strong>: a 4K or 64K intro is judged on the size of the program file.</li><li><strong>Floppy disks</strong>: to fit, and to load faster. Reading a floppy is so slow that loading less and unpacking it can be quicker than loading it all.</li></ul>
+<p>v7's recommended crunchers (PowerPacker, Imploder, Titanics Cruncher) have been overtaken. Two are used today, and Limoniter runs both.</p>
+<h3 id="shrinkler">Shrinkler</h3>
+<p><strong>Shrinkler</strong>, by Aske Simon Christensen (Blueberry), &lt;https://github.com/askeksa/Shrinkler&gt;, is "designed for maximum compression of Amiga 64k and 4k intros, and everything in between", and its README says its crunched programs "are compatible with all Amiga CPUs and kickstarts". It packs harder than anything else, and it pays for that in decrunching time: it's slow to unpack, especially on a 68000. It also has a mode for crunching data rather than a program, with a 68000 routine to decrunch it in your own code.</p>
+<h3 id="cranker">Cranker</h3>
+<p><strong>Cranker</strong>, by Timm S. Müller (The Electronic Knights), &lt;https://aminet.net/package/util/pack/cranker&gt;, takes the other side. Its programs decrunch <strong>while they load</strong>, from the disk, and need no extra memory to do it.</p>
+<p>That last point matters more than it sounds. A big OCS demo usually reserves most of the memory it needs in its own sections (BSS for screens and buffers), as it should: the memory is then there before the demo starts. But most crunchers need the crunched data and all the program's sections in memory at the same time, so a demo that just fitted in 512K of chip RAM and 512K of slow RAM no longer does. Cranker's readme explains this, and gives its author's measurements for one large demo, Rebels' <em>Retrodentro</em>, starting from a floppy on Kickstart 1.3:</p>
+<div class="table-scroll" tabindex="0"><table class="compare">
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">Size</th>
+<th scope="col">Time to start</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Not crunched</th>
+<td>499,768 bytes</td>
+<td>41 s</td>
+</tr>
+<tr>
+<th scope="row">Cranker</th>
+<td>217,548 bytes</td>
+<td>20 s</td>
+</tr>
+<tr>
+<th scope="row">Shrinkler</th>
+<td>179,472 bytes</td>
+<td>87 s</td>
+</tr>
+</tbody></table></div>
+<p>(Imploder made it 213,332 bytes, but then it didn't run in 1 MB.) These are Cranker's author's figures, not v8's.</p>
+<h3 id="which-one">Which one</h3>
+<ul><li><strong>A size-limited intro</strong>: Shrinkler. Every byte counts, and an intro is small enough to decrunch quickly.</li><li><strong>A big demo on a floppy for an A500</strong>: Cranker, for the memory and the loading time. Or Shrinkler with its overlap option (<code>-o</code>), which lets crunched and decrunched data share memory; time how long it takes to start on an A500.</li><li><strong>Anything else</strong>: try both, and run both on an emulated A500 with a floppy, timing the start. Or don't crunch at all, and let the archive do the packing.</li></ul>
+<h3 id="crunching-in-limoniter">Crunching in Limoniter</h3>
+<p><strong>File › Run on › Amiga crunchers and music…</strong> (or <strong>Tools › Amiga › Crunchers and music…</strong>) has three pages.</p>
+<p><strong>Crunch a program</strong> crunches the AmigaDOS program open in front (it can be open as hex), or one chosen in a disk image's browser. Choose the cruncher and its options:</p>
+<ul><li>Shrinkler's: data rather than a program (<code>-d</code>, with a header saying the sizes, <code>-w</code>), merging hunks of the same memory type (<code>-h</code>), overlap (<code>-o</code>), the smaller, more restricted decrunch header (<code>-m</code>), passing the command line on (<code>-c</code>), no parity context, for byte-oriented data (<code>-b</code>), the effort (<code>-1</code> to <code>-9</code>, with your own iterations and references), a line of text shown before decrunching (<code>-t</code>), and a register flashed while it works (<code>-f</code>, <code>DFF180</code> flashes the background colour).</li><li>Cranker's: data rather than a program, fast (packs less), merging hunks (which Cranker itself calls dangerous), and what shows while it loads.</li></ul>
+<p>The crunched copy is saved beside the original as <code>name_crunched</code>, with the sizes before and after; what the cruncher printed is in the Output panel. It runs in the background, with <strong>Stop</strong>.</p>
+<p><strong>Tools</strong> says where each cruncher is, or lets you point at it, and whose it is and under what licence. Shrinkler's release can be downloaded from GitHub with <strong>Download its release</strong> (only when you ask). Cranker's Aminet package has the Amiga program and its C source; Limoniter's Tools page says how to build it for your computer. As Limoniter describes their terms: Shrinkler has its own permissive licence, and programs crunched with it are their authors' own; Cranker is under the GNU GPL version 2, and its decrunchers are free of copyright.</p>
+<p>The Tools page also has <strong>After F9 builds an Amiga program, crunch a copy with:</strong> set it to Shrinkler or Cranker, and every F9 also leaves a crunched copy beside the source, so the crunched program is always there to test.</p>
+<h3 id="test-the-crunched-program">Test the crunched program</h3>
+<p>A crunched program is a new program. Its decruncher writes your program into memory and jumps to it, and that's exactly the code-written-at-run-time case of <a href="03-general-guidelines.html">chapter 3</a>: on a 68040 or 68060, the caches must be cleared before the jump. Shrinkler's README promises programs that work on every Amiga processor; whatever you use, prove it by running the crunched program on every machine in <a href="16-debugging-and-testing.html">chapter 16</a>, and from a floppy if that's how it's going out.</p>
+<h2 id="don-t-protect-it">Don't protect it</h2>
+<p>v7 strongly advised against "protecting" code by encrypting it: it was easy to make code that failed on anything faster than a 68000, and "lamers will still use Action Replay to get at your code". Both points stand, and harder. Decrypting code at run time is code written at run time, with all the cache trouble that brings. And today anyone can stop your demo in an emulator, save its memory and disassemble it with the labels put back. Limoniter's own disassembler does that in a moment.</p>
+<p>If you want people to learn from your demo, release the source. If you don't, let the demo speak for itself.</p>
+<h2 id="packaging">Packaging</h2>
+<h3 id="an-archive">An archive</h3>
+<p>Most Amiga demos are released as an archive: the program, its icon, a readme, and any data files it loads. Amigas unpack LhA archives with <code>lha</code>; ZIP is what scene.org prefers (below), and is fine for anyone downloading on another computer.</p>
+<h3 id="an-adf-disk-with-files">An ADF disk with files</h3>
+<p>An <code>.adf</code> is an image of an 880K floppy, ready for an emulator, a Gotek, or writing to a real disk. A disk with AmigaDOS on it holds your demo as files, with an <code>S/Startup-Sequence</code> that runs it.</p>
+<p>Limoniter makes the disk: <strong>File › New disk or tape image…</strong>, then <strong>Amiga floppy, 880K, OFS (.adf)</strong>, and add the files to it in its browser. Use <strong>OFS</strong>, the old file system: Kickstart 1.3 can't read a floppy in FFS, which arrived in the ROM with Kickstart 2.0.</p>
+<p>A new disk is blank as the Workbench's Format leaves it: it isn't <strong>bootable</strong>. To make it boot, it needs a boot block with the standard boot code, which Limoniter can't write. Put the disk in an emulated Amiga with Workbench and type <code>Install DF0:</code> (or the drive it's in) in the Shell.</p>
+<p>F9 with an <code>.adf</code> in front boots it in the emulator, so you can try the disk as people will get it.</p>
+<h3 id="a-disk-with-no-file-system-a-trackmo">A disk with no file system: a trackmo</h3>
+<p>Many demos (and most games) don't use AmigaDOS on their disks at all. A boot block reads the program from the disk's sectors, and the demo loads its later parts from the disk itself, with no file system in the way: a <strong>trackmo</strong>. <a href="15-loading-and-memory.html">Chapter 15</a> is about loading that way.</p>
+<p><strong>Tools › Amiga › Boot disk with no file system (trackmo)</strong> builds such a disk. Each <strong>piece</strong> is an assembler source (assembled by Limoniter at its <code>org</code>, or at the address you give) or any other file (graphics, music, packed data), put at a <strong>first sector</strong> you choose and loaded to an <strong>address</strong>. One piece is the one to <strong>start</strong>; a piece can be left unloaded, for your program to load itself later. A map of the disk shows which sectors are used.</p>
+<p>Kickstart reads the first two sectors, the <strong>boot block</strong>, and runs the code in it. Limoniter's own boot block reads each piece from its sectors with trackdisk.device, turns the drive's motor off, and jumps to the start, with <code>a6</code> still holding ExecBase. <strong>Change it…</strong> saves its source beside your plan for you to make your own (a fade, a loader that decrunches); Limoniter writes the table of pieces between its two marked lines each time. However it's written, it's checked to fit in its 1024 bytes, given its "DOS" mark, and its checksum is worked out as Kickstart checks it.</p>
+<p><strong>Write the disk…</strong> saves it as an <code>.adf</code> (880K, or 1760K for a high-density disk), from blank or over a disk image of your own, keeping what's already in the other sectors. <strong>Run it</strong> boots it on the Amiga emulator. The plan is kept in a <code>.bootdisk</code> file, to build the disk again after any change.</p>
+<p>A trackmo can only be started from its disk: it has no files to copy to a hard drive. That's what WHDLoad is for (below).</p>
+<h3 id="hdf-a-hard-disk">HDF: a hard disk</h3>
+<p>An <code>.hdf</code> is an image of a hard drive. Some large demos, AGA ones especially, are offered as an HDF for emulator users, ready to boot. Limoniter can look inside an HDF (partitions and all) but doesn't make them; WinUAE can, from its hard drive settings (<strong>Create</strong>). For people with real hard drives, an archive of files with an icon is still the friendlier release.</p>
+<h3 id="whdload">WHDLoad</h3>
+<p><strong>WHDLoad</strong>, by Bert Jahn (&lt;https://whdload.de/&gt;), is "the AmigaOS friendly Harddisk-Install package". In its own words, it's "designed for easy installation of programs to a harddisk (demos, games, ...) which kill the operating system. To install a program, a so called "Slave" must be written. The Slave is the interface between the program and WHDLoad, and co-ordinates the reading and writing of files." Each installed program has its own <strong>slave</strong>: a small program that patches the original's disk loading so it reads files from the hard drive instead, and lets the user quit back to Workbench with a key.</p>
+<p>That's why so many demos have WHDLoad installs: trackmos and demos that took the machine completely could only be run from their disks, and Amiga owners with hard drives (and emulators) wanted them there. WHDLoad itself needs Kickstart 2.0 and 1 MB of memory; it runs on a 68000, but its documentation recommends a 68010 or later, for the VBR that some installs' quit key needs.</p>
+<p>You don't have to write a slave for your demo. The installs are written by WHDLoad's community, and the site says where to send new ones. But you can make one unnecessary: a demo that loads its parts as files through the system (<code>OS_FRIENDLY=1</code>, <a href="15-loading-and-memory.html">chapter 15</a>) can simply be copied to a hard drive.</p>
+<h2 id="the-finishing-touches">The finishing touches</h2>
+<h3 id="a-version-string">A version string</h3>
+<p>Put a version string in the program (<a href="03-general-guidelines.html">chapter 3</a> explains the format):</p>
+<div class="code-block"><pre><code>        section data,data
+        dc.b    "$VER: mydemo 1.0 (20.11.2026)",0
+        even</code></pre></div>
+<p>It has to be in the program, not only in a comment in the source: v8's examples carry their <code>$VER:</code> line in a comment, which documents the source but isn't in the program they make. And once the program is crunched, its version string is packed with the rest, out of the <code>Version</code> command's sight. So put the version in the readme and in the archive's name as well.</p>
+<h3 id="an-icon">An icon</h3>
+<p>People who start programs from Workbench need an icon: a <code>.info</code> file of the same name, beside the program (<code>mydemo.info</code> for <code>mydemo</code>). Make a <strong>tool</strong> icon, with Workbench's own icon editor, or copy one and change its picture. v8's startup handles being started from an icon (<a href="04-startup-and-exit.html">chapter 4</a>): a demo that doesn't, crashes when someone double-clicks it. Limoniter doesn't make icons.</p>
+<h3 id="a-readme">A readme</h3>
+<p>Write a short text file to go with the demo. Say:</p>
+<ul><li>its name, its version and date, and who made it (and the music and the graphics: credit everyone);</li><li>what it runs on, as you tested it: "A500 with 512K chip and 512K slow RAM, Kickstart 1.3 or later, OCS, ECS or AGA, 68000 to 68060", and anything it needs (1 MB of chip RAM, AGA, fast RAM);</li><li>how to start it, and how to leave it (the left mouse button);</li><li>where it was released (a party, a competition), and how to reach you.</li></ul>
+<p><strong>File › New as › Amiga text</strong> starts a text file in the Amiga's character set with the Amiga's line endings, so it reads properly on the Amiga too.</p>
+<p>Uploading to Aminet needs a readme in Aminet's own format: the same name as the archive with <code>.readme</code>, lines of 78 characters at most, linefeeds only, and fields at the top including <code>Short:</code>, <code>Uploader:</code>, <code>Type:</code> and <code>Architecture:</code>. Its rules are on Aminet's wiki: &lt;https://wiki.aminet.net/Uploading_instructions&gt;.</p>
+<h2 id="where-to-release">Where to release</h2>
+<ul><li><strong>A party.</strong> Most demos are released at a demo party, in a competition. Demozoo lists the parties.</li><li><strong>scene.org's file archive</strong> (&lt;https://files.scene.org/&gt;) is where demos are kept for good, and where Pouët and Demozoo link to. Upload by FTP to <code>ftp.scene.org</code>, logging in as <code>anonymous</code>: party releases go in <code>/incoming/parties/</code> (by year and party), others in <code>/incoming/demos/groups/</code> or <code>/incoming/demos/artists/</code>. Its FAQ (&lt;https://files.scene.org/faq/&gt;) asks for file names in lowercase letters, digits and underscores only, one file for each release (packed, not loose files), and ZIP rather than RAR. The staff move uploads into place, usually in a day or two.</li><li><strong>Pouët</strong> (&lt;https://www.pouet.net/&gt;): add your demo as a production with <strong>Submit</strong>, once you've logged in (with a SceneID). People will download it, comment on it and vote.</li><li><strong>Demozoo</strong> (&lt;https://demozoo.org/&gt;): add it to the encyclopaedia, with its credits and the party it was released at. You need an account, or a SceneID.</li><li><strong>Aminet</strong> (&lt;https://aminet.net/&gt;), the Amiga's own archive, has demo directories too (<code>demo/ecs</code>, <code>demo/aga</code>, <code>demo/intro</code> and others). Upload by FTP to <code>main.aminet.net</code>, into <code>/new</code>, with the readme above.</li></ul>
+<h2 id="the-release-checklist">The release checklist</h2>
+<p>Before you upload, with the program exactly as it will be released (crunched, from its disk or archive):</p>
+<ul><li>[ ] Built from clean, from the source you're releasing, the way you're releasing it (<code>OS_FRIENDLY</code> as it should be, and <code>AUTOEXIT</code> off).</li><li>[ ] Runs on an <strong>A500</strong>: 68000, OCS, 512K chip and 512K slow RAM, <strong>Kickstart 1.3</strong>. If it claims to run in 512K, tried with no slow RAM too.</li><li>[ ] Runs with <strong>Kickstart 3.1</strong> (and 2.04, if you can).</li><li>[ ] Runs on an <strong>A1200</strong>: 68020, AGA, 2 MB chip RAM and no fast RAM.</li><li>[ ] Runs on a <strong>68030, 68040 and 68060 with fast RAM</strong>.</li><li>[ ] Runs on <strong>NTSC</strong>, or, if it's PAL only, says so in the readme and still exits cleanly.</li><li>[ ] <strong>Gives the machine back</strong> on every one of those: the CLI or Workbench works afterwards, the display is right, and the return code is 0. In a Shell, <code>Avail</code> before and after shows if memory has gone missing.</li><li>[ ] Starts from the <strong>CLI</strong> and from its <strong>icon</strong>.</li><li>[ ] From a <strong>floppy</strong>, if it's released on one: boots, loads in a reasonable time, and fits in memory.</li><li>[ ] The crunched program run on all of the above, not just the uncrunched one.</li><li>[ ] A <strong>version string</strong> in the program, and the version in the readme and the archive's name.</li><li>[ ] A <strong>readme</strong> that credits everyone and says what it runs on, as tested.</li><li>[ ] Everything in it is yours, or you have permission: music, graphics, fonts, and the players' and tools' own terms.</li></ul>
+<h2 id="what-changed-from-v7">What changed from v7</h2>
+<ul><li><strong>Crunchers</strong>: Shrinkler and Cranker instead of PowerPacker, Imploder and Titanics Cruncher. v7's point that an archive is often enough still stands.</li><li><strong>Protection</strong>: v7's advice against it stands, and the emulator has made it pointless as well as dangerous.</li><li><strong>New</strong>: disk images (ADF, HDF), trackmo disks built in Limoniter, WHDLoad, and today's places to release: scene.org, Pouët, Demozoo and Aminet. In 1993, demos went out on disks by post and on BBSes.</li></ul>
+        <nav class="pager" aria-label="Back and next">
+<a class="pager-back" href="17-writing-games.html"><span>Back</span>17. Writing games</a>
+<a class="pager-next" href="19-further-reading.html"><span>Next</span>19. Further reading</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap bottom-inner">
+      <p><img src="../images/icon.png" alt="" width="20" height="20"> How To Code v8 is CC0: copy it, change it, use it for anything. Limoniter is free software under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+      <p><a href="../index.html#name">Why is it called Limoniter?</a> · <a href="https://github.com/jolyonralph/limoniter">GitHub</a> · <a href="../features.html">Full feature list</a> · <a href="../formats.html">File formats</a> · <a href="../whats-new.html">What's new</a> · <a href="../compare.html">How it compares</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <img alt="">
+  </dialog>
+</body>
+</html>
