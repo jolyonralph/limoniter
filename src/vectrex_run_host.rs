@@ -149,7 +149,7 @@ impl Limoniter {
                 ui.add_space(6.0);
                 ui.horizontal_wrapped(|ui| {
                     if ui.button(crate::i18n::tr("Choose the BIOS file\u{2026}")).clicked()
-                        && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("The Vectrex BIOS")).add_filter(crate::i18n::tr("ROM"), &["bin", "rom"]).pick_file()
+                        && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The Vectrex BIOS")).add_filter(crate::i18n::tr("ROM"), crate::micro_roms::Needs::Vectrex.file_endings()).pick_file()
                     {
                         match crate::micro_roms::choose_file(Needs::Vectrex, &path) {
                             Ok(_) => chose_bios = true,

@@ -4,20 +4,47 @@
 use std::path::Path;
 use std::process::Command;
 
+/// For tests that run an emulator as a reference: a command whose program can't reach a display, so it opens no
+/// window. SDL programs such as MAME open one even with `-video none`, and on a desktop (or under WSLg) each
+/// one takes the keyboard focus. Their snapshots and recordings are made all the same.
+#[cfg(test)]
+pub fn headless(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut command = command(program);
+    command.env_remove("DISPLAY").env_remove("WAYLAND_DISPLAY").env("SDL_VIDEODRIVER", "dummy").env("SDL_AUDIODRIVER", "dummy");
+    command
+}
+
+/// Starts making a command to run `program`. On Windows a console program started without a window of its own
+/// gets a new console, which flashes on the screen and takes the keyboard focus, so this asks for none. Every
+/// program Limoniter starts, apart from those meant to be seen in a console, should be started through this.
+pub fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    #[allow(clippy::disallowed_methods)] // The one place a command is made.
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW. It does nothing to programs with windows of their own.
+        command.creation_flags(0x0800_0000);
+    }
+    #[cfg(not(windows))]
+    let _ = &mut command;
+    command
+}
+
 /// A command line, run as the system's shell runs one: cmd on Windows, sh elsewhere. No window of its own.
 pub fn shell_command(line: &str) -> Command {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        let mut command = Command::new("cmd");
+        let mut command = command("cmd");
         // /S keeps the line exactly as typed, quotes and all.
-        command.raw_arg(format!("/D /S /C \"{line}\"")).creation_flags(0x0800_0000);
+        command.raw_arg(format!("/D /S /C \"{line}\""));
         command
     }
     #[cfg(not(windows))]
     {
         use std::os::unix::process::CommandExt;
-        let mut command = Command::new("sh");
+        let mut command = command("sh");
         command.arg("-c").arg(line);
         // A group of its own, so that stopping it stops whatever it started too.
         command.process_group(0);
@@ -29,14 +56,13 @@ pub fn shell_command(line: &str) -> Command {
 pub fn kill_tree(process: u32) {
     #[cfg(windows)]
     let mut command = {
-        use std::os::windows::process::CommandExt;
-        let mut command = Command::new("taskkill");
-        command.args(["/T", "/F", "/PID", &process.to_string()]).creation_flags(0x0800_0000);
+        let mut command = command("taskkill");
+        command.args(["/T", "/F", "/PID", &process.to_string()]);
         command
     };
     #[cfg(not(windows))]
     let mut command = {
-        let mut command = Command::new("kill");
+        let mut command = command("kill");
         command.args(["-KILL", "--", &format!("-{process}")]);
         command
     };
@@ -82,7 +108,7 @@ pub fn open_folder(folder: &Path) -> Result<(), String> {
     } else {
         "xdg-open"
     };
-    Command::new(program).arg(folder).spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
+    command(program).arg(folder).spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("Couldn't open {FILE_MANAGER}.\n\n{e}"))
 }
 
 /// Shows a file in the file manager, selected where it can be.
@@ -90,20 +116,20 @@ pub fn reveal(file: &Path) -> Result<(), String> {
     #[cfg(windows)]
     let mut command = {
         use std::os::windows::process::CommandExt;
-        let mut command = Command::new("explorer");
+        let mut command = command("explorer");
         command.raw_arg(format!("/select,\"{}\"", file.display()));
         command
     };
     #[cfg(target_os = "macos")]
     let mut command = {
-        let mut command = Command::new("open");
+        let mut command = command("open");
         command.arg("-R").arg(file);
         command
     };
     #[cfg(not(any(windows, target_os = "macos")))]
     let mut command = {
         // Most Linux file managers can't be asked to select a file, so its folder is opened.
-        let mut command = Command::new("xdg-open");
+        let mut command = command("xdg-open");
         command.arg(file.parent().unwrap_or(file));
         command
     };
@@ -118,20 +144,19 @@ pub fn open_web_page(address: &str) -> Result<(), String> {
     }
     #[cfg(windows)]
     let mut command = {
-        use std::os::windows::process::CommandExt;
-        let mut command = Command::new("rundll32");
-        command.args(["url.dll,FileProtocolHandler", address]).creation_flags(0x0800_0000);
+        let mut command = command("rundll32");
+        command.args(["url.dll,FileProtocolHandler", address]);
         command
     };
     #[cfg(target_os = "macos")]
     let mut command = {
-        let mut command = Command::new("open");
+        let mut command = command("open");
         command.arg(address);
         command
     };
     #[cfg(not(any(windows, target_os = "macos")))]
     let mut command = {
-        let mut command = Command::new("xdg-open");
+        let mut command = command("xdg-open");
         command.arg(address);
         command
     };
@@ -142,7 +167,7 @@ pub fn open_web_page(address: &str) -> Result<(), String> {
 #[cfg(not(windows))]
 pub fn open_with_default(file: &Path) -> Result<(), String> {
     let program = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-    let status = Command::new(program).arg(file).status().map_err(|e| crate::i18n::tf!("Couldn't ask the system to open it.\n\n{e}"))?;
+    let status = command(program).arg(file).status().map_err(|e| crate::i18n::tf!("Couldn't ask the system to open it.\n\n{e}"))?;
     if status.success() { Ok(()) } else { Err(crate::i18n::tr("The system has no program set to open this kind of file.").into()) }
 }
 
@@ -155,6 +180,19 @@ pub fn from_store() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_command_is_made_for_the_program() {
+        let command = command("some-program");
+        assert_eq!(command.get_program(), "some-program");
+    }
+
+    #[test]
+    fn a_command_has_no_console_window_on_windows() {
+        // The creation flags can't be read back, so this runs a console program and checks it still works.
+        let output = command(if cfg!(windows) { "cmd" } else { "true" }).args(if cfg!(windows) { vec!["/C", "exit 0"] } else { vec![] }).output().unwrap();
+        assert!(output.status.success());
+    }
 
     #[test]
     fn a_command_line_runs_in_the_systems_shell() {

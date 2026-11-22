@@ -13,6 +13,10 @@ pub(super) enum TabPick {
     Tint(Option<Tint>),
     /// A theme of the file's own, or None for the one the rules give.
     Theme(Option<String>),
+    Close,
+    /// Every other tab.
+    CloseOthers,
+    CloseAll,
 }
 
 impl Limoniter {
@@ -127,6 +131,13 @@ impl Limoniter {
                 }
             }
         });
+        ui.separator();
+        for (label, choice) in [("Close", TabPick::Close), ("Close the others", TabPick::CloseOthers), ("Close all", TabPick::CloseAll)] {
+            if ui.button(crate::i18n::tr(label)).clicked() {
+                pick = Some(choice);
+                ui.close();
+            }
+        }
         pick
     }
 
@@ -138,6 +149,9 @@ impl Limoniter {
                 }
             }
             TabPick::Theme(theme) => self.set_file_theme(index, theme),
+            TabPick::Close => self.close_tab(index),
+            TabPick::CloseOthers => self.close_all(Some(index)),
+            TabPick::CloseAll => self.close_all(None),
         }
         self.pending_focus = true;
     }

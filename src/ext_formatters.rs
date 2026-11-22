@@ -77,15 +77,10 @@ pub fn chosen<'a>(language: &str, choices: &std::collections::HashMap<String, St
 pub fn run(formatter: &Formatter, text: &str, file: &Path) -> Result<String, String> {
     let program = program_path(formatter.program).ok_or_else(|| crate::i18n::tf!("{} isn't installed.", formatter.name))?;
     let args: Vec<String> = formatter.args.iter().map(|a| a.replace("{file}", &file.display().to_string())).collect();
-    let mut command = std::process::Command::new(program);
+    let mut command = crate::platform::command(program);
     command.args(&args).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     if let Some(folder) = file.parent().filter(|f| f.is_dir()) {
         command.current_dir(folder);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
     }
     let mut child = command.spawn().map_err(|e| e.to_string())?;
     let mut input = child.stdin.take().ok_or_else(|| crate::i18n::tr("The formatter couldn't be given the text.").to_string())?;
@@ -113,9 +108,9 @@ pub fn run(formatter: &Formatter, text: &str, file: &Path) -> Result<String, Str
 
 fn kill(id: u32) {
     #[cfg(unix)]
-    let _ = std::process::Command::new("kill").arg("-9").arg(id.to_string()).status();
+    let _ = crate::platform::command("kill").arg("-9").arg(id.to_string()).status();
     #[cfg(windows)]
-    let _ = std::process::Command::new("taskkill").args(["/F", "/PID", &id.to_string()]).status();
+    let _ = crate::platform::command("taskkill").args(["/F", "/PID", &id.to_string()]).status();
 }
 
 /// The choices kept in the settings file, one line a language.

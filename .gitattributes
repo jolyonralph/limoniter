@@ -8,3 +8,6 @@ src/**/*.a   text eol=lf
 # never given CR LF line ends on Windows.
 src/**/testdata/** -text
 src/tile_testdata/** -text
+
+# Jupyter notebooks used to test reading and saving byte for byte: never given CR LF line ends on Windows.
+src/notebook_testdata/** -text

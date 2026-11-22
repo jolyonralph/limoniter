@@ -224,7 +224,7 @@ impl ImageBrowser {
     pub(super) fn act(&mut self, action: EditAction) {
         let done = match action {
             EditAction::AddFiles => {
-                let picked = rfd::FileDialog::new().set_title(crate::i18n::tr("Add files to the image")).pick_files().unwrap_or_default();
+                let picked = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Add files to the image")).pick_files().unwrap_or_default();
                 self.queue(picked)
             }
             EditAction::AddPaths(paths) => self.queue(paths),
@@ -461,7 +461,7 @@ impl Limoniter {
         if go {
             let (kind, label) = (state.kind, state.label.clone());
             let name = format!("{}.{}", if label.trim().is_empty() { "new" } else { label.trim() }, kind.ending());
-            let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the new image")).set_file_name(&name).add_filter(kind.name(), &[kind.ending()]).save_file() else {
+            let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the new image")).set_file_name(&name).add_filter(kind.name(), &[kind.ending()]).save_file() else {
                 return true;
             };
             self.dialog = Dialog::None;

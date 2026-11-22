@@ -997,7 +997,7 @@ mod tests {
     }
 
     fn start_child(root: &Path, how: &str) -> std::process::Child {
-        std::process::Command::new(std::env::current_exe().unwrap())
+        crate::platform::command(std::env::current_exe().unwrap())
             .args(["--exact", "recovery::tests::crash_child", "--ignored", "--nocapture"])
             .env("LIMONITER_CRASH_ROOT", root)
             .env("LIMONITER_CRASH_HOW", how)

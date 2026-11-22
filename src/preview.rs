@@ -1241,6 +1241,25 @@ pub fn draw_in(ui: &mut Ui, blocks: &[Block], folder: Option<&Path>) {
     });
 }
 
+/// Draws blocks where the ui is, with no scroll area of their own, as a notebook shows a Markdown cell.
+pub fn draw_inline(ui: &mut Ui, blocks: &[Block]) {
+    for block in blocks {
+        let shift = block.indent as f32 * 18.0 + block.quote as f32 * 12.0;
+        if shift == 0.0 {
+            draw_block(ui, block);
+            continue;
+        }
+        let response = ui.horizontal_top(|ui| {
+            ui.add_space(shift);
+            ui.vertical(|ui| draw_block(ui, block));
+        });
+        for depth in 0..block.quote {
+            let x = response.response.rect.min.x + 4.0 + depth as f32 * 12.0;
+            ui.painter().vline(x, response.response.rect.y_range(), Stroke::new(2.0, theme::border()));
+        }
+    }
+}
+
 #[cfg(test)]
 mod guide_tests {
     use super::*;

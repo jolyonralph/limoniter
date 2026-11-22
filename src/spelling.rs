@@ -134,7 +134,7 @@ fn work(asks: &Receiver<Ask>, told: &Sender<Told>, wake: &dyn Fn()) {
 mod pipe_checker {
     use super::Mark;
     use std::io::{BufRead, BufReader, Write};
-    use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+    use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 
     pub struct Checker {
         _child: Child,
@@ -146,7 +146,7 @@ mod pipe_checker {
         pub fn new() -> Result<Self, String> {
             let tries: [(&str, &[&str]); 2] = [("hunspell", &["-a", "-i", "utf-8"]), ("aspell", &["-a", "--encoding=utf-8"])];
             for (program, args) in tries {
-                let Ok(mut child) = Command::new(program).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn() else {
+                let Ok(mut child) = crate::platform::command(program).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn() else {
                     continue;
                 };
                 let (Some(mut input), Some(output)) = (child.stdin.take(), child.stdout.take()) else {

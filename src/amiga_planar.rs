@@ -1216,16 +1216,15 @@ mod tests {
     /// byte comparison is passed over with Netpbm 10.0 (as Ubuntu has), whose ppmtoilbm -map fails.
     #[test]
     fn netpbm_agrees() {
-        use std::process::Command;
         let tool = |name: &str| std::env::var_os("LIMONITER_NETPBM").map_or_else(|| std::path::PathBuf::from(name), |d| std::path::PathBuf::from(d).join(name));
-        if Command::new(tool("ilbmtoppm")).arg("-version").output().is_err() {
+        if crate::platform::command(tool("ilbmtoppm")).arg("-version").output().is_err() {
             eprintln!("Netpbm isn't installed: skipped");
             return;
         }
         let dir = std::env::temp_dir().join(format!("limoniter-planar-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let try_run = |name: &str, args: &[&str], input: &std::path::Path| -> Result<Vec<u8>, String> {
-            let out = Command::new(tool(name)).args(args).arg(input).output().map_err(|e| e.to_string())?;
+            let out = crate::platform::command(tool(name)).args(args).arg(input).output().map_err(|e| e.to_string())?;
             if out.status.success() && !out.stdout.is_empty() { Ok(out.stdout) } else { Err(crate::i18n::tf!("{name} {args:?}: {}", String::from_utf8_lossy(&out.stderr))) }
         };
         let run = |name: &str, args: &[&str], input: &std::path::Path| -> Vec<u8> { try_run(name, args, input).unwrap() };

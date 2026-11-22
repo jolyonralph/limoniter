@@ -45,17 +45,12 @@ pub fn repository_of(path: &Path) -> Option<PathBuf> {
 /// A git command, run in a repository if there's one. It never waits for a typed answer (there's nowhere to type
 /// one), never opens a console window, and says file names as they are.
 fn command(root: Option<&Path>) -> Command {
-    let mut command = Command::new(program().unwrap_or_else(|| PathBuf::from("git")));
+    let mut command = crate::platform::command(program().unwrap_or_else(|| PathBuf::from("git")));
     if let Some(root) = root {
         command.current_dir(root);
     }
     command.args(["-c", "core.quotepath=off", "-c", "color.ui=false"]);
     command.env("GIT_TERMINAL_PROMPT", "0").env("GIT_OPTIONAL_LOCKS", "0").stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
-    }
     command
 }
 

@@ -465,7 +465,7 @@ impl Limoniter {
     /// Asks for a patch and opens the box that checks it against a folder or file before applying it: the folder
     /// given, or the file in front for a patch of one file, or the project's folder.
     pub(in crate::app) fn apply_patch_to(&mut self, folder: Option<PathBuf>, compare_tab: Option<u64>) {
-        let Some(patch_file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Apply a patch")).add_filter(crate::i18n::tr("Patch"), &["patch", "diff"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() else {
+        let Some(patch_file) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Apply a patch")).add_filter(crate::i18n::tr("Patch"), &["patch", "diff"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() else {
             return;
         };
         self.open_patch_box(&patch_file, folder, compare_tab);
@@ -846,7 +846,7 @@ impl Limoniter {
             }
         });
         if let Some(folder) = browse {
-            let picked = if folder { rfd::FileDialog::new().set_title(crate::i18n::tr("The folder to apply it to")).pick_folder() } else { rfd::FileDialog::new().set_title(crate::i18n::tr("The file to apply it to")).pick_file() };
+            let picked = if folder { crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The folder to apply it to")).pick_folder() } else { crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The file to apply it to")).pick_file() };
             if let (Some(path), Dialog::ApplyPatch(state)) = (picked, &mut self.dialog) {
                 state.target = path.display().to_string();
                 check_patch(state);

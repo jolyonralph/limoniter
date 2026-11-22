@@ -1044,7 +1044,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
             choices.tos = (!text.trim().is_empty()).then(|| PathBuf::from(text.trim()));
         }
         if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tf!("The TOS ROM for the {}", model.short_name())).clicked()
-            && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tf!("TOS ROM for the {}", model.short_name())).add_filter(crate::i18n::tr("TOS ROM"), &["img", "rom", "bin", "tos"]).pick_file()
+            && let Some(chosen) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("TOS ROM for the {}", model.short_name())).add_filter(crate::i18n::tr("TOS ROM"), &["img", "rom", "bin", "tos"]).pick_file()
         {
             choices.tos = Some(chosen);
         }
@@ -1152,7 +1152,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, hatari: &Path
                 settings.boot_sector = (!text.trim().is_empty()).then(|| PathBuf::from(text.trim()));
             }
             if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tr("Code for the floppy's boot sector: a whole boot sector (512 bytes) or code of up to 480 bytes")).clicked()
-                && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tr("Boot sector code")).pick_file()
+                && let Some(chosen) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Boot sector code")).pick_file()
             {
                 settings.boot_sector = Some(chosen);
             }
@@ -1373,7 +1373,7 @@ mod tests {
         }
         args.extend(["--sound".into(), "off".into(), "--fast-forward".into(), "on".into(), "--confirm-quit".into(), "off".into(), "--run-vbls".into(), frames.to_string()]);
         args.push(prepared.file.display().to_string());
-        let out = std::process::Command::new(hatari).args(&args).current_dir(folder).env("SDL_VIDEODRIVER", "dummy").env("SDL_AUDIODRIVER", "dummy").output().unwrap();
+        let out = crate::platform::command(hatari).args(&args).current_dir(folder).env("SDL_VIDEODRIVER", "dummy").env("SDL_AUDIODRIVER", "dummy").output().unwrap();
         format!("hatari {}\n{}{}", args.join(" "), String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr))
     }
 

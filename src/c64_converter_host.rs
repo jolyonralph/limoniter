@@ -78,16 +78,16 @@ impl Limoniter {
         let read = |path: &Path| std::fs::read(path).map_err(|e| crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display()));
         let file_name = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let name = c.name.clone();
-        let save = |title: &str, file: &str, filter: (&str, &[&str])| rfd::FileDialog::new().set_title(title).set_file_name(file).add_filter(filter.0, filter.1).save_file();
+        let save = |title: &str, file: &str, filter: (&str, &[&str])| crate::sys_dialogs::file_dialog().set_title(title).set_file_name(file).add_filter(filter.0, filter.1).save_file();
         match asked {
             Asked::OpenPicture => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), &["png", "jpg", "jpeg", "iff", "ilbm", "lbm", "pcx", "koa", "kla", "art", "ocp", "fli", "afl", "neo", "pi1"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), &["png", "jpg", "jpeg", "iff", "ilbm", "lbm", "pcx", "koa", "kla", "art", "ocp", "fli", "afl", "neo", "pi1"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let image = crate::quantise::read_picture(&file_name(&path), &read(&path)?).map_err(|e| crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display()))?;
                     c.set_picture(&file_name(&path), image);
                 }
             }
             Asked::OpenRom => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open the C64's character ROM")).add_filter(crate::i18n::tr("Character ROM"), &["bin", "rom", "chr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open the C64's character ROM")).add_filter(crate::i18n::tr("Character ROM"), &["bin", "rom", "chr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let bytes = read(&path)?;
                     if bytes.len() != 4096 && bytes.len() != 2048 {
                         return Err(crate::i18n::tf!("{} is {} bytes: the C64's character ROM is 4096 (2048 for one set).", path.display(), bytes.len()));
@@ -132,14 +132,14 @@ impl Limoniter {
                     Asked::SaveSource => save_one("Save the source", pick(".asm"), ("ACME source", &["asm", "a", "s"]))?,
                     Asked::SaveViewer => save_one("Save the viewer", pick(".prg"), ("Commodore 64 program", &["prg"]))?,
                     Asked::SaveRaw => {
-                        if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the raw data into a folder")).pick_folder() {
+                        if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the raw data into a folder")).pick_folder() {
                             for (file, bytes) in all.iter().filter(|(n, _)| n.ends_with(".bin")) {
                                 write(&folder.join(file), bytes)?;
                             }
                         }
                     }
                     Asked::SaveAll => {
-                        if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
+                        if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
                             for (file, bytes) in &all {
                                 write(&folder.join(file), bytes)?;
                             }

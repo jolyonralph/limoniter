@@ -23,6 +23,15 @@ pub enum Needs {
 }
 
 impl Needs {
+    /// The endings a ROM file for the machine comes with, for the file picker. Vectrex dumps are often `.vec`, as
+    /// its cartridges are.
+    pub fn file_endings(self) -> &'static [&'static str] {
+        match self {
+            Needs::Vectrex => &["rom", "bin", "vec"],
+            _ => &["rom", "bin"],
+        }
+    }
+
     fn id(self) -> &'static str {
         match self {
             Needs::Zx80 => "zx80",
@@ -238,6 +247,8 @@ mod tests {
         // The Vectrex's BIOS: 8K, starting at $F000.
         assert!(identify(Needs::Vectrex, &[0; 4096]).unwrap_err().contains("8,192"));
         assert_eq!(identify(Needs::Vectrex, &[0; 8192]).unwrap_err(), "That isn't a Vectrex BIOS.");
+        assert!(Needs::Vectrex.file_endings().contains(&"vec"), "Vectrex BIOS dumps are often .vec files");
+        assert!(!Needs::Zx81.file_endings().contains(&"vec"));
         let mut like = vec![0u8; 8192];
         like[0x1FFE..].copy_from_slice(&[0xF0, 0x00]);
         assert_eq!(identify(Needs::Vectrex, &like), Ok("Vectrex BIOS, another edition"));

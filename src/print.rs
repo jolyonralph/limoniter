@@ -532,7 +532,7 @@ pub fn text_pages(job: &Job, columns: usize, per_page: usize) -> String {
 /// On macOS and Linux, pages go to the default printer through CUPS, as `lp` sends them, from another thread.
 #[cfg(not(windows))]
 pub fn ask_and_print(job: Job) -> Result<Option<Outcome>, String> {
-    let mut child = std::process::Command::new("lp")
+    let mut child = crate::platform::command("lp")
         .args(["-t", &job.title])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())

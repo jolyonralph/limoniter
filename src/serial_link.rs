@@ -1223,7 +1223,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("limoniter-pty-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let (a, b) = (dir.join("a"), dir.join("b"));
-        let mut socat = std::process::Command::new("socat")
+        let mut socat = crate::platform::command("socat")
             .arg(format!("pty,raw,echo=0,link={}", a.display()))
             .arg(format!("pty,raw,echo=0,link={}", b.display()))
             .stderr(std::process::Stdio::null())

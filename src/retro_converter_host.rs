@@ -27,7 +27,7 @@ impl Limoniter {
 
     /// A picture chosen and opened in the converter as a Spectrum screen, for the screen designer.
     pub(super) fn bring_picture_to_designer(&mut self) {
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Bring in a picture")).add_filter(crate::i18n::tr("Pictures"), PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() else { return };
+        let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Bring in a picture")).add_filter(crate::i18n::tr("Pictures"), PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() else { return };
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| crate::quantise::read_picture(&name, &bytes)) {
             Ok(image) => {
@@ -62,7 +62,7 @@ impl Limoniter {
     fn retro_converter_asked(&mut self, c: &mut Converter, asked: Asked) -> Result<(), String> {
         let write = |path: &Path, bytes: &[u8]| codec::write_file(path, bytes).map_err(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
         if asked == Asked::OpenPicture {
-            if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+            if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let bytes = std::fs::read(&path).map_err(|e| crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display()))?;
                 let image = crate::quantise::read_picture(&name, &bytes).map_err(|e| crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display()))?;
@@ -97,7 +97,7 @@ impl Limoniter {
         let all = screen.everything(&c.name);
         match asked {
             Asked::SaveAll => {
-                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
+                if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
                     for (file, bytes) in &all {
                         write(&folder.join(file), bytes)?;
                     }
@@ -111,7 +111,7 @@ impl Limoniter {
                 };
                 if let Some((file, bytes)) = item {
                     let ending = file.rsplit_once('.').map_or("", |(_, e)| e).to_string();
-                    let mut dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen")).set_file_name(file);
+                    let mut dialog = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the screen")).set_file_name(file);
                     if !ending.is_empty() {
                         dialog = dialog.add_filter(ending.to_uppercase(), &[ending.as_str()]);
                     }

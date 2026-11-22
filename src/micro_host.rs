@@ -330,7 +330,7 @@ impl Limoniter {
                 }
                 ui.add_space(6.0);
                 if ui.button(crate::i18n::tr("Choose the ROM file\u{2026}")).clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tf!("The {} ROM", needs.machine())).add_filter(crate::i18n::tr("ROM"), &["rom", "bin"]).pick_file()
+                    && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("The {} ROM", needs.machine())).add_filter(crate::i18n::tr("ROM"), needs.file_endings()).pick_file()
                 {
                     match crate::micro_roms::choose_file(needs, &path) {
                         Ok(_) => chose_rom = true,
@@ -435,7 +435,7 @@ impl Limoniter {
             && let SessionKind::Micro { machine, .. } = &self.running.sessions[index].kind
             && let Micro::Zx80(m) = machine.as_ref()
             && let Some(bytes) = m.saved().last().cloned()
-            && let Some(target) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the ZX80's tape")).add_filter(crate::i18n::tr("ZX80 program"), &["o"]).set_file_name("program.o").save_file()
+            && let Some(target) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the ZX80's tape")).add_filter(crate::i18n::tr("ZX80 program"), &["o"]).set_file_name("program.o").save_file()
             && let Err(e) = crate::codec::write_file(&target, &bytes)
         {
             self.message("Save its tape", crate::i18n::tf!("Couldn't save {}.\n\n{e}", target.display()));

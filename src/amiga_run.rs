@@ -459,7 +459,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
             settings.set_kickstart(model, (!text.trim().is_empty()).then(|| PathBuf::from(text.trim())));
         }
         if ui.button(crate::i18n::tr("Choose\u{2026}")).on_hover_text(crate::i18n::tf!("The Kickstart ROM for the {}", model.short_name())).clicked()
-            && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Kickstart ROM for the {}", model.short_name())).add_filter(crate::i18n::tr("Kickstart ROM"), &["rom", "bin", "a500", "a1200"]).pick_file()
+            && let Some(chosen) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("Kickstart ROM for the {}", model.short_name())).add_filter(crate::i18n::tr("Kickstart ROM"), &["rom", "bin", "a500", "a1200"]).pick_file()
         {
             settings.set_kickstart(model, Some(chosen));
         }

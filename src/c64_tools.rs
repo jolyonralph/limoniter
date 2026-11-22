@@ -455,7 +455,7 @@ pub fn pack(tool: Tool, program: &Path, options: &PackOptions, input: &Path, out
 
 /// Starts vsid playing a tune at a song (from 1), and leaves it playing in its own window.
 pub fn play_in_vsid(vsid: &Path, tune: &Path, song: u16) -> Result<(), String> {
-    let mut command = std::process::Command::new(vsid);
+    let mut command = crate::platform::command(vsid);
     command.args(["-tune".to_string(), song.to_string(), tune.display().to_string()]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     command.spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", vsid.display()))
 }
@@ -543,7 +543,7 @@ mod tests {
         args.extend(["-autostart".to_string(), prg.display().to_string()]);
         // xvfb-run now and then fails to start its display straight after another: tried again then.
         for _ in 0..3 {
-            std::process::Command::new("xvfb-run").args(&args).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().ok()?;
+            crate::platform::command("xvfb-run").args(&args).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().ok()?;
             if shot.is_file() {
                 break;
             }

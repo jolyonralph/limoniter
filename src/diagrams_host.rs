@@ -42,7 +42,7 @@ impl Limoniter {
         let folder = doc.path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
         let name = doc.path_or_name().file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "preview".into());
         let title = doc.path_or_name().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the preview as PDF")).set_file_name(format!("{name}.pdf")).add_filter(crate::i18n::tr("PDF document"), &["pdf"]);
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the preview as PDF")).set_file_name(format!("{name}.pdf")).add_filter(crate::i18n::tr("PDF document"), &["pdf"]);
         if let Some(folder) = &folder {
             picker = picker.set_directory(folder);
         }

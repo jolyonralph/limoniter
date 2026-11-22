@@ -10291,3 +10291,75 @@ The page after (Alt+Right)	La página siguiente (Alt+Derecha)
 Close the guide (Ctrl+W)	Cerrar la guía (Ctrl+W)
 Quit	Salir
 Ctrl+Q	Ctrl+Q
+(A picture that couldn't be drawn)	(Una imagen que no se pudo dibujar)
+(Nothing to show)	(Nada que mostrar)
+(Output of a kind that can't be shown here: {what})	(Una salida que no se puede mostrar aquí: {what})
+A kernel is being installed in the terminal. When it has finished, choose Look for kernels again from the Kernel menu.	Se está instalando un kernel en el terminal. Cuando termine, elija Buscar kernels de nuevo en el menú Kernel.
+Add a cell above	Añadir una celda arriba
+Add a cell below	Añadir una celda abajo
+After installing a kernel	Después de instalar un kernel
+Busy	Ocupado
+Clear all outputs	Borrar todas las salidas
+Clear output	Borrar la salida
+Clear this cell's output	Borrar la salida de esta celda
+Compare with the last commit, cell by cell	Comparar con el último commit, celda por celda
+Compare with the last commit, with outputs	Comparar con el último commit, con las salidas
+Couldn't start {program}: {e}	No se pudo iniciar {program}: {e}
+Delete this cell	Eliminar esta celda
+Empty Markdown cell: double-click to write in it	Celda Markdown vacía: haga doble clic para escribir en ella
+Hide or show this cell's output	Ocultar o mostrar la salida de esta celda
+Idle	Inactivo
+Install a kernel	Instalar un kernel
+Install a kernel for {language}…	Instalar un kernel para {language}…
+Interrupt the kernel	Interrumpir el kernel
+Join this cell with the next	Unir esta celda con la siguiente
+Kernel: {named}	Kernel: {named}
+Limoniter doesn't know how to install a Jupyter kernel for {language} here. For Python, install Python first; for R, install R. Other languages' kernels have their own instructions.	Limoniter no sabe cómo instalar aquí un kernel de Jupyter para {language}. Para Python, instale primero Python; para R, instale R. Los kernels de otros lenguajes tienen sus propias instrucciones.
+Look for kernels again	Buscar kernels de nuevo
+Looking for kernels…	Buscando kernels…
+Make this cell Markdown	Convertir esta celda en Markdown
+Make this cell code	Convertir esta celda en código
+Make this cell raw text	Convertir esta celda en texto en bruto
+Move this cell down	Bajar esta celda
+Move this cell up	Subir esta celda
+No Jupyter kernels were found on this computer.	No se encontró ningún kernel de Jupyter en este equipo.
+No kernel	Ningún kernel
+No kernel is chosen for this notebook. Choose one from the Kernel menu above.	No hay ningún kernel elegido para este notebook. Elija uno en el menú Kernel de arriba.
+Not started	Sin iniciar
+Notebook	Notebook
+Notebook as text	Notebook como texto
+Raw	En bruto
+Restart and run all cells	Reiniciar y ejecutar todas las celdas
+Restart the kernel	Reiniciar el kernel
+Restart the kernel and run all cells	Reiniciar el kernel y ejecutar todas las celdas
+Run all cells	Ejecutar todas las celdas
+Run all cells above	Ejecutar todas las celdas de arriba
+Run cell and add one below	Ejecutar la celda y añadir una debajo
+Run cell and go to the next	Ejecutar la celda e ir a la siguiente
+Run cell and stay	Ejecutar la celda y quedarse en ella
+Run this cell and all below	Ejecutar esta celda y todas las de abajo
+Save the notebook first: it has to be in a Git repository to be compared.	Guarde primero el notebook: tiene que estar en un repositorio Git para poder compararse.
+Show it as text	Mostrar como texto
+Show or hide what this cell printed and drew (O)	Ocultar o mostrar lo que esta celda imprimió y dibujó (O)
+Split this cell at the cursor	Dividir esta celda en el cursor
+Starting	Iniciando
+Stopped	Detenido
+The kernel couldn't be started.	No se pudo iniciar el kernel.
+This file isn't a notebook Limoniter can read: {why}	Este archivo no es un notebook que Limoniter pueda leer: {why}
+This notebook is in nbformat {version}, an old layout that Limoniter doesn't read as a notebook. You can still see and edit it as text. To bring it up to date, run: jupyter nbconvert --to notebook --nbformat 4 file.ipynb	Este notebook está en nbformat {version}, un formato antiguo que Limoniter no lee como notebook. Aun así puede verlo y editarlo como texto. Para actualizarlo, ejecute: jupyter nbconvert --to notebook --nbformat 4 file.ipynb
+This notebook is in nbformat {version}, which is newer than Limoniter knows. You can still see and edit it as text.	Este notebook está en nbformat {version}, más reciente de lo que Limoniter conoce. Aun así puede verlo y editarlo como texto.
+What the chosen cell is	Qué es la celda elegida
+What went wrong with the kernel	Qué salió mal con el kernel
+Which kernel runs this notebook's code	Qué kernel ejecuta el código de este notebook
+cell {number} has the type {}	La celda {number} es de tipo {}
+cell {number} isn't an object	La celda {number} no es un objeto
+it has no list of cells	no tiene una lista de celdas
+it has no nbformat number	no tiene un número de nbformat
+it isn't a JSON object	no es un objeto JSON
+{count} hidden	{count} ocultos
+{name} at the last commit, cell by cell	{name} en el último commit, celda por celda
+{name} now, cell by cell	{name} ahora, celda por celda
+{name} wasn't in that commit.	{name} no estaba en ese commit.
+Close the others	Cerrar los demás
+Ctrl+W	Ctrl+W
+Close (Esc)	Cerrar (Esc)

@@ -41,7 +41,7 @@ impl Limoniter {
         let ay = editor.chip() == crate::sfx::Chip::Ay;
         match asked {
             Asked::Open => {
-                let mut dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Open sound effects"));
+                let mut dialog = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open sound effects"));
                 if ay {
                     dialog = dialog.add_filter(crate::i18n::tr("AYFX banks and effects"), &["afb", "afx"]);
                 }
@@ -71,14 +71,14 @@ impl Limoniter {
             Asked::Insert => self.insert_from_tool(TITLE, &editor.source()?),
             Asked::SaveSource => {
                 let source = editor.source()?;
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the source")).set_file_name(format!("{name}.asm")).add_filter(crate::i18n::tr("Source"), &["asm", "s", "a", "inc"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the source")).set_file_name(format!("{name}.asm")).add_filter(crate::i18n::tr("Source"), &["asm", "s", "a", "inc"]).save_file() {
                     write(&path, crate::i18n::comments(&source).as_bytes())?;
                 }
             }
             Asked::SaveBank => {
                 let bytes = editor.bank.bytes()?;
                 let (title, extension, kind) = if ay { ("Save the AYFX bank", "afb", "AYFX bank") } else { ("Save the bytes", "bin", "Bytes") };
-                if let Some(path) = rfd::FileDialog::new().set_title(title).set_file_name(format!("{name}.{extension}")).add_filter(kind, &[extension]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(title).set_file_name(format!("{name}.{extension}")).add_filter(kind, &[extension]).save_file() {
                     write(&path, &bytes)?;
                 }
             }

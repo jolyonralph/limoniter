@@ -411,7 +411,6 @@ mod tests {
     use super::*;
     use crate::media::acorn::tests::bbc_program;
     use std::path::Path;
-    use std::process::Command;
 
     fn add(disk: &mut Dfs, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         let addition = disk.guess(name, bytes);
@@ -530,7 +529,7 @@ mod tests {
         let (disk, code) = sample();
         let path = dir.join("t.ssd");
         std::fs::write(&path, disk.bytes()).unwrap();
-        let info = Command::new("perl").arg(tools.join("info.pl")).arg(&path).output().unwrap();
+        let info = crate::platform::command("perl").arg(tools.join("info.pl")).arg(&path).output().unwrap();
         let info = String::from_utf8_lossy(&info.stdout);
         assert!(info.contains("Disk title: REF"), "{info}");
         let line = |name: &str| info.lines().find(|l| l.starts_with(name)).map(|l| l.split_whitespace().skip(1).collect::<Vec<_>>().join(" ")).unwrap_or_default();
@@ -538,7 +537,7 @@ mod tests {
         assert_eq!(line("$.prog"), format!("FF1900 FF8023 {:06X} 002", bbc_program().len()), "{info}");
         assert_eq!(line("T.README"), "000000 000000 000006 007", "{info}");
         let out = dir.join("out");
-        let got = Command::new("perl").arg(tools.join("getfile.pl")).arg(&path).arg(&out).output().unwrap();
+        let got = crate::platform::command("perl").arg(tools.join("getfile.pl")).arg(&path).arg(&out).output().unwrap();
         assert!(got.status.success(), "{}", String::from_utf8_lossy(&got.stderr));
         assert_eq!(std::fs::read(out.join("C.CODE")).unwrap(), code);
         // Files in the $ directory come out without it.
@@ -557,11 +556,11 @@ mod tests {
         let (disk, code) = sample();
         let path = dir.join("t.ssd");
         std::fs::write(&path, disk.bytes()).unwrap();
-        let listed = Command::new(beebtools).arg("cat").arg(&path).output().unwrap();
+        let listed = crate::platform::command(beebtools).arg("cat").arg(&path).output().unwrap();
         let listed = String::from_utf8_lossy(&listed.stdout).to_string();
         assert!(listed.contains("C.CODE") && listed.contains("3000") && listed.contains("prog"), "{listed}");
         let out = dir.join("code.bin");
-        let got = Command::new(beebtools).arg("extract").arg(&path).arg("C.CODE").arg("-o").arg(&out).output().unwrap();
+        let got = crate::platform::command(beebtools).arg("extract").arg(&path).arg("C.CODE").arg("-o").arg(&out).output().unwrap();
         assert!(got.status.success(), "{}", String::from_utf8_lossy(&got.stderr));
         assert_eq!(std::fs::read(&out).unwrap(), code);
 
@@ -571,7 +570,7 @@ mod tests {
         add(&mut two, Some(&sides[1]), "BACK", &code);
         let path = dir.join("t.dsd");
         std::fs::write(&path, two.bytes()).unwrap();
-        let listed = Command::new(beebtools).arg("cat").arg(&path).output().unwrap();
+        let listed = crate::platform::command(beebtools).arg("cat").arg(&path).output().unwrap();
         let listed = String::from_utf8_lossy(&listed.stdout).to_string();
         assert!(listed.contains("BACK"), "{listed}");
         std::fs::remove_dir_all(dir).ok();

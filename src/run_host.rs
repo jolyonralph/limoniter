@@ -550,7 +550,7 @@ impl Limoniter {
         let log = folder.join("emulator.log");
         let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
         let err = out.try_clone().map_err(|e| e.to_string())?;
-        let mut command = std::process::Command::new(&program);
+        let mut command = crate::platform::command(&program);
         if debugging && hatari {
             command.args(&args).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
             drop(err);

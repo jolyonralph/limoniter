@@ -463,7 +463,7 @@ fn mame_hears(rom: &[u8], pal: bool, seconds: u32) -> Option<(Vec<f32>, u32)> {
     let folder = std::env::temp_dir().join(format!("limoniter-sfx-{}-{pal}", std::process::id()));
     std::fs::create_dir_all(&folder).unwrap();
     std::fs::write(folder.join("cart.bin"), rom).unwrap();
-    let output = std::process::Command::new(program)
+    let output = crate::platform::headless(program)
         .args([if pal { "a2600p" } else { "a2600" }, "-cart", "cart.bin", "-video", "none", "-sound", "none", "-wavwrite", "out.wav", "-seconds_to_run", &seconds.to_string(), "-nothrottle", "-skip_gameinfo", "-nvram_directory", "nv", "-cfg_directory", "cfg"])
         .current_dir(&folder)
         .output()
@@ -570,7 +570,7 @@ fn vice_plays_the_sid_s_effects_as_they_sound_here() {
     let prg = dir.join("sfx.prg");
     std::fs::write(&prg, crate::asm::output::commodore_program(&assembly).unwrap()).unwrap();
     let wav = dir.join("out.wav");
-    let status = std::process::Command::new(&vice)
+    let status = crate::platform::command(&vice)
         .arg("-default")
         .args(options.split_whitespace())
         // Its sound written as it's made: only when the WAV file is the sound device, and not in warp mode.

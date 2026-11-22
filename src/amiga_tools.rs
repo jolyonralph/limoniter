@@ -549,13 +549,8 @@ pub fn group(n: u64) -> String {
 /// Runs a tool in a folder until it finishes or `stop` is set, collecting what it printed. It's meant for a
 /// thread of its own: Shrinkler's highest presets can take minutes on a big program.
 pub fn run(program: &Path, args: &[String], folder: &Path, stop: &AtomicBool) -> Result<(bool, Vec<String>), String> {
-    let mut command = std::process::Command::new(program);
+    let mut command = crate::platform::command(program);
     command.args(args).current_dir(folder).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
-    }
     let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", program.display()))?;
     // Read as it goes, so a tool that prints a lot never stops waiting for room to print.
     let reader = |pipe: Option<Box<dyn Read + Send>>| {

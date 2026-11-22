@@ -209,7 +209,7 @@ impl Limoniter {
                 window.note = None;
             }
             Asked::SendChosen => {
-                let picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Files to send"));
+                let picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Files to send"));
                 let chosen = if prefs.protocol == Protocol::Ymodem { picker.pick_files().unwrap_or_default() } else { picker.pick_file().into_iter().collect() };
                 if chosen.is_empty() {
                     return;
@@ -242,7 +242,7 @@ impl Limoniter {
             Asked::StartLog => {
                 let Some(session) = &window.session else { return };
                 let ending = if window.log_kind == LogKind::Raw { "bin" } else { "txt" };
-                let picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Log to a file")).set_file_name(format!("serial-{}.{ending}", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+                let picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Log to a file")).set_file_name(format!("serial-{}.{ending}", chrono::Local::now().format("%Y%m%d-%H%M%S")));
                 if let Some(path) = picker.save_file()
                     && let Err(problem) = session.log_to(Some((&path, window.log_kind)))
                 {
@@ -263,7 +263,7 @@ impl Limoniter {
             }
             Asked::Save(index) => {
                 if let Some(file) = window.received.get(index) {
-                    let picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the file received")).set_file_name(file.name.clone().unwrap_or_else(|| "received.bin".into()));
+                    let picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the file received")).set_file_name(file.name.clone().unwrap_or_else(|| "received.bin".into()));
                     if let Some(path) = picker.save_file()
                         && let Err(e) = std::fs::write(&path, &file.data)
                     {

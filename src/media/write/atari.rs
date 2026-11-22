@@ -520,7 +520,6 @@ impl Disk {
 mod tests {
     use super::super::tests::{entry, names, reopened, tool};
     use super::*;
-    use std::process::Command;
 
     fn add(disk: &mut Disk, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         disk.add(folder, &Addition { name: name.into(), bytes: bytes.to_vec(), ..Default::default() }).unwrap();
@@ -616,10 +615,10 @@ mod tests {
             add(&mut disk, None, "big.dat", &big);
             let path = dir.join(format!("t{enhanced}.atr"));
             std::fs::write(&path, disk.bytes()).unwrap();
-            let listed = Command::new(atrcopy).arg(&path).arg("list").output().unwrap();
+            let listed = crate::platform::command(atrcopy).arg(&path).arg("list").output().unwrap();
             let listed = format!("{}{}", String::from_utf8_lossy(&listed.stdout), String::from_utf8_lossy(&listed.stderr));
             assert!(listed.contains("SMALL") && listed.contains("BIG"), "{listed}");
-            let out = Command::new(atrcopy).current_dir(&dir).arg(&path).arg("extract").arg("BIG.DAT").arg("SMALL.TXT").output().unwrap();
+            let out = crate::platform::command(atrcopy).current_dir(&dir).arg(&path).arg("extract").arg("BIG.DAT").arg("SMALL.TXT").output().unwrap();
             assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
             assert_eq!(std::fs::read(dir.join("BIG.DAT")).unwrap(), big, "enhanced {enhanced}");
             assert_eq!(std::fs::read(dir.join("SMALL.TXT")).unwrap(), b"HELLO\x9B");
@@ -643,11 +642,11 @@ mod tests {
         add(&mut disk, None, "big.dat", &big);
         let path = dir.join("m.atr");
         std::fs::write(&path, disk.bytes()).unwrap();
-        let listed = Command::new(&lsatr).arg(&path).output().unwrap();
+        let listed = crate::platform::command(&lsatr).arg(&path).output().unwrap();
         let listed = format!("{}{}", String::from_utf8_lossy(&listed.stdout), String::from_utf8_lossy(&listed.stderr));
         assert!(listed.contains("MyDOS") && listed.contains("1440 sectors") && !listed.contains("invalid"), "{listed}");
         let out = dir.join("out");
-        let done = Command::new(&lsatr).arg("-X").arg(&out).arg(&path).output().unwrap();
+        let done = crate::platform::command(&lsatr).arg("-X").arg(&out).arg(&path).output().unwrap();
         assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
         assert_eq!(std::fs::read(out.join("BIG.DAT")).unwrap(), big);
         assert_eq!(std::fs::read(out.join("DOCS/README.TXT")).unwrap(), b"READ ME\x9B");

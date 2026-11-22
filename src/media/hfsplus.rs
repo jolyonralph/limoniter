@@ -1649,7 +1649,7 @@ pub mod tests {
     /// 7-Zip's own command-line 7-Zip, if it's installed: LIMONITER_7ZZ, or `7zz` on the path.
     pub fn modern_7zip() -> Option<String> {
         let modern = std::env::var("LIMONITER_7ZZ").unwrap_or_else(|_| "7zz".into());
-        std::process::Command::new(&modern).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok().then_some(modern)
+        crate::platform::command(&modern).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok().then_some(modern)
     }
 
     /// The test volume, compressed files and all, reads the same in 7-Zip as here, so the layouts it's built with are
@@ -1694,7 +1694,7 @@ pub mod tests {
         let seven = modern_7zip()?;
         let out = std::env::temp_dir().join(format!("limoniter-7z-{}-{}", std::process::id(), image.file_name()?.to_string_lossy()));
         let _ = std::fs::remove_dir_all(&out);
-        let mut command = std::process::Command::new(seven);
+        let mut command = crate::platform::command(seven);
         command.arg("x").arg("-y").arg("-sns").arg("-snld").arg(format!("-o{}", out.display()));
         command.arg(image).stdout(quiet()).stderr(quiet()).status().ok()?;
         let mut files = BTreeMap::new();

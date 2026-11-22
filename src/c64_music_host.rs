@@ -326,7 +326,7 @@ impl Limoniter {
                 state.result = Some(made);
             }
             Act::Choose(tool) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
                     && let Dialog::C64Tools(state) = &mut self.dialog
                 {
                     state.prefs.set_path(tool, Some(path));
@@ -340,7 +340,7 @@ impl Limoniter {
                 }
             }
             Act::Folder => {
-                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
+                if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
                     && let Dialog::C64Tools(state) = &mut self.dialog
                     && let Some(source) = &mut state.source
                 {

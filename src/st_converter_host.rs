@@ -82,7 +82,7 @@ impl Limoniter {
         let file_name = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let name = c.name.clone();
         let save = |title: &str, file: String, filter: Option<(&str, &[&str])>| {
-            let mut dialog = rfd::FileDialog::new().set_title(title).set_file_name(file);
+            let mut dialog = crate::sys_dialogs::file_dialog().set_title(title).set_file_name(file);
             if let Some((label, endings)) = filter {
                 dialog = dialog.add_filter(label, endings);
             }
@@ -90,13 +90,13 @@ impl Limoniter {
         };
         match asked {
             Asked::OpenPicture => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), &["png", "jpg", "jpeg", "iff", "ilbm", "lbm", "pcx", "neo", "pi1", "pi2", "pi3", "pc1", "pc2", "pc3", "spu", "spc"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a picture to convert")).add_filter(crate::i18n::tr("Pictures"), &["png", "jpg", "jpeg", "iff", "ilbm", "lbm", "pcx", "neo", "pi1", "pi2", "pi3", "pc1", "pc2", "pc3", "spu", "spc"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let image = crate::quantise::read_picture(&file_name(&path), &read(&path)?).map_err(|e| crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display()))?;
                     c.set_picture(&file_name(&path), image);
                 }
             }
             Asked::OpenPalette => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a palette")).add_filter(crate::i18n::tr("Palettes"), &["pal", "pi1", "pi2", "pc1", "neo", "s", "asm", "i", "c", "h", "txt", "iff", "gpl", "raw", "bin"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a palette")).add_filter(crate::i18n::tr("Palettes"), &["pal", "pi1", "pi2", "pc1", "neo", "s", "asm", "i", "c", "h", "txt", "iff", "gpl", "raw", "bin"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let colours = st::read_palette(&read(&path)?).ok_or_else(|| crate::i18n::tf!("No palette was found in {}.", path.display()))?;
                     c.settings.keep_given = colours.len().min(1 << c.settings.settled().screen.planes().min(8));
                     c.settings.given = colours;
@@ -106,7 +106,7 @@ impl Limoniter {
                 }
             }
             Asked::OpenRaw => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open raw ST planes")).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open raw ST planes")).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let bytes = read(&path)?;
                     let rows = c.raw.rows_in(bytes.len());
                     if rows > 0 {
@@ -176,7 +176,7 @@ impl Limoniter {
                         }
                     }
                     Asked::SaveAll => {
-                        if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
+                        if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
                             for (file, bytes) in &all {
                                 write(&folder.join(file), bytes)?;
                             }

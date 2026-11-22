@@ -85,7 +85,7 @@ impl Limoniter {
     fn boot_disk_asked(&mut self, bd: &mut BootDisk, asked: Asked) -> Result<(), String> {
         let folder = bd.path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
         let picker = |title: &str| {
-            let picker = rfd::FileDialog::new().set_title(crate::i18n::tr(title));
+            let picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr(title));
             match &folder {
                 Some(f) => picker.set_directory(f),
                 None => picker,

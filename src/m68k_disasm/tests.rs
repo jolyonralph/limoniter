@@ -207,7 +207,7 @@ fn vasm_assembles_it_the_same() {
     let folder = std::env::temp_dir().join(format!("limoniter-vasm-{}", std::process::id()));
     std::fs::create_dir_all(&folder).unwrap();
     std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
-    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    let status = crate::platform::command(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
     assert!(status.success());
     assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
     let _ = std::fs::remove_dir_all(folder);
@@ -340,7 +340,7 @@ fn vasm_assembles_the_68020s_the_same() {
     let folder = std::env::temp_dir().join(format!("limoniter-vasm020-{}", std::process::id()));
     std::fs::create_dir_all(&folder).unwrap();
     std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
-    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    let status = crate::platform::command(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
     assert!(status.success());
     assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
     let _ = std::fs::remove_dir_all(folder);
@@ -507,7 +507,7 @@ fn plain_vasm_makes_the_same_program() {
         let source = disassemble(&program);
         assert!(source.contains("        opt     o-"), "{source}");
         std::fs::write(folder.join("t.s"), &source).unwrap();
-        let status = std::process::Command::new(&vasm).args(["-quiet", "-Fhunkexe", "-o"]).arg(folder.join("t.exe")).arg(folder.join("t.s")).status().unwrap();
+        let status = crate::platform::command(&vasm).args(["-quiet", "-Fhunkexe", "-o"]).arg(folder.join("t.exe")).arg(folder.join("t.s")).status().unwrap();
         assert!(status.success(), "{source}");
         assert_eq!(hunks_of(&std::fs::read(folder.join("t.exe")).unwrap()), hunks_of(&file), "{name}:\n{source}");
     }
@@ -541,7 +541,7 @@ fn a_real_demo_comes_back_the_same() {
             let out = std::env::temp_dir().join(format!("limoniter-mulater-{}", std::process::id()));
             std::fs::create_dir_all(&out).unwrap();
             std::fs::write(out.join("t.s"), &source).unwrap();
-            let status = std::process::Command::new(&vasm).args(["-quiet", "-Fhunkexe", "-o"]).arg(out.join("t.exe")).arg(out.join("t.s")).status().unwrap();
+            let status = crate::platform::command(&vasm).args(["-quiet", "-Fhunkexe", "-o"]).arg(out.join("t.exe")).arg(out.join("t.s")).status().unwrap();
             assert!(status.success(), "{cpu:?}: vasm");
             assert_eq!(hunks_of(&std::fs::read(out.join("t.exe")).unwrap()), original, "{cpu:?}: vasm");
             let _ = std::fs::remove_dir_all(out);
@@ -596,7 +596,7 @@ fn vasm_assembles_the_fpus_the_same() {
     let folder = std::env::temp_dir().join(format!("limoniter-vasmfpu-{}", std::process::id()));
     std::fs::create_dir_all(&folder).unwrap();
     std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
-    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    let status = crate::platform::command(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
     assert!(status.success());
     assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
     let _ = std::fs::remove_dir_all(folder);
@@ -772,7 +772,7 @@ fn vasm_assembles_the_mmus_the_same() {
     let folder = std::env::temp_dir().join(format!("limoniter-vasmmmu-{}", std::process::id()));
     std::fs::create_dir_all(&folder).unwrap();
     std::fs::write(folder.join("t.s"), lines.join("\n") + "\n").unwrap();
-    let status = std::process::Command::new(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
+    let status = crate::platform::command(vasm).args(["-quiet", "-no-opt", "-Fbin", "-o"]).arg(folder.join("t.bin")).arg(folder.join("t.s")).status().unwrap();
     assert!(status.success());
     assert_eq!(std::fs::read(folder.join("t.bin")).unwrap(), bytes.to_vec());
     let _ = std::fs::remove_dir_all(folder);

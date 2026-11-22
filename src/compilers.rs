@@ -422,15 +422,10 @@ pub fn read_intel_hex(text: &str) -> Option<(u32, Vec<u8>)> {
 /// Runs a program in a folder with some variables set, giving up after `limit`: whether it succeeded, and what it
 /// printed.
 pub(crate) fn run(program: &Path, args: &[String], folder: &Path, env: &[(String, String)], limit: Duration) -> Result<(bool, Vec<String>), String> {
-    let mut command = std::process::Command::new(program);
+    let mut command = crate::platform::command(program);
     command.args(args).current_dir(folder).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     for (name, value) in env {
         command.env(name, value);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
     }
     let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", program.display()))?;
     // What it prints is read as it goes, so a long build's output can't fill the pipe and stop it.

@@ -187,6 +187,11 @@ mod c64_raster;
 mod c64_irq;
 mod c64_starters;
 mod profiler;
+mod jupyter;
+mod sys_dialogs;
+mod notebook;
+mod notebook_output;
+mod notebook_run;
 mod lsp;
 mod dap;
 mod doc_comments;
@@ -287,7 +292,7 @@ pub fn crash_log() -> std::path::PathBuf {
 
 /// Says what happened, and that the edits are safe.
 pub fn tell_about_crash() {
-    rfd::MessageDialog::new()
+    crate::sys_dialogs::message_dialog()
         .set_title(crate::i18n::tr("Limoniter"))
         .set_level(rfd::MessageLevel::Error)
         .set_description(crate::i18n::tf!("Limoniter ran into a problem and has to close.\n\nYour unsaved changes have been kept, and will be offered back the next time Limoniter starts.\n\nDetails are in {}",

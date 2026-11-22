@@ -399,7 +399,7 @@ impl Limoniter {
             }
         }
         if let Some(bytes) = save
-            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Punch a BIN tape")).add_filter(crate::i18n::tr("PDP-8 BIN tapes"), &["bin"]).set_file_name(format!("{}.bin", run.name.rsplit_once('.').map_or(run.name.as_str(), |(stem, _)| stem))).save_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Punch a BIN tape")).add_filter(crate::i18n::tr("PDP-8 BIN tapes"), &["bin"]).set_file_name(format!("{}.bin", run.name.rsplit_once('.').map_or(run.name.as_str(), |(stem, _)| stem))).save_file()
         {
             machine.note = Some(match std::fs::write(&path, bytes) {
                 Ok(()) => crate::i18n::tf!("Punched to {}.", path.display()),
@@ -671,7 +671,7 @@ fn pdp8_panel(ui: &mut Ui, pdp: &mut crate::pdp8::Pdp8, assembly: Option<&crate:
     let mut punch = None;
     ui.horizontal_wrapped(|ui| {
         if ui.small_button(crate::i18n::tr("Read a paper tape\u{2026}")).on_hover_text(crate::i18n::tr("Reads a RIM or BIN tape into memory, as DEC's loaders did: your own, or FOCAL or BASIC if you have them")).clicked()
-            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Read a paper tape")).add_filter(crate::i18n::tr("PDP-8 paper tapes"), &["bin", "rim", "bn", "pt"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Read a paper tape")).add_filter(crate::i18n::tr("PDP-8 paper tapes"), &["bin", "rim", "bn", "pt"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file()
         {
             load = std::fs::read(path).ok();
         }

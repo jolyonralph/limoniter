@@ -241,7 +241,7 @@ impl Limoniter {
             Asked::Nothing => {}
             Asked::Ndk => self.open_ndk_box(),
             Asked::ChooseMui => {
-                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("MUI's Autodocs folder")).pick_folder() {
+                if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("MUI's Autodocs folder")).pick_folder() {
                     reader.said = match crate::autodocs::choose_mui(Some(&folder)) {
                         Ok(pages) => crate::i18n::tf!("{pages} pages of MUI's autodocs read from {}.", folder.display()),
                         Err(problem) => problem,

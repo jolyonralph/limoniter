@@ -200,7 +200,7 @@ message\tequ\t$60000
     )
     .unwrap();
     let log = std::fs::File::create(folder.join("fs-uae.log")).unwrap();
-    let mut child = std::process::Command::new(&emulator).arg(&config).arg("--log_to_stdout=1").stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap();
+    let mut child = crate::platform::command(&emulator).arg(&config).arg("--log_to_stdout=1").stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap();
     let began = std::time::Instant::now();
     let mut said = String::new();
     while began.elapsed() < std::time::Duration::from_secs(40) && !said.contains('\n') {

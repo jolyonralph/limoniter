@@ -22,15 +22,10 @@ pub struct Global {
 
 impl Global {
     fn git(&self) -> Command {
-        let mut command = Command::new(crate::git::program().unwrap_or_else(|| PathBuf::from("git")));
+        let mut command = crate::platform::command(crate::git::program().unwrap_or_else(|| PathBuf::from("git")));
         command.arg("config").arg("--global").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
         if let Some(file) = &self.file {
             command.env("GIT_CONFIG_GLOBAL", file);
-        }
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000);
         }
         command
     }

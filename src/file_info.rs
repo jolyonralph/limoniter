@@ -91,7 +91,7 @@ pub fn owner(file: &Path) -> Option<String> {
     use std::os::unix::fs::MetadataExt;
     let uid = std::fs::metadata(file).ok()?.uid();
     // `id` asks the system's own user directory, which on a Mac or with LDAP isn't /etc/passwd.
-    let output = std::process::Command::new("id").args(["-nu", &uid.to_string()]).output().ok();
+    let output = crate::platform::command("id").args(["-nu", &uid.to_string()]).output().ok();
     match output.filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()) {
         Some(name) if !name.is_empty() => Some(name),
         _ => Some(format!("User {uid}")),
@@ -123,7 +123,7 @@ pub fn opens_with(_file: &Path) -> Option<String> {
 #[cfg(not(any(windows, target_os = "macos")))]
 pub fn opens_with(file: &Path) -> Option<String> {
     let ask = |args: &[&std::ffi::OsStr]| -> Option<String> {
-        let output = std::process::Command::new("xdg-mime").args(args).output().ok().filter(|o| o.status.success())?;
+        let output = crate::platform::command("xdg-mime").args(args).output().ok().filter(|o| o.status.success())?;
         Some(String::from_utf8_lossy(&output.stdout).trim().to_string()).filter(|s| !s.is_empty())
     };
     let kind = ask(&["query".as_ref(), "filetype".as_ref(), file.as_os_str()])?;

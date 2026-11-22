@@ -87,7 +87,7 @@ pub(super) fn save_tile_map(editor: &mut Editor, path: &Path) -> Result<(), Stri
 fn tile_map_asked(editor: &mut Editor, asked: Asked) -> Result<(), String> {
     match asked {
         Asked::Open => {
-            if let Some(path) = rfd::FileDialog::new()
+            if let Some(path) = crate::sys_dialogs::file_dialog()
                 .set_title(crate::i18n::tr("Open a tile map"))
                 .add_filter(crate::i18n::tr("Tile maps and CharPad projects"), &["ltm", "ctm"])
                 .add_filter(crate::i18n::tr("Any file"), &["*"])
@@ -103,7 +103,7 @@ fn tile_map_asked(editor: &mut Editor, asked: Asked) -> Result<(), String> {
         }
         Asked::Save | Asked::SaveAs => {
             let ctm = editor.project.mode.c64();
-            let mut dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the tile map")).set_file_name(format!("{}.ltm", editor.label)).add_filter(crate::i18n::tr("Tile map"), &["ltm"]);
+            let mut dialog = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the tile map")).set_file_name(format!("{}.ltm", editor.label)).add_filter(crate::i18n::tr("Tile map"), &["ltm"]);
             if ctm {
                 dialog = dialog.add_filter(crate::i18n::tr("CharPad project"), &["ctm"]);
             }
@@ -112,7 +112,7 @@ fn tile_map_asked(editor: &mut Editor, asked: Asked) -> Result<(), String> {
             }
         }
         Asked::SaveBinaries => {
-            if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the binary files into a folder")).pick_folder() {
+            if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the binary files into a folder")).pick_folder() {
                 let files = editor.project.binaries(&editor.label, &editor.parts, editor.big_endian);
                 for (name, bytes) in &files {
                     let path = folder.join(name);

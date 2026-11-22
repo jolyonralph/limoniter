@@ -196,7 +196,7 @@ impl Limoniter {
     pub(super) fn open_disassemble_box(&mut self) {
         // With nothing open, the file to disassemble is asked for, and opened.
         if self.no_file() {
-            let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("A program to disassemble")).pick_file() else {
+            let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A program to disassemble")).pick_file() else {
                 return;
             };
             if !self.open_path(&path) || self.no_file() {

@@ -651,7 +651,7 @@ pub mod tests {
         for path in files {
             let tune = read(&std::fs::read(&path).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let wav = std::env::temp_dir().join(format!("limoniter-sid-{}.wav", std::process::id()));
-            let Ok(out) = std::process::Command::new("sidplayfp").arg("-v").arg("-t1").arg(format!("-w{}", wav.display())).arg(&path).output() else {
+            let Ok(out) = crate::platform::command("sidplayfp").arg("-v").arg("-t1").arg(format!("-w{}", wav.display())).arg(&path).output() else {
                 eprintln!("{}: {} by {}, sidplayfp not installed", path.display(), tune.name, tune.author);
                 continue;
             };
@@ -768,13 +768,13 @@ pub mod tests {
             // Not in warp, which records no sound: seven million cycles, about seven seconds.
             args.extend(["-limitcycles", "7000000", "-autostartprgmode", "1", "-autostart"].map(String::from));
             args.push(prg.display().to_string());
-            let xvfb = std::process::Command::new("xvfb-run").arg("--help").output().is_ok();
+            let xvfb = crate::platform::command("xvfb-run").arg("--help").output().is_ok();
             let mut command = if xvfb {
-                let mut c = std::process::Command::new("xvfb-run");
+                let mut c = crate::platform::command("xvfb-run");
                 c.arg("-a").arg("x64sc");
                 c
             } else {
-                std::process::Command::new("x64sc")
+                crate::platform::command("x64sc")
             };
             let Ok(_) = command.args(&args).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status() else {
                 eprintln!("x64sc couldn't be started, so no tune was played.");

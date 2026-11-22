@@ -281,7 +281,7 @@ impl Limoniter {
                 Err(problem) => wizard.said = Some((problem, true)),
             },
             Some(Do::ChooseFolder) => {
-                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Choose the folder")).pick_folder() {
+                if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Choose the folder")).pick_folder() {
                     wizard.ignore = git::suggested_ignore(&folder);
                     wizard.folder = Some(folder);
                 }

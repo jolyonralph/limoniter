@@ -508,7 +508,7 @@ impl Limoniter {
         };
         let doc = &self.docs[self.active];
         let extension = doc.path.as_deref().and_then(Path::extension).map(|ext| format!(".{}", ext.to_string_lossy())).unwrap_or_else(|| ".txt".into());
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the selection as")).set_file_name(format!("selection{extension}"));
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the selection as")).set_file_name(format!("selection{extension}"));
         if let Some(folder) = doc.path.as_deref().and_then(Path::parent) {
             picker = picker.set_directory(folder);
         }
@@ -544,7 +544,7 @@ impl Limoniter {
             Target::Rtf => "RTF",
             Target::Csv => "CSV",
         };
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tf!("Save as {kind}")).set_file_name(format!("{stem}.{}", target.ending()));
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("Save as {kind}")).set_file_name(format!("{stem}.{}", target.ending()));
         if let Some(folder) = folder {
             picker = picker.set_directory(folder);
         }
@@ -573,7 +573,7 @@ impl Limoniter {
             Ok(png) => png,
             Err(problem) => return self.message("Save as PNG", problem),
         };
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the picture as PNG")).set_file_name(crate::pictures::png_name(&name)).add_filter(crate::i18n::tr("PNG picture"), &["png"]);
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the picture as PNG")).set_file_name(crate::pictures::png_name(&name)).add_filter(crate::i18n::tr("PNG picture"), &["png"]);
         if let Some(folder) = folder {
             picker = picker.set_directory(folder);
         }
@@ -684,7 +684,7 @@ impl Limoniter {
             Ok(made) => made,
             Err(problem) => return self.message("Tokenise BASIC", crate::i18n::tf!("The program couldn't be tokenised, so nothing was saved.\n\n{problem}")),
         };
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tf!("Save as a {kind}")).set_file_name(format!("{stem}.{extension}")).add_filter(kind, &[extension]);
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("Save as a {kind}")).set_file_name(format!("{stem}.{extension}")).add_filter(kind, &[extension]);
         if let Some(folder) = doc.path.as_deref().and_then(Path::parent) {
             picker = picker.set_directory(folder);
         }

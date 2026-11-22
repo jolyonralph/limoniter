@@ -377,13 +377,8 @@ fn unpack_arguments(target: &Path) -> Vec<std::ffi::OsString> {
 /// Runs a 7-Zip archive that unpacks itself, into a folder, waiting for it as long as it should take at most.
 /// 7-Zip shows how far it's got in a little window of its own while it works.
 fn unpack_itself(archive: &Path, target: &Path) -> Result<(), String> {
-    let mut command = std::process::Command::new(archive);
+    let mut command = crate::platform::command(archive);
     command.args(unpack_arguments(target)).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
-    }
     let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", archive.display()))?;
     let started = std::time::Instant::now();
     loop {

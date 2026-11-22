@@ -41,8 +41,13 @@ pub fn table_id() -> Id {
     Id::unique("limoniter-table")
 }
 
+/// The focus id of a notebook, whose cells are in command mode (no cell is being typed in).
+pub fn notebook_id() -> Id {
+    Id::unique("limoniter-notebook")
+}
+
 pub fn is_editor_id(id: Id) -> bool {
-    id == pane_id(0) || id == pane_id(1) || id == table_id()
+    id == pane_id(0) || id == pane_id(1) || id == table_id() || id == notebook_id()
 }
 
 /// One stretch of hidden lines, and how many lines show before it.

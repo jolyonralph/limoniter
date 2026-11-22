@@ -669,6 +669,9 @@ impl Limoniter {
         let Some((root, relative)) = self.git_file() else {
             return self.message("Compare with a commit", crate::i18n::tr("This file isn't in a Git repository.").into());
         };
+        if let Some(path) = self.docs[self.active].path.clone().filter(|p| notebook_host::is_notebook_name(p)) {
+            return self.compare_notebook(&path, revision, false);
+        }
         let Some(bytes) = git::file_at(&root, revision, &relative) else {
             return self.message("Compare with a commit", crate::i18n::tr("This file wasn't in that commit.").into());
         };

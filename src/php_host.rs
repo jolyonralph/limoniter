@@ -828,15 +828,10 @@ impl Limoniter {
 /// errors on the screen and not in a log, so they're printed once.
 fn lint_with(php: &Path, file: Option<&Path>, text: Option<&[u8]>) -> Result<Vec<php_tools::LintProblem>, String> {
     use std::io::Write;
-    let mut command = std::process::Command::new(php);
+    let mut command = crate::platform::command(php);
     command.args(["-n", "-d", "display_errors=1", "-d", "log_errors=0", "-l"]);
     if let Some(file) = file {
         command.arg(file);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
     }
     command.stdin(if text.is_some() { std::process::Stdio::piped() } else { std::process::Stdio::null() }).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     let mut child = command.spawn().map_err(|e| crate::i18n::tf!("PHP couldn't be run: {e}"))?;
@@ -1035,7 +1030,7 @@ mod tests {
         ];
         for sample in samples {
             let run = |bytes: &[u8]| {
-                let mut child = std::process::Command::new(&php).args(["-n", "-d", "display_errors=1"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
+                let mut child = crate::platform::command(&php).args(["-n", "-d", "display_errors=1"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
                 std::io::Write::write_all(&mut child.stdin.take().unwrap(), bytes).unwrap();
                 child.wait_with_output().unwrap().stdout
             };

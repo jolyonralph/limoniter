@@ -417,7 +417,7 @@ mod tests {
         for path in paths {
             let bytes = std::fs::read(&path).unwrap();
             let crt = Crt::open(Arc::new(bytes)).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let Ok(out) = std::process::Command::new("cartconv").arg("-f").arg(&path).output() else {
+            let Ok(out) = crate::platform::command("cartconv").arg("-f").arg(&path).output() else {
                 eprintln!("cartconv isn't installed, so nothing was compared.");
                 return;
             };

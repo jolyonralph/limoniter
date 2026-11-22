@@ -43,7 +43,7 @@ impl Limoniter {
         if !self.is_spectrum_basic(self.active) {
             return self.message("UDG pictures", crate::i18n::tr("UDG pictures are for Spectrum BASIC listings.").into());
         }
-        let mut picker = rfd::FileDialog::new()
+        let mut picker = crate::sys_dialogs::file_dialog()
             .set_title(crate::i18n::tr("Take the UDGs' pictures from"))
             .add_filter(crate::i18n::tr("Tapes, snapshots and UDG data"), &["tap", "tzx", "sna", "z80", "udg", "bin", "chr"])
             .add_filter(crate::i18n::tr("Any file"), &["*"]);

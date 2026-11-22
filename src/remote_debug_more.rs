@@ -460,7 +460,7 @@ pub fn talk_hatari(mut console: Console, child_id: u32, breakpoints: Vec<u16>, a
 fn interrupt(child_id: u32) {
     #[cfg(unix)]
     {
-        let _ = std::process::Command::new("kill").args(["-INT", &child_id.to_string()]).status();
+        let _ = crate::platform::command("kill").args(["-INT", &child_id.to_string()]).status();
     }
     #[cfg(not(unix))]
     let _ = child_id;

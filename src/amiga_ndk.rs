@@ -504,7 +504,7 @@ mod tests {
         let work = std::env::temp_dir().join(format!("limoniter-vasm-program-{}", std::process::id()));
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("t.s"), format!("\tinclude \"lvo/exec_lib.i\"\n{program}")).unwrap();
-        let done = std::process::Command::new(vasm).args(["-Fbin", "-quiet", "-no-opt", "-o"]).arg(work.join("t.bin")).arg(format!("-I{}", headers.display())).arg(work.join("t.s")).output().unwrap();
+        let done = crate::platform::command(vasm).args(["-Fbin", "-quiet", "-no-opt", "-o"]).arg(work.join("t.bin")).arg(format!("-I{}", headers.display())).arg(work.join("t.s")).output().unwrap();
         assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
         let theirs = std::fs::read(work.join("t.bin")).unwrap();
         let _ = std::fs::remove_dir_all(&work);
@@ -554,7 +554,7 @@ mod tests {
             let Some(vasm) = &vasm else { continue };
             std::fs::write(work.join("t.s"), &source).unwrap();
             let listing = work.join("t.lst");
-            let status = std::process::Command::new(vasm).args(["-Fbin", "-quiet", "-o"]).arg(work.join("t.bin")).arg(format!("-I{}", headers.display())).arg("-L").arg(&listing).arg(work.join("t.s")).output().unwrap();
+            let status = crate::platform::command(vasm).args(["-Fbin", "-quiet", "-o"]).arg(work.join("t.bin")).arg(format!("-I{}", headers.display())).arg("-L").arg(&listing).arg(work.join("t.s")).output().unwrap();
             if !status.status.success() {
                 continue;
             }

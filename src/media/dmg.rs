@@ -866,7 +866,7 @@ pub mod tests {
             std::fs::create_dir_all(&out).unwrap();
             // dmg2img knows neither LZFSE nor MacBinary.
             let whole = out.join("whole.img");
-            if start == 0 && !methods.contains("LZFSE") && std::process::Command::new("dmg2img").arg("-s").arg("-i").arg(&path).arg("-o").arg(&whole).stdout(quiet()).stderr(quiet()).status().is_ok_and(|s| s.success()) {
+            if start == 0 && !methods.contains("LZFSE") && crate::platform::command("dmg2img").arg("-s").arg("-i").arg(&path).arg("-o").arg(&whole).stdout(quiet()).stderr(quiet()).status().is_ok_and(|s| s.success()) {
                 let theirs = std::fs::read(&whole).unwrap();
                 let ours = disk.read_vec(0, disk.len() as usize).unwrap();
                 assert!(ours == theirs, "{}: different bytes from dmg2img's", path.display());
@@ -874,7 +874,7 @@ pub mod tests {
             }
             // 7-Zip takes each partition out as a file named by its number, then its kind.
             if let Some(seven) = super::super::hfsplus::tests::modern_7zip()
-                && std::process::Command::new(seven).arg("x").arg("-y").arg("-tdmg").arg(format!("-o{}", out.display())).arg(&path).stdout(quiet()).stderr(quiet()).status().is_ok_and(|s| s.success())
+                && crate::platform::command(seven).arg("x").arg("-y").arg("-tdmg").arg(format!("-o{}", out.display())).arg(&path).stdout(quiet()).stderr(quiet()).status().is_ok_and(|s| s.success())
             {
                 let made: Vec<_> = std::fs::read_dir(&out).unwrap().flatten().map(|i| i.file_name().to_string_lossy().into_owned()).collect();
                 for (i, part) in parts.iter().enumerate() {

@@ -405,7 +405,7 @@ pub fn follow(steps: &[Step]) -> Vec<String> {
                 // A moment more, for Windows to let go of it altogether.
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
-            Step::Run(program, args) => match std::process::Command::new(program).args(args).status() {
+            Step::Run(program, args) => match crate::platform::command(program).args(args).status() {
                 Ok(status) if status.success() => {}
                 Ok(status) => problems.push(format!("{} {status}", program.display())),
                 Err(e) => problems.push(format!("{}: {e}", program.display())),
@@ -417,7 +417,7 @@ pub fn follow(steps: &[Step]) -> Vec<String> {
             }
             Step::Env(name, value) => env.push((name.clone(), value.clone())),
             Step::Start(program, args) => {
-                if let Err(e) = std::process::Command::new(program).args(args).envs(env.iter().map(|(n, v)| (n, v))).spawn() {
+                if let Err(e) = crate::platform::command(program).args(args).envs(env.iter().map(|(n, v)| (n, v))).spawn() {
                     problems.push(format!("{}: {e}", program.display()));
                 }
             }
@@ -447,7 +447,7 @@ pub struct Relaunch {
 
 impl Relaunch {
     pub fn start(&self) -> Result<(), String> {
-        std::process::Command::new(&self.program).args(&self.args).envs(self.env.iter().map(|(n, v)| (n, v))).spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("The new Limoniter couldn't be started: {e}"))
+        crate::platform::command(&self.program).args(&self.args).envs(self.env.iter().map(|(n, v)| (n, v))).spawn().map(|_| ()).map_err(|e| crate::i18n::tf!("The new Limoniter couldn't be started: {e}"))
     }
 }
 
@@ -591,7 +591,7 @@ fn swap_in(current: &Path, new: &Path, kept: &Path) -> std::io::Result<()> {
 
 /// Unpacks the Mac app's zip with ditto, as Finder would, and finds the app in it, checking it has its program.
 fn unpack_mac_app(zip: &Path, into: &Path, exe_name: &std::ffi::OsStr) -> Result<PathBuf, String> {
-    let status = std::process::Command::new("/usr/bin/ditto").arg("-x").arg("-k").arg(zip).arg(into).status().map_err(|e| crate::i18n::tf!("The update couldn't be unpacked: {e}"))?;
+    let status = crate::platform::command("/usr/bin/ditto").arg("-x").arg("-k").arg(zip).arg(into).status().map_err(|e| crate::i18n::tf!("The update couldn't be unpacked: {e}"))?;
     if !status.success() {
         return Err(crate::i18n::tr("The update couldn't be unpacked.").into());
     }

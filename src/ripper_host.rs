@@ -62,7 +62,7 @@ impl Limoniter {
                 ripper.look_at(name, bytes);
             }
             Asked::OpenFile => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Look through a file")).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Look through a file")).pick_file() {
                     let bytes = std::fs::read(&path).map_err(|e| crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display()))?;
                     ripper.look_at(path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), bytes);
                 }
@@ -80,12 +80,12 @@ impl Limoniter {
             }
             Asked::SaveFind(i) => {
                 let found = ripper.finds.get(i).ok_or(crate::i18n::tr("That find has gone."))?;
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the music")).set_file_name(found.file_name()).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the music")).set_file_name(found.file_name()).save_file() {
                     write(&path, &found.bytes)?;
                 }
             }
             Asked::SaveAll => {
-                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save all the music into a folder")).pick_folder() {
+                if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save all the music into a folder")).pick_folder() {
                     let mut used = std::collections::HashSet::new();
                     for found in &ripper.finds {
                         let mut name = found.file_name();
@@ -102,7 +102,7 @@ impl Limoniter {
             Asked::SavePicture => {
                 let picture = crate::ripper::picture(&ripper.bytes, &ripper.view);
                 let image = egui::ColorImage::from_rgba_unmultiplied([picture.width, picture.height], &picture.rgba);
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as a picture")).set_file_name(format!("{}-{:06X}.png", crate::sfx::label_of(&ripper.name), ripper.view.offset)).add_filter(crate::i18n::tr("PNG"), &["png"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save as a picture")).set_file_name(format!("{}-{:06X}.png", crate::sfx::label_of(&ripper.name), ripper.view.offset)).add_filter(crate::i18n::tr("PNG"), &["png"]).save_file() {
                     save_png(&path, &image).map_err(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()))?;
                 }
             }

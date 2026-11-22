@@ -449,7 +449,7 @@ mod tests {
                     for shot in 0..6u32 {
                         let png = dir.join("shot.png");
                         let _ = std::fs::remove_file(&png);
-                        let status = std::process::Command::new(&vice)
+                        let status = crate::platform::command(&vice)
                             .arg("-default")
                             .args(["-model", model])
                             .args(options.split_whitespace())

@@ -1618,7 +1618,7 @@ impl Limoniter {
                 if patch.is_empty() {
                     return self.message("Save as a patch", crate::i18n::tr("The two are the same, so there's nothing to put in a patch.").into());
                 }
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file()
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file()
                     && let Err(e) = codec::write_file(&path, patch.as_bytes())
                 {
                     self.message("Save as a patch", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
@@ -1687,8 +1687,8 @@ impl Limoniter {
             FolderAct::Browse(n) => {
                 let kind = self.with_compare_tab(doc_id, |_, tab| if let CompareTab::Folders(folders) = tab { Some(folders.pickers[n].kind) } else { None }).flatten();
                 let picked = match kind {
-                    Some(SideKind::Image) => rfd::FileDialog::new().set_title(crate::i18n::tr("A disk image or archive to compare")).pick_file(),
-                    Some(SideKind::Folder | SideKind::Git) => rfd::FileDialog::new().set_title(crate::i18n::tr("A folder to compare")).pick_folder(),
+                    Some(SideKind::Image) => crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A disk image or archive to compare")).pick_file(),
+                    Some(SideKind::Folder | SideKind::Git) => crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A folder to compare")).pick_folder(),
                     _ => None,
                 };
                 if let Some(path) = picked {
@@ -1746,7 +1746,7 @@ impl Limoniter {
                 }
             }
             FolderAct::ExportReport(kind) => {
-                let dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a report"));
+                let dialog = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save a report"));
                 let dialog = match kind {
                     ReportKind::Csv => dialog.add_filter(crate::i18n::tr("CSV file"), &["csv"]).set_file_name("comparison.csv"),
                     ReportKind::Summary => dialog.add_filter(crate::i18n::tr("Plain text"), &["txt"]).add_filter(crate::i18n::tr("HTML page"), &["html"]).set_file_name("comparison summary.txt"),
@@ -1785,7 +1785,7 @@ impl Limoniter {
                 }
             }
             FolderAct::ExportPatch => {
-                let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file() else {
+                let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save as a patch")).set_file_name("changes.patch").save_file() else {
                     return;
                 };
                 self.start_folder_patch(doc_id, path);
@@ -1843,10 +1843,10 @@ impl Limoniter {
 
     /// Asks which two files to compare, and compares them.
     pub(super) fn compare_two_files(&mut self) {
-        let Some(left) = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare files: the first, on the left")).pick_file() else {
+        let Some(left) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Compare files: the first, on the left")).pick_file() else {
             return;
         };
-        let mut second = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare files: the second, on the right"));
+        let mut second = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Compare files: the second, on the right"));
         if let Some(folder) = left.parent() {
             second = second.set_directory(folder);
         }
@@ -1859,7 +1859,7 @@ impl Limoniter {
     pub(super) fn project_compare(&mut self, action: crate::project::PanelAction) {
         match action {
             crate::project::PanelAction::CompareWith(path) => {
-                let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare with"));
+                let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Compare with"));
                 if let Some(folder) = path.parent() {
                     picker = picker.set_directory(folder);
                 }
@@ -1877,6 +1877,10 @@ impl Limoniter {
 
     /// Compares a folder or a file with how it was at the last commit: the commit on the left, read-only.
     pub(super) fn compare_with_head(&mut self, path: &Path) {
+        // A notebook is compared by its cells, not as JSON lines full of outputs.
+        if !path.is_dir() && super::notebook_host::is_notebook_name(path) {
+            return self.compare_notebook(path, "HEAD", false);
+        }
         let side = match Side::git_of(path, "HEAD") {
             Ok(side) => side,
             Err(problem) => return self.message("Compare with the last commit", problem),

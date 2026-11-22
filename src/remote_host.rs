@@ -402,7 +402,7 @@ impl Limoniter {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut state.key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(380.0));
                             if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
-                                && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
+                                && let Some(file) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Private key")).pick_file()
                             {
                                 state.key_file = file.display().to_string();
                             }

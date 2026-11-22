@@ -668,7 +668,6 @@ impl ImageWriter for Fat {
 mod tests {
     use super::super::tests::{entry, names, reopened, tool};
     use super::*;
-    use std::process::Command;
 
     fn add(fat: &mut Fat, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         fat.add(folder, &Addition { name: name.into(), bytes: bytes.to_vec(), ..Default::default() }).unwrap();
@@ -716,7 +715,7 @@ mod tests {
         for size in [("16", "20"), ("32", "40")] {
             let path = dir.join(format!("made{}.img", size.0));
             std::fs::remove_file(&path).ok();
-            Command::new(tool("mkfs.fat").or_else(|| Some("/usr/sbin/mkfs.fat".into())).unwrap()).args(["-C", "-F", size.0]).arg(&path).arg(format!("{}000", size.1)).output().unwrap();
+            crate::platform::command(tool("mkfs.fat").or_else(|| Some("/usr/sbin/mkfs.fat".into())).unwrap()).args(["-C", "-F", size.0]).arg(&path).arg(format!("{}000", size.1)).output().unwrap();
             images.push(std::fs::read(&path).unwrap());
         }
         for (index, image) in images.into_iter().enumerate() {
@@ -733,12 +732,12 @@ mod tests {
             fat.delete(None, &entry(&*reopened(&fat, "t.img"), None, "gone.txt")).unwrap();
             let path = dir.join(format!("w{index}.img"));
             std::fs::write(&path, fat.bytes()).unwrap();
-            let checked = Command::new(&fsck).arg("-n").arg(&path).output().unwrap();
+            let checked = crate::platform::command(&fsck).arg("-n").arg(&path).output().unwrap();
             let said = format!("{}{}", String::from_utf8_lossy(&checked.stdout), String::from_utf8_lossy(&checked.stderr));
             assert!(checked.status.success(), "image {index}: {said}");
-            let typed = Command::new(&mtype).env("MTOOLS_SKIP_CHECK", "1").arg("-i").arg(&path).arg("::/Sub folder/inner file 29.txt").output().unwrap();
+            let typed = crate::platform::command(&mtype).env("MTOOLS_SKIP_CHECK", "1").arg("-i").arg(&path).arg("::/Sub folder/inner file 29.txt").output().unwrap();
             assert_eq!(String::from_utf8_lossy(&typed.stdout), "29", "image {index}");
-            let typed = Command::new(&mtype).env("MTOOLS_SKIP_CHECK", "1").arg("-i").arg(&path).arg("::/Big file.bin").output().unwrap();
+            let typed = crate::platform::command(&mtype).env("MTOOLS_SKIP_CHECK", "1").arg("-i").arg(&path).arg("::/Big file.bin").output().unwrap();
             assert_eq!(typed.stdout, big, "image {index}");
         }
         std::fs::remove_dir_all(dir).ok();
@@ -771,7 +770,7 @@ mod next_sd {
         let path = std::env::temp_dir().join(format!("limoniter-sd-{}.img", std::process::id()));
         let check = |bytes: &[u8]| -> Vec<String> {
             std::fs::write(&path, bytes).unwrap();
-            let out = std::process::Command::new(&fsck).arg("-n").arg(&path).output().unwrap();
+            let out = crate::platform::command(&fsck).arg("-n").arg(&path).output().unwrap();
             String::from_utf8_lossy(&out.stdout).lines().filter(|l| !l.contains(" files, ")).map(str::to_string).collect()
         };
         let original = std::fs::read("/root/emu/zsrc/ZEsarUX-13.0/tbblue.mmc").unwrap();

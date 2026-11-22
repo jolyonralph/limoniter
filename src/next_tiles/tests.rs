@@ -172,7 +172,7 @@ fn the_viewers_assemble_and_sjasmplus_agrees() {
         for (file, bytes) in files.iter().filter(|(f, _)| !f.ends_with(".nex")) {
             std::fs::write(folder.join(file), bytes).unwrap();
         }
-        let output = std::process::Command::new(sjasmplus).arg("--nologo").arg(format!("{name}.asm")).current_dir(&folder).output().unwrap();
+        let output = crate::platform::command(sjasmplus).arg("--nologo").arg(format!("{name}.asm")).current_dir(&folder).output().unwrap();
         assert!(output.status.success(), "{name}: {}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
         let theirs = std::fs::read(folder.join(format!("{name}.nex"))).unwrap();
         let ours = &files.iter().find(|(f, _)| f.ends_with(".nex")).unwrap().1;

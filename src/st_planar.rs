@@ -1000,11 +1000,10 @@ mod tests {
     /// ppmtopi1's read by ours. Skipped where they aren't installed; LIMONITER_RECOIL names recoil2png.
     #[test]
     fn reference_tools_agree() {
-        use std::process::Command;
         let dir = std::env::temp_dir().join(format!("limoniter-stpics-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let run = |tool: &str, args: &[&str]| -> Option<Vec<u8>> {
-            let out = Command::new(tool).args(args).output().ok()?;
+            let out = crate::platform::command(tool).args(args).output().ok()?;
             out.status.success().then_some(out.stdout)
         };
         let recoil = std::env::var("LIMONITER_RECOIL").unwrap_or_else(|_| "recoil2png".into());

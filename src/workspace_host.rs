@@ -137,7 +137,7 @@ pub(super) fn hidden_list(ui: &mut Ui, hidden: &mut Vec<crate::explorer_kept::Hi
 
 impl Limoniter {
     pub(super) fn choose_folder_to_open(&mut self) {
-        if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a folder")).pick_folder() {
+        if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a folder")).pick_folder() {
             self.open_folder(&folder);
         }
     }

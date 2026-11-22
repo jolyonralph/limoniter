@@ -111,7 +111,7 @@ impl Limoniter {
             match asked {
                 Some(crate::table_gen::Asked::Insert(text)) => self.insert_from_tool("Table generator", &text),
                 Some(crate::table_gen::Asked::Save(bytes, name)) => {
-                    if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the table")).set_file_name(name).add_filter(crate::i18n::tr("Binary file"), &["bin", "dat", "raw"]).add_filter(crate::i18n::tr("Any file"), &["*"]).save_file()
+                    if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the table")).set_file_name(name).add_filter(crate::i18n::tr("Binary file"), &["bin", "dat", "raw"]).add_filter(crate::i18n::tr("Any file"), &["*"]).save_file()
                         && let Err(e) = codec::write_file(&path, &bytes)
                     {
                         self.message("Table generator", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));

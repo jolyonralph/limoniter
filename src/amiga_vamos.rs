@@ -15,7 +15,7 @@ use crate::compilers::Problem;
 use eframe::egui::{self, RichText, Ui};
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, ExitStatus, Stdio};
 use std::sync::RwLock;
 use std::sync::mpsc::{Receiver, channel};
 
@@ -317,13 +317,8 @@ pub struct Running {
 impl Running {
     /// Starts vamos in `folder` (the Amiga's current directory), its output read as it comes.
     pub fn start(vamos: &Path, args: &[String], folder: &Path, what: String, wake: Option<egui::Context>) -> Result<Running, String> {
-        let mut command = Command::new(vamos);
+        let mut command = crate::platform::command(vamos);
         command.args(args).current_dir(folder).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000);
-        }
         let mut child = command.spawn().map_err(|e| crate::i18n::tf!("vamos couldn't be started ({}): {e}", vamos.display()))?;
         let (send, lines) = channel();
         for pipe in [child.stdout.take().map(|p| Box::new(p) as Box<dyn std::io::Read + Send>), child.stderr.take().map(|p| Box::new(p) as Box<dyn std::io::Read + Send>)].into_iter().flatten() {
@@ -398,7 +393,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText) {
                 *value = (!text.trim().is_empty()).then(|| PathBuf::from(text.trim()));
             }
             if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked()
-                && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tr(title)).pick_folder()
+                && let Some(chosen) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr(title)).pick_folder()
             {
                 *value = Some(chosen);
             }

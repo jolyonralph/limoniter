@@ -33,7 +33,7 @@ use crate::text_objects;
 use crate::tools;
 use crate::views::{self, ClipState, ContextCommand, Pane, ViewOptions, ViewState};
 use eframe::egui::{self, Button, Context, Key, KeyboardShortcut, Modifiers, Panel, RichText, Ui, ViewportCommand};
-use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+use rfd::{MessageButtons, MessageDialogResult, MessageLevel};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -87,6 +87,10 @@ enum Command {
     Save,
     SaveAs,
     CloseTab,
+    /// File, Close all: every open file, asking about each unsaved one.
+    CloseAll,
+    /// File, Close the others: every file but the one in front.
+    CloseOthers,
     Undo,
     Redo,
     Cut,
@@ -397,6 +401,8 @@ enum Command {
     Themes,
     Website,
     ToggleTable,
+    /// Something to do with the notebook in front: run a cell, add one, and so on.
+    Notebook(notebook_host::Act),
     SendAgain,
     ManageDevices,
     /// A command an add-on adds, by its place in the list of every add-on's commands.
@@ -848,6 +854,10 @@ struct Document {
     hex_mode: bool,
     /// Shown as a table of delimited data, and how that's read.
     table: Option<Box<table_view::TableState>>,
+    /// A Jupyter notebook's cells, kept for an `.ipynb` file shown as a notebook.
+    notebook: Option<Box<notebook_host::NotebookState>>,
+    /// The notebook's JSON shown as text instead (View, Notebook as text).
+    notebook_text: bool,
     /// Delimited data was found when the file was opened, and table view is offered for it.
     table_offer: Option<crate::table::Dialect>,
     table_checked: bool,
@@ -989,6 +999,8 @@ impl Document {
             untitled,
             hex_mode: false,
             table: None,
+            notebook: None,
+            notebook_text: false,
             table_offer: None,
             table_checked: false,
             rewriting: false,
@@ -1929,6 +1941,8 @@ fn save_png(path: &Path, image: &egui::ColorImage) -> Result<(), String> {
 
 impl Limoniter {
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, screenshot: Option<PathBuf>, launch: Option<ToolLaunch>) -> Self {
+        // System dialogs opened from now on sit over this window, and can't fall behind it.
+        crate::sys_dialogs::remember_window(cc);
         let settings = read_settings_file();
         // VS Code extensions first: they give themes, grammars and icons to what follows.
         crate::vsix::start(&settings);
@@ -2412,7 +2426,7 @@ impl Limoniter {
     }
 
     fn open_dialog(&mut self) {
-        if let Some(files) = with_open_filters(rfd::FileDialog::new().set_title(crate::i18n::tr("Open"))).pick_files() {
+        if let Some(files) = with_open_filters(crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open"))).pick_files() {
             for file in files {
                 self.open_path(&file);
             }
@@ -2595,7 +2609,7 @@ impl Limoniter {
         let (bytes, name) = match crunched {
             Some(bytes) => (bytes, self.docs[self.active].path_or_name().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()),
             None => {
-                let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("A crunched Amiga file to decrunch")).pick_file() else {
+                let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A crunched Amiga file to decrunch")).pick_file() else {
                     return;
                 };
                 match std::fs::read(&path) {
@@ -2612,7 +2626,7 @@ impl Limoniter {
         // A data file loses the ending its cruncher gave it, if it has one.
         let suggested = ["pp", "imp", "im", "crm", "stc", "bk"].iter().find_map(|ending| name.strip_suffix(&format!(".{ending}"))).unwrap_or(&name).to_string();
         let title = if decrunched.found.program { crate::i18n::tr("Save the decrunched program") } else { crate::i18n::tr("Save the decrunched file") };
-        let Some(target) = rfd::FileDialog::new().set_title(title).set_file_name(&suggested).save_file() else {
+        let Some(target) = crate::sys_dialogs::file_dialog().set_title(title).set_file_name(&suggested).save_file() else {
             return;
         };
         match std::fs::write(&target, &decrunched.bytes) {
@@ -2702,7 +2716,7 @@ impl Limoniter {
             return false;
         }
         let name = self.docs[index].name();
-        match rfd::FileDialog::new().set_title(crate::i18n::tr("Save As")).set_file_name(name).save_file() {
+        match crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save As")).set_file_name(name).save_file() {
             Some(path) => self.write_to(index, &path),
             None => false,
         }
@@ -3468,7 +3482,7 @@ impl Limoniter {
             return true;
         }
         self.active = index;
-        let answer = MessageDialog::new()
+        let answer = crate::sys_dialogs::message_dialog()
             .set_title(crate::i18n::tr("Limoniter"))
             .set_level(MessageLevel::Warning)
             .set_description(crate::i18n::tf!("Save changes to {}?", self.docs[index].name()))
@@ -3493,6 +3507,28 @@ impl Limoniter {
             return;
         }
         self.remove_tab(index);
+    }
+
+    /// Closes every file but `keep` (all of them with None), from the last tab back, asking about each one with
+    /// unsaved changes as Close does. Cancel stops there, leaving the rest open.
+    fn close_all(&mut self, keep: Option<usize>) {
+        if self.no_file() {
+            return;
+        }
+        for index in (0..self.docs.len()).rev() {
+            // Only tabs after `keep` have gone so far, so its place hasn't moved.
+            if Some(index) == keep {
+                continue;
+            }
+            if !self.confirm_close(index) {
+                break;
+            }
+            self.remove_tab(index);
+        }
+        if let Some(kept) = keep {
+            self.active = kept.min(self.docs.len().saturating_sub(1));
+        }
+        self.pending_focus = true;
     }
 
     /// Takes a document away, with any windows it has, without asking about unsaved changes.
@@ -4195,6 +4231,10 @@ impl Limoniter {
         if self.script.is_some() {
             return;
         }
+        if let Command::Notebook(act) = command {
+            self.notebook_command(act);
+            return;
+        }
         // In a table, the clipboard commands work on the cell the cursor is in.
         if !self.no_file() && self.table_command(command, ui) {
             return;
@@ -4210,6 +4250,8 @@ impl Limoniter {
             Command::New
                 | Command::Open
                 | Command::CloseTab
+                | Command::CloseAll
+                | Command::CloseOthers
                 | Command::Copy
                 | Command::SelectAll
                 | Command::Find
@@ -4369,6 +4411,8 @@ impl Limoniter {
                 self.save_as(self.active);
             }
             Command::CloseTab => self.close_tab(self.active),
+            Command::CloseAll => self.close_all(None),
+            Command::CloseOthers => self.close_all(Some(self.active)),
             Command::Undo => {
                 let doc = self.doc();
                 if hex { doc.hex.undo() } else { doc.text.undo() }
@@ -4572,6 +4616,7 @@ impl Limoniter {
             Command::GitStageChange => self.stage_change_at_cursor(),
             Command::GitUndoChange => self.undo_change_at_cursor(),
             Command::ToggleTable => self.toggle_table(),
+            Command::Notebook(_) => {}
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::Website => {
                 if let Err(problem) = crate::platform::open_web_page("https://limoniter.com") {
@@ -4590,12 +4635,12 @@ impl Limoniter {
             Command::DebugStepBack => self.debug_control("stepBack"),
             Command::ColourAs => self.open_language_picker(),
             Command::ProjectOpen => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open project")).add_filter(crate::i18n::tr("Limoniter project"), &[project::EXTENSION]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open project")).add_filter(crate::i18n::tr("Limoniter project"), &[project::EXTENSION]).pick_file() {
                     self.open_project(&path);
                 }
             }
             Command::ProjectNew => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("New project")).set_file_name(format!("project.{}", project::EXTENSION)).add_filter(crate::i18n::tr("Limoniter project"), &[project::EXTENSION]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("New project")).set_file_name(format!("project.{}", project::EXTENSION)).add_filter(crate::i18n::tr("Limoniter project"), &[project::EXTENSION]).save_file() {
                     self.new_project(path);
                 }
             }
@@ -4610,14 +4655,14 @@ impl Limoniter {
             }
             Command::ProjectAddFiles => {
                 if self.project.is_some()
-                    && let Some(paths) = with_open_filters(rfd::FileDialog::new().set_title(crate::i18n::tr("Add files to the project"))).pick_files()
+                    && let Some(paths) = with_open_filters(crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Add files to the project"))).pick_files()
                 {
                     self.add_to_project(paths);
                 }
             }
             Command::ProjectAddFolder => {
                 if self.project.is_some()
-                    && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Add a folder to the project")).pick_folder()
+                    && let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Add a folder to the project")).pick_folder()
                 {
                     let (paths, cut_short) = project::files_in_folder(&folder);
                     self.add_to_project(paths);
@@ -4717,7 +4762,7 @@ impl Limoniter {
             Command::NewInstance => {
                 // From an AppImage, the program is inside it, there only while this copy runs: start the AppImage.
                 let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok);
-                let started = exe.and_then(|exe| std::process::Command::new(exe).spawn());
+                let started = exe.and_then(|exe| crate::platform::command(exe).spawn());
                 if let Err(e) = started {
                     warn(&crate::i18n::tf!("Couldn't open a new window.\n\n{e}"));
                 }
@@ -4753,7 +4798,7 @@ impl Limoniter {
             Command::InsertPageBreak => self.type_at_cursor("\u{C}"),
             Command::InsertColor => self.dialog = Dialog::Color { rgb: [0, 122, 204], form: 0 },
             Command::InsertFile => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Insert file")).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Insert file")).pick_file() {
                     match tools::text_of_file(&path) {
                         Ok(text) => {
                             let doc = self.doc();
@@ -5380,7 +5425,7 @@ impl Limoniter {
     /// Tools, Save settings to a file.
     fn save_settings_to_file(&mut self) {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save settings to a file")).set_file_name(crate::i18n::tf!("Limoniter settings {today}.txt")).add_filter(crate::i18n::tr("Text"), &["txt"]).save_file() else {
+        let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save settings to a file")).set_file_name(crate::i18n::tf!("Limoniter settings {today}.txt")).add_filter(crate::i18n::tr("Text"), &["txt"]).save_file() else {
             return;
         };
         let text = crate::settings_file::bundle(&self.current_settings(), &self.encodings_text(), env!("CARGO_PKG_VERSION"), &today);
@@ -5393,7 +5438,7 @@ impl Limoniter {
     /// Tools, Restore settings from a file: they're put in place of these, at once, and the settings as they were
     /// are kept beside the settings file in case they're wanted back.
     fn restore_settings_from_file(&mut self, ctx: &Context) {
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Restore settings from a file")).add_filter(crate::i18n::tr("Text"), &["txt"]).pick_file() else {
+        let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Restore settings from a file")).add_filter(crate::i18n::tr("Text"), &["txt"]).pick_file() else {
             return;
         };
         let read = std::fs::read_to_string(&path).map_err(|e| crate::i18n::tf!("Couldn't read {}: {e}", path.display()));
@@ -5832,8 +5877,9 @@ impl Limoniter {
     }
 
     fn draw_beside_in_its_colours(&mut self, ui: &mut Ui, index: usize, view: ViewOptions) {
+        let shown_as_notebook = self.notebook_shown(index);
         let doc = &mut self.docs[index];
-        let plain = !doc.hex_mode && !doc.placeholder && doc.browser.is_none() && doc.game.is_none() && doc.compare.is_none() && doc.merge.is_none() && doc.table.is_none();
+        let plain = !doc.hex_mode && !doc.placeholder && doc.browser.is_none() && doc.game.is_none() && doc.compare.is_none() && doc.merge.is_none() && doc.table.is_none() && !shown_as_notebook;
         if plain {
             doc.update_syntax();
             views::text_pane(ui, &mut doc.text, &mut doc.text_state, &mut self.clip, view, false, Pane { number: 2, active: false, ..Pane::default() });
@@ -5882,6 +5928,10 @@ impl Limoniter {
         }
         if self.docs[index].merge.is_some() && !self.docs[index].hex_mode {
             return self.merge_view(ui, view, input_on);
+        }
+        if self.notebook_shown(index) {
+            self.notebook_view(ui, input_on);
+            return None;
         }
         // Where the file is and what the cursor's in, above the text; and what's kept at the top as it scrolls.
         let plain_text = !self.docs[index].placeholder && !self.docs[index].hex_mode && self.docs[index].table.is_none();
@@ -6064,7 +6114,7 @@ impl Limoniter {
     /// Reads the file's bytes again in another way, after settling any unsaved changes. The file isn't changed.
     fn reopen(&mut self, index: usize, format: TextFormat) {
         if self.docs[index].is_modified() {
-            let answer = MessageDialog::new()
+            let answer = crate::sys_dialogs::message_dialog()
                 .set_title(Purpose::Reopen.title())
                 .set_level(MessageLevel::Warning)
                 .set_description(crate::i18n::tf!("{} has unsaved changes.\n\nSave them first? Choosing No discards them.", self.docs[index].name()))
@@ -6146,7 +6196,7 @@ impl Limoniter {
                 return;
             }
             let doc = &self.docs[index];
-            if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a copy")).set_file_name(doc.name()).save_file() {
+            if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save a copy")).set_file_name(doc.name()).save_file() {
                 self.big_job = Some(crate::big_jobs::save_converted(doc.text.store().clone(), doc.text.format.clone(), target, lossy, path, doc.id));
             }
             return;
@@ -6176,7 +6226,7 @@ impl Limoniter {
             }
         };
         let name = doc.name();
-        if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a copy")).set_file_name(name).save_file()
+        if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save a copy")).set_file_name(name).save_file()
             && let Err(problem) = codec::write_file(&path, &bytes)
         {
             warn(&crate::i18n::tf!("Couldn't save {}.\n\n{problem}", path.display()));
@@ -6472,7 +6522,7 @@ impl Limoniter {
                     self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Open(other));
                 } else if from_disk {
                     self.close_dialog();
-                    if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Compare with")).pick_file() {
+                    if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Compare with")).pick_file() {
                         self.open_file_compare_sides(compare_host::FileSide::Open(this), compare_host::FileSide::Path(path));
                     }
                 } else if cancelled {
@@ -6762,7 +6812,7 @@ impl Limoniter {
                     close |= ui.button(crate::i18n::tr("Close")).clicked();
                 });
                 if browse {
-                    chosen = rfd::FileDialog::new().set_title(crate::i18n::tr("Choose a font")).add_filter(crate::i18n::tr("Fonts"), &["ttf", "otf", "ttc"]).pick_file();
+                    chosen = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Choose a font")).add_filter(crate::i18n::tr("Fonts"), &["ttf", "otf", "ttc"]).pick_file();
                 }
                 if let Some(path) = chosen {
                     match std::fs::read(&path) {
@@ -6830,7 +6880,7 @@ impl Limoniter {
                     }
                 }
                 if browse {
-                    chosen = rfd::FileDialog::new().set_title(crate::i18n::tr("Choose a font")).add_filter(crate::i18n::tr("Fonts"), &["ttf", "otf", "ttc"]).pick_file();
+                    chosen = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Choose a font")).add_filter(crate::i18n::tr("Fonts"), &["ttf", "otf", "ttc"]).pick_file();
                 }
                 if usual || chosen.is_some() {
                     let ok = chosen.as_ref().is_none_or(|path| std::fs::read(path).is_ok());
@@ -7212,7 +7262,7 @@ impl Limoniter {
                                 self.find.favorite_files.push(path);
                             }
                             if ui.button(crate::i18n::tr("Add files...")).clicked()
-                                && let Some(paths) = rfd::FileDialog::new().set_title(crate::i18n::tr("Add favorite files")).pick_files()
+                                && let Some(paths) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Add favorite files")).pick_files()
                             {
                                 for path in paths {
                                     if !self.find.favorite_files.contains(&path) {
@@ -7231,7 +7281,7 @@ impl Limoniter {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut self.find.folder).desired_width(ui.available_width() - 34.0));
                             if ui.button(crate::i18n::tr("...")).on_hover_text(crate::i18n::tr("Choose a folder")).clicked()
-                                && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Search in folder")).pick_folder()
+                                && let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Search in folder")).pick_folder()
                             {
                                 self.find.folder = folder.display().to_string();
                             }
@@ -7670,7 +7720,7 @@ impl Limoniter {
         // A picture shows text in its colours, so it waits for the grammars too.
         highlight::engine().is_none()
             || self.debug_busy_for_picture()
-            || self.big_job.is_some() || self.retro_pictures.as_ref().is_some_and(|c| c.working()) || self.docs.iter().any(|doc| doc.is_busy() || doc.table.as_deref().is_some_and(|table| table.working()))
+            || self.big_job.is_some() || self.retro_pictures.as_ref().is_some_and(|c| c.working()) || self.docs.iter().any(|doc| doc.is_busy() || doc.table.as_deref().is_some_and(|table| table.working()) || doc.notebook.as_deref().is_some_and(|n| n.busy()))
     }
 
     /// A picture can show the app partway through something: LIMONITER_SHOT_STEPS lists what to do first. Steps
@@ -7982,6 +8032,9 @@ impl Limoniter {
                         window.settle_now(&self.eprom_prefs);
                     }
                 }
+                // A notebook in front: "run-all", "select-N" (a cell by its place, from 0), "edit-N" (typing in it),
+                // "text" (as JSON) or "kind-markdown" and the like.
+                "notebook" => self.notebook_screenshot_step(value),
                 "colour-as" => {
                     // The Colour as box, grouped a way ("kind", "machine" or "all"), with letters typed after a ;.
                     let (view, letters) = value.split_once(';').unwrap_or((value, ""));
@@ -9638,7 +9691,7 @@ pub(crate) fn same_path(a: &Path, b: &Path) -> bool {
 }
 
 fn warn(message: &str) {
-    MessageDialog::new().set_title(crate::i18n::tr("Limoniter")).set_level(MessageLevel::Warning).set_description(message).set_buttons(MessageButtons::Ok).show();
+    crate::sys_dialogs::message_dialog().set_title(crate::i18n::tr("Limoniter")).set_level(MessageLevel::Warning).set_description(message).set_buttons(MessageButtons::Ok).show();
 }
 
 /// The kinds of file the Open box offers to show, all files first. A Mac's Open box has no list of kinds, so
@@ -9661,7 +9714,7 @@ fn with_open_filters(dialog: rfd::FileDialog) -> rfd::FileDialog {
 }
 
 fn ask_yes_no(title: &str, question: &str) -> bool {
-    let answer = MessageDialog::new().set_title(title).set_level(MessageLevel::Warning).set_description(question).set_buttons(MessageButtons::YesNo).show();
+    let answer = crate::sys_dialogs::message_dialog().set_title(title).set_level(MessageLevel::Warning).set_description(question).set_buttons(MessageButtons::YesNo).show();
     answer == MessageDialogResult::Yes
 }
 
@@ -9909,6 +9962,13 @@ mod run_host_tests;
 #[path = "table_view.rs"]
 mod table_view;
 
+#[path = "notebook_host.rs"]
+mod notebook_host;
+
+#[cfg(test)]
+#[path = "notebook_host_tests.rs"]
+mod notebook_host_tests;
+
 #[path = "theme_host.rs"]
 mod theme_host;
 
@@ -10152,6 +10212,28 @@ mod tests {
     }
 
     const EVERY_PANEL: &str = "file_properties=true\njson_manager=true\nxml_manager=true\nascii_table=true\nencoding_preview=true\nclipboard_history=false\nfile_explorer=true\nopen_files=true\nbookmarks=true\nfile_lists=true\nmacros_panel=true\nscripts_panel=true\nhistory_panel=true\n";
+
+    #[test]
+    fn close_the_others_keeps_the_file_in_front_and_close_all_leaves_none() {
+        let (mut app, _ctx) = app_with("");
+        app.new_document();
+        app.new_document();
+        app.new_document();
+        let count = app.docs.len();
+        assert!(count >= 3);
+        app.active = 1;
+        let kept = app.docs[1].id;
+        app.close_all(Some(1));
+        assert_eq!(app.docs.len(), 1);
+        assert_eq!((app.active, app.docs[0].id), (0, kept), "the file in front stays, and is still in front");
+        app.new_document();
+        app.close_all(None);
+        assert!(app.no_file(), "nothing is left but the empty window");
+        // With nothing open, both do nothing.
+        app.close_all(None);
+        app.close_all(Some(0));
+        assert!(app.no_file());
+    }
 
     #[test]
     fn closing_the_only_file_opens_nothing_in_its_place() {
@@ -11948,6 +12030,22 @@ mod tests {
         paths.sort();
         paths.dedup();
         assert_eq!(paths.len(), count, "no two menu items have the same place and name");
+    }
+
+    #[test]
+    fn the_command_box_has_a_close_button() {
+        let (mut app, ctx) = app_with("");
+        ctx.enable_accesskit();
+        draw(&mut app, &ctx, Vec::new());
+        draw(&mut app, &ctx, vec![key(Key::F1, egui::Modifiers::NONE)]);
+        let output = draw(&mut app, &ctx, Vec::new());
+        let nodes = crate::access::tests::nodes(&output);
+        let close = nodes.iter().map(|(_, n)| n).filter(|n| n.role() == egui::accesskit::Role::Button && n.label().is_some_and(|l| l == "Close")).find_map(|n| n.bounds()).expect("a Close button");
+        let centre = egui::pos2(((close.x0 + close.x1) / 2.0) as f32, ((close.y0 + close.y1) / 2.0) as f32);
+        for events in click_at(centre) {
+            draw(&mut app, &ctx, events);
+        }
+        assert!(matches!(app.dialog, Dialog::None), "the box is closed");
     }
 
     #[test]

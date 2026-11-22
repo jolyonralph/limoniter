@@ -315,7 +315,7 @@ mod tests {
             add(&mut tape, "game.bin", &[1, 2, 3]);
             let path = dir.join(name);
             std::fs::write(&path, tape.bytes()).unwrap();
-            let out = std::process::Command::new(&tzxlist).arg(&path).output().unwrap();
+            let out = crate::platform::command(&tzxlist).arg(&path).output().unwrap();
             let listed = String::from_utf8_lossy(&out.stdout);
             assert!(out.status.success(), "{listed}");
             assert!(listed.contains("Program: \"hello     \""), "{listed}");

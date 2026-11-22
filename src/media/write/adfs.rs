@@ -448,7 +448,6 @@ mod tests {
     use super::*;
     use crate::media::acorn::tests::bbc_program;
     use std::path::Path;
-    use std::process::Command;
 
     fn add(disc: &mut Adfs, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         let addition = disc.guess(name, bytes);
@@ -553,14 +552,14 @@ mod tests {
         let (disc, code) = sample();
         let path = dir.join("t.adl");
         std::fs::write(&path, disc.bytes()).unwrap();
-        let listed = Command::new(beebtools).arg("cat").arg(&path).output().unwrap();
+        let listed = crate::platform::command(beebtools).arg("cat").arg(&path).output().unwrap();
         let text = format!("{}{}", String::from_utf8_lossy(&listed.stdout), String::from_utf8_lossy(&listed.stderr));
         assert!(listed.status.success() && text.contains("Games") && text.contains("Prog") && !text.contains("Gap"), "{text}");
         let out = dir.join("code.bin");
-        let got = Command::new(beebtools).arg("extract").arg(&path).arg("$.Games.Code").arg("-o").arg(&out).output().unwrap();
+        let got = crate::platform::command(beebtools).arg("extract").arg(&path).arg("$.Games.Code").arg("-o").arg(&out).output().unwrap();
         assert!(got.status.success(), "{}", String::from_utf8_lossy(&got.stderr));
         assert_eq!(std::fs::read(&out).unwrap(), code);
-        let summary = Command::new(beebtools).arg("disc").arg(&path).output().unwrap();
+        let summary = crate::platform::command(beebtools).arg("disc").arg(&path).output().unwrap();
         // It counts the free sectors (though it calls them bytes), with thousands separated.
         let summary = String::from_utf8_lossy(&summary.stdout).replace(',', "");
         let free = disc.free().unwrap() / 256;
@@ -581,7 +580,7 @@ mod tests {
         std::fs::write(&path, disc.bytes()).unwrap();
         let script = "import sys\nsys.path.insert(0, sys.argv[1])\nimport ADFSlib\ndisc = ADFSlib.ADFSdisc(open(sys.argv[2], 'rb'))\nfor f in disc.files:\n    if isinstance(f, ADFSlib.ADFSdirectory):\n        for g in f.files:\n            print(f.name + '.' + g.name, len(g.data), hex(g.load_address))\n            if g.name == 'Code':\n                open(sys.argv[3], 'wb').write(g.data)\n    else:\n        print(f.name, len(f.data), hex(f.load_address))\n";
         let out = dir.join("code.bin");
-        let run = Command::new("python3").arg("-I").arg("-c").arg(script).arg(lib).arg(&path).arg(&out).output().unwrap();
+        let run = crate::platform::command("python3").arg("-I").arg("-c").arg(script).arg(lib).arg(&path).arg(&out).output().unwrap();
         let text = String::from_utf8_lossy(&run.stdout).to_string();
         assert!(run.status.success(), "{}{text}", String::from_utf8_lossy(&run.stderr));
         assert!(text.contains("Games.Code 70000 0xffff3000") && text.contains("Prog"), "{text}");

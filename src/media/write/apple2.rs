@@ -962,7 +962,6 @@ mod tests {
     use super::super::tests::{entry, names, reopened};
     use super::*;
     use std::path::{Path, PathBuf};
-    use std::process::Command;
 
     fn add(disk: &mut dyn ImageWriter, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         let addition = disk.guess(name, bytes);
@@ -1160,7 +1159,7 @@ mod tests {
     }
 
     fn run(tool: &Path, args: &[&str]) -> (bool, Vec<u8>, String) {
-        let out = Command::new(tool).args(args).output().unwrap();
+        let out = crate::platform::command(tool).args(args).output().unwrap();
         (out.status.success(), out.stdout, String::from_utf8_lossy(&out.stderr).into_owned())
     }
 
@@ -1237,7 +1236,7 @@ mod tests {
             return;
         };
         let dir = scratch("a2kit");
-        let tokenised = Command::new(&a2kit).args(["tokenize", "-t", "atxt", "-a", "2049"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().and_then(|mut child| {
+        let tokenised = crate::platform::command(&a2kit).args(["tokenize", "-t", "atxt", "-a", "2049"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().and_then(|mut child| {
             use std::io::Write;
             child.stdin.take().unwrap().write_all(&program())?;
             child.wait_with_output()

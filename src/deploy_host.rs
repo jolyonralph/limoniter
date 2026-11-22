@@ -872,7 +872,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                         *path = PathBuf::from(text);
                     }
                     if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
-                        && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Send to this folder")).pick_folder()
+                        && let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Send to this folder")).pick_folder()
                     {
                         *path = folder;
                     }
@@ -890,7 +890,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(key_file).hint_text(crate::i18n::tr("None: sign in with a password")).desired_width(250.0));
                     if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
-                        && let Some(file) = rfd::FileDialog::new().set_title(crate::i18n::tr("Private key")).pick_file()
+                        && let Some(file) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Private key")).pick_file()
                     {
                         *key_file = file.display().to_string();
                     }
@@ -966,7 +966,7 @@ fn device_editor(ui: &mut Ui, device: &mut Device, drives: &[deploy::Drive], pas
                         *program = PathBuf::from(text);
                     }
                     if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked()
-                        && let Some(chosen) = rfd::FileDialog::new().set_title(crate::i18n::tr("The emulator's program")).pick_file()
+                        && let Some(chosen) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The emulator's program")).pick_file()
                     {
                         *program = chosen;
                     }

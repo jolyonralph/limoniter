@@ -282,11 +282,11 @@ impl Limoniter {
 
     /// Asks for the three files, and where the result goes.
     pub(super) fn merge_files_dialog(&mut self) {
-        let pick = |title: &str| rfd::FileDialog::new().set_title(title).pick_file();
+        let pick = |title: &str| crate::sys_dialogs::file_dialog().set_title(title).pick_file();
         let Some(base) = pick("Merge: the original both were changed from") else { return };
         let Some(mine) = pick("Merge: mine, one changed version") else { return };
         let Some(theirs) = pick("Merge: theirs, the other changed version") else { return };
-        let mut dialog = rfd::FileDialog::new().set_title(crate::i18n::tr("Merge: save the result as")).set_file_name(name_of(&mine));
+        let mut dialog = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Merge: save the result as")).set_file_name(name_of(&mine));
         if let Some(folder) = mine.parent() {
             dialog = dialog.set_directory(folder);
         }
@@ -937,7 +937,7 @@ mod tests {
     }
 
     fn git(root: &Path, args: &[&str]) -> String {
-        let output = std::process::Command::new(crate::git::program().unwrap())
+        let output = crate::platform::command(crate::git::program().unwrap())
             .current_dir(root)
             .args(["-c", "user.name=T", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"])
             .args(args)
@@ -1005,7 +1005,7 @@ mod tests {
         std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
         git_setup::turn_on(&global, &stub, &root.join("before.json")).unwrap();
         let run = |args: &[&str]| {
-            std::process::Command::new(crate::git::program().unwrap())
+            crate::platform::command(crate::git::program().unwrap())
                 .current_dir(&root)
                 .args(args)
                 .env("GIT_CONFIG_GLOBAL", &config)
@@ -1051,7 +1051,7 @@ mod tests {
         std::fs::write(&stub, "#!/bin/sh\nexit 1\n").unwrap();
         std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
         git_setup::turn_on(&global, &stub, &root.join("before.json")).unwrap();
-        let output = std::process::Command::new(crate::git::program().unwrap())
+        let output = crate::platform::command(crate::git::program().unwrap())
             .current_dir(&root)
             .args(["mergetool", "--no-prompt", "notes.txt"])
             .env("GIT_CONFIG_GLOBAL", &config)
@@ -1060,7 +1060,7 @@ mod tests {
             .output()
             .unwrap();
         assert!(!output.status.success());
-        let status = std::process::Command::new(crate::git::program().unwrap()).current_dir(&root).args(["status", "--porcelain"]).env("GIT_CONFIG_GLOBAL", &config).output().unwrap();
+        let status = crate::platform::command(crate::git::program().unwrap()).current_dir(&root).args(["status", "--porcelain"]).env("GIT_CONFIG_GLOBAL", &config).output().unwrap();
         assert!(String::from_utf8_lossy(&status.stdout).contains("UU notes.txt"), "still in conflict");
         std::fs::remove_dir_all(root).unwrap();
     }

@@ -3,5 +3,8 @@ disallowed-methods = [
     { path = "egui::Window::new", reason = "make a box with crate::fit::Dialog::new, which keeps it on the screen" },
     { path = "egui::Ui::menu_button", reason = "use crate::fit::menu_button, whose menu scrolls when it's too long" },
     { path = "egui::Response::context_menu", reason = "use crate::fit::context_menu, which scrolls when it's too long" },
+    { path = "rfd::FileDialog::new", reason = "make it with crate::sys_dialogs::file_dialog, which keeps it in front of Limoniter's window" },
+    { path = "rfd::MessageDialog::new", reason = "make it with crate::sys_dialogs::message_dialog, which keeps it in front of Limoniter's window" },
     { path = "egui::Popup::show", reason = "use crate::fit::popup, which scrolls when it's too long" },
+    { path = "std::process::Command::new", reason = "start programs with crate::platform::command, which keeps Windows from flashing a console window and stealing the focus" },
 ]

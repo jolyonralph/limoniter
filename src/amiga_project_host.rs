@@ -71,7 +71,7 @@ impl Limoniter {
                         let shown = state.folder.as_ref().map_or_else(|| crate::i18n::tr("(choose a folder)").to_string(), |f| f.join(&state.name).display().to_string());
                         ui.label(shown);
                         if ui.button(crate::i18n::tr("Choose\u{2026}")).clicked()
-                            && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("The folder to make the project in")).pick_folder()
+                            && let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The folder to make the project in")).pick_folder()
                         {
                             state.folder = Some(folder);
                         }
@@ -116,7 +116,7 @@ impl Limoniter {
 
     /// Imports a folder of Amiga C as a project, says how its files were sorted, and opens it.
     pub(super) fn import_amiga_project(&mut self) {
-        let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Import an Amiga C project")).pick_folder() else {
+        let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Import an Amiga C project")).pick_folder() else {
             return;
         };
         match amiga::import(&folder) {
@@ -306,7 +306,7 @@ impl Limoniter {
                 continue;
             }
             let made = match &flexcat_program {
-                Some(program) => std::process::Command::new(program)
+                Some(program) => crate::platform::command(program)
                     .args(catalog::flexcat_arguments(&cd_path, ct_path, &target))
                     .output()
                     .map_err(|e| e.to_string())
@@ -335,7 +335,7 @@ impl Limoniter {
         };
         let folder = cd_path.parent().map(|f| f.join("locale")).unwrap_or_default();
         let _ = std::fs::create_dir_all(&folder);
-        let Some(ct_path) = rfd::FileDialog::new().set_title(crate::i18n::tr("The translation: named after its language, such as deutsch.ct")).set_directory(&folder).set_file_name("deutsch.ct").add_filter(crate::i18n::tr("Catalog translation"), &["ct"]).save_file() else {
+        let Some(ct_path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The translation: named after its language, such as deutsch.ct")).set_directory(&folder).set_file_name("deutsch.ct").add_filter(crate::i18n::tr("Catalog translation"), &["ct"]).save_file() else {
             return;
         };
         let cd = catalog::read_description(&self.text_of(&cd_path).unwrap_or_default());

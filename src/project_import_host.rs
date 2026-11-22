@@ -14,10 +14,10 @@ pub(super) struct WebProjectBox {
 impl Limoniter {
     /// A ZIP chosen, unpacked into a folder of its own in the folder chosen, and opened as a project.
     pub(super) fn open_zip_project(&mut self) {
-        let Some(zip) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a ZIP as a project")).add_filter(crate::i18n::tr("ZIP archive"), &["zip"]).pick_file() else {
+        let Some(zip) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a ZIP as a project")).add_filter(crate::i18n::tr("ZIP archive"), &["zip"]).pick_file() else {
             return;
         };
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to unpack it (a folder of its own is made in it)"));
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Where to unpack it (a folder of its own is made in it)"));
         if let Some(beside) = zip.parent() {
             picker = picker.set_directory(beside);
         }
@@ -85,7 +85,7 @@ impl Limoniter {
             let address = state.address.trim().to_string();
             if crate::project_import::source_of(&address).is_none() {
                 state.status = crate::i18n::tr("Give a web address starting with http:// or https://.").into();
-            } else if let Some(parent) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put it (a folder of its own is made in it)")).pick_folder() {
+            } else if let Some(parent) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Where to put it (a folder of its own is made in it)")).pick_folder() {
                 let (tx, rx) = channel();
                 let ctx = ctx.clone();
                 std::thread::spawn(move || {

@@ -528,7 +528,6 @@ impl ImageWriter for Disk {
 mod tests {
     use super::super::tests::{entry as find, names, reopened, tool};
     use super::*;
-    use std::process::Command;
 
     fn add(disk: &mut Disk, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         disk.add(folder, &Addition { name: name.into(), bytes: bytes.to_vec(), ..Default::default() }).unwrap();
@@ -623,11 +622,11 @@ mod tests {
         add(&mut disk, None, "big.dat", &big);
         let path = dir.join("s.atr");
         std::fs::write(&path, disk.bytes()).unwrap();
-        let listed = Command::new(&lsatr).arg(&path).output().unwrap();
+        let listed = crate::platform::command(&lsatr).arg(&path).output().unwrap();
         let listed = format!("{}{}", String::from_utf8_lossy(&listed.stdout), String::from_utf8_lossy(&listed.stderr));
         assert!(listed.contains("volume name 'Mine'") && listed.contains("/DOCS/NOTE19.TXT") && !listed.contains("invalid") && !listed.contains("short"), "{listed}");
         let out = dir.join("out");
-        let done = Command::new(&lsatr).arg("-X").arg(&out).arg(&path).output().unwrap();
+        let done = crate::platform::command(&lsatr).arg("-X").arg(&out).arg(&path).output().unwrap();
         assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
         assert_eq!(std::fs::read(out.join("BIG.DAT")).unwrap(), big);
         assert_eq!(std::fs::read(out.join("DOCS/NOTE7.TXT")).unwrap(), b"NOTE 7\x9B");

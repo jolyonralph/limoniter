@@ -484,7 +484,7 @@ fn unar_files(unar: &Path, archive: &Path, scratch: &Path) -> Option<HashMap<Str
     for _ in 0..5 {
         let _ = std::fs::remove_dir_all(scratch);
         std::fs::create_dir_all(scratch).ok()?;
-        let output = std::process::Command::new(unar).args(["-nr", "-f", "-D", "-k", "visible", "-o"]).arg(scratch).arg(archive).output().ok()?;
+        let output = crate::platform::command(unar).args(["-nr", "-f", "-D", "-k", "visible", "-o"]).arg(scratch).arg(archive).output().ok()?;
         if output.status.code().is_some() {
             done = Some(output);
             break;
@@ -525,7 +525,7 @@ fn unar_files(unar: &Path, archive: &Path, scratch: &Path) -> Option<HashMap<Str
 fn macunpack_files(macunpack: &Path, archive: &Path, scratch: &Path) -> Option<HashMap<String, Vec<u8>>> {
     let _ = std::fs::remove_dir_all(scratch);
     std::fs::create_dir_all(scratch).ok()?;
-    std::process::Command::new(macunpack).arg("-3").arg(archive).current_dir(scratch).output().ok()?;
+    crate::platform::command(macunpack).arg("-3").arg(archive).current_dir(scratch).output().ok()?;
     let mut out = HashMap::new();
     let mut folders = vec![scratch.to_path_buf()];
     while let Some(folder) = folders.pop() {

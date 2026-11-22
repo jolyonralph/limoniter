@@ -388,7 +388,6 @@ impl ImageWriter for Disk {
 mod tests {
     use super::super::tests::{entry, names, reopened, tool};
     use super::*;
-    use std::process::Command;
 
     fn add(disk: &mut Disk, name: &str, bytes: &[u8]) {
         let addition = disk.guess(name, bytes);
@@ -436,12 +435,12 @@ mod tests {
         let dsk = dir.join("t.dsk");
         std::fs::write(&dsk, disk.bytes()).unwrap();
         let path = dir.join("t.raw");
-        Command::new(&dsktrans).args(["-itype", "dsk", "-otype", "raw"]).arg(&dsk).arg(&path).output().unwrap();
-        let listed = Command::new(&cpmls).args(["-f", "pcw"]).arg(&path).output().unwrap();
+        crate::platform::command(&dsktrans).args(["-itype", "dsk", "-otype", "raw"]).arg(&dsk).arg(&path).output().unwrap();
+        let listed = crate::platform::command(&cpmls).args(["-f", "pcw"]).arg(&path).output().unwrap();
         let listed = String::from_utf8_lossy(&listed.stdout).to_lowercase();
         assert!(listed.contains("big.dat") && listed.contains("game.bin") && !listed.contains("gone"), "{listed}");
         let out = dir.join("big.out");
-        let copied = Command::new(&cpmcp).args(["-f", "pcw"]).arg(&path).arg("0:big.dat").arg(&out).output().unwrap();
+        let copied = crate::platform::command(&cpmcp).args(["-f", "pcw"]).arg(&path).arg("0:big.dat").arg(&out).output().unwrap();
         assert!(copied.status.success(), "{}", String::from_utf8_lossy(&copied.stderr));
         let back = std::fs::read(&out).unwrap();
         assert_eq!(&back[..big.len()], &big[..]);

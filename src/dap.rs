@@ -481,7 +481,7 @@ impl Session {
     pub fn start(command: &str, folder: &Path) -> Result<Session, String> {
         let parts = crate::emulators::split_options(command);
         let (program, args) = parts.split_first().ok_or(crate::i18n::tr("No command for the debugger."))?;
-        let mut child = std::process::Command::new(program)
+        let mut child = crate::platform::command(program)
             .args(args)
             .current_dir(folder)
             .stdin(std::process::Stdio::piped())

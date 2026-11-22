@@ -40,7 +40,7 @@ impl Limoniter {
         let what = if editor.part == Part::Sprites { "sprites" } else { "a playfield" };
         match asked {
             Asked::Open => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open source")).add_filter(crate::i18n::tr("Source"), &["asm", "s", "a", "inc", "h", "txt"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open source")).add_filter(crate::i18n::tr("Source"), &["asm", "s", "a", "inc", "h", "txt"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let text = String::from_utf8_lossy(&read(&path)?).into_owned();
                     if !editor.read_source(&text) {
                         return Err(crate::i18n::tf!("{} has no tables of {what} in it (.byte lines{}).", path.display(), if editor.part == Part::Playfield { " labelled pf0, pf1 and pf2" } else { "" }));
@@ -48,14 +48,14 @@ impl Limoniter {
                 }
             }
             Asked::OpenCartridge => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Look through a cartridge")).add_filter(crate::i18n::tr("Cartridges"), &["a26", "bin", "rom"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Look through a cartridge")).add_filter(crate::i18n::tr("Cartridges"), &["a26", "bin", "rom"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let bytes = read(&path)?;
                     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                     editor.rip = Some(Rip { name, bytes, offset: 0, count: 1 });
                 }
             }
             Asked::BringIn => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Bring in a picture")).add_filter(crate::i18n::tr("Pictures"), retro_converter_host::PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Bring in a picture")).add_filter(crate::i18n::tr("Pictures"), retro_converter_host::PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                     let image = crate::quantise::read_picture(&file, &read(&path)?).map_err(|e| crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display()))?;
                     editor.remember();
@@ -71,12 +71,12 @@ impl Limoniter {
                 }
             }
             Asked::SaveSource => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the source")).set_file_name(format!("{name}.asm")).add_filter(crate::i18n::tr("Source"), &["asm", "s", "inc"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the source")).set_file_name(format!("{name}.asm")).add_filter(crate::i18n::tr("Source"), &["asm", "s", "inc"]).save_file() {
                     write(&path, crate::i18n::comments(&editor.source()).as_bytes())?;
                 }
             }
             Asked::SaveBytes => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the bytes")).set_file_name(format!("{name}.bin")).add_filter(crate::i18n::tr("Bytes"), &["bin"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the bytes")).set_file_name(format!("{name}.bin")).add_filter(crate::i18n::tr("Bytes"), &["bin"]).save_file() {
                     write(&path, &editor.bytes())?;
                 }
             }
@@ -97,7 +97,7 @@ impl Limoniter {
             }
             Asked::SaveCartridge => {
                 let cartridge = cartridge(&editor.program())?;
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the cartridge")).set_file_name(format!("{name}.a26")).add_filter(crate::i18n::tr("Atari 2600 cartridge"), &["a26", "bin"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the cartridge")).set_file_name(format!("{name}.a26")).add_filter(crate::i18n::tr("Atari 2600 cartridge"), &["a26", "bin"]).save_file() {
                     write(&path, &cartridge)?;
                 }
             }

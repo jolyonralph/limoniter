@@ -499,7 +499,7 @@ impl Limoniter {
             Some(BrowserAction::Open(i)) => self.open_from_browser(index, i),
             Some(BrowserAction::SaveCopy(i)) => match browser.take(i) {
                 Ok((name, bytes)) => {
-                    let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save a copy of the file")).set_file_name(&name);
+                    let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save a copy of the file")).set_file_name(&name);
                     if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
                         picker = picker.set_directory(folder);
                     }
@@ -515,7 +515,7 @@ impl Limoniter {
                 Ok((name, bytes)) => match crate::amiga_crunch::decrunch(&bytes) {
                     Some(Ok(decrunched)) => {
                         let title = if decrunched.found.program { "Save the decrunched program" } else { "Save the decrunched file" };
-                        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr(title)).set_file_name(&name);
+                        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr(title)).set_file_name(&name);
                         if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
                             picker = picker.set_directory(folder);
                         }
@@ -539,7 +539,7 @@ impl Limoniter {
                 });
                 match png {
                     Ok((name, png)) => {
-                        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the picture as PNG")).set_file_name(crate::pictures::png_name(&name)).add_filter(crate::i18n::tr("PNG picture"), &["png"]);
+                        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the picture as PNG")).set_file_name(crate::pictures::png_name(&name)).add_filter(crate::i18n::tr("PNG picture"), &["png"]);
                         if let Some(folder) = self.docs[index].path.as_deref().and_then(Path::parent) {
                             picker = picker.set_directory(folder);
                         }
@@ -573,7 +573,7 @@ impl Limoniter {
                         self.active = self.docs.len() - 1;
                     }
                     Some(target) => {
-                        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tf!("Save as {}", match target {
+                        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("Save as {}", match target {
                             Target::Markdown => "Markdown",
                             Target::Text => "plain text",
                             Target::Rtf => "RTF",

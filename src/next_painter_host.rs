@@ -52,7 +52,7 @@ impl Limoniter {
 
     /// A picture chosen and opened in the picture converter, in the painter's mode, to come back to it.
     fn bring_picture_to_next_painter(&mut self) {
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Bring in a picture")).add_filter(crate::i18n::tr("Pictures"), retro_converter_host::PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() else { return };
+        let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Bring in a picture")).add_filter(crate::i18n::tr("Pictures"), retro_converter_host::PICTURES).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() else { return };
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| crate::quantise::read_picture(&name, &bytes)) {
             Ok(image) => {
@@ -75,12 +75,12 @@ fn next_painter_asked(p: &mut Painter, asked: Asked) -> Result<(), String> {
     let write = |path: &Path, bytes: &[u8]| codec::write_file(path, bytes).map_err(|e| crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
     let read = |path: &Path| std::fs::read(path).map_err(|e| crate::i18n::tf!("Couldn't read {}.\n\n{e}", path.display()));
     let stem = |path: &Path| path.file_stem().map_or_else(|| "picture".to_string(), |s| crate::quantise::identifier(&s.to_string_lossy().to_lowercase()));
-    let save = |title: &str, file: String, filter: (&str, &[&str])| rfd::FileDialog::new().set_title(title).set_file_name(file).add_filter(filter.0, filter.1).save_file();
+    let save = |title: &str, file: String, filter: (&str, &[&str])| crate::sys_dialogs::file_dialog().set_title(title).set_file_name(file).add_filter(filter.0, filter.1).save_file();
     let name = p.name.clone();
     let ending = p.screen.mode.ending();
     match asked {
         Asked::Open => {
-            if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a Next screen")).add_filter(crate::i18n::tr("Next screens"), &["nxi", "sl2", "slr", "bmp"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+            if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a Next screen")).add_filter(crate::i18n::tr("Next screens"), &["nxi", "sl2", "slr", "bmp"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                 let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let screen = NextScreen::read(&file, &read(&path)?).map_err(|e| crate::i18n::tf!("Couldn't open {}.\n\n{e}", path.display()))?;
                 p.remember();
@@ -90,7 +90,7 @@ fn next_painter_asked(p: &mut Painter, asked: Asked) -> Result<(), String> {
             }
         }
         Asked::OpenPalette => {
-            if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a palette")).add_filter(crate::i18n::tr("Next palettes"), &["nxp", "pal"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+            if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a palette")).add_filter(crate::i18n::tr("Next palettes"), &["nxp", "pal"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                 let bytes = read(&path)?;
                 if bytes.len() < 256 {
                     return Err(crate::i18n::tf!("{} is {} bytes: a Next palette is 512 (or 256, without the ninth bits).", path.display(), bytes.len()));
@@ -135,7 +135,7 @@ fn next_painter_asked(p: &mut Painter, asked: Asked) -> Result<(), String> {
             }
         }
         Asked::SaveAll => {
-            if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
+            if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save everything into a folder")).pick_folder() {
                 for (file, bytes) in p.screen.everything(&name) {
                     write(&folder.join(file), &bytes)?;
                 }

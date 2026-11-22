@@ -133,14 +133,14 @@ fn sasc_reads_the_smakefile_limoniter_writes() {
 /// Amiga compiler is installed. They're each compiler's documented command line.
 #[test]
 fn gnu_make_reads_the_makefiles_and_runs_the_documented_commands() {
-    if std::process::Command::new("make").arg("--version").output().is_err() {
+    if crate::platform::command("make").arg("--version").output().is_err() {
         return;
     }
     let parent = temp("make");
     create(&parent, template(Kind::Multilingual, Os::Os3), "hello").unwrap();
     let folder = parent.join("hello");
     let run = |args: &[&str]| {
-        let out = std::process::Command::new("make").args(args).current_dir(&folder).output().unwrap();
+        let out = crate::platform::command("make").args(args).current_dir(&folder).output().unwrap();
         assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
         String::from_utf8_lossy(&out.stdout).into_owned()
     };
@@ -262,7 +262,7 @@ fn the_templates_compile_against_the_ndk_where_its_here() {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, bytes).unwrap();
         }
-        let out = std::process::Command::new("gcc")
+        let out = crate::platform::command("gcc")
             .args(["-fsyntax-only", "-std=gnu99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-pointer-to-int-cast", "-Wno-int-to-pointer-cast", "-I"])
             .arg(ndk.join("Include_H"))
             .arg(dir.join("hello.c"))

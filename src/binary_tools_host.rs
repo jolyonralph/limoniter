@@ -196,7 +196,7 @@ impl Limoniter {
     fn make_patch_file(&mut self, kind: PatchKind) -> String {
         let old = self.document_bytes();
         let folder = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("The changed copy"));
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The changed copy"));
         if let Some(folder) = &folder {
             picker = picker.set_directory(folder);
         }
@@ -210,7 +210,7 @@ impl Limoniter {
             Err(e) => return e,
         };
         let stem = changed.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "patch".into());
-        let mut saver = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the patch")).set_file_name(format!("{stem}.{}", kind.ending()));
+        let mut saver = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the patch")).set_file_name(format!("{stem}.{}", kind.ending()));
         if let Some(folder) = changed.parent() {
             saver = saver.set_directory(folder);
         }
@@ -223,7 +223,7 @@ impl Limoniter {
 
     fn apply_patch_file(&mut self) -> String {
         let old = self.document_bytes();
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("A patch to apply")).add_filter(crate::i18n::tr("Patches"), &["ips", "bps", "ups"]).pick_file() else { return String::new() };
+        let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A patch to apply")).add_filter(crate::i18n::tr("Patches"), &["ips", "bps", "ups"]).pick_file() else { return String::new() };
         let patch = match std::fs::read(&path) {
             Ok(bytes) => bytes,
             Err(e) => return e.to_string(),
@@ -312,7 +312,7 @@ impl Limoniter {
         match asked {
             Some(crate::regex_tester::Asked::ChooseSchema) => {
                 let folder = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
-                let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("A JSON Schema")).add_filter(crate::i18n::tr("JSON Schema"), &["json"]);
+                let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A JSON Schema")).add_filter(crate::i18n::tr("JSON Schema"), &["json"]);
                 if let Some(folder) = folder {
                     picker = picker.set_directory(folder);
                 }
@@ -521,7 +521,7 @@ impl Limoniter {
         if let Some((picture, _)) = &state.made {
             if save {
                 let name = self.docs[self.active].path_or_name().file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "code".into());
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the picture")).set_file_name(format!("{name}.png")).add_filter("PNG", &["png"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the picture")).set_file_name(format!("{name}.png")).add_filter("PNG", &["png"]).save_file() {
                     let image = egui::ColorImage::from_rgba_unmultiplied([picture.width, picture.height], &picture.rgba);
                     state.said = match save_png(&path, &image) {
                         Ok(()) => crate::i18n::tr("Saved.").to_string(),
@@ -821,7 +821,7 @@ impl Limoniter {
     /// The Spectrum guide's examples, and the startup they include, copied into a folder chosen, which then opens
     /// as a project.
     pub(super) fn copy_how_to_code_spectrum_examples(&mut self) {
-        let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("A folder for the examples")).pick_folder() else { return };
+        let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A folder for the examples")).pick_folder() else { return };
         match crate::howtocode_spectrum::copy_examples(&folder) {
             Ok(copied) => {
                 self.open_folder(&folder);
@@ -837,7 +837,7 @@ impl Limoniter {
 
     /// How To Code's examples, and what they include, copied into a folder chosen, which then opens as a project.
     pub(super) fn copy_how_to_code_examples(&mut self) {
-        let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("A folder for the examples")).pick_folder() else { return };
+        let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("A folder for the examples")).pick_folder() else { return };
         match crate::howtocode::copy_examples(&folder) {
             Ok(copied) => {
                 self.open_folder(&folder);

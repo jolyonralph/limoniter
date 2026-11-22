@@ -150,7 +150,7 @@ impl Server {
     pub fn start(command: &str, root: &Path) -> Result<Server, String> {
         let parts = crate::emulators::split_options(command);
         let (program, args) = parts.split_first().ok_or(crate::i18n::tr("No command for the language server."))?;
-        let mut child = std::process::Command::new(program)
+        let mut child = crate::platform::command(program)
             .args(args)
             .current_dir(root)
             .stdin(std::process::Stdio::piped())

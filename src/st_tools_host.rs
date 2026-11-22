@@ -288,7 +288,7 @@ impl Limoniter {
                 let Some((name, bytes)) = state.source.as_ref().and_then(|s| s.unpacked.as_ref().map(|u| (own_name(&s.name), u.bytes.clone()))) else {
                     return;
                 };
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save what it holds, unpacked")).set_file_name(name).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save what it holds, unpacked")).set_file_name(name).save_file() {
                     state.status = match std::fs::write(&path, &bytes) {
                         Ok(()) => crate::i18n::tf!("Saved {} ({} bytes).", path.display(), group(bytes.len() as u64)),
                         Err(e) => crate::i18n::tf!("{} couldn't be saved: {e}", path.display()),
@@ -308,7 +308,7 @@ impl Limoniter {
                 }
             }
             Act::Choose(tool) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tf!("Where is {}?", tool.name())).pick_file()
                     && let Dialog::StTools(state) = &mut self.dialog
                 {
                     state.prefs.set_path(tool, Some(path));
@@ -322,7 +322,7 @@ impl Limoniter {
                 }
             }
             Act::Folder => {
-                if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
+                if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Where to put what's made")).pick_folder()
                     && let Dialog::StTools(state) = &mut self.dialog
                     && let Some(source) = &mut state.source
                 {

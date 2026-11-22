@@ -54,7 +54,7 @@ impl Limoniter {
         match asked {
             Asked::Close => return,
             Asked::Load => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open characters or sprites")).add_filter(crate::i18n::tr("UDGs, fonts and sprites"), &["udg", "chr", "ch8", "fnt", "spr", "bin", "prg", "64c", "spd"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open characters or sprites")).add_filter(crate::i18n::tr("UDGs, fonts and sprites"), &["udg", "chr", "ch8", "fnt", "spr", "bin", "prg", "64c", "spd"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     match std::fs::read(&path) {
                         Ok(bytes) => {
                             if let Err(problem) = load_into(&mut editor, &path, &bytes) {
@@ -73,7 +73,7 @@ impl Limoniter {
                     Kind::C64Sprites | Kind::C64MultiSprites => ("C64 sprites", &["bin", "prg", "spd"]),
                     _ => ("C64 characters", &["bin", "prg", "64c"]),
                 };
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the characters or sprites")).set_file_name(format!("{}.{}", editor.label, endings[0])).add_filter(filter, endings).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the characters or sprites")).set_file_name(format!("{}.{}", editor.label, endings[0])).add_filter(filter, endings).save_file() {
                     let ending = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
                     let bytes = match ending.as_str() {
                         "prg" | "64c" if kind.c64() => editor.prg(),
@@ -134,7 +134,7 @@ impl Limoniter {
         match asked {
             Some(Asked::Close) => return,
             Some(Asked::Open) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a Spectrum screen")).add_filter(crate::i18n::tr("Spectrum screens"), &["scr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a Spectrum screen")).add_filter(crate::i18n::tr("Spectrum screens"), &["scr"]).add_filter(crate::i18n::tr("Any file"), &["*"]).pick_file() {
                     let read = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|bytes| Screen::from_scr(&bytes).ok_or_else(|| crate::i18n::tr("It isn't a Spectrum screen: those are 6912 bytes (or 6144 without colours).").to_string()));
                     match read {
                         Ok(screen) => {
@@ -152,7 +152,7 @@ impl Limoniter {
             }
             Some(Asked::SaveTap) => {
                 let scr = designer.screen.to_scr();
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen as a tape")).set_file_name("screen.tap").add_filter(crate::i18n::tr("Spectrum tape"), &["tap"]).save_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the screen as a tape")).set_file_name("screen.tap").add_filter(crate::i18n::tr("Spectrum tape"), &["tap"]).save_file() {
                     let name = path.file_stem().map_or_else(|| "screen".to_string(), |s| s.to_string_lossy().into_owned());
                     if let Err(e) = codec::write_file(&path, &crate::retro_convert::spectrum_tape(&name, &scr)) {
                         self.message("Spectrum screen", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
@@ -160,7 +160,7 @@ impl Limoniter {
                 }
             }
             Some(Asked::Save) => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen")).set_file_name("screen.scr").add_filter(crate::i18n::tr("Spectrum screen"), &["scr"]).save_file()
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the screen")).set_file_name("screen.scr").add_filter(crate::i18n::tr("Spectrum screen"), &["scr"]).save_file()
                     && let Err(e) = codec::write_file(&path, &designer.screen.to_scr())
                 {
                     self.message("Spectrum screen", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));
@@ -169,7 +169,7 @@ impl Limoniter {
             Some(Asked::SavePng) => {
                 let picture = crate::pictures::decode(crate::pictures::Format::SpectrumScreen, &designer.screen.to_scr());
                 if let Ok(png) = picture.and_then(|p| crate::pictures::to_png(&p))
-                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the screen as PNG")).set_file_name("screen.png").add_filter(crate::i18n::tr("PNG picture"), &["png"]).save_file()
+                    && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the screen as PNG")).set_file_name("screen.png").add_filter(crate::i18n::tr("PNG picture"), &["png"]).save_file()
                     && let Err(e) = codec::write_file(&path, &png)
                 {
                     self.message("Spectrum screen", crate::i18n::tf!("Couldn't save {}.\n\n{e}", path.display()));

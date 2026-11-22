@@ -744,12 +744,12 @@ impl Limoniter {
                 }
             }
             Command::LoadMacro => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Load macro")).add_filter(crate::i18n::tr("Limoniter macro"), &[scripting::EXTENSION]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Load macro")).add_filter(crate::i18n::tr("Limoniter macro"), &[scripting::EXTENSION]).pick_file() {
                     self.load_into_library(Kind::Macro, &path);
                 }
             }
             Command::LoadScript => {
-                if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Load script")).add_filter(crate::i18n::tr("Limoniter script"), &[scripting::EXTENSION]).pick_file() {
+                if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Load script")).add_filter(crate::i18n::tr("Limoniter script"), &[scripting::EXTENSION]).pick_file() {
                     self.load_into_library(Kind::Script, &path);
                 }
             }

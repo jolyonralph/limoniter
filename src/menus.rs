@@ -8,6 +8,7 @@ use crate::conversions::Conversion;
 use crate::preview;
 use super::start_page::Guide;
 use super::php_host::PhpAction;
+use super::notebook_host::Act as NotebookAct;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
 
 /// A switch that's simply on or off, toggled from a menu or the command box.
@@ -546,6 +547,41 @@ pub(super) const RUN: &[Entry] = &[
             Check("Output panel", Flag::OutputWindow),
         ];
 
+/// Jupyter notebooks: running cells and changing them. In a notebook's own tab Shift+Enter, Ctrl+Enter and the
+/// command-mode letters do the same.
+pub(super) const NOTEBOOK: &[Entry] = &[
+    Keyed("Run cell and go to the next", Command::Notebook(NotebookAct::RunCell), "Shift+Enter"),
+    Keyed("Run cell and stay", Command::Notebook(NotebookAct::RunCellStay), "Ctrl+Enter"),
+    Keyed("Run cell and add one below", Command::Notebook(NotebookAct::RunCellInsert), "Alt+Enter"),
+    Line,
+    Item("Run all cells", Command::Notebook(NotebookAct::RunAll)),
+    Item("Run all cells above", Command::Notebook(NotebookAct::RunAbove)),
+    Item("Run this cell and all below", Command::Notebook(NotebookAct::RunBelow)),
+    Line,
+    Item("Interrupt the kernel", Command::Notebook(NotebookAct::Interrupt)),
+    Item("Restart the kernel", Command::Notebook(NotebookAct::Restart)),
+    Item("Restart the kernel and run all cells", Command::Notebook(NotebookAct::RestartRunAll)),
+    Line,
+    Item("Clear this cell's output", Command::Notebook(NotebookAct::ClearCellOutput)),
+    Item("Clear all outputs", Command::Notebook(NotebookAct::ClearOutputs)),
+    Item("Hide or show this cell's output", Command::Notebook(NotebookAct::ToggleOutput)),
+    Line,
+    Item("Add a cell above", Command::Notebook(NotebookAct::InsertAbove)),
+    Item("Add a cell below", Command::Notebook(NotebookAct::InsertBelow)),
+    Item("Delete this cell", Command::Notebook(NotebookAct::Delete)),
+    Item("Move this cell up", Command::Notebook(NotebookAct::MoveUp)),
+    Item("Move this cell down", Command::Notebook(NotebookAct::MoveDown)),
+    Keyed("Split this cell at the cursor", Command::Notebook(NotebookAct::Split), "Ctrl+Shift+-"),
+    Item("Join this cell with the next", Command::Notebook(NotebookAct::Join)),
+    Line,
+    Item("Make this cell code", Command::Notebook(NotebookAct::ToCode)),
+    Item("Make this cell Markdown", Command::Notebook(NotebookAct::ToMarkdown)),
+    Item("Make this cell raw text", Command::Notebook(NotebookAct::ToRaw)),
+    Line,
+    Item("Compare with the last commit, cell by cell", Command::Notebook(NotebookAct::CompareLast)),
+    Item("Compare with the last commit, with outputs", Command::Notebook(NotebookAct::CompareLastWithOutputs)),
+];
+
 /// The chores of keeping old PHP working, and checking and running it.
 pub(super) const PHP: &[Entry] = &[
             Item("Short tags made long\u{2026}", Command::Php(PhpAction::LongTags)),
@@ -663,6 +699,10 @@ pub(super) const FILE: &[Entry] = &[
     Item("Reopen with another encoding\u{2026}", Command::ReopenAs),
     Item("Recover unsaved edits\u{2026}", Command::RecoverEdits),
     Line,
+    Keyed("Close", Command::CloseTab, "Ctrl+W"),
+    Item("Close all", Command::CloseAll),
+    Item("Close the others", Command::CloseOthers),
+    Line,
     Keyed("Print\u{2026}", Command::Print, "Ctrl+P"),
     Line,
     Item("New window", Command::NewInstance),
@@ -738,6 +778,7 @@ pub(super) const VIEW: &[Entry] = &[
     Keyed("Narrow to the selection", Command::Narrow, "Ctrl+Shift+N"),
     Item("Show the whole file", Command::Widen),
     Keyed("Table view (CSV, TSV)", Command::ToggleTable, "F6"),
+    Item("Notebook as text", Command::Notebook(NotebookAct::AsText)),
     Line,
     Sub("Preview", PREVIEW),
     Sub("Hex", HEX),
@@ -816,6 +857,7 @@ pub(super) const TOOLS: &[Entry] = &[
     Sub("Assistant", ASSISTANT),
     Sub("Run", RUN),
     Sub("PHP", PHP),
+    Sub("Notebook", NOTEBOOK),
     Sub("Macros", MACROS),
     Sub("Scripts", SCRIPTS),
     Sub("Add-ons", ADD_ONS),
@@ -1188,6 +1230,8 @@ impl Limoniter {
             Command::GitUndoChange => self.git.repo.is_some() && doc.path.is_some() && !doc.text.read_only,
             Command::ResolveInMerge => text && doc.merge.is_none() && !t.is_disk_backed(),
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
+            Command::Notebook(super::notebook_host::Act::AsText) => !no_file && super::notebook_host::is_notebook_name(&doc.path_or_name()) && !hex && doc.table.is_none() && doc.browser.is_none(),
+            Command::Notebook(_) => self.notebook_shown(self.active),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
             Command::TapeSound => !no_file && ((doc.listing_of.is_some() && !hex) || crate::media::tape_sound::may_make(&doc.path_or_name().to_string_lossy())),
@@ -1235,6 +1279,8 @@ impl Limoniter {
             | Command::Save
             | Command::SaveAs
             | Command::CloseTab
+            | Command::CloseAll
+            | Command::CloseOthers
             | Command::Paste
             | Command::SelectAll
             | Command::Find
@@ -1841,10 +1887,19 @@ impl Limoniter {
         }
         state.selected = state.selected.min(found.len().saturating_sub(1));
         let mut run = None;
+        let mut closed = false;
         // As wide as it was last left: its right and left edges drag to widen it.
         let width = self.palette_width.clamp(MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH);
         let shown = crate::fit::Dialog::new(crate::i18n::tr("Find a command")).title_bar(false).collapsible(false).resizable([true, false]).default_width(width).min_width(MIN_PALETTE_WIDTH).max_width(MAX_PALETTE_WIDTH).anchor(egui::Align2::CENTER_TOP, [0.0, 64.0]).show(ctx, |ui| {
-            let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("Type what you want to do, such as \u{201C}sort\u{201D} or \u{201C}wrap\u{201D}")).desired_width(f32::INFINITY).margin(egui::vec2(10.0, 8.0)).font(egui::FontId::proportional(16.0)));
+            // The box has no title bar, so it has a close button of its own beside the field.
+            let (field, close) = ui
+                .horizontal(|ui| {
+                    let field = ui.add(egui::TextEdit::singleline(&mut state.query).hint_text(crate::i18n::tr("Type what you want to do, such as \u{201C}sort\u{201D} or \u{201C}wrap\u{201D}")).desired_width(ui.available_width() - 30.0).margin(egui::vec2(10.0, 8.0)).font(egui::FontId::proportional(16.0)));
+                    let close = crate::access::called(ui.add(egui::Button::new(RichText::new(crate::i18n::tr("\u{D7}")).size(16.0).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close (Esc)")).clicked();
+                    (field, close)
+                })
+                .inner;
+            closed |= close;
             if state.focus {
                 field.request_focus();
                 state.focus = false;
@@ -1914,7 +1969,7 @@ impl Limoniter {
         if enter && let Some(index) = found.get(state.selected).map(|_| state.selected) && usable[index] {
             run = Some(found[index].command);
         }
-        if escape || run.is_some() {
+        if escape || closed || run.is_some() {
             self.close_dialog();
         }
         self.dialog_was_palette = run.is_some();

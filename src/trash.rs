@@ -83,7 +83,7 @@ fn platform_move(file: &Path) -> Result<(), String> {
             Err(e) => return Err(crate::i18n::tf!("Couldn't move it to the Trash: {e}")),
         }
     }
-    let output = std::process::Command::new("gio").arg("trash").arg(file).output().map_err(|e| crate::i18n::tf!("Couldn't move it to the Trash: {e}"))?;
+    let output = crate::platform::command("gio").arg("trash").arg(file).output().map_err(|e| crate::i18n::tf!("Couldn't move it to the Trash: {e}"))?;
     if output.status.success() { Ok(()) } else { Err(crate::i18n::tf!("Couldn't move it to the Trash: {}", String::from_utf8_lossy(&output.stderr).trim())) }
 }
 

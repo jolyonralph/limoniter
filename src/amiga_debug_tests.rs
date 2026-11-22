@@ -482,13 +482,13 @@ fn a_program_is_debugged_in_a_real_emulator() {
     let port = if winuae { WINUAE_PORT } else { TcpListener::bind(("127.0.0.1", 0)).unwrap().local_addr().unwrap().port() };
     let mut text = std::fs::read_to_string(&config).unwrap();
     // WinUAE, a Windows program, is told Windows's names for the folders.
-    let windows = |path: &std::path::Path| String::from_utf8(std::process::Command::new("wslpath").arg("-w").arg(path).output().unwrap().stdout).unwrap().trim().to_string();
+    let windows = |path: &std::path::Path| String::from_utf8(crate::platform::command("wslpath").arg("-w").arg(path).output().unwrap().stdout).unwrap().trim().to_string();
     if winuae {
         text = text.replace(&folder.join("dh0").display().to_string(), &windows(&folder.join("dh0")));
     }
     text.push_str(&config_lines(id, port, "hello"));
     std::fs::write(&config, text).unwrap();
-    let mut command = std::process::Command::new(&emulator);
+    let mut command = crate::platform::command(&emulator);
     if winuae {
         command.args(["-portable", "-f", &windows(&config)]);
     } else {
@@ -549,7 +549,7 @@ fn a_program_is_debugged_in_a_real_emulator() {
     let _ = child.kill();
     let _ = child.wait();
     if winuae {
-        let _ = std::process::Command::new("/mnt/c/Windows/System32/taskkill.exe").args(["/IM", emulator.file_name().unwrap().to_str().unwrap(), "/F"]).output();
+        let _ = crate::platform::command("/mnt/c/Windows/System32/taskkill.exe").args(["/IM", emulator.file_name().unwrap().to_str().unwrap(), "/F"]).output();
     }
     assert_eq!(written.as_deref(), Some("Hello from Limoniter\n"));
     let _ = std::fs::remove_dir_all(&folder);

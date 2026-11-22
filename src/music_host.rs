@@ -211,7 +211,7 @@ impl Limoniter {
         let stem = stem.strip_prefix("mod.").map(str::to_string).unwrap_or(stem);
         let hint = if silenced.iter().any(|&s| s) { crate::i18n::tr("Save it as a WAV file, as it plays, without the channels switched off") } else { crate::i18n::tr("Save it as a WAV file, as it plays") };
         if ui.button(crate::i18n::tr("Save as WAV…")).on_hover_text(hint).clicked()
-            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save as WAV")).set_file_name(format!("{stem}.wav")).add_filter("WAV", &["wav"]).save_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save as WAV")).set_file_name(format!("{stem}.wav")).add_filter("WAV", &["wav"]).save_file()
         {
             let bytes = self.front_bytes();
             let (send, receive) = std::sync::mpsc::channel();
@@ -242,7 +242,7 @@ impl Limoniter {
         };
         if module
             && ui.button(crate::i18n::tr("Save the samples…")).on_hover_text(crate::i18n::tr("Save each of the module's samples as an IFF 8SVX sound, with its loop, in a folder")).clicked()
-            && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Where to put the samples")).pick_folder()
+            && let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Where to put the samples")).pick_folder()
         {
             self.music_note = Some(match crate::music_export::samples(&self.front_bytes(), &name) {
                 Ok(files) => {

@@ -626,7 +626,7 @@ mod tests {
         let file = folder.join("t.sna");
         std::fs::write(&file, snapshot).unwrap();
         let port = 10200 + (std::process::id() % 500) as u16;
-        let mut child = std::process::Command::new(&program).args(["--vo", "null", "--ao", "null", "--noconfigfile", "--enable-remoteprotocol", "--remoteprotocol-port", &port.to_string(), "--machine", "48k"]).current_dir(std::path::Path::new(&program).parent().unwrap()).spawn().unwrap();
+        let mut child = crate::platform::command(&program).args(["--vo", "null", "--ao", "null", "--noconfigfile", "--enable-remoteprotocol", "--remoteprotocol-port", &port.to_string(), "--machine", "48k"]).current_dir(std::path::Path::new(&program).parent().unwrap()).spawn().unwrap();
         let mut debug = RemoteDebug::start(Emulator::Zesarux, port, Some(file.clone()), vec![0x8002], || {});
         let wait_until = |debug: &mut RemoteDebug, what: &dyn Fn(&RemoteDebug) -> bool| {
             let began = Instant::now();

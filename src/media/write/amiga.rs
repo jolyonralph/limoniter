@@ -448,7 +448,6 @@ impl ImageWriter for Adf {
 mod tests {
     use super::super::tests::{entry, names, reopened};
     use super::*;
-    use std::process::Command;
 
     fn add(adf: &mut Adf, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         adf.add(folder, &Addition { name: name.into(), bytes: bytes.to_vec(), ..Default::default() }).unwrap();
@@ -505,21 +504,21 @@ mod tests {
             let path = dir.join(format!("t{ffs}{hd}.adf"));
             std::fs::write(&path, adf.bytes()).unwrap();
             // Its count of used blocks agrees with the bitmap written.
-            let info = Command::new(xdftool).arg("-r").arg(&path).arg("info").output().unwrap();
+            let info = crate::platform::command(xdftool).arg("-r").arg(&path).arg("info").output().unwrap();
             let info = String::from_utf8_lossy(&info.stdout).to_string();
             let used: usize = info.lines().find(|l| l.starts_with("used:")).and_then(|l| l.split_whitespace().nth(1)).and_then(|n| n.parse().ok()).unwrap();
             assert_eq!(used, adf.blocks as usize - adf.free_blocks(), "{info}");
             let out = dir.join("big.out");
-            let read = Command::new(xdftool).arg(&path).arg("read").arg("Big file").arg(&out).output().unwrap();
+            let read = crate::platform::command(xdftool).arg(&path).arg("read").arg("Big file").arg(&out).output().unwrap();
             assert!(read.status.success(), "{}", String::from_utf8_lossy(&read.stderr));
             assert_eq!(std::fs::read(&out).unwrap(), big);
-            let listed = Command::new(xdftool).arg(&path).arg("list").output().unwrap();
+            let listed = crate::platform::command(xdftool).arg(&path).arg("list").output().unwrap();
             let listed = String::from_utf8_lossy(&listed.stdout);
             assert!(listed.contains("file 29") && !listed.contains("Gone"), "{listed}");
             // A file xdftool writes after ours goes in blocks the bitmap says are free: ours are all still whole.
             let extra = dir.join("extra.in");
             std::fs::write(&extra, vec![0x5A; 40_000]).unwrap();
-            let wrote = Command::new(xdftool).arg(&path).arg("write").arg(&extra).arg("Extra").output().unwrap();
+            let wrote = crate::platform::command(xdftool).arg(&path).arg("write").arg(&extra).arg("Extra").output().unwrap();
             assert!(wrote.status.success(), "{}", String::from_utf8_lossy(&wrote.stderr));
             let volume = super::super::super::open(std::sync::Arc::new(std::fs::read(&path).unwrap()), "t.adf").unwrap();
             assert_eq!(volume.read(&entry(&*volume, None, "Big file")).unwrap(), big);

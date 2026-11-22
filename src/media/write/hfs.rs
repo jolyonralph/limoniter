@@ -1213,7 +1213,6 @@ mod tests {
     use super::*;
     use crate::media::mac::tests::{disk_copy, partitioned, small_resource_fork};
     use std::path::{Path, PathBuf};
-    use std::process::Command;
 
     fn add(hfs: &mut Hfs, folder: Option<&Entry>, name: &str, bytes: &[u8]) {
         let guessed = hfs.guess(name, bytes);
@@ -1225,7 +1224,7 @@ mod tests {
         let fsck = tool("fsck.hfs").or_else(|| Some(PathBuf::from("/usr/sbin/fsck.hfs")).filter(|p| p.is_file()))?;
         let path = dir.join("check.hfs");
         std::fs::write(&path, volume).unwrap();
-        let out = Command::new(fsck).args(["-n", "-f"]).arg(&path).output().unwrap();
+        let out = crate::platform::command(fsck).args(["-n", "-f"]).arg(&path).output().unwrap();
         let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
         Some((out.status.success() && said.contains("appears to be OK"), said))
     }
@@ -1399,7 +1398,7 @@ mod tests {
         let path = dir.join("s.dsk");
         std::fs::write(&path, hfs.bytes()).unwrap();
         let run = |tool: &Path, args: &[&str]| {
-            let out = Command::new(tool).env("HOME", &dir).current_dir(&dir).args(args).output().unwrap();
+            let out = crate::platform::command(tool).env("HOME", &dir).current_dir(&dir).args(args).output().unwrap();
             assert!(out.status.success(), "{tool:?} {args:?}: {}", String::from_utf8_lossy(&out.stderr));
             String::from_utf8_lossy(&out.stdout).into_owned()
         };
@@ -1415,7 +1414,7 @@ mod tests {
         assert_eq!(&macbinary[128..138], b"Dear Mac,\r");
         assert_eq!(&macbinary[256..256 + small_resource_fork().len()], &small_resource_fork()[..]);
         if let Some(hfsck) = Some(PathBuf::from("/root/reftools/hfs/hfsck")).filter(|p| p.is_file()) {
-            let out = Command::new(hfsck).arg("-n").arg(&path).output().unwrap();
+            let out = crate::platform::command(hfsck).arg("-n").arg(&path).output().unwrap();
             assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
         }
         std::fs::remove_dir_all(dir).ok();

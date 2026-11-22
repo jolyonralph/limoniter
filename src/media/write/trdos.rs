@@ -499,7 +499,6 @@ impl ImageWriter for Scl {
 mod tests {
     use super::super::tests::{entry, names, reopened};
     use super::*;
-    use std::process::Command;
 
     fn program() -> Vec<u8> {
         basic::tokenise_spectrum(&["10 PRINT \"HELLO\"", "20 GO TO 10"], basic::ZxDialect::Spectrum).unwrap()
@@ -648,7 +647,7 @@ mod tests {
         for (name, bytes) in [("t.trd", disk.bytes()), ("t.scl", scl.bytes())] {
             let path = dir.join(name);
             std::fs::write(&path, bytes).unwrap();
-            let out = Command::new(tool).arg(&path).output().unwrap();
+            let out = crate::platform::command(tool).arg(&path).output().unwrap();
             let listed = String::from_utf8_lossy(&out.stdout);
             // It gives up, failing, at the deleted entry; the archive has none.
             assert!(out.status.success() || name == "t.trd", "{listed}");
@@ -694,7 +693,7 @@ mod tests {
             let file = folder.join(format!("t{round}.trd"));
             std::fs::write(&file, image).unwrap();
             let port = 10300 + (std::process::id() % 400) as u16 + round as u16;
-            let mut child = Command::new(&program)
+            let mut child = crate::platform::command(&program)
                 .args(["--vo", "null", "--ao", "null", "--noconfigfile", "--enable-remoteprotocol", "--remoteprotocol-port", &port.to_string(), "--machine", "Pentagon", "--enable-betadisk", "--enable-trd", "--trd-no-persistent-writes", "--trd-file"])
                 .arg(&file)
                 .current_dir(std::path::Path::new(&program).parent().unwrap())

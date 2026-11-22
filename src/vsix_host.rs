@@ -262,7 +262,7 @@ impl Limoniter {
             state.start(crate::i18n::tf!("Downloading {id} from Open VSX\u{2026}"), move || Job::Installed(vsix::download(&id).and_then(|bytes| vsix::install(bytes, &target)).map(Box::new)), ctx);
         }
         if from_file
-            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Install a VS Code extension")).add_filter(crate::i18n::tr("VS Code extensions"), &["vsix"]).pick_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Install a VS Code extension")).add_filter(crate::i18n::tr("VS Code extensions"), &["vsix"]).pick_file()
         {
             let target = folder.clone();
             state.start(crate::i18n::tf!("Installing {}\u{2026}", path.display()), move || Job::Installed(std::fs::read(&path).map_err(|e| crate::i18n::tf!("{} couldn't be read: {e}", path.display())).and_then(|bytes| vsix::install(bytes, &target)).map(Box::new)), ctx);

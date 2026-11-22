@@ -281,7 +281,6 @@ impl ImageWriter for Disk {
 mod tests {
     use super::super::tests::{entry, names, reopened};
     use super::*;
-    use std::process::Command;
 
     fn add(disk: &mut Disk, name: &str, bytes: &[u8]) {
         let addition = disk.guess(name, bytes);
@@ -323,14 +322,14 @@ mod tests {
         add(&mut disk, "big.dat", &big);
         let path = dir.join("t.dsk");
         std::fs::write(&path, disk.bytes()).unwrap();
-        let listed = Command::new(decb).arg("dir").arg(&path).output().unwrap();
+        let listed = crate::platform::command(decb).arg("dir").arg(&path).output().unwrap();
         let listed = String::from_utf8_lossy(&listed.stdout);
         assert!(listed.contains("HELLO    BAS  0  A") && listed.contains("BIG      DAT  1  B"), "{listed}");
         let out = dir.join("big.out");
-        let copied = Command::new(decb).arg("copy").arg(format!("{},BIG.DAT", path.display())).arg(&out).output().unwrap();
+        let copied = crate::platform::command(decb).arg("copy").arg(format!("{},BIG.DAT", path.display())).arg(&out).output().unwrap();
         assert!(copied.status.success(), "{}", String::from_utf8_lossy(&copied.stderr));
         assert_eq!(std::fs::read(&out).unwrap(), big);
-        let free = Command::new(decb).arg("free").arg(&path).output().unwrap();
+        let free = crate::platform::command(decb).arg("free").arg(&path).output().unwrap();
         let free = String::from_utf8_lossy(&free.stdout);
         assert!(free.contains(&format!("Free granules: {} ", disk.free_granules())), "{free}");
         std::fs::remove_dir_all(dir).ok();

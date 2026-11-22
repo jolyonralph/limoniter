@@ -189,7 +189,7 @@ impl Limoniter {
                     ui.label(crate::i18n::tr("Shared add-ons folder:"));
                     ui.add(egui::TextEdit::singleline(shared).hint_text(crate::i18n::tr("None")).desired_width(300.0));
                     if ui.button(crate::i18n::tr("Browse\u{2026}")).clicked()
-                        && let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("Shared add-ons folder")).pick_folder()
+                        && let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Shared add-ons folder")).pick_folder()
                     {
                         *shared = folder.display().to_string();
                     }

@@ -133,7 +133,7 @@ fn mame_shows(name: &str, rom: &[u8], tv: Tv) -> Option<Image> {
     let folder = std::env::temp_dir().join(format!("limoniter-2600gfx-{name}-{}", std::process::id()));
     std::fs::create_dir_all(&folder).unwrap();
     std::fs::write(folder.join("cart.bin"), rom).unwrap();
-    let output = std::process::Command::new(program)
+    let output = crate::platform::headless(program)
         .args([if tv == Tv::Ntsc { "a2600" } else { "a2600p" }, "-cart", "cart.bin", "-video", "none", "-sound", "none", "-seconds_to_run", "2", "-nothrottle", "-skip_gameinfo", "-snapshot_directory", "snap", "-nvram_directory", "nv", "-cfg_directory", "cfg"])
         .current_dir(&folder)
         .output()

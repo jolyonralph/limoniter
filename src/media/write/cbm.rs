@@ -447,7 +447,6 @@ impl ImageWriter for Disk {
 mod tests {
     use super::super::tests::{entry, names, reopened, tool};
     use super::*;
-    use std::process::Command;
 
     #[test]
     fn files_go_on_and_come_off_a_commodore_disk_with_its_bam_kept_right() {
@@ -512,14 +511,14 @@ mod tests {
             disk.delete(None, &entry(&*reopened(&disk, name), None, "GONE")).unwrap();
             let path = dir.join(name);
             std::fs::write(&path, disk.bytes()).unwrap();
-            let listed = Command::new(&c1541).arg(&path).arg("-list").output().unwrap();
+            let listed = crate::platform::command(&c1541).arg(&path).arg("-list").output().unwrap();
             let listed = String::from_utf8_lossy(&listed.stdout).to_lowercase();
             assert!(listed.contains("\"checked ") && listed.contains("\"big\"") && listed.contains("\"small\"") && !listed.contains("gone"), "{name}: {listed}");
             let out = dir.join(format!("{name}.big"));
-            Command::new(&c1541).arg(&path).arg("-read").arg("big").arg(&out).output().unwrap();
+            crate::platform::command(&c1541).arg(&path).arg("-read").arg("big").arg(&out).output().unwrap();
             assert_eq!(std::fs::read(&out).unwrap(), big, "{name}");
             let before = std::fs::read(&path).unwrap();
-            Command::new(&c1541).arg(&path).arg("-validate").output().unwrap();
+            crate::platform::command(&c1541).arg(&path).arg("-validate").output().unwrap();
             let after = std::fs::read(&path).unwrap();
             let changed: Vec<usize> = (0..before.len()).filter(|i| before[*i] != after[*i]).collect();
             assert!(changed.is_empty(), "{name}: VALIDATE changed bytes at {:?}", &changed[..changed.len().min(16)]);

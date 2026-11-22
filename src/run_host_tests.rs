@@ -240,7 +240,7 @@ fn programs_start_on_real_emulators_that_cant_be_reached() {
         assert_eq!(app.running.sessions.len(), 1, "{variable}: still running");
         assert!(matches!(app.dialog, Dialog::None), "{variable}: {:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
         if let Some(folder) = std::env::var_os("LIMONITER_GRAB") {
-            let _ = std::process::Command::new("import").args(["-window", "root"]).arg(PathBuf::from(folder).join(format!("{variable}.png"))).status();
+            let _ = crate::platform::command("import").args(["-window", "root"]).arg(PathBuf::from(folder).join(format!("{variable}.png"))).status();
         }
         app.stop_all_sessions();
     }
@@ -268,7 +268,7 @@ fn a_cartridge_starts_on_a_real_openmsx() {
     app.check_sessions();
     assert_eq!(app.running.sessions.len(), 1, "still running");
     if let Some(folder) = std::env::var_os("LIMONITER_GRAB") {
-        let _ = std::process::Command::new("import").args(["-window", "root"]).arg(PathBuf::from(folder).join("openmsx.png")).status();
+        let _ = crate::platform::command("import").args(["-window", "root"]).arg(PathBuf::from(folder).join("openmsx.png")).status();
     }
     app.stop_all_sessions();
 }
@@ -980,7 +980,7 @@ fn an_amiga_program_runs_on_a_real_fs_uae() {
     }
     if let Some(grab) = std::env::var_os("LIMONITER_GRAB") {
         std::thread::sleep(Duration::from_secs(2));
-        let _ = std::process::Command::new("import").args(["-window", "root"]).arg(PathBuf::from(grab).join("fs-uae.png")).status();
+        let _ = crate::platform::command("import").args(["-window", "root"]).arg(PathBuf::from(grab).join("fs-uae.png")).status();
     }
     app.check_sessions();
     app.stop_all_sessions();

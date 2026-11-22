@@ -14,7 +14,7 @@
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Stdio};
 use std::sync::{Arc, Mutex};
 
 /// Where minipro is found and described.
@@ -460,7 +460,7 @@ impl Job {
             shown.push(format!("$ minipro {}\n", arguments.iter().map(|a| if a.contains(' ') { format!("\"{a}\"") } else { a.clone() }).collect::<Vec<_>>().join(" ")).as_bytes());
         }
         // Nothing to type into: a minipro that stops to ask a question ends instead of waiting for ever.
-        let spawned = Command::new(program).args(&arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn();
+        let spawned = crate::platform::command(program).args(&arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn();
         match spawned {
             Err(e) => *lock(&finished) = Some(Err(crate::i18n::tf!("minipro couldn't be started: {e}"))),
             Ok(mut child) => {

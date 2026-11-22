@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn the_pdf_reads_back_with_its_words_where_a_reader_is_installed() {
-        let Ok(found) = std::process::Command::new("pdftotext").arg("-v").output() else { return };
+        let Ok(found) = crate::platform::command("pdftotext").arg("-v").output() else { return };
         let _ = found;
         let text = "# Caf\u{E9} guide\n\nSome **bold** words.\n\n```mermaid\nsequenceDiagram\nAlice->>Bob: Hello\n```\n";
         let blocks = crate::preview::render(crate::preview::Kind::Markdown, text);
@@ -489,7 +489,7 @@ mod tests {
         let path = folder.join("guide.pdf");
         std::fs::write(&path, make(&blocks, None, "Caf\u{E9}")).unwrap();
         // In UTF-8: pdftotext on Windows writes Latin-1 unless told.
-        let out = std::process::Command::new("pdftotext").args(["-enc", "UTF-8"]).arg(&path).arg("-").output().unwrap();
+        let out = crate::platform::command("pdftotext").args(["-enc", "UTF-8"]).arg(&path).arg("-").output().unwrap();
         let words = String::from_utf8_lossy(&out.stdout);
         let _ = std::fs::remove_dir_all(&folder);
         assert!(words.contains("Caf\u{E9} guide"), "{words}");

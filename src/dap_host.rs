@@ -1050,7 +1050,7 @@ fn python_has_debugpy(adapter: &str) -> bool {
     let parts = crate::emulators::split_options(adapter);
     let Some(python) = parts.first() else { return false };
     // py -m ... on Windows: the launcher, asked the same way.
-    std::process::Command::new(python).args(["-c", "import debugpy"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
+    crate::platform::command(python).args(["-c", "import debugpy"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
 }
 
 #[cfg(test)]

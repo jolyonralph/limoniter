@@ -84,7 +84,7 @@ impl Limoniter {
             None => None,
         };
         let stem = run.name.rsplit_once('.').map_or(run.name.as_str(), |(stem, _)| stem).to_string();
-        let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the bootable floppy")).set_file_name(format!("{stem}.st")).add_filter(crate::i18n::tr("Atari ST floppy"), &["st", "msa"]).save_file() else {
+        let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the bootable floppy")).set_file_name(format!("{stem}.st")).add_filter(crate::i18n::tr("Atari ST floppy"), &["st", "msa"]).save_file() else {
             return;
         };
         let made = st_run::bootable_floppy(&run.bytes, &run.name, boot.as_deref()).and_then(|disk| {

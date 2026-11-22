@@ -505,7 +505,7 @@ impl Limoniter {
         };
         let doc = &self.docs[self.active];
         let stem = doc.path_or_name().file_stem().map_or_else(|| "program".to_string(), |s| s.to_string_lossy().into_owned());
-        let mut picker = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the assembled bytes as")).set_file_name(format!("{stem}.bin")).add_filter(crate::i18n::tr("Binary"), &["bin"]).add_filter(crate::i18n::tr("Any file"), &["*"]);
+        let mut picker = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the assembled bytes as")).set_file_name(format!("{stem}.bin")).add_filter(crate::i18n::tr("Binary"), &["bin"]).add_filter(crate::i18n::tr("Any file"), &["*"]);
         if let Some(folder) = doc.path.as_deref().and_then(Path::parent) {
             picker = picker.set_directory(folder);
         }
@@ -689,7 +689,7 @@ impl Limoniter {
             state.kickass = Some(rx);
         }
         if browse
-            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("The assembler program")).pick_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The assembler program")).pick_file()
             && let Dialog::Assembler(state) = &mut self.dialog
         {
             let row = &mut state.rows[state.showing];

@@ -84,7 +84,7 @@ impl Limoniter {
                 None => state.status = crate::i18n::tr("There's nowhere to keep it: Limoniter's settings folder couldn't be found.").into(),
             }
         } else if choose {
-            if let Some(folder) = rfd::FileDialog::new().set_title(crate::i18n::tr("The NDK's folder")).pick_folder() {
+            if let Some(folder) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("The NDK's folder")).pick_folder() {
                 state.status = match amiga_ndk::choose(Some(&folder)) {
                     Ok(_) => String::new(),
                     Err(problem) => problem,

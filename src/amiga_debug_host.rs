@@ -62,7 +62,7 @@ impl Limoniter {
         let log = folder.join("emulator.log");
         let out = std::fs::File::create(&log).map_err(|e| e.to_string())?;
         let err = out.try_clone().map_err(|e| e.to_string())?;
-        let mut command = std::process::Command::new(program);
+        let mut command = crate::platform::command(program);
         command.args(&args).stdin(std::process::Stdio::null()).stdout(out).stderr(err);
         if let Some(home) = program.parent().filter(|p| !p.as_os_str().is_empty()) {
             command.current_dir(home);
@@ -357,7 +357,7 @@ mod tests {
         std::fs::create_dir_all(&folder).unwrap();
         let program = folder.join("fs-uae");
         std::fs::write(&program, "#!/bin/sh\n# remote_debugger_trigger\nsleep 3\n").unwrap();
-        std::process::Command::new("chmod").arg("+x").arg(&program).status().unwrap();
+        crate::platform::command("chmod").arg("+x").arg(&program).status().unwrap();
         app.sends.devices = vec![Device { name: "FS-UAE".into(), place: Place::Emulator { emulator: "fs-uae".into(), program: program.clone(), options: String::new() }, preset: None, eject: false }];
         app.run_on_target(Target::Device(0));
         assert!(matches!(app.dialog, Dialog::None));

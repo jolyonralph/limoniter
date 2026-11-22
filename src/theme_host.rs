@@ -435,13 +435,13 @@ fn document_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox, in_fron
                     changed = true;
                 }
                 if ui.button(crate::i18n::tr("Save to a file\u{2026}")).clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
+                    && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
                     && let Err(e) = std::fs::write(&path, current.to_text())
                 {
                     state.problem = crate::i18n::tf!("Couldn't save it: {e}");
                 }
                 if ui.button(crate::i18n::tr("Open a theme file\u{2026}")).clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
+                    && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
                 {
                     match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|text| DocumentTheme::from_text(&text)) {
                         Ok(mut theme) => {
@@ -593,13 +593,13 @@ fn window_page(ui: &mut Ui, themes: &mut Themes, state: &mut ThemeBox) -> bool {
                     changed = true;
                 }
                 if ui.button(crate::i18n::tr("Save to a file\u{2026}")).clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
+                    && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the theme")).set_file_name(format!("{}.limoniter-theme", current.name)).save_file()
                     && let Err(e) = std::fs::write(&path, current.to_text())
                 {
                     state.problem = crate::i18n::tf!("Couldn't save it: {e}");
                 }
                 if ui.button(crate::i18n::tr("Open a theme file\u{2026}")).clicked()
-                    && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
+                    && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a theme")).add_filter(crate::i18n::tr("Limoniter theme"), &["limoniter-theme"]).pick_file()
                 {
                     match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|text| WindowTheme::from_text(&text)) {
                         Ok(mut theme) => {

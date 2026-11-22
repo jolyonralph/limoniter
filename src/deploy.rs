@@ -339,22 +339,21 @@ pub fn find_card(label: &str) -> Option<Drive> {
 pub fn eject(drive: &Drive) -> Result<(), String> {
     #[cfg(windows)]
     let result = {
-        use std::os::windows::process::CommandExt;
         let letter = drive.root.display().to_string().trim_end_matches('\\').to_string();
         let script = format!("$d=(New-Object -ComObject Shell.Application).Namespace(17).ParseName('{letter}'); if ($d) {{ $d.InvokeVerb('Eject') }} else {{ exit 1 }}");
-        std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &script]).creation_flags(0x0800_0000).output()
+        crate::platform::command("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &script]).output()
     };
     #[cfg(target_os = "macos")]
-    let result = std::process::Command::new("diskutil").arg("eject").arg(&drive.root).output();
+    let result = crate::platform::command("diskutil").arg("eject").arg(&drive.root).output();
     #[cfg(not(any(windows, target_os = "macos")))]
     let result = match &drive.device {
-        Some(device) => std::process::Command::new("udisksctl").args(["unmount", "-b", device]).output().inspect(|out| {
+        Some(device) => crate::platform::command("udisksctl").args(["unmount", "-b", device]).output().inspect(|out| {
             if out.status.success() {
                 // Powering it off is a nicety; the card is safe once it's unmounted.
-                let _ = std::process::Command::new("udisksctl").args(["power-off", "-b", device]).output();
+                let _ = crate::platform::command("udisksctl").args(["power-off", "-b", device]).output();
             }
         }),
-        None => std::process::Command::new("umount").arg(&drive.root).output(),
+        None => crate::platform::command("umount").arg(&drive.root).output(),
     };
     match result {
         Ok(out) if out.status.success() => Ok(()),

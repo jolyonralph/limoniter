@@ -117,7 +117,7 @@ impl Limoniter {
             state.renaming = None;
         }
         if open
-            && let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Open a Dragon DOS disk")).add_filter(crate::i18n::tr("Dragon disk"), &["vdk"]).pick_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Open a Dragon DOS disk")).add_filter(crate::i18n::tr("Dragon disk"), &["vdk"]).pick_file()
         {
             match std::fs::read(&path).ok().and_then(|bytes| Disk::from_vdk(&bytes)) {
                 Some(disk) => {
@@ -129,7 +129,7 @@ impl Limoniter {
                 None => state.said = crate::i18n::tr("That isn't a Dragon DOS disk (a VDK file).").into(),
             }
         }
-        if add_files && let Some(paths) = rfd::FileDialog::new().set_title(crate::i18n::tr("Files to put on the disk")).pick_files() {
+        if add_files && let Some(paths) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Files to put on the disk")).pick_files() {
             for path in paths {
                 let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
                 let ending = path.extension().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "BIN".into());
@@ -168,14 +168,14 @@ impl Limoniter {
         }
         if let Some(n) = save_out
             && let Some(file) = files.get(n)
-            && let Some(path) = rfd::FileDialog::new().set_file_name(format!("{}.{}", file.name, file.ending)).save_file()
+            && let Some(path) = crate::sys_dialogs::file_dialog().set_file_name(format!("{}.{}", file.name, file.ending)).save_file()
             && let Err(e) = std::fs::write(&path, &file.bytes)
         {
             state.said = e.to_string();
         }
         if save {
             let suggested = state.path.as_ref().and_then(|p| p.file_name()).map_or_else(|| "disk.vdk".to_string(), |n| n.to_string_lossy().into_owned());
-            if let Some(path) = rfd::FileDialog::new().set_title(crate::i18n::tr("Save the Dragon DOS disk")).add_filter(crate::i18n::tr("Dragon disk"), &["vdk"]).set_file_name(suggested).save_file() {
+            if let Some(path) = crate::sys_dialogs::file_dialog().set_title(crate::i18n::tr("Save the Dragon DOS disk")).add_filter(crate::i18n::tr("Dragon disk"), &["vdk"]).set_file_name(suggested).save_file() {
                 match std::fs::write(&path, state.disk.to_vdk()) {
                     Ok(()) => {
                         state.said = crate::i18n::tf!("Saved as {}.", path.display());

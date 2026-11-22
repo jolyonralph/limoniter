@@ -4,7 +4,6 @@
 
 use crate::asm::{self, Assembly, Problem};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Duration;
 
 /// A processor Limoniter assembles for.
@@ -295,13 +294,8 @@ pub fn assemble_external(found: &External, program: &Path, source: &Path) -> Res
 
 /// Runs a program in a folder, giving up after a while; what it printed, and whether it succeeded.
 pub(crate) fn run(program: &Path, args: &[String], folder: &Path) -> Result<(bool, Vec<String>), String> {
-    let mut command = Command::new(program);
+    let mut command = crate::platform::command(program);
     command.args(args).current_dir(folder).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
-    }
     let mut child = command.spawn().map_err(|e| crate::i18n::tf!("{} couldn't be started: {e}", program.display()))?;
     let started = std::time::Instant::now();
     loop {

@@ -154,7 +154,7 @@ fn source_becomes_a_cartridge_that_mame_runs() {
     let file = folder.join("kernel.a26");
     std::fs::write(&file, &rom).unwrap();
     let args = mame.arguments(crate::running::Machine::Atari2600, crate::running::Format::A26, &file, None, "-video none -sound none -seconds_to_run 1 -nothrottle");
-    let output = std::process::Command::new(program).args(&args).current_dir(&folder).output().unwrap();
+    let output = crate::platform::headless(program).args(&args).current_dir(&folder).output().unwrap();
     let _ = std::fs::remove_dir_all(&folder);
     assert!(output.status.success(), "{args:?}: {}", String::from_utf8_lossy(&output.stderr));
 }

@@ -734,7 +734,7 @@ pub mod tests {
             let output = dir.join("out");
             std::fs::write(&input, &file).unwrap();
             let _ = std::fs::remove_file(&output);
-            let ok = std::process::Command::new(&reference).arg(&input).arg(&output).status().is_ok_and(|s| s.success());
+            let ok = crate::platform::command(&reference).arg(&input).arg(&output).status().is_ok_and(|s| s.success());
             if !ok {
                 continue;
             }
@@ -766,7 +766,7 @@ pub mod tests {
         assert!(ours.picture && ours.bytes.len() == 32_000);
         let (input, output) = (dir.join("in"), dir.join("out"));
         std::fs::write(&input, &file).unwrap();
-        assert!(std::process::Command::new(&reference).arg(&input).arg(&output).status().unwrap().success());
+        assert!(crate::platform::command(&reference).arg(&input).arg(&output).status().unwrap().success());
         assert!(std::fs::read(&output).unwrap() == ours.bytes, "the Atomik picture differs");
         eprintln!("An Atomik picture unpacked the same as the reference.");
         let _ = std::fs::remove_dir_all(dir);

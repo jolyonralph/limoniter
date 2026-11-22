@@ -110,7 +110,7 @@ fn sjasmplus_makes_the_same_nex() {
         }
         let ours = std::fs::read(folder.join("pic.nex")).unwrap();
         std::fs::remove_file(folder.join("pic.nex")).unwrap();
-        let output = std::process::Command::new(sjasmplus).arg("--nologo").arg("pic.asm").current_dir(&folder).output().unwrap();
+        let output = crate::platform::command(sjasmplus).arg("--nologo").arg("pic.asm").current_dir(&folder).output().unwrap();
         assert!(output.status.success(), "{mode:?}: {}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
         let theirs = std::fs::read(folder.join("pic.nex")).unwrap();
         assert!(ours == theirs, "{mode:?}: the .nex differs from sjasmplus's ({} and {} bytes)", ours.len(), theirs.len());
