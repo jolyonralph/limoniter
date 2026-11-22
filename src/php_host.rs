@@ -1058,19 +1058,23 @@ mod tests {
         let port = free_port().unwrap();
         let line = format!("{} -S localhost:{port} -t {}", quoted(&php.display().to_string()), quoted(&dir.display().to_string()));
         let mut job = super::super::file_tools::start_run(&line, Some(&dir), || {}).unwrap();
+        let address = address_of(port, &dir, Some(&dir.join("sub/page.php")));
+        let path = address.split_once(&format!(":{port}")).unwrap().1.to_string();
+        // The port can take a connection a moment before the server answers on it, so ask again until it does.
         let began = Instant::now();
-        let mut stream = loop {
-            match std::net::TcpStream::connect(("localhost", port)) {
-                Ok(stream) => break stream,
-                Err(_) if began.elapsed() < Duration::from_secs(5) => std::thread::sleep(Duration::from_millis(50)),
-                Err(e) => panic!("the server didn't start: {e}"),
+        let answer = loop {
+            let answer = std::net::TcpStream::connect(("localhost", port)).ok().and_then(|mut stream| {
+                write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n").ok()?;
+                let mut answer = String::new();
+                stream.read_to_string(&mut answer).ok()?;
+                Some(answer)
+            });
+            match answer {
+                Some(answer) if !answer.is_empty() => break answer,
+                _ if began.elapsed() < Duration::from_secs(10) => std::thread::sleep(Duration::from_millis(100)),
+                _ => panic!("the server didn't answer"),
             }
         };
-        let address = address_of(port, &dir, Some(&dir.join("sub/page.php")));
-        let path = address.split_once(&format!(":{port}")).unwrap().1;
-        write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n").unwrap();
-        let mut answer = String::new();
-        stream.read_to_string(&mut answer).unwrap();
         assert!(answer.contains("<p>42</p>"), "{answer}");
         job.stop();
         let began = Instant::now();
