@@ -1495,7 +1495,28 @@ fn is_guide_page(path: &Path) -> bool {
 }
 
 /// The About box. Returns whether OK was clicked, and whether the list of what Limoniter can do was asked for.
-fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
+/// Opens the links the frame's hyperlinks asked for (the About box's, a tool's website), as Limoniter opens web
+/// pages. eframe is built without a way of its own, so without this a click on a link did nothing.
+fn open_links(ctx: &Context) {
+    let mut links = Vec::new();
+    ctx.output_mut(|output| {
+        output.commands.retain(|command| match command {
+            egui::OutputCommand::OpenUrl(link) => {
+                links.push(link.url.clone());
+                false
+            }
+            _ => true,
+        });
+    });
+    for link in links {
+        if let Err(problem) = crate::platform::open_web_page(&link) {
+            warn(&problem);
+        }
+    }
+}
+
+/// The About box's page. Gives whether OK, What Limoniter can do and Licence information were pressed.
+fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool, bool) {
     let (mut ok, mut features) = (false, false);
     ui.set_width(560.0);
     ui.add_space(4.0);
@@ -1547,17 +1568,20 @@ fn about_page(ui: &mut Ui, notices: Option<&Path>) -> (bool, bool) {
     });
     ui.hyperlink_to(RichText::new(crate::i18n::tr("github.com/jolyonralph/limoniter")).size(13.0), "https://github.com/jolyonralph/limoniter");
     ui.add_space(10.0);
-    let mut licence = crate::i18n::tr("Limoniter is free software under the Apache License 2.0.").to_string();
-    if let Some(path) = notices {
-        licence += &crate::i18n::tf!(" The work it's built on, and their licences, are listed in {}", path.display());
-    }
-    ui.add(egui::Label::new(RichText::new(licence).size(11.5).color(theme::text_faint())).wrap());
+    ui.add(egui::Label::new(RichText::new(crate::i18n::tr("Limoniter is free software under the Apache License 2.0.")).size(11.5).color(theme::text_faint())).wrap());
     ui.add_space(10.0);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        ok = ui.button(RichText::new(crate::i18n::tr("   OK   "))).clicked();
-        features = ui.button(crate::i18n::tr("What Limoniter can do\u{2026}")).on_hover_text(crate::i18n::tr("The list of everything Limoniter can do, as a page of its own")).clicked();
+    let mut licence = false;
+    ui.horizontal(|ui| {
+        // The licences of the work Limoniter is built on, in a file installed beside it.
+        if let Some(path) = notices {
+            licence = ui.button(crate::i18n::tr("Licence information\u{2026}")).on_hover_text(crate::i18n::tr("The licences of Limoniter and of the work it's built on")).on_hover_text(path.display().to_string()).clicked();
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ok = ui.button(RichText::new(crate::i18n::tr("   OK   "))).clicked();
+            features = ui.button(crate::i18n::tr("What Limoniter can do\u{2026}")).on_hover_text(crate::i18n::tr("The list of everything Limoniter can do, as a page of its own")).clicked();
+        });
     });
-    (ok, features)
+    (ok, features, licence)
 }
 
 /// Limoniter's logo, for the About box: decoded and handed to the graphics card once, then kept.
@@ -7789,6 +7813,7 @@ impl Limoniter {
         let mut fill = None;
         let mut number = None;
         let mut show_features = false;
+        let mut show_licence: Option<PathBuf> = None;
         let mut surround_tag = None;
         let mut wrap_abbreviation = None;
         let mut save_layout = None;
@@ -7926,9 +7951,12 @@ impl Limoniter {
                 });
             }
             Dialog::About { notices } => {
-                let (ok, features) = about_page(ui, notices.as_deref());
+                let (ok, features, licence) = about_page(ui, notices.as_deref());
                 close |= ok || enter;
                 show_features |= features;
+                if licence {
+                    show_licence = notices.clone();
+                }
             }
             _ => {}
         });
@@ -7936,6 +7964,13 @@ impl Limoniter {
         if show_features {
             close = true;
             self.open_features();
+        }
+        // The licences open in a tab of their own, to read rather than change.
+        if let Some(path) = show_licence {
+            close = true;
+            if self.open_path(&path) {
+                self.doc().set_read_only(true);
+            }
         }
         if column_without_wrap {
             self.dialog = Dialog::None;
@@ -9150,6 +9185,7 @@ impl eframe::App for Limoniter {
         recovery::IN_FRAME.store(true, Ordering::SeqCst);
         let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.draw_frame(ui)));
         recovery::IN_FRAME.store(false, Ordering::SeqCst);
+        open_links(ui.ctx());
         let window_theme = theme::window_theme();
         if self.title_bar_theme.as_ref() != Some(&window_theme) {
             self.title_bar_theme = Some(window_theme);
@@ -12515,6 +12551,39 @@ mod tests {
         paths.sort();
         paths.dedup();
         assert_eq!(paths.len(), count, "no two menu items have the same place and name");
+    }
+
+    #[test]
+    fn links_are_opened_by_limoniter_itself() {
+        let ctx = Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            ui.ctx().open_url(egui::OpenUrl::new_tab("https://example.com/"));
+            open_links(ui.ctx());
+        });
+        assert!(!output.platform_output.commands.iter().any(|c| matches!(c, egui::OutputCommand::OpenUrl(_))), "taken, not left for eframe, which can't open it");
+    }
+
+    #[test]
+    fn the_about_box_opens_the_licences_to_read() {
+        let (mut app, ctx) = app_with("");
+        let notices = std::env::temp_dir().join(format!("limoniter-notices-{}.txt", std::process::id()));
+        std::fs::write(&notices, "Third-party notices\n").unwrap();
+        ctx.enable_accesskit();
+        draw(&mut app, &ctx, Vec::new());
+        app.dialog = Dialog::About { notices: Some(notices.clone()) };
+        draw(&mut app, &ctx, Vec::new());
+        let output = draw(&mut app, &ctx, Vec::new());
+        let nodes = crate::access::tests::nodes(&output);
+        let button = nodes.iter().map(|(_, n)| n).filter(|n| n.role() == egui::accesskit::Role::Button && n.label().is_some_and(|l| l.starts_with("Licence information"))).find_map(|n| n.bounds()).expect("a Licence information button");
+        let centre = egui::pos2(((button.x0 + button.x1) / 2.0) as f32, ((button.y0 + button.y1) / 2.0) as f32);
+        for events in click_at(centre) {
+            draw(&mut app, &ctx, events);
+        }
+        assert!(matches!(app.dialog, Dialog::None), "the box closes");
+        let doc = &app.docs[app.active];
+        assert_eq!(doc.path.as_deref(), Some(notices.as_path()));
+        assert!(doc.text.read_only, "to read, not to change");
+        let _ = std::fs::remove_file(notices);
     }
 
     #[test]

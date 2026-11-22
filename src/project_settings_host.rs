@@ -342,7 +342,10 @@ pub(super) fn window(ctx: &Context, draft: &mut Draft, base: &Path) -> Result {
                 ui.separator();
                 ui.vertical(|ui| {
                     ui.set_min_width(480.0);
-                    ui.set_height(440.0_f32.min(crate::fit::height_left(ui)));
+                    // As tall as the window is now, so making it taller shows more of the tab, never empty space
+                    // under a fixed-height part (440 points to begin with, and never more than the screen has).
+                    let room = ui.available_height();
+                    ui.set_height(if room.is_finite() && room > 120.0 { room } else { 440.0_f32.min(crate::fit::height_left(ui)) });
                     egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt(("project-settings-tab", draft.tab)).show(ui, |ui| match draft.tab {
                         0 => draft.general(ui),
                         1 => draft.files(ui),

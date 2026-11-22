@@ -161,6 +161,7 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
+| Links open (eframe can't open them itself); the About box's Licence information button; Project settings' tabs fill the window | Next |
 | Project settings: one window with tabs for everything a project keeps, from a gear on the Project panel | 0.16.1 |
 | VS Code's `.vscode` settings, tasks, launch setups and recommended extensions read, followed and importable; `.code-workspace` files opened | 0.16.1 |
 | Rainbow CSV columns and SQL-like queries over a file's rows | 0.16.1 |
