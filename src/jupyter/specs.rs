@@ -181,7 +181,8 @@ pub fn labels(specs: &[KernelSpec]) -> Vec<String> {
 /// `--user`; where the system won't let pip install (PEP 668) it makes a virtual environment for Jupyter with
 /// uv, or with pipx, and registers its kernel for this user. R uses IRkernel from CRAN.
 pub fn install_command(language: &str) -> Option<(String, &'static str)> {
-    let quote = |path: &Path| format!("\"{}\"", path.display());
+    // A program named by its path, for the terminal's shell: PowerShell (Windows') runs a quoted path only after &.
+    let run = |path: &Path| if cfg!(windows) { format!("& \"{}\"", path.display()) } else { format!("\"{}\"", path.display()) };
     if language.eq_ignore_ascii_case("r") {
         let r = if cfg!(windows) { "Rscript" } else { "R" };
         let args = if cfg!(windows) { "-e" } else { "-q -e" };
@@ -193,7 +194,8 @@ pub fn install_command(language: &str) -> Option<(String, &'static str)> {
     }
     let python = usual_python();
     if let Some(venv) = std::env::var_os("VIRTUAL_ENV").map(PathBuf::from) && let Some(python) = python.as_ref().filter(|p| p.prefix == venv) {
-        return Some((format!("{} -m pip install ipykernel", quote(&python.program)), "python"));
+        let program = run(&python.program);
+        return Some((steps(&[format!("{program} -m pip install ipykernel"), format!("{program} -m ipykernel install --user")]), "python"));
     }
     if std::env::var_os("CONDA_PREFIX").is_some() && crate::lsp::on_path("conda") {
         return Some(("conda install -y ipykernel".into(), "conda"));
@@ -202,25 +204,35 @@ pub fn install_command(language: &str) -> Option<(String, &'static str)> {
     if managed {
         let folder = crate::settings::data_folder().unwrap_or_else(std::env::temp_dir).join("jupyter-python");
         let program = if cfg!(windows) { folder.join("Scripts").join("python.exe") } else { folder.join("bin").join("python") };
-        let register = format!("{} -m ipykernel install --user", quote(&program));
+        let register = format!("{} -m ipykernel install --user", run(&program));
         if crate::lsp::on_path("uv") {
-            return Some((format!("uv venv {folder} && uv pip install --python {program} ipykernel && {register}", folder = quote(&folder), program = quote(&program)), "uv"));
+            return Some((steps(&[format!("uv venv \"{}\"", folder.display()), format!("uv pip install --python \"{}\" ipykernel", program.display()), register]), "uv"));
         }
         if crate::lsp::on_path("pipx") {
             // pipx keeps ipykernel in an environment of its own; its Python then registers the kernel.
             let venvs = pipx_venvs().unwrap_or_else(|| PathBuf::from("~/.local/share/pipx/venvs"));
             let pipx_python = if cfg!(windows) { venvs.join("ipykernel").join("Scripts").join("python.exe") } else { venvs.join("ipykernel").join("bin").join("python") };
-            return Some((format!("pipx install --include-deps ipykernel && {} -m ipykernel install --user", quote(&pipx_python)), "pipx"));
+            return Some((steps(&["pipx install --include-deps ipykernel".to_string(), format!("{} -m ipykernel install --user", run(&pipx_python))]), "pipx"));
         }
-        if python.is_some() {
+        if let Some(base) = python.as_ref() {
             // Python's own venv makes the environment where uv and pipx aren't.
-            let base = python.as_ref().map(|p| quote(&p.program)).unwrap_or_default();
-            return Some((format!("{base} -m venv {} && {} -m pip install ipykernel && {register}", quote(&folder), quote(&program)), "python"));
+            return Some((steps(&[format!("{} -m venv \"{}\"", run(&base.program), folder.display()), format!("{} -m pip install ipykernel", run(&program)), register]), "python"));
         }
         return None;
     }
-    let program = python.map(|p| quote(&p.program))?;
-    Some((format!("{program} -m pip install --user ipykernel"), "python"))
+    // Installed for this user, then registered, so Jupyter itself finds the kernel too.
+    let program = run(&python?.program);
+    Some((steps(&[format!("{program} -m pip install --user ipykernel"), format!("{program} -m ipykernel install --user")]), "python"))
+}
+
+/// Commands run one after another, each only if the one before worked, written for the terminal's shell:
+/// `&&` for a Unix shell, and for Windows PowerShell (5, which hasn't `&&`) `; if ($?) { … }`.
+fn steps(steps: &[String]) -> String {
+    if cfg!(windows) {
+        steps.iter().rev().fold(String::new(), |rest, step| if rest.is_empty() { step.clone() } else { format!("{step}; if ($?) {{ {rest} }}") })
+    } else {
+        steps.join(" && ")
+    }
 }
 
 /// Where pipx keeps its environments, as it says itself.
@@ -311,6 +323,17 @@ mod tests {
         let fallback = python_fallback(&Python { program: PathBuf::from("/usr/bin/python3"), prefix: PathBuf::from("/usr"), has_ipykernel: true, externally_managed: false });
         assert_eq!(fallback.display_name, "Python 3 (ipykernel)");
         assert_eq!(fallback.argv, vec!["/usr/bin/python3", "-m", "ipykernel_launcher", "-f", "{connection_file}"]);
+    }
+
+    #[test]
+    fn install_steps_suit_the_terminal_s_shell() {
+        let line = steps(&["a".to_string(), "b".to_string(), "c".to_string()]);
+        if cfg!(windows) {
+            assert_eq!(line, "a; if ($?) { b; if ($?) { c } }", "Windows PowerShell 5 has no &&");
+        } else {
+            assert_eq!(line, "a && b && c");
+        }
+        assert_eq!(steps(&["only".to_string()]), "only");
     }
 
     #[test]

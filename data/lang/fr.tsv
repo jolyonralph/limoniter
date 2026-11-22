@@ -11002,3 +11002,5 @@ waits for the browser	attend le navigateur
 ▶ Debug	▶ Déboguer
 Licence information…	Informations de licence…
 The licences of Limoniter and of the work it's built on	Les licences de Limoniter et des travaux sur lesquels il repose
+A kernel is being installed in the terminal. It's picked up here as soon as it's ready.	Un kernel est en cours d'installation dans le terminal. Il sera pris en compte ici dès qu'il sera prêt.
+The kernel is installed. Run a cell to start it.	Le kernel est installé. Exécutez une cellule pour le démarrer.

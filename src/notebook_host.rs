@@ -131,6 +131,8 @@ pub(super) struct NotebookState {
     specs: SpecList,
     /// How the kernels are found, to look again.
     list: ListKernels,
+    /// While a kernel is being installed: when it began, and when the kernels were last looked for.
+    install_watch: Option<(std::time::Instant, std::time::Instant)>,
     /// Cells to run once the list of kernels is here.
     run_after: Option<Vec<u64>>,
     /// The first key of a two-key command (D D, I I).
@@ -201,6 +203,7 @@ impl NotebookState {
             session,
             specs: SpecList::start(kernels.list, ctx),
             list: kernels.list,
+            install_watch: None,
             run_after: None,
             pending_key: None,
             scroll_to_selected: false,
@@ -458,9 +461,37 @@ impl NotebookState {
         self.nb.language().filter(|l| !l.is_empty()).unwrap_or("python").to_string()
     }
 
+    #[cfg(test)]
+    pub(super) fn notice_text(&self) -> Option<&str> {
+        self.notice.as_deref()
+    }
+
     /// Says a kernel is being installed in the terminal, and what to do after.
     pub(super) fn installing(&mut self) {
-        self.notice = Some(crate::i18n::tr("A kernel is being installed in the terminal. When it has finished, choose Look for kernels again from the Kernel menu.").to_string());
+        self.notice = Some(crate::i18n::tr("A kernel is being installed in the terminal. It's picked up here as soon as it's ready.").to_string());
+        let now = std::time::Instant::now();
+        self.install_watch = Some((now, now));
+    }
+
+    /// While a kernel is being installed, looks for kernels every few seconds (for a quarter of an hour at most),
+    /// and says so when one for the notebook's language turns up, so there's nothing to press.
+    fn watch_install(&mut self, ctx: &eframe::egui::Context) {
+        let Some((began, looked)) = self.install_watch else { return };
+        let language = self.language();
+        if self.specs.get().is_some_and(|specs| specs.iter().any(|s| s.language.eq_ignore_ascii_case(&language))) {
+            self.install_watch = None;
+            self.notice = Some(crate::i18n::tr("The kernel is installed. Run a cell to start it.").to_string());
+            return;
+        }
+        if began.elapsed() > std::time::Duration::from_secs(15 * 60) {
+            self.install_watch = None;
+            return;
+        }
+        if self.specs.get().is_some() && looked.elapsed() > std::time::Duration::from_secs(4) {
+            self.specs = SpecList::start(self.list, Some(ctx.clone()));
+            self.install_watch = Some((began, std::time::Instant::now()));
+        }
+        ctx.request_repaint_after(std::time::Duration::from_secs(1));
     }
 
     /// Carries out a command, returning whether the notebook changed.
@@ -746,6 +777,7 @@ impl NotebookState {
             }
             // The kernel: which, a way to change it, and how it is.
             let named = self.session.spec.as_ref().map(|s| s.display_name.clone()).or_else(|| self.nb.metadata.get("kernelspec").and_then(|k| k.get("display_name")).and_then(|n| n.as_str()).map(str::to_string)).unwrap_or_else(|| crate::i18n::tr("No kernel").to_string());
+            self.watch_install(ui.ctx());
             let language = self.language();
             let mut chosen = None;
             crate::fit::menu_button(ui, crate::i18n::tf!("Kernel: {named}"), |ui| {

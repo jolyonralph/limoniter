@@ -204,3 +204,15 @@ fn new_python_and_r_notebooks_are_offered_and_valid() {
         assert_eq!(new_kinds::NewKind::usual().iter().find(|k| k.name == name).unwrap().starter, kind.starter, "the same every time");
     }
 }
+
+#[test]
+fn a_kernel_installed_from_the_menu_is_picked_up_by_itself() {
+    let (mut app, ctx, dir) = app_with("watch", OUTPUTS);
+    frames(&mut app, &ctx, 2);
+    state(&mut app).installing();
+    assert!(state(&mut app).notice_text().is_some_and(|n| n.contains("being installed")));
+    // The stand-in kernels have Python, as if the install had just finished: the next look finds it.
+    frames(&mut app, &ctx, 3);
+    assert!(state(&mut app).notice_text().is_some_and(|n| n.contains("is installed")), "{:?}", state(&mut app).notice_text());
+    let _ = std::fs::remove_dir_all(dir);
+}
