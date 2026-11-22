@@ -68,6 +68,16 @@ impl KernelLink for FakeKernel {
         let request = self.next_request;
         self.next_request += 1;
         self.count += 1;
+        // A module or package that isn't there, as the real kernels say it.
+        for (word, name, message) in [("nosuchmodule", "ModuleNotFoundError", "No module named 'nosuchmodule'"), ("nosuchpkg", "Error", "there is no package called \u{2018}nosuchpkg\u{2019}")] {
+            if code.contains(word) {
+                self.events.push(KernelEvent::Status(KernelStatus::Busy));
+                self.events.push(KernelEvent::Output { request, output: serde_json::json!({"output_type": "error", "ename": name, "evalue": message, "traceback": [format!("{name}: {message}")]}) });
+                self.events.push(KernelEvent::Done { request, execution_count: Some(self.count), ok: false });
+                self.events.push(KernelEvent::Status(KernelStatus::Idle));
+                return request;
+            }
+        }
         let text = format!("{}\n{code}\n", "(A stand-in kernel: nothing was run. Here is the code that was given.)");
         self.events.push(KernelEvent::Status(KernelStatus::Busy));
         self.events.push(KernelEvent::Output { request, output: serde_json::json!({"output_type": "stream", "name": "stdout", "text": text}) });
@@ -79,6 +89,18 @@ impl KernelLink for FakeKernel {
     fn execute_quietly(&mut self, code: &str) -> u64 {
         let request = self.next_request;
         self.next_request += 1;
+        // An install: its progress on the output, and pip's own kind of line when a package can't be found.
+        if code.contains("%pip install") || code.contains("install.packages(") {
+            let stream = |name: &str, text: &str| serde_json::json!({"output_type": "stream", "name": name, "text": text});
+            self.events.push(KernelEvent::Output { request, output: stream("stdout", "Collecting packages\n") });
+            if code.contains("nosuchpackage") {
+                self.events.push(KernelEvent::Output { request, output: stream("stderr", "ERROR: No matching distribution found for nosuchpackage\n") });
+            } else {
+                self.events.push(KernelEvent::Output { request, output: stream("stdout", "Successfully installed the packages\n") });
+            }
+            self.events.push(KernelEvent::Done { request, execution_count: Some(self.count), ok: true });
+            return request;
+        }
         let text = if code.contains("__limoniter_list") || code.contains("esc(class(v)[1])") {
             "@@LIMONITER@@[{\"name\":\"frame\",\"type\":\"pandas.DataFrame\",\"size\":\"250000 \u{d7} 2\",\"kind\":\"frame\",\"value\":\"\"},{\"name\":\"n\",\"type\":\"int\",\"size\":\"\",\"kind\":\"\",\"value\":\"5\"}]@@LIMONITER@@".to_string()
         } else {
@@ -134,6 +156,8 @@ struct SideRun {
     output: String,
     /// What it failed with, if it did.
     error: Option<String>,
+    /// Whether what it wrote to the error stream counts as its output too (an installer's progress does).
+    with_errors: bool,
 }
 
 pub struct Session {
@@ -156,7 +180,7 @@ pub struct Session {
     folder: PathBuf,
     repaint: Option<eframe::egui::Context>,
     /// Code asked for the window's own use, waiting for the kernel to be free of cells.
-    side_queue: VecDeque<(u64, String)>,
+    side_queue: VecDeque<(u64, String, bool)>,
     side_running: Option<SideRun>,
     /// Answers ready to be taken, by the number `ask` gave.
     side_done: Vec<(u64, Result<String, String>)>,
@@ -306,10 +330,10 @@ impl Session {
         // With no cell waiting, what the window asked for itself goes next.
         if self.side_running.is_none()
             && self.status != KernelStatus::Starting
-            && let Some((token, code)) = self.side_queue.pop_front()
+            && let Some((token, code, with_errors)) = self.side_queue.pop_front()
         {
             let request = link.execute_quietly(&code);
-            self.side_running = Some(SideRun { request, token, output: String::new(), error: None });
+            self.side_running = Some(SideRun { request, token, output: String::new(), error: None, with_errors });
         }
     }
 
@@ -318,8 +342,21 @@ impl Session {
     /// execution, or enter the kernel's history.
     pub fn ask(&mut self, code: String) -> u64 {
         self.side_count += 1;
-        self.side_queue.push_back((self.side_count, code));
+        self.side_queue.push_back((self.side_count, code, false));
         self.side_count
+    }
+
+    /// Like `ask`, for code whose messages matter, such as an installer's: what it writes to the error stream
+    /// comes back with the rest. While it runs, `progress` says what it has printed so far.
+    pub fn ask_with_messages(&mut self, code: String) -> u64 {
+        self.side_count += 1;
+        self.side_queue.push_back((self.side_count, code, true));
+        self.side_count
+    }
+
+    /// What the code asked for with this number has printed so far, or nothing if it hasn't begun.
+    pub fn progress(&self, token: u64) -> Option<&str> {
+        self.side_running.as_ref().filter(|run| run.token == token).map(|run| run.output.as_str())
     }
 
     /// The answers that have come to what `ask` was given: the text the code printed, or what it failed with.
@@ -335,7 +372,7 @@ impl Session {
     fn forget_side_runs(&mut self, why: String) {
         let waiting = std::mem::take(&mut self.side_queue);
         let running = self.side_running.take();
-        for token in running.map(|r| r.token).into_iter().chain(waiting.into_iter().map(|(token, _)| token)) {
+        for token in running.map(|r| r.token).into_iter().chain(waiting.into_iter().map(|(token, _, _)| token)) {
             self.side_done.push((token, Err(why.clone())));
         }
     }
@@ -346,7 +383,7 @@ impl Session {
         match event {
             KernelEvent::Output { request, output } if *request == run.request => {
                 match output.get("output_type").and_then(Value::as_str) {
-                    Some("stream") if output.get("name").and_then(Value::as_str) != Some("stderr") => run.output.push_str(&crate::notebook_output::text_of(output.get("text").unwrap_or(&Value::Null))),
+                    Some("stream") if run.with_errors || output.get("name").and_then(Value::as_str) != Some("stderr") => run.output.push_str(&crate::notebook_output::text_of(output.get("text").unwrap_or(&Value::Null))),
                     Some("error") => {
                         let word = |key: &str| output.get(key).and_then(Value::as_str).unwrap_or("");
                         run.error = Some(format!("{}: {}", word("ename"), word("evalue")));
@@ -627,6 +664,24 @@ pub(crate) mod tests {
         assert!(session.take_answers().is_empty() && !session.is_asking());
         assert_eq!(nb.cells[0].execution_count, Some(1), "the listing isn't an execution");
         assert_eq!(nb.cells[0].outputs.len(), 1, "and none of its output went into the cell");
+    }
+
+    #[test]
+    fn code_asked_for_with_its_messages_shows_its_progress_and_keeps_the_error_stream() {
+        let (mut session, shared) = scripted();
+        let mut nb = notebook_of(&["1"]);
+        let token = session.ask_with_messages("%pip install x".into());
+        assert_eq!(session.progress(token), None, "not begun");
+        session.pump(&mut nb);
+        assert_eq!(session.progress(token), Some(""));
+        let error_stream = |text: &str| serde_json::json!({"output_type": "stream", "name": "stderr", "text": text});
+        say(&shared, vec![KernelEvent::Output { request: 1, output: stream("Collecting x\n") }, KernelEvent::Output { request: 1, output: error_stream("ERROR: no\n") }]);
+        session.pump(&mut nb);
+        assert_eq!(session.progress(token), Some("Collecting x\nERROR: no\n"));
+        say(&shared, vec![KernelEvent::Done { request: 1, execution_count: None, ok: true }]);
+        session.pump(&mut nb);
+        assert_eq!(session.take_answers(), vec![(token, Ok("Collecting x\nERROR: no\n".to_string()))]);
+        assert_eq!(session.progress(token), None);
     }
 
     #[test]

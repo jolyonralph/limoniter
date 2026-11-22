@@ -199,6 +199,7 @@ mod jupyter;
 mod sys_dialogs;
 mod jsonl;
 mod notebook;
+mod notebook_install;
 mod notebook_output;
 mod notebook_run;
 mod notebook_vars;

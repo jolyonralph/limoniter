@@ -609,3 +609,32 @@ fn a_real_irkernel_runs_r() {
     assert!(ok, "{out:?}");
     assert_eq!(kernel.status(), KernelStatus::Idle);
 }
+
+#[test]
+fn a_real_ipykernel_installs_a_small_package_with_the_code_the_install_box_sends() {
+    use crate::notebook_install::{Tongue, install_code, outcome};
+    let Some(spec) = real_spec("python") else { return };
+    let mut kernel = super::start(&spec, &std::env::temp_dir()).unwrap();
+    let (out, (_, ok)) = run(kernel.as_mut(), &install_code(Tongue::Python, &["tabulate".to_string()]));
+    let printed: String = out.iter().filter(|o| o["output_type"] == "stream").map(|o| o["text"].as_str().unwrap_or("").to_string()).collect();
+    let failure = out.iter().find(|o| o["output_type"] == "error").map(|o| format!("{}: {}", o["ename"], o["evalue"]));
+    let result = outcome(&printed, failure.as_deref());
+    if let Err(why) = &result {
+        let offline = ["Connection", "connection", "Max retries", "Temporary failure", "Name or service", "No matching distribution", "Could not find a version", "timed out"].iter().any(|w| printed.contains(w) || why.contains(w));
+        if offline {
+            println!("There is no network here (or the index can't be reached), so the real install was skipped: {why}");
+            kernel.shutdown();
+            return;
+        }
+    }
+    assert!(ok && result.is_ok(), "{result:?}\n{printed}");
+    // The package went where this very kernel looks, so it can be used at once, with no restart.
+    let (out, (_, ok)) = run(kernel.as_mut(), "import tabulate\nprint(tabulate.__name__)");
+    assert!(ok, "{out:?}");
+    assert!(out.iter().any(|o| o["text"] == "tabulate\n"), "{out:?}");
+    // A name that doesn't exist fails in the way the box recognises, though the cell itself doesn't fail.
+    let (out, _) = run(kernel.as_mut(), &install_code(Tongue::Python, &["limoniter-no-such-package-xyz".to_string()]));
+    let printed: String = out.iter().filter(|o| o["output_type"] == "stream").map(|o| o["text"].as_str().unwrap_or("").to_string()).collect();
+    assert!(outcome(&printed, None).is_err(), "{printed}");
+    kernel.shutdown();
+}

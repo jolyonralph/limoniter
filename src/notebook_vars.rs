@@ -201,6 +201,11 @@ mod tests {
         let (mut vars, mut table) = (None, None);
         while std::time::Instant::now() < deadline && (vars.is_none() || table.is_none()) {
             session.pump(&mut nb);
+            // A kernel without pandas or numpy can't make what's to be listed: that's the computer, not the code.
+            if let Some(missing) = nb.cells[0].outputs.iter().find(|o| o["ename"] == "ModuleNotFoundError") {
+                println!("This {language} kernel hasn't {}, so its variables weren't listed on a real one.", missing["evalue"]);
+                return None;
+            }
             if !asked && session.has_kernel() && session.status != crate::jupyter::link::KernelStatus::Starting {
                 asked = session.run(&mut nb, &[uid]);
                 list_token = Some(session.ask(list_code(language).unwrap()));

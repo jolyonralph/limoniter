@@ -216,3 +216,96 @@ fn a_kernel_installed_from_the_menu_is_picked_up_by_itself() {
     assert!(state(&mut app).notice_text().is_some_and(|n| n.contains("is installed")), "{:?}", state(&mut app).notice_text());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+fn wait_for_install(app: &mut Limoniter, ctx: &Context) -> String {
+    for _ in 0..200 {
+        frame(app, ctx, Vec::new());
+        let progress = state(app).install_progress().unwrap_or_default();
+        if progress.starts_with("done") || progress.starts_with("failed") {
+            return progress;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    state(app).install_progress().unwrap_or_default()
+}
+
+#[test]
+fn the_install_box_installs_names_on_the_kernel_and_says_how_it_went() {
+    let (mut app, ctx, dir) = app_with("install", OUTPUTS);
+    frames(&mut app, &ctx, 2);
+    give(&mut app, &ctx, Command::Notebook(Act::InstallPackages));
+    frames(&mut app, &ctx, 2);
+    assert_eq!(state(&mut app).install_progress().as_deref(), Some("typing"));
+    // Text that isn't a package name is refused, and nothing is sent to the kernel.
+    state(&mut app).install_typed("pandas; import os");
+    let shown = state(&mut app).install_progress().unwrap();
+    assert!(shown.starts_with("typing: ") && shown.contains("isn't a package name"), "{shown}");
+    assert!(!state(&mut app).busy(), "nothing was asked of the kernel");
+    state(&mut app).install_typed("pandas==2.2 matplotlib");
+    frame(&mut app, &ctx, Vec::new());
+    assert_eq!(state(&mut app).install_progress().as_deref(), Some("running"));
+    let shown = wait_for_install(&mut app, &ctx);
+    assert!(shown.starts_with("done") && shown.contains("Successfully installed"), "{shown}");
+    // It was no run: no count, and nothing added to any cell.
+    assert!(state(&mut app).cells().iter().all(|c| c.outputs.iter().all(|o| !o.to_string().contains("Collecting"))));
+    // A package that can't be had says why.
+    state(&mut app).install_typed("nosuchpackage");
+    let shown = wait_for_install(&mut app, &ctx);
+    assert_eq!(shown, "failed: No matching distribution found for nosuchpackage");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_missing_module_error_offers_to_install_and_then_to_run_the_cell_again() {
+    let (mut app, ctx, dir) = app_with("install-error", OUTPUTS);
+    frames(&mut app, &ctx, 2);
+    state(&mut app).select(5);
+    state(&mut app).set_source(5, "import nosuchmodule");
+    give(&mut app, &ctx, Command::Notebook(Act::RunCellStay));
+    for _ in 0..200 {
+        frame(&mut app, &ctx, Vec::new());
+        if state(&mut app).cells()[5].execution_count.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(state(&mut app).install_button_for(5).as_deref(), Some("nosuchmodule"));
+    assert_eq!(state(&mut app).install_button_for(0), None, "other cells have no such button");
+    state(&mut app).press_install_button(5);
+    let shown = wait_for_install(&mut app, &ctx);
+    assert!(shown.starts_with("done"), "{shown}");
+    let counted = state(&mut app).cells()[5].execution_count;
+    state(&mut app).set_source(5, "print('now it is there')");
+    state(&mut app).press_run_again();
+    assert_eq!(state(&mut app).install_progress(), None, "the box closes");
+    for _ in 0..200 {
+        frame(&mut app, &ctx, Vec::new());
+        if state(&mut app).cells()[5].execution_count != counted {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(state(&mut app).cells()[5].outputs[0]["text"].as_str().unwrap().contains("now it is there"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_r_notebook_installs_r_packages_and_other_languages_cant() {
+    let (mut app, ctx, dir) = app_with("install-r", include_str!("notebook_testdata/r.ipynb"));
+    frames(&mut app, &ctx, 2);
+    give(&mut app, &ctx, Command::Notebook(Act::InstallPackages));
+    state(&mut app).install_typed("ggplot2==3.0");
+    assert!(state(&mut app).install_progress().unwrap().contains("no versions"), "R has no versions");
+    state(&mut app).install_typed("ggplot2 data.table");
+    let shown = wait_for_install(&mut app, &ctx);
+    assert!(shown.starts_with("done"), "{shown}");
+    // A language without installing: the box is drawn, with its explanation, and nothing can be sent.
+    let julia = OUTPUTS.replace("\"name\": \"python\"", "\"name\": \"julia\"");
+    let (mut app, ctx, dir2) = app_with("install-julia", &julia);
+    frames(&mut app, &ctx, 2);
+    give(&mut app, &ctx, Command::Notebook(Act::InstallPackages));
+    state(&mut app).install_typed("Plots");
+    frames(&mut app, &ctx, 2);
+    assert_eq!(state(&mut app).install_progress().as_deref(), Some("typing"));
+    let _ = (std::fs::remove_dir_all(dir), std::fs::remove_dir_all(dir2));
+}

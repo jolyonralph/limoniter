@@ -11004,3 +11004,21 @@ Licence information…	Información de licencias…
 The licences of Limoniter and of the work it's built on	Las licencias de Limoniter y de los trabajos en los que se basa
 A kernel is being installed in the terminal. It's picked up here as soon as it's ready.	Se está instalando un kernel en el terminal. Se usará aquí en cuanto esté listo.
 The kernel is installed. Run a cell to start it.	El kernel está instalado. Ejecuta una celda para iniciarlo.
+Add packages such as matplotlib to the kernel's own environment	Añade paquetes como matplotlib al entorno propio del kernel
+Change the names	Cambiar los nombres
+Install it into this kernel, then run the cell again	Instálalo en este kernel y vuelve a ejecutar la celda
+Install packages into this kernel…	Instalar paquetes en este kernel…
+Install {package}	Instalar {package}
+Installed. It's ready to use in this notebook.	Instalado. Ya está listo para usarse en este notebook.
+Installing {names}…	Instalando {names}…
+Interrupt the install	Interrumpir la instalación
+It didn't work: {why}	No funcionó: {why}
+Looking for the kernel…	Buscando el kernel…
+Packages can't be installed from here into a {language} kernel. Only Python and R kernels are supported.	Desde aquí no se pueden instalar paquetes en un kernel de {language}. Solo se admiten kernels de Python y R.
+Packages to install into this {language} kernel, separated by spaces:	Paquetes que instalar en este kernel de {language}, separados por espacios:
+Run the cell again	Volver a ejecutar la celda
+Stopping…	Deteniendo…
+Type the names of the packages to install.	Escribe los nombres de los paquetes que quieres instalar.
+Waiting for the cells that are running to finish…	Esperando a que terminen las celdas en ejecución…
+“{word}” isn't a package name. R's packages have letters, digits and dots only, and no versions.	“{word}” no es un nombre de paquete. Los paquetes de R solo tienen letras, dígitos y puntos, y no llevan versiones.
+“{word}” isn't a package name. Use letters, digits and - _ . only, with [extras] and versions such as ==2.2 if needed.	“{word}” no es un nombre de paquete. Usa solo letras, dígitos y - _ . , con [extras] y versiones como ==2.2 si hace falta.

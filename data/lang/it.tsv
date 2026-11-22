@@ -11004,3 +11004,21 @@ Licence information…	Informazioni sulla licenza…
 The licences of Limoniter and of the work it's built on	Le licenze di Limoniter e dei lavori su cui si basa
 A kernel is being installed in the terminal. It's picked up here as soon as it's ready.	Nel terminale si sta installando un kernel. Verrà usato qui non appena sarà pronto.
 The kernel is installed. Run a cell to start it.	Il kernel è installato. Esegui una cella per avviarlo.
+Add packages such as matplotlib to the kernel's own environment	Aggiungi pacchetti come matplotlib all'ambiente del kernel
+Change the names	Cambia i nomi
+Install it into this kernel, then run the cell again	Installalo in questo kernel, poi esegui di nuovo la cella
+Install packages into this kernel…	Installa pacchetti in questo kernel…
+Install {package}	Installa {package}
+Installed. It's ready to use in this notebook.	Installato. È pronto per l'uso in questo notebook.
+Installing {names}…	Installazione di {names}…
+Interrupt the install	Interrompi l'installazione
+It didn't work: {why}	Non ha funzionato: {why}
+Looking for the kernel…	Ricerca del kernel…
+Packages can't be installed from here into a {language} kernel. Only Python and R kernels are supported.	Da qui non si possono installare pacchetti in un kernel {language}. Sono supportati solo i kernel Python e R.
+Packages to install into this {language} kernel, separated by spaces:	Pacchetti da installare in questo kernel {language}, separati da spazi:
+Run the cell again	Esegui di nuovo la cella
+Stopping…	Arresto in corso…
+Type the names of the packages to install.	Scrivi i nomi dei pacchetti da installare.
+Waiting for the cells that are running to finish…	In attesa che finiscano le celle in esecuzione…
+“{word}” isn't a package name. R's packages have letters, digits and dots only, and no versions.	“{word}” non è un nome di pacchetto. I pacchetti di R hanno solo lettere, cifre e punti, e nessuna versione.
+“{word}” isn't a package name. Use letters, digits and - _ . only, with [extras] and versions such as ==2.2 if needed.	“{word}” non è un nome di pacchetto. Usa solo lettere, cifre e - _ . , con [extras] e versioni come ==2.2 se serve.

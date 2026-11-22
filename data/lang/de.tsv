@@ -11004,3 +11004,21 @@ Licence information…	Lizenzinformationen …
 The licences of Limoniter and of the work it's built on	Die Lizenzen von Limoniter und der Werke, auf denen es aufbaut
 A kernel is being installed in the terminal. It's picked up here as soon as it's ready.	Im Terminal wird ein Kernel installiert. Er wird hier übernommen, sobald er bereit ist.
 The kernel is installed. Run a cell to start it.	Der Kernel ist installiert. Führen Sie eine Zelle aus, um ihn zu starten.
+Add packages such as matplotlib to the kernel's own environment	Pakete wie matplotlib zur eigenen Umgebung des Kernels hinzufügen
+Change the names	Die Namen ändern
+Install it into this kernel, then run the cell again	In diesem Kernel installieren und die Zelle dann erneut ausführen
+Install packages into this kernel…	Pakete in diesem Kernel installieren…
+Install {package}	{package} installieren
+Installed. It's ready to use in this notebook.	Installiert. Es ist in diesem Notebook einsatzbereit.
+Installing {names}…	{names} wird installiert…
+Interrupt the install	Die Installation unterbrechen
+It didn't work: {why}	Es hat nicht geklappt: {why}
+Looking for the kernel…	Kernel wird gesucht…
+Packages can't be installed from here into a {language} kernel. Only Python and R kernels are supported.	Von hier aus können keine Pakete in einen {language}-Kernel installiert werden. Es werden nur Python- und R-Kernel unterstützt.
+Packages to install into this {language} kernel, separated by spaces:	Pakete, die in diesen {language}-Kernel installiert werden sollen, durch Leerzeichen getrennt:
+Run the cell again	Die Zelle erneut ausführen
+Stopping…	Wird gestoppt…
+Type the names of the packages to install.	Gib die Namen der Pakete ein, die installiert werden sollen.
+Waiting for the cells that are running to finish…	Warten, bis die laufenden Zellen fertig sind…
+“{word}” isn't a package name. R's packages have letters, digits and dots only, and no versions.	“{word}” ist kein Paketname. R-Pakete haben nur Buchstaben, Ziffern und Punkte und keine Versionen.
+“{word}” isn't a package name. Use letters, digits and - _ . only, with [extras] and versions such as ==2.2 if needed.	“{word}” ist kein Paketname. Verwende nur Buchstaben, Ziffern und - _ . , bei Bedarf mit [extras] und Versionen wie ==2.2.

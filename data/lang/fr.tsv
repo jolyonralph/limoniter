@@ -11004,3 +11004,21 @@ Licence information…	Informations de licence…
 The licences of Limoniter and of the work it's built on	Les licences de Limoniter et des travaux sur lesquels il repose
 A kernel is being installed in the terminal. It's picked up here as soon as it's ready.	Un kernel est en cours d'installation dans le terminal. Il sera pris en compte ici dès qu'il sera prêt.
 The kernel is installed. Run a cell to start it.	Le kernel est installé. Exécutez une cellule pour le démarrer.
+Add packages such as matplotlib to the kernel's own environment	Ajouter des paquets comme matplotlib à l'environnement propre du kernel
+Change the names	Modifier les noms
+Install it into this kernel, then run the cell again	L'installer dans ce kernel, puis exécuter à nouveau la cellule
+Install packages into this kernel…	Installer des paquets dans ce kernel…
+Install {package}	Installer {package}
+Installed. It's ready to use in this notebook.	Installé. Il est prêt à être utilisé dans ce notebook.
+Installing {names}…	Installation de {names}…
+Interrupt the install	Interrompre l'installation
+It didn't work: {why}	Ça n'a pas marché : {why}
+Looking for the kernel…	Recherche du kernel…
+Packages can't be installed from here into a {language} kernel. Only Python and R kernels are supported.	Il n'est pas possible d'installer des paquets d'ici dans un kernel {language}. Seuls les kernels Python et R sont pris en charge.
+Packages to install into this {language} kernel, separated by spaces:	Paquets à installer dans ce kernel {language}, séparés par des espaces :
+Run the cell again	Exécuter à nouveau la cellule
+Stopping…	Arrêt en cours…
+Type the names of the packages to install.	Saisissez les noms des paquets à installer.
+Waiting for the cells that are running to finish…	Attente de la fin des cellules en cours d'exécution…
+“{word}” isn't a package name. R's packages have letters, digits and dots only, and no versions.	“{word}” n'est pas un nom de paquet. Les paquets R ne contiennent que des lettres, des chiffres et des points, et pas de versions.
+“{word}” isn't a package name. Use letters, digits and - _ . only, with [extras] and versions such as ==2.2 if needed.	“{word}” n'est pas un nom de paquet. Utilisez uniquement des lettres, des chiffres et - _ . , avec [extras] et des versions comme ==2.2 si besoin.

@@ -11,6 +11,7 @@ use super::*;
 use crate::jupyter::link::{KernelSpec, KernelStatus};
 use crate::notebook::{CellKind, Notebook, Problem};
 use crate::data_table::DataTable;
+use crate::notebook_install::Tongue;
 use crate::notebook_output::{self as output, Shown};
 use crate::notebook_run::{CellState, Kernels, ListKernels, Session};
 use eframe::egui::text::{CCursor, CCursorRange, LayoutJob};
@@ -66,6 +67,8 @@ pub(super) enum Act {
     RescanKernels,
     /// Install a kernel for the notebook's language, in the terminal.
     InstallKernel,
+    /// Open the box for installing packages into the kernel.
+    InstallPackages,
 }
 
 /// The kernels that can be started, found on another thread: looking for them can mean asking Python.
@@ -151,6 +154,36 @@ pub(super) struct NotebookState {
     pictures: HashMap<(u64, usize), (u64, Option<eframe::egui::TextureHandle>)>,
     /// What the kernel holds, for the Variables panel.
     pub(super) vars: Variables,
+    /// The box for installing packages, while it's open.
+    install: Option<InstallBox>,
+}
+
+/// The box for installing packages into the kernel, and how far it has got.
+struct InstallBox {
+    /// The names typed.
+    text: String,
+    stage: InstallStage,
+    /// The cell to offer running again, when the box was opened from its error.
+    rerun: Option<u64>,
+    /// Whether the name field has been given the keyboard yet.
+    focused: bool,
+}
+
+enum InstallStage {
+    /// Waiting for the names; the problem with the last ones, if there was one.
+    Typing(Option<String>),
+    /// Waiting for the list of kernels to come, to start one.
+    Pending(Vec<String>),
+    /// On the kernel: the request, the names, the last lines printed, and whether Stop has been pressed.
+    Running { token: u64, names: String, tail: String, stopping: bool },
+    /// Over: how it went, and the last lines printed.
+    Done { result: Result<(), String>, tail: String },
+}
+
+impl InstallBox {
+    fn new(text: String, rerun: Option<u64>) -> Self {
+        Self { text, stage: InstallStage::Typing(None), rerun, focused: false }
+    }
 }
 
 /// The kernel's variables as the Variables panel shows them, kept up to date by asking after each run.
@@ -216,6 +249,7 @@ impl NotebookState {
             markdown: HashMap::new(),
             pictures: HashMap::new(),
             vars: Variables { stale: true, ..Variables::default() },
+            install: None,
         }
     }
 
@@ -335,6 +369,7 @@ impl NotebookState {
             self.answer.clear();
         }
         self.refresh_variables();
+        self.watch_package_install();
         changed
     }
 
@@ -361,6 +396,8 @@ impl NotebookState {
                     }
                     Err(why) => self.vars.problem = Some(why),
                 }
+            } else if self.install_token() == Some(token) {
+                self.finish_install(answer);
             } else if let Some(at) = self.vars.fetching.iter().position(|(t, _)| *t == token) {
                 let (_, name) = self.vars.fetching.remove(at);
                 match answer.and_then(|text| crate::notebook_vars::parse_table(&text)) {
@@ -466,6 +503,273 @@ impl NotebookState {
         self.notice.as_deref()
     }
 
+    /// The request of the package install that's running on the kernel.
+    fn install_token(&self) -> Option<u64> {
+        match self.install.as_ref().map(|i| &i.stage) {
+            Some(InstallStage::Running { token, .. }) => Some(*token),
+            _ => None,
+        }
+    }
+
+    /// Opens the box from a missing-module error and starts installing at once, for the cell to be run again after.
+    fn install_for_error(&mut self, missing: crate::notebook_install::Missing, uid: u64) {
+        self.install = Some(InstallBox::new(missing.package.clone(), Some(uid)));
+        self.begin_install(vec![missing.package]);
+    }
+
+    /// Sends the (checked) packages to the kernel, starting it if need be.
+    fn begin_install(&mut self, packages: Vec<String>) {
+        let Some(tongue) = Tongue::of(&self.kernel_language()) else { return };
+        let stage = match self.ensure_kernel() {
+            Kernel::Ready => {
+                let token = self.session.ask_with_messages(crate::notebook_install::install_code(tongue, &packages));
+                InstallStage::Running { token, names: packages.join(", "), tail: String::new(), stopping: false }
+            }
+            Kernel::Waiting => InstallStage::Pending(packages),
+            Kernel::Missing => InstallStage::Typing(self.notice.take()),
+        };
+        if let Some(install) = self.install.as_mut() {
+            install.stage = stage;
+        }
+    }
+
+    /// Once a frame while the box is open: a start that was waiting for the list of kernels, and the last lines
+    /// the install has printed.
+    fn watch_package_install(&mut self) {
+        let waiting = match self.install.as_ref().map(|i| &i.stage) {
+            Some(InstallStage::Pending(packages)) if self.specs.get().is_some() => Some(packages.clone()),
+            _ => None,
+        };
+        if let Some(packages) = waiting {
+            self.begin_install(packages);
+        }
+        if let Some(InstallBox { stage: InstallStage::Running { token, tail, .. }, .. }) = self.install.as_mut()
+            && let Some(printed) = self.session.progress(*token)
+        {
+            *tail = crate::notebook_install::last_lines(printed, 6);
+        }
+    }
+
+    /// The install has come back from the kernel: the box says how it went.
+    fn finish_install(&mut self, answer: Result<String, String>) {
+        let Some(install) = self.install.as_mut() else { return };
+        let InstallStage::Running { tail, stopping, .. } = &mut install.stage else { return };
+        let stopped = *stopping;
+        let (result, tail) = match answer {
+            Ok(output) => (crate::notebook_install::outcome(&output, None), crate::notebook_install::last_lines(&output, 6)),
+            Err(why) => (crate::notebook_install::outcome("", Some(&why)), std::mem::take(tail)),
+        };
+        let result = match result {
+            Err(_) if stopped => Err(crate::i18n::tr("Stopped.").to_string()),
+            other => other,
+        };
+        install.stage = InstallStage::Done { result, tail };
+    }
+
+    /// Closes the install box and runs the cell that was waiting for the package.
+    fn run_again(&mut self, uid: Option<u64>) {
+        self.install = None;
+        if let Some(uid) = uid {
+            self.run_cells(vec![uid]);
+        }
+    }
+
+    /// The box for installing packages into the kernel: names are typed, checked, and sent to the kernel, which
+    /// installs them where its own code will find them.
+    fn draw_install(&mut self, ctx: &eframe::egui::Context) {
+        let Some(mut install) = self.install.take() else { return };
+        let language = self.kernel_language();
+        let tongue = Tongue::of(&language);
+        let (mut start, mut stop, mut close, mut again) = (false, false, false, false);
+        let hint = if tongue == Some(Tongue::R) { "ggplot2 data.table" } else { "pandas numpy==1.26 matplotlib" };
+        crate::fit::Dialog::new(crate::i18n::tr("Install packages")).id(Id::unique("notebook-install")).collapsible(false).resizable(false).default_width(460.0).anchor(eframe::egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| {
+            let typing = matches!(install.stage, InstallStage::Typing(_));
+            match part {
+                crate::fit::Part::Body => {
+                    if tongue.is_none() {
+                        ui.label(crate::i18n::tf!("Packages can't be installed from here into a {language} kernel. Only Python and R kernels are supported."));
+                        return;
+                    }
+                    ui.label(crate::i18n::tf!("Packages to install into this {language} kernel, separated by spaces:"));
+                    let field = ui.add_enabled(typing, eframe::egui::TextEdit::singleline(&mut install.text).hint_text(hint).desired_width(f32::INFINITY));
+                    if typing && !install.focused {
+                        field.request_focus();
+                        install.focused = true;
+                    }
+                    if typing && field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        start = true;
+                    }
+                    match &install.stage {
+                        InstallStage::Typing(Some(problem)) => {
+                            ui.label(RichText::new(problem).color(theme::problem_mark()));
+                        }
+                        InstallStage::Typing(None) => {}
+                        InstallStage::Pending(_) => {
+                            ui.label(crate::i18n::tr("Looking for the kernel\u{2026}"));
+                        }
+                        InstallStage::Running { names, tail, stopping, token } => {
+                            ui.horizontal(|ui| {
+                                ui.add(eframe::egui::Spinner::new().size(14.0));
+                                let waiting = self.session.progress(*token).is_none();
+                                ui.label(if *stopping {
+                                    crate::i18n::tr("Stopping\u{2026}").to_string()
+                                } else if waiting {
+                                    crate::i18n::tr("Waiting for the cells that are running to finish\u{2026}").to_string()
+                                } else {
+                                    crate::i18n::tf!("Installing {names}\u{2026}")
+                                });
+                            });
+                            if !tail.is_empty() {
+                                ui.add(eframe::egui::Label::new(RichText::new(tail).monospace().color(theme::text_dim())).selectable(true));
+                            }
+                        }
+                        InstallStage::Done { result, tail } => {
+                            match result {
+                                Ok(()) => ui.label(crate::i18n::tr("Installed. It's ready to use in this notebook.")),
+                                Err(why) => ui.label(RichText::new(crate::i18n::tf!("It didn't work: {why}")).color(theme::problem_mark())),
+                            };
+                            if !tail.is_empty() {
+                                ui.add(eframe::egui::Label::new(RichText::new(tail).monospace().color(theme::text_dim())).selectable(true));
+                            }
+                        }
+                    }
+                }
+                crate::fit::Part::Buttons => {
+                    ui.horizontal(|ui| match &install.stage {
+                    InstallStage::Typing(_) if tongue.is_some() => {
+                        if ui.button(crate::i18n::tr("Install")).clicked() {
+                            start = true;
+                        }
+                        if ui.button(crate::i18n::tr("Close")).clicked() {
+                            close = true;
+                        }
+                    }
+                    InstallStage::Pending(_) | InstallStage::Running { .. } => {
+                        if ui.button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Interrupt the install")).clicked() {
+                            stop = true;
+                        }
+                    }
+                    InstallStage::Done { result, .. } => {
+                        if result.is_ok() && install.rerun.is_some() && ui.button(crate::i18n::tr("Run the cell again")).clicked() {
+                            again = true;
+                        }
+                        if ui.button(crate::i18n::tr("Close")).clicked() {
+                            close = true;
+                        }
+                        if result.is_err() && ui.button(crate::i18n::tr("Change the names")).clicked() {
+                            install.stage = InstallStage::Typing(None);
+                        }
+                    }
+                    InstallStage::Typing(_) => {
+                        if ui.button(crate::i18n::tr("Close")).clicked() {
+                            close = true;
+                        }
+                    }
+                    });
+                }
+            }
+        });
+        let rerun = install.rerun;
+        self.install = Some(install);
+        if start && let Some(tongue) = tongue {
+            let text = self.install.as_ref().map(|i| i.text.clone()).unwrap_or_default();
+            match crate::notebook_install::check_names(tongue, &text) {
+                Ok(packages) => self.begin_install(packages),
+                Err(why) => {
+                    if let Some(install) = self.install.as_mut() {
+                        install.stage = InstallStage::Typing(Some(why));
+                    }
+                }
+            }
+        }
+        if stop && let Some(install) = self.install.as_mut() {
+            match install.stage {
+                InstallStage::Running { ref mut stopping, .. } => {
+                    *stopping = true;
+                    self.session.interrupt();
+                }
+                InstallStage::Pending(_) => install.stage = InstallStage::Typing(None),
+                _ => {}
+            }
+        }
+        if again {
+            self.run_again(rerun);
+        }
+        if close {
+            self.install = None;
+        }
+    }
+
+    /// For tests: how far the install box has got, in a word (or with the reason, when it failed), or nothing if it's closed.
+    #[cfg(test)]
+    pub(super) fn install_progress(&self) -> Option<String> {
+        self.install.as_ref().map(|i| match &i.stage {
+            InstallStage::Typing(None) => "typing".to_string(),
+            InstallStage::Typing(Some(problem)) => format!("typing: {problem}"),
+            InstallStage::Pending(_) => "pending".to_string(),
+            InstallStage::Running { .. } => "running".to_string(),
+            InstallStage::Done { result: Ok(()), tail } => format!("done: {tail}"),
+            InstallStage::Done { result: Err(why), .. } => format!("failed: {why}"),
+        })
+    }
+
+    /// For tests: what pressing "Run the cell again" does.
+    #[cfg(test)]
+    pub(super) fn press_run_again(&mut self) {
+        let uid = self.install.as_ref().and_then(|i| i.rerun);
+        self.run_again(uid);
+    }
+
+    /// For tests: the Install button of the missing-module error in the cell at this place, if it has one.
+    #[cfg(test)]
+    pub(super) fn install_button_for(&self, at: usize) -> Option<String> {
+        self.nb.cells[at].outputs.iter().find_map(|value| match output::choose(value) {
+            Shown::Error { name, message, .. } => crate::notebook_install::missing_from_error(&name, &message).filter(|m| Tongue::of(&self.kernel_language()) == Some(m.tongue)).map(|m| m.package),
+            _ => None,
+        })
+    }
+
+    /// For tests: what the Install button of a cell's error does.
+    #[cfg(test)]
+    pub(super) fn press_install_button(&mut self, at: usize) {
+        if let Some(package) = self.install_button_for(at) {
+            let tongue = Tongue::of(&self.kernel_language()).unwrap();
+            let uid = self.nb.cells[at].uid;
+            self.install_for_error(crate::notebook_install::Missing { tongue, package }, uid);
+        }
+    }
+
+    /// Types names in the box and presses Install, as a picture's step or a test does.
+    pub(super) fn install_typed(&mut self, text: &str) {
+        let Some(tongue) = Tongue::of(&self.kernel_language()) else { return };
+        if let Some(install) = self.install.as_mut() {
+            install.text = text.to_string();
+        }
+        match crate::notebook_install::check_names(tongue, text) {
+            Ok(packages) => self.begin_install(packages),
+            Err(why) => {
+                if let Some(install) = self.install.as_mut() {
+                    install.stage = InstallStage::Typing(Some(why));
+                }
+            }
+        }
+    }
+
+    /// For pictures: presses the Install button of the chosen cell's error.
+    fn install_for_selected_error(&mut self) {
+        let Some(tongue) = Tongue::of(&self.kernel_language()) else { return };
+        let uid = self.selected_uid();
+        let missing = self.nb.cells.get(self.selected).and_then(|cell| {
+            cell.outputs.iter().find_map(|value| match output::choose(value) {
+                Shown::Error { name, message, .. } => crate::notebook_install::missing_from_error(&name, &message).filter(|m| m.tongue == tongue),
+                _ => None,
+            })
+        });
+        if let (Some(missing), Some(uid)) = (missing, uid) {
+            self.install_for_error(missing, uid);
+        }
+    }
+
     /// Says a kernel is being installed in the terminal, and what to do after.
     pub(super) fn installing(&mut self) {
         self.notice = Some(crate::i18n::tr("A kernel is being installed in the terminal. It's picked up here as soon as it's ready.").to_string());
@@ -496,7 +800,7 @@ impl NotebookState {
 
     /// Carries out a command, returning whether the notebook changed.
     pub(super) fn act(&mut self, act: Act, read_only: bool) -> bool {
-        let mutates = !matches!(act, Act::Interrupt | Act::AsText | Act::CompareLast | Act::CompareLastWithOutputs | Act::RescanKernels | Act::InstallKernel);
+        let mutates = !matches!(act, Act::Interrupt | Act::AsText | Act::CompareLast | Act::CompareLastWithOutputs | Act::RescanKernels | Act::InstallKernel | Act::InstallPackages);
         if read_only && mutates && !matches!(act, Act::RunCell | Act::RunCellStay | Act::RunAll | Act::RunAbove | Act::RunBelow | Act::Restart | Act::RestartRunAll) {
             return false;
         }
@@ -628,6 +932,12 @@ impl NotebookState {
             Act::RescanKernels => {
                 self.specs = SpecList::start(self.list, None);
                 self.notice = None;
+                false
+            }
+            Act::InstallPackages => {
+                if self.install.is_none() {
+                    self.install = Some(InstallBox::new(String::new(), None));
+                }
                 false
             }
             Act::AsText | Act::CompareLast | Act::CompareLastWithOutputs | Act::InstallKernel => false,
@@ -806,6 +1116,11 @@ impl NotebookState {
                         acts.push(Act::RescanKernels);
                         ui.close();
                     }
+                }
+                ui.separator();
+                if ui.button(crate::i18n::tr("Install packages into this kernel\u{2026}")).on_hover_text(crate::i18n::tr("Add packages such as matplotlib to the kernel's own environment")).clicked() {
+                    acts.push(Act::InstallPackages);
+                    ui.close();
                 }
                 ui.separator();
                 if ui.button(crate::i18n::tr("Restart and run all cells")).clicked() {
@@ -1026,6 +1341,13 @@ impl NotebookState {
                     ui.add(eframe::egui::Label::new(job).selectable(true));
                 });
                 }
+                // A module or package that isn't there can be installed from here, for the kernel's own language.
+                if let Some(missing) = crate::notebook_install::missing_from_error(name, message).filter(|m| Tongue::of(&self.kernel_language()) == Some(m.tongue)) {
+                    let package = &missing.package;
+                    if ui.add_enabled(self.install.is_none(), eframe::egui::Button::new(crate::i18n::tf!("Install {package}"))).on_hover_text(crate::i18n::tr("Install it into this kernel, then run the cell again")).clicked() {
+                        self.install_for_error(missing, uid);
+                    }
+                }
             }
             Shown::Png(_) | Shown::Jpeg(_) | Shown::Svg(_) => {
                 let key = match shown {
@@ -1173,6 +1495,7 @@ impl Limoniter {
             // Room to scroll the last cell to the middle, and a click here chooses nothing but takes the keys.
             ui.add_space(80.0);
         });
+        state.draw_install(&ctx);
         if ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(area) && !state.editing {
             ctx.memory_mut(|m| m.request_focus(views::notebook_id()));
         }
@@ -1221,6 +1544,21 @@ impl Limoniter {
             "clear" => Act::ClearOutputs,
             "kind-markdown" => Act::ToMarkdown,
             "kind-code" => Act::ToCode,
+            "install-box" => Act::InstallPackages,
+            // "install-names=pandas numpy" types names in the box and presses Install; "install-press" presses the
+            // Install button of the selected cell's error.
+            other if other.starts_with("install-names=") => {
+                if let Some(state) = self.docs[self.active].notebook.as_deref_mut() {
+                    state.install_typed(&other["install-names=".len()..]);
+                }
+                return;
+            }
+            "install-press" => {
+                if let Some(state) = self.docs[self.active].notebook.as_deref_mut() {
+                    state.install_for_selected_error();
+                }
+                return;
+            }
             _ => {
                 let (what, number) = step.split_once('-').unwrap_or((step, "0"));
                 let number: usize = number.parse().unwrap_or(0);
