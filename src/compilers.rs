@@ -855,7 +855,7 @@ mod tests {
         };
         let good = script("trse", r#"for a in "$@"; do case "$a" in input_file=*) f="${a#input_file=}";; project=*) p="${a#project=}";; esac; done
 [ "$1" = "-cli" ] && [ "$2" = "op=project" ] && [ -f "$p" ] || exit 2
-[ "$(pwd)" = "$(dirname "$p")" ] || exit 3
+[ "$(pwd -P)" = "$(cd "$(dirname "$p")" && pwd -P)" ] || exit 3
 printf '\001\020\251' > "${f%.ras}.prg"
 echo "Compiling '$f' for system: VIC20""#);
         let job = Job { compiler: by_id("trse").unwrap(), program: good, machine: Machine::Vic20, main: main.clone(), sources: vec![main.clone()], folder: base.join("project"), flags: vec![project.display().to_string()], libs: Vec::new(), stem: "main".into(), sasc: false };
