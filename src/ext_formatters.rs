@@ -308,7 +308,8 @@ mod tests {
     fn php_is_formatted_through_a_copy_or_standard_input() {
         let dir = project("php");
         let file = dir.join("a.php");
-        fake(&dir, "vendor/bin/php-cs-fixer", "for last; do :; done; sed -i 's/array()/[]/' \"$last\"");
+        // Written for BSD sed as well as GNU's: a Mac's `sed -i` wants a suffix, so the file is written anew.
+        fake(&dir, "vendor/bin/php-cs-fixer", "for last; do :; done; sed 's/array()/[]/' \"$last\" > \"$last.new\" && mv \"$last.new\" \"$last\"");
         assert_eq!(run(named("PHP CS Fixer"), "<?php $a = array();\n", &file).unwrap(), "<?php $a = [];\n");
         fake(&dir, "vendor/bin/phpcbf", "cat; exit 1");
         assert_eq!(run(named("PHP_CodeSniffer (phpcbf)"), "<?php\n", &file).unwrap(), "<?php\n");

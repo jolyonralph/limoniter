@@ -129,7 +129,9 @@ fn a_projects_environment_is_used_by_f9_and_the_tasks() {
     give(&mut app, &ctx, Command::RunOnMachine);
     wait_for_run(&mut app);
     let printed = app.script_output.join("\n");
-    assert!(printed.contains(&format!("prefix {}", dir.join(".venv").display())), "{printed}");
+    // Python says the real path, which on a Mac is /private/var/… for the temporary folder at /var/….
+    let real = std::fs::canonicalize(dir.join(".venv")).unwrap();
+    assert!(printed.contains(&format!("prefix {}", real.display())), "{printed}");
     // The computer's own Python chosen instead: kept for the folder, and used from then on.
     app.python_use_env(Path::new("python3"));
     assert_eq!(app.python.current.as_ref().map(|c| c.env.kind), Some(crate::py_env::Kind::System));
