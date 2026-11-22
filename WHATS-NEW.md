@@ -2,6 +2,21 @@
 
 Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.
 
+## 0.16.2
+
+Released 22 November 2026.
+
+Limoniter 0.16.2 makes the Explorer's recency slider quick on big projects, opens links again, puts the licences behind a button in the About box, and adds example notebooks.
+
+**Fixes**
+- **The recency slider is quick on big projects**: it no longer reads every file under every folder. Each folder's own files are ranked by their dates, and its subfolders by the folder's own date, as the folder is shown.
+- **Links open again**: the About box's GitHub link and the tools' website links did nothing when clicked.
+- **Project settings**: each tab fills the window, so making it taller shows more, not empty space.
+
+**Small additions**
+- **Example notebooks**: File, New as has a Python notebook and an R notebook to try a kernel with. They show printed text, a result, a table, a plot, an error with its traceback and, in Python, `input()` answered in a box.
+- **Licence information** in the About box opens the licences of Limoniter and of the work it's built on, in a tab to read.
+
 ## 0.16.1
 
 Released 22 November 2026.

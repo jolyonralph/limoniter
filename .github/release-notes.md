@@ -1,33 +1,15 @@
-## What's new in 0.16.1
+## What's new in 0.16.2
 
-Limoniter 0.16.1 gives projects a settings window of their own, reads VS Code's project settings, colours CSV columns and queries their rows, checks the spelling in code, and can put the tabs down the side, with a toolbar of your own buttons.
+Limoniter 0.16.2 makes the Explorer's recency slider quick on big projects, opens links again, puts the licences behind a button in the About box, and adds example notebooks.
 
-**Projects**
-- **Project settings**: one window, from the gear on the Project panel or File, Project, Project settings, for everything a project keeps:
-  - files and folders to hide, or to leave out of search and Go to file;
-  - the indent, line endings, encoding and formatter;
-  - autosave;
-  - the `.env` file, the Python environment and the working folder;
-  - which language servers run;
-  - file colours and templates;
-  - only what you change is written, in the `.limproj` or in `.limoniter/project.json`, so it can go into Git.
-- **VS Code's project settings**: a folder's `.vscode` is read as VS Code reads it:
-  - `settings.json` gives the project its exclusions, indent, formatters, autosave and the rest;
-  - `tasks.json` adds its tasks, and `launch.json` its debug setups;
-  - the extensions it recommends are offered;
-  - `.code-workspace` files open as projects;
-  - Import into Limoniter makes them the project's own.
-- **The recency slider** now hides git-ignored files too, and counts a new file as the newest at once.
+**Fixes**
+- **The recency slider is quick on big projects**: it no longer reads every file under every folder. Each folder's own files are ranked by their dates, and its subfolders by the folder's own date, as the folder is shown.
+- **Links open again**: the About box's GitHub link and the tools' website links did nothing when clicked.
+- **Project settings**: each tab fills the window, so making it taller shows more, not empty space.
 
-**Editing**
-- **Rainbow CSV**: each column of a CSV or TSV file in its own colour in the text view. **Query the rows** asks for some of them in SQL's words (`SELECT`, `WHERE`, `GROUP BY`, `ORDER BY`, `COUNT`, `SUM`…), and the answer opens in the data viewer, worked out in the background.
-- **Spell checking for code**: only comments and strings, and if you like the words in names (`getHTTPResponse` is get, HTTP, Response), with a word list kept per project and the words programmers use already known.
-- **Tabs down the side**, grouped by folder, and a **toolbar** under the menus with the buttons you choose.
-
-**Web**
-- **ESLint** runs beside the TypeScript server in projects that use it, with its fixes in Quick fix.
-- **Debug an npm script** from Tools, Tasks or the Debug link beside each script in `package.json`.
-- Autosave's "when another tab or panel is chosen" now notices the Explorer, Search, Output and the terminal too.
+**Small additions**
+- **Example notebooks**: File, New as has a Python notebook and an R notebook to try a kernel with. They show printed text, a result, a table, a plot, an error with its traceback and, in Python, `input()` answered in a box.
+- **Licence information** in the About box opens the licences of Limoniter and of the work it's built on, in a tab to read.
 
 ## Downloads
 

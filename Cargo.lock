@@ -2300,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "limoniter"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "arboard",
  "aym",
