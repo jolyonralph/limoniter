@@ -37,6 +37,12 @@ pub(super) enum Flag {
     Rainbow,
     HighlightSelected,
     FileTabs,
+    /// The open files as a list down the side, in place of the row of tabs.
+    SideTabs,
+    /// That list on the right rather than the left.
+    SideTabsRight,
+    /// The row of buttons under the menus.
+    Toolbar,
     StatusBar,
     OutputWindow,
     WordWrap,
@@ -559,6 +565,7 @@ pub(super) const RUN: &[Entry] = &[
             Item("Stop it", Command::StopTool),
             Keyed("Debug (Python, PHP, C, C++, Rust)", Command::StartDebugging, "Ctrl+F5"),
             Item("Debug PHP from a page in the browser", Command::DebugPhpListen),
+            Item("Debug with a VS Code setup\u{2026}", Command::DebugVscodeSetup),
             Keyed("Step back", Command::DebugStepBack, "Shift+F10"),
             Line,
             Item("Serve this folder in a browser (live server)", Command::ServeFolder),
@@ -670,7 +677,7 @@ pub(super) const PROJECT: &[Entry] = &[
             Entry::Live("Open recent", Live::RecentProjects),
             Entry::Live("Save files by themselves", Live::ProjectAutosave),
             Item("Close project", Command::ProjectClose),
-            Item("Name and notes\u{2026}", Command::ProjectSettings),
+            Item("Project settings\u{2026}", Command::ProjectSettings),
             Line,
             Item("Add this file", Command::ProjectAddActive),
             Item("New from a template\u{2026}", Command::NewFromTemplate(0)),
@@ -838,6 +845,10 @@ pub(super) const VIEW: &[Entry] = &[
     Check("Output", Flag::OutputWindow),
     Keyed("Terminal", Command::ToggleTerminal, "Ctrl+`"),
     Check("File tabs", Flag::FileTabs),
+    Check("Tabs down the side", Flag::SideTabs),
+    Check("Side tabs on the right", Flag::SideTabsRight),
+    Check("Toolbar", Flag::Toolbar),
+    Item("Toolbar buttons\u{2026}", Command::ToolbarButtons),
     Check("Status bar", Flag::StatusBar),
     Check("Ribbon", Flag::Ribbon),
     Keyed("Fold the ribbon to its tabs", Command::FoldRibbon, "Ctrl+F1"),
@@ -874,6 +885,7 @@ pub(super) const FORMAT: &[Entry] = &[
 
 pub(super) const TOOLS: &[Entry] = &[
     Item("Colour as\u{2026}", Command::ColourAs),
+    Item("Query the rows\u{2026}", Command::QueryRows),
     Line,
     Item("Compare with\u{2026}", Command::Compare),
     Item("Compare files\u{2026}", Command::CompareFiles),
@@ -1040,24 +1052,34 @@ pub(super) fn hidden_commands(query: &str) -> Vec<Found> {
 
 /// Every command, with where it is in the menus, so the command box can find it by any of those words.
 pub(super) fn every_command() -> Vec<Found> {
-    fn walk(entries: &[Entry], path: &str, out: &mut Vec<Found>) {
+    commands_listed(true)
+}
+
+/// The same list with every name in English, whatever language is chosen: what's kept in the settings to say which
+/// command a toolbar button is, so changing language doesn't lose the buttons.
+pub(super) fn every_command_in_english() -> Vec<Found> {
+    commands_listed(false)
+}
+
+fn commands_listed(translated: bool) -> Vec<Found> {
+    fn walk(entries: &[Entry], path: &str, translated: bool, out: &mut Vec<Found>) {
         for entry in entries {
             let named = |label: &str| {
-                let label = crate::i18n::tr(label);
-                if path.is_empty() { label.to_string() } else { format!("{path} \u{203A} {label}") }
+                let label = if translated { crate::i18n::tr(label).to_string() } else { label.to_string() };
+                if path.is_empty() { label } else { format!("{path} \u{203A} {label}") }
             };
             match entry {
                 Item(label, command) => out.push(Found { path: named(label), shortcut: "", command: *command }),
                 Keyed(label, command, key) => out.push(Found { path: named(label), shortcut: key, command: *command }),
                 Check(label, flag) => out.push(Found { path: named(label), shortcut: "", command: Command::Toggle(*flag) }),
-                Sub(label, inner) => walk(inner, &named(label), out),
+                Sub(label, inner) => walk(inner, &named(label), translated, out),
                 Entry::Live(..) | Line => {}
             }
         }
     }
     let mut out = Vec::new();
     for (title, entries) in MENUS {
-        walk(entries, crate::i18n::tr(title), &mut out);
+        walk(entries, &if translated { crate::i18n::tr(title).to_string() } else { title.to_string() }, translated, &mut out);
     }
     out
 }
@@ -1169,6 +1191,9 @@ impl Limoniter {
             Flag::Rainbow => v.rainbow_parentheses,
             Flag::HighlightSelected => v.highlight_selected,
             Flag::FileTabs => self.show_file_tabs,
+            Flag::SideTabs => self.side_tabs.on,
+            Flag::SideTabsRight => self.side_tabs.right,
+            Flag::Toolbar => self.toolbar.on,
             Flag::StatusBar => self.show_status,
             Flag::OutputWindow => self.show_results,
             Flag::WordWrap => v.word_wrap,
@@ -1210,6 +1235,9 @@ impl Limoniter {
             Flag::Rainbow => &mut v.rainbow_parentheses,
             Flag::HighlightSelected => &mut v.highlight_selected,
             Flag::FileTabs => &mut self.show_file_tabs,
+            Flag::SideTabs => &mut self.side_tabs.on,
+            Flag::SideTabsRight => &mut self.side_tabs.right,
+            Flag::Toolbar => &mut self.toolbar.on,
             Flag::StatusBar => &mut self.show_status,
             Flag::OutputWindow => &mut self.show_results,
             Flag::Ribbon => &mut v.ribbon,
@@ -1253,6 +1281,10 @@ impl Limoniter {
             }
         };
         *switch = !*switch;
+        // Tabs down the side are tabs, so choosing them shows the tabs.
+        if flag == Flag::SideTabs && self.side_tabs.on {
+            self.show_file_tabs = true;
+        }
     }
 
     /// Whether a command can do anything now, so that menus and the command box can say so.
@@ -1286,16 +1318,18 @@ impl Limoniter {
             Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
             Command::GoToDefinition | Command::PeekDefinition => !no_file,
             Command::QuickFix => self.has_lsp(),
-            Command::FormatDocument => self.has_lsp() || (text && crate::ext_formatters::chosen_near(&doc.language_name(), &self.formatter_choices, doc.path.as_deref()).is_some()),
+            Command::FormatDocument => self.has_lsp() || (text && crate::ext_formatters::chosen_near(&doc.language_name(), &self.formatter_choices_now(), doc.path.as_deref()).is_some()),
             Command::AssembleAndSave | Command::AssembleBinary => !no_file && self.doc_cpu(self.active).is_some(),
             Command::StopRunning => !self.running.sessions.is_empty() || !self.vamos_runs.is_empty(),
             Command::DebugStepBack => self.can_step_back(),
+            Command::DebugVscodeSetup => self.has_vscode_launches(),
             Command::MachineMemory | Command::MachineScreen | Command::MachineBasicOut => self.reachable().is_some(),
             Command::MachineBasicIn => self.reachable().is_some() && doc.listing_of.is_some(),
             Command::GitCompareHead | Command::GitHistory | Command::GitStageChange => self.git.repo.is_some() && doc.path.is_some(),
             Command::GitUndoChange => self.git.repo.is_some() && doc.path.is_some() && !doc.text.read_only,
             Command::ResolveInMerge => text && doc.merge.is_none() && !t.is_disk_backed(),
             Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none() && doc.data.is_none()),
+            Command::QueryRows => !no_file && !hex && doc.data.is_none() && doc.browser.is_none() && (doc.table.is_some() || doc.text.delimited.is_some() || super::table_view::is_table_name(&doc.path_or_name())),
             Command::OpenInDataViewer => !no_file && !hex && doc.data.is_none() && doc.browser.is_none() && (doc.table.is_some() || super::table_view::is_table_name(&doc.path_or_name())),
             Command::Notebook(super::notebook_host::Act::AsText) => !no_file && super::notebook_host::is_notebook_name(&doc.path_or_name()) && !hex && doc.table.is_none() && doc.browser.is_none(),
             Command::Notebook(_) => self.notebook_shown(self.active),
@@ -1452,6 +1486,7 @@ impl Limoniter {
             | Command::WhatsNew
             | Command::Guide(_)
             | Command::GitClone
+            | Command::ToolbarButtons
             // With nothing open, it asks for a file to disassemble.
             | Command::Disassemble
             | Command::SaveDecrunched
@@ -1460,7 +1495,7 @@ impl Limoniter {
             Command::Php(action) => self.php_can(action),
             Command::PyR(action) => self.python_can(action),
             // Tasks run in the project's folder, so need a project or a file in one.
-            Command::BuildTask | Command::TestTask | Command::OutdatedPackages => has_project || !no_file,
+            Command::BuildTask | Command::TestTask | Command::OutdatedPackages | Command::DebugTask(_) => has_project || !no_file,
             Command::EditTasks => has_project,
             // Catalogs are worked on from their description or a translation.
             Command::CatalogCheck | Command::CatalogMake | Command::CatalogFlexCat => doc.path.as_deref().is_some_and(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("cd") || e.eq_ignore_ascii_case("ct"))),
@@ -1601,11 +1636,20 @@ impl Limoniter {
                 if tasks.is_empty() {
                     empty(ui, crate::i18n::tr("No tasks here: none of Cargo.toml, a Makefile, package.json, go.mod or CMakeLists.txt above the file, and no project tasks."));
                 }
+                let folder = self.task_folder();
                 for (index, task) in tasks.iter().enumerate() {
-                    if ui.add(Button::new(task.name.as_str()).shortcut_text(RichText::new(task.kind.label()).color(theme::text_faint()))).on_hover_text(&task.command).clicked() {
-                        picks.push(Pick::Command(Command::RunTask(index)));
-                        ui.close();
-                    }
+                    // A package.json script can also be run under the debugger, from the button beside it.
+                    let debuggable = folder.as_deref().is_some_and(|f| crate::node_tools::script_of(f, &task.command).is_some());
+                    ui.horizontal(|ui| {
+                        if ui.add(Button::new(task.name.as_str()).shortcut_text(RichText::new(task.kind.label()).color(theme::text_faint()))).on_hover_text(&task.command).clicked() {
+                            picks.push(Pick::Command(Command::RunTask(index)));
+                            ui.close();
+                        }
+                        if debuggable && ui.button(crate::i18n::tr("Debug")).on_hover_text(crate::i18n::tr("Run this script under the debugger (js-debug)")).clicked() {
+                            picks.push(Pick::Command(Command::DebugTask(index)));
+                            ui.close();
+                        }
+                    });
                 }
             }
             Live::NewAs => {

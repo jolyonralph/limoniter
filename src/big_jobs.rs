@@ -24,6 +24,8 @@ pub enum Outcome {
     Lines { needle: String, lines: Vec<usize> },
     /// Two files compared, ready to show.
     Compared(Box<crate::compare::Comparison>),
+    /// A query over a delimited file's rows: the answer, or what was wrong with it; and what it was asked, to ask again.
+    Queried { table: Result<Box<crate::data_table::DataTable>, crate::csv_query::QueryError>, query: String, delimiter: char, header: bool },
     Failed(String),
 }
 
@@ -182,6 +184,41 @@ pub fn find_lines(store: LineStore, needle: String, doc_id: u64) -> BigJob {
             done.store(at as u64, Ordering::Relaxed);
         }
         Outcome::Lines { needle, lines: found }
+    })
+}
+
+/// Reads a delimited file's records and runs a query over them. Its progress covers three stretches of equal size:
+/// finding the records, reading their fields, and the query itself.
+pub fn query(store: LineStore, query: String, delimiter: char, header: bool, doc_id: u64) -> BigJob {
+    let lines = store.len() as u64;
+    BigJob::start("Query the rows", doc_id, lines * 3, move |done, cancel| {
+        let stop = || Outcome::Failed(crate::i18n::tr("It was stopped.").to_string());
+        let Some(records) = crate::table::records_watched(&store, delimiter, &mut |at| {
+            done.store(at as u64, Ordering::Relaxed);
+            !cancel.load(Ordering::Relaxed)
+        }) else {
+            return stop();
+        };
+        let mut rows: Vec<Vec<String>> = Vec::with_capacity(records.len());
+        for (i, record) in records.iter().enumerate() {
+            if i % 4096 == 0 {
+                if cancel.load(Ordering::Relaxed) {
+                    return stop();
+                }
+                done.store(lines + record.first as u64, Ordering::Relaxed);
+            }
+            rows.push(crate::table::fields(&crate::table::record_text(&store, *record), delimiter).into_iter().map(|f| f.value).collect());
+        }
+        let headings = if header && !rows.is_empty() { Some(rows.remove(0)) } else { None };
+        let total = rows.len().max(1) as u64;
+        let answer = crate::csv_query::run_watched(&query, headings.as_deref(), &rows, &mut |at| {
+            done.store(lines * 2 + at as u64 * lines / total, Ordering::Relaxed);
+            !cancel.load(Ordering::Relaxed)
+        });
+        if cancel.load(Ordering::Relaxed) {
+            return stop();
+        }
+        Outcome::Queried { table: answer.map(Box::new), query, delimiter, header }
     })
 }
 

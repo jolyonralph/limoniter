@@ -16,7 +16,7 @@ const MOST_SHOWN: usize = 60;
 /// The index being made, and when the last one was.
 #[derive(Default)]
 pub(super) struct Indexing {
-    job: Option<Receiver<(Vec<PathBuf>, bool)>>,
+    pub(super) job: Option<Receiver<(Vec<PathBuf>, bool)>>,
     done: Option<Instant>,
     /// When the files were last changed other than by Limoniter, for the Explorer's recently edited files.
     recent: Option<Receiver<(PathBuf, HashMap<PathBuf, std::time::SystemTime>)>>,
@@ -186,13 +186,6 @@ impl Limoniter {
         self.save_project();
     }
 
-    /// Opens the project's settings: its name and notes, and for a folder, what's hidden in its Explorer.
-    pub(super) fn open_project_settings(&mut self) {
-        if let Some(project) = &self.project {
-            self.dialog = Dialog::ProjectSettings { name: project.name.clone(), notes: project.notes.clone(), hidden: project.root.is_some().then(|| project.explorer.hidden.clone()), colours: project.colours.rules.clone() };
-        }
-    }
-
     /// Something about the Explorer kept with the project changed there: hiding, showing again, or how lately.
     fn explorer_setting(&mut self, act: crate::explorer::Act) {
         use crate::explorer::Act;
@@ -236,10 +229,10 @@ impl Limoniter {
 
     /// Starts making the folder project's index of files, in the background.
     pub(super) fn index_project(&mut self) {
-        let Some((root, hidden)) = self.project.as_ref().and_then(|p| Some((p.root.clone()?, p.explorer.hidden.clone()))) else { return };
+        let Some((root, hidden, options)) = self.project.as_ref().and_then(|p| Some((p.root.clone()?, p.explorer.hidden.clone(), p.eff().index_options()))) else { return };
         let (send, receive) = channel();
         std::thread::spawn(move || {
-            let _ = send.send(crate::workspace::index(&root, &hidden));
+            let _ = send.send(crate::workspace::index_with(&root, &hidden, &options));
         });
         self.indexing.job = Some(receive);
     }
@@ -491,11 +484,11 @@ impl Limoniter {
 
     /// The files Go to file looks among, as shown: a folder project's index, or else the open files and those
     /// opened lately.
-    fn go_to_file_candidates(&self) -> (PathBuf, Vec<PathBuf>) {
+    pub(super) fn go_to_file_candidates(&self) -> (PathBuf, Vec<PathBuf>) {
         if let Some(project) = &self.project
             && !project.files.is_empty()
         {
-            return (project.folder(), project.files.clone());
+            return (project.folder(), project.searchable());
         }
         let mut files: Vec<PathBuf> = self.docs.iter().filter_map(|d| d.path.clone()).collect();
         for path in &self.panels.recent {
@@ -745,14 +738,13 @@ mod tests {
         act(&mut app, crate::explorer::Act::ShowAgain { path: root.join("build/out.s"), folder: false });
         assert_eq!(app.project.as_ref().unwrap().explorer.hidden.len(), 2, "what hid it, its folder, is taken back");
         app.open_project_settings();
-        let Dialog::ProjectSettings { hidden: Some(hidden), .. } = &mut app.dialog else { panic!("a folder project's settings list what's hidden") };
+        let Dialog::ProjectSettings(draft) = &mut app.dialog else { panic!("a folder project's settings list what's hidden") };
+        let hidden = &mut draft.hidden;
         assert_eq!(hidden.iter().map(crate::explorer_kept::Hide::describe).collect::<Vec<_>>(), ["Every folder called node_modules", ".o files"]);
         hidden.retain(|rule| *rule != crate::explorer_kept::Hide::Kind("o".into()));
         // As OK does.
-        if let (Some(project), Dialog::ProjectSettings { hidden: Some(hidden), .. }) = (&mut app.project, &app.dialog) {
-            project.explorer.hidden.clone_from(hidden);
-        }
-        app.dialog = Dialog::None;
+        let Dialog::ProjectSettings(draft) = std::mem::replace(&mut app.dialog, Dialog::None) else { panic!("still open") };
+        app.apply_project_settings(*draft);
         index_now(&mut app, &ctx);
         assert_eq!(names(&app), ["build/out.s", "notes.txt", "src/main.o", "src/main.s"]);
         // Saving a file in the folder keeps when, with the project, for the Explorer's recently edited files.

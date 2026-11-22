@@ -512,7 +512,11 @@ impl Panels {
         if self.project {
             let mut open = true;
             let state = &mut self.project_panel;
-            dock(ui, false, "project-panel", "Project", 220.0, &mut open, |ui| actions = crate::project::panel(ui, state, project, active));
+            let mut gear = false;
+            dock_with_gear(ui, false, "project-panel", "Project", 220.0, &mut open, project.map(|_| &mut gear), |ui| actions = crate::project::panel(ui, state, project, active));
+            if gear {
+                actions.push(crate::project::PanelAction::Settings);
+            }
             self.project = open;
         }
         actions
@@ -742,6 +746,12 @@ pub fn dock_right(ui: &mut Ui, id: &'static str, title: &str, width: f32, open: 
 }
 
 pub(crate) fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
+    dock_with_gear(ui, right, id, title, width, open, None, content);
+}
+
+/// A docked panel with a small gear button beside its close button, for the panel's settings: it sets `gear`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn dock_with_gear(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, mut gear: Option<&mut bool>, content: impl FnOnce(&mut Ui)) {
     let side = usize::from(right);
     if HIDING.get() && !SHOWING.get()[side] {
         let mut tucked = TUCKED.get();
@@ -761,6 +771,11 @@ pub(crate) fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, widt
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if crate::access::called(ui.add(egui::Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
                         *open = false;
+                    }
+                    if let Some(gear) = gear.as_mut()
+                        && crate::access::called(ui.add(egui::Button::new(RichText::new("\u{2699}").color(theme::text_dim())).frame(false)), "Project settings").on_hover_text(crate::i18n::tr("Project settings")).clicked()
+                    {
+                        **gear = true;
                     }
                 });
             });
@@ -1805,15 +1820,24 @@ fn explorer_panel(ui: &mut Ui, e: &mut Explorer, doc: &DocView<'_>, actions: &mu
 }
 
 fn open_files_panel(ui: &mut Ui, tabs: &[TabInfo], active: usize, actions: &mut Vec<Action>) {
+    // Grouped by folder, as the tabs down the side are.
+    let paths: Vec<Option<&Path>> = tabs.iter().map(|tab| tab.path.as_deref()).collect();
+    let folders = crate::side_tabs::group_by_folder(&paths);
     egui::ScrollArea::both().id_salt("open-files-scroll").auto_shrink([false, false]).show(ui, |ui| {
-        for (i, tab) in tabs.iter().enumerate() {
-            let button = egui::Button::selectable(i == active, RichText::new(&tab.title).size(12.5)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Extend);
-            let mut response = ui.add(button);
-            if let Some(path) = &tab.path {
-                response = response.on_hover_text(path.display().to_string());
+        for folder in &folders {
+            if folders.len() > 1 {
+                crate::side_tabs::folder_heading(ui, folder);
             }
-            if response.clicked() {
-                actions.push(Action::SwitchTab(i));
+            for &i in &folder.members {
+                let tab = &tabs[i];
+                let button = egui::Button::selectable(i == active, RichText::new(&tab.title).size(12.5)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Extend);
+                let mut response = ui.add(button);
+                if let Some(path) = &tab.path {
+                    response = response.on_hover_text(path.display().to_string());
+                }
+                if response.clicked() {
+                    actions.push(Action::SwitchTab(i));
+                }
             }
         }
     });

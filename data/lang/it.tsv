@@ -10779,3 +10779,224 @@ compose up	compose up
 {} stopped with an error.	{} si è fermato con un errore.
 {} that aren't text. The first of them: Save body keeps them all.	{} che non sono testo. I primi: «Salva corpo» li conserva tutti.
 ▶ Send request	▶ Invia richiesta
+* can't be mixed with aggregates: name the columns	* non può essere mescolato con gli aggregati: indicare le colonne per nome
+* can't be used when grouping: name the columns	* non può essere usato quando si raggruppa: indicare le colonne per nome
++3DOS	+3DOS
+.env in the project's folder	.env nella cartella del progetto
+100% shows every file.	100% mostra tutti i file.
+160×200, each pixel twice as wide (multicolour)	160×200, ogni pixel largo il doppio (multicolore)
+2 in each 8×1, from the C64's 16	2 in ogni 8×1, dai 16 del C64
+2 in each 8×8 cell, from the C64's 16	2 in ogni cella 8×8, dai 16 del C64
+256 colours, 16 a row	256 colori, 16 per riga
+296×200 (AFLI; the first 3 columns can't be shown)	296×200 (AFLI; le prime 3 colonne non possono essere mostrate)
+296×200, each pixel twice as wide (FLI; the first 3 columns can't be shown)	296×200, ogni pixel largo il doppio (FLI; le prime 3 colonne non possono essere mostrate)
+320×200 (hires)	320×200 (hires)
+4 bits a level (OCS), widened	4 bit per livello (OCS), allargato
+4 bits a level (STE)	4 bit per livello (STE)
+4 in each 4×8 cell, from the C64's 16	4 in ogni cella 4×8, dai 16 del C64
+48 a line from 4096 (STE)	48 per riga su 4096 (STE)
+48 a line from 512	48 per riga su 512
+576×720 (a whole page)	576×720 (una pagina intera)
+8×8 cells	Celle 8×8
+8×8 cells, some BRIGHT	Celle 8×8, alcune BRIGHT
+A CGA picture's palette is shown as the header gives it, which programs didn't always fill in	La tavolozza di un'immagine CGA è mostrata come la indica l'intestazione, che i programmi non sempre compilavano
+A YM file is the chip's registers frame by frame, for a YM player such as ST-Sound to play; it has no replay routine of its own to call.	Un file YM contiene i registri del chip fotogramma per fotogramma, da riprodurre con un player YM come ST-Sound; non ha una routine di riproduzione propria da chiamare.
+A mask plane, not used here	Un piano maschera, non usato qui
+A normal C64 cartridge (type 0) from an 8K or 16K binary, or from a program that loads at $8000: 8K is ROML at $8000 with EXROM active; 16K adds ROMH at $A000, with GAME active too. The binary starts with the cartridge's cold and warm start addresses and CBM80.	Una normale cartuccia C64 (tipo 0) da un binario da 8K o 16K, o da un programma che si carica a $8000: 8K è ROML a $8000 con EXROM attivo; 16K aggiunge ROMH a $A000, con GAME attivo anch'esso. Il binario inizia con gli indirizzi di avvio a freddo e a caldo della cartuccia e con CBM80.
+A packed program can be tried at once: open it, then F9 runs it in VICE or on an Ultimate.	Un programma compresso si può provare subito: aprirlo, poi F9 lo avvia in VICE o su un Ultimate.
+A project here has one folder, so only {} was opened, with the workspace's settings. These weren't opened: {others}.	Qui un progetto ha una sola cartella, quindi è stato aperto solo {}, con le impostazioni dell'area di lavoro. Questi non sono stati aperti: {others}.
+AFLI editor	AFLI editor
+Add “{word}” to the project's words	Aggiungi “{word}” alle parole del progetto
+An Amiga program: Limoniter can find it for you to copy to an Amiga, but can't run it here.	Un programma Amiga: Limoniter può trovarlo per copiarlo su un Amiga, ma non può eseguirlo qui.
+An aggregate can't be inside another one	Un aggregato non può stare dentro un altro
+As in Settings	Come in Impostazioni
+As in Settings ({})	Come in Impostazioni ({})
+As the file is saved, as .editorconfig's trim_trailing_whitespace does	Quando il file viene salvato, come fa trim_trailing_whitespace di .editorconfig
+Ask for some rows and columns in SQL's words, such as SELECT a, b WHERE c > 10 ORDER BY d	Chiedere alcune righe e colonne con le parole di SQL, come SELECT a, b WHERE c > 10 ORDER BY d
+Ask for some rows and columns of the file in SQL's words, and the answer opens as a table. For example:	Chiedere alcune righe e colonne del file con le parole di SQL, e la risposta si apre come tabella. Per esempio:
+Back to the usual buttons	Torna ai pulsanti consueti
+Black, one for the cell and 2 more in each 4×1, from the C64's 16	Nero, uno per la cella e altri 2 in ogni 4×1, dai 16 del C64
+Buttons, in order	Pulsanti, in ordine
+By the language server, or the formatter chosen below, where there is one	Dal server di linguaggio, o dal formattatore scelto qui sotto, dove c'è
+Checking code is switched off. Settings, Editing, Spell check code, turns it on.	Il controllo del codice è disattivato. Impostazioni, Modifica, Controlla l'ortografia del codice, lo attiva.
+Choose some columns after SELECT, or * for all of them	Scegliere alcune colonne dopo SELECT, o * per tutte
+Choose where what's made goes:	Scegliere dove va ciò che viene prodotto:
+Choose which commands have a button on the toolbar under the menus (View, Toolbar), and put them in order	Scegliere quali comandi hanno un pulsante nella barra degli strumenti sotto i menu (Visualizza, Barra degli strumenti), e metterli in ordine
+Click a command to give it a button. Buttons have the ribbon's picture for the command, or its name where the ribbon has none.	Fare clic su un comando per dargli un pulsante. I pulsanti hanno l'immagine del comando nella barra multifunzione, o il suo nome dove la barra non ne ha.
+Colour each column of a CSV file	Colora ogni colonna di un file CSV
+Columns are named by their headings (in backticks if they have spaces), or a1, a2 and so on.	Le colonne si chiamano con le loro intestazioni (tra apici inversi se hanno spazi), oppure a1, a2 e così via.
+Columns: {list}{more}	Colonne: {list}{more}
+Comments and strings	Commenti e stringhe
+Comments, strings and names	Commenti, stringhe e nomi
+Copied in. Press OK to keep them as the project's own.	Copiati. Premere OK per tenerli come propri del progetto.
+Copies these settings and tasks into the project, where they stay as they are now. The .vscode folder's settings and tasks are no longer read for it afterwards.	Copia queste impostazioni e attività nel progetto, dove restano come sono ora. Le impostazioni e le attività della cartella .vscode non vengono più lette per esso.
+Ctrl+Enter	Ctrl+Enter
+Debug with a VS Code setup	Debug con una configurazione VS Code
+Debug with a VS Code setup…	Debug con una configurazione VS Code…
+Default tool	Strumento predefinito
+Don't check code	Non controllare il codice
+Edit tasks…	Modifica attività…
+End with a line ending	Termina con un fine riga
+Expected {what}, but found {found}	Atteso {what}, ma trovato {found}
+FLI Designer	FLI Designer
+File properties shows all its header says.	Proprietà del file mostra tutto ciò che dice la sua intestazione.
+File templates	Modelli di file
+Files and folders	File e cartelle
+Follow the .vscode folder again	Segui di nuovo la cartella .vscode
+Format files as they're saved	Formatta i file quando vengono salvati
+From VS Code	Da VS Code
+From its .vscode/extensions.json. Limoniter has language servers for some, and can install themes, grammars and snippets from Open VSX.	Dal suo .vscode/extensions.json. Limoniter ha server di linguaggio per alcune, e può installare temi, grammatiche e snippet da Open VSX.
+Go to file and searching skip the files Git ignores. Turn it off to find them too.	Vai al file e la ricerca saltano i file che Git ignora. Disattivare per trovarli anche.
+HIP: Graphics 9 and 10 screens on alternate frames, mixed	HIP: schermate Graphics 9 e 10 su fotogrammi alternati, mescolate
+Hi-res: black, white, and violet, green, blue and orange as an NTSC monitor showed them	Hi-res: nero, bianco, e viola, verde, blu e arancione come li mostrava un monitor NTSC
+Hidden by pattern	Nascosti per schema
+Hide the toolbar	Nascondi la barra degli strumenti
+I don't know what {other} means here	Non so cosa significhi {other} qui
+Icon	Icona
+Import into Limoniter	Importa in Limoniter
+In a CSV, TSV or other delimited file, each column's text in a colour of its own, so the columns are easy to follow across the rows	In un file CSV, TSV o altro file delimitato, il testo di ogni colonna in un colore proprio, così le colonne si seguono facilmente lungo le righe
+Indenting	Rientro
+Install {programs} in a terminal	Installare {programs} in un terminale
+It isn't a program, so it can only be crunched as data (-d).	Non è un programma, quindi può essere compresso solo come dati (-d).
+It isn't a program, so it's packed as data for your own code to unpack.	Non è un programma, quindi viene impacchettato come dati, perché il vostro codice li decomprima.
+Its own (XIMG)	Proprio (XIMG)
+Its values are given to the commands and tasks run in the project.	I suoi valori vengono passati ai comandi e alle attività eseguiti nel progetto.
+Keeps these settings first, then opens the project's tasks	Tiene prima queste impostazioni, poi apre le attività del progetto
+Kept with your other settings, for this folder, as the Python choice in the status bar is.	Conservato con le altre impostazioni, per questa cartella, come la scelta di Python nella barra di stato.
+LSPConvert writes the .lsmusic (the score) and .lsbank (the samples, for chip memory) beside the module, and for insane mode the player's source too.	LSPConvert scrive il .lsmusic (la partitura) e il .lsbank (i campioni, per la chip memory) accanto al modulo, e per la modalità insane anche il sorgente del player.
+Languages	Linguaggi
+Lasso	Lasso
+Layer 2, 256×192, 256 colours	Layer 2, 256×192, 256 colori
+Layer 2, 320×256, 256 colours	Layer 2, 320×256, 256 colori
+Layer 2, 640×256, 16 colours	Layer 2, 640×256, 16 colori
+Leave out what .gitignore leaves out	Escludi ciò che .gitignore esclude
+Left out of searching	Escluso dalla ricerca
+Limoniter runs these where they're installed, or where you point it. It never fetches one unless you ask.	Limoniter li esegue dove sono installati, o dove lo indicate. Non ne scarica mai uno se non lo chiedete.
+Limoniter runs these where they're installed, or where you point it. It never fetches one.	Limoniter li esegue dove sono installati, o dove lo indicate. Non ne scarica mai uno.
+Limoniter runs these where they're installed, or where you point it. It never fetches or builds one unless you ask.	Limoniter li esegue dove sono installati, o dove lo indicate. Non ne scarica né ne compila mai uno se non lo chiedete.
+Line endings and encoding:	Fine riga e codifica:
+LoRes, 128×96, 256 colours	LoRes, 128×96, 256 colori
+Look	Aspetto
+Look for them on Open VSX…	Cercali su Open VSX…
+MacBinary	MacBinary
+Negating	Negazione
+New files	Nuovi file
+No rows matched the query.	Nessuna riga corrisponde alla query.
+None saved; the Atari ST desktop's colours are used	Nessuna salvata; vengono usati i colori del desktop dell'Atari ST
+None: the file has the bitmap alone, shown as black on white	Nessuna: il file ha solo la bitmap, mostrata in nero su bianco
+Not a .prg, so it's packed as data.	Non è un .prg, quindi viene impacchettato come dati.
+On	Attivo
+One pattern to a line, written as in a .gitignore file: *.log, build/, docs/**/*.tmp. They're hidden from the Explorer, Go to file and searching.	Un criterio per riga, scritto come in un file .gitignore: *.log, build/, docs/**/*.tmp. Sono nascosti da Esplora risorse, da Vai al file e dalla ricerca.
+Only a script of a package.json can be debugged from here.	Da qui si può eseguire il debug solo di uno script di un package.json.
+Open 6502 source to insert them into it.	Aprire sorgente 6502 per inserirli.
+Open 68000 source to insert it there.	Aprire sorgente 68000 per inserirlo.
+Open 68000 source to insert them into it.	Aprire sorgente 68000 per inserirli.
+Pack-Ice and Atomik files aren't packed here (their packers are ST programs), but Limoniter unpacks them wherever it opens one.	I file Pack-Ice e Atomik non vengono impacchettati qui (i loro packer sono programmi ST), ma Limoniter li decomprime ovunque ne apra uno.
+PhotoYCC, shown as RGB	PhotoYCC, mostrato come RGB
+Place	Posizione
+Point Limoniter at it on the Tools page.	Indicarlo a Limoniter nella pagina Strumenti.
+Point Limoniter at it, or fetch it, on the Tools page.	Indicarlo a Limoniter, o scaricarlo, nella pagina Strumenti.
+Project settings…	Impostazioni del progetto…
+Put a line ending at the end of the file as it's saved, as .editorconfig's insert_final_newline does	Mette un fine riga alla fine del file quando viene salvato, come fa insert_final_newline di .editorconfig
+Python environment:	Ambiente Python:
+Query on {name}	Query su {name}
+Query the rows	Interroga le righe
+Query the rows…	Interroga le righe…
+Recently edited files	File modificati di recente
+Register 13 chooses the shape, and writing it starts the envelope again. 0 to 7 each sound as 9 or 15.	Il registro 13 sceglie la forma, e scriverlo fa ripartire l'inviluppo. Da 0 a 7 suonano ciascuno come 9 o 15.
+Run the query	Esegui la query
+Run this script under the debugger (js-debug)	Esegui questo script sotto il debugger (js-debug)
+Save files by themselves:	Salva i file da soli:
+Saving a file	Salvataggio di un file
+Share of the files the Explorer shows, the most recently edited:	Quota dei file mostrati da Esplora risorse, i modificati più di recente:
+Shrinkler packs smallest of all, but unpacks slowly: best for an intro's data, unpacked once.	Shrinkler comprime più di tutti, ma decomprime lentamente: ideale per i dati di un'intro, decompressi una volta sola.
+Side tabs on the right	Schede laterali a destra
+Some cells flash; they're shown as they look before swapping ink and paper	Alcune celle lampeggiano; sono mostrate come appaiono prima dello scambio di inchiostro e carta
+Spaces	Spazi
+Spell check code	Controlla l'ortografia del codice
+Spell checking accepts it in this project from now on. The list is kept with the project, and in a folder's .limoniter/words.txt, so Git has it	Il controllo ortografico lo accetta in questo progetto da ora in poi. L'elenco è conservato con il progetto, e nel .limoniter/words.txt di una cartella, così Git lo ha
+Stack	Pila
+TSCrunch's unpacked program can't return to BASIC with rts, and text it prints through the KERNAL may not show: it suits a demo that takes the machine over.	Il programma decompresso da TSCrunch non può tornare al BASIC con rts, e il testo che stampa tramite il KERNAL potrebbe non comparire: va bene per una demo che prende il controllo della macchina.
+Tab characters	Caratteri di tabulazione
+Tab width:	Larghezza della tabulazione:
+Tabs down the side	Schede lungo il lato
+Take trailing spaces off	Rimuovi gli spazi finali
+The .env file:	Il file .env:
+The .vscode folder's files are followed as they change, and the settings above win where both say something.	I file della cartella .vscode vengono seguiti quando cambiano, e le impostazioni qui sopra prevalgono dove entrambi dicono qualcosa.
+The Next's at reset	Quello del Next al reset
+The Tab key makes	Il tasto Tab produce
+The column name starting here never ends: it needs a closing quote	Il nome di colonna che inizia qui non finisce mai: serve una virgolette di chiusura
+The copy unpacks and starts itself, as the Pack page says to start it, and goes beside the source as name_packed.prg, in the background; the program runs as built.	La copia si decomprime e si avvia da sola, come dice la pagina Impacchetta, e va accanto al sorgente come name_packed.prg, in background; il programma viene eseguito così com'è compilato.
+The copy, crunched with the options on the Crunch page, goes beside the source as name_crunched, in the background; the program runs as built.	La copia, compressa con le opzioni della pagina Compressione, va accanto al sorgente come name_crunched, in background; il programma viene eseguito così com'è compilato.
+The file's own	Quello del file
+The folder tasks run in:	La cartella in cui vengono eseguite le attività:
+The icon (name.info) goes beside the program, so it can be started from Workbench: made a Tool, placed by Workbench, with a stack of 4096 bytes if it gave none. An assembled program is saved beside its source for it.	L'icona (name.info) va accanto al programma, così può essere avviato da Workbench: resa un Tool, posizionata da Workbench, con uno stack di 4096 byte se non ne dava. Un programma assemblato viene salvato accanto al suo sorgente per questo.
+The packed screen ends early; the rest is shown in colour 0	La schermata compressa finisce prima; il resto è mostrato nel colore 0
+The page ends early; the rest is shown white	La pagina finisce prima; il resto è mostrato in bianco
+The picture data ends early; the rest is shown in colour 0	I dati dell'immagine finiscono prima; il resto è mostrato nel colore 0
+The pixel data ends early; the rest is shown black	I dati dei pixel finiscono prima; il resto è mostrato in nero
+The project recommends: {}	Il progetto raccomanda: {}
+The project's folder	La cartella del progetto
+The project's own, found for it	Quello proprio del progetto, trovato per lui
+The query was stopped	La query è stata interrotta
+The result has no column number {n}	Il risultato non ha la colonna numero {n}
+The same kind of patterns, for files that stay in the Explorer but are left out of Go to file and searching, such as generated or minified files.	Lo stesso tipo di criteri, per i file che restano in Esplora risorse ma sono esclusi da Vai al file e dalla ricerca, come quelli generati o minificati.
+The setups in this folder's .vscode/launch.json:	Le configurazioni nel .vscode/launch.json di questa cartella:
+The templates folder:	La cartella dei modelli:
+The text starting here never ends: it needs a closing '	Il testo che inizia qui non finisce mai: serve un ' di chiusura
+The toolbar has no buttons. Right-click it to choose some.	La barra degli strumenti non ha pulsanti. Fare clic con il pulsante destro su di essa per sceglierne.
+The word couldn't be kept with the project.\n\n{problem}	Non è stato possibile conservare la parola con il progetto.\n\n{problem}
+The {op} sum	La somma {op}
+There's no column called {name}. The columns are {list}{more}	Non c'è nessuna colonna chiamata {name}. Le colonne sono {list}{more}
+These are this project's own. Where they say "As in Settings", your own settings stand. A file's .editorconfig still has the last word for the files it covers.	Questi sono propri del progetto. Dove dicono "Come in Impostazioni", valgono le vostre impostazioni. Il .editorconfig di un file ha ancora l'ultima parola per i file che copre.
+This divides by zero	Questo divide per zero
+This is a TOS program.	Questo è un programma TOS.
+This is an Amiga program (a hunk executable).	Questo è un programma Amiga (un eseguibile hunk).
+This is data: it's packed as it is, for your own code to unpack.	Questi sono dati: vengono impacchettati così come sono, perché il vostro codice li decomprima.
+This isn't an Amiga program, so it can only be crunched as data.	Questo non è un programma Amiga, quindi può essere compresso solo come dati.
+This project has its own copy of VS Code's settings and tasks, and doesn't read the .vscode folder's for them any more.	Questo progetto ha una propria copia delle impostazioni e delle attività di VS Code, e non legge più per esse quelle della cartella .vscode.
+This project recommends VS Code extensions: {names}.	Questo progetto raccomanda estensioni di VS Code: {names}.
+This setup debugs the file in front, so save it first, or open one.	Questa configurazione esegue il debug del file in primo piano, quindi salvarlo prima, o aprirne uno.
+This should be a condition such as a > 3, not text	Dovrebbe essere una condizione come a > 3, non testo
+To play it on an Ultimate 64 or 1541 Ultimate, add one under File, Send to device, Manage devices.	Per riprodurlo su un Ultimate 64 o 1541 Ultimate, aggiungerne uno in File, Invia al dispositivo, Gestisci dispositivi.
+Tool types	Tipi di strumento
+Toolbar	Barra degli strumenti
+Toolbar buttons	Pulsanti della barra degli strumenti
+Toolbar buttons…	Pulsanti della barra degli strumenti…
+Type to find a command	Digitare per trovare un comando
+WHERE, GROUP BY, ORDER BY, LIMIT or the end of the query	WHERE, GROUP BY, ORDER BY, LIMIT o la fine della query
+What's hidden is shown faintly in the Explorer, to be found and shown again	Ciò che è nascosto appare sbiadito in Esplora risorse, per ritrovarlo e mostrarlo di nuovo
+Whatever matches {pattern}	Tutto ciò che corrisponde a {pattern}
+When Underline mistakes is on	Quando Sottolinea errori è attivo
+Which language servers run for this project. Where one is off here, its language gets no completions, hints or problems from a server. Servers are also switched on in Settings, Editing, Language servers.	Quali server di linguaggio vengono eseguiti per questo progetto. Dove uno è disattivato qui, il suo linguaggio non riceve completamenti, suggerimenti o problemi da un server. I server si attivano anche in Impostazioni, Modifica, Server di linguaggio.
+Written by Limoniter for you to adapt: they call the file's own init, play and exit, and include it.	Scritti da Limoniter perché li adattiate: chiamano init, play ed exit propri del file, e lo includono.
+Written by Limoniter for you to adapt: they call the player's routines and include its files, from its own package.	Scritti da Limoniter perché li adattiate: chiamano le routine del player e includono i suoi file, dal suo pacchetto.
+Written by Limoniter from the tune's header, for any assembler that takes ; comments: init with the song, then play from a raster interrupt once a frame (or as the tune says).	Scritto da Limoniter dall'intestazione del brano, per qualsiasi assembler che accetti commenti con ;: init con il brano, poi play da un interrupt raster una volta per fotogramma (o come dice il brano).
+ZX0 packs data, for your own code to unpack.	ZX0 impacchetta dati, perché il vostro codice li decomprima.
+a column, a number or some text	una colonna, un numero o del testo
+a name after FROM	un nome dopo FROM
+a name for the column	un nome per la colonna
+code_spelling	code_spelling
+one or two values	uno o due valori
+one value	un valore
+pucrunch may fail to start a very small BASIC program (a few dozen bytes) once unpacked.	pucrunch può non riuscire ad avviare un programma BASIC molto piccolo (poche decine di byte) una volta decompresso.
+salvador packs ZX0 a little smaller than zx0 itself, and checks it unpacks (-c).	salvador comprime ZX0 un po' più piccolo di zx0 stesso, e verifica che si decomprima (-c).
+spaces	spazi
+tabs	tabulazioni
+templates beside the project	modelli accanto al progetto
+the end of the query	la fine della query
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\n
+waits for the browser	attende il browser
+{colours} colours, {} planes	{colours} colori, {} piani
+{message} (character {column})	{message} (carattere {column})
+{message} (line {line}, character {column})	{message} (riga {line}, carattere {column})
+{name} isn't in GROUP BY, so it needs an aggregate such as COUNT or MAX around it	{name} non è in GROUP BY, quindi ha bisogno di un aggregato come COUNT o MAX attorno
+{what} needs a number, but this is “{text}”	{what} richiede un numero, ma questo è “{text}”
+{what} needs a whole number, but found {found}	{what} richiede un numero intero, ma trovato {found}
+{word} can't be used in {place}: it needs the rows grouped first	{word} non può essere usato in {place}: prima le righe vanno raggruppate
+{word} takes {count} here	{word} prende {count} qui
+{word}(*) isn't allowed: only COUNT can count whole rows	{word}(*) non è consentito: solo COUNT può contare righe intere
+{} debug setups, in Run, Debug with a VS Code setup	{} configurazioni di debug, in Esegui, Debug con una configurazione VS Code
+{} names no folder that exists, so there's nothing to open.	{} non indica nessuna cartella esistente, quindi non c'è nulla da aprire.
+{} tasks, in Tools, Tasks	{} attività, in Strumenti, Attività
+▶ Debug	▶ Debug

@@ -292,6 +292,8 @@ pub struct TextBuffer {
     pub jsx: bool,
     /// A `.env` file: values are drawn as dots, except on the line being edited or under the pointer.
     pub hide_values: bool,
+    /// The delimiter, if the file is delimited data (CSV and the like), so the text view can colour its columns.
+    pub delimited: Option<char>,
     /// Markdown: lists carry on as Enter is pressed.
     pub markdown: bool,
     /// A language a VS Code extension gives: the brackets that close themselves, and when lines indent.
@@ -410,6 +412,7 @@ impl Default for TextBuffer {
             emmet: None,
             jsx: false,
             hide_values: false,
+            delimited: None,
             markdown: false,
             rules: None,
             auto_closed: None,

@@ -31,10 +31,11 @@ pub(super) struct SaveTemplateBox {
 
 impl Limoniter {
     /// The folder a project's templates are kept in, and the project's folder, if a project is open.
-    fn template_places(&self) -> Option<(PathBuf, PathBuf)> {
+    pub(super) fn template_places(&self) -> Option<(PathBuf, PathBuf)> {
         let project = self.project.as_ref()?;
         let root = project.folder();
-        Some((templates::dir_for(project.root.as_deref(), &root), root))
+        let own = project.prefs.templates_folder.as_deref().map(|written| crate::project_prefs::Prefs::place(&root, written));
+        Some((own.unwrap_or_else(|| templates::dir_for(project.root.as_deref(), &root)), root))
     }
 
     /// The project's templates, for the menu.

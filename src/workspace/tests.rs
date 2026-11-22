@@ -80,3 +80,16 @@ fn a_few_letters_find_the_file_meant() {
     // The places matched, to show.
     assert_eq!(score("ah", "asm_host.rs").unwrap().1, [0, 4]);
 }
+
+#[test]
+fn patterns_match_as_lines_of_gitignore_do() {
+    assert!(glob_matches("*.min.js", "web/app.min.js", false));
+    assert!(!glob_matches("*.min.js", "web/app.js", false));
+    assert!(glob_matches("build/", "build/out.o", false), "a folder's files go with it");
+    assert!(!glob_matches("build/", "build", false), "a trailing / means folders only");
+    assert!(glob_matches("docs/**/*.tmp", "docs/a/b/x.tmp", false));
+    assert!(!glob_matches("docs/*.tmp", "other/docs/x.tmp", false), "a / ties it to the project's top");
+    assert!(!glob_matches("!keep.txt", "keep.txt", false), "a pattern that says not never matches");
+    assert!(excluded(&["*.log".to_string()], Path::new("/r"), Path::new("/r/a/x.log"), false));
+    assert!(!excluded(&[], Path::new("/r"), Path::new("/r/a/x.log"), false));
+}

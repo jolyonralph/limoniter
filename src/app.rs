@@ -25,6 +25,7 @@ use crate::panels::{self, Action, DocView, Panels, TabInfo};
 use crate::print;
 use crate::recovery;
 use crate::settings::{self, Prefs};
+use crate::side_tabs;
 use crate::tabs;
 use crate::text_buffer::{self, CaseChange, Justify, ReplaceCursor, SearchCursor, SearchOptions, SearchStep, TextBuffer};
 use crate::theme;
@@ -55,6 +56,8 @@ const WATCH_EVERY: Duration = Duration::from_secs(2);
 enum Command {
     /// Folds the ribbon to its tabs, or opens it out again.
     FoldRibbon,
+    /// The box that chooses the toolbar's buttons.
+    ToolbarButtons,
     /// The newest notes from What's new.
     WhatsNew,
     /// One of the guide's pages.
@@ -187,6 +190,8 @@ enum Command {
     StartDebugging,
     /// Waits for Xdebug to connect from a PHP page in the browser, or a script run from the terminal.
     DebugPhpListen,
+    /// Debugs with one of the setups in the folder's `.vscode/launch.json`, picked from a list.
+    DebugVscodeSetup,
     /// Steps back to the line before in the program being debugged, where the debugger can go backwards
     /// (Copperline's can, by replaying its snapshots).
     DebugStepBack,
@@ -377,6 +382,8 @@ enum Command {
     ToggleTerminal,
     /// A task, by its place in the list of those here.
     RunTask(usize),
+    /// A task that runs a `package.json` script, run again under js-debug, by its place in the list of those here.
+    DebugTask(usize),
     BuildTask,
     TestTask,
     /// The assembly tests written beside the source in front, run on the built-in Z80 or 6502.
@@ -423,6 +430,7 @@ enum Command {
     ToggleTable,
     /// View, Open in the data viewer: the delimited text in front, as a table to sort, filter and sum up.
     OpenInDataViewer,
+    QueryRows,
     /// Something to do with the notebook in front: run a cell, add one, and so on.
     Notebook(notebook_host::Act),
     /// Something to do with databases: run the SQL at the cursor, stop it, add a connection.
@@ -497,6 +505,7 @@ impl Command {
             self,
             Command::New
                 | Command::FoldRibbon
+                | Command::ToolbarButtons
                 | Command::WhatsNew
                 | Command::Guide(_)
                 | Command::GitClone
@@ -545,6 +554,7 @@ impl Command {
                 | Command::EditTasks
                 | Command::OutdatedPackages
                 | Command::DebugPhpListen
+                | Command::DebugVscodeSetup
                 | Command::Help
                 | Command::NewInstance
                 | Command::RecoverEdits
@@ -1589,7 +1599,7 @@ enum Dialog {
     WrapColumn { value: String, error: String, focus: bool },
     ParagraphSetup { width: String, left: String, first: String, align: Align, error: String },
     /// A folder project's settings hold what's hidden in its Explorer, to take things back.
-    ProjectSettings { name: String, notes: String, hidden: Option<Vec<crate::explorer_kept::Hide>>, colours: Vec<crate::file_colours::Rule> },
+    ProjectSettings(Box<project_settings_host::Draft>),
     RestorePick { backups: Vec<project::Backup>, chosen: usize },
     Fill { value: String, skip_last: bool },
     /// Before saving a BASIC listing as a program: which Commodore machine, or which line a Spectrum program runs from.
@@ -1644,11 +1654,13 @@ enum Dialog {
     CompareRules(Box<compare_host::sync_host::RulesBox>),
     ApplyPatch(Box<compare_host::sync_host::PatchBox>),
     RenameLabel(Box<intel_host::RenameBox>),
+    QueryRows(Box<csv_query_host::QueryBox>),
     Disassemble(Box<disasm_host::DisasmBox>),
     NewImage(Box<image_browser::NewImageBox>),
     OpenUrl(Box<web_host::WebBox>),
     WebProject(Box<project_import_host::WebProjectBox>),
     AmigaNdk(Box<ndk_host::NdkBox>),
+    Toolbar(Box<toolbar_host::ToolbarBox>),
     AmigaProject(Box<amiga_project_host::NewProjectBox>),
     Database(Box<database_host::ConnectionBox>),
     AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
@@ -1772,6 +1784,10 @@ pub struct Limoniter {
     drawing_open: bool,
     view: ViewOptions,
     show_file_tabs: bool,
+    /// Tabs as a list down the side, rather than a row along the top.
+    side_tabs: side_tabs::SideTabs,
+    /// The row of buttons under the menus, and which buttons.
+    toolbar: toolbar_host::Toolbar,
     panels: Panels,
     saved_settings: String,
     show_status: bool,
@@ -1788,6 +1804,9 @@ pub struct Limoniter {
     /// The tab that was in front and whether the window had the focus, last frame: autosave's modes that save when
     /// either changes look at what they were.
     autosave_seen: (Option<u64>, bool),
+    /// Whether the keyboard focus was in an editor the last time it was looked at, to tell when it leaves for a
+    /// panel (the Explorer, Search, Output, a terminal, a dialog's box).
+    autosave_in_editor: bool,
     /// Set when closing left unsaved files for the next start to bring back, rather than asking about them.
     hot_exit_kept: bool,
     /// Where the recovery copies are kept, once recovery has started.
@@ -1910,6 +1929,8 @@ pub struct Limoniter {
     /// files keep theirs in the project (`Project::debug`).
     debug_configs: crate::dap::Kept,
     debug_setup: Option<(PathBuf, crate::dap::Config)>,
+    /// The chooser of VS Code's debug setups, and the bar offering the extensions its folder recommends.
+    vscode: vscode_host::State,
     dragon_disk: Option<Box<dragon_disk_host::DragonDisk>>,
     binary_tools: Option<Box<binary_tools_host::BinaryTools>>,
     regex_tester: Option<Box<crate::regex_tester::Tester>>,
@@ -1958,6 +1979,8 @@ pub struct Limoniter {
     spell_problem: Option<String>,
     /// Waiting for the spell checker to find the next mistake.
     spell_asked: bool,
+    /// For a file of code, the text sent to the spell checker for each line, to turn what it finds back into places.
+    spell_masks: std::collections::HashMap<usize, crate::code_spelling::Masked>,
     /// For work on other threads to ask for the window to be drawn again.
     waker: Option<Context>,
     /// A part of a file whose history is being shown.
@@ -2122,6 +2145,7 @@ impl Limoniter {
             debugging: None,
             debug_configs: crate::dap::kept_from_settings(&settings),
             debug_setup: None,
+            vscode: Default::default(),
             dragon_disk: None,
             binary_tools: None,
             regex_tester: None,
@@ -2193,6 +2217,7 @@ impl Limoniter {
             speller: None,
             spell_problem: None,
             spell_asked: false,
+            spell_masks: std::collections::HashMap::new(),
             waker: None,
             region: None,
             tags_kept: std::collections::HashMap::new(),
@@ -2271,6 +2296,8 @@ impl Limoniter {
             drawing_open: false,
             view,
             show_file_tabs: setting_flag(&settings, "file_tabs", true),
+            side_tabs: side_tabs::SideTabs::from_settings(&settings),
+            toolbar: toolbar_host::Toolbar::from_settings(&settings),
             show_status: setting_flag(&settings, "status_bar", true),
             panels,
             saved_settings: settings,
@@ -2283,6 +2310,7 @@ impl Limoniter {
             new_file_preset,
             recovery: None,
             autosave_seen: (None, true),
+            autosave_in_editor: false,
             hot_exit_kept: false,
             recovery_dir: None,
             recovery_failed: None,
@@ -2556,7 +2584,8 @@ impl Limoniter {
             self.docs.clear();
         }
         self.untitled_count += 1;
-        self.docs.push(Document::untitled(format!("Edit{}", self.untitled_count), self.new_file_preset));
+        let preset = self.new_file_preset_now();
+        self.docs.push(Document::untitled(format!("Edit{}", self.untitled_count), preset));
         self.active = self.docs.len() - 1;
         self.pending_focus = true;
     }
@@ -2620,6 +2649,10 @@ impl Limoniter {
         // A file of a remote project left on its server: fetched, then opened.
         if self.remote_project_stand_in(path) {
             return true;
+        }
+        // VS Code's workspaces open as a project.
+        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("code-workspace")) && path.is_file() {
+            return self.open_code_workspace(path);
         }
         let full = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
         if let Some(i) = self.docs.iter().position(|d| d.path.as_deref().is_some_and(|p| same_path(p, &full))) {
@@ -2799,10 +2832,12 @@ impl Limoniter {
         // .editorconfig's word goes first; then the person's own setting.
         // .editorconfig's trim_trailing_whitespace means the whole file; only the person's own setting can keep to
         // the lines changed.
-        if config.trim_trailing_whitespace.unwrap_or(self.view.trim_on_save) && !doc.text.is_disk_backed() {
-            doc.text.trim_trailing_on_save(config.trim_trailing_whitespace.is_none() && self.view.trim_only_changed);
+        let project = self.project.as_ref().map(|p| p.eff().into_owned());
+        let project = project.as_ref();
+        if config.trim_trailing_whitespace.or(project.and_then(|p| p.trim_trailing)).unwrap_or(self.view.trim_on_save) && !doc.text.is_disk_backed() {
+            doc.text.trim_trailing_on_save(config.trim_trailing_whitespace.is_none() && project.is_none_or(|p| p.trim_trailing.is_none()) && self.view.trim_only_changed);
         }
-        if config.insert_final_newline.unwrap_or(doc.text.format.ensure_final_newline) {
+        if config.insert_final_newline.or(project.and_then(|p| p.final_newline)).unwrap_or(doc.text.format.ensure_final_newline) {
             doc.text.ensure_final_newline();
         }
         let format = doc.text.format.clone();
@@ -2836,7 +2871,7 @@ impl Limoniter {
         }
         match self.docs[index].path.clone() {
             Some(path) => {
-                if self.lsp.format_on_save {
+                if self.format_on_save_now() {
                     self.lsp_format(index, true);
                 }
                 let written = self.write_to(index, &path);
@@ -2931,9 +2966,18 @@ impl Limoniter {
         }
     }
 
+    /// How long autosave waits: the settings', or VS Code's `files.autoSaveDelay` where the project follows that and
+    /// has chosen its own way to autosave from it.
+    fn autosave_seconds_now(&self) -> u32 {
+        match self.project.as_ref() {
+            Some(project) if project.autosave.is_none() && project.vscode.autosave.is_some() => project.vscode.autosave_seconds.unwrap_or(self.prefs.autosave_seconds),
+            _ => self.prefs.autosave_seconds,
+        }
+    }
+
     /// What starts an autosave now, if anything does: the project's own choice, or else the settings'.
     pub(crate) fn autosave_mode(&self) -> Option<settings::AutosaveWhen> {
-        match self.project.as_ref().and_then(|project| project.autosave) {
+        match self.project.as_ref().and_then(|project| project.eff_autosave()) {
             Some(settings::AutosaveChoice::Off) => None,
             Some(settings::AutosaveChoice::When(when)) => Some(when),
             None => self.prefs.autosave.then_some(self.prefs.autosave_when),
@@ -2965,13 +3009,23 @@ impl Limoniter {
     }
 
     /// Saves files by themselves as the mode asks: after the delay a file has had unsaved changes for, when another
-    /// tab is chosen (the one left is saved), or when the window loses the focus (all of them are).
+    /// tab or panel is chosen (the one left is saved), or when the window loses the focus (all of them are).
     fn autosave(&mut self, ctx: &Context) {
         let mode = self.autosave_mode();
         let active = self.docs.get(self.active).map(|doc| doc.id);
         let focused = ctx.input(|i| i.focused);
         let (left_tab, lost_window) = (self.autosave_seen.0.filter(|id| Some(*id) != active), self.autosave_seen.1 && !focused);
         self.autosave_seen = (active, focused);
+        // The keyboard focus leaving the editor for a panel counts as choosing it, as VS Code's onFocusChange has
+        // it. A click on nothing in particular (which lets go of the focus) counts too, but the focus going by
+        // itself (the window being left, a key letting go of it) does not.
+        let focus = ctx.memory(|m| m.focused());
+        let clicked = ctx.input(|i| i.pointer.any_pressed());
+        let in_editor = focus.is_some_and(views::is_editor_id);
+        let left_editor = self.autosave_in_editor && !in_editor && focused && (focus.is_some() || clicked);
+        if focus.is_some() || clicked {
+            self.autosave_in_editor = in_editor;
+        }
         // A screenshot never saves over a file; tests run as one.
         let Some(mode) = mode.filter(|_| !(self.screenshot.is_some() && !cfg!(test)) && self.script.is_none()) else {
             for doc in &mut self.docs {
@@ -2984,11 +3038,16 @@ impl Limoniter {
             let mut leaving: Vec<usize> = Vec::new();
             if lost_window {
                 leaving.extend(0..self.docs.len());
-            } else if mode == settings::AutosaveWhen::OnFocusChange
-                && let Some(id) = left_tab
-                && let Some(index) = self.docs.iter().position(|doc| doc.id == id)
-            {
-                leaving.push(index);
+            } else if mode == settings::AutosaveWhen::OnFocusChange {
+                if let Some(id) = left_tab
+                    && let Some(index) = self.docs.iter().position(|doc| doc.id == id)
+                {
+                    leaving.push(index);
+                }
+                // The file in front, when the focus has gone to a panel.
+                if left_editor && self.docs.get(self.active).is_some() && !leaving.contains(&self.active) {
+                    leaving.push(self.active);
+                }
             }
             for doc in &mut self.docs {
                 doc.unsaved_since = None;
@@ -3001,7 +3060,7 @@ impl Limoniter {
             }
             return;
         }
-        let wait = std::time::Duration::from_secs(u64::from(self.prefs.autosave_seconds));
+        let wait = std::time::Duration::from_secs(u64::from(self.autosave_seconds_now()));
         let now = std::time::Instant::now();
         for index in 0..self.docs.len() {
             let doc = &mut self.docs[index];
@@ -3097,7 +3156,7 @@ impl Limoniter {
 
     /// One level of indent, as the Tab key would make it.
     fn indent_unit(&self) -> String {
-        if self.prefs.edit.spaces_for_tab { " ".repeat(self.view.tab_size) } else { "\t".to_string() }
+        if self.spaces_for_tab_now() { " ".repeat(self.tab_size_now()) } else { "\t".to_string() }
     }
 
     /// These commands act on whole lines, so several selections have to be ended first. Says so if they aren't.
@@ -3430,6 +3489,7 @@ impl Limoniter {
         busy |= self.php_tick();
         busy |= self.outdated_tick();
         busy |= self.http_tick(ctx);
+        self.package_script_links();
         busy |= self.xdebug_tick();
         self.database.ctx = Some(ctx.clone());
         busy |= self.database_tick();
@@ -3638,6 +3698,10 @@ impl Limoniter {
                     }
                     Err(e) => warn(&crate::i18n::tf!("{title} couldn't read back what it wrote.\n\n{e}")),
                 }
+                return true;
+            }
+            crate::big_jobs::Outcome::Queried { table, query, delimiter, header } => {
+                self.finish_query(doc_id, table, query, delimiter, header);
                 return true;
             }
             crate::big_jobs::Outcome::Done(text) => self.message(title, text),
@@ -4184,7 +4248,7 @@ impl Limoniter {
             }
             FileScope::OpenFiles => self.search_open_files(&options),
             FileScope::Project => match &self.project {
-                Some(project) if !project.files.is_empty() => find_files::start_list(project.files.clone(), &options),
+                Some(project) if !project.files.is_empty() => find_files::start_list(project.searchable(), &options),
                 Some(_) => {
                     self.find.status = crate::i18n::tr("This project has no files yet.").into();
                     return;
@@ -4570,6 +4634,7 @@ impl Limoniter {
                 | Command::GitStopTools
                 | Command::ToggleTable
                 | Command::OpenInDataViewer
+                | Command::QueryRows
                 | Command::AddOn(_)
                 | Command::ShowScripts
                 | Command::ShowHistory
@@ -4737,6 +4802,11 @@ impl Limoniter {
                     self.run_task(task);
                 }
             }
+            Command::DebugTask(index) => {
+                if let Some(task) = self.tasks_here().get(index).cloned() {
+                    self.debug_task(&task);
+                }
+            }
             Command::BuildTask => self.run_build_task(),
             Command::TestTask => self.run_test_task(),
             Command::AssemblyTests => self.assembly_tests_here(),
@@ -4834,6 +4904,7 @@ impl Limoniter {
             Command::GitWizard => self.open_git_wizard(),
             Command::GitClone => self.open_git_clone(),
             Command::FoldRibbon => self.fold_ribbon(),
+            Command::ToolbarButtons => self.open_toolbar_box(),
             Command::WhatsNew => self.open_whats_new(),
             Command::Guide(page) => self.open_guide(page),
             Command::Merge => self.merge_files_dialog(),
@@ -4850,6 +4921,7 @@ impl Limoniter {
             Command::GitUndoChange => self.undo_change_at_cursor(),
             Command::ToggleTable => self.toggle_table(),
             Command::OpenInDataViewer => self.open_in_data_viewer(),
+            Command::QueryRows => self.open_query_rows(),
             Command::Notebook(_) | Command::Database(_) => {}
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::Website => {
@@ -4867,6 +4939,7 @@ impl Limoniter {
             Command::PeekDefinition => self.peek_definition(),
             Command::StartDebugging => self.start_debugging(),
             Command::DebugPhpListen => self.debug_php_listen(),
+            Command::DebugVscodeSetup => self.choose_vscode_launch(),
             Command::DebugStepBack => self.debug_control("stepBack"),
             Command::ColourAs => self.open_language_picker(),
             Command::ProjectOpen => {
@@ -5582,8 +5655,32 @@ impl Limoniter {
         view
     }
 
+    /// Whether the Tab key makes spaces: .editorconfig's word for the file in front, else the project's, else the setting.
+    fn spaces_for_tab_now(&self) -> bool {
+        self.editor_config.as_ref().and_then(|(_, c)| c.spaces).or_else(|| self.project.as_ref().and_then(|p| p.eff().spaces)).unwrap_or(self.prefs.edit.spaces_for_tab)
+    }
+
+    /// The preset new files start with: the project's own choice, else the setting.
+    fn new_file_preset_now(&self) -> &'static Preset {
+        self.project.as_ref().and_then(|p| p.eff().new_file_preset.as_deref().and_then(codec::preset_by_id)).unwrap_or(self.new_file_preset)
+    }
+
+    /// Whether files are formatted as they're saved: the project's word, else the setting.
+    pub(super) fn format_on_save_now(&self) -> bool {
+        self.project.as_ref().and_then(|p| p.eff().format_on_save).unwrap_or(self.lsp.format_on_save)
+    }
+
+    /// The formatter chosen for each language: the project's over the person's own.
+    pub(super) fn formatter_choices_now(&self) -> std::collections::HashMap<String, String> {
+        let mut choices = self.formatter_choices.clone();
+        if let Some(project) = &self.project {
+            choices.extend(project.eff().formatters.iter().map(|(language, name)| (language.clone(), name.clone())));
+        }
+        choices
+    }
+
     fn tab_size_now(&self) -> usize {
-        self.editor_config.as_ref().and_then(|(_, c)| c.tab_size()).unwrap_or(self.view.tab_size)
+        self.editor_config.as_ref().and_then(|(_, c)| c.tab_size()).or_else(|| self.project.as_ref().and_then(|p| p.eff().tab_width)).unwrap_or(self.view.tab_size)
     }
 
     fn apply_tab_size(&mut self) {
@@ -5618,7 +5715,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str()
         )
     }
 
@@ -5740,6 +5837,8 @@ impl Limoniter {
         self.panels.recent = fresh.panels.recent;
         self.recent_in = fresh.recent_in;
         self.show_file_tabs = fresh.show_file_tabs;
+        self.side_tabs = fresh.side_tabs;
+        self.toolbar = fresh.toolbar;
         self.show_status = fresh.show_status;
         self.new_file_preset = fresh.new_file_preset;
         self.recent_projects = fresh.recent_projects;
@@ -6701,40 +6800,15 @@ impl Limoniter {
                     }
                 }
             }
-            Dialog::ProjectSettings { name, notes, hidden, colours } => {
-                let mut cancelled = ctx.input(|i| i.key_pressed(Key::Escape));
-                let mut ok = false;
-                crate::fit::Dialog::new(crate::i18n::tr("Project settings")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-                    ui.label(crate::i18n::tr("Name:"));
-                    ui.text_edit_singleline(name);
-                    ui.add_space(4.0);
-                    ui.label(crate::i18n::tr("Notes:"));
-                    ui.add(egui::TextEdit::multiline(notes).desired_rows(5));
-                    if let Some(hidden) = hidden {
-                        workspace_host::hidden_list(ui, hidden);
-                    }
-                    file_colours_host::rules_list(ui, colours);
-                    let (okay, cancel) = ok_cancel(ui);
-                    ok = okay;
-                    cancelled |= cancel;
-                });
-                if cancelled {
-                    self.close_dialog();
-                } else if ok {
-                    if let Some(project) = &mut self.project {
-                        if !name.trim().is_empty() {
-                            project.name = name.trim().to_string();
+            Dialog::ProjectSettings(draft) => {
+                let base = self.project.as_ref().map(|p| p.folder()).unwrap_or_default();
+                match project_settings_host::window(ctx, draft, &base) {
+                    project_settings_host::Result::Open => {}
+                    project_settings_host::Result::Cancel => self.close_dialog(),
+                    project_settings_host::Result::Ok => {
+                        if let Dialog::ProjectSettings(draft) = std::mem::replace(&mut self.dialog, Dialog::None) {
+                            self.apply_project_settings(*draft);
                         }
-                        project.notes.clone_from(notes);
-                        if let Some(hidden) = hidden.take() {
-                            project.explorer.hidden = hidden;
-                        }
-                        project.colours.rules = file_colours_host::tidy_rules(colours);
-                    }
-                    self.save_project();
-                    self.index_project();
-                    if matches!(self.dialog, Dialog::ProjectSettings { .. }) {
-                        self.close_dialog();
                     }
                 }
             }
@@ -6858,6 +6932,7 @@ impl Limoniter {
                     Some(settings::Outcome::AmigaTools) => self.open_amiga_tools(),
                     Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
                     Some(settings::Outcome::CompareRules) => self.open_rules_box(None),
+                    Some(settings::Outcome::ToolbarButtons) => self.open_toolbar_box(),
                     Some(settings::Outcome::LanguageServers) => self.dialog = Dialog::LanguageServers(self.lsp.settings.clone()),
                     Some(settings::Outcome::SetFileTypes | settings::Outcome::RemoveFileTypes | settings::Outcome::OpenWindowsPage) | None => {}
                 }
@@ -7221,9 +7296,7 @@ impl Limoniter {
                         }
                     });
                     if chosen {
-                        self.active = i;
-                        self.docs[i].switch_window(number);
-                        self.pending_focus = true;
+                        self.choose_tab_window(i, number);
                     }
                     if closing {
                         close = Some((i, number));
@@ -7231,17 +7304,7 @@ impl Limoniter {
                 }
             }
         });
-        if let Some((i, choice)) = pick {
-            self.tab_pick(i, choice);
-        }
-        if let Some((i, number)) = close {
-            if self.docs[i].windows.is_empty() {
-                self.close_tab(i);
-            } else {
-                self.docs[i].close_window(number);
-                self.pending_focus = true;
-            }
-        }
+        self.finish_tab_actions(pick, close);
     }
 
     fn status_bar(&self, ui: &mut Ui) -> (Option<MenuAction>, bool) {
@@ -7309,6 +7372,9 @@ impl Limoniter {
             }
             if let Some(job) = &self.big_job {
                 ui.colored_label(theme::accent(), crate::i18n::tf!("{}: {:.0}%", job.title, (job.share() * 100.0).min(100.0)));
+                if job.title == "Query the rows" && ui.small_button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Stop the query")).clicked() {
+                    job.cancel();
+                }
             }
             // Only shown when something's wrong: if edits aren't being kept, the person needs to know.
             let kept = self.recovery_failed.clone().or_else(|| self.recovery.as_ref().and_then(recovery::Session::problem)).filter(|_| self.screenshot.is_none());
@@ -7714,7 +7780,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.database_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.node_dialog(ctx) || self.templates_dialog(ctx) || self.compare_dialogs(ctx) {
+        if self.palette_dialog(ctx) || self.toolbar_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.query_rows_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.database_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.node_dialog(ctx) || self.templates_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
         let mut close = false;
@@ -8125,6 +8191,13 @@ impl Limoniter {
                     editor.play_changes = false;
                     self.sound_effects = Some(Box::new(editor));
                 }
+                "project-settings" => {
+                    // The project's settings box on a tab (its number, 0 to 6), for the picture.
+                    self.open_project_settings();
+                    if let Dialog::ProjectSettings(draft) = &mut self.dialog {
+                        draft.tab = value.parse().unwrap_or(0).min(project_settings_host::TABS.len() - 1);
+                    }
+                }
                 "recency" => {
                     // The Explorer's recency slider set to a share, with every file's date read now, for the picture.
                     if let Some(project) = &mut self.project
@@ -8143,7 +8216,7 @@ impl Limoniter {
                     if let Some(project) = &mut self.project
                         && let Some(root) = project.root.clone()
                     {
-                        project.files = crate::workspace::index(&root, &project.explorer.hidden).0;
+                        project.files = crate::workspace::index_with(&root, &project.explorer.hidden, &project.eff().index_options()).0;
                         // And the files edited lately found now too.
                         let times = crate::explorer_kept::outside_times(&root, &project.files, project.explorer.recent_days);
                         self.panels.project_panel.explorer.set_outside_times(&root, times);
@@ -8185,7 +8258,7 @@ impl Limoniter {
                     let path = self.docs[self.active].path.clone().unwrap_or_default();
                     self.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(line);
                     let folder = path.parent().map(|p| p.display().to_string()).unwrap_or_default();
-                    self.launch_debugger(crate::dap::Config { kind: crate::dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: path.display().to_string(), arguments: String::new(), folder, emulator: None });
+                    self.launch_debugger(crate::dap::Config { kind: crate::dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: path.display().to_string(), arguments: String::new(), folder, emulator: None, env: Vec::new(), stop_on_entry: false });
                     let began = std::time::Instant::now();
                     while began.elapsed() < Duration::from_secs(20) && self.debugging.as_ref().is_some_and(|d| d.parts.is_empty()) {
                         self.debug_poll();
@@ -8345,6 +8418,26 @@ impl Limoniter {
                 "tests" => self.tests_screenshot_step(value),
                 // The Containers panel, for the compose file in front.
                 "containers" => self.panels.containers = true,
+                // The Query the rows box, with the query typed after the step's colon.
+                "query-rows" => {
+                    self.open_query_rows();
+                    if let Dialog::QueryRows(state) = &mut self.dialog
+                        && !value.is_empty()
+                    {
+                        state.query = value.to_string();
+                    }
+                }
+                // Tabs down the side ("left" or "right"), and the toolbar ("on", or "box" for its buttons' box).
+                "side-tabs" => {
+                    self.side_tabs = side_tabs::SideTabs { on: true, right: value == "right" };
+                    self.show_file_tabs = true;
+                }
+                "toolbar" => {
+                    self.toolbar.on = true;
+                    if value == "box" {
+                        self.open_toolbar_box();
+                    }
+                }
                 "colour-as" => {
                     // The Colour as box, grouped a way ("kind", "machine" or "all"), with letters typed after a ;.
                     let (view, letters) = value.split_once(';').unwrap_or((value, ""));
@@ -9109,7 +9202,7 @@ impl Limoniter {
         self.control_keys_window(&ctx);
         self.read_editor_config();
         let mut edit = self.prefs.edit;
-        if let Some(spaces) = self.editor_config.as_ref().and_then(|(_, c)| c.spaces) {
+        if let Some(spaces) = self.editor_config.as_ref().and_then(|(_, c)| c.spaces).or_else(|| self.project.as_ref().and_then(|p| p.prefs.spaces)) {
             edit.spaces_for_tab = spaces;
         }
         text_buffer::set_edit_prefs(edit);
@@ -9188,6 +9281,9 @@ impl Limoniter {
         if let Some(command) = self.ribbon_body(ui) {
             chosen = Some(command);
         }
+        if let Some(command) = self.toolbar_bar(ui) {
+            chosen = Some(command);
+        }
         if self.show_status {
             let (mut action, mut toggle_lock) = (None, false);
             let status = Panel::bottom("status").frame(egui::Frame::new().fill(theme::ribbon()).inner_margin(egui::Margin { left: 12, right: 12, top: 4, bottom: 4 })).show(ui, |ui| (action, toggle_lock) = self.status_bar(ui));
@@ -9235,7 +9331,9 @@ impl Limoniter {
         self.st_profile_panel(ui);
         let full_preview = self.docs[self.active].preview_view != settings::PreviewView::Text && self.preview_panel(ui);
         self.full_preview_shown = full_preview;
-        if self.show_file_tabs && !self.no_file() {
+        if self.side_tabs_showing() {
+            self.side_tabs_panel(ui);
+        } else if self.show_file_tabs && !self.no_file() && !self.side_tabs.on {
             Panel::top("tabs").show_separator_line(false).frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin { left: 8, right: 8, top: 6, bottom: 0 })).show(ui, |ui| {
                 self.tab_strip(ui);
             });
@@ -9246,6 +9344,7 @@ impl Limoniter {
             self.table_offer_bar(ui);
             self.git_offer_bar(ui);
             self.lsp_offer_bar(ui);
+            self.vscode_offer_bar(ui);
             self.env_bar(ui);
             self.conflict_bar(ui);
         }
@@ -9295,6 +9394,12 @@ impl Limoniter {
         });
         if let Some(ContextCommand::Explain(word)) = &context_command {
             self.open_autodocs(Some(word.clone()));
+        } else if let Some(ContextCommand::DebugScript(name)) = &context_command {
+            if let Some(folder) = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf) {
+                self.debug_npm_script(&folder, name);
+            }
+        } else if let Some(ContextCommand::AddProjectWord(word)) = &context_command {
+            self.add_project_word(word);
         } else if let Some(command) = context_command {
             self.run(
                 match command {
@@ -9305,7 +9410,7 @@ impl Limoniter {
                     ContextCommand::Tag(colour) => Command::Tag(colour),
                     ContextCommand::Untag => Command::Untag,
                     ContextCommand::Assist => Command::Assist(assistant::Task::Fix),
-                    ContextCommand::Explain(_) => Command::AutoDocs,
+                    ContextCommand::Explain(_) | ContextCommand::DebugScript(_) | ContextCommand::AddProjectWord(_) => Command::AutoDocs,
                     ContextCommand::RunCell(line) => Command::PyR(python_host::PyAction::RunCellAt(line)),
                     ContextCommand::SendRequest(number) => Command::SendRequestNumber(number),
                     ContextCommand::RunCellsAbove(line) => Command::PyR(python_host::PyAction::RunAboveAt(line)),
@@ -9343,6 +9448,7 @@ impl Limoniter {
         self.outline_tick();
         self.debug_tick(&ctx);
         self.debug_setup_window(&ctx);
+        self.vscode_launch_window(&ctx);
         self.go_to_file_window(&ctx);
         self.remote_sync_window(&ctx);
         self.quick_fix_window(&ctx);
@@ -10238,6 +10344,10 @@ mod ripper_host;
 mod amiga_bootdisk_host;
 #[path = "workspace_host.rs"]
 mod workspace_host;
+#[path = "project_settings_host.rs"]
+mod project_settings_host;
+#[path = "vscode_host.rs"]
+mod vscode_host;
 #[path = "binary_tools_host.rs"]
 mod binary_tools_host;
 #[path = "serial_host.rs"]
@@ -10273,6 +10383,10 @@ mod compose_host;
 
 #[path = "tests_host.rs"]
 mod tests_host;
+#[path = "side_tabs_host.rs"]
+mod side_tabs_host;
+#[path = "toolbar_host.rs"]
+mod toolbar_host;
 
 #[path = "outdated_host.rs"]
 mod outdated_host;
@@ -10318,6 +10432,8 @@ mod run_host_tests;
 mod table_view;
 #[path = "data_table_host.rs"]
 mod data_table_host;
+#[path = "csv_query_host.rs"]
+mod csv_query_host;
 #[path = "data_view_host.rs"]
 mod data_view_host;
 #[cfg(test)]
@@ -12571,9 +12687,7 @@ mod tests {
         let dir = project_folder("settings");
         app.new_project(dir.join("p.limproj"));
         command(&mut app, &ctx, Command::ProjectSettings);
-        assert!(matches!(&app.dialog, Dialog::ProjectSettings { name, .. } if name == "p"));
-        draw(&mut app, &ctx, Vec::new());
-        app.dialog = Dialog::ProjectSettings { name: "  ".into(), notes: "a note".into(), hidden: None, colours: Vec::new() };
+        assert!(matches!(&app.dialog, Dialog::ProjectSettings(draft) if draft.name == "p"));
         draw(&mut app, &ctx, Vec::new());
         let saved = |app: &mut Limoniter, name: &str, notes: &str| {
             if let Some(project) = &mut app.project {

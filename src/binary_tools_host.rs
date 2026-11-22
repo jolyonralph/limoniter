@@ -651,7 +651,7 @@ impl Limoniter {
         if doc.hex_mode || doc.text.is_disk_backed() {
             return false;
         }
-        let Some(formatter) = crate::ext_formatters::chosen_near(&doc.language_name(), &self.formatter_choices, doc.path.as_deref()) else { return false };
+        let Some(formatter) = crate::ext_formatters::chosen_near(&doc.language_name(), &self.formatter_choices_now(), doc.path.as_deref()) else { return false };
         let path = doc.path_or_name();
         let text = doc.text.all_lines().iter().map(|l| l.to_string()).collect::<Vec<_>>().join("\n");
         match crate::ext_formatters::run(formatter, &text, &path) {

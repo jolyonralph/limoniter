@@ -62,6 +62,9 @@ pub struct Config {
     pub folder: String,
     /// For an adapter that starts an emulator (Copperline), the emulator and the person's own options for it.
     pub emulator: Option<Emulated>,
+    /// Variables the program is started with (a VS Code launch setup's `env`), and whether it stops at its start.
+    pub env: Vec<(String, String)>,
+    pub stop_on_entry: bool,
 }
 
 /// The emulator an adapter starts: its program, and options for its command line.
@@ -117,7 +120,7 @@ pub fn guess(kind: Kind, adapter: String, file: &Path) -> Config {
         let stem = file.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         file.with_file_name(if cfg!(windows) { format!("{stem}.exe") } else { stem }).display().to_string()
     };
-    Config { kind, adapter, program, arguments: String::new(), folder: folder.display().to_string(), emulator: None }
+    Config { kind, adapter, program, arguments: String::new(), folder: folder.display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false }
 }
 
 /// The package's name in a Cargo.toml.
@@ -133,8 +136,43 @@ fn package_name(text: &str) -> Option<String> {
     None
 }
 
-/// The launch request's arguments for a configuration.
+/// The command that starts a debugger's adapter, as `adapter_for` gives it for a language it's used for.
+pub fn adapter_command(kind: Kind) -> String {
+    let language = match kind {
+        Kind::Debugpy => "Python",
+        Kind::JsDebug => "JavaScript",
+        Kind::Xdebug => "PHP",
+        Kind::Gdb | Kind::Lldb => "C",
+        Kind::Copperline => return String::new(),
+    };
+    let (found, command) = adapter_for(language).unwrap_or((kind, String::new()));
+    // gdb or lldb-dap, whichever is asked for, where `adapter_for` found the other.
+    match (kind, found) {
+        (Kind::Gdb, Kind::Lldb) => GDB.to_string(),
+        (Kind::Lldb, Kind::Gdb) => LLDB_DAP.to_string(),
+        _ => command,
+    }
+}
+
+/// The launch request's arguments for a configuration: what the debugger is told to run, with the variables and
+/// the stop at the start that a configuration asks for.
 pub fn launch_arguments(config: &Config) -> Value {
+    let mut launch = base_launch_arguments(config);
+    if !config.env.is_empty() {
+        launch["env"] = match config.kind {
+            // lldb-dap takes the environment as a list of NAME=value.
+            Kind::Lldb => json!(config.env.iter().map(|(name, value)| format!("{name}={value}")).collect::<Vec<_>>()),
+            _ => Value::Object(config.env.iter().map(|(name, value)| (name.clone(), json!(value))).collect()),
+        };
+    }
+    if config.stop_on_entry {
+        let key = if config.kind == Kind::Gdb { "stopAtBeginningOfMainSubprogram" } else { "stopOnEntry" };
+        launch[key] = json!(true);
+    }
+    launch
+}
+
+fn base_launch_arguments(config: &Config) -> Value {
     let args: Vec<String> = crate::emulators::split_options(&config.arguments);
     match config.kind {
         Kind::Debugpy => json!({ "name": "Limoniter", "type": "python", "request": "launch", "program": config.program, "args": args, "cwd": config.folder, "console": "internalConsole", "justMyCode": true, "redirectOutput": true }),
@@ -236,7 +274,7 @@ pub fn kept_from_json(value: Option<&Value>, base: Option<&Path>) -> Kept {
             let text = |name: &str| item.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
             let file = item.get("file").and_then(Value::as_str).filter(|f| !f.is_empty())?;
             let kind = Kind::from_name(item.get("debugger")?.as_str()?).filter(|kind| *kind != Kind::Copperline)?;
-            let config = Config { kind, adapter: text("adapter"), program: kept_path(base, &text("program")), arguments: text("arguments"), folder: kept_path(base, &text("folder")), emulator: None };
+            let config = Config { kind, adapter: text("adapter"), program: kept_path(base, &text("program")), arguments: text("arguments"), folder: kept_path(base, &text("folder")), emulator: None, env: Vec::new(), stop_on_entry: false };
             Some((PathBuf::from(kept_path(base, file)), config))
         })
         .collect()
@@ -703,7 +741,7 @@ mod tests {
         assert!(kept_from_settings("theme=dark\n").is_empty());
         let file = PathBuf::from(if cfg!(windows) { r"C:\loose\tool.c" } else { "/loose/tool.c" });
         let mut kept = Kept::new();
-        kept.insert(file.clone(), Config { kind: Kind::Lldb, adapter: "lldb-dap".into(), program: file.with_file_name("tool").display().to_string(), arguments: "-v 'a b'".into(), folder: "out".into(), emulator: None });
+        kept.insert(file.clone(), Config { kind: Kind::Lldb, adapter: "lldb-dap".into(), program: file.with_file_name("tool").display().to_string(), arguments: "-v 'a b'".into(), folder: "out".into(), emulator: None, env: Vec::new(), stop_on_entry: false });
         let line = kept_to_settings(&kept);
         assert!(line.starts_with("debug_settings=") && line.ends_with('\n') && line.lines().count() == 1, "{line}");
         assert!(line.contains(&serde_json::to_string(&file.display().to_string()).unwrap()), "the whole path: {line}");
@@ -729,8 +767,24 @@ mod tests {
     }
 
     #[test]
+    fn a_launch_setup_s_environment_and_stop_at_the_start_reach_each_debugger() {
+        let base = Config { kind: Kind::Debugpy, adapter: "a".into(), program: "/w/a.py".into(), arguments: String::new(), folder: "/w".into(), emulator: None, env: vec![("A".into(), "1".into())], stop_on_entry: true };
+        let python = launch_arguments(&base);
+        assert_eq!((python["env"]["A"].as_str(), python["stopOnEntry"].as_bool()), (Some("1"), Some(true)));
+        let lldb = launch_arguments(&Config { kind: Kind::Lldb, ..base.clone() });
+        assert_eq!((lldb["env"][0].as_str(), lldb["stopOnEntry"].as_bool()), (Some("A=1"), Some(true)));
+        let gdb = launch_arguments(&Config { kind: Kind::Gdb, ..base.clone() });
+        assert_eq!((gdb["env"]["A"].as_str(), gdb["stopAtBeginningOfMainSubprogram"].as_bool()), (Some("1"), Some(true)));
+        let node = launch_arguments(&Config { kind: Kind::JsDebug, ..base.clone() });
+        assert_eq!((node["env"]["A"].as_str(), node["stopOnEntry"].as_bool()), (Some("1"), Some(true)));
+        // Nothing is added where nothing was asked.
+        let plain = launch_arguments(&Config { env: Vec::new(), stop_on_entry: false, ..base });
+        assert!(plain.get("env").is_none() && plain["stopOnEntry"].as_bool().is_none());
+    }
+
+    #[test]
     fn php_is_launched_or_listened_for() {
-        let script = Config { kind: Kind::Xdebug, adapter: "node phpDebug.js".into(), program: "/w/index.php".into(), arguments: "--flag \"two words\"".into(), folder: "/w".into(), emulator: None };
+        let script = Config { kind: Kind::Xdebug, adapter: "node phpDebug.js".into(), program: "/w/index.php".into(), arguments: "--flag \"two words\"".into(), folder: "/w".into(), emulator: None, env: Vec::new(), stop_on_entry: false };
         let launch = launch_arguments(&script);
         assert_eq!((launch["type"].as_str(), launch["program"].as_str(), launch["port"].as_u64()), (Some("php"), Some("/w/index.php"), Some(9003)));
         assert_eq!(launch["args"], json!(["--flag", "two words"]));
@@ -761,13 +815,32 @@ mod tests {
         assert!(Kind::JsDebug.runs_the_file());
     }
 
+    /// A script is run with the manager the project's lock file names, in the project's folder.
+    #[test]
+    fn an_npm_script_is_debugged_with_the_projects_package_manager() {
+        let folder = std::env::temp_dir().join(format!("limoniter-dap-npm-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("package.json"), r#"{"scripts": {"dev": "vite"}}"#).unwrap();
+        let config = Config { kind: Kind::JsDebug, adapter: "js-debug-dap".into(), program: "script:dev".into(), arguments: String::new(), folder: folder.display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false };
+        for (lock, manager) in [("package-lock.json", "npm"), ("pnpm-lock.yaml", "pnpm"), ("yarn.lock", "yarn")] {
+            for other in ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"] {
+                let _ = std::fs::remove_file(folder.join(other));
+            }
+            std::fs::write(folder.join(lock), "").unwrap();
+            let launch = launch_arguments(&config);
+            assert_eq!((launch["runtimeExecutable"].as_str(), launch["runtimeArgs"].clone(), launch["cwd"].as_str()), (Some(manager), json!(["run", "dev"]), Some(folder.to_str().unwrap())), "{lock}");
+        }
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
     #[test]
     fn copperline_is_launched_with_the_program_and_its_machine() {
         let folder = std::env::temp_dir().join(format!("limoniter-dap-copperline-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&folder);
         std::fs::create_dir_all(&folder).unwrap();
         let program = folder.join("demo");
-        let mut config = Config { kind: Kind::Copperline, adapter: copperline_adapter(Path::new("/opt/Copperline tools/copperline-ctl")), program: program.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: Some(Emulated { program: "/opt/copperline".into(), options: vec!["--noaudio".into()] }) };
+        let mut config = Config { kind: Kind::Copperline, adapter: copperline_adapter(Path::new("/opt/Copperline tools/copperline-ctl")), program: program.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: Some(Emulated { program: "/opt/copperline".into(), options: vec!["--noaudio".into()] }), env: Vec::new(), stop_on_entry: false };
         assert_eq!(crate::emulators::split_options(&config.adapter), ["/opt/Copperline tools/copperline-ctl", "--dap"]);
         let launch = launch_arguments(&config);
         assert_eq!((launch["program"].as_str(), launch["copperline"].as_str(), launch["stopOnEntry"].as_bool()), (Some(program.to_str().unwrap()), Some("/opt/copperline"), Some(false)));

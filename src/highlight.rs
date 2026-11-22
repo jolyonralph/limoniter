@@ -39,6 +39,8 @@ pub struct Engine {
     read: std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<Theme>>>,
     string_scope: Scope,
     comment_scope: Scope,
+    /// The scopes of a language's own words: its keywords, its storage words (`let`, `struct`) and `true`, `null`.
+    word_scopes: [Scope; 3],
     /// Language names in menu order, each with its grammar's number.
     names: Vec<(String, usize)>,
     /// Your own grammars, from the grammars folder: each file's name, and the language it gave or why it didn't.
@@ -546,6 +548,15 @@ pub fn reload(ctx: egui::Context) {
 }
 
 impl Engine {
+    /// How each of these lines is coloured, read from the first down, for the places that need a whole file's
+    /// strings and comments at once (the next spelling mistake) and not only the lines on screen.
+    pub fn regions_of(&self, syntax: usize, lines: &[std::sync::Arc<str>]) -> Vec<ColouredLine> {
+        let theme = self.scheme(&crate::theme::syntax_scheme());
+        let highlighter = Highlighter::new(&theme);
+        let mut state = fresh_state(self, syntax, &highlighter);
+        lines.iter().map(|line| colour_line(self, &highlighter, &mut state, line)).collect()
+    }
+
     /// A syntax colour scheme by name. One that isn't known gives the usual one for dark or light documents.
     pub fn scheme(&self, name: &str) -> std::sync::Arc<Theme> {
         let mut read = self.read.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -600,6 +611,7 @@ impl Engine {
             read: std::sync::Mutex::new(std::collections::HashMap::new()),
             string_scope: Scope::new("string").expect("a valid scope"),
             comment_scope: Scope::new("comment").expect("a valid scope"),
+            word_scopes: [Scope::new("keyword").expect("a valid scope"), Scope::new("storage").expect("a valid scope"), Scope::new("constant.language").expect("a valid scope")],
             names,
             own,
         }
@@ -761,6 +773,10 @@ pub struct ColouredLine {
     pub brackets: Vec<(usize, char, Option<usize>)>,
     /// The stretches inside comments: from and to, by character.
     pub comments: Vec<(usize, usize)>,
+    /// The stretches inside strings (outside comments): from and to, by character. Spell checking looks at these.
+    pub strings: Vec<(usize, usize)>,
+    /// The language's own words (keywords and the like) outside strings and comments: from and to, by character.
+    pub keywords: Vec<(usize, usize)>,
     /// The text has changed since, so this is shown only until the new colours are ready.
     stale: bool,
 }
@@ -813,6 +829,8 @@ fn colour_line(engine: &Engine, highlighter: &Highlighter<'_>, state: &mut State
     let mut path = state.highlight.path.clone();
     let mut quoted: Vec<(usize, usize)> = Vec::new();
     let mut comments: Vec<(usize, usize)> = Vec::new();
+    let mut strings: Vec<(usize, usize)> = Vec::new();
+    let mut keywords: Vec<(usize, usize)> = Vec::new();
     let mut position = 0;
     for (piece, op) in ScopeRegionIterator::new(&ops, &text) {
         if path.apply(op).is_err() || piece.is_empty() {
@@ -825,11 +843,16 @@ fn colour_line(engine: &Engine, highlighter: &Highlighter<'_>, state: &mut State
             quoted.push((position, position + length));
         }
         // Joined up with the stretch before where they meet.
+        let join = |list: &mut Vec<(usize, usize)>| match list.last_mut() {
+            Some((_, end)) if *end == position => *end = position + length,
+            _ => list.push((position, position + length)),
+        };
         if in_comment {
-            match comments.last_mut() {
-                Some((_, end)) if *end == position => *end = position + length,
-                _ => comments.push((position, position + length)),
-            }
+            join(&mut comments);
+        } else if in_string {
+            join(&mut strings);
+        } else if path.as_slice().iter().any(|scope| engine.word_scopes.iter().any(|word| word.is_prefix_of(*scope))) {
+            join(&mut keywords);
         }
         position += length;
     }
@@ -837,7 +860,7 @@ fn colour_line(engine: &Engine, highlighter: &Highlighter<'_>, state: &mut State
     // The newline the grammar's given doesn't count: each stretch ends where the line does.
     let chars = line.chars().count();
     let clamp = |list: Vec<(usize, usize)>| list.into_iter().map(|(a, z)| (a.min(chars), z.min(chars))).filter(|(a, z)| a < z).collect();
-    let mut coloured = ColouredLine { comments: clamp(comments), ..ColouredLine::default() };
+    let mut coloured = ColouredLine { comments: clamp(comments), strings: clamp(strings), keywords: clamp(keywords), ..ColouredLine::default() };
     for (style, piece) in HighlightIterator::new(&mut state.highlight, &ops, &text, highlighter) {
         let length = piece.trim_end_matches('\n').chars().count();
         if length == 0 {
@@ -856,6 +879,17 @@ fn colour_line(engine: &Engine, highlighter: &Highlighter<'_>, state: &mut State
 impl LineColours {
     pub fn is_active(&self) -> bool {
         self.syntax.is_some()
+    }
+
+    /// The grammar's number, when there is one.
+    pub fn syntax(&self) -> Option<usize> {
+        self.syntax
+    }
+
+    /// Whether the file is in a programming language, rather than prose or markup: its comments, strings and names
+    /// are what spell checking looks at.
+    pub fn is_code(&self) -> bool {
+        self.syntax.zip(engine()).is_some_and(|(syntax, engine)| !crate::code_spelling::is_prose_language(engine.name_of(syntax)))
     }
 
     pub fn line(&self, line: usize) -> Option<&ColouredLine> {
@@ -1780,6 +1814,24 @@ mod tests {
         assert!(colours.line(2).unwrap().brackets.is_empty());
         assert!(colours.line(3).unwrap().brackets.is_empty(), "a comment carries across lines");
         assert_eq!(colours.line(4).unwrap().brackets.len(), 2);
+    }
+
+    #[test]
+    fn strings_comments_and_keywords_are_found_for_spell_checking() {
+        let mut buffer = buffer_of(&["let name = \"hello\"; // note", "struct Thing {}"]);
+        let mut colours = LineColours::default();
+        colours.set_syntax(syntax_for("main.rs"));
+        colour_all(&mut colours, &mut buffer);
+        let line = colours.line(0).unwrap();
+        assert_eq!(line.strings, [(11, 18)]);
+        assert_eq!(line.comments, [(20, 27)]);
+        assert!(line.keywords.contains(&(0, 3)), "let is the language's own: {:?}", line.keywords);
+        assert!(colours.line(1).unwrap().keywords.contains(&(0, 6)), "struct too");
+        assert!(!line.keywords.iter().any(|&(a, _)| a == 4), "a name isn't a keyword");
+        // Run down a whole file at once, as the next mistake does, it comes out the same.
+        let lines = vec![buffer.line(0), buffer.line(1)];
+        let again = test_engine().regions_of(colours.syntax().unwrap(), &lines);
+        assert_eq!((again[0].strings.clone(), again[0].comments.clone()), (line.strings.clone(), line.comments.clone()));
     }
 
     #[test]

@@ -150,19 +150,71 @@ pub fn hidden(name: &str) -> bool {
 
 /// Every file under a folder that Git wouldn't leave out, nor the project's Explorer hides (so Go to file and
 /// searching don't find it), sorted; and whether there were more than `MOST_FILES`. Links aren't followed.
+#[cfg(test)]
 pub fn index(root: &Path, rules: &[crate::explorer_kept::Hide]) -> (Vec<PathBuf>, bool) {
-    walk(root, rules, true)
+    index_with(root, rules, &Options::default())
+}
+
+/// What the project says about its index, besides what its Explorer hides.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Options {
+    /// Patterns for what's left out of Go to file and searching but still shown in the Explorer.
+    pub exclude: Vec<String>,
+    /// List the files Git ignores too, rather than leaving them out as .gitignore says.
+    pub keep_ignored: bool,
+}
+
+/// Like `index`, with what the project's settings add.
+pub fn index_with(root: &Path, rules: &[crate::explorer_kept::Hide], options: &Options) -> (Vec<PathBuf>, bool) {
+    walk(root, rules, !options.keep_ignored, &options.exclude)
+}
+
+thread_local! {
+    /// Patterns already turned into rules, so a walk over thousands of files compiles each only once.
+    static GLOBS: std::cell::RefCell<HashMap<String, Option<Rule>>> = std::cell::RefCell::new(HashMap::new());
+}
+
+/// Whether a pattern written as a line of .gitignore (`*.log`, `build/`, `docs/**/*.tmp`) matches a place in the
+/// project, written with /: the place itself, or any folder above it. A pattern that starts with ! never matches.
+pub fn glob_matches(pattern: &str, relative: &str, is_folder: bool) -> bool {
+    GLOBS.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let Some(rule) = cache.entry(pattern.to_string()).or_insert_with(|| rule(pattern)).as_ref() else { return false };
+        if rule.negated {
+            return false;
+        }
+        let parts: Vec<&str> = relative.split('/').collect();
+        (1..=parts.len()).any(|n| {
+            let folder = n < parts.len() || is_folder;
+            !(rule.folders_only && !folder) && rule.regex.is_match(&parts[..n].join("/"))
+        })
+    })
+}
+
+/// Whether any pattern matches a file or folder under `root`.
+pub fn excluded(patterns: &[String], root: &Path, path: &Path, is_folder: bool) -> bool {
+    if patterns.is_empty() {
+        return false;
+    }
+    let Ok(relative) = path.strip_prefix(root) else { return false };
+    let relative = slashed(relative);
+    patterns.iter().any(|pattern| glob_matches(pattern, &relative, is_folder))
+}
+
+/// Whether a text is a pattern rather than a plain name: it has a wildcard in it.
+pub fn is_glob(text: &str) -> bool {
+    text.contains(['*', '?', '['])
 }
 
 /// Every file the Explorer can show under a folder: those Git leaves out too (the Explorer shows them faintly), but
 /// not those the project's Explorer hides. For the recency slider, which has to rank every file it might hide.
 pub fn every_file(root: &Path, rules: &[crate::explorer_kept::Hide]) -> Vec<PathBuf> {
-    walk(root, rules, false).0
+    walk(root, rules, false, &[]).0
 }
 
-fn walk(root: &Path, rules: &[crate::explorer_kept::Hide], leave_out_ignored: bool) -> (Vec<PathBuf>, bool) {
+fn walk(root: &Path, rules: &[crate::explorer_kept::Hide], leave_out_ignored: bool, exclude: &[String]) -> (Vec<PathBuf>, bool) {
     let mut ignores = Ignores::new(root);
-    let hides = |path: &Path, is_folder: bool| crate::explorer_kept::hidden_by(rules, root, path, is_folder);
+    let hides = |path: &Path, is_folder: bool| crate::explorer_kept::hidden_by(rules, root, path, is_folder) || excluded(exclude, root, path, is_folder);
     let mut files = Vec::new();
     let mut waiting = vec![root.to_path_buf()];
     while let Some(folder) = waiting.pop() {

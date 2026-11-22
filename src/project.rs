@@ -47,6 +47,19 @@ pub struct Project {
     pub databases: Vec<crate::database::Connection>,
     /// How this project saves files by itself, when it says (Off or a way), rather than leaving it to the settings.
     pub autosave: Option<crate::settings::AutosaveChoice>,
+    /// What the project says about indenting, search, formatting, language servers and the rest, over the person's
+    /// own settings. A folder project keeps it in the folder, in `.limoniter/project.json`, so Git can have it.
+    pub prefs: crate::project_prefs::Prefs,
+    /// Words the spell checker accepts in this project's code, lower case and in order. A folder project keeps
+    /// them in `.limoniter/words.txt` in its folder, so Git has them; any other in its own file.
+    pub words: Vec<String>,
+    /// What the folder's `.vscode` says, read again whenever the project is opened or its settings are changed,
+    /// so a team that keeps those files has one copy. The project's own settings win over it.
+    pub vscode: crate::vscode_project::Read,
+    /// The `.code-workspace` file the project was opened from, whose settings are read with `.vscode`'s.
+    pub workspace_file: Option<PathBuf>,
+    /// Whether the extensions `.vscode/extensions.json` recommends have been offered, which is done only once.
+    pub vscode_offered: bool,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -96,7 +109,33 @@ impl Project {
         let mut project = Self::new(path);
         project.name = root.file_name().map_or_else(|| root.display().to_string(), |n| n.to_string_lossy().into_owned());
         project.root = Some(root.to_path_buf());
+        project.read_words_file();
+        project.read_vscode();
         project
+    }
+
+    /// A folder project's words, from the file in its folder.
+    fn read_words_file(&mut self) {
+        if let Some(root) = &self.root {
+            self.words = std::fs::read_to_string(crate::code_spelling::words_file(root)).map(|text| crate::code_spelling::read_words(&text)).unwrap_or_default();
+        }
+    }
+
+    /// Adds a word to the project's list, and keeps it: in the folder's words file for a folder project, and
+    /// otherwise the project file (so the caller saves that). Says whether the list changed.
+    pub fn add_word(&mut self, word: &str) -> Result<bool, String> {
+        let word = word.trim().to_lowercase();
+        if word.is_empty() || self.words.contains(&word) {
+            return Ok(false);
+        }
+        self.words.push(word);
+        self.words.sort();
+        if let Some(root) = &self.root {
+            let file = crate::code_spelling::words_file(root);
+            std::fs::create_dir_all(file.parent().unwrap_or(root)).map_err(|e| e.to_string())?;
+            codec::write_file(&file, crate::code_spelling::write_words(&self.words).as_bytes()).map_err(|e| e.to_string())?;
+        }
+        Ok(true)
     }
 
     pub fn new(path: &Path) -> Self {
@@ -134,6 +173,9 @@ impl Project {
         if !self.assemblers.is_empty() {
             value["assemblers"] = Value::Object(self.assemblers.iter().map(|(cpu, id)| (cpu.clone(), json!(id))).collect());
         }
+        if self.root.is_none() && !self.words.is_empty() {
+            value["words"] = json!(self.words);
+        }
         if !self.explorer.is_default() {
             value["explorer"] = self.explorer.to_json(&base);
         }
@@ -145,6 +187,16 @@ impl Project {
         }
         if let Some(choice) = self.autosave {
             value["autosave"] = json!(choice.id());
+        }
+        if let Some(file) = &self.workspace_file {
+            value["code_workspace"] = json!(stored(&base, file));
+        }
+        if self.vscode_offered {
+            value["vscode_offered"] = json!(true);
+        }
+        // A folder project's go in the folder instead (see `save`).
+        if self.root.is_none() && !self.prefs.is_empty() {
+            value["settings"] = self.prefs.to_json();
         }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
@@ -168,7 +220,12 @@ impl Project {
         let explorer = crate::explorer_kept::Kept::from_json(value.get("explorer"), &base);
         let colours = crate::file_colours::Colours::from_json(value.get("colours"));
         let databases = crate::database::list_from_json(value.get("databases"), Some(&base));
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours, databases, autosave: value.get("autosave").and_then(Value::as_str).and_then(crate::settings::AutosaveChoice::from_id) };
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours, databases, autosave: value.get("autosave").and_then(Value::as_str).and_then(crate::settings::AutosaveChoice::from_id), prefs: crate::project_prefs::Prefs::from_json(value.get("settings")), vscode: Default::default(), workspace_file: value.get("code_workspace").and_then(Value::as_str).map(|w| resolved(&base, w)), vscode_offered: value.get("vscode_offered").and_then(Value::as_bool).unwrap_or(false), words: Vec::new() };
+        if project.root.is_some() {
+            project.read_words_file();
+        } else {
+            project.words = crate::code_spelling::read_words(&value.get("words").and_then(Value::as_array).map_or_else(String::new, |items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("\n")));
+        }
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -176,11 +233,77 @@ impl Project {
     }
 
     pub fn load(path: &Path) -> Result<Self, String> {
-        Self::from_text(path, &std::fs::read_to_string(path).map_err(|e| e.to_string())?)
+        let mut project = Self::from_text(path, &std::fs::read_to_string(path).map_err(|e| e.to_string())?)?;
+        // A folder's own file says more than the old place (the project file) did, where it exists.
+        if let Some(root) = &project.root
+            && let Ok(text) = std::fs::read_to_string(crate::project_prefs::file_in(root))
+            && let Ok(value) = serde_json::from_str::<Value>(&text)
+        {
+            project.prefs = crate::project_prefs::Prefs::from_json(Some(&value));
+        }
+        project.read_vscode();
+        Ok(project)
+    }
+
+    /// Reads the folder's `.vscode` again, unless the project has taken its values in (Import into Limoniter).
+    /// Only a folder project follows one.
+    pub fn read_vscode(&mut self) {
+        self.vscode = match &self.root {
+            Some(root) => crate::vscode_project::read(root, self.workspace_file.as_deref(), self.prefs.follow_vscode != Some(false)),
+            None => Default::default(),
+        };
+    }
+
+    /// The project's settings as they are in effect: its own over what `.vscode` says.
+    pub fn eff(&self) -> std::borrow::Cow<'_, crate::project_prefs::Prefs> {
+        if self.vscode.prefs == crate::project_prefs::Prefs::default() {
+            std::borrow::Cow::Borrowed(&self.prefs)
+        } else {
+            std::borrow::Cow::Owned(self.prefs.over(&self.vscode.prefs))
+        }
+    }
+
+    /// How the project saves by itself: its own choice, else what VS Code's `files.autoSave` says.
+    pub fn eff_autosave(&self) -> Option<crate::settings::AutosaveChoice> {
+        self.autosave.or(self.vscode.autosave)
     }
 
     pub fn save(&self) -> Result<(), String> {
-        codec::write_file(&self.path, self.to_text().as_bytes()).map_err(|e| e.to_string())
+        codec::write_file(&self.path, self.to_text().as_bytes()).map_err(|e| e.to_string())?;
+        if let Some(root) = &self.root {
+            self.save_folder_prefs(root)?;
+        }
+        Ok(())
+    }
+
+    /// A folder project's settings go in the folder, so they can be shared. Nothing is written for a project that
+    /// has none, and a file that's there is taken away once they've all been put back to the person's own.
+    fn save_folder_prefs(&self, root: &Path) -> Result<(), String> {
+        let file = crate::project_prefs::file_in(root);
+        if self.prefs.is_empty() {
+            if file.is_file() {
+                let _ = std::fs::remove_file(&file);
+            }
+            return Ok(());
+        }
+        let text = serde_json::to_string_pretty(&self.prefs.to_json()).unwrap_or_default() + "\n";
+        if std::fs::read_to_string(&file).is_ok_and(|now| now == text) {
+            return Ok(());
+        }
+        if let Some(folder) = file.parent() {
+            std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+        }
+        codec::write_file(&file, text.as_bytes()).map_err(|e| e.to_string())
+    }
+
+    /// The files search and Go to file look in: the project's, but for those its settings leave out.
+    pub fn searchable(&self) -> Vec<PathBuf> {
+        let prefs = self.eff();
+        if prefs.search_exclude.is_empty() {
+            return self.files.clone();
+        }
+        let base = self.folder();
+        self.files.iter().filter(|path| !crate::workspace::excluded(&prefs.search_exclude, &base, path, false)).cloned().collect()
     }
 
     pub fn contains(&self, path: &Path) -> bool {
@@ -383,6 +506,8 @@ pub enum PanelAction {
     ManageComparisons(String),
     /// Something asked of a folder project's Explorer: making, renaming or deleting files, and the rest.
     Explorer(crate::explorer::Act),
+    /// The gear on the panel's title bar: the project's settings.
+    Settings,
 }
 
 #[derive(Default)]
@@ -573,6 +698,30 @@ mod tests {
     }
 
     #[test]
+    fn a_projects_spelling_words_are_kept_in_its_file_or_in_a_folders_words_file() {
+        let dir = folder("words");
+        // An ordinary project has them in its own file, and says nothing when there are none.
+        let mut project = Project::new(&dir.join("demo.limproj"));
+        assert!(!project.to_text().contains("words"));
+        assert_eq!(project.add_word(" Frobnicate "), Ok(true));
+        assert_eq!(project.add_word("frobnicate"), Ok(false), "a word is only kept once, in any case");
+        assert_eq!(project.add_word(""), Ok(false));
+        assert_eq!(Project::from_text(&project.path, &project.to_text()).unwrap().words, ["frobnicate"]);
+        assert!(!dir.join(".limoniter").exists(), "nothing goes in a folder for a project that isn't one");
+        // A folder project writes one word a line, to go into Git, and reads them again when it's opened.
+        let root = dir.join("code");
+        std::fs::create_dir_all(&root).unwrap();
+        let mut folder_project = Project::of_folder(&dir.join("kept.limproj"), &root);
+        folder_project.add_word("widget").unwrap();
+        folder_project.add_word("Acme").unwrap();
+        assert_eq!(std::fs::read_to_string(root.join(".limoniter").join("words.txt")).unwrap(), "acme\nwidget\n");
+        assert!(!folder_project.to_text().contains("\"words\""));
+        assert_eq!(Project::of_folder(&dir.join("kept.limproj"), &root).words, ["acme", "widget"]);
+        assert_eq!(Project::from_text(&folder_project.path, &folder_project.to_text()).unwrap().words, ["acme", "widget"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_project_keeps_the_assembler_each_processor_s_source_is_built_with() {
         let dir = folder("assemblers");
         let mut project = Project::new(&dir.join("demo.limproj"));
@@ -597,7 +746,7 @@ mod tests {
 
     /// How a C file in the project is debugged: its program and folder in the project, a debugger of its own.
     fn debugged_here(base: &Path) -> (PathBuf, crate::dap::Config) {
-        let config = crate::dap::Config { kind: crate::dap::Kind::Gdb, adapter: "gdb -i dap".into(), program: base.join("build").join("life").display().to_string(), arguments: "--size 40 \"two words\"".into(), folder: base.join("data").display().to_string(), emulator: None };
+        let config = crate::dap::Config { kind: crate::dap::Kind::Gdb, adapter: "gdb -i dap".into(), program: base.join("build").join("life").display().to_string(), arguments: "--size 40 \"two words\"".into(), folder: base.join("data").display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false };
         (base.join("src").join("life.c"), config)
     }
 

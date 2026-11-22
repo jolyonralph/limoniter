@@ -195,6 +195,8 @@ pub struct ViewOptions {
     /// A faint line down each level of indentation, coloured by its depth if `indent_rainbow`.
     pub indent_guides: bool,
     pub indent_rainbow: bool,
+    /// In a delimited file (CSV, TSV and the like), each column in a colour of its own.
+    pub rainbow_csv: bool,
     /// Each line's problems written faintly at its end, as well as marked beside it.
     pub problems_at_line_end: bool,
     /// Colours written in the text (#rrggbb, rgb() and the like) shown under them, with a picker at the cursor.
@@ -271,7 +273,7 @@ impl std::fmt::Display for MarkerColumns {
 
 impl Default for ViewOptions {
     fn default() -> Self {
-        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), breadcrumbs: true, sticky_scroll: true, hints_below: false, focus_follows_mouse: false, indent_guides: true, indent_rainbow: false, problems_at_line_end: true, colour_swatches: true, comment_kinds: true, hide_comments: false, fold_closer: true, learn_keys: true, panels_hide: false, track_time: false, trim_on_save: false, trim_only_changed: true, line_spacing: 1.0, ribbon: false, ribbon_folded: false, start_page: true }
+        Self { ruler: false, line_numbers: true, active_line: true, active_col: false, whitespace: false, line_endings: false, document_map: true, bookmark_gutter: true, rainbow_parentheses: false, source_view: true, word_wrap: false, highlight_selected: false, fold_lines: true, line_change: true, tab_size: DEFAULT_TAB_SIZE, font_size: 14.0, column_markers: false, marker_columns: MarkerColumns::default(), breadcrumbs: true, sticky_scroll: true, hints_below: false, focus_follows_mouse: false, indent_guides: true, indent_rainbow: false, rainbow_csv: true, problems_at_line_end: true, colour_swatches: true, comment_kinds: true, hide_comments: false, fold_closer: true, learn_keys: true, panels_hide: false, track_time: false, trim_on_save: false, trim_only_changed: true, line_spacing: 1.0, ribbon: false, ribbon_folded: false, start_page: true }
     }
 }
 
@@ -279,8 +281,8 @@ impl ViewOptions {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\nbreadcrumbs={}\nsticky_scroll={}\nhints_below={}\nfocus_follows_mouse={}\nindent_guides={}\nindent_rainbow={}\nproblems_at_line_end={}\ncolour_swatches={}\ncomment_kinds={}\nhide_comments={}\nfold_closer={}\nlearn_keys={}\npanels_hide={}\ntrack_time={}\ntrim_on_save={}\ntrim_only_changed={}\nribbon={}\nribbon_folded={}\nstart_page={}\n",
-            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing, self.breadcrumbs, self.sticky_scroll, self.hints_below, self.focus_follows_mouse, self.indent_guides, self.indent_rainbow, self.problems_at_line_end, self.colour_swatches, self.comment_kinds, self.hide_comments, self.fold_closer, self.learn_keys, self.panels_hide, self.track_time, self.trim_on_save, self.trim_only_changed, self.ribbon, self.ribbon_folded, self.start_page
+            "ruler={}\nline_numbers={}\nactive_line={}\nactive_col={}\nwhitespace={}\nline_endings={}\ndocument_map={}\nbookmark_gutter={}\nrainbow_parentheses={}\nsource_view={}\nword_wrap={}\nhighlight_selected={}\nfold_lines={}\nline_change={}\ntab_size={}\nfont_size={}\ncolumn_markers={}\nmarker_columns={}\nline_spacing={}\nbreadcrumbs={}\nsticky_scroll={}\nhints_below={}\nfocus_follows_mouse={}\nindent_guides={}\nindent_rainbow={}\nrainbow_csv={}\nproblems_at_line_end={}\ncolour_swatches={}\ncomment_kinds={}\nhide_comments={}\nfold_closer={}\nlearn_keys={}\npanels_hide={}\ntrack_time={}\ntrim_on_save={}\ntrim_only_changed={}\nribbon={}\nribbon_folded={}\nstart_page={}\n",
+            self.ruler, self.line_numbers, self.active_line, self.active_col, self.whitespace, self.line_endings, self.document_map, self.bookmark_gutter, self.rainbow_parentheses, self.source_view, self.word_wrap, self.highlight_selected, self.fold_lines, self.line_change, self.tab_size, self.font_size, self.column_markers, self.marker_columns, self.line_spacing, self.breadcrumbs, self.sticky_scroll, self.hints_below, self.focus_follows_mouse, self.indent_guides, self.indent_rainbow, self.rainbow_csv, self.problems_at_line_end, self.colour_swatches, self.comment_kinds, self.hide_comments, self.fold_closer, self.learn_keys, self.panels_hide, self.track_time, self.trim_on_save, self.trim_only_changed, self.ribbon, self.ribbon_folded, self.start_page
         )
     }
 
@@ -316,6 +318,7 @@ impl ViewOptions {
                 "indent_rainbow" => options.indent_rainbow = flag.unwrap_or(options.indent_rainbow),
                 "problems_at_line_end" => options.problems_at_line_end = flag.unwrap_or(options.problems_at_line_end),
                 "colour_swatches" => options.colour_swatches = flag.unwrap_or(options.colour_swatches),
+                "rainbow_csv" => options.rainbow_csv = flag.unwrap_or(options.rainbow_csv),
                 "comment_kinds" => options.comment_kinds = flag.unwrap_or(options.comment_kinds),
                 "hide_comments" => options.hide_comments = flag.unwrap_or(options.hide_comments),
                 "fold_closer" => options.fold_closer = flag.unwrap_or(options.fold_closer),
@@ -401,6 +404,10 @@ pub struct ViewState {
     pub cells: Option<crate::code_cells::Style>,
     /// For a `.http` file: the line each request's "Send request" link is drawn on, and the request's number.
     pub http_links: Vec<(usize, usize)>,
+    /// For a `package.json`: the line each script is named on, and its name, for the "Debug" link beside it.
+    pub script_links: Vec<(usize, String)>,
+    /// The version of the text those were read from, so a file isn't read again until it changes.
+    pub script_links_version: Option<u64>,
     /// The line kept at the top as the text scrolls past it (sticky scroll), set before drawing.
     pub sticky: Option<usize>,
     /// The folder the file's in, for finishing paths typed in it.
@@ -412,6 +419,8 @@ pub struct ViewState {
     wheel: Vec2,
     last_activity: f64,
     rainbow: RainbowCache,
+    /// Where each column's colour starts, for a delimited file.
+    csv: crate::csv_colours::Cache,
     pub colours: LineColours,
     /// The display state at the top of the view, for sets where earlier bytes change later ones.
     cell_state: Option<(u64, usize, CellState)>,
@@ -432,6 +441,8 @@ pub struct ViewState {
     /// The Amiga function (or MUI attribute or method) right-clicked in C or 68000 source, when the autodocs
     /// explain it: the menu offers to jump to its page.
     explain: Option<String>,
+    /// The misspelt word under the pointer when the menu was opened, which the menu offers to add to the project's.
+    misspelt: Option<String>,
 }
 
 /// The list of words offered to finish the one being typed.
@@ -523,11 +534,15 @@ pub enum ContextCommand {
     Assist,
     /// Opens the AutoDoc reader at a function's page.
     Explain(String),
+    /// A misspelt word, added to the project's own list.
+    AddProjectWord(String),
     /// A script's cell, by its marker line, run in the console; or every cell above it, then it.
     RunCell(usize),
     RunCellsAbove(usize),
     /// A `.http` file's request, by its number, sent from the link above it.
     SendRequest(usize),
+    /// A `package.json` script, by its name, run under the debugger from the link above it.
+    DebugScript(String),
 }
 
 /// A text cell made taller for line spacing, and how far down it the text then sits.
@@ -758,6 +773,8 @@ struct TextLayout {
     cols: usize,
     /// The brackets open at the top of the view, when rainbow parentheses are on.
     rainbow: Option<Vec<u8>>,
+    /// For a delimited file, each drawn line's runs of characters and the colour of their column.
+    columns: std::collections::HashMap<usize, Vec<(usize, Color32)>>,
     /// The rows on screen, in order.
     slots: Vec<Slot>,
     mark_width: f32,
@@ -946,6 +963,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     let (pressed, modifiers, pointer) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers, i.pointer.interact_pos()));
     let mut cell_links = state.cells.map(|style| cell_links(ui, buffer, style, &slots, view, ruler_h, cell, options.font_size)).unwrap_or_default();
     cell_links.extend(http_links(ui, &state.http_links, &slots, view, ruler_h, cell, options.font_size));
+    cell_links.extend(script_links(ui, &state.script_links, &slots, view, ruler_h, cell, options.font_size));
     let mut cell_command = None;
     if let Some(p) = pointer {
         if input_on && pressed && response.hovered() && let Some(link) = cell_links.iter().find(|l| l.rect.contains(p)) {
@@ -995,6 +1013,21 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     // A right-click on an Amiga system function's name offers its autodoc.
     if response.secondary_clicked() {
         state.explain = None;
+        state.misspelt = None;
+        // A misspelt word under the pointer can go into the project's own words.
+        if crate::spelling::is_on()
+            && crate::code_spelling::project_open()
+            && let Some(p) = response.interact_pointer_pos()
+            && p.x > view.min.x + gutter
+        {
+            let (line, col) = to_position(pos2(p.x - cell.x / 2.0, p.y));
+            if line < buffer.line_count() {
+                let raw = buffer.line(line);
+                let coloured = state.colours.line(line).filter(|_| state.colours.is_active());
+                let text = buffer.format.readable_text(&raw);
+                state.misspelt = spelling_marks(buffer, state.colours.is_code(), coloured, &raw, line).into_iter().find(|&(from, to)| col >= from && col < to).map(|(from, to)| text.chars().skip(from).take(to - from).collect());
+            }
+        }
         if let Some(p) = response.interact_pointer_pos()
             && let Some(intel) = buffer.intel.as_ref().filter(|i| i.amiga.is_some() || i.cpu == Some(crate::assemblers::Cpu::M68k))
             && p.x > view.min.x + gutter
@@ -1008,7 +1041,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             }
         }
     }
-    crate::fit::context_menu(&response, |ui| command = context_menu(ui, true, state.explain.as_deref()));
+    crate::fit::context_menu(&response, |ui| command = context_menu(ui, true, state.explain.as_deref(), state.misspelt.as_deref()));
 
     let caret_on = caret_is_on(ui, state, focused);
     if let Some(engine) = highlight::engine() {
@@ -1076,7 +1109,15 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             });
         }
     }
-    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, pad, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
+    let columns = match buffer.delimited {
+        Some(delimiter) if options.rainbow_csv => {
+            let mut lines: Vec<usize> = slots.iter().map(|slot| slot.line).collect();
+            lines.dedup();
+            state.csv.runs_for(buffer, delimiter, lines)
+        }
+        _ => Default::default(),
+    };
+    let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, pad, options, caret_on, left, cols, rainbow, columns, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
     paint_cell_links(ui, view, &cell_links, pointer);
     // Sticky scroll: the function or label scrolled past, kept along the top; a click goes to it.
@@ -1253,6 +1294,27 @@ fn http_links(ui: &Ui, lines: &[(usize, usize)], slots: &[Slot], view: Rect, rul
         let size = galley.size();
         let rect = Rect::from_min_size(pos2(view.max.x - 6.0 - size.x, row_top + (cell.y - size.y) / 2.0), size);
         links.push(CellLink { rect, row_top, galley, command: ContextCommand::SendRequest(number) });
+    }
+    links
+}
+
+/// A `package.json`'s "Debug" links, each at the right of the line a script is named on.
+fn script_links(ui: &Ui, lines: &[(usize, String)], slots: &[Slot], view: Rect, ruler_h: f32, cell: Vec2, font_size: f32) -> Vec<CellLink> {
+    let mut links = Vec::new();
+    if lines.is_empty() {
+        return links;
+    }
+    let font = FontId::proportional((font_size * 0.8).max(9.0));
+    for (row, slot) in slots.iter().enumerate().filter(|(_, s)| s.sub == 0) {
+        let Some((_, name)) = lines.iter().find(|(line, _)| *line == slot.line) else { continue };
+        let row_top = view.min.y + ruler_h + row as f32 * cell.y;
+        if row_top + cell.y > view.max.y + 1.0 {
+            break;
+        }
+        let galley = ui.fonts_mut(|f| f.layout_no_wrap(crate::i18n::tr("\u{25B6} Debug").to_string(), font.clone(), theme::accent()));
+        let size = galley.size();
+        let rect = Rect::from_min_size(pos2(view.max.x - 6.0 - size.x, row_top + (cell.y - size.y) / 2.0), size);
+        links.push(CellLink { rect, row_top, galley, command: ContextCommand::DebugScript(name.clone()) });
     }
     links
 }
@@ -1673,8 +1735,14 @@ fn handle_text_key(b: &mut TextBuffer, key: Key, m: Modifiers, rows: isize, wrap
     }
 }
 
-fn context_menu(ui: &mut Ui, text: bool, explain: Option<&str>) -> Option<ContextCommand> {
+fn context_menu(ui: &mut Ui, text: bool, explain: Option<&str>, misspelt: Option<&str>) -> Option<ContextCommand> {
     let mut command = None;
+    if let Some(word) = misspelt {
+        if ui.button(crate::i18n::tf!("Add \u{201C}{word}\u{201D} to the project's words")).on_hover_text(crate::i18n::tr("Spell checking accepts it in this project from now on. The list is kept with the project, and in a folder's .limoniter/words.txt, so Git has it")).clicked() {
+            command = Some(ContextCommand::AddProjectWord(word.to_string()));
+        }
+        ui.separator();
+    }
     if let Some(word) = explain {
         if ui.button(crate::i18n::tf!("Jump to its explanation ({word})")).clicked() {
             command = Some(ContextCommand::Explain(word.to_string()));
@@ -1984,6 +2052,28 @@ fn squiggle(painter: &egui::Painter, from: f32, to: f32, y: f32) {
     }
 }
 
+/// The spelling mistakes in a line, by character. A line of prose is checked whole; in a file of code only the
+/// comments and strings are, and the words in names if the person has asked for that. The mistakes are
+/// remembered by the text that's checked, so a line is only sent to the checker once.
+fn spelling_marks(b: &TextBuffer, is_code: bool, coloured: Option<&highlight::ColouredLine>, raw: &str, line: usize) -> Vec<(usize, usize)> {
+    let text = b.format.readable_text(raw);
+    if !is_code {
+        // The project's own words are accepted in prose too.
+        let mut marks = crate::spelling::marks_for(&text).unwrap_or_default();
+        marks.retain(|&(from, to)| !crate::code_spelling::is_project_word(&text.chars().skip(from).take(to - from).collect::<String>()));
+        return marks;
+    }
+    // The colouring says what's a comment or a string, so a line it hasn't reached yet waits for it.
+    let Some(coloured) = coloured.filter(|_| text.chars().count() == raw.chars().count()) else { return Vec::new() };
+    let mode = crate::code_spelling::mode();
+    let regions = crate::code_spelling::Regions { comments: &coloured.comments, strings: &coloured.strings, keywords: &coloured.keywords };
+    let masked = crate::code_spelling::masked_line(&text, &regions, mode, &mut |name| crate::code_spelling::is_first_use(b, line, name));
+    if masked.text.is_empty() {
+        return Vec::new();
+    }
+    crate::spelling::marks_for(&masked.text).map_or_else(Vec::new, |marks| crate::code_spelling::unmask(&masked, &marks))
+}
+
 /// The longest line whose spelling is checked as it's drawn.
 const MOST_SPELLED: usize = 4000;
 
@@ -2062,6 +2152,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
     // The guides' step: the file's own indent, as the smallest indent of the lines in view, else a tab's width.
     let indent_step = if l.options.indent_guides { crate::view_extras::indent_step(l.slots.iter().filter(|s| s.sub == 0).map(|s| b.line(s.line)), crate::text_buffer::tab_size()) } else { 1 };
 
+    let is_code = colours.is_code();
     let mut first = 0;
     while first < l.slots.len() {
         let r = l.slots[first].line;
@@ -2107,7 +2198,10 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                 .collect();
             shown = without;
         }
-        let mut runs = coloured.map_or_else(Vec::new, |line| span_columns(&raw, &line.spans));
+        let mut runs = match l.columns.get(&r) {
+            Some(spans) => span_columns(&raw, spans),
+            None => coloured.map_or_else(Vec::new, |line| span_columns(&raw, &line.spans)),
+        };
         let comment_columns = coloured.map_or_else(Vec::new, |line| char_spans_to_columns(&raw, &line.comments));
         // Comments of a kind, and the words in them that stand out, in their own colours.
         if l.options.comment_kinds && !comment_columns.is_empty() {
@@ -2126,11 +2220,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
             last_indent = indent;
         }
         let copies = needle.as_deref().map_or_else(Vec::new, |text| matches_on_line(&raw, text));
-        let mistakes = if crate::spelling::is_on() && raw.len() <= MOST_SPELLED {
-            crate::spelling::marks_for(&b.format.readable_text(&raw)).map_or_else(Vec::new, |marks| char_spans_to_columns(&raw, &marks))
-        } else {
-            Vec::new()
-        };
+        let mistakes = if crate::spelling::is_on() && raw.len() <= MOST_SPELLED { char_spans_to_columns(&raw, &spelling_marks(b, is_code, coloured, &raw, r)) } else { Vec::new() };
         let selected = b.selection_on_row(r);
         let spots = if b.has_multi() { b.multi_on_line(r) } else { Vec::new() };
         let tag = b.tag_at(r).map(|(_, _, colour)| theme::tag_colour(colour));
@@ -2579,7 +2669,7 @@ pub fn hex_view(ui: &mut Ui, buffer: &mut HexBuffer, state: &mut ViewState, form
         }
     }
     let mut command = None;
-    crate::fit::context_menu(&response, |ui| command = context_menu(ui, false, None));
+    crate::fit::context_menu(&response, |ui| command = context_menu(ui, false, None, None));
     let caret_on = caret_is_on(ui, state, focused);
     paint_hex(ui, buffer, view, top, left, rows, cell, header, caret_on, &font, format, fields);
     command

@@ -8,6 +8,9 @@ use crate::lsp::{self, Server, ServerSetting};
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashMap};
 
+/// What `failed` holds once ESLint's server has stopped or couldn't start, so it isn't tried again this session.
+const ESLINT_FAILED: &str = "\u{1}ESLint";
+
 /// What's been asked of a server and not yet answered.
 enum Pending {
     /// Words for a place: the document, the line, and where the word starts.
@@ -48,7 +51,14 @@ pub(super) struct LspState {
     /// The place signature help was last asked for: document, version, line and column.
     signature_asked: Option<(u64, u64, usize, usize)>,
     /// The fixes offered for the cursor's line: the server, each fix's title and itself, and the one chosen.
-    pub fixes: Option<(usize, Vec<(String, Value)>, usize)>,
+    /// Each fix comes with the server that offered it, as ESLint's server offers fixes beside the usual one's.
+    pub fixes: Option<(Vec<(usize, String, Value)>, usize)>,
+    /// The documents ESLint's server has been told of: which server, the version last sent, and the file. It runs beside
+    /// the usual server for a language, so a document is in `opened` and here both.
+    eslint_opened: HashMap<u64, (usize, u64, PathBuf)>,
+    /// What each server last said was wrong with each document: the lines, and the problems themselves. The
+    /// usual server and ESLint both speak of one file, and neither may wipe out what the other said.
+    problem_parts: HashMap<(u64, usize), (Vec<(usize, String)>, Vec<Value>)>,
     /// A server offered for the file in front: its language, its program, and how to install it if it isn't.
     pub offer: Option<Offer>,
     /// The document last thought about offering one for; the languages offered this session; and those never to be.
@@ -131,6 +141,8 @@ impl LspState {
         }
         self.servers.clear();
         self.opened.clear();
+        self.eslint_opened.clear();
+        self.problem_parts.clear();
         self.pending.clear();
     }
 
@@ -293,6 +305,7 @@ impl Limoniter {
         }
         if !self.no_file() {
             self.lsp_follow(self.active);
+            self.lsp_follow_eslint(self.active);
         }
         // A server that's ended is said so, with why, and not used again this session.
         let mut ended = Vec::new();
@@ -306,19 +319,31 @@ impl Limoniter {
         }
         for (index, name, why) in ended {
             self.lsp.pending.retain(|(s, ..)| *s != index);
+            if name == "vscode-eslint-language-server" {
+                self.lsp.eslint_opened.retain(|_, (s, ..)| *s != index);
+                self.lsp.failed.insert(ESLINT_FAILED.to_string());
+                self.lsp.problem_parts.retain(|(_, s), _| *s != index);
+                continue;
+            }
             let languages: Vec<String> = self.lsp.opened.values().filter(|(s, ..)| *s == index).filter_map(|(_, _, p)| self.docs.iter().find(|d| d.path.as_deref() == Some(p.as_path())).map(|d| d.language_name())).collect();
             self.lsp.failed.extend(languages);
             self.lsp.considered = None;
             self.script_print(if why.is_empty() { crate::i18n::tf!("The language server {name} has stopped.") } else { crate::i18n::tf!("The language server {name} has stopped: {why}") }, true);
         }
         // Files closed here are closed with their server.
-        let gone: Vec<u64> = self.lsp.opened.keys().copied().filter(|id| !self.docs.iter().any(|d| d.id == *id)).collect();
+        let gone: Vec<u64> = self.lsp.opened.keys().chain(self.lsp.eslint_opened.keys()).copied().filter(|id| !self.docs.iter().any(|d| d.id == *id)).collect();
         for id in gone {
             if let Some((server, _, path)) = self.lsp.opened.remove(&id)
                 && let Some((_, server)) = self.lsp.servers.get_mut(server)
             {
                 server.did_close(&path);
             }
+            if let Some((server, _, path)) = self.lsp.eslint_opened.remove(&id)
+                && let Some((_, server)) = self.lsp.servers.get_mut(server)
+            {
+                server.did_close(&path);
+            }
+            self.lsp.problem_parts.retain(|(d, _), _| *d != id);
         }
         self.lsp_take_in();
         !self.lsp.pending.is_empty() || self.lsp.servers.iter().any(|(_, s)| !s.ready() && !s.dead)
@@ -330,6 +355,10 @@ impl Limoniter {
             return;
         };
         let language = doc.language_name();
+        // A project can leave a language's server off, whatever the setting says.
+        if self.project.as_ref().is_some_and(|p| p.eff().server_off(&language)) {
+            return;
+        }
         let Some(setting) = self.lsp.server_for(&language) else {
             return;
         };
@@ -449,6 +478,69 @@ impl Limoniter {
         }
     }
 
+    /// ESLint's server for the file in front, beside the usual one for its language: started when the project has an
+    /// ESLint configuration and the server is installed, and told of the file and its changes. It has its own
+    /// problems, which are added to the usual server's, and fixes, which are added to the usual server's.
+    fn lsp_follow_eslint(&mut self, index: usize) {
+        let doc = &self.docs[index];
+        let Some(path) = doc.path.clone().filter(|_| !doc.hex_mode && !doc.text.is_disk_backed() && doc.browser.is_none()) else {
+            return;
+        };
+        let language = doc.language_name();
+        if !lsp::eslint_language(&language) || self.lsp.failed.contains(ESLINT_FAILED) || !lsp::eslint_configured(&path) {
+            return;
+        }
+        // A project (or its .vscode, `eslint.enable`) can turn ESLint off.
+        if self.project.as_ref().is_some_and(|p| p.eff().eslint == Some(false)) {
+            return;
+        }
+        let root = lsp::root_for(&path);
+        let key = format!("{}\u{1}{}", lsp::ESLINT_COMMAND, root.display());
+        let server = match self.lsp.servers.iter().position(|(k, _)| *k == key) {
+            Some(i) if self.lsp.servers[i].1.dead => return,
+            Some(i) => i,
+            // Not installed: nothing is said, as the usual server for the language does its work without it.
+            None if !lsp::on_path("vscode-eslint-language-server") => return,
+            None => match Server::start(lsp::ESLINT_COMMAND, &root) {
+                Ok(mut server) => {
+                    server.set_settings(lsp::eslint_settings(&root));
+                    self.script_print(crate::i18n::tf!("Started {} for {language}, in {}", lsp::ESLINT_COMMAND, root.display()), false);
+                    self.lsp.servers.push((key, server));
+                    self.lsp.servers.len() - 1
+                }
+                Err(problem) => {
+                    self.lsp.failed.insert(ESLINT_FAILED.to_string());
+                    self.script_print(crate::i18n::tf!("{problem}. It's in Settings, Editing, Language servers."), false);
+                    return;
+                }
+            },
+        };
+        if !self.lsp.servers[server].1.ready() {
+            return;
+        }
+        let doc = &self.docs[index];
+        let (doc_id, version) = (doc.id, doc.text.version());
+        match self.lsp.eslint_opened.get(&doc_id).cloned() {
+            None => {
+                let text = whole_text(doc);
+                self.lsp.servers[server].1.did_open(&path, &language, version, &text);
+                self.lsp.eslint_opened.insert(doc_id, (server, version, path));
+            }
+            // A moment after the last change, as for the usual server (which has noted when it changed).
+            Some((_, sent, _)) if sent != version => {
+                let settled = self.lsp.changed.get(&doc_id).is_some_and(|(v, when)| *v == version && when.elapsed() >= Duration::from_millis(250));
+                if settled {
+                    let text = whole_text(doc);
+                    self.lsp.servers[server].1.did_change(&path, version, &text);
+                    self.lsp.eslint_opened.insert(doc_id, (server, version, path));
+                } else if !self.lsp.changed.get(&doc_id).is_some_and(|(v, _)| *v == version) {
+                    self.lsp.changed.insert(doc_id, (version, std::time::Instant::now()));
+                }
+            }
+            Some(_) => {}
+        }
+    }
+
     /// What the servers have said: problems for files, and answers to what was asked.
     fn lsp_take_in(&mut self) {
         let mut said: Vec<(usize, Value)> = Vec::new();
@@ -460,10 +552,18 @@ impl Limoniter {
                 if let Some((path, problems)) = lsp::diagnostics(&message)
                     && let Some(doc) = self.docs.iter_mut().find(|d| d.path.as_deref().is_some_and(|p| same_path(p, &path)))
                 {
+                    let raw = message.pointer("/params/diagnostics").and_then(Value::as_array).cloned().unwrap_or_default();
+                    let doc_id = doc.id;
+                    self.lsp.problem_parts.insert((doc_id, server), (problems, raw));
+                    // What every server has said of the file, together, the first server's problems first.
+                    let mut parts: Vec<_> = self.lsp.problem_parts.iter().filter(|((d, _), _)| *d == doc_id).collect();
+                    parts.sort_by_key(|((_, s), _)| *s);
+                    let (lines, raw): (Vec<_>, Vec<_>) = parts.into_iter().map(|(_, (l, r))| (l.clone(), r.clone())).unzip();
+                    let doc = self.docs.iter_mut().find(|d| d.id == doc_id).expect("the document was just found");
                     let intel = doc.text.intel.get_or_insert_with(Box::default);
                     intel.lsp = true;
-                    intel.diagnostics = problems;
-                    intel.lsp_problems = message.pointer("/params/diagnostics").and_then(Value::as_array).cloned().unwrap_or_default();
+                    intel.diagnostics = lines.concat();
+                    intel.lsp_problems = raw.concat();
                 }
                 continue;
             }
@@ -605,7 +705,7 @@ impl Limoniter {
             }
             return;
         }
-        let spaces = self.editor_config.as_ref().and_then(|(_, c)| c.spaces).unwrap_or(self.prefs.edit.spaces_for_tab);
+        let spaces = self.spaces_for_tab_now();
         let options = json!({ "tabSize": crate::text_buffer::tab_size(), "insertSpaces": spaces, "trimTrailingWhitespace": true, "insertFinalNewline": true });
         let server_ref = &mut self.lsp.servers[server].1;
         let id = server_ref.request("textDocument/formatting", json!({ "textDocument": { "uri": lsp::uri(&path) }, "options": options }));
@@ -624,29 +724,53 @@ impl Limoniter {
 
     /// Asks the server what it can fix or change on the cursor's line, and offers it in a list (Ctrl+.).
     pub(super) fn lsp_quick_fix(&mut self) {
-        let Some((server, path)) = self.lsp_sync(self.active) else {
+        // The usual server for the file, and ESLint's beside it where it's looking after the file too.
+        let usual = self.lsp_sync(self.active);
+        let doc_id = self.docs[self.active].id;
+        let eslint = self.lsp.eslint_opened.get(&doc_id).cloned();
+        if usual.is_none() && eslint.is_none() {
             return self.message("Quick fix", crate::i18n::tr("Fixes come from a language server for the file's language (Settings, Editing, Language servers).").into());
-        };
+        }
+        if let Some((server, version, _)) = &eslint {
+            // ESLint is told the latest text before it's asked, as the usual server is.
+            let doc = &self.docs[self.active];
+            if *version != doc.text.version() {
+                let (path, whole, now) = (eslint.as_ref().map(|e| e.2.clone()).unwrap_or_default(), whole_text(doc), doc.text.version());
+                self.lsp.servers[*server].1.did_change(&path, now, &whole);
+                self.lsp.eslint_opened.insert(doc_id, (*server, now, path));
+            }
+        }
         let doc = &self.docs[self.active];
         let line = doc.text.caret_line;
         let text = doc.text.line(line).to_string();
-        let problems: Vec<Value> = doc.text.intel.as_ref().map(|i| i.lsp_problems.iter().filter(|p| p.pointer("/range/start/line").and_then(Value::as_u64).is_some_and(|l| l as usize <= line) && p.pointer("/range/end/line").and_then(Value::as_u64).is_some_and(|l| l as usize >= line)).cloned().collect()).unwrap_or_default();
         let (from, to) = if doc.text.has_selection() {
             let ((l1, c1), (l2, c2)) = doc.text.selection_char_bounds();
             ((l1, lsp::to_utf16(&doc.text.line(l1), c1)), (l2, lsp::to_utf16(&doc.text.line(l2), c2)))
         } else {
             ((line, 0), (line, lsp::to_utf16(&text, text.chars().count())))
         };
-        let server_ref = &mut self.lsp.servers[server].1;
-        let id = server_ref.request("textDocument/codeAction", json!({ "textDocument": { "uri": lsp::uri(&path) }, "range": { "start": { "line": from.0, "character": from.1 }, "end": { "line": to.0, "character": to.1 } }, "context": { "diagnostics": problems } }));
-        let Some(result) = server_ref.wait_for(id, Duration::from_secs(4)) else {
+        let mut asked: Vec<(usize, PathBuf, bool)> = Vec::new();
+        asked.extend(usual.map(|(s, p)| (s, p, false)));
+        asked.extend(eslint.map(|(s, _, p)| (s, p, true)));
+        let mut fixes = Vec::new();
+        let mut answered = false;
+        for (server, path, is_eslint) in asked {
+            // Only the problems this server found are given back to it, with the data it put in them.
+            let problems: Vec<Value> = self.lsp.problem_parts.get(&(doc_id, server)).map(|(_, raw)| raw.iter().filter(|p| p.pointer("/range/start/line").and_then(Value::as_u64).is_some_and(|l| l as usize <= line) && p.pointer("/range/end/line").and_then(Value::as_u64).is_some_and(|l| l as usize >= line)).cloned().collect()).unwrap_or_default();
+            let server_ref = &mut self.lsp.servers[server].1;
+            let id = server_ref.request("textDocument/codeAction", json!({ "textDocument": { "uri": lsp::uri(&path) }, "range": { "start": { "line": from.0, "character": from.1 }, "end": { "line": to.0, "character": to.1 } }, "context": { "diagnostics": problems } }));
+            let Some(result) = server_ref.wait_for(id, Duration::from_secs(4)) else { continue };
+            answered = true;
+            // ESLint's "show documentation" asks for a browser; only its fixes, which are edits, are listed.
+            fixes.extend(lsp::code_actions(&result).into_iter().filter(|(_, fix)| !is_eslint || fix.get("edit").is_some() || fix.get("data").is_some()).map(|(title, fix)| (server, title, fix)));
+        }
+        if !answered {
             return self.message("Quick fix", crate::i18n::tr("The language server didn't answer in time.").into());
-        };
-        let fixes = lsp::code_actions(&result);
+        }
         if fixes.is_empty() {
             return self.message("Quick fix", crate::i18n::tr("The language server has nothing to offer here.").into());
         }
-        self.lsp.fixes = Some((server, fixes, 0));
+        self.lsp.fixes = Some((fixes, 0));
     }
 
     /// Does a fix chosen from the list: its edit, or (asked for when it hasn't one yet) its command.
@@ -676,7 +800,7 @@ impl Limoniter {
 
     /// The list of fixes offered: arrows choose, Enter or a click does one, Escape closes it.
     pub(super) fn quick_fix_window(&mut self, ctx: &Context) {
-        let Some((server, fixes, mut chosen)) = self.lsp.fixes.take() else { return };
+        let Some((fixes, mut chosen)) = self.lsp.fixes.take() else { return };
         let (mut close, mut take) = (false, None);
         ctx.input_mut(|i| {
             if i.consume_key(egui::Modifiers::NONE, Key::ArrowDown) {
@@ -694,19 +818,19 @@ impl Limoniter {
         });
         crate::fit::Dialog::new(crate::i18n::tr("Quick fix")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_TOP, [0.0, 80.0]).show(ctx, |ui| {
             ui.set_min_width(360.0);
-            for (n, (title, _)) in fixes.iter().enumerate() {
+            for (n, (_, title, _)) in fixes.iter().enumerate() {
                 if ui.selectable_label(n == chosen, title.as_str()).clicked() {
                     take = Some(n);
                 }
             }
         });
         if let Some(n) = take {
-            self.lsp_do_fix(server, fixes[n].1.clone());
+            self.lsp_do_fix(fixes[n].0, fixes[n].2.clone());
             self.pending_focus = true;
         } else if close {
             self.pending_focus = true;
         } else {
-            self.lsp.fixes = Some((server, fixes, chosen));
+            self.lsp.fixes = Some((fixes, chosen));
         }
     }
 
@@ -930,12 +1054,13 @@ mod tests {
         // Quick fixes: one an edit, made at once; one a command, whose edit the server asks for.
         app.doc().text.move_caret(2, 9, false);
         app.lsp_quick_fix();
-        let titles: Vec<String> = app.lsp.fixes.as_ref().map(|(_, f, _)| f.iter().map(|(t, _)| t.clone()).collect()).unwrap_or_default();
+        let titles: Vec<String> = app.lsp.fixes.as_ref().map(|(f, _)| f.iter().map(|(_, t, _)| t.clone()).collect()).unwrap_or_default();
         assert_eq!(titles, ["Change oops to 0", "Add a comment"]);
-        let (server, fixes, _) = app.lsp.fixes.take().unwrap();
-        app.lsp_do_fix(server, fixes[0].1.clone());
+        let (fixes, _) = app.lsp.fixes.take().unwrap();
+        let server = fixes[0].0;
+        app.lsp_do_fix(server, fixes[0].2.clone());
         assert_eq!(&*app.doc().text.line(2), "let x = 0;");
-        app.lsp_do_fix(server, fixes[1].1.clone());
+        app.lsp_do_fix(server, fixes[1].2.clone());
         settle(&mut app);
         assert_eq!(&*app.doc().text.line(0), "// counts");
         app.lsp.stop_all();
@@ -981,6 +1106,91 @@ mod tests {
         let signature = app.doc().text.intel.as_ref().and_then(|i| i.lsp_signature.clone());
         assert!(signature.as_ref().is_some_and(|(line, words, part)| *line == 3 && words.contains("double(n)") && part.is_some()), "{signature:?}");
         app.lsp.stop_all();
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// ESLint's server runs beside the usual one for a JavaScript file in a project with an ESLint configuration:
+    /// both servers' problems are marked together, and the quick fixes come from both.
+    #[test]
+    fn eslint_runs_beside_the_usual_server_and_both_are_heard() {
+        crate::highlight::load_now();
+        let (mut app, _ctx) = app_with("");
+        let folder = std::env::temp_dir().join(format!("limoniter-lsp-eslint-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("package.json"), "{}").unwrap();
+        let file = folder.join("app.js");
+        std::fs::write(&file, "let a = 1;\nlet x = oops;\nlet y = 2;\n").unwrap();
+        assert!(app.open_path(&file));
+        app.doc().update_syntax();
+        assert_eq!(app.doc().language_name(), "JavaScript");
+        assert!(!lsp::eslint_configured(&file), "no ESLint configuration yet");
+        std::fs::write(folder.join("eslint.config.js"), "export default [];\n").unwrap();
+        assert!(lsp::eslint_configured(&file));
+        app.lsp.on = true;
+        let root = lsp::root_for(&file);
+        let usual = app.lsp.server_for("JavaScript").unwrap().command;
+        app.lsp.servers.push((format!("{usual}\u{1}{}", root.display()), crate::lsp::tests::fake_server(&folder)));
+        let mut eslint = crate::lsp::tests::fake_server(&folder);
+        eslint.name = "vscode-eslint-language-server".into();
+        app.lsp.servers.push((format!("{}\u{1}{}", lsp::ESLINT_COMMAND, root.display()), eslint));
+        let settle = |app: &mut Limoniter| {
+            for _ in 0..60 {
+                app.lsp_tick();
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        settle(&mut app);
+        // Each said the same line was wrong: both are kept, neither wiping out the other.
+        let problems = app.doc().text.intel.as_ref().map(|i| i.diagnostics.clone()).unwrap_or_default();
+        assert_eq!(problems.len(), 2, "{problems:?}");
+        assert!(problems.iter().all(|(line, _)| *line == 1));
+        assert_eq!(app.doc().text.intel.as_ref().map(|i| i.lsp_problems.len()), Some(2));
+        // Fixing the line (typing over it) is heard from both again, still two.
+        app.doc().text.move_caret(1, 0, false);
+        app.doc().text.type_text("// ");
+        settle(&mut app);
+        assert_eq!(app.doc().text.intel.as_ref().map(|i| i.diagnostics.len()), Some(2), "told of the change, they say so again");
+        // Quick fix: the usual server's two, and ESLint's that are edits (its command-only one is left out).
+        app.doc().text.move_caret(1, 9, false);
+        app.lsp_quick_fix();
+        let titles: Vec<String> = app.lsp.fixes.as_ref().map(|(f, _)| f.iter().map(|(_, t, _)| t.clone()).collect()).unwrap_or_default();
+        assert_eq!(titles, ["Change oops to 0", "Add a comment", "Change oops to 0"]);
+        let servers: Vec<usize> = app.lsp.fixes.as_ref().map(|(f, _)| f.iter().map(|(s, ..)| *s).collect()).unwrap_or_default();
+        assert_eq!(servers, [0, 0, 1], "each fix knows its server");
+        // A TypeScript file is looked after too, and a Rust one isn't.
+        assert!(lsp::eslint_language("TypeScriptReact") && lsp::eslint_language("JavaScript (Babel)") && !lsp::eslint_language("Rust"));
+        // Closing the file closes it with both.
+        app.lsp.stop_all();
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// What ESLint's server asks for is answered with the settings it expects.
+    #[test]
+    fn eslint_is_given_the_settings_it_asks_for() {
+        let settings = lsp::eslint_settings(Path::new("/work/shop"));
+        for (section, expected) in [("validate", json!("on")), ("run", json!("onType")), ("workingDirectory", json!({ "mode": "location" }))] {
+            assert_eq!(settings["eslint"][section], expected, "{section}");
+        }
+        assert_eq!(settings["eslint"]["workspaceFolder"]["name"], "shop");
+        assert_eq!(settings["eslint"]["codeActionOnSave"]["mode"], "all");
+        assert_eq!(lsp::language_id("JavaScript (Babel)"), "javascriptreact");
+    }
+
+    /// A configuration is found in the file's folder or any above it within the project, or in package.json.
+    #[test]
+    fn an_eslint_configuration_is_found_above_the_file_within_the_project() {
+        let folder = std::env::temp_dir().join(format!("limoniter-eslint-config-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(folder.join("src/deep")).unwrap();
+        std::fs::write(folder.join("package.json"), "{\"name\": \"x\"}").unwrap();
+        let file = folder.join("src/deep/a.ts");
+        assert!(!lsp::eslint_configured(&file));
+        std::fs::write(folder.join(".eslintrc.json"), "{}").unwrap();
+        assert!(lsp::eslint_configured(&file));
+        std::fs::remove_file(folder.join(".eslintrc.json")).unwrap();
+        std::fs::write(folder.join("package.json"), "{\"eslintConfig\": {}}").unwrap();
+        assert!(lsp::eslint_configured(&file), "package.json's own");
         let _ = std::fs::remove_dir_all(folder);
     }
 

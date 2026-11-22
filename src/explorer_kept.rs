@@ -27,6 +27,8 @@ pub enum Hide {
     Named(String),
     /// Every file with this ending, without its dot and in small letters ("o" for .o files).
     Kind(String),
+    /// Whatever a pattern matches, written as a line of .gitignore ("docs/**/*.tmp", "*_backup*").
+    Glob(String),
 }
 
 /// A file's ending, in small letters, without its dot: none for a name without one, or one like .gitignore.
@@ -44,6 +46,7 @@ impl Hide {
             Hide::Folder(folder) => format!("{folder}/"),
             Hide::Named(name) => format!("**/{name}/"),
             Hide::Kind(end) => format!("*.{end}"),
+            Hide::Glob(pattern) => pattern.clone(),
         }
     }
 
@@ -55,10 +58,14 @@ impl Hide {
         if let Some(name) = text.strip_prefix("**/").and_then(|t| t.strip_suffix('/')) {
             return (!name.is_empty() && !name.contains('/')).then(|| Hide::Named(name.to_string()));
         }
-        let folder = text.strip_suffix('/')?.trim_start_matches('/').replace('\\', "/");
+        let folder = text.strip_suffix('/').map(|t| t.trim_start_matches('/').replace('\\', "/"));
         // Only a place inside the project: never one reached by going up out of it.
-        let fine = !folder.is_empty() && folder.split('/').all(|part| !part.is_empty() && part != ".." && part != ".");
-        fine.then_some(Hide::Folder(folder))
+        if let Some(folder) = folder.filter(|f| !crate::workspace::is_glob(f) && !f.is_empty() && f.split('/').all(|part| !part.is_empty() && part != ".." && part != ".")) {
+            return Some(Hide::Folder(folder));
+        }
+        // Anything else with a wildcard in it is a pattern, as long as it doesn't reach out of the project.
+        let outside = text.replace('\\', "/").split('/').any(|part| part == "..");
+        (crate::workspace::is_glob(text) && !outside && !text.starts_with('!') && !text.starts_with('#')).then(|| Hide::Glob(text.to_string()))
     }
 
     /// What's hidden, in words, for the list in the project's settings.
@@ -67,6 +74,7 @@ impl Hide {
             Hide::Folder(folder) => crate::i18n::tf!("The folder {folder}"),
             Hide::Named(name) => crate::i18n::tf!("Every folder called {name}"),
             Hide::Kind(end) => crate::i18n::tf!(".{end} files"),
+            Hide::Glob(pattern) => crate::i18n::tf!("Whatever matches {pattern}"),
         }
     }
 
@@ -83,6 +91,7 @@ impl Hide {
                 parts.contains(&name.as_str())
             }
             Hide::Kind(end) => !is_folder && relative.rsplit('/').next().and_then(ending).as_deref() == Some(end.as_str()),
+            Hide::Glob(pattern) => crate::workspace::glob_matches(pattern, relative, is_folder),
         }
     }
 }

@@ -143,7 +143,7 @@ impl Limoniter {
         let folder = self.python_folder_of(file);
         let poetry = self.python.poetry.get(&folder).cloned().flatten();
         let found = py_env::find(&folder, poetry.as_deref());
-        self.python.chosen.pick(&folder, &found)
+        self.python.chosen.pick_for_project(&folder, &found, self.project.as_ref().and_then(|p| p.eff().python.clone()).as_deref())
     }
 
     /// The Python commands run with when nothing more particular is known: the one for the file in front.
@@ -227,7 +227,7 @@ impl Limoniter {
         }
         let poetry = self.python.poetry.get(&folder).cloned().flatten();
         let found = py_env::find(&folder, poetry.as_deref());
-        let Some(env) = self.python.chosen.pick(&folder, &found) else { return };
+        let Some(env) = self.python.chosen.pick_for_project(&folder, &found, self.project.as_ref().and_then(|p| p.eff().python.clone()).as_deref()) else { return };
         let changed = self.python.current.as_ref().is_none_or(|c| c.env != env || c.folder != folder);
         self.python.current = Some(Current { folder: folder.clone(), found, env: env.clone(), when: std::time::Instant::now(), file: path });
         if changed {

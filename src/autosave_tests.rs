@@ -309,3 +309,27 @@ fn hot_exit_can_be_turned_off_and_leaves_a_file_changed_meanwhile_to_the_usual_o
     drop(next);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The keyboard focus leaving the editor for a panel (Search, Output, a terminal) saves the file in the focus mode,
+/// as it does when another tab is chosen; staying in the editor, or the other modes, do not.
+#[test]
+fn the_focus_going_to_a_panel_saves_the_file_in_the_focus_mode() {
+    let dir = folder("panel");
+    let path = dir.join("a.txt");
+    for (settings, saved) in [("autosave=true\nautosave_when=focus\n", true), ("autosave=true\nautosave_when=window\n", false)] {
+        std::fs::write(&path, "a").unwrap();
+        let (mut app, ctx) = app_with(settings);
+        typed_in(&mut app, &ctx, &path);
+        // The cursor is in the text.
+        ctx.memory_mut(|m| m.request_focus(views::editor_id()));
+        draw(&mut app, &ctx, Vec::new());
+        draw(&mut app, &ctx, Vec::new());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "a", "{settings}: still in the editor");
+        // A click in the Search panel's box.
+        ctx.memory_mut(|m| m.request_focus(egui::Id::unique("a-panel-box")));
+        draw(&mut app, &ctx, Vec::new());
+        draw(&mut app, &ctx, Vec::new());
+        assert_eq!(std::fs::read_to_string(&path).unwrap() == "new a", saved, "{settings}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

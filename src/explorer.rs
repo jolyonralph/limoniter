@@ -287,6 +287,24 @@ impl Recency {
         self.every_count += 1;
     }
 
+    /// Ranks files seen in the folder that the dates read don't have: they were made after the dates were read, so
+    /// they're the newest, and are counted at once (the cut is worked out again next time it's drawn) without
+    /// reading every file's date again. The dates read are replaced when the next read comes in.
+    pub fn rank_new<'a>(&mut self, root: &Path, files: impl IntoIterator<Item = &'a Path>) {
+        let Some((_, every)) = self.every.as_mut().filter(|(at, _)| at == root) else { return };
+        let now = SystemTime::now();
+        let mut added = false;
+        for file in files {
+            if !every.contains_key(file) {
+                every.insert(file.to_path_buf(), now);
+                added = true;
+            }
+        }
+        if added {
+            self.every_count += 1;
+        }
+    }
+
     /// Works out again which files the recency slider leaves out, when the share or what it's worked out from has
     /// changed.
     pub fn update_cut(&mut self, root: &Path, kept: &Kept) {
@@ -344,6 +362,12 @@ impl Recency {
 }
 
 impl Explorer {
+    /// The names listed in a folder, for tests.
+    #[cfg(test)]
+    pub fn names_for_test(&mut self, folder: &Path) -> Vec<String> {
+        self.listing(folder).into_iter().map(|e| e.name).collect()
+    }
+
     fn listing(&mut self, folder: &Path) -> Vec<Entry> {
         let modified = std::fs::metadata(folder).and_then(|m| m.modified()).ok();
         let fresh = self.listings.get(folder).is_some_and(|l| l.looked.elapsed() < LOOK_AGAIN || l.modified == modified);
@@ -591,6 +615,8 @@ impl Explorer {
             self.editing_row(ui, depth, if is_folder { "\u{25B8} " } else { "" }, acts);
         }
         let entries = self.listing(folder);
+        // A file made since the slider's dates were read is the newest: ranked now, and counted.
+        self.recency.rank_new(root, entries.iter().filter(|e| !e.folder && !e.hidden).map(|e| e.path.as_path()));
         for entry in entries {
             if self.recency.hides(&entry.path, entry.folder) {
                 continue;
@@ -1038,6 +1064,39 @@ mod tests {
         explorer.recency.update_cut(&root, &kept);
         assert!(shown(&mut explorer, &root).is_empty());
         assert_eq!(explorer.recency.cut.as_ref().unwrap().said(), "No files shown, 4 hidden");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A file made after the dates were read is ranked as the newest as soon as it's seen, and the counts under the
+    /// slider follow, with no second read of every file.
+    #[test]
+    fn a_new_file_is_ranked_newest_at_once_and_counted() {
+        let root = std::env::temp_dir().join(format!("limoniter-explorer-newfile-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        for file in ["a.txt", "b.txt", "c.txt", "d.txt"] {
+            std::fs::write(root.join(file), "x").unwrap();
+        }
+        let at = |secs: u64| SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
+        let mut explorer = Explorer { root: Some(root.clone()), ..Explorer::default() };
+        explorer.recency.set_every_time(&root, [(root.join("a.txt"), at(40)), (root.join("b.txt"), at(30)), (root.join("c.txt"), at(20)), (root.join("d.txt"), at(10))].into());
+        let kept = Kept { recency: 50, ..Kept::default() };
+        explorer.recency.update_cut(&root, &kept);
+        assert_eq!(explorer.recency.cut.as_ref().unwrap().said(), "2 files shown, 2 hidden");
+        // Made now, after the read.
+        std::fs::write(root.join("new.txt"), "x").unwrap();
+        let entries = explorer.listing(&root);
+        explorer.recency.rank_new(&root, entries.iter().filter(|e| !e.folder).map(|e| e.path.as_path()));
+        explorer.recency.update_cut(&root, &kept);
+        let cut = explorer.recency.cut.clone().unwrap();
+        assert!(!cut.hides(&root.join("new.txt"), false), "the newest is shown");
+        assert!(!cut.hides(&root.join("a.txt"), false), "a.txt is still the second newest of five (half of five is two)");
+        assert!(cut.hides(&root.join("b.txt"), false));
+        assert_eq!(cut.said(), "2 files shown, 3 hidden", "the counts follow");
+        // Seen again, it isn't ranked a second time.
+        let count = explorer.recency.every_count;
+        explorer.recency.rank_new(&root, entries.iter().map(|e| e.path.as_path()));
+        assert_eq!(explorer.recency.every_count, count);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -53,6 +53,58 @@ pub fn alternative(command: &str) -> Option<&'static str> {
     }
 }
 
+/// The command that starts ESLint's language server, which runs beside a language's usual server.
+pub const ESLINT_COMMAND: &str = "vscode-eslint-language-server --stdio";
+
+/// Whether a language is one ESLint looks after: JavaScript and TypeScript, with their JSX forms.
+pub fn eslint_language(language: &str) -> bool {
+    matches!(language, "JavaScript" | "TypeScript" | "JavaScript (Babel)" | "TypeScriptReact")
+}
+
+/// Whether ESLint has been set up for a file: an ESLint configuration in its folder or any above it, as far up
+/// as the project goes (`package.json` counts when it has an "eslintConfig" in it).
+pub fn eslint_configured(path: &Path) -> bool {
+    let top = root_for(path);
+    let names = [
+        ".eslintrc", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.mjs", ".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml", "eslint.config.js", "eslint.config.mjs",
+        "eslint.config.cjs", "eslint.config.ts", "eslint.config.mts", "eslint.config.cts",
+    ];
+    let mut folder = path.parent();
+    while let Some(here) = folder {
+        if names.iter().any(|n| here.join(n).is_file()) || std::fs::read_to_string(here.join("package.json")).is_ok_and(|t| t.contains("\"eslintConfig\"")) {
+            return true;
+        }
+        if here == top {
+            break;
+        }
+        folder = here.parent();
+    }
+    false
+}
+
+/// The settings ESLint's server asks for (`workspace/configuration`), as VS Code's ESLint extension would give them.
+pub fn eslint_settings(root: &Path) -> Value {
+    let name = root.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    json!({ "eslint": {
+        "validate": "on",
+        "run": "onType",
+        "workingDirectory": { "mode": "location" },
+        "format": false,
+        "quiet": false,
+        "onIgnoredFiles": "off",
+        "options": {},
+        "rulesCustomizations": [],
+        "packageManager": "npm",
+        "nodePath": null,
+        "useESLintClass": false,
+        "experimental": {},
+        "problems": { "shortenToSingleLine": false },
+        "codeAction": { "disableRuleComment": { "enable": true, "location": "separateLine" }, "showDocumentation": { "enable": true } },
+        "codeActionOnSave": { "mode": "all" },
+        "workspaceFolder": { "uri": uri(root), "name": name },
+    } })
+}
+
 /// How a server's program is installed, by its name: the command, run in a terminal, and the program it needs
 /// (rustup, npm and the like). None where there's no one way.
 pub fn install_command(program: &str) -> Option<(String, &'static str)> {
@@ -439,6 +491,8 @@ pub fn language_id(language: &str) -> String {
         "C++" => "cpp".into(),
         "C#" => "csharp".into(),
         "Bourne Again Shell (bash)" => "shellscript".into(),
+        // JSX has a grammar of its own here, and an id of its own for servers.
+        "JavaScript (Babel)" => "javascriptreact".into(),
         other => other.to_ascii_lowercase(),
     }
 }

@@ -298,6 +298,33 @@ impl Limoniter {
         }
     }
 
+    /// Finds the scripts of a `package.json` in front, for the "Debug" link beside each; other files have none.
+    pub(super) fn package_script_links(&mut self) {
+        let Some(doc) = self.docs.get_mut(self.active) else { return };
+        let is_package = doc.path.as_deref().and_then(Path::file_name).is_some_and(|n| n == "package.json") && !doc.hex_mode && doc.browser.is_none();
+        let version = doc.text.version();
+        if !is_package {
+            if doc.text_state.script_links_version.take().is_some() {
+                doc.text_state.script_links.clear();
+            }
+            return;
+        }
+        if doc.text_state.script_links_version == Some(version) {
+            return;
+        }
+        let text = doc.text.all_lines().iter().map(|l| l.as_ref()).collect::<Vec<&str>>().join("\n");
+        doc.text_state.script_links = crate::node_tools::script_lines(&text);
+        doc.text_state.script_links_version = Some(version);
+    }
+
+    /// Debugs one of a project's `package.json` scripts: js-debug runs it with the project's package manager, in
+    /// the project's folder.
+    pub(super) fn debug_npm_script(&mut self, folder: &Path, script: &str) {
+        let Some((kind, adapter)) = dap::adapter_for("JavaScript") else { return };
+        let config = Config { kind, adapter, program: format!("script:{script}"), arguments: String::new(), folder: folder.display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false };
+        self.launch_debugger(config);
+    }
+
     /// Starts the adapter and the program in it.
     pub(super) fn launch_debugger(&mut self, mut config: Config) {
         // Python is debugged in the environment chosen for the file, so it sees the same packages as F9 does.
@@ -364,7 +391,7 @@ impl Limoniter {
     /// Waits for Xdebug to connect, for PHP run by a web server (a page in the browser) or from the terminal.
     pub(super) fn debug_php_listen(&mut self) {
         let Some(folder) = self.task_folder().or_else(|| std::env::current_dir().ok()) else { return };
-        let config = dap::Config { kind: dap::Kind::Xdebug, adapter: crate::xdebug_get::adapter_command().unwrap_or_default(), program: String::new(), arguments: String::new(), folder: folder.display().to_string(), emulator: None };
+        let config = dap::Config { kind: dap::Kind::Xdebug, adapter: crate::xdebug_get::adapter_command().unwrap_or_default(), program: String::new(), arguments: String::new(), folder: folder.display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false };
         self.launch_debugger(config);
     }
 
@@ -424,7 +451,7 @@ impl Limoniter {
     pub(super) fn debug_in_copperline(&mut self, program: &Path, emulator: &Path, ctl: &Path, options: &str, assembly: Option<&crate::asm::Assembly>) {
         let folder = program.parent().map(Path::to_path_buf).unwrap_or_default();
         let emulator = Some(dap::Emulated { program: emulator.display().to_string(), options: crate::emulators::split_options(options) });
-        let config = Config { kind: dap::Kind::Copperline, adapter: dap::copperline_adapter(ctl), program: program.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator };
+        let config = Config { kind: dap::Kind::Copperline, adapter: dap::copperline_adapter(ctl), program: program.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator, env: Vec::new(), stop_on_entry: false };
         self.launch_debugger(config);
         if let (Some(d), Some(assembly)) = (self.debugging.as_mut(), assembly) {
             d.copperline.program = dap::ProgramMap::of(assembly);
@@ -1354,7 +1381,7 @@ net.createServer((sock) => {
         app.doc().update_syntax();
         let (kind, _) = dap::adapter_for("JavaScript").expect("JavaScript has a debugger");
         assert_eq!(kind, dap::Kind::JsDebug);
-        let config = Config { kind, adapter: format!("node \"{}\"", fake.display()), program: file.display().to_string(), arguments: String::new(), folder: dir.display().to_string(), emulator: None };
+        let config = Config { kind, adapter: format!("node \"{}\"", fake.display()), program: file.display().to_string(), arguments: String::new(), folder: dir.display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false };
         app.launch_debugger(config);
         let began = std::time::Instant::now();
         while began.elapsed() < Duration::from_secs(20) && !app.debugging.as_ref().is_some_and(|d| d.state == State::Paused && !d.frames.is_empty()) {
@@ -1369,6 +1396,40 @@ net.createServer((sock) => {
         app.debug_control("stop");
         assert_eq!(app.debugging.as_ref().unwrap().state, State::Ended);
         drop(app);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A package.json script is debugged: from the task, or the link beside it, js-debug is asked for with the
+    /// script named (here it isn't installed, so it's offered for download with the script kept to run after).
+    #[test]
+    fn an_npm_script_starts_the_debugger_with_the_script_named() {
+        if !crate::lsp::on_path("node") || crate::lsp::on_path("js-debug-dap") || crate::js_debug_get::installed().is_some() {
+            return;
+        }
+        let (mut app, _ctx) = app_with("");
+        let dir = folder("npmscript");
+        std::fs::write(dir.join("package.json"), "{\n  \"scripts\": {\n    \"dev\": \"node dev.js\"\n  }\n}\n").unwrap();
+        std::fs::write(dir.join("package-lock.json"), "{}").unwrap();
+        assert!(app.open_path(&dir.join("package.json")));
+        app.package_script_links();
+        assert_eq!(app.docs[app.active].text_state.script_links, [(2, "dev".to_string())], "the link is above the script's line");
+        let tasks = app.tasks_here();
+        let at = tasks.iter().position(|t| t.command == "npm run dev").expect("the script is a task");
+        app.debug_task(&tasks[at]);
+        let config = app.node.pending_debug.clone().expect("asked to wait for js-debug");
+        assert_eq!((config.kind, config.program.as_str()), (dap::Kind::JsDebug, "script:dev"));
+        assert!(matches!(app.dialog, Dialog::JsDebugMissing));
+        // A task that isn't a script says so.
+        app.dialog = Dialog::None;
+        let install = tasks.iter().find(|t| t.command == "npm install").cloned().unwrap();
+        app.debug_task(&install);
+        assert!(matches!(app.dialog, Dialog::Message { .. }));
+        // Other files have no links.
+        let other = dir.join("notes.txt");
+        std::fs::write(&other, "x").unwrap();
+        assert!(app.open_path(&other));
+        app.package_script_links();
+        assert!(app.docs[app.active].text_state.script_links.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1390,7 +1451,7 @@ net.createServer((sock) => {
         assert!(app.open_path(&file));
         app.doc().update_syntax();
         app.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(2);
-        let config = Config { kind: dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: file.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: None };
+        let config = Config { kind: dap::Kind::Debugpy, adapter: format!("{python} -m debugpy.adapter"), program: file.display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: None, env: Vec::new(), stop_on_entry: false };
         app.launch_debugger(config);
         let wait = |app: &mut Limoniter, done: &dyn Fn(&Limoniter) -> bool| {
             let began = std::time::Instant::now();
@@ -1503,7 +1564,7 @@ net.createServer((sock) => {
         assert!(app.open_path(&file));
         app.doc().text.code.get_or_insert_with(Box::default).breakpoints.insert(3);
         let (session, heard) = fake_copperline(file.clone());
-        let config = Config { kind: dap::Kind::Copperline, adapter: String::new(), program: folder.join("count").display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: Some(dap::Emulated { program: "copperline".into(), options: Vec::new() }) };
+        let config = Config { kind: dap::Kind::Copperline, adapter: String::new(), program: folder.join("count").display().to_string(), arguments: String::new(), folder: folder.display().to_string(), emulator: Some(dap::Emulated { program: "copperline".into(), options: Vec::new() }), env: Vec::new(), stop_on_entry: false };
         app.begin_debugging(config, session);
         let text = std::fs::read_to_string(&file).unwrap();
         let (assembly, _) = crate::asm::hunk::assemble_executable(&file, &text, &|_| Err("no".into()), false, &crate::asm::Options::default());

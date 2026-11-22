@@ -75,6 +75,75 @@ pub fn scripts(folder: &Path) -> Vec<String> {
     package_json(folder).and_then(|json| Some(json.get("scripts")?.as_object()?.keys().cloned().collect())).unwrap_or_default()
 }
 
+/// The script of `package.json` that a task's command runs (`npm run dev` is `dev`), if it is one.
+pub fn script_of(folder: &Path, command: &str) -> Option<String> {
+    let manager = manager_for(folder);
+    scripts(folder).into_iter().find(|name| manager.run_script(name) == command)
+}
+
+/// The lines of a `package.json` text on which its scripts are named, with their names: the keys inside its
+/// "scripts" object. Read as a person writes it, one script a line, with strings and nesting understood.
+pub fn script_lines(text: &str) -> Vec<(usize, String)> {
+    let mut found = Vec::new();
+    let (mut depth, mut line) = (0usize, 0usize);
+    // The depth of the "scripts" object's braces once it's been entered.
+    let mut inside: Option<usize> = None;
+    let mut want_scripts = false;
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            '\n' => line += 1,
+            '{' => {
+                depth += 1;
+                if want_scripts && depth == 2 {
+                    inside = Some(depth);
+                }
+                want_scripts = false;
+            }
+            '}' => {
+                if inside == Some(depth) {
+                    inside = None;
+                }
+                depth = depth.saturating_sub(1);
+            }
+            '"' => {
+                let start_line = line;
+                let mut word = String::new();
+                i += 1;
+                while i < chars.len() && chars[i] != '"' {
+                    if chars[i] == '\\' && i + 1 < chars.len() {
+                        i += 1;
+                    }
+                    if chars[i] == '\n' {
+                        line += 1;
+                    }
+                    word.push(chars[i]);
+                    i += 1;
+                }
+                // A key is a string with a colon after it.
+                let mut after = i + 1;
+                while after < chars.len() && chars[after].is_whitespace() {
+                    after += 1;
+                }
+                if chars.get(after) == Some(&':') {
+                    if depth == 1 && word == "scripts" {
+                        want_scripts = true;
+                    } else if inside == Some(depth) && depth == 2 {
+                        found.push((start_line, word));
+                    }
+                } else if depth != 1 {
+                    want_scripts = false;
+                }
+            }
+            c if !c.is_whitespace() && c != ':' => want_scripts = false,
+            _ => {}
+        }
+        i += 1;
+    }
+    found
+}
+
 /// The script that starts the project's server while it's worked on: `dev`, else `start`, else `serve`.
 pub fn server_script(folder: &Path) -> Option<String> {
     let all = scripts(folder);
@@ -249,5 +318,27 @@ mod tests {
         assert_eq!(plan_for(&folder.join("App.jsx")), RunPlan::Server(folder.clone(), "start".into()));
         assert_eq!(plan_for(&folder.join("lib.ts")), RunPlan::Nothing);
         std::fs::remove_dir_all(&folder).unwrap();
+    }
+
+    #[test]
+    fn the_lines_scripts_are_named_on_are_found() {
+        let text = "{\n  \"name\": \"x\",\n  \"scripts\": {\n    \"dev\": \"vite {a}\",\n    \"build\": \"tsc\"\n  },\n  \"dependencies\": {\n    \"dev\": \"1\"\n  }\n}\n";
+        assert_eq!(script_lines(text), [(3, "dev".to_string()), (4, "build".to_string())]);
+        assert!(script_lines("{\"scripts\": 3, \"other\": {\"a\": 1}}").is_empty());
+        assert_eq!(script_lines("{\"scripts\": {\"a\": \"b\", \"c:d\": \"e\"}}"), [(0, "a".to_string()), (0, "c:d".to_string())]);
+        assert!(script_lines("not json at all").is_empty());
+    }
+
+    #[test]
+    fn a_task_command_is_traced_to_its_script() {
+        let folder = std::env::temp_dir().join(format!("limoniter-script-of-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("package.json"), r#"{"scripts": {"dev": "vite", "test": "jest"}}"#).unwrap();
+        std::fs::write(folder.join("yarn.lock"), "").unwrap();
+        assert_eq!(script_of(&folder, "yarn run dev").as_deref(), Some("dev"));
+        assert_eq!(script_of(&folder, "npm run dev"), None, "another manager's");
+        assert_eq!(script_of(&folder, "yarn install"), None);
+        let _ = std::fs::remove_dir_all(&folder);
     }
 }

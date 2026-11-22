@@ -116,6 +116,8 @@ pub struct Prefs {
     pub open_tables: bool,
     /// Spelling mistakes are underlined.
     pub spelling: bool,
+    /// What spell checking reads in a file of code: its comments and strings, those and its names, or nothing.
+    pub code_spelling: crate::code_spelling::CodeSpelling,
     /// Files with unsaved changes are saved by themselves, this many seconds after they were first changed.
     pub autosave: bool,
     pub autosave_seconds: u32,
@@ -206,7 +208,7 @@ impl AutosaveWhen {
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, code_spelling: crate::code_spelling::CodeSpelling::Comments, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
     }
 }
 
@@ -214,7 +216,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -253,7 +255,8 @@ impl Prefs {
             self.language,
             self.autosave_when.id(),
             self.autosave_skip_errors,
-            self.hot_exit
+            self.hot_exit,
+            self.code_spelling.id()
         )
     }
 
@@ -323,6 +326,10 @@ impl Prefs {
                     if let Some(seconds) = value.parse().ok().filter(|seconds| AUTOSAVE_TIMES.contains(seconds)) {
                         prefs.autosave_seconds = seconds;
                     }
+                    continue;
+                }
+                "code_spelling" => {
+                    prefs.code_spelling = crate::code_spelling::CodeSpelling::from_id(value).unwrap_or_default();
                     continue;
                 }
                 "autosave_when" => {
@@ -409,6 +416,7 @@ pub enum Outcome {
     NewKinds,
     LanguageServers,
     CompareRules,
+    ToolbarButtons,
 }
 
 /// What's being chosen on the File types page, and what Windows has now.
@@ -485,6 +493,7 @@ enum Special {
     HexRow,
     AutosaveTime,
     AutosaveWhen,
+    CodeSpelling,
     Preset,
     ClearRecent,
     MarkdownView,
@@ -500,6 +509,7 @@ enum Special {
     OwnGrammars,
     FileTypes,
     CompareRules,
+    ToolbarButtons,
 }
 
 #[derive(Clone, Copy)]
@@ -544,6 +554,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Indentation guides coloured by depth", "Each level of the guides in its own colour, as the rainbow brackets are", |t| &mut t.view.indent_rainbow),
             Row::Flag("Problems at the ends of their lines", "Each line's problem written faintly after it, as well as marked beside it", |t| &mut t.view.problems_at_line_end),
             Row::Flag("Colours shown where they're written", "Written as #rrggbb, rgb(), hsl(), or the Amiga's $0RGB beside COLOR registers, with a picker at the cursor to change one", |t| &mut t.view.colour_swatches),
+            Row::Flag("Colour each column of a CSV file", "In a CSV, TSV or other delimited file, each column's text in a colour of its own, so the columns are easy to follow across the rows", |t| &mut t.view.rainbow_csv),
             Row::Flag("Comment kinds in colour", "TODO, FIXME, NOTE and the like, and comments beginning with ! or ?, in colours of their own", |t| &mut t.view.comment_kinds),
             Row::Flag("Trim trailing spaces as a file's saved", "As .editorconfig's trim_trailing_whitespace does; a file's .editorconfig has the last word", |t| &mut t.view.trim_on_save),
             Row::Flag("Only on the lines changed", "Trailing spaces are trimmed on the lines changed since the file was opened, so the rest of its history isn't touched", |t| &mut t.view.trim_only_changed),
@@ -564,6 +575,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Heading("In the window"),
             Row::Flag("File tabs", "The row of open files above the text", |t| t.file_tabs),
             Row::Flag("Status bar", "The row of details along the bottom", |t| t.status_bar),
+            Row::Special("Toolbar buttons", Special::ToolbarButtons),
             Row::Flag("Ribbon", "Tabs of large buttons with pictures in place of the menus, as Word and UltraEdit have. Ctrl+F1 folds it to its tabs", |t| &mut t.view.ribbon),
             Row::Flag("Show the start page", "Once every tab is closed: new files, recent work and the guide, rather than an empty window", |t| &mut t.view.start_page),
         ],
@@ -579,6 +591,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Ignore the Insert key", "So overwriting can't be switched on by accident", |t| &mut t.prefs.edit.lock_insert),
             Row::Flag("Copy or cut the whole line if nothing is selected", "Instead of doing nothing", |t| &mut t.prefs.edit.whole_line_copy),
             Row::Flag("Copy before paste", "Pasting over selected text swaps them: what was selected goes on the clipboard, ready to paste somewhere else", |t| &mut t.prefs.edit.copy_before_paste),
+            Row::Special("Spell check code", Special::CodeSpelling),
             Row::Special("Spectrum BASIC listings write graphics as", Special::ZxNotation),
             Row::Special("Assemblers", Special::Assemblers),
             Row::Special("68000 source is for", Special::M68kProcessor),
@@ -777,6 +790,14 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                     }
                 });
             }
+            Special::CodeSpelling => {
+                egui::ComboBox::from_id_salt("code-spelling").width(240.0).selected_text(crate::i18n::tr(target.prefs.code_spelling.label())).show_ui(ui, |ui| {
+                    for mode in crate::code_spelling::CodeSpelling::ALL {
+                        ui.selectable_value(&mut target.prefs.code_spelling, mode, crate::i18n::tr(mode.label()));
+                    }
+                });
+                ui.label(RichText::new(crate::i18n::tr("When Underline mistakes is on")).color(theme::text_faint()));
+            }
             Special::HexRow => {
                 for row in HEX_ROWS {
                     ui.radio_value(&mut target.prefs.hex_row, row, row.to_string());
@@ -899,6 +920,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             Special::CompareRules => {
                 if ui.button(crate::i18n::tr("Rules for comparing files\u{2026}")).on_hover_text(crate::i18n::tr("By name: text leaving out spaces, case, line endings or lines such as timestamps; bytes; pictures; size and time only; or files always left out, such as *.o and target/. Each folder comparison starts with these, and can have its own")).clicked() {
                     *outcome = Some(Outcome::CompareRules);
+                }
+            }
+            Special::ToolbarButtons => {
+                if ui.button(crate::i18n::tr("Toolbar buttons\u{2026}")).on_hover_text(crate::i18n::tr("Choose which commands have a button on the toolbar under the menus (View, Toolbar), and put them in order")).clicked() {
+                    *outcome = Some(Outcome::ToolbarButtons);
                 }
             }
             // It's a whole page, so draw_row gives it room of its own.
@@ -1038,6 +1064,7 @@ mod tests {
             keep_undo_history: false,
             new_window_per_file: true,
             spelling: true,
+            code_spelling: crate::code_spelling::CodeSpelling::Names,
             open_tables: true,
             autosave: true,
             autosave_seconds: 300,

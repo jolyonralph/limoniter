@@ -117,7 +117,12 @@ pub fn overrides(text: &str) -> bool {
 /// What a project's `.env` adds to the environment of what runs in its folder: its keys, except those the system
 /// already has, unless the file asks for its own to win.
 pub fn environment_for(folder: &Path) -> Vec<(String, String)> {
-    let Ok(text) = std::fs::read_to_string(folder.join(".env")) else { return Vec::new() };
+    environment_from(&folder.join(".env"))
+}
+
+/// The same from a file chosen by name, as a project's settings can choose one.
+pub fn environment_from(file: &Path) -> Vec<(String, String)> {
+    let Ok(text) = std::fs::read_to_string(file) else { return Vec::new() };
     let win = overrides(&text);
     parse(&text).into_iter().filter(|(name, _)| win || std::env::var_os(name).is_none()).collect()
 }

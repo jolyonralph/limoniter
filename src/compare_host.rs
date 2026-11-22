@@ -1871,6 +1871,7 @@ impl Limoniter {
             crate::project::PanelAction::CompareWithHead(path) => self.compare_with_head(&path),
             crate::project::PanelAction::OpenComparison(name) => self.open_compare_session(&name, true),
             crate::project::PanelAction::ManageComparisons(name) => self.open_sessions_box(Some(name)),
+            crate::project::PanelAction::Settings => self.open_project_settings(),
             _ => {}
         }
     }

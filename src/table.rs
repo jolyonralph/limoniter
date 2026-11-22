@@ -79,6 +79,36 @@ fn ends_in_quotes(line: &str, delimiter: char, mut state: State) -> State {
     state
 }
 
+/// Where a line's reading starts when it carries on from the one before: inside a quoted field, and which column.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Carry {
+    pub quoted: bool,
+    pub column: usize,
+    /// How many lines the quoted field has run over, so a stray quote can't swallow a whole file.
+    lines: usize,
+}
+
+/// The stretches of a line that belong to each column, as (characters, column) with the delimiter counted in the
+/// column before it, and where the next line picks up. A quoted field with delimiters or line breaks inside is one.
+pub fn column_runs(line: &str, delimiter: char, carry: Carry) -> (Vec<(usize, usize)>, Carry) {
+    let mut state = if carry.quoted { State::Quoted } else { State::Start };
+    let mut column = carry.column;
+    let mut runs: Vec<(usize, usize)> = Vec::new();
+    for c in line.chars() {
+        match runs.last_mut() {
+            Some((length, at)) if *at == column => *length += 1,
+            _ => runs.push((1, column)),
+        }
+        let next = step(state, c, delimiter);
+        if next == State::Start && c == delimiter && state != State::Quoted {
+            column += 1;
+        }
+        state = next;
+    }
+    let next = if state == State::Quoted && carry.lines + 1 < MOST_LINES_IN_A_RECORD { Carry { quoted: true, column, lines: carry.lines + 1 } } else { Carry::default() };
+    (runs, next)
+}
+
 /// Lines to read records from: a list of them, or a document's own store, which may be a file far too large to hold.
 pub trait Lines {
     fn count(&self) -> usize;

@@ -117,10 +117,10 @@ impl Limoniter {
 
     /// Where the panel searches, and how it says so: the open folder's files, the project's, or the file in
     /// front's folder and those in it.
-    fn search_scope(&self) -> Option<(String, Result<Vec<PathBuf>, PathBuf>)> {
+    pub(super) fn search_scope(&self) -> Option<(String, Result<Vec<PathBuf>, PathBuf>)> {
         if let Some(project) = self.project.as_ref().filter(|p| !p.files.is_empty()) {
             let name = project.root.as_deref().and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| project.name.clone());
-            return Some((name, Ok(project.files.clone())));
+            return Some((name, Ok(project.searchable())));
         }
         let folder = self.docs.get(self.active).and_then(|d| d.path.as_deref()).and_then(Path::parent)?;
         Some((folder.display().to_string(), Err(folder.to_path_buf())))

@@ -129,6 +129,7 @@ enum Action {
     DeleteColumn,
     SortFile,
     TextView,
+    Query,
 }
 
 /// Copy, Cut or Paste, as the keyboard sends them.
@@ -189,6 +190,7 @@ impl Limoniter {
         }
         let sample: Vec<Arc<str>> = (0..doc.text.line_count().min(200)).map(|i| doc.text.line(i)).collect();
         doc.table_offer = table::sniff(&sample, ending.as_deref());
+        doc.text.delimited = doc.table_offer.map(|d| d.delimiter);
         // CSV and TSV files can open straight into a table, if that's been asked for.
         if self.prefs.open_tables && doc.table_offer.is_some() && ending.as_deref().is_some_and(is_table_ending) {
             self.toggle_table();
@@ -421,6 +423,9 @@ impl Limoniter {
                         action = Some(Action::SortFile);
                     }
                 });
+                if ui.small_button(crate::i18n::tr("Query the rows\u{2026}")).on_hover_text(crate::i18n::tr("Ask for some rows and columns in SQL's words, such as SELECT a, b WHERE c > 10 ORDER BY d")).clicked() {
+                    action = Some(Action::Query);
+                }
                 ui.label(RichText::new(&figures).color(theme::text_dim())).on_hover_text(crate::i18n::tr("Double-click or type to change a cell; Enter keeps it, Esc doesn't. Shift and the arrow keys, or dragging, select a block to copy, paste over or clear."));
             });
         });
@@ -917,6 +922,7 @@ impl Limoniter {
                 doc.table = None;
                 self.pending_focus = true;
             }
+            Action::Query => self.open_query_rows(),
             Action::Commit { record, column, value } => {
                 let r = records[record];
                 let old = table::record_text(lines, r);

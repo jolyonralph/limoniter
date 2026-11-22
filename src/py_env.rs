@@ -329,6 +329,11 @@ impl Chosen {
         self.by_folder.iter().find(|(f, _)| f == folder).map(|(_, p)| p.as_path())
     }
 
+    /// Goes back to the environment found for the folder.
+    pub fn clear(&mut self, folder: &Path) {
+        self.by_folder.retain(|(f, _)| f != folder);
+    }
+
     pub fn set(&mut self, folder: &Path, python: &Path) {
         self.by_folder.retain(|(f, _)| f != folder);
         self.by_folder.push((folder.to_path_buf(), python.to_path_buf()));
@@ -336,11 +341,29 @@ impl Chosen {
 
     /// The environment to use from those found: the one chosen before, if it's still there, or else the project's
     /// own first one (the system's if it has none).
+    #[cfg(test)]
     pub fn pick(&self, folder: &Path, found: &[Env]) -> Option<Env> {
+        self.pick_for_project(folder, found, None)
+    }
+
+    /// As `pick`, with the Python the project names (its settings, or VS Code's `python.defaultInterpreterPath`),
+    /// relative to the folder, coming after the person's own choice and before the folder's first environment.
+    pub fn pick_for_project(&self, folder: &Path, found: &[Env], project_python: Option<&str>) -> Option<Env> {
         if let Some(python) = self.get(folder)
             && let Some(env) = found.iter().find(|e| e.python == python)
         {
             return Some(env.clone());
+        }
+        if let Some(named) = project_python.map(str::trim).filter(|p| !p.is_empty()) {
+            let path = folder.join(named);
+            if let Some(env) = found.iter().find(|e| e.python == path || e.python == Path::new(named)) {
+                return Some(env.clone());
+            }
+            if path.is_file() {
+                let prefix = path.parent().and_then(Path::parent).map(Path::to_path_buf).unwrap_or_default();
+                let name = prefix.file_name().map_or_else(|| named.to_string(), |n| n.to_string_lossy().into_owned());
+                return Some(Env { kind: Kind::Venv, name, prefix, python: path });
+            }
         }
         found.first().cloned()
     }
@@ -460,5 +483,10 @@ mod tests {
         let found = vec![Env { kind: Kind::Venv, name: "venv".into(), prefix: "/w/a/venv".into(), python: "/w/a/venv/bin/python".into() }, Env { kind: Kind::Venv, name: ".venv".into(), prefix: "/w/a/.venv".into(), python: "/w/a/.venv/bin/python".into() }];
         assert_eq!(back.pick(Path::new("/w/a"), &found).unwrap().name, ".venv");
         assert_eq!(back.pick(Path::new("/w/c"), &found).unwrap().name, "venv", "the first, when none was chosen");
+        // The project's own Python (or VS Code's) comes after the person's choice, before the first one found.
+        let c_found: Vec<Env> = found.iter().map(|e| Env { python: Path::new("/w/c").join(e.python.strip_prefix("/w/a").unwrap()), ..e.clone() }).collect();
+        assert_eq!(back.pick_for_project(Path::new("/w/c"), &c_found, Some(".venv/bin/python")).unwrap().name, ".venv");
+        assert_eq!(back.pick_for_project(Path::new("/w/a"), &found, Some("venv/bin/python")).unwrap().name, ".venv", "the person's choice wins");
+        assert_eq!(back.pick_for_project(Path::new("/w/c"), &c_found, Some("")).unwrap().name, "venv");
     }
 }

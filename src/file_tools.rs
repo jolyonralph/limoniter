@@ -11,6 +11,8 @@ use std::sync::atomic::AtomicUsize;
 const MOST_PARTS: usize = 10_000;
 const MOST_RECENT_RUNS: usize = 15;
 const MOST_TOOL_LINES: usize = 100_000;
+/// The most lines of a file of code the next spelling mistake colours to find its comments and strings.
+const MOST_LINES_COLOURED: usize = 50_000;
 
 // ---------- Snippets ----------
 
@@ -223,11 +225,17 @@ fn read_into(stream: impl std::io::Read, lines: Arc<Mutex<Vec<String>>>, dropped
 
 /// Runs a command line as the Command Prompt would, with no window of its own, in this folder.
 pub(super) fn start_run(line: &str, folder: Option<&Path>, wake: impl Fn() + Send + 'static) -> Result<RunJob, String> {
+    start_run_with(line, folder, None, wake)
+}
+
+/// The same, with the `.env` file the project chose in place of the folder's own, if it chose one.
+pub(super) fn start_run_with(line: &str, folder: Option<&Path>, env_file: Option<&Path>, wake: impl Fn() + Send + 'static) -> Result<RunJob, String> {
     let mut command = crate::platform::shell_command(line);
     if let Some(folder) = folder.filter(|folder| folder.is_dir()) {
         command.current_dir(folder);
         // A project's .env is given to what runs in its folder.
-        for (name, value) in crate::env_file::environment_for(folder) {
+        let given = env_file.map_or_else(|| crate::env_file::environment_for(folder), crate::env_file::environment_from);
+        for (name, value) in given {
             command.env(name, value);
         }
     }
@@ -1129,7 +1137,9 @@ impl Limoniter {
         }
         let folder = folder_wanted.or_else(|| path.as_deref().and_then(Path::parent).map(Path::to_path_buf)).or_else(|| std::env::current_dir().ok());
         let wake = self.waker.clone();
-        let job = start_run(&expanded, folder.as_deref(), move || {
+        // A project that chose its own .env file gives that to what runs in its folder.
+        let env_file = self.project.as_ref().filter(|p| p.eff().env_file.is_some() && folder.as_deref().is_some_and(|f| f.starts_with(p.folder()))).map(|p| p.eff().env_path(&p.folder()));
+        let job = start_run_with(&expanded, folder.as_deref(), env_file.as_deref(), move || {
             if let Some(ctx) = &wake {
                 ctx.request_repaint();
             }
@@ -1183,6 +1193,11 @@ impl Limoniter {
     /// Starts Windows' spell checker the first time it's wanted, and passes it lines and answers.
     pub(super) fn spelling_tick(&mut self) {
         spelling::set_on(self.prefs.spelling && !self.no_file() && !self.docs[self.active].hex_mode);
+        crate::code_spelling::set_mode(self.prefs.code_spelling);
+        // A word added to the project, or another project, means everything is looked at again.
+        if crate::code_spelling::set_project_words(self.project.as_ref().map(|project| project.words.as_slice())) {
+            spelling::forget_all();
+        }
         if !self.prefs.spelling && !self.spell_asked {
             return;
         }
@@ -1223,11 +1238,21 @@ impl Limoniter {
         if let Some(result) = found.filter(|_| self.spell_asked) {
             self.spell_asked = false;
             match result {
-                Some(found) => {
+                Some(mut found) => {
+                    // In code only some words were sent, so what it found is turned back into a place in the line.
+                    if let Some(masked) = self.spell_masks.get(&found.line)
+                        && let Some(&(start, end)) = crate::code_spelling::unmask(masked, &[(found.start, found.end)]).first()
+                    {
+                        (found.start, found.end) = (start, end);
+                    }
+                    self.spell_masks.clear();
                     self.doc().text.select_chars((found.line, found.start), (found.line, found.end));
                     self.dialog = Dialog::Spelling { found, chosen: 0 };
                 }
-                None => self.message("Spelling", crate::i18n::tr("No spelling mistakes were found.").into()),
+                None => {
+                    self.spell_masks.clear();
+                    self.message("Spelling", crate::i18n::tr("No spelling mistakes were found.").into());
+                }
             }
         }
     }
@@ -1243,19 +1268,60 @@ impl Limoniter {
         let count = text.line_count();
         let (here, column) = text.caret_char_position();
         let from = if text.has_selection() { text.caret_char_position().1.max(text.anchor_char_position().1) } else { column };
+        // In a file of code only its comments (and strings, and names if asked) are read, so the colouring is
+        // run over the file to find them, as the lines on screen are not the only ones wanted.
+        let code = self.docs[self.active].text_state.colours.is_code().then(|| self.docs[self.active].text_state.colours.syntax().zip(crate::highlight::engine())).flatten();
+        if code.is_some() && self.prefs.code_spelling == crate::code_spelling::CodeSpelling::Off {
+            self.message("Spelling", crate::i18n::tr("Checking code is switched off. Settings, Editing, Spell check code, turns it on.").into());
+            return;
+        }
+        let coloured = code.map(|(syntax, engine)| {
+            let lines: Vec<std::sync::Arc<str>> = (0..count.min(MOST_LINES_COLOURED)).map(|line| text.line(line)).collect();
+            engine.regions_of(syntax, &lines)
+        });
+        let mut masks = std::collections::HashMap::new();
         let mut lines = Vec::new();
         let mut first = true;
         for line in (here..count).chain(0..here).take(spelling::MOST_LINES_SEARCHED) {
             let whole = text.format.readable_text(&text.line(line));
-            // The rest of the cursor's line, with what's before the cursor blanked so places still count right.
-            let checked: String = if first { whole.chars().enumerate().map(|(at, c)| if at < from { ' ' } else { c }).collect() } else { whole };
+            let before_cursor = first;
             first = false;
+            let checked = match &coloured {
+                // The rest of the cursor's line, with what's before the cursor blanked so places still count right.
+                None if before_cursor => whole.chars().enumerate().map(|(at, c)| if at < from { ' ' } else { c }).collect(),
+                None => whole,
+                Some(regions) => {
+                    let Some(found) = regions.get(line) else { continue };
+                    let areas = crate::code_spelling::Regions { comments: &found.comments, strings: &found.strings, keywords: &found.keywords };
+                    let mut masked = crate::code_spelling::masked_line(&whole, &areas, self.prefs.code_spelling, &mut |name| crate::code_spelling::is_first_use(text, line, name));
+                    if before_cursor {
+                        masked.text = masked.text.chars().zip(&masked.origin).map(|(c, origin)| if *origin < from { ' ' } else { c }).collect();
+                    }
+                    if masked.text.trim().is_empty() {
+                        continue;
+                    }
+                    let shown = masked.text.clone();
+                    masks.insert(line, masked);
+                    shown
+                }
+            };
             lines.push((line, checked));
         }
+        self.spell_masks = masks;
         self.spell_asked = true;
         self.spelling_tick();
         if let Some(speller) = &self.speller {
             speller.ask(Ask::FindNext(lines));
+        }
+    }
+
+    /// Adds a misspelt word to the project's own list, which is kept with the project.
+    pub(super) fn add_project_word(&mut self, word: &str) {
+        let Some(project) = self.project.as_mut() else { return };
+        match project.add_word(word) {
+            Ok(true) if project.root.is_none() => self.save_project(),
+            Ok(_) => {}
+            Err(problem) => self.message("Spelling", crate::i18n::tf!("The word couldn't be kept with the project.\n\n{problem}")),
         }
     }
 

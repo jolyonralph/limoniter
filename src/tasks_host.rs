@@ -27,7 +27,9 @@ impl Limoniter {
     /// The folder tasks run in: the project's, or the one above the file in front with a project's own file.
     pub(super) fn task_folder(&self) -> Option<PathBuf> {
         if let Some(project) = &self.project {
-            return Some(project.folder());
+            // The project may name a folder of its own to run in, if that's there.
+            let own = project.eff().work_folder.as_deref().map(|written| crate::project_prefs::Prefs::place(&project.folder(), written)).filter(|f| f.is_dir());
+            return Some(own.unwrap_or_else(|| project.folder()));
         }
         let doc = self.docs.get(self.active)?;
         doc.path.as_deref().map(crate::tasks::root_for)
@@ -36,6 +38,14 @@ impl Limoniter {
     /// The tasks there are: the project's own, then what the folder's files say.
     pub(super) fn tasks_here(&self) -> Vec<Task> {
         let mut tasks: Vec<Task> = self.project.as_ref().map(|p| p.tasks.clone()).unwrap_or_default();
+        // Then the folder's .vscode/tasks.json, marked as VS Code's, unless a task of the same name is the project's own.
+        if let Some(project) = &self.project {
+            for task in &project.vscode.tasks {
+                if !tasks.iter().any(|t| t.name == task.name) {
+                    tasks.push(task.clone());
+                }
+            }
+        }
         if let Some(folder) = self.task_folder() {
             // The languages of the files open in the folder say which microcontroller's flashing to offer.
             let languages: Vec<String> = self.docs.iter().filter(|d| d.path.as_deref().is_some_and(|p| p.starts_with(&folder))).map(|d| d.language_name()).collect();
@@ -81,6 +91,16 @@ impl Limoniter {
                 self.task_run = Some(TaskRun { task, folder, from });
             }
             Err(problem) => self.message("Tasks", problem),
+        }
+    }
+
+    /// Runs a task under the debugger, when it runs one of `package.json`'s scripts: js-debug starts the script with
+    /// the project's package manager (npm, pnpm or yarn, as its lock file says).
+    pub(super) fn debug_task(&mut self, task: &Task) {
+        let script = self.task_folder().and_then(|folder| crate::node_tools::script_of(&folder, &task.command).map(|script| (folder, script)));
+        match script {
+            Some((folder, script)) => self.debug_npm_script(&folder, &script),
+            None => self.message("Debug", crate::i18n::tr("Only a script of a package.json can be debugged from here.").into()),
         }
     }
 
