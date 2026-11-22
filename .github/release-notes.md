@@ -1,37 +1,63 @@
-## What's new in 0.15.0
+## What's new in 0.16.0
 
-Limoniter 0.15 is a release for retro coders: the whole 680x0 family, How To Code for the ZX Spectrum and a games chapter for the Amiga, the ZX80, the Vectrex and three of the first computers ever built, the Sinclair QL, five more machines for F9, structure templates for the hex view, tape audio, and Limoniter updating itself.
+Limoniter 0.16 is a release for modern coding: Jupyter notebooks, Python and R as their users expect them, Node and React, PHP's own tools, a data viewer, a database browser, one Tests panel, `.http` request files and Docker Compose, each built on the language servers, debugger and tasks Limoniter already has.
 
-**The 680x0 family, complete**
-- Limoniter's own assembler and disassembler now take every 680x0: the **68010, 68020, 68030, 68040, 68060 and CPU32** as well as the 68000 and 68008, the **68881/68882 maths coprocessor** with floating-point constants in every size, and the **68030's and 68851's MMUs**. `MACHINE 68020` (or `MC68030`, `FPU 1`, `OPT P=68020/68881`), or a setting, chooses; an instruction a processor hasn't got is refused, naming the one that has. Everything matches vasm byte for byte, and every opcode the disassembler reads assembles back to the same bytes.
-- **Warnings as vasm gives them**: `moveq #143,d7`, an offset that changes sign, an immediate too big for its size, all shown beside their lines without stopping the build.
+**Jupyter notebooks**
+- **`.ipynb` files open as notebooks**:
+  - code cells are edited in place with their language's colours, and Markdown cells are shown as they read;
+  - outputs show below each cell: text with terminal colours, PNG, JPEG and SVG pictures, plots, pandas tables as a grid, and errors with their traceback;
+  - run a cell, all, above or below, interrupt and restart, all with Jupyter's keys (Shift+Enter, A, B, D D, M, Y);
+  - a notebook is saved exactly as Jupyter saves it, and Git compares it cell by cell;
+  - File, New as starts a Python or an R notebook.
+- **Kernels with nothing else installed**: Limoniter speaks Jupyter's protocol and ZeroMQ itself, finds the kernels Jupyter knows of (Python's ipykernel, R's IRkernel and any other), and offers to install one when there's none.
+- **The Variables panel** lists what a notebook's kernel holds, as RStudio's Environment pane does. Double-click a pandas or R data frame to open it in the data viewer.
 
-**How To Code**
-- **How To Code: the ZX Spectrum** (Help, and Tools, ZX Spectrum and Next), a second guide by Comrade J and Mnemonic of Share and Enjoy, CC0: 14 chapters on the 48K, the 128K and the Next, from contended memory and the floating bus to border effects timed to the T-state, masked sprites, beeper and AY music, paging, and the Next's copper, Layer 2 and sprites, with 19 examples (and Catch, a small whole game), each run on Limoniter's built-in Spectrum, in Fuse and in ZEsarUX.
-- **Chapter 17 of How To Code v8, Writing games**, built round Gem Cave, a small whole Amiga game: eight-way scrolling over a tile map, sprites and bobs, collisions, the CD32 pad, sound effects over music, and staying friendly to WHDLoad, each example run on Kickstart 1.3 and 3.1, a 68020, a 68040, an A1200 and a CD32.
-- Both guides read like a book in Limoniter: the contents page links every chapter, a link turns the page in the same tab, a bar at the top has Back, Forward, Contents and Close (Alt+Left and Alt+Right work too), and the examples' names open them.
+**Python and R**
+- **Environments**: a project's virtual environments (venv, uv, Poetry, conda) are found, and the one in use shows in the status bar, where a click picks another or makes one. F9, the debugger, pytest, the language server and the kernels all use it.
+- **A Python and R console** beside the editor. Ctrl+Enter sends the line or the selection, as RStudio does, and plots are kept to step back through.
+- **`# %%` cells** in ordinary scripts get Run cell and Run above links, as in VS Code.
+- R's languageserver, and R Markdown and Quarto previews with Knit / Render.
 
-**New machines**
-- **A built-in ZX80**, its picture going blank while a program runs as the real one's did, with `.o` files loaded, saved, listed and tokenised, and File, New as, ZX80 BASIC.
-- **A built-in Vectrex**: its 6809, VIA and AY, and the vector screen drawn as glowing lines that fade like phosphor, with breakpoints and stepping; you choose its BIOS once.
-- **Early computing** (Tools): the **Manchester Baby** (1948), with Kilburn's first program; **EDSAC** (1949), its real Initial Orders reading your source as paper tape, with Wilkes's table of squares; and the **PDP-8** (1965), with its front panel and Teletype, PAL source and paper tapes.
-- **Sinclair QL programming**: QDOS programs with their headers, microdrive cartridges made and browsed, and F9 into sQLux, Q-emuLator or MAME.
-- **F9 on more machines**: the **Amstrad CPC**, **Apple II**, **Atari 8-bit computers**, **Atari 7800** and **SNES**, with their emulators found or installed for you.
-- **Control hints** on every built-in machine, with keys you can change and a Kempston joystick on the Spectrum.
+**Data and databases**
+- **A data viewer** for `.xlsx` workbooks (read by Limoniter itself), JSON lines, query results and data frames:
+  - millions of rows, sorted, filtered and summed up column by column;
+  - copied as a spreadsheet copies them, or saved as CSV;
+  - View, Open in the data viewer shows a CSV file there too.
+- **A database browser** for SQLite, PostgreSQL and MySQL/MariaDB, through Limoniter's own clients with TLS:
+  - the Database panel shows schemas, tables and columns;
+  - double-click a table for its rows;
+  - in a `.sql` file, **Ctrl+Enter** runs the statement at the cursor, and an error is marked at its place;
+  - passwords are kept only in the system's keychain.
 
-**Tools**
-- **Structure templates**: a Structure panel beside the hex view names a file's fields, colours their bytes and follows the cursor both ways; 16 formats built in (Amiga hunks, IFF, ADF, TAP, TZX, D64, PNG, ZIP, ELF and more), and templates of your own in a simple language.
-- **Tape audio**: Spectrum, CPC, ZX80 and ZX81, Commodore, BBC and MSX tapes made into the sound of the tape (WAV), to load on a real machine.
-- **PHP tools** (Tools, PHP): short tags made long, the "headers already sent" fixer, `array()` to `[]`, a PHP 7/8 upgrade check, old files made UTF-8, `php -l` on save, and F9 serving a page.
-- **TRSE** (Turbo Rascal) and **RGC BASIC**, coloured and run with F9.
-- **Open a ZIP, or a web address, as a project.**
-- The **68000 disassembler** reads real demos properly (since 0.14.4), and Limoniter's Spectrum now keeps the Z80's H'L' right in snapshots it hands to other emulators.
+**Node, React and the web**
+- npm, pnpm, yarn or bun, as the project's lock file says. **F9** starts a front-end's dev server (Vite, Next and the rest) and opens the page. Node is debugged with js-debug.
+- JSX and TSX coloured and laid out properly, with components in the outline.
+- **Emmet**: `ul>li.item*3` and Tab, in HTML, JSX, Vue, Svelte, PHP templates and CSS.
+- **`.env` files**: values hidden until you look, a warning when one isn't left out of Git, and given to tasks and F9.
+- **`.http` request files**, as VS Code's REST Client has them:
+  - Send request above each request;
+  - the response laid out;
+  - variables, environments, values taken from an earlier response, and cookies.
+- **Docker Compose**: a Containers panel with each service's state and ports. For each service: up, down, restart, rebuild, logs and a shell.
 
-**Limoniter itself**
-- **Limoniter updates itself**: Help, Check for a newer Limoniter offers Install now, checking every download against the release's signed list first, and it never restarts with unsaved work. The previous version is kept, to go back to. (Copies before 0.15 need one last download by hand.)
-- **A portable Windows download**: unzip `Limoniter-…-Windows-portable.zip` anywhere, and it keeps everything in a folder beside itself.
-- **Menus and boxes follow the window**: a menu that had to scroll in a small window now grows again when the window does.
-- **Settings** has the shortcut everyone expects, **Ctrl+,** (Cmd+, on a Mac), and **File, Quit** is there with **Ctrl+Q** (Cmd+Q). The About box says what Limoniter is today, and its scroller bends each letter round the wave, as demos did, apostrophes and all.
+**PHP, tests and tidying**
+- PHP: Intelephense or Phpactor, Composer's commands as tasks, debugging with Xdebug, and php-cs-fixer.
+- **One Tests panel** for pytest, Jest, Vitest, PHPUnit, R's testthat, `cargo test` and `go test`: run one, a file's, the failed ones or all, with each failure marked at its line.
+- Formatters kept in the project (`node_modules/.bin`, `vendor/bin`, `.venv/bin`) come first, and R is formatted with styler.
+- **Outdated packages**: what npm, pip, Composer and R have newer versions of, in one table, updated as tasks.
+
+**Projects and files**
+- **A recency slider** at the bottom of a project's Explorer: show only the newest 25% (or any share) of the files, with how many are shown and hidden. The order is unchanged.
+- **A project's own file templates**, in File, New as, with blanks filled in, and folders of templates making several files at once.
+- **Autosave as VS Code has it**:
+  - after a delay (from 1 second), when you change tab, or when the window loses the focus;
+  - it can leave alone files with errors;
+  - **hot exit**: Quit doesn't ask about unsaved files, and they come back next time.
+- File, **Close all** and **Close the others**, also on a tab's right-click menu.
+
+**Windows**
+- No more consoles flashing up and taking the focus when Limoniter starts a program.
+- Every system dialog now stays in front of Limoniter's window, so a click can't hide one.
 
 ## Downloads
 
