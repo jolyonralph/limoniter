@@ -1,63 +1,33 @@
-## What's new in 0.16.0
+## What's new in 0.16.1
 
-Limoniter 0.16 is a release for modern coding: Jupyter notebooks, Python and R as their users expect them, Node and React, PHP's own tools, a data viewer, a database browser, one Tests panel, `.http` request files and Docker Compose, each built on the language servers, debugger and tasks Limoniter already has.
+Limoniter 0.16.1 gives projects a settings window of their own, reads VS Code's project settings, colours CSV columns and queries their rows, checks the spelling in code, and can put the tabs down the side, with a toolbar of your own buttons.
 
-**Jupyter notebooks**
-- **`.ipynb` files open as notebooks**:
-  - code cells are edited in place with their language's colours, and Markdown cells are shown as they read;
-  - outputs show below each cell: text with terminal colours, PNG, JPEG and SVG pictures, plots, pandas tables as a grid, and errors with their traceback;
-  - run a cell, all, above or below, interrupt and restart, all with Jupyter's keys (Shift+Enter, A, B, D D, M, Y);
-  - a notebook is saved exactly as Jupyter saves it, and Git compares it cell by cell;
-  - File, New as starts a Python or an R notebook.
-- **Kernels with nothing else installed**: Limoniter speaks Jupyter's protocol and ZeroMQ itself, finds the kernels Jupyter knows of (Python's ipykernel, R's IRkernel and any other), and offers to install one when there's none.
-- **The Variables panel** lists what a notebook's kernel holds, as RStudio's Environment pane does. Double-click a pandas or R data frame to open it in the data viewer.
+**Projects**
+- **Project settings**: one window, from the gear on the Project panel or File, Project, Project settings, for everything a project keeps:
+  - files and folders to hide, or to leave out of search and Go to file;
+  - the indent, line endings, encoding and formatter;
+  - autosave;
+  - the `.env` file, the Python environment and the working folder;
+  - which language servers run;
+  - file colours and templates;
+  - only what you change is written, in the `.limproj` or in `.limoniter/project.json`, so it can go into Git.
+- **VS Code's project settings**: a folder's `.vscode` is read as VS Code reads it:
+  - `settings.json` gives the project its exclusions, indent, formatters, autosave and the rest;
+  - `tasks.json` adds its tasks, and `launch.json` its debug setups;
+  - the extensions it recommends are offered;
+  - `.code-workspace` files open as projects;
+  - Import into Limoniter makes them the project's own.
+- **The recency slider** now hides git-ignored files too, and counts a new file as the newest at once.
 
-**Python and R**
-- **Environments**: a project's virtual environments (venv, uv, Poetry, conda) are found, and the one in use shows in the status bar, where a click picks another or makes one. F9, the debugger, pytest, the language server and the kernels all use it.
-- **A Python and R console** beside the editor. Ctrl+Enter sends the line or the selection, as RStudio does, and plots are kept to step back through.
-- **`# %%` cells** in ordinary scripts get Run cell and Run above links, as in VS Code.
-- R's languageserver, and R Markdown and Quarto previews with Knit / Render.
+**Editing**
+- **Rainbow CSV**: each column of a CSV or TSV file in its own colour in the text view. **Query the rows** asks for some of them in SQL's words (`SELECT`, `WHERE`, `GROUP BY`, `ORDER BY`, `COUNT`, `SUM`…), and the answer opens in the data viewer, worked out in the background.
+- **Spell checking for code**: only comments and strings, and if you like the words in names (`getHTTPResponse` is get, HTTP, Response), with a word list kept per project and the words programmers use already known.
+- **Tabs down the side**, grouped by folder, and a **toolbar** under the menus with the buttons you choose.
 
-**Data and databases**
-- **A data viewer** for `.xlsx` workbooks (read by Limoniter itself), JSON lines, query results and data frames:
-  - millions of rows, sorted, filtered and summed up column by column;
-  - copied as a spreadsheet copies them, or saved as CSV;
-  - View, Open in the data viewer shows a CSV file there too.
-- **A database browser** for SQLite, PostgreSQL and MySQL/MariaDB, through Limoniter's own clients with TLS:
-  - the Database panel shows schemas, tables and columns;
-  - double-click a table for its rows;
-  - in a `.sql` file, **Ctrl+Enter** runs the statement at the cursor, and an error is marked at its place;
-  - passwords are kept only in the system's keychain.
-
-**Node, React and the web**
-- npm, pnpm, yarn or bun, as the project's lock file says. **F9** starts a front-end's dev server (Vite, Next and the rest) and opens the page. Node is debugged with js-debug.
-- JSX and TSX coloured and laid out properly, with components in the outline.
-- **Emmet**: `ul>li.item*3` and Tab, in HTML, JSX, Vue, Svelte, PHP templates and CSS.
-- **`.env` files**: values hidden until you look, a warning when one isn't left out of Git, and given to tasks and F9.
-- **`.http` request files**, as VS Code's REST Client has them:
-  - Send request above each request;
-  - the response laid out;
-  - variables, environments, values taken from an earlier response, and cookies.
-- **Docker Compose**: a Containers panel with each service's state and ports. For each service: up, down, restart, rebuild, logs and a shell.
-
-**PHP, tests and tidying**
-- PHP: Intelephense or Phpactor, Composer's commands as tasks, debugging with Xdebug, and php-cs-fixer.
-- **One Tests panel** for pytest, Jest, Vitest, PHPUnit, R's testthat, `cargo test` and `go test`: run one, a file's, the failed ones or all, with each failure marked at its line.
-- Formatters kept in the project (`node_modules/.bin`, `vendor/bin`, `.venv/bin`) come first, and R is formatted with styler.
-- **Outdated packages**: what npm, pip, Composer and R have newer versions of, in one table, updated as tasks.
-
-**Projects and files**
-- **A recency slider** at the bottom of a project's Explorer: show only the newest 25% (or any share) of the files, with how many are shown and hidden. The order is unchanged.
-- **A project's own file templates**, in File, New as, with blanks filled in, and folders of templates making several files at once.
-- **Autosave as VS Code has it**:
-  - after a delay (from 1 second), when you change tab, or when the window loses the focus;
-  - it can leave alone files with errors;
-  - **hot exit**: Quit doesn't ask about unsaved files, and they come back next time.
-- File, **Close all** and **Close the others**, also on a tab's right-click menu.
-
-**Windows**
-- No more consoles flashing up and taking the focus when Limoniter starts a program.
-- Every system dialog now stays in front of Limoniter's window, so a click can't hide one.
+**Web**
+- **ESLint** runs beside the TypeScript server in projects that use it, with its fixes in Quick fix.
+- **Debug an npm script** from Tools, Tasks or the Debug link beside each script in `package.json`.
+- Autosave's "when another tab or panel is chosen" now notices the Explorer, Search, Output and the terminal too.
 
 ## Downloads
 
