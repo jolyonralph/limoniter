@@ -2,6 +2,22 @@
 
 Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.
 
+## 0.16.3
+
+Released 22 November 2026.
+
+Limoniter 0.16.3 installs packages into a notebook's kernel from the notebook itself, makes installing a Python kernel work on Windows, and tidies two menus.
+
+**Notebooks**
+- **Install packages into this kernel** (the Kernel menu): type the names, such as `matplotlib` or `pandas==2.2`, and they're installed into the kernel's own Python (with `%pip install`) or R, with the output shown as it comes and a Stop button.
+- **Install x** under a "No module named 'x'" error installs the package it needs (`cv2` is opencv-python, `PIL` is pillow, `sklearn` is scikit-learn and so on), then offers to run the cell again.
+- **Install a kernel** now works on Windows, where the commands failed in PowerShell. The kernel is registered so Jupyter finds it too, and the notebook picks it up by itself when it's ready.
+- **Interrupt** stops a running cell on Windows, where ipykernel ignores the interrupt message Limoniter sent.
+
+**Menus**
+- **File, New as** starts with the three kinds you chose last.
+- **Spectrum GRAPH mode** and **UDG pictures** are in Tools, ZX Spectrum and Next, not Format, Tokenised BASIC.
+
 ## 0.16.2
 
 Released 22 November 2026.

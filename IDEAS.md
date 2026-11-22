@@ -161,10 +161,10 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
-| Packages installed from the notebook: Kernel menu, Install packages into this kernel, and Install x under a missing-module error | Next |
-| File, New as offers the three kinds chosen last at its top, then a line above Modern languages | Next |
-| Spectrum GRAPH mode and UDG pictures moved from Format, Tokenised BASIC to Tools, ZX Spectrum and Next | Next |
-| Installing a Python kernel works in Windows PowerShell, registers the kernel, and the notebook picks it up by itself | Next |
+| Packages installed from the notebook: Kernel menu, Install packages into this kernel, and Install x under a missing-module error | 0.16.3 |
+| File, New as offers the three kinds chosen last at its top, then a line above Modern languages | 0.16.3 |
+| Spectrum GRAPH mode and UDG pictures moved from Format, Tokenised BASIC to Tools, ZX Spectrum and Next | 0.16.3 |
+| Installing a Python kernel works in Windows PowerShell, registers the kernel, and the notebook picks it up by itself | 0.16.3 |
 | The recency slider ranks each folder's own listing as it's drawn, never walking the project; example Python and R notebooks in File, New as | 0.16.2 |
 | Links open (eframe can't open them itself); the About box's Licence information button; Project settings' tabs fill the window | 0.16.2 |
 | Project settings: one window with tabs for everything a project keeps, from a gear on the Project panel | 0.16.1 |

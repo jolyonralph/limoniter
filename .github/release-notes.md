@@ -1,15 +1,16 @@
-## What's new in 0.16.2
+## What's new in 0.16.3
 
-Limoniter 0.16.2 makes the Explorer's recency slider quick on big projects, opens links again, puts the licences behind a button in the About box, and adds example notebooks.
+Limoniter 0.16.3 installs packages into a notebook's kernel from the notebook itself, makes installing a Python kernel work on Windows, and tidies two menus.
 
-**Fixes**
-- **The recency slider is quick on big projects**: it no longer reads every file under every folder. Each folder's own files are ranked by their dates, and its subfolders by the folder's own date, as the folder is shown.
-- **Links open again**: the About box's GitHub link and the tools' website links did nothing when clicked.
-- **Project settings**: each tab fills the window, so making it taller shows more, not empty space.
+**Notebooks**
+- **Install packages into this kernel** (the Kernel menu): type the names, such as `matplotlib` or `pandas==2.2`, and they're installed into the kernel's own Python (with `%pip install`) or R, with the output shown as it comes and a Stop button.
+- **Install x** under a "No module named 'x'" error installs the package it needs (`cv2` is opencv-python, `PIL` is pillow, `sklearn` is scikit-learn and so on), then offers to run the cell again.
+- **Install a kernel** now works on Windows, where the commands failed in PowerShell. The kernel is registered so Jupyter finds it too, and the notebook picks it up by itself when it's ready.
+- **Interrupt** stops a running cell on Windows, where ipykernel ignores the interrupt message Limoniter sent.
 
-**Small additions**
-- **Example notebooks**: File, New as has a Python notebook and an R notebook to try a kernel with. They show printed text, a result, a table, a plot, an error with its traceback and, in Python, `input()` answered in a box.
-- **Licence information** in the About box opens the licences of Limoniter and of the work it's built on, in a tab to read.
+**Menus**
+- **File, New as** starts with the three kinds you chose last.
+- **Spectrum GRAPH mode** and **UDG pictures** are in Tools, ZX Spectrum and Next, not Format, Tokenised BASIC.
 
 ## Downloads
 

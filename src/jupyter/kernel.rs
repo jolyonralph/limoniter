@@ -520,12 +520,17 @@ impl KernelLink for Kernel {
     }
 
     fn interrupt(&mut self) {
-        if self.message_interrupts {
-            if let Some(live) = &self.live {
-                let message = self.starter.session.make_msg("interrupt_request", json!({}), json!({}));
-                let _ = live.control.send(&self.starter.session.encode(&message));
-            }
-        } else if let Some(run) = &self.slot.lock().unwrap_or_else(|e| e.into_inner()).run {
+        if self.message_interrupts
+            && let Some(live) = &self.live
+        {
+            let message = self.starter.session.make_msg("interrupt_request", json!({}), json!({}));
+            let _ = live.control.send(&self.starter.session.encode(&message));
+        }
+        // ipykernel on Windows ignores interrupt messages ("not supported on Windows"), so there the event it
+        // watches is set as well, whatever its kernelspec asks for.
+        if (!self.message_interrupts || cfg!(windows))
+            && let Some(run) = &self.slot.lock().unwrap_or_else(|e| e.into_inner()).run
+        {
             run.process.lock().unwrap_or_else(|e| e.into_inner()).interrupt();
         }
     }

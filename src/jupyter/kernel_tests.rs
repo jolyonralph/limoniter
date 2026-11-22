@@ -543,7 +543,7 @@ fn a_real_ipykernel_runs_prints_plots_fails_asks_and_is_interrupted() {
     let events = until_done(kernel.as_mut(), request);
     assert!(outputs(&events, request).iter().any(|o| o["text"] == "hi Ada\n"), "{events:?}");
 
-    let request = kernel.execute("import time\ntime.sleep(30)");
+    let request = kernel.execute("while True:\n    pass");
     events_until(kernel.as_mut(), |e| e == &KernelEvent::Status(KernelStatus::Busy));
     std::thread::sleep(Duration::from_millis(300));
     let started = Instant::now();
@@ -567,7 +567,7 @@ fn a_real_ipykernel_takes_interrupts_by_message_and_completes() {
     let Some(spec) = real_spec("python") else { return };
     let launcher = Arc::new(super::process::SpawnLauncher { spec: spec.clone(), cwd: std::env::temp_dir() });
     let mut kernel = Kernel::with_launcher(launcher, &spec.name, &spec.language, true).unwrap();
-    let request = kernel.execute("import time\ntime.sleep(30)");
+    let request = kernel.execute("while True:\n    pass");
     events_until(&mut kernel, |e| e == &KernelEvent::Status(KernelStatus::Busy));
     std::thread::sleep(Duration::from_millis(300));
     kernel.interrupt();
