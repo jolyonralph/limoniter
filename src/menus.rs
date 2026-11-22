@@ -370,9 +370,6 @@ pub(super) const TOKENISED_BASIC: &[Entry] = &[
             Item("Save as a BBC BASIC (Z80) program, for the Z88 or NC100\u{2026}", Command::SaveBbcZ80Program),
             Item("Save as an AMOS program (.AMOS)\u{2026}", Command::SaveAmosProgram),
             Item("Save as a STOS program (.BAS)\u{2026}", Command::SaveStosProgram),
-            Line,
-            Keyed("Spectrum GRAPH mode", Command::GraphMode, "Ctrl+Shift+9"),
-            Item("Spectrum UDG pictures from\u{2026}", Command::UdgPictures),
         ];
 
 pub(super) const SAVE_DOCUMENT_AS: &[Entry] = &[
@@ -513,6 +510,10 @@ pub(super) const DRAGON: &[Entry] = &[Item("Dragon DOS disk\u{2026}", Command::D
 pub(super) const EARLY: &[Entry] = &[Item("Manchester Baby (SSEM, 1948): Kilburn's first program", Command::NewUsual("Manchester Baby (SSEM, 1948): Kilburn's first program")), Item("Manchester Baby (SSEM, 1948): a first program", Command::NewUsual("Manchester Baby (SSEM, 1948): a first program")), Item("EDSAC (1949): Wilkes's table of squares", Command::NewUsual("EDSAC (1949): Wilkes's table of squares")), Item("EDSAC (1949): a first program (Initial Orders 2)", Command::NewUsual("EDSAC (1949): a first program (Initial Orders 2)")), Item("PDP-8 (1965): hello on the Teletype (PAL)", Command::NewUsual("PDP-8 (1965): hello on the Teletype (PAL)")), Item("PDP-8 (1965): echo the keyboard (PAL)", Command::NewUsual("PDP-8 (1965): echo the keyboard (PAL)"))];
 
 pub(super) const SPECTRUM: &[Entry] = &[
+            // Typing and seeing Spectrum BASIC: they're the Spectrum's, not about turning a listing into a file.
+            Keyed("Spectrum GRAPH mode", Command::GraphMode, "Ctrl+Shift+9"),
+            Item("Spectrum UDG pictures from\u{2026}", Command::UdgPictures),
+            Line,
             Item("Screen designer", Command::ScreenDesigner),
             Item("Next Layer 2 painter", Command::NextPainter),
             Line,

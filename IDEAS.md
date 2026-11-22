@@ -162,6 +162,7 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
+| Spectrum GRAPH mode and UDG pictures moved from Format, Tokenised BASIC to Tools, ZX Spectrum and Next | Next |
 | Installing a Python kernel works in Windows PowerShell, registers the kernel, and the notebook picks it up by itself | Next |
 | The recency slider ranks each folder's own listing as it's drawn, never walking the project; example Python and R notebooks in File, New as | 0.16.2 |
 | Links open (eframe can't open them itself); the About box's Licence information button; Project settings' tabs fill the window | 0.16.2 |
