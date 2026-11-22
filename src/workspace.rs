@@ -151,6 +151,16 @@ pub fn hidden(name: &str) -> bool {
 /// Every file under a folder that Git wouldn't leave out, nor the project's Explorer hides (so Go to file and
 /// searching don't find it), sorted; and whether there were more than `MOST_FILES`. Links aren't followed.
 pub fn index(root: &Path, rules: &[crate::explorer_kept::Hide]) -> (Vec<PathBuf>, bool) {
+    walk(root, rules, true)
+}
+
+/// Every file the Explorer can show under a folder: those Git leaves out too (the Explorer shows them faintly), but
+/// not those the project's Explorer hides. For the recency slider, which has to rank every file it might hide.
+pub fn every_file(root: &Path, rules: &[crate::explorer_kept::Hide]) -> Vec<PathBuf> {
+    walk(root, rules, false).0
+}
+
+fn walk(root: &Path, rules: &[crate::explorer_kept::Hide], leave_out_ignored: bool) -> (Vec<PathBuf>, bool) {
     let mut ignores = Ignores::new(root);
     let hides = |path: &Path, is_folder: bool| crate::explorer_kept::hidden_by(rules, root, path, is_folder);
     let mut files = Vec::new();
@@ -164,11 +174,12 @@ pub fn index(root: &Path, rules: &[crate::explorer_kept::Hide]) -> (Vec<PathBuf>
             }
             let Ok(kind) = entry.file_type() else { continue };
             let path = entry.path();
+            let ignored = |ignores: &mut Ignores, is_folder: bool| leave_out_ignored && ignores.ignored(&path, is_folder);
             if kind.is_dir() {
-                if !ignores.ignored(&path, true) && !hides(&path, true) {
+                if !ignored(&mut ignores, true) && !hides(&path, true) {
                     waiting.push(path);
                 }
-            } else if kind.is_file() && !ignores.ignored(&path, false) && !hides(&path, false) {
+            } else if kind.is_file() && !ignored(&mut ignores, false) && !hides(&path, false) {
                 if files.len() >= MOST_FILES {
                     files.sort_by_key(|p: &PathBuf| p.to_string_lossy().to_lowercase());
                     return (files, true);

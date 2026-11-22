@@ -265,9 +265,12 @@ impl Limoniter {
         if self.indexing.every.is_some() {
             return;
         }
-        let (root, files) = (project.folder(), project.files.clone());
+        // A folder project ranks every file its Explorer can show, those Git ignores too, or they'd never be hidden;
+        // a .limproj project, the files it lists.
+        let (root, files, walk) = (project.folder(), project.files.clone(), project.root.is_some().then(|| project.explorer.hidden.clone()));
         let (send, receive) = channel();
         std::thread::spawn(move || {
+            let files = walk.map_or(files, |rules| crate::workspace::every_file(&root, &rules));
             let times = crate::explorer_kept::every_time(&root, &files);
             let _ = send.send((root, times));
         });
