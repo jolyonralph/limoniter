@@ -187,6 +187,7 @@ mod c64_raster;
 mod c64_irq;
 mod c64_starters;
 mod profiler;
+mod data_table;
 mod jupyter;
 mod sys_dialogs;
 mod notebook;

@@ -9961,6 +9961,8 @@ mod run_host_tests;
 
 #[path = "table_view.rs"]
 mod table_view;
+#[path = "data_table_host.rs"]
+mod data_table_host;
 
 #[path = "notebook_host.rs"]
 mod notebook_host;
