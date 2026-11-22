@@ -161,6 +161,7 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
+| The example notebook lets a missing pandas or matplotlib show its error, with the Install button; installing a Python kernel adds pandas and matplotlib | Next |
 | Packages installed from the notebook: Kernel menu, Install packages into this kernel, and Install x under a missing-module error | 0.16.3 |
 | File, New as offers the three kinds chosen last at its top, then a line above Modern languages | 0.16.3 |
 | Spectrum GRAPH mode and UDG pictures moved from Format, Tokenised BASIC to Tools, ZX Spectrum and Next | 0.16.3 |

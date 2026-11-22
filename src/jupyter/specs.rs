@@ -176,6 +176,10 @@ pub fn labels(specs: &[KernelSpec]) -> Vec<String> {
         .collect()
 }
 
+/// What a Python kernel is installed with: the kernel, and pandas and matplotlib, so tables and plots work at once
+/// (the example notebooks use them).
+pub const PACKAGES: &str = "ipykernel pandas matplotlib";
+
 /// How a kernel for a language is installed, for a terminal to run, and the program that needs to be there; as
 /// `lsp::install_command`. Python uses the active virtual environment's own pip, else conda's, else pip's
 /// `--user`; where the system won't let pip install (PEP 668) it makes a virtual environment for Jupyter with
@@ -195,10 +199,10 @@ pub fn install_command(language: &str) -> Option<(String, &'static str)> {
     let python = usual_python();
     if let Some(venv) = std::env::var_os("VIRTUAL_ENV").map(PathBuf::from) && let Some(python) = python.as_ref().filter(|p| p.prefix == venv) {
         let program = run(&python.program);
-        return Some((steps(&[format!("{program} -m pip install ipykernel"), format!("{program} -m ipykernel install --user")]), "python"));
+        return Some((steps(&[format!("{program} -m pip install {PACKAGES}"), format!("{program} -m ipykernel install --user")]), "python"));
     }
     if std::env::var_os("CONDA_PREFIX").is_some() && crate::lsp::on_path("conda") {
-        return Some(("conda install -y ipykernel".into(), "conda"));
+        return Some((format!("conda install -y {PACKAGES}"), "conda"));
     }
     let managed = python.as_ref().is_none_or(|p| p.externally_managed);
     if managed {
@@ -206,23 +210,23 @@ pub fn install_command(language: &str) -> Option<(String, &'static str)> {
         let program = if cfg!(windows) { folder.join("Scripts").join("python.exe") } else { folder.join("bin").join("python") };
         let register = format!("{} -m ipykernel install --user", run(&program));
         if crate::lsp::on_path("uv") {
-            return Some((steps(&[format!("uv venv \"{}\"", folder.display()), format!("uv pip install --python \"{}\" ipykernel", program.display()), register]), "uv"));
+            return Some((steps(&[format!("uv venv \"{}\"", folder.display()), format!("uv pip install --python \"{}\" {PACKAGES}", program.display()), register]), "uv"));
         }
         if crate::lsp::on_path("pipx") {
             // pipx keeps ipykernel in an environment of its own; its Python then registers the kernel.
             let venvs = pipx_venvs().unwrap_or_else(|| PathBuf::from("~/.local/share/pipx/venvs"));
             let pipx_python = if cfg!(windows) { venvs.join("ipykernel").join("Scripts").join("python.exe") } else { venvs.join("ipykernel").join("bin").join("python") };
-            return Some((steps(&["pipx install --include-deps ipykernel".to_string(), format!("{} -m ipykernel install --user", run(&pipx_python))]), "pipx"));
+            return Some((steps(&["pipx install --include-deps ipykernel".to_string(), "pipx inject ipykernel pandas matplotlib".to_string(), format!("{} -m ipykernel install --user", run(&pipx_python))]), "pipx"));
         }
         if let Some(base) = python.as_ref() {
             // Python's own venv makes the environment where uv and pipx aren't.
-            return Some((steps(&[format!("{} -m venv \"{}\"", run(&base.program), folder.display()), format!("{} -m pip install ipykernel", run(&program)), register]), "python"));
+            return Some((steps(&[format!("{} -m venv \"{}\"", run(&base.program), folder.display()), format!("{} -m pip install {PACKAGES}", run(&program)), register]), "python"));
         }
         return None;
     }
     // Installed for this user, then registered, so Jupyter itself finds the kernel too.
     let program = run(&python?.program);
-    Some((steps(&[format!("{program} -m pip install --user ipykernel"), format!("{program} -m ipykernel install --user")]), "python"))
+    Some((steps(&[format!("{program} -m pip install --user {PACKAGES}"), format!("{program} -m ipykernel install --user")]), "python"))
 }
 
 /// Commands run one after another, each only if the one before worked, written for the terminal's shell:
@@ -345,6 +349,7 @@ mod tests {
         }
         if let Some((line, needs)) = install_command("python") {
             assert!(line.contains("ipykernel"), "{line}");
+            assert!(line.contains("pandas") && line.contains("matplotlib") || line.starts_with("pipx"), "the examples' tables and plots work at once: {line}");
             assert!(["python", "conda", "uv", "pipx"].contains(&needs));
         }
     }

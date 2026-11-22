@@ -201,6 +201,8 @@ fn new_python_and_r_notebooks_are_offered_and_valid() {
         assert_eq!(nb.cells[0].kind, crate::notebook::CellKind::Markdown);
         assert!(nb.cells.iter().skip(1).any(|c| c.kind == crate::notebook::CellKind::Code && c.source.starts_with('#')), "code cells explain themselves");
         assert_eq!(nb.to_json(), kind.starter, "saved as Jupyter saves it");
+        // A missing package's error is let through, so the button to install it shows under the cell.
+        assert!(!kind.starter.contains("except ImportError"), "imports aren't caught: {name}");
         assert_eq!(new_kinds::NewKind::usual().iter().find(|k| k.name == name).unwrap().starter, kind.starter, "the same every time");
     }
 }
