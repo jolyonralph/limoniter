@@ -1654,6 +1654,19 @@ impl Limoniter {
                 }
             }
             Live::NewAs => {
+                // The kinds chosen last, first, then a line; they may have been taken off the list since.
+                let recent: Vec<usize> = self.recent_new_kinds.iter().filter_map(|name| self.new_kinds.iter().position(|kind| kind.name == *name)).collect();
+                for &index in &recent {
+                    let kind = &self.new_kinds[index];
+                    let ending = if kind.ending.is_empty() { String::new() } else { format!(".{}", kind.ending) };
+                    if ui.add(Button::new(kind.name.as_str()).shortcut_text(RichText::new(ending).color(theme::text_faint()))).clicked() {
+                        picks.push(Pick::Command(Command::NewAs(index)));
+                        ui.close();
+                    }
+                }
+                if !recent.is_empty() {
+                    ui.separator();
+                }
                 // A sub-menu for each kind of machine, and the modern languages, so the list stays short.
                 for group in super::new_kinds::GROUPS {
                     let members: Vec<usize> = self.new_kinds.iter().enumerate().filter(|(_, kind)| kind.group() == group).map(|(index, _)| index).collect();

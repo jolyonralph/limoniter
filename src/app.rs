@@ -1980,6 +1980,8 @@ pub struct Limoniter {
     language_picker: Option<Box<language_picker::Picker>>,
     language_view: language_picker::View,
     recent_languages: Vec<String>,
+    /// The kinds last chosen in File, New as, by name, the latest first: offered at the top of the menu.
+    recent_new_kinds: Vec<String>,
     /// How wide the command box (F1) was last left.
     palette_width: f32,
     /// What the status bar shows, and in what order.
@@ -2218,6 +2220,7 @@ impl Limoniter {
             language_picker: None,
             language_view: language_picker::View::from_setting(list_setting(&settings, "language_view").first().map(String::as_str)),
             recent_languages: list_setting(&settings, "recent_language"),
+            recent_new_kinds: list_setting(&settings, "recent_new_kind"),
             key_note: None,
             key_notes_given: std::collections::HashMap::new(),
             dialog_was_palette: false,
@@ -5739,7 +5742,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str()
         )
     }
 
@@ -12046,6 +12049,18 @@ mod tests {
         let screen = app.preview_screen.as_ref().unwrap();
         assert_eq!(screen.rows.len(), 25);
         assert_eq!((screen.rows[0][1].ch, screen.rows[0][1].fg), ('T', crate::retro_screens::TELETEXT[1]));
+    }
+
+    #[test]
+    fn the_kinds_last_chosen_in_new_as_come_first_and_are_kept() {
+        let (mut app, _ctx) = app_with("");
+        let at = |app: &Limoniter, name: &str| app.new_kinds.iter().position(|k| k.name == name).unwrap();
+        for name in ["Z80 assembler", "Markdown", "Python", "Markdown", "C"] {
+            app.new_of_kind(at(&app, name));
+        }
+        assert_eq!(app.recent_new_kinds, ["C", "Markdown", "Python"], "the latest first, each once, three at most");
+        let (back, _ctx) = app_with("recent_new_kind=C\nrecent_new_kind=Markdown\n");
+        assert_eq!(back.recent_new_kinds, ["C", "Markdown"], "kept with the settings");
     }
 
     #[test]

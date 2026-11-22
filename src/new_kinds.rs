@@ -199,6 +199,9 @@ impl NewKind {
 }
 
 /// The sub-menus of File, New as, in their order; a kind of one's own goes in the last.
+/// How many of the kinds last chosen New as offers at its top.
+pub(super) const MOST_RECENT_KINDS: usize = 3;
+
 pub(super) const GROUPS: [&str; 18] = [
     "Modern languages",
     "Text",
@@ -292,6 +295,11 @@ impl Limoniter {
     /// A new file of a kind from the list.
     pub(super) fn new_of_kind(&mut self, index: usize) {
         if let Some(kind) = self.new_kinds.get(index).cloned() {
+            // Remembered, to be offered first next time.
+            self.recent_new_kinds.retain(|name| *name != kind.name);
+            self.recent_new_kinds.insert(0, kind.name.clone());
+            self.recent_new_kinds.truncate(MOST_RECENT_KINDS);
+            self.save_settings_if_changed();
             self.new_from_kind(kind);
         }
     }
