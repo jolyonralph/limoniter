@@ -356,9 +356,18 @@ impl Limoniter {
                 self.open_path(&path);
                 false
             }
+            Act::NewFromTemplate(folder) => {
+                self.open_template_box(Some(folder), 0);
+                false
+            }
             Act::Create { path, folder } => {
                 if path.exists() {
                     self.message("New", crate::i18n::tf!("There's already something called {} there.", path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()));
+                    return;
+                }
+                // A folder with a template chosen for it makes the file from that.
+                if !folder && self.made_from_folder_template(&path) {
+                    self.panels.project_panel.explorer.refresh();
                     return;
                 }
                 let made = if folder {

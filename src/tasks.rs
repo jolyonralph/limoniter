@@ -75,18 +75,38 @@ pub fn detect(folder: &Path) -> Vec<Task> {
             }
         }
     }
-    if let Ok(text) = std::fs::read_to_string(folder.join("package.json"))
-        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
-        && let Some(scripts) = value.get("scripts").and_then(|s| s.as_object())
-    {
-        for name in scripts.keys() {
+    // package.json's scripts, run with the package manager the project's lock file names.
+    if folder.join("package.json").is_file() {
+        let manager = crate::node_tools::manager_for(folder);
+        for name in crate::node_tools::scripts(folder) {
             let kind = match name.as_str() {
                 "build" => Kind::Build,
                 "test" => Kind::Test,
                 "start" | "dev" | "serve" => Kind::Run,
                 _ => Kind::Other,
             };
-            found.push(task(&format!("npm run {name}"), &format!("npm run {name}"), kind));
+            let command = manager.run_script(&name);
+            found.push(task(&command, &command, kind));
+        }
+        found.push(task(&manager.install(), &manager.install(), Kind::Other));
+    }
+    // Composer, for PHP: its three everyday commands, and each of composer.json's own scripts.
+    if let Ok(text) = std::fs::read_to_string(folder.join("composer.json")) {
+        found.extend([task("composer install", "composer install", Kind::Other), task("composer update", "composer update", Kind::Other), task("composer dump-autoload", "composer dump-autoload", Kind::Other)]);
+        if let Some(scripts) = serde_json::from_str::<serde_json::Value>(&text).ok().and_then(|v| v.get("scripts").and_then(|s| s.as_object()).cloned()) {
+            for name in scripts.keys() {
+                // Composer's own events (pre-install-cmd and the rest) run by themselves.
+                if name.starts_with("pre-") || name.starts_with("post-") {
+                    continue;
+                }
+                let kind = match name.as_str() {
+                    "test" | "tests" | "phpunit" => Kind::Test,
+                    "start" | "serve" | "dev" => Kind::Run,
+                    "build" => Kind::Build,
+                    _ => Kind::Other,
+                };
+                found.push(task(&format!("composer {name}"), &format!("composer run-script {name}"), kind));
+            }
         }
     }
     if folder.join("go.mod").is_file() {
@@ -316,6 +336,7 @@ pub fn test_results(lines: &[String]) -> Vec<TestResult> {
             }
         }
     }
+    crate::test_output::more_results(lines, &mut results);
     results
 }
 
@@ -376,12 +397,12 @@ mod tests {
     fn test_results_are_read_from_each_runner() {
         let lines = |text: &str| text.lines().map(str::to_string).collect::<Vec<_>>();
         let cargo = test_results(&lines("running 2 tests\ntest tests::adds ... ok\ntest tests::subtracts ... FAILED\n\nfailures:\n\n---- tests::subtracts stdout ----\nthread 'tests::subtracts' (99) panicked at src/lib.rs:20:9:\nassertion failed\n"));
-        assert_eq!(cargo, [TestResult { name: "tests::adds".into(), passed: true, place: None, ..Default::default() }, TestResult { name: "tests::subtracts".into(), passed: false, place: Some(("src/lib.rs".into(), 20)), ..Default::default() }]);
+        assert_eq!(cargo, [TestResult { name: "tests::adds".into(), passed: true, place: None, ..Default::default() }, TestResult { name: "tests::subtracts".into(), passed: false, place: Some(("src/lib.rs".into(), 20)), detail: vec!["assertion failed".into()], ..Default::default() }]);
         let pytest = test_results(&lines("test_maths.py::test_add PASSED  [ 50%]\ntest_maths.py::test_sub FAILED  [100%]\n=== FAILURES ===\n____ test_sub ____\n    def test_sub():\n>       assert 1 - 1 == 1\nE       assert 0 == 1\n\ntest_maths.py:6: AssertionError\n"));
         assert_eq!(pytest.len(), 2);
         assert_eq!(pytest[1].place, Some(("test_maths.py".into(), 6)));
         let go = test_results(&lines("=== RUN   TestAdd\n--- PASS: TestAdd (0.00s)\n=== RUN   TestSub\n    maths_test.go:14: got 0, want 1\n--- FAIL: TestSub (0.00s)\nFAIL\n"));
-        assert_eq!(go[1], TestResult { name: "TestSub".into(), passed: false, place: Some(("maths_test.go".into(), 14)), ..Default::default() });
+        assert_eq!(go[1], TestResult { name: "TestSub".into(), passed: false, place: Some(("maths_test.go".into(), 14)), note: Some("0.00 s".into()), detail: vec!["got 0, want 1".into()] });
         assert_eq!(only_this("cargo test", "tests::adds"), "cargo test tests::adds -- --exact");
         assert_eq!(only_this("go test -v ./...", "TestSub"), "go test -v ./... -run '^TestSub$'");
     }
@@ -398,6 +419,33 @@ mod tests {
         let names: Vec<&str> = tasks.iter().map(|t| t.name.as_str()).collect();
         assert!(names.contains(&"cargo test") && names.contains(&"make test") && names.contains(&"npm run build"), "{names:?}");
         assert_eq!(tasks.iter().find(|t| t.name == "npm run test").map(|t| t.kind), Some(Kind::Test));
+        std::fs::write(folder.join("composer.json"), "{\"scripts\": {\"test\": \"phpunit\", \"lint\": \"phpcs\", \"post-install-cmd\": \"x\"}}").unwrap();
+        let tasks = detect(&folder);
+        let composer: Vec<(&str, &str)> = tasks.iter().filter(|t| t.name.starts_with("composer")).map(|t| (t.name.as_str(), t.command.as_str())).collect();
+        assert_eq!(composer, [("composer install", "composer install"), ("composer update", "composer update"), ("composer dump-autoload", "composer dump-autoload"), ("composer test", "composer run-script test"), ("composer lint", "composer run-script lint")]);
+        assert_eq!(tasks.iter().find(|t| t.name == "composer test").map(|t| t.kind), Some(Kind::Test));
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// package.json's scripts run with the manager the project's lock file names.
+    #[test]
+    fn scripts_are_run_with_the_projects_package_manager() {
+        let folder = std::env::temp_dir().join(format!("limoniter-tasks-node-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("package.json"), "{\"scripts\": {\"dev\": \"vite\", \"test\": \"vitest run\"}}").unwrap();
+        for (lock, manager) in [("pnpm-lock.yaml", "pnpm"), ("yarn.lock", "yarn"), ("bun.lockb", "bun"), ("package-lock.json", "npm")] {
+            for old in ["pnpm-lock.yaml", "yarn.lock", "bun.lockb", "package-lock.json"] {
+                let _ = std::fs::remove_file(folder.join(old));
+            }
+            std::fs::write(folder.join(lock), "").unwrap();
+            let tasks = detect(&folder);
+            let dev = tasks.iter().find(|t| t.name == format!("{manager} run dev")).unwrap_or_else(|| panic!("{manager}: {tasks:?}"));
+            assert_eq!((dev.command.as_str(), dev.kind), (format!("{manager} run dev").as_str(), Kind::Run));
+            assert_eq!(tasks.iter().find(|t| t.name == format!("{manager} run test")).map(|t| t.kind), Some(Kind::Test));
+            assert!(tasks.iter().any(|t| t.command == format!("{manager} install")), "installing the packages");
+            assert!(!tasks.iter().any(|t| t.command.starts_with("npm run")) || manager == "npm");
+        }
         let _ = std::fs::remove_dir_all(folder);
     }
 }

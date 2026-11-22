@@ -307,7 +307,7 @@ pub fn listing_blocks(listing: &crate::basic::Listing) -> Vec<Block> {
 pub fn kind_for(path: Option<&Path>, language: &str) -> Option<Kind> {
     let extension = path.and_then(Path::extension).and_then(|e| e.to_str()).map(str::to_lowercase);
     match extension.as_deref() {
-        Some("md" | "markdown" | "mdown" | "mkd" | "mdtext") => Some(Kind::Markdown),
+        Some("md" | "markdown" | "mdown" | "mkd" | "mdtext" | "rmd" | "qmd" | "rmarkdown") => Some(Kind::Markdown),
         _ if matches!(language, "Markdown" | "MultiMarkdown") => Some(Kind::Markdown),
         Some("html" | "htm" | "xhtml") => Some(Kind::Html),
         Some("svg" | "svgz") => Some(Kind::Svg),
@@ -339,6 +339,8 @@ pub enum BlockKind {
     Picture(String, String),
     /// A Mermaid diagram's text, drawn as the diagram.
     Diagram(String),
+    /// An R Markdown or Quarto code chunk (```` ```{r} ````), coloured as its language, which this names.
+    Chunk(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -715,6 +717,8 @@ struct Builder {
     in_code: bool,
     /// Inside a fenced block marked mermaid.
     in_mermaid: bool,
+    /// Inside an R Markdown or Quarto chunk, of this language.
+    chunk: Option<String>,
     table: Option<Vec<Vec<Vec<Span>>>>,
     row: Vec<Vec<Span>>,
 }
@@ -795,6 +799,10 @@ fn markdown(text: &str) -> Vec<Block> {
                     b.flush();
                     b.in_code = true;
                     b.in_mermaid = matches!(&kind, pulldown_cmark::CodeBlockKind::Fenced(info) if info.split_whitespace().next().is_some_and(|l| l.eq_ignore_ascii_case("mermaid")));
+                    b.chunk = match &kind {
+                        pulldown_cmark::CodeBlockKind::Fenced(info) => crate::rmarkdown::chunk_language(info),
+                        _ => None,
+                    };
                 }
                 Tag::Table(_) => {
                     b.flush();
@@ -838,6 +846,8 @@ fn markdown(text: &str) -> Vec<Block> {
                     if std::mem::take(&mut b.in_mermaid) {
                         let source: String = b.spans.drain(..).map(|span| span.text).collect();
                         b.push_block(BlockKind::Diagram(source));
+                    } else if let Some(language) = b.chunk.take() {
+                        b.push_block(BlockKind::Chunk(language));
                     } else {
                         b.push_block(BlockKind::Code);
                     }
@@ -1085,6 +1095,10 @@ fn draw_block(ui: &mut Ui, block: &Block) {
             });
             ui.add_space(6.0);
         }
+        BlockKind::Chunk(language) => {
+            draw_chunk(ui, language, block);
+            ui.add_space(6.0);
+        }
         BlockKind::Rule => {
             ui.add_space(4.0);
             ui.separator();
@@ -1099,6 +1113,23 @@ fn draw_block(ui: &mut Ui, block: &Block) {
             ui.add_space(6.0);
         }
     }
+}
+
+/// An R Markdown or Quarto chunk: its code coloured as its language, with the language named above it, as
+/// RStudio's editor shows a chunk's header.
+fn draw_chunk(ui: &mut Ui, language: &str, block: &Block) {
+    let text: String = block.spans.iter().map(|span| span.text.as_str()).collect();
+    let text = text.trim_end_matches('\n');
+    egui::Frame::new().fill(theme::ruler_back()).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.label(RichText::new(language).size(11.0).color(theme::text_faint()));
+        let font = egui::FontId::monospace(13.0);
+        let mut job = egui::text::LayoutJob::default();
+        for (piece, colour) in crate::highlight::colour_pieces(crate::highlight::syntax_named(language), text) {
+            job.append(&piece, 0.0, egui::TextFormat::simple(font.clone(), colour));
+        }
+        ui.label(job);
+    });
 }
 
 /// A Mermaid diagram, as large as it was laid out or smaller to fit; or, if it can't be drawn, why, and its text.
@@ -1340,6 +1371,20 @@ mod tests {
         assert_eq!(kind_for(Some(Path::new("a.txt")), "No highlighting"), None);
         assert_eq!(kind_for(Some(Path::new("a.html")), "HTML"), Some(Kind::Html), "a web page has its own preview");
         assert_eq!(kind_for(None, "No highlighting"), None);
+        assert_eq!(kind_for(Some(Path::new("report.Rmd")), "No highlighting"), Some(Kind::Markdown), "R Markdown");
+        assert_eq!(kind_for(Some(Path::new("talk.qmd")), "No highlighting"), Some(Kind::Markdown), "Quarto");
+    }
+
+    #[test]
+    fn r_markdown_chunks_are_kept_with_their_language() {
+        let blocks = render(Kind::Markdown, "# Report\n\n```{r setup, include=FALSE}\nlibrary(ggplot2)\n```\n\n```python\nx = 1\n```\n");
+        let chunk = blocks.iter().find(|b| matches!(b.kind, BlockKind::Chunk(_))).expect("the chunk");
+        assert_eq!(chunk.kind, BlockKind::Chunk("R".into()));
+        assert_eq!(chunk.spans[0].text, "library(ggplot2)\n");
+        assert!(blocks.iter().any(|b| b.kind == BlockKind::Code), "a plain fence stays plain code");
+        crate::highlight::load_now();
+        let pieces = crate::highlight::colour_pieces(crate::highlight::syntax_named("R"), "x <- c(1, 2) # numbers");
+        assert!(pieces.iter().map(|(_, c)| *c).collect::<std::collections::HashSet<_>>().len() > 1, "R is coloured");
     }
 
     #[test]

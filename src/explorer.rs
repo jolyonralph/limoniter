@@ -170,6 +170,8 @@ pub enum Act {
     CompareWith(PathBuf),
     CompareFolder(PathBuf),
     CompareWithHead(PathBuf),
+    /// New file or files from one of the project's templates, in this folder.
+    NewFromTemplate(PathBuf),
     /// Hide a folder, or a kind of file, in the project.
     Hide(Hide),
     /// Take back whatever hides this.
@@ -769,6 +771,7 @@ impl Explorer {
             self.start_new(folder.clone(), false);
             ui.close();
         }
+        item(ui, "New from template\u{2026}", Act::NewFromTemplate(folder.clone()));
         if ui.button(crate::i18n::tr("New folder\u{2026}")).clicked() {
             self.start_new(folder.clone(), true);
             ui.close();

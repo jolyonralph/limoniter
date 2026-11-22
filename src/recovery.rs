@@ -624,8 +624,8 @@ impl Session {
         &self.dir
     }
 
-    /// For tests: stops as a crash would, leaving the folder behind but letting go of the lock.
-    #[cfg(test)]
+    /// Stops as a crash would, leaving the folder behind but letting go of the lock. Hot exit uses it to leave the
+    /// unsaved files for the next start to bring back; tests use it to act out a crash.
     pub fn abandon(mut self) {
         self.shared.flush(Duration::from_secs(5));
         let mut state = self.shared.lock();

@@ -397,6 +397,8 @@ use crate::scripting;
 pub struct ViewState {
     /// With a filter, this counts the lines showing rather than the lines of the file.
     pub top: usize,
+    /// For a Python or R script: its cells' markers are drawn with a line above and links to run them.
+    pub cells: Option<crate::code_cells::Style>,
     /// The line kept at the top as the text scrolls past it (sticky scroll), set before drawing.
     pub sticky: Option<usize>,
     /// The folder the file's in, for finishing paths typed in it.
@@ -519,6 +521,9 @@ pub enum ContextCommand {
     Assist,
     /// Opens the AutoDoc reader at a function's page.
     Explain(String),
+    /// A script's cell, by its marker line, run in the console; or every cell above it, then it.
+    RunCell(usize),
+    RunCellsAbove(usize),
 }
 
 /// A text cell made taller for line spacing, and how far down it the text then sits.
@@ -935,8 +940,12 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     };
 
     let (pressed, modifiers, pointer) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers, i.pointer.interact_pos()));
+    let cell_links = state.cells.map(|style| cell_links(ui, buffer, style, &slots, view, ruler_h, cell, options.font_size)).unwrap_or_default();
+    let mut cell_command = None;
     if let Some(p) = pointer {
-        if input_on && pressed && response.hovered() && p.x < view.min.x + mark_width && p.y >= view.min.y + ruler_h {
+        if input_on && pressed && response.hovered() && let Some(link) = cell_links.iter().find(|l| l.rect.contains(p)) {
+            cell_command = Some(link.command.clone());
+        } else if input_on && pressed && response.hovered() && p.x < view.min.x + mark_width && p.y >= view.min.y + ruler_h {
             // Clicking beside a line's number sets or clears its bookmark; in assembler source, its breakpoint.
             let (line, _) = to_position(p);
             match &mut buffer.code {
@@ -1064,6 +1073,7 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     }
     let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, pad, options, caret_on, left, cols, rainbow, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
     paint_text(ui, buffer, view, &layout, &state.colours, start_state);
+    paint_cell_links(ui, view, &cell_links, pointer);
     // Sticky scroll: the function or label scrolled past, kept along the top; a click goes to it.
     if let Some(line) = state.sticky.filter(|line| pane.filter.is_none() && *line < state.top && *line < buffer.line_count()) {
         let strip = Rect::from_min_size(pos2(view.min.x, view.min.y + ruler_h), vec2(view.width(), cell.y));
@@ -1184,7 +1194,59 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             accept_completion(buffer, state);
         }
     }
-    command
+    command.or(cell_command)
+}
+
+/// A link above a script's cell, and where it's drawn.
+struct CellLink {
+    rect: Rect,
+    /// The row it's on, for the line drawn above the cell.
+    row_top: f32,
+    galley: std::sync::Arc<egui::Galley>,
+    command: ContextCommand,
+}
+
+/// The links on each cell marker showing: "Run cell" and "Run above", at the right of its row.
+#[allow(clippy::too_many_arguments)]
+fn cell_links(ui: &Ui, buffer: &TextBuffer, style: crate::code_cells::Style, slots: &[Slot], view: Rect, ruler_h: f32, cell: Vec2, font_size: f32) -> Vec<CellLink> {
+    let mut links = Vec::new();
+    let font = FontId::proportional((font_size * 0.8).max(9.0));
+    for (row, slot) in slots.iter().enumerate() {
+        if slot.sub != 0 || slot.line >= buffer.line_count() || !crate::code_cells::is_marker(&buffer.line(slot.line), style) {
+            continue;
+        }
+        let row_top = view.min.y + ruler_h + row as f32 * cell.y;
+        if row_top + cell.y > view.max.y + 1.0 {
+            break;
+        }
+        let mut right = view.max.x - 6.0;
+        for (words, command) in [("Run above", ContextCommand::RunCellsAbove(slot.line)), ("\u{25B6} Run cell", ContextCommand::RunCell(slot.line))] {
+            let galley = ui.fonts_mut(|f| f.layout_no_wrap(crate::i18n::tr(words).to_string(), font.clone(), theme::accent()));
+            let size = galley.size();
+            let rect = Rect::from_min_size(pos2(right - size.x, row_top + (cell.y - size.y) / 2.0), size);
+            right = rect.min.x - 12.0;
+            links.push(CellLink { rect, row_top, galley, command });
+        }
+    }
+    links
+}
+
+/// Each cell's line, across the text above its marker, and its links, underlined under the pointer.
+fn paint_cell_links(ui: &Ui, view: Rect, links: &[CellLink], pointer: Option<Pos2>) {
+    let painter = ui.painter_at(view);
+    let mut lined = None;
+    for link in links {
+        if lined != Some(link.row_top) {
+            painter.hline(view.x_range(), link.row_top + 0.5, Stroke::new(1.0, theme::gutter_text().gamma_multiply(0.45)));
+            lined = Some(link.row_top);
+        }
+        painter.rect_filled(link.rect.expand(2.0), 2.0, theme::editor_back());
+        painter.galley(link.rect.min, link.galley.clone(), theme::accent());
+        if pointer.is_some_and(|p| link.rect.contains(p)) {
+            painter.hline(link.rect.x_range(), link.rect.max.y, Stroke::new(1.0, theme::accent()));
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+    }
 }
 
 /// The longest line looked through for colours written in it.
@@ -1985,6 +2047,14 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         } else {
             (display_text(&raw), Vec::new())
         };
+        // A .env file's values are dots, until the line is being edited or the pointer is over it.
+        if b.hide_values && r != b.caret_line && b.selection_on_row(r).is_none() && !b.has_multi() {
+            let (top, bottom) = (row_y(first), row_y(first + group));
+            let hovered = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| view.contains(p) && p.y >= top && p.y < bottom);
+            if !hovered && shown.chars().count() == raw.chars().count() {
+                shown = crate::env_file::hidden(&shown);
+            }
+        }
         let coloured = colours.line(r).filter(|_| colours.is_active());
         let mut brackets = Vec::new();
         if let Some(stack) = &mut open_brackets {

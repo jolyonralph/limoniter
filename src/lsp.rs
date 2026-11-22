@@ -28,14 +28,29 @@ pub fn usual_servers() -> Vec<ServerSetting> {
         ("Python", "pylsp"),
         ("JavaScript", "typescript-language-server --stdio"),
         ("TypeScript", "typescript-language-server --stdio"),
+        // JSX and TSX have grammars of their own; the same server looks after them.
+        ("JavaScript (Babel)", "typescript-language-server --stdio"),
+        ("TypeScriptReact", "typescript-language-server --stdio"),
         ("Go", "gopls"),
         ("Java", "jdtls"),
         ("Lua", "lua-language-server"),
         ("Bourne Again Shell (bash)", "bash-language-server start"),
+        // R's languageserver package, run by R itself.
+        ("R", "R --slave -e languageserver::run()"),
+        ("PHP", "intelephense --stdio"),
     ]
     .iter()
     .map(|(language, command)| ServerSetting { language: language.to_string(), command: command.to_string() })
     .collect()
+}
+
+/// A second server for the same language, tried when the usual one isn't installed but this one is: Phpactor, for
+/// PHP, which is installed with Composer rather than npm. The command is given back whole.
+pub fn alternative(command: &str) -> Option<&'static str> {
+    match command.split_whitespace().next()? {
+        "intelephense" => Some("phpactor language-server"),
+        _ => None,
+    }
 }
 
 /// How a server's program is installed, by its name: the command, run in a terminal, and the program it needs
@@ -47,16 +62,42 @@ pub fn install_command(program: &str) -> Option<(String, &'static str)> {
         "pylsp" if on_path("pipx") => ("pipx install \"python-lsp-server[all]\"".into(), "pipx"),
         "pylsp" => (format!("{python} -m pip install --user \"python-lsp-server[all]\""), if cfg!(windows) { "py" } else { "python3" }),
         "typescript-language-server" => ("npm install -g typescript-language-server typescript".into(), "npm"),
+        // ESLint's server comes in the package of VS Code's language servers; it's chosen for a language in Settings.
+        "vscode-eslint-language-server" => ("npm install -g vscode-langservers-extracted".into(), "npm"),
         "bash-language-server" => ("npm install -g bash-language-server".into(), "npm"),
+        "intelephense" => ("npm install -g intelephense".into(), "npm"),
+        "phpactor" => ("composer global require phpactor/phpactor".into(), "composer"),
         "gopls" => ("go install golang.org/x/tools/gopls@latest".into(), "go"),
         "clangd" if cfg!(windows) => ("winget install LLVM.LLVM".into(), "winget"),
         "clangd" if cfg!(target_os = "macos") => ("xcode-select --install".into(), "xcode-select"),
         "clangd" => ("sudo apt install clangd".into(), "apt"),
+        // CRAN is named, since R run this way can't ask which mirror to use.
+        "R" => ("R -e \"install.packages('languageserver', repos = 'https://cloud.r-project.org')\"".into(), "R"),
         "lua-language-server" if cfg!(windows) => ("winget install LuaLS.lua-language-server".into(), "winget"),
         "lua-language-server" | "jdtls" if cfg!(target_os = "macos") => (format!("brew install {program}"), "brew"),
         _ => return None,
     };
     on_path(needs).then_some((command, needs))
+}
+
+/// Whether a server's command can be run: its program is on the PATH, and for R's languageserver, R has the
+/// package (which R is asked, so this takes a moment).
+pub fn server_installed(command: &str) -> bool {
+    let words = crate::emulators::split_options(command);
+    let program = words.first().map_or("", String::as_str);
+    if !on_path(program) {
+        return false;
+    }
+    if program == "R" && command.contains("languageserver::") {
+        return crate::platform::command(if cfg!(windows) { "Rscript.exe" } else { "Rscript" })
+            .args(["-e", "quit(status = if (requireNamespace('languageserver', quietly = TRUE)) 0 else 1)"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+    }
+    true
 }
 
 /// Whether a program can be found on the PATH, as a server's command would be.
@@ -143,6 +184,9 @@ pub struct Server {
     complaints: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
     /// Set when its program has ended: it's not talked to again.
     pub dead: bool,
+    /// Its settings, as VS Code's settings.json would give them ({"python": {"pythonPath": …}}): sent once it's
+    /// said hello, and given back section by section when it asks (`workspace/configuration`).
+    settings: Value,
 }
 
 impl Server {
@@ -182,7 +226,7 @@ impl Server {
     pub fn over(name: String, root: PathBuf, writer: Box<dyn Write + Send>, reader: impl Read + Send + 'static) -> Server {
         let (send, incoming) = channel();
         std::thread::spawn(move || read_messages(reader, &send));
-        let mut server = Server { name, root, writer, incoming, next_id: 1, capabilities: None, initialize_id: 0, child: None, waiting: Vec::new(), complaints: Default::default(), dead: false };
+        let mut server = Server { name, root, writer, incoming, next_id: 1, capabilities: None, initialize_id: 0, child: None, waiting: Vec::new(), complaints: Default::default(), dead: false, settings: Value::Null };
         let root_uri = uri(&server.root);
         let capabilities = json!({
             "textDocument": {
@@ -201,7 +245,7 @@ impl Server {
                 "signatureHelp": { "signatureInformation": { "parameterInformation": { "labelOffsetSupport": true } } },
                 "inlayHint": {}
             },
-            "workspace": { "applyEdit": true, "workspaceEdit": { "documentChanges": true } },
+            "workspace": { "applyEdit": true, "workspaceEdit": { "documentChanges": true }, "configuration": true, "didChangeConfiguration": {} },
             "general": { "positionEncodings": ["utf-16"] }
         });
         server.initialize_id = server.request("initialize", json!({ "processId": std::process::id(), "rootUri": root_uri, "capabilities": capabilities, "clientInfo": { "name": "Limoniter" } }));
@@ -241,6 +285,23 @@ impl Server {
         if message.get("id").and_then(Value::as_i64) == Some(self.initialize_id) && message.get("method").is_none() {
             self.capabilities = Some(message.pointer("/result/capabilities").cloned().unwrap_or(Value::Null));
             self.notify("initialized", json!({}));
+            if !self.settings.is_null() {
+                let settings = self.settings.clone();
+                self.notify("workspace/didChangeConfiguration", json!({ "settings": settings }));
+            }
+            return false;
+        }
+        // Its settings, a section at a time ("python", "python.analysis"), from those it's been given.
+        if message.get("method").and_then(Value::as_str) == Some("workspace/configuration")
+            && let Some(id) = message.get("id").cloned()
+        {
+            let items = message.pointer("/params/items").and_then(Value::as_array).cloned().unwrap_or_default();
+            let answers: Vec<Value> = items.iter().map(|item| {
+                let section = item.get("section").and_then(Value::as_str).unwrap_or("");
+                let pointer = if section.is_empty() { String::new() } else { format!("/{}", section.replace('.', "/")) };
+                self.settings.pointer(&pointer).cloned().unwrap_or(Value::Null)
+            }).collect();
+            self.send(&json!({ "jsonrpc": "2.0", "id": id, "result": answers }));
             return false;
         }
         // So is an edit the server asks to have made, and its asking for the hints again.
@@ -253,6 +314,15 @@ impl Server {
             return false;
         }
         true
+    }
+
+    /// Gives the server its settings: now, if it's ready for them, or once it's said hello.
+    pub fn set_settings(&mut self, settings: Value) {
+        self.settings = settings;
+        if self.ready() {
+            let settings = self.settings.clone();
+            self.notify("workspace/didChangeConfiguration", json!({ "settings": settings }));
+        }
     }
 
     /// Whether its program has ended, and if so, the last thing it said of why.
@@ -580,7 +650,7 @@ pub fn workspace_edits(result: &Value) -> Vec<(PathBuf, Vec<(usize, usize, usize
 /// the like), or the file's own.
 pub fn root_for(path: &Path) -> PathBuf {
     let start = path.parent().map(Path::to_path_buf).unwrap_or_default();
-    let marks = ["Cargo.toml", ".git", "package.json", "go.mod", "pyproject.toml", "setup.py", "compile_commands.json", "CMakeLists.txt", "Makefile"];
+    let marks = ["Cargo.toml", ".git", "package.json", "go.mod", "pyproject.toml", "setup.py", "compile_commands.json", "CMakeLists.txt", "Makefile", "composer.json", "DESCRIPTION"];
     let mut folder = Some(start.as_path());
     while let Some(here) = folder {
         if marks.iter().any(|m| here.join(m).exists()) {
@@ -593,6 +663,19 @@ pub fn root_for(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 pub mod tests {
+    #[test]
+    fn php_has_two_servers_and_each_has_an_install_command() {
+        assert!(usual_servers().iter().any(|s| s.language == "PHP" && s.command == "intelephense --stdio"));
+        assert_eq!(alternative("intelephense --stdio"), Some("phpactor language-server"));
+        assert_eq!(alternative("pylsp"), None);
+        // The commands are given only where what installs them is there; npm and composer may not be.
+        for (program, command) in [("intelephense", "npm install -g intelephense"), ("phpactor", "composer global require phpactor/phpactor")] {
+            if let Some((found, _)) = install_command(program) {
+                assert_eq!(found, command);
+            }
+        }
+    }
+
     use super::*;
 
     /// A stand-in language server in a thread: it answers initialize, sends a problem when a file is opened,
@@ -653,6 +736,48 @@ pub mod tests {
             }
         });
         Server::over("fake".into(), root.to_path_buf(), Box::new(to_server_write), from_server_read)
+    }
+
+    #[test]
+    fn a_server_is_given_its_settings_and_asked_for_them() {
+        let (to_server_read, to_server_write) = std::io::pipe().unwrap();
+        let (from_server_read, mut from_server_write) = std::io::pipe().unwrap();
+        let (send, heard) = channel();
+        std::thread::spawn(move || read_messages(to_server_read, &send));
+        let mut server = Server::over("fake".into(), std::env::temp_dir(), Box::new(to_server_write), from_server_read);
+        server.set_settings(json!({ "python": { "pythonPath": "/w/.venv/bin/python", "analysis": { "typeCheckingMode": "basic" } } }));
+        let mut say = |message: Value| {
+            let body = message.to_string();
+            from_server_write.write_all(format!("Content-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).unwrap();
+        };
+        let initialize = heard.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(initialize.pointer("/params/capabilities/workspace/configuration"), Some(&json!(true)));
+        say(json!({ "jsonrpc": "2.0", "id": initialize["id"], "result": { "capabilities": {} } }));
+        say(json!({ "jsonrpc": "2.0", "id": 77, "method": "workspace/configuration", "params": { "items": [{ "section": "python" }, { "section": "python.analysis" }, { "section": "pylsp" }] } }));
+        let began = Instant::now();
+        let mut messages = Vec::new();
+        while messages.len() < 3 && began.elapsed() < Duration::from_secs(5) {
+            server.poll();
+            while let Ok(message) = heard.try_recv() {
+                messages.push(message);
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(messages.iter().any(|m| m["method"] == "workspace/didChangeConfiguration" && m.pointer("/params/settings/python/pythonPath") == Some(&json!("/w/.venv/bin/python"))), "sent once it's ready: {messages:?}");
+        let answer = messages.iter().find(|m| m["id"] == 77).expect("the question answered");
+        assert_eq!(answer["result"][0]["pythonPath"], "/w/.venv/bin/python");
+        assert_eq!(answer["result"][1]["typeCheckingMode"], "basic");
+        assert_eq!(answer["result"][2], Value::Null, "a section it hasn't been given");
+    }
+
+    #[test]
+    fn r_has_a_language_server_to_install() {
+        assert!(usual_servers().iter().any(|s| s.language == "R" && s.command.contains("languageserver::run()")));
+        if on_path("R") {
+            let (command, needs) = install_command("R").unwrap();
+            assert!(command.contains("install.packages('languageserver'") && needs == "R");
+        }
+        assert!(!server_installed("no-such-program-anywhere --stdio"));
     }
 
     #[test]

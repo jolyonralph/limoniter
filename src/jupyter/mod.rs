@@ -23,5 +23,7 @@ pub use specs::kernel_specs;
 /// Starts a kernel in this folder, as `notebook::StartKernel` wants. It returns once the program has started;
 /// the kernel says it's ready with `Status(Idle)`, and code given before then waits for it.
 pub fn start(spec: &KernelSpec, cwd: &Path) -> Result<Box<dyn KernelLink>, String> {
-    Ok(Box::new(kernel::start_kernel(spec, cwd)?))
+    // A Python kernel runs in the Python environment chosen for the files being worked on, if it has ipykernel.
+    let spec = crate::py_env::kernel_for_chosen(spec);
+    Ok(Box::new(kernel::start_kernel(&spec, cwd)?))
 }

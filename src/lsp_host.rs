@@ -110,7 +110,18 @@ impl LspState {
 
     /// The server for a language: as Settings has it, or else one a VS Code extension gives.
     pub fn server_for(&self, language: &str) -> Option<ServerSetting> {
-        self.settings.iter().find(|s| s.language == language).cloned().or_else(|| crate::vsix::server_for(language).map(|command| ServerSetting { language: language.to_string(), command }))
+        let usual = self.settings.iter().find(|s| s.language == language).cloned().map(|mut setting| {
+            // The usual server isn't installed but its alternative is (Phpactor for PHP): that one's used.
+            let program = crate::emulators::split_options(&setting.command).into_iter().next().unwrap_or_default();
+            if !lsp::on_path(&program)
+                && let Some(other) = lsp::alternative(&setting.command)
+                && lsp::on_path(other.split_whitespace().next().unwrap_or(""))
+            {
+                setting.command = other.to_string();
+            }
+            setting
+        });
+        usual.or_else(|| crate::vsix::server_for(language).map(|command| ServerSetting { language: language.to_string(), command }))
     }
 
     /// Stops every server.
@@ -121,6 +132,17 @@ impl LspState {
         self.servers.clear();
         self.opened.clear();
         self.pending.clear();
+    }
+
+    /// Tells the Python servers working in or around a folder its new settings (another environment chosen).
+    pub fn tell_python_servers(&mut self, folder: &Path, settings: &Value) {
+        let Some(command) = self.server_for("Python").map(|s| s.command) else { return };
+        let start = format!("{command}\u{1}");
+        for (key, server) in &mut self.servers {
+            if key.starts_with(&start) && (server.root.starts_with(folder) || folder.starts_with(&server.root)) {
+                server.set_settings(settings.clone());
+            }
+        }
     }
 }
 
@@ -156,7 +178,7 @@ impl Limoniter {
             return;
         };
         let program = crate::emulators::split_options(&setting.command).into_iter().next().unwrap_or_default();
-        let there = lsp::on_path(&program);
+        let there = lsp::server_installed(&setting.command);
         let failed = self.lsp.failed.contains(&language);
         self.lsp.offer = if there && !failed {
             // A server written in JavaScript is shown by its own name, not Node.js's.
@@ -323,7 +345,13 @@ impl Limoniter {
             }
             Some(i) => i,
             None => match Server::start(&setting.command, &root) {
-                Ok(server) => {
+                Ok(mut server) => {
+                    // A Python server is told which environment's Python the file is run with.
+                    if language == "Python"
+                        && let Some(env) = self.python_env_for(&path)
+                    {
+                        server.set_settings(crate::py_env::lsp_settings(&env));
+                    }
                     self.script_print(crate::i18n::tf!("Started {} for {language}, in {}", setting.command, root.display()), false);
                     self.lsp.servers.push((key, server));
                     self.lsp.servers.len() - 1

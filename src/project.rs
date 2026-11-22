@@ -45,6 +45,8 @@ pub struct Project {
     pub colours: crate::file_colours::Colours,
     /// The database connections kept with the project (without their passwords, which are in the keychain).
     pub databases: Vec<crate::database::Connection>,
+    /// How this project saves files by itself, when it says (Off or a way), rather than leaving it to the settings.
+    pub autosave: Option<crate::settings::AutosaveChoice>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -141,6 +143,9 @@ impl Project {
         if !self.databases.is_empty() {
             value["databases"] = crate::database::list_to_json(&self.databases, Some(&base));
         }
+        if let Some(choice) = self.autosave {
+            value["autosave"] = json!(choice.id());
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -163,7 +168,7 @@ impl Project {
         let explorer = crate::explorer_kept::Kept::from_json(value.get("explorer"), &base);
         let colours = crate::file_colours::Colours::from_json(value.get("colours"));
         let databases = crate::database::list_from_json(value.get("databases"), Some(&base));
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours, databases };
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours, databases, autosave: value.get("autosave").and_then(Value::as_str).and_then(crate::settings::AutosaveChoice::from_id) };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }

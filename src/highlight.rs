@@ -449,6 +449,13 @@ fn looks_like_html(lines: &[std::sync::Arc<str>]) -> bool {
     first.starts_with('<') && html.iter().any(|tag| text.contains(tag))
 }
 
+/// Whether JavaScript has JSX in it: it brings in React (or Preact) and has a tag in its code.
+fn looks_like_jsx(lines: &[std::sync::Arc<str>]) -> bool {
+    let text: String = lines.iter().take(80).map(|line| &**line).collect::<Vec<_>>().join("\n");
+    let react = ["from 'react'", "from \"react\"", "require('react')", "require(\"react\")", "from 'preact", "from \"preact", "React."].iter().any(|m| text.contains(m));
+    react && (text.contains("</") || text.contains("/>") || text.contains("<>") || text.contains("return (\n") || text.lines().any(|l| l.trim_start().starts_with('<') && l.trim_end().ends_with('>')))
+}
+
 fn looks_like_installer(lines: &[std::sync::Arc<str>]) -> bool {
     const STATEMENTS: [&str; 22] = [
         "(welcome", "(copyfiles", "(copylib", "(procedure", "(askchoice", "(askdir", "(askoptions", "(askbool", "(askfile", "(askstring", "(makedir", "(makeassign", "(startup",
@@ -629,6 +636,20 @@ impl Engine {
         if extension.as_deref() == Some("p8") {
             return self.syntaxes.syntaxes().iter().position(|s| s.name == "Lua");
         }
+        // JSX is JavaScript with tags in it. Plain JavaScript's grammar takes a closing tag for a regular expression
+        // and colours the rest of the file wrongly, so TypeScript's React grammar (which knows JSX, and is a plain
+        // superset of JavaScript) is used: for .jsx, and for a .js file that imports React or says it has tags.
+        if (extension.as_deref() == Some("jsx") || (extension.as_deref() == Some("js") && looks_like_jsx(sample)))
+            && let Some(at) = self.syntaxes.syntaxes().iter().position(|s| s.name == "TypeScriptReact")
+        {
+            return Some(at);
+        }
+        // The module forms of JavaScript are JavaScript.
+        if matches!(extension.as_deref(), Some("mjs" | "cjs"))
+            && let Some(at) = self.syntaxes.syntaxes().iter().position(|s| s.name == "JavaScript")
+        {
+            return Some(at);
+        }
         // A TRSE project is a settings file of name = value lines.
         if extension.as_deref() == Some("trse") {
             return self.syntaxes.syntaxes().iter().position(|s| s.name == "INI");
@@ -683,10 +704,16 @@ impl Engine {
     /// It reads from the top, so it goes on another thread; `stop` lets it give up when the text has moved on.
     pub fn list_functions(&self, syntax: usize, lines: &[std::sync::Arc<str>], stop: &std::sync::atomic::AtomicBool) -> Vec<(usize, String)> {
         const MOST_LISTED: usize = 20_000;
-        let wanted = [Scope::new("entity.name.function").expect("a valid scope"), Scope::new("entity.name.label").expect("a valid scope")];
         let Some(reference) = self.syntaxes.syntaxes().get(syntax) else {
             return Vec::new();
         };
+        let mut wanted = vec![Scope::new("entity.name.function").expect("a valid scope"), Scope::new("entity.name.label").expect("a valid scope")];
+        // In JavaScript and TypeScript a class is how a component is written as often as a function is, so classes
+        // are listed too.
+        if matches!(reference.name.as_str(), "JavaScript" | "TypeScript" | "TypeScriptReact") {
+            wanted.push(Scope::new("entity.name.class").expect("a valid scope"));
+            wanted.push(Scope::new("entity.name.type.class").expect("a valid scope"));
+        }
         let mut state = ParseState::new(reference);
         let mut path = syntect::parsing::ScopeStack::new();
         let mut found = Vec::new();
@@ -918,6 +945,56 @@ impl LineColours {
     }
 }
 
+/// The grammar for a language by its name, compared without case, with the names notebooks and R Markdown chunks
+/// give ("python3", "r", "node") understood.
+pub fn syntax_named(language: &str) -> Option<usize> {
+    let engine = engine()?;
+    let wanted = match language.to_ascii_lowercase().as_str() {
+        "ipython" | "ipython3" | "python3" | "py" => "python".to_string(),
+        "node" | "nodejs" | "javascript (node.js)" | "js" | "ojs" => "javascript".to_string(),
+        "bash" | "sh" => "bourne again shell (bash)".to_string(),
+        "cpp" | "rcpp" => "c++".to_string(),
+        other => other.to_string(),
+    };
+    engine.names().iter().find(|(name, _)| name.eq_ignore_ascii_case(&wanted)).map(|(_, index)| *index)
+}
+
+/// Text cut into stretches by colour, for a grammar: for code shown outside the editor (a notebook's cells, a
+/// Markdown preview's chunks).
+pub fn colour_pieces(syntax: Option<usize>, text: &str) -> Vec<(String, Color32)> {
+    let plain = crate::theme::editor_text();
+    let (Some(engine), Some(syntax)) = (engine(), syntax) else {
+        return vec![(text.to_string(), plain)];
+    };
+    let rows: Vec<String> = text.split('\n').map(str::to_string).collect();
+    let count = rows.len();
+    let mut buffer = TextBuffer::default();
+    buffer.set_content(rows.clone());
+    let mut colours = LineColours::default();
+    colours.set_syntax(Some(syntax));
+    colours.prepare(engine, &mut buffer, 0, count, Duration::from_millis(40));
+    let mut pieces = Vec::new();
+    for (n, row) in rows.iter().enumerate() {
+        let mut chars = row.chars();
+        if let Some(line) = colours.line(n) {
+            for (length, colour) in &line.spans {
+                let piece: String = chars.by_ref().take(*length).collect();
+                if !piece.is_empty() {
+                    pieces.push((piece, *colour));
+                }
+            }
+        }
+        let rest: String = chars.collect();
+        if !rest.is_empty() {
+            pieces.push((rest, plain));
+        }
+        if n + 1 < count {
+            pieces.push(("\n".to_string(), plain));
+        }
+    }
+    pieces
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -948,6 +1025,68 @@ mod tests {
 
     fn test_engine() -> &'static Engine {
         load_now()
+    }
+
+
+    #[test]
+    fn jsx_and_tsx_are_coloured_with_their_tags_and_expressions() {
+        let engine = test_engine();
+        let name_of = |file: &str, lines: &[&str]| engine.detect_with_sample(Some(Path::new(file)), &arcs(lines)).map(|s| engine.name_of(s).to_string());
+        assert_eq!(name_of("App.jsx", &[]).as_deref(), Some("TypeScriptReact"));
+        assert_eq!(name_of("App.tsx", &[]).as_deref(), Some("TypeScriptReact"));
+        assert_eq!(name_of("App.js", &["import React from 'react';", "const A = () => <p>hi</p>;"]).as_deref(), Some("TypeScriptReact"), "a .js file with JSX in it");
+        assert_eq!(name_of("util.js", &["import fs from 'fs';", "if (a < b && c > d) {}"]).as_deref(), Some("JavaScript"));
+        assert_eq!(name_of("main.mjs", &[]).as_deref(), Some("JavaScript"));
+        assert_eq!(name_of(".env", &[]).as_deref(), Some("DotENV"));
+        let lines = ["const App = () => <div className=\"a\" id={x}>{y} text</div>;", "function Card({ a }) {", "  return <Foo bar=\"1\" />;", "}", "export default App;"];
+        let mut buffer = buffer_of(&lines);
+        let mut colours = LineColours::default();
+        let syntax = engine.names.iter().find(|(n, _)| n == "TypeScriptReact").unwrap().1;
+        colours.set_syntax(Some(syntax));
+        colour_all(&mut colours, &mut buffer);
+        let tag = colour_of_word(&colours, &buffer, 0, "div");
+        let string = colour_of_word(&colours, &buffer, 0, "\"a\"");
+        let keyword = colour_of_word(&colours, &buffer, 0, "const");
+        assert_ne!(tag, string, "a tag's name isn't a string's colour");
+        assert_ne!(tag, keyword);
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "className"), string, "an attribute's name");
+        let closing = buffer.line(0).rfind("div").unwrap();
+        let closing = buffer.line(0)[..closing].chars().count();
+        let mut at = 0;
+        let mut closing_colour = None;
+        for (length, colour) in &colours.line(0).unwrap().spans {
+            at += length;
+            if closing < at {
+                closing_colour = Some(*colour);
+                break;
+            }
+        }
+        assert_eq!(closing_colour, Some(tag), "the closing tag's name is the opening one's colour");
+        // What follows a closing tag is coloured as code, not taken for a regular expression's body.
+        assert_eq!(colour_of_word(&colours, &buffer, 1, "function"), keyword);
+        assert_eq!(colour_of_word(&colours, &buffer, 4, "export"), keyword);
+    }
+
+    #[test]
+    fn components_are_in_the_outline_as_functions_and_classes() {
+        let found = functions_in("TypeScriptReact", &["const App: React.FC = () => <div/>;", "function Card({ a }: P) {", "  return <b>{a}</b>;", "}", "class Old extends React.Component {", "  render() { return null; }", "}", "export default function Page() { return <p/>; }"]);
+        let names: Vec<&str> = found.iter().map(|(_, n)| n.as_str()).collect();
+        assert_eq!(names, ["App", "Card", "Old", "render", "Page"]);
+        let python = functions_in("Python", &["class Thing:", "    def go(self):", "        pass"]);
+        assert_eq!(python.iter().map(|(_, n)| n.as_str()).collect::<Vec<_>>(), ["go"], "other languages list only their functions, as before");
+    }
+
+    #[test]
+    fn env_files_have_a_grammar_that_colours_names_and_values() {
+        let engine = test_engine();
+        let lines = ["# comment", "KEY=value", "export B=\"x y\""];
+        let mut buffer = buffer_of(&lines);
+        let mut colours = LineColours::default();
+        let syntax = engine.names.iter().find(|(n, _)| n == "DotENV").unwrap().1;
+        colours.set_syntax(Some(syntax));
+        colour_all(&mut colours, &mut buffer);
+        assert_ne!(colour_of_word(&colours, &buffer, 1, "KEY"), colour_of_word(&colours, &buffer, 0, "comment"));
+        assert_ne!(colour_of_word(&colours, &buffer, 2, "B="), colour_of_word(&colours, &buffer, 2, "x y"), "a quoted value");
     }
 
     #[test]

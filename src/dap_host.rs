@@ -94,6 +94,11 @@ pub(super) enum State {
 
 pub(super) struct Debugging {
     session: Session,
+    /// For js-debug, which starts a session for each program it runs: the sessions before this one, the first of
+    /// which holds the adapter's process.
+    parents: Vec<Session>,
+    /// What a session js-debug asked for is started with (launch or attach, and the configuration it gave).
+    child_launch: Option<(String, Value)>,
     pub config: Config,
     asked: HashMap<i64, Asked>,
     pub state: State,
@@ -122,6 +127,22 @@ pub(super) struct Debugging {
 }
 
 impl Debugging {
+    /// Ends the adapter, and the sessions before this one, which hold its process.
+    fn kill(&mut self) {
+        self.session.stop();
+        for parent in &mut self.parents {
+            parent.stop();
+        }
+    }
+
+    /// Whether the adapter's process has ended, and the last thing it said of why.
+    fn adapter_ended(&mut self) -> Option<String> {
+        match self.parents.first_mut() {
+            Some(first) => first.ended(),
+            None => self.session.ended(),
+        }
+    }
+
     fn ask(&mut self, command: &str, arguments: Value, asked: Asked) {
         let seq = self.session.request(command, arguments);
         self.asked.insert(seq, asked);
@@ -219,6 +240,7 @@ impl Drop for Debugging {
         if self.state != State::Ended {
             self.ask("disconnect", json!({ "terminateDebuggee": true }), Asked::Other);
             self.session.end_within(Duration::from_secs(if self.config.kind == dap::Kind::Copperline { 3 } else { 0 }));
+            self.kill();
         }
     }
 }
@@ -235,7 +257,7 @@ impl Limoniter {
         };
         let language = self.docs[self.active].language_name();
         let Some((kind, adapter)) = dap::adapter_for(&language) else {
-            return self.message("Debug", crate::i18n::tr("Python, C, C++ and Rust files can be debugged here, with debugpy, gdb or lldb-dap.").into());
+            return self.message("Debug", crate::i18n::tr("Python, JavaScript, C, C++ and Rust files can be debugged here, with debugpy, js-debug, gdb or lldb-dap.").into());
         };
         if self.docs[self.active].is_modified() && !self.save(self.active) {
             return;
@@ -277,18 +299,60 @@ impl Limoniter {
     }
 
     /// Starts the adapter and the program in it.
-    pub(super) fn launch_debugger(&mut self, config: Config) {
+    pub(super) fn launch_debugger(&mut self, mut config: Config) {
+        // Python is debugged in the environment chosen for the file, so it sees the same packages as F9 does.
+        if config.kind == dap::Kind::Debugpy
+            && config.adapter == dap::DEBUGPY
+            && let Some(env) = self.python_env_for(Path::new(&config.program)).filter(|e| e.kind != crate::py_env::Kind::System)
+        {
+            // In double quotes, as the adapter's command is split.
+            config.adapter = format!("\"{}\" -m debugpy.adapter", env.python.display());
+        }
         // One still going is ended first, as Stop ends it: an adapter that started an emulator closes it.
         self.debug_control("stop");
         if let Some(mut old) = self.debugging.take() {
-            old.session.stop();
+            old.kill();
         }
         self.clear_stopped_marks();
         if config.kind == dap::Kind::Debugpy && !python_has_debugpy(&config.adapter) {
-            let install = if cfg!(windows) { "py -m pip install debugpy" } else { "python3 -m pip install --user debugpy" };
+            let python = crate::emulators::split_options(&config.adapter).first().cloned().unwrap_or_default();
+            let install = if config.adapter != dap::DEBUGPY {
+                format!("{} -m pip install debugpy", crate::py_env::quoted(&python))
+            } else if cfg!(windows) {
+                "py -m pip install debugpy".to_string()
+            } else {
+                "python3 -m pip install --user debugpy".to_string()
+            };
             return self.message("Debug", crate::i18n::tf!("Python is debugged with debugpy, which isn't installed. In a terminal (Ctrl+`):\n\n{install}"));
         }
-        if !matches!(config.kind, dap::Kind::Debugpy | dap::Kind::Copperline) && !crate::lsp::on_path(crate::emulators::split_options(&config.adapter).first().map_or("", String::as_str)) {
+        if config.kind == dap::Kind::JsDebug {
+            if !crate::lsp::on_path("node") {
+                return self.message("Debug", crate::i18n::tr("JavaScript is debugged with js-debug, which runs on Node.js, and Node.js isn't installed. It's at nodejs.org.").into());
+            }
+            // The adapter is Limoniter's own download, or one the person has put on the PATH.
+            if crate::emulators::split_options(&config.adapter).first().is_some_and(|first| first == "js-debug-dap") && !crate::lsp::on_path("js-debug-dap") {
+                self.node.pending_debug = Some(config);
+                self.dialog = Dialog::JsDebugMissing;
+                return;
+            }
+            return match Session::start_tcp(&config.adapter, Path::new(&config.folder)) {
+                Ok(session) => self.begin_debugging(config, session),
+                Err(problem) => self.message("Debug", problem),
+            };
+        }
+        if config.kind == dap::Kind::Xdebug {
+            if config.adapter.is_empty() {
+                return self.xdebug_download(config);
+            }
+            if !crate::lsp::on_path("node") {
+                return self.message("Debug", crate::i18n::tr("PHP is debugged with VS Code's PHP Debug adapter, which is a Node.js program, and Node.js isn't installed.").into());
+            }
+            // Listening for a page in the browser needs nothing of the PHP on this computer, but a script is run by it.
+            if !config.program.is_empty() && crate::xdebug_get::php_has_xdebug() == Some(false) {
+                return self.message("Debug", crate::i18n::tr("The PHP on this computer doesn't have Xdebug, the extension that debugs it. Install it (pecl install xdebug, or your system's php-xdebug package) and try again.").into());
+            }
+        }
+        if !matches!(config.kind, dap::Kind::Debugpy | dap::Kind::Xdebug | dap::Kind::Copperline) && !crate::lsp::on_path(crate::emulators::split_options(&config.adapter).first().map_or("", String::as_str)) {
             return self.message("Debug", crate::i18n::tr("C, C++ and Rust are debugged with gdb (version 14 or later) or lldb-dap, and neither is installed.").into());
         }
         match Session::start(&config.adapter, Path::new(&config.folder)) {
@@ -297,14 +361,59 @@ impl Limoniter {
         }
     }
 
+    /// Waits for Xdebug to connect, for PHP run by a web server (a page in the browser) or from the terminal.
+    pub(super) fn debug_php_listen(&mut self) {
+        let Some(folder) = self.task_folder().or_else(|| std::env::current_dir().ok()) else { return };
+        let config = dap::Config { kind: dap::Kind::Xdebug, adapter: crate::xdebug_get::adapter_command().unwrap_or_default(), program: String::new(), arguments: String::new(), folder: folder.display().to_string(), emulator: None };
+        self.launch_debugger(config);
+    }
+
+    /// Downloads VS Code's PHP Debug adapter, in the background, and starts debugging when it's there.
+    fn xdebug_download(&mut self, config: Config) {
+        match crate::xdebug_get::start_download(Some(config)) {
+            Ok(()) => self.script_print(crate::i18n::tr("Downloading the PHP debug adapter (VS Code's PHP Debug, from open-vsx.org)\u{2026}").into(), true),
+            Err(problem) => self.message("Debug", problem),
+        }
+    }
+
+    /// While the PHP debug adapter downloads: when it's done, debugging starts, or why it couldn't be got is said.
+    pub(super) fn xdebug_tick(&mut self) -> bool {
+        let done = {
+            let mut going = crate::xdebug_get::DOWNLOADING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Some((receive, _)) = going.as_ref() else { return false };
+            match receive.try_recv() {
+                Ok(result) => going.take().map(|(_, then)| (result, then)),
+                Err(std::sync::mpsc::TryRecvError::Empty) => return true,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => going.take().map(|(_, then)| (Err(crate::i18n::tr("The download stopped unexpectedly.").into()), then)),
+            }
+        };
+        match done {
+            Some((Ok(_), then)) => {
+                self.script_print(crate::i18n::tr("The PHP debug adapter is downloaded.").into(), false);
+                if let (Some(mut config), Some(adapter)) = (then, crate::xdebug_get::adapter_command()) {
+                    config.adapter = adapter;
+                    self.launch_debugger(config);
+                }
+            }
+            Some((Err(problem), _)) => self.message("Debug", crate::i18n::tf!("The PHP debug adapter couldn't be downloaded.\n\n{problem}")),
+            None => {}
+        }
+        false
+    }
+
     /// Starts talking to an adapter that's been started: it's asked what it can do, and then (as it answers) to
     /// launch the program.
     fn begin_debugging(&mut self, config: Config, session: Session) {
-        let mut debugging = Debugging { session, config, asked: HashMap::new(), state: State::Starting, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false, can: Default::default(), memory: Default::default(), profile: Default::default(), copperline: Default::default() };
+        let mut debugging = Debugging { session, parents: Vec::new(), child_launch: None, config, asked: HashMap::new(), state: State::Starting, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false, can: Default::default(), memory: Default::default(), profile: Default::default(), copperline: Default::default() };
         let adapter_id = debugging.config.kind.adapter_name();
         debugging.ask("initialize", json!({ "clientID": "limoniter", "clientName": "Limoniter", "adapterID": adapter_id, "linesStartAt1": true, "columnsStartAt1": true, "pathFormat": "path", "supportsVariableType": true, "supportsRunInTerminalRequest": false }), Asked::Initialize);
         let program = Path::new(&debugging.config.program).file_name().map_or_else(|| debugging.config.program.clone(), |n| n.to_string_lossy().into_owned());
-        debugging.line(crate::i18n::tf!("Debugging {program} with {adapter_id}"));
+        if debugging.config.program.is_empty() {
+            let port = crate::xdebug_get::PORT;
+            debugging.line(crate::i18n::tf!("Waiting for Xdebug on port {port}: open the page in the browser, or run the script from the terminal with XDEBUG_SESSION=1"));
+        } else {
+            debugging.line(crate::i18n::tf!("Debugging {program} with {adapter_id}"));
+        }
         self.debugging = Some(Box::new(debugging));
     }
 
@@ -376,10 +485,53 @@ impl Limoniter {
             return;
         }
         let said = d.session.poll();
+        // The sessions before this one still talk: what they print is shown, and what they ask for is declined.
+        let mut from_parents = Vec::new();
+        for parent in &mut d.parents {
+            from_parents.extend(parent.poll());
+        }
+        for message in from_parents {
+            match message.get("type").and_then(Value::as_str) {
+                Some("request") => d.parents[0].decline(&message),
+                Some("event") if message.get("event").and_then(Value::as_str) == Some("output") => {
+                    let body = message.get("body").cloned().unwrap_or(Value::Null);
+                    if body.get("category").and_then(Value::as_str) != Some("telemetry") {
+                        let text = body.get("output").and_then(Value::as_str).unwrap_or("").trim_end().to_string();
+                        if !text.is_empty() {
+                            d.line(text);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
         let mut show: Option<Frame> = None;
         for message in said {
             let Some(d) = self.debugging.as_mut() else { return };
             match message.get("type").and_then(Value::as_str) {
+                Some("request") if message.get("command").and_then(Value::as_str) == Some("startDebugging") && d.config.kind == dap::Kind::JsDebug && d.parents.is_empty() => {
+                    // js-debug runs the program in a session of its own, on another connection to the same adapter.
+                    match d.session.another() {
+                        Ok(child) => {
+                            d.session.accept(&message);
+                            let request = message.pointer("/arguments/request").and_then(Value::as_str).unwrap_or("launch").to_string();
+                            let configuration = message.pointer("/arguments/configuration").cloned().unwrap_or(Value::Null);
+                            let parent = std::mem::replace(&mut d.session, child);
+                            d.parents.push(parent);
+                            d.child_launch = Some((request, configuration));
+                            d.asked.clear();
+                            d.state = State::Starting;
+                            d.configured = false;
+                            d.told.clear();
+                            let id = d.config.kind.adapter_name();
+                            d.ask("initialize", json!({ "clientID": "limoniter", "clientName": "Limoniter", "adapterID": id, "linesStartAt1": true, "columnsStartAt1": true, "pathFormat": "path", "supportsVariableType": true, "supportsRunInTerminalRequest": false, "supportsStartDebuggingRequest": true }), Asked::Initialize);
+                        }
+                        Err(problem) => {
+                            d.session.decline(&message);
+                            d.line(problem);
+                        }
+                    }
+                }
                 Some("request") => d.session.decline(&message),
                 Some("event") => {
                     let body = message.get("body").cloned().unwrap_or(Value::Null);
@@ -433,7 +585,7 @@ impl Limoniter {
                         }
                         "terminated" => {
                             d.state = State::Ended;
-                            d.session.stop();
+                            d.kill();
                             self.clear_stopped_marks();
                         }
                         _ => {}
@@ -457,7 +609,7 @@ impl Limoniter {
                             Asked::Launch => {
                                 d.line(crate::i18n::tf!("It couldn't be started: {} {}", why, detail));
                                 d.state = State::Ended;
-                                d.session.stop();
+                                d.kill();
                             }
                             _ if !why.is_empty() && why != "cancelled" => d.line(why),
                             _ => {}
@@ -467,9 +619,9 @@ impl Limoniter {
                     match asked {
                         Asked::Initialize => {
                             d.can = dap::capabilities(&body);
-                            let launch = dap::launch_arguments(&d.config);
-                            let asked = Asked::Launch;
-                            d.ask("launch", launch, asked);
+                            // A session js-debug asked for is told what it was asked to be.
+                            let (command, launch) = d.child_launch.take().unwrap_or_else(|| ("launch".to_string(), dap::launch_arguments(&d.config)));
+                            d.ask(&command, launch, Asked::Launch);
                             d.state = State::Running;
                         }
                         Asked::Threads => {
@@ -541,7 +693,7 @@ impl Limoniter {
         }
         if let Some(d) = self.debugging.as_mut()
             && d.state != State::Ended
-            && let Some(why) = d.session.ended()
+            && let Some(why) = d.adapter_ended()
         {
             d.state = State::Ended;
             if !why.is_empty() {
@@ -574,7 +726,7 @@ impl Limoniter {
                     d.session.end_within(Duration::from_secs(3));
                 } else {
                     std::thread::sleep(Duration::from_millis(100));
-                    d.session.stop();
+                    d.kill();
                 }
                 self.clear_stopped_marks();
             }
@@ -1143,6 +1295,83 @@ mod tests {
         std::fs::remove_dir_all(folder("other")).unwrap();
     }
 
+    /// A stand-in for js-debug, in Node: it listens on the port it's given, and when the program is launched on the
+    /// first connection it asks for a session of its own (startDebugging), which stops at a breakpoint when it's
+    /// launched, as js-debug does.
+    const FAKE_JS_DEBUG: &str = r#"
+const net = require('net');
+const port = +process.argv[2];
+const frame = (o) => { const b = JSON.stringify(o); return `Content-Length: ${Buffer.byteLength(b)}\r\n\r\n${b}`; };
+let connections = 0;
+net.createServer((sock) => {
+  const id = ++connections;
+  let buf = Buffer.alloc(0);
+  let seq = 1;
+  const send = (o) => sock.write(frame({ seq: seq++, ...o }));
+  sock.on('error', () => {});
+  sock.on('data', (d) => {
+    buf = Buffer.concat([buf, d]);
+    for (;;) {
+      const i = buf.indexOf('\r\n\r\n');
+      if (i < 0) break;
+      const len = +/Content-Length: (\d+)/.exec(buf.slice(0, i).toString())[1];
+      if (buf.length < i + 4 + len) break;
+      const m = JSON.parse(buf.slice(i + 4, i + 4 + len).toString());
+      buf = buf.slice(i + 4 + len);
+      if (m.type !== 'request') continue;
+      const ok = (body = {}) => send({ type: 'response', request_seq: m.seq, success: true, command: m.command, body });
+      if (m.command === 'initialize') { ok({ supportsConfigurationDoneRequest: true }); send({ type: 'event', event: 'initialized' }); }
+      else if (m.command === 'launch') {
+        ok();
+        if (id === 1) send({ type: 'request', command: 'startDebugging', arguments: { request: 'launch', configuration: { type: 'pwa-node', name: 'child', __pendingTargetId: 'target-1', program: m.arguments.program } } });
+        else send({ type: 'event', event: 'stopped', body: { reason: 'breakpoint', threadId: 1 } });
+      }
+      else if (m.command === 'stackTrace') ok({ stackFrames: [{ id: 1, name: 'main', line: 2, column: 1, source: { path: process.env.FAKE_SOURCE } }] });
+      else if (m.command === 'scopes') ok({ scopes: [] });
+      else if (m.command === 'threads') ok({ threads: [{ id: 1, name: 'main' }] });
+      else ok();
+    }
+  });
+}).listen(port, '127.0.0.1');
+"#;
+
+    /// js-debug asks for a session of its own for the program, on another connection to the same adapter; the
+    /// debugger carries on in that one, and what it says is shown.
+    #[test]
+    fn js_debug_s_own_session_for_the_program_is_followed() {
+        if !crate::lsp::on_path("node") {
+            eprintln!("Node isn't installed, so the stand-in for js-debug wasn't run.");
+            return;
+        }
+        crate::highlight::load_now();
+        let (mut app, ctx) = app_with("");
+        let dir = folder("jsdebug");
+        let file = dir.join("app.js");
+        std::fs::write(&file, "const a = 1;\nconsole.log(a);\n").unwrap();
+        let fake = dir.join("fake-js-debug.js");
+        std::fs::write(&fake, FAKE_JS_DEBUG.replace("process.env.FAKE_SOURCE", &serde_json::to_string(&file.display().to_string()).unwrap())).unwrap();
+        assert!(app.open_path(&file));
+        app.doc().update_syntax();
+        let (kind, _) = dap::adapter_for("JavaScript").expect("JavaScript has a debugger");
+        assert_eq!(kind, dap::Kind::JsDebug);
+        let config = Config { kind, adapter: format!("node \"{}\"", fake.display()), program: file.display().to_string(), arguments: String::new(), folder: dir.display().to_string(), emulator: None };
+        app.launch_debugger(config);
+        let began = std::time::Instant::now();
+        while began.elapsed() < Duration::from_secs(20) && !app.debugging.as_ref().is_some_and(|d| d.state == State::Paused && !d.frames.is_empty()) {
+            app.debug_tick(&ctx);
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let d = app.debugging.as_ref().expect("debugging");
+        assert_eq!(d.state, State::Paused, "{:?}", d.console);
+        assert_eq!(d.parents.len(), 1, "the first session is kept, as it holds the adapter's process");
+        assert_eq!((d.frames[0].name.as_str(), d.frames[0].line), ("main", 1));
+        assert_eq!(app.docs[app.active].text.code.as_ref().unwrap().stopped, Some(1), "the line's marked");
+        app.debug_control("stop");
+        assert_eq!(app.debugging.as_ref().unwrap().state, State::Ended);
+        drop(app);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// With LIMONITER_DEBUGPY naming a Python that has debugpy: a breakpoint in a function stops there, its
     /// variables are read, stepping and carrying on work, and what the program prints comes to the console.
     #[test]
@@ -1399,7 +1628,7 @@ mod tests {
     fn the_console_joins_what_comes_in_pieces() {
         let (reader, writer) = std::io::pipe().unwrap();
         let session = Session::over(Box::new(writer), reader);
-        let mut d = Debugging { session, config: dap::guess(dap::Kind::Debugpy, String::new(), Path::new("/w/a.py")), asked: HashMap::new(), state: State::Running, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false, can: Default::default(), memory: Default::default(), profile: Default::default(), copperline: Default::default() };
+        let mut d = Debugging { session, parents: Vec::new(), child_launch: None, config: dap::guess(dap::Kind::Debugpy, String::new(), Path::new("/w/a.py")), asked: HashMap::new(), state: State::Running, reason: String::new(), thread: 0, frames: Vec::new(), chosen: 0, scopes: Vec::new(), parts: HashMap::new(), open: HashSet::new(), console: Vec::new(), input: String::new(), told: HashMap::new(), configured: false, line_open: false, can: Default::default(), memory: Default::default(), profile: Default::default(), copperline: Default::default() };
         d.say("res");
         d.say("ult 8\nnext ");
         d.say("line\n");

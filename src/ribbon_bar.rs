@@ -296,7 +296,7 @@ const CODE: &[Group] = &[
         controls: &[
             big("Run a command\u{2026}", Icon::Run, Command::RunTool),
             small("Stop it", Icon::Stop, Command::StopTool),
-            small("Debug (Python, C, C++, Rust)", Icon::Debug, Command::StartDebugging),
+            small("Debug (Python, PHP, C, C++, Rust)", Icon::Debug, Command::StartDebugging),
             small("Build", Icon::Build, Command::BuildTask),
             small("Test", Icon::Test, Command::TestTask),
             drop("Tasks", Icon::Build, menus::TASKS),

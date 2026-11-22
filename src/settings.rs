@@ -119,6 +119,12 @@ pub struct Prefs {
     /// Files with unsaved changes are saved by themselves, this many seconds after they were first changed.
     pub autosave: bool,
     pub autosave_seconds: u32,
+    /// What starts an autosave, when it's on: the delay, another tab being chosen, or the window losing the focus.
+    pub autosave_when: AutosaveWhen,
+    /// Files the language server reports errors in are left unsaved by autosave.
+    pub autosave_skip_errors: bool,
+    /// Quitting with unsaved or never-saved files doesn't ask: they come back as they were next time.
+    pub hot_exit: bool,
     /// The first save of a file in a session keeps the file as it was beside it, ending .bak.
     pub backup_on_save: bool,
     /// How Spectrum BASIC listings write block graphics and UDGs.
@@ -140,11 +146,67 @@ pub struct Prefs {
 }
 
 /// How long autosave waits, in seconds.
-pub const AUTOSAVE_TIMES: [u32; 6] = [15, 30, 60, 120, 300, 600];
+pub const AUTOSAVE_TIMES: [u32; 9] = [1, 2, 5, 15, 30, 60, 120, 300, 600];
+
+/// What makes autosave save a file, as VS Code's `files.autoSave` has it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AutosaveWhen {
+    /// Once it has had unsaved changes for the delay.
+    #[default]
+    AfterDelay,
+    /// When another tab or panel is chosen, or the window loses the focus.
+    OnFocusChange,
+    /// When the window loses the focus.
+    OnWindowChange,
+}
+
+/// A project's own say about autosave, which beats the settings'.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AutosaveChoice {
+    Off,
+    When(AutosaveWhen),
+}
+
+impl AutosaveChoice {
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::When(when) => when.id(),
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        if id == "off" { Some(Self::Off) } else { AutosaveWhen::from_id(id).map(Self::When) }
+    }
+}
+
+impl AutosaveWhen {
+    pub const ALL: [Self; 3] = [Self::AfterDelay, Self::OnFocusChange, Self::OnWindowChange];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::AfterDelay => "delay",
+            Self::OnFocusChange => "focus",
+            Self::OnWindowChange => "window",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|when| when.id() == id)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::AfterDelay => "After a delay",
+            Self::OnFocusChange => "When another tab or panel is chosen",
+            Self::OnWindowChange => "When the window loses the focus",
+        }
+    }
+}
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
     }
 }
 
@@ -152,7 +214,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -188,7 +250,10 @@ impl Prefs {
             self.opticos_updates,
             self.update_checks,
             self.update_download,
-            self.language
+            self.language,
+            self.autosave_when.id(),
+            self.autosave_skip_errors,
+            self.hot_exit
         )
     }
 
@@ -260,6 +325,10 @@ impl Prefs {
                     }
                     continue;
                 }
+                "autosave_when" => {
+                    prefs.autosave_when = AutosaveWhen::from_id(value).unwrap_or_default();
+                    continue;
+                }
                 "language" => {
                     if let Some(language) = crate::i18n::LANGUAGES.iter().find(|l| l.code == value) {
                         prefs.language = language.code;
@@ -284,6 +353,8 @@ impl Prefs {
                 "spelling" => &mut prefs.spelling,
                 "open_tables" => &mut prefs.open_tables,
                 "autosave" => &mut prefs.autosave,
+                "autosave_skip_errors" => &mut prefs.autosave_skip_errors,
+                "hot_exit" => &mut prefs.hot_exit,
                 "backup_on_save" => &mut prefs.backup_on_save,
                 "opticos_updates" => &mut prefs.opticos_updates,
                 "update_checks" => &mut prefs.update_checks,
@@ -413,6 +484,7 @@ enum Special {
     MarkerColumns,
     HexRow,
     AutosaveTime,
+    AutosaveWhen,
     Preset,
     ClearRecent,
     MarkdownView,
@@ -544,7 +616,10 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Reload changed files without asking", "When a file has no unsaved changes of yours. If you were at its end, you stay at the end, to follow a log as it grows", |t| &mut t.prefs.reload_quietly),
             Row::Heading("Saving"),
             Row::Flag("Save files by themselves", "A file with unsaved changes is saved once it has had them for the time below. Untitled and read-only files, files open from a disk image, archive or server, and files of 64 MB and more are left for you to save", |t| &mut t.prefs.autosave),
+            Row::Special("Save when", Special::AutosaveWhen),
             Row::Special("Save after", Special::AutosaveTime),
+            Row::Flag("Not while the language server reports errors", "A file the language server says has errors in it is left for you to save, so half-written code isn't saved over working code", |t| &mut t.prefs.autosave_skip_errors),
+            Row::Flag("Keep unsaved files when quitting", "Quitting with unsaved or never-saved files doesn't ask: they come back as they were the next time Limoniter starts. Turn this off to be asked about each one", |t| &mut t.prefs.hot_exit),
             Row::Flag("Keep a backup when saving", "The first time a file is saved in a session, the file as it was is kept beside it, with .bak added to its name", |t| &mut t.prefs.backup_on_save),
             Row::Heading("Opening"),
             Row::Flag("Open CSV and TSV files as tables", "Files ending .csv, .tsv, .tab or .psv go straight into table view", |t| &mut t.prefs.open_tables),
@@ -687,11 +762,18 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
                 }
             }
             Special::AutosaveTime => {
-                ui.add_enabled_ui(target.prefs.autosave, |ui| {
+                ui.add_enabled_ui(target.prefs.autosave && target.prefs.autosave_when == AutosaveWhen::AfterDelay, |ui| {
                     for seconds in AUTOSAVE_TIMES {
                         let minutes = seconds / 60;
-                        let label = if seconds < 60 { crate::i18n::tf!("{seconds} seconds") } else if seconds == 60 { crate::i18n::tr("1 minute").to_string() } else { crate::i18n::tf!("{minutes} minutes") };
+                        let label = if seconds == 1 { crate::i18n::tr("1 second").to_string() } else if seconds < 60 { crate::i18n::tf!("{seconds} seconds") } else if seconds == 60 { crate::i18n::tr("1 minute").to_string() } else { crate::i18n::tf!("{minutes} minutes") };
                         ui.radio_value(&mut target.prefs.autosave_seconds, seconds, label);
+                    }
+                });
+            }
+            Special::AutosaveWhen => {
+                ui.add_enabled_ui(target.prefs.autosave, |ui| {
+                    for when in AutosaveWhen::ALL {
+                        ui.radio_value(&mut target.prefs.autosave_when, when, crate::i18n::tr(when.label()));
                     }
                 });
             }
@@ -959,6 +1041,9 @@ mod tests {
             open_tables: true,
             autosave: true,
             autosave_seconds: 300,
+            autosave_when: AutosaveWhen::OnWindowChange,
+            autosave_skip_errors: true,
+            hot_exit: false,
             backup_on_save: true,
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
             m68k_processor: crate::asm::m68k::Processor::M68008,

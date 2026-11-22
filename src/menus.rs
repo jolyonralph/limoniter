@@ -8,6 +8,7 @@ use crate::conversions::Conversion;
 use crate::preview;
 use super::start_page::Guide;
 use super::php_host::PhpAction;
+use super::python_host::PyAction;
 use super::notebook_host::Act as NotebookAct;
 use super::database_host::Act as DatabaseAct;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
@@ -79,6 +80,9 @@ pub(super) enum PanelFlag {
     Instructions,
     Variables,
     Database,
+    /// The Python and R console, kept by `python_host`.
+    Console,
+    Tests,
 }
 
 /// Lists that change, drawn as they are now.
@@ -93,6 +97,7 @@ pub(super) enum Live {
     NewAs,
     Tasks,
     RecentProjects,
+    ProjectAutosave,
     Macros,
     Scripts,
     AddOns,
@@ -225,6 +230,7 @@ pub(super) const SURROUND: &[Entry] = &[
             Item("\u{201C} and \u{201D}", Command::Surround('\u{201C}', '\u{201D}')),
             Line,
             Item("A tag\u{2026}", Command::SurroundTag),
+            Item("An Emmet abbreviation\u{2026}", Command::WrapAbbreviation),
             Entry::Live("A snippet", Live::SurroundSnippets),
         ];
 
@@ -313,6 +319,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Open files", Flag::Panel(PanelFlag::OpenFiles)),
             Check("File lists", Flag::Panel(PanelFlag::FileLists)),
             Check("Database", Flag::Panel(PanelFlag::Database)),
+            Check("Tests", Flag::Panel(PanelFlag::Tests)),
             Line,
             Check("Functions", Flag::Panel(PanelFlag::Functions)),
             Check("Call graph", Flag::Panel(PanelFlag::CallGraph)),
@@ -333,6 +340,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
             Check("Structure", Flag::Panel(PanelFlag::Structure)),
             Check("Variables", Flag::Panel(PanelFlag::Variables)),
+            Check("Python and R console", Flag::Panel(PanelFlag::Console)),
             Check("Clipboard history", Flag::Panel(PanelFlag::Clipboard)),
             Line,
             Item("Close every panel", Command::HidePanels),
@@ -510,6 +518,7 @@ pub(super) const TASKS: &[Entry] = &[
             Keyed("Build", Command::BuildTask, "Ctrl+Shift+B"),
             Keyed("Test", Command::TestTask, "Ctrl+Shift+T"),
             Item("Test the assembly routines (Z80, 6502)", Command::AssemblyTests),
+            Item("Outdated packages\u{2026}", Command::OutdatedPackages),
             Item("Edit the project's tasks\u{2026}", Command::EditTasks),
             Item("Microcontroller flashing\u{2026}", Command::FlashSettings),
         ];
@@ -544,7 +553,8 @@ pub(super) const ASSISTANT: &[Entry] = &[
 pub(super) const RUN: &[Entry] = &[
             Keyed("Run a command\u{2026}", Command::RunTool, "F5"),
             Item("Stop it", Command::StopTool),
-            Keyed("Debug (Python, C, C++, Rust)", Command::StartDebugging, "Ctrl+F5"),
+            Keyed("Debug (Python, PHP, C, C++, Rust)", Command::StartDebugging, "Ctrl+F5"),
+            Item("Debug PHP from a page in the browser", Command::DebugPhpListen),
             Keyed("Step back", Command::DebugStepBack, "Shift+F10"),
             Line,
             Item("Serve this folder in a browser (live server)", Command::ServeFolder),
@@ -595,6 +605,24 @@ pub(super) const DATABASE: &[Entry] = &[
     Item("Add a connection\u{2026}", Command::Database(DatabaseAct::Add)),
     Check("Database panel", Flag::Panel(PanelFlag::Database)),
 ];
+/// Python and R: the console beside the editor, a script's `# %%` cells, environments, and knitting.
+pub(super) const PYTHON_R: &[Entry] = &[
+            Keyed("Send the line or selection to the console", Command::PyR(PyAction::SendToConsole), "Ctrl+Enter"),
+            Keyed("Run the cell", Command::PyR(PyAction::RunCell), "Ctrl+Shift+Enter"),
+            Item("Run the cells above, and this one", Command::PyR(PyAction::RunCellsAbove)),
+            Item("Run all cells", Command::PyR(PyAction::RunAllCells)),
+            Line,
+            Check("Console", Flag::Panel(PanelFlag::Console)),
+            Item("Interrupt the console", Command::PyR(PyAction::InterruptConsole)),
+            Item("Restart the console", Command::PyR(PyAction::RestartConsole)),
+            Item("Clear the console", Command::PyR(PyAction::ClearConsole)),
+            Line,
+            Item("Make a Python environment (.venv)", Command::PyR(PyAction::MakeEnvironment)),
+            Item("Install the project's packages", Command::PyR(PyAction::InstallPackages)),
+            Item("Look for Python environments again", Command::PyR(PyAction::FindEnvironments)),
+            Line,
+            Item("Knit / Render to HTML", Command::PyR(PyAction::KnitRender)),
+        ];
 
 /// The chores of keeping old PHP working, and checking and running it.
 pub(super) const PHP: &[Entry] = &[
@@ -636,10 +664,13 @@ pub(super) const PROJECT: &[Entry] = &[
             Item("Import an Amiga C project\u{2026}", Command::AmigaImportProject),
             Item("Open project\u{2026}", Command::ProjectOpen),
             Entry::Live("Open recent", Live::RecentProjects),
+            Entry::Live("Save files by themselves", Live::ProjectAutosave),
             Item("Close project", Command::ProjectClose),
             Item("Name and notes\u{2026}", Command::ProjectSettings),
             Line,
             Item("Add this file", Command::ProjectAddActive),
+            Item("New from a template\u{2026}", Command::NewFromTemplate(0)),
+            Item("Save this file as a template\u{2026}", Command::SaveAsTemplate),
             Item("Add files\u{2026}", Command::ProjectAddFiles),
             Item("Add a folder\u{2026}", Command::ProjectAddFolder),
             Line,
@@ -872,6 +903,7 @@ pub(super) const TOOLS: &[Entry] = &[
     Sub("Assistant", ASSISTANT),
     Sub("Run", RUN),
     Sub("PHP", PHP),
+    Sub("Python and R", PYTHON_R),
     Sub("Notebook", NOTEBOOK),
     Sub("Database", DATABASE),
     Sub("Macros", MACROS),
@@ -1066,10 +1098,15 @@ impl Limoniter {
             PanelFlag::Instructions => p.instructions,
             PanelFlag::Variables => p.variables,
             PanelFlag::Database => p.database,
+            PanelFlag::Console => self.python.open,
+            PanelFlag::Tests => p.tests,
         }
     }
 
     fn panel_switch(&mut self, panel: PanelFlag) -> &mut bool {
+        if panel == PanelFlag::Console {
+            return &mut self.python.open;
+        }
         let p = &mut self.panels;
         match panel {
             PanelFlag::FileExplorer => &mut p.file_explorer,
@@ -1096,6 +1133,8 @@ impl Limoniter {
             PanelFlag::Instructions => &mut p.instructions,
             PanelFlag::Variables => &mut p.variables,
             PanelFlag::Database => &mut p.database,
+            PanelFlag::Console => unreachable!("kept by python_host, above"),
+            PanelFlag::Tests => &mut p.tests,
         }
     }
 
@@ -1240,7 +1279,7 @@ impl Limoniter {
             Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
             Command::GoToDefinition | Command::PeekDefinition => !no_file,
             Command::QuickFix => self.has_lsp(),
-            Command::FormatDocument => self.has_lsp() || (text && crate::ext_formatters::chosen(&doc.language_name(), &self.formatter_choices).is_some()),
+            Command::FormatDocument => self.has_lsp() || (text && crate::ext_formatters::chosen_near(&doc.language_name(), &self.formatter_choices, doc.path.as_deref()).is_some()),
             Command::AssembleAndSave | Command::AssembleBinary => !no_file && self.doc_cpu(self.active).is_some(),
             Command::StopRunning => !self.running.sessions.is_empty() || !self.vamos_runs.is_empty(),
             Command::DebugStepBack => self.can_step_back(),
@@ -1288,6 +1327,8 @@ impl Limoniter {
             Command::PreviousTab | Command::NextTab => self.all_tabs().len() > 1,
             Command::ProjectClose | Command::ProjectSettings | Command::ProjectAddFiles | Command::ProjectAddFolder | Command::ProjectBackup | Command::ProjectRestore => has_project,
             Command::ProjectAddActive => has_project && doc.path.is_some(),
+            Command::NewFromTemplate(_) | Command::ProjectAutosave(_) => has_project,
+            Command::SaveAsTemplate => has_project && !no_file && text && !doc.placeholder,
             Command::RemoteProjectFetch | Command::RemoteProjectSync => self.remote_project.is_some(),
             Command::PlayMacro | Command::PlayMacroTimes => self.current_macro.is_some(),
             Command::ZoomIn => self.view.font_size < 40.0,
@@ -1410,8 +1451,9 @@ impl Limoniter {
             | Command::RasterDesigner
             | Command::Toggle(_) => true,
             Command::Php(action) => self.php_can(action),
+            Command::PyR(action) => self.python_can(action),
             // Tasks run in the project's folder, so need a project or a file in one.
-            Command::BuildTask | Command::TestTask => has_project || !no_file,
+            Command::BuildTask | Command::TestTask | Command::OutdatedPackages => has_project || !no_file,
             Command::EditTasks => has_project,
             // Catalogs are worked on from their description or a translation.
             Command::CatalogCheck | Command::CatalogMake | Command::CatalogFlexCat => doc.path.as_deref().is_some_and(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("cd") || e.eq_ignore_ascii_case("ct"))),
@@ -1577,6 +1619,21 @@ impl Limoniter {
                         }
                     });
                 }
+                // The project's own templates, under its name.
+                let own = self.project_templates();
+                if !own.is_empty()
+                    && let Some(project) = &self.project
+                {
+                    crate::fit::menu_button(ui, project.name.as_str(), |ui| {
+                        for (index, template) in own.iter().enumerate() {
+                            let label = if template.folder { format!("{}/", template.name) } else { template.name.clone() };
+                            if ui.button(label).clicked() {
+                                picks.push(Pick::Command(Command::NewFromTemplate(index)));
+                                ui.close();
+                            }
+                        }
+                    });
+                }
                 ui.separator();
                 if ui.button(crate::i18n::tr("Change this list\u{2026}")).clicked() {
                     picks.push(Pick::Command(Command::EditNewKinds));
@@ -1584,6 +1641,18 @@ impl Limoniter {
                 }
             }
             Live::RecentProjects => self.recent_project_entries(ui, picks),
+            Live::ProjectAutosave => {
+                // This project's own choice, which beats the settings'; None leaves it to them.
+                let chosen = self.project.as_ref().and_then(|project| project.autosave);
+                let mut choices: Vec<(Option<crate::settings::AutosaveChoice>, &str)> = vec![(None, "As in the settings"), (Some(crate::settings::AutosaveChoice::Off), "Not by themselves")];
+                choices.extend(crate::settings::AutosaveWhen::ALL.into_iter().map(|when| (Some(crate::settings::AutosaveChoice::When(when)), when.label())));
+                for (choice, label) in choices {
+                    if ui.add_enabled(self.project.is_some(), Button::selectable(chosen == choice, crate::i18n::tr(label))).clicked() {
+                        picks.push(Pick::Command(Command::ProjectAutosave(choice)));
+                        ui.close();
+                    }
+                }
+            }
             Live::Macros | Live::Scripts => {
                 self.library.refresh_if_stale();
                 let items = if live == Live::Macros { &self.library.macros } else { &self.library.scripts };

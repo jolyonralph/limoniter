@@ -226,6 +226,10 @@ pub(super) fn start_run(line: &str, folder: Option<&Path>, wake: impl Fn() + Sen
     let mut command = crate::platform::shell_command(line);
     if let Some(folder) = folder.filter(|folder| folder.is_dir()) {
         command.current_dir(folder);
+        // A project's .env is given to what runs in its folder.
+        for (name, value) in crate::env_file::environment_for(folder) {
+            command.env(name, value);
+        }
     }
     let mut child = command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().map_err(|e| crate::i18n::tf!("Couldn't run it.\n\n{e}"))?;
     let lines = Arc::new(Mutex::new(Vec::new()));
@@ -885,6 +889,23 @@ impl Limoniter {
         }
         self.surround_selection(&format!("<{typed}>"), &format!("</{name}>"));
         Ok(())
+    }
+
+    /// Wraps the selection in what an Emmet abbreviation says (`ul>li*` makes a list of the lines).
+    pub(super) fn wrap_with_abbreviation(&mut self, typed: &str) -> Result<(), String> {
+        let language = self.docs[self.active].language_name();
+        let syntax = match crate::emmet::Syntax::of_language(&language) {
+            Some(crate::emmet::Syntax::Css) | None => crate::emmet::Syntax::Html,
+            Some(syntax) => syntax,
+        };
+        if !self.docs[self.active].text.has_selection() {
+            return Err(crate::i18n::tr("Select the text to wrap first.").into());
+        }
+        if self.docs[self.active].text.wrap_with_abbreviation(typed.trim(), syntax) {
+            Ok(())
+        } else {
+            Err(crate::i18n::tr("That isn't an Emmet abbreviation that can wrap text, such as div, p.note or ul>li*.").into())
+        }
     }
 
     /// The snippets VS Code extensions give for the language of the file in front; in the Snippets box they come

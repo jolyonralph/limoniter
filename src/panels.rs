@@ -301,6 +301,8 @@ pub struct Panels {
     pub variables: bool,
     /// Database connections, and what's in them.
     pub database: bool,
+    /// The tests a project's runners list, and how they went.
+    pub tests: bool,
     call_graph_panel: crate::code_panels::CallGraphPanel,
     instruction_panel: crate::code_panels::InstructionPanel,
     strings_panel: crate::strings_explorer::PanelState,
@@ -332,7 +334,7 @@ impl Panels {
         flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 25] {
+    fn flags(&self) -> [(&'static str, bool); 26] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -359,6 +361,7 @@ impl Panels {
             ("instruction_panel", self.instructions),
             ("variables_panel", self.variables),
             ("database_panel", self.database),
+            ("tests_panel", self.tests),
         ]
     }
 
@@ -398,6 +401,7 @@ impl Panels {
                 "instruction_panel" => self.instructions = flag,
                 "variables_panel" => self.variables = flag,
                 "database_panel" => self.database = flag,
+                "tests_panel" => self.tests = flag,
                 "file_explorer" => self.file_explorer = flag,
                 "open_files" => self.open_files = flag,
                 "bookmarks" => self.bookmarks = flag,
@@ -440,6 +444,7 @@ impl Panels {
         self.instructions = false;
         self.variables = false;
         self.database = false;
+        self.tests = false;
     }
 
     fn right_count(&self) -> usize {
@@ -726,6 +731,11 @@ pub fn mark_tucked(ctx: &egui::Context) {
 }
 
 /// A docked panel with a title row and a close button.
+/// A panel docked at the right, for panels kept elsewhere (the Python and R console).
+pub fn dock_right(ui: &mut Ui, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
+    dock(ui, true, id, title, width, open, content);
+}
+
 pub(crate) fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
     let side = usize::from(right);
     if HIDING.get() && !SHOWING.get()[side] {

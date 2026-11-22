@@ -77,6 +77,8 @@ enum Command {
     ServeFolder,
     /// Tools, PHP.
     Php(php_host::PhpAction),
+    /// Tools, Python and R: the console, a script's cells, environments and knitting.
+    PyR(python_host::PyAction),
     TimeSpent,
     HowToCode,
     HowToCodeExamples,
@@ -154,6 +156,8 @@ enum Command {
     GatherWindows,
     Surround(char, char),
     SurroundTag,
+    /// Edit, Surround with, An Emmet abbreviation.
+    WrapAbbreviation,
     MoveToBin,
     LeadingTabsToSpaces,
     ClearBookmarks,
@@ -181,6 +185,8 @@ enum Command {
     PeekDefinition,
     /// Debugs the file in front with its language's debugger (or carries on, while one's paused).
     StartDebugging,
+    /// Waits for Xdebug to connect from a PHP page in the browser, or a script run from the terminal.
+    DebugPhpListen,
     /// Steps back to the line before in the program being debugged, where the debugger can go backwards
     /// (Copperline's can, by replaying its snapshots).
     DebugStepBack,
@@ -301,6 +307,12 @@ enum Command {
     /// A new file from one of the usual New as kinds, by its name (Tools, Early computing).
     NewUsual(&'static str),
     EditNewKinds,
+    /// File, Project: a new file or files from one of the project's own templates, the one at this place in its list.
+    NewFromTemplate(usize),
+    /// File, Project: the file in front kept as one of the project's templates.
+    SaveAsTemplate,
+    /// File, Project: how this project saves files by itself (None leaves it to the settings).
+    ProjectAutosave(Option<settings::AutosaveChoice>),
     /// For the label at the cursor in assembler source.
     GoToDefinition,
     FindUses,
@@ -373,6 +385,8 @@ enum Command {
     /// Timer B code.
     RasterDesigner,
     EditTasks,
+    /// Asks each package manager the project uses what's out of date.
+    OutdatedPackages,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -472,6 +486,7 @@ impl Command {
         // The PHP tools that work on a whole project.
         matches!(self, Command::Php(action) if action.works_without_file())
             || matches!(self, Command::Database(act) if act.works_without_file())
+            || matches!(self, Command::PyR(action) if action.works_without_file())
             || matches!(
             self,
             Command::New
@@ -522,6 +537,8 @@ impl Command {
                 | Command::TestTask
                 | Command::RasterDesigner
                 | Command::EditTasks
+                | Command::OutdatedPackages
+                | Command::DebugPhpListen
                 | Command::Help
                 | Command::NewInstance
                 | Command::RecoverEdits
@@ -541,6 +558,7 @@ impl Command {
                 | Command::AssembleAndSave
                 | Command::AssembleBinary
                 | Command::NewAs(_)
+                | Command::NewFromTemplate(_)
                 | Command::PixelEditor
                 | Command::TileMapEditor
                 | Command::ScreenDesigner
@@ -643,6 +661,7 @@ impl Command {
                 | Command::Convert(_)
                 | Command::Surround(..)
                 | Command::SurroundTag
+                | Command::WrapAbbreviation
                 | Command::CutBookmarked
                 | Command::DeleteBookmarked
                 | Command::DeleteUnbookmarked
@@ -948,6 +967,9 @@ type RecoveryKey = (u64, bool, Eol, usize, bool, Display);
 struct OfferItem {
     file: PathBuf,
     selected: bool,
+    /// Whether the file has been changed by something else since the copy was made, so bringing the copy back
+    /// would be a choice.
+    changed_on_disk: bool,
     title: String,
     detail: String,
     note: String,
@@ -1577,6 +1599,8 @@ enum Dialog {
     SaveLayout { name: String, error: String },
     /// Edit, Surround with, A tag: what's typed, and what's wrong with it.
     SurroundTag { value: String, error: String },
+    /// Edit, Surround with, An Emmet abbreviation: what's typed, and what's wrong with it.
+    WrapAbbreviation { value: String, error: String },
     /// A newer Limoniter is out: its version, the start of its notes, and how far its update has got.
     Update(Box<update_host::Offer>),
     /// The About box: what Limoniter is, who made it, and where the list of what it can do is. The notices file,
@@ -1604,7 +1628,11 @@ enum Dialog {
     Compilers(Vec<(&'static crate::compilers::Compiler, Option<PathBuf>)>),
     /// F9 on Boriel's ZX Basic with no zxbc: why, and an offer to install it.
     ZxbcMissing(String),
+    /// Debugging JavaScript with js-debug not installed: an offer to download it.
+    JsDebugMissing,
     NewKinds(Box<new_kinds::NewKindsBox>),
+    Template(Box<templates_host::TemplateBox>),
+    SaveTemplate(Box<templates_host::SaveTemplateBox>),
     /// Saving a folder comparison by name, or looking after those saved.
     CompareSession(Box<compare_host::sync_host::SessionBox>),
     CompareRules(Box<compare_host::sync_host::RulesBox>),
@@ -1704,6 +1732,8 @@ pub struct Limoniter {
     /// A task running, and the last test task's results.
     task_run: Option<tasks_host::TaskRun>,
     test_panel: Option<tasks_host::TestPanel>,
+    tests_ui: tests_host::Explorer,
+    outdated_ui: outdated_host::State,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -1746,6 +1776,13 @@ pub struct Limoniter {
     new_file_preset: &'static Preset,
     /// Copies of unsaved edits, written as they happen. None in a screenshot run, or if it couldn't start.
     recovery: Option<recovery::Session>,
+    /// The tab that was in front and whether the window had the focus, last frame: autosave's modes that save when
+    /// either changes look at what they were.
+    autosave_seen: (Option<u64>, bool),
+    /// Set when closing left unsaved files for the next start to bring back, rather than asking about them.
+    hot_exit_kept: bool,
+    /// Where the recovery copies are kept, once recovery has started.
+    recovery_dir: Option<PathBuf>,
     recovery_failed: Option<String>,
     jumps: JumpHistory,
     /// The font file chosen; None uses Consolas.
@@ -1827,6 +1864,8 @@ pub struct Limoniter {
     php: php_host::PhpState,
     /// Database connections, open and kept, and the one chosen for each SQL file.
     database: database_host::DatabaseState,
+    /// Python environments, and the Python and R consoles.
+    python: python_host::PythonState,
     /// Programs F9 built being crunched in the background.
     amiga_jobs: Vec<amiga_tools_host::Job>,
     /// Programs and scripts running in vamos, their output coming into the Output panel.
@@ -1842,6 +1881,8 @@ pub struct Limoniter {
     /// A send waiting for the add-ons' on_send functions.
     send_pending: Option<deploy_host::PendingSend>,
     script_output: Vec<String>,
+    /// Node projects: the dev server, js-debug's download, and the .env file checked against git.
+    node: node_host::NodeState,
     /// Where files' histories are kept between runs. None means they aren't, as in a test.
     history_root: Option<PathBuf>,
     history_job: Option<std::thread::JoinHandle<()>>,
@@ -2047,6 +2088,7 @@ impl Limoniter {
             running: run_host::Running::from_settings(&settings),
             php: php_host::PhpState::from_settings(&settings),
             database: database_host::DatabaseState::from_settings(&settings),
+            python: python_host::PythonState::from_settings(&settings),
             amiga_jobs: Vec::new(),
             vamos_runs: Vec::new(),
             c64_jobs: Vec::new(),
@@ -2058,6 +2100,7 @@ impl Limoniter {
             themes: theme_host::Themes::from_settings(&settings, Prefs::from_settings(&settings).light),
             send_pending: None,
             script_output: Vec::new(),
+            node: Default::default(),
             history_root,
             history_job: None,
             listening: None,
@@ -2197,6 +2240,8 @@ impl Limoniter {
             terminal_hidden: false,
             task_run: None,
             test_panel: None,
+            tests_ui: Default::default(),
+            outdated_ui: Default::default(),
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -2226,6 +2271,9 @@ impl Limoniter {
             encoding_prefs: EncodingPrefs::load(encoding_prefs_path()),
             new_file_preset,
             recovery: None,
+            autosave_seen: (None, true),
+            hot_exit_kept: false,
+            recovery_dir: None,
             recovery_failed: None,
             jumps: JumpHistory::default(),
             font_file,
@@ -2266,6 +2314,15 @@ impl Limoniter {
             self.recovery_failed = Some(crate::i18n::tr("There's nowhere to keep them").to_string());
             return;
         };
+        self.start_recovery_in(root);
+    }
+
+    fn start_recovery_in(&mut self, root: PathBuf) {
+        // A last quit that left its unsaved files for now says so with a marker, which is only good for one start.
+        self.recovery_dir = Some(root.clone());
+        let marker = root.join(HOT_EXIT_MARKER);
+        let hot = self.prefs.hot_exit && marker.exists();
+        let _ = std::fs::remove_file(&marker);
         match recovery::Session::start(&root) {
             Ok(session) => self.recovery = Some(session),
             Err(problem) => self.recovery_failed = Some(problem.to_string()),
@@ -2276,6 +2333,62 @@ impl Limoniter {
         let recovery_root = root.clone();
         std::thread::spawn(move || crate::large_edits::sweep(&large, &crate::recovery::sources_named(&recovery_root)));
         self.offer_recovered(&root, false);
+        if hot {
+            self.bring_back_after_hot_exit();
+        }
+    }
+
+    /// After a quit that kept unsaved files: they come straight back as they were, with no question, unless one of
+    /// them can't be read or its file has been changed by something else meanwhile, when the usual offer is made.
+    fn bring_back_after_hot_exit(&mut self) {
+        let Dialog::Recovery(offer) = &self.dialog else { return };
+        if offer.items.iter().any(|item| item.content.is_none() || item.changed_on_disk) {
+            return;
+        }
+        self.recover_selected();
+        self.print_status = crate::i18n::tr("Brought back the files you hadn't saved").to_string();
+    }
+
+    /// Keeps a file with unsaved changes for the next start instead of asking about it, when hot exit is on.
+    /// Says whether it was kept: a copy has to be safely on the disk first.
+    fn keep_for_next_start(&mut self, index: usize) -> bool {
+        let doc = &self.docs[index];
+        if !self.prefs.hot_exit || doc.scanning.is_some() || doc.compare.is_some() || doc.saving.is_some() {
+            return false;
+        }
+        let kept = self.recovery.as_mut().is_some_and(|session| session.write_now(&doc.snapshot()).is_ok());
+        self.hot_exit_kept |= kept;
+        kept
+    }
+
+    /// The window is closing: every file with unsaved changes is kept or asked about. False if the person cancels.
+    fn settle_unsaved_for_quit(&mut self) -> bool {
+        self.hot_exit_kept = false;
+        for index in 0..self.docs.len() {
+            if !self.docs[index].is_modified() || self.keep_for_next_start(index) {
+                continue;
+            }
+            if !self.confirm_close(index) {
+                return false;
+            }
+            // Answered No: whatever copy was being kept of it isn't wanted.
+            let id = self.docs[index].id;
+            if let Some(session) = self.recovery.as_mut() {
+                session.remove(id);
+            }
+        }
+        true
+    }
+
+    /// Closing for good: the recovery copies go, unless hot exit is leaving some for the next start.
+    fn finish_recovery(&mut self) {
+        if let Some(session) = self.recovery.take() {
+            if self.hot_exit_kept && self.recovery_dir.as_ref().is_some_and(|root| std::fs::write(root.join(HOT_EXIT_MARKER), b"").is_ok()) {
+                session.abandon();
+            } else {
+                session.finish();
+            }
+        }
     }
 
     fn offer_recovered(&mut self, root: &Path, asked: bool) {
@@ -2807,14 +2920,73 @@ impl Limoniter {
         }
     }
 
-    /// Saves files that have had unsaved changes for the time asked, if autosave is on. A file is left for the
-    /// person to save when saving it would need a question answered, or would mean saving over something else.
+    /// What starts an autosave now, if anything does: the project's own choice, or else the settings'.
+    pub(crate) fn autosave_mode(&self) -> Option<settings::AutosaveWhen> {
+        match self.project.as_ref().and_then(|project| project.autosave) {
+            Some(settings::AutosaveChoice::Off) => None,
+            Some(settings::AutosaveChoice::When(when)) => Some(when),
+            None => self.prefs.autosave.then_some(self.prefs.autosave_when),
+        }
+    }
+
+    /// Saves a file with unsaved changes by itself, unless that would need a question answered, would mean saving
+    /// over something else, or (if asked) the language server says it has errors. Says whether it was saved.
+    fn autosave_now(&mut self, index: usize) -> bool {
+        let skip_errors = self.prefs.autosave_skip_errors;
+        let doc = &mut self.docs[index];
+        if !doc.is_modified() || doc.is_busy() {
+            return false;
+        }
+        if let Some(never) = autosave_never(doc) {
+            doc.autosave_skipped = Some(never);
+            return false;
+        }
+        doc.autosave_skipped = autosave_not_now(doc, skip_errors);
+        if doc.autosave_skipped.is_some() {
+            return false;
+        }
+        let path = doc.path.clone().expect("checked above");
+        if self.write_to(index, &path) {
+            self.print_status = crate::i18n::tf!("Saved {} by itself", self.docs[index].name());
+            return true;
+        }
+        false
+    }
+
+    /// Saves files by themselves as the mode asks: after the delay a file has had unsaved changes for, when another
+    /// tab is chosen (the one left is saved), or when the window loses the focus (all of them are).
     fn autosave(&mut self, ctx: &Context) {
+        let mode = self.autosave_mode();
+        let active = self.docs.get(self.active).map(|doc| doc.id);
+        let focused = ctx.input(|i| i.focused);
+        let (left_tab, lost_window) = (self.autosave_seen.0.filter(|id| Some(*id) != active), self.autosave_seen.1 && !focused);
+        self.autosave_seen = (active, focused);
         // A screenshot never saves over a file; tests run as one.
-        if !self.prefs.autosave || (self.screenshot.is_some() && !cfg!(test)) || self.script.is_some() {
+        let Some(mode) = mode.filter(|_| !(self.screenshot.is_some() && !cfg!(test)) && self.script.is_none()) else {
             for doc in &mut self.docs {
                 doc.unsaved_since = None;
                 doc.autosave_skipped = None;
+            }
+            return;
+        };
+        if mode != settings::AutosaveWhen::AfterDelay {
+            let mut leaving: Vec<usize> = Vec::new();
+            if lost_window {
+                leaving.extend(0..self.docs.len());
+            } else if mode == settings::AutosaveWhen::OnFocusChange
+                && let Some(id) = left_tab
+                && let Some(index) = self.docs.iter().position(|doc| doc.id == id)
+            {
+                leaving.push(index);
+            }
+            for doc in &mut self.docs {
+                doc.unsaved_since = None;
+                if !doc.is_modified() {
+                    doc.autosave_skipped = None;
+                }
+            }
+            for index in leaving {
+                self.autosave_now(index);
             }
             return;
         }
@@ -2841,16 +3013,13 @@ impl Limoniter {
                 continue;
             }
             // Something that would need asking is looked at again after another wait.
-            doc.autosave_skipped = autosave_not_now(doc);
+            doc.autosave_skipped = autosave_not_now(doc, self.prefs.autosave_skip_errors);
             doc.unsaved_since = doc.autosave_skipped.map(|_| now);
             if doc.autosave_skipped.is_some() {
                 ctx.request_repaint_after(wait);
                 continue;
             }
-            let path = doc.path.clone().expect("checked above");
-            if self.write_to(index, &path) {
-                self.print_status = crate::i18n::tf!("Saved {} by itself", self.docs[index].name());
-            }
+            self.autosave_now(index);
         }
     }
 
@@ -3248,8 +3417,12 @@ impl Limoniter {
         busy |= running;
         self.task_tick(running);
         busy |= self.php_tick();
+        busy |= self.outdated_tick();
+        busy |= self.xdebug_tick();
         self.database.ctx = Some(ctx.clone());
         busy |= self.database_tick();
+        busy |= self.node_tick();
+        busy |= self.python_tick(ctx);
         busy |= self.check_split();
         busy |= self.check_assistant();
         self.spelling_tick();
@@ -4343,6 +4516,9 @@ impl Limoniter {
                 | Command::ProjectClose
                 | Command::ProjectSettings
                 | Command::ProjectAddActive
+                | Command::NewFromTemplate(_)
+                | Command::SaveAsTemplate
+                | Command::ProjectAutosave(_)
                 | Command::ProjectAddFiles
                 | Command::ProjectAddFolder
                 | Command::ProjectBackup
@@ -4468,7 +4644,10 @@ impl Limoniter {
             }
             Command::Print => self.print_document(),
             Command::Toggle(flag) => self.toggle_flag(flag, ui),
-            Command::HidePanels => self.panels.hide_all(),
+            Command::HidePanels => {
+                self.panels.hide_all();
+                self.python.open = false;
+            }
             Command::CommandPalette => self.dialog = Dialog::Palette(menus::PaletteState::new()),
             Command::About => self.about(),
             Command::ShowHistory => self.panels.history = !self.panels.history,
@@ -4551,6 +4730,7 @@ impl Limoniter {
             Command::AssemblyTests => self.assembly_tests_here(),
             Command::RasterDesigner => self.open_raster_designer(),
             Command::EditTasks => self.edit_project_tasks(),
+            Command::OutdatedPackages => self.outdated_start(),
             Command::BlitterMinterms => self.open_blitter_calculator(),
             Command::TableGenerator => self.open_table_generator(),
             Command::AtariHardware => self.open_atari_hardware(),
@@ -4596,6 +4776,7 @@ impl Limoniter {
             Command::MarkdownTable => self.markdown_table(),
             Command::ServeFolder => self.toggle_live_server(),
             Command::Php(action) => self.php_command(action),
+            Command::PyR(action) => self.python_command(action),
             Command::TimeSpent => self.time_spent_open = Some(7),
             Command::HowToCode => self.open_how_to_code(),
             Command::HowToCodeExamples => self.copy_how_to_code_examples(),
@@ -4619,6 +4800,14 @@ impl Limoniter {
                 }
             }
             Command::EditNewKinds => self.open_new_kinds_box(),
+            Command::NewFromTemplate(index) => self.open_template_box(None, index),
+            Command::SaveAsTemplate => self.open_save_template_box(),
+            Command::ProjectAutosave(choice) => {
+                if let Some(project) = &mut self.project {
+                    project.autosave = choice;
+                }
+                self.save_project();
+            }
             Command::MachineMemory => self.open_machine_memory(),
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
@@ -4662,6 +4851,7 @@ impl Limoniter {
             Command::QuickFix => self.lsp_quick_fix(),
             Command::PeekDefinition => self.peek_definition(),
             Command::StartDebugging => self.start_debugging(),
+            Command::DebugPhpListen => self.debug_php_listen(),
             Command::DebugStepBack => self.debug_control("stepBack"),
             Command::ColourAs => self.open_language_picker(),
             Command::ProjectOpen => {
@@ -4880,6 +5070,7 @@ impl Limoniter {
             }
             Command::Surround(open, close) => self.surround_selection(&open.to_string(), &close.to_string()),
             Command::SurroundTag => self.dialog = Dialog::SurroundTag { value: String::new(), error: String::new() },
+            Command::WrapAbbreviation => self.dialog = Dialog::WrapAbbreviation { value: String::new(), error: String::new() },
             Command::MoveToBin => self.move_file_to_bin(),
             Command::ShowInExplorer => self.show_in_explorer(),
             Command::OpenWithDefault => self.open_with_usual_program(),
@@ -5229,6 +5420,16 @@ impl Limoniter {
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl | Modifiers::ALT, Key::S))) && in_editor && !self.no_file() {
             self.run(Command::SendAgain, ui);
         }
+        // In a Python or R script, Ctrl+Enter sends the line or selection to the console, and Ctrl+Shift+Enter
+        // runs the cell the cursor's in, as RStudio and VS Code have them.
+        if in_editor && self.code_style(self.active).is_some() {
+            if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl | Modifiers::SHIFT, Key::Enter))) {
+                self.run(Command::PyR(python_host::PyAction::RunCell), ui);
+            }
+            if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl, Key::Enter))) {
+                self.run(Command::PyR(python_host::PyAction::SendToConsole), ui);
+            }
+        }
         let always = [
             // Settings, as VS Code and every Mac program have it (Cmd+, there).
             (ctrl, Key::Comma, Command::Settings),
@@ -5398,7 +5599,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str()
         )
     }
 
@@ -5578,6 +5779,7 @@ impl Limoniter {
         let history_rows = if self.panels.history && !doc.placeholder { doc.text.history_rows() } else { Vec::new() };
         let history_actions = self.panels.show_history(ui, &history_rows, doc.hex_mode);
         self.variables_panel(ui);
+        self.console_panel(ui);
         let entries = self.git.status.as_ref().map(|s| s.entries.as_slice()).unwrap_or_default();
         self.panels.project_panel.explorer.set_git(self.git.repo.as_deref(), entries);
         let doc = &self.docs[active];
@@ -7119,7 +7321,7 @@ impl Limoniter {
             if !self.print_status.is_empty() {
                 ui.label(faint(self.print_status.clone()));
             }
-            if let Some(why) = doc.autosave_skipped.filter(|_| self.prefs.autosave) {
+            if let Some(why) = doc.autosave_skipped.filter(|_| self.autosave_mode().is_some()) {
                 ui.label(faint(crate::i18n::tr("Not saved by itself").to_string())).on_hover_text(crate::i18n::tf!("Autosave is leaving this file for you to save: {why}."));
             }
             if let Some(filter) = &doc.filter {
@@ -7204,6 +7406,8 @@ impl Limoniter {
                                 if ui.add(egui::Label::new(crate::i18n::tr(&doc.language_name())).sense(egui::Sense::click())).on_hover_text(crate::i18n::tr("Colour as another language")).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                                     ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(language_picker::OPEN_ASKED), true));
                                 }
+                                // A Python file's environment, beside its language.
+                                self.python_status(ui);
                             }
                         }
                         status_items::Item::Position => {}
@@ -7488,7 +7692,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.database_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.database_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.node_dialog(ctx) || self.templates_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
         let mut close = false;
@@ -7498,6 +7702,7 @@ impl Limoniter {
         let mut number = None;
         let mut show_features = false;
         let mut surround_tag = None;
+        let mut wrap_abbreviation = None;
         let mut save_layout = None;
         let mut column_without_wrap = false;
         let title = match &self.dialog {
@@ -7510,6 +7715,7 @@ impl Limoniter {
             Dialog::ColumnNeedsNoWrap => crate::i18n::tr("Column mode").to_string(),
             Dialog::SaveLayout { .. } => crate::i18n::tr("Save this layout").to_string(),
             Dialog::SurroundTag { .. } => crate::i18n::tr("Surround with a tag").to_string(),
+            Dialog::WrapAbbreviation { .. } => crate::i18n::tr("Wrap with an abbreviation").to_string(),
             Dialog::About { .. } => crate::i18n::tr("About Limoniter").to_string(),
             _ => return,
         };
@@ -7594,6 +7800,18 @@ impl Limoniter {
                     surround_tag = Some(value.clone());
                 }
             }
+            Dialog::WrapAbbreviation { value, error } => {
+                ui.label(crate::i18n::tr("An Emmet abbreviation (ul>li* makes a list item of each line):"));
+                ui.text_edit_singleline(value).request_focus();
+                if !error.is_empty() {
+                    ui.label(error.as_str());
+                }
+                let (ok, cancel) = ok_cancel(ui);
+                close |= cancel;
+                if ok || enter {
+                    wrap_abbreviation = Some(value.clone());
+                }
+            }
             Dialog::SaveLayout { name, error } => {
                 ui.label(crate::i18n::tr("A name for the panels open now, such as Writing or Debugging:"));
                 ui.text_edit_singleline(name).request_focus();
@@ -7646,6 +7864,12 @@ impl Limoniter {
                 let open = self.layout_now();
                 crate::layouts::keep(&mut self.layouts, crate::layouts::Layout { name, open });
                 close = true;
+            }
+        }
+        if let Some(typed) = wrap_abbreviation {
+            self.dialog = Dialog::None;
+            if let Err(problem) = self.wrap_with_abbreviation(&typed) {
+                self.dialog = Dialog::WrapAbbreviation { value: typed, error: problem };
             }
         }
         if let Some(typed) = surround_tag {
@@ -8088,11 +8312,15 @@ impl Limoniter {
                 // A notebook in front: "run-all", "select-N" (a cell by its place, from 0), "edit-N" (typing in it),
                 // "text" (as JSON) or "kind-markdown" and the like.
                 "notebook" => self.notebook_screenshot_step(value),
+                // The Python or R console: "python;code" or "r;code" sent to it, waiting for its answer.
+                "console" => self.console_screenshot_step(value),
                 // A table in the data viewer: "sheet-N", "sort-N", "filter-WORDS" or "cell-ROW-COLUMN".
                 "data" => self.data_step(value),
                 // The Database panel: "sqlite=PATH" (that file, connected and opened out), "box" (adding a
                 // connection), "run" (the statement at the cursor) or "panel".
                 "database" => self.database_screenshot_step(value),
+                // The Tests panel, with the project's tests listed; "run" runs them too.
+                "tests" => self.tests_screenshot_step(value),
                 "colour-as" => {
                     // The Colour as box, grouped a way ("kind", "machine" or "all"), with letters typed after a ;.
                     let (view, letters) = value.split_once(';').unwrap_or((value, ""));
@@ -8774,14 +9002,7 @@ impl Limoniter {
 
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
             self.stop_script();
-            let mut proceed = true;
-            for index in 0..self.docs.len() {
-                if !self.confirm_close(index) {
-                    proceed = false;
-                    break;
-                }
-            }
-            if proceed {
+            if self.settle_unsaved_for_quit() {
                 self.allow_close = true;
             } else {
                 ctx.send_viewport_cmd(ViewportCommand::CancelClose);
@@ -8837,10 +9058,8 @@ impl eframe::App for Limoniter {
         if self.allow_close {
             self.close_project();
         }
-        if self.allow_close
-            && let Some(session) = self.recovery.take()
-        {
-            session.finish();
+        if self.allow_close {
+            self.finish_recovery();
         }
         // The files large changes were written to are read from only while the window is open.
         if self.allow_close {
@@ -8885,6 +9104,14 @@ impl Limoniter {
             let markup = markup_of(&language);
             let doc = self.doc();
             doc.text.markup = markup;
+            // JSX files are told by their names, as the grammar they're coloured with is JavaScript's.
+            let jsx_file = language == "TypeScriptReact" || doc.path.as_deref().and_then(Path::extension).is_some_and(|e| e.eq_ignore_ascii_case("jsx") || e.eq_ignore_ascii_case("tsx"));
+            doc.text.jsx = jsx_file;
+            doc.text.emmet = if jsx_file { Some(crate::emmet::Syntax::Jsx) } else { crate::emmet::Syntax::of_language(&language) };
+            if jsx_file {
+                doc.text.markup = Some(false);
+            }
+            doc.text.hide_values = crate::env_file::is_env_file(&doc.path_or_name());
             doc.text.markdown = matches!(language.as_str(), "Markdown" | "MultiMarkdown");
             doc.text.rules = crate::vsix::rules_for(&language);
             // Markdown's usual problems, marked as a language server's are, when it has none of its own.
@@ -8950,6 +9177,7 @@ impl Limoniter {
             if ui.ctx().data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(language_picker::OPEN_ASKED))).unwrap_or(false) {
                 self.open_language_picker();
             }
+            self.python_status_asked(ui.ctx());
             if ui.ctx().data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(run_host::STOP_ASKED))).unwrap_or(false) {
                 self.stop_all_sessions();
             }
@@ -8994,6 +9222,7 @@ impl Limoniter {
             self.table_offer_bar(ui);
             self.git_offer_bar(ui);
             self.lsp_offer_bar(ui);
+            self.env_bar(ui);
             self.conflict_bar(ui);
         }
         if self.terminal.is_some() && !self.terminal_hidden {
@@ -9002,7 +9231,9 @@ impl Limoniter {
         if self.debugging.is_some() {
             self.debug_panel(ui);
         }
-        if self.test_panel.is_some() {
+        if self.panels.tests {
+            self.tests_explorer(ui);
+        } else if self.test_panel.is_some() {
             self.tests_panel(ui);
         }
         if self.show_results {
@@ -9050,6 +9281,8 @@ impl Limoniter {
                     ContextCommand::Untag => Command::Untag,
                     ContextCommand::Assist => Command::Assist(assistant::Task::Fix),
                     ContextCommand::Explain(_) => Command::AutoDocs,
+                    ContextCommand::RunCell(line) => Command::PyR(python_host::PyAction::RunCellAt(line)),
+                    ContextCommand::RunCellsAbove(line) => Command::PyR(python_host::PyAction::RunAboveAt(line)),
                 },
                 ui,
             );
@@ -9306,9 +9539,12 @@ fn autosave_never(doc: &Document) -> Option<&'static str> {
 }
 
 /// Why saving it now would need a question answered, if it would: checked only when a save is due.
-fn autosave_not_now(doc: &Document) -> Option<&'static str> {
+fn autosave_not_now(doc: &Document, skip_errors: bool) -> Option<&'static str> {
     if doc.path.as_deref().is_some_and(|path| file_stamp(path) != doc.disk_stamp) {
         return Some("another program has changed the file");
+    }
+    if skip_errors && doc.text.intel.as_ref().is_some_and(|intel| intel.lsp_problems.iter().any(|problem| problem.get("severity").and_then(serde_json::Value::as_u64) == Some(1))) {
+        return Some("the language server reports errors in it");
     }
     if !doc.hex_mode {
         if !doc.text.uneven_rows().is_empty() {
@@ -9340,7 +9576,7 @@ fn offer_item(found: recovery::Found) -> OfferItem {
     match found.outcome {
         Err(problem) => {
             let name = file.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-            OfferItem { selected: false, title: crate::i18n::tf!("A damaged copy ({name})"), detail: file.display().to_string(), note: crate::i18n::tf!("It can't be recovered. {problem} It stays in place until you discard it."), content: None, file }
+            OfferItem { selected: false, changed_on_disk: false, title: crate::i18n::tf!("A damaged copy ({name})"), detail: file.display().to_string(), note: crate::i18n::tf!("It can't be recovered. {problem} It stays in place until you discard it."), content: None, file }
         }
         Ok((meta, body)) => {
             let when = panels::format_time(Ok(std::time::UNIX_EPOCH + Duration::from_secs(meta.taken)));
@@ -9351,9 +9587,16 @@ fn offer_item(found: recovery::Found) -> OfferItem {
             };
             let place = meta.path.as_ref().map_or_else(|| crate::i18n::tr("Not saved yet").to_string(), |path| path.display().to_string());
             let (note, selected) = compare_with_file(&meta, &body);
-            OfferItem { selected, title: meta.name.clone(), detail: format!("{place}\nKept {when}, {size}"), note, content: Some((meta, body)), file }
+            OfferItem { selected, changed_on_disk: changed_on_disk(&meta), title: meta.name.clone(), detail: format!("{place}\nKept {when}, {size}"), note, content: Some((meta, body)), file }
         }
     }
+}
+
+/// Whether a file that was there when the copy was made is there now, but not as it was.
+fn changed_on_disk(meta: &recovery::Meta) -> bool {
+    let Some(path) = &meta.path else { return false };
+    let now = file_stamp(path);
+    meta.file_stamp.is_some() && now.is_some() && now != meta.file_stamp
 }
 
 /// Whether the file on disk has moved on since, or already holds these edits.
@@ -9385,6 +9628,9 @@ fn compare_with_file(meta: &recovery::Meta, body: &recovery::Body) -> (String, b
     }
     (String::new(), true)
 }
+
+/// The file in the recovery folder that says the last quit left unsaved files to be brought back.
+const HOT_EXIT_MARKER: &str = "hot-exit";
 
 /// Where copies of unsaved edits are kept.
 fn recovery_root() -> Option<PathBuf> {
@@ -9451,6 +9697,7 @@ fn markup_of(language: &str) -> Option<bool> {
     match language {
         _ if language.starts_with("HTML") || matches!(language, "PHP" | "ASP" | "Vue Component" | "Svelte") => Some(true),
         "XML" | "SVG" | "XSL" | "XSLT" | "AmigaGuide" | "Ant" | "Maven POM" => Some(false),
+        "TypeScriptReact" => Some(false),
         _ => None,
     }
 }
@@ -9915,6 +10162,11 @@ mod zx_host;
 
 #[path = "new_kinds.rs"]
 mod new_kinds;
+#[path = "templates_host.rs"]
+mod templates_host;
+#[cfg(test)]
+#[path = "templates_host_tests.rs"]
+mod templates_host_tests;
 #[path = "ribbon_bar.rs"]
 mod ribbon_bar;
 #[path = "start_page.rs"]
@@ -9991,8 +10243,17 @@ mod lsp_host;
 #[path = "tasks_host.rs"]
 mod tasks_host;
 
+#[path = "tests_host.rs"]
+mod tests_host;
+
+#[path = "outdated_host.rs"]
+mod outdated_host;
+
 #[path = "php_host.rs"]
 mod php_host;
+
+#[path = "node_host.rs"]
+mod node_host;
 
 #[path = "live_host.rs"]
 mod live_host;
@@ -10037,6 +10298,11 @@ mod database_host;
 
 #[path = "notebook_host.rs"]
 mod notebook_host;
+#[path = "python_host.rs"]
+mod python_host;
+#[cfg(test)]
+#[path = "python_host_tests.rs"]
+mod python_host_tests;
 
 #[cfg(test)]
 #[path = "notebook_host_tests.rs"]
@@ -10264,7 +10530,7 @@ mod tests {
         (app, Context::default())
     }
 
-    fn input(events: Vec<egui::Event>) -> egui::RawInput {
+    pub(super) fn input(events: Vec<egui::Event>) -> egui::RawInput {
         egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 900.0))), events, ..Default::default() }
     }
 

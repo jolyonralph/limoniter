@@ -661,52 +661,16 @@ fn status_of(session: &Session) -> (String, Color32) {
 
 /// What the notebook is coloured as, by the language its notebook names.
 fn syntax_for(language: &str) -> Option<usize> {
-    let engine = highlight::engine()?;
-    let wanted = match language.to_ascii_lowercase().as_str() {
-        "ipython" | "ipython3" | "python3" => "python".to_string(),
-        "node" | "nodejs" | "javascript (node.js)" => "javascript".to_string(),
-        other => other.to_string(),
-    };
-    engine.names().iter().find(|(name, _)| name.eq_ignore_ascii_case(&wanted)).map(|(_, index)| *index)
+    highlight::syntax_named(language)
 }
 
 /// The text cut into stretches by colour, for the language's syntax.
 fn colour_pieces(syntax: Option<usize>, text: &str) -> Vec<(String, Color32)> {
-    let plain = theme::editor_text();
-    let (Some(engine), Some(syntax)) = (highlight::engine(), syntax) else {
-        return vec![(text.to_string(), plain)];
-    };
-    let rows: Vec<String> = text.split('\n').map(str::to_string).collect();
-    let count = rows.len();
-    let mut buffer = TextBuffer::default();
-    buffer.set_content(rows.clone());
-    let mut colours = highlight::LineColours::default();
-    colours.set_syntax(Some(syntax));
-    colours.prepare(engine, &mut buffer, 0, count, Duration::from_millis(40));
-    let mut pieces = Vec::new();
-    for (n, row) in rows.iter().enumerate() {
-        let mut chars = row.chars();
-        if let Some(line) = colours.line(n) {
-            for (length, colour) in &line.spans {
-                let piece: String = chars.by_ref().take(*length).collect();
-                if !piece.is_empty() {
-                    pieces.push((piece, *colour));
-                }
-            }
-        }
-        let rest: String = chars.collect();
-        if !rest.is_empty() {
-            pieces.push((rest, plain));
-        }
-        if n + 1 < count {
-            pieces.push(("\n".to_string(), plain));
-        }
-    }
-    pieces
+    highlight::colour_pieces(syntax, text)
 }
 
 /// A picture made into a texture, for pictures in outputs.
-fn texture_of(ctx: &eframe::egui::Context, name: String, shown: &Shown) -> Option<eframe::egui::TextureHandle> {
+pub(super) fn texture_of(ctx: &eframe::egui::Context, name: String, shown: &Shown) -> Option<eframe::egui::TextureHandle> {
     let picture = match shown {
         Shown::Png(bytes) => crate::pictures::decode(crate::pictures::Format::Png, bytes).ok()?,
         Shown::Jpeg(bytes) => crate::pictures::decode(crate::pictures::Format::Jpeg, bytes).ok()?,
@@ -718,7 +682,7 @@ fn texture_of(ctx: &eframe::egui::Context, name: String, shown: &Shown) -> Optio
 }
 
 /// Terminal-coloured text as a laid-out job, in the editor's font.
-fn ansi_job(text: &str, font: &FontId, dark: bool, base: Color32) -> LayoutJob {
+pub(super) fn ansi_job(text: &str, font: &FontId, dark: bool, base: Color32) -> LayoutJob {
     let mut job = LayoutJob::default();
     job.wrap.max_width = f32::INFINITY;
     for run in output::ansi_runs(&output::settle_carriage_returns(text), dark) {

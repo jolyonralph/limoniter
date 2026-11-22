@@ -19,8 +19,12 @@ pub enum Kind {
     Debugpy,
     Gdb,
     Lldb,
+    /// PHP's, through vscode-php-debug, which listens for Xdebug.
+    Xdebug,
     /// Copperline's copperline-ctl, which starts the emulator itself, with the program.
     Copperline,
+    /// VS Code's js-debug, for Node: its adapter listens on a port, and starts a session of its own for the program.
+    JsDebug,
 }
 
 impl Kind {
@@ -30,18 +34,20 @@ impl Kind {
             Kind::Debugpy => "debugpy",
             Kind::Gdb => "gdb",
             Kind::Lldb => "lldb-dap",
+            Kind::Xdebug => "php-debug",
             Kind::Copperline => "copperline",
+            Kind::JsDebug => "js-debug",
         }
     }
 
     /// Back from the name `adapter_name` gives, as kept settings write it.
     pub fn from_name(name: &str) -> Option<Kind> {
-        [Kind::Debugpy, Kind::Gdb, Kind::Lldb, Kind::Copperline].into_iter().find(|kind| kind.adapter_name() == name)
+        [Kind::Debugpy, Kind::Gdb, Kind::Lldb, Kind::Xdebug, Kind::Copperline, Kind::JsDebug].into_iter().find(|kind| kind.adapter_name() == name)
     }
 
     /// Whether what's debugged is the file itself (a script), rather than a program built from it.
     pub fn runs_the_file(self) -> bool {
-        self == Kind::Debugpy
+        matches!(self, Kind::Debugpy | Kind::JsDebug | Kind::Xdebug)
     }
 }
 
@@ -66,15 +72,22 @@ pub struct Emulated {
 }
 
 /// The commands that start each debug adapter.
-const DEBUGPY: &str = if cfg!(windows) { "py -m debugpy.adapter" } else { "python3 -m debugpy.adapter" };
+pub const DEBUGPY: &str = if cfg!(windows) { "py -m debugpy.adapter" } else { "python3 -m debugpy.adapter" };
 const GDB: &str = "gdb -i dap";
 const LLDB_DAP: &str = "lldb-dap";
 const LLDB_VSCODE: &str = "lldb-vscode";
 
-/// The debugger for a language, as the highlighter names it: the first of those that can be found.
+/// The debugger for a language, as the highlighter names it: the first of those that can be found. PHP's adapter
+/// is empty until it's been downloaded.
 pub fn adapter_for(language: &str) -> Option<(Kind, String)> {
     let (kind, command) = match language {
         "Python" => (Kind::Debugpy, DEBUGPY),
+        // js-debug is a script that runs on Node, so its command is Node's, with the script it was installed as.
+        "JavaScript" | "JavaScript (Babel)" | "TypeScript" | "TypeScriptReact" => {
+            let command = crate::js_debug_get::installed().map_or_else(|| "js-debug-dap".to_string(), |script| crate::js_debug_get::command(&script));
+            return Some((Kind::JsDebug, command));
+        }
+        "PHP" => return Some((Kind::Xdebug, crate::xdebug_get::adapter_command().unwrap_or_default())),
         "C" | "C++" | "Rust" => {
             if crate::lsp::on_path("gdb") {
                 (Kind::Gdb, GDB)
@@ -125,6 +138,16 @@ pub fn launch_arguments(config: &Config) -> Value {
     let args: Vec<String> = crate::emulators::split_options(&config.arguments);
     match config.kind {
         Kind::Debugpy => json!({ "name": "Limoniter", "type": "python", "request": "launch", "program": config.program, "args": args, "cwd": config.folder, "console": "internalConsole", "justMyCode": true, "redirectOutput": true }),
+        Kind::JsDebug => js_debug_launch(config, &args),
+        // With no program, it listens for Xdebug to connect from a page in the browser or a script run elsewhere.
+        Kind::Xdebug => {
+            let mut launch = json!({ "name": "Limoniter", "type": "php", "request": "launch", "cwd": config.folder, "port": crate::xdebug_get::PORT, "stopOnEntry": false });
+            if !config.program.is_empty() {
+                launch["program"] = json!(config.program);
+                launch["args"] = json!(args);
+            }
+            launch
+        }
         Kind::Gdb => json!({ "program": config.program, "args": args, "cwd": config.folder, "stopAtBeginningOfMainSubprogram": false }),
         Kind::Lldb => json!({ "program": config.program, "args": args, "cwd": config.folder }),
         // The machine is in the configuration made beside the program for the run (see `amiga_run`). Without a
@@ -147,6 +170,24 @@ pub fn launch_arguments(config: &Config) -> Value {
             launch
         }
     }
+}
+
+/// What js-debug is asked to launch: a script file with Node, or (for a program written `script:dev`) a script
+/// of the project's package.json, run with the package manager the project uses.
+fn js_debug_launch(config: &Config, args: &[String]) -> Value {
+    let mut launch = json!({ "type": "pwa-node", "request": "launch", "name": "Limoniter", "cwd": config.folder, "args": args, "console": "internalConsole", "sourceMaps": true, "skipFiles": ["<node_internals>/**"] });
+    if let Some(script) = config.program.strip_prefix("script:") {
+        let manager = crate::node_tools::manager_for(Path::new(&config.folder));
+        launch["runtimeExecutable"] = json!(manager.name());
+        launch["runtimeArgs"] = json!(["run", script.trim()]);
+    } else {
+        launch["program"] = json!(config.program);
+        // Node 22 and later run TypeScript's plain types as they are.
+        if Path::new(&config.program).extension().is_some_and(|e| e == "ts" || e == "mts") {
+            launch["runtimeArgs"] = json!(["--experimental-strip-types"]);
+        }
+    }
+    launch
 }
 
 // ---------- Keeping each file's settings ----------
@@ -474,6 +515,8 @@ pub struct Session {
     child: Option<std::process::Child>,
     /// What it said of its troubles, to say why if it ends.
     complaints: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// For an adapter that listens on a port: which, so more sessions can be made with it.
+    port: Option<u16>,
 }
 
 impl Session {
@@ -509,11 +552,82 @@ impl Session {
         Ok(session)
     }
 
+    /// Starts an adapter that listens on a port (js-debug's) and connects to it. The command is given the port to
+    /// listen on, and the address, after what it says.
+    pub fn start_tcp(command: &str, folder: &Path) -> Result<Session, String> {
+        let port = std::net::TcpListener::bind(("127.0.0.1", 0)).and_then(|l| l.local_addr()).map(|a| a.port()).map_err(|e| crate::i18n::tf!("No port was free for the debugger: {e}"))?;
+        let mut parts = crate::emulators::split_options(command);
+        let program = parts.first().cloned().ok_or(crate::i18n::tr("No command for the debugger."))?;
+        parts.remove(0);
+        let mut child = crate::platform::command(&program)
+            .args(parts)
+            .arg(port.to_string())
+            .arg("127.0.0.1")
+            .current_dir(folder)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| crate::i18n::tf!("The debugger {program} couldn't be started: {e}"))?;
+        // What it prints is read so it never blocks, and kept to say why if it ends.
+        let kept = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        for stream in [child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>), child.stderr.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>)].into_iter().flatten() {
+            let kept = kept.clone();
+            std::thread::spawn(move || {
+                use std::io::BufRead;
+                for line in std::io::BufReader::new(stream).lines().map_while(Result::ok) {
+                    if let Ok(mut kept) = kept.lock() {
+                        kept.push(line);
+                        let extra = kept.len().saturating_sub(20);
+                        kept.drain(..extra);
+                    }
+                }
+            });
+        }
+        let began = std::time::Instant::now();
+        let stream = loop {
+            match std::net::TcpStream::connect(("127.0.0.1", port)) {
+                Ok(stream) => break stream,
+                Err(_) if began.elapsed() < std::time::Duration::from_secs(10) && child.try_wait().ok().flatten().is_none() => std::thread::sleep(std::time::Duration::from_millis(50)),
+                Err(e) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let said = kept.lock().ok().and_then(|k| k.last().cloned()).unwrap_or_default();
+                    return Err(crate::i18n::tf!("The debugger {program} couldn't be reached: {e} {said}"));
+                }
+            }
+        };
+        let mut session = Session::over(Box::new(stream.try_clone().map_err(|e| e.to_string())?), stream);
+        session.complaints = kept;
+        session.child = Some(child);
+        session.port = Some(port);
+        Ok(session)
+    }
+
+    /// Another connection to the same adapter, for a session it asks for (js-debug makes one for each program and
+    /// worker it debugs). It has no process of its own: the first connection's ends it.
+    pub fn another(&self) -> Result<Session, String> {
+        let port = self.port.ok_or(crate::i18n::tr("This debugger can't make another session."))?;
+        let stream = std::net::TcpStream::connect(("127.0.0.1", port)).map_err(|e| crate::i18n::tf!("The debugger couldn't be reached: {e}"))?;
+        let mut session = Session::over(Box::new(stream.try_clone().map_err(|e| e.to_string())?), stream);
+        session.port = Some(port);
+        Ok(session)
+    }
+
+    /// Answers a request the adapter made as done.
+    pub fn accept(&mut self, message: &Value) {
+        let seq = self.next;
+        self.next += 1;
+        let request_seq = message.get("seq").cloned().unwrap_or(Value::Null);
+        let command = message.get("command").cloned().unwrap_or(Value::Null);
+        self.send(&json!({ "seq": seq, "type": "response", "request_seq": request_seq, "success": true, "command": command, "body": {} }));
+    }
+
     /// Talks to an adapter over any two streams.
     pub fn over(writer: Box<dyn Write + Send>, reader: impl std::io::Read + Send + 'static) -> Session {
         let (send, incoming) = channel();
         std::thread::spawn(move || crate::lsp::read_messages(reader, &send));
-        Session { writer, incoming, next: 1, child: None, complaints: Default::default() }
+        Session { writer, incoming, next: 1, child: None, complaints: Default::default(), port: None }
     }
 
     fn send(&mut self, message: &Value) {
@@ -595,7 +709,7 @@ mod tests {
         assert!(line.contains(&serde_json::to_string(&file.display().to_string()).unwrap()), "the whole path: {line}");
         assert_eq!(kept_from_settings(&format!("theme=dark\n{line}other=1\n")), kept);
         // Every debugger's name comes back as itself.
-        for kind in [Kind::Debugpy, Kind::Gdb, Kind::Lldb, Kind::Copperline] {
+        for kind in [Kind::Debugpy, Kind::Gdb, Kind::Lldb, Kind::Xdebug, Kind::Copperline] {
             assert_eq!(Kind::from_name(kind.adapter_name()), Some(kind));
         }
         assert_eq!(Kind::from_name("nothing"), None);
@@ -614,8 +728,39 @@ mod tests {
         assert_eq!(launch_arguments(&c)["stopAtBeginningOfMainSubprogram"], false);
     }
 
+    #[test]
+    fn php_is_launched_or_listened_for() {
+        let script = Config { kind: Kind::Xdebug, adapter: "node phpDebug.js".into(), program: "/w/index.php".into(), arguments: "--flag \"two words\"".into(), folder: "/w".into(), emulator: None };
+        let launch = launch_arguments(&script);
+        assert_eq!((launch["type"].as_str(), launch["program"].as_str(), launch["port"].as_u64()), (Some("php"), Some("/w/index.php"), Some(9003)));
+        assert_eq!(launch["args"], json!(["--flag", "two words"]));
+        let listening = launch_arguments(&Config { program: String::new(), ..script });
+        assert!(listening.get("program").is_none(), "no program: it waits for a page in the browser, {listening}");
+        assert_eq!(listening["request"], "launch");
+        assert!(Kind::Xdebug.runs_the_file(), "a PHP file needs no building");
+        assert_eq!(adapter_for("PHP").map(|(k, _)| k), Some(Kind::Xdebug));
+    }
+
     /// Copperline's launch, as its documentation lists the arguments: the program, the configuration made beside
     /// it, the emulator to start, and the person's options for it.
+    /// js-debug is asked to launch a script file with Node, or a package.json script with the project's manager.
+    #[test]
+    fn js_debug_launches_a_file_or_a_project_script() {
+        let file = guess(Kind::JsDebug, "node js-debug/src/dapDebugServer.js".into(), Path::new("/nowhere-at-all/app.js"));
+        assert_eq!(file.program, "/nowhere-at-all/app.js", "the file itself is run");
+        let launched = launch_arguments(&Config { arguments: "--port 80".into(), ..file.clone() });
+        assert_eq!((launched["type"].as_str(), launched["request"].as_str(), launched["program"].as_str()), (Some("pwa-node"), Some("launch"), Some("/nowhere-at-all/app.js")));
+        assert_eq!(launched["args"], json!(["--port", "80"]));
+        assert!(launched.get("runtimeExecutable").is_none());
+        let script = launch_arguments(&Config { program: "script:dev".into(), folder: "/nowhere-at-all".into(), ..file.clone() });
+        assert_eq!((script["runtimeExecutable"].as_str(), script["runtimeArgs"].clone()), (Some("npm"), json!(["run", "dev"])));
+        assert!(script.get("program").is_none());
+        let typed = launch_arguments(&Config { program: "/x/app.ts".into(), ..file });
+        assert_eq!(typed["runtimeArgs"], json!(["--experimental-strip-types"]));
+        assert_eq!(Kind::from_name("js-debug"), Some(Kind::JsDebug));
+        assert!(Kind::JsDebug.runs_the_file());
+    }
+
     #[test]
     fn copperline_is_launched_with_the_program_and_its_machine() {
         let folder = std::env::temp_dir().join(format!("limoniter-dap-copperline-{}", std::process::id()));

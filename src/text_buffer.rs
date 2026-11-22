@@ -286,6 +286,12 @@ pub struct TextBuffer {
     /// HTML or XML (true for HTML, whose empty elements have no closing tag): closing tags go in as opening ones
     /// are typed, and a tag's partner is renamed with it. None for anything else.
     pub markup: Option<bool>,
+    /// Where Emmet abbreviations are expanded by Tab (HTML, JSX, CSS and the like). None elsewhere.
+    pub emmet: Option<crate::emmet::Syntax>,
+    /// JSX or TSX: closing tags and indents follow tags only where they are JSX, not generics or comparisons.
+    pub jsx: bool,
+    /// A `.env` file: values are drawn as dots, except on the line being edited or under the pointer.
+    pub hide_values: bool,
     /// Markdown: lists carry on as Enter is pressed.
     pub markdown: bool,
     /// A language a VS Code extension gives: the brackets that close themselves, and when lines indent.
@@ -401,6 +407,9 @@ impl Default for TextBuffer {
             zx: None,
             intel: None,
             markup: None,
+            emmet: None,
+            jsx: false,
+            hide_values: false,
             markdown: false,
             rules: None,
             auto_closed: None,
@@ -1922,7 +1931,8 @@ impl TextBuffer {
                 let line = self.lines.get(self.caret_line).to_string();
                 let at = index_at_or_before(&line, self.caret_col);
                 let split = line.char_indices().nth(at).map_or(line.len(), |(b, _)| b);
-                if let Some(close) = crate::tags::closing_for(&line[..split], &line[split..], html) {
+                let closing = if self.jsx { crate::tags::jsx_closing_for(&line[..split], &line[split..]) } else { crate::tags::closing_for(&line[..split], &line[split..], html) };
+                if let Some(close) = closing {
                     self.set_line(self.caret_line, splice(&line, at, at, &close));
                 }
             }
@@ -2321,6 +2331,35 @@ impl TextBuffer {
                 None => {}
             }
         }
+        // JSX: after an opening tag or bracket the next line goes in a step, and between a tag and its closing tag the
+        // closing one goes on a line of its own.
+        if self.jsx
+            && edit_prefs().auto_indent
+            && let Some(what) = crate::tags::jsx_on_enter(&s[..split], &s[split..])
+        {
+            let unit = indent_unit(&indent);
+            match what {
+                crate::tags::JsxEnter::Split => {
+                    let rest = s[split..].trim_start();
+                    let tag = self.lines.tag_at(self.caret_line).filter(|(_, last, _)| *last == self.caret_line);
+                    self.set_line(self.caret_line, s[..split].to_string());
+                    self.lines.insert_many(self.caret_line + 1, vec![Arc::from(format!("{indent}{unit}")), Arc::from(format!("{indent}{rest}"))]);
+                    self.lines.split_terminator(self.caret_line, 2);
+                    if let Some((first, last, colour)) = tag {
+                        self.lines.set_tag(first, last + 2, colour);
+                    }
+                    self.caret_line += 1;
+                    self.caret_col = visual_of(&self.lines.get(self.caret_line), indent_chars + unit.chars().count());
+                    self.collapse_to_caret();
+                    self.edited();
+                    return;
+                }
+                crate::tags::JsxEnter::Indent => {
+                    indent_chars += unit.chars().count();
+                    indent += &unit;
+                }
+            }
+        }
         // A language with rules of its own: after a line that opens something, the next goes in a step; between a
         // bracket and its closer, the closer goes on a line of its own below.
         if let Some(rules) = self.rules.clone().filter(|_| edit_prefs().auto_indent)
@@ -2360,9 +2399,82 @@ impl TextBuffer {
         self.edited();
     }
 
+    /// Tab after an Emmet abbreviation (`ul>li*3`) puts what it stands for in its place. False if there's none,
+    /// so Tab goes on to do what it usually does.
+    fn expand_abbreviation(&mut self, syntax: crate::emmet::Syntax) -> bool {
+        let line = self.lines.get(self.caret_line).to_string();
+        let at = index_at_or_before(&line, self.caret_col);
+        let before = &line[..byte_of(&line, at)];
+        let Some((count, expansion)) = crate::emmet::expand_before(before, syntax, &indent_unit(before)) else {
+            return false;
+        };
+        self.insert_expansion(self.caret_line, at - count, at, &expansion);
+        true
+    }
+
+    /// Puts an Emmet expansion in place of characters `from` to the end of the selection on the caret's line (or
+    /// to `to` on `line`), with the cursor where the expansion says; it's one step to undo.
+    fn insert_expansion(&mut self, line: usize, from: usize, to: usize, expansion: &crate::emmet::Expansion) {
+        self.push_undo(None);
+        let text = self.lines.get(line).clone();
+        self.set_selection((line, visual_of(&text, from)), (line, visual_of(&text, to)), false);
+        self.delete_stream_selection();
+        self.insert_stream(&expansion.text);
+        self.place_cursor_in(line, from, expansion);
+        self.edited();
+    }
+
+    /// Puts the caret where an expansion's cursor is, given the line and character it was put in at.
+    fn place_cursor_in(&mut self, line: usize, from: usize, expansion: &crate::emmet::Expansion) {
+        let passed = &expansion.text[..expansion.cursor];
+        let chars = match passed.rfind('\n') {
+            Some(newline) => passed[newline + 1..].chars().count(),
+            None => from + passed.chars().count(),
+        };
+        self.caret_line = line + passed.matches('\n').count();
+        self.caret_col = visual_of(&self.lines.get(self.caret_line), chars);
+        self.collapse_to_caret();
+    }
+
+    /// Wraps the selected text in what an Emmet abbreviation says: `ul>li*` makes a list item of each line.
+    /// False if the abbreviation or the selection won't do.
+    pub fn wrap_with_abbreviation(&mut self, abbreviation: &str, syntax: crate::emmet::Syntax) -> bool {
+        if syntax == crate::emmet::Syntax::Css || !self.has_selection() || self.is_block() || self.has_multi() {
+            return false;
+        }
+        let (sl, sc, el, ec) = self.stream_bounds();
+        let (a, b) = (index_at_or_before(&self.lines.get(sl), sc), index_at_or_before(&self.lines.get(el), ec));
+        let indent: String = self.lines.get(sl).chars().take_while(|c| c.is_whitespace()).collect();
+        // The lines wrapped, without the indent of the first, so the wrapped markup is laid out afresh.
+        let content: Vec<String> = (sl..=el)
+            .map(|r| {
+                let text = self.lines.get(r).to_string();
+                let cut = if r == sl { 0 } else if text.starts_with(indent.as_str()) { indent.chars().count() } else { 0 };
+                let from = if r == sl { a } else { 0 };
+                let to = if r == el { b } else { text.chars().count() };
+                text.chars().skip(from.max(cut)).take(to.saturating_sub(from.max(cut))).collect()
+            })
+            .collect();
+        let Some(expansion) = crate::emmet::wrap(abbreviation, &content.join("\n"), syntax, &indent_unit(&indent)) else {
+            return false;
+        };
+        let expansion = crate::emmet::indented(expansion, &indent);
+        self.push_undo(None);
+        let first = self.lines.get(sl).clone();
+        self.set_selection((sl, visual_of(&first, a)), (el, visual_of(&self.lines.get(el), b)), false);
+        self.delete_stream_selection();
+        self.insert_stream(&expansion.text);
+        self.place_cursor_in(sl, a, &expansion);
+        self.edited();
+        true
+    }
+
     pub fn tab_key(&mut self, shift: bool) {
         if self.has_multi() {
             self.multi_tab(shift);
+            return;
+        }
+        if !shift && let Some(syntax) = self.emmet && !self.has_selection() && !self.is_block() && self.expand_abbreviation(syntax) {
             return;
         }
         let multi = self.has_selection() && self.caret_line != self.anchor_line && !self.is_block();
@@ -4222,6 +4334,53 @@ mod tests {
         assert!(!b.insert_column_numbers(i64::MAX, 1));
         assert_eq!(text(&b), ["a", "b"]);
         assert!(!b.can_undo());
+    }
+
+    #[test]
+    fn tab_expands_an_emmet_abbreviation_in_one_undo_step() {
+        let mut b = buffer(&["<body>", "\tul>li.item*2", "</body>"]);
+        b.emmet = Some(crate::emmet::Syntax::Html);
+        b.move_caret_to_char(1, 13);
+        b.tab_key(false);
+        assert_eq!(text(&b), ["<body>", "\t<ul>", "\t\t<li class=\"item\"></li>", "\t\t<li class=\"item\"></li>", "\t</ul>", "</body>"]);
+        assert_eq!(b.caret_line, 2, "the cursor is in the first item");
+        b.undo();
+        assert_eq!(text(&b), ["<body>", "\tul>li.item*2", "</body>"]);
+        // Nothing to expand: Tab is Tab.
+        let mut words = buffer(&["hello"]);
+        words.emmet = Some(crate::emmet::Syntax::Html);
+        words.move_caret_to_char(0, 5);
+        words.tab_key(false);
+        assert_eq!(text(&words), ["hello\t"]);
+        // Off where Emmet isn't used.
+        let mut plain = buffer(&["ul>li"]);
+        plain.move_caret_to_char(0, 5);
+        plain.tab_key(false);
+        assert_eq!(text(&plain), ["ul>li\t"]);
+        let mut css = buffer(&["a {", "  p10-20", "}"]);
+        css.emmet = Some(crate::emmet::Syntax::Css);
+        css.move_caret_to_char(1, 8);
+        css.tab_key(false);
+        assert_eq!(text(&css), ["a {", "  padding: 10px 20px;", "}"]);
+    }
+
+    #[test]
+    fn a_selection_is_wrapped_with_an_abbreviation() {
+        let mut b = buffer(&["<div>", "    one", "    two", "</div>"]);
+        b.set_selection((1, 4), (2, 7), false);
+        assert!(b.wrap_with_abbreviation("ul>li*", crate::emmet::Syntax::Html));
+        let unit = " ".repeat(tab_size());
+        assert_eq!(text(&b), ["<div>".to_string(), "    <ul>".to_string(), format!("    {unit}<li>one</li>"), format!("    {unit}<li>two</li>"), "    </ul>".to_string(), "</div>".to_string()]);
+        b.undo();
+        assert_eq!(text(&b), ["<div>", "    one", "    two", "</div>"]);
+        let mut part = buffer(&["say hello now"]);
+        part.set_selection((0, 4), (0, 9), false);
+        assert!(part.wrap_with_abbreviation("b.loud", crate::emmet::Syntax::Html));
+        assert_eq!(text(&part), ["say <b class=\"loud\">hello</b> now"]);
+        let mut none = buffer(&["x"]);
+        assert!(!none.wrap_with_abbreviation("b", crate::emmet::Syntax::Html), "nothing selected");
+        none.select_all();
+        assert!(!none.wrap_with_abbreviation("b>", crate::emmet::Syntax::Html), "not an abbreviation");
     }
 
     #[test]

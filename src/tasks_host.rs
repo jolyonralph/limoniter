@@ -44,6 +44,13 @@ impl Limoniter {
                     tasks.push(detected);
                 }
             }
+            // Python's run in the file's environment; its packages installed into it; R Markdown knitted.
+            self.python_tasks(&folder, &mut tasks);
+        }
+        for update in self.outdated_tasks() {
+            if !tasks.iter().any(|t| t.command == update.command) {
+                tasks.push(update);
+            }
         }
         tasks
     }
@@ -130,6 +137,8 @@ impl Limoniter {
         if run.task.kind == Kind::Test {
             let mut results = crate::tasks::test_results(&lines);
             results.sort_by_key(|r| r.passed);
+            self.mark_test_failures(&run.folder, &results);
+            self.tests_took(&results);
             self.test_panel = Some(TestPanel { task: run.task, folder: run.folder, results, assembly: None });
         }
     }

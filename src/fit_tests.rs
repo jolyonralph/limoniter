@@ -58,6 +58,7 @@ const BOXES: &[(&str, Command)] = &[
     ("Paragraph setup", Command::ParagraphSetup),
     ("Wrap at a column", Command::WrapToLineEnds),
     ("Surround with a tag", Command::SurroundTag),
+    ("Wrap with an abbreviation", Command::WrapAbbreviation),
     ("Save this layout", Command::SaveLayout),
     ("Go to line", Command::GoTo),
     ("Go to file", Command::GoToFile),

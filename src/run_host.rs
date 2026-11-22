@@ -312,6 +312,14 @@ impl Limoniter {
         if self.php_run_on_f9() {
             return;
         }
+        // Node: a front-end's dev server for its files, and a plain script run with Node.
+        if self.node_run_on_f9() {
+            return;
+        }
+        // Python runs with its environment's Python, and R with Rscript.
+        if self.python_run_on_f9() {
+            return;
+        }
         let runnable = match self.runnable() {
             Ok(Some(runnable)) => runnable,
             Ok(None) => {

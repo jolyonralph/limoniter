@@ -374,7 +374,7 @@ impl Writer<'_> {
                 }
                 self.y += 5.0;
             }
-            BlockKind::Code => {
+            BlockKind::Code | BlockKind::Chunk(_) => {
                 let text: String = block.spans.iter().map(|s| s.text.as_str()).collect();
                 self.code(&text, left, width);
             }

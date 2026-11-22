@@ -10513,3 +10513,170 @@ Working…	Elaborazione in corso…
 {} of {} rows	{} di {} righe
 {} rows, {} columns	{} righe, {} colonne
 {}. Click to show the rows in order of this column; again for the other way; a third time as in the table.	{}. Clicca per mostrare le righe nell'ordine di questa colonna; di nuovo per l'ordine inverso; una terza volta come nella tabella.
+(A plot, shown above)	Un grafico, mostrato sopra
+.env	.env
+1 second	1 secondo
+A file the language server says has errors in it is left for you to save, so half-written code isn't saved over working code	Un file per cui il server di linguaggio segnala errori viene lasciato da salvare a te, così il codice a metà non sovrascrive il codice funzionante
+Add to .gitignore	Aggiungi a .gitignore
+Adds this file's name to the .gitignore in its folder, which is made if there isn't one.	Aggiunge il nome di questo file al .gitignore della sua cartella, che viene creato se non ce n'è uno.
+After a delay	Dopo un ritardo
+Already active	Già attivo
+An Emmet abbreviation (ul>li* makes a list item of each line):	Un'abbreviazione Emmet (ul>li* fa di ogni riga una voce di elenco):
+An Emmet abbreviation…	Un'abbreviazione Emmet…
+An expectation failed here ({outcome}).	Un'aspettativa non è stata soddisfatta qui ({outcome}).
+Brought back the files you hadn't saved	I file non salvati sono stati ripristinati
+Clear plots	Cancella i grafici
+Clear the console	Svuota la console
+Clear what's shown; the variables stay	Cancella ciò che è mostrato; le variabili restano
+Composer	Composer
+Copy everything shown, as text	Copia tutto ciò che è mostrato, come testo
+Couldn't make {}.\n\n{problem}	Impossibile creare {}.\n\n{problem}
+Create	Crea
+Debug (Python, PHP, C, C++, Rust)	Debug (Python, PHP, C, C++, Rust)
+Debug PHP from a page in the browser	Debug di PHP da una pagina nel browser
+Dev server	Server di sviluppo
+Download js-debug	Scarica js-debug
+Downloading js-debug {version} from {address}…	Download di js-debug {version} da {address}…
+Downloading the PHP debug adapter (VS Code's PHP Debug, from open-vsx.org)…	Download dell'adattatore di debug PHP (PHP Debug di VS Code, da open-vsx.org)…
+Everything is up to date, or the package managers couldn't say (see the Output panel).	Tutto è aggiornato, oppure i gestori di pacchetti non hanno saputo dirlo (vedere il pannello Output).
+Expected: {expected}	Previsto: {expected}
+Give the template a name without slashes, and not starting with a dot.	Dare al modello un nome senza barre, che non inizi con un punto.
+Got: {actual}	Ottenuto: {actual}
+Install packages	Installa i pacchetti
+Install packages from requirements-dev.txt	Installa i pacchetti da requirements-dev.txt
+Install packages from requirements.txt	Installa i pacchetti da requirements.txt
+Install the project and its packages (pyproject.toml)	Installa il progetto e i suoi pacchetti (pyproject.toml)
+Install the project's packages	Installa i pacchetti del progetto
+Installing js-debug…	Installazione di js-debug…
+Interrupt the console	Interrompi la console
+Interrupt what's running	Interrompi ciò che è in esecuzione
+It took too long, and was stopped.	Ci ha messo troppo tempo ed è stato fermato.
+JavaScript is debugged with js-debug, the debugger VS Code uses for Node, and it isn't installed.	JavaScript si debugga con js-debug, il debugger che VS Code usa per Node, e non è installato.
+JavaScript is debugged with js-debug, which runs on Node.js, and Node.js isn't installed. It's at nodejs.org.	JavaScript si debugga con js-debug, che funziona su Node.js, e Node.js non è installato. Si trova su nodejs.org.
+Jest	Jest
+Keep unsaved files when quitting	Conserva i file non salvati all'uscita
+Knit / Render	Knit / Render
+Knit / Render to HTML	Knit / Render in HTML
+Knitting needs R with the rmarkdown package (and Pandoc), or Quarto (quarto.org) for Quarto files. Neither was found.	Per il knit serve R con il pacchetto rmarkdown (e Pandoc), oppure Quarto (quarto.org) per i file Quarto. Nessuno dei due è stato trovato.
+Limoniter downloads the latest release from github.com/microsoft/vscode-js-debug, where its authors put it, and keeps it in a folder beside its own settings. It runs on the Node.js you already have. Nothing else on the computer is changed.	Limoniter scarica l'ultima versione da github.com/microsoft/vscode-js-debug, dove i suoi autori la pubblicano, e la conserva in una cartella accanto alle proprie impostazioni. Funziona con il Node.js già presente. Nient'altro sul computer viene modificato.
+Look for Python environments again	Cerca di nuovo gli ambienti Python
+Look for environments again	Cerca di nuovo gli ambienti
+Looking for outdated packages…	Ricerca dei pacchetti obsoleti…
+Looking for the latest js-debug…	Ricerca dell'ultimo js-debug…
+Make a Python environment (.venv)	Crea un ambiente Python (.venv)
+Make a new environment (.venv)	Crea un nuovo ambiente (.venv)
+New files go in {folder_note}.	I nuovi file vanno in {folder_note}.
+New from a template…	Nuovo da modello…
+New from template	Nuovo da modello
+No package.json, requirements.txt, pyproject.toml, composer.json or R package was found in the project's folder.	Nella cartella del progetto non è stato trovato né package.json, requirements.txt, pyproject.toml, composer.json né un pacchetto R.
+No port was free for the debugger: {e}	Nessuna porta era libera per il debugger: {e}
+Node.js isn't installed, or isn't where Limoniter can find it. It's at nodejs.org; put it on the PATH.	Node.js non è installato, o non è dove Limoniter può trovarlo. Si trova su nodejs.org; mettilo nel PATH.
+Not while the language server reports errors	Non finché il server di linguaggio segnala errori
+Only a file shown as text, and not too large, can be kept as a template.	Solo un file mostrato come testo, e non troppo grande, può essere conservato come modello.
+Open a file in the project first: its packages are looked for in its folder.	Aprire prima un file del progetto: i suoi pacchetti vengono cercati nella sua cartella.
+Outdated packages	Pacchetti obsoleti
+Outdated packages…	Pacchetti obsoleti…
+PHP is debugged with VS Code's PHP Debug adapter, which is a Node.js program, and Node.js isn't installed.	PHP si debugga con l'adattatore PHP Debug di VS Code, un programma Node.js, e Node.js non è installato.
+PHPUnit	PHPUnit
+Plot {} of {}	Grafico {} di {}
+Poetry	Poetry
+Press Ctrl+Enter in a {} file to send the line or selection here, or type below.	Premere Ctrl+Enter in un file {} per inviare qui la riga o la selezione, oppure digitare sotto.
+Python	Python
+Python ({})	Python ({})
+Python and R	Python e R
+Python and R console	Console Python e R
+Python environment	Ambiente Python
+Python, JavaScript, C, C++ and Rust files can be debugged here, with debugpy, js-debug, gdb or lldb-dap.	Qui si possono fare il debug di file Python, JavaScript, C, C++ e Rust, con debugpy, js-debug, gdb o lldb-dap.
+Quitting with unsaved or never-saved files doesn't ask: they come back as they were the next time Limoniter starts. Turn this off to be asked about each one	Uscendo con file non salvati o mai salvati non viene chiesto nulla: tornano com'erano al prossimo avvio di Limoniter. Disattiva questa opzione per ricevere una domanda per ciascuno
+Restart the console	Riavvia la console
+Run Node	Esegui Node
+Run above	Esegui sopra
+Run the cell	Esegui la cella
+Run the cells above, and this one	Esegui le celle sopra e questa
+Save as template	Salva come modello
+Save this file as a template…	Salva questo file come modello…
+Save when	Salva quando
+Saved the template {}	Modello {} salvato
+Select the text to wrap first.	Selezionare prima il testo da racchiudere.
+Send the line or selection to the console	Invia la riga o la selezione alla console
+Start new files in this folder from this template	Avvia i nuovi file di questa cartella da questo modello
+Start the kernel afresh: its variables are lost	Riavvia il kernel: le sue variabili vanno perse
+Start the {} console	Avvia la console {}
+Template name	Nome del modello
+That isn't an Emmet abbreviation that can wrap text, such as div, p.note or ul>li*.	Questa non è un'abbreviazione Emmet che può racchiudere il testo, come div, p.note o ul>li*.
+That template has no files in it.	Questo modello non contiene file.
+The .gitignore couldn't be written: {e}	Impossibile scrivere il .gitignore: {e}
+The Explorer's New file then fills them in from it. Kept in the templates folder, in the file .rules	Il Nuovo file di Esplora risorse li compila a partire da esso. Conservato nella cartella dei modelli, nel file .rules
+The PHP debug adapter couldn't be downloaded.\n\n{problem}	Impossibile scaricare l'adattatore di debug PHP.\n\n{problem}
+The PHP debug adapter is downloaded.	L'adattatore di debug PHP è stato scaricato.
+The PHP on this computer doesn't have Xdebug, the extension that debugs it. Install it (pecl install xdebug, or your system's php-xdebug package) and try again.	Il PHP di questo computer non ha Xdebug, l'estensione che ne permette il debug. Installarla (pecl install xdebug, o il pacchetto php-xdebug del sistema) e riprovare.
+The Python console will start again with {}.	La console Python ripartirà con {}.
+The Python this folder's files are run, debugged and tested with: {}. Click to choose another	Il Python con cui i file di questa cartella vengono eseguiti, debuggati e testati: {}. Fare clic per sceglierne un altro
+The computer's own	Quello del computer
+The console's kernel couldn't run it. Restart the console and try again.	Il kernel della console non è riuscito a eseguirlo. Riavviare la console e riprovare.
+The debugger couldn't be reached: {e}	Impossibile raggiungere il debugger: {e}
+The debugger {program} couldn't be reached: {e} {said}	Impossibile raggiungere il debugger {program}: {e} {said}
+The download stopped unexpectedly.	Il download si è interrotto inaspettatamente.
+The download was unpacked, but phpDebug.js wasn't in it.	Il download è stato estratto, ma phpDebug.js non c'era.
+The download was unpacked, but {SERVER} wasn't in it.	Il download è stato estratto, ma {SERVER} non c'era.
+The environment {} is made, and used for this folder's Python.	L'ambiente {} è stato creato e viene usato per il Python di questa cartella.
+The file has no folder.	Il file non ha una cartella.
+The file has no name.	Il file non ha un nome.
+The file in front is kept in {} for new files to start from.	Il file in primo piano viene conservato in {} come punto di partenza per i nuovi file.
+The latest release ({tag}) has no js-debug download that Limoniter knows.	L'ultima versione ({tag}) non ha alcun download di js-debug che Limoniter conosca.
+The plot after	Il grafico successivo
+The plot before	Il grafico precedente
+The registry's answer wasn't what was expected.	La risposta del registro non era quella prevista.
+The server is listening at {url}. It's opened in the browser.	Il server è in ascolto su {url}. Viene aperto nel browser.
+The server is still starting. The browser opens once it says where it's listening.	Il server sta ancora partendo. Il browser si apre appena dice dove è in ascolto.
+There's already a template called {name}.	Esiste già un modello chiamato {name}.
+There's no Jupyter kernel for {} on this computer, and the console runs on one. To install it, in a terminal: {install}	Non c'è alcun kernel Jupyter per {} su questo computer, e la console ne usa uno. Per installarlo, in un terminale: {install}
+There's no requirements.txt, pyproject.toml or environment.yml in the project's folder to install from.	Nella cartella del progetto non c'è requirements.txt, pyproject.toml o environment.yml da cui installare.
+There's nowhere to keep it.	Non c'è un posto dove conservarlo.
+This debugger can't make another session.	Questo debugger non può creare un'altra sessione.
+This file usually holds secrets, and git isn't ignoring it, so it could be committed by mistake.	Questo file di solito contiene segreti, e git non lo ignora, quindi potrebbe essere inserito in un commit per errore.
+This project has no templates yet. Put files or folders in {}, or use File, Project, Save as template.	Questo progetto non ha ancora modelli. Mettere file o cartelle in {}, oppure usare File, Progetto, Salva come modello.
+Turn {} in the text into the name of the new file	Trasforma {} nel testo nel nome del nuovo file
+Type code, then Enter. Shift+Enter for another line; up and down for what was typed	Digitare il codice, poi Enter. Shift+Enter per un'altra riga; su e giù per ciò che è stato digitato
+Update all outdated {} packages	Aggiorna tutti i pacchetti {} obsoleti
+Update the conda environment from environment.yml	Aggiorna l'ambiente conda da environment.yml
+Update {} ({})	Aggiorna {} ({})
+Vitest	Vitest
+Waiting for Xdebug on port {port}: open the page in the browser, or run the script from the terminal with XDEBUG_SESSION=1	In attesa di Xdebug sulla porta {port}: aprire la pagina nel browser, oppure eseguire lo script dal terminale con XDEBUG_SESSION=1
+Wanted is the newest version the project's own limits allow. Tools, Tasks lists the updates.	«Wanted» è la versione più recente consentita dai limiti del progetto stesso. Strumenti, Attività elenca gli aggiornamenti.
+When another tab or panel is chosen	Quando si sceglie un'altra scheda o un altro pannello
+When the window loses the focus	Quando la finestra perde il focus
+Wrap with an abbreviation	Racchiudi con un'abbreviazione
+autosave_skip_errors	autosave_skip_errors
+autosave_when	autosave_when
+bun	bun
+bun.lock	bun.lock
+bun.lockb	bun.lockb
+composer dump-autoload	composer dump-autoload
+composer install	composer install
+composer update	composer update
+conda	conda
+hot_exit	hot_exit
+js-debug	js-debug
+js-debug couldn't be installed: {problem}	Impossibile installare js-debug: {problem}
+js-debug is being installed. The Output panel shows how it's going.	js-debug è in corso di installazione. Il pannello Output mostra come procede.
+js-debug is installed ({version}), as {}.	js-debug è installato ({version}), come {}.
+js-debug runs on Node.js, which isn't installed. It's at nodejs.org.	js-debug funziona su Node.js, che non è installato. Si trova su nodejs.org.
+kept by python_host, above	gestito da python_host, sopra
+languageserver::	languageserver::
+npm	npm
+npm-shrinkwrap.json	npm-shrinkwrap.json
+package-lock.json	package-lock.json
+pip	pip
+pnpm	pnpm
+pnpm-lock.yaml	pnpm-lock.yaml
+testthat	testthat
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\n
+uv	uv
+venv	venv
+yarn	yarn
+yarn.lock	yarn.lock
+{} already has a .venv.	{} ha già una .venv.
+{} has no ipykernel, so the kernel runs on another Python. To use the environment's: {install}	{} non ha ipykernel, quindi il kernel funziona su un altro Python. Per usare quello dell'ambiente: {install}
+{} is in {} now.	{} è ora in {}.
+▶ Run cell	▶ Esegui la cella
