@@ -54,10 +54,6 @@ fn the_index_leaves_out_what_git_would_and_never_goes_into_dot_git() {
     let (files, _) = index(&root, &[Hide::Folder("lib".into()), Hide::Kind("tmp".into())]);
     let names: Vec<String> = files.iter().map(|f| f.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/")).collect();
     assert_eq!(names, [".gitignore", "src/build/still.c", "src/keep.o", "src/main.c"]);
-    // The recency slider ranks every file the Explorer can show: Git's ignored ones too, but not the hidden ones,
-    // and never .git's.
-    let names: Vec<String> = every_file(&root, &[Hide::Folder("lib".into()), Hide::Kind("tmp".into())]).iter().map(|f| f.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/")).collect();
-    assert_eq!(names, [".gitignore", "build/out.bin", "node_modules/x/index.js", "src/build/still.c", "src/keep.o", "src/main.c", "src/main.o"]);
     let _ = std::fs::remove_dir_all(&root);
 }
 

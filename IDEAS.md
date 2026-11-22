@@ -161,6 +161,7 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
+| The recency slider ranks each folder's own listing as it's drawn, never walking the project; example Python and R notebooks in File, New as | Next |
 | Links open (eframe can't open them itself); the About box's Licence information button; Project settings' tabs fill the window | Next |
 | Project settings: one window with tabs for everything a project keeps, from a gear on the Project panel | 0.16.1 |
 | VS Code's `.vscode` settings, tasks, launch setups and recommended extensions read, followed and importable; `.code-workspace` files opened | 0.16.1 |

@@ -239,6 +239,25 @@ pub struct Recency {
     cut_from: Option<(u32, u64, usize, Option<u64>)>,
     /// The share the slider is being dragged to, before it's let go and kept.
     pub slider: Option<u32>,
+    /// In a folder's Explorer, the share this frame's folders are cut to; and the files shown and hidden in the
+    /// folders drawn, counted as they're drawn and said under the slider on the next frame.
+    share_now: u32,
+    counting: (usize, usize),
+    counted: Option<(usize, usize)>,
+}
+
+/// The entries of one folder the recency slider leaves out of a folder's Explorer: its files by when they were
+/// last edited, and its folders by the folder's own date (or the latest edit under it that's already known), the
+/// newest first and ties by name; the newest `share` per cent are kept, at least one unless the share is 0. Only
+/// what the folder lists is looked at, never what's inside its folders, so it costs nothing on a big project.
+fn listing_cut(times: &[(&Path, Option<SystemTime>)], share: u32) -> HashSet<PathBuf> {
+    if share >= 100 {
+        return HashSet::new();
+    }
+    let mut order: Vec<&(&Path, Option<SystemTime>)> = times.iter().collect();
+    order.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    let keep = if share == 0 || order.is_empty() { 0 } else { (order.len() * share as usize).div_ceil(100).max(1) };
+    order.into_iter().skip(keep).map(|(path, _)| path.to_path_buf()).collect()
 }
 
 /// How often what counts as recent is worked out again, as time passes.
@@ -287,24 +306,6 @@ impl Recency {
         self.every_count += 1;
     }
 
-    /// Ranks files seen in the folder that the dates read don't have: they were made after the dates were read, so
-    /// they're the newest, and are counted at once (the cut is worked out again next time it's drawn) without
-    /// reading every file's date again. The dates read are replaced when the next read comes in.
-    pub fn rank_new<'a>(&mut self, root: &Path, files: impl IntoIterator<Item = &'a Path>) {
-        let Some((_, every)) = self.every.as_mut().filter(|(at, _)| at == root) else { return };
-        let now = SystemTime::now();
-        let mut added = false;
-        for file in files {
-            if !every.contains_key(file) {
-                every.insert(file.to_path_buf(), now);
-                added = true;
-            }
-        }
-        if added {
-            self.every_count += 1;
-        }
-    }
-
     /// Works out again which files the recency slider leaves out, when the share or what it's worked out from has
     /// changed.
     pub fn update_cut(&mut self, root: &Path, kept: &Kept) {
@@ -344,6 +345,8 @@ impl Recency {
         }
         if let Some(cut) = self.cut.as_ref().filter(|_| share < 100) {
             ui.label(RichText::new(cut.said()).size(12.0).color(crate::theme::text_faint()));
+        } else if let Some((shown, hidden)) = self.counted.filter(|_| share < 100) {
+            ui.label(RichText::new(kept::count_line(shown, hidden)).size(12.0).color(crate::theme::text_faint()));
         } else if share < 100 {
             // The dates are still being read.
             ui.label(RichText::new(crate::i18n::tr("Reading when the files were edited\u{2026}")).size(12.0).color(crate::theme::text_faint()));
@@ -352,7 +355,7 @@ impl Recency {
 
     /// Whether the line under the slider will be there, for the room it needs.
     pub fn tall(&self, kept: &Kept) -> bool {
-        self.cut.as_ref().is_some_and(|cut| cut.hidden() > 0 || cut.shown == 0) || self.slider.is_some_and(|s| s < 100) || kept.recency < 100
+        self.cut.as_ref().is_some_and(|cut| cut.hidden() > 0 || cut.shown == 0) || self.counted.is_some_and(|(_, hidden)| hidden > 0) || self.slider.is_some_and(|s| s < 100) || kept.recency < 100
     }
 
     /// Whether a file or folder is left out of the tree.
@@ -529,7 +532,11 @@ impl Explorer {
             self.listings.clear();
         }
         self.update_recent(root, kept);
-        self.recency.update_cut(root, kept);
+        // The folder's Explorer cuts each folder's own listing as it's drawn (see `listing_cut`).
+        self.recency.cut = None;
+        self.recency.share_now = self.recency.slider.unwrap_or(kept.recency);
+        self.recency.counted = (self.recency.share_now < 100).then_some(self.recency.counting);
+        self.recency.counting = (0, 0);
         if let Some(active) = active
             && self.revealed.as_deref() != Some(active)
         {
@@ -615,10 +622,22 @@ impl Explorer {
             self.editing_row(ui, depth, if is_folder { "\u{25B8} " } else { "" }, acts);
         }
         let entries = self.listing(folder);
-        // A file made since the slider's dates were read is the newest: ranked now, and counted.
-        self.recency.rank_new(root, entries.iter().filter(|e| !e.folder && !e.hidden).map(|e| e.path.as_path()));
+        // Edits Limoniter and Git know of lately count over a file's or folder's own date.
+        let times: Vec<(&Path, Option<SystemTime>)> = entries
+            .iter()
+            .filter(|e| !e.hidden)
+            .map(|e| {
+                let known = if e.folder { self.recent_folders.get(&e.path) } else { self.recent_files.get(&e.path) };
+                (e.path.as_path(), known.copied().max(e.changed))
+            })
+            .collect();
+        let left_out = listing_cut(&times, self.recency.share_now);
+        let files = entries.iter().filter(|e| !e.folder && !e.hidden).count();
+        let files_out = entries.iter().filter(|e| !e.folder && left_out.contains(&e.path)).count();
+        self.recency.counting.0 += files - files_out;
+        self.recency.counting.1 += files_out;
         for entry in entries {
-            if self.recency.hides(&entry.path, entry.folder) {
+            if left_out.contains(&entry.path) {
                 continue;
             }
             let renaming = matches!(&self.editing, Some(Editing::Rename { path, .. }) if *path == entry.path);
@@ -1033,6 +1052,24 @@ mod tests {
         assert!(explorer.git.is_empty() && explorer.git_folders.is_empty());
     }
 
+    /// A folder's Explorer cuts each folder's own listing, its files by their dates and its folders by theirs,
+    /// never reading what's inside the folders.
+    #[test]
+    fn each_folder_listing_keeps_its_newest_share() {
+        let at = |secs: u64| Some(SystemTime::UNIX_EPOCH + Duration::from_secs(secs));
+        let (a, b, c, old, new) = (Path::new("/w/a.txt"), Path::new("/w/b.txt"), Path::new("/w/c.txt"), Path::new("/w/old"), Path::new("/w/new"));
+        let times = [(a, at(50)), (b, at(50)), (c, at(10)), (old, at(5)), (new, at(90))];
+        assert!(listing_cut(&times, 100).is_empty(), "nothing is left out at 100%");
+        // Half of five, rounded up, is three: the new folder, then the tie at 50 by name.
+        let out = listing_cut(&times, 50);
+        assert_eq!(out, [c, old].iter().map(|p| p.to_path_buf()).collect::<HashSet<_>>());
+        assert_eq!(listing_cut(&times, 1).len(), 4, "at least one is kept");
+        assert_eq!(listing_cut(&times, 0).len(), 5, "none at 0%");
+        // A folder or file with no date reads as the oldest.
+        assert!(listing_cut(&[(a, None), (b, at(1))], 50).contains(a));
+        assert!(listing_cut(&[], 50).is_empty());
+    }
+
     #[test]
     fn the_slider_leaves_out_files_in_the_tree_and_keeps_their_order() {
         let root = std::env::temp_dir().join(format!("limoniter-explorer-slider-{}", std::process::id()));
@@ -1067,36 +1104,4 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A file made after the dates were read is ranked as the newest as soon as it's seen, and the counts under the
-    /// slider follow, with no second read of every file.
-    #[test]
-    fn a_new_file_is_ranked_newest_at_once_and_counted() {
-        let root = std::env::temp_dir().join(format!("limoniter-explorer-newfile-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        for file in ["a.txt", "b.txt", "c.txt", "d.txt"] {
-            std::fs::write(root.join(file), "x").unwrap();
-        }
-        let at = |secs: u64| SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
-        let mut explorer = Explorer { root: Some(root.clone()), ..Explorer::default() };
-        explorer.recency.set_every_time(&root, [(root.join("a.txt"), at(40)), (root.join("b.txt"), at(30)), (root.join("c.txt"), at(20)), (root.join("d.txt"), at(10))].into());
-        let kept = Kept { recency: 50, ..Kept::default() };
-        explorer.recency.update_cut(&root, &kept);
-        assert_eq!(explorer.recency.cut.as_ref().unwrap().said(), "2 files shown, 2 hidden");
-        // Made now, after the read.
-        std::fs::write(root.join("new.txt"), "x").unwrap();
-        let entries = explorer.listing(&root);
-        explorer.recency.rank_new(&root, entries.iter().filter(|e| !e.folder).map(|e| e.path.as_path()));
-        explorer.recency.update_cut(&root, &kept);
-        let cut = explorer.recency.cut.clone().unwrap();
-        assert!(!cut.hides(&root.join("new.txt"), false), "the newest is shown");
-        assert!(!cut.hides(&root.join("a.txt"), false), "a.txt is still the second newest of five (half of five is two)");
-        assert!(cut.hides(&root.join("b.txt"), false));
-        assert_eq!(cut.said(), "2 files shown, 3 hidden", "the counts follow");
-        // Seen again, it isn't ranked a second time.
-        let count = explorer.recency.every_count;
-        explorer.recency.rank_new(&root, entries.iter().map(|e| e.path.as_path()));
-        assert_eq!(explorer.recency.every_count, count);
-        let _ = std::fs::remove_dir_all(&root);
-    }
 }

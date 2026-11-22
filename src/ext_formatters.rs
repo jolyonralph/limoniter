@@ -257,6 +257,18 @@ mod tests {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
+    /// `run`, tried again for a moment when the stand-in program was written so lately that starting it says it's
+    /// busy (another test starting a program at that instant can still hold it open for writing).
+    fn ran(formatter: &Formatter, text: &str, file: &Path) -> Result<String, String> {
+        for _ in 0..40 {
+            match run(formatter, text, file) {
+                Err(e) if e.contains("busy") || e.contains("Text file") => std::thread::sleep(std::time::Duration::from_millis(50)),
+                other => return other,
+            }
+        }
+        run(formatter, text, file)
+    }
+
     fn named(name: &str) -> &'static Formatter {
         ALL.iter().find(|f| f.name == name).unwrap()
     }
@@ -294,7 +306,7 @@ mod tests {
         let file = dir.join("src/index.js");
         std::fs::create_dir_all(dir.join("src")).unwrap();
         fake(&dir, "node_modules/.bin/prettier", "cat >/dev/null; echo from-the-project");
-        assert_eq!(run(named("Prettier"), "x = 1\n", &file).unwrap(), "from-the-project\n");
+        assert_eq!(ran(named("Prettier"), "x = 1\n", &file).unwrap(), "from-the-project\n");
         let mut choices = std::collections::HashMap::new();
         choices.insert("JavaScript".to_string(), "Prettier".to_string());
         assert_eq!(chosen_near("JavaScript", &choices, Some(&file)).map(|f| f.name), Some("Prettier"));
@@ -310,11 +322,11 @@ mod tests {
         let file = dir.join("a.php");
         // Written for BSD sed as well as GNU's: a Mac's `sed -i` wants a suffix, so the file is written anew.
         fake(&dir, "vendor/bin/php-cs-fixer", "for last; do :; done; sed 's/array()/[]/' \"$last\" > \"$last.new\" && mv \"$last.new\" \"$last\"");
-        assert_eq!(run(named("PHP CS Fixer"), "<?php $a = array();\n", &file).unwrap(), "<?php $a = [];\n");
+        assert_eq!(ran(named("PHP CS Fixer"), "<?php $a = array();\n", &file).unwrap(), "<?php $a = [];\n");
         fake(&dir, "vendor/bin/phpcbf", "cat; exit 1");
-        assert_eq!(run(named("PHP_CodeSniffer (phpcbf)"), "<?php\n", &file).unwrap(), "<?php\n");
+        assert_eq!(ran(named("PHP_CodeSniffer (phpcbf)"), "<?php\n", &file).unwrap(), "<?php\n");
         fake(&dir, "vendor/bin/phpcbf", "echo broken >&2; exit 3");
-        assert!(run(named("PHP_CodeSniffer (phpcbf)"), "<?php\n", &file).unwrap_err().contains("broken"));
+        assert!(ran(named("PHP_CodeSniffer (phpcbf)"), "<?php\n", &file).unwrap_err().contains("broken"));
         let mut choices = std::collections::HashMap::new();
         assert_eq!(chosen_near("PHP", &choices, Some(&file)).map(|f| f.name), Some("PHP CS Fixer"), "the first of those the project has");
         choices.insert("PHP".to_string(), "PHP_CodeSniffer (phpcbf)".to_string());
@@ -332,10 +344,10 @@ mod tests {
         let dir = project("black");
         let file = dir.join("a.py");
         let long = "x = foo(aaaaaaaaaa, bbbbbbbbbb, cccccccccc)\n";
-        let roomy = run(named("Black"), long, &file).unwrap();
+        let roomy = ran(named("Black"), long, &file).unwrap();
         assert_eq!(roomy, long, "88 columns is room enough");
         std::fs::write(dir.join("pyproject.toml"), "[tool.black]\nline-length = 20\n").unwrap();
-        let narrow = run(named("Black"), long, &file).unwrap();
+        let narrow = ran(named("Black"), long, &file).unwrap();
         assert!(narrow.lines().count() > 1, "wrapped to the project's line length: {narrow}");
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -193,4 +193,14 @@ fn new_python_and_r_notebooks_are_offered_and_valid() {
         assert_eq!(nb.to_json(), kind.starter);
         assert_eq!(kind.group(), "Modern languages");
     }
+    // And an example of each, to try a kernel with: Markdown, code, and the same ids every time.
+    for (name, kernel, cells) in [("Python notebook (Jupyter): an example", "python3", 8), ("R notebook (Jupyter): an example", "ir", 6)] {
+        let kind = kinds.iter().find(|k| k.name == name).unwrap_or_else(|| panic!("{name} is a kind of new file"));
+        let nb = Notebook::parse(&kind.starter).unwrap();
+        assert_eq!((nb.kernel_name(), nb.cells.len()), (Some(kernel), cells));
+        assert_eq!(nb.cells[0].kind, crate::notebook::CellKind::Markdown);
+        assert!(nb.cells.iter().skip(1).any(|c| c.kind == crate::notebook::CellKind::Code && c.source.starts_with('#')), "code cells explain themselves");
+        assert_eq!(nb.to_json(), kind.starter, "saved as Jupyter saves it");
+        assert_eq!(new_kinds::NewKind::usual().iter().find(|k| k.name == name).unwrap().starter, kind.starter, "the same every time");
+    }
 }

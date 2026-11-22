@@ -154,6 +154,8 @@ impl NewKind {
             Self::new("JSON", "json", "utf-8", line, "", Program::None, "{\n}\n"),
             Self::new("Python notebook (Jupyter)", "ipynb", "utf-8", Eol::Lf, "", Program::None, &crate::notebook::Notebook::new("python3", "Python 3 (ipykernel)", "python").to_json()),
             Self::new("R notebook (Jupyter)", "ipynb", "utf-8", Eol::Lf, "", Program::None, &crate::notebook::Notebook::new("ir", "R", "R").to_json()),
+            Self::new("Python notebook (Jupyter): an example", "ipynb", "utf-8", Eol::Lf, "", Program::None, &crate::notebook::Notebook::python_example().to_json()),
+            Self::new("R notebook (Jupyter): an example", "ipynb", "utf-8", Eol::Lf, "", Program::None, &crate::notebook::Notebook::r_example().to_json()),
             Self::new("Python", "py", "utf-8", line, "", Program::None, "def main():\n    print(\"Hello\")\n\n\nif __name__ == \"__main__\":\n    main()\n"),
             Self::new("C", "c", "utf-8", line, "", Program::None, "#include <stdio.h>\n\nint main(void)\n{\n    printf(\"Hello\\n\");\n    return 0;\n}\n"),
             Self::new("C++", "cpp", "utf-8", line, "", Program::None, "#include <iostream>\n\nint main()\n{\n    std::cout << \"Hello\\n\";\n}\n"),

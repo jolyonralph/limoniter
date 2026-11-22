@@ -206,12 +206,6 @@ pub fn is_glob(text: &str) -> bool {
     text.contains(['*', '?', '['])
 }
 
-/// Every file the Explorer can show under a folder: those Git leaves out too (the Explorer shows them faintly), but
-/// not those the project's Explorer hides. For the recency slider, which has to rank every file it might hide.
-pub fn every_file(root: &Path, rules: &[crate::explorer_kept::Hide]) -> Vec<PathBuf> {
-    walk(root, rules, false, &[]).0
-}
-
 fn walk(root: &Path, rules: &[crate::explorer_kept::Hide], leave_out_ignored: bool, exclude: &[String]) -> (Vec<PathBuf>, bool) {
     let mut ignores = Ignores::new(root);
     let hides = |path: &Path, is_folder: bool| crate::explorer_kept::hidden_by(rules, root, path, is_folder) || excluded(exclude, root, path, is_folder);

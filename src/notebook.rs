@@ -188,6 +188,12 @@ impl Cell {
     }
 }
 
+/// A code cell's source: a comment line over its code (Python and R both write `#`). The example notebooks stay in
+/// English, comments and all, as the person asked.
+fn commented(comment: &str, code: &str) -> String {
+    format!("# {comment}\n{code}")
+}
+
 impl Notebook {
     /// A notebook with one empty code cell, for a kernel (a name like "python3" and what to call it) and its
     /// language.
@@ -200,6 +206,55 @@ impl Notebook {
         // The same every time, so File, New as's list of kinds doesn't look changed; ids need only differ
         // within one notebook.
         notebook.cells[0].id = Some("a1b2c3d4".into());
+        notebook
+    }
+
+    /// A Python notebook to try Limoniter's notebooks with: printed text, a result, a table and a plot (when
+    /// pandas and matplotlib are there), an error with its traceback, and a question answered in a box.
+    pub fn python_example() -> Self {
+        Self::example(
+            ("python3", "Python 3 (ipykernel)", "python"),
+            &[
+                (CellKind::Markdown, String::from("# An example notebook\n\nRun a cell with **Shift+Enter**, or all of them with **Run all**. What a cell sets is kept by the kernel for the cells after it.")),
+                (CellKind::Code, commented("Printed text shows under the cell.", "for n in range(1, 4):\n    print(f\"{n} squared is {n * n}\")")),
+                (CellKind::Code, commented("The last line's value is the cell's result.", "total = sum(range(101))\ntotal")),
+                (CellKind::Markdown, String::from("## A table and a plot\n\nThese need pandas and matplotlib in the kernel's Python (`pip install pandas matplotlib`).")),
+                (CellKind::Code, commented("A pandas table is shown as a grid.", "try:\n    import pandas as pd\n    pd.DataFrame({\"n\": range(1, 6), \"square\": [n * n for n in range(1, 6)]})\nexcept ImportError:\n    print(\"pandas isn't installed for this kernel\")")),
+                (CellKind::Code, commented("A plot is shown as a picture.", "try:\n    import matplotlib.pyplot as plt\n    xs = [x / 10 for x in range(63)]\n    plt.plot(xs, [x * x for x in xs])\n    plt.show()\nexcept ImportError:\n    print(\"matplotlib isn't installed for this kernel\")")),
+                (CellKind::Code, commented("An error shows its traceback.", "1 / 0")),
+                (CellKind::Code, commented("input() asks in a box under the cell.", "name = input(\"Your name: \")\nprint(\"Hello,\", name)")),
+            ],
+        )
+    }
+
+    /// The same for R: printed text, a summary, a table, a plot and an error.
+    pub fn r_example() -> Self {
+        Self::example(
+            ("ir", "R", "R"),
+            &[
+                (CellKind::Markdown, String::from("# An example notebook\n\nRun a cell with **Shift+Enter**, or all of them with **Run all**. What a cell sets is kept by the kernel for the cells after it.")),
+                (CellKind::Code, commented("Printed text shows under the cell.", "for (n in 1:3) cat(n, \"squared is\", n * n, \"\\n\")")),
+                (CellKind::Code, commented("The last line's value is the cell's result.", "summary(c(3, 1, 4, 1, 5, 9, 2, 6))")),
+                (CellKind::Code, commented("A data frame is shown as a table.", "head(mtcars)")),
+                (CellKind::Code, commented("A plot is shown as a picture.", "plot(sin, -pi, 2 * pi)")),
+                (CellKind::Code, commented("An error says what went wrong.", "stop(\"an error, to see how it's shown\")")),
+            ],
+        )
+    }
+
+    /// A notebook of the cells given, with ids that are the same every time (so File, New as's list of kinds
+    /// doesn't look changed).
+    fn example(kernel: (&str, &str, &str), cells: &[(CellKind, String)]) -> Self {
+        let mut notebook = Self::new(kernel.0, kernel.1, kernel.2);
+        notebook.cells = cells
+            .iter()
+            .enumerate()
+            .map(|(at, (kind, source))| {
+                let mut cell = Cell::new(*kind, source);
+                cell.id = Some(format!("example-{}", at + 1));
+                cell
+            })
+            .collect();
         notebook
     }
 

@@ -254,16 +254,15 @@ impl Limoniter {
     /// Starts reading, in the background, when each of the folder's files was last edited, for the recency slider.
     /// It's only done while the slider is below 100%, as it reads the date of every file.
     fn find_every_time(&mut self) {
-        let Some(project) = self.project.as_ref().filter(|p| p.explorer.recency < 100) else { return };
+        // Only a .limproj's listed files are read: a folder's Explorer ranks each folder's own listing as it's drawn,
+        // and reading every file under a big folder took far too long.
+        let Some(project) = self.project.as_ref().filter(|p| p.explorer.recency < 100 && p.root.is_none()) else { return };
         if self.indexing.every.is_some() {
             return;
         }
-        // A folder project ranks every file its Explorer can show, those Git ignores too, or they'd never be hidden;
-        // a .limproj project, the files it lists.
-        let (root, files, walk) = (project.folder(), project.files.clone(), project.root.is_some().then(|| project.explorer.hidden.clone()));
+        let (root, files) = (project.folder(), project.files.clone());
         let (send, receive) = channel();
         std::thread::spawn(move || {
-            let files = walk.map_or(files, |rules| crate::workspace::every_file(&root, &rules));
             let times = crate::explorer_kept::every_time(&root, &files);
             let _ = send.send((root, times));
         });
