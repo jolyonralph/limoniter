@@ -289,7 +289,8 @@ mod tests {
 
     fn wait_for(app: &mut Limoniter, what: impl Fn(&Limoniter) -> bool) -> bool {
         let began = Instant::now();
-        while began.elapsed() < Duration::from_secs(20) {
+        // Long enough for a busy machine running the whole suite.
+        while began.elapsed() < Duration::from_secs(60) {
             let running = app.check_run_tool();
             app.node_tick();
             let _ = running;

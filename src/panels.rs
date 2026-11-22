@@ -303,6 +303,8 @@ pub struct Panels {
     pub database: bool,
     /// The tests a project's runners list, and how they went.
     pub tests: bool,
+    /// Docker Compose's services, and what state they're in.
+    pub containers: bool,
     call_graph_panel: crate::code_panels::CallGraphPanel,
     instruction_panel: crate::code_panels::InstructionPanel,
     strings_panel: crate::strings_explorer::PanelState,
@@ -334,7 +336,7 @@ impl Panels {
         flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 26] {
+    fn flags(&self) -> [(&'static str, bool); 27] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -362,6 +364,7 @@ impl Panels {
             ("variables_panel", self.variables),
             ("database_panel", self.database),
             ("tests_panel", self.tests),
+            ("containers_panel", self.containers),
         ]
     }
 
@@ -402,6 +405,7 @@ impl Panels {
                 "variables_panel" => self.variables = flag,
                 "database_panel" => self.database = flag,
                 "tests_panel" => self.tests = flag,
+                "containers_panel" => self.containers = flag,
                 "file_explorer" => self.file_explorer = flag,
                 "open_files" => self.open_files = flag,
                 "bookmarks" => self.bookmarks = flag,
@@ -445,6 +449,7 @@ impl Panels {
         self.variables = false;
         self.database = false;
         self.tests = false;
+        self.containers = false;
     }
 
     fn right_count(&self) -> usize {

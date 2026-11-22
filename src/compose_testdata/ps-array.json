@@ -1,0 +1,1 @@
+[{"ID":"f6e5d4c3b2a1","Name":"shop-web-1","Service":"web","State":"running","Health":"","Status":"Up 5 minutes","Publishers":[{"URL":"0.0.0.0","TargetPort":80,"PublishedPort":8080,"Protocol":"tcp"}]},{"ID":"0123456789ab","Name":"shop-db-1","Service":"db","State":"restarting","Health":"starting","Status":"Restarting (1) 4 seconds ago","Publishers":null}]

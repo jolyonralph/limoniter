@@ -128,6 +128,10 @@ pub fn detect(folder: &Path) -> Vec<Task> {
             task("PlatformIO: serial monitor", "pio device monitor", Kind::Other),
         ]);
     }
+    // Docker Compose: the whole project up, down, or its images pulled.
+    for (name, command) in crate::compose::tasks(folder) {
+        found.push(task(&name, &command, Kind::Other));
+    }
     found
 }
 

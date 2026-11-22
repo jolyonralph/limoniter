@@ -387,6 +387,12 @@ enum Command {
     EditTasks,
     /// Asks each package manager the project uses what's out of date.
     OutdatedPackages,
+    /// Sends the request the cursor is in, in a `.http` file.
+    SendRequest,
+    /// Sends the numbered request of the `.http` file, from its link in the editor.
+    SendRequestNumber(usize),
+    /// Forgets the cookies a `.http` file's responses have set.
+    HttpClearCookies,
     MachineMemory,
     MachineScreen,
     MachineBasicOut,
@@ -1732,8 +1738,11 @@ pub struct Limoniter {
     /// A task running, and the last test task's results.
     task_run: Option<tasks_host::TaskRun>,
     test_panel: Option<tasks_host::TestPanel>,
+    /// Docker Compose: the Containers panel and the logs being followed.
+    compose: compose_host::ComposeState,
     tests_ui: tests_host::Explorer,
     outdated_ui: outdated_host::State,
+    http_ui: http_host::State,
     clip: ClipState,
     find: FindState,
     job: Option<Arc<SearchJob>>,
@@ -2240,8 +2249,10 @@ impl Limoniter {
             terminal_hidden: false,
             task_run: None,
             test_panel: None,
+            compose: compose_host::ComposeState::default(),
             tests_ui: Default::default(),
             outdated_ui: Default::default(),
+            http_ui: http_host::State::from_settings(&settings),
             clip: ClipState::default(),
             find: FindState { recursive: true, file_types: "*.*".into(), history: list_setting(&settings, "find_history"), favourites: list_setting(&settings, "find_favourite"), favorite_files: list_setting(&settings, "favorite_file").into_iter().map(PathBuf::from).collect(), keep_backups: true, ..FindState::default() },
             job: None,
@@ -3418,6 +3429,7 @@ impl Limoniter {
         self.task_tick(running);
         busy |= self.php_tick();
         busy |= self.outdated_tick();
+        busy |= self.http_tick(ctx);
         busy |= self.xdebug_tick();
         self.database.ctx = Some(ctx.clone());
         busy |= self.database_tick();
@@ -4731,6 +4743,9 @@ impl Limoniter {
             Command::RasterDesigner => self.open_raster_designer(),
             Command::EditTasks => self.edit_project_tasks(),
             Command::OutdatedPackages => self.outdated_start(),
+            Command::SendRequest => self.http_send_request(None),
+            Command::SendRequestNumber(number) => self.http_send_request(Some(number)),
+            Command::HttpClearCookies => self.http_clear_cookies(),
             Command::BlitterMinterms => self.open_blitter_calculator(),
             Command::TableGenerator => self.open_table_generator(),
             Command::AtariHardware => self.open_atari_hardware(),
@@ -5416,6 +5431,10 @@ impl Limoniter {
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl | Modifiers::ALT, Key::H))) && in_editor {
             self.run(Command::PartHistory, ui);
         }
+        // In a .http file, Ctrl+Alt+R sends the request the cursor is in.
+        if in_editor && !self.no_file() && http_host::is_http_doc(&self.docs[self.active]) && ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl | Modifiers::ALT, Key::R))) {
+            self.run(Command::SendRequest, ui);
+        }
         // Before Ctrl+S, likewise.
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl | Modifiers::ALT, Key::S))) && in_editor && !self.no_file() {
             self.run(Command::SendAgain, ui);
@@ -5599,7 +5618,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str()
         )
     }
 
@@ -5787,6 +5806,8 @@ impl Limoniter {
         let todo_view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: None };
         let todo_acts = self.panels.show_todos(ui, &todo_view, self.project.as_ref());
         self.database_panel(ui);
+        self.containers_panel(ui);
+        self.http_panel(ui);
         let mut explorer_acts = Vec::new();
         for action in project_actions {
             match action {
@@ -7268,6 +7289,7 @@ impl Limoniter {
                 ui.colored_label(theme::accent(), words);
             }
             self.database_status(ui);
+            self.http_status(ui);
             if let Some(status) = self.run_status() {
                 ui.colored_label(theme::accent(), status);
                 if !self.running.sessions.is_empty() && ui.small_button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Stops the program running, closing the emulator")).clicked() {
@@ -8321,6 +8343,8 @@ impl Limoniter {
                 "database" => self.database_screenshot_step(value),
                 // The Tests panel, with the project's tests listed; "run" runs them too.
                 "tests" => self.tests_screenshot_step(value),
+                // The Containers panel, for the compose file in front.
+                "containers" => self.panels.containers = true,
                 "colour-as" => {
                     // The Colour as box, grouped a way ("kind", "machine" or "all"), with letters typed after a ;.
                     let (view, letters) = value.split_once(';').unwrap_or((value, ""));
@@ -9231,6 +9255,7 @@ impl Limoniter {
         if self.debugging.is_some() {
             self.debug_panel(ui);
         }
+        self.compose_logs_panel(ui);
         if self.panels.tests {
             self.tests_explorer(ui);
         } else if self.test_panel.is_some() {
@@ -9282,6 +9307,7 @@ impl Limoniter {
                     ContextCommand::Assist => Command::Assist(assistant::Task::Fix),
                     ContextCommand::Explain(_) => Command::AutoDocs,
                     ContextCommand::RunCell(line) => Command::PyR(python_host::PyAction::RunCellAt(line)),
+                    ContextCommand::SendRequest(number) => Command::SendRequestNumber(number),
                     ContextCommand::RunCellsAbove(line) => Command::PyR(python_host::PyAction::RunAboveAt(line)),
                 },
                 ui,
@@ -10242,12 +10268,16 @@ mod lsp_host;
 
 #[path = "tasks_host.rs"]
 mod tasks_host;
+#[path = "compose_host.rs"]
+mod compose_host;
 
 #[path = "tests_host.rs"]
 mod tests_host;
 
 #[path = "outdated_host.rs"]
 mod outdated_host;
+#[path = "http_host.rs"]
+mod http_host;
 
 #[path = "php_host.rs"]
 mod php_host;

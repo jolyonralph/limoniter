@@ -83,6 +83,7 @@ pub(super) enum PanelFlag {
     /// The Python and R console, kept by `python_host`.
     Console,
     Tests,
+    Containers,
 }
 
 /// Lists that change, drawn as they are now.
@@ -320,6 +321,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("File lists", Flag::Panel(PanelFlag::FileLists)),
             Check("Database", Flag::Panel(PanelFlag::Database)),
             Check("Tests", Flag::Panel(PanelFlag::Tests)),
+            Check("Containers", Flag::Panel(PanelFlag::Containers)),
             Line,
             Check("Functions", Flag::Panel(PanelFlag::Functions)),
             Check("Call graph", Flag::Panel(PanelFlag::CallGraph)),
@@ -519,6 +521,8 @@ pub(super) const TASKS: &[Entry] = &[
             Keyed("Test", Command::TestTask, "Ctrl+Shift+T"),
             Item("Test the assembly routines (Z80, 6502)", Command::AssemblyTests),
             Item("Outdated packages\u{2026}", Command::OutdatedPackages),
+            Keyed("Send the HTTP request at the cursor", Command::SendRequest, "Ctrl+Alt+R"),
+            Item("Clear the HTTP cookies", Command::HttpClearCookies),
             Item("Edit the project's tasks\u{2026}", Command::EditTasks),
             Item("Microcontroller flashing\u{2026}", Command::FlashSettings),
         ];
@@ -1100,6 +1104,7 @@ impl Limoniter {
             PanelFlag::Database => p.database,
             PanelFlag::Console => self.python.open,
             PanelFlag::Tests => p.tests,
+            PanelFlag::Containers => p.containers,
         }
     }
 
@@ -1135,6 +1140,7 @@ impl Limoniter {
             PanelFlag::Database => &mut p.database,
             PanelFlag::Console => unreachable!("kept by python_host, above"),
             PanelFlag::Tests => &mut p.tests,
+            PanelFlag::Containers => &mut p.containers,
         }
     }
 
@@ -1275,6 +1281,7 @@ impl Limoniter {
             Command::CopyPath | Command::RenameFile | Command::ShowInExplorer | Command::OpenWithDefault => doc.path.is_some(),
             Command::SendTo(n) if matches!(self.sends.devices.get(n).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => !no_file,
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
+            Command::SendRequest | Command::HttpClearCookies => !no_file && super::http_host::is_http_doc(doc),
             Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOnBuiltIn2600 | Command::RunOnBuiltInVectrex | Command::RunOn(_) => !no_file,
             Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
             Command::GoToDefinition | Command::PeekDefinition => !no_file,

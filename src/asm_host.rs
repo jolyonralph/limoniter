@@ -149,6 +149,13 @@ impl Limoniter {
             return;
         }
         let Some(cpu) = cpu else {
+            // A Docker Compose file: its images and ports are described on hover.
+            if doc.path.as_deref().and_then(Path::file_name).and_then(|n| n.to_str()).is_some_and(crate::compose::is_compose_name) {
+                if doc.text.intel.as_ref().is_none_or(|i| !i.compose) {
+                    doc.text.intel = Some(Box::new(crate::code_intel::CodeIntel { compose: true, ..Default::default() }));
+                }
+                return;
+            }
             // Boriel's ZX Basic: its words and its library's, each described.
             if language == highlight::BASIC_BORIEL {
                 if doc.text.intel.as_ref().is_none_or(|i| !i.boriel) {

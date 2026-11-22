@@ -10680,3 +10680,102 @@ yarn.lock	yarn.lock
 {} has no ipykernel, so the kernel runs on another Python. To use the environment's: {install}	{} non ha ipykernel, quindi il kernel funziona su un altro Python. Per usare quello dell'ambiente: {install}
 {} is in {} now.	{} è ora in {}.
 ▶ Run cell	▶ Esegui la cella
+ (only on {})	 (solo su {})
+A request is still being sent. Wait for its answer first.	Una richiesta è ancora in corso di invio. Aspetta prima la sua risposta.
+After {name}.response, put body. or headers. and then what to take.	Dopo {name}.response metti body. o headers. e poi cosa prendere.
+Answered by {}	Risposta da {}
+Asks Compose again now, rather than waiting	Interroga di nuovo Compose adesso, senza aspettare
+Body	Corpo
+Builds the image again and starts the service: up --build	Ricostruisce l'immagine e avvia il servizio: up --build
+Clear cookies ({cookies})	Cancella i cookie ({cookies})
+Clear the HTTP cookies	Cancella i cookie HTTP
+Containers	Contenitori
+Copies a curl command that sends this request	Copia un comando curl che invia questa richiesta
+Copy as curl	Copia come curl
+Copy body	Copia il corpo
+Created	Creato
+Creates and starts every service: docker compose up -d	Crea e avvia ogni servizio: docker compose up -d
+Ctrl+Alt+R	Ctrl+Alt+R
+Dead	Morto
+Environment: {name}	Ambiente: {name}
+Exited	Terminato
+Fetches newer images for the services: docker compose pull	Scarica immagini più recenti per i servizi: docker compose pull
+Follows what the service prints, in a panel along the bottom	Segue ciò che il servizio stampa, in un pannello in basso
+HTTP request	Richiesta HTTP
+Headers ({})	Intestazioni ({})
+It was sent on more than {MOST_HOPS} times: the redirects may be going round in a circle.	È stata inviata più di {MOST_HOPS} volte: i reindirizzamenti forse girano in tondo.
+Logs	Log
+Looking…	Ricerca in corso…
+Neither docker compose, docker-compose nor podman compose could be started: is Docker installed?	Né docker compose, né docker-compose né podman compose si è potuto avviare: Docker è installato?
+No answer	Nessuna risposta
+No compose.yaml, compose.yml, docker-compose.yml or docker-compose.yaml was found beside the file in front or in the project's folder.	Non è stato trovato alcun compose.yaml, compose.yml, docker-compose.yml o docker-compose.yaml accanto al file in primo piano o nella cartella del progetto.
+No environment	Nessun ambiente
+No environment chosen	Nessun ambiente scelto
+No environments	Nessun ambiente
+No services were found.	Non è stato trovato alcun servizio.
+Nothing was found at {path} in {name}'s response.	Non è stato trovato nulla in {path} nella risposta di {name}.
+Only the first {MOST_SHOWN} characters are shown. Save body keeps all of it.	Vengono mostrati solo i primi {MOST_SHOWN} caratteri. «Salva corpo» li conserva tutti.
+Open {address} in the browser	Apri {address} nel browser
+Opens a shell inside the service, in the terminal	Apre una shell dentro del servizio, nel terminale
+Paused	In pausa
+Port {p} on this computer{side} goes to port {target} in the container ({protocol})	La porta {p} di questo computer{side} porta alla porta {target} nel contenitore ({protocol})
+Port {target} in the container, with a port on this computer chosen when it starts ({protocol})	Porta {target} nel contenitore, con una porta di questo computer scelta all'avvio ({protocol})
+Pull	Scarica
+Rebuild	Ricostruisci
+Redirected ({}): {} → {}	Reindirizzata ({}): {} → {}
+Response	Risposta
+Restarting	In riavvio
+Save body…	Salva corpo…
+Send the HTTP request at the cursor	Invia la richiesta HTTP al cursore
+Sending…	Invio in corso…
+Shell	Shell
+Starts this service	Avvia questo servizio
+Stop following this service's logs	Smetti di seguire i log di questo servizio
+Stops and removes the containers: docker compose down	Arresta e rimuove i contenitori: docker compose down
+Stops this service: docker compose stop	Arresta questo servizio: docker compose stop
+The answer couldn't be read: {e}	Non è stato possibile leggere la risposta: {e}
+The answer has no body.	La risposta non ha corpo.
+The body was saved as {}.	Il corpo è stato salvato come {}.
+The environment variable {variable} isn't set.	La variabile d'ambiente {variable} non è impostata.
+The environment whose variables {{name}} takes values from. Click to choose another. They're kept in http-client.env.json, or in .vscode/settings.json as rest-client.environmentVariables	L'ambiente da cui {{name}} prende i valori. Fai clic per sceglierne un altro. Sono conservate in http-client.env.json, oppure in .vscode/settings.json come rest-client.environmentVariables
+The logs have ended: the service has stopped, or Compose could not be reached.	I log sono terminati: il servizio si è fermato, o Compose non era raggiungibile.
+The project's configuration couldn't be read, so its files are read instead: {problem}	Non è stato possibile leggere la configurazione del progetto, quindi si leggono invece i suoi file: {problem}
+The request can't be made: {e}	La richiesta non può essere fatta: {e}
+The request stopped before it was answered.	La richiesta si è fermata prima di ricevere risposta.
+The variables refer to each other in a circle.	Le variabili si rimandano l'una all'altra in cerchio.
+There's no request in this file. A request is a line such as GET https://example.com/, with its headers under it.	In questo file non c'è nessuna richiesta. Una richiesta è una riga come GET https://example.com/, con le sue intestazioni sotto.
+This file has no cookies kept.	Questo file non ha cookie conservati.
+Up, starting	In esecuzione, in avvio
+Up, unhealthy	In esecuzione, non integro
+Using {}	Uso di {}
+Write http-client.env.json beside the file, as {"local": {"host": "localhost"}}	Scrivi http-client.env.json accanto al file, così: {"local": {"host": "localhost"}}
+Writes the body, exactly as it came, to a file	Scrive il corpo, esattamente come è arrivato, in un file
+built here	compilato qui
+compose down	compose down
+compose pull	compose pull
+compose up	compose up
+{:.1} KB	{:.1} KB
+{:.1} MB	{:.1} MB
+{amount} isn't a number of {unit}.	{amount} non è un numero di {unit}.
+{bytes} bytes	{bytes} byte
+{had} cookies cleared.	{had} cookie cancellati.
+{method} isn't a method that can be sent.	{method} non è un metodo che può essere inviato.
+{name}\nPinned to the exact image {digest}	{name}\nBloccato sull'immagine esatta {digest}
+{name}\nTag {tag}	{name}\nTag {tag}
+{name} hasn't been sent yet: send it first (its line says # @name {name}).	{name} non è stata ancora inviata: inviala prima (la sua riga contiene # @name {name}).
+{name}'s response had no {header} header.	La risposta di {name} non aveva l'intestazione {header}.
+{reference}\nNo tag, so the tag latest is used	{reference}\nNessun tag, quindi si usa il tag latest
+{unit} isn't a unit of time here: use s, m, h, d, w, M or y.	{unit} qui non è un'unità di tempo: usa s, m, h, d, w, M o y.
+{url} couldn't be reached: {e}	Non è stato possibile raggiungere {url}: {e}
+{variable} isn't in the project's .env file.	{variable} non è nel file .env del progetto.
+{{$datetime}} takes rfc1123 or iso8601, as {{$datetime iso8601}}.	{{$datetime}} accetta rfc1123 o iso8601, così: {{$datetime iso8601}}.
+{{$dotenv}} needs the name of a variable.	{{$dotenv}} richiede il nome di una variabile.
+{{$processEnv}} needs the name of a variable.	{{$processEnv}} richiede il nome di una variabile.
+{{$randomInt}} takes a smallest and a largest number, as {{$randomInt 1 10}}.	{{$randomInt}} accetta un numero minimo e uno massimo, così: {{$randomInt 1 10}}.
+{{$randomInt}} takes two whole numbers, as {{$randomInt 1 10}}.	{{$randomInt}} accetta due numeri interi, così: {{$randomInt 1 10}}.
+{{{{${name}}}}} isn't one of the built-in variables.	{{{{${name}}}}} non è una delle variabili integrate.
+{{{{{inner}}}}} isn't defined: add @{inner} = to the file, or to the environment.	{{{{{inner}}}}} non è definita: aggiungi @{inner} = al file o all'ambiente.
+{} ms	{} ms
+{} stopped with an error.	{} si è fermato con un errore.
+{} that aren't text. The first of them: Save body keeps them all.	{} che non sono testo. I primi: «Salva corpo» li conserva tutti.
+▶ Send request	▶ Invia richiesta

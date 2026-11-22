@@ -1,0 +1,117 @@
+%YAML 1.2
+---
+# Written for Limoniter from the layout of VS Code's REST Client files (.http, .rest): requests set apart by ###,
+# a method line, headers, and a body; # and // comments (with # @name marks); @name = value variables; and
+# {{variables}}, including the built-in {{$guid}}, {{$randomInt 1 10}}, {{$dotenv NAME}} and response
+# references like {{login.response.body.$.token}}.
+name: HTTP Requests
+file_extensions: [http, rest]
+scope: source.http
+variables:
+  method: (?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)
+contexts:
+  main:
+    - match: '^###.*'
+      scope: comment.block.separator.http
+      push: request_start
+    - include: request_start
+
+  request_start:
+    - match: '^\s*(?:#|//)\s*(@[A-Za-z-]+)(?:\s+(.*))?$'
+      captures:
+        1: keyword.other.annotation.http
+        2: entity.name.function.http
+    - match: '^\s*(?:#|//).*'
+      scope: comment.line.http
+    - match: '^\s*(@)([^\s=]+)\s*(=)'
+      captures:
+        1: punctuation.definition.variable.http
+        2: variable.other.http
+        3: keyword.operator.assignment.http
+      push: variable_value
+    - match: '^\s*({{method}})(?=\s)'
+      scope: keyword.control.http.method
+      set: request_line
+    - match: '^\s*(?=https?://|\{\{)'
+      set: request_line
+    - include: variables
+
+  variable_value:
+    - meta_content_scope: string.unquoted.http
+    - include: variables
+    - match: '$'
+      pop: true
+
+  request_line:
+    - match: 'HTTP/[0-9.]+'
+      scope: constant.language.http
+    - match: '[A-Za-z][A-Za-z0-9+.-]*://[^\s{]*'
+      scope: markup.underline.link.http
+    - include: variables
+    - match: '$'
+      set: headers
+
+  headers:
+    - match: '^\s*(?:#|//).*'
+      scope: comment.line.http
+    - match: '^\s*[?&]'
+      scope: keyword.operator.http
+      push: query_line
+    - match: '^([A-Za-z0-9!#$%&''*+.^_`|~-]+)(\s*:)'
+      captures:
+        1: support.type.property-name.http
+        2: punctuation.separator.http
+      push: header_value
+    - match: '^\s*$'
+      set: body
+    - match: '^###.*'
+      scope: comment.block.separator.http
+      set: request_start
+
+  query_line:
+    - match: '[^\s{=&]+(?==)'
+      scope: variable.parameter.http
+    - match: '='
+      scope: keyword.operator.assignment.http
+    - include: variables
+    - match: '$'
+      pop: true
+
+  header_value:
+    - meta_content_scope: string.unquoted.http
+    - include: variables
+    - match: '$'
+      pop: true
+
+  body:
+    - match: '^###.*'
+      scope: comment.block.separator.http
+      set: request_start
+    - match: '^<@?\S*\s+\S.*$'
+      scope: string.unquoted.filename.http
+    - include: variables
+
+  variables:
+    - match: '(\{\{)\s*(\$[A-Za-z]+)'
+      captures:
+        1: punctuation.definition.variable.begin.http
+        2: support.function.builtin.http
+      push: variable_inside
+    - match: '(\{\{)\s*([A-Za-z0-9_.-]+)(\.response\.(?:body|headers)\.)?'
+      captures:
+        1: punctuation.definition.variable.begin.http
+        2: variable.other.http
+        3: keyword.other.http
+      push: variable_inside
+
+  variable_inside:
+    - meta_scope: meta.interpolation.http
+    - match: '\}\}'
+      scope: punctuation.definition.variable.end.http
+      pop: true
+    - match: '-?[0-9]+'
+      scope: constant.numeric.http
+    - match: '[^}\s]+'
+      scope: string.unquoted.http
+    - match: '$'
+      pop: true

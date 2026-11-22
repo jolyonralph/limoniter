@@ -119,7 +119,8 @@ pub const SCHEMES: [EmbeddedThemeName; 29] = [
 ];
 
 /// Grammars written for Limoniter, added to the ones from two-face.
-const OWN_GRAMMARS: [(&str, &str); 51] = [
+const OWN_GRAMMARS: [(&str, &str); 52] = [
+    (HTTP_REQUESTS, include_str!("../data/syntaxes/http-requests.sublime-syntax")),
     (ASM_80X86, include_str!("../data/syntaxes/assembly-80x86.sublime-syntax")),
     (ASM_680X0, include_str!("../data/syntaxes/assembly-680x0.sublime-syntax")),
     (ASM_680X0_GNU, include_str!("../data/syntaxes/assembly-680x0-gnu.sublime-syntax")),
@@ -224,6 +225,8 @@ const ZIL: &str = "ZIL (Zork Implementation Language)";
 pub const BASIC_QBASIC: &str = "BASIC (QBasic, QuickBASIC and GW-BASIC)";
 const COBOL: &str = "COBOL";
 const JCL: &str = "JCL";
+/// `.http` and `.rest` files: requests to send (see `http_host`).
+pub const HTTP_REQUESTS: &str = "HTTP Requests";
 pub const BASIC_SINCLAIR: &str = "BASIC (Sinclair and Next)";
 pub const BASIC_COMMODORE: &str = "BASIC (Commodore)";
 pub const BASIC_BORIEL: &str = "BASIC (Boriel ZX Basic)";
@@ -1102,6 +1105,13 @@ mod tests {
     }
 
     #[test]
+    fn http_files_have_their_own_grammar_and_colours() {
+        for file in ["calls.http", "calls.rest", "API.HTTP"] {
+            assert_eq!(syntax_for(&file.to_lowercase()).map(|s| test_engine().name_of(s)), Some(HTTP_REQUESTS), "{file}");
+        }
+    }
+
+    #[test]
     fn a_pico8_cart_is_coloured_as_lua() {
         let engine = test_engine();
         let found = engine.detect_with_sample(Some(Path::new("game.p8")), &[std::sync::Arc::from("pico-8 cartridge // http://www.pico-8.com")]);
@@ -1521,6 +1531,28 @@ mod tests {
         let string = colour_of_word(&colours, &buffer, 0, "NIGHTLY RUN");
         assert_eq!(colour_of_word(&colours, &buffer, 5, "SORT FIELDS"), string, "in-stream data reads as data");
         assert_eq!(colour_of_word(&colours, &buffer, 7, "SYSOUT"), label, "after the delimiter, statements again");
+    }
+
+    #[test]
+    fn http_requests_colour_methods_headers_comments_and_variables() {
+        let lines = [
+            "@host = localhost:8080",
+            "### Log in",
+            "# @name login",
+            "POST http://{{host}}/login HTTP/1.1",
+            "Content-Type: application/json",
+            "",
+            "{\"id\": \"{{$guid}}\", \"t\": \"{{other.response.body.$.token}}\"}",
+        ];
+        let (colours, buffer) = assembler_colours("calls.http", &lines);
+        let comment = colour_of_word(&colours, &buffer, 1, "Log in");
+        let method = colour_of_word(&colours, &buffer, 3, "POST");
+        let header = colour_of_word(&colours, &buffer, 4, "Content-Type");
+        assert_ne!(method, comment);
+        assert_ne!(method, header);
+        assert_ne!(colour_of_word(&colours, &buffer, 3, "login"), colour_of_word(&colours, &buffer, 3, "POST"));
+        assert_ne!(colour_of_word(&colours, &buffer, 0, "host"), colour_of_word(&colours, &buffer, 0, "localhost"));
+        assert_ne!(colour_of_word(&colours, &buffer, 6, "$guid"), colour_of_word(&colours, &buffer, 6, "\"id\""), "a built-in variable stands out in a body");
     }
 
     #[test]

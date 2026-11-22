@@ -10680,3 +10680,102 @@ yarn.lock	yarn.lock
 {} has no ipykernel, so the kernel runs on another Python. To use the environment's: {install}	{} no tiene ipykernel, así que el kernel se ejecuta en otro Python. Para usar el del entorno: {install}
 {} is in {} now.	{} está ahora en {}.
 ▶ Run cell	▶ Ejecutar la celda
+ (only on {})	 (solo en {})
+A request is still being sent. Wait for its answer first.	Todavía se está enviando una solicitud. Espera primero su respuesta.
+After {name}.response, put body. or headers. and then what to take.	Después de {name}.response, pon body. o headers. y luego lo que quieras tomar.
+Answered by {}	Respondido por {}
+Asks Compose again now, rather than waiting	Consulta Compose de nuevo ahora, sin esperar
+Body	Cuerpo
+Builds the image again and starts the service: up --build	Reconstruye la imagen e inicia el servicio: up --build
+Clear cookies ({cookies})	Borrar las cookies ({cookies})
+Clear the HTTP cookies	Borra las cookies HTTP
+Containers	Contenedores
+Copies a curl command that sends this request	Copia un comando curl que envía esta solicitud
+Copy as curl	Copiar como curl
+Copy body	Copiar el cuerpo
+Created	Creado
+Creates and starts every service: docker compose up -d	Crea e inicia cada servicio: docker compose up -d
+Ctrl+Alt+R	Ctrl+Alt+R
+Dead	Muerto
+Environment: {name}	Entorno: {name}
+Exited	Finalizado
+Fetches newer images for the services: docker compose pull	Descarga imágenes más recientes para los servicios: docker compose pull
+Follows what the service prints, in a panel along the bottom	Sigue lo que imprime el servicio, en un panel en la parte inferior
+HTTP request	Solicitud HTTP
+Headers ({})	Encabezados ({})
+It was sent on more than {MOST_HOPS} times: the redirects may be going round in a circle.	Se envió más de {MOST_HOPS} veces: puede que las redirecciones den vueltas en círculo.
+Logs	Registros
+Looking…	Buscando…
+Neither docker compose, docker-compose nor podman compose could be started: is Docker installed?	No se pudo iniciar docker compose, docker-compose ni podman compose: ¿está instalado Docker?
+No answer	Sin respuesta
+No compose.yaml, compose.yml, docker-compose.yml or docker-compose.yaml was found beside the file in front or in the project's folder.	No se encontró ningún compose.yaml, compose.yml, docker-compose.yml ni docker-compose.yaml junto al archivo activo ni en la carpeta del proyecto.
+No environment	Sin entorno
+No environment chosen	Ningún entorno elegido
+No environments	Sin entornos
+No services were found.	No se encontró ningún servicio.
+Nothing was found at {path} in {name}'s response.	No se encontró nada en {path} en la respuesta de {name}.
+Only the first {MOST_SHOWN} characters are shown. Save body keeps all of it.	Solo se muestran los primeros {MOST_SHOWN} caracteres. «Guardar cuerpo» los conserva todos.
+Open {address} in the browser	Abrir {address} en el navegador
+Opens a shell inside the service, in the terminal	Abre una shell dentro del servicio, en el terminal
+Paused	En pausa
+Port {p} on this computer{side} goes to port {target} in the container ({protocol})	El puerto {p} de este equipo{side} lleva al puerto {target} del contenedor ({protocol})
+Port {target} in the container, with a port on this computer chosen when it starts ({protocol})	Puerto {target} del contenedor, con un puerto de este equipo elegido al iniciar ({protocol})
+Pull	Descargar
+Rebuild	Reconstruir
+Redirected ({}): {} → {}	Redirigida ({}): {} → {}
+Response	Respuesta
+Restarting	Reiniciando
+Save body…	Guardar cuerpo…
+Send the HTTP request at the cursor	Enviar la solicitud HTTP en el cursor
+Sending…	Enviando…
+Shell	Shell
+Starts this service	Inicia este servicio
+Stop following this service's logs	Dejar de seguir los registros de este servicio
+Stops and removes the containers: docker compose down	Detiene y elimina los contenedores: docker compose down
+Stops this service: docker compose stop	Detiene este servicio: docker compose stop
+The answer couldn't be read: {e}	No se pudo leer la respuesta: {e}
+The answer has no body.	La respuesta no tiene cuerpo.
+The body was saved as {}.	El cuerpo se guardó como {}.
+The environment variable {variable} isn't set.	La variable de entorno {variable} no está definida.
+The environment whose variables {{name}} takes values from. Click to choose another. They're kept in http-client.env.json, or in .vscode/settings.json as rest-client.environmentVariables	El entorno del que {{name}} toma sus valores. Haz clic para elegir otro. Se guardan en http-client.env.json, o en .vscode/settings.json como rest-client.environmentVariables
+The logs have ended: the service has stopped, or Compose could not be reached.	Los registros han terminado: el servicio se ha detenido, o no se pudo contactar con Compose.
+The project's configuration couldn't be read, so its files are read instead: {problem}	No se pudo leer la configuración del proyecto, así que se leen sus archivos en su lugar: {problem}
+The request can't be made: {e}	No se puede hacer la solicitud: {e}
+The request stopped before it was answered.	La solicitud se detuvo antes de ser respondida.
+The variables refer to each other in a circle.	Las variables se refieren unas a otras en círculo.
+There's no request in this file. A request is a line such as GET https://example.com/, with its headers under it.	No hay ninguna solicitud en este archivo. Una solicitud es una línea como GET https://example.com/, con sus encabezados debajo.
+This file has no cookies kept.	Este archivo no tiene cookies guardadas.
+Up, starting	En ejecución, iniciando
+Up, unhealthy	En ejecución, con errores
+Using {}	Usando {}
+Write http-client.env.json beside the file, as {"local": {"host": "localhost"}}	Escribe http-client.env.json junto al archivo, así: {"local": {"host": "localhost"}}
+Writes the body, exactly as it came, to a file	Escribe el cuerpo, tal como llegó, en un archivo
+built here	construido aquí
+compose down	compose down
+compose pull	compose pull
+compose up	compose up
+{:.1} KB	{:.1} KB
+{:.1} MB	{:.1} MB
+{amount} isn't a number of {unit}.	{amount} no es un número de {unit}.
+{bytes} bytes	{bytes} bytes
+{had} cookies cleared.	{had} cookies borradas.
+{method} isn't a method that can be sent.	{method} no es un método que se pueda enviar.
+{name}\nPinned to the exact image {digest}	{name}\nFijado a la imagen exacta {digest}
+{name}\nTag {tag}	{name}\nEtiqueta {tag}
+{name} hasn't been sent yet: send it first (its line says # @name {name}).	{name} aún no se ha enviado: envíala primero (su línea contiene # @name {name}).
+{name}'s response had no {header} header.	La respuesta de {name} no tenía el encabezado {header}.
+{reference}\nNo tag, so the tag latest is used	{reference}\nSin etiqueta, así que se usa la etiqueta latest
+{unit} isn't a unit of time here: use s, m, h, d, w, M or y.	{unit} no es una unidad de tiempo aquí: usa s, m, h, d, w, M o y.
+{url} couldn't be reached: {e}	No se pudo acceder a {url}: {e}
+{variable} isn't in the project's .env file.	{variable} no está en el archivo .env del proyecto.
+{{$datetime}} takes rfc1123 or iso8601, as {{$datetime iso8601}}.	{{$datetime}} acepta rfc1123 o iso8601, así: {{$datetime iso8601}}.
+{{$dotenv}} needs the name of a variable.	{{$dotenv}} necesita el nombre de una variable.
+{{$processEnv}} needs the name of a variable.	{{$processEnv}} necesita el nombre de una variable.
+{{$randomInt}} takes a smallest and a largest number, as {{$randomInt 1 10}}.	{{$randomInt}} toma un número menor y uno mayor, así: {{$randomInt 1 10}}.
+{{$randomInt}} takes two whole numbers, as {{$randomInt 1 10}}.	{{$randomInt}} toma dos números enteros, así: {{$randomInt 1 10}}.
+{{{{${name}}}}} isn't one of the built-in variables.	{{{{${name}}}}} no es una de las variables integradas.
+{{{{{inner}}}}} isn't defined: add @{inner} = to the file, or to the environment.	{{{{{inner}}}}} no está definida: añade @{inner} = al archivo o al entorno.
+{} ms	{} ms
+{} stopped with an error.	{} se detuvo con un error.
+{} that aren't text. The first of them: Save body keeps them all.	{} que no son texto. Los primeros: «Guardar cuerpo» los conserva todos.
+▶ Send request	▶ Enviar solicitud

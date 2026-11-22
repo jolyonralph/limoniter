@@ -51,6 +51,8 @@ pub struct CodeIntel {
     pub boriel: bool,
     /// Turbo Rascal (TRSE): its built-ins are described on hover, and its comments start with //.
     pub trse: bool,
+    /// A Docker Compose file: its images and ports are described on hover.
+    pub compose: bool,
 }
 
 impl PartialEq for CodeIntel {
@@ -167,6 +169,9 @@ impl CodeIntel {
             && word_at(text, col).zip(word_at(text, *c)).is_some_and(|(a, b)| a.0 == b.0)
         {
             return Some(words.clone());
+        }
+        if self.compose {
+            return crate::compose::describe_line(text);
         }
         // TRSE's built-ins.
         if self.trse {

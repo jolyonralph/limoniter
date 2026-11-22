@@ -202,17 +202,20 @@ impl Limoniter {
             .or_else(|| std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("."));
         match crate::terminal::Terminal::start(&folder, 12, 80) {
-            Ok(terminal) => {
-                if let Some(front) = self.terminal.take() {
-                    self.terminals_behind.push((self.terminal_number, front));
-                }
-                self.terminals_made += 1;
-                self.terminal_number = self.terminals_made;
-                self.terminal = Some(Box::new(terminal));
-                self.terminal_hidden = false;
-            }
+            Ok(terminal) => self.show_terminal(terminal),
             Err(problem) => self.message("Terminal", problem),
         }
+    }
+
+    /// Puts a terminal that's been started in front of any others.
+    pub(super) fn show_terminal(&mut self, terminal: crate::terminal::Terminal) {
+        if let Some(front) = self.terminal.take() {
+            self.terminals_behind.push((self.terminal_number, front));
+        }
+        self.terminals_made += 1;
+        self.terminal_number = self.terminals_made;
+        self.terminal = Some(Box::new(terminal));
+        self.terminal_hidden = false;
     }
 
     /// Brings a terminal, by its number, to the front.

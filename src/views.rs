@@ -399,6 +399,8 @@ pub struct ViewState {
     pub top: usize,
     /// For a Python or R script: its cells' markers are drawn with a line above and links to run them.
     pub cells: Option<crate::code_cells::Style>,
+    /// For a `.http` file: the line each request's "Send request" link is drawn on, and the request's number.
+    pub http_links: Vec<(usize, usize)>,
     /// The line kept at the top as the text scrolls past it (sticky scroll), set before drawing.
     pub sticky: Option<usize>,
     /// The folder the file's in, for finishing paths typed in it.
@@ -524,6 +526,8 @@ pub enum ContextCommand {
     /// A script's cell, by its marker line, run in the console; or every cell above it, then it.
     RunCell(usize),
     RunCellsAbove(usize),
+    /// A `.http` file's request, by its number, sent from the link above it.
+    SendRequest(usize),
 }
 
 /// A text cell made taller for line spacing, and how far down it the text then sits.
@@ -940,7 +944,8 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
     };
 
     let (pressed, modifiers, pointer) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers, i.pointer.interact_pos()));
-    let cell_links = state.cells.map(|style| cell_links(ui, buffer, style, &slots, view, ruler_h, cell, options.font_size)).unwrap_or_default();
+    let mut cell_links = state.cells.map(|style| cell_links(ui, buffer, style, &slots, view, ruler_h, cell, options.font_size)).unwrap_or_default();
+    cell_links.extend(http_links(ui, &state.http_links, &slots, view, ruler_h, cell, options.font_size));
     let mut cell_command = None;
     if let Some(p) = pointer {
         if input_on && pressed && response.hovered() && let Some(link) = cell_links.iter().find(|l| l.rect.contains(p)) {
@@ -1227,6 +1232,27 @@ fn cell_links(ui: &Ui, buffer: &TextBuffer, style: crate::code_cells::Style, slo
             right = rect.min.x - 12.0;
             links.push(CellLink { rect, row_top, galley, command });
         }
+    }
+    links
+}
+
+/// A `.http` file's "Send request" links, each at the right of the line it's given (see `http_host`).
+fn http_links(ui: &Ui, lines: &[(usize, usize)], slots: &[Slot], view: Rect, ruler_h: f32, cell: Vec2, font_size: f32) -> Vec<CellLink> {
+    let mut links = Vec::new();
+    if lines.is_empty() {
+        return links;
+    }
+    let font = FontId::proportional((font_size * 0.8).max(9.0));
+    for (row, slot) in slots.iter().enumerate().filter(|(_, s)| s.sub == 0) {
+        let Some(&(_, number)) = lines.iter().find(|(line, _)| *line == slot.line) else { continue };
+        let row_top = view.min.y + ruler_h + row as f32 * cell.y;
+        if row_top + cell.y > view.max.y + 1.0 {
+            break;
+        }
+        let galley = ui.fonts_mut(|f| f.layout_no_wrap(crate::i18n::tr("\u{25B6} Send request").to_string(), font.clone(), theme::accent()));
+        let size = galley.size();
+        let rect = Rect::from_min_size(pos2(view.max.x - 6.0 - size.x, row_top + (cell.y - size.y) / 2.0), size);
+        links.push(CellLink { rect, row_top, galley, command: ContextCommand::SendRequest(number) });
     }
     links
 }

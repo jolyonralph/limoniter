@@ -1,0 +1,16 @@
+name: shop
+services:
+  web:
+    build: .
+    image: shop-web:latest
+    ports:
+      - "8080:80"
+      - 443
+    depends_on: [db]
+  db:
+    image: postgres:16-alpine
+    ports: ["127.0.0.1:5432:5432"]
+  worker:
+    image: shop-worker
+volumes:
+  data: {}
