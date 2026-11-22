@@ -10363,3 +10363,153 @@ it isn't a JSON object	non è un oggetto JSON
 Close the others	Chiudi gli altri
 Ctrl+W	Ctrl+W
 Close (Esc)	Chiudi (Esc)
+(choose a file)	(scegli un file)
+(primary key)	(chiave primaria)
+1 file shown, 1 hidden	1 file mostrato, 1 nascosto
+1 file shown, none hidden	1 file mostrato, nessuno nascosto
+1 file shown, {hidden} hidden	1 file mostrato, {hidden} nascosti
+A strip beside the table with what the chosen column holds	Una striscia accanto alla tabella con il contenuto della colonna scelta
+Accept the server's own certificate	Accetta il certificato del server stesso
+Add a connection…	Aggiungi una connessione…
+Add a database connection	Aggiungi una connessione a un database
+All {} rows of {table}.	Tutte le {} righe di {table}.
+An SQLite database	Un database SQLite
+As psql's sslmode=require does: the connection is private, but the certificate isn't checked against the authorities, which a server's own (self-signed) certificate wouldn't pass	Come fa sslmode=require di psql: la connessione è privata, ma il certificato non viene verificato presso le autorità, cosa che un certificato proprio del server (autofirmato) non supererebbe
+Ask the kernel again what it holds	Chiedi di nuovo al kernel cosa contiene
+Asking the kernel…	Interrogo il kernel…
+Binary data	Dati binari
+COPY TO STDOUT's rows aren't shown; use SELECT to see them.	Le righe di COPY TO STDOUT non vengono mostrate; usa SELECT per vederle.
+Choose the database to run this file's SQL on: click “No database” in the status bar.	Scegli il database su cui eseguire l'SQL di questo file: clicca su “Nessun database” nella barra di stato.
+Choose the database's file.	Scegli il file del database.
+Column summary	Riepilogo della colonna
+Commonest values	Valori più comuni
+Connected: {server}.	Connesso: {server}.
+Connecting…	Connessione in corso…
+Copy the name	Copia il nome
+Couldn't find {host}: {e}	{host} non trovato: {e}
+Database	Database
+Database connection	Connessione al database
+Database panel	Pannello Database
+Database: {name}	Database: {name}
+Database: {name} (running)	Database: {name} (in esecuzione)
+Dates	Date
+Dates and times	Date e ore
+Different values	Valori diversi
+Double-click to open it in the data viewer	Doppio clic per aprirla nel visualizzatore dati
+Double-click to see the first {} rows	Doppio clic per vedere le prime {} righe
+Edit…	Modifica…
+Empty	Vuoto
+Every file	Tutti i file
+Give the connection a name.	Dai un nome alla connessione.
+If one is needed	Se serve
+Kept in Limoniter's settings.	Conservato nelle impostazioni di Limoniter.
+Kept in the settings	Conservato nelle impostazioni
+Kept in the system's keychain, never in a file	Conservato nel portachiavi del sistema, mai in un file
+Kept with the project	Conservato con il progetto
+Kept with the project.	Conservato con il progetto.
+Kept; type to change it	Salvata; scrivi per cambiarla
+LOAD DATA LOCAL INFILE isn't something Limoniter sends files for.	Limoniter non invia file per LOAD DATA LOCAL INFILE.
+Largest	Massimo
+Line {first_bad} isn't JSON, and no line is: this isn't a JSON-lines file.	La riga {first_bad} non è JSON, e nessuna riga lo è: questo non è un file JSON Lines.
+Mean	Media
+MySQL / MariaDB	MySQL / MariaDB
+New connection	Nuova connessione
+Newest	Più recenti
+No database	Nessun database
+No databases yet. Add a connection to an SQLite file, or to a PostgreSQL or MySQL server.	Ancora nessun database. Aggiungi una connessione a un file SQLite o a un server PostgreSQL o MySQL.
+No files shown	Nessun file mostrato
+No files shown, 1 hidden	Nessun file mostrato, 1 nascosto
+No files shown, {hidden} hidden	Nessun file mostrato, {hidden} nascosti
+No tables	Nessuna tabella
+Numbers	Numeri
+Only tables can be opened in the data viewer	Solo le tabelle si possono aprire nel visualizzatore dati
+Open a notebook, in front, to see its variables.	Apri un notebook, in primo piano, per vederne le variabili.
+Open in the data viewer	Apri nel visualizzatore dati
+Password	Password
+PostgreSQL	PostgreSQL
+Ran on {name}: {}	Eseguito su {name}: {}
+Reading when the files were edited…	Lettura delle date di modifica dei file…
+Run a cell to start the kernel; its variables are listed here after each run.	Esegui una cella per avviare il kernel; le sue variabili vengono elencate qui dopo ogni esecuzione.
+Run the statement at the cursor	Esegui l'istruzione al cursore
+Running on {name}…	Esecuzione su {name}…
+Running…	In esecuzione…
+SQLite	SQLite
+Save as CSV	Salva come CSV
+Saved {} as CSV.	{} salvato come CSV.
+Saves the rows shown, in the order shown	Salva le righe mostrate, nell'ordine mostrato
+Say which computer the server is on.	Indica su quale computer si trova il server.
+Say which user to log in as.	Indica con quale utente accedere.
+Server	Server
+Show the first {} rows	Mostra le prime {} righe
+Shows only this share of the project's files: the ones edited most recently	Mostra solo questa quota dei file del progetto: quelli modificati più di recente
+Smallest	Minimo
+Stop the query	Ferma la query
+Stopping the query on {name}…	Arresto della query su {name}…
+Stops the query running on this connection	Ferma la query in esecuzione su questa connessione
+The TLS greeting with {host} failed: {e}	L'handshake TLS con {host} non è riuscito: {e}
+The connection to the server was lost: {e}	La connessione al server è andata persa: {e}
+The database Ctrl+Enter runs this file's SQL on. Click to choose another	Il database su cui Ctrl+Enter esegue l'SQL di questo file. Clicca per sceglierne un altro
+The first {} of {} rows	Le prime {} di {} righe
+The first {} of {} rows. The rest were left out.	Le prime {} di {} righe. Il resto è stato omesso.
+The first {} rows of {table}.	Le prime {} righe di {table}.
+The kernel couldn't run it.	Il kernel non è riuscito a eseguirlo.
+The kernel didn't answer in the way expected.	Il kernel non ha risposto come previsto.
+The kernel has stopped.	Il kernel si è fermato.
+The kernel holds no variables yet.	Il kernel non contiene ancora variabili.
+The kernel was restarted.	Il kernel è stato riavviato.
+The kernel was stopped.	Il kernel è stato fermato.
+The kernel's answer was cut short.	La risposta del kernel è stata troncata.
+The kernel's list of variables couldn't be read: {e}	Non è stato possibile leggere l'elenco delle variabili del kernel: {e}
+The kernel's table couldn't be read: {e}	Non è stato possibile leggere la tabella del kernel: {e}
+The only row of {table}.	L'unica riga di {table}.
+The query was stopped.	La query è stata fermata.
+The server asks for a kind of login Limoniter doesn't know (number {other}).	Il server richiede un tipo di accesso che Limoniter non conosce (numero {other}).
+The server asks for a login Limoniter doesn't know: {other}.	Il server richiede un accesso che Limoniter non conosce: {other}.
+The server asks for a login Limoniter doesn't know: {}.	Il server richiede un accesso che Limoniter non conosce: {}.
+The server couldn't prove it knew the password, so Limoniter didn't trust it.	Il server non ha potuto dimostrare di conoscere la password, quindi Limoniter non si è fidato.
+The server sent a message Limoniter couldn't read.	Il server ha inviato un messaggio che Limoniter non ha potuto leggere.
+The server speaks a version of MySQL's protocol older than Limoniter knows.	Il server usa una versione del protocollo MySQL più vecchia di quelle che Limoniter conosce.
+The server wants the password sent as it is, which Limoniter only does over TLS. Set the connection to use TLS.	Il server vuole la password così com'è, cosa che Limoniter fa solo tramite TLS. Imposta la connessione in modo che usi TLS.
+The server's SCRAM login wasn't as the standard has it.	L'accesso SCRAM del server non era conforme allo standard.
+The spreadsheet's XML couldn't be read: {e}	Non è stato possibile leggere l'XML del foglio di calcolo: {e}
+The system's keychain couldn't keep the password ({why}), so Limoniter will use it only until it's closed. Passwords are never written to a file.	Il portachiavi del sistema non ha potuto conservare la password ({why}), quindi Limoniter la userà solo fino alla chiusura. Le password non vengono mai scritte in un file.
+The user's own, if left empty	Quello dell'utente, se vuoto
+There are no rows in this table.	Questa tabella non ha righe.
+There is nothing in this table.	Non c'è nulla in questa tabella.
+There's a connection with that name already.	Esiste già una connessione con questo nome.
+There's no SQL at the cursor to run.	Non c'è SQL da eseguire al cursore.
+There's no database at {}.	Non c'è nessun database in {}.
+There's no database to run this on. Add a connection in the Database panel (View, Panels, Database).	Non c'è nessun database su cui eseguirlo. Aggiungi una connessione nel pannello Database (Visualizza, Pannelli, Database).
+This ZIP archive isn't an Excel workbook: it has no xl/workbook.xml.	Questo archivio ZIP non è una cartella di lavoro Excel: non contiene xl/workbook.xml.
+This connection can't change its database; add another connection for the other one.	Questa connessione non può cambiare database; aggiungi un'altra connessione per l'altro.
+This file has no lines with JSON in them.	Questo file non ha righe con JSON.
+This isn't an Excel workbook: it isn't a ZIP archive.	Questa non è una cartella di lavoro Excel: non è un archivio ZIP.
+This workbook has no sheets with cells in them.	Questa cartella di lavoro non ha fogli con celle.
+True or false	Vero o falso
+Try again	Riprova
+Try connecting	Prova a connetterti
+Use this database for the SQL run	Usa questo database per l'SQL
+User	Utente
+Value	Valore
+Variables can be listed for Python and R kernels. This notebook's kernel runs {language}.	Le variabili si possono elencare per i kernel Python e R. Il kernel di questo notebook esegue {language}.
+When the server offers it	Quando il server lo offre
+Whole numbers	Numeri interi
+Working it out…	Calcolo in corso…
+Working…	Elaborazione in corso…
+{bad} lines weren't JSON and are left out; the first is line {first_bad}.	{bad} righe non erano JSON e sono state omesse; la prima è la riga {first_bad}.
+{host}'s certificate isn't vouched for by an authority ({e}). If it's the server's own certificate, tick “Accept the server's own certificate” in the connection's settings.	Il certificato di {host} non è garantito da nessuna autorità ({e}). Se è il certificato del server stesso, spunta “Accetta il certificato del server stesso” nelle impostazioni della connessione.
+{name} couldn't be opened: {why}	Non è stato possibile aprire {name}: {why}
+{name} is using {database} now.	{name} ora usa {database}.
+{name}: {what}, 1 row.	{name}: {what}, 1 riga.
+{name}: {what}, {} rows.	{name}: {what}, {} righe.
+{shown} files shown, 1 hidden	{shown} file mostrati, 1 nascosto
+{shown} files shown, none hidden	{shown} file mostrati, nessuno nascosto
+{shown} files shown, {hidden} hidden	{shown} file mostrati, {hidden} nascosti
+{table} couldn't be opened.\n\n{}	Non è stato possibile aprire {table}.\n\n{}
+{variable} from {name}	{variable} da {name}
+{} (in use)	{} (in uso)
+{} (view)	{} (vista)
+{} doesn't offer TLS, and this connection is set always to use it.	{} non offre TLS, e questa connessione è impostata per usare sempre TLS.
+{} of {} rows	{} di {} righe
+{} rows, {} columns	{} righe, {} colonne
+{}. Click to show the rows in order of this column; again for the other way; a third time as in the table.	{}. Clicca per mostrare le righe nell'ordine di questa colonna; di nuovo per l'ordine inverso; una terza volta come nella tabella.

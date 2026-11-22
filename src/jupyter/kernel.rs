@@ -469,6 +469,11 @@ impl KernelLink for Kernel {
         self.send_request(Shell, "execute_request", content, true)
     }
 
+    fn execute_quietly(&mut self, code: &str) -> u64 {
+        let content = json!({"code": code, "silent": false, "store_history": false, "user_expressions": {}, "allow_stdin": false, "stop_on_error": false});
+        self.send_request(Shell, "execute_request", content, true)
+    }
+
     fn poll(&mut self) -> Vec<KernelEvent> {
         let mut out = std::mem::take(&mut self.waiting);
         while let Ok((generation, wire)) = self.rx.try_recv() {

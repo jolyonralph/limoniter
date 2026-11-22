@@ -59,6 +59,7 @@ impl Limoniter {
         match step {
             "call-graph" => self.panels.call_graph = true,
             "instructions" => self.panels.instructions = true,
+            "variables" => self.panels.variables = true,
             _ => {
                 if let Ok(blocks) = self.blocks_for_pdf() {
                     let folder = self.docs[self.active].path.as_deref().and_then(Path::parent).map(Path::to_path_buf);

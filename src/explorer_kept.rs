@@ -106,6 +106,8 @@ pub struct Kept {
     pub show_hidden: bool,
     /// How many days back a file stands out as recently edited; 0 when that's off.
     pub recent_days: u32,
+    /// The share of the project's files the Explorer shows, in per cent: the most recently edited ones.
+    pub recency: u32,
     /// Whether the folder's build and dependency folders have been offered for hiding, so they're offered once.
     pub offered: bool,
     /// When Limoniter last saved each file, in seconds since 1970, by its whole path.
@@ -114,7 +116,7 @@ pub struct Kept {
 
 impl Default for Kept {
     fn default() -> Self {
-        Kept { hidden: Vec::new(), show_hidden: false, recent_days: RECENT_DAYS, offered: false, saved: BTreeMap::new() }
+        Kept { hidden: Vec::new(), show_hidden: false, recent_days: RECENT_DAYS, recency: 100, offered: false, saved: BTreeMap::new() }
     }
 }
 
@@ -144,6 +146,9 @@ impl Kept {
         if self.recent_days != RECENT_DAYS {
             value.insert("recent_days".into(), json!(self.recent_days));
         }
+        if self.recency < 100 {
+            value.insert("recency".into(), json!(self.recency));
+        }
         if self.offered {
             value.insert("offered".into(), json!(true));
         }
@@ -159,6 +164,7 @@ impl Kept {
         kept.hidden = value.get("hidden").and_then(Value::as_array).map_or_else(Vec::new, |items| items.iter().filter_map(Value::as_str).filter_map(Hide::from_text).collect());
         kept.show_hidden = value.get("show_hidden").and_then(Value::as_bool).unwrap_or(false);
         kept.recent_days = value.get("recent_days").and_then(Value::as_u64).map_or(RECENT_DAYS, |days| days.min(u64::from(MOST_RECENT_DAYS)) as u32);
+        kept.recency = value.get("recency").and_then(Value::as_u64).map_or(100, |share| share.min(100) as u32);
         kept.offered = value.get("offered").and_then(Value::as_bool).unwrap_or(false);
         kept.saved = value.get("saved").and_then(Value::as_object).map_or_else(BTreeMap::new, |map| map.iter().filter_map(|(path, when)| Some((crate::project::resolved(base, path), when.as_u64()?))).collect());
         kept
@@ -313,6 +319,77 @@ pub fn outside_times(root: &Path, files: &[PathBuf], days: u32) -> HashMap<PathB
     files.iter().filter_map(|path| outside_time(git.as_ref(), path, || std::fs::metadata(path).and_then(|m| m.modified()).ok()).filter(|&when| within(when, now, days)).map(|when| (path.clone(), when))).collect()
 }
 
+/// When each of a folder's files was last edited, for all of them rather than only the recent ones: Git's date where
+/// it vouches for the file, and otherwise the file's modified date. For the Explorer's recency slider.
+pub fn every_time(root: &Path, files: &[PathBuf]) -> HashMap<PathBuf, SystemTime> {
+    let git = crate::git::repository_of(root).filter(|_| crate::git::program().is_some()).and_then(|repo| GitTimes::read(&repo, MOST_RECENT_DAYS).ok());
+    let disk = |path: &Path| std::fs::metadata(path).and_then(|m| m.modified()).ok();
+    files.iter().filter_map(|path| outside_time(git.as_ref(), path, || disk(path)).or_else(|| disk(path)).map(|when| (path.clone(), when))).collect()
+}
+
+/// The files the recency slider hides, and the folders with nothing shown in them, for the share chosen. Files are
+/// ordered by when they were last edited, the latest first, with ties broken by name; the first
+/// `share` per cent of them (at least one unless the share is 0) are shown.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Cut {
+    pub shown: usize,
+    pub hidden_files: HashSet<PathBuf>,
+    pub shown_folders: HashSet<PathBuf>,
+}
+
+impl Cut {
+    pub fn new(root: &Path, times: &[(PathBuf, SystemTime)], share: u32) -> Cut {
+        let mut order: Vec<&(PathBuf, SystemTime)> = times.iter().collect();
+        order.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let share = share.min(100) as usize;
+        let shown = if share == 0 { 0 } else { (order.len() * share / 100).max(1).min(order.len()) };
+        let mut cut = Cut { shown, ..Cut::default() };
+        for (index, (path, _)) in order.into_iter().enumerate() {
+            if index >= shown {
+                cut.hidden_files.insert(path.clone());
+                continue;
+            }
+            let mut folder = path.parent();
+            while let Some(here) = folder.filter(|f| f.starts_with(root)) {
+                if !cut.shown_folders.insert(here.to_path_buf()) {
+                    break;
+                }
+                folder = here.parent();
+            }
+        }
+        cut
+    }
+
+    pub fn hidden(&self) -> usize {
+        self.hidden_files.len()
+    }
+
+    /// Whether a file or folder is left out of the tree.
+    pub fn hides(&self, path: &Path, is_folder: bool) -> bool {
+        if is_folder { !self.shown_folders.contains(path) } else { self.hidden_files.contains(path) }
+    }
+
+    /// The line under the slider.
+    pub fn said(&self) -> String {
+        count_line(self.shown, self.hidden())
+    }
+}
+
+/// "312 files shown, 937 hidden", with its one-file cases as sentences of their own, so each can be translated whole.
+pub fn count_line(shown: usize, hidden: usize) -> String {
+    match (shown, hidden) {
+        (0, 0) => crate::i18n::tr("No files shown").to_string(),
+        (0, 1) => crate::i18n::tr("No files shown, 1 hidden").to_string(),
+        (0, hidden) => crate::i18n::tf!("No files shown, {hidden} hidden"),
+        (1, 0) => crate::i18n::tr("1 file shown, none hidden").to_string(),
+        (1, 1) => crate::i18n::tr("1 file shown, 1 hidden").to_string(),
+        (1, hidden) => crate::i18n::tf!("1 file shown, {hidden} hidden"),
+        (shown, 0) => crate::i18n::tf!("{shown} files shown, none hidden"),
+        (shown, 1) => crate::i18n::tf!("{shown} files shown, 1 hidden"),
+        (shown, hidden) => crate::i18n::tf!("{shown} files shown, {hidden} hidden"),
+    }
+}
+
 /// When a file was edited, for hovering over its name: "Last edited today at 14:02", or on a day.
 pub fn when_said(when: SystemTime, now: SystemTime) -> String {
     let local = chrono::DateTime::<chrono::Local>::from(when);
@@ -369,7 +446,7 @@ mod tests {
         let kept = Kept::default();
         assert!(kept.is_default());
         assert_eq!(kept.to_json(&base), json!({}), "nothing written as it starts");
-        let mut kept = Kept { show_hidden: true, recent_days: 30, offered: true, ..Kept::default() };
+        let mut kept = Kept { show_hidden: true, recent_days: 30, recency: 25, offered: true, ..Kept::default() };
         kept.hide(Hide::Named("target".into()));
         kept.hide(Hide::Kind("o".into()));
         kept.note_saved(&base.join("src").join("main.c"), at(2_000_000_000));
@@ -430,5 +507,84 @@ mod tests {
         assert_eq!(Heat::of(ago(45), now), Heat::Earlier);
         assert!(when_said(now, now).contains("today"));
         assert!(when_said(ago(3), now).contains("3 days ago"), "{}", when_said(ago(3), now));
+    }
+
+    fn times(root: &Path, files: &[(&str, u64)]) -> Vec<(PathBuf, SystemTime)> {
+        files.iter().map(|(name, secs)| (root.join(name), at(*secs))).collect()
+    }
+
+    #[test]
+    fn the_slider_shows_the_latest_edited_files_with_ties_broken_by_name() {
+        let root = PathBuf::from("/w");
+        let all = times(&root, &[("old.s", 10), ("src/b.s", 50), ("src/a.s", 50), ("lib/deep/c.s", 30), ("new.s", 90)]);
+        let hidden = |share| {
+            let cut = Cut::new(&root, &all, share);
+            let mut names: Vec<_> = cut.hidden_files.iter().map(|p| p.strip_prefix(&root).unwrap().to_string_lossy().into_owned()).collect();
+            names.sort();
+            (cut.shown, names)
+        };
+        assert_eq!(hidden(100), (5, vec![]));
+        assert_eq!(hidden(60), (3, vec!["lib/deep/c.s".to_string(), "old.s".to_string()]), "new, then the 50s");
+        // Two files at the same time: only the first by name fits.
+        assert_eq!(hidden(40), (2, vec!["lib/deep/c.s".to_string(), "old.s".to_string(), "src/b.s".to_string()]));
+        assert_eq!(hidden(1).0, 1, "something is shown at any share above 0");
+        assert_eq!(hidden(0).0, 0);
+        assert_eq!(Cut::new(&root, &all, 0).hidden(), 5);
+    }
+
+    #[test]
+    fn a_folder_is_hidden_when_nothing_under_it_is_shown() {
+        let root = PathBuf::from("/w");
+        let all = times(&root, &[("lib/deep/c.s", 30), ("src/a.s", 50), ("new.s", 90)]);
+        let cut = Cut::new(&root, &all, 70);
+        assert_eq!(cut.shown, 2);
+        assert!(cut.hides(&root.join("lib"), true) && cut.hides(&root.join("lib/deep"), true));
+        assert!(!cut.hides(&root.join("src"), true) && !cut.hides(&root.join("new.s"), false));
+        assert!(cut.hides(&root.join("lib/deep/c.s"), false));
+        let cut = Cut::new(&root, &all, 100);
+        assert!(cut.hidden_files.is_empty() && !cut.hides(&root.join("lib/deep"), true));
+        let cut = Cut::new(&root, &all, 0);
+        assert!(cut.hides(&root.join("src"), true));
+    }
+
+    #[test]
+    fn the_counts_are_said_in_whole_sentences() {
+        assert_eq!(count_line(312, 937), "312 files shown, 937 hidden");
+        assert_eq!(count_line(1, 937), "1 file shown, 937 hidden");
+        assert_eq!(count_line(312, 1), "312 files shown, 1 hidden");
+        assert_eq!(count_line(1, 1), "1 file shown, 1 hidden");
+        assert_eq!(count_line(0, 5), "No files shown, 5 hidden");
+        assert_eq!(count_line(0, 1), "No files shown, 1 hidden");
+        assert_eq!(count_line(0, 0), "No files shown");
+        assert_eq!(count_line(4, 0), "4 files shown, none hidden");
+        assert_eq!(count_line(1, 0), "1 file shown, none hidden");
+        let root = PathBuf::from("/w");
+        let all = times(&root, &[("a", 1), ("b", 2), ("c", 3), ("d", 4)]);
+        assert_eq!(Cut::new(&root, &all, 25).said(), "1 file shown, 3 hidden");
+        assert_eq!(Cut::new(&root, &all, 0).said(), "No files shown, 4 hidden");
+    }
+
+    #[test]
+    fn the_slider_is_kept_with_the_project_only_below_100() {
+        let base = PathBuf::from(if cfg!(windows) { r"C:\work\game" } else { "/work/game" });
+        assert!(Kept::default().to_json(&base).get("recency").is_none());
+        let kept = Kept { recency: 25, ..Kept::default() };
+        let value = kept.to_json(&base);
+        assert_eq!(value["recency"], json!(25));
+        assert_eq!(Kept::from_json(Some(&value), &base).recency, 25);
+        assert_eq!(Kept::from_json(Some(&json!({ "recency": 400 })), &base).recency, 100);
+        assert_eq!(Kept::from_json(None, &base).recency, 100);
+    }
+
+    #[test]
+    fn every_files_time_falls_back_to_the_disk() {
+        let dir = std::env::temp_dir().join(format!("limoniter-every-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("a.txt");
+        std::fs::write(&file, "x").unwrap();
+        let times = every_time(&dir, &[file.clone(), dir.join("missing.txt")]);
+        assert!(times.contains_key(&file) && times.len() == 1);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

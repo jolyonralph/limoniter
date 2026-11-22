@@ -11,3 +11,9 @@ src/tile_testdata/** -text
 
 # Jupyter notebooks used to test reading and saving byte for byte: never given CR LF line ends on Windows.
 src/notebook_testdata/** -text
+
+# Spreadsheets and JSON-lines files used to test the data viewer: never given CR LF line ends on Windows.
+src/data_testdata/** -text
+
+# The code Limoniter runs on a notebook's kernel to list its variables.
+src/kernel_code/** -text

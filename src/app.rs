@@ -401,8 +401,12 @@ enum Command {
     Themes,
     Website,
     ToggleTable,
+    /// View, Open in the data viewer: the delimited text in front, as a table to sort, filter and sum up.
+    OpenInDataViewer,
     /// Something to do with the notebook in front: run a cell, add one, and so on.
     Notebook(notebook_host::Act),
+    /// Something to do with databases: run the SQL at the cursor, stop it, add a connection.
+    Database(database_host::Act),
     SendAgain,
     ManageDevices,
     /// A command an add-on adds, by its place in the list of every add-on's commands.
@@ -467,6 +471,7 @@ impl Command {
     fn works_without_file(self) -> bool {
         // The PHP tools that work on a whole project.
         matches!(self, Command::Php(action) if action.works_without_file())
+            || matches!(self, Command::Database(act) if act.works_without_file())
             || matches!(
             self,
             Command::New
@@ -854,6 +859,8 @@ struct Document {
     hex_mode: bool,
     /// Shown as a table of delimited data, and how that's read.
     table: Option<Box<table_view::TableState>>,
+    /// A table of data shown in the data viewer, which the tab then is.
+    data: Option<Box<crate::data_view::DataState>>,
     /// A Jupyter notebook's cells, kept for an `.ipynb` file shown as a notebook.
     notebook: Option<Box<notebook_host::NotebookState>>,
     /// The notebook's JSON shown as text instead (View, Notebook as text).
@@ -999,6 +1006,7 @@ impl Document {
             untitled,
             hex_mode: false,
             table: None,
+            data: None,
             notebook: None,
             notebook_text: false,
             table_offer: None,
@@ -1387,7 +1395,7 @@ impl Document {
     }
 
     fn is_blank(&self) -> bool {
-        self.placeholder || self.path.is_none() && self.compare.is_none() && !self.is_modified() && !self.hex_mode && self.text.line_count() == 1 && self.text.line(0).is_empty()
+        self.placeholder || self.path.is_none() && self.compare.is_none() && self.data.is_none() && !self.is_modified() && !self.hex_mode && self.text.line_count() == 1 && self.text.line(0).is_empty()
     }
 }
 
@@ -1608,6 +1616,7 @@ enum Dialog {
     WebProject(Box<project_import_host::WebProjectBox>),
     AmigaNdk(Box<ndk_host::NdkBox>),
     AmigaProject(Box<amiga_project_host::NewProjectBox>),
+    Database(Box<database_host::ConnectionBox>),
     AmigaTools(Box<amiga_tools_host::AmigaToolsBox>),
     AmigaIcon(Box<amiga_icon_host::IconBox>),
     StTools(Box<st_tools_host::StToolsBox>),
@@ -1816,6 +1825,8 @@ pub struct Limoniter {
     running: run_host::Running,
     /// The PHP tools: their preview, php -l on save, and PHP's web server.
     php: php_host::PhpState,
+    /// Database connections, open and kept, and the one chosen for each SQL file.
+    database: database_host::DatabaseState,
     /// Programs F9 built being crunched in the background.
     amiga_jobs: Vec<amiga_tools_host::Job>,
     /// Programs and scripts running in vamos, their output coming into the Output panel.
@@ -2035,6 +2046,7 @@ impl Limoniter {
             sends: deploy_host::Sends::from_settings(&settings),
             running: run_host::Running::from_settings(&settings),
             php: php_host::PhpState::from_settings(&settings),
+            database: database_host::DatabaseState::from_settings(&settings),
             amiga_jobs: Vec::new(),
             vamos_runs: Vec::new(),
             c64_jobs: Vec::new(),
@@ -2492,6 +2504,10 @@ impl Limoniter {
             self.note_recent_file(&full);
             return true;
         }
+        // Spreadsheets and JSON-lines files open in the data viewer.
+        if data_view_host::is_data_name(&full.to_string_lossy()) && self.encoding_prefs.get(&full).is_none() {
+            return self.open_data_file(&full);
+        }
         // Disk, tape and CD images and archives open in a browser, unless it turns out they can't be read as one.
         if self.encoding_prefs.get(&full).is_none() && self.open_image(&full) {
             self.pending_focus = true;
@@ -2678,6 +2694,9 @@ impl Limoniter {
     }
 
     fn save(&mut self, index: usize) -> bool {
+        if self.docs[index].data.is_some() {
+            return self.save_data_csv(index);
+        }
         if self.docs[index].game.is_some() {
             return false;
         }
@@ -2708,6 +2727,9 @@ impl Limoniter {
     }
 
     fn save_as(&mut self, index: usize) -> bool {
+        if self.docs[index].data.is_some() {
+            return self.save_data_csv(index);
+        }
         if self.docs[index].game.is_some() || self.docs[index].compare.is_some() {
             return false;
         }
@@ -3226,6 +3248,8 @@ impl Limoniter {
         busy |= running;
         self.task_tick(running);
         busy |= self.php_tick();
+        self.database.ctx = Some(ctx.clone());
+        busy |= self.database_tick();
         busy |= self.check_split();
         busy |= self.check_assistant();
         self.spelling_tick();
@@ -4235,8 +4259,12 @@ impl Limoniter {
             self.notebook_command(act);
             return;
         }
+        if let Command::Database(act) = command {
+            self.database_command(act, ui.ctx());
+            return;
+        }
         // In a table, the clipboard commands work on the cell the cursor is in.
-        if !self.no_file() && self.table_command(command, ui) {
+        if !self.no_file() && (self.table_command(command, ui) || self.data_command(command, ui)) {
             return;
         }
         // In a comparison, editing goes to the side in use.
@@ -4353,6 +4381,7 @@ impl Limoniter {
                 | Command::GitUseTools
                 | Command::GitStopTools
                 | Command::ToggleTable
+                | Command::OpenInDataViewer
                 | Command::AddOn(_)
                 | Command::ShowScripts
                 | Command::ShowHistory
@@ -4616,7 +4645,8 @@ impl Limoniter {
             Command::GitStageChange => self.stage_change_at_cursor(),
             Command::GitUndoChange => self.undo_change_at_cursor(),
             Command::ToggleTable => self.toggle_table(),
-            Command::Notebook(_) => {}
+            Command::OpenInDataViewer => self.open_in_data_viewer(),
+            Command::Notebook(_) | Command::Database(_) => {}
             Command::Themes => self.open_theme_box(theme_host::ThemePage::Documents),
             Command::Website => {
                 if let Err(problem) = crate::platform::open_web_page("https://limoniter.com") {
@@ -5268,6 +5298,10 @@ impl Limoniter {
             }
         }
         if in_editor {
+            // In an SQL file, Ctrl+Enter runs the statement at the cursor rather than starting a line.
+            if self.is_sql_doc(self.active) && ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(ctrl, Key::Enter))) {
+                self.run(Command::Database(database_host::Act::Run), ui);
+            }
             for (modifiers, key, command) in in_text_only {
                 if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(modifiers, key))) {
                     self.run(command, ui);
@@ -5364,7 +5398,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str()
         )
     }
 
@@ -5512,6 +5546,8 @@ impl Limoniter {
         self.assistant = fresh.assistant;
         self.new_kinds = fresh.new_kinds;
         self.compare_rules = fresh.compare_rules;
+        self.database.kept = fresh.database.kept;
+        self.database.for_file = fresh.database.for_file;
         // Servers already running carry on; only whether they're used, and which, change.
         self.lsp.on = fresh.lsp.on;
         self.lsp.settings = fresh.lsp.settings;
@@ -5541,12 +5577,14 @@ impl Limoniter {
         let library_actions = self.panels.show_library(ui, &mut self.library);
         let history_rows = if self.panels.history && !doc.placeholder { doc.text.history_rows() } else { Vec::new() };
         let history_actions = self.panels.show_history(ui, &history_rows, doc.hex_mode);
+        self.variables_panel(ui);
         let entries = self.git.status.as_ref().map(|s| s.entries.as_slice()).unwrap_or_default();
         self.panels.project_panel.explorer.set_git(self.git.repo.as_deref(), entries);
         let doc = &self.docs[active];
         let project_actions = self.panels.show_project(ui, self.project.as_ref(), doc.path.as_deref());
         let todo_view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: None };
         let todo_acts = self.panels.show_todos(ui, &todo_view, self.project.as_ref());
+        self.database_panel(ui);
         let mut explorer_acts = Vec::new();
         for action in project_actions {
             match action {
@@ -5879,7 +5917,7 @@ impl Limoniter {
     fn draw_beside_in_its_colours(&mut self, ui: &mut Ui, index: usize, view: ViewOptions) {
         let shown_as_notebook = self.notebook_shown(index);
         let doc = &mut self.docs[index];
-        let plain = !doc.hex_mode && !doc.placeholder && doc.browser.is_none() && doc.game.is_none() && doc.compare.is_none() && doc.merge.is_none() && doc.table.is_none() && !shown_as_notebook;
+        let plain = !doc.hex_mode && !doc.placeholder && doc.browser.is_none() && doc.game.is_none() && doc.compare.is_none() && doc.merge.is_none() && doc.table.is_none() && doc.data.is_none() && !shown_as_notebook;
         if plain {
             doc.update_syntax();
             views::text_pane(ui, &mut doc.text, &mut doc.text_state, &mut self.clip, view, false, Pane { number: 2, active: false, ..Pane::default() });
@@ -5916,6 +5954,10 @@ impl Limoniter {
         }
         if self.docs[index].browser.is_some() {
             self.browser_view(ui);
+            return None;
+        }
+        if self.docs[index].data.is_some() {
+            self.data_view(ui, input_on);
             return None;
         }
         if self.docs[index].game.is_some() {
@@ -7023,6 +7065,7 @@ impl Limoniter {
                 };
                 ui.colored_label(theme::accent(), words);
             }
+            self.database_status(ui);
             if let Some(status) = self.run_status() {
                 ui.colored_label(theme::accent(), status);
                 if !self.running.sessions.is_empty() && ui.small_button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Stops the program running, closing the emulator")).clicked() {
@@ -7445,7 +7488,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
-        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
+        if self.palette_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.database_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
         let mut close = false;
@@ -7720,7 +7763,7 @@ impl Limoniter {
         // A picture shows text in its colours, so it waits for the grammars too.
         highlight::engine().is_none()
             || self.debug_busy_for_picture()
-            || self.big_job.is_some() || self.retro_pictures.as_ref().is_some_and(|c| c.working()) || self.docs.iter().any(|doc| doc.is_busy() || doc.table.as_deref().is_some_and(|table| table.working()) || doc.notebook.as_deref().is_some_and(|n| n.busy()))
+            || self.big_job.is_some() || self.retro_pictures.as_ref().is_some_and(|c| c.working()) || self.docs.iter().any(|doc| doc.is_busy() || doc.table.as_deref().is_some_and(|table| table.working()) || doc.notebook.as_deref().is_some_and(|n| n.busy()) || doc.data.as_deref().is_some_and(|d| d.busy())) || self.database.busy()
     }
 
     /// A picture can show the app partway through something: LIMONITER_SHOT_STEPS lists what to do first. Steps
@@ -7835,6 +7878,16 @@ impl Limoniter {
                     editor.chosen = 1;
                     editor.play_changes = false;
                     self.sound_effects = Some(Box::new(editor));
+                }
+                "recency" => {
+                    // The Explorer's recency slider set to a share, with every file's date read now, for the picture.
+                    if let Some(project) = &mut self.project
+                        && let Some(root) = project.root.clone()
+                    {
+                        project.explorer.recency = value.parse().unwrap_or(100);
+                        let times = crate::explorer_kept::every_time(&root, &project.files);
+                        self.panels.project_panel.explorer.set_every_time(&root, times);
+                    }
                 }
                 "open-folder" => {
                     // A folder opened as a project, with Go to file open on some letters ("path;letters").
@@ -8035,6 +8088,11 @@ impl Limoniter {
                 // A notebook in front: "run-all", "select-N" (a cell by its place, from 0), "edit-N" (typing in it),
                 // "text" (as JSON) or "kind-markdown" and the like.
                 "notebook" => self.notebook_screenshot_step(value),
+                // A table in the data viewer: "sheet-N", "sort-N", "filter-WORDS" or "cell-ROW-COLUMN".
+                "data" => self.data_step(value),
+                // The Database panel: "sqlite=PATH" (that file, connected and opened out), "box" (adding a
+                // connection), "run" (the statement at the cursor) or "panel".
+                "database" => self.database_screenshot_step(value),
                 "colour-as" => {
                     // The Colour as box, grouped a way ("kind", "machine" or "all"), with letters typed after a ;.
                     let (view, letters) = value.split_once(';').unwrap_or((value, ""));
@@ -8371,7 +8429,7 @@ impl Limoniter {
                     self.dialog = Dialog::Settings(settings::WindowState { section: 5, file_types, ..settings::WindowState::default() });
                 }
                 "preview" => self.doc().preview_view = settings::PreviewView::Split,
-                "call-graph" | "instructions" => self.diagram_screenshot_step(step, ""),
+                "call-graph" | "instructions" | "variables" => self.diagram_screenshot_step(step, ""),
                 "about" => self.about(),
                 "features" => self.open_features(),
                 "palette" => {
@@ -8895,6 +8953,7 @@ impl Limoniter {
             if ui.ctx().data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(run_host::STOP_ASKED))).unwrap_or(false) {
                 self.stop_all_sessions();
             }
+            self.database_status_picked(ui.ctx());
             if ui.ctx().data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(remote_project_host::STATUS_CLICKED))).unwrap_or(false) {
                 self.remote_project_status_clicked();
             }
@@ -9691,6 +9750,11 @@ pub(crate) fn same_path(a: &Path, b: &Path) -> bool {
 }
 
 fn warn(message: &str) {
+    // A system box waits for a click, which a test can't give (and on Windows it would take the person's focus).
+    if cfg!(test) {
+        eprintln!("{message}");
+        return;
+    }
     crate::sys_dialogs::message_dialog().set_title(crate::i18n::tr("Limoniter")).set_level(MessageLevel::Warning).set_description(message).set_buttons(MessageButtons::Ok).show();
 }
 
@@ -9963,6 +10027,13 @@ mod run_host_tests;
 mod table_view;
 #[path = "data_table_host.rs"]
 mod data_table_host;
+#[path = "data_view_host.rs"]
+mod data_view_host;
+#[cfg(test)]
+#[path = "data_view_host_tests.rs"]
+mod data_view_host_tests;
+#[path = "database_host.rs"]
+mod database_host;
 
 #[path = "notebook_host.rs"]
 mod notebook_host;

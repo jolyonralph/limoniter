@@ -9,6 +9,7 @@ use crate::preview;
 use super::start_page::Guide;
 use super::php_host::PhpAction;
 use super::notebook_host::Act as NotebookAct;
+use super::database_host::Act as DatabaseAct;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
 
 /// A switch that's simply on or off, toggled from a menu or the command box.
@@ -76,6 +77,8 @@ pub(super) enum PanelFlag {
     Structure,
     CallGraph,
     Instructions,
+    Variables,
+    Database,
 }
 
 /// Lists that change, drawn as they are now.
@@ -309,6 +312,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Project", Flag::Panel(PanelFlag::Project)),
             Check("Open files", Flag::Panel(PanelFlag::OpenFiles)),
             Check("File lists", Flag::Panel(PanelFlag::FileLists)),
+            Check("Database", Flag::Panel(PanelFlag::Database)),
             Line,
             Check("Functions", Flag::Panel(PanelFlag::Functions)),
             Check("Call graph", Flag::Panel(PanelFlag::CallGraph)),
@@ -328,6 +332,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("String explorer", Flag::Panel(PanelFlag::Strings)),
             Check("Value inspector", Flag::Panel(PanelFlag::Inspector)),
             Check("Structure", Flag::Panel(PanelFlag::Structure)),
+            Check("Variables", Flag::Panel(PanelFlag::Variables)),
             Check("Clipboard history", Flag::Panel(PanelFlag::Clipboard)),
             Line,
             Item("Close every panel", Command::HidePanels),
@@ -582,6 +587,15 @@ pub(super) const NOTEBOOK: &[Entry] = &[
     Item("Compare with the last commit, with outputs", Command::Notebook(NotebookAct::CompareLastWithOutputs)),
 ];
 
+/// Databases: SQL run from the editor on the connection chosen for the file, and the connections themselves.
+pub(super) const DATABASE: &[Entry] = &[
+    Keyed("Run the statement at the cursor", Command::Database(DatabaseAct::Run), "Ctrl+Enter"),
+    Item("Stop the query", Command::Database(DatabaseAct::Stop)),
+    Line,
+    Item("Add a connection\u{2026}", Command::Database(DatabaseAct::Add)),
+    Check("Database panel", Flag::Panel(PanelFlag::Database)),
+];
+
 /// The chores of keeping old PHP working, and checking and running it.
 pub(super) const PHP: &[Entry] = &[
             Item("Short tags made long\u{2026}", Command::Php(PhpAction::LongTags)),
@@ -778,6 +792,7 @@ pub(super) const VIEW: &[Entry] = &[
     Keyed("Narrow to the selection", Command::Narrow, "Ctrl+Shift+N"),
     Item("Show the whole file", Command::Widen),
     Keyed("Table view (CSV, TSV)", Command::ToggleTable, "F6"),
+    Item("Open in the data viewer", Command::OpenInDataViewer),
     Item("Notebook as text", Command::Notebook(NotebookAct::AsText)),
     Line,
     Sub("Preview", PREVIEW),
@@ -858,6 +873,7 @@ pub(super) const TOOLS: &[Entry] = &[
     Sub("Run", RUN),
     Sub("PHP", PHP),
     Sub("Notebook", NOTEBOOK),
+    Sub("Database", DATABASE),
     Sub("Macros", MACROS),
     Sub("Scripts", SCRIPTS),
     Sub("Add-ons", ADD_ONS),
@@ -1048,6 +1064,8 @@ impl Limoniter {
             PanelFlag::Structure => p.structure,
             PanelFlag::CallGraph => p.call_graph,
             PanelFlag::Instructions => p.instructions,
+            PanelFlag::Variables => p.variables,
+            PanelFlag::Database => p.database,
         }
     }
 
@@ -1076,6 +1094,8 @@ impl Limoniter {
             PanelFlag::Structure => &mut p.structure,
             PanelFlag::CallGraph => &mut p.call_graph,
             PanelFlag::Instructions => &mut p.instructions,
+            PanelFlag::Variables => &mut p.variables,
+            PanelFlag::Database => &mut p.database,
         }
     }
 
@@ -1229,9 +1249,11 @@ impl Limoniter {
             Command::GitCompareHead | Command::GitHistory | Command::GitStageChange => self.git.repo.is_some() && doc.path.is_some(),
             Command::GitUndoChange => self.git.repo.is_some() && doc.path.is_some() && !doc.text.read_only,
             Command::ResolveInMerge => text && doc.merge.is_none() && !t.is_disk_backed(),
-            Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none()),
+            Command::ToggleTable => doc.table.is_some() || (text && doc.browser.is_none() && doc.data.is_none()),
+            Command::OpenInDataViewer => !no_file && !hex && doc.data.is_none() && doc.browser.is_none() && (doc.table.is_some() || super::table_view::is_table_name(&doc.path_or_name())),
             Command::Notebook(super::notebook_host::Act::AsText) => !no_file && super::notebook_host::is_notebook_name(&doc.path_or_name()) && !hex && doc.table.is_none() && doc.browser.is_none(),
             Command::Notebook(_) => self.notebook_shown(self.active),
+            Command::Database(act) => self.database_can(act),
             Command::SwapClipboard | Command::SaveSelection => if hex { doc.hex.has_selection() } else { t.has_selection() },
             Command::SavePictureAsPng => doc.picture.is_some(),
             Command::TapeSound => !no_file && ((doc.listing_of.is_some() && !hex) || crate::media::tape_sound::may_make(&doc.path_or_name().to_string_lossy())),

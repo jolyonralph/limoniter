@@ -20,6 +20,8 @@ pub(super) struct Indexing {
     done: Option<Instant>,
     /// When the files were last changed other than by Limoniter, for the Explorer's recently edited files.
     recent: Option<Receiver<(PathBuf, HashMap<PathBuf, std::time::SystemTime>)>>,
+    /// The same for every file, for the Explorer's recency slider.
+    every: Option<Receiver<(PathBuf, HashMap<PathBuf, std::time::SystemTime>)>>,
     /// Whether the last index stopped at its most files.
     pub more: bool,
 }
@@ -211,6 +213,10 @@ impl Limoniter {
                 kept.recent_days = days;
                 index = false;
             }
+            Act::Recency(share) => {
+                kept.recency = share.min(100);
+                index = false;
+            }
             Act::HideBuildFolders(names) => {
                 kept.offered = true;
                 for name in names {
@@ -241,6 +247,7 @@ impl Limoniter {
     /// Starts working out, in the background, when the folder's files were last changed other than by Limoniter:
     /// one look at Git's history, and the disk's dates of the files Git doesn't vouch for.
     fn find_recent(&mut self) {
+        self.find_every_time();
         let Some(project) = self.project.as_ref().filter(|p| p.root.is_some() && p.explorer.recent_days > 0) else { return };
         let (root, files, days) = (project.folder(), project.files.clone(), project.explorer.recent_days);
         let (send, receive) = channel();
@@ -249,6 +256,22 @@ impl Limoniter {
             let _ = send.send((root, times));
         });
         self.indexing.recent = Some(receive);
+    }
+
+    /// Starts reading, in the background, when each of the folder's files was last edited, for the recency slider.
+    /// It's only done while the slider is below 100%, as it reads the date of every file.
+    fn find_every_time(&mut self) {
+        let Some(project) = self.project.as_ref().filter(|p| p.explorer.recency < 100) else { return };
+        if self.indexing.every.is_some() {
+            return;
+        }
+        let (root, files) = (project.folder(), project.files.clone());
+        let (send, receive) = channel();
+        std::thread::spawn(move || {
+            let times = crate::explorer_kept::every_time(&root, &files);
+            let _ = send.send((root, times));
+        });
+        self.indexing.every = Some(receive);
     }
 
     /// Starts finding the folder's symbols again, in the background: only files changed since are read.
@@ -276,6 +299,13 @@ impl Limoniter {
 
     /// Takes in an index that's ready, and makes it again now and then, as files change outside.
     pub(super) fn project_index_tick(&mut self, ctx: &Context) {
+        // A `.limproj`'s files aren't indexed, so its dates are read once the slider is below 100%.
+        if let Some(project) = self.project.as_ref().filter(|p| p.root.is_none() && p.explorer.recency < 100)
+            && self.indexing.every.is_none()
+            && !self.panels.project_panel.explorer.recency.has_times(&project.folder())
+        {
+            self.find_every_time();
+        }
         if let Some(job) = &self.symbols.job
             && let Ok(found) = job.try_recv()
         {
@@ -287,12 +317,18 @@ impl Limoniter {
             self.indexing.recent = None;
             self.panels.project_panel.explorer.set_outside_times(&root, times);
         }
+        if let Some(job) = &self.indexing.every
+            && let Ok((root, times)) = job.try_recv()
+        {
+            self.indexing.every = None;
+            self.panels.project_panel.explorer.set_every_time(&root, times);
+        }
         if let Some(job) = &self.indexing.job {
             if let Ok((files, more)) = job.try_recv() {
                 if let Some(project) = self.project.as_mut().filter(|p| p.root.is_some()) {
                     project.files = files;
                 }
-                self.indexing = Indexing { job: None, done: Some(Instant::now()), more, recent: self.indexing.recent.take() };
+                self.indexing = Indexing { job: None, done: Some(Instant::now()), more, recent: self.indexing.recent.take(), every: self.indexing.every.take() };
                 if self.symbols.job.is_none() {
                     self.find_symbols();
                 }
@@ -409,7 +445,7 @@ impl Limoniter {
                 self.colour_folder(&folder, tint);
                 false
             }
-            Act::Hide(_) | Act::ShowAgain { .. } | Act::ShowHidden(_) | Act::RecentDays(_) | Act::HideBuildFolders(_) => {
+            Act::Hide(_) | Act::ShowAgain { .. } | Act::ShowHidden(_) | Act::RecentDays(_) | Act::Recency(_) | Act::HideBuildFolders(_) => {
                 self.explorer_setting(act);
                 false
             }

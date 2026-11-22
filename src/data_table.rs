@@ -2,8 +2,6 @@
 //! JSON-lines file, a data frame in a running Python or R session, or the rows a database query gave back all
 //! become one of these, so they're shown, sorted, filtered and summed up the same way.
 
-// Used once the data viewer and database browser join (0.16 batch 2).
-#![allow(dead_code)]
 
 /// What a column holds, as far as it's known: from a database's column types, a data frame's dtypes, or guessed
 /// from the values by the data viewer.
@@ -60,34 +58,5 @@ impl Cell {
             Cell::Bool(b) => b.to_string(),
             Cell::Bytes(bytes) => bytes.iter().map(|b| format!("{b:02X}")).collect(),
         }
-    }
-}
-
-impl DataTable {
-    /// The table as tab-separated text with a heading row; tabs and line breaks in values become spaces.
-    pub fn to_tsv(&self) -> String {
-        let clean = |text: String| text.replace(['\t', '\n', '\r'], " ");
-        let mut out = self.columns.iter().map(|c| clean(c.name.clone())).collect::<Vec<_>>().join("\t");
-        out.push('\n');
-        for row in &self.rows {
-            out.push_str(&row.iter().map(|cell| clean(cell.text())).collect::<Vec<_>>().join("\t"));
-            out.push('\n');
-        }
-        out
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_table_becomes_tab_separated_text() {
-        let table = DataTable {
-            columns: vec![DataColumn { name: "id".into(), kind: ColumnKind::Integer }, DataColumn { name: "name".into(), kind: ColumnKind::Text }],
-            rows: vec![vec![Cell::Int(1), Cell::Text("a\tb".into())], vec![Cell::Null, Cell::Bytes(vec![0xAB, 1])]],
-            note: None,
-        };
-        assert_eq!(table.to_tsv(), "id\tname\n1\ta b\n\tAB01\n");
     }
 }

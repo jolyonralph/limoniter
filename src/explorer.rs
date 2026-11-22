@@ -4,7 +4,7 @@
 //! edited is found in the tree. New files and folders, and renaming, are typed in the tree itself. Folders and kinds
 //! of file can be hidden, kept with the project; files edited lately stand out, with a dot coloured by how lately.
 
-use crate::explorer_kept::{self as kept, Hide, Kept};
+use crate::explorer_kept::{self as kept, Cut, Hide, Kept};
 use crate::file_colours::{Colours, Tint};
 use crate::git::Change;
 use crate::workspace::{self, Ignores};
@@ -177,6 +177,8 @@ pub enum Act {
     ShowHidden(bool),
     /// How many days back an edited file stands out; 0 for not at all.
     RecentDays(u32),
+    /// The share of the project's files shown, in per cent, the most recently edited first.
+    Recency(u32),
     /// The answer to the offer to hide the folder's build and dependency folders: these to hide, or none.
     HideBuildFolders(Vec<String>),
     /// The list of what's hidden, in the project's settings.
@@ -219,6 +221,22 @@ pub struct Explorer {
     recent_folders: HashMap<PathBuf, SystemTime>,
     recent_from: Option<(u32, usize, Option<u64>, u64, usize)>,
     recent_made: Option<Instant>,
+    /// When every file of the folder was last changed other than by Limoniter, for the recency slider, from the
+    /// background; and how many times that's come in.
+    pub recency: Recency,
+}
+
+/// The recency slider's state, shared by the folder Explorer and the Project panel of a `.limproj`: when every file
+/// was last edited, what the slider leaves out, and the share while it's being dragged.
+#[derive(Default)]
+pub struct Recency {
+    every: Option<(PathBuf, HashMap<PathBuf, SystemTime>)>,
+    every_count: u64,
+    /// What the slider leaves out, and what that was worked out from.
+    pub cut: Option<Cut>,
+    cut_from: Option<(u32, u64, usize, Option<u64>)>,
+    /// The share the slider is being dragged to, before it's let go and kept.
+    pub slider: Option<u32>,
 }
 
 /// How often what counts as recent is worked out again, as time passes.
@@ -244,6 +262,83 @@ pub fn drop_target(dragged: &Path, onto: &Path, onto_folder: bool) -> Option<Pat
         return None;
     }
     Some(folder.join(dragged.file_name()?))
+}
+
+impl Recency {
+    /// Whether the dates of a folder's files have been read.
+    pub fn has_times(&self, root: &Path) -> bool {
+        self.every.as_ref().is_some_and(|(at, _)| at == root)
+    }
+
+    /// Forgets the dates read for another folder.
+    pub fn keep_for(&mut self, root: &Path) {
+        if self.every.as_ref().is_some_and(|(at, _)| at != root) {
+            self.every = None;
+            self.cut = None;
+            self.cut_from = None;
+        }
+    }
+
+    /// Takes in when every one of a folder's files was last changed other than by Limoniter, for the recency slider.
+    pub fn set_every_time(&mut self, root: &Path, times: HashMap<PathBuf, SystemTime>) {
+        self.every = Some((root.to_path_buf(), times));
+        self.every_count += 1;
+    }
+
+    /// Works out again which files the recency slider leaves out, when the share or what it's worked out from has
+    /// changed.
+    pub fn update_cut(&mut self, root: &Path, kept: &Kept) {
+        let share = self.slider.unwrap_or(kept.recency);
+        let from = (share, self.every_count, kept.saved.len(), kept.saved.values().max().copied());
+        if share >= 100 {
+            self.cut = None;
+            self.cut_from = None;
+            return;
+        }
+        if self.cut_from == Some(from) {
+            return;
+        }
+        self.cut_from = Some(from);
+        let Some((_, every)) = self.every.as_ref().filter(|(at, _)| at == root) else {
+            self.cut = None;
+            return;
+        };
+        let times: Vec<(PathBuf, SystemTime)> = every.iter().filter_map(|(path, &outside)| Some((path.clone(), kept::last_edited(kept.saved_at(path), Some(outside))?))).collect();
+        self.cut = Some(Cut::new(root, &times, share));
+    }
+
+    /// The slider at the bottom: how much of the project shows, the most recently edited files first.
+    pub fn slider(&mut self, ui: &mut Ui, kept: &Kept, acts: &mut Vec<Act>) {
+        let mut share = self.slider.unwrap_or(kept.recency);
+        let response = ui
+            .add(egui::Slider::new(&mut share, 0..=100).suffix("%").text(crate::i18n::tr("Newest")))
+            .on_hover_text(crate::i18n::tr("Shows only this share of the project's files: the ones edited most recently"));
+        if response.dragged() {
+            self.slider = Some(share);
+        } else if response.changed() || self.slider.is_some() {
+            // Let go, or moved by a key or the wheel: kept with the project.
+            self.slider = None;
+            if share != kept.recency {
+                acts.push(Act::Recency(share));
+            }
+        }
+        if let Some(cut) = self.cut.as_ref().filter(|_| share < 100) {
+            ui.label(RichText::new(cut.said()).size(12.0).color(crate::theme::text_faint()));
+        } else if share < 100 {
+            // The dates are still being read.
+            ui.label(RichText::new(crate::i18n::tr("Reading when the files were edited\u{2026}")).size(12.0).color(crate::theme::text_faint()));
+        }
+    }
+
+    /// Whether the line under the slider will be there, for the room it needs.
+    pub fn tall(&self, kept: &Kept) -> bool {
+        self.cut.as_ref().is_some_and(|cut| cut.hidden() > 0 || cut.shown == 0) || self.slider.is_some_and(|s| s < 100) || kept.recency < 100
+    }
+
+    /// Whether a file or folder is left out of the tree.
+    pub fn hides(&self, path: &Path, is_folder: bool) -> bool {
+        self.cut.as_ref().is_some_and(|cut| cut.hides(path, is_folder))
+    }
 }
 
 impl Explorer {
@@ -331,6 +426,10 @@ impl Explorer {
         self.outside_count += 1;
     }
 
+    pub fn set_every_time(&mut self, root: &Path, times: HashMap<PathBuf, SystemTime>) {
+        self.recency.set_every_time(root, times);
+    }
+
     /// Works out again which files and folders were edited lately, when what that comes from has changed, or a
     /// minute has gone by.
     fn update_recent(&mut self, root: &Path, kept: &Kept) {
@@ -393,7 +492,9 @@ impl Explorer {
             // What came in for this folder before it was first drawn stays.
             let offer = self.offer.take().filter(|(at, _)| at == root);
             let outside = self.outside.take().filter(|(at, _)| at == root);
-            *self = Explorer { root: Some(root.to_path_buf()), ignores: Some(Ignores::new(root)), order: self.order, offer, outside, outside_count: self.outside_count, ..Explorer::default() };
+            let recency = std::mem::take(&mut self.recency);
+            *self = Explorer { root: Some(root.to_path_buf()), ignores: Some(Ignores::new(root)), order: self.order, offer, outside, outside_count: self.outside_count, recency, ..Explorer::default() };
+            self.recency.keep_for(root);
             self.expanded.insert(root.to_path_buf());
         }
         if self.hidden != kept.hidden || self.show_hidden != kept.show_hidden {
@@ -402,6 +503,7 @@ impl Explorer {
             self.listings.clear();
         }
         self.update_recent(root, kept);
+        self.recency.update_cut(root, kept);
         if let Some(active) = active
             && self.revealed.as_deref() != Some(active)
         {
@@ -468,10 +570,13 @@ impl Explorer {
             });
         });
         self.offer_bar(ui, root, &mut acts);
-        egui::ScrollArea::both().id_salt("explorer-tree").auto_shrink([false, false]).show(ui, |ui| {
+        // The slider at the bottom takes its room first.
+        let slider_room = if self.recency.tall(kept) { 52.0 } else { 30.0 };
+        egui::ScrollArea::both().id_salt("explorer-tree").auto_shrink([false, false]).max_height((ui.available_height() - slider_room).max(40.0)).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
             self.folder_rows(ui, root, root, 0, active, colours, &mut acts);
         });
+        self.recency.slider(ui, kept, &mut acts);
         acts
     }
 
@@ -483,7 +588,11 @@ impl Explorer {
             let is_folder = *is_folder;
             self.editing_row(ui, depth, if is_folder { "\u{25B8} " } else { "" }, acts);
         }
-        for entry in self.listing(folder) {
+        let entries = self.listing(folder);
+        for entry in entries {
+            if self.recency.hides(&entry.path, entry.folder) {
+                continue;
+            }
             let renaming = matches!(&self.editing, Some(Editing::Rename { path, .. }) if *path == entry.path);
             if renaming {
                 self.editing_row(ui, depth, if entry.folder { "\u{25B8} " } else { "" }, acts);
@@ -893,5 +1002,39 @@ mod tests {
         assert_eq!(git_mark(Change::Untracked).0, "U");
         explorer.set_git(None, &[]);
         assert!(explorer.git.is_empty() && explorer.git_folders.is_empty());
+    }
+
+    #[test]
+    fn the_slider_leaves_out_files_in_the_tree_and_keeps_their_order() {
+        let root = std::env::temp_dir().join(format!("limoniter-explorer-slider-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for file in ["b.txt", "a.txt", "old/x.txt", "new/y.txt"] {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), "x").unwrap();
+        }
+        let at = |secs: u64| SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
+        let mut explorer = Explorer { root: Some(root.clone()), ..Explorer::default() };
+        explorer.recency.set_every_time(&root, [(root.join("b.txt"), at(50)), (root.join("a.txt"), at(50)), (root.join("old/x.txt"), at(5)), (root.join("new/y.txt"), at(90))].into());
+        let mut kept = Kept::default();
+        explorer.recency.update_cut(&root, &kept);
+        assert!(explorer.recency.cut.is_none(), "nothing is hidden at 100%");
+        kept.recency = 50;
+        explorer.recency.update_cut(&root, &kept);
+        let shown = |explorer: &mut Explorer, folder: &Path| {
+            let cut = explorer.recency.cut.clone();
+            explorer.listing(folder).iter().filter(|e| !cut.as_ref().is_some_and(|c| c.hides(&e.path, e.folder))).map(|e| e.name.clone()).collect::<Vec<_>>()
+        };
+        // The newest two: new/y.txt, then the tie at 50 goes to a.txt. A to Z still, and the empty folder is gone.
+        assert_eq!(shown(&mut explorer, &root), ["new", "a.txt"]);
+        // A later save here brings a file up: b.txt, saved just now, beats a.txt.
+        kept.note_saved(&root.join("b.txt"), SystemTime::now());
+        explorer.recency.update_cut(&root, &kept);
+        assert_eq!(shown(&mut explorer, &root), ["new", "b.txt"]);
+        // Being dragged, the slider's share is the one used.
+        explorer.recency.slider = Some(0);
+        explorer.recency.update_cut(&root, &kept);
+        assert!(shown(&mut explorer, &root).is_empty());
+        assert_eq!(explorer.recency.cut.as_ref().unwrap().said(), "No files shown, 4 hidden");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -75,6 +75,19 @@ impl KernelLink for FakeKernel {
         self.events.push(KernelEvent::Status(KernelStatus::Idle));
         request
     }
+    /// The window's own questions get answers made up: a list of two variables, and a table of two columns.
+    fn execute_quietly(&mut self, code: &str) -> u64 {
+        let request = self.next_request;
+        self.next_request += 1;
+        let text = if code.contains("__limoniter_list") || code.contains("esc(class(v)[1])") {
+            "@@LIMONITER@@[{\"name\":\"frame\",\"type\":\"pandas.DataFrame\",\"size\":\"250000 \u{d7} 2\",\"kind\":\"frame\",\"value\":\"\"},{\"name\":\"n\",\"type\":\"int\",\"size\":\"\",\"kind\":\"\",\"value\":\"5\"}]@@LIMONITER@@".to_string()
+        } else {
+            "@@LIMONITER@@{\"columns\":[\"id\",\"name\"],\"kinds\":[\"int\",\"unknown\"],\"rows\":[[1,\"a\"],[2,\"b\"],[3,null]],\"total\":250000}@@LIMONITER@@".to_string()
+        };
+        self.events.push(KernelEvent::Output { request, output: serde_json::json!({"output_type": "stream", "name": "stdout", "text": text}) });
+        self.events.push(KernelEvent::Done { request, execution_count: Some(self.count), ok: true });
+        request
+    }
     fn poll(&mut self) -> Vec<KernelEvent> {
         std::mem::take(&mut self.events)
     }
@@ -112,6 +125,17 @@ pub struct InputAsk {
     pub password: bool,
 }
 
+/// Code run on the kernel for the window's own use (the variables list), whose output comes back to the caller
+/// rather than going to a cell.
+struct SideRun {
+    request: u64,
+    token: u64,
+    /// What it printed.
+    output: String,
+    /// What it failed with, if it did.
+    error: Option<String>,
+}
+
 pub struct Session {
     kernels: Kernels,
     /// The kernel chosen, once there is one.
@@ -131,11 +155,17 @@ pub struct Session {
     pub input: Option<InputAsk>,
     folder: PathBuf,
     repaint: Option<eframe::egui::Context>,
+    /// Code asked for the window's own use, waiting for the kernel to be free of cells.
+    side_queue: VecDeque<(u64, String)>,
+    side_running: Option<SideRun>,
+    /// Answers ready to be taken, by the number `ask` gave.
+    side_done: Vec<(u64, Result<String, String>)>,
+    side_count: u64,
 }
 
 impl Session {
     pub fn new(kernels: Kernels, folder: &Path) -> Self {
-        Self { kernels, spec: None, link: None, starting: None, status: KernelStatus::Dead, problem: None, queue: VecDeque::new(), running: None, clear_next: HashSet::new(), displays: HashMap::new(), input: None, folder: folder.to_path_buf(), repaint: None }
+        Self { kernels, spec: None, link: None, starting: None, status: KernelStatus::Dead, problem: None, queue: VecDeque::new(), running: None, clear_next: HashSet::new(), displays: HashMap::new(), input: None, folder: folder.to_path_buf(), repaint: None, side_queue: VecDeque::new(), side_running: None, side_done: Vec::new(), side_count: 0 }
     }
 
     /// For tests: a session with a link already made.
@@ -232,6 +262,7 @@ impl Session {
         self.input = None;
         self.clear_next.clear();
         self.displays.clear();
+        self.forget_side_runs(crate::i18n::tr("The kernel was stopped.").to_string());
         self.status = KernelStatus::Dead;
     }
 
@@ -272,6 +303,73 @@ impl Session {
             self.running = Some((request, uid));
             return;
         }
+        // With no cell waiting, what the window asked for itself goes next.
+        if self.side_running.is_none()
+            && self.status != KernelStatus::Starting
+            && let Some((token, code)) = self.side_queue.pop_front()
+        {
+            let request = link.execute_quietly(&code);
+            self.side_running = Some(SideRun { request, token, output: String::new(), error: None });
+        }
+    }
+
+    /// Asks the kernel to run `code` for the window's own use, once no cell is waiting. What it prints comes back
+    /// through `take_answers` with the number returned, and the code doesn't appear in any cell, count as an
+    /// execution, or enter the kernel's history.
+    pub fn ask(&mut self, code: String) -> u64 {
+        self.side_count += 1;
+        self.side_queue.push_back((self.side_count, code));
+        self.side_count
+    }
+
+    /// The answers that have come to what `ask` was given: the text the code printed, or what it failed with.
+    pub fn take_answers(&mut self) -> Vec<(u64, Result<String, String>)> {
+        std::mem::take(&mut self.side_done)
+    }
+
+    /// Whether something asked for with `ask` is still waiting or running.
+    pub fn is_asking(&self) -> bool {
+        self.side_running.is_some() || !self.side_queue.is_empty()
+    }
+
+    fn forget_side_runs(&mut self, why: String) {
+        let waiting = std::mem::take(&mut self.side_queue);
+        let running = self.side_running.take();
+        for token in running.map(|r| r.token).into_iter().chain(waiting.into_iter().map(|(token, _)| token)) {
+            self.side_done.push((token, Err(why.clone())));
+        }
+    }
+
+    /// What the kernel said about something asked for with `ask`. True if the event was about that.
+    fn side_event(&mut self, event: &KernelEvent) -> bool {
+        let Some(run) = self.side_running.as_mut() else { return false };
+        match event {
+            KernelEvent::Output { request, output } if *request == run.request => {
+                match output.get("output_type").and_then(Value::as_str) {
+                    Some("stream") if output.get("name").and_then(Value::as_str) != Some("stderr") => run.output.push_str(&crate::notebook_output::text_of(output.get("text").unwrap_or(&Value::Null))),
+                    Some("error") => {
+                        let word = |key: &str| output.get(key).and_then(Value::as_str).unwrap_or("");
+                        run.error = Some(format!("{}: {}", word("ename"), word("evalue")));
+                    }
+                    _ => {}
+                }
+                true
+            }
+            KernelEvent::ClearOutput { request, .. } if *request == run.request => true,
+            KernelEvent::InputRequest { request, .. } if *request == run.request => true,
+            KernelEvent::Done { request, ok, .. } if *request == run.request => {
+                let (token, output, error) = (run.token, std::mem::take(&mut run.output), run.error.take());
+                self.side_running = None;
+                let result = match error {
+                    Some(why) => Err(why),
+                    None if !*ok => Err(crate::i18n::tr("The kernel couldn't run it.").to_string()),
+                    None => Ok(output),
+                };
+                self.side_done.push((token, result));
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Stops the cell that's running, and drops the cells waiting after it, as Jupyter does.
@@ -289,6 +387,7 @@ impl Session {
         self.input = None;
         self.clear_next.clear();
         self.displays.clear();
+        self.forget_side_runs(crate::i18n::tr("The kernel was restarted.").to_string());
         self.problem = None;
         if let Some(link) = self.link.as_mut() {
             match link.restart() {
@@ -345,6 +444,9 @@ impl Session {
     }
 
     fn apply(&mut self, notebook: &mut Notebook, event: KernelEvent) -> bool {
+        if self.side_event(&event) {
+            return false;
+        }
         match event {
             KernelEvent::Status(status) => {
                 self.status = status;
@@ -356,6 +458,7 @@ impl Session {
                 self.queue.clear();
                 self.running = None;
                 self.input = None;
+                self.forget_side_runs(crate::i18n::tr("The kernel has stopped.").to_string());
                 false
             }
             KernelEvent::InputRequest { request, prompt, password } => {
@@ -502,6 +605,45 @@ pub(crate) mod tests {
 
     fn say(shared: &Arc<Mutex<Shared>>, events: Vec<KernelEvent>) {
         shared.lock().unwrap().events.extend(events);
+    }
+
+    #[test]
+    fn code_asked_for_by_the_window_waits_for_the_cells_and_answers_to_the_caller() {
+        let (mut session, shared) = scripted();
+        let mut nb = notebook_of(&["print(1)"]);
+        let uid = nb.cells[0].uid;
+        assert!(session.run(&mut nb, &[uid]));
+        let token = session.ask("listing".into());
+        assert!(session.is_asking());
+        // The cell is running, so the listing hasn't been sent.
+        session.pump(&mut nb);
+        assert_eq!(shared.lock().unwrap().executed, ["print(1)"]);
+        say(&shared, vec![KernelEvent::Output { request: 1, output: stream("one\n") }, KernelEvent::Done { request: 1, execution_count: Some(1), ok: true }]);
+        session.pump(&mut nb);
+        assert_eq!(shared.lock().unwrap().executed, ["print(1)", "listing"], "sent once the cell is done");
+        say(&shared, vec![KernelEvent::Output { request: 2, output: stream("part ") }, KernelEvent::Output { request: 2, output: stream("two") }, KernelEvent::Output { request: 2, output: serde_json::json!({"output_type": "stream", "name": "stderr", "text": "warning"}) }, KernelEvent::Done { request: 2, execution_count: Some(1), ok: true }]);
+        assert!(!session.pump(&mut nb), "nothing of the notebook changed");
+        assert_eq!(session.take_answers(), vec![(token, Ok("part two".to_string()))]);
+        assert!(session.take_answers().is_empty() && !session.is_asking());
+        assert_eq!(nb.cells[0].execution_count, Some(1), "the listing isn't an execution");
+        assert_eq!(nb.cells[0].outputs.len(), 1, "and none of its output went into the cell");
+    }
+
+    #[test]
+    fn code_asked_for_by_the_window_that_fails_says_why_and_a_restart_drops_the_waiting() {
+        let (mut session, shared) = scripted();
+        let mut nb = notebook_of(&["1"]);
+        let first = session.ask("bad".into());
+        let second = session.ask("never sent".into());
+        session.pump(&mut nb);
+        assert_eq!(shared.lock().unwrap().executed, ["bad"], "one at a time");
+        say(&shared, vec![KernelEvent::Output { request: 1, output: serde_json::json!({"output_type": "error", "ename": "NameError", "evalue": "name 'x' is not defined", "traceback": []}) }, KernelEvent::Done { request: 1, execution_count: None, ok: false }]);
+        session.pump(&mut nb);
+        assert_eq!(session.take_answers(), vec![(first, Err("NameError: name 'x' is not defined".to_string()))]);
+        assert_eq!(shared.lock().unwrap().executed, ["bad", "never sent"], "the next goes after");
+        session.restart();
+        assert_eq!(session.take_answers(), vec![(second, Err("The kernel was restarted.".to_string()))]);
+        assert!(!session.is_asking());
     }
 
     #[test]

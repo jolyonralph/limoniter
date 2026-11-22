@@ -60,6 +60,12 @@ pub enum KernelEvent {
 pub trait KernelLink: Send {
     /// Runs code, returning the number its events will carry.
     fn execute(&mut self, code: &str) -> u64;
+    /// Runs code for the window's own use, such as listing the variables: it isn't kept in the kernel's history,
+    /// doesn't count as an execution, and doesn't stop the cells queued after it if it fails. Its events carry
+    /// the number returned, as `execute`'s do.
+    fn execute_quietly(&mut self, code: &str) -> u64 {
+        self.execute(code)
+    }
     /// Everything that has happened since the last call, oldest first.
     fn poll(&mut self) -> Vec<KernelEvent>;
     fn status(&self) -> KernelStatus;

@@ -165,6 +165,12 @@ impl Volume for Zip {
 }
 
 impl Zip {
+    /// One file's bytes, by its whole path in the archive ("xl/workbook.xml"), or None if it isn't there.
+    pub fn read_path(&self, path: &str) -> Option<Result<Vec<u8>, String>> {
+        let index = self.members.iter().position(|m| m.path == path)?;
+        Some(self.read(&Entry::file(path.to_string(), self.members[index].size, index as u64)))
+    }
+
     /// A folder entry keeps its whole path in its open name.
     fn folder_path(&self, entry: &Entry) -> String {
         entry.open_name.clone()

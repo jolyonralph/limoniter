@@ -10,6 +10,7 @@
 use super::*;
 use crate::jupyter::link::{KernelSpec, KernelStatus};
 use crate::notebook::{CellKind, Notebook, Problem};
+use crate::data_table::DataTable;
 use crate::notebook_output::{self as output, Shown};
 use crate::notebook_run::{CellState, Kernels, ListKernels, Session};
 use eframe::egui::text::{CCursor, CCursorRange, LayoutJob};
@@ -146,6 +147,27 @@ pub(super) struct NotebookState {
     syntax: Option<(String, Option<usize>)>,
     markdown: HashMap<u64, (u64, Vec<preview::Block>)>,
     pictures: HashMap<(u64, usize), (u64, Option<eframe::egui::TextureHandle>)>,
+    /// What the kernel holds, for the Variables panel.
+    pub(super) vars: Variables,
+}
+
+/// The kernel's variables as the Variables panel shows them, kept up to date by asking after each run.
+#[derive(Default)]
+pub(super) struct Variables {
+    pub(super) list: Vec<crate::notebook_vars::Var>,
+    /// Whether the panel is open, so there's a reason to ask.
+    pub(super) watching: bool,
+    /// The listing asked for, which hasn't come back yet.
+    listing: Option<u64>,
+    /// Variables asked for to open in the data viewer: the request, and the variable's name.
+    fetching: Vec<(u64, String)>,
+    /// Whether something has run since the list was made.
+    stale: bool,
+    was_running: bool,
+    /// Why the last listing or opening failed.
+    pub(super) problem: Option<String>,
+    /// Tables that have come, for the window to open in the data viewer.
+    pub(super) ready: Vec<(String, DataTable)>,
 }
 
 fn hash_of(text: &str) -> u64 {
@@ -190,6 +212,7 @@ impl NotebookState {
             syntax: None,
             markdown: HashMap::new(),
             pictures: HashMap::new(),
+            vars: Variables { stale: true, ..Variables::default() },
         }
     }
 
@@ -308,12 +331,126 @@ impl NotebookState {
         if self.session.input.is_none() {
             self.answer.clear();
         }
+        self.refresh_variables();
         changed
+    }
+
+    /// The language the kernel runs, as the Variables panel needs it.
+    fn kernel_language(&self) -> String {
+        self.session.language().unwrap_or_else(|| self.language())
+    }
+
+    /// Keeps the list of variables up to date: asked again after the cells have run, if the panel is open, and
+    /// what the kernel said is taken in.
+    fn refresh_variables(&mut self) {
+        let running = self.session.is_running_anything();
+        if self.vars.was_running && !running {
+            self.vars.stale = true;
+        }
+        self.vars.was_running = running;
+        for (token, answer) in self.session.take_answers() {
+            if self.vars.listing == Some(token) {
+                self.vars.listing = None;
+                match answer.and_then(|text| crate::notebook_vars::parse_list(&text)) {
+                    Ok(list) => {
+                        self.vars.list = list;
+                        self.vars.problem = None;
+                    }
+                    Err(why) => self.vars.problem = Some(why),
+                }
+            } else if let Some(at) = self.vars.fetching.iter().position(|(t, _)| *t == token) {
+                let (_, name) = self.vars.fetching.remove(at);
+                match answer.and_then(|text| crate::notebook_vars::parse_table(&text)) {
+                    Ok(table) => self.vars.ready.push((name, table)),
+                    Err(why) => self.vars.problem = Some(crate::i18n::tf!("{name} couldn't be opened: {why}")),
+                }
+            }
+        }
+        // A kernel that has been stopped or restarted holds none of what was listed.
+        if matches!(self.session.status, KernelStatus::Dead | KernelStatus::Starting) && !self.vars.list.is_empty() {
+            self.vars.list.clear();
+            self.vars.stale = true;
+        }
+        if self.vars.watching
+            && self.vars.stale
+            && self.vars.listing.is_none()
+            && self.session.has_kernel()
+            && self.session.status != KernelStatus::Dead
+            && let Some(code) = crate::notebook_vars::list_code(&self.kernel_language())
+        {
+            self.vars.listing = Some(self.session.ask(code));
+            self.vars.stale = false;
+        }
+    }
+
+    /// Asks the kernel for the first rows of a variable, to open in the data viewer when they come.
+    pub(super) fn open_variable(&mut self, name: &str) {
+        if self.vars.fetching.iter().any(|(_, n)| n == name) {
+            return;
+        }
+        if let Some(code) = crate::notebook_vars::fetch_code(&self.kernel_language(), name, crate::notebook_vars::MOST_ROWS) {
+            let token = self.session.ask(code);
+            self.vars.fetching.push((token, name.to_string()));
+            self.vars.problem = None;
+        }
+    }
+
+    /// The Variables panel's contents. Returns nothing; a double-click on a table asks for it.
+    pub(super) fn draw_variables(&mut self, ui: &mut Ui) {
+        let language = self.kernel_language();
+        if !crate::notebook_vars::can_list(&language) {
+            ui.label(RichText::new(crate::i18n::tf!("Variables can be listed for Python and R kernels. This notebook's kernel runs {language}.")).color(theme::text_dim()));
+            return;
+        }
+        if !self.session.has_kernel() {
+            ui.label(RichText::new(crate::i18n::tr("Run a cell to start the kernel; its variables are listed here after each run.")).color(theme::text_dim()));
+            return;
+        }
+        ui.horizontal(|ui| {
+            if ui.small_button(crate::i18n::tr("Refresh")).on_hover_text(crate::i18n::tr("Ask the kernel again what it holds")).clicked() {
+                self.vars.stale = true;
+            }
+            let working = self.vars.listing.is_some() || !self.vars.fetching.is_empty();
+            if working {
+                ui.label(RichText::new(crate::i18n::tr("Asking the kernel\u{2026}")).color(theme::text_dim()));
+            }
+        });
+        if let Some(problem) = &self.vars.problem {
+            ui.label(RichText::new(problem).color(theme::problem_mark()));
+        }
+        if self.vars.list.is_empty() {
+            ui.label(RichText::new(crate::i18n::tr("The kernel holds no variables yet.")).color(theme::text_dim()));
+            return;
+        }
+        let mut open = None;
+        eframe::egui::ScrollArea::both().id_salt("variables-scroll").auto_shrink([false, false]).show(ui, |ui| {
+            eframe::egui::Grid::new("variables-grid").striped(true).num_columns(4).spacing([14.0, 4.0]).show(ui, |ui| {
+                for head in [crate::i18n::tr("Name"), crate::i18n::tr("Type"), crate::i18n::tr("Size"), crate::i18n::tr("Value")] {
+                    ui.label(RichText::new(head).color(theme::text_dim()));
+                }
+                ui.end_row();
+                for var in &self.vars.list {
+                    let opens = var.shape.opens();
+                    let hover = if opens { crate::i18n::tr("Double-click to open it in the data viewer") } else { crate::i18n::tr("Only tables can be opened in the data viewer") };
+                    let name = ui.add(eframe::egui::Label::new(RichText::new(&var.name).strong()).sense(Sense::click())).on_hover_text(hover);
+                    let kind = ui.add(eframe::egui::Label::new(&var.type_name).sense(Sense::click()));
+                    let size = ui.add(eframe::egui::Label::new(&var.size).sense(Sense::click()));
+                    let value = ui.add(eframe::egui::Label::new(&var.value).truncate().sense(Sense::click()));
+                    ui.end_row();
+                    if opens && [name, kind, size, value].iter().any(|r| r.double_clicked()) {
+                        open = Some(var.name.clone());
+                    }
+                }
+            });
+        });
+        if let Some(name) = open {
+            self.open_variable(&name);
+        }
     }
 
     /// Whether something is going on that needs the window drawn again soon.
     pub(super) fn busy(&self) -> bool {
-        self.session.is_running_anything() || self.session.status == KernelStatus::Starting || self.session.has_kernel() && self.session.input.is_some() || self.run_after.is_some()
+        self.session.is_running_anything() || self.session.is_asking() || self.session.status == KernelStatus::Starting || self.session.has_kernel() && self.session.input.is_some() || self.run_after.is_some()
     }
 
     /// The notebook's language, as its kernel would be found by ("python" when it doesn't say).
@@ -984,6 +1121,7 @@ impl Limoniter {
         let font_size = self.view.font_size;
         let dark = !theme::is_light();
         let index = self.active;
+        let watching = self.panels.variables;
         let kernels = crate::notebook_run::kernels();
         let ctx = ui.ctx().clone();
         let doc = &mut self.docs[index];
@@ -995,6 +1133,7 @@ impl Limoniter {
             doc.notebook = Some(Box::new(NotebookState::open(&text, kernels, &folder, version, Some(ctx.clone()))));
         }
         let Some(state) = doc.notebook.as_deref_mut() else { return };
+        state.vars.watching = watching;
         if state.synced != version {
             let text = doc.text.all_lines().iter().map(|l| &**l).collect::<Vec<_>>().join("\n");
             state.reread(&text, version);
@@ -1054,6 +1193,27 @@ impl Limoniter {
         if as_text {
             doc.notebook_text = true;
         }
+        // Tables asked for in the Variables panel that have come open in the data viewer.
+        let name = doc.name();
+        let tables = doc.notebook.as_deref_mut().map(|state| std::mem::take(&mut state.vars.ready)).unwrap_or_default();
+        for (variable, table) in tables {
+            self.open_data_table(&crate::i18n::tf!("{variable} from {name}"), table);
+        }
+    }
+
+    /// The Variables panel, beside the notebook in front: what its kernel holds.
+    pub(super) fn variables_panel(&mut self, ui: &mut Ui) {
+        if !self.panels.variables {
+            return;
+        }
+        let shown = self.notebook_shown(self.active);
+        let state = self.docs.get_mut(self.active).and_then(|doc| doc.notebook.as_deref_mut()).filter(|_| shown);
+        self.panels.show_variables(ui, |ui| match state {
+            Some(state) => state.draw_variables(ui),
+            None => {
+                ui.label(RichText::new(crate::i18n::tr("Open a notebook, in front, to see its variables.")).color(theme::text_dim()));
+            }
+        });
     }
 
     /// A step of a picture of the notebook in front (see `screenshot_step`).

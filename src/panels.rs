@@ -297,6 +297,10 @@ pub struct Panels {
     pub call_graph: bool,
     /// The instruction reference for the processor in front.
     pub instructions: bool,
+    /// A notebook's variables, as its kernel holds them.
+    pub variables: bool,
+    /// Database connections, and what's in them.
+    pub database: bool,
     call_graph_panel: crate::code_panels::CallGraphPanel,
     instruction_panel: crate::code_panels::InstructionPanel,
     strings_panel: crate::strings_explorer::PanelState,
@@ -328,7 +332,7 @@ impl Panels {
         flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 23] {
+    fn flags(&self) -> [(&'static str, bool); 25] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -353,6 +357,8 @@ impl Panels {
             ("structure_panel", self.structure),
             ("call_graph_panel", self.call_graph),
             ("instruction_panel", self.instructions),
+            ("variables_panel", self.variables),
+            ("database_panel", self.database),
         ]
     }
 
@@ -390,6 +396,8 @@ impl Panels {
                 "structure_panel" => self.structure = flag,
                 "call_graph_panel" => self.call_graph = flag,
                 "instruction_panel" => self.instructions = flag,
+                "variables_panel" => self.variables = flag,
+                "database_panel" => self.database = flag,
                 "file_explorer" => self.file_explorer = flag,
                 "open_files" => self.open_files = flag,
                 "bookmarks" => self.bookmarks = flag,
@@ -430,10 +438,12 @@ impl Panels {
         self.structure = false;
         self.call_graph = false;
         self.instructions = false;
+        self.variables = false;
+        self.database = false;
     }
 
     fn right_count(&self) -> usize {
-        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector, self.structure, self.call_graph, self.instructions]
+        [self.file_properties, self.json_manager, self.xml_manager, self.ascii_table, self.clipboard_history, self.encoding_preview, self.strings, self.inspector, self.structure, self.call_graph, self.instructions, self.variables]
             .iter()
             .filter(|on| **on)
             .count()
@@ -457,6 +467,15 @@ impl Panels {
     pub fn show_server_graph(&mut self, doc: u64, graph: crate::call_graph::CallGraph, files: Vec<PathBuf>) {
         self.call_graph = true;
         self.call_graph_panel.set_from_server(doc, graph, files);
+    }
+
+    /// Draws the Variables panel, if it's open: `content` fills it.
+    pub fn show_variables(&mut self, ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
+        if self.variables {
+            let mut open = true;
+            dock(ui, true, "variables-panel", "Variables", 340.0, &mut open, content);
+            self.variables = open;
+        }
     }
 
     /// Draws the call graph and instruction reference panels, if they're open.
@@ -707,7 +726,7 @@ pub fn mark_tucked(ctx: &egui::Context) {
 }
 
 /// A docked panel with a title row and a close button.
-fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
+pub(crate) fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
     let side = usize::from(right);
     if HIDING.get() && !SHOWING.get()[side] {
         let mut tucked = TUCKED.get();

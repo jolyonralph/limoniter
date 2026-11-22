@@ -41,7 +41,7 @@ mod stuffit;
 pub mod tape_sound;
 #[cfg(test)]
 mod sweep;
-mod zip;
+pub(crate) mod zip;
 
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;

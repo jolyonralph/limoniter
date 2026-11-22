@@ -43,6 +43,8 @@ pub struct Project {
     pub explorer: crate::explorer_kept::Kept,
     /// The colours of the project's files, by their places in it, and the rules that colour folders and patterns.
     pub colours: crate::file_colours::Colours,
+    /// The database connections kept with the project (without their passwords, which are in the keychain).
+    pub databases: Vec<crate::database::Connection>,
 }
 
 fn folder_of(path: &Path) -> PathBuf {
@@ -136,6 +138,9 @@ impl Project {
         if !self.colours.is_empty() {
             value["colours"] = self.colours.to_json();
         }
+        if !self.databases.is_empty() {
+            value["databases"] = crate::database::list_to_json(&self.databases, Some(&base));
+        }
         serde_json::to_string_pretty(&value).unwrap_or_default() + "\n"
     }
 
@@ -157,7 +162,8 @@ impl Project {
         let assemblers = value.get("assemblers").and_then(Value::as_object).map_or_else(Vec::new, |map| map.iter().filter_map(|(cpu, id)| Some((cpu.clone(), id.as_str()?.to_string()))).collect());
         let explorer = crate::explorer_kept::Kept::from_json(value.get("explorer"), &base);
         let colours = crate::file_colours::Colours::from_json(value.get("colours"));
-        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours };
+        let databases = crate::database::list_from_json(value.get("databases"), Some(&base));
+        let mut project = Self { path: path.to_path_buf(), name: text_of("name"), notes: text_of("notes"), files: list("files"), open_files: list("open_files"), tasks, comparisons, root, remote, debug, assemblers, explorer, colours, databases };
         if project.name.is_empty() {
             project.name = Self::new(path).name;
         }
@@ -388,7 +394,8 @@ pub struct TreeFolder {
 }
 
 /// Arranges files by folder, relative to the project's own.
-pub fn tree_of(project: &Project, filter: &str) -> TreeFolder {
+/// Files the recency slider hides are left out, and so are the folders with nothing shown in them.
+pub fn tree_of(project: &Project, filter: &str, recency: &crate::explorer::Recency) -> TreeFolder {
     let base = project.folder();
     let filter = filter.trim().to_lowercase();
     let mut root = TreeFolder::default();
@@ -396,6 +403,9 @@ pub fn tree_of(project: &Project, filter: &str) -> TreeFolder {
         let shown = relative_to(&base, path).unwrap_or_else(|| path.clone());
         let name = shown.file_name().map_or_else(|| shown.to_string_lossy().into_owned(), |name| name.to_string_lossy().into_owned());
         if !filter.is_empty() && !name.to_lowercase().contains(&filter) {
+            continue;
+        }
+        if recency.hides(path, false) {
             continue;
         }
         let mut folder = &mut root;
@@ -494,9 +504,16 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
         ui.label(RichText::new(crate::i18n::tr("No files yet. Add some from Tools, Project.")).color(theme::text_faint()).size(12.5));
         return actions;
     }
-    let tree = tree_of(project, &state.filter);
     let base = project.folder();
-    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).show(ui, |ui| draw_tree(ui, &tree, "project", &base, &Marks { active, base: &base, colours: &project.colours }, &mut actions, !state.filter.trim().is_empty()));
+    // The recency slider, at the bottom: only the most recently edited share of the files shows.
+    state.explorer.recency.keep_for(&base);
+    state.explorer.recency.update_cut(&base, &project.explorer);
+    let tree = tree_of(project, &state.filter, &state.explorer.recency);
+    let room = if state.explorer.recency.tall(&project.explorer) { 52.0 } else { 30.0 };
+    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).max_height((ui.available_height() - room).max(40.0)).show(ui, |ui| draw_tree(ui, &tree, "project", &base, &Marks { active, base: &base, colours: &project.colours }, &mut actions, !state.filter.trim().is_empty()));
+    let mut acts = Vec::new();
+    state.explorer.recency.slider(ui, &project.explorer, &mut acts);
+    actions.extend(acts.into_iter().map(PanelAction::Explorer));
     actions
 }
 
@@ -662,11 +679,11 @@ mod tests {
         let base = PathBuf::from(if cfg!(windows) { r"C:\p" } else { "/p" });
         let mut project = Project::new(&base.join("p.limproj"));
         project.add([base.join("top.txt"), base.join("sub").join("deep").join("x.rs"), base.join("sub").join("y.txt")]);
-        let tree = tree_of(&project, "");
+        let tree = tree_of(&project, "", &Default::default());
         assert_eq!(tree.files.len(), 1);
         assert_eq!(tree.folders["sub"].files[0].0, "y.txt");
         assert_eq!(tree.folders["sub"].folders["deep"].files[0].0, "x.rs");
-        let filtered = tree_of(&project, " X.RS ");
+        let filtered = tree_of(&project, " X.RS ", &Default::default());
         assert!(filtered.files.is_empty());
         assert_eq!(filtered.folders["sub"].folders["deep"].files.len(), 1);
         assert!(filtered.folders["sub"].files.is_empty());
@@ -765,5 +782,27 @@ mod tests {
                 output.textures_delta.clear();
             }
         }
+    }
+
+    #[test]
+    fn the_recency_slider_thins_a_limproj_panel_s_tree_and_its_folders() {
+        use std::time::{Duration, SystemTime};
+        let base = PathBuf::from(if cfg!(windows) { r"C:\work\site" } else { "/work/site" });
+        let mut project = Project::new(&base.join("site.limproj"));
+        project.add([base.join("new.txt"), base.join("css/a.css"), base.join("css/b.css"), base.join("old/z.txt")]);
+        let at = |secs: u64| SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
+        let mut recency = crate::explorer::Recency::default();
+        recency.set_every_time(&base, [(base.join("new.txt"), at(90)), (base.join("css/b.css"), at(50)), (base.join("css/a.css"), at(50)), (base.join("old/z.txt"), at(1))].into());
+        assert_eq!(tree_of(&project, "", &recency).files.len(), 1, "all shown at 100%");
+        project.explorer.recency = 50;
+        recency.update_cut(&base, &project.explorer);
+        let tree = tree_of(&project, "", &recency);
+        assert_eq!(tree.files.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["new.txt"]);
+        assert_eq!(tree.folders.keys().collect::<Vec<_>>(), ["css"], "old has nothing shown, so it's gone");
+        assert_eq!(tree.folders["css"].files.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["a.css"], "the tie goes to the name");
+        assert_eq!(recency.cut.as_ref().unwrap().said(), "2 files shown, 2 hidden");
+        // Kept with the .limproj.
+        let read = Project::from_text(&project.path, &project.to_text()).unwrap();
+        assert_eq!(read.explorer.recency, 50);
     }
 }

@@ -148,7 +148,7 @@ fn record_fields<L: table::Lines + ?Sized>(lines: &L, record: Record, delimiter:
 }
 
 /// A value as it's shown in one line of a cell.
-fn shown_value(value: &str) -> String {
+pub(super) fn shown_value(value: &str) -> String {
     value.replace("\r\n", "\u{23CE}").replace(['\n', '\r'], "\u{23CE}").replace('\t', " ")
 }
 
@@ -1130,6 +1130,11 @@ fn take_keyboard(ui: &Ui, id: Id) {
         m.request_focus(id);
         m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false });
     });
+}
+
+/// Whether a file's name says it's delimited data (CSV, TSV and the like).
+pub(super) fn is_table_name(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| is_table_ending(&e.to_lowercase()))
 }
 
 /// Whether a file ending says the file is delimited data, to open as a table at once if that's asked for.
