@@ -148,6 +148,9 @@ pub(super) struct NotebookState {
     notice: Option<String>,
     /// The cursor in the cell being edited, as a character's place: the cell and the place.
     caret: Option<(u64, usize)>,
+    /// What's selected in the cell being edited (64 characters at most), for commands that work on a selection,
+    /// such as Convert a number: the file's own text underneath is the notebook's JSON, not the cell.
+    cell_selection: String,
     colours: HashMap<u64, (u64, Vec<(String, Color32)>)>,
     syntax: Option<(String, Option<usize>)>,
     markdown: HashMap<u64, (u64, Vec<preview::Block>)>,
@@ -244,6 +247,7 @@ impl NotebookState {
             answer: String::new(),
             notice: None,
             caret: None,
+            cell_selection: String::new(),
             colours: HashMap::new(),
             syntax: None,
             markdown: HashMap::new(),
@@ -496,6 +500,17 @@ impl NotebookState {
     /// The notebook's language, as its kernel would be found by ("python" when it doesn't say).
     pub(super) fn language(&self) -> String {
         self.nb.language().filter(|l| !l.is_empty()).unwrap_or("python").to_string()
+    }
+
+    /// The chosen cell's source and the notebook's language, for Code as a picture: the file underneath is the
+    /// notebook's JSON, with its pictures as lines of thousands of characters.
+    pub(super) fn chosen_source(&self) -> Option<(String, String)> {
+        self.nb.cells.get(self.selected).map(|cell| (cell.source.clone(), self.language()))
+    }
+
+    /// The selection in the cell being edited, if anything's selected there.
+    pub(super) fn cell_selection(&self) -> Option<&str> {
+        (self.editing && !self.cell_selection.is_empty()).then_some(self.cell_selection.as_str())
     }
 
     #[cfg(test)]
@@ -1269,6 +1284,11 @@ impl NotebookState {
             self.selected = at;
             self.editing = true;
             self.caret = edit.cursor_range.map(|r| (uid, r.primary.index.into()));
+            self.cell_selection = edit.cursor_range.map_or_else(String::new, |r| {
+                let (p, s): (usize, usize) = (r.primary.index.into(), r.secondary.index.into());
+                let (a, b) = (p.min(s), p.max(s));
+                self.nb.cells.get(at).map_or_else(String::new, |cell| cell.source.chars().skip(a).take((b - a).min(64)).collect())
+            });
         } else if chosen {
             self.editing = false;
             // A Markdown cell goes back to reading when it's left.

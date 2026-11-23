@@ -14,10 +14,38 @@ pub fn headless(program: impl AsRef<std::ffi::OsStr>) -> Command {
     command
 }
 
+/// On Windows, a program named without an ending (`intelephense`, `prettier`, `npm`) that's a `.cmd` or `.bat` on
+/// the PATH, as npm installs them, is started by its whole path: Windows by itself looks only for an `.exe`, so it
+/// said "program not found". The PATH's folders are taken in order, and an `.exe` in a folder wins.
+#[cfg(windows)]
+fn batch_on_path(program: &std::ffi::OsStr) -> Option<std::path::PathBuf> {
+    batch_in(program, &std::env::var_os("PATH")?)
+}
+
+/// As `batch_on_path`, in the folders of a PATH given.
+#[cfg(windows)]
+fn batch_in(program: &std::ffi::OsStr, paths: &std::ffi::OsStr) -> Option<std::path::PathBuf> {
+    let named = Path::new(program);
+    if named.extension().is_some() || named.components().count() != 1 {
+        return None;
+    }
+    for dir in std::env::split_paths(paths) {
+        if dir.join(named).with_extension("exe").is_file() || dir.join(named).with_extension("com").is_file() {
+            return None;
+        }
+        if let Some(found) = ["cmd", "bat"].iter().map(|e| dir.join(named).with_extension(e)).find(|p| p.is_file()) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 /// Starts making a command to run `program`. On Windows a console program started without a window of its own
 /// gets a new console, which flashes on the screen and takes the keyboard focus, so this asks for none. Every
 /// program Limoniter starts, apart from those meant to be seen in a console, should be started through this.
 pub fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    #[cfg(windows)]
+    let program = batch_on_path(program.as_ref()).map_or_else(|| program.as_ref().to_os_string(), std::path::PathBuf::into_os_string);
     #[allow(clippy::disallowed_methods)] // The one place a command is made.
     let mut command = Command::new(program);
     #[cfg(windows)]
@@ -179,6 +207,22 @@ pub fn from_store() -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn a_batch_file_on_the_path_is_found_and_an_exe_wins() {
+        let dir = std::env::temp_dir().join(format!("limoniter-batch-{}", std::process::id()));
+        let (first, second) = (dir.join("a"), dir.join("b"));
+        std::fs::create_dir_all(&first).unwrap();
+        std::fs::create_dir_all(&second).unwrap();
+        std::fs::write(second.join("tool.cmd"), "@echo off").unwrap();
+        let paths = std::env::join_paths([&first, &second]).unwrap();
+        assert_eq!(super::batch_in("tool".as_ref(), &paths), Some(second.join("tool.cmd")));
+        assert_eq!(super::batch_in("tool.cmd".as_ref(), &paths), None, "a name with its ending is left alone");
+        std::fs::write(first.join("tool.exe"), "").unwrap();
+        assert_eq!(super::batch_in("tool".as_ref(), &paths), None, "an .exe earlier on the PATH wins");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     use super::*;
 
     #[test]

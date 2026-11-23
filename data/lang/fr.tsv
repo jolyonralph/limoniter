@@ -11022,3 +11022,10 @@ Type the names of the packages to install.	Saisissez les noms des paquets à ins
 Waiting for the cells that are running to finish…	Attente de la fin des cellules en cours d'exécution…
 “{word}” isn't a package name. R's packages have letters, digits and dots only, and no versions.	“{word}” n'est pas un nom de paquet. Les paquets R ne contiennent que des lettres, des chiffres et des points, et pas de versions.
 “{word}” isn't a package name. Use letters, digits and - _ . only, with [extras] and versions such as ==2.2 if needed.	“{word}” n'est pas un nom de paquet. Utilisez uniquement des lettres, des chiffres et - _ . , avec [extras] et des versions comme ==2.2 si besoin.
+Export	Exporter
+Open the BASIC listing as text	Ouvrir le listing BASIC en texte
+That would be a picture {width} by {height} pixels, too big to make. Choose fewer lines, shorter ones, or a smaller scale.	Ce serait une image de {width} sur {height} pixels, trop grande pour être créée. Choisissez moins de lignes, des lignes plus courtes ou une échelle plus petite.
+Command Prompt	Invite de commandes
+Open new terminals with	Ouvrir les nouveaux terminaux avec
+The usual shell	Le shell habituel
+WSL: {name}	WSL : {name}

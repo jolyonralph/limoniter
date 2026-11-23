@@ -361,8 +361,8 @@ pub(super) const ENCODING: &[Entry] = &[
             Item("Kind of computer for new files\u{2026}", Command::ChoosePreset),
         ];
 
+/// The tokenised BASIC programs a listing can be saved as: in File, Export, and the ribbon's drop-down.
 pub(super) const TOKENISED_BASIC: &[Entry] = &[
-            Item("Open the listing as text", Command::OpenBasicListing),
             Item("Save as a Spectrum tape (.tap)\u{2026}", Command::SaveSpectrumTape),
             Item("Save as a Spectrum Next program (.bas)\u{2026}", Command::SaveNextProgram),
             Item("Save as a Commodore program (.prg)\u{2026}", Command::SaveCommodoreProgram),
@@ -728,6 +728,14 @@ pub(super) const THIS_FILE: &[Entry] = &[
 
 pub(super) const LAYOUTS: &[Entry] = &[Entry::Live("Use", Live::Layouts), Line, Item("Save this layout\u{2026}", Command::SaveLayout), Sub("Delete", &[Entry::Live("Delete a layout", Live::DeleteLayouts)])];
 
+/// File, Export: the open file made into something else, a picture, a tape's sound, or a tokenised program.
+pub(super) const EXPORT: &[Entry] = &[
+            Item("Code as a picture\u{2026}", Command::CodePicture),
+            Item("Make its tape sound (WAV)", Command::TapeSound),
+            Line,
+            Sub("Tokenised BASIC", TOKENISED_BASIC),
+        ];
+
 pub(super) const FILE: &[Entry] = &[
     Keyed("New", Command::New, "Ctrl+N"),
     Entry::Live("New as", Live::NewAs),
@@ -747,10 +755,10 @@ pub(super) const FILE: &[Entry] = &[
     Item("Save the selection as\u{2026}", Command::SaveSelection),
     Item("Save a copy in another encoding\u{2026}", Command::SaveCopyAs),
     Item("Save to a server (SFTP or FTP)\u{2026}", Command::SaveRemote),
+    Sub("Export", EXPORT),
     Sub("Send to device", SEND_TO),
     Keyed("Run on machine", Command::RunOnMachine, "F9"),
     Sub("Run on", RUN_ON),
-    Item("Make its tape sound (WAV)", Command::TapeSound),
     Line,
     Sub("This file", THIS_FILE),
     Item("Reopen with another encoding\u{2026}", Command::ReopenAs),
@@ -860,7 +868,7 @@ pub(super) const VIEW: &[Entry] = &[
 
 pub(super) const FORMAT: &[Entry] = &[
     Sub("Encoding", ENCODING),
-    Sub("Tokenised BASIC", TOKENISED_BASIC),
+    Item("Open the BASIC listing as text", Command::OpenBasicListing),
     Item("Save the picture as PNG\u{2026}", Command::SavePictureAsPng),
     Item("Save the preview as PDF\u{2026}", Command::SavePreviewAsPdf),
     Sub("Save the document as", SAVE_DOCUMENT_AS),
@@ -884,25 +892,25 @@ pub(super) const FORMAT: &[Entry] = &[
     Item("Markdown: line up the table", Command::MarkdownTable),
 ];
 
-pub(super) const TOOLS: &[Entry] = &[
-    Item("Colour as\u{2026}", Command::ColourAs),
-    Item("Query the rows\u{2026}", Command::QueryRows),
+/// Code: the tools for modern coding, as the ribbon's Code tab has them.
+pub(super) const CODE: &[Entry] = &[
+    Sub("Tasks", TASKS),
+    Sub("Run", RUN),
+    Sub("Git", GIT),
+    Sub("Python and R", PYTHON_R),
+    Sub("Notebook", NOTEBOOK),
+    Sub("Database", DATABASE),
+    Sub("PHP", PHP),
+    Sub("Assistant", ASSISTANT),
+    Sub("Project", PROJECT),
     Line,
-    Item("Compare with\u{2026}", Command::Compare),
-    Item("Compare files\u{2026}", Command::CompareFiles),
-    Item("Compare folders\u{2026}", Command::CompareFolders),
-    Item("Saved comparisons\u{2026}", Command::CompareSessions),
-    Item("Apply a patch\u{2026}", Command::ApplyPatch),
-    Item("Count words", Command::WordCount),
-    Item("Fingerprint (SHA-256)", Command::ComputeHash),
-    Item("Code as a picture\u{2026}", Command::CodePicture),
-    Item("Time spent\u{2026}", Command::TimeSpent),
-    Item("Convert a number", Command::ConvertNumber),
+    Item("Query the rows\u{2026}", Command::QueryRows),
     Item("Regular expression tester", Command::RegexTester),
     Item("Check JSON or YAML against a schema", Command::SchemaCheck),
-    Item("Copy the file's path", Command::CopyPath),
-    Line,
-    // The retro tools: those for any machine, then each machine's own.
+];
+
+/// Retro: the tools for the older machines, one sub-menu a machine, as the ribbon's Retro tab has them.
+pub(super) const RETRO: &[Entry] = &[
     Sub("General", GENERAL),
     Sub("Hardware", HARDWARE),
     Sub("Amiga", AMIGA),
@@ -913,21 +921,27 @@ pub(super) const TOOLS: &[Entry] = &[
     Sub("Dragon and Vectrex", DRAGON),
     Sub("ZX Spectrum and Next", SPECTRUM),
     Sub("Early computing", EARLY),
+];
+
+pub(super) const TOOLS: &[Entry] = &[
+    Item("Colour as\u{2026}", Command::ColourAs),
     Line,
-    Sub("Tasks", TASKS),
-    Sub("Git", GIT),
+    Item("Compare with\u{2026}", Command::Compare),
+    Item("Compare files\u{2026}", Command::CompareFiles),
+    Item("Compare folders\u{2026}", Command::CompareFolders),
+    Item("Saved comparisons\u{2026}", Command::CompareSessions),
+    Item("Apply a patch\u{2026}", Command::ApplyPatch),
+    Item("Count words", Command::WordCount),
+    Item("Fingerprint (SHA-256)", Command::ComputeHash),
+    Item("Time spent\u{2026}", Command::TimeSpent),
+    Item("Convert a number", Command::ConvertNumber),
+    Item("Copy the file's path", Command::CopyPath),
+    Line,
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
-    Sub("Assistant", ASSISTANT),
-    Sub("Run", RUN),
-    Sub("PHP", PHP),
-    Sub("Python and R", PYTHON_R),
-    Sub("Notebook", NOTEBOOK),
-    Sub("Database", DATABASE),
     Sub("Macros", MACROS),
     Sub("Scripts", SCRIPTS),
     Sub("Add-ons", ADD_ONS),
     Item("VS Code extensions\u{2026}", Command::Extensions),
-    Sub("Project", PROJECT),
     Line,
     Keyed("Settings\u{2026}", Command::Settings, "Ctrl+,"),
     Item("Save settings to a file\u{2026}", Command::SaveSettingsFile),
@@ -952,7 +966,7 @@ pub(super) const HELP_MENU: &[Entry] = &[Keyed("Find a command\u{2026}", Command
 /// The guide's pages, each a short walk through one kind of work.
 pub(super) const GUIDE: &[Entry] = &[Item("Getting started", Command::Guide(Guide::GettingStarted)), Item("Working on a folder of code", Command::Guide(Guide::Folder)), Item("Assembling and running", Command::Guide(Guide::Assembling))];
 
-pub(super) const MENUS: [(&str, &[Entry]); 8] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
+pub(super) const MENUS: [(&str, &[Entry]); 10] = [("File", FILE), ("Edit", EDIT), ("Search", SEARCH), ("View", VIEW), ("Format", FORMAT), ("Code", CODE), ("Retro", RETRO), ("Tools", TOOLS), ("Window", WINDOW), ("Help", HELP_MENU)];
 
 /// A shortcut as the menus show it. On a Mac it's in the Mac's own signs, with Cmd for Ctrl, and the few keys a
 /// Mac uses differently: Cmd+[ and Cmd+] for back and forward, and Control and Option for the Alt letters.
@@ -1096,6 +1110,12 @@ pub(super) fn matching(query: &str, all: Vec<Found>) -> Vec<Found> {
 }
 
 const MENU_WIDTH: f32 = 250.0;
+
+/// Commands that read or rewrite the file's text as text, so make no sense while it's shown as something else.
+fn works_on_text(command: Command) -> bool {
+    matches!(command, Command::Format(_) | Command::FormatDocument | Command::GraphMode | Command::UdgPictures | Command::OpenBasicListing)
+        || TOKENISED_BASIC.iter().any(|entry| matches!(entry, Item(_, c) | Keyed(_, c, _) if *c == command))
+}
 
 impl Limoniter {
     fn panel_on(&self, panel: PanelFlag) -> bool {
@@ -1301,6 +1321,12 @@ impl Limoniter {
         let selected = if hex { doc.hex.has_selection() } else { t.has_selection() || (self.prefs.edit.whole_line_copy && !t.is_block()) };
         let one_line = text && t.has_selection() && t.caret_line == t.anchor_line && !t.is_block();
         let has_project = self.project.is_some();
+        // A file shown as something other than its text (a notebook, a table, the data viewer, a picture or a disk)
+        // isn't offered what works on the text underneath: tokenising it as BASIC, or reformatting it.
+        let shown_otherwise = (doc.notebook.is_some() && !doc.notebook_text) || doc.table.is_some() || doc.data.is_some() || doc.browser.is_some();
+        if shown_otherwise && works_on_text(command) {
+            return false;
+        }
         match command {
             Command::Undo => if hex { doc.hex.can_undo() } else { t.can_undo() },
             Command::Redo => if hex { doc.hex.can_redo() } else { t.can_redo() },

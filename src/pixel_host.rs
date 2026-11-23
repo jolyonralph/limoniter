@@ -196,12 +196,18 @@ impl Limoniter {
 
     /// Starts another terminal, in front of any others: in a folder, or the open folder's, or the file's.
     pub(super) fn new_terminal(&mut self, folder: Option<PathBuf>) {
+        let shell = crate::terminal::Shell::from_id(&self.terminal_shell);
+        self.new_terminal_with(folder, &shell);
+    }
+
+    /// A terminal running a shell of the kind given (a WSL distribution, Command Prompt…).
+    pub(super) fn new_terminal_with(&mut self, folder: Option<PathBuf>, shell: &crate::terminal::Shell) {
         let folder = folder
             .or_else(|| self.project.as_ref().and_then(|p| p.root.clone()))
             .or_else(|| self.docs.get(self.active).and_then(|d| d.path.as_deref()).and_then(Path::parent).map(Path::to_path_buf))
             .or_else(|| std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("."));
-        match crate::terminal::Terminal::start(&folder, 12, 80) {
+        match crate::terminal::Terminal::start_shell(shell, &folder, 12, 80) {
             Ok(terminal) => self.show_terminal(terminal),
             Err(problem) => self.message("Terminal", problem),
         }
@@ -245,6 +251,8 @@ impl Limoniter {
     pub(super) fn terminal_panel(&mut self, ui: &mut Ui) {
         let mut close = false;
         let mut restart = false;
+        let mut new_with: Option<crate::terminal::Shell> = None;
+        let mut default_shell: Option<String> = None;
         let font_size = self.text_view_options().font_size;
         let Some(terminal) = self.terminal.as_mut() else {
             return;
@@ -268,8 +276,32 @@ impl Limoniter {
                         switch = Some(*number);
                     }
                 }
-                if ui.small_button("+").on_hover_text(crate::i18n::tr("Another terminal")).clicked() {
-                    new = true;
+                let shells = crate::terminal::shells();
+                if shells.len() < 2 {
+                    if ui.small_button("+").on_hover_text(crate::i18n::tr("Another terminal")).clicked() {
+                        new = true;
+                    }
+                } else {
+                    // On Windows, which shell: PowerShell, Command Prompt, Git Bash or a WSL distribution.
+                    crate::fit::menu_button(ui, "+", |ui| {
+                        for shell in &shells {
+                            if ui.button(shell.label()).clicked() {
+                                new_with = Some(shell.clone());
+                                ui.close();
+                            }
+                        }
+                        ui.separator();
+                        crate::fit::menu_button(ui, crate::i18n::tr("Open new terminals with"), |ui| {
+                            for shell in &shells {
+                                if ui.radio(shell.id() == self.terminal_shell, shell.label()).clicked() {
+                                    default_shell = Some(shell.id());
+                                    ui.close();
+                                }
+                            }
+                        });
+                    })
+                    .response
+                    .on_hover_text(crate::i18n::tr("Another terminal"));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     close = crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Close").on_hover_text(crate::i18n::tr("Close it, ending the shell")).clicked();
@@ -281,9 +313,9 @@ impl Limoniter {
         if close {
             self.close_terminal();
         } else if restart {
-            let folder = self.terminal.as_ref().map(|t| t.folder.clone());
+            let (folder, shell) = self.terminal.as_ref().map_or((None, Default::default()), |t| (Some(t.folder.clone()), t.shell.clone()));
             self.terminal = None;
-            self.new_terminal(folder);
+            self.new_terminal_with(folder, &shell);
             // A restarted one keeps its number and place.
             self.terminals_made -= 1;
             self.terminal_number = front;
@@ -291,6 +323,12 @@ impl Limoniter {
             self.switch_terminal(number);
         } else if new {
             self.new_terminal(None);
+        } else if let Some(shell) = new_with {
+            self.new_terminal_with(None, &shell);
+        }
+        if let Some(id) = default_shell {
+            self.terminal_shell = id;
+            self.save_settings_if_changed();
         }
     }
 }

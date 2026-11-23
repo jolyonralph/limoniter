@@ -411,12 +411,16 @@ pub(super) struct CodePicture {
     made: Option<(crate::pictures::Picture, egui::TextureHandle)>,
     made_with: Option<(bool, u32, u32)>,
     /// The lines, coloured, from the selection or the file when the box opened.
-    lines: Vec<crate::code_picture::Line>,
+    pub(super) lines: Vec<crate::code_picture::Line>,
     said: String,
 }
 
 /// The most lines made into one picture.
 const MOST_PICTURE_LINES: usize = 600;
+
+/// The widest or tallest picture made, in pixels: graphics cards take 16,384 at least, and some no more. A larger
+/// one would also need gigabytes to draw (a notebook's JSON has pictures as lines of thousands of characters).
+const MOST_PICTURE_SIDE: f32 = 16384.0;
 
 impl Limoniter {
     /// Code as a picture: the selection's lines, or the file's, coloured as they're shown now.
@@ -425,6 +429,24 @@ impl Limoniter {
             return self.message("Code as a picture", crate::i18n::tr("Put the code in front first, with the lines selected, or none for the whole file.").into());
         }
         let tab = crate::text_buffer::tab_size();
+        // A notebook's chosen cell, not the notebook's JSON underneath.
+        if let Some((source, _)) = self.docs[self.active].notebook.as_deref().filter(|_| !self.docs[self.active].notebook_text).and_then(|n| n.chosen_source()) {
+            let text_colour = theme::editor_text();
+            let lines = source
+                .lines()
+                .take(MOST_PICTURE_LINES)
+                .enumerate()
+                .map(|(r, line)| {
+                    let mut text = String::new();
+                    for c in line.chars() {
+                        if c == '\t' { text.push_str(&" ".repeat(tab - text.chars().count() % tab)) } else { text.push(c) }
+                    }
+                    crate::code_picture::Line { number: r + 1, runs: vec![(text, text_colour)] }
+                })
+                .collect();
+            self.code_picture = Some(Box::new(CodePicture { line_numbers: true, margin: 32.0, scale: 2.0, made: None, made_with: None, lines, said: String::new() }));
+            return;
+        }
         let doc = &mut self.docs[self.active];
         let (top, bottom) = if doc.text.has_selection() { doc.text.selected_rows() } else { (0, doc.text.line_count().saturating_sub(1)) };
         let bottom = bottom.min(top + MOST_PICTURE_LINES - 1);
@@ -482,8 +504,16 @@ impl Limoniter {
                 line_numbers: state.line_numbers,
                 scale: state.scale,
             };
+            let (width, height) = crate::code_picture::size(&state.lines, &style);
             let svg = crate::code_picture::svg(&state.lines, &style);
-            match crate::code_picture::render(&svg, &editor_font_bytes(self.font_file.as_deref())) {
+            let made = if width > MOST_PICTURE_SIDE || height > MOST_PICTURE_SIDE {
+                Err(crate::i18n::tf!("That would be a picture {width} by {height} pixels, too big to make. Choose fewer lines, shorter ones, or a smaller scale.", width = width as u64, height = height as u64))
+            } else {
+                crate::code_picture::render(&svg, &editor_font_bytes(self.font_file.as_deref()))
+            };
+            state.made = None;
+            state.said.clear();
+            match made {
                 Ok(picture) => {
                     let texture = ctx.load_texture("code-picture", egui::ColorImage::from_rgba_unmultiplied([picture.width, picture.height], &picture.rgba), egui::TextureOptions::LINEAR);
                     state.made = Some((picture, texture));

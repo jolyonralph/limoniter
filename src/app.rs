@@ -1982,6 +1982,8 @@ pub struct Limoniter {
     recent_languages: Vec<String>,
     /// The kinds last chosen in File, New as, by name, the latest first: offered at the top of the menu.
     recent_new_kinds: Vec<String>,
+    /// The shell new terminals run, by its id (`terminal::Shell::id`): "" for the usual one.
+    terminal_shell: String,
     /// How wide the command box (F1) was last left.
     palette_width: f32,
     /// What the status bar shows, and in what order.
@@ -2221,6 +2223,7 @@ impl Limoniter {
             language_view: language_picker::View::from_setting(list_setting(&settings, "language_view").first().map(String::as_str)),
             recent_languages: list_setting(&settings, "recent_language"),
             recent_new_kinds: list_setting(&settings, "recent_new_kind"),
+            terminal_shell: list_setting(&settings, "terminal_shell").into_iter().next().unwrap_or_default(),
             key_note: None,
             key_notes_given: std::collections::HashMap::new(),
             dialog_was_palette: false,
@@ -5340,7 +5343,9 @@ impl Limoniter {
             }
             Command::GenerateGuid => self.doc().text.type_text(&tools::new_guid()),
             Command::ConvertNumber => {
-                let text = self.docs[self.active].text.selection_for_preview();
+                // In a notebook, the selection is in the cell being edited, not in the JSON underneath.
+                let doc = &self.docs[self.active];
+                let text = doc.notebook.as_deref().and_then(|n| n.cell_selection()).map_or_else(|| doc.text.selection_for_preview(), str::to_string);
                 let body = tools::convert_number(&text).unwrap_or_else(|| crate::i18n::tr("Select a whole number first, such as 255, 0xFF or 0b1010.").to_string());
                 self.message("Convert Number", body);
             }
@@ -5742,7 +5747,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("terminal_shell={}\n", self.terminal_shell).as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str()
         )
     }
 

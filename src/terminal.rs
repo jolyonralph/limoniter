@@ -21,6 +21,109 @@ pub struct Terminal {
     pub changed: Arc<AtomicBool>,
     /// The folder it started in.
     pub folder: std::path::PathBuf,
+    /// The shell it runs, to start the same one again.
+    pub shell: Shell,
+}
+
+/// A shell a terminal can run. On Windows there's a choice; elsewhere, the person's own.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Shell {
+    /// PowerShell on Windows, `$SHELL` elsewhere.
+    #[default]
+    Usual,
+    Cmd,
+    GitBash(std::path::PathBuf),
+    /// A WSL distribution, by its name.
+    Wsl(String),
+}
+
+impl Shell {
+    /// How the choice is kept in the settings: "", "cmd", "gitbash" or "wsl:NAME".
+    pub fn id(&self) -> String {
+        match self {
+            Shell::Usual => String::new(),
+            Shell::Cmd => "cmd".into(),
+            Shell::GitBash(_) => "gitbash".into(),
+            Shell::Wsl(name) => format!("wsl:{name}"),
+        }
+    }
+
+    pub fn from_id(id: &str) -> Shell {
+        match id {
+            "cmd" => Shell::Cmd,
+            "gitbash" => git_bash().map_or(Shell::Usual, Shell::GitBash),
+            _ => id.strip_prefix("wsl:").filter(|n| !n.is_empty()).map_or(Shell::Usual, |name| Shell::Wsl(name.to_string())),
+        }
+    }
+
+    pub fn label(&self) -> String {
+        match self {
+            Shell::Usual if cfg!(windows) => "PowerShell".into(),
+            Shell::Usual => crate::i18n::tr("The usual shell").to_string(),
+            Shell::Cmd => crate::i18n::tr("Command Prompt").to_string(),
+            Shell::GitBash(_) => "Git Bash".into(),
+            Shell::Wsl(name) => crate::i18n::tf!("WSL: {name}"),
+        }
+    }
+
+    /// The program and its arguments, starting in `folder` (WSL is told it in Windows' own form, which it turns
+    /// into /mnt/c/…).
+    fn command(&self, folder: &Path) -> CommandBuilder {
+        match self {
+            Shell::Usual => shell(),
+            Shell::Cmd => CommandBuilder::new("cmd.exe"),
+            Shell::GitBash(bash) => {
+                let mut command = CommandBuilder::new(bash);
+                command.args(["--login", "-i"]);
+                command
+            }
+            Shell::Wsl(name) => {
+                let mut command = CommandBuilder::new("wsl.exe");
+                command.args(["-d", name.as_str(), "--cd", &folder.display().to_string()]);
+                command
+            }
+        }
+    }
+}
+
+/// The shells to offer: on Windows, PowerShell, Command Prompt, Git Bash when it's installed, and each WSL
+/// distribution (found once, then remembered); elsewhere, the usual one only.
+pub fn shells() -> Vec<Shell> {
+    if !cfg!(windows) {
+        return vec![Shell::Usual];
+    }
+    static WSL: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    let mut shells = vec![Shell::Usual, Shell::Cmd];
+    shells.extend(git_bash().map(Shell::GitBash));
+    shells.extend(WSL.get_or_init(wsl_distributions).iter().cloned().map(Shell::Wsl));
+    shells
+}
+
+/// Git for Windows' bash, where it's usually installed.
+fn git_bash() -> Option<std::path::PathBuf> {
+    ["ProgramFiles", "ProgramW6432", "LOCALAPPDATA"]
+        .iter()
+        .filter_map(std::env::var_os)
+        .map(std::path::PathBuf::from)
+        .flat_map(|base| [base.join("Git").join("bin").join("bash.exe"), base.join("Programs").join("Git").join("bin").join("bash.exe")])
+        .find(|path| path.is_file())
+}
+
+/// The WSL distributions installed, as `wsl -l -q` lists them.
+fn wsl_distributions() -> Vec<String> {
+    let output = crate::platform::command("wsl.exe").args(["-l", "-q"]).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).output();
+    output.ok().filter(|o| o.status.success()).map(|o| distributions_in(&o.stdout)).unwrap_or_default()
+}
+
+/// The names in `wsl -l -q`'s output, which is UTF-16 (little-endian), one to a line; Docker Desktop's own aren't
+/// shells to open.
+fn distributions_in(bytes: &[u8]) -> Vec<String> {
+    let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|pair| u16::from_le_bytes(*pair)).collect();
+    String::from_utf16_lossy(&units)
+        .lines()
+        .map(|line| line.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}' || c == '\0').to_string())
+        .filter(|name| !name.is_empty() && !name.starts_with("docker-desktop"))
+        .collect()
 }
 
 /// The shell to start: PowerShell on Windows, and the person's own elsewhere.
@@ -36,9 +139,11 @@ fn shell() -> CommandBuilder {
 }
 
 impl Terminal {
-    /// Starts a shell in a folder, on a screen of so many rows and columns.
-    pub fn start(folder: &Path, rows: u16, cols: u16) -> Result<Terminal, String> {
-        Self::start_with(shell(), folder, rows, cols)
+    /// Starts a shell of the kind chosen, in a folder, on a screen of so many rows and columns.
+    pub fn start_shell(shell: &Shell, folder: &Path, rows: u16, cols: u16) -> Result<Terminal, String> {
+        let mut terminal = Self::start_with(shell.command(folder), folder, rows, cols)?;
+        terminal.shell = shell.clone();
+        Ok(terminal)
     }
 
     pub fn start_with(mut command: CommandBuilder, folder: &Path, rows: u16, cols: u16) -> Result<Terminal, String> {
@@ -86,7 +191,7 @@ impl Terminal {
             done.store(true, Ordering::Relaxed);
             fresh.store(true, Ordering::Relaxed);
         });
-        Ok(Terminal { parser, writer, master: pair.master, child, size: (rows, cols), ended, changed, folder: folder.to_path_buf() })
+        Ok(Terminal { parser, writer, master: pair.master, child, size: (rows, cols), ended, changed, folder: folder.to_path_buf(), shell: Shell::Usual })
     }
 
     pub fn send(&mut self, bytes: &[u8]) {
@@ -261,6 +366,18 @@ pub fn draw(ui: &mut Ui, terminal: &mut Terminal, font_size: f32) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn wsl_s_list_is_read_and_shells_are_kept_by_id() {
+        // UTF-16, as wsl -l -q writes it, with Docker Desktop's own left out.
+        let text: Vec<u8> = "Ubuntu\r\ndocker-desktop\r\nDebian\r\n".encode_utf16().flat_map(u16::to_le_bytes).collect();
+        assert_eq!(distributions_in(&text), ["Ubuntu", "Debian"]);
+        for shell in [Shell::Usual, Shell::Cmd, Shell::Wsl("Ubuntu".into())] {
+            assert_eq!(Shell::from_id(&shell.id()), shell);
+        }
+        assert_eq!(Shell::from_id("wsl:"), Shell::Usual);
+        assert!(!shells().is_empty());
+    }
+
     use super::*;
 
     #[test]

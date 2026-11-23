@@ -311,3 +311,17 @@ fn an_r_notebook_installs_r_packages_and_other_languages_cant() {
     assert_eq!(state(&mut app).install_progress().as_deref(), Some("typing"));
     let _ = (std::fs::remove_dir_all(dir), std::fs::remove_dir_all(dir2));
 }
+
+#[test]
+fn a_notebook_isnt_offered_what_works_on_plain_text() {
+    let (mut app, ctx, dir) = app_with("plain", OUTPUTS);
+    frames(&mut app, &ctx, 2);
+    for (name, command) in [("Spectrum tape", Command::SaveSpectrumTape), ("BASIC listing", Command::OpenBasicListing), ("GRAPH mode", Command::GraphMode), ("Format document", Command::FormatDocument), ("Format as HTML", Command::Format(crate::formatters::Kind::Html))] {
+        assert!(!app.can(command), "{name} is greyed out for a notebook");
+    }
+    // Code as a picture is the chosen cell's, never the JSON underneath with its pictures' long lines.
+    app.open_code_picture();
+    let lines = app.code_picture.as_ref().map(|p| p.lines.len()).unwrap_or(0);
+    assert!(lines > 0 && lines < 50, "{lines}");
+    let _ = std::fs::remove_dir_all(dir);
+}

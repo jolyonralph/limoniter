@@ -34,10 +34,24 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
+/// The longest line, in characters.
+fn widest(lines: &[Line]) -> usize {
+    lines.iter().map(|l| l.runs.iter().map(|(t, _)| t.chars().count()).sum::<usize>()).max().unwrap_or(0)
+}
+
+/// How big the picture of these lines would be, in pixels, worked out before anything is drawn.
+pub fn size(lines: &[Line], style: &Style) -> (f32, f32) {
+    let digits = lines.iter().map(|l| l.number.to_string().len()).max().unwrap_or(1);
+    let gutter = if style.line_numbers { (digits as f32 + 2.0) * style.char_width } else { 0.0 };
+    let width = style.margin * 2.0 + gutter + widest(lines).max(1) as f32 * style.char_width;
+    let height = style.margin * 2.0 + lines.len().max(1) as f32 * style.line_height;
+    ((width * style.scale).ceil(), (height * style.scale).ceil())
+}
+
 /// The lines as an SVG: a rounded panel of the background colour, the numbers in a column at the left, and each
 /// line's runs of colour as spans, every character a character's width apart.
 pub fn svg(lines: &[Line], style: &Style) -> String {
-    let widest = lines.iter().map(|l| l.runs.iter().map(|(t, _)| t.chars().count()).sum::<usize>()).max().unwrap_or(0);
+    let widest = widest(lines);
     let digits = lines.iter().map(|l| l.number.to_string().len()).max().unwrap_or(1);
     let gutter = if style.line_numbers { (digits as f32 + 2.0) * style.char_width } else { 0.0 };
     let width = style.margin * 2.0 + gutter + widest.max(1) as f32 * style.char_width;
@@ -99,6 +113,16 @@ pub fn render(svg: &str, font: &[u8]) -> Result<crate::pictures::Picture, String
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_picture_s_size_is_known_before_it_s_drawn() {
+        let style = Style { background: Color32::BLACK, numbers_colour: Color32::GRAY, font_size: 14.0, char_width: 8.0, line_height: 18.0, margin: 32.0, line_numbers: false, scale: 2.0 };
+        let line = |n: usize, text: &str| Line { number: n, runs: vec![(text.to_string(), Color32::WHITE)] };
+        assert_eq!(size(&[line(1, "abcd")], &style), ((32.0 * 2.0 + 4.0 * 8.0) * 2.0, (32.0 * 2.0 + 18.0) * 2.0));
+        // A notebook's picture saved as one line of base64 is far too wide to draw.
+        let (width, _) = size(&[line(1, &"A".repeat(30_000))], &style);
+        assert!(width > 16384.0);
+    }
+
     use super::*;
 
     fn style() -> Style {
