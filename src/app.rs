@@ -12085,6 +12085,14 @@ mod tests {
     }
 
     #[test]
+    fn opticos_is_with_the_zx_machines_in_new_as() {
+        let kinds = new_kinds::NewKind::usual();
+        let optic = kinds.iter().find(|k| k.name.starts_with("OpticBASIC")).unwrap();
+        assert_eq!(optic.group(), "ZX Spectrum, ZX80, ZX81 and Jupiter Ace", "OpticOS programs are Spectrum tapes");
+        assert_eq!(kinds.iter().find(|k| k.name == "BBC BASIC").unwrap().group(), "Acorn");
+    }
+
+    #[test]
     fn the_kinds_last_chosen_in_new_as_come_first_and_are_kept() {
         let (mut app, _ctx) = app_with("");
         let at = |app: &Limoniter, name: &str| app.new_kinds.iter().position(|k| k.name == name).unwrap();

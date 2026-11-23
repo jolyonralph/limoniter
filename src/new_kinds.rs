@@ -211,7 +211,7 @@ pub(super) const GROUPS: [&str; 18] = [
     "Commodore",
     "Amiga",
     "Atari",
-    "Acorn and OpticOS",
+    "Acorn",
     "Apple II",
     "Nintendo",
     "Sega and ColecoVision",
@@ -234,7 +234,7 @@ impl NewKind {
             "Early computing"
         } else if ["Z80 assembler", "6502 assembler", "6809 assembler", "68000 assembler"].contains(&name) {
             "Any machine: assembler"
-        } else if starts("Spectrum") || starts("ZX80") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") {
+        } else if starts("Spectrum") || starts("ZX80") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") || starts("OpticBASIC") {
             "ZX Spectrum, ZX80, ZX81 and Jupiter Ace"
         } else if starts("QL program") {
             "Sinclair QL"
@@ -248,8 +248,8 @@ impl NewKind {
             "Amiga"
         } else if starts("Atari") {
             "Atari"
-        } else if starts("BBC BASIC") || starts("OpticBASIC") {
-            "Acorn and OpticOS"
+        } else if starts("BBC BASIC") {
+            "Acorn"
         } else if starts("Game Boy") || starts("NES ") {
             "Nintendo"
         } else if starts("Sega") || starts("ColecoVision") {
