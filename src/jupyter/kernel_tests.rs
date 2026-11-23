@@ -498,7 +498,15 @@ fn real_spec(language: &str) -> Option<super::link::KernelSpec> {
 
 fn run(kernel: &mut dyn KernelLink, code: &str) -> (Vec<Value>, (Option<u32>, bool)) {
     let request = kernel.execute(code);
-    let events = until_done(kernel, request);
+    let mut events = until_done(kernel, request);
+    // The reply can come before the last of the output, which travels on another socket: the kernel says it's idle
+    // only after all of it, so that's waited for too (for a few seconds at most).
+    let done_at = events.iter().rposition(|e| matches!(e, KernelEvent::Done { .. })).unwrap_or(0);
+    let began = Instant::now();
+    while !events[done_at..].iter().any(|e| e == &KernelEvent::Status(KernelStatus::Idle)) && began.elapsed() < Duration::from_secs(5) {
+        events.extend(kernel.poll());
+        std::thread::sleep(Duration::from_millis(5));
+    }
     if let Some(KernelEvent::Died(why)) = events.iter().find(|e| matches!(e, KernelEvent::Died(_))) {
         panic!("the kernel died running {code:?}: {why}");
     }

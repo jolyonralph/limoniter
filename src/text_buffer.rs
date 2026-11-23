@@ -478,6 +478,8 @@ pub enum CaseChange {
     Lower,
     Sentence,
     Title,
+    /// Each letter moved 13 along the alphabet, A to N and N to A: done twice, it's undone.
+    Rot13,
 }
 
 /// Where the case rules have got to, carried from one row of a selection to the next.
@@ -565,6 +567,16 @@ fn convert_case(text: &str, change: CaseChange, state: &mut CaseState) -> String
         CaseChange::Lower => text.to_lowercase(),
         CaseChange::Sentence => sentence_case(text, state),
         CaseChange::Title => title_case(text, state),
+        CaseChange::Rot13 => text.chars().map(rot13).collect(),
+    }
+}
+
+/// A plain English letter moved 13 along; anything else left as it is.
+fn rot13(c: char) -> char {
+    match c {
+        'a'..='z' => char::from(b'a' + (c as u8 - b'a' + 13) % 26),
+        'A'..='Z' => char::from(b'A' + (c as u8 - b'A' + 13) % 26),
+        _ => c,
     }
 }
 

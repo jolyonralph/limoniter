@@ -11029,3 +11029,6 @@ Command Prompt	Invite de commandes
 Open new terminals with	Ouvrir les nouveaux terminaux avec
 The usual shell	Le shell habituel
 WSL: {name}	WSL : {name}
+ROT13	ROT13
+ROT26	ROT26
+Your text has been encoded with ROT26. To revert please run ROT26 again, or ROT13 twice.	Votre texte a été chiffré avec ROT26. Pour le rétablir, lancez de nouveau ROT26, ou ROT13 deux fois.

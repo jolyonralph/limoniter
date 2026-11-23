@@ -1,16 +1,26 @@
-## What's new in 0.16.3
+## What's new in 0.16.4
 
-Limoniter 0.16.3 installs packages into a notebook's kernel from the notebook itself, makes installing a Python kernel work on Windows, and tidies two menus.
-
-**Notebooks**
-- **Install packages into this kernel** (the Kernel menu): type the names, such as `matplotlib` or `pandas==2.2`, and they're installed into the kernel's own Python (with `%pip install`) or R, with the output shown as it comes and a Stop button.
-- **Install x** under a "No module named 'x'" error installs the package it needs (`cv2` is opencv-python, `PIL` is pillow, `sklearn` is scikit-learn and so on), then offers to run the cell again.
-- **Install a kernel** now works on Windows, where the commands failed in PowerShell. The kernel is registered so Jupyter finds it too, and the notebook picks it up by itself when it's ready.
-- **Interrupt** stops a running cell on Windows, where ipykernel ignores the interrupt message Limoniter sent.
+Limoniter 0.16.4 puts Code and Retro on the menu bar, adds File, Export and a choice of shell for the terminal, starts npm's tools on Windows, and fixes a crash, the window size slider and Settings' widths.
 
 **Menus**
-- **File, New as** starts with the three kinds you chose last.
-- **Spectrum GRAPH mode** and **UDG pictures** are in Tools, ZX Spectrum and Next, not Format, Tokenised BASIC.
+- **Code** and **Retro** on the menu bar, as the ribbon has them. **Tools** keeps what's for any file.
+- **File, Export**: Code as a picture, a tape's sound (WAV), and the tokenised BASIC programs.
+- What works on plain text (tokenising as BASIC, reformatting, Format document) is greyed out while a file shows as a notebook, a table, the data viewer or a picture.
+- **ROT13** and **ROT26** in Edit, Change case.
+
+**Windows**
+- npm's programs, such as **Intelephense** and **Prettier**, start now: Windows said they weren't found.
+- The terminal's **+** offers PowerShell, Command Prompt, Git Bash and each **WSL** distribution, and keeps the one you choose.
+- Downloaded tools (the PHP and JavaScript debuggers) are put in place even when a virus scanner holds the new files for a moment.
+
+**Notebooks**
+- **Code as a picture** on a notebook crashed Limoniter: it uses the chosen cell now, and a picture too big to draw is refused instead.
+- **Convert a number** works on what's selected in a cell.
+- The example notebook shows its **Install** button when pandas or matplotlib is missing, and installing a Python kernel adds pandas and matplotlib.
+
+**Fixes**
+- **Window font and size**: the window keeps its size while the slider's dragged, taking the new size when it's let go.
+- **Settings**: rows that were wider than the box wrap onto a second line.
 
 ## Downloads
 

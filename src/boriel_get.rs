@@ -182,8 +182,7 @@ fn unpack_into(bytes: Vec<u8>, home: &Path) -> Result<PathBuf, String> {
         return Err(crate::i18n::tr("The download was unpacked, but zxbc wasn't in it.").into());
     }
     let target = home.join("zxbasic");
-    let _ = std::fs::remove_dir_all(&target);
-    std::fs::rename(&fresh, &target).map_err(|e| crate::i18n::tf!("{} couldn't be renamed: {e}", fresh.display()))?;
+    crate::emulator_get::put_in_place(&fresh, &target)?;
     crate::emulator_get::find_program(&target, &["zxbc"]).ok_or_else(|| crate::i18n::tr("The download was unpacked, but zxbc wasn't in it.").into())
 }
 

@@ -196,12 +196,16 @@ mod tests {
 
         // And over the network, the page with its script, and the count of saves.
         let server = Server::start(&root).unwrap();
+        // Tried again for a moment if the connection's refused or reset, as it can be on a busy Windows machine.
         let fetch = |path: &str| {
-            let mut stream = TcpStream::connect(("127.0.0.1", server.port)).unwrap();
-            stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").as_bytes()).unwrap();
-            let mut got = String::new();
-            stream.read_to_string(&mut got).unwrap();
-            got
+            let once = || -> std::io::Result<String> {
+                let mut stream = TcpStream::connect(("127.0.0.1", server.port))?;
+                stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").as_bytes())?;
+                let mut got = String::new();
+                stream.read_to_string(&mut got)?;
+                Ok(got)
+            };
+            (0..50).find_map(|_| once().ok().or_else(|| { std::thread::sleep(std::time::Duration::from_millis(100)); None })).expect("the server answers")
         };
         let page = fetch("/");
         assert!(page.starts_with("HTTP/1.1 200") && page.contains("hi") && page.contains("location.reload()"), "{page}");

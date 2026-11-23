@@ -103,6 +103,10 @@ enum Command {
     Paste,
     SelectAll,
     Upper,
+    /// Edit, Change case, ROT13.
+    Rot13,
+    /// Edit, Change case, ROT26: every letter moved 26 along, which is where it was.
+    Rot26,
     Lower,
     SentenceCase,
     TitleCase,
@@ -668,6 +672,7 @@ impl Command {
                 | Command::Lower
                 | Command::SentenceCase
                 | Command::TitleCase
+                | Command::Rot13
                 | Command::Reindent
                 | Command::WrapToLineEnds
                 | Command::LineEndsToWrap
@@ -1657,7 +1662,8 @@ enum Dialog {
     Recovery(RecoveryOffer),
     Fonts { error: String },
     /// The window's font and size.
-    WindowFont { error: String },
+    /// `pending`: the size the slider's being dragged to, put into effect only when it's let go.
+    WindowFont { error: String, pending: Option<f32> },
     Color { rgb: [u8; 3], form: usize },
     Rename { name: String, error: String, focus: bool },
     SplitFile { every: String, by_text: bool, text: String, error: String },
@@ -5118,7 +5124,7 @@ impl Limoniter {
                 self.doc().set_read_only(on);
             }
             Command::ChooseFont => self.dialog = Dialog::Fonts { error: String::new() },
-            Command::WindowFont => self.dialog = Dialog::WindowFont { error: String::new() },
+            Command::WindowFont => self.dialog = Dialog::WindowFont { error: String::new(), pending: None },
             Command::ShowFileLists => self.panels.file_lists = true,
             Command::InsertDate => self.type_at_cursor(&chrono::Local::now().format("%d/%m/%Y").to_string()),
             Command::InsertTime => self.type_at_cursor(&chrono::Local::now().format("%H:%M:%S").to_string()),
@@ -5251,6 +5257,8 @@ impl Limoniter {
             Command::Lower => self.doc().text.change_case(CaseChange::Lower),
             Command::SentenceCase => self.doc().text.change_case(CaseChange::Sentence),
             Command::TitleCase => self.doc().text.change_case(CaseChange::Title),
+            Command::Rot13 => self.doc().text.change_case(CaseChange::Rot13),
+            Command::Rot26 => self.message("ROT26", crate::i18n::tr("Your text has been encoded with ROT26. To revert please run ROT26 again, or ROT13 twice.").into()),
             Command::ToggleColumn if self.view.word_wrap => self.dialog = Dialog::ColumnNeedsNoWrap,
             Command::ToggleColumn => {
                 let text = &mut self.doc().text;
@@ -7208,11 +7216,11 @@ impl Limoniter {
                     self.close_dialog();
                 }
             }
-            Dialog::WindowFont { error } => {
+            Dialog::WindowFont { error, pending } => {
                 let mut close = ctx.input(|i| i.key_pressed(Key::Escape));
                 let (mut chosen, mut browse, mut usual) = (None, false, false);
                 let current = WINDOW_FONT.lock().ok().and_then(|f| f.clone());
-                let mut scale = self.window_scale;
+                let mut scale = pending.unwrap_or(self.window_scale);
                 crate::fit::Dialog::new(crate::i18n::tr("Window font and size")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                     ui.set_width(340.0);
                     ui.label(RichText::new(crate::i18n::tr("For the menus, panels, boxes and the status bar. The text's own font and size are under View, Font, and Ctrl and + or -.")).size(12.5).color(theme::text_dim()));
@@ -7242,13 +7250,16 @@ impl Limoniter {
                     ui.add_space(4.0);
                     close |= ui.button(crate::i18n::tr("Close")).clicked();
                 });
-                if (scale - self.window_scale).abs() > 0.001 {
-                    // The slider's still under the pointer while it's dragged: the window's resized when let go.
-                    if !ctx.input(|i| i.pointer.any_down()) {
+                // While the slider's dragged the window keeps its size, so the box and the slider stay still under the
+                // pointer: the new size is only remembered, and shown as a percentage, until the button is let go.
+                let dragging = ctx.input(|i| i.pointer.any_down());
+                if dragging && (scale - self.window_scale).abs() > 0.001 {
+                    *pending = Some(scale);
+                } else if !dragging {
+                    *pending = None;
+                    if (scale - self.window_scale).abs() > 0.001 {
                         self.window_scale = scale;
                         self.save_settings_if_changed();
-                    } else {
-                        self.window_scale = scale;
                     }
                 }
                 if browse {
@@ -7262,7 +7273,7 @@ impl Limoniter {
                         }
                         install_fonts(ctx, self.font_file.as_deref());
                         self.save_settings_if_changed();
-                    } else if let Dialog::WindowFont { error } = &mut self.dialog {
+                    } else if let Dialog::WindowFont { error, .. } = &mut self.dialog {
                         *error = crate::i18n::tr("That font can't be read.").to_string();
                     }
                 }
@@ -8234,6 +8245,8 @@ impl Limoniter {
                     editor.play_changes = false;
                     self.sound_effects = Some(Box::new(editor));
                 }
+                // Any section of Settings, by its number from 0, for the picture.
+                "settings-section" => self.dialog = Dialog::Settings(settings::WindowState { section: value.parse().unwrap_or(0), ..settings::WindowState::default() }),
                 "project-settings" => {
                     // The project's settings box on a tab (its number, 0 to 6), for the picture.
                     self.open_project_settings();
@@ -11821,6 +11834,21 @@ mod tests {
         command(&mut app, &ctx, Command::ToggleHex);
         command(&mut app, &ctx, Command::TitleCase);
         assert_eq!(app.docs[0].hex.bytes(), b"abc");
+    }
+
+    #[test]
+    fn rot13_twice_is_where_it_started_and_rot26_says_so() {
+        let (mut app, ctx) = app_with("");
+        set_text(&mut app, &["Hello, World! 123"]);
+        app.doc().text.select_all();
+        command(&mut app, &ctx, Command::Rot13);
+        assert_eq!(lines_of(&app), ["Uryyb, Jbeyq! 123"]);
+        app.doc().text.select_all();
+        command(&mut app, &ctx, Command::Rot13);
+        assert_eq!(lines_of(&app), ["Hello, World! 123"]);
+        command(&mut app, &ctx, Command::Rot26);
+        assert_eq!(lines_of(&app), ["Hello, World! 123"], "every letter 26 along is where it was");
+        assert!(matches!(app.dialog, Dialog::Message { .. }));
     }
 
     #[test]

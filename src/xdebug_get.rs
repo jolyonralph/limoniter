@@ -51,8 +51,7 @@ pub fn install(home: &Path) -> Result<PathBuf, String> {
         let _ = std::fs::remove_dir_all(&fresh);
         return Err(crate::i18n::tr("The download was unpacked, but phpDebug.js wasn't in it.").into());
     }
-    let _ = std::fs::remove_dir_all(home);
-    std::fs::rename(&fresh, home).map_err(|e| crate::i18n::tf!("{} couldn't be renamed: {e}", fresh.display()))?;
+    crate::emulator_get::put_in_place(&fresh, home)?;
     script_in(home).ok_or_else(|| crate::i18n::tr("The download was unpacked, but phpDebug.js wasn't in it.").into())
 }
 

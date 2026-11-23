@@ -682,7 +682,7 @@ fn draw_file_types(ui: &mut Ui, label: &str, types: &mut FileTypesState, outcome
     ui.label(crate::i18n::tr("Other types, separated by commas:"));
     ui.add(egui::TextEdit::singleline(&mut types.others).desired_width(300.0));
     ui.add_space(6.0);
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         if ui.button(crate::i18n::tr("Set as default...")).on_hover_text(crate::i18n::tr("Registers Limoniter for the ticked types, then opens the Windows page to choose it")).clicked() {
             *outcome = Some(Outcome::SetFileTypes);
         }
@@ -709,7 +709,8 @@ fn draw_file_types(ui: &mut Ui, label: &str, types: &mut FileTypesState, outcome
 }
 
 fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>, outcome: &mut Option<Outcome>) {
-    ui.horizontal(|ui| {
+    // Wrapped, so a row of many choices (autosave's delays) goes onto a second line rather than past the box's edge.
+    ui.horizontal_wrapped(|ui| {
         // The language's row has a globe beside it, found whatever language it's in.
         if kind == Special::Language {
             ui.label(format!("\u{1F310} {}", crate::i18n::tr(label)));

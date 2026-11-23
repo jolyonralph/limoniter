@@ -90,8 +90,7 @@ fn unpack_into(bytes: &[u8], home: &Path) -> Result<PathBuf, String> {
         let _ = std::fs::remove_dir_all(&fresh);
         return Err(crate::i18n::tf!("The download was unpacked, but {SERVER} wasn't in it."));
     }
-    let _ = std::fs::remove_dir_all(home);
-    std::fs::rename(&fresh, home).map_err(|e| crate::i18n::tf!("{} couldn't be renamed: {e}", fresh.display()))?;
+    crate::emulator_get::put_in_place(&fresh, home)?;
     installed_in(home).ok_or_else(|| crate::i18n::tf!("The download was unpacked, but {SERVER} wasn't in it."))
 }
 

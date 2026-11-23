@@ -207,6 +207,9 @@ pub(super) const CHANGE_CASE: &[Entry] = &[
             Keyed("lower case", Command::Lower, "Alt+L"),
             Item("Sentence case", Command::SentenceCase),
             Item("Title Case", Command::TitleCase),
+            Line,
+            Item("ROT13", Command::Rot13),
+            Item("ROT26", Command::Rot26),
         ];
 
 pub(super) const INSERT: &[Entry] = &[

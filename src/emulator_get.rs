@@ -480,6 +480,42 @@ pub(crate) fn untar(tar: &[u8], target: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Puts a freshly unpacked folder where it belongs, in place of what was there. On Windows a virus scanner often
+/// holds the new files for a moment after they're written, and the rename is refused ("Access is denied"): it's
+/// tried again for a few seconds, and if it's still refused the files are copied across instead.
+pub(crate) fn put_in_place(fresh: &Path, target: &Path) -> Result<(), String> {
+    let began = std::time::Instant::now();
+    loop {
+        let _ = std::fs::remove_dir_all(target);
+        match std::fs::rename(fresh, target) {
+            Ok(()) => return Ok(()),
+            Err(_) if began.elapsed() < std::time::Duration::from_secs(5) => std::thread::sleep(std::time::Duration::from_millis(250)),
+            Err(e) => {
+                return copy_folder(fresh, target)
+                    .map(|()| {
+                        let _ = std::fs::remove_dir_all(fresh);
+                    })
+                    .map_err(|_| crate::i18n::tf!("{} couldn't be renamed: {e}", fresh.display()));
+            }
+        }
+    }
+}
+
+/// A folder and all in it copied to another, made as it goes.
+fn copy_folder(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let place = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_folder(&entry.path(), &place)?;
+        } else {
+            std::fs::copy(entry.path(), &place)?;
+        }
+    }
+    Ok(())
+}
+
 /// Unpacks a zip into a folder. When everything in it is in one folder, that folder's contents go straight in.
 pub(crate) fn unzip(zip: Vec<u8>, target: &Path) -> Result<(), String> {
     let volume = crate::media::open(std::sync::Arc::new(zip), "release.zip")?;
@@ -530,6 +566,23 @@ pub(crate) fn find_program(folder: &Path, programs: &[&str]) -> Option<PathBuf> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_unpacked_folder_is_put_in_place_over_the_old() {
+        let base = std::env::temp_dir().join(format!("limoniter-in-place-{}", std::process::id()));
+        let (fresh, target) = (base.join("tool.new"), base.join("tool"));
+        std::fs::create_dir_all(fresh.join("lib")).unwrap();
+        std::fs::write(fresh.join("lib/new.js"), "new").unwrap();
+        std::fs::create_dir_all(&target).unwrap();
+        std::fs::write(target.join("old.js"), "old").unwrap();
+        put_in_place(&fresh, &target).unwrap();
+        assert!(target.join("lib/new.js").is_file() && !target.join("old.js").exists() && !fresh.exists());
+        // The copy used when a rename keeps being refused.
+        let other = base.join("copy");
+        copy_folder(&target, &other).unwrap();
+        assert_eq!(std::fs::read_to_string(other.join("lib/new.js")).unwrap(), "new");
+        let _ = std::fs::remove_dir_all(base);
+    }
+
     use super::*;
 
     #[test]

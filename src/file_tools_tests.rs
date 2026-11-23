@@ -618,9 +618,20 @@ fn the_window_has_its_own_size_apart_from_the_text() {
     let back = Limoniter::build(kept, None, Some(PathBuf::from("never-written.png")));
     assert!((back.window_scale - 1.5).abs() < 0.001);
     // The box draws.
-    app.dialog = Dialog::WindowFont { error: String::new() };
+    app.dialog = Dialog::WindowFont { error: String::new(), pending: None };
     frame(&mut app, &ctx, Vec::new());
     assert!(matches!(app.dialog, Dialog::WindowFont { .. }));
+    // Dragged to 125%: the window, and the box with it, keep their size until the button's let go.
+    let before = app.window_scale;
+    app.dialog = Dialog::WindowFont { error: String::new(), pending: Some(1.25) };
+    let at = egui::pos2(5.0, 5.0);
+    frame(&mut app, &ctx, vec![egui::Event::PointerMoved(at), egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE }]);
+    frame(&mut app, &ctx, Vec::new());
+    assert!((app.window_scale - before).abs() < 0.001, "not while it's dragged");
+    assert!(matches!(app.dialog, Dialog::WindowFont { pending: Some(_), .. }));
+    frame(&mut app, &ctx, vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE }]);
+    frame(&mut app, &ctx, Vec::new());
+    assert!((app.window_scale - 1.25).abs() < 0.001, "let go: the new size, kept");
 }
 
 /// With focus following the mouse, moving the pointer into the file beside brings it to the front, no click needed;

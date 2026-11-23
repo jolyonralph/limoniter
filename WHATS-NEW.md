@@ -2,6 +2,32 @@
 
 Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.
 
+## 0.16.4
+
+Released 23 November 2026.
+
+Limoniter 0.16.4 puts Code and Retro on the menu bar, adds File, Export and a choice of shell for the terminal, starts npm's tools on Windows, and fixes a crash, the window size slider and Settings' widths.
+
+**Menus**
+- **Code** and **Retro** on the menu bar, as the ribbon has them. **Tools** keeps what's for any file.
+- **File, Export**: Code as a picture, a tape's sound (WAV), and the tokenised BASIC programs.
+- What works on plain text (tokenising as BASIC, reformatting, Format document) is greyed out while a file shows as a notebook, a table, the data viewer or a picture.
+- **ROT13** and **ROT26** in Edit, Change case.
+
+**Windows**
+- npm's programs, such as **Intelephense** and **Prettier**, start now: Windows said they weren't found.
+- The terminal's **+** offers PowerShell, Command Prompt, Git Bash and each **WSL** distribution, and keeps the one you choose.
+- Downloaded tools (the PHP and JavaScript debuggers) are put in place even when a virus scanner holds the new files for a moment.
+
+**Notebooks**
+- **Code as a picture** on a notebook crashed Limoniter: it uses the chosen cell now, and a picture too big to draw is refused instead.
+- **Convert a number** works on what's selected in a cell.
+- The example notebook shows its **Install** button when pandas or matplotlib is missing, and installing a Python kernel adds pandas and matplotlib.
+
+**Fixes**
+- **Window font and size**: the window keeps its size while the slider's dragged, taking the new size when it's let go.
+- **Settings**: rows that were wider than the box wrap onto a second line.
+
 ## 0.16.3
 
 Released 22 November 2026.

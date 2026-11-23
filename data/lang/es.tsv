@@ -11029,3 +11029,6 @@ Command Prompt	Símbolo del sistema
 Open new terminals with	Abrir los terminales nuevos con
 The usual shell	El shell habitual
 WSL: {name}	WSL: {name}
+ROT13	ROT13
+ROT26	ROT26
+Your text has been encoded with ROT26. To revert please run ROT26 again, or ROT13 twice.	Tu texto se ha cifrado con ROT26. Para revertirlo, vuelve a usar ROT26, o ROT13 dos veces.
