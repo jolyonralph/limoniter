@@ -307,6 +307,8 @@ impl Limoniter {
                     ui.horizontal_wrapped(|ui| {
                         ui.checkbox(&mut self.view.start_page, crate::i18n::tr("Show this page when every tab is closed")).on_hover_text(crate::i18n::tr("Also in Settings, Appearance. When it's off, the window is left empty."));
                         ui.add_space(16.0);
+                        ui.checkbox(&mut self.prefs.reopen_project, crate::i18n::tr("Open the last project when Limoniter starts")).on_hover_text(crate::i18n::tr("Also in Settings, Files. The project that was open when Limoniter last closed opens again, with its files."));
+                        ui.add_space(16.0);
                         ui.label(RichText::new(crate::i18n::tr("Files and folders dropped here open.")).color(theme::text_faint()));
                     });
                     ui.add_space(16.0);

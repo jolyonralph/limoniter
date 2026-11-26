@@ -36,6 +36,8 @@ pub(super) struct Draft {
     pub search_exclude: String,
     pub follow_gitignore: bool,
     pub recency: u32,
+    /// What the recency slider always shows, one to a line.
+    pub always: String,
     pub prefs: Prefs,
     pub autosave: Option<crate::settings::AutosaveChoice>,
     pub colours: Vec<crate::file_colours::Rule>,
@@ -193,6 +195,9 @@ impl Draft {
             ui.add(egui::Slider::new(&mut self.recency, 1..=100).suffix("%"));
         });
         note(ui, "100% shows every file.");
+        heading(ui, "Always shown");
+        note(ui, "Files, folders and patterns the slider never hides, one to a line, written as in a .gitignore file: README.md, src/main.rs, docs/, *.toml. They're shown, and counted as shown, without taking a place among the newest. A right-click on a file or folder in the Explorer or the Project panel, Always show, adds it or takes it off.");
+        patterns_box(ui, "project-always-shown", &mut self.always);
     }
 
     fn editing(&mut self, ui: &mut Ui) {
@@ -404,6 +409,7 @@ impl Limoniter {
             search_exclude: prefs.search_exclude.iter().map(|p| p.clone() + "\n").collect(),
             follow_gitignore: prefs.follow_gitignore.unwrap_or(true),
             recency: project.explorer.recency.clamp(1, 100),
+            always: project.explorer.always.iter().map(|line| line.clone() + "\n").collect(),
             prefs,
             autosave: project.autosave,
             colours: project.colours.rules.clone(),
@@ -419,7 +425,7 @@ impl Limoniter {
 
     /// Keeps what was changed in the box, and brings what depends on it up to date.
     pub(super) fn apply_project_settings(&mut self, draft: Draft) {
-        let Draft { name, notes, mut hidden, hide_patterns, show_hidden, search_exclude, follow_gitignore, recency, mut prefs, autosave, colours, python, then_tasks, folder_project, vscode, imported, .. } = draft;
+        let Draft { name, notes, mut hidden, hide_patterns, show_hidden, search_exclude, follow_gitignore, recency, always, mut prefs, autosave, colours, python, then_tasks, folder_project, vscode, imported, .. } = draft;
         let Some(project) = &mut self.project else { return };
         if !name.trim().is_empty() {
             project.name = name.trim().to_string();
@@ -438,6 +444,13 @@ impl Limoniter {
             project.explorer.show_hidden = show_hidden;
         }
         project.explorer.recency = if recency >= 100 { 100 } else { recency };
+        let mut lines: Vec<String> = Vec::new();
+        for line in always.lines().filter_map(crate::explorer_kept::always_line) {
+            if !lines.contains(&line) {
+                lines.push(line);
+            }
+        }
+        project.explorer.always = lines;
         prefs.search_exclude = lines_of(&search_exclude);
         prefs.follow_gitignore = (!follow_gitignore).then_some(false);
         // A value the person left on its own setting is never written.

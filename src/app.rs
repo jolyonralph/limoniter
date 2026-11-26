@@ -1885,6 +1885,8 @@ pub struct Limoniter {
     music_is_module: Option<(u64, u64, bool)>,
     project: Option<Project>,
     recent_projects: Vec<PathBuf>,
+    /// The project open when the settings were last saved, opened again at start if Settings asks for it.
+    last_project: Option<PathBuf>,
     /// Backing up or restoring on another thread, and whether it's a restore.
     project_job: Option<(project::Outcome, bool)>,
     /// A macro or script that's running. While it is, nothing else can touch the files.
@@ -2076,14 +2078,17 @@ impl Limoniter {
         }
         install_fonts(&cc.egui_ctx, font_file.as_deref());
         let mut app = Self::build(settings, font_file, screenshot);
+        // A window for one diff or merge, as Git asks for, doesn't take files opened from elsewhere.
+        let tool = launch.is_some();
+        if files.is_empty() && !tool && app.screenshot.is_none() {
+            app.reopen_last_project();
+        }
         for file in &files {
             app.open_path(file);
         }
         if app.docs.is_empty() {
             app.new_document();
         }
-        // A window for one diff or merge, as Git asks for, doesn't take files opened from elsewhere.
-        let tool = launch.is_some();
         if let Some(launch) = launch {
             app.waker = Some(cc.egui_ctx.clone());
             app.start_tool(launch);
@@ -2118,6 +2123,7 @@ impl Limoniter {
         panels.recent = list_setting(&settings, "recent_file").into_iter().map(PathBuf::from).collect();
         let new_file_preset = preset_from_settings(&settings);
         let recent_projects = list_setting(&settings, "recent_project").into_iter().map(PathBuf::from).collect();
+        let last_project = list_setting(&settings, "last_project").pop().map(PathBuf::from);
         // Beside the settings, unless this is a test or a screenshot run with nowhere of its own to write.
         let script_home = if cfg!(test) || (screenshot.is_some() && std::env::var_os("LIMONITER_SETTINGS").is_none()) { None } else { settings_path().and_then(|path| path.parent().map(Path::to_path_buf)) };
         let assist_log = assistant_log::Log::open(script_home.as_deref());
@@ -2376,6 +2382,7 @@ impl Limoniter {
             music_is_module: None,
             project: None,
             recent_projects,
+            last_project,
             project_job: None,
             screenshot: screenshot.map(|path| ScreenshotRun { path, frames: 0, requested: false, saved: Arc::new(AtomicBool::new(false)), steps: std::collections::VecDeque::new(), quiet: 0 }),
         }
@@ -3345,6 +3352,13 @@ impl Limoniter {
         self.project = Some(Project::new(&path));
         self.panels.project = true;
         self.save_project();
+    }
+
+    /// At start, with Settings, Files asking for it: the project open when Limoniter last closed, if it's still there.
+    fn reopen_last_project(&mut self) {
+        if let Some(path) = self.last_project.clone().filter(|path| self.prefs.reopen_project && path.exists()) {
+            self.open_project(&path);
+        }
     }
 
     fn open_project(&mut self, path: &Path) {
@@ -5750,7 +5764,7 @@ impl Limoniter {
             self.find.history.iter().map(|text| format!("find_history={text}\n")).collect::<String>(),
             self.find.favourites.iter().map(|text| format!("find_favourite={text}\n")).collect::<String>(),
             self.find.favorite_files.iter().map(|path| format!("favorite_file={}\n", path.display())).collect::<String>(),
-            self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>(),
+            self.recent_projects.iter().map(|path| format!("recent_project={}\n", path.display())).collect::<String>() + self.project.as_ref().map(|project| format!("last_project={}\n", project.path.display())).unwrap_or_default().as_str(),
             self.library.to_settings() + self.addons.to_settings().as_str() + self.remote_settings().as_str() + self.sends.to_settings().as_str() + self.running.to_settings().as_str() + self.php.to_settings().as_str() + self.git.to_settings().as_str() + self.amiga_palette.to_setting().as_str() + self.control_keys.to_settings().as_str() + self.themes.to_settings().as_str() + crate::vsix::to_settings().as_str(),
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
@@ -12723,6 +12737,29 @@ mod tests {
         assert_eq!(again.recent_projects, [path]);
         drop(app);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_last_project_opens_again_at_start_only_when_asked() {
+        let (mut app, _ctx) = app_with("");
+        let dir = project_folder("last");
+        std::fs::write(dir.join("a.txt"), "aaa").unwrap();
+        app.new_project(dir.join("p"));
+        let path = dir.join("p.limproj");
+        let settings = app.current_settings();
+        assert!(settings.contains(&format!("last_project={}\n", path.display())));
+        let (mut off, _) = app_with(&settings);
+        off.reopen_last_project();
+        assert!(off.project.is_none(), "off by default");
+        let (mut on, _) = app_with(&(settings.clone() + "reopen_project=true\n"));
+        on.reopen_last_project();
+        assert_eq!(on.project.as_ref().map(|project| project.path.clone()), Some(path.clone()));
+        app.close_project();
+        assert!(!app.current_settings().contains("last_project="), "a project closed before quitting stays closed");
+        std::fs::remove_dir_all(&dir).unwrap();
+        let (mut gone, _) = app_with(&(settings + "reopen_project=true\n"));
+        gone.reopen_last_project();
+        assert!(gone.project.is_none(), "a project that's gone is left alone");
     }
 
     #[test]

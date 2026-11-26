@@ -210,6 +210,10 @@ impl Limoniter {
                 kept.recency = share.min(100);
                 index = false;
             }
+            Act::AlwaysShow(rule) => {
+                kept.toggle_always(rule);
+                index = false;
+            }
             Act::HideBuildFolders(names) => {
                 kept.offered = true;
                 for name in names {
@@ -449,7 +453,7 @@ impl Limoniter {
                 self.colour_folder(&folder, tint);
                 false
             }
-            Act::Hide(_) | Act::ShowAgain { .. } | Act::ShowHidden(_) | Act::RecentDays(_) | Act::Recency(_) | Act::HideBuildFolders(_) => {
+            Act::Hide(_) | Act::ShowAgain { .. } | Act::ShowHidden(_) | Act::RecentDays(_) | Act::Recency(_) | Act::AlwaysShow(_) | Act::HideBuildFolders(_) => {
                 self.explorer_setting(act);
                 false
             }
@@ -746,6 +750,18 @@ mod tests {
         app.apply_project_settings(*draft);
         index_now(&mut app, &ctx);
         assert_eq!(names(&app), ["build/out.s", "notes.txt", "src/main.o", "src/main.s"]);
+        // Always show, from a right-click, goes on the list kept with the project, and the same item takes it off.
+        act(&mut app, crate::explorer::Act::AlwaysShow("notes.txt".into()));
+        act(&mut app, crate::explorer::Act::AlwaysShow("src/".into()));
+        assert_eq!(Project::load(&app.project.as_ref().unwrap().path).unwrap().explorer.always, ["notes.txt", "src/"]);
+        act(&mut app, crate::explorer::Act::AlwaysShow("src/".into()));
+        app.open_project_settings();
+        let Dialog::ProjectSettings(draft) = &mut app.dialog else { panic!("open") };
+        assert_eq!(draft.always, "notes.txt\n");
+        draft.always.push_str("docs/\n\\abs\n../out\nnotes.txt\n");
+        let Dialog::ProjectSettings(draft) = std::mem::replace(&mut app.dialog, Dialog::None) else { panic!("still open") };
+        app.apply_project_settings(*draft);
+        assert_eq!(app.project.as_ref().unwrap().explorer.always, ["notes.txt", "docs/", "/abs"], "tidied, once each, never out of the project");
         // Saving a file in the folder keeps when, with the project, for the Explorer's recently edited files.
         assert!(app.open_path(&root.join("notes.txt")));
         let index = app.active;

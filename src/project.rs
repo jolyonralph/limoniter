@@ -554,6 +554,19 @@ struct Marks<'a> {
     active: Option<&'a Path>,
     base: &'a Path,
     colours: &'a crate::file_colours::Colours,
+    /// What the recency slider always shows, for the Always show item's tick.
+    always: &'a [String],
+}
+
+/// Always show, in a right-click on a file or folder of the tree: ticked when it's on the list, so the same item
+/// takes it off.
+fn always_item(ui: &mut Ui, marks: &Marks<'_>, path: &Path, is_folder: bool, actions: &mut Vec<PanelAction>) {
+    let rule = crate::explorer_kept::always_rule(&stored(marks.base, path), is_folder);
+    let mut on = marks.always.contains(&rule);
+    if ui.checkbox(&mut on, crate::i18n::tr("Always show")).on_hover_text(crate::i18n::tr("Shown whatever the Newest slider says, without taking a place among the newest. Kept with the project, in Project settings, Files")).clicked() {
+        actions.push(PanelAction::Explorer(crate::explorer::Act::AlwaysShow(rule)));
+        ui.close();
+    }
 }
 
 fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, marks: &Marks<'_>, actions: &mut Vec<PanelAction>, open_all: bool) {
@@ -571,6 +584,7 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, marks: 
                 actions.push(PanelAction::CompareWithHead(here.clone()));
                 ui.close();
             }
+            always_item(ui, marks, &here, true, actions);
         });
     }
     for (name, path) in &folder.files {
@@ -599,6 +613,7 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, marks: 
                 actions.push(PanelAction::Remove(path.clone()));
                 ui.close();
             }
+            always_item(ui, marks, path, false, actions);
         });
     }
 }
@@ -640,7 +655,7 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
     state.explorer.recency.update_cut(&base, &project.explorer);
     let tree = tree_of(project, &state.filter, &state.explorer.recency);
     let room = if state.explorer.recency.tall(&project.explorer) { 52.0 } else { 30.0 };
-    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).max_height((ui.available_height() - room).max(40.0)).show(ui, |ui| draw_tree(ui, &tree, "project", &base, &Marks { active, base: &base, colours: &project.colours }, &mut actions, !state.filter.trim().is_empty()));
+    egui::ScrollArea::both().id_salt("project-scroll").auto_shrink([false, false]).max_height((ui.available_height() - room).max(40.0)).show(ui, |ui| draw_tree(ui, &tree, "project", &base, &Marks { active, base: &base, colours: &project.colours, always: &project.explorer.always }, &mut actions, !state.filter.trim().is_empty()));
     let mut acts = Vec::new();
     state.explorer.recency.slider(ui, &project.explorer, &mut acts);
     actions.extend(acts.into_iter().map(PanelAction::Explorer));

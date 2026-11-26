@@ -109,12 +109,15 @@ pub enum Part {
 pub struct Dialog<'a> {
     window: egui::Window<'a>,
     fixed_size: Option<Vec2>,
+    /// Asked for in the middle of the window, this far off it: it starts there and can then be moved, as people
+    /// expect of boxes (an egui anchor would pin it).
+    centred: Option<Vec2>,
 }
 
 impl<'a> Dialog<'a> {
     #[allow(clippy::disallowed_methods, reason = "this is the one place a box is made")]
     pub fn new(title: impl IntoAtoms<'a>) -> Self {
-        Self { window: egui::Window::new(title), fixed_size: None }
+        Self { window: egui::Window::new(title), fixed_size: None, centred: None }
     }
 
     pub fn id(self, id: Id) -> Self {
@@ -137,7 +140,12 @@ impl<'a> Dialog<'a> {
         Self { window: self.window.title_bar(title_bar), ..self }
     }
 
+    /// Where the box goes. In the middle, it starts there and can be dragged away; at an edge or a corner it's kept
+    /// there.
     pub fn anchor(self, align: Align2, offset: impl Into<Vec2>) -> Self {
+        if align == Align2::CENTER_CENTER {
+            return Self { centred: Some(offset.into()), ..self };
+        }
         Self { window: self.window.anchor(align, offset), ..self }
     }
 
@@ -180,9 +188,13 @@ impl<'a> Dialog<'a> {
 
     /// The window as egui shows it, with a fixed size brought within the screen.
     fn window(self, ctx: &Context) -> egui::Window<'a> {
-        match self.fixed_size {
-            Some(size) => self.window.fixed_size(size.min(ctx.content_rect().size())),
+        let window = match self.centred {
+            Some(offset) => self.window.pivot(Align2::CENTER_CENTER).default_pos(ctx.content_rect().center() + offset),
             None => self.window,
+        };
+        match self.fixed_size {
+            Some(size) => window.fixed_size(size.min(ctx.content_rect().size())),
+            None => window,
         }
     }
 
@@ -320,6 +332,36 @@ fn popup_menu_as<R>(button: &Response, kept_open: bool, add: impl FnOnce(&mut Ui
 
 #[cfg(test)]
 mod tests {
+    /// A box asked for in the middle starts there, and its title bar drags it away, as people expect.
+    #[test]
+    fn a_centred_box_starts_in_the_middle_and_can_be_moved() {
+        let ctx = Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 800.0));
+        let input = |events: Vec<egui::Event>| egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+        let mut rect = egui::Rect::NOTHING;
+        let draw = |events: Vec<egui::Event>, rect: &mut egui::Rect| {
+            let _ = ctx.run_ui(input(events), |ui| {
+                if let Some(shown) = Dialog::new("Box").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, [0.0, 0.0]).show(ui.ctx(), |ui| ui.label("Something in it")) {
+                    *rect = shown.response.rect;
+                }
+            });
+        };
+        draw(Vec::new(), &mut rect);
+        draw(Vec::new(), &mut rect);
+        assert!((rect.center() - screen.center()).length() < 2.0, "{rect:?}");
+        // Pressed on the title bar, moved 150 to the right and 100 down, let go.
+        let from = egui::pos2(rect.center().x, rect.top() + 8.0);
+        let to = from + egui::vec2(150.0, 100.0);
+        let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        let before = rect;
+        draw(vec![egui::Event::PointerMoved(from), button(from, true)], &mut rect);
+        draw(vec![egui::Event::PointerMoved(from + egui::vec2(20.0, 10.0))], &mut rect);
+        draw(vec![egui::Event::PointerMoved(to)], &mut rect);
+        draw(vec![button(to, false)], &mut rect);
+        draw(Vec::new(), &mut rect);
+        assert!((rect.center() - (before.center() + egui::vec2(150.0, 100.0))).length() < 3.0, "moved with the pointer: {before:?} to {rect:?}");
+    }
+
     use super::*;
 
     fn screen(width: f32, height: f32) -> egui::RawInput {

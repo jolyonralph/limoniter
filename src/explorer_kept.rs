@@ -119,13 +119,16 @@ pub struct Kept {
     pub recency: u32,
     /// Whether the folder's build and dependency folders have been offered for hiding, so they're offered once.
     pub offered: bool,
+    /// Files, folders and patterns the recency slider never hides, written as lines of .gitignore are
+    /// ("README.md", "src/main.rs", "docs/", "*.toml").
+    pub always: Vec<String>,
     /// When Limoniter last saved each file, in seconds since 1970, by its whole path.
     pub saved: BTreeMap<PathBuf, u64>,
 }
 
 impl Default for Kept {
     fn default() -> Self {
-        Kept { hidden: Vec::new(), show_hidden: false, recent_days: RECENT_DAYS, recency: 100, offered: false, saved: BTreeMap::new() }
+        Kept { hidden: Vec::new(), show_hidden: false, recent_days: RECENT_DAYS, recency: 100, offered: false, always: Vec::new(), saved: BTreeMap::new() }
     }
 }
 
@@ -161,6 +164,9 @@ impl Kept {
         if self.offered {
             value.insert("offered".into(), json!(true));
         }
+        if !self.always.is_empty() {
+            value.insert("always".into(), json!(self.always));
+        }
         if !self.saved.is_empty() {
             value.insert("saved".into(), Value::Object(self.saved.iter().map(|(path, when)| (crate::project::stored(base, path), json!(when))).collect()));
         }
@@ -175,6 +181,7 @@ impl Kept {
         kept.recent_days = value.get("recent_days").and_then(Value::as_u64).map_or(RECENT_DAYS, |days| days.min(u64::from(MOST_RECENT_DAYS)) as u32);
         kept.recency = value.get("recency").and_then(Value::as_u64).map_or(100, |share| share.min(100) as u32);
         kept.offered = value.get("offered").and_then(Value::as_bool).unwrap_or(false);
+        kept.always = value.get("always").and_then(Value::as_array).map_or_else(Vec::new, |items| items.iter().filter_map(Value::as_str).filter_map(always_line).collect());
         kept.saved = value.get("saved").and_then(Value::as_object).map_or_else(BTreeMap::new, |map| map.iter().filter_map(|(path, when)| Some((crate::project::resolved(base, path), when.as_u64()?))).collect());
         kept
     }
@@ -195,6 +202,15 @@ impl Kept {
         let (back, kept): (Vec<Hide>, Vec<Hide>) = std::mem::take(&mut self.hidden).into_iter().partition(|rule| hidden_by(std::slice::from_ref(rule), root, path, is_folder));
         self.hidden = kept;
         back
+    }
+
+    /// Puts a file or folder on the list the recency slider always shows, or takes it off if it's there already.
+    pub fn toggle_always(&mut self, rule: String) {
+        if let Some(at) = self.always.iter().position(|kept| *kept == rule) {
+            self.always.remove(at);
+        } else {
+            self.always.push(rule);
+        }
     }
 
     /// Notes that Limoniter has just saved a file, and forgets saves too long ago to matter.
@@ -328,6 +344,37 @@ pub fn outside_times(root: &Path, files: &[PathBuf], days: u32) -> HashMap<PathB
     files.iter().filter_map(|path| outside_time(git.as_ref(), path, || std::fs::metadata(path).and_then(|m| m.modified()).ok()).filter(|&when| within(when, now, days)).map(|when| (path.clone(), when))).collect()
 }
 
+/// A line of the always-shown list as it's kept: tidied, or nothing for a comment, a ! line or one reaching out of
+/// the project.
+pub fn always_line(line: &str) -> Option<String> {
+    let line = line.trim().replace('\\', "/");
+    (!line.is_empty() && !line.starts_with(['#', '!']) && !line.split('/').any(|part| part == "..")).then_some(line)
+}
+
+/// How a file or folder goes on the always-shown list from a right-click: its place in the project, a folder's
+/// with / after it.
+pub fn always_rule(relative: &str, is_folder: bool) -> String {
+    if is_folder { format!("{relative}/") } else { relative.to_string() }
+}
+
+/// Whether the recency slider always shows a file or folder in the project at `root`: it's on the list, or in a
+/// folder that is.
+pub fn always_shows(rules: &[String], root: &Path, path: &Path, is_folder: bool) -> bool {
+    crate::workspace::excluded(rules, root, path, is_folder)
+}
+
+/// Whether a folder, by its place in the project written with /, holds something on the always-shown list by its
+/// whole place ("src/main.rs" for "src"), so a folder's Explorer keeps the way to it open. A name or pattern found
+/// anywhere is shown only in the folders shown.
+pub fn leads_to_always(rules: &[String], folder: &str) -> bool {
+    let inside = format!("{folder}/");
+    rules.iter().any(|rule| {
+        let rule = rule.trim_start_matches('/');
+        let literal = rule.find(['*', '?', '[']).map_or(rule, |at| &rule[..at]);
+        literal.starts_with(&inside)
+    })
+}
+
 /// When each of a folder's files was last edited, for all of them rather than only the recent ones: Git's date where
 /// it vouches for the file, and otherwise the file's modified date. For the Explorer's recency slider.
 pub fn every_time(root: &Path, files: &[PathBuf]) -> HashMap<PathBuf, SystemTime> {
@@ -347,14 +394,16 @@ pub struct Cut {
 }
 
 impl Cut {
-    pub fn new(root: &Path, times: &[(PathBuf, SystemTime)], share: u32) -> Cut {
-        let mut order: Vec<&(PathBuf, SystemTime)> = times.iter().collect();
+    /// Files on the always-shown list are shown, and counted as shown, without taking a place among the newest.
+    pub fn new(root: &Path, times: &[(PathBuf, SystemTime)], share: u32, always: &[String]) -> Cut {
+        let (kept, mut order): (Vec<&(PathBuf, SystemTime)>, Vec<&(PathBuf, SystemTime)>) = times.iter().partition(|(path, _)| always_shows(always, root, path, false));
         order.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         let share = share.min(100) as usize;
-        let shown = if share == 0 { 0 } else { (order.len() * share / 100).max(1).min(order.len()) };
-        let mut cut = Cut { shown, ..Cut::default() };
-        for (index, (path, _)) in order.into_iter().enumerate() {
-            if index >= shown {
+        let newest = if share == 0 { 0 } else { (order.len() * share / 100).max(1).min(order.len()) };
+        let mut cut = Cut { shown: newest + kept.len(), ..Cut::default() };
+        let ranked = order.into_iter().enumerate().map(|(index, entry)| (index < newest, entry));
+        for (shown, (path, _)) in kept.into_iter().map(|entry| (true, entry)).chain(ranked) {
+            if !shown {
                 cut.hidden_files.insert(path.clone());
                 continue;
             }
@@ -527,7 +576,7 @@ mod tests {
         let root = PathBuf::from("/w");
         let all = times(&root, &[("old.s", 10), ("src/b.s", 50), ("src/a.s", 50), ("lib/deep/c.s", 30), ("new.s", 90)]);
         let hidden = |share| {
-            let cut = Cut::new(&root, &all, share);
+            let cut = Cut::new(&root, &all, share, &[]);
             let mut names: Vec<_> = cut.hidden_files.iter().map(|p| p.strip_prefix(&root).unwrap().to_string_lossy().into_owned()).collect();
             names.sort();
             (cut.shown, names)
@@ -538,21 +587,21 @@ mod tests {
         assert_eq!(hidden(40), (2, vec!["lib/deep/c.s".to_string(), "old.s".to_string(), "src/b.s".to_string()]));
         assert_eq!(hidden(1).0, 1, "something is shown at any share above 0");
         assert_eq!(hidden(0).0, 0);
-        assert_eq!(Cut::new(&root, &all, 0).hidden(), 5);
+        assert_eq!(Cut::new(&root, &all, 0, &[]).hidden(), 5);
     }
 
     #[test]
     fn a_folder_is_hidden_when_nothing_under_it_is_shown() {
         let root = PathBuf::from("/w");
         let all = times(&root, &[("lib/deep/c.s", 30), ("src/a.s", 50), ("new.s", 90)]);
-        let cut = Cut::new(&root, &all, 70);
+        let cut = Cut::new(&root, &all, 70, &[]);
         assert_eq!(cut.shown, 2);
         assert!(cut.hides(&root.join("lib"), true) && cut.hides(&root.join("lib/deep"), true));
         assert!(!cut.hides(&root.join("src"), true) && !cut.hides(&root.join("new.s"), false));
         assert!(cut.hides(&root.join("lib/deep/c.s"), false));
-        let cut = Cut::new(&root, &all, 100);
+        let cut = Cut::new(&root, &all, 100, &[]);
         assert!(cut.hidden_files.is_empty() && !cut.hides(&root.join("lib/deep"), true));
-        let cut = Cut::new(&root, &all, 0);
+        let cut = Cut::new(&root, &all, 0, &[]);
         assert!(cut.hides(&root.join("src"), true));
     }
 
@@ -569,8 +618,8 @@ mod tests {
         assert_eq!(count_line(1, 0), "1 file shown, none hidden");
         let root = PathBuf::from("/w");
         let all = times(&root, &[("a", 1), ("b", 2), ("c", 3), ("d", 4)]);
-        assert_eq!(Cut::new(&root, &all, 25).said(), "1 file shown, 3 hidden");
-        assert_eq!(Cut::new(&root, &all, 0).said(), "No files shown, 4 hidden");
+        assert_eq!(Cut::new(&root, &all, 25, &[]).said(), "1 file shown, 3 hidden");
+        assert_eq!(Cut::new(&root, &all, 0, &[]).said(), "No files shown, 4 hidden");
     }
 
     #[test]
@@ -595,5 +644,36 @@ mod tests {
         let times = every_time(&dir, &[file.clone(), dir.join("missing.txt")]);
         assert!(times.contains_key(&file) && times.len() == 1);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn what_is_always_shown_is_never_cut_and_takes_no_place_among_the_newest() {
+        let root = PathBuf::from("/w");
+        let all = times(&root, &[("README.md", 1), ("docs/a.md", 2), ("src/main.rs", 3), ("src/b.rs", 50), ("new.rs", 90)]);
+        let always = ["README.md".to_string(), "docs/".to_string(), "src/main.rs".to_string()];
+        let cut = Cut::new(&root, &all, 50, &always);
+        assert_eq!(cut.said(), "4 files shown, 1 hidden", "half of the two ranked, and the three always shown");
+        assert!(cut.hides(&root.join("src/b.rs"), false));
+        assert!(!cut.hides(&root.join("docs/a.md"), false) && !cut.hides(&root.join("docs"), true) && !cut.hides(&root.join("src"), true));
+        assert_eq!(Cut::new(&root, &all, 0, &always).said(), "3 files shown, 2 hidden");
+        assert!(leads_to_always(&always, "src") && !leads_to_always(&always, "lib") && !leads_to_always(&["*.toml".to_string()], "src"));
+        assert!(leads_to_always(&["/src/deep/*.rs".to_string()], "src/deep"));
+    }
+
+    #[test]
+    fn the_always_shown_list_is_kept_and_toggled() {
+        let base = PathBuf::from("/w");
+        let mut kept = Kept::default();
+        kept.toggle_always(always_rule("docs", true));
+        kept.toggle_always(always_rule("src/main.rs", false));
+        assert_eq!(kept.always, ["docs/", "src/main.rs"]);
+        let value = kept.to_json(&base);
+        assert_eq!(Kept::from_json(Some(&value), &base).always, kept.always);
+        kept.toggle_always("docs/".into());
+        assert_eq!(kept.always, ["src/main.rs"], "the same item takes it off");
+        assert_eq!(always_line(r" src\x.rs "), Some("src/x.rs".to_string()));
+        assert_eq!(always_line("../up.txt"), None);
+        assert_eq!(always_line("# note"), None);
+        assert!(Kept::default().to_json(&base).get("always").is_none());
     }
 }

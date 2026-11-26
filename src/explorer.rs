@@ -181,6 +181,8 @@ pub enum Act {
     RecentDays(u32),
     /// The share of the project's files shown, in per cent, the most recently edited first.
     Recency(u32),
+    /// A file or folder put on the list the recency slider always shows, or taken off it, as the list writes it.
+    AlwaysShow(String),
     /// The answer to the offer to hide the folder's build and dependency folders: these to hide, or none.
     HideBuildFolders(Vec<String>),
     /// The list of what's hidden, in the project's settings.
@@ -236,7 +238,7 @@ pub struct Recency {
     every_count: u64,
     /// What the slider leaves out, and what that was worked out from.
     pub cut: Option<Cut>,
-    cut_from: Option<(u32, u64, usize, Option<u64>)>,
+    cut_from: Option<(u32, u64, usize, Option<u64>, Vec<String>)>,
     /// The share the slider is being dragged to, before it's let go and kept.
     pub slider: Option<u32>,
     /// In a folder's Explorer, the share this frame's folders are cut to; and the files shown and hidden in the
@@ -244,6 +246,8 @@ pub struct Recency {
     share_now: u32,
     counting: (usize, usize),
     counted: Option<(usize, usize)>,
+    /// What the slider always shows, as the project keeps it, for the folders drawn this frame and the menus.
+    pub always: Vec<String>,
 }
 
 /// The entries of one folder the recency slider leaves out of a folder's Explorer: its files by when they were
@@ -310,13 +314,14 @@ impl Recency {
     /// changed.
     pub fn update_cut(&mut self, root: &Path, kept: &Kept) {
         let share = self.slider.unwrap_or(kept.recency);
-        let from = (share, self.every_count, kept.saved.len(), kept.saved.values().max().copied());
+        self.always.clone_from(&kept.always);
+        let from = (share, self.every_count, kept.saved.len(), kept.saved.values().max().copied(), kept.always.clone());
         if share >= 100 {
             self.cut = None;
             self.cut_from = None;
             return;
         }
-        if self.cut_from == Some(from) {
+        if self.cut_from.as_ref() == Some(&from) {
             return;
         }
         self.cut_from = Some(from);
@@ -325,7 +330,7 @@ impl Recency {
             return;
         };
         let times: Vec<(PathBuf, SystemTime)> = every.iter().filter_map(|(path, &outside)| Some((path.clone(), kept::last_edited(kept.saved_at(path), Some(outside))?))).collect();
-        self.cut = Some(Cut::new(root, &times, share));
+        self.cut = Some(Cut::new(root, &times, share, &kept.always));
     }
 
     /// The slider at the bottom: how much of the project shows, the most recently edited files first.
@@ -535,6 +540,7 @@ impl Explorer {
         // The folder's Explorer cuts each folder's own listing as it's drawn (see `listing_cut`).
         self.recency.cut = None;
         self.recency.share_now = self.recency.slider.unwrap_or(kept.recency);
+        self.recency.always.clone_from(&kept.always);
         self.recency.counted = (self.recency.share_now < 100).then_some(self.recency.counting);
         self.recency.counting = (0, 0);
         if let Some(active) = active
@@ -622,10 +628,13 @@ impl Explorer {
             self.editing_row(ui, depth, if is_folder { "\u{25B8} " } else { "" }, acts);
         }
         let entries = self.listing(folder);
-        // Edits Limoniter and Git know of lately count over a file's or folder's own date.
+        // Edits Limoniter and Git know of lately count over a file's or folder's own date. What's always shown, and
+        // the folders on the way to it, are left out of the ranking, so they're never cut and don't take a place.
+        let always = &self.recency.always;
         let times: Vec<(&Path, Option<SystemTime>)> = entries
             .iter()
             .filter(|e| !e.hidden)
+            .filter(|e| always.is_empty() || !(kept::always_shows(always, root, &e.path, e.folder) || e.folder && kept::leads_to_always(always, &relative(root, &e.path))))
             .map(|e| {
                 let known = if e.folder { self.recent_folders.get(&e.path) } else { self.recent_files.get(&e.path) };
                 (e.path.as_path(), known.copied().max(e.changed))
@@ -845,6 +854,14 @@ impl Explorer {
             // Already in the words wanted, which are their own translation.
             item(ui, &crate::i18n::tf!("Hide .{end} files"), Act::Hide(Hide::Kind(end)));
         }
+        // Shown whatever the recency slider says; ticked when it's on the list, so the same item takes it off.
+        let rule = kept::always_rule(&relative(root, &path), entry.folder);
+        let mut on = self.recency.always.contains(&rule);
+        let mut always = None;
+        if ui.checkbox(&mut on, crate::i18n::tr("Always show")).on_hover_text(crate::i18n::tr("Shown whatever the Newest slider says, without taking a place among the newest. Kept with the project, in Project settings, Files")).clicked() {
+            always = Some(Act::AlwaysShow(rule));
+            ui.close();
+        }
         // Coloured, kept with the project: a file alone, or every file in a folder by a rule for it.
         let place = relative(root, &path);
         let mut coloured = None;
@@ -868,6 +885,7 @@ impl Explorer {
         }
         item(ui, "Move to the Recycle Bin", Act::Delete(path));
         acts.extend(coloured);
+        acts.extend(always);
     }
 
     /// The box a name is typed in: Enter makes it, Escape leaves it.

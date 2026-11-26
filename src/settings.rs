@@ -127,6 +127,8 @@ pub struct Prefs {
     pub autosave_skip_errors: bool,
     /// Quitting with unsaved or never-saved files doesn't ask: they come back as they were next time.
     pub hot_exit: bool,
+    /// The project open when Limoniter last closed opens again when it starts.
+    pub reopen_project: bool,
     /// The first save of a file in a session keeps the file as it was beside it, ending .bak.
     pub backup_on_save: bool,
     /// How Spectrum BASIC listings write block graphics and UDGs.
@@ -208,7 +210,7 @@ impl AutosaveWhen {
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, code_spelling: crate::code_spelling::CodeSpelling::Comments, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, code_spelling: crate::code_spelling::CodeSpelling::Comments, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, reopen_project: false, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, language: "en" }
     }
 }
 
@@ -216,7 +218,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -256,7 +258,8 @@ impl Prefs {
             self.autosave_when.id(),
             self.autosave_skip_errors,
             self.hot_exit,
-            self.code_spelling.id()
+            self.code_spelling.id(),
+            self.reopen_project
         )
     }
 
@@ -362,6 +365,7 @@ impl Prefs {
                 "autosave" => &mut prefs.autosave,
                 "autosave_skip_errors" => &mut prefs.autosave_skip_errors,
                 "hot_exit" => &mut prefs.hot_exit,
+                "reopen_project" => &mut prefs.reopen_project,
                 "backup_on_save" => &mut prefs.backup_on_save,
                 "opticos_updates" => &mut prefs.opticos_updates,
                 "update_checks" => &mut prefs.update_checks,
@@ -635,6 +639,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Keep unsaved files when quitting", "Quitting with unsaved or never-saved files doesn't ask: they come back as they were the next time Limoniter starts. Turn this off to be asked about each one", |t| &mut t.prefs.hot_exit),
             Row::Flag("Keep a backup when saving", "The first time a file is saved in a session, the file as it was is kept beside it, with .bak added to its name", |t| &mut t.prefs.backup_on_save),
             Row::Heading("Opening"),
+            Row::Flag("Open the last project when Limoniter starts", "The project that was open when Limoniter last closed opens again, with its files. Not when Limoniter is started to open a file. Also on the start page", |t| &mut t.prefs.reopen_project),
             Row::Flag("Open CSV and TSV files as tables", "Files ending .csv, .tsv, .tab or .psv go straight into table view", |t| &mut t.prefs.open_tables),
             Row::Flag("Open each file in a new window", "When a file is opened from Explorer. When off, it opens as a tab in the Limoniter window already open", |t| &mut t.prefs.new_window_per_file),
             Row::Special("Format for new files", Special::Preset),
@@ -1072,6 +1077,7 @@ mod tests {
             autosave_when: AutosaveWhen::OnWindowChange,
             autosave_skip_errors: true,
             hot_exit: false,
+            reopen_project: true,
             backup_on_save: true,
             zx_notation: crate::zx_graphics::Notation::Bas2tap,
             m68k_processor: crate::asm::m68k::Processor::M68008,
