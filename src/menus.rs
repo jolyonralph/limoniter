@@ -1720,6 +1720,15 @@ impl Limoniter {
                                 ui.close();
                             }
                         }
+                        // A C program for the Amiga is usually a project (makefiles for amiga-gcc, vbcc and SAS/C),
+                        // so it's offered beside the single files.
+                        if group == "Amiga" {
+                            ui.separator();
+                            if ui.button(crate::i18n::tr("New Amiga C project\u{2026}")).clicked() {
+                                picks.push(Pick::Command(Command::AmigaNewProject));
+                                ui.close();
+                            }
+                        }
                     });
                 }
                 // The project's own templates, under its name.
