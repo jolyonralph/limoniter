@@ -11314,3 +11314,79 @@ will be downloaded	sera téléchargé
 {} (from {})	{} (depuis {})
 {}. Copied as {}: the original isn't moved or changed.	{}. Copié sous le nom {} : l'original n'est ni déplacé ni modifié.
 ✔ AROS (free, built in)	✔ AROS (libre, intégré)
+5-hour	5 heures
+Agent:	Agent :
+Allow for this session	Autoriser pour cette session
+Allow once	Autoriser une fois
+An AI agent works on this project beside you: it reads and changes files, runs commands, and asks before it does.	Un agent IA travaille sur ce projet à vos côtés : il lit et modifie des fichiers, exécute des commandes et demande avant de le faire.
+Ask for something. Enter sends, Shift+Enter starts a new line, @ names a file.	Demandez quelque chose. Enter envoie, Shift+Enter commence une nouvelle ligne, @ désigne un fichier.
+Carry on with this session	Poursuivre cette session
+Claude Code didn't answer.	Claude Code n'a pas répondu.
+Claude Code has finished.	Claude Code a terminé.
+Claude Code has gone.	Claude Code est parti.
+Claude Code is trying again after a problem ({} of {}).	Claude Code réessaie après un problème ({} sur {}).
+Claude Code isn't installed here, or isn't on the PATH. Install it from claude.com/claude-code, then try again.	Claude Code n'est pas installé ici, ou n'est pas dans le PATH. Installez-le depuis claude.com/claude-code, puis réessayez.
+Claude Code said: {}	Claude Code a dit : {}
+Claude Code stopped ({}). {}	Claude Code s'est arrêté ({}). {}
+Claude Code tried to ask a question with choices, which this panel can't show yet. It was told to ask in plain words.	Claude Code a voulu poser une question avec des choix, ce que ce panneau ne sait pas encore afficher. Il a reçu l'instruction de poser sa question en termes simples.
+Close this session	Fermer cette session
+Codex (in the next batch)	Codex (dans le prochain lot)
+Context {}%	Contexte {} %
+Couldn't start {}: {}	Impossible de démarrer {} : {}
+Default	Par défaut
+Don't send this	Ne pas envoyer ceci
+Edit {}	Modifier {}
+Effort: {}	Effort : {}
+Fetched {}	{} récupéré
+It will work in {}.	Il travaillera dans {}.
+Listed files matching {}	Fichiers listés correspondant à {}
+Model:	Modèle :
+New AI agent session	Nouvelle session d'agent IA
+New session	Nouvelle session
+No earlier sessions in this folder.	Aucune session précédente dans ce dossier.
+Nothing is asked: it may change or delete anything here.	Rien n'est demandé : il peut tout modifier ou supprimer ici.
+Open the file	Ouvrir le fichier
+Past sessions	Sessions précédentes
+Queue	File d'attente
+Ran {}	{} exécuté
+Read {}	{} lu
+Refuse	Refuser
+Refused	Refusé
+Run {}	Exécuter {}
+Searched for {}	Recherche de {}
+Searched the web for {}	Recherche de {} sur le web
+Show the change	Afficher la modification
+Start on this plan	Commencer avec ce plan
+Subagent: {}	Sous-agent : {}
+Subagents and tasks ({} running)	Sous-agents et tâches ({} en cours)
+The change is open in a tab for you to accept or reject. You can edit it there first.	La modification est ouverte dans un onglet pour que vous l'acceptiez ou la refusiez. Vous pouvez d'abord la modifier là.
+The conversation was condensed to make room.	La conversation a été condensée pour faire de la place.
+The person closed the review without accepting the change.	La personne a fermé la révision sans accepter la modification.
+The person refused this change.	La personne a refusé cette modification.
+The person refused this.	La personne a refusé cela.
+The person rejected this change in the editor.	La personne a rejeté cette modification dans l'éditeur.
+Thinking	Réflexion
+Updated the to-do list	Liste de tâches mise à jour
+Use {}	Utiliser {}
+Waiting to be sent: {}	En attente d'envoi : {}
+Week	Semaine
+What it may do without asking:	Ce qu'il peut faire sans demander :
+Write {}	Écrire {}
+now: {}	maintenant : {}
+{} in, {} out	{} en entrée, {} en sortie
+{} of {} tokens of context used	{} jetons de contexte utilisés sur {}
+{} tokens, {} tool uses	{} jetons, {} utilisations d'outils
+{} {}%	{} {} %
+{} {}%, resets {}	{} {} %, réinitialisation {}
+Accept edits	Accepter les modifications
+Ask before edits	Demander avant les modifications
+Bypass permissions	Contourner les autorisations
+Each edit is shown to you first, and each command asked about.	Chaque modification vous est d'abord montrée, et chaque commande fait l'objet d'une demande.
+Edits to files go ahead without asking. Commands are still asked about.	Les modifications de fichiers se font sans demander. Les commandes font toujours l'objet d'une demande.
+Plan only	Plan seulement
+The agent reads and makes a plan, and changes nothing until you agree to the plan.	L'agent lit et établit un plan, et ne change rien tant que vous n'avez pas approuvé le plan.
+Warning: the agent may change or delete any file and run any command, without asking you. Only use this in a folder you could lose.	Attention : l'agent peut modifier ou supprimer n'importe quel fichier et exécuter n'importe quelle commande, sans vous demander. N'utilisez ceci que dans un dossier que vous pourriez perdre.
+New AI agent session…	Nouvelle session d'agent IA…
+AI agents	Agents IA
+Allowed for this session	Autorisé pour cette session
+Allowed	Autorisé

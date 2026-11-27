@@ -64,7 +64,7 @@ impl Limoniter {
     }
 
     /// Carries out Accept or Reject on a review tab: tells whoever asked, and closes the tab.
-    pub(super) fn decide_review(&mut self, tab: u64, accept: bool) {
+    pub(crate) fn decide_review(&mut self, tab: u64, accept: bool) {
         let decided = self.with_compare_tab(tab, |app, tab| {
             let CompareTab::Files(files) = tab else { return false };
             let text = if accept { two_docs(&mut app.docs, &mut files.sources).map(|pair| text_of(pair[1])) } else { None };
@@ -80,6 +80,30 @@ impl Limoniter {
         {
             self.remove_tab(index);
         }
+    }
+}
+
+/// What something that asks for reviews (the agent panel) needs to look at and do in a review tab, in its tests.
+#[cfg(test)]
+impl Limoniter {
+    /// The text on the right of a review: what's proposed, as the person has it now.
+    pub(crate) fn review_proposed_text(&mut self, tab: u64) -> Option<String> {
+        self.with_compare_tab(tab, |app, tab| {
+            let CompareTab::Files(files) = tab else { return None };
+            two_docs(&mut app.docs, &mut files.sources).map(|pair| text_of(pair[1]))
+        })
+        .flatten()
+    }
+
+    /// Changes the text on the right of a review as the person would, by replacing all of it.
+    pub(crate) fn review_change_proposed(&mut self, tab: u64, text: &str) {
+        self.with_compare_tab(tab, |app, tab| {
+            if let CompareTab::Files(files) = tab
+                && let Some(pair) = two_docs(&mut app.docs, &mut files.sources)
+            {
+                pair[1].text.replace_selection_or_all(text);
+            }
+        });
     }
 }
 

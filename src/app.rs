@@ -60,6 +60,8 @@ enum Command {
     ToolbarButtons,
     /// The newest notes from What's new.
     WhatsNew,
+    /// Starts an AI agent session, in the panel.
+    AgentNew,
     /// One of the guide's pages.
     Guide(start_page::Guide),
     /// The Git wizard, set to copy a project from online.
@@ -521,6 +523,7 @@ impl Command {
                 | Command::FoldRibbon
                 | Command::ToolbarButtons
                 | Command::WhatsNew
+                | Command::AgentNew
                 | Command::Guide(_)
                 | Command::GitClone
                 | Command::Clambers
@@ -2051,6 +2054,7 @@ pub struct Limoniter {
     assist_log: assistant_log::Log,
     /// Being Claude Code's IDE: its server, and the diffs it has asked to be shown.
     claude_ide: claude_ide_host::State,
+    agents: agent_host::State,
 }
 
 /// A run started with --screenshot: draw for a while, save the window as a picture, and exit.
@@ -2298,6 +2302,7 @@ impl Limoniter {
             layouts: crate::layouts::from_settings(&settings),
             last_watch: None,
             claude_ide: claude_ide_host::State::default(),
+            agents: agent_host::State::default(),
             update_waiting: None,
             update_download: None,
             opticos_started: false,
@@ -3537,6 +3542,7 @@ impl Limoniter {
         self.send_saved_remotes();
         self.watch_remote_files(ctx);
         self.claude_ide_tick(ctx);
+        self.agents_tick(ctx);
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.remote_project_tick(ctx);
         busy |= self.git_tick(ctx);
@@ -4627,6 +4633,7 @@ impl Limoniter {
                 | Command::Help
                 | Command::FoldRibbon
                 | Command::WhatsNew
+                | Command::AgentNew
                 | Command::Guide(_)
                 | Command::GitClone
                 | Command::WordCount
@@ -4991,6 +4998,7 @@ impl Limoniter {
             Command::FoldRibbon => self.fold_ribbon(),
             Command::ToolbarButtons => self.open_toolbar_box(),
             Command::WhatsNew => self.open_whats_new(),
+            Command::AgentNew => self.agent_new_session_box(),
             Command::Guide(page) => self.open_guide(page),
             Command::Merge => self.merge_files_dialog(),
             Command::ApplyPatch => self.apply_patch_to(None, None),
@@ -5998,6 +6006,7 @@ impl Limoniter {
         self.database_panel(ui);
         self.containers_panel(ui);
         self.files_changing_panel(ui);
+        self.agents_panel(ui);
         self.http_panel(ui);
         let mut explorer_acts = Vec::new();
         for action in project_actions {
@@ -8539,6 +8548,8 @@ impl Limoniter {
                 "containers" => self.panels.containers = true,
                 // The Files changing panel, with files made and changed in the project's folder first: "make".
                 "files-changing" => self.files_changing_screenshot_step(value),
+                // The AI agents panel with a made-up conversation: "top" for the bar of subagents and use, else with a request waiting.
+                "agents" => self.agents_screenshot_step(value),
                 "stacked" => {
                     self.panels.project = true;
                     self.panels.functions = true;
@@ -9626,6 +9637,7 @@ impl Limoniter {
         self.sound_effects_window(&ctx);
         self.ripper_window(&ctx);
         self.boot_disk_window(&ctx);
+        self.agent_dialog(&ctx);
         self.project_index_tick(&ctx);
         self.outline_tick();
         self.debug_tick(&ctx);
@@ -10603,6 +10615,9 @@ mod git_host;
 
 #[path = "claude_ide_host.rs"]
 mod claude_ide_host;
+
+#[path = "agent_host.rs"]
+mod agent_host;
 
 #[path = "compare_host.rs"]
 pub(crate) mod compare_host;

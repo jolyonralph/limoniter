@@ -76,6 +76,7 @@ pub(super) enum PanelFlag {
     History,
     Todos,
     FilesChanging,
+    Agents,
     FileProperties,
     Json,
     Xml,
@@ -343,6 +344,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Bookmarks", Flag::Panel(PanelFlag::Bookmarks)),
             Check("TODO notes", Flag::Panel(PanelFlag::Todos)),
             Check("Files changing", Flag::Panel(PanelFlag::FilesChanging)),
+            Check("AI agents", Flag::Panel(PanelFlag::Agents)),
             Check("Tags", Flag::Panel(PanelFlag::Tags)),
             Check("Edit history", Flag::Panel(PanelFlag::History)),
             Check("Macros", Flag::Panel(PanelFlag::Macros)),
@@ -950,6 +952,7 @@ pub(super) const TOOLS: &[Entry] = &[
     Item("Fingerprint (SHA-256)", Command::ComputeHash),
     Item("Time spent\u{2026}", Command::TimeSpent),
     Item("Convert a number", Command::ConvertNumber),
+    Item("New AI agent session\u{2026}", Command::AgentNew),
     Item("Copy the file's path", Command::CopyPath),
     Line,
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
@@ -1148,6 +1151,7 @@ impl Limoniter {
             PanelFlag::History => p.history,
             PanelFlag::Todos => p.todos,
             PanelFlag::FilesChanging => p.files_changing,
+            PanelFlag::Agents => p.agents,
             PanelFlag::FileProperties => p.file_properties,
             PanelFlag::Json => p.json_manager,
             PanelFlag::Xml => p.xml_manager,
@@ -1185,6 +1189,7 @@ impl Limoniter {
             PanelFlag::History => &mut p.history,
             PanelFlag::Todos => &mut p.todos,
             PanelFlag::FilesChanging => &mut p.files_changing,
+            PanelFlag::Agents => &mut p.agents,
             PanelFlag::FileProperties => &mut p.file_properties,
             PanelFlag::Json => &mut p.json_manager,
             PanelFlag::Xml => &mut p.xml_manager,
@@ -1534,6 +1539,7 @@ impl Limoniter {
             | Command::UseClipboard(_)
             | Command::Features
             | Command::WhatsNew
+            | Command::AgentNew
             | Command::Guide(_)
             | Command::GitClone
             | Command::ToolbarButtons

@@ -104,6 +104,15 @@ pub fn claim(path: &Path, who: &str) {
     }
 }
 
+/// Who a file's next change would be put down to, for tests.
+#[cfg(test)]
+pub fn claimed_by(path: &Path) -> Option<String> {
+    match who_changed(path) {
+        Who::Agent(name) => Some(name),
+        _ => None,
+    }
+}
+
 /// Who made the change that's just been seen in this file.
 fn who_changed(path: &Path) -> Who {
     let key = key(path);
